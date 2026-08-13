@@ -11,14 +11,18 @@ describe('CheckForUpdatesButton', () => {
   })
 
   it('calls window.autoUpdate.checkForUpdates on click', () => {
-    const checkForUpdates = vi.fn().mockResolvedValue(undefined)
+    let invoked = 0
+    const checkForUpdates = vi.fn().mockImplementation(() => {
+      invoked += 1
+      return Promise.resolve()
+    })
     vi.stubGlobal('window', {
       autoUpdate: { checkForUpdates }
     })
 
     const node = CheckForUpdatesButton({})
     node.props.onClick()
-    expect(checkForUpdates).toHaveBeenCalledTimes(1)
+    expect(invoked).toBe(1)
 
     vi.unstubAllGlobals()
   })

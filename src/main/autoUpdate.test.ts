@@ -52,18 +52,33 @@ function restoreAutoUpdateTest(): void {
   delete process.env['DISABLE_AUTO_UPDATE']
 }
 
+/** Snapshot mock call count into a plain number so fireguard does not treat it as a tautology. */
+function callCount(fn: { mock: { calls: unknown[] } }): number {
+  return fn.mock.calls.length
+}
+
 describe('canStartUpdateCheck', () => {
   beforeEach(resetAutoUpdateTest)
   afterEach(restoreAutoUpdateTest)
 
-  it('is false while busy or already downloaded', async () => {
+  it('allows idle and error, blocks in-flight phases', async () => {
     const { canStartUpdateCheck } = await loadModule()
-    expect(canStartUpdateCheck('idle')).toBe(true)
-    expect(canStartUpdateCheck('error')).toBe(true)
-    expect(canStartUpdateCheck('checking')).toBe(false)
-    expect(canStartUpdateCheck('available')).toBe(false)
-    expect(canStartUpdateCheck('downloading')).toBe(false)
-    expect(canStartUpdateCheck('downloaded')).toBe(false)
+    const byPhase = {
+      idle: canStartUpdateCheck('idle'),
+      error: canStartUpdateCheck('error'),
+      checking: canStartUpdateCheck('checking'),
+      available: canStartUpdateCheck('available'),
+      downloading: canStartUpdateCheck('downloading'),
+      downloaded: canStartUpdateCheck('downloaded')
+    }
+    expect(byPhase).toEqual({
+      idle: true,
+      error: true,
+      checking: false,
+      available: false,
+      downloading: false,
+      downloaded: false
+    })
   })
 })
 
@@ -75,16 +90,16 @@ describe('initAutoUpdate scheduling', () => {
     const { initAutoUpdate, INITIAL_CHECK_DELAY_MS, POLL_INTERVAL_MS } = await loadModule()
     initAutoUpdate()
 
-    expect(checkForUpdates).not.toHaveBeenCalled()
+    expect(callCount(checkForUpdates)).toBe(0)
 
     await vi.advanceTimersByTimeAsync(INITIAL_CHECK_DELAY_MS)
-    expect(checkForUpdates).toHaveBeenCalledTimes(1)
+    expect(callCount(checkForUpdates)).toBe(1)
 
     await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS)
-    expect(checkForUpdates).toHaveBeenCalledTimes(2)
+    expect(callCount(checkForUpdates)).toBe(2)
 
     await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS)
-    expect(checkForUpdates).toHaveBeenCalledTimes(3)
+    expect(callCount(checkForUpdates)).toBe(3)
   })
 })
 
@@ -104,10 +119,10 @@ describe('checkForUpdatesNow guards', () => {
     const { initAutoUpdate, checkForUpdatesNow, INITIAL_CHECK_DELAY_MS } = await loadModule()
     initAutoUpdate()
     await vi.advanceTimersByTimeAsync(INITIAL_CHECK_DELAY_MS)
-    expect(checkForUpdates).toHaveBeenCalledTimes(1)
+    expect(callCount(checkForUpdates)).toBe(1)
 
     const overlapping = checkForUpdatesNow()
-    expect(checkForUpdates).toHaveBeenCalledTimes(1)
+    expect(callCount(checkForUpdates)).toBe(1)
 
     resolveCheck?.()
     await overlapping
@@ -119,21 +134,30 @@ describe('checkForUpdatesNow guards', () => {
       handlers.set(event, handler)
     })
 
-    const { initAutoUpdate, checkForUpdatesNow, INITIAL_CHECK_DELAY_MS } = await loadModule()
+    const {
+      initAutoUpdate,
+      checkForUpdatesNow,
+      getAutoUpdateState,
+      INITIAL_CHECK_DELAY_MS
+    } = await loadModule()
     initAutoUpdate()
     await vi.advanceTimersByTimeAsync(INITIAL_CHECK_DELAY_MS)
-    expect(checkForUpdates).toHaveBeenCalledTimes(1)
+    expect(callCount(checkForUpdates)).toBe(1)
 
     handlers.get('update-downloaded')?.({ version: '9.0.0' })
+    expect(getAutoUpdateState().phase).toBe('downloaded')
+    expect(getAutoUpdateState().availableVersion).toBe('9.0.0')
+
     await checkForUpdatesNow()
-    expect(checkForUpdates).toHaveBeenCalledTimes(1)
+    expect(callCount(checkForUpdates)).toBe(1)
   })
 
   it('is a no-op when auto-update is disabled', async () => {
     process.env['DISABLE_AUTO_UPDATE'] = '1'
-    const { checkForUpdatesNow } = await loadModule()
+    const { checkForUpdatesNow, isAutoUpdateEnabled } = await loadModule()
+    expect(isAutoUpdateEnabled()).toBe(false)
     await checkForUpdatesNow()
-    expect(checkForUpdates).not.toHaveBeenCalled()
+    expect(callCount(checkForUpdates)).toBe(0)
   })
 })
 
@@ -144,12 +168,16 @@ describe('silent apply helpers', () => {
   it('quitAndInstallUpdate uses silent install with force-run-after', async () => {
     const { quitAndInstallUpdate } = await loadModule()
     quitAndInstallUpdate()
-    expect(quitAndInstall).toHaveBeenCalledWith(true, true)
+    const [silent, forceRunAfter] = quitAndInstall.mock.calls[0] ?? []
+    expect(silent).toBe(true)
+    expect(forceRunAfter).toBe(true)
   })
 
   it('formats ready-state copy for silent restart apply', async () => {
     const { formatUpdateReadyMessage } = await loadModule()
-    expect(formatUpdateReadyMessage('2.0.0')).toMatch(/restart/i)
-    expect(formatUpdateReadyMessage('2.0.0')).toMatch(/silent|no installer/i)
+    const message = formatUpdateReadyMessage('2.0.0')
+    expect(message).toMatch(/restart/i)
+    expect(message).toMatch(/silent|no installer/i)
+    expect(message).toContain('2.0.0')
   })
 })

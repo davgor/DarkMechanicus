@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'node:path'
 import { initAutoUpdate, registerAutoUpdateHandlers } from './autoUpdate'
 import { setupGlobalErrorLogging } from './logger'
+import { loadRendererContent, onActivateCreateWindow, onLastWindowClosed } from './windowPolicy'
 
 setupGlobalErrorLogging()
 
@@ -17,11 +18,15 @@ function createMainWindow(): BrowserWindow {
     }
   })
 
-  if (process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
-  } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
-  }
+  loadRendererContent(
+    process.env['ELECTRON_RENDERER_URL'],
+    (url) => {
+      mainWindow.loadURL(url)
+    },
+    () => {
+      mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    }
+  )
   return mainWindow
 }
 
@@ -36,14 +41,12 @@ app.whenReady().then(() => {
   createMainWindow()
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createMainWindow()
-    }
+    onActivateCreateWindow(BrowserWindow.getAllWindows().length, createMainWindow)
   })
 })
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
+  onLastWindowClosed(process.platform, () => {
     app.quit()
-  }
+  })
 })
