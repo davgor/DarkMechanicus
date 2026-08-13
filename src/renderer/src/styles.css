@@ -1,0 +1,104 @@
+:root {
+  color-scheme: light;
+  --bg: #e8e4dc;
+  --ink: #1a1c1f;
+  --muted: #5a5e66;
+  --panel: #f7f5f0;
+  --line: #c8c2b6;
+  --accent: #b45309;
+  font-family: "IBM Plex Sans", "Source Sans 3", "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse at 12% 0%, rgba(180, 83, 9, 0.1), transparent 42%),
+    linear-gradient(165deg, #efebe3 0%, #d9d4c8 55%, #cfc8ba 100%);
+  color: var(--ink);
+}
+
+.app-shell {
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem 4rem;
+}
+
+.app-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-family: "IBM Plex Serif", "Source Serif 4", Georgia, serif;
+  font-size: 2.4rem;
+  letter-spacing: -0.03em;
+}
+
+.app-lede {
+  margin: 0.75rem 0 1.75rem;
+  color: var(--muted);
+  font-size: 1.05rem;
+}
+
+.app-settings {
+  padding: 1rem 1.1rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+
+.app-settings h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
+
+.app-version-label {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.settings-check-updates {
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  padding: 0.45rem 0.8rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.settings-check-updates:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.update-banner {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: min(28rem, calc(100vw - 2rem));
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.update-banner-restart {
+  flex-shrink: 0;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.82rem;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}

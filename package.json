@@ -1,0 +1,104 @@
+{
+  "name": "dark-mechanicus",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Dark factory desktop app for coding projects",
+  "author": "davgor",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/davgor/DarkMechanicus.git"
+  },
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "package": "npm run package:win",
+    "package:win": "electron-vite build && electron-builder --win --publish never",
+    "package:mac": "electron-vite build && electron-builder --mac --publish never",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p fireguard/tsconfig.json",
+    "lint": "oxlint src scripts",
+    "test": "vitest run && vitest run --config fireguard/vitest.config.ts",
+    "test:fireguard": "vitest run --config fireguard/vitest.config.ts",
+    "fireguard": "node fireguard/bin/fireguard.mjs",
+    "deadcode": "node scripts/deadcode-check.mjs",
+    "deadcode:refresh": "node scripts/deadcode-refresh.mjs"
+  },
+  "dependencies": {
+    "electron-log": "^5.4.4",
+    "electron-updater": "^6.8.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/minimatch": "^5.1.2",
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^5.2.0",
+    "electron": "^42.6.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "minimatch": "^10.2.6",
+    "oxlint": "^1.71.0",
+    "ts-prune": "^0.10.3",
+    "tsx": "^4.23.11",
+    "typescript": "^5.5.2",
+    "vite": "^7.3.6",
+    "vitest": "^4.1.9"
+  },
+  "build": {
+    "appId": "com.davgor.darkmechanicus",
+    "productName": "DarkMechanicus",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**/*"
+    ],
+    "publish": {
+      "provider": "github",
+      "owner": "davgor",
+      "repo": "DarkMechanicus"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowElevation": true,
+      "artifactName": "${productName}-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-Portable.${ext}"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
+    }
+  },
+  "optionalDependencies": {
+    "@electron/windows-sign": "^1.2.2"
+  }
+}

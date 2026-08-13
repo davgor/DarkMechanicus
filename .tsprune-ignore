@@ -1,0 +1,10 @@
+# Baseline ignore for ts-prune (one pattern per line)
+# Generated from tsconfig.node.json + tsconfig.web.json
+# Refresh after export moves/deletes: npm run deadcode:refresh
+# Refreshed 2026-08-13 (5 entries)
+
+electron.vite.config.ts:37 - default
+src/preload/index.ts:24 - AutoUpdateApi
+src/preload/index.ts:25 - AppInfoApi
+src/shared/autoUpdate/types.ts:1 - AutoUpdatePhase
+src/shared/autoUpdate/types.ts:17 - AUTO_UPDATE_EVENT_CHANNEL

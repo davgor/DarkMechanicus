@@ -1,0 +1,54 @@
+name: Security Audit
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  audit:
+    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message || '', '[skip ci]') }}
+    name: npm audit (fail on moderate+)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        run: |
+          set -euo pipefail
+          npm audit --json > audit.json || true
+          cat audit.json
+
+      - name: Fail on moderate or higher vulnerabilities
+        run: |
+          python3 - <<'PY'
+          import json,sys
+          data = json.load(open('audit.json'))
+          vulns_obj = data.get('vulnerabilities') or {}
+          vulns = []
+          for name, info in vulns_obj.items():
+              severity = info.get('severity')
+              if severity in ('moderate', 'high', 'critical'):
+                  via = info.get('via', name)
+                  if isinstance(via, list) and via:
+                      via = via[0]
+                  if isinstance(via, dict):
+                      via = via.get('title', name)
+                  vulns.append((name, via, severity))
+          if vulns:
+              print('\nFound vulnerabilities (moderate+):')
+              for v in vulns:
+                  print(f"- {v[0]} | {v[1]} | severity={v[2]}")
+              print('\nAction required: resolve or upgrade affected dependencies before merging.')
+              sys.exit(1)
+          print('No moderate+ vulnerabilities found')
+          PY
