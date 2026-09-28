@@ -35,6 +35,8 @@ Each ticket has a description and checkable acceptance criteria. Implementation 
 
 ## Commands
 
+For development without internet, see [Flight development](docs/runbooks/offline-development.md). Dependencies should already be installed in the prepared checkout; start with `npm run dev`.
+
 ```bash
 npm install
 npm run dev          # Electron + React dev

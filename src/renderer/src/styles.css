@@ -23,7 +23,7 @@ body {
 }
 
 .app-shell {
-  max-width: 42rem;
+  max-width: 72rem;
   margin: 0 auto;
   padding: 2.5rem 1.5rem 4rem;
 }
@@ -51,6 +51,53 @@ body {
   padding: 1rem 1.1rem;
   background: var(--panel);
   border: 1px solid var(--line);
+}
+
+.workspace-preview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.workspace-card {
+  padding: 1.25rem;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.workspace-card h2 {
+  margin: 0.75rem 0;
+  font-size: 1.3rem;
+}
+
+.workspace-card p {
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.workspace-status {
+  color: var(--accent);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.ticket-stages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.ticket-stages span {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--line);
+  font-size: 0.8rem;
+}
+
+.graph-preview,
+.workspace-note {
+  font-size: 0.9rem;
 }
 
 .app-settings h2 {
