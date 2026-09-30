@@ -21,6 +21,7 @@ import {
   buildCommentRecord,
   buildEpicPointerRecord,
   buildEpicStateRecord,
+  buildProfileRecord,
   buildRunHistoryRecord,
   buildSnapshotRecord,
   type CommentRecord,
@@ -31,6 +32,7 @@ import {
   snapshotRecord,
   trackedCommentHash,
   trackedEpicHash,
+  trackedProfileHash,
   trackedRunHash
 } from './portable'
 import type { FsAdapter, RepoLayout } from './types'
@@ -142,7 +144,8 @@ function writeSnapshot(env: WriteEnv, record: SnapshotRecord): void {
   }
 }
 
-type ExportKind = 'epic' | 'run' | 'comment'
+/** Kinds of `sync_state` rows the finalizer records exports for. */
+type ExportKind = 'epic' | 'run' | 'comment' | 'profile'
 
 function nextGeneration(db: Db, kind: ExportKind, entityId: string): number {
   const row = db.get<{ generation: number }>('SELECT generation FROM sync_state WHERE kind = ? AND entity_id = ?', kind, entityId)
@@ -239,7 +242,13 @@ const HANDLERS: Record<OutboxKind, EntryHandler> = {
     writeFileSafely(deps, ownedPaths(deps.layout).runHistoryFile(runId), text)
     recordExport(deps, { kind: 'run', entityId: runId, hash: trackedRunHash(text), generation: nextGeneration(deps.db, 'run', runId) })
   },
-  comment: (deps, _hooks, entry) => exportComment(deps, required(entry.entity_id, 'comment id'))
+  comment: (deps, _hooks, entry) => exportComment(deps, required(entry.entity_id, 'comment id')),
+  profile: (deps, _hooks, entry) => {
+    const name = required(entry.entity_id, 'entity id')
+    const text = prettyJson(buildProfileRecord(deps.db, name))
+    writeFileSafely(deps, ownedPaths(deps.layout).profileFile(name), text)
+    recordExport(deps, { kind: 'profile', entityId: name, hash: trackedProfileHash(text), generation: nextGeneration(deps.db, 'profile', name) })
+  }
 }
 
 type EntryResult = 'flushed' | 'skipped'
@@ -281,6 +290,9 @@ function entityKeys(entry: OutboxRow): string[] {
   }
   if (entry.run_id !== null) {
     keys.push(`run:${entry.run_id}`)
+  }
+  if (entry.entity_id !== null) {
+    keys.push(`${entry.kind}:${entry.entity_id}`)
   }
   return keys
 }
@@ -333,9 +345,10 @@ function queuedAfter(db: Db, afterId: number): OutboxRow[] {
 
 /**
  * Flushes pending (and previously failed) outbox entries in id order. A failed entry blocks later
- * entries of the same epic/run so their records are never written out of order; other entities
- * continue. Entries queued by the flush itself are picked up by a further pass (bounded). Flush
- * failures never throw: they are counted, and the entry keeps its last error.
+ * entries of the same epic, run, or keyed record (such as a profile) so their records are never
+ * written out of order; other entities continue. Entries queued by the flush itself are picked up
+ * by a further pass (bounded). Flush failures never throw: they are counted, and the entry keeps
+ * its last error.
  */
 export function flushOutbox(deps: FinalizerDeps, hooks: FinalizerHooks): FlushOutcome {
   const state: FlushState = {

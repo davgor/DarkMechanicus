@@ -37,6 +37,7 @@ const reconcile = (patch: Partial<ReconcileResultView> = {}): ReconcileResultVie
   imported: [],
   unchanged: [],
   conflicts: [],
+  profileConflicts: [],
   rejected: [],
   branchChanged: false,
   pausedRuns: [],
@@ -67,6 +68,16 @@ describe('describeReconcile', () => {
     expect(describeReconcile(result).message).toBe(
       'Reconciled. 1 record imported. 1 conflict to resolve. 2 runs paused.'
     )
+  })
+
+  it('counts profile conflicts with epic conflicts', () => {
+    const profile = { name: 'ui', message: 'changed on two machines' }
+    expect(describeReconcile(reconcile({ profileConflicts: [profile] }))).toEqual({
+      tone: 'info',
+      message: 'Reconciled. 1 conflict to resolve.'
+    })
+    const both = reconcile({ conflicts: [{ epicId: 'ep_1', message: 'both changed' }], profileConflicts: [profile] })
+    expect(describeReconcile(both).message).toBe('Reconciled. 2 conflicts to resolve.')
   })
 
   it('treats rejected files as an error', () => {

@@ -65,5 +65,8 @@ export const COMMAND_CAPABILITIES: Readonly<Record<CommandName, Capability>> = {
   authorizeAutoContinue: 'run.authorize_auto',
   grantRetry: 'ticket.retry_grant',
   addComment: 'comment.write',
-  listComments: 'read'
+  listComments: 'read',
+  listProfiles: 'read',
+  getProfile: 'read',
+  saveProfile: 'profile.write'
 }

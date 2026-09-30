@@ -1,9 +1,8 @@
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fail } from '../errors'
 import { type IdKind, isStableId } from '../ids'
+import { isProfileName } from '../profileNames'
 import type { FsAdapter, RepoLayout } from './types'
-
-const PROFILE_NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/
 
 function checkedId(value: string, kind: IdKind): string {
   if (!isStableId(value, kind)) {
@@ -13,7 +12,7 @@ function checkedId(value: string, kind: IdKind): string {
 }
 
 function checkedProfileName(name: string): string {
-  if (!PROFILE_NAME_PATTERN.test(name)) {
+  if (!isProfileName(name)) {
     fail('unsafe_path', 'Refusing to build a repository path from an invalid profile name.')
   }
   return name

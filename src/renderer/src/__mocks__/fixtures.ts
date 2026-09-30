@@ -94,6 +94,7 @@ export function storageStatus(patch: Partial<StorageStatusView> = {}): StorageSt
     branch: { current: 'main', recorded: 'main', changed: false, repository: true },
     uncommittedRecordFiles: 0,
     conflicts: [],
+    profileConflicts: [],
     sessions: { active: 0, byRole: {} },
     ...patch
   }

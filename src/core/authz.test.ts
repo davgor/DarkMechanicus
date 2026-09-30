@@ -11,7 +11,16 @@ import {
 } from './authz'
 import { DomainError } from './errors'
 
-const PLANNER: Capability[] = ['read', 'repo.init', 'repo.flush', 'repo.reconcile', 'epic.create', 'draft.edit', 'comment.write']
+const PLANNER: Capability[] = [
+  'read',
+  'repo.init',
+  'repo.flush',
+  'repo.reconcile',
+  'epic.create',
+  'draft.edit',
+  'comment.write',
+  'profile.write'
+]
 
 const ORCHESTRATOR: Capability[] = [
   ...PLANNER,
@@ -49,6 +58,7 @@ const DESKTOP: Capability[] = [
   'epic.branch',
   'draft.edit',
   'plan.save',
+  'profile.write',
   'ticket.status',
   'ticket.retry_grant',
   'run.queue',
@@ -88,8 +98,8 @@ function sessionWith(role: SessionRole, capabilities: Capability[]): SessionCont
 
 describe('capability vocabulary', () => {
   it('lists every capability exactly once', () => {
-    expect(CAPABILITIES).toHaveLength(30)
-    expect(new Set(CAPABILITIES).size).toBe(30)
+    expect(CAPABILITIES).toHaveLength(31)
+    expect(new Set(CAPABILITIES).size).toBe(31)
     expect(sorted(CAPABILITIES)).toEqual(sorted([...DESKTOP, ...AGENT_ONLY]))
   })
 
@@ -147,6 +157,14 @@ describe('desktop and human-only capabilities', () => {
 
   it.each(AGENT_ONLY)('keeps %s away from the desktop', (capability) => {
     expect(capabilitiesForRole('desktop')).not.toContain(capability)
+  })
+})
+
+describe('named profile authoring', () => {
+  it('lets the desktop, planner, and orchestrator save profiles, but not workers or reviewers', () => {
+    const holders = ALL_ROLES.filter((role) => capabilitiesForRole(role).includes('profile.write'))
+    expect(holders).toEqual(['desktop', 'planner', 'orchestrator'])
+    expect(HUMAN_ONLY_CAPABILITIES).not.toContain('profile.write')
   })
 })
 

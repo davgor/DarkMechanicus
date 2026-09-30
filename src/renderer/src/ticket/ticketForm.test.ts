@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { draftPlan } from '../epic/__mocks__/fixtures'
+import type { CapabilityProfile } from '../../../shared/domain/bundle'
+import { draftPlan, profileView } from '../epic/__mocks__/fixtures'
 import {
   CONFLICT_MESSAGE,
   addCriterion,
   applyOutcome,
+  applyProfile,
+  formCapability,
+  profileSaveInput,
   editForm,
   initialEditor,
   rejectForm,
@@ -23,6 +27,16 @@ import {
 } from './ticketForm'
 
 const BUNDLE = draftPlan().bundle
+
+function capabilityOf(ticketId: string): CapabilityProfile {
+  const found = BUNDLE.tickets.find((item) => item.id === ticketId)
+  if (!found) {
+    throw new Error('missing ticket')
+  }
+  return found.capability
+}
+
+const DM_202_CAPABILITY = capabilityOf('tk_202')
 
 function form(ticketId = 'tk_202'): TicketForm {
   const value = formFromBundle(BUNDLE, ticketId)
@@ -55,7 +69,9 @@ describe('ticket form from the draft bundle', () => {
       tools: ['repo_read', 'repo_write', 'shell', 'test_execution'],
       modalities: ['text'],
       skills: 'TypeScript, SQLite, Database design, MCP',
-      tokens: '40000'
+      tokens: '40000',
+      profile: '',
+      baseCapability: DM_202_CAPABILITY
     })
     expect(form('tk_101').tokens).toBe('')
     expect(formFromBundle(BUNDLE, 'tk_nope')).toBe(null)
@@ -164,6 +180,130 @@ describe('ticket form capability details', () => {
     ])
     const fewer: TicketForm = { ...form(), tools: ['repo_read'] }
     expect(formToOps(fewer, BUNDLE, 'tk_202')[0]).toMatchObject({ patch: { capability: { tools: ['repo_read'] } } })
+  })
+})
+
+describe('ticket form named profiles', () => {
+  it('fills every capability field from the profile and leaves the rest of the form alone', () => {
+    const applied = applyProfile(form(), profileView())
+    expect(applied).toEqual({
+      ...form(),
+      workType: 'review',
+      reasoningLevel: 'deep',
+      rationale: 'Risky change',
+      tools: ['test_execution', 'repo_read'],
+      modalities: ['text', 'images'],
+      skills: 'security-review',
+      tokens: '80000',
+      profile: 'deep-review',
+      baseCapability: profileView().capability
+    })
+    expect(applyProfile(form(), profileView({ capability: { ...profileView().capability, context: { estimatedInputTokens: null, requiredArtifacts: [] } } })).tokens).toBe('')
+  })
+
+  it('patches every capability group the profile changes, in one update_ticket op', () => {
+    expect(formToOps(applyProfile(form(), profileView()), BUNDLE, 'tk_202')).toEqual([
+      {
+        op: 'update_ticket',
+        ticket: 'tk_202',
+        patch: {
+          capability: {
+            workType: 'review',
+            reasoning: { level: 'deep', rationale: 'Risky change' },
+            skills: ['security-review'],
+            modalities: ['text', 'images'],
+            tools: ['repo_read', 'test_execution'],
+            context: { estimatedInputTokens: 80_000, requiredArtifacts: ['docs/architecture.md'] },
+            constraints: { environments: ['ci'], dataLocation: 'eu', maxDurationMinutes: 60, maxCostUsd: 5 },
+            preferences: { quality: 'high', latency: null, cost: 'low', autonomy: 'supervised', modelOverride: null }
+          }
+        }
+      }
+    ])
+  })
+})
+
+describe('ticket form named profile edge cases', () => {
+  it('produces no operations for a profile equal to the ticket requirements', () => {
+    const same = profileView({ capability: DM_202_CAPABILITY })
+    expect(formToOps(applyProfile(form(), same), BUNDLE, 'tk_202')).toEqual([])
+  })
+
+  it('compares tools and modalities as sets even when the ticket stores them out of order', () => {
+    const shuffled = {
+      ...BUNDLE,
+      tickets: BUNDLE.tickets.map((item) =>
+        item.id === 'tk_202' ? { ...item, capability: { ...item.capability, tools: ['test_execution', 'repo_read'], modalities: ['images', 'text'] } } : item
+      )
+    } as typeof BUNDLE
+    const untouched = formFromBundle(shuffled, 'tk_202')
+    expect(untouched === null ? 'missing' : formToOps(untouched, shuffled, 'tk_202')).toEqual([])
+  })
+
+  it('patches only the hidden groups a profile changes', () => {
+    const base = profileView({ capability: DM_202_CAPABILITY })
+    const capability = base.capability
+    const preferences = { ...capability.preferences, quality: 'high' as const }
+    const constraints = { ...capability.constraints, environments: ['ci'] }
+    const artifacts = { ...capability.context, requiredArtifacts: ['README.md'] }
+    const patchOf = (next: typeof capability): unknown => formToOps(applyProfile(form(), { ...base, capability: next }), BUNDLE, 'tk_202')[0]
+    expect(patchOf({ ...capability, preferences })).toMatchObject({ patch: { capability: { preferences } } })
+    expect(patchOf({ ...capability, constraints })).toMatchObject({ patch: { capability: { constraints } } })
+    expect(patchOf({ ...capability, context: artifacts })).toMatchObject({ patch: { capability: { context: artifacts } } })
+    expect(Object.keys((patchOf({ ...capability, preferences }) as { patch: { capability: object } }).patch.capability)).toEqual(['preferences'])
+  })
+
+  it('keeps later edits made on top of an applied profile', () => {
+    const edited: TicketForm = { ...applyProfile(form(), profileView()), workType: 'testing', tokens: '' }
+    expect(formToOps(edited, BUNDLE, 'tk_202')[0]).toMatchObject({
+      patch: { capability: { workType: 'testing', context: { estimatedInputTokens: null, requiredArtifacts: ['docs/architecture.md'] } } }
+    })
+  })
+})
+
+describe('formCapability', () => {
+  it('builds the full requirements the form describes, normalized like an apply', () => {
+    const edited: TicketForm = {
+      ...applyProfile(form(), profileView()),
+      rationale: '  Risky change  ',
+      tools: ['shell', 'repo_read'],
+      modalities: ['images', 'text'],
+      skills: 'security-review, Go, go, ',
+      tokens: ' 1200 '
+    }
+    expect(formCapability(edited)).toEqual({
+      ...profileView().capability,
+      reasoning: { level: 'deep', rationale: 'Risky change' },
+      tools: ['repo_read', 'shell'],
+      modalities: ['text', 'images'],
+      skills: ['security-review', 'Go'],
+      context: { estimatedInputTokens: 1200, requiredArtifacts: ['docs/architecture.md'] }
+    })
+    expect(formCapability(form())).toEqual(DM_202_CAPABILITY)
+  })
+})
+
+describe('profileSaveInput', () => {
+  it('creates a profile from the form requirements with a trimmed name and description', () => {
+    expect(profileSaveInput(form(), { name: ' import-work ', description: ' Bundle imports ' }, undefined)).toEqual({
+      name: 'import-work',
+      description: 'Bundle imports',
+      capability: DM_202_CAPABILITY
+    })
+  })
+
+  it('replaces an existing profile at its revision, keeping its description unless a new one is typed', () => {
+    const existing = profileView()
+    expect(profileSaveInput(form(), { name: 'deep-review', description: '  ' }, existing)).toEqual({
+      name: 'deep-review',
+      description: 'Independent review of risky changes',
+      capability: DM_202_CAPABILITY,
+      expectedRevision: 2
+    })
+    expect(profileSaveInput(form(), { name: 'deep-review', description: 'Sharper' }, existing)).toMatchObject({
+      description: 'Sharper',
+      expectedRevision: 2
+    })
   })
 })
 

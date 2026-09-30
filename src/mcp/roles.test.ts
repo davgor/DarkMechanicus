@@ -28,7 +28,9 @@ const READ_TOOLS = [
   'get_sprint_report',
   'get_checkpoint',
   'get_run_events',
-  'list_comments'
+  'list_comments',
+  'list_profiles',
+  'get_profile'
 ]
 
 /** Every role may comment. */
@@ -45,7 +47,8 @@ const PLANNER_TOOLS = [
   'update_ticket',
   'open_plan_draft',
   'update_plan_draft',
-  'discard_plan_draft'
+  'discard_plan_draft',
+  'save_profile'
 ]
 
 const ORCHESTRATOR_TOOLS = [

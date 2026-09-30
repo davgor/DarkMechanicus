@@ -51,7 +51,7 @@ Errors are `DomainError(code, message, details)` with codes from `src/shared/dom
 | Role | Registered by | Notable capabilities |
 |------|---------------|----------------------|
 | `desktop` | Electron main (the person) | Everything editorial, `plan.save`, run control, **checkpoint approval, auto-continue authorization, retry grants, queue run** (human-only) |
-| `planner` | MCP `--role planner` | read, create epics, edit drafts; `plan.save` only with `--allow-save` |
+| `planner` | MCP `--role planner` | read, create epics, edit drafts, save named profiles; `plan.save` only with `--allow-save` |
 | `orchestrator` (MCP default) | MCP `--role orchestrator` | planner + runs, claims, reviews, reports, advance (never approve) |
 | `worker` | MCP `--role worker` | heartbeat/submit/fail for a claim token it holds |
 | `reviewer` | MCP `--role reviewer` | accept/reject submissions |
@@ -124,6 +124,15 @@ An edge `{from: A, to: B}` means **B requires A's accepted result**. Relations (
 - Import: for every epic whose own records are not rejected, the importer reads `comments/` as untrusted input: containment and link checks, regular files only, at most 256 KiB per file and 10,000 files per epic, names `<commentId>.json` built from validated ids (dot entries and other names such as temp files are ignored), the strict schema, and an id and epic matching the path. Each bad file is rejected on its own. New comments are inserted, indexed, and recorded in `sync_state` (kind `comment`); an id that already exists with different content is a conflict (reported with its epic, never overwritten) that clears once the file matches again. A comment waiting for export does not count as an unexported epic change.
 - Desktop: the ticket panel's Comments tab lists a ticket's comments (author, role, time, body through the safe Markdown renderer) and, for open epics, adds one.
 
+### Named capability profiles
+
+- A named profile is a reusable, provider-neutral `CapabilityProfile` preset (for example `ui-implementation` or `deep-review`) that tickets start from. It names no vendor or model; an exact model stays the `preferences.modelOverride` preference, as on tickets.
+- **Names** double as file names (`profiles/<name>.json`), so they are portable on Windows, macOS, and Linux: 1-64 lowercase letters, digits, and hyphens, starting and ending with a letter or digit, and never a Windows device name (`con`, `prn`, `aux`, `nul`, `com0`-`com9`, `lpt0`-`lpt9`). `src/core/profileNames.ts` holds the rule; the owned-path builder, the command schemas, and the record schema all apply it.
+- **Commands:** `listProfiles` (sorted by name) and `getProfile` (`not_found` when missing) need `read`. `saveProfile` needs `profile.write` (desktop, planner, orchestrator), honours the branch guard and idempotency keys, and replaces the whole profile: it creates at revision 1 when `expectedRevision` is absent or 0 and replaces only at the current revision; anything else is `conflict`. The description has at most 500 characters (omitted means empty); the capability is complete and validated with the ticket schema, and its skills are normalized like a ticket's. Each save appends `profile.saved` and queues a `profile` outbox entry keyed by name (`outbox.entity_id`).
+- **Revision** is the local database's optimistic-concurrency counter and is not tracked: a clone starts at 1 and every import bumps it.
+- **Tickets copy profiles.** Applying one (the desktop editor's "Start from profile", or an agent passing a profile's `capability` to `create_ticket`/`update_ticket`) copies the requirements into the ticket; later profile saves never change existing tickets or saved revisions. The desktop writes only on Apply, and "Save as profile…" stores the requirements shown under a name.
+- Deleting profiles is deferred like every other deletion.
+
 ## Repository-owned persistence
 
 ```text
@@ -135,7 +144,7 @@ An edge `{from: A, to: B}` means **B requires A's accepted result**. Relations (
   epics/<epicId>/snapshots/<revId>.json  # complete immutable plan bundles
   epics/<epicId>/comments/<commentId>.json  # one immutable file per comment
   history/<runId>/run.json            # run, attempts, reports, checkpoints (no leases, tokens, or grants)
-  profiles/<name>.json                # reusable capability profiles
+  profiles/<name>.json                # named capability profiles (darkmechanicus.profile records)
   local/                              # Git-ignored: state.sqlite(+wal/shm), machine.json
 ```
 
@@ -143,6 +152,7 @@ An edge `{from: A, to: B}` means **B requires A's accepted result**. Relations (
 - **Finalizer** (flush): processes `outbox` entries in id order under the database write lock. Snapshot files are written to a temp file, fsynced, renamed, read back and hash-checked; the pointer is replaced by atomic rename last. A previous snapshot is never rewritten in place. Interruption at any boundary leaves the last good pointer intact and the entry pending; a retry is idempotent. The filesystem is injected so tests can fail each write boundary.
 - **Initialize** is explicit and repeatable: creates the layout, `project.json`, `.darkmechanicus/.gitignore`, and `local/machine.json`; never commits.
 - **Reconcile / import** (open, clone, pull, branch change): every tracked file is untrusted — size limits, merge-marker rejection, zod schemas, stable-id checks, snapshot hash verification, full graph validation, and path containment. The whole import is staged and validated before one transactional swap; a failure leaves the last good state and drafts untouched. An epic whose tracked state changed while it also has unexported local changes is a **conflict** (surfaced, not overwritten). A branch change pauses active runs until reconciled.
+- **Profiles** are exported by the finalizer like the other records (`writeFileSafely`, export hash in `sync_state` with `kind = 'profile'`; a failed write blocks later writes of that profile only) and imported by `src/core/repo/profileImport.ts` inside the same reconcile transaction. Dot entries are ignored; an entry that is not `<valid-name>.json`, a link, a junction resolving outside, a directory, an empty file, a file over 256 KiB, or a record that fails the strict schema or names another profile than its file is rejected and reported without stopping the rest; more than 1,000 entries rejects the directory unread, and a linked `profiles/` fails the reconcile like a linked `epics/`. A file whose hash matches the last export or import is unchanged; a changed one is imported (content and dates from the record) unless the local profile has an unexported save. That is a conflict, reported in `profileConflicts` (reconcile result and storage status): the local profile is kept and its next export wins, which clears it, as for epics.
 - Owned file operations use app-generated relative paths from validated ids and verify the resolved real path stays inside `.darkmechanicus/` (symlinks/junctions included); failures are `unsafe_path`. Imported references are inert strings.
 - Machine-local state (leases, claim secrets, approval grants, auto-continue authorizations, sessions, absolute paths) is never exported.
 
@@ -179,6 +189,7 @@ The product plan's open decisions were settled as follows (all revisitable):
 - **First host:** any stdio MCP host; a Claude Code skill wrapper ships (`installSkills`) and the six skills are also plain MCP prompts, so no host-specific API is assumed.
 - **Sprint advancement defaults to a human checkpoint** (`checkpoint.mode = human`); `auto` needs per-run authorization in the desktop.
 - **Deletion stays deferred**, as the plan requires: no delete UI or tools ship (mockup 06 is not implemented).
+- **Named profiles are records like the others:** `format: darkmechanicus.profile`, `formatVersion: 1`, strict schema, key-sorted pretty JSON, imported on reconcile; tickets copy them rather than reference them, so a profile edit never rewrites plans.
 
 ## Testing conventions
 

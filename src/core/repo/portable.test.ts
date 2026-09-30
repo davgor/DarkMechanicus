@@ -9,6 +9,7 @@ import {
   insertCheckpoint,
   insertComment,
   insertEpic,
+  insertProfile,
   insertReport,
   insertRevision,
   insertRun,
@@ -16,6 +17,7 @@ import {
   T0
 } from '../../test/repoFixtures'
 import { createTestDb } from '../../test/testContext'
+import { defaultCapabilityProfile } from '../../shared/domain/bundle'
 import { contentHash, prettyJson } from '../canonical'
 import type { Db } from '../db/database'
 import { LIMITS } from '../schemas'
@@ -24,6 +26,7 @@ import {
   buildCommentRecord,
   buildEpicPointerRecord,
   buildEpicStateRecord,
+  buildProfileRecord,
   buildRunHistoryRecord,
   buildSnapshotRecord,
   commentRecord,
@@ -31,6 +34,7 @@ import {
   epicStateRecord,
   MAX_RECORD_BYTES,
   parseRecord,
+  profileRecord,
   projectRecord,
   readCommentRecord,
   readOwnedRecord,
@@ -39,6 +43,7 @@ import {
   snapshotRecord,
   trackedCommentHash,
   trackedEpicHash,
+  trackedProfileHash,
   trackedRunHash
 } from './portable'
 
@@ -586,5 +591,66 @@ describe('reading owned record files', () => {
     const fs = createMemoryFs()
     fs.put(join(LAYOUT.dmDir, 'project.json'), '{')
     expect(rejection(() => readOwnedRecord({ layout: LAYOUT, fs }, projectRecord, LAYOUT.projectFile)).message).toBe(`${PATH} is not valid JSON.`)
+  })
+})
+
+const REVIEW = { ...defaultCapabilityProfile(), workType: 'review', reasoning: { level: 'deep', rationale: 'Careful' } }
+
+const PROFILE = {
+  format: 'darkmechanicus.profile',
+  formatVersion: 1,
+  name: 'deep-review',
+  description: 'Careful review',
+  capability: REVIEW,
+  createdAt: T0,
+  updatedAt: '2026-01-02T00:00:00.000Z'
+}
+
+function profileIssue(record: unknown): string {
+  const result = profileRecord.safeParse(record)
+  return result.success ? 'ok' : `${result.error.issues[0]?.path.join('.')}: ${result.error.issues[0]?.message}`
+}
+
+describe('profile record schema', () => {
+  it('accepts a complete profile record', () => {
+    expect(parseRecord(profileRecord, prettyJson(PROFILE), 'p')).toEqual(PROFILE)
+    expect(profileIssue({ ...PROFILE, description: 'x'.repeat(LIMITS.profileDescription) })).toBe('ok')
+  })
+
+  it('rejects wrong formats, unknown keys, unsafe names, long descriptions, and invalid capabilities', () => {
+    expect(profileIssue({ ...PROFILE, format: 'darkmechanicus.run' })).toBe('format: Invalid input: expected "darkmechanicus.profile"')
+    expect(profileIssue({ ...PROFILE, formatVersion: 2 })).toBe('formatVersion: Invalid input: expected 1')
+    expect(profileIssue({ ...PROFILE, revision: 3 })).toBe(': Unrecognized key: "revision"')
+    expect(profileIssue({ ...PROFILE, name: 'con' })).toMatch(/^name: Use 1-64 lowercase letters/)
+    expect(profileIssue({ ...PROFILE, name: '../x' })).toMatch(/^name: Use 1-64 lowercase letters/)
+    expect(profileIssue({ ...PROFILE, description: 'x'.repeat(LIMITS.profileDescription + 1) })).toMatch(/^description: Too big/)
+    expect(profileIssue({ ...PROFILE, capability: { ...REVIEW, workType: 'vendor-x' } })).toMatch(/^capability.workType: Invalid option/)
+    expect(profileIssue({ ...PROFILE, capability: { ...REVIEW, extra: true } })).toBe('capability: Unrecognized key: "extra"')
+    expect(profileIssue({ ...PROFILE, updatedAt: 'yesterday' })).toMatch(/^updatedAt: Invalid ISO datetime/)
+  })
+})
+
+describe('buildProfileRecord', () => {
+  it('builds the tracked record from the stored profile, without its local revision', () => {
+    const db = createTestDb()
+    insertProfile(db, { name: 'deep-review', description: 'Careful review', capability: REVIEW, revision: 4, updatedAt: '2026-01-02T00:00:00.000Z' })
+    expect(buildProfileRecord(db, 'deep-review')).toEqual(PROFILE)
+  })
+
+  it('refuses a missing profile or one whose stored capability is invalid', () => {
+    const db = createTestDb()
+    expect(rejection(() => buildProfileRecord(db, 'ghost'))).toEqual({ code: 'not_found', message: 'Profile ghost does not exist.' })
+    insertProfile(db, { name: 'broken', capability: { workType: 'nope' } })
+    expect(rejection(() => buildProfileRecord(db, 'broken'))).toEqual({
+      code: 'internal',
+      message: 'Cannot export profile broken: capability.workType: Invalid option: expected one of "implementation"|"architecture"|"investigation"|"testing"|"review"|"documentation"'
+    })
+  })
+
+  it('hashes profile text for change detection, ignoring only CRLF line endings', () => {
+    const text = prettyJson(PROFILE)
+    expect(trackedProfileHash(text)).toBe(contentHash([text]))
+    expect(trackedProfileHash(text.replace(/\n/g, '\r\n'))).toBe(trackedProfileHash(text))
+    expect(trackedProfileHash(`${text} `)).not.toBe(trackedProfileHash(text))
   })
 })

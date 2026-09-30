@@ -37,8 +37,8 @@ afterEach(() => {
 })
 
 describe('migrate on a fresh database', () => {
-  it('starts at schema version 0 and targets SCHEMA_VERSION 3', () => {
-    expect(SCHEMA_VERSION).toBe(3)
+  it('starts at schema version 0 and targets SCHEMA_VERSION 4', () => {
+    expect(SCHEMA_VERSION).toBe(4)
     expect(readSchemaVersion(freshDb())).toBe(0)
   })
 
@@ -46,7 +46,7 @@ describe('migrate on a fresh database', () => {
     const db = freshDb()
     expect(migrate(db)).toEqual({ from: 0, to: SCHEMA_VERSION })
     expect(readSchemaVersion(db)).toBe(SCHEMA_VERSION)
-    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(3)
+    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(4)
   })
 
   it('creates every table of the schema', () => {
@@ -63,6 +63,7 @@ describe('migrate on a fresh database', () => {
       'meta',
       'outbox',
       'plan_revisions',
+      'profiles',
       'retry_grants',
       'runs',
       'search_index',
@@ -91,8 +92,8 @@ describe('migrate on a fresh database', () => {
 describe('migrate when already current', () => {
   it('is a no-op the second time', () => {
     const db = migratedDb()
-    expect(migrate(db)).toEqual({ from: 3, to: 3 })
-    expect(readSchemaVersion(db)).toBe(3)
+    expect(migrate(db)).toEqual({ from: 4, to: 4 })
+    expect(readSchemaVersion(db)).toBe(4)
   })
 
   it('keeps existing data', () => {
@@ -111,10 +112,10 @@ describe('migrate refuses newer databases', () => {
     expect(error).toBeInstanceOf(DomainError)
     expect((error as DomainError).code).toBe('incompatible_schema')
     expect((error as DomainError).message).toBe(
-      'Database schema v4 is newer than this build supports (v3). Update Dark Mechanicus.'
+      'Database schema v5 is newer than this build supports (v4). Update Dark Mechanicus.'
     )
-    expect((error as DomainError).details).toEqual({ found: 4, supported: 3 })
-    expect(readSchemaVersion(db)).toBe(4)
+    expect((error as DomainError).details).toEqual({ found: 5, supported: 4 })
+    expect(readSchemaVersion(db)).toBe(5)
     expect(objectNames(db, 'table')).toEqual([])
   })
 
@@ -123,7 +124,7 @@ describe('migrate refuses newer databases', () => {
     db.exec('PRAGMA user_version = 7')
     const error = thrownBy(() => migrate(db))
     expect((error as DomainError).code).toBe('incompatible_schema')
-    expect((error as DomainError).details).toEqual({ found: 7, supported: 3 })
+    expect((error as DomainError).details).toEqual({ found: 7, supported: 4 })
     expect(objectNames(db, 'table')).toContain('epics')
   })
 
@@ -150,7 +151,7 @@ describe('migrate a v1 database to v2', () => {
       `INSERT INTO outbox (kind, epic_id, run_id, revision_id, state, attempts, last_error, created_at)
        VALUES ('snapshot', 'ep1', NULL, 'rv1', 'done', 1, NULL, 't'), ('run_history', 'ep1', 'rn1', NULL, 'failed', 3, 'disk full', 't')`
     )
-    expect(migrate(db)).toEqual({ from: 1, to: 3 })
+    expect(migrate(db)).toEqual({ from: 1, to: 4 })
     expect(outboxRows(db)).toEqual([
       { id: 1, kind: 'snapshot', epic_id: 'ep1', run_id: null, revision_id: 'rv1', entity_id: null, state: 'done', attempts: 1, last_error: null },
       { id: 2, kind: 'run_history', epic_id: 'ep1', run_id: 'rn1', revision_id: null, entity_id: null, state: 'failed', attempts: 3, last_error: 'disk full' }
@@ -217,11 +218,11 @@ function commentsDb(): Db {
 }
 
 describe('schema v3 comments', () => {
-  it('migrates a v2 database to v3 and keeps its epics', () => {
+  it('migrates a v2 database through v3 and keeps its epics', () => {
     const db = freshDb()
     migrate(db, MIGRATIONS.filter((migration) => migration.version <= 2))
     insertEpic(db, 'ep1')
-    expect(migrate(db)).toEqual({ from: 2, to: 3 })
+    expect(migrate(db)).toEqual({ from: 2, to: SCHEMA_VERSION })
     insertComment(db, { id: 'cm1' })
     expect(db.all('SELECT id, epic_id, ticket_id, body, author_role, author_label, created_at FROM comments')).toEqual([
       { id: 'cm1', epic_id: 'ep1', ticket_id: null, body: 'Looks **good**', author_role: 'desktop', author_label: 'Ada', created_at: 't' }
@@ -260,6 +261,50 @@ describe('schema v3 comments', () => {
     const db = commentsDb()
     const plan = db.all<{ detail: string }>("EXPLAIN QUERY PLAN SELECT id FROM comments WHERE epic_id = 'ep1' AND ticket_id = 'tk1' ORDER BY created_at")
     expect(plan.map((row) => row.detail).join(' ')).toContain('USING INDEX comments_epic_ticket (epic_id=? AND ticket_id=?)')
+  })
+})
+
+function v2Db(): Db {
+  const db = freshDb()
+  migrate(db, MIGRATIONS.filter((migration) => migration.version <= 2))
+  return db
+}
+
+function insertProfile(db: Db, name: string): void {
+  db.run("INSERT INTO profiles (name, capability_json, revision, created_at, updated_at) VALUES (?, '{}', 1, 't', 't')", name)
+}
+
+describe('schema v4 named profiles', () => {
+  it('upgrades a v2 database to v4, keeping its rows and adding an empty profiles table', () => {
+    const db = v2Db()
+    db.run("INSERT INTO outbox (kind, entity_id, state, created_at) VALUES ('profile', 'deep-review', 'pending', 't')")
+    expect(migrate(db)).toEqual({ from: 2, to: 4 })
+    expect(db.all('SELECT kind, entity_id, state FROM outbox')).toEqual([{ kind: 'profile', entity_id: 'deep-review', state: 'pending' }])
+    expect(db.all('SELECT * FROM profiles')).toEqual([])
+  })
+
+  it('keys profiles by name with a description, capability, revision, and timestamps', () => {
+    const columns = migratedDb().all<{ name: string; type: string; notnull: number; dflt_value: string | null; pk: number }>(
+      'SELECT name, type, "notnull", dflt_value, pk FROM pragma_table_info(\'profiles\') ORDER BY cid'
+    )
+    expect(columns).toEqual([
+      { name: 'name', type: 'TEXT', notnull: 0, dflt_value: null, pk: 1 },
+      { name: 'description', type: 'TEXT', notnull: 1, dflt_value: "''", pk: 0 },
+      { name: 'capability_json', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { name: 'revision', type: 'INTEGER', notnull: 1, dflt_value: null, pk: 0 },
+      { name: 'created_at', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { name: 'updated_at', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 }
+    ])
+  })
+
+  it('defaults the description to empty and refuses a second profile of the same name', () => {
+    const db = migratedDb()
+    insertProfile(db, 'deep-review')
+    expect(db.get('SELECT description FROM profiles WHERE name = ?', 'deep-review')).toEqual({ description: '' })
+    expect(() => insertProfile(db, 'deep-review')).toThrow(/UNIQUE constraint failed: profiles.name/)
+    expect(() => db.run("INSERT INTO profiles (name, revision, created_at, updated_at) VALUES ('x', 1, 't', 't')")).toThrow(
+      /NOT NULL constraint failed: profiles.capability_json/
+    )
   })
 })
 
@@ -328,7 +373,7 @@ describe('migrate failure handling', () => {
     const db = freshDb()
     thrownBy(() => migrate(db, [{ version: 1, sql: 'NOT SQL' }]))
     expect(db.inTransaction()).toBe(false)
-    expect(migrate(db)).toEqual({ from: 0, to: 3 })
+    expect(migrate(db)).toEqual({ from: 0, to: 4 })
   })
 })
 

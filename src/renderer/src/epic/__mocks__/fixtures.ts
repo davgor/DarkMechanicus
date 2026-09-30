@@ -22,6 +22,7 @@ import type {
   EventView,
   GateCondition,
   PlanView,
+  ProfileView,
   RunView,
   SprintReportView,
   TicketDetailView,
@@ -521,6 +522,27 @@ export function event(seq: number, kind: string, patch: Partial<EventView> = {})
     ticketId: 'tk_202',
     sessionId: null,
     payload: {},
+    ...patch
+  }
+}
+
+/** A named capability profile ("deep-review") that differs from DM-202 in every capability group. */
+export function profileView(patch: Partial<ProfileView> = {}): ProfileView {
+  return {
+    name: 'deep-review',
+    description: 'Independent review of risky changes',
+    capability: {
+      workType: 'review',
+      reasoning: { level: 'deep', rationale: 'Risky change' },
+      skills: ['security-review'],
+      modalities: ['text', 'images'],
+      tools: ['test_execution', 'repo_read'],
+      context: { estimatedInputTokens: 80_000, requiredArtifacts: ['docs/architecture.md'] },
+      constraints: { environments: ['ci'], dataLocation: 'eu', maxDurationMinutes: 60, maxCostUsd: 5 },
+      preferences: { quality: 'high', latency: null, cost: 'low', autonomy: 'supervised', modelOverride: null }
+    },
+    revision: 2,
+    updatedAt: iso(0),
     ...patch
   }
 }

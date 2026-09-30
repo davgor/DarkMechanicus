@@ -5,7 +5,7 @@ import type { Db } from '../core/db/database'
 import { DomainError } from '../core/errors'
 import { encodeBase32, ID_PREFIXES, type IdKind } from '../core/ids'
 import type { FinalizerHooks } from '../core/repo/finalizer'
-import type { PlanBundle } from '../shared/domain/bundle'
+import { defaultCapabilityProfile, type PlanBundle } from '../shared/domain/bundle'
 import type { AttemptState, RunState } from '../shared/domain/status'
 import type { SessionRole } from '../shared/domain/views'
 
@@ -112,7 +112,7 @@ export function insertRevision(db: Db, input: RevisionRowInput): void {
 }
 
 interface OutboxRowInput {
-  kind: 'snapshot' | 'epic_state' | 'run_history' | 'comment'
+  kind: 'snapshot' | 'epic_state' | 'run_history' | 'comment' | 'profile'
   epicId?: string | null
   runId?: string | null
   revisionId?: string | null
@@ -281,6 +281,29 @@ export function insertTicketStatus(db: Db, input: { ticketId: string; epicId: st
     input.epicId,
     input.status ?? 'backlog',
     T0
+  )
+}
+
+interface ProfileRowInput {
+  name: string
+  description?: string
+  capability?: unknown
+  revision?: number
+  createdAt?: string
+  updatedAt?: string
+}
+
+/** A named capability profile row, as saveProfile stores it (capability defaults to the ticket default). */
+export function insertProfile(db: Db, input: ProfileRowInput): void {
+  db.run(
+    `INSERT INTO profiles (name, description, capability_json, revision, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    input.name,
+    input.description ?? '',
+    JSON.stringify(input.capability ?? defaultCapabilityProfile()),
+    input.revision ?? 1,
+    input.createdAt ?? T0,
+    input.updatedAt ?? input.createdAt ?? T0
   )
 }
 

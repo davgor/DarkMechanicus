@@ -3,7 +3,7 @@ import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { makeBundle, makeTicket, tid } from '../../test/bundles'
 import { isWithin } from '../../test/memoryFs'
-import { domainErrorOf, idOf, insertAttempt, insertComment, insertOutbox, insertRun } from '../../test/repoFixtures'
+import { domainErrorOf, idOf, insertAttempt, insertComment, insertOutbox, insertProfile, insertRun } from '../../test/repoFixtures'
 import {
   copyTracked,
   createRepoEnv,
@@ -20,7 +20,8 @@ import { LIMITS } from '../schemas'
 import type { PlanBundle } from '../../shared/domain/bundle'
 import { reconcileRepository } from './importer'
 import { ownedPaths } from './paths'
-import { MAX_COMMENT_RECORD_BYTES, MAX_RECORD_BYTES } from './portable'
+import { MAX_COMMENT_RECORD_BYTES, MAX_RECORD_BYTES, parseRecord, profileRecord } from './portable'
+import { MAX_PROFILE_BYTES, MAX_PROFILES } from './profileImport'
 
 const EPIC = idOf('epic', 1)
 const R1 = idOf('revision', 1)
@@ -588,5 +589,209 @@ describe('hostile comment identity', () => {
     expect(result.rejected).toEqual([{ path: EPIC_DIR, message: `${EPIC_DIR}/state.json is missing.` }])
     expect(state.target.fs.reads.slice(state.readsBefore)).not.toContain(resolve(comment))
     expectUnchanged(state, result)
+  })
+})
+
+// Named capability profiles (`.darkmechanicus/profiles/<name>.json`) are just as untrusted.
+
+const PROFILES_DIR = '.darkmechanicus/profiles'
+const INVALID_NAME = 'Refusing to build a repository path from an invalid profile name.'
+
+/** A clone that already imported one profile, `ok`, and nothing else. */
+function profiled(): Imported {
+  const source = createRepoEnv({ root: '/source' })
+  initProject(source)
+  insertProfile(source.db, { name: 'ok', description: 'Fine' })
+  insertOutbox(source.db, { kind: 'profile', entityId: 'ok' })
+  flush(source)
+  const target = createRepoEnv({ root: '/clone' })
+  copyTracked(source, target)
+  expect(reconcileRepository(importerDeps(target, createStubGit('main'))).imported).toEqual(['profile:ok'])
+  return { target, before: dumpDomain(target.db), readsBefore: target.fs.reads.length }
+}
+
+function profilePath(state: Imported, name: string): string {
+  return ownedPaths(state.target.layout).profileFile(name)
+}
+
+function okRecord(state: Imported): Record<string, unknown> {
+  return JSON.parse(state.target.fs.get(profilePath(state, 'ok')) ?? '{}') as Record<string, unknown>
+}
+
+/** The text of a valid record for profile `name` (a renamed copy of `ok`), with optional changes. */
+function profileText(state: Imported, name: string, patch: Record<string, unknown> = {}): string {
+  return prettyJson({ ...okRecord(state), name, ...patch })
+}
+
+function storedNames(state: Imported): string[] {
+  return state.target.db.all<{ name: string }>('SELECT name FROM profiles ORDER BY name').map((row) => row.name)
+}
+
+function notARecord(entry: string): { path: string; message: string } {
+  return { path: `${PROFILES_DIR}/${entry}`, message: `${PROFILES_DIR}/${entry} is not a profile record: profiles are stored as <name>.json.` }
+}
+
+const HOSTILE_NAMES = ['Bad.json', 'a_b.json', 'con.json', 'lpt1.json', 'nul.json', 'trailing-.json', 'x/../../escape.json']
+
+describe('hostile profile file names', () => {
+  it('rejects unsafe or non-record names and still imports valid profiles', () => {
+    const state = profiled()
+    state.target.fs.put(profilePath(state, 'good'), profileText(state, 'good'))
+    const listing = ['..', '.hidden.json', ...HOSTILE_NAMES, 'notes.txt', 'noext', 'good.json', 'ok.json']
+    state.target.fs.setReaddir(state.target.layout.profilesDir, listing)
+    const result = reconcile(state)
+    expect(result.rejected).toEqual([
+      ...HOSTILE_NAMES.map((entry) => ({ path: `${PROFILES_DIR}/${entry}`, message: INVALID_NAME })),
+      notARecord('noext'),
+      notARecord('notes.txt')
+    ].sort((a, b) => (a.path < b.path ? -1 : 1)))
+    expect([result.imported, result.unchanged]).toEqual([['profile:good'], ['profile:ok']])
+    expect(storedNames(state)).toEqual(['good', 'ok'])
+    expect(outsideReads(state)).toEqual([])
+  })
+})
+
+describe('hostile profile links', () => {
+  it('rejects a linked or redirected profile file without reading outside', () => {
+    const state = profiled()
+    state.target.fs.put(join(OUTSIDE, 'linked.json'), profileText(state, 'linked'))
+    state.target.fs.put(join(OUTSIDE, 'redirected.json'), profileText(state, 'redirected'))
+    state.target.fs.symlink(profilePath(state, 'linked'), join(OUTSIDE, 'linked.json'))
+    state.target.fs.junction(profilePath(state, 'redirected'), join(OUTSIDE, 'redirected.json'))
+    const result = reconcile(state)
+    expect(result.rejected).toEqual([
+      { path: `${PROFILES_DIR}/linked.json`, message: expect.stringContaining('symbolic links and junctions are not allowed') },
+      { path: `${PROFILES_DIR}/redirected.json`, message: expect.stringContaining('resolves outside .darkmechanicus') }
+    ])
+    expect(storedNames(state)).toEqual(['ok'])
+    expect(outsideReads(state)).toEqual([])
+  })
+
+  it('fails closed on a linked profiles directory without reading outside or changing anything', () => {
+    const state = profiled()
+    state.target.fs.put(join(OUTSIDE, 'evil.json'), profileText(state, 'evil'))
+    state.target.fs.symlink(state.target.layout.profilesDir, OUTSIDE)
+    expect(domainErrorOf(() => reconcile(state)).code).toBe('unsafe_path')
+    expect(storedNames(state)).toEqual(['ok'])
+    expect(outsideReads(state)).toEqual([])
+  })
+
+  it('rejects a directory named like a profile record', () => {
+    const state = profiled()
+    state.target.fs.put(join(profilePath(state, 'folder'), 'inner.json'), profileText(state, 'inner'))
+    expect(reconcile(state).rejected).toEqual([
+      { path: `${PROFILES_DIR}/folder.json`, message: `${PROFILES_DIR}/folder.json is a directory, not a profile record.` }
+    ])
+    expect(storedNames(state)).toEqual(['ok'])
+  })
+})
+
+describe('hostile profile sizes', () => {
+  it('rejects a profile record over the size limit without reading it, and accepts one at the limit', () => {
+    const state = profiled()
+    for (const name of ['big', 'edge']) {
+      state.target.fs.put(profilePath(state, name), profileText(state, name))
+    }
+    state.target.fs.setSize(profilePath(state, 'big'), MAX_PROFILE_BYTES + 1)
+    state.target.fs.setSize(profilePath(state, 'edge'), MAX_PROFILE_BYTES)
+    state.target.fs.failOn({ op: 'readFile', match: (path) => path === profilePath(state, 'big') })
+    const result = reconcile(state)
+    expect(result.rejected).toEqual([{ path: `${PROFILES_DIR}/big.json`, message: `${PROFILES_DIR}/big.json is larger than the 256 KiB profile limit.` }])
+    expect(result.imported).toEqual(['profile:edge'])
+  })
+
+  it('rejects a profiles directory with too many entries without reading any of them', () => {
+    const state = profiled()
+    const listing = Array.from({ length: MAX_PROFILES + 1 }, (_, index) => `p-${index}.json`)
+    state.target.fs.setReaddir(state.target.layout.profilesDir, listing)
+    state.target.fs.failOn({ op: 'readFile', match: (path) => isWithin(state.target.layout.profilesDir, path) })
+    const result = reconcile(state)
+    expect(result.rejected).toEqual([{ path: PROFILES_DIR, message: `${PROFILES_DIR} holds more than 1000 profiles.` }])
+    expect([result.imported, result.unchanged, storedNames(state)]).toEqual([[], [], ['ok']])
+  })
+
+  it('reads a profiles directory of exactly the entry limit', () => {
+    const state = profiled()
+    const listing = [...Array.from({ length: MAX_PROFILES - 1 }, (_, index) => `p-${index}.json`), 'ok.json']
+    state.target.fs.setReaddir(state.target.layout.profilesDir, listing)
+    const result = reconcile(state)
+    expect(result.rejected).toHaveLength(MAX_PROFILES - 1)
+    expect(result.rejected[0]).toEqual({ path: `${PROFILES_DIR}/p-0.json`, message: `${PROFILES_DIR}/p-0.json is missing.` })
+    expect(result.unchanged).toEqual(['profile:ok'])
+  })
+})
+
+function worstText(length: number): string {
+  return '\u0001'.repeat(length)
+}
+
+function worstCapability(): Record<string, unknown> {
+  return {
+    workType: 'implementation',
+    reasoning: { level: 'deep', rationale: worstText(LIMITS.shortText) },
+    skills: Array.from({ length: LIMITS.tags }, () => worstText(LIMITS.tag)),
+    modalities: ['text', 'images'],
+    tools: ['repo_read', 'repo_write', 'shell', 'browser', 'test_execution', 'network'],
+    context: { estimatedInputTokens: 100_000_000, requiredArtifacts: Array.from({ length: LIMITS.references }, () => worstText(LIMITS.label)) },
+    constraints: {
+      environments: Array.from({ length: LIMITS.tags }, () => worstText(LIMITS.label)),
+      dataLocation: worstText(LIMITS.label),
+      maxDurationMinutes: 100_000,
+      maxCostUsd: 1_000_000
+    },
+    preferences: { quality: 'standard', latency: 'normal', cost: 'normal', autonomy: 'supervised', modelOverride: worstText(LIMITS.label) }
+  }
+}
+
+describe('profile size limit headroom', () => {
+  it('never rejects a valid profile for its size: the largest possible record fits the limit', () => {
+    const state = profiled()
+    const capability = worstCapability()
+    const text = profileText(state, `a${'b'.repeat(63)}`, { description: worstText(LIMITS.profileDescription), capability })
+    expect(parseRecord(profileRecord, text, 'largest').capability).toEqual(capability)
+    expect(Buffer.byteLength(text, 'utf8')).toBeLessThanOrEqual(MAX_PROFILE_BYTES)
+  })
+})
+
+function hostileFiles(state: Imported): Record<string, string> {
+  const capability = okRecord(state)['capability'] as Record<string, unknown>
+  return {
+    empty: '',
+    marked: `<<<<<<< HEAD\n${profileText(state, 'marked')}=======\n{}\n>>>>>>> theirs\n`,
+    broken: '{',
+    extra: profileText(state, 'extra', { revision: 3 }),
+    renamed: profileText(state, 'ok'),
+    vendor: profileText(state, 'vendor', { capability: { ...capability, workType: 'frontier-model' } }),
+    polluting: profileText(state, 'polluting').replace('"capability": {', '"capability": {\n    "__proto__": { "polluted": true },')
+  }
+}
+
+describe('hostile profile contents', () => {
+  it('rejects empty, conflicted, malformed, renamed, unknown-key, and polluting records', () => {
+    const state = profiled()
+    for (const [name, text] of Object.entries(hostileFiles(state))) {
+      state.target.fs.put(profilePath(state, name), text)
+    }
+    const messages = Object.fromEntries(reconcile(state).rejected.map((item) => [item.path.slice(PROFILES_DIR.length + 1), item.message]))
+    expect(messages).toEqual({
+      'broken.json': `${PROFILES_DIR}/broken.json is not valid JSON.`,
+      'empty.json': `${PROFILES_DIR}/empty.json is empty.`,
+      'extra.json': `${PROFILES_DIR}/extra.json is not a valid record: (root): Unrecognized key: "revision".`,
+      'marked.json': `${PROFILES_DIR}/marked.json contains unresolved merge conflict markers.`,
+      'polluting.json': `${PROFILES_DIR}/polluting.json is not a valid record: capability: Unrecognized key: "__proto__".`,
+      'renamed.json': `${PROFILES_DIR}/renamed.json names a different profile than its file name.`,
+      'vendor.json': expect.stringContaining(`${PROFILES_DIR}/vendor.json is not a valid record: capability.workType: Invalid option`)
+    })
+    expect(({} as Record<string, unknown>)['polluted']).toBeUndefined()
+    expect(storedNames(state)).toEqual(['ok'])
+    expect(outsideReads(state)).toEqual([])
+  })
+
+  it('stores hostile description text as inert data', () => {
+    const state = profiled()
+    const hostile = '<script>alert(1)</script> [x](javascript:alert(1))'
+    state.target.fs.put(profilePath(state, 'inert'), profileText(state, 'inert', { description: hostile }))
+    expect(reconcile(state).imported).toEqual(['profile:inert'])
+    expect(state.target.db.get('SELECT description FROM profiles WHERE name = ?', 'inert')).toEqual({ description: hostile })
   })
 })

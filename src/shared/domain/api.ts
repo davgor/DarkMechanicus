@@ -4,6 +4,7 @@
  */
 import type {
   CapabilityPatch,
+  CapabilityProfile,
   CheckpointMode,
   EpicBranch,
   PlanPolicies,
@@ -34,6 +35,7 @@ import type {
   HostCatalogView,
   InitializeResultView,
   PlanView,
+  ProfileView,
   ProjectView,
   ReadinessView,
   ReconcileResultView,
@@ -226,6 +228,18 @@ export interface CommandApi {
   addComment(input: AddCommentInput): Promise<CommentView>
   /** Oldest first. Without ticketId: every comment of the epic, epic-level and ticket-level. */
   listComments(input: { epicId: string; ticketId?: string }): Promise<CommentView[]>
+
+  // Named capability profiles (reusable presets tickets can start from)
+  listProfiles(): Promise<ProfileView[]>
+  getProfile(input: { name: string }): Promise<ProfileView>
+  /** Creates (no or 0 expectedRevision) or replaces (the current revision) the whole profile. */
+  saveProfile(input: {
+    name: string
+    description?: string
+    capability: CapabilityProfile
+    expectedRevision?: number
+    idempotencyKey?: string
+  }): Promise<ProfileView>
 
   // Execution
   registerHost(input: HostCatalog): Promise<HostCatalogView>

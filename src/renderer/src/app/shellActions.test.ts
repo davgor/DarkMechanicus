@@ -178,7 +178,7 @@ describe('flush', () => {
 })
 
 describe('reconcile', () => {
-  const clean = { imported: ['x'], unchanged: [], conflicts: [], rejected: [], branchChanged: false, pausedRuns: [] }
+  const clean = { imported: ['x'], unchanged: [], conflicts: [], profileConflicts: [], rejected: [], branchChanged: false, pausedRuns: [] }
 
   it('reconciles the selected folder and reports the summary', async () => {
     dm.responses.reconcileRepository = clean

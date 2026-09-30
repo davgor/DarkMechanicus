@@ -14,12 +14,14 @@ import type {
   McpConfigView,
   TrackedFolderView
 } from '../../../../shared/desktop/api'
+import type { CapabilityProfile } from '../../../../shared/domain/bundle'
 import type {
   CheckpointView,
   CommentView,
   EpicDetailView,
   EventView,
   PlanView,
+  ProfileView,
   RunView,
   TicketDetailView,
   ValidationReport
@@ -49,6 +51,8 @@ interface Scenario {
   ticket: TicketDetailView
   events: EventView[]
   comments: CommentView[]
+  /** Named capability profiles, kept sorted by name like the real listProfiles. */
+  profiles: ProfileView[]
 }
 
 interface RecordedCall {
@@ -69,6 +73,7 @@ export function scenario(patch: Partial<Scenario> = {}): Scenario {
     ticket: ticketDetail(),
     events: [event(1, 'attempt.claimed'), event(2, 'attempt.failed', { payload: { reason: '2 tests failed' } })],
     comments: [],
+    profiles: [],
     ...patch
   }
 }
@@ -252,6 +257,26 @@ function runHandlers(state: Scenario): Partial<Record<CommandName, Handler>> {
   }
 }
 
+interface SaveProfileRequest {
+  name: string
+  description?: string
+  capability: CapabilityProfile
+}
+
+/** Stores the profile as the real command would (revision checks are the core's job, not the fake's). */
+function saveProfile(state: Scenario, input: SaveProfileRequest): ProfileView {
+  const previous = state.profiles.find((item) => item.name === input.name)
+  const saved: ProfileView = {
+    name: input.name,
+    description: input.description ?? '',
+    capability: input.capability,
+    revision: (previous?.revision ?? 0) + 1,
+    updatedAt: '2026-09-30T12:00:00.000Z'
+  }
+  state.profiles = [...state.profiles.filter((item) => item.name !== input.name), saved].sort((a, b) => (a.name < b.name ? -1 : 1))
+  return saved
+}
+
 function defaultHandlers(state: Scenario): Partial<Record<CommandName, Handler>> {
   return {
     getEpic: () => state.epic,
@@ -267,6 +292,8 @@ function defaultHandlers(state: Scenario): Partial<Record<CommandName, Handler>>
     listComments: (input: { ticketId?: string }) =>
       state.comments.filter((item) => input.ticketId === undefined || item.ticketId === input.ticketId),
     addComment: (input: { epicId: string; ticketId?: string; body: string }) => addComment(state, input),
+    listProfiles: () => state.profiles,
+    saveProfile: (input: SaveProfileRequest) => saveProfile(state, input),
     ...runHandlers(state)
   }
 }

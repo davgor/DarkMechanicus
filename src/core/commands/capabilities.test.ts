@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { CommandName } from '../../shared/domain/api'
+import { defaultCapabilityProfile } from '../../shared/domain/bundle'
 import type { SessionRole } from '../../shared/domain/views'
 import { createHarness, type Harness } from '../../test/workspaceHarness'
 import { capabilitiesForRole, HUMAN_ONLY_CAPABILITIES } from '../authz'
@@ -84,7 +85,10 @@ const PROBES: Record<CommandName, unknown> = {
   grantRetry: { runId: RUN, ticketId: TICKET },
   listEvents: {},
   addComment: { epicId: EPIC, body: 'probe' },
-  listComments: { epicId: EPIC }
+  listComments: { epicId: EPIC },
+  listProfiles: undefined,
+  getProfile: { name: 'probe-profile' },
+  saveProfile: { name: 'probe-profile', capability: defaultCapabilityProfile() }
 }
 
 const COMMAND_NAMES = Object.keys(PROBES) as CommandName[]

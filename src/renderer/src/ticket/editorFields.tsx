@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import {
   MODALITIES,
   REASONING_LEVELS,
@@ -239,10 +239,12 @@ function ProfileSelects({ form, update }: FieldProps): JSX.Element {
   )
 }
 
-export function CapabilityFields({ form, update }: FieldProps): JSX.Element {
+/** `children` render first in the fieldset (the named profile picker). */
+export function CapabilityFields({ form, update, children }: FieldProps & { children?: ReactNode }): JSX.Element {
   return (
     <fieldset className="tp-fieldset">
       <legend className="ew-eyebrow">CAPABILITY PROFILE</legend>
+      {children}
       <ProfileSelects form={form} update={update} />
       <label className="tp-field">
         <span>Reasoning rationale</span>

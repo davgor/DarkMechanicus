@@ -91,7 +91,7 @@ describe('App reconcile', () => {
 
   it('warns after a branch change and reconciles on request', async () => {
     h.statuses['/a'] = changed
-    h.dm.responses.reconcileRepository = { imported: ['a'], unchanged: [], conflicts: [], rejected: [], branchChanged: true, pausedRuns: [] }
+    h.dm.responses.reconcileRepository = { imported: ['a'], unchanged: [], conflicts: [], profileConflicts: [], rejected: [], branchChanged: true, pausedRuns: [] }
     await start()
     expect(sidebar().getByText('Branch changed: main → feature/x')).toBeTruthy()
     fireEvent.click(sidebar().getByRole('button', { name: 'Reconcile' }))

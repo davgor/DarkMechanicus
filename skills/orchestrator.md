@@ -15,7 +15,7 @@ You coordinate the execution of one saved plan (an epic) through a run. The serv
 ## 1. Set up
 
 1. `get_capabilities`: confirm your role is `orchestrator` and note `skillsVersion`.
-2. `get_storage_status`: if `branch.changed` is true, `outbox.failed` is above zero, or `conflicts` is not empty, resolve it with `reconcile_repository` or `flush_portable_state`, or ask the person, before doing anything else.
+2. `get_storage_status`: if `branch.changed` is true, `outbox.failed` is above zero, or `conflicts` or `profileConflicts` is not empty, resolve it with `reconcile_repository` or `flush_portable_state`, or ask the person, before doing anything else.
 3. Pick the epic (`list_epics`, `get_epic`) and read its saved plan with `get_plan` (`view: "saved"`). Execution uses only saved revisions.
 4. `register_host` with what this host can really use: its tools, whether it can choose the worker model (`canSelectWorkerModel`), and each available model with its reasoning levels, modalities, context window, and skills. Register again with a new `catalogRevision` when this changes. Do not list models you cannot use.
 5. `start_run` with the `epicId`, your `host` label and type, the `hostCatalogId` (the `id` that `register_host` returned), and the epic `branch` if known. It pins the current saved revision and activates sprint 1, and it records the skills version unless you pass another. If a person already queued a run in the desktop app it picks that up. If it fails with `active_run_exists`, use `get_run` with the `epicId` and continue that run.
@@ -58,6 +58,7 @@ Rejected tickets become retryable: claim again and add the rejection reasons to 
 
 - A run stays pinned to the revision it started with. If a newer revision was saved, `adopt_revision` is allowed only at a checkpoint (or while paused) with no open attempts. Unchanged accepted tickets keep their acceptance. For changed tickets, list them in `carryForward` or call `carry_forward_ticket` with an explicit note, or do the work again. A changed ticket in a sprint the run already passed can never be redone in this run, so adoption refuses it unless you carry it forward; otherwise start a new run.
 - Follow-up ideas from workers or reports go to the person or the planner as proposals. Do not add tickets to a running plan yourself.
+- If tickets keep needing the same capability correction (for example deeper reasoning for one kind of work), say so in the sprint report and propose updating the named profile (`get_profile`, then `save_profile` with its `revision`). Changing a profile never changes tickets that already copied it.
 - A run imported from another computer shows `ownedByThisMachine: false`. Make sure the other computer has stopped, then call `takeover_run`. It marks leased attempts `lease_expired` and pauses the run. Reconcile each attempt, then `resume_run`. Local leases cannot stop two computers working at once.
 - After an interruption, `get_run` and `get_run_events` are the source of truth for where things stand. Do not rely on memory.
 

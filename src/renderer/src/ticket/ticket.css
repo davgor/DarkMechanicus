@@ -318,6 +318,41 @@
   gap: 16px;
 }
 
+/* Named capability profiles in the editor's capability section. */
+.tp-profile-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.tp-profile-note {
+  margin: 0;
+  font-size: 12.5px;
+}
+
+.tp-profile-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tp-save-profile {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+}
+
+.tp-save-profile p {
+  margin: 0;
+  font-size: 12.5px;
+}
+
 .tp-field {
   display: flex;
   flex-direction: column;

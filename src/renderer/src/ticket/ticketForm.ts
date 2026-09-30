@@ -2,6 +2,7 @@
  * Pure form state for the Draft-view ticket editor. Edits stay local until Apply, which turns the
  * differences against the latest draft into one `updatePlanDraft` request: an `update_ticket`
  * patch with only the changed fields, then dependency removals, the sprint move, and additions.
+ * Starting from a named profile only refills the capability fields; it is applied like any edit.
  */
 import type { CriterionInput, DraftOp, TicketInput } from '../../../shared/domain/api'
 import {
@@ -17,6 +18,7 @@ import {
   type ToolCapability,
   type WorkType
 } from '../../../shared/domain/bundle'
+import type { ProfileView } from '../../../shared/domain/views'
 
 interface CriterionField {
   /** Stable React key: the criterion id, or `new-n` for unsaved rows. */
@@ -42,7 +44,19 @@ export interface TicketForm {
   modalities: Modality[]
   skills: string
   tokens: string
+  /** The named profile the capability fields were last filled from ('' when none). */
+  profile: string
+  /**
+   * Where the requirement groups this editor does not show (required artifacts, constraints,
+   * preferences) come from: the ticket's own, or those of the last applied profile.
+   */
+  baseCapability: CapabilityProfile
 }
+
+type CapabilityFields = Pick<
+  TicketForm,
+  'workType' | 'reasoningLevel' | 'rationale' | 'tools' | 'modalities' | 'skills' | 'tokens' | 'baseCapability'
+>
 
 interface Option {
   id: string
@@ -61,13 +75,25 @@ function prerequisitesOf(bundle: PlanBundle, ticketId: string): string[] {
   return bundle.edges.filter((item) => item.to === ticketId).map((item) => item.from)
 }
 
+function capabilityFields(capability: CapabilityProfile): CapabilityFields {
+  const tokens = capability.context.estimatedInputTokens
+  return {
+    workType: capability.workType,
+    reasoningLevel: capability.reasoning.level,
+    rationale: capability.reasoning.rationale,
+    tools: [...capability.tools],
+    modalities: [...capability.modalities],
+    skills: capability.skills.join(', '),
+    tokens: tokens === null ? '' : String(tokens),
+    baseCapability: capability
+  }
+}
+
 export function formFromBundle(bundle: PlanBundle, ticketId: string): TicketForm | null {
   const ticket = findTicket(bundle, ticketId)
   if (!ticket) {
     return null
   }
-  const capability = ticket.capability
-  const tokens = capability.context.estimatedInputTokens
   return {
     title: ticket.title,
     body: ticket.body,
@@ -78,14 +104,14 @@ export function formFromBundle(bundle: PlanBundle, ticketId: string): TicketForm
     optional: ticket.optional,
     sprintId: sprintOf(bundle, ticketId),
     prerequisites: prerequisitesOf(bundle, ticketId),
-    workType: capability.workType,
-    reasoningLevel: capability.reasoning.level,
-    rationale: capability.reasoning.rationale,
-    tools: [...capability.tools],
-    modalities: [...capability.modalities],
-    skills: capability.skills.join(', '),
-    tokens: tokens === null ? '' : String(tokens)
+    profile: '',
+    ...capabilityFields(ticket.capability)
   }
+}
+
+/** Refills the capability fields from a named profile; the draft changes only on Apply. */
+export function applyProfile(form: TicketForm, profile: ProfileView): TicketForm {
+  return { ...form, ...capabilityFields(profile.capability), profile: profile.name }
 }
 
 /** Comma-separated input to a clean list (trimmed, no blanks, no case-insensitive duplicates). */
@@ -166,30 +192,84 @@ function sameCriteria(inputs: CriterionInput[], existing: Criterion[]): boolean 
   )
 }
 
-function capabilityPatch(form: TicketForm, profile: CapabilityProfile): Partial<CapabilityProfile> {
+/** The complete capability requirements the form describes, normalized the way Apply sends them. */
+export function formCapability(form: TicketForm): CapabilityProfile {
+  const base = form.baseCapability
+  return {
+    workType: form.workType,
+    reasoning: { level: form.reasoningLevel, rationale: form.rationale.trim() },
+    skills: splitList(form.skills),
+    modalities: MODALITIES.filter((item) => form.modalities.includes(item)),
+    tools: TOOL_CAPABILITIES.filter((tool) => form.tools.includes(tool)),
+    context: { estimatedInputTokens: parseTokens(form.tokens), requiredArtifacts: base.context.requiredArtifacts },
+    constraints: base.constraints,
+    preferences: base.preferences
+  }
+}
+
+interface ProfileSaveInput {
+  name: string
+  description: string
+  capability: CapabilityProfile
+  expectedRevision?: number
+}
+
+/**
+ * The saveProfile request that stores the form's requirements under a name: a new profile, or a
+ * replacement of `existing` at its revision that keeps its description unless a new one is typed.
+ */
+export function profileSaveInput(
+  form: TicketForm,
+  entry: { name: string; description: string },
+  existing: ProfileView | undefined
+): ProfileSaveInput {
+  const request = { name: entry.name.trim(), description: entry.description.trim(), capability: formCapability(form) }
+  if (existing === undefined) {
+    return request
+  }
+  const description = request.description === '' ? existing.description : request.description
+  return { ...request, description, expectedRevision: existing.revision }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+/** Deep equality of JSON-shaped values; object key order does not matter, array order does. */
+function sameValue(a: unknown, b: unknown): boolean {
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && a.every((item, index) => sameValue(item, b[index]))
+  }
+  if (isRecord(a) && isRecord(b)) {
+    const keys = Object.keys(a)
+    return keys.length === Object.keys(b).length && keys.every((key) => sameValue(a[key], b[key]))
+  }
+  return a === b
+}
+
+const CAPABILITY_GROUPS = ['workType', 'reasoning', 'skills', 'modalities', 'tools', 'context', 'constraints', 'preferences'] as const
+
+type CapabilityGroup = (typeof CAPABILITY_GROUPS)[number]
+
+/** Tool and modality selections are sets; every other group compares by value. */
+function sameGroup(group: CapabilityGroup, next: CapabilityProfile, current: CapabilityProfile): boolean {
+  if (group === 'tools' || group === 'modalities') {
+    return sameSet<string>(next[group], current[group])
+  }
+  return sameValue(next[group], current[group])
+}
+
+function setGroup<K extends CapabilityGroup>(patch: Partial<CapabilityProfile>, group: K, value: CapabilityProfile[K]): void {
+  patch[group] = value
+}
+
+function capabilityPatch(form: TicketForm, current: CapabilityProfile): Partial<CapabilityProfile> {
+  const next = formCapability(form)
   const patch: Partial<CapabilityProfile> = {}
-  const reasoning = { level: form.reasoningLevel, rationale: form.rationale.trim() }
-  const tools = TOOL_CAPABILITIES.filter((tool) => form.tools.includes(tool))
-  const modalities = MODALITIES.filter((item) => form.modalities.includes(item))
-  const skills = splitList(form.skills)
-  const tokens = parseTokens(form.tokens)
-  if (form.workType !== profile.workType) {
-    patch.workType = form.workType
-  }
-  if (reasoning.level !== profile.reasoning.level || reasoning.rationale !== profile.reasoning.rationale) {
-    patch.reasoning = reasoning
-  }
-  if (!sameSet(tools, profile.tools)) {
-    patch.tools = tools
-  }
-  if (!sameSet(modalities, profile.modalities)) {
-    patch.modalities = modalities
-  }
-  if (!sameList(skills, profile.skills)) {
-    patch.skills = skills
-  }
-  if (tokens !== profile.context.estimatedInputTokens) {
-    patch.context = { ...profile.context, estimatedInputTokens: tokens }
+  for (const group of CAPABILITY_GROUPS) {
+    if (!sameGroup(group, next, current)) {
+      setGroup(patch, group, next[group])
+    }
   }
   return patch
 }

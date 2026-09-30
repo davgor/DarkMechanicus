@@ -65,6 +65,14 @@ describe('ownedPaths', () => {
       expect(captureError(() => paths.profileFile(name)).code).toBe('unsafe_path')
     }
   })
+
+  it('rejects profile names that are not portable file names', () => {
+    for (const name of ['trailing-', 'con', 'nul', 'com1', 'lpt9', 'x/y', 'x\\y']) {
+      const error = captureError(() => paths.profileFile(name))
+      expect([error.code, error.message]).toEqual(['unsafe_path', 'Refusing to build a repository path from an invalid profile name.'])
+    }
+    expect(paths.profileFile('con-1')).toBe(join(layout.profilesDir, 'con-1.json'))
+  })
 })
 
 describe('displayPath', () => {

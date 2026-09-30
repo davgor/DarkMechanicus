@@ -120,7 +120,7 @@ Roles are fixed at launch. Nothing a tool call says can change them.
 
 | Role | Can do |
 |------|--------|
-| `planner` | Read, create epics, edit drafts, comment. `save_plan` only with `--allow-save`. |
+| `planner` | Read, create epics, edit drafts, comment, save named capability profiles (`save_profile`). `save_plan` only with `--allow-save`. |
 | `orchestrator` (default) | Everything a planner can, plus register hosts, start and control runs, claim tickets, review attempts, submit sprint reports, and advance sprints. Never approves. |
 | `worker` | Heartbeat, submit, and fail for the claim it holds; comment. |
 | `reviewer` | Accept or reject submitted attempts; comment. |
@@ -137,8 +137,9 @@ A session lists only the tools its role may call. Each tool adapts one command, 
 
 | Tools | planner | orchestrator | worker | reviewer |
 |-------|:-------:|:------------:|:------:|:--------:|
-| Read-only (21): `get_capabilities`, `get_project`, `list_projects`, `get_storage_status`, `search_history`, `list_branch_epics`, `list_sessions`, `list_epics`, `get_epic`, `list_tickets`, `get_ticket`, `get_plan`, `validate_plan`, `list_revisions`, `match_capabilities`, `get_run`, `get_ready_tickets`, `get_sprint_report`, `get_checkpoint`, `get_run_events`, `list_comments` | yes | yes | yes | yes |
+| Read-only (23): `get_capabilities`, `get_project`, `list_projects`, `get_storage_status`, `search_history`, `list_branch_epics`, `list_sessions`, `list_epics`, `get_epic`, `list_tickets`, `get_ticket`, `get_plan`, `validate_plan`, `list_revisions`, `match_capabilities`, `get_run`, `get_ready_tickets`, `get_sprint_report`, `get_checkpoint`, `get_run_events`, `list_comments`, `list_profiles`, `get_profile` | yes | yes | yes | yes |
 | Comments: `add_comment` | yes | yes | yes | yes |
+| Profiles: `save_profile` | yes | yes | | |
 | Repository and drafts: `initialize_repository`, `flush_portable_state`, `reconcile_repository`, `create_epic`, `create_ticket`, `update_ticket`, `open_plan_draft`, `update_plan_draft`, `discard_plan_draft` | yes | yes | | |
 | `save_plan` | with `--allow-save` | with `--allow-save` | | |
 | Epic and ticket status: `set_epic_status`, `set_epic_branch`, `set_ticket_status` | | yes | | |
@@ -147,7 +148,7 @@ A session lists only the tools its role may call. Each tool adapts one command, 
 | `heartbeat_attempt`, `submit_attempt`, `fail_attempt` | | yes | yes | |
 | `accept_attempt`, `reject_attempt` | | yes | | yes |
 | Checkpoints: `submit_sprint_report`, `advance_sprint` | | yes | | |
-| **Total** | 31 (32 with `--allow-save`) | 51 (52 with `--allow-save`) | 25 | 24 |
+| **Total** | 34 (35 with `--allow-save`) | 54 (55 with `--allow-save`) | 27 | 26 |
 
 `--allow-save` has no effect for `worker` and `reviewer`. No role lists a tool for the desktop-only actions.
 

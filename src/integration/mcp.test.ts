@@ -141,3 +141,53 @@ describe('MCP comment tools over the real Workspace', () => {
     expect(found.map((hit) => [hit.docType, hit.docId])).toEqual([['comment', note.id]])
   })
 })
+
+const REVIEW_CAPABILITY = {
+  workType: 'review',
+  reasoning: { level: 'deep', rationale: 'Independent verification' },
+  skills: ['security-review'],
+  modalities: ['text'],
+  tools: ['repo_read', 'test_execution'],
+  context: { estimatedInputTokens: 30000, requiredArtifacts: [] },
+  constraints: { environments: [], dataLocation: null, maxDurationMinutes: null, maxCostUsd: null },
+  preferences: { quality: 'high', latency: null, cost: null, autonomy: null, modelOverride: null }
+}
+
+describe('named capability profiles over MCP', () => {
+  let harness: Harness
+
+  beforeEach(() => {
+    harness = createHarness()
+  })
+
+  afterEach(() => {
+    harness.cleanup()
+  })
+
+  it('lets a planner save a profile and start a ticket from it', async () => {
+    const client = await connect(harness, 'planner', false)
+    data(await call(client, 'initialize_repository', { name: 'profile-repo' }))
+    expect(data<unknown[]>(await call(client, 'list_profiles'))).toEqual([])
+    data(await call(client, 'save_profile', { name: 'deep-review', description: 'Careful review', capability: REVIEW_CAPABILITY }))
+    const profile = data<{ capability: unknown; revision: number }>(await call(client, 'get_profile', { name: 'deep-review' }))
+    expect(profile).toMatchObject({ capability: REVIEW_CAPABILITY, revision: 1 })
+    const stale = await call(client, 'save_profile', { name: 'deep-review', capability: REVIEW_CAPABILITY })
+    expect(stale.error?.code).toBe('conflict')
+    const epic = data<{ id: string }>(await call(client, 'create_epic', { title: 'Review epic' }))
+    const created = data<{ ticketId: string }>(
+      await call(client, 'create_ticket', { epicId: epic.id, ticket: { title: 'Review the importer', capability: profile.capability } })
+    )
+    const ticket = data<{ ticket: { capability: unknown } }>(
+      await call(client, 'get_ticket', { epicId: epic.id, ticketId: created.ticketId, view: 'draft' })
+    )
+    expect(ticket.ticket.capability).toEqual(REVIEW_CAPABILITY)
+  })
+
+  it('refuses a worker that tries to save a profile', async () => {
+    const orchestrator = harness.open('orchestrator')
+    await orchestrator.initializeRepository({ name: 'profile-repo' })
+    const client = await connect(harness, 'worker', false)
+    const denied = await call(client, 'save_profile', { name: 'deep-review', capability: REVIEW_CAPABILITY })
+    expect(denied.error).toEqual({ code: 'unauthorized', message: 'This worker session is not permitted to perform "profile.write".', details: { role: 'worker', capability: 'profile.write', tool: 'save_profile' } })
+  })
+})

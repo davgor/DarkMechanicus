@@ -47,6 +47,7 @@ describe('getStorageStatus without a database', () => {
       branch: { current: null, recorded: null, changed: false, repository: true },
       uncommittedRecordFiles: null,
       conflicts: [],
+      profileConflicts: [],
       sessions: { active: 0, byRole: {} }
     })
   })
@@ -89,6 +90,9 @@ function seededDb(): Db {
   db.run("INSERT INTO sync_state (kind, entity_id, conflict, updated_at) VALUES ('epic', ?, 'epic conflict', ?)", epic, T0)
   db.run("INSERT INTO sync_state (kind, entity_id, conflict, updated_at) VALUES ('run', ?, 'run conflict', ?)", run, T0)
   db.run("INSERT INTO sync_state (kind, entity_id, conflict, updated_at) VALUES ('epic', ?, NULL, ?)", idOf('epic', 2), T0)
+  db.run("INSERT INTO sync_state (kind, entity_id, conflict, updated_at) VALUES ('profile', 'ui', 'ui conflict', ?)", T0)
+  db.run("INSERT INTO sync_state (kind, entity_id, conflict, updated_at) VALUES ('profile', 'deep-review', 'review conflict', ?)", T0)
+  db.run("INSERT INTO sync_state (kind, entity_id, conflict, updated_at) VALUES ('profile', 'quiet', NULL, ?)", T0)
   const session = "INSERT INTO sessions (id, role, label, capabilities_json, transport, started_at, last_seen_at) VALUES (?, ?, 'x', '[]', 'stdio', ?, ?)"
   db.run(session, idOf('session', 1), 'orchestrator', T0, T0)
   db.run(session, idOf('session', 2), 'desktop', T0, '2025-12-31T00:00:00.000Z')
@@ -111,6 +115,10 @@ describe('getStorageStatus with a database', () => {
       conflicts: [
         { epicId: idOf('epic', 1), message: 'epic conflict' },
         { epicId: idOf('epic', 1), message: 'run conflict' }
+      ],
+      profileConflicts: [
+        { name: 'deep-review', message: 'review conflict' },
+        { name: 'ui', message: 'ui conflict' }
       ],
       sessions: { active: 1, byRole: { orchestrator: 1 } }
     })
@@ -138,7 +146,7 @@ describe('getStorageStatus with a database', () => {
     const status = await getStorageStatus({ db, layout, fs: initializedFs(), git: gitWith(0, 'main'), clock: createTestClock() })
     expect(status.outbox).toEqual({ pending: 0, failed: 0, lastError: null })
     expect(status.branch).toEqual({ current: 'main', recorded: 'main', changed: false, repository: true })
-    expect(status.conflicts).toEqual([])
+    expect([status.conflicts, status.profileConflicts]).toEqual([[], []])
   })
 })
 

@@ -106,6 +106,21 @@ describe('StorageCard warnings', () => {
     expect(row('Conflicts')).toBe('ep_1: edited on two machines')
   })
 
+  it('lists profile conflicts after epic conflicts', () => {
+    renderCard(
+      storageStatus({
+        conflicts: [{ epicId: 'ep_1', message: 'edited on two machines' }],
+        profileConflicts: [{ name: 'deep-review', message: 'saved on two machines' }]
+      })
+    )
+    expect(row('Conflicts')).toBe('ep_1: edited on two machinesProfile deep-review: saved on two machines')
+  })
+
+  it('shows the conflicts row for profile conflicts alone', () => {
+    renderCard(storageStatus({ profileConflicts: [{ name: 'ui', message: 'saved on two machines' }] }))
+    expect(row('Conflicts')).toBe('Profile ui: saved on two machines')
+  })
+
   it('has no warnings otherwise', () => {
     renderCard(storageStatus())
     expect(screen.queryByText(/Branch changed/)).toBeNull()

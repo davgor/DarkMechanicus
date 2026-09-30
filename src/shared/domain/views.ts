@@ -3,6 +3,7 @@
  * Plain JSON-serializable data only.
  */
 import type {
+  CapabilityProfile,
   Criterion,
   EpicBranch,
   EpicProvenance,
@@ -491,6 +492,8 @@ export interface StorageStatusView {
   branch: { current: string | null; recorded: string | null; changed: boolean; repository: boolean }
   uncommittedRecordFiles: number | null
   conflicts: { epicId: string; message: string }[]
+  /** Named profiles whose tracked file changed while a local save waits to be exported. */
+  profileConflicts: { name: string; message: string }[]
   sessions: { active: number; byRole: Record<string, number> }
 }
 
@@ -540,9 +543,12 @@ export interface FlushResultView {
 }
 
 export interface ReconcileResultView {
+  /** Epic and run ids, and `profile:<name>` for named profiles. */
   imported: string[]
   unchanged: string[]
   conflicts: { epicId: string; message: string }[]
+  /** Named profiles kept local because their tracked file changed while a local save waits to be exported. */
+  profileConflicts: { name: string; message: string }[]
   rejected: { path: string; message: string }[]
   branchChanged: boolean
   pausedRuns: string[]
@@ -574,4 +580,17 @@ export interface CommentView {
   /** The session that wrote it (role and label), never caller-supplied. */
   author: { role: SessionRole; label: string }
   createdAt: string
+}
+
+/**
+ * A named, reusable capability profile (`.darkmechanicus/profiles/<name>.json`): provider-neutral
+ * requirements a ticket can start from. Applying one copies it into the ticket.
+ */
+export interface ProfileView {
+  name: string
+  description: string
+  capability: CapabilityProfile
+  /** Optimistic-concurrency revision for saveProfile; kept by this repository's local database. */
+  revision: number
+  updatedAt: string
 }
