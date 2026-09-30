@@ -158,12 +158,15 @@ function requireProject(deps: ImporterDeps): ProjectRecord {
   return project
 }
 
-/** Entries of an owned directory (dotfiles ignored). A linked directory fails the whole reconcile. */
+/** Entries of an owned directory (dotfiles ignored); throws when it is a link or not a directory. */
 function listEntries(deps: ImporterDeps, dir: string): string[] {
   if (!deps.fs.exists(dir) && !deps.fs.isSymlink(dir)) {
     return []
   }
   assertContained(deps.layout, deps.fs, dir)
+  if (!deps.fs.isDirectory(dir)) {
+    reject(displayPath(deps.layout, dir), 'is not a directory')
+  }
   return deps.fs
     .readdir(dir)
     .filter((name) => !name.startsWith('.'))
@@ -402,10 +405,23 @@ function scanComments(deps: ImporterDeps, epicId: string, scan: Scan): void {
   })
 }
 
+/**
+ * `epics/` or `history/` as a link, redirected outside, or not a directory is reported and read as
+ * empty: nothing is read through it, and the rest of the reconcile (and opening the repository) goes on.
+ */
+function listTopLevel(deps: ImporterDeps, dir: string, scan: Scan): string[] {
+  try {
+    return listEntries(deps, dir)
+  } catch (error: unknown) {
+    scan.rejected.push({ path: displayPath(deps.layout, dir), message: messageOf(error) })
+    return []
+  }
+}
+
 function scanRepository(deps: ImporterDeps): Scan {
   const scan: Scan = { epics: [], runs: [], comments: [], unchanged: [], rejected: [], rejectedEpics: new Set() }
-  const epicNames = listEntries(deps, deps.layout.epicsDir)
-  const runNames = listEntries(deps, deps.layout.historyDir)
+  const epicNames = listTopLevel(deps, deps.layout.epicsDir, scan)
+  const runNames = listTopLevel(deps, deps.layout.historyDir, scan)
   scanEntries(epicNames, (name) => readEpicFiles(deps, name), {
     found: scan.epics,
     unchanged: scan.unchanged,
@@ -1044,10 +1060,10 @@ function applyPlan(deps: ImporterDeps, context: ApplyContext): ReconcileResultVi
 
 /**
  * Reconciles tracked records into the local database under the write lock (so no finalizer can be
- * mid-write while files are read). Throws `not_initialized`, `project_mismatch`, or `unsafe_path`
- * (a linked `epics/` or `history/`) without changing anything; per-epic, per-run, and per-profile
- * problems (including a `profiles` that is a link or not a directory) are reported in
- * `rejected`/`conflicts`/`profileConflicts` and leave those entities as they were.
+ * mid-write while files are read). Throws `not_initialized` or `project_mismatch` without changing
+ * anything; per-epic, per-run, and per-profile problems (including an `epics/`, `history/`, or
+ * `profiles` that is a link, resolves outside, or is not a directory, which is then read as empty)
+ * are reported in `rejected`/`conflicts`/`profileConflicts` and leave those entities as they were.
  */
 export function reconcileRepository(deps: ImporterDeps): ReconcileResultView {
   return deps.db.tx(() => {

@@ -24,6 +24,8 @@ export interface MemoryFs extends FsAdapter {
   readonly writes: string[]
   /** Test setup: writes a file, creating parent directories (no faults, not logged). */
   put(path: string, text: string): void
+  /** Deletes a directory and everything under it (test setup only; not a recorded write). */
+  removeTree(path: string): void
   /** Test inspection: file contents at a path (following links), or undefined. */
   get(path: string): string | undefined
   symlink(path: string, target: string): void
@@ -284,6 +286,19 @@ class MemoryFsImpl implements MemoryFs {
   put(path: string, text: string): void {
     this.ensureDirs(dirname(resolve(path)), false)
     this.setFile(this.follow(path), text)
+  }
+
+  removeTree(path: string): void {
+    const root = resolve(path)
+    const inside = (candidate: string): boolean => candidate === root || candidate.startsWith(`${root}${sep}`)
+    for (const collection of [this.fileMap, this.links, this.junctions, this.listings, this.sizes, this.versions]) {
+      for (const key of [...collection.keys()].filter(inside)) {
+        collection.delete(key)
+      }
+    }
+    for (const dir of [...this.dirSet].filter(inside)) {
+      this.dirSet.delete(dir)
+    }
   }
 
   get(path: string): string | undefined {

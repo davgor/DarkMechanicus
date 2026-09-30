@@ -3,7 +3,7 @@ import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { makeBundle, makeTicket, tid } from '../../test/bundles'
 import { isWithin } from '../../test/memoryFs'
-import { domainErrorOf, idOf, insertAttempt, insertComment, insertOutbox, insertProfile, insertRun } from '../../test/repoFixtures'
+import { idOf, insertAttempt, insertComment, insertOutbox, insertProfile, insertRun } from '../../test/repoFixtures'
 import {
   copyTracked,
   createRepoEnv,
@@ -117,16 +117,6 @@ describe('hostile directory names', () => {
 })
 
 describe('hostile links', () => {
-  it('fails closed on a linked epics directory without reading outside', () => {
-    const state = imported()
-    state.target.fs.put(join(OUTSIDE, EPIC, 'current.json'), state.target.fs.get(paths(state).epicPointerFile(EPIC)) ?? '')
-    state.target.fs.symlink(state.target.layout.epicsDir, OUTSIDE)
-    const error = domainErrorOf(() => reconcile(state))
-    expect(error.code).toBe('unsafe_path')
-    expect(dumpDomain(state.target.db)).toEqual(state.before)
-    expect(outsideReads(state)).toEqual([])
-  })
-
   it('rejects a linked snapshots directory without reading outside', () => {
     const state = imported()
     state.target.fs.put(join(OUTSIDE, 'snaps', `${R1}.json`), state.target.fs.get(paths(state).snapshotFile(EPIC, R1)) ?? '')
@@ -154,6 +144,49 @@ describe('hostile links', () => {
     const result = reconcile(state)
     expect(result.rejected).toEqual([{ path: `.darkmechanicus/history/${RUN}`, message: expect.stringContaining('symbolic links') }])
     expectUnchanged(state, result)
+  })
+})
+
+describe('hostile top-level directories', () => {
+  it('reports a linked epics directory without reading outside and keeps the imported state', () => {
+    const state = imported()
+    state.target.fs.put(join(OUTSIDE, EPIC, 'current.json'), state.target.fs.get(paths(state).epicPointerFile(EPIC)) ?? '')
+    state.target.fs.symlink(state.target.layout.epicsDir, OUTSIDE)
+    const result = reconcile(state)
+    expect(result.rejected).toEqual([
+      { path: '.darkmechanicus/epics', message: expect.stringContaining('Unsafe repository path .darkmechanicus/epics: ') }
+    ])
+    expect(result.unchanged).toEqual([RUN])
+    expectUnchanged(state, result)
+  })
+
+  it('reports a linked history directory without reading outside and still reads the epics', () => {
+    const state = imported()
+    state.target.fs.symlink(state.target.layout.historyDir, OUTSIDE)
+    const result = reconcile(state)
+    expect(result.rejected).toEqual([
+      { path: '.darkmechanicus/history', message: expect.stringContaining('Unsafe repository path .darkmechanicus/history: ') }
+    ])
+    expect(result.unchanged).toEqual([EPIC])
+    expectUnchanged(state, result)
+  })
+
+  it('reports a file in place of the epics or history directory and reads the other', () => {
+    const epics = imported()
+    epics.target.fs.removeTree(epics.target.layout.epicsDir)
+    epics.target.fs.put(epics.target.layout.epicsDir, 'oops')
+    const onEpics = reconcile(epics)
+    expect(onEpics.rejected).toEqual([{ path: '.darkmechanicus/epics', message: '.darkmechanicus/epics is not a directory.' }])
+    expect(onEpics.unchanged).toEqual([RUN])
+    expectUnchanged(epics, onEpics)
+
+    const history = imported()
+    history.target.fs.removeTree(history.target.layout.historyDir)
+    history.target.fs.put(history.target.layout.historyDir, 'oops')
+    const onHistory = reconcile(history)
+    expect(onHistory.rejected).toEqual([{ path: '.darkmechanicus/history', message: '.darkmechanicus/history is not a directory.' }])
+    expect(onHistory.unchanged).toEqual([EPIC])
+    expectUnchanged(history, onHistory)
   })
 })
 

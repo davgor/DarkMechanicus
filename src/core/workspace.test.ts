@@ -294,3 +294,39 @@ describe('Workspace open with a broken profiles directory', () => {
     ])
   })
 })
+
+describe('Workspace open with a broken epics or history directory', () => {
+  let harness: Harness
+
+  beforeEach(() => {
+    harness = createHarness()
+  })
+
+  afterEach(() => {
+    harness.cleanup()
+  })
+
+  it('opens and reports a file in place of epics, and a link in place of history, instead of failing', async () => {
+    const first = harness.open('desktop')
+    const epicId = await savedEpic(first)
+    first.close()
+    const epics = join(harness.root, '.darkmechanicus', 'epics')
+    rmSync(epics, { recursive: true })
+    writeFileSync(epics, 'oops')
+    const onFile = harness.open('orchestrator')
+    expect((await onFile.getEpic({ epicId })).title).toBe('Branch epic')
+    expect((await onFile.reconcileRepository()).rejected).toEqual([{ path: '.darkmechanicus/epics', message: '.darkmechanicus/epics is not a directory.' }])
+    onFile.close()
+    const history = join(harness.root, '.darkmechanicus', 'history')
+    rmSync(history, { recursive: true, force: true })
+    mkdirSync(join(harness.root, 'elsewhere'))
+    symlinkSync(join(harness.root, 'elsewhere'), history, 'junction')
+    const onLink = harness.open('orchestrator')
+    // Windows may report the junction as a link or only by where it resolves; either way it is rejected.
+    expect((await onLink.reconcileRepository()).rejected).toContainEqual({
+      path: '.darkmechanicus/history',
+      message: expect.stringContaining('Unsafe repository path .darkmechanicus/history: ')
+    })
+  })
+})
+
