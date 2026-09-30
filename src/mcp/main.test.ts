@@ -169,6 +169,29 @@ describe('startMcpServer serving', () => {
   })
 })
 
+/** The tool names a server started with `argv` lists to a client. */
+async function listedTools(argv: string[]): Promise<string[]> {
+  const rig = await startRig(argv)
+  const client = new Client({ name: 'test-client', version: '0.0.0' })
+  await client.connect(rig.clientTransport)
+  const names = (await client.listTools()).tools.map((tool) => tool.name)
+  await client.close()
+  await rig.handle.close()
+  return names
+}
+
+describe('startMcpServer tool list', () => {
+  it('lists only the tools of the launch role, and save_plan only with --allow-save', async () => {
+    const worker = await listedTools(['--role', 'worker', '--allow-save'])
+    const planner = await listedTools(['--role', 'planner'])
+    const saver = await listedTools(['--role', 'planner', '--allow-save'])
+
+    expect([worker.length, planner.length, saver.length]).toEqual([23, 29, 30])
+    expect([worker.includes('submit_attempt'), planner.includes('submit_attempt')]).toEqual([true, false])
+    expect(saver.filter((name) => !planner.includes(name))).toEqual(['save_plan'])
+  })
+})
+
 describe('startMcpServer heartbeat', () => {
   it('schedules one session heartbeat every 15 seconds', async () => {
     const rig = await startRig([])

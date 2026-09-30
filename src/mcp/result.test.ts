@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DomainError } from '../core/errors'
-import { runTool, toolFailure, toolSuccess } from './result'
+import { invalidInputFailure, runTool, toolFailure, toolSuccess } from './result'
 
 function parseText(result: { content: unknown[] }): unknown {
   const first = result.content[0] as { type: string; text: string }
@@ -48,6 +48,78 @@ describe('toolFailure', () => {
       ok: false,
       error: { code: 'gate_blocked', message: 'Blocked.', details: { unmet: ['approval'] } }
     })
+  })
+})
+
+function numberedIssues(count: number): { path: PropertyKey[]; message: string }[] {
+  return Array.from({ length: count }, (_, index) => ({ path: ['ops', index], message: `bad ${index}` }))
+}
+
+describe('invalidInputFailure', () => {
+  it('names the tool and every issue by its dotted path', () => {
+    const result = invalidInputFailure('update_plan_draft', [
+      { path: ['ops', 0, 'ticket', 'title'], message: 'Expected string' },
+      { path: ['epicId'], message: 'Required' }
+    ])
+    expect(result.isError).toBe(true)
+    expect(result.structuredContent).toEqual({
+      ok: false,
+      error: {
+        code: 'invalid_input',
+        message: 'Invalid arguments for update_plan_draft: ops.0.ticket.title: Expected string; epicId: Required',
+        details: {
+          tool: 'update_plan_draft',
+          issues: [
+            { path: 'ops.0.ticket.title', message: 'Expected string' },
+            { path: 'epicId', message: 'Required' }
+          ]
+        }
+      }
+    })
+    expect(parseText(result)).toEqual(result.structuredContent)
+  })
+})
+
+describe('invalidInputFailure for the whole object and for many issues', () => {
+  it('labels an issue with the arguments as a whole', () => {
+    const result = invalidInputFailure('get_run', [{ path: [], message: 'Give runId or epicId' }])
+    expect(result.structuredContent).toEqual({
+      ok: false,
+      error: {
+        code: 'invalid_input',
+        message: 'Invalid arguments for get_run: (arguments): Give runId or epicId',
+        details: { tool: 'get_run', issues: [{ path: '(arguments)', message: 'Give runId or epicId' }] }
+      }
+    })
+  })
+
+  it('reports at most ten issues and counts the rest', () => {
+    const result = invalidInputFailure('update_plan_draft', numberedIssues(12))
+    const error = (result.structuredContent as { error: { message: string; details: { issues: { path: string }[] } } })
+      .error
+    expect(error.details.issues.map((issue) => issue.path)).toEqual([
+      'ops.0',
+      'ops.1',
+      'ops.2',
+      'ops.3',
+      'ops.4',
+      'ops.5',
+      'ops.6',
+      'ops.7',
+      'ops.8',
+      'ops.9'
+    ])
+    expect(error.message).toBe(
+      'Invalid arguments for update_plan_draft: ops.0: bad 0; ops.1: bad 1; ops.2: bad 2; ops.3: bad 3; ops.4: bad 4; ' +
+        'ops.5: bad 5; ops.6: bad 6; ops.7: bad 7; ops.8: bad 8; ops.9: bad 9 (and 2 more)'
+    )
+  })
+
+  it('reports exactly ten issues without a remainder', () => {
+    const result = invalidInputFailure('update_plan_draft', numberedIssues(10))
+    const error = (result.structuredContent as { error: { message: string; details: { issues: unknown[] } } }).error
+    expect(error.details.issues).toHaveLength(10)
+    expect(error.message).toMatch(/; ops\.8: bad 8; ops\.9: bad 9$/)
   })
 })
 

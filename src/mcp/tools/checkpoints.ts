@@ -40,6 +40,7 @@ const CHECKPOINT_TOOLS = [
   }),
   defineTool({
     name: 'get_run_events',
+    command: 'listEvents',
     description:
       'Reads the append-only event log, oldest first. Pass the cursor from the previous page as sinceSeq to get newer events; filter by runId or epicId. Use it to monitor progress and recover after interruptions.',
     kind: 'read',

@@ -127,7 +127,10 @@ function logReady({ workspace, args, options }: ServeContext): void {
 
 async function serve(context: ServeContext): Promise<McpHandle> {
   const { workspace, options } = context
-  const server = createMcpServer(workspace, context.info)
+  const server = createMcpServer(workspace, context.info, {
+    role: context.args.role,
+    allowSave: context.args.allowSave
+  })
   const heartbeat = (options.scheduler ?? realScheduler).every(HEARTBEAT_INTERVAL_MS, () =>
     beat(workspace, options.log)
   )

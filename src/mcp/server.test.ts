@@ -99,7 +99,9 @@ const PROJECT: ProjectView = {
   createdAt: '2026-01-01T00:00:00.000Z'
 }
 
-const build = (api: Parameters<typeof createMcpServer>[0]) => createMcpServer(api, INFO)
+/** An orchestrator allowed to save holds every capability an MCP tool needs, so it lists them all. */
+const build = (api: Parameters<typeof createMcpServer>[0]) =>
+  createMcpServer(api, INFO, { role: 'orchestrator', allowSave: true })
 
 describe('tool inventory', () => {
   it('exposes exactly the expected tools', async () => {

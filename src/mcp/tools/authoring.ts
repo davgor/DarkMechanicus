@@ -139,6 +139,7 @@ const AUTHORING_TOOLS = [
   }),
   defineTool({
     name: 'create_ticket',
+    command: 'updatePlanDraft',
     description:
       'Convenience: adds one ticket to the epic DRAFT in a single atomic update. sprint is a sprint number ("1"), id, or client ref. requires lists prerequisites (ids or keys): the new ticket needs their accepted results, and prerequisites must sit in the same or an earlier sprint. Returns the new ticketId, the draftRevision, and validation. Nothing executes until save_plan.',
     kind: 'write',
@@ -147,6 +148,7 @@ const AUTHORING_TOOLS = [
   }),
   defineTool({
     name: 'update_ticket',
+    command: 'updatePlanDraft',
     description:
       'Edits a ticket in the DRAFT; only the fields in patch change (capability groups merge one level deep). Keep criterion ids in acceptanceCriteria to preserve evidence mappings. The saved plan is unchanged until save_plan.',
     kind: 'write',

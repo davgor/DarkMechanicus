@@ -21,6 +21,7 @@ const DISCOVERY_TOOLS = [
   }),
   defineArglessTool({
     name: 'list_projects',
+    command: 'getProject',
     description:
       'Lists the projects this session can see. A session serves exactly one repository, so the list has one entry.',
     kind: 'read',

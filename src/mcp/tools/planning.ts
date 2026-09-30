@@ -15,6 +15,7 @@ const PLANNING_TOOLS = [
   }),
   defineTool({
     name: 'open_plan_draft',
+    command: 'openDraft',
     description:
       'Ensures the epic has a draft, creating it from the current saved plan if none exists, and returns it with its draftRevision. update_plan_draft also creates the draft implicitly. Not allowed for completed epics.',
     kind: 'idempotent',
