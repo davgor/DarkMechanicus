@@ -169,3 +169,49 @@ describe('ticket editor: save as profile failures', () => {
     expect(h.backend.inputs('saveProfile')).toEqual([])
   })
 })
+
+describe('ticket editor: save as profile after someone else saved it', () => {
+  it('reloads the profiles on a conflict, shows the refreshed revision, and replaces it on retry', async () => {
+    const { h, editor } = await openEditor(withProfiles([profileView()]))
+    await within(editor).findByLabelText('Start from profile')
+    h.backend.state.profiles = [profileView({ revision: 3, description: 'Sharper review' })]
+    const reason = 'Profile deep-review changed (now revision 3). Reload it and try again.'
+    h.backend.fail('saveProfile', 'conflict', reason)
+    fireEvent.click(within(editor).getByRole('button', { name: 'Save as profile…' }))
+    fireEvent.change(field(editor, 'Profile name'), { target: { value: 'deep-review' } })
+    expect(within(editor).getByText('Replaces the saved profile deep-review (revision 2).')).toBeTruthy()
+    fireEvent.click(within(editor).getByRole('button', { name: 'Replace profile' }))
+    expect(await within(editor).findByText('Replaces the saved profile deep-review (revision 3).')).toBeTruthy()
+    expect(within(editor).getByRole('alert').textContent).toBe(reason)
+    fireEvent.click(within(editor).getByRole('button', { name: 'Replace profile' }))
+    expect(await within(editor).findByText('Saved profile deep-review.')).toBeTruthy()
+    expect(h.backend.inputs('saveProfile')).toEqual([
+      { name: 'deep-review', description: 'Independent review of risky changes', capability: ticketCapability(), expectedRevision: 2 },
+      { name: 'deep-review', description: 'Sharper review', capability: ticketCapability(), expectedRevision: 3 }
+    ])
+  })
+
+  it('offers to replace a profile someone else created meanwhile', async () => {
+    const { h, editor } = await openEditor(withProfiles([]))
+    await within(editor).findByText('No named profiles yet.')
+    h.backend.state.profiles = [profileView({ name: 'import-work', revision: 1 })]
+    h.backend.fail('saveProfile', 'conflict', 'Profile import-work already exists (revision 1). Pass expectedRevision 1 to replace it.')
+    fireEvent.click(within(editor).getByRole('button', { name: 'Save as profile…' }))
+    fireEvent.change(field(editor, 'Profile name'), { target: { value: 'import-work' } })
+    fireEvent.click(within(editor).getByRole('button', { name: 'Save profile' }))
+    expect(await within(editor).findByText('Replaces the saved profile import-work (revision 1).')).toBeTruthy()
+    expect((within(editor).getByRole('button', { name: 'Replace profile' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('keeps the list as it is after a failure that is not a conflict', async () => {
+    const { h, editor } = await openEditor(withProfiles([]))
+    await within(editor).findByText('No named profiles yet.')
+    const loads = h.backend.inputs('listProfiles').length
+    h.backend.fail('saveProfile', 'invalid_input', 'Invalid saveProfile input at name: Use 1-64 lowercase letters, digits, or hyphens.')
+    fireEvent.click(within(editor).getByRole('button', { name: 'Save as profile…' }))
+    fireEvent.change(field(editor, 'Profile name'), { target: { value: 'Bad Name' } })
+    fireEvent.click(within(editor).getByRole('button', { name: 'Save profile' }))
+    await within(editor).findByRole('alert')
+    expect(h.backend.inputs('listProfiles')).toHaveLength(loads)
+  })
+})

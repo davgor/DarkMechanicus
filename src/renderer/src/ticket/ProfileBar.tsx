@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { ProfileView } from '../../../shared/domain/views'
 import { errorMessage } from '../api/dm'
-import type { Runner } from '../epic/runner'
+import { failureOf, type Runner } from '../epic/runner'
 import { applyProfile, profileSaveInput, type TicketForm } from './ticketForm'
 
 interface ProfileList {
@@ -23,7 +23,7 @@ interface SaveEntry {
 
 const CLOSED: SaveEntry = { open: false, name: '', description: '', busy: false }
 
-/** The repository's named profiles, loaded once per editor and reloaded after a save. */
+/** The repository's named profiles, loaded once per editor and reloaded after a save or a save conflict. */
 function useProfiles(runner: Runner): { list: ProfileList; reload(): void } {
   const [list, setList] = useState<ProfileList>({ profiles: null, error: null })
   const [version, setVersion] = useState<object>({})
@@ -138,7 +138,12 @@ function SaveProfileForm(props: SaveFormProps): JSX.Element {
   )
 }
 
-function SaveAsProfile(props: { runner: Runner; form: TicketForm; profiles: ProfileView[]; onSaved(): void }): JSX.Element {
+/**
+ * Saves the requirements shown as a profile. The list is reloaded after a save, and after a
+ * `conflict` (someone saved that name meanwhile) so the entry shows its current revision and a
+ * retry replaces it.
+ */
+function SaveAsProfile(props: { runner: Runner; form: TicketForm; profiles: ProfileView[]; reload(): void }): JSX.Element {
   const [entry, setEntry] = useState<SaveEntry>(CLOSED)
   const [notice, setNotice] = useState<Notice | null>(null)
   const existing = props.profiles.find((item) => item.name === entry.name.trim())
@@ -148,10 +153,14 @@ function SaveAsProfile(props: { runner: Runner; form: TicketForm; profiles: Prof
       const saved = await props.runner('saveProfile', profileSaveInput(props.form, entry, existing))
       setEntry(CLOSED)
       setNotice({ tone: 'info', text: `Saved profile ${saved.name}.` })
-      props.onSaved()
+      props.reload()
     } catch (error: unknown) {
+      const failure = failureOf(error)
       setEntry((current) => ({ ...current, busy: false }))
-      setNotice({ tone: 'error', text: errorMessage(error) })
+      setNotice({ tone: 'error', text: failure.message })
+      if (failure.code === 'conflict') {
+        props.reload()
+      }
     }
   }
   if (entry.open) {
@@ -186,7 +195,7 @@ export function ProfileBar(props: { runner: Runner; form: TicketForm; update(for
       ) : (
         <p className="ew-muted">{hintText(list)}</p>
       )}
-      <SaveAsProfile runner={props.runner} form={props.form} profiles={profiles} onSaved={reload} />
+      <SaveAsProfile runner={props.runner} form={props.form} profiles={profiles} reload={reload} />
     </div>
   )
 }
