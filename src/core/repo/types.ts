@@ -9,6 +9,11 @@ export interface FsAdapter {
   readFile(path: string): string
   /** Size in bytes, or -1 when the path does not exist. */
   fileSize(path: string): number
+  /**
+   * An opaque version of a regular file (size, modification and change times, inode), compared
+   * only for equality; null when the path is missing or not a regular file (a link is not followed).
+   */
+  fileStamp(path: string): string | null
   writeFile(path: string, data: string): void
   fsyncFile(path: string): void
   rename(from: string, to: string): void

@@ -14,11 +14,13 @@ import {
   type RepoEnv,
   saveRevision
 } from '../../test/repoEnv'
+import { isWithin } from '../../test/memoryFs'
 import { createSaveHook } from '../../test/repoFixtures'
 import { createTempRepo, type TempRepo } from '../../test/tempRepo'
 import { createSequentialIds, createTestClock, createTestDb } from '../../test/testContext'
 import { contentHash } from '../canonical'
 import { getMeta, setMeta } from '../meta'
+import { createFileHashCache } from './fileHashes'
 import { flushOutbox } from './finalizer'
 import { branchState, reconcileRepository } from './importer'
 import { initializeRepository } from './initialize'
@@ -444,6 +446,30 @@ describe('reconcileRepository comment conflicts', () => {
   })
 })
 
+describe('reconcileRepository unchanged comment files', () => {
+  it('does not read comment files again while they are unchanged', () => {
+    const target = cloneOf(withComments(buildSource()))
+    const deps = importerDeps(target, createStubGit('main'))
+    expect(reconcileRepository(deps).imported).toEqual([EPIC, RUN, C1, C2])
+    const dir = ownedPaths(target.layout).commentsDir(EPIC)
+    target.fs.failOn({ op: 'readFile', match: (path) => isWithin(dir, path) })
+    expect(reconcileRepository(deps)).toMatchObject({ imported: [], conflicts: [], rejected: [] })
+    expect(() => target.fs.readFile(ownedPaths(target.layout).commentFile(EPIC, C1))).toThrow('Injected readFile fault')
+  })
+
+  it('reads a comment file again once it changed at the same size, and keeps reporting the conflict', () => {
+    const target = cloneOf(withComments(buildSource()))
+    const deps = importerDeps(target, createStubGit('main'))
+    reconcileRepository(deps)
+    const file = ownedPaths(target.layout).commentFile(EPIC, C1)
+    target.fs.put(file, (target.fs.get(file) ?? '').replace('**keychain**', '**KEYCHAIN**'))
+    const conflict = { epicId: EPIC, message: `Comment ${C1} already exists with different content; .darkmechanicus/epics/${EPIC}/comments/${C1}.json was not imported.` }
+    expect(reconcileRepository(deps).conflicts).toEqual([conflict])
+    expect(reconcileRepository(deps).conflicts).toEqual([conflict])
+    expect(target.db.get('SELECT body FROM comments WHERE id = ?', C1)).toEqual({ body: 'Blocked on the **keychain** fixture' })
+  })
+})
+
 describe('reconcileRepository leaves drafts alone', () => {
   it('keeps a local draft while importing a newer revision', () => {
     const source = buildSource()
@@ -499,7 +525,7 @@ describe('reconcileRepository on disk', () => {
     cpSync(dmDir, join(cloneRoot, '.darkmechanicus'), { recursive: true, filter: (path) => relative(dmDir, path).split(sep)[0] !== 'local' })
     const clone = resolveLayout(cloneRoot)
     expect(existsSync(clone.localDir)).toBe(false)
-    const target = { db: createTestDb(), layout: clone, fs: nodeFs, clock, machineId: idOf('machine', 5), git: createStubGit('main') }
+    const target = { db: createTestDb(), layout: clone, fs: nodeFs, clock, machineId: idOf('machine', 5), git: createStubGit('main'), fileHashes: createFileHashCache() }
     expect(reconcileRepository(target).imported).toEqual([EPIC])
     expect(target.db.get('SELECT current_revision_id FROM epics')).toEqual({ current_revision_id: R1 })
   })

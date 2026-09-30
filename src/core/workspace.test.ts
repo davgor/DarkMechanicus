@@ -5,6 +5,7 @@ import { defaultCapabilityProfile } from '../shared/domain/bundle'
 import type { SessionView } from '../shared/domain/views'
 import { createHarness, type Harness } from '../test/workspaceHarness'
 import { nodeFs } from './repo/nodeFs'
+import type { FsAdapter } from './repo/types'
 import type { Workspace } from './workspace'
 
 async function codeOf(promise: Promise<unknown>): Promise<string> {
@@ -215,5 +216,47 @@ describe('Workspace heartbeat', () => {
     writeTrackedProfile(harness.root, 'deep-review')
     agent.heartbeat()
     expect(await profileNames(agent)).toEqual([])
+  })
+})
+
+/** nodeFs that logs the path of every file read. */
+function readLoggingFs(reads: string[]): FsAdapter {
+  return {
+    ...nodeFs,
+    readFile: (path) => {
+      reads.push(path)
+      return nodeFs.readFile(path)
+    }
+  }
+}
+
+describe('Workspace reconcile reads', () => {
+  let harness: Harness
+
+  beforeEach(() => {
+    harness = createHarness()
+  })
+
+  afterEach(() => {
+    harness.cleanup()
+  })
+
+  it('reads a tracked comment or profile file once, not again on every heartbeat while it is unchanged', async () => {
+    const reads: string[] = []
+    const agent = harness.open('orchestrator', { fs: readLoggingFs(reads) })
+    const epicId = await savedEpic(agent)
+    const comment = await agent.addComment({ epicId, body: 'Read once' })
+    writeTrackedProfile(harness.root, 'deep-review')
+    const dm = join(harness.root, '.darkmechanicus')
+    const tracked = [join(dm, 'epics', epicId, 'comments', `${comment.id}.json`), join(dm, 'profiles', 'deep-review.json')]
+    const trackedReadsSince = (mark: number): string[] => reads.slice(mark).filter((path) => tracked.includes(path))
+    const first = reads.length
+    agent.heartbeat()
+    expect(trackedReadsSince(first)).toEqual(tracked)
+    const settled = reads.length
+    agent.heartbeat()
+    agent.heartbeat()
+    expect(trackedReadsSince(settled)).toEqual([])
+    expect(await profileNames(agent)).toEqual(['deep-review'])
   })
 })

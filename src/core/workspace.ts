@@ -16,6 +16,7 @@ import { fail } from './errors'
 import { createIdGenerator, type IdGenerator } from './ids'
 import { getMeta, META_KEYS, setMeta } from './meta'
 import { findRepositoryRoot } from './repo/discovery'
+import { createFileHashCache } from './repo/fileHashes'
 import { flushOutbox } from './repo/finalizer'
 import { createGitAdapter } from './repo/git'
 import { reconcileRepository } from './repo/importer'
@@ -87,6 +88,8 @@ class RepositoryWorkspace implements WorkspaceCore {
   readonly ids: IdGenerator
   readonly options: OpenWorkspaceOptions
   private store: Store | null = null
+  /** Comment and profile files read by earlier reconciles, so unchanged ones are not read again. */
+  private readonly fileHashes = createFileHashCache()
 
   constructor(options: OpenWorkspaceOptions) {
     this.options = options
@@ -238,7 +241,8 @@ class RepositoryWorkspace implements WorkspaceCore {
       clock: this.clock,
       machineId: store.ctx.machineId,
       git: this.git,
-      sessionId: store.ctx.session.id
+      sessionId: store.ctx.session.id,
+      fileHashes: this.fileHashes
     })
     return result
   }

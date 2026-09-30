@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, renameSync, utimesSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createTempRepo, linkDirectory, type TempRepo } from '../../test/tempRepo'
@@ -59,6 +59,34 @@ describe('nodeFs files', () => {
     nodeFs.remove(file)
     nodeFs.remove(file)
     expect(existsSync(file)).toBe(false)
+  })
+})
+
+describe('nodeFs file stamps', () => {
+  it('stamps a regular file the same until its size, times, or inode change', () => {
+    const file = join(repo.root, 'record.json')
+    writeFileSync(file, 'one')
+    const stamp = nodeFs.fileStamp(file)
+    expect(stamp).toMatch(/^3:\d+:\d+:\d+$/)
+    expect(nodeFs.fileStamp(file)).toBe(stamp)
+    utimesSync(file, new Date('2020-01-01T00:00:00Z'), new Date('2020-01-01T00:00:00Z'))
+    const touched = nodeFs.fileStamp(file)
+    expect(touched).not.toBe(stamp)
+    writeFileSync(`${file}.tmp`, 'two')
+    renameSync(`${file}.tmp`, file)
+    utimesSync(file, new Date('2020-01-01T00:00:00Z'), new Date('2020-01-01T00:00:00Z'))
+    expect(nodeFs.fileStamp(file)).not.toBe(touched)
+    writeFileSync(file, 'three')
+    expect(nodeFs.fileStamp(file)).toMatch(/^5:/)
+  })
+
+  it('has no stamp for a missing path, a directory, a link, or a path below a regular file', () => {
+    const file = join(repo.root, 'plain.txt')
+    writeFileSync(file, 'x')
+    const link = join(repo.root, 'escape')
+    linkDirectory(repo.outside, link)
+    const paths = [join(repo.root, 'missing.json'), repo.outside, link, join(file, 'child')]
+    expect(paths.map((path) => nodeFs.fileStamp(path))).toEqual([null, null, null, null])
   })
 })
 

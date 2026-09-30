@@ -64,6 +64,9 @@ class MemoryFsImpl implements MemoryFs {
   private readonly junctions = new Map<string, string>()
   private readonly listings = new Map<string, string[]>()
   private readonly sizes = new Map<string, number>()
+  /** Bumped on every write of a file, so its stamp changes even when its size does not. */
+  private readonly versions = new Map<string, number>()
+  private writeCount = 0
   private readonly faults: PendingFault[] = []
 
   constructor() {
@@ -127,6 +130,12 @@ class MemoryFsImpl implements MemoryFs {
     }
   }
 
+  private setFile(path: string, text: string): void {
+    this.fileMap.set(path, text)
+    this.writeCount += 1
+    this.versions.set(path, this.writeCount)
+  }
+
   private pushWrite(path: string, log: boolean): void {
     if (log) {
       this.writes.push(path)
@@ -169,6 +178,17 @@ class MemoryFsImpl implements MemoryFs {
     return this.dirSet.has(target) ? 0 : -1
   }
 
+  /** lstat semantics: a link (or junction) at `path` is not a regular file, so it has no stamp. */
+  fileStamp(path: string): string | null {
+    const target = this.linkPath(path)
+    this.reads.push(target)
+    const content = this.fileMap.get(target)
+    if (content === undefined) {
+      return null
+    }
+    return `${this.sizes.get(target) ?? Buffer.byteLength(content, 'utf8')}:${this.versions.get(target) ?? 0}`
+  }
+
   writeFile(path: string, data: string): void {
     this.fault('writeFile', path)
     const target = this.follow(path)
@@ -176,7 +196,7 @@ class MemoryFsImpl implements MemoryFs {
     if (this.dirSet.has(target)) {
       throw fsError('EISDIR', path)
     }
-    this.fileMap.set(target, data)
+    this.setFile(target, data)
     this.writes.push(target)
   }
 
@@ -201,7 +221,7 @@ class MemoryFsImpl implements MemoryFs {
     }
     this.links.delete(target)
     this.fileMap.delete(source)
-    this.fileMap.set(target, content)
+    this.setFile(target, content)
     this.writes.push(target)
   }
 
@@ -263,7 +283,7 @@ class MemoryFsImpl implements MemoryFs {
 
   put(path: string, text: string): void {
     this.ensureDirs(dirname(resolve(path)), false)
-    this.fileMap.set(this.follow(path), text)
+    this.setFile(this.follow(path), text)
   }
 
   get(path: string): string | undefined {

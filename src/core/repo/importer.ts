@@ -6,7 +6,8 @@
  * and cross-file references are checked before anything is applied. All staged changes are applied
  * in one transaction (per-item savepoints), so a rejected epic or run never changes what the
  * database already holds, and drafts are never touched. Named profiles are scanned and applied by
- * `profileImport.ts` inside the same transaction.
+ * `profileImport.ts` inside the same transaction. Comment and profile files whose stamp is unchanged
+ * since this workspace last read them with a synced hash are not read again (`fileHashes.ts`).
  */
 import { join } from 'node:path'
 import type { PlanBundle } from '../../shared/domain/bundle'
@@ -20,6 +21,7 @@ import { getMeta, META_KEYS, setMeta } from '../meta'
 import { validatePlan } from '../plan/graph'
 import { LIMITS } from '../schemas'
 import { indexComment, indexDocument } from '../services/searchIndex'
+import { type FileHashCache, readUnlessSynced } from './fileHashes'
 import { readProject } from './initialize'
 import { assertContained, displayPath, ownedPaths } from './paths'
 import { applyProfiles, type ProfileScan, scanProfiles } from './profileImport'
@@ -53,6 +55,8 @@ export interface ImporterDeps {
   machineId: string
   git: GitAdapter
   sessionId?: string | null
+  /** Hashes of comment and profile files as last read, kept by the workspace across reconciles. */
+  fileHashes: FileHashCache
 }
 
 type AttemptRecord = RunHistoryRecord['attempts'][number]
@@ -359,20 +363,23 @@ function readCommentText(deps: ImporterDeps, file: string, shown: string): strin
 function readCommentFile(deps: ImporterDeps, epicId: string, name: string): CommentFiles | null {
   const commentId = name.slice(0, -JSON_SUFFIX.length)
   const file = ownedPaths(deps.layout).commentFile(epicId, commentId)
-  const shown = displayPath(deps.layout, file)
-  const text = readCommentText(deps, file, shown)
-  const trackedHash = trackedCommentHash(text)
-  if (commentSynced(deps.db, commentId, trackedHash)) {
+  const changed = readUnlessSynced(deps, file, {
+    hashOf: trackedCommentHash,
+    synced: (hash) => commentSynced(deps.db, commentId, hash),
+    read: () => readCommentText(deps, file, displayPath(deps.layout, file))
+  })
+  if (changed === null) {
     return null
   }
-  const record = parseRecord(commentRecord, text, shown)
+  const shown = displayPath(deps.layout, file)
+  const record = parseRecord(commentRecord, changed.text, shown)
   if (record.id !== commentId) {
     reject(shown, 'names a different comment than its file name')
   }
   if (record.epicId !== epicId) {
     reject(shown, 'belongs to a different epic')
   }
-  return { commentId, epicId, path: shown, record, trackedHash }
+  return { commentId, epicId, path: shown, record, trackedHash: changed.hash }
 }
 
 /** Every comment file of one epic; each bad file is rejected on its own. */

@@ -2,6 +2,7 @@
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type { Db } from '../core/db/database'
 import type { IdGenerator } from '../core/ids'
+import { createFileHashCache } from '../core/repo/fileHashes'
 import { flushOutbox, type FinalizerDeps, type FlushOutcome } from '../core/repo/finalizer'
 import type { ImporterDeps } from '../core/repo/importer'
 import { initializeRepository } from '../core/repo/initialize'
@@ -101,8 +102,10 @@ export function copyTracked(source: RepoEnv, target: RepoEnv): void {
   }
 }
 
+/** Importer dependencies with a fresh file hash cache, kept by callers that reuse the result across reconciles. */
 export function importerDeps(env: RepoEnv, git: GitAdapter, machineId = 'mc_00000000000000000000000077'): ImporterDeps {
-  return { db: env.db, layout: env.layout, fs: env.fs, clock: env.clock, machineId, git, sessionId: 'ss_0000000000000000000000desk' }
+  const sessionId = 'ss_0000000000000000000000desk'
+  return { db: env.db, layout: env.layout, fs: env.fs, clock: env.clock, machineId, git, sessionId, fileHashes: createFileHashCache() }
 }
 
 const DOMAIN_TABLES = ['epics', 'plan_revisions', 'drafts', 'ticket_status', 'runs', 'attempts', 'sprint_reports', 'checkpoints', 'comments']

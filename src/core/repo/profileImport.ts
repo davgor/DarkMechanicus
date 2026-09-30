@@ -11,6 +11,7 @@
  */
 import { type Db, toJson } from '../db/database'
 import { fail } from '../errors'
+import { type FileHashCache, readUnlessSynced } from './fileHashes'
 import { assertContained, displayPath, ownedPaths } from './paths'
 import { parseRecord, type ProfileRecord, profileRecord, readOwnedText, trackedProfileHash } from './portable'
 import type { FsAdapter, RepoLayout } from './types'
@@ -26,6 +27,7 @@ interface ProfileImportDeps {
   db: Db
   layout: RepoLayout
   fs: FsAdapter
+  fileHashes: FileHashCache
 }
 
 interface Rejection {
@@ -93,13 +95,8 @@ function hasPendingProfileChanges(db: Db, name: string): boolean {
   return row?.pending === 1
 }
 
-/** Reads one entry; null when it matches the last sync (then it is not even parsed again). */
-function readProfileEntry(deps: ProfileImportDeps, entry: string, shownEntry: string): StagedProfile | null {
-  if (!entry.endsWith(JSON_SUFFIX)) {
-    reject(shownEntry, 'is not a profile record: profiles are stored as <name>.json')
-  }
-  const name = entry.slice(0, -JSON_SUFFIX.length)
-  const file = ownedPaths(deps.layout).profileFile(name)
+/** One profile file's text: contained, a regular file, and within the profile size limit. */
+function readProfileText(deps: ProfileImportDeps, file: string, shownEntry: string): string {
   assertContained(deps.layout, deps.fs, file)
   if (deps.fs.isDirectory(file)) {
     reject(shownEntry, 'is a directory, not a profile record')
@@ -107,16 +104,29 @@ function readProfileEntry(deps: ProfileImportDeps, entry: string, shownEntry: st
   if (deps.fs.fileSize(file) > MAX_PROFILE_BYTES) {
     reject(shownEntry, 'is larger than the 256 KiB profile limit')
   }
-  const text = readOwnedText(deps, file) ?? reject(shownEntry, 'is missing')
-  const trackedHash = trackedProfileHash(text)
-  if (syncedHash(deps.db, name, trackedHash)) {
+  return readOwnedText(deps, file) ?? reject(shownEntry, 'is missing')
+}
+
+/** Reads one entry; null when it matches the last sync (then it is not even parsed again). */
+function readProfileEntry(deps: ProfileImportDeps, entry: string, shownEntry: string): StagedProfile | null {
+  if (!entry.endsWith(JSON_SUFFIX)) {
+    reject(shownEntry, 'is not a profile record: profiles are stored as <name>.json')
+  }
+  const name = entry.slice(0, -JSON_SUFFIX.length)
+  const file = ownedPaths(deps.layout).profileFile(name)
+  const changed = readUnlessSynced(deps, file, {
+    hashOf: trackedProfileHash,
+    synced: (hash) => syncedHash(deps.db, name, hash),
+    read: () => readProfileText(deps, file, shownEntry)
+  })
+  if (changed === null) {
     return null
   }
-  const record = parseRecord(profileRecord, text, shownEntry)
+  const record = parseRecord(profileRecord, changed.text, shownEntry)
   if (record.name !== name) {
     reject(shownEntry, 'names a different profile than its file name')
   }
-  return { name, path: shownEntry, record, trackedHash }
+  return { name, path: shownEntry, record, trackedHash: changed.hash }
 }
 
 function sortEntry(scan: ProfileScan, db: Db, found: StagedProfile): void {

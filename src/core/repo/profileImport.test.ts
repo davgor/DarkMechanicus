@@ -1,6 +1,7 @@
 /** Named capability profiles are reconstructed and refreshed from `.darkmechanicus/profiles/` on reconcile. */
 import { describe, expect, it } from 'vitest'
 import { defaultCapabilityProfile } from '../../shared/domain/bundle'
+import { isWithin } from '../../test/memoryFs'
 import { insertOutbox, insertProfile } from '../../test/repoFixtures'
 import { copyTracked, createRepoEnv, createStubGit, flush, importerDeps, initProject, type RepoEnv } from '../../test/repoEnv'
 import { reconcileRepository } from './importer'
@@ -105,6 +106,26 @@ describe('reconcileRepository profile change detection', () => {
     const result = reconcileRepository(importerDeps(source, createStubGit('main')))
     expect([result.imported, result.unchanged]).toEqual([[], ['profile:deep-review', 'profile:ui']])
     expect(storedProfiles(source)).toHaveLength(2)
+  })
+})
+
+describe('reconcileRepository unchanged profile files', () => {
+  it('does not read profile files again while they are unchanged', () => {
+    const target = cloneOf(profileSource())
+    const deps = importerDeps(target, createStubGit('main'))
+    reconcileRepository(deps)
+    target.fs.failOn({ op: 'readFile', match: (path) => isWithin(target.layout.profilesDir, path) })
+    expect(reconcileRepository(deps)).toMatchObject({ imported: [], unchanged: ['profile:deep-review', 'profile:ui'], rejected: [] })
+    expect(() => target.fs.readFile(ownedPaths(target.layout).profileFile('ui'))).toThrow('Injected readFile fault')
+  })
+
+  it('imports a profile file changed at the same size', () => {
+    const target = cloneOf(profileSource())
+    const deps = importerDeps(target, createStubGit('main'))
+    reconcileRepository(deps)
+    target.fs.put(ownedPaths(target.layout).profileFile('deep-review'), profileText(target, 'deep-review').replace('Careful review', 'Cautious check'))
+    expect(reconcileRepository(deps)).toMatchObject({ imported: ['profile:deep-review'], unchanged: ['profile:ui'], rejected: [] })
+    expect(target.db.get('SELECT description, revision FROM profiles WHERE name = ?', 'deep-review')).toEqual({ description: 'Cautious check', revision: 2 })
   })
 })
 

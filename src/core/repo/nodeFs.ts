@@ -24,6 +24,16 @@ function isLink(path: string): boolean {
   }
 }
 
+function stampOf(path: string): string | null {
+  try {
+    const stats = lstatSync(path, { bigint: true, throwIfNoEntry: false })
+    return stats?.isFile() === true ? `${stats.size}:${stats.mtimeNs}:${stats.ctimeNs}:${stats.ino}` : null
+  } catch {
+    // A non-directory parent (ENOTDIR): nothing to stamp, so the caller reads (and rejects) the path.
+    return null
+  }
+}
+
 function fsyncPath(path: string): void {
   // 'r+' so FlushFileBuffers is permitted on Windows; the file must already exist.
   const fd = openSync(path, 'r+')
@@ -39,6 +49,7 @@ export const nodeFs: FsAdapter = {
   exists: (path) => existsSync(path),
   readFile: (path) => readFileSync(path, 'utf8'),
   fileSize: (path) => statSync(path, { throwIfNoEntry: false })?.size ?? -1,
+  fileStamp: stampOf,
   writeFile: (path, data) => writeFileSync(path, data, 'utf8'),
   fsyncFile: fsyncPath,
   rename: (from, to) => renameSync(from, to),
