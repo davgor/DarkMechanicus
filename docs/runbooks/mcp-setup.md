@@ -2,7 +2,7 @@
 
 Dark Mechanicus ships a headless MCP server: `out/main/mcp.js`. An agent host launches it as a child process and talks to it over stdio. It opens the repository's `.darkmechanicus/local/state.sqlite` directly, so it works with the desktop app closed and shares the same data when the app is open.
 
-One process is one session with one role. Start one server entry per role you want to give an agent (see [Roles](#roles-and---allow-save)). Every server exposes 50 tools and 6 prompts (the shipped skills).
+One process is one session with one role. Start one server entry per role you want to give an agent (see [Roles](#roles-and---allow-save)). Every server exposes 52 tools and 6 prompts (the shipped skills).
 
 ## Requirements
 
@@ -106,7 +106,7 @@ Give each role its own entry name (for example `darkmechanicus-planner` with `--
 
 Ask the agent to call `get_capabilities`. It reports the role, the repository root, the skills version, and whether the repository is `initialized`. A new folder needs `initialize_repository` once (planner and orchestrator roles). That creates `.darkmechanicus/` and never commits anything.
 
-To check a build without a host, run `npm run build && npm run smoke:mcp`. It launches the built server against a temporary repository, plans and saves an epic, and runs one ticket through claim, submit, and accept.
+To check a build without a host, run `npm run build && npm run smoke:mcp`. It launches the built server against a temporary repository, plans and saves an epic, runs one ticket through claim, submit, and accept, and adds and lists a ticket comment.
 
 To check an installed app the same way, point the script at the app executable and the server inside `app.asar`:
 
@@ -120,10 +120,12 @@ Roles are fixed at launch. Nothing a tool call says can change them.
 
 | Role | Can do |
 |------|--------|
-| `planner` | Read, create epics, edit drafts. `save_plan` only with `--allow-save`. |
+| `planner` | Read, create epics, edit drafts, comment. `save_plan` only with `--allow-save`. |
 | `orchestrator` (default) | Everything a planner can, plus register hosts, start and control runs, claim tickets, review attempts, submit sprint reports, and advance sprints. Never approves. |
-| `worker` | Heartbeat, submit, and fail for the claim it holds. |
-| `reviewer` | Accept or reject submitted attempts. |
+| `worker` | Heartbeat, submit, and fail for the claim it holds; comment. |
+| `reviewer` | Accept or reject submitted attempts; comment. |
+
+Every role can read and add comments (`list_comments`, `add_comment`): append-only Markdown notes on an epic or one of its tickets, signed with the session's role and label. Completed epics refuse new comments.
 
 Some actions exist only in the desktop app and are not available over MCP for any role: approving a checkpoint, authorizing auto-continue, granting a retry, and queueing a run.
 
