@@ -26,7 +26,7 @@ const CLOSED: SaveEntry = { open: false, name: '', description: '', busy: false 
 /** The repository's named profiles, loaded once per editor and reloaded after a save. */
 function useProfiles(runner: Runner): { list: ProfileList; reload(): void } {
   const [list, setList] = useState<ProfileList>({ profiles: null, error: null })
-  const [version, setVersion] = useState(0)
+  const [version, setVersion] = useState<object>({})
   useEffect(() => {
     let active = true
     runner('listProfiles', undefined).then(
@@ -45,7 +45,7 @@ function useProfiles(runner: Runner): { list: ProfileList; reload(): void } {
       active = false
     }
   }, [runner, version])
-  const reload = useCallback(() => setVersion((value) => value + 1), [])
+  const reload = useCallback(() => setVersion({}), [])
   return { list, reload }
 }
 

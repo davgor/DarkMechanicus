@@ -139,7 +139,8 @@ describe('profile export containment', () => {
     expect((await agent.saveProfile({ name: 'ui', capability: review() })).revision).toBe(1)
     expect(existsSync(join(outside, 'ui.json'))).toBe(false)
     const status = await agent.getStorageStatus()
-    expect([status.outbox.pending, status.outbox.lastError]).toEqual([1, expect.stringContaining('symbolic links and junctions are not allowed')])
+    // Windows may report the junction as a link or only by where it resolves; either way it is refused.
+    expect([status.outbox.pending, status.outbox.lastError]).toEqual([1, expect.stringContaining('Unsafe repository path .darkmechanicus/profiles:')])
   })
 
   it('refuses to save while the checkout branch has moved', async () => {

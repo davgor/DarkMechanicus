@@ -276,7 +276,8 @@ function noteFailure(outcome: FlushOutcome, entry: OutboxRow, message: string): 
 /**
  * Flushes pending (and previously failed) outbox entries in id order. A failed entry blocks later
  * entries of the same epic, run, or keyed record (such as a profile) so their records are never
- * written out of order; other entities continue. Flush failures never throw: they are counted, and the entry keeps its last error.
+ * written out of order; other entities continue. Flush failures never throw: they are counted, and
+ * the entry keeps its last error.
  */
 export function flushOutbox(deps: FinalizerDeps, hooks: FinalizerHooks): FlushOutcome {
   const outcome: FlushOutcome = { flushed: 0, failed: 0, errors: [], savedRevisionIds: [], failedRevisionIds: [] }

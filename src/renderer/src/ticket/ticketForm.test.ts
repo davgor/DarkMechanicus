@@ -229,6 +229,17 @@ describe('ticket form named profile edge cases', () => {
     expect(formToOps(applyProfile(form(), same), BUNDLE, 'tk_202')).toEqual([])
   })
 
+  it('compares tools and modalities as sets even when the ticket stores them out of order', () => {
+    const shuffled = {
+      ...BUNDLE,
+      tickets: BUNDLE.tickets.map((item) =>
+        item.id === 'tk_202' ? { ...item, capability: { ...item.capability, tools: ['test_execution', 'repo_read'], modalities: ['images', 'text'] } } : item
+      )
+    } as typeof BUNDLE
+    const untouched = formFromBundle(shuffled, 'tk_202')
+    expect(untouched === null ? 'missing' : formToOps(untouched, shuffled, 'tk_202')).toEqual([])
+  })
+
   it('patches only the hidden groups a profile changes', () => {
     const base = profileView({ capability: DM_202_CAPABILITY })
     const capability = base.capability
