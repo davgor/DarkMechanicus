@@ -172,3 +172,30 @@ describe('adoptRevision and checkpoint approvals', () => {
     expect(advanceSprint(agent, { runId: run.runId }).activeSprintId).toBe(sid(2))
   })
 })
+
+describe('adoptRevision closed-sprint guard', () => {
+  it('refuses to supersede an accepted ticket in a sprint the run already passed', () => {
+    const { ctx, run } = atCheckpoint({ activeSprint: 2 })
+    const revisionId = seedRevision(ctx, run.epicId, retitle(run.bundle, 1))
+    const error = errorOf(() => adoptRevision(ctx, { runId: run.runId, revisionId }))
+    expect(error.code).toBe('conflict')
+    expect(error.message).toBe(
+      'DM-1 changed in a sprint this run already passed. Carry it forward or start a new run to redo it.'
+    )
+    expect([supersededAt(ctx, 1), runRow(ctx, run.runId)?.revision_id]).toEqual([[null], run.revisionId])
+  })
+
+  it('adopts when the passed-sprint change is explicitly carried forward', () => {
+    const { ctx, run } = atCheckpoint({ activeSprint: 2 })
+    const revisionId = seedRevision(ctx, run.epicId, retitle(run.bundle, 1))
+    const result = adoptRevision(ctx, { runId: run.runId, revisionId, carryForward: [tid(1)] })
+    expect([result.kept, result.superseded, result.activeSprintId]).toEqual([[tid(1), tid(2)], [], sid(2)])
+  })
+
+  it('still supersedes a changed ticket in the active sprint without carry-forward', () => {
+    const { ctx, run } = atCheckpoint({ activeSprint: 2 })
+    seedAttempt(ctx, run, { ticket: 3, state: 'accepted' })
+    const revisionId = seedRevision(ctx, run.epicId, retitle(run.bundle, 3))
+    expect(adoptRevision(ctx, { runId: run.runId, revisionId }).superseded).toEqual([tid(3)])
+  })
+})

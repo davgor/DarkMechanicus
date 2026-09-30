@@ -295,3 +295,29 @@ describe('authorization condition', () => {
     expect(view.conditions.at(-1)?.met).toBe(false)
   })
 })
+
+describe('required_accepted gate on the final sprint', () => {
+  it('requires every required ticket of the plan, not only the final sprint', () => {
+    const { ctx, run } = setup({ activeSprint: 2 })
+    acceptTickets(ctx, run, [1, 3])
+    seedAttempt(ctx, run, { ticket: 2, state: 'accepted', superseded: true })
+    expect(gate(ctx, run, 'required_accepted')).toEqual({
+      id: 'required_accepted',
+      label: 'Every required ticket accepted',
+      met: false,
+      detail: 'DM-2 changed in an adopted revision and needs new work'
+    })
+  })
+
+  it('is met when all required tickets across sprints are accepted', () => {
+    const { ctx, run } = setup({ activeSprint: 2 })
+    acceptTickets(ctx, run, [1, 2, 3])
+    expect(gate(ctx, run, 'required_accepted')).toMatchObject({ met: true, detail: '3 of 3 required tickets accepted' })
+  })
+
+  it('checks only the active sprint before the final checkpoint', () => {
+    const { ctx, run } = setup({ activeSprint: 1 })
+    acceptTickets(ctx, run, [1, 2])
+    expect(gate(ctx, run, 'required_accepted')).toMatchObject({ met: true, detail: '2 of 2 required tickets accepted' })
+  })
+})

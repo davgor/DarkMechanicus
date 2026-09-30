@@ -3,7 +3,7 @@ import { requireCapability } from '../authz'
 import { contentHash } from '../canonical'
 import type { Ctx } from '../context'
 import { fail } from '../errors'
-import { sortedSprints } from '../plan/graph'
+import { indexBundle, sortedSprints, ticketLabel } from '../plan/graph'
 import { appendEvent } from './events'
 import { enqueueOutbox } from './outbox'
 import { loadBundle, loadRun, requireOwnedRun, type RunRow } from './reports'
@@ -105,6 +105,38 @@ function reconcileAcceptances(ctx: Ctx, input: Reconciliation): { kept: string[]
   return { kept: [...kept], superseded: [...superseded] }
 }
 
+/**
+ * Earlier sprints are closed for this run, so a changed ticket there could never be redone: refuse
+ * unless the orchestrator explicitly carries its old acceptance forward.
+ */
+function assertNoClosedSprintRework(ctx: Ctx, input: Reconciliation & { activeSprintId: string }): void {
+  const before = ticketHashes(input.current)
+  const after = ticketHashes(input.target)
+  const index = indexBundle(input.target)
+  const activeOrdinal = index.sprints.get(input.activeSprintId)?.ordinal ?? 0
+  const accepted = ctx.db.all<{ ticket_id: string }>(
+    `SELECT DISTINCT ticket_id FROM attempts WHERE run_id = ? AND state = 'accepted' AND superseded_at IS NULL
+     ORDER BY ticket_id`,
+    input.run.id
+  )
+  const closed = accepted
+    .map((row) => row.ticket_id)
+    .filter((id) => {
+      const next = after.get(id)
+      const changed = next !== undefined && next !== before.get(id) && !input.carryForward.has(id)
+      return changed && (index.sprintOf.get(id)?.ordinal ?? activeOrdinal) < activeOrdinal
+    })
+  if (closed.length > 0) {
+    const labels = closed.map((id) => ticketLabel(index, id)).join(', ')
+    const pronoun = closed.length === 1 ? 'it' : 'them'
+    fail(
+      'conflict',
+      `${labels} changed in a sprint this run already passed. Carry ${pronoun} forward or start a new run to redo ${pronoun}.`,
+      { tickets: closed }
+    )
+  }
+}
+
 /** Same sprint id if it survives, else the same ordinal, else the last sprint. */
 function chooseActiveSprint(activeSprintId: string | null, current: PlanBundle, target: PlanBundle): string {
   const sprints = sortedSprints(target)
@@ -131,8 +163,9 @@ export function adoptRevision(
     const target = loadTargetBundle(ctx, run, input.revisionId)
     const current = loadBundle(ctx, run.revision_id)
     const carryForward = new Set(input.carryForward ?? [])
-    const { kept, superseded } = reconcileAcceptances(ctx, { run, current, target, carryForward })
     const activeSprintId = chooseActiveSprint(run.active_sprint_id, current, target)
+    assertNoClosedSprintRework(ctx, { run, current, target, carryForward, activeSprintId })
+    const { kept, superseded } = reconcileAcceptances(ctx, { run, current, target, carryForward })
     ctx.db.run(
       'UPDATE runs SET revision_id = ?, active_sprint_id = ?, updated_at = ?, revision = revision + 1 WHERE id = ?',
       input.revisionId,

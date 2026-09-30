@@ -104,8 +104,9 @@ function pendingReason(key: string, attempts: AttemptRow[]): string {
   return latest === undefined ? `${key} not started` : `${key} ${attemptPhrase(latest, attempts.length)}`
 }
 
-function requiredGate(input: GateInput): GateCondition {
-  const required = input.sprint.ticketIds.filter((id) => input.index.tickets.get(id)?.optional !== true)
+/** On the final sprint `ticketIds` spans the whole plan: an epic completes only with every required ticket accepted. */
+function requiredGate(input: GateInput, ticketIds: string[]): GateCondition {
+  const required = ticketIds.filter((id) => input.index.tickets.get(id)?.optional !== true)
   const accepted = new Set(
     input.attempts
       .filter((attempt) => attempt.state === 'accepted' && attempt.superseded_at === null)
@@ -161,10 +162,11 @@ function outcomeGate(bundle: PlanBundle, report: SprintReportView | null): GateC
 }
 
 function evaluateGates(input: GateInput, isFinal: boolean): GateCondition[] {
+  const scope = isFinal ? input.bundle.tickets.map((ticket) => ticket.id) : input.sprint.ticketIds
   const gates = [
     reportGate(input.sprint, input.report),
     leaseGate(input),
-    requiredGate(input),
+    requiredGate(input, scope),
     exitGate(input.sprint, input.report)
   ]
   return isFinal ? [...gates, outcomeGate(input.bundle, input.report)] : gates

@@ -52,7 +52,7 @@ function epicRow(ctx: TestCtx, epicId: string): Record<string, unknown> | undefi
 describe('advancing the final sprint', () => {
   it('completes the run and the epic and records the outcome', () => {
     const { agent, desktop, run } = started({ activeSprint: 2 })
-    acceptTickets(agent, run, [3])
+    acceptTickets(agent, run, [1, 2, 3])
     const final = report(agent, run, { epicOutcome: OUTCOME }, 2)
     approveCheckpoint(desktop, { runId: run.runId, reportId: final.id })
     agent.clock.advanceSeconds(90)
@@ -73,7 +73,7 @@ describe('advancing the final sprint', () => {
 
   it('keeps the epic open while the final report lacks a met outcome', () => {
     const { agent, run } = started({ activeSprint: 2, autoContinue: true })
-    acceptTickets(agent, run, [3])
+    acceptTickets(agent, run, [1, 2, 3])
     report(agent, run, { epicOutcome: { summary: 'Almost', successCriteria: [{ criterionId: 's1', met: false, note: '' }] } }, 2)
     const result = errorOf(() => advanceSprint(agent, { runId: run.runId }))
     expect(result).toMatchObject({ code: 'gate_blocked', message: `Sprint 2 can't advance yet: s1 "Everything works" not met` })

@@ -1,4 +1,5 @@
 import { COMMAND_SCHEMAS } from '../commandSchemas'
+import type { Ctx } from '../context'
 import {
   advanceSprint,
   approveAndAdvance,
@@ -7,9 +8,16 @@ import {
   getCheckpoint,
   grantRetry
 } from '../services/checkpoints'
+import { expireLeases } from '../services/execution'
 import { getSprintReport, submitSprintReport } from '../services/reports'
 import { requireRunView } from './execution'
 import type { CommandTable } from './types'
+
+/** Gates read attempt states as stored, so overdue leases are expired before evaluating them. */
+function swept(ctx: Ctx, runId: string): Ctx {
+  ctx.db.tx(() => expireLeases(ctx, runId))
+  return ctx
+}
 
 export const checkpointCommands = {
   submitSprintReport: {
@@ -24,19 +32,19 @@ export const checkpointCommands = {
   },
   getCheckpoint: {
     schema: COMMAND_SCHEMAS.getCheckpoint,
-    mutates: false,
-    run: (core, input) => getCheckpoint(core.ctx(), input)
+    mutates: true,
+    run: (core, input) => getCheckpoint(swept(core.ctx(), input.runId), input)
   },
   approveCheckpoint: {
     schema: COMMAND_SCHEMAS.approveCheckpoint,
     mutates: true,
-    run: (core, input) => approveCheckpoint(core.ctx(), input)
+    run: (core, input) => approveCheckpoint(swept(core.ctx(), input.runId), input)
   },
   advanceSprint: {
     schema: COMMAND_SCHEMAS.advanceSprint,
     mutates: true,
     run: (core, input) => {
-      advanceSprint(core.ctx(), input)
+      advanceSprint(swept(core.ctx(), input.runId), input)
       return requireRunView(core.ctx(), input.runId)
     }
   },
@@ -44,7 +52,7 @@ export const checkpointCommands = {
     schema: COMMAND_SCHEMAS.approveAndAdvance,
     mutates: true,
     run: (core, input) => {
-      approveAndAdvance(core.ctx(), input)
+      approveAndAdvance(swept(core.ctx(), input.runId), input)
       return requireRunView(core.ctx(), input.runId)
     }
   },
