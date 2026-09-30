@@ -3,7 +3,6 @@ import { z } from 'zod'
 import { DomainError } from '../../core/errors'
 import { criterionInput, epicBranch, LIMITS, ticketInput, workStatus } from '../../core/schemas'
 import type { CommandApi } from '../../shared/domain/api'
-import { toTicketInput, toTicketPatch } from './bridge'
 import { defineArglessTool, defineTool, registerTools } from './define'
 import {
   draftRevision,
@@ -46,7 +45,7 @@ async function createTicket(
   const result = await api.updatePlanDraft({
     epicId: input.epicId,
     ops: [
-      { op: 'add_ticket', ref: NEW_TICKET_REF, sprint: input.sprint, ticket: toTicketInput(input.ticket) },
+      { op: 'add_ticket', ref: NEW_TICKET_REF, sprint: input.sprint, ticket: input.ticket },
       ...prerequisites
     ],
     expectedDraftRevision: input.expectedDraftRevision,
@@ -155,7 +154,7 @@ const AUTHORING_TOOLS = [
     run: (api, input) =>
       api.updatePlanDraft({
         epicId: input.epicId,
-        ops: [{ op: 'update_ticket', ticket: input.ticket, patch: toTicketPatch(input.patch) }],
+        ops: [{ op: 'update_ticket', ticket: input.ticket, patch: input.patch }],
         expectedDraftRevision: input.expectedDraftRevision,
         idempotencyKey: input.idempotencyKey
       })

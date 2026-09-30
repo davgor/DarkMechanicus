@@ -1,4 +1,5 @@
 import {
+  type CapabilityPatch,
   type CapabilityProfile,
   type Criterion,
   DEFAULT_POLICIES,
@@ -64,7 +65,7 @@ export function normalizeTags(tags: string[]): string[] {
 /** Shallow-merges a partial capability profile over a base, one level deep for nested groups. */
 export function mergeCapability(
   base: CapabilityProfile,
-  patch: Partial<CapabilityProfile> | undefined
+  patch: CapabilityPatch | undefined
 ): CapabilityProfile {
   if (!patch) {
     return base

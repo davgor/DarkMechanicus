@@ -64,6 +64,18 @@ export interface CapabilityProfile {
   }
 }
 
+/** A partial edit of a capability profile: any group may be given, each group partially. */
+export interface CapabilityPatch {
+  workType?: WorkType
+  reasoning?: Partial<CapabilityProfile['reasoning']>
+  skills?: string[]
+  modalities?: Modality[]
+  tools?: ToolCapability[]
+  context?: Partial<CapabilityProfile['context']>
+  constraints?: Partial<CapabilityProfile['constraints']>
+  preferences?: Partial<CapabilityProfile['preferences']>
+}
+
 export const TICKET_PRIORITIES = ['low', 'normal', 'high', 'critical'] as const
 export type TicketPriority = (typeof TICKET_PRIORITIES)[number]
 

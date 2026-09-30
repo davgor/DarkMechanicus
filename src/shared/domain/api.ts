@@ -3,7 +3,7 @@
  * are thin adapters over it, so both entry points enforce identical rules.
  */
 import type {
-  CapabilityProfile,
+  CapabilityPatch,
   CheckpointMode,
   EpicBranch,
   PlanPolicies,
@@ -63,7 +63,7 @@ export interface TicketInput {
   acceptanceCriteria?: (CriterionInput | string)[]
   tags?: string[]
   priority?: TicketPriority
-  capability?: Partial<CapabilityProfile>
+  capability?: CapabilityPatch
   references?: TicketReference[]
   expectedArtifacts?: string[]
   optional?: boolean

@@ -1,7 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { draftOps } from '../../core/schemas'
 import type { CommandApi } from '../../shared/domain/api'
-import { toDraftOps } from './bridge'
 import { defineTool, registerTools } from './define'
 import { draftRevision, epicId, idempotencyKey, revisionId, view } from './params'
 
@@ -28,7 +27,7 @@ const PLANNING_TOOLS = [
       'Applies edit operations to the epic DRAFT atomically: every op succeeds or none does, and a rejected op returns a concrete reason. Ops: set_epic, add_sprint, update_sprint, remove_sprint, add_ticket, update_ticket, remove_ticket, move_ticket, add_dependency, remove_dependency, add_relation, remove_relation, set_policies, set_rationale. Give add_ticket or add_sprint a client ref to refer to it later in the same call; refMap in the result maps refs to stable ids. A dependency {from, to} means `to` requires the accepted result of `from`; a prerequisite must be in the same or an earlier sprint. Pass expectedDraftRevision to detect concurrent edits. The saved plan changes only on save_plan.',
     kind: 'write',
     input: { epicId, ops: draftOps, expectedDraftRevision: draftRevision.optional(), idempotencyKey },
-    run: (api, input) => api.updatePlanDraft({ ...input, ops: toDraftOps(input.ops) })
+    run: (api, input) => api.updatePlanDraft(input)
   }),
   defineTool({
     name: 'validate_plan',
