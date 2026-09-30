@@ -1,21 +1,21 @@
 import { describe, expect, it } from 'vitest'
 import { createTestCtx, type TestCtx, withRole } from '../../test/testContext'
-import type { Db } from '../db/database'
+import type { Db, SqlValue } from '../db/database'
 import { appendEvent, listEvents, MAX_EVENT_PAGE } from './events'
 
 /** Delegates to `db`, running `afterAll` once each `all` query has returned its rows. */
 function withHookAfterAll(db: Db, afterAll: () => void): Db {
   return {
     path: db.path,
-    get: (sql, ...params) => db.get(sql, ...params),
-    all: (sql, ...params) => {
-      const rows = db.all(sql, ...params)
+    get: <T>(sql: string, ...params: SqlValue[]): T | undefined => db.get<T>(sql, ...params),
+    all: <T>(sql: string, ...params: SqlValue[]): T[] => {
+      const rows = db.all<T>(sql, ...params)
       afterAll()
       return rows
     },
     run: (sql, ...params) => db.run(sql, ...params),
     exec: (sql) => db.exec(sql),
-    tx: (fn) => db.tx(fn),
+    tx: <T>(fn: () => T): T => db.tx(fn),
     inTransaction: () => db.inTransaction(),
     close: () => db.close()
   }
