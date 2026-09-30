@@ -26,8 +26,9 @@ function reconcileDetails(result: ReconcileResultView): string[] {
   if (result.imported.length > 0) {
     details.push(`${plural(result.imported.length, 'record')} imported.`)
   }
-  if (result.conflicts.length > 0) {
-    details.push(`${plural(result.conflicts.length, 'conflict')} to resolve.`)
+  const conflicts = result.conflicts.length + result.profileConflicts.length
+  if (conflicts > 0) {
+    details.push(`${plural(conflicts, 'conflict')} to resolve.`)
   }
   if (result.rejected.length > 0) {
     details.push(`${plural(result.rejected.length, 'file')} rejected.`)

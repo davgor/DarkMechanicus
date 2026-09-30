@@ -51,11 +51,16 @@ function Details({ status, titles }: { status: StorageStatusView; titles: Readon
       </Row>
       <Row label="Last export">{status.lastFlushAt === null ? 'Never' : formatShortDate(status.lastFlushAt)}</Row>
       <Row label="Save queue">{queueText(status)}</Row>
-      {status.conflicts.length === 0 ? null : (
+      {status.conflicts.length + status.profileConflicts.length === 0 ? null : (
         <Row label="Conflicts">
           {status.conflicts.map((conflict) => (
             <div key={conflict.epicId}>
               {titles[conflict.epicId] ?? conflict.epicId}: {conflict.message}
+            </div>
+          ))}
+          {status.profileConflicts.map((conflict) => (
+            <div key={`profile:${conflict.name}`}>
+              Profile {conflict.name}: {conflict.message}
             </div>
           ))}
         </Row>

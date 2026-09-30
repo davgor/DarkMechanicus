@@ -17,7 +17,10 @@ interface StorageDeps {
   clock: Clock
 }
 
-type DatabaseStatus = Pick<StorageStatusView, 'schemaVersion' | 'outbox' | 'lastFlushAt' | 'branch' | 'conflicts' | 'sessions'>
+type DatabaseStatus = Pick<
+  StorageStatusView,
+  'schemaVersion' | 'outbox' | 'lastFlushAt' | 'branch' | 'conflicts' | 'profileConflicts' | 'sessions'
+>
 
 /** Status must render for broken folders too: an unreadable project reads as "not initialized". */
 function projectOrNull(deps: StorageDeps): ProjectRecord | null {
@@ -43,9 +46,17 @@ function conflictsOf(db: Db): StorageStatusView['conflicts'] {
   const rows = db.all<{ entity_id: string; conflict: string; run_epic: string | null }>(
     `SELECT s.entity_id, s.conflict, r.epic_id AS run_epic
      FROM sync_state s LEFT JOIN runs r ON s.kind = 'run' AND r.id = s.entity_id
-     WHERE s.conflict IS NOT NULL ORDER BY s.kind, s.entity_id`
+     WHERE s.conflict IS NOT NULL AND s.kind <> 'profile' ORDER BY s.kind, s.entity_id`
   )
   return rows.map((row) => ({ epicId: row.run_epic ?? row.entity_id, message: row.conflict }))
+}
+
+function profileConflictsOf(db: Db): StorageStatusView['profileConflicts'] {
+  return db
+    .all<{ entity_id: string; conflict: string }>(
+      "SELECT entity_id, conflict FROM sync_state WHERE kind = 'profile' AND conflict IS NOT NULL ORDER BY entity_id"
+    )
+    .map((row) => ({ name: row.entity_id, message: row.conflict }))
 }
 
 function databaseStatus(db: Db, clock: Clock, head: { current: string | null; repository: boolean }): DatabaseStatus {
@@ -56,6 +67,7 @@ function databaseStatus(db: Db, clock: Clock, head: { current: string | null; re
     lastFlushAt: getMeta(db, META_KEYS.lastFlushAt),
     branch: { current: head.current, recorded: branch.recorded, changed: branch.changed, repository: head.repository },
     conflicts: conflictsOf(db),
+    profileConflicts: profileConflictsOf(db),
     sessions: summarizeActiveSessions({ db, clock })
   }
 }
@@ -65,6 +77,7 @@ const NO_DATABASE: Omit<DatabaseStatus, 'branch'> = {
   outbox: { pending: 0, failed: 0, lastError: null },
   lastFlushAt: null,
   conflicts: [],
+  profileConflicts: [],
   sessions: { active: 0, byRole: {} }
 }
 

@@ -62,6 +62,15 @@ describe('profile commands over the Workspace', () => {
     expect(JSON.parse(readFileSync(join(profilesDir(harness), 'ui.json'), 'utf8')).capability).toEqual(defaultCapabilityProfile())
   })
 
+  it('rebuilds profiles from tracked records when a clone is first opened', async () => {
+    const planner = await initialized()
+    const saved = await planner.saveProfile({ name: 'deep-review', description: 'Careful review', capability: review() })
+    const clone = harness.open('planner', { root: harness.cloneTracked() })
+    expect(await clone.listProfiles()).toEqual([{ ...saved, revision: 1 }])
+    const reconciled = await clone.reconcileRepository()
+    expect([reconciled.imported, reconciled.unchanged]).toEqual([[], ['profile:deep-review']])
+  })
+
   it('refuses workers and reports missing profiles', async () => {
     const worker = await initialized('worker')
     expect((await failureOf(worker.saveProfile({ name: 'ui', capability: review() }))).code).toBe('unauthorized')

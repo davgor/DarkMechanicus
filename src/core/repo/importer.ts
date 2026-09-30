@@ -5,7 +5,8 @@
  * records pass size / merge-marker / schema checks, snapshots are hash-verified and graph-validated,
  * and cross-file references are checked before anything is applied. All staged changes are applied
  * in one transaction (per-item savepoints), so a rejected epic or run never changes what the
- * database already holds, and drafts are never touched.
+ * database already holds, and drafts are never touched. Named profiles are scanned and applied by
+ * `profileImport.ts` inside the same transaction.
  */
 import { join } from 'node:path'
 import type { PlanBundle } from '../../shared/domain/bundle'
@@ -19,6 +20,7 @@ import { validatePlan } from '../plan/graph'
 import { indexDocument } from '../services/searchIndex'
 import { readProject } from './initialize'
 import { assertContained, displayPath, ownedPaths } from './paths'
+import { applyProfiles, type ProfileScan, scanProfiles } from './profileImport'
 import {
   type EpicPointerRecord,
   epicPointerRecord,
@@ -801,23 +803,39 @@ function rememberProject(db: Db, project: ProjectRecord): void {
 interface ApplyContext {
   project: ProjectRecord
   plan: Plan
+  profiles: ProfileScan
   current: string | null
   branchChanged: boolean
 }
 
-function applyPlan(deps: ImporterDeps, context: ApplyContext): ReconcileResultView {
-  const { plan, branchChanged } = context
-  const now = deps.clock.nowIso()
-  rememberProject(deps.db, context.project)
-  const { imported, rejected } = applyStaged(deps, plan, now)
-  storeConflicts(deps.db, plan.conflicts, now)
-  const pausedRuns = branchChanged ? pauseActiveRuns(deps, now) : []
-  const conflicts = plan.conflicts.map((conflict) => ({ epicId: conflict.epicId, message: conflict.message }))
-  const result = { imported, unchanged: plan.unchanged, conflicts, rejected, branchChanged, pausedRuns }
-  if (imported.length > 0 || conflicts.length > 0 || rejected.length > 0 || branchChanged) {
-    const payload = { imported, unchanged: plan.unchanged.length, conflicts: conflicts.length, rejected: rejected.length, branchChanged, pausedRuns }
+/** Records a `repository.reconciled` event when the reconcile found or changed anything. */
+function recordReconciled(deps: ImporterDeps, result: ReconcileResultView): void {
+  const { imported, rejected, branchChanged, pausedRuns } = result
+  const conflicts = result.conflicts.length + result.profileConflicts.length
+  if (imported.length > 0 || conflicts > 0 || rejected.length > 0 || branchChanged) {
+    const payload = { imported, unchanged: result.unchanged.length, conflicts, rejected: rejected.length, branchChanged, pausedRuns }
     insertEvent(deps, { kind: 'repository.reconciled', payload })
   }
+}
+
+function applyPlan(deps: ImporterDeps, context: ApplyContext): ReconcileResultView {
+  const { plan, profiles, branchChanged } = context
+  const now = deps.clock.nowIso()
+  rememberProject(deps.db, context.project)
+  const staged = applyStaged(deps, plan, now)
+  const profileOutcome = applyProfiles(deps.db, profiles, now)
+  storeConflicts(deps.db, plan.conflicts, now)
+  const pausedRuns = branchChanged ? pauseActiveRuns(deps, now) : []
+  const result: ReconcileResultView = {
+    imported: [...staged.imported, ...profileOutcome.imported],
+    unchanged: [...plan.unchanged, ...profiles.unchanged],
+    conflicts: plan.conflicts.map((conflict) => ({ epicId: conflict.epicId, message: conflict.message })),
+    profileConflicts: profiles.conflicts,
+    rejected: [...staged.rejected, ...profileOutcome.rejected],
+    branchChanged,
+    pausedRuns
+  }
+  recordReconciled(deps, result)
   setMeta(deps.db, META_KEYS.checkoutBranch, context.current ?? '')
   setMeta(deps.db, META_KEYS.lastReconcileAt, now)
   return result
@@ -826,8 +844,9 @@ function applyPlan(deps: ImporterDeps, context: ApplyContext): ReconcileResultVi
 /**
  * Reconciles tracked records into the local database under the write lock (so no finalizer can be
  * mid-write while files are read). Throws `not_initialized`, `project_mismatch`, or `unsafe_path`
- * (a linked `epics/` or `history/`) without changing anything; per-epic and per-run problems are
- * reported in `rejected`/`conflicts` and leave those entities as they were.
+ * (a linked `epics/`, `history/`, or `profiles/`) without changing anything; per-epic, per-run, and
+ * per-profile problems are reported in `rejected`/`conflicts`/`profileConflicts` and leave those
+ * entities as they were.
  */
 export function reconcileRepository(deps: ImporterDeps): ReconcileResultView {
   return deps.db.tx(() => {
@@ -835,6 +854,7 @@ export function reconcileRepository(deps: ImporterDeps): ReconcileResultView {
     const branchChanged = branchState(deps.db, current).changed
     const project = requireProject(deps)
     const plan = planImport(deps.db, scanRepository(deps))
-    return applyPlan(deps, { project, plan, current, branchChanged })
+    const profiles = scanProfiles(deps)
+    return applyPlan(deps, { project, plan, profiles, current, branchChanged })
   })
 }

@@ -81,7 +81,7 @@ describe('reconcileRepository reconstruction', () => {
   it('rebuilds epics, revisions, statuses, and run history from tracked records', () => {
     const target = cloneOf(buildSource())
     const result = reconcileRepository(importerDeps(target, createStubGit('main')))
-    expect(result).toEqual({ imported: [EPIC, RUN], unchanged: [], conflicts: [], rejected: [], branchChanged: false, pausedRuns: [] })
+    expect(result).toEqual({ imported: [EPIC, RUN], unchanged: [], conflicts: [], profileConflicts: [], rejected: [], branchChanged: false, pausedRuns: [] })
     expect(target.db.all('SELECT id, title, status, current_revision_id, provenance_json, outcome_json FROM epics')).toEqual([
       { id: EPIC, title: 'Test epic', status: 'in_progress', current_revision_id: R2, provenance_json: null, outcome_json: null }
     ])
@@ -164,7 +164,7 @@ describe('reconcileRepository change detection', () => {
     reconcileRepository(deps)
     const before = dumpDomain(target.db)
     const events = target.db.all('SELECT seq FROM events').length
-    expect(reconcileRepository(deps)).toEqual({ imported: [], unchanged: [EPIC, RUN], conflicts: [], rejected: [], branchChanged: false, pausedRuns: [] })
+    expect(reconcileRepository(deps)).toEqual({ imported: [], unchanged: [EPIC, RUN], conflicts: [], profileConflicts: [], rejected: [], branchChanged: false, pausedRuns: [] })
     expect(dumpDomain(target.db)).toEqual(before)
     expect(target.db.all('SELECT seq FROM events')).toHaveLength(events)
   })
