@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  type CapabilityProfile,
+  type CapabilityPatch,
   type Criterion,
   DEFAULT_POLICIES,
   defaultCapabilityProfile,
@@ -30,22 +30,6 @@ function criterion(id: string, text: string): Criterion {
 
 function ids(criteria: Criterion[]): string[] {
   return criteria.map((item) => item.id)
-}
-
-/** What the zod schemas really accept: nested capability groups may be partial. */
-interface LoosePatch {
-  workType?: CapabilityProfile['workType']
-  reasoning?: Partial<CapabilityProfile['reasoning']>
-  skills?: string[]
-  modalities?: CapabilityProfile['modalities']
-  tools?: CapabilityProfile['tools']
-  context?: Partial<CapabilityProfile['context']>
-  constraints?: Partial<CapabilityProfile['constraints']>
-  preferences?: Partial<CapabilityProfile['preferences']>
-}
-
-function looseCapability(patch: LoosePatch): Partial<CapabilityProfile> {
-  return patch as Partial<CapabilityProfile>
 }
 
 describe('CRITERION_ID_PATTERN', () => {
@@ -244,15 +228,12 @@ describe('mergeCapability', () => {
 
 describe('mergeCapability nested groups', () => {
   it('merges nested groups one level deep', () => {
-    const merged = mergeCapability(
-      defaultCapabilityProfile(),
-      looseCapability({
-        reasoning: { level: 'deep' },
-        context: { estimatedInputTokens: 5000 },
-        constraints: { maxCostUsd: 2 },
-        preferences: { quality: 'high' }
-      })
-    )
+    const merged = mergeCapability(defaultCapabilityProfile(), {
+      reasoning: { level: 'deep' },
+      context: { estimatedInputTokens: 5000 },
+      constraints: { maxCostUsd: 2 },
+      preferences: { quality: 'high' }
+    })
     expect(merged.reasoning).toEqual({ level: 'deep', rationale: '' })
     expect(merged.context).toEqual({ estimatedInputTokens: 5000, requiredArtifacts: [] })
     expect(merged.constraints).toEqual({ environments: [], dataLocation: null, maxDurationMinutes: null, maxCostUsd: 2 })
@@ -268,7 +249,7 @@ describe('mergeCapability nested groups', () => {
 
   it('does not modify its inputs', () => {
     const base = defaultCapabilityProfile()
-    const patch = looseCapability({ reasoning: { level: 'deep', rationale: 'hard' }, skills: ['a'] })
+    const patch: CapabilityPatch = { reasoning: { level: 'deep', rationale: 'hard' }, skills: ['a'] }
     mergeCapability(base, patch)
     expect(base).toEqual(defaultCapabilityProfile())
     expect(patch).toEqual({ reasoning: { level: 'deep', rationale: 'hard' }, skills: ['a'] })
@@ -301,7 +282,7 @@ describe('buildTicket', () => {
         acceptanceCriteria: ['works', { id: 'c9', text: 'ships' }],
         tags: [' api ', 'API', 'ui'],
         priority: 'critical',
-        capability: looseCapability({ workType: 'architecture', reasoning: { level: 'deep' } }),
+        capability: { workType: 'architecture', reasoning: { level: 'deep' } },
         references: [reference],
         expectedArtifacts: ['docs/x.md'],
         optional: true
