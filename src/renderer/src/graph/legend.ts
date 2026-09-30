@@ -41,3 +41,11 @@ export function legendEntries(kind: LegendKind, draftNumber: number): LegendEntr
       return { states: [], edges: [{ label: 'Prerequisite', dashed: false }] }
   }
 }
+
+/** Which legend the graph shows: draft change states, run execution states, or edges only. */
+export function legendKindFor(mode: 'saved' | 'draft', hasRun: boolean): LegendKind {
+  if (mode === 'draft') {
+    return 'draft'
+  }
+  return hasRun ? 'execution' : 'plain'
+}

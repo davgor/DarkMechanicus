@@ -3,6 +3,7 @@ import { ATTEMPT_STATES, RUN_STATES, WORK_STATUSES } from '../../shared/domain/s
 import { DomainError } from '../errors'
 import { type Db, openDatabase } from './database'
 import { migrate, readSchemaVersion, SCHEMA_VERSION } from './migrations'
+import { thrownBy } from '../../test/thrownBy'
 
 const openDbs: Db[] = []
 
@@ -16,15 +17,6 @@ function migratedDb(): Db {
   const db = freshDb()
   migrate(db)
   return db
-}
-
-function thrownBy(action: () => unknown): unknown {
-  try {
-    action()
-  } catch (error: unknown) {
-    return error
-  }
-  return undefined
 }
 
 function objectNames(db: Db, type: 'table' | 'index'): string[] {

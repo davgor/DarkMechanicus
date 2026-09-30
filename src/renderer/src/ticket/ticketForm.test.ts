@@ -13,6 +13,7 @@ import {
   formFromBundle,
   formToOps,
   moveCriterion,
+  pick,
   prerequisiteOptions,
   removeCriterion,
   splitList,
@@ -252,5 +253,12 @@ describe('ticket editor state', () => {
     const synced = syncEditor(applied, BUNDLE, 'tk_202')
     expect([synced.form?.title, synced.touched, synced.awaitingSync]).toEqual(['Transactional bundle import', false, false])
     expect(rejectForm(renamed, 'Title is required.').message).toEqual({ tone: 'error', text: 'Title is required.' })
+  })
+})
+
+describe('pick', () => {
+  it('returns the matching option or the fallback', () => {
+    expect(pick(['low', 'high'] as const, 'high', 'low')).toBe('high')
+    expect(pick(['low', 'high'] as const, 'nope', 'low')).toBe('low')
   })
 })

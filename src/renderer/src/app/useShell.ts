@@ -19,6 +19,7 @@ import type { EpicListState } from './useEpicLists'
 import { useEventFeed } from './useEventFeed'
 import { useFolders } from './useFolders'
 import { usePersistentState } from './usePersistentState'
+import { useRefreshTick } from './useRefreshTick'
 import { useStorageStatus } from './useStorageStatus'
 
 const SELECTION_STORAGE_KEY = 'dm.selection'
@@ -36,6 +37,9 @@ export interface ShellModel {
   /** Refresh token for an epic view: changes whenever events touch that epic. */
   epicToken(folderPath: string, epicId: string): number
 }
+
+/** Agent sessions and Git state change without events, so the footer status also refreshes on a timer. */
+const STATUS_REFRESH_MS = 10_000
 
 const IDLE: Record<BusyKey, boolean> = { initialize: false, flush: false, reconcile: false }
 
@@ -61,9 +65,10 @@ export function useShell(scheduler: Scheduler): ShellModel {
   const feed = useEventFeed({ paths, selectedPath: selection.folderPath, scheduler, onError: toasts.reportError })
   const lists = useEpicLists({ paths, tokens: feed.tokens, onError: toasts.reportError })
   const statusPath = statusPathOf(selected)
+  const tick = useRefreshTick({ scheduler, everyMs: STATUS_REFRESH_MS, enabled: statusPath !== null })
   const status = useStorageStatus({
     path: statusPath,
-    token: statusPath === null ? 0 : folderToken(feed.tokens, statusPath),
+    token: (statusPath === null ? 0 : folderToken(feed.tokens, statusPath)) + tick,
     onError: toasts.reportError
   })
 

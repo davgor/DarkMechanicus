@@ -223,7 +223,6 @@ describe('mergeCapability', () => {
     expect(merged.tools).toEqual(['shell'])
     expect(merged.skills).toEqual([])
   })
-
 })
 
 describe('mergeCapability nested groups', () => {
@@ -302,7 +301,6 @@ describe('buildTicket', () => {
     expect(ticket.capability.reasoning).toEqual({ level: 'deep', rationale: '' })
     expect(ticket.capability.tools).toEqual(['repo_read', 'repo_write'])
   })
-
 })
 
 describe('buildTicket isolation', () => {
@@ -349,7 +347,6 @@ describe('patchTicket', () => {
     expect(patchTicket(base(), {}).acceptanceCriteria).toEqual(base().acceptanceCriteria)
     expect(patchTicket(base(), { acceptanceCriteria: [] }).acceptanceCriteria).toEqual([])
   })
-
 })
 
 describe('patchTicket other fields', () => {

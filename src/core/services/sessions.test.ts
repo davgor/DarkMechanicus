@@ -76,7 +76,6 @@ describe('registerSession', () => {
       }
     ])
   })
-
 })
 
 describe('registerSession storage', () => {

@@ -34,8 +34,15 @@ export function useFolders(onError: (error: unknown) => void): FoldersModel {
     }
   }, [report])
 
+  // Availability and initialization can change outside the app (an agent, a moved drive), so the
+  // list is also refreshed whenever the window regains focus.
   useEffect(() => {
-    void reload()
+    const refresh = (): void => {
+      void reload()
+    }
+    refresh()
+    window.addEventListener('focus', refresh)
+    return () => window.removeEventListener('focus', refresh)
   }, [reload])
 
   const pick = useCallback(async () => {

@@ -33,6 +33,7 @@ import {
   ticketReference,
   workStatus
 } from './schemas'
+import { thrownBy } from '../test/thrownBy'
 
 type Case = [label: string, value: unknown]
 
@@ -42,15 +43,6 @@ function text(length: number): string {
 
 function accepts(schema: z.ZodType, value: unknown): boolean {
   return schema.safeParse(value).success
-}
-
-function thrownBy(action: () => unknown): unknown {
-  try {
-    action()
-  } catch (error: unknown) {
-    return error
-  }
-  return undefined
 }
 
 describe('LIMITS', () => {
@@ -926,7 +918,6 @@ describe('hostCatalog', () => {
     }
     expect(hostCatalog.parse({ ...CATALOG, models: [model] }).models).toEqual([model])
   })
-
 })
 
 describe('hostCatalog acceptance', () => {
@@ -986,7 +977,6 @@ describe('parseInput', () => {
     expect(error.message).toMatch(/^Invalid ticket: /)
     expect(error.message).not.toContain(' at ')
   })
-
 })
 
 describe('parseInput hostile input', () => {

@@ -19,7 +19,7 @@ beforeEach(() => {
 afterEach(cleanup)
 
 interface Mounted {
-  view: { result: { current: FoldersModel } }
+  view: { result: { current: FoldersModel }; unmount(): void }
   errors: unknown[]
 }
 
@@ -52,6 +52,25 @@ describe('useFolders loading', () => {
     expect(view.result.current.loaded).toBe(true)
     expect(view.result.current.folders).toEqual([])
     expect((errors[0] as Error).message).toBe('registry unreadable')
+  })
+
+  it('reloads when the window regains focus', async () => {
+    const { view } = await mount()
+    dm.folders = [alpha]
+    act(() => {
+      window.dispatchEvent(new Event('focus'))
+    })
+    await settle()
+    expect(view.result.current.folders).toEqual([alpha])
+  })
+
+  it('stops listening for focus after unmounting', async () => {
+    const { view } = await mount()
+    view.unmount()
+    const before = dm.calls.filter((call) => call === 'listFolders').length
+    window.dispatchEvent(new Event('focus'))
+    await settle()
+    expect(dm.calls.filter((call) => call === 'listFolders')).toHaveLength(before)
   })
 
   it('reloads on request', async () => {

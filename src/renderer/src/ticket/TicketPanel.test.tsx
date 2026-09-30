@@ -1,0 +1,175 @@
+// @vitest-environment jsdom
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { afterEach, describe, expect, it } from 'vitest'
+import { FakeBackend, scenario } from '../epic/__mocks__/fakeBackend'
+import { NOW, attempt, savedPlan, ticketDetail } from '../epic/__mocks__/fixtures'
+import type { ReviewInput } from '../epic/workspaceActions'
+import { TicketPanel, type TicketPanelProps } from './TicketPanel'
+
+afterEach(() => {
+  cleanup()
+})
+
+interface Recorded {
+  edits: number
+  closed: number
+  selected: string[]
+  reviews: ReviewInput[]
+}
+
+function renderPanel(backend: FakeBackend, patch: Partial<TicketPanelProps> = {}, reviewError: string | null = null): Recorded {
+  window.dm = backend
+  const recorded: Recorded = { edits: 0, closed: 0, selected: [], reviews: [] }
+  render(
+    <TicketPanel
+      runner={backend.runner}
+      epicId="ep_1"
+      ticketId="tk_202"
+      plan={savedPlan()}
+      reloadKey={0}
+      now={NOW}
+      canEdit
+      onEditInDraft={() => {
+        recorded.edits += 1
+      }}
+      onClose={() => {
+        recorded.closed += 1
+      }}
+      onSelectTicket={(id) => recorded.selected.push(id)}
+      onReview={(input) => {
+        recorded.reviews.push(input)
+        return Promise.resolve(reviewError)
+      }}
+      {...patch}
+    />
+  )
+  return recorded
+}
+
+describe('ticket panel overview', () => {
+  it('shows the key, state, title, meta line, Markdown body and criteria progress', async () => {
+    renderPanel(new FakeBackend())
+    const panel = await screen.findByLabelText('Ticket DM-202')
+    expect((await within(panel).findByText('RUNNING · ATTEMPT 2')).textContent).toBe('RUNNING · ATTEMPT 2')
+    expect(within(panel).getByRole('heading', { level: 2 }).textContent).toBe('Transactional bundle import')
+    expect(within(panel).getByText('Sprint 2 · Authoring through MCP · rev 4 · Read-only while run #2 is active').tagName).toBe('P')
+    expect(panel.querySelector('.md code')?.textContent).toBe('save_plan_draft')
+    expect(within(panel).getByText('ACCEPTANCE CRITERIA · 1 OF 4 VERIFIED').textContent).toBe('ACCEPTANCE CRITERIA · 1 OF 4 VERIFIED')
+    const boxes = within(panel).getAllByRole('checkbox') as HTMLInputElement[]
+    expect(boxes.map((box) => box.checked)).toEqual([true, false, false, false])
+  })
+
+  it('shows the capability profile and requires/unlocks links that open other tickets', async () => {
+    const recorded = renderPanel(new FakeBackend())
+    const profile = await screen.findByLabelText('Capability profile')
+    expect(within(profile).getByText('Multi-step').textContent).toBe('Multi-step · transaction and outbox ordering')
+    expect(within(profile).getByText('~40k tokens').textContent).toBe('~40k tokens · (estimate)')
+    expect(within(profile).getByText('Database design').className).toBe('ew-chip')
+    const requires = screen.getByLabelText('REQUIRES')
+    expect(within(requires).getAllByRole('button').map((item) => item.textContent)).toEqual([
+      'DM-102SQLite schema & migrationsACCEPTED',
+      'DM-103Portable export outboxACCEPTED'
+    ])
+    fireEvent.click(within(screen.getByLabelText('UNLOCKS')).getByRole('button'))
+    expect(recorded.selected).toEqual(['tk_304'])
+  })
+
+  it('offers Edit in draft and close', async () => {
+    const recorded = renderPanel(new FakeBackend())
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit in draft' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close ticket' }))
+    expect([recorded.edits, recorded.closed]).toEqual([1, 1])
+  })
+
+  it('hides Edit in draft when editing is not allowed and shows load errors', async () => {
+    const backend = new FakeBackend()
+    backend.fail('getTicket', 'not_found', 'Ticket tk_202 not found.')
+    renderPanel(backend, { canEdit: false })
+    expect((await screen.findByRole('alert')).textContent).toBe('Ticket tk_202 not found.')
+    expect(screen.queryByRole('button', { name: 'Edit in draft' })).toBe(null)
+  })
+})
+
+describe('ticket panel attempts', () => {
+  it('lists attempts with worker, lease and failure details', async () => {
+    renderPanel(new FakeBackend())
+    fireEvent.click(await screen.findByRole('tab', { name: 'Attempts (2)' }))
+    const cards = screen.getAllByRole('listitem').filter((item) => item.className.startsWith('tp-attempt'))
+    expect(cards.map((card) => card.getAttribute('aria-label'))).toEqual(['Attempt #2', 'Attempt #1'])
+    expect(within(cards[0] as HTMLElement).getByText('lease 04:12 left · heartbeat 20s ago').textContent).toBe(
+      'lease 04:12 left · heartbeat 20s ago'
+    )
+    expect(within(cards[1] as HTMLElement).getByText('2 tests failed — idempotency replay returned a new id')).toBeTruthy()
+    expect(screen.getByRole('tab', { name: 'Attempts (2)' }).getAttribute('aria-selected')).toBe('true')
+  })
+
+  it('accepts or rejects a submitted attempt with a required reason and abandons an expired one', async () => {
+    const submitted = attempt('DM-202', 3, 'submitted')
+    const expired = attempt('DM-202', 2, 'lease_expired')
+    const backend = new FakeBackend(scenario({ ticket: ticketDetail({ attempts: [submitted, expired] }) }))
+    const recorded = renderPanel(backend, {}, 'The attempt is no longer submitted.')
+    fireEvent.click(await screen.findByRole('tab', { name: 'Attempts (2)' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
+    expect((await screen.findByText('The attempt is no longer submitted.')).getAttribute('role')).toBe('alert')
+    fireEvent.click(screen.getByRole('button', { name: 'Reject…' }))
+    const reject = screen.getByRole('button', { name: 'Reject attempt' }) as HTMLButtonElement
+    expect(reject.disabled).toBe(true)
+    fireEvent.change(screen.getByLabelText('Reason for rejecting'), { target: { value: ' c2 unmet ' } })
+    fireEvent.click(reject)
+    fireEvent.click(screen.getByRole('button', { name: 'Mark abandoned' }))
+    await screen.findAllByText('The attempt is no longer submitted.')
+    expect(recorded.reviews).toEqual([
+      { attemptId: 'at_202_3', decision: 'accept' },
+      { attemptId: 'at_202_3', decision: 'reject', reason: 'c2 unmet' },
+      { attemptId: 'at_202_2', decision: 'abandon' }
+    ])
+  })
+
+  it('says when there are no attempts yet', async () => {
+    renderPanel(new FakeBackend(scenario({ ticket: ticketDetail({ attempts: [], execution: null }) })))
+    fireEvent.click(await screen.findByRole('tab', { name: 'Attempts (0)' }))
+    expect(screen.getByText('No attempts yet.').textContent).toBe('No attempts yet.')
+    expect(screen.getByText('IN PROGRESS').textContent).toBe('IN PROGRESS')
+  })
+})
+
+describe('ticket panel evidence and history', () => {
+  it('shows checks, criteria results and notes of the latest evidence', async () => {
+    renderPanel(new FakeBackend())
+    fireEvent.click(await screen.findByRole('tab', { name: 'Evidence' }))
+    const checks = screen.getByLabelText('Checks')
+    expect(within(checks).getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      '✗Unit tests2 failed',
+      '✓Typecheck0 errors',
+      '–Lintnot configured'
+    ])
+    expect(screen.getByText('FROM ATTEMPT #1').textContent).toBe('FROM ATTEMPT #1')
+    expect(screen.getByText('flaky').tagName).toBe('STRONG')
+  })
+
+  it('says when no evidence exists', async () => {
+    renderPanel(new FakeBackend(scenario({ ticket: ticketDetail({ attempts: [] }) })))
+    fireEvent.click(await screen.findByRole('tab', { name: 'Evidence' }))
+    expect(screen.getByText('No evidence recorded yet.').textContent).toBe('No evidence recorded yet.')
+  })
+
+  it("lists the ticket's events newest first", async () => {
+    renderPanel(new FakeBackend())
+    fireEvent.click(await screen.findByRole('tab', { name: 'History' }))
+    const items = await screen.findAllByRole('listitem')
+    expect(items.map((item) => item.textContent)).toEqual(['Attempt failed · 2m ago2 tests failed', 'Attempt claimed · 1m ago'])
+  })
+
+  it('reports empty and failing history', async () => {
+    const empty = new FakeBackend(scenario({ events: [] }))
+    renderPanel(empty)
+    fireEvent.click(await screen.findByRole('tab', { name: 'History' }))
+    expect((await screen.findByText('No events for this ticket yet.')).textContent).toBe('No events for this ticket yet.')
+    cleanup()
+    const failing = new FakeBackend()
+    failing.fail('listEvents', 'internal', 'Event log unavailable.')
+    renderPanel(failing)
+    fireEvent.click(await screen.findByRole('tab', { name: 'History' }))
+    expect((await screen.findByRole('alert')).textContent).toBe('Event log unavailable.')
+  })
+})

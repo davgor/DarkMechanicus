@@ -4,6 +4,7 @@ import { contentHash } from '../canonical'
 import { DomainError } from '../errors'
 import { getMeta, META_KEYS, setMeta } from '../meta'
 import { requestWithoutKey, withIdempotency } from './idempotency'
+import { thrownBy } from '../../test/thrownBy'
 
 interface StoredRow {
   command: string
@@ -15,15 +16,6 @@ interface StoredRow {
 
 function storedRows(ctx: TestCtx): StoredRow[] {
   return ctx.db.all<StoredRow>('SELECT * FROM idempotency ORDER BY command, key')
-}
-
-function thrownBy(action: () => unknown): unknown {
-  try {
-    action()
-  } catch (error: unknown) {
-    return error
-  }
-  return undefined
 }
 
 /** Runs `withIdempotency` and counts how often the command body executed. */
@@ -100,7 +92,6 @@ describe('withIdempotency replays', () => {
     expect(second).toEqual({ list: [1, { deep: true }] })
     expect(second).not.toBe(first)
   })
-
 })
 
 describe('withIdempotency request fingerprints', () => {

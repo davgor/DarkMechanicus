@@ -46,7 +46,8 @@ describe('StorageCard content', () => {
 
   it('describes the project and where its records live', () => {
     renderCard(storageStatus({ projectName: 'alpha', projectId: 'pj_1', schemaVersion: 1 }))
-    expect(row('Project')).toBe('alpha (pj_1)')
+    expect(row('Project')).toBe('alpha')
+    expect(row('Project ID')).toBe('pj_1')
     expect(row('Schema')).toBe('v1')
     expect(row('Branch')).toBe('main')
   })
@@ -55,6 +56,13 @@ describe('StorageCard content', () => {
     renderCard(storageStatus({ uncommittedRecordFiles: 2, lastFlushAt: '2026-03-15T12:00:00.000Z' }))
     expect(row('Export')).toBe('Exported · 2 files uncommitted')
     expect(row('Last export')).toBe('Mar 15, 2026')
+  })
+
+  it('falls back when the project has no name or id yet', () => {
+    renderCard(storageStatus({ projectName: null, projectId: null, schemaVersion: null }))
+    expect(row('Project')).toBe('Unnamed')
+    expect(row('Project ID')).toBe('none')
+    expect(row('Schema')).toBe('—')
   })
 
   it('says when nothing has been exported yet', () => {

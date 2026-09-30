@@ -29,10 +29,10 @@ export class ManualScheduler implements Scheduler {
     return this.list(false)
   }
 
-  /** Runs each scheduled repeating task once. */
-  fireIntervals(): void {
+  /** Runs each scheduled repeating task once (optionally only those with the given delay). */
+  fireIntervals(ms?: number): void {
     for (const entry of Array.from(this.entries.values())) {
-      if (entry.repeat) entry.run()
+      if (entry.repeat && (ms === undefined || entry.ms === ms)) entry.run()
     }
   }
 

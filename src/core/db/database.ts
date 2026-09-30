@@ -53,12 +53,13 @@ class SqliteDb implements Db {
   private readonly db: DatabaseSync
   private readonly statements = new Map<string, StatementSync>()
   private depth = 0
-  private readonly beginRetries: number
+  /** Total `BEGIN IMMEDIATE` tries: at least one, and finite for any ordinary `beginRetries`. */
+  private readonly beginAttempts: number
 
   constructor(path: string, options: OpenDatabaseOptions) {
     this.path = path
     this.db = new DatabaseSync(path)
-    this.beginRetries = options.beginRetries ?? 3
+    this.beginAttempts = 1 + Math.max(0, Math.floor(options.beginRetries ?? 3) || 0)
     applyPragmas(this.db, path, options.busyTimeoutMs ?? DEFAULT_BUSY_TIMEOUT_MS)
   }
 
@@ -93,16 +94,19 @@ class SqliteDb implements Db {
   }
 
   private begin(): void {
-    for (let attempt = 0; ; attempt += 1) {
+    let busy: unknown
+    for (let attempt = 0; attempt < this.beginAttempts; attempt += 1) {
       try {
         this.db.exec('BEGIN IMMEDIATE')
         return
       } catch (error: unknown) {
-        if (!isBusyError(error) || attempt >= this.beginRetries) {
+        if (!isBusyError(error)) {
           throw error
         }
+        busy = error
       }
     }
+    throw busy
   }
 
   private rollback(savepoint: string | null): void {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { legendEntries } from './legend'
+import { legendEntries, legendKindFor } from './legend'
 
 describe('graph legend', () => {
   it('lists execution states with solid and dashed edges', () => {
@@ -22,5 +22,15 @@ describe('graph legend', () => {
       edges: [{ label: 'Prerequisite', dashed: false }]
     })
     expect(legendEntries('plain', 1)).toEqual({ states: [], edges: [{ label: 'Prerequisite', dashed: false }] })
+  })
+})
+
+describe('legend kind', () => {
+  it('follows the view and whether a run overlays the plan', () => {
+    expect([legendKindFor('draft', true), legendKindFor('saved', true), legendKindFor('saved', false)]).toEqual([
+      'draft',
+      'execution',
+      'plain'
+    ])
   })
 })

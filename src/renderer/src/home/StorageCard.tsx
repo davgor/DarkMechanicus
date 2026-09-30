@@ -33,8 +33,9 @@ function Details({ status, titles }: { status: StorageStatusView; titles: Readon
   const exported = storageFooterLine(status)
   return (
     <dl className="kv">
-      <Row label="Project">
-        {status.projectName ?? 'Unnamed'} ({status.projectId ?? 'no id'})
+      <Row label="Project">{status.projectName ?? 'Unnamed'}</Row>
+      <Row label="Project ID">
+        <span className="mono">{status.projectId ?? 'none'}</span>
       </Row>
       <Row label="Schema">{status.schemaVersion === null ? '—' : `v${status.schemaVersion}`}</Row>
       <Row label="Branch">{status.branch.current ?? 'detached HEAD'}</Row>

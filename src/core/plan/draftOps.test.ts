@@ -91,7 +91,6 @@ describe('applyDraftOps batches', () => {
     rejection(input, { op: 'remove_ticket', ticket: 'DM-2' }, { op: 'remove_ticket', ticket: 'DM-99' })
     expect(input).toEqual(baseBundle())
   })
-
 })
 
 describe('applyDraftOps failures', () => {
@@ -198,7 +197,6 @@ describe('applyDraftOps client refs', () => {
     const second = apply(first.bundle, { op: 'add_sprint', ref: 'a', sprint: { goal: 'again' } })
     expect(second.refMap).toEqual({ a: 'sp_new1' })
   })
-
 })
 
 describe('applyDraftOps ref resolution', () => {
@@ -370,7 +368,6 @@ describe('add_sprint', () => {
     expect(ordinals(atZero)[0]).toEqual(['sp_new1', 1])
     expect(ordinals(beyond)[2]).toEqual(['sp_new1', 3])
   })
-
 })
 
 describe('add_sprint ordering', () => {

@@ -325,3 +325,8 @@ export function applyOutcome(state: EditorState, outcome: ApplyOutcome): EditorS
 export function rejectForm(state: EditorState, text: string): EditorState {
   return { ...state, message: { tone: 'error', text } }
 }
+
+/** Maps a `<select>` value back to one of its typed options (the fallback when unknown). */
+export function pick<T extends string>(options: readonly T[], value: string, fallback: T): T {
+  return options.find((option) => option === value) ?? fallback
+}

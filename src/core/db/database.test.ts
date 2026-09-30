@@ -12,6 +12,7 @@ import {
   parseJson,
   toJson
 } from './database'
+import { thrownBy } from '../../test/thrownBy'
 
 const tempDirs: string[] = []
 const openDbs: Db[] = []
@@ -40,15 +41,6 @@ function names(db: Db): string[] {
 
 function add(db: Db, name: string): void {
   db.run('INSERT INTO notes (name) VALUES (?)', name)
-}
-
-function thrownBy(action: () => unknown): unknown {
-  try {
-    action()
-  } catch (error: unknown) {
-    return error
-  }
-  return undefined
 }
 
 afterEach(() => {
@@ -209,7 +201,6 @@ describe('run, get and all', () => {
     expect(db.get<{ name: string }>('SELECT name FROM notes WHERE id = ?', 2)?.name).toBe('second')
     expect(names(db)).toEqual(['first', 'second'])
   })
-
 })
 
 describe('parameter binding', () => {
@@ -465,7 +456,36 @@ describe('file databases shared by two connections', () => {
     expect(seenDuring).toEqual([])
     expect(names(second)).toEqual(['pending'])
   })
+})
 
+describe('transaction start retries', () => {
+  it.each([[0], [-3], [Number.NaN], [0.9]])('still starts and commits with beginRetries %s', (beginRetries) => {
+    const db = open(':memory:', { beginRetries })
+    db.exec('CREATE TABLE notes (id INTEGER PRIMARY KEY, name TEXT)')
+    db.tx(() => add(db, 'kept'))
+    expect(names(db)).toEqual(['kept'])
+  })
+
+  it.each([[0], [-3], [Number.NaN], [1], [3]])('fails with a busy error after beginRetries %s', (beginRetries) => {
+    const path = tempDbPath()
+    const holder = openWithNotes(path)
+    const writer = open(path, { busyTimeoutMs: 0, beginRetries })
+    holder.exec('BEGIN IMMEDIATE')
+    const busy = thrownBy(() => writer.tx(() => add(writer, 'blocked')))
+    holder.exec('ROLLBACK')
+    expect(isBusyError(busy)).toBe(true)
+    expect(writer.inTransaction()).toBe(false)
+    expect(names(holder)).toEqual([])
+  })
+
+  it('does not retry errors that are not busy errors', () => {
+    const db = openWithNotes()
+    db.exec('BEGIN IMMEDIATE')
+    const failure = thrownBy(() => db.tx(() => add(db, 'never')))
+    db.exec('ROLLBACK')
+    expect((failure as Error).message).toMatch(/within a transaction/)
+    expect(isBusyError(failure)).toBe(false)
+  })
 })
 
 describe('file databases with a competing writer', () => {

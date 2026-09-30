@@ -64,10 +64,10 @@ export function ConfirmStrip({ ws }: { ws: WorkspaceHandle }): JSX.Element | nul
   )
 }
 
-/** Read-only, pending-save and conflict notices under the header. */
-export function Notices({ header }: { header: HeaderView }): JSX.Element | null {
+/** Read-only, pending-save, conflict and refresh-failure notices under the header. */
+export function Notices({ header, loadError }: { header: HeaderView; loadError: string | null }): JSX.Element | null {
   const lines = header.readOnly === null ? header.notices : [header.readOnly, ...header.notices]
-  if (lines.length === 0) {
+  if (lines.length === 0 && loadError === null) {
     return null
   }
   return (
@@ -75,6 +75,7 @@ export function Notices({ header }: { header: HeaderView }): JSX.Element | null 
       {lines.map((line) => (
         <p key={line}>{line}</p>
       ))}
+      {loadError === null ? null : <p className="ew-notice-error">Couldn&apos;t refresh: {loadError}</p>}
     </div>
   )
 }

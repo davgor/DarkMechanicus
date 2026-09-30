@@ -66,7 +66,6 @@ describe('appendEvent', () => {
       }
     ])
   })
-
 })
 
 describe('appendEvent defaults and provenance', () => {

@@ -1,14 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DomainError, fail, toErrorShape } from './errors'
-
-function thrownBy(action: () => unknown): unknown {
-  try {
-    action()
-  } catch (error: unknown) {
-    return error
-  }
-  return undefined
-}
+import { thrownBy } from '../test/thrownBy'
 
 describe('DomainError', () => {
   it('carries code, message and details', () => {

@@ -9,6 +9,7 @@ import {
   type SessionContext
 } from './authz'
 import { DomainError } from './errors'
+import { thrownBy } from '../test/thrownBy'
 
 const PLANNER: Capability[] = ['read', 'repo.init', 'repo.flush', 'repo.reconcile', 'epic.create', 'draft.edit']
 
@@ -82,15 +83,6 @@ function sorted(values: readonly string[]): string[] {
 
 function sessionWith(role: SessionRole, capabilities: Capability[]): SessionContext {
   return { id: 'ss_test', role, label: 'test session', capabilities: new Set(capabilities) }
-}
-
-function thrownBy(action: () => unknown): unknown {
-  try {
-    action()
-  } catch (error: unknown) {
-    return error
-  }
-  return undefined
 }
 
 describe('capability vocabulary', () => {

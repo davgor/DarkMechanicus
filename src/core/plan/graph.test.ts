@@ -132,12 +132,17 @@ describe('validatePlan valid plans', () => {
     expect(errorsOf(makeBundle([[1], [2]], [[1, 2]]))).toEqual([])
   })
 
-  it('reports valid as false as soon as there is one error, regardless of warnings', () => {
-    const invalid = makeBundle([[1, 2]], [[1, 2]], { rationale: '', tickets: [] })
-    expect(validatePlan(invalid).valid).toBe(false)
-    expect(validatePlan(makeBundle([[1]])).valid).toBe(true)
-    expect(warningsOf(makeBundle([[1], []]))).not.toEqual([])
-    expect(validatePlan(makeBundle([[1], []])).valid).toBe(true)
+  it('is invalid as soon as there is a single error', () => {
+    const report = validatePlan(makeBundle([[1, 2]], [[2, 2]]))
+    expect(codes(report.errors)).toEqual(['self_edge'])
+    expect(report.valid).toBe(false)
+  })
+
+  it('stays valid when there are only warnings', () => {
+    const report = validatePlan(makeBundle([[1], []]))
+    expect(report.errors).toEqual([])
+    expect(codes(report.warnings)).toEqual(['empty_sprint'])
+    expect(report.valid).toBe(true)
   })
 })
 
@@ -214,7 +219,6 @@ describe('validatePlan cycles and edge shape', () => {
     expect(errorsOf(fromUnknown)[0]?.message).toBe(`Dependency references unknown ticket ${unknown}.`)
     expect(errorsOf(bothUnknown)[0]?.message).toBe(`Dependency references unknown ticket ${tid(98)}, ${unknown}.`)
   })
-
 })
 
 describe('validatePlan duplicate edges and mixed problems', () => {
@@ -551,7 +555,6 @@ describe('validatePlan content warnings', () => {
       }
     ])
   })
-
 })
 
 describe('validatePlan optional ticket warnings', () => {
@@ -624,7 +627,6 @@ describe('checkEdgeAddition rejections', () => {
       ticketIds: [tid(1), tid(2), tid(3)]
     })
   })
-
 })
 
 describe('checkEdgeAddition rule precedence', () => {
