@@ -39,6 +39,7 @@ const SOURCE_MACHINE = idOf('machine', 1)
 const BUNDLE_1 = makeBundle([[1, 2]], [[1, 2]])
 const BUNDLE_2 = makeBundle([[1, 2, 3]], [[1, 2]])
 const BUNDLE_3 = makeBundle([[1, 2, 3, 4]], [[1, 2]])
+const BRANCH = { repository: null, name: 'epic/demo', startCommit: 'abcdef1' }
 
 function seedRunHistory(source: RepoEnv): void {
   insertRun(source.db, { id: RUN, epicId: EPIC, revisionId: R2, ownerMachineId: SOURCE_MACHINE, activeSprintId: sid(1), autoContinue: true })
@@ -63,7 +64,7 @@ function buildSource(): RepoEnv {
   saveRevision(source, { epicId: EPIC, revisionId: R1, number: 1, bundle: BUNDLE_1 })
   saveRevision(source, { epicId: EPIC, revisionId: R2, number: 2, bundle: BUNDLE_2, baseRevisionId: R1 })
   source.db.run("UPDATE ticket_status SET status = 'completed' WHERE ticket_id = ?", tid(1))
-  source.db.run("UPDATE epics SET status = 'in_progress' WHERE id = ?", EPIC)
+  source.db.run("UPDATE epics SET status = 'in_progress', branch_json = ? WHERE id = ?", JSON.stringify(BRANCH), EPIC)
   insertOutbox(source.db, { kind: 'epic_state', epicId: EPIC })
   seedRunHistory(source)
   flush(source)
@@ -81,9 +82,10 @@ describe('reconcileRepository reconstruction', () => {
     const target = cloneOf(buildSource())
     const result = reconcileRepository(importerDeps(target, createStubGit('main')))
     expect(result).toEqual({ imported: [EPIC, RUN], unchanged: [], conflicts: [], rejected: [], branchChanged: false, pausedRuns: [] })
-    expect(target.db.all('SELECT id, title, status, current_revision_id FROM epics')).toEqual([
-      { id: EPIC, title: 'Test epic', status: 'in_progress', current_revision_id: R2 }
+    expect(target.db.all('SELECT id, title, status, current_revision_id, provenance_json, outcome_json FROM epics')).toEqual([
+      { id: EPIC, title: 'Test epic', status: 'in_progress', current_revision_id: R2, provenance_json: null, outcome_json: null }
     ])
+    expect(JSON.parse(target.db.get<{ branch_json: string }>('SELECT branch_json FROM epics')?.branch_json ?? 'null')).toEqual(BRANCH)
     expect(target.db.all('SELECT id, number, state, content_hash, base_revision_id FROM plan_revisions ORDER BY number')).toEqual([
       { id: R1, number: 1, state: 'saved', content_hash: contentHash(BUNDLE_1), base_revision_id: null },
       { id: R2, number: 2, state: 'saved', content_hash: contentHash(BUNDLE_2), base_revision_id: R1 }
@@ -110,6 +112,11 @@ describe('reconcileRepository reconstruction', () => {
       { id: A1, state: 'accepted', claim_secret: null, lease_expires_at: null, heartbeat_at: null },
       { id: A2, state: 'lease_expired', claim_secret: null, lease_expires_at: null, heartbeat_at: null }
     ])
+    expect(target.db.all('SELECT id, outputs_json, failure_json FROM attempts ORDER BY id')).toEqual([
+      { id: A1, outputs_json: expect.stringContaining('Schema tables created'), failure_json: null },
+      { id: A2, outputs_json: null, failure_json: null }
+    ])
+    expect(target.db.get('SELECT host_json FROM runs WHERE id = ?', RUN)).toEqual({ host_json: null })
     expect(target.db.all('SELECT id, sprint_id FROM sprint_reports')).toEqual([{ id: REPORT, sprint_id: sid(1) }])
     expect(target.db.all('SELECT report_id, approval_id FROM checkpoints')).toEqual([{ report_id: REPORT, approval_id: null }])
   })
@@ -144,6 +151,7 @@ describe('reconcileRepository bookkeeping', () => {
     expect(find('schema')).toEqual([A1])
     expect(find('flaky')).toEqual([REPORT])
     expect(find('ticket')).toEqual([tid(1), tid(2), tid(3)])
+    expect(find('prove')).toEqual([EPIC])
     expect(target.db.get('SELECT title FROM search_index WHERE doc_id = ?', tid(1))).toEqual({ title: 'DM-1 Ticket 1' })
     expect(target.db.get('SELECT title FROM search_index WHERE doc_id = ?', A1)).toEqual({ title: 'DM-1 attempt 1' })
   })
@@ -178,6 +186,24 @@ describe('reconcileRepository change detection', () => {
     expect(reconcileRepository(deps).imported).toEqual([EPIC])
     expect(target.db.get('SELECT current_revision_id, revision FROM epics WHERE id = ?', EPIC)).toEqual({ current_revision_id: R3, revision: 2 })
     expect(target.db.get('SELECT status FROM ticket_status WHERE ticket_id = ?', tid(4))).toEqual({ status: 'backlog' })
+  })
+})
+
+describe('reconcileRepository run updates', () => {
+  it('imports changed run history while its epic is unchanged', () => {
+    const source = buildSource()
+    const target = cloneOf(source)
+    const deps = importerDeps(target, createStubGit('main'))
+    reconcileRepository(deps)
+    source.db.run("UPDATE runs SET state = 'completed', ended_at = ? WHERE id = ?", T0, RUN)
+    insertOutbox(source.db, { kind: 'run_history', runId: RUN })
+    flush(source)
+    copyTracked(source, target)
+    const result = reconcileRepository(deps)
+    expect(result).toMatchObject({ imported: [RUN], unchanged: [EPIC], rejected: [], conflicts: [] })
+    expect(target.db.get('SELECT state, ended_at, revision FROM runs WHERE id = ?', RUN)).toEqual({ state: 'completed', ended_at: T0, revision: 2 })
+    const events = target.db.all<{ payload_json: string }>("SELECT payload_json FROM events WHERE kind = 'repository.reconciled' ORDER BY seq")
+    expect(JSON.parse(events[1]?.payload_json ?? '{}')).toEqual({ imported: [RUN], unchanged: 1, conflicts: 0, rejected: 0, branchChanged: false, pausedRuns: [] })
   })
 })
 
@@ -227,6 +253,7 @@ describe('reconcileRepository conflicts', () => {
     const result = reconcileRepository(deps)
     expect(result.conflicts).toEqual([{ epicId: EPIC, message: expect.stringContaining(RUN) }])
     expect(target.db.get('SELECT state FROM runs WHERE id = ?', RUN)).toEqual({ state: 'running' })
+    expect(target.db.all("SELECT seq FROM events WHERE kind = 'repository.reconciled'")).toHaveLength(2)
   })
 })
 

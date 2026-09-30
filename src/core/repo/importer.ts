@@ -349,7 +349,8 @@ function epicClash(db: Db, files: EpicFiles): string | null {
       return `Revision ${snapshot.revisionId} already exists locally with different content or another epic.`
     }
   }
-  for (const ticketId of Object.keys(files.state.ticketStatuses)) {
+  const ticketIds = new Set(files.snapshots.flatMap((snapshot) => snapshot.bundle.tickets.map((ticket) => ticket.id)))
+  for (const ticketId of ticketIds) {
     const row = db.get<{ epic_id: string }>('SELECT epic_id FROM ticket_status WHERE ticket_id = ?', ticketId)
     if (row !== undefined && row.epic_id !== files.epicId) {
       return `Ticket ${ticketId} already belongs to another epic.`

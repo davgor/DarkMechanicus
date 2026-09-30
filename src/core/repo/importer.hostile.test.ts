@@ -360,3 +360,60 @@ describe('hostile run history', () => {
     expect(outsideReads(state)).toEqual([])
   })
 })
+
+const EPIC_2 = idOf('epic', 2)
+const R8 = idOf('revision', 8)
+
+/** Writes a second epic (pointer, state, one snapshot of `bundle`) into the clone's files. */
+function addSecondEpic(state: Imported, bundle: PlanBundle, ticketStatuses: Record<string, string>): void {
+  const hash = contentHash(bundle)
+  const snapshot = JSON.parse(state.target.fs.get(paths(state).snapshotFile(EPIC, R1)) ?? '{}') as Record<string, unknown>
+  state.target.fs.put(paths(state).snapshotFile(EPIC_2, R8), prettyJson({ ...snapshot, epicId: EPIC_2, revisionId: R8, number: 1, contentHash: hash, bundle }))
+  const pointer = JSON.parse(state.target.fs.get(paths(state).epicPointerFile(EPIC)) ?? '{}') as Record<string, unknown>
+  state.target.fs.put(paths(state).epicPointerFile(EPIC_2), prettyJson({ ...pointer, epicId: EPIC_2, revisionId: R8, revisionNumber: 1, contentHash: hash }))
+  const epicState = JSON.parse(state.target.fs.get(paths(state).epicStateFile(EPIC)) ?? '{}') as Record<string, unknown>
+  state.target.fs.put(paths(state).epicStateFile(EPIC_2), prettyJson({ ...epicState, epicId: EPIC_2, ticketStatuses }))
+}
+
+describe('hostile identity reuse', () => {
+  it('rejects a snapshot that reuses a local revision id with different content', () => {
+    const state = imported()
+    const bundle = makeBundle([[1, 2, 3]], [[1, 2]])
+    writeSnapshot(state, R1, bundle)
+    editJson(state, paths(state).snapshotFile(EPIC, R1), (value) => ({ ...value, number: 1 }))
+    editJson(state, paths(state).epicPointerFile(EPIC), (value) => ({ ...value, contentHash: contentHash(bundle) }))
+    const result = reconcile(state)
+    expect(result.rejected).toEqual([{ path: EPIC_DIR, message: `Revision ${R1} already exists locally with different content or another epic.` }])
+    expectUnchanged(state, result)
+    const events = state.target.db.all<{ payload_json: string }>("SELECT payload_json FROM events WHERE kind = 'repository.reconciled' ORDER BY seq")
+    expect(JSON.parse(events[1]?.payload_json ?? '{}')).toMatchObject({ imported: [], rejected: 1 })
+  })
+
+  it('rejects an epic whose plan claims tickets of another epic', () => {
+    const state = imported()
+    addSecondEpic(state, makeBundle([[1, 2]], [[1, 2]]), {})
+    const result = reconcile(state)
+    expect(result.rejected).toEqual([{ path: `.darkmechanicus/epics/${EPIC_2}`, message: `Ticket ${tid(1)} already belongs to another epic.` }])
+    expectUnchanged(state, result)
+  })
+
+  it('rejects run history stored under another run id', () => {
+    const state = imported()
+    const otherRun = idOf('run', 2)
+    state.target.fs.put(paths(state).runHistoryFile(otherRun), state.target.fs.get(paths(state).runHistoryFile(RUN)) ?? '')
+    const result = reconcile(state)
+    expect(result.rejected).toEqual([{ path: `.darkmechanicus/history/${otherRun}`, message: `.darkmechanicus/history/${otherRun}/run.json belongs to a different run.` }])
+    expectUnchanged(state, result)
+  })
+
+  it('rejects a run that moves to another epic', () => {
+    const state = imported()
+    addSecondEpic(state, makeBundle([[5, 6]], [[5, 6]]), { [tid(5)]: 'backlog' })
+    expect(reconcile(state).imported).toEqual([EPIC_2])
+    const before = dumpDomain(state.target.db)
+    editJson(state, paths(state).runHistoryFile(RUN), (value) => ({ ...value, epicId: EPIC_2, revisionId: R8, attempts: [] }))
+    const result = reconcile(state)
+    expect(result.rejected).toEqual([{ path: `.darkmechanicus/history/${RUN}/run.json`, message: `Run ${RUN} already exists locally for another epic.` }])
+    expect(dumpDomain(state.target.db)).toEqual(before)
+  })
+})
