@@ -31,6 +31,8 @@ export interface MemoryFs extends FsAdapter {
   junction(path: string, target: string): void
   failOn(fault: FaultSpec): void
   setReaddir(path: string, names: string[]): void
+  /** Makes `fileSize` report `bytes` for an existing file (large files without the memory). */
+  setSize(path: string, bytes: number): void
   /** Copy of every file keyed by resolved path. */
   files(): Map<string, string>
 }
@@ -61,6 +63,7 @@ class MemoryFsImpl implements MemoryFs {
   private readonly links = new Map<string, string>()
   private readonly junctions = new Map<string, string>()
   private readonly listings = new Map<string, string[]>()
+  private readonly sizes = new Map<string, number>()
   private readonly faults: PendingFault[] = []
 
   constructor() {
@@ -161,7 +164,7 @@ class MemoryFsImpl implements MemoryFs {
     this.reads.push(target)
     const content = this.fileMap.get(target)
     if (content !== undefined) {
-      return Buffer.byteLength(content, 'utf8')
+      return this.sizes.get(target) ?? Buffer.byteLength(content, 'utf8')
     }
     return this.dirSet.has(target) ? 0 : -1
   }
@@ -287,6 +290,10 @@ class MemoryFsImpl implements MemoryFs {
 
   setReaddir(path: string, names: string[]): void {
     this.listings.set(this.follow(path), [...names])
+  }
+
+  setSize(path: string, bytes: number): void {
+    this.sizes.set(this.follow(path), bytes)
   }
 
   files(): Map<string, string> {

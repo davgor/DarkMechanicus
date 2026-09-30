@@ -7,7 +7,6 @@ import {
   criterionResult,
   epicBranch,
   hostCatalog,
-  idempotencyKey,
   LIMITS,
   stableId
 } from '../../core/schemas'
@@ -18,6 +17,7 @@ import {
   attemptId,
   claimToken,
   epicId,
+  idempotencyKey,
   leaseSeconds,
   markdown,
   note,

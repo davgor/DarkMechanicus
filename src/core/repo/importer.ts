@@ -94,6 +94,7 @@ interface Plan {
 
 const JSON_SUFFIX = '.json'
 const MAX_SNAPSHOTS_PER_EPIC = 1_000
+const MAX_SNAPSHOT_BYTES_PER_EPIC = 256 * 1024 * 1024
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
@@ -159,6 +160,20 @@ function readSnapshot(deps: ImporterDeps, epicId: string, name: string): Snapsho
   return record
 }
 
+/** Bounds the memory one epic's snapshots can take, checked from file sizes before any is read. */
+function checkSnapshotBudget(deps: ImporterDeps, epicId: string, names: string[]): void {
+  const paths = ownedPaths(deps.layout)
+  let bytes = 0
+  for (const name of names) {
+    const file = paths.snapshotFile(epicId, name.slice(0, -JSON_SUFFIX.length))
+    assertContained(deps.layout, deps.fs, file)
+    bytes += Math.max(0, deps.fs.fileSize(file))
+  }
+  if (bytes > MAX_SNAPSHOT_BYTES_PER_EPIC) {
+    reject(displayPath(deps.layout, paths.snapshotsDir(epicId)), 'holds more than 256 MiB of snapshots')
+  }
+}
+
 function readSnapshots(deps: ImporterDeps, epicId: string): SnapshotRecord[] {
   const dir = ownedPaths(deps.layout).snapshotsDir(epicId)
   assertContained(deps.layout, deps.fs, dir)
@@ -172,6 +187,7 @@ function readSnapshots(deps: ImporterDeps, epicId: string): SnapshotRecord[] {
   if (names.length > MAX_SNAPSHOTS_PER_EPIC) {
     reject(displayPath(deps.layout, dir), `holds more than ${MAX_SNAPSHOTS_PER_EPIC} snapshots`)
   }
+  checkSnapshotBudget(deps, epicId, names)
   return names.map((name) => readSnapshot(deps, epicId, name))
 }
 

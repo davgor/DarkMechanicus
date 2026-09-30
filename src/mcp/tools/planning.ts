@@ -1,9 +1,9 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { draftOps, idempotencyKey } from '../../core/schemas'
+import { draftOps } from '../../core/schemas'
 import type { CommandApi } from '../../shared/domain/api'
 import { toDraftOps } from './bridge'
 import { defineTool, registerTools } from './define'
-import { draftRevision, epicId, revisionId, view } from './params'
+import { draftRevision, epicId, idempotencyKey, revisionId, view } from './params'
 
 const PLANNING_TOOLS = [
   defineTool({

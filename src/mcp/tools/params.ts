@@ -1,6 +1,6 @@
 /** Input pieces shared by several tools. Descriptions are published to agents in the tool schemas. */
 import { z } from 'zod'
-import { entityRef, LIMITS, stableId } from '../../core/schemas'
+import { entityRef, idempotencyKey as coreIdempotencyKey, LIMITS, stableId } from '../../core/schemas'
 
 export const epicId = stableId.describe('Epic id (from list_epics or create_epic).')
 export const runId = stableId.describe('Run id (from start_run or get_run).')
@@ -35,6 +35,10 @@ export const expectedRevision = z
   .min(0)
   .max(1_000_000_000)
   .describe('The revision you last read; a stale value fails with `conflict` and changes nothing.')
+
+export const idempotencyKey = coreIdempotencyKey.describe(
+  'Optional. Reuse the same key when retrying this exact call; the original result is returned instead of acting twice.'
+)
 
 export const note = z.string().max(LIMITS.shortText)
 export const markdown = z.string().max(LIMITS.markdown)

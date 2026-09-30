@@ -25,7 +25,8 @@ export interface DraftOpsResult {
 
 interface OpState {
   bundle: PlanBundle
-  refMap: Record<string, string>
+  /** A Map, not an object: client refs are untrusted names such as `constructor` or `__proto__`. */
+  refMap: Map<string, string>
   deps: DraftDeps
 }
 
@@ -36,7 +37,7 @@ function reject(message: string, code: 'invalid_input' | 'invalid_graph' | 'not_
 }
 
 function resolveTicket(state: OpState, ref: string): TicketContent {
-  const id = state.refMap[ref] ?? ref
+  const id = state.refMap.get(ref) ?? ref
   const ticket =
     state.bundle.tickets.find((item) => item.id === id) ??
     state.bundle.tickets.find((item) => item.key === ref)
@@ -44,7 +45,7 @@ function resolveTicket(state: OpState, ref: string): TicketContent {
 }
 
 function resolveSprint(state: OpState, ref: string): SprintDef {
-  const id = state.refMap[ref] ?? ref
+  const id = state.refMap.get(ref) ?? ref
   const byOrdinal = /^\d+$/.test(ref) ? Number.parseInt(ref, 10) : -1
   const sprint =
     state.bundle.sprints.find((item) => item.id === id) ??
@@ -56,10 +57,10 @@ function declareRef(state: OpState, ref: string | undefined, id: string): void {
   if (ref === undefined) {
     return
   }
-  if (state.refMap[ref] !== undefined) {
+  if (state.refMap.has(ref)) {
     reject(`Client ref "${ref}" is declared twice in one request.`)
   }
-  state.refMap[ref] = id
+  state.refMap.set(ref, id)
 }
 
 function renumberSprints(bundle: PlanBundle, ordered: SprintDef[]): void {
@@ -259,7 +260,7 @@ function applyOne(state: OpState, op: DraftOp): void {
  * whole request with a concrete reason and the op index; nothing is persisted by this function.
  */
 export function applyDraftOps(bundle: PlanBundle, ops: DraftOp[], deps: DraftDeps): DraftOpsResult {
-  const state: OpState = { bundle: cloneBundle(bundle), refMap: {}, deps }
+  const state: OpState = { bundle: cloneBundle(bundle), refMap: new Map(), deps }
   ops.forEach((op, opIndex) => {
     try {
       applyOne(state, op)
@@ -270,5 +271,5 @@ export function applyDraftOps(bundle: PlanBundle, ops: DraftOp[], deps: DraftDep
       throw error
     }
   })
-  return { bundle: state.bundle, refMap: state.refMap }
+  return { bundle: state.bundle, refMap: Object.fromEntries(state.refMap) }
 }

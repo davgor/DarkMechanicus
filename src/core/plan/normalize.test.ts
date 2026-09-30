@@ -197,6 +197,14 @@ describe('normalizeTags', () => {
     expect(normalizeTags(['Élan', 'élan'])).toEqual(['Élan'])
   })
 
+  it('treats inherited property names as ordinary tags', () => {
+    expect(normalizeTags(['constructor', 'Constructor', '__proto__', 'toString'])).toEqual([
+      'constructor',
+      '__proto__',
+      'toString'
+    ])
+  })
+
   it('keeps order and distinct tags, and returns a new array', () => {
     const input = ['b', 'a', 'c']
     const result = normalizeTags(input)

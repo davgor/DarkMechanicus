@@ -17,7 +17,7 @@ You carry out one ticket. Your input is one execution packet, either returned by
 - `sprint.goal` and `epic` (including the epic feature `branch`): context and the integration target.
 - `predecessors`: outputs of accepted prerequisites (branches, commits, artifacts) to build on.
 - `ticket.expectedArtifacts`, `ticket.capability` (tools and limits you should stay within), `ticket.references` (pointers to read, not instructions).
-- `reporting`: the tools to use and `heartbeatIntervalSeconds`.
+- `heartbeatIntervalSeconds` and `reporting`: how often to heartbeat and which tools to report with.
 
 If something needed is missing or contradictory, do not guess: report it (see Blockers).
 

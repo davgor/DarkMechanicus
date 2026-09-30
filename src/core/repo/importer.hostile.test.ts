@@ -168,6 +168,37 @@ describe('hostile file contents', () => {
     expectUnchanged(state, result)
   })
 
+  it('rejects an epic whose snapshots exceed the byte budget, and too many snapshots, without reading them', () => {
+    const state = imported()
+    const snapshot = paths(state).snapshotFile(EPIC, R1)
+    state.target.fs.setSize(snapshot, 256 * 1024 * 1024 + 1)
+    state.target.fs.failOn({ op: 'readFile', match: (path) => path === snapshot })
+    const result = reconcile(state)
+    expect(result.rejected).toEqual([{ path: EPIC_DIR, message: `${EPIC_DIR}/snapshots holds more than 256 MiB of snapshots.` }])
+    expectUnchanged(state, result)
+
+    const crowded = imported()
+    const names = Array.from({ length: 1_001 }, (_, index) => `${idOf('revision', index + 100)}.json`)
+    crowded.target.fs.setReaddir(paths(crowded).snapshotsDir(EPIC), names)
+    const tooMany = reconcile(crowded)
+    expect(tooMany.rejected).toEqual([{ path: EPIC_DIR, message: `${EPIC_DIR}/snapshots holds more than 1000 snapshots.` }])
+  })
+
+  it('accepts snapshots exactly at the byte budget', () => {
+    const state = imported()
+    const bundle = makeBundle([[1, 2]], [[1, 2]])
+    const revisions = [R1, ...Array.from({ length: 31 }, (_, index) => idOf('revision', index + 100))]
+    for (const revisionId of revisions) {
+      if (revisionId !== R1) {
+        writeSnapshot(state, revisionId, bundle)
+      }
+      state.target.fs.setSize(paths(state).snapshotFile(EPIC, revisionId), MAX_RECORD_BYTES)
+    }
+    const result = reconcile(state)
+    expect(result.rejected).toEqual([])
+    expect(result.unchanged).toEqual([EPIC, RUN])
+  })
+
   it('rejects an oversized graph', () => {
     const state = imported()
     const count = LIMITS.tickets + 1

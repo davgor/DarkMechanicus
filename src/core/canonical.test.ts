@@ -74,6 +74,21 @@ describe('canonicalJson undefined and primitives', () => {
   })
 })
 
+describe('canonicalJson hostile keys', () => {
+  it('keeps __proto__ and constructor as ordinary data keys', () => {
+    const hostile: unknown = JSON.parse('{"b":1,"__proto__":{"polluted":true},"constructor":2}')
+    expect(canonicalJson(hostile)).toBe('{"__proto__":{"polluted":true},"b":1,"constructor":2}')
+    expect(canonicalJson(JSON.parse(canonicalJson(hostile)))).toBe(canonicalJson(hostile))
+  })
+
+  it('does not pollute Object.prototype or change the prototype of results', () => {
+    canonicalJson(JSON.parse('{"__proto__":{"polluted":true}}'))
+    prettyJson(JSON.parse('{"__proto__":{"polluted":true}}'))
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined()
+    expect(contentHash(JSON.parse('{"__proto__":{"a":1}}'))).not.toBe(contentHash({}))
+  })
+})
+
 describe('prettyJson', () => {
   it('indents with two spaces, sorts keys and ends with a newline', () => {
     const text = prettyJson({ b: [1, { d: 1, c: 2 }], a: 'x' })

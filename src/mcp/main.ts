@@ -281,21 +281,21 @@ export async function runMcpMain(host: McpHost): Promise<void> {
   }
 }
 
-/** Runs `run` only when this module is the script node was started with (`.../mcp.js`). */
-export function runIfEntry(entry: string | undefined, run: () => void): boolean {
+/** Runs `run` with the script path only when node was started with `.../mcp.js`. */
+export function runIfEntry(entry: string | undefined, run: (script: string) => void): boolean {
   if (entry === undefined || !ENTRY_SCRIPT.test(entry)) {
     return false
   }
-  run()
+  run(entry)
   return true
 }
 
-function nodeHost(): McpHost {
+function nodeHost(script: string): McpHost {
   return {
     argv: process.argv.slice(2),
     env: process.env,
     cwd: process.cwd(),
-    version: readPackageVersion(process.argv[1] ?? '', (path) => readFileSync(path, 'utf8')),
+    version: readPackageVersion(script, (path) => readFileSync(path, 'utf8')),
     open: (options) =>
       openWorkspace({ ...options, repoRoot: canonicalRepoRoot(options.repoRoot, realpathSync) }),
     createTransport: () => new StdioServerTransport(),
@@ -315,8 +315,8 @@ function nodeHost(): McpHost {
   }
 }
 
-runIfEntry(process.argv[1], () => {
+runIfEntry(process.argv[1], (script) => {
   installWarningFilter(process, (line) => process.stderr.write(`${line}\n`))
   redirectConsoleToStderr(console)
-  void runMcpMain(nodeHost())
+  void runMcpMain(nodeHost(script))
 })

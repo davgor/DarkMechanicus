@@ -467,25 +467,26 @@ describe('readPackageVersion', () => {
 })
 
 describe('runIfEntry', () => {
-  function run(entry: string | undefined): boolean {
-    let ran = false
-    const returned = runIfEntry(entry, () => {
-      ran = true
+  function run(entry: string | undefined): string | undefined {
+    let received: string | undefined
+    const returned = runIfEntry(entry, (script) => {
+      received = script
     })
-    expect(returned).toBe(ran)
-    return ran
+    expect(returned).toBe(received !== undefined)
+    return received
   }
 
-  it('runs when the script is mcp.js, whichever way the path is written', () => {
-    expect(run('/opt/app/out/main/mcp.js')).toBe(true)
-    expect(run('C:\\Apps\\Dark\\resources\\app.asar\\out\\main\\mcp.js')).toBe(true)
-    expect(run('mcp.js')).toBe(true)
+  it('runs with the script path when the script is mcp.js, however the path is written', () => {
+    expect(run('/opt/app/out/main/mcp.js')).toBe('/opt/app/out/main/mcp.js')
+    const windows = 'C:\\Apps\\Dark\\resources\\app.asar\\out\\main\\mcp.js'
+    expect(run(windows)).toBe(windows)
+    expect(run('mcp.js')).toBe('mcp.js')
   })
 
   it('does not run for other scripts or when there is no script', () => {
-    expect(run('/opt/app/out/main/index.js')).toBe(false)
-    expect(run('/opt/app/out/main/notmcp.js')).toBe(false)
-    expect(run('/opt/app/out/main/mcp.js.map')).toBe(false)
-    expect(run(undefined)).toBe(false)
+    expect(run('/opt/app/out/main/index.js')).toBeUndefined()
+    expect(run('/opt/app/out/main/notmcp.js')).toBeUndefined()
+    expect(run('/opt/app/out/main/mcp.js.map')).toBeUndefined()
+    expect(run(undefined)).toBeUndefined()
   })
 })

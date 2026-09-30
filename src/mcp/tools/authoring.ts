@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { DomainError } from '../../core/errors'
-import { criterionInput, epicBranch, idempotencyKey, LIMITS, ticketInput, workStatus } from '../../core/schemas'
+import { criterionInput, epicBranch, LIMITS, ticketInput, workStatus } from '../../core/schemas'
 import type { CommandApi } from '../../shared/domain/api'
 import { toTicketInput, toTicketPatch } from './bridge'
 import { defineArglessTool, defineTool, registerTools } from './define'
@@ -9,6 +9,7 @@ import {
   draftRevision,
   epicId,
   expectedRevision,
+  idempotencyKey,
   markdown,
   note,
   sprintRef,

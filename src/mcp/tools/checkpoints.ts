@@ -1,9 +1,9 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { idempotencyKey, sprintReportInput } from '../../core/schemas'
+import { sprintReportInput } from '../../core/schemas'
 import type { CommandApi } from '../../shared/domain/api'
 import { defineTool, registerTools } from './define'
-import { epicId, runId, sprintId } from './params'
+import { epicId, idempotencyKey, runId, sprintId } from './params'
 
 const CHECKPOINT_TOOLS = [
   defineTool({

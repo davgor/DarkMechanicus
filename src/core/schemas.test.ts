@@ -989,6 +989,22 @@ describe('parseInput', () => {
 
 })
 
+describe('parseInput hostile input', () => {
+  it('rejects a __proto__ key without polluting Object.prototype', () => {
+    const hostile: unknown = JSON.parse('{"title":"t","__proto__":{"polluted":true}}')
+    const error = thrownBy(() => parseInput(ticketInput, hostile, 'ticket')) as DomainError
+    expect(error.code).toBe('invalid_input')
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined()
+  })
+
+  it('rejects hostile keys nested inside operations and bundles', () => {
+    const op: unknown = JSON.parse('{"op":"add_ticket","sprint":"1","ticket":{"title":"t","constructor":{}}}')
+    const bundle: unknown = JSON.parse(JSON.stringify(makeBundle([[1]])).replace('"rationale"', '"__proto__":{"x":1},"rationale"'))
+    expect(accepts(draftOp, op)).toBe(false)
+    expect(accepts(planBundle, bundle)).toBe(false)
+  })
+})
+
 describe('parseInput messages', () => {
   it('reports schema messages, including custom ones', () => {
     const id = thrownBy(() => parseInput(stableId, 'x', 'id')) as DomainError
