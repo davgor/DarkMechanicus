@@ -47,8 +47,8 @@ export const idempotencyKey = z.string().min(1).max(200).optional()
 /** A comment's Markdown: not blank, at most `LIMITS.comment` characters, whitespace kept as written. */
 export const commentBody = z
   .string()
-  .max(LIMITS.comment, `A comment is at most ${LIMITS.comment} characters.`)
-  .refine((body) => body.trim() !== '', 'A comment needs some text.')
+  .max(LIMITS.comment, `A comment is at most ${LIMITS.comment} characters`)
+  .refine((body) => body.trim() !== '', 'A comment needs some text')
 
 const title = z.string().max(LIMITS.title)
 const markdown = z.string().max(LIMITS.markdown)

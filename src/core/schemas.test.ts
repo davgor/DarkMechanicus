@@ -80,7 +80,7 @@ describe('commentBody', () => {
   it('rejects 20,001 characters with a readable message', () => {
     const error = thrownBy(() => parseInput(commentBody, text(20_001), 'comment')) as DomainError
     expect(error.code).toBe('invalid_input')
-    expect(error.message).toBe('Invalid comment: A comment is at most 20000 characters.')
+    expect(error.message).toBe('Invalid comment: A comment is at most 20000 characters')
   })
 
   it.each([
@@ -89,7 +89,7 @@ describe('commentBody', () => {
     ['newlines and tabs', '\n\t \r\n']
   ])('rejects a %s body as blank', (_label, value) => {
     const error = thrownBy(() => parseInput(commentBody, value, 'comment')) as DomainError
-    expect(error.message).toBe('Invalid comment: A comment needs some text.')
+    expect(error.message).toBe('Invalid comment: A comment needs some text')
   })
 
   it.each([

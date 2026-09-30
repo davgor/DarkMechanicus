@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createHarness, type Harness } from '../../test/workspaceHarness'
@@ -61,11 +61,11 @@ describe('comment commands', () => {
     expect(longest.body).toHaveLength(20_000)
     expect(await failureOf(agent.addComment({ epicId, body: 'x'.repeat(20_001) }))).toEqual({
       code: 'invalid_input',
-      message: 'Invalid addComment input at body: A comment is at most 20000 characters.'
+      message: 'Invalid addComment input at body: A comment is at most 20000 characters'
     })
     expect(await failureOf(agent.addComment({ epicId, body: ' \n\t ' }))).toEqual({
       code: 'invalid_input',
-      message: 'Invalid addComment input at body: A comment needs some text.'
+      message: 'Invalid addComment input at body: A comment needs some text'
     })
     expect((await agent.listComments({ epicId })).map((comment) => comment.id)).toEqual([longest.id])
   })
@@ -104,6 +104,27 @@ describe('comment command exports', () => {
     const later = await agent.addComment({ epicId: epic.id, body: 'After the save' })
     expect(record(later.id)).toMatchObject({ id: later.id, epicId: epic.id, ticketId: null, body: 'After the save' })
     expect((await agent.getStorageStatus()).outbox).toEqual({ pending: 0, failed: 0, lastError: null })
+  })
+
+  it('rebuilds comments from the tracked records after the local database is deleted', async () => {
+    const agent = harness.open('reviewer')
+    const orchestrator = harness.open('orchestrator')
+    const { epicId, ticketId } = await seedSavedEpic(orchestrator)
+    await agent.addComment({ epicId, ticketId, body: 'Reviewed: the **fixture** is flaky' })
+    await orchestrator.addComment({ epicId, body: 'Decision: retry once' })
+    const before = await agent.listComments({ epicId })
+    agent.close()
+    orchestrator.close()
+    const database = join(harness.root, '.darkmechanicus', 'local', 'state.sqlite')
+    for (const suffix of ['', '-wal', '-shm']) {
+      rmSync(`${database}${suffix}`, { force: true })
+    }
+    expect(existsSync(database)).toBe(false)
+    const rebuilt = harness.open('desktop')
+    expect(await rebuilt.listComments({ epicId })).toEqual(before)
+    expect(await rebuilt.listComments({ epicId, ticketId })).toEqual(before.slice(0, 1))
+    const found = await rebuilt.searchHistory({ query: 'fixture' })
+    expect(found.map((hit) => [hit.docType, hit.docId, hit.ticketId])).toEqual([['comment', before[0]?.id, ticketId]])
   })
 
   it('validates input before checking that the repository is initialized', async () => {

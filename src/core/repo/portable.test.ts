@@ -32,6 +32,7 @@ import {
   MAX_RECORD_BYTES,
   parseRecord,
   projectRecord,
+  readCommentRecord,
   readOwnedRecord,
   readOwnedText,
   runHistoryRecord,
@@ -479,8 +480,8 @@ describe('comment record schema', () => {
   })
 
   it('rejects blank or oversized bodies, unknown roles, and long labels', () => {
-    expect(commentIssue({ ...COMMENT, body: ' \n' })).toBe('body: A comment needs some text.')
-    expect(commentIssue({ ...COMMENT, body: 'b'.repeat(LIMITS.comment + 1) })).toBe('body: A comment is at most 20000 characters.')
+    expect(commentIssue({ ...COMMENT, body: ' \n' })).toBe('body: A comment needs some text')
+    expect(commentIssue({ ...COMMENT, body: 'b'.repeat(LIMITS.comment + 1) })).toBe('body: A comment is at most 20000 characters')
     expect(commentIssue({ ...COMMENT, author: { role: 'admin', label: 'x' } })).toMatch(/^author\.role: /)
     expect(commentIssue({ ...COMMENT, author: { role: 'worker', label: 'l'.repeat(LIMITS.label + 1) } })).toMatch(/^author\.label: /)
   })
@@ -488,7 +489,8 @@ describe('comment record schema', () => {
   it('rejects wrong-kind ids, unknown keys, other formats and versions, and bad times', () => {
     expect(commentIssue({ ...COMMENT, id: idOf('ticket', 1) })).toBe('id: Expected a comment id')
     expect(commentIssue({ ...COMMENT, epicId: COMMENT_ID })).toBe('epicId: Expected a epic id')
-    expect(commentIssue({ ...COMMENT, ticketId: EPIC })).toBe('ticketId: Expected a ticket id')
+    expect(commentIssue({ ...COMMENT, ticketId: 'DM-1' })).toMatch(/^ticketId: /)
+    expect(commentIssue({ ...COMMENT, ticketId: `zz_${'0'.repeat(26)}` })).toBe('ok')
     expect(commentIssue({ ...COMMENT, editedAt: T0 })).toMatch(/^: Unrecognized key/)
     expect(commentIssue({ ...COMMENT, author: { role: 'worker', label: 'x', sessionId: 'ss_1' } })).toMatch(/^author: Unrecognized key/)
     expect(commentIssue({ ...COMMENT, formatVersion: 2 })).toMatch(/^formatVersion: /)
@@ -514,6 +516,14 @@ describe('buildCommentRecord', () => {
     })
   })
 
+  it('reads a comment row in record shape without validating it', () => {
+    const db = createTestDb()
+    insertEpic(db, { id: EPIC })
+    insertComment(db, { id: COMMENT_ID, epicId: EPIC, ticketId: tid(1), body: '   ', label: 'l'.repeat(LIMITS.label + 1) })
+    expect(readCommentRecord(db, COMMENT_ID)).toEqual({ ...COMMENT, body: '   ', author: { role: 'worker', label: 'l'.repeat(LIMITS.label + 1) } })
+    expect(readCommentRecord(db, idOf('comment', 9))).toBeNull()
+  })
+
   it('refuses a missing comment and one the importer would reject', () => {
     const db = createTestDb()
     insertEpic(db, { id: EPIC })
@@ -524,7 +534,7 @@ describe('buildCommentRecord', () => {
     })
     expect(rejection(() => buildCommentRecord(db, COMMENT_ID))).toEqual({
       code: 'internal',
-      message: `Cannot export comment ${COMMENT_ID}: body: A comment needs some text.`
+      message: `Cannot export comment ${COMMENT_ID}: body: A comment needs some text`
     })
   })
 

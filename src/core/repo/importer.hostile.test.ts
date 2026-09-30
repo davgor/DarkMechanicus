@@ -3,7 +3,7 @@ import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { makeBundle, makeTicket, tid } from '../../test/bundles'
 import { isWithin } from '../../test/memoryFs'
-import { domainErrorOf, idOf, insertAttempt, insertOutbox, insertRun } from '../../test/repoFixtures'
+import { domainErrorOf, idOf, insertAttempt, insertComment, insertOutbox, insertRun } from '../../test/repoFixtures'
 import {
   copyTracked,
   createRepoEnv,
@@ -20,7 +20,7 @@ import { LIMITS } from '../schemas'
 import type { PlanBundle } from '../../shared/domain/bundle'
 import { reconcileRepository } from './importer'
 import { ownedPaths } from './paths'
-import { MAX_RECORD_BYTES } from './portable'
+import { MAX_COMMENT_RECORD_BYTES, MAX_RECORD_BYTES } from './portable'
 
 const EPIC = idOf('epic', 1)
 const R1 = idOf('revision', 1)
@@ -415,5 +415,178 @@ describe('hostile identity reuse', () => {
     const result = reconcile(state)
     expect(result.rejected).toEqual([{ path: `.darkmechanicus/history/${RUN}/run.json`, message: `Run ${RUN} already exists locally for another epic.` }])
     expect(dumpDomain(state.target.db)).toEqual(before)
+  })
+})
+
+const C1 = idOf('comment', 1)
+const C2 = idOf('comment', 2)
+const C3 = idOf('comment', 3)
+const C4 = idOf('comment', 4)
+const COMMENTS_DIR = `${EPIC_DIR}/comments`
+
+function commentText(patch: Record<string, unknown> = {}): string {
+  return prettyJson({
+    format: 'darkmechanicus.comment',
+    formatVersion: 1,
+    id: C1,
+    epicId: EPIC,
+    ticketId: tid(1),
+    body: 'Looks good',
+    author: { role: 'reviewer', label: 'r' },
+    createdAt: '2026-01-01T00:00:00.000Z',
+    ...patch
+  })
+}
+
+/** Writes a file into the clone's `epics/<EPIC>/comments/` directory under `name`. */
+function putComment(state: Imported, name: string, text: string, epicId = EPIC): string {
+  const path = join(paths(state).commentsDir(epicId), name)
+  state.target.fs.put(path, text)
+  return path
+}
+
+function commentIds(state: Imported): string[] {
+  return state.target.db.all<{ id: string }>('SELECT id FROM comments ORDER BY id').map((row) => row.id)
+}
+
+describe('hostile comment names', () => {
+  it('rejects malformed and traversal-like file names, ignores dot and non-JSON entries, and imports the rest', () => {
+    const state = imported()
+    putComment(state, `${C2}.json`, commentText({ id: C2 }))
+    const invalid = [`${C1.toUpperCase()}.json`, 'cm_short.json', `${idOf('ticket', 1)}.json`, 'x/../../../escape.json']
+    const ignored = ['.hidden.json', '../x.json', 'notes.txt', `${C1}.json.tmp-12`]
+    state.target.fs.setReaddir(paths(state).commentsDir(EPIC), [...invalid, ...ignored, `${C2}.json`])
+    const result = reconcile(state)
+    const message = 'Refusing to build a repository path from an invalid comment id.'
+    expect(result.rejected).toEqual([...invalid].sort().map((name) => ({ path: `${COMMENTS_DIR}/${name}`, message })))
+    expect(result.imported).toEqual([C2])
+    expect(commentIds(state)).toEqual([C2])
+    expect(outsideReads(state)).toEqual([])
+  })
+
+  it('rejects a file whose comment id or epic differs from its path', () => {
+    const state = imported()
+    putComment(state, `${C2}.json`, commentText())
+    putComment(state, `${C1}.json`, commentText({ epicId: idOf('epic', 2) }))
+    const result = reconcile(state)
+    expect(result.rejected).toEqual([
+      { path: `${COMMENTS_DIR}/${C1}.json`, message: `${COMMENTS_DIR}/${C1}.json belongs to a different epic.` },
+      { path: `${COMMENTS_DIR}/${C2}.json`, message: `${COMMENTS_DIR}/${C2}.json names a different comment than its file name.` }
+    ])
+    expectUnchanged(state, result)
+  })
+})
+
+describe('hostile comment contents', () => {
+  it('rejects an oversized body, malformed JSON, merge markers, and an empty file', () => {
+    const state = imported()
+    putComment(state, `${C1}.json`, commentText({ body: 'x'.repeat(LIMITS.comment + 1) }))
+    putComment(state, `${C2}.json`, '{ "format": ')
+    putComment(state, `${C3}.json`, `<<<<<<< HEAD\n${commentText({ id: C3 })}=======\n{}\n>>>>>>> theirs\n`)
+    putComment(state, `${C4}.json`, '')
+    const result = reconcile(state)
+    const file = (id: string): string => `${COMMENTS_DIR}/${id}.json`
+    expect(result.rejected).toEqual([
+      { path: file(C1), message: `${file(C1)} is not a valid record: body: A comment is at most 20000 characters.` },
+      { path: file(C2), message: `${file(C2)} is not valid JSON.` },
+      { path: file(C3), message: `${file(C3)} contains unresolved merge conflict markers.` },
+      { path: file(C4), message: `${file(C4)} is empty.` }
+    ])
+    expectUnchanged(state, result)
+  })
+
+  it('rejects a comment file over 256 KiB without reading it and accepts one at the limit', () => {
+    const state = imported()
+    const oversized = putComment(state, `${C1}.json`, commentText())
+    const atLimit = putComment(state, `${C2}.json`, commentText({ id: C2 }))
+    state.target.fs.setSize(oversized, MAX_COMMENT_RECORD_BYTES + 1)
+    state.target.fs.setSize(atLimit, MAX_COMMENT_RECORD_BYTES)
+    state.target.fs.failOn({ op: 'readFile', match: (path) => path === resolve(oversized) })
+    const result = reconcile(state)
+    expect(result.rejected).toEqual([{ path: `${COMMENTS_DIR}/${C1}.json`, message: `${COMMENTS_DIR}/${C1}.json is larger than the 256 KiB comment limit.` }])
+    expect(result.imported).toEqual([C2])
+    expect(MAX_COMMENT_RECORD_BYTES).toBe(256 * 1024)
+  })
+
+  it('rejects an epic with more than 10,000 comment files without reading any of them', () => {
+    const state = imported()
+    const names = Array.from({ length: LIMITS.commentsPerEpic + 1 }, (_, index) => `${idOf('comment', index + 10)}.json`)
+    state.target.fs.mkdirp(paths(state).commentsDir(EPIC))
+    state.target.fs.setReaddir(paths(state).commentsDir(EPIC), names)
+    state.target.fs.failOn({ op: 'readFile', match: (path) => path.includes('comments') })
+    const result = reconcile(state)
+    expect(result.rejected).toEqual([{ path: COMMENTS_DIR, message: `${COMMENTS_DIR} holds more than 10000 comments.` }])
+    expectUnchanged(state, result)
+  })
+})
+
+describe('hostile comment links and file types', () => {
+  it('rejects a linked comment file and a linked comments directory without reading outside', () => {
+    const state = imported()
+    state.target.fs.put(join(OUTSIDE, `${C1}.json`), commentText())
+    state.target.fs.symlink(join(paths(state).commentsDir(EPIC), `${C1}.json`), join(OUTSIDE, `${C1}.json`))
+    const linkedFile = reconcile(state)
+    expect(linkedFile.rejected).toEqual([{ path: `${COMMENTS_DIR}/${C1}.json`, message: expect.stringContaining('symbolic links and junctions are not allowed') }])
+    expectUnchanged(state, linkedFile)
+
+    const other = imported()
+    other.target.fs.put(join(OUTSIDE, 'notes', `${C1}.json`), commentText())
+    other.target.fs.symlink(paths(other).commentsDir(EPIC), join(OUTSIDE, 'notes'))
+    const linkedDir = reconcile(other)
+    expect(linkedDir.rejected).toEqual([{ path: COMMENTS_DIR, message: expect.stringContaining('symbolic links and junctions are not allowed') }])
+    expectUnchanged(other, linkedDir)
+  })
+
+  it('rejects a directory in place of a comment file and a file in place of the comments directory', () => {
+    const state = imported()
+    state.target.fs.mkdirp(join(paths(state).commentsDir(EPIC), `${C1}.json`))
+    const directory = reconcile(state)
+    expect(directory.rejected).toEqual([{ path: `${COMMENTS_DIR}/${C1}.json`, message: `${COMMENTS_DIR}/${C1}.json is not a regular file.` }])
+    expectUnchanged(state, directory)
+
+    const other = imported()
+    other.target.fs.put(paths(other).commentsDir(EPIC), commentText())
+    const file = reconcile(other)
+    expect(file.rejected).toEqual([{ path: COMMENTS_DIR, message: `${COMMENTS_DIR} is not a directory.` }])
+    expectUnchanged(other, file)
+  })
+})
+
+describe('hostile comment identity', () => {
+  it('reports a comment id that exists locally with different content as a conflict and never overwrites it', () => {
+    const state = imported()
+    insertComment(state.target.db, { id: C1, epicId: EPIC, body: 'Local text' })
+    const before = dumpDomain(state.target.db)
+    putComment(state, `${C1}.json`, commentText({ body: 'Imported text' }))
+    const result = reconcile(state)
+    expect(result.conflicts).toEqual([
+      { epicId: EPIC, message: `Comment ${C1} already exists with different content; ${COMMENTS_DIR}/${C1}.json was not imported.` }
+    ])
+    expect([result.imported, result.rejected]).toEqual([[], []])
+    expect(dumpDomain(state.target.db)).toEqual(before)
+    expect(state.target.db.get('SELECT body FROM comments WHERE id = ?', C1)).toEqual({ body: 'Local text' })
+  })
+
+  it('imports the first of two files claiming one comment id under different epics and reports the second', () => {
+    const state = imported()
+    addSecondEpic(state, makeBundle([[5, 6]], [[5, 6]]), { [tid(5)]: 'backlog' })
+    putComment(state, `${C1}.json`, commentText())
+    putComment(state, `${C1}.json`, commentText({ epicId: EPIC_2 }), EPIC_2)
+    const result = reconcile(state)
+    expect(result.imported).toEqual([EPIC_2, C1])
+    expect(result.conflicts).toEqual([
+      { epicId: EPIC_2, message: `Comment ${C1} already exists with different content; .darkmechanicus/epics/${EPIC_2}/comments/${C1}.json was not imported.` }
+    ])
+    expect(state.target.db.all('SELECT id, epic_id FROM comments')).toEqual([{ id: C1, epic_id: EPIC }])
+  })
+
+  it('does not read the comments of an epic whose records are rejected', () => {
+    const state = imported()
+    const comment = putComment(state, `${C1}.json`, commentText())
+    state.target.fs.remove(paths(state).epicStateFile(EPIC))
+    const result = reconcile(state)
+    expect(result.rejected).toEqual([{ path: EPIC_DIR, message: `${EPIC_DIR}/state.json is missing.` }])
+    expect(state.target.fs.reads.slice(state.readsBefore)).not.toContain(resolve(comment))
+    expectUnchanged(state, result)
   })
 })

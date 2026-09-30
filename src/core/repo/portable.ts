@@ -15,6 +15,8 @@ import { assertContained, displayPath } from './paths'
 import type { FsAdapter, RepoLayout } from './types'
 
 export const MAX_RECORD_BYTES = 8 * 1024 * 1024
+/** A comment file holds at most 20,000 characters of Markdown; anything far larger is not a comment. */
+export const MAX_COMMENT_RECORD_BYTES = 256 * 1024
 export const KEY_PREFIX_PATTERN = /^[A-Z][A-Z0-9]{0,11}$/
 const MERGE_MARKER_PATTERN = /^(?:<{7} |>{7} |\|{7} |={7}\r?$)/m
 const MAX_ATTEMPTS = 10_000
@@ -268,7 +270,8 @@ export const commentRecord = z.strictObject({
   formatVersion: z.literal(1),
   id: idOf('comment'),
   epicId: idOf('epic'),
-  ticketId: idOf('ticket').nullable(),
+  // Plan bundles accept any stable id for a ticket, so a comment's ticket reference does too.
+  ticketId: anyStableId.nullable(),
   body: commentBody,
   author: z.strictObject({ role: z.enum(SESSION_ROLES), label }),
   createdAt: isoTime
@@ -625,12 +628,13 @@ interface CommentRow {
   created_at: string
 }
 
-export function buildCommentRecord(db: Db, commentId: string): CommentRecord {
+/** A comment row in its record shape, not validated (the importer compares tracked files with it); null when absent. */
+export function readCommentRecord(db: Db, commentId: string): Record<string, unknown> | null {
   const row = db.get<CommentRow>('SELECT * FROM comments WHERE id = ?', commentId)
   if (row === undefined) {
-    fail('not_found', `Comment ${commentId} does not exist.`)
+    return null
   }
-  const record = {
+  return {
     format: 'darkmechanicus.comment',
     formatVersion: 1,
     id: row.id,
@@ -640,5 +644,9 @@ export function buildCommentRecord(db: Db, commentId: string): CommentRecord {
     author: { role: row.author_role, label: row.author_label },
     createdAt: row.created_at
   }
+}
+
+export function buildCommentRecord(db: Db, commentId: string): CommentRecord {
+  const record = readCommentRecord(db, commentId) ?? fail('not_found', `Comment ${commentId} does not exist.`)
   return exportable(commentRecord, record, `comment ${commentId}`)
 }
