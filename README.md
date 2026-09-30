@@ -14,9 +14,10 @@ An agent helps you shape an epic, decomposes it into tickets with acceptance cri
 1. **Track a folder** — press **+** in the sidebar and pick a repository. Each tracked folder expands into **In progress**, **Backlog**, and **Completed** epics.
 2. **Initialize** — a new folder shows the setup screen; initializing creates `.darkmechanicus/` (Git-tracked plans and history, plus a Git-ignored `local/` working database). Nothing is committed for you.
 3. **Connect an agent** — copy the MCP snippet from the setup screen into your agent host. The server runs headless: agents can plan and execute with the desktop closed. `--allow-save` lets an agent save plans; without it, you save in the app.
-4. **Plan** — agents (or you) edit a **draft**; the saved plan only changes on Save. Invalid edits are rejected with a concrete reason (cycles, a prerequisite in a later sprint, …).
+4. **Plan** — agents (or you) edit a **draft**; the saved plan only changes on Save. Invalid edits are rejected with a concrete reason (cycles, a prerequisite in a later sprint, …). Reusable capability requirements live in named profiles (`.darkmechanicus/profiles/`): pick one with **Start from profile** in the ticket editor, or let agents use `list_profiles` and `save_profile`.
 5. **Run** — press **Start run** (or let the orchestrator start one). Runs pin a saved revision; tickets become ready when their prerequisites are accepted.
 6. **Checkpoint** — at the end of each sprint the orchestrator files a report; you review it and **Approve & advance**. The final checkpoint completes the epic, which then becomes read-only history that agents can search.
+7. **Comment** — people and agents leave Markdown notes on tickets (the ticket panel's **Comments** tab, or `add_comment` over MCP): blockers, decisions, review notes. Comments travel with the repository and show up in history search.
 
 Epic-flow process and CI/CD mirrored from [CapitalGains](https://github.com/davgor/CapitalGains) (itself aligned with [AI-DND-Matrix](https://github.com/davgor/AI-DND-Matrix) packaging/deploy).
 
