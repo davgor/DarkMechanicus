@@ -194,12 +194,9 @@ class RepositoryWorkspace implements WorkspaceCore {
     return { branch: head?.branch ?? null, commit: head?.commit ?? null }
   }
 
+  /** Only asked once the store is open (open, heartbeat, and the branch guard). */
   branchChanged(): boolean {
-    const store = this.store
-    if (!store) {
-      return false
-    }
-    const recorded = getMeta(store.db, META_KEYS.checkoutBranch)
+    const recorded = getMeta(this.requireStore().db, META_KEYS.checkoutBranch)
     return recorded !== null && recorded !== (this.checkout().branch ?? '')
   }
 
