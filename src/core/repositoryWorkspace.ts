@@ -287,10 +287,11 @@ class RepositoryWorkspace implements WorkspaceCore {
 
   async execute(name: CommandName, rawInput: unknown): Promise<unknown> {
     const spec = COMMANDS[name]
+    // Untrusted input is validated before anything else, whatever state the repository is in.
+    const input = spec.schema ? parseInput(spec.schema, rawInput ?? {}, `${name} input`) : undefined
     if (!spec.beforeInit) {
       this.requireStore()
     }
-    const input = spec.schema ? parseInput(spec.schema, rawInput ?? {}, `${name} input`) : undefined
     const run = spec.run as (core: WorkspaceCore, input: unknown) => unknown
     const result = await run(this, input)
     if (spec.mutates && this.store) {
