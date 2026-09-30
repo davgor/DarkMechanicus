@@ -61,7 +61,8 @@ function CommentList(props: { loaded: Loaded; now: number }): JSX.Element {
       {commentItems(comments, props.now).map((item) => (
         <li key={item.id} className="tp-comment" aria-label={`Comment by ${item.author}`}>
           <p className="tp-comment-head">
-            <span className="tp-comment-author">{item.author}</span> <span className="ew-chip">{item.role}</span>{' '}
+            <span className="tp-comment-author">{item.author}</span>{' '}
+            {item.role === null ? null : <span className="ew-chip">{item.role}</span>}{' '}
             <time className="ew-muted" dateTime={item.at} title={item.at}>
               {item.when}
             </time>

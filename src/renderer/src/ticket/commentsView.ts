@@ -16,7 +16,8 @@ const ROLE_LABELS: Record<SessionRole, string> = {
 interface CommentItem {
   id: string
   author: string
-  role: string
+  /** The role's name, or null when the author label already says it ("Desktop" by the desktop). */
+  role: string | null
   /** Relative time ("5m ago"). */
   when: string
   /** Creation time (ISO), for the machine-readable timestamp. */
@@ -25,11 +26,16 @@ interface CommentItem {
   body: string
 }
 
+function roleChip(role: SessionRole, label: string): string | null {
+  const name = ROLE_LABELS[role]
+  return label.trim().toLowerCase() === name.toLowerCase() ? null : name
+}
+
 export function commentItems(comments: CommentView[], now: number): CommentItem[] {
   return comments.map((comment) => ({
     id: comment.id,
     author: comment.author.label,
-    role: ROLE_LABELS[comment.author.role],
+    role: roleChip(comment.author.role, comment.author.label),
     when: formatAgo(comment.createdAt, now),
     at: comment.createdAt,
     body: comment.body

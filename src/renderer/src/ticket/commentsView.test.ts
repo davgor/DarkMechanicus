@@ -27,10 +27,28 @@ describe('commentItems', () => {
   it('labels every author role', () => {
     const roles = ['desktop', 'planner', 'orchestrator', 'worker', 'reviewer'] as const
     const items = commentItems(
-      roles.map((role, index) => comment(index, 1, { author: { role, label: role } })),
+      roles.map((role, index) => comment(index, 1, { author: { role, label: `${role}-session` } })),
       NOW
     )
     expect(items.map((item) => item.role)).toEqual(['Desktop', 'Planner', 'Orchestrator', 'Worker', 'Reviewer'])
+  })
+})
+
+describe('commentItems role chip', () => {
+  it('omits the role when the author label already names it, ignoring case and spaces', () => {
+    const items = commentItems(
+      [
+        comment(1, 1, { author: { role: 'desktop', label: 'Desktop' } }),
+        comment(2, 1, { author: { role: 'worker', label: ' worker ' } }),
+        comment(3, 1, { author: { role: 'reviewer', label: 'Reviewer bot' } })
+      ],
+      NOW
+    )
+    expect(items.map((item) => [item.author, item.role])).toEqual([
+      ['Desktop', null],
+      [' worker ', null],
+      ['Reviewer bot', 'Reviewer']
+    ])
   })
 })
 

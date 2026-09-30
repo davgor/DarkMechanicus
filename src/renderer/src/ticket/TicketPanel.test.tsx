@@ -289,6 +289,7 @@ describe('ticket panel comment form', () => {
     fireEvent.click(typeComment('Decision: **ship** it'))
     const added = await screen.findByRole('listitem', { name: 'Comment by Desktop' })
     expect(added.querySelector('.md strong')?.textContent).toBe('ship')
+    expect(added.querySelector('.ew-chip')).toBeNull()
     expect(backend.inputs('addComment')).toEqual([{ epicId: 'ep_1', ticketId: 'tk_202', body: 'Decision: **ship** it' }])
     expect((screen.getByRole('textbox', { name: 'New comment' }) as HTMLTextAreaElement).value).toBe('')
     expect(within(screen.getByRole('list', { name: 'Comments' })).getAllByRole('listitem')).toHaveLength(2)
