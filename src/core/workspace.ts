@@ -7,7 +7,7 @@ import type {
 } from '../shared/domain/views'
 import { capabilitiesForRole, type Capability } from './authz'
 import { createSystemClock, type Clock } from './clock'
-import { COMMANDS } from './commands'
+import { COMMANDS } from './commands/index'
 import type { WorkspaceCore } from './commands/types'
 import type { Ctx } from './context'
 import { openDatabase, type Db } from './db/database'

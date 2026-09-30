@@ -12,7 +12,7 @@ export const META_KEYS = {
   lastReconcileAt: 'last_reconcile_at'
 } as const
 
-export type MetaKey = (typeof META_KEYS)[keyof typeof META_KEYS]
+type MetaKey = (typeof META_KEYS)[keyof typeof META_KEYS]
 
 export function getMeta(db: Db, key: MetaKey): string | null {
   return db.get<{ value: string }>('SELECT value FROM meta WHERE key = ?', key)?.value ?? null

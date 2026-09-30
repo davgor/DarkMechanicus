@@ -17,7 +17,8 @@
     "src/shared/**/*",
     "src/core/**/*",
     "src/mcp/**/*",
-    "src/test/**/*"
+    "src/test/**/*",
+    "src/integration/**/*"
   ],
   "exclude": ["src/renderer"]
 }

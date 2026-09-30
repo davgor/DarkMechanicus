@@ -2,7 +2,7 @@ import type { EventView, EventsPage } from '../../shared/domain/views'
 import type { Ctx } from '../context'
 import { parseJson, toJson } from '../db/database'
 
-export interface NewEvent {
+interface NewEvent {
   kind: string
   epicId?: string | null
   runId?: string | null

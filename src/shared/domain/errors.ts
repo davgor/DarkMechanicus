@@ -44,14 +44,3 @@ export interface DomainErrorShape {
   message: string
   details?: Record<string, unknown>
 }
-
-export function isDomainErrorShape(value: unknown): value is DomainErrorShape {
-  if (typeof value !== 'object' || value === null) {
-    return false
-  }
-  const candidate = value as { code?: unknown; message?: unknown }
-  return (
-    typeof candidate.message === 'string' &&
-    (DOMAIN_ERROR_CODES as readonly unknown[]).includes(candidate.code)
-  )
-}

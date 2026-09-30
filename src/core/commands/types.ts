@@ -37,7 +37,7 @@ export interface WorkspaceCore {
 type Input<K extends CommandName> = Parameters<CommandApi[K]> extends [infer I] ? I : undefined
 type Output<K extends CommandName> = Awaited<ReturnType<CommandApi[K]>>
 
-export interface CommandSpec<K extends CommandName> {
+interface CommandSpec<K extends CommandName> {
   /** Parses the raw payload; omitted for commands without input. */
   schema?: z.ZodType
   /** Mutating commands flush portable records after they commit. */

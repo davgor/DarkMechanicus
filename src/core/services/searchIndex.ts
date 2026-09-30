@@ -1,6 +1,6 @@
 import type { Db } from '../db/database'
 
-export type SearchDocType = 'epic' | 'ticket' | 'attempt' | 'report'
+type SearchDocType = 'epic' | 'ticket' | 'attempt' | 'report'
 
 export interface SearchDocument {
   docType: SearchDocType

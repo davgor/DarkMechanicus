@@ -34,7 +34,7 @@ function requireRoleCapability(core: WorkspaceCore, capability: 'repo.init'): vo
   }
 }
 
-export const repositoryCommands = {
+const repositoryCommands = {
   getCapabilities: {
     mutates: false,
     beforeInit: true,
@@ -122,3 +122,5 @@ export const repositoryCommands = {
     }
   }
 } satisfies Partial<CommandTable>
+
+export { repositoryCommands }

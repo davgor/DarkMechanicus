@@ -87,7 +87,7 @@ const ROLE_CAPABILITIES: Record<SessionRole, Capability[]> = {
   reviewer: ['read', 'attempt.review']
 }
 
-export interface RoleOptions {
+interface RoleOptions {
   /** Explicit user authorization (launch flag) for an agent session to save plans. */
   allowSave?: boolean
 }

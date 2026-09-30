@@ -19,7 +19,7 @@ function swept(ctx: Ctx, runId: string): Ctx {
   return ctx
 }
 
-export const checkpointCommands = {
+const checkpointCommands = {
   submitSprintReport: {
     schema: COMMAND_SCHEMAS.submitSprintReport,
     mutates: true,
@@ -73,3 +73,5 @@ export const checkpointCommands = {
     }
   }
 } satisfies Partial<CommandTable>
+
+export { checkpointCommands }

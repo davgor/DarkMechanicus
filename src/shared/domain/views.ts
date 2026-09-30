@@ -208,7 +208,7 @@ export interface WorkerInfo {
   rationale: string | null
 }
 
-export interface ArtifactRef {
+interface ArtifactRef {
   label: string
   location: string
   hash: string | null
@@ -225,7 +225,7 @@ export interface AttemptOutputs {
 
 export type CheckStatus = 'passed' | 'failed' | 'skipped'
 
-export interface CheckResult {
+interface CheckResult {
   name: string
   status: CheckStatus
   detail: string

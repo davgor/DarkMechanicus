@@ -7,7 +7,7 @@ import { openWorkspace, type Workspace } from '../core/workspace'
 import type { SessionRole } from '../shared/domain/views'
 import { createSequentialIds, createTestClock, type TestClock } from './testContext'
 
-export interface FakeGit extends GitAdapter {
+interface FakeGit extends GitAdapter {
   setHead(head: GitHead | null): void
 }
 

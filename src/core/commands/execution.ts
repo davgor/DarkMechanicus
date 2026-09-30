@@ -29,7 +29,7 @@ import {
 import type { CommandTable } from './types'
 
 /** Adds the checkpoint gate view to runs that are executing or waiting at a checkpoint. */
-export function withCheckpoint(ctx: Ctx, run: RunView | null): RunView | null {
+function withCheckpoint(ctx: Ctx, run: RunView | null): RunView | null {
   if (!run || run.activeSprintId === null) {
     return run
   }
@@ -69,7 +69,7 @@ function readiness(ctx: Ctx, runId: string): ReadinessView {
   }
 }
 
-export const executionCommands = {
+const executionCommands = {
   registerHost: {
     schema: COMMAND_SCHEMAS.registerHost,
     mutates: true,
@@ -187,3 +187,5 @@ export const executionCommands = {
     }
   }
 } satisfies Partial<CommandTable>
+
+export { executionCommands }

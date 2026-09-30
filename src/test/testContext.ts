@@ -48,7 +48,7 @@ export function createTestDb(path = ':memory:'): Db {
   return db
 }
 
-export interface TestCtxOptions {
+interface TestCtxOptions {
   db?: Db
   role?: SessionRole
   capabilities?: Capability[]
@@ -66,7 +66,7 @@ export interface TestCtx extends Ctx {
   clock: TestClock
 }
 
-export function testSession(options: TestCtxOptions = {}): SessionContext {
+function testSession(options: TestCtxOptions = {}): SessionContext {
   const role = options.role ?? 'orchestrator'
   const capabilities =
     options.capabilities ?? capabilitiesForRole(role, { allowSave: options.allowSave ?? true })

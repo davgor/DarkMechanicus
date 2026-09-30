@@ -78,7 +78,7 @@ export interface SprintInput {
 }
 
 /** A ticket or sprint may be referenced by stable id or by a client-local ref declared in the same request. */
-export type EntityRef = string
+type EntityRef = string
 
 export type DraftOp =
   | {
@@ -101,8 +101,6 @@ export type DraftOp =
   | { op: 'remove_relation'; kind: RelationKind; from: EntityRef; to: EntityRef }
   | { op: 'set_policies'; patch: Partial<PlanPolicies> }
   | { op: 'set_rationale'; rationale: string }
-
-export type DraftOpName = DraftOp['op']
 
 export interface CreateEpicInput {
   title: string
@@ -294,8 +292,4 @@ export interface CommandApi {
 
 export type CommandName = keyof CommandApi
 
-/** Helper for criterion inputs accepted as bare strings or `{ id?, text }`. */
-export function criterionText(input: CriterionInput | string): string {
-  return typeof input === 'string' ? input : input.text
-}
 

@@ -2,7 +2,7 @@ import { DatabaseSync, type StatementSync } from 'node:sqlite'
 
 export type SqlValue = null | number | bigint | string | Uint8Array
 
-export interface RunResult {
+interface RunResult {
   changes: number
   lastInsertRowid: number
 }

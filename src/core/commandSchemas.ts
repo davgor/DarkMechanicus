@@ -170,4 +170,3 @@ export const COMMAND_SCHEMAS = {
   })
 }
 
-export type SchemaCommandName = keyof typeof COMMAND_SCHEMAS

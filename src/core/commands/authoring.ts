@@ -56,7 +56,7 @@ async function savePlanCommand(
   return saveResult(ctx, request.revisionId)
 }
 
-export const authoringCommands = {
+const authoringCommands = {
   listEpics: { mutates: false, run: (core) => listEpics(core.ctx()) },
   createEpic: {
     schema: COMMAND_SCHEMAS.createEpic,
@@ -113,3 +113,5 @@ export const authoringCommands = {
     run: (core, input) => setTicketStatus(core.ctx(), input)
   }
 } satisfies Partial<CommandTable>
+
+export { authoringCommands }

@@ -58,7 +58,7 @@ export interface DmApi {
 }
 
 /** Every CommandApi method the renderer may invoke. Main rejects anything else. */
-export const DESKTOP_COMMANDS = [
+const DESKTOP_COMMANDS = [
   'getCapabilities',
   'getProject',
   'initializeRepository',
@@ -106,3 +106,5 @@ export const DESKTOP_COMMANDS = [
 ] as const satisfies readonly CommandName[]
 
 export type DesktopCommandName = (typeof DESKTOP_COMMANDS)[number]
+
+export { DESKTOP_COMMANDS }

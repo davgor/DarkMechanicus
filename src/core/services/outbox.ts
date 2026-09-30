@@ -2,7 +2,7 @@ import type { Ctx } from '../context'
 
 export type OutboxKind = 'snapshot' | 'epic_state' | 'run_history'
 
-export interface OutboxEntry {
+interface OutboxEntry {
   kind: OutboxKind
   epicId?: string | null
   runId?: string | null

@@ -8,7 +8,7 @@ import type { IdGenerator } from '../ids'
 /** A session that has not heartbeated within this window no longer counts as active. */
 export const SESSION_ACTIVE_WINDOW_MS = 60_000
 
-export interface SessionRegistration {
+interface SessionRegistration {
   role: SessionRole
   label: string
   transport: 'stdio' | 'desktop' | 'in_process'

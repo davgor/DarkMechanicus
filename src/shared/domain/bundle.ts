@@ -80,7 +80,7 @@ export const TICKET_PRIORITIES = ['low', 'normal', 'high', 'critical'] as const
 export type TicketPriority = (typeof TICKET_PRIORITIES)[number]
 
 export const REFERENCE_KINDS = ['url', 'file', 'ticket', 'doc', 'commit'] as const
-export type ReferenceKind = (typeof REFERENCE_KINDS)[number]
+type ReferenceKind = (typeof REFERENCE_KINDS)[number]
 
 /** An inert pointer. References are never used as read/write/delete targets by the app. */
 export interface TicketReference {
@@ -142,7 +142,7 @@ export interface Relation {
 }
 
 export const TICKET_FAILURE_POLICIES = ['continue_independent', 'pause_run', 'fail_run'] as const
-export type TicketFailurePolicy = (typeof TICKET_FAILURE_POLICIES)[number]
+type TicketFailurePolicy = (typeof TICKET_FAILURE_POLICIES)[number]
 
 export interface PlanPolicies {
   /** Plan-wide cap on concurrently claimed tickets; null = unlimited (sprint caps still apply). */
