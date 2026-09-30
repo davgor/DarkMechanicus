@@ -57,6 +57,28 @@ describe('Menu selection', () => {
   })
 })
 
+describe('Menu focus', () => {
+  it('returns focus to the trigger after choosing an item', () => {
+    render(<Harness picked={[]} startOpen />)
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Other' }))
+    expect(document.activeElement).toBe(trigger())
+  })
+
+  it('returns focus to the trigger after Escape', () => {
+    render(<Harness picked={[]} startOpen />)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(document.activeElement).toBe(trigger())
+  })
+
+  it('leaves focus alone when the menu is dismissed by pressing elsewhere', () => {
+    render(<Harness picked={[]} startOpen />)
+    const outside = screen.getByRole('button', { name: 'outside' })
+    outside.focus()
+    fireEvent.mouseDown(outside)
+    expect(document.activeElement).toBe(outside)
+  })
+})
+
 describe('Menu dismissal', () => {
   it('closes on Escape', () => {
     render(<Harness picked={[]} startOpen />)

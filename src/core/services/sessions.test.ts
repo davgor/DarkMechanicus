@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { SessionRole } from '../../shared/domain/views'
 import { createSequentialIds, createTestClock, createTestDb, type TestClock } from '../../test/testContext'
 import { capabilitiesForRole } from '../authz'
 import type { Db } from '../db/database'
@@ -12,7 +13,6 @@ import {
   summarizeActiveSessions,
   touchSession
 } from './sessions'
-import type { SessionRole } from '../../shared/domain/views'
 
 interface Fixture {
   db: Db
@@ -77,12 +77,22 @@ describe('registerSession', () => {
     ])
   })
 
+})
+
+describe('registerSession storage', () => {
   it('stores a missing pid as null and issues distinct ids', () => {
     const fx = fixture()
     const first = register(fx, 'desktop', null)
     const second = register(fx, 'desktop', null)
     expect(first).not.toBe(second)
     expect(listSessions(fx.deps).map((view) => view.pid)).toEqual([null, null])
+  })
+
+  it('stores hostile labels verbatim', () => {
+    const fx = fixture()
+    const label = `x'); DROP TABLE sessions; --`
+    registerSession(fx.deps, { role: 'worker', label, transport: 'stdio', pid: null, capabilities: [] })
+    expect(listSessions(fx.deps).map((view) => view.label)).toEqual([label])
   })
 
   it('stores capabilities so they can be read back', () => {

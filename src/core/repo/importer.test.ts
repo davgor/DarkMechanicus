@@ -1,5 +1,5 @@
-import { cpSync, mkdirSync } from 'node:fs'
-import { join, sep } from 'node:path'
+import { cpSync, existsSync, mkdirSync } from 'node:fs'
+import { join, relative, sep } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { makeBundle, sid, tid } from '../../test/bundles'
 import { domainErrorOf, idOf, insertAttempt, insertCheckpoint, insertOutbox, insertReport, insertRun, T0 } from '../../test/repoFixtures'
@@ -408,8 +408,10 @@ describe('reconcileRepository on disk', () => {
 
     const cloneRoot = join(repo.outside, 'clone')
     mkdirSync(cloneRoot)
-    cpSync(repo.layout.dmDir, join(cloneRoot, '.darkmechanicus'), { recursive: true, filter: (path) => !path.includes(`${sep}local`) })
+    const dmDir = repo.layout.dmDir
+    cpSync(dmDir, join(cloneRoot, '.darkmechanicus'), { recursive: true, filter: (path) => relative(dmDir, path).split(sep)[0] !== 'local' })
     const clone = resolveLayout(cloneRoot)
+    expect(existsSync(clone.localDir)).toBe(false)
     const target = { db: createTestDb(), layout: clone, fs: nodeFs, clock, machineId: idOf('machine', 5), git: createStubGit('main') }
     expect(reconcileRepository(target).imported).toEqual([EPIC])
     expect(target.db.get('SELECT current_revision_id FROM epics')).toEqual({ current_revision_id: R1 })

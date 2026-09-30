@@ -276,3 +276,52 @@ export function prerequisiteOptions(bundle: PlanBundle, ticketId: string, form: 
       return item ? [{ id, label: `${item.key} ${item.title}` }] : []
     })
 }
+
+// ---------------------------------------------------------------------------------------------
+// Editor state: local edits survive reloads and conflicts until applied or reverted.
+
+export const CONFLICT_MESSAGE = 'The draft changed while you were editing — review and apply again.'
+
+export interface EditorMessage {
+  tone: 'error' | 'info'
+  text: string
+}
+
+export interface EditorState {
+  form: TicketForm | null
+  /** The person edited the form since it was last loaded from the draft. */
+  touched: boolean
+  /** An Apply succeeded; the next draft reload replaces the form. */
+  awaitingSync: boolean
+  message: EditorMessage | null
+}
+
+export type ApplyOutcome = { ok: true } | { ok: false; code: string | null; message: string }
+
+export function initialEditor(bundle: PlanBundle, ticketId: string): EditorState {
+  return { form: formFromBundle(bundle, ticketId), touched: false, awaitingSync: false, message: null }
+}
+
+/** A new draft arrived: keep unsaved edits, otherwise show the latest ticket. */
+export function syncEditor(state: EditorState, bundle: PlanBundle, ticketId: string): EditorState {
+  if (state.touched && !state.awaitingSync) {
+    return state
+  }
+  return { ...state, form: formFromBundle(bundle, ticketId), touched: false, awaitingSync: false }
+}
+
+export function editForm(state: EditorState, form: TicketForm): EditorState {
+  return { ...state, form, touched: true, awaitingSync: false }
+}
+
+export function applyOutcome(state: EditorState, outcome: ApplyOutcome): EditorState {
+  if (outcome.ok) {
+    return { ...state, awaitingSync: true, message: { tone: 'info', text: 'Applied to the draft.' } }
+  }
+  const text = outcome.code === 'conflict' ? CONFLICT_MESSAGE : outcome.message
+  return { ...state, message: { tone: 'error', text } }
+}
+
+export function rejectForm(state: EditorState, text: string): EditorState {
+  return { ...state, message: { tone: 'error', text } }
+}

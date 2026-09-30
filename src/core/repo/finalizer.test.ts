@@ -187,6 +187,16 @@ describe('flushOutbox fault injection at every write boundary', () => {
     expect(JSON.parse(env.fs.get(files(env).pointer) ?? '{}')).toMatchObject({ revisionId: R2, generation: 2 })
   })
 
+  it('drops a new snapshot that could not be verified so the retry writes it again', () => {
+    const env = seedSavedFirstRevision()
+    stageRevision(env, { epicId: EPIC, revisionId: R2, number: 2, bundle: BUNDLE_2, baseRevisionId: R1 })
+    env.fs.failOn({ op: 'readFile', match: (path) => path.endsWith(`${R2}.json`) })
+    expect(flush(env).failedRevisionIds).toEqual([R2])
+    expect(env.fs.get(files(env).snapshot(R2))).toBeUndefined()
+    expect(flush(env).savedRevisionIds).toEqual([R2])
+    expect(parseRecord(snapshotRecord, env.fs.get(files(env).snapshot(R2)) ?? '', 's').revisionId).toBe(R2)
+  })
+
   it('recovers when the pointer read-back fails after the pointer was replaced', () => {
     const env = seedSavedFirstRevision()
     const entry = stageRevision(env, { epicId: EPIC, revisionId: R2, number: 2, bundle: BUNDLE_2, baseRevisionId: R1 })

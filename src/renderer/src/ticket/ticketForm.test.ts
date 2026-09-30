@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { draftPlan } from '../epic/__mocks__/fixtures'
 import {
+  CONFLICT_MESSAGE,
   addCriterion,
+  applyOutcome,
+  editForm,
+  initialEditor,
+  rejectForm,
+  syncEditor,
   editCriterion,
   formErrors,
   formFromBundle,
@@ -220,5 +226,31 @@ describe('ticket form helpers', () => {
     expect(splitList('')).toEqual([])
     expect(toggleValue(['a', 'b'], 'a')).toEqual(['b'])
     expect(toggleValue(['a'], 'b')).toEqual(['a', 'b'])
+  })
+})
+
+describe('ticket editor state', () => {
+  it('keeps unsaved edits when the draft reloads and replaces untouched forms', () => {
+    const start = initialEditor(BUNDLE, 'tk_202')
+    expect(start).toMatchObject({ touched: false, awaitingSync: false, message: null })
+    const renamed = editForm(start, { ...form(), title: 'Mine' })
+    const newer = { ...BUNDLE, tickets: BUNDLE.tickets.map((item) => (item.id === 'tk_202' ? { ...item, title: 'Theirs' } : item)) }
+    expect(syncEditor(renamed, newer, 'tk_202')).toBe(renamed)
+    expect(syncEditor(start, newer, 'tk_202').form?.title).toBe('Theirs')
+  })
+
+  it('shows the conflict message and keeps the form, or reloads the form after a successful apply', () => {
+    const renamed = editForm(initialEditor(BUNDLE, 'tk_202'), { ...form(), title: 'Mine' })
+    const conflicted = applyOutcome(renamed, { ok: false, code: 'conflict', message: 'The draft changed (now revision 9).' })
+    expect(conflicted.message).toEqual({ tone: 'error', text: CONFLICT_MESSAGE })
+    expect(CONFLICT_MESSAGE).toBe('The draft changed while you were editing — review and apply again.')
+    expect(syncEditor(conflicted, BUNDLE, 'tk_202').form?.title).toBe('Mine')
+    const rejected = applyOutcome(renamed, { ok: false, code: 'invalid_graph', message: 'Move rejected.' })
+    expect(rejected.message).toEqual({ tone: 'error', text: 'Move rejected.' })
+    const applied = applyOutcome(renamed, { ok: true })
+    expect([applied.awaitingSync, applied.message]).toEqual([true, { tone: 'info', text: 'Applied to the draft.' }])
+    const synced = syncEditor(applied, BUNDLE, 'tk_202')
+    expect([synced.form?.title, synced.touched, synced.awaitingSync]).toEqual(['Transactional bundle import', false, false])
+    expect(rejectForm(renamed, 'Title is required.').message).toEqual({ tone: 'error', text: 'Title is required.' })
   })
 })

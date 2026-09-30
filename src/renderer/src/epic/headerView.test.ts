@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { epicDetail } from './__mocks__/fixtures'
-import { headerView, nextRevisionNumber, READ_ONLY_MESSAGE } from './headerView'
+import { epicDetail, runView } from './__mocks__/fixtures'
+import { confirmCopy, headerView, nextRevisionNumber, READ_ONLY_MESSAGE } from './headerView'
 
 describe('header badge and breadcrumb', () => {
   it('shows the saved revision in the Saved view', () => {
@@ -71,5 +71,25 @@ describe('header notices', () => {
       'Tracked state changed on another branch.'
     ])
     expect(headerView({ folderName: 'dm', epic: epicDetail(), view: 'saved', hasActiveRun: false }).notices).toEqual([])
+  })
+})
+
+describe('confirmation copy', () => {
+  it('names the draft revision being discarded and the run being canceled', () => {
+    expect(confirmCopy('discard', epicDetail(), null)).toEqual({
+      title: 'Discard draft',
+      text: 'Discard draft rev 5? Its changes are lost; the saved plan stays as it is.',
+      confirm: 'Discard draft',
+      keep: 'Keep editing'
+    })
+    expect(confirmCopy('cancel_run', epicDetail(), runView())).toEqual({
+      title: 'Cancel run',
+      text: 'Cancel Run #2? Open attempts are canceled and no more work is dispatched.',
+      confirm: 'Cancel run',
+      keep: 'Keep running'
+    })
+    expect(confirmCopy('cancel_run', epicDetail(), null).text).toBe(
+      'Cancel the run? Open attempts are canceled and no more work is dispatched.'
+    )
   })
 })

@@ -1,6 +1,7 @@
 /** Pure view model for the epic header: breadcrumb, revision badge, and plan actions. */
 import { WORK_STATUS_LABELS } from '../../../shared/domain/status'
-import type { EpicDetailView } from '../../../shared/domain/views'
+import type { EpicDetailView, RunView } from '../../../shared/domain/views'
+import { runLabel } from './runBarView'
 
 export const READ_ONLY_MESSAGE = 'Completed epics are read-only. Create a new epic to extend this work.'
 
@@ -74,5 +75,31 @@ export function headerView(input: HeaderInput): HeaderView {
     actions: actionsFor(input),
     readOnly: epic.status === 'completed' ? READ_ONLY_MESSAGE : null,
     notices: noticesFor(epic)
+  }
+}
+
+export interface ConfirmCopy {
+  title: string
+  text: string
+  confirm: string
+  keep: string
+}
+
+/** Inline confirmation for destructive actions (Electron has no window.prompt; dialogs stay in-page). */
+export function confirmCopy(kind: 'discard' | 'cancel_run', epic: EpicDetailView, run: RunView | null): ConfirmCopy {
+  if (kind === 'discard') {
+    return {
+      title: 'Discard draft',
+      text: `Discard draft rev ${nextRevisionNumber(epic)}? Its changes are lost; the saved plan stays as it is.`,
+      confirm: 'Discard draft',
+      keep: 'Keep editing'
+    }
+  }
+  const name = run === null ? 'the run' : runLabel(run)
+  return {
+    title: 'Cancel run',
+    text: `Cancel ${name}? Open attempts are canceled and no more work is dispatched.`,
+    confirm: 'Cancel run',
+    keep: 'Keep running'
   }
 }

@@ -77,6 +77,14 @@ describe('appendEvent defaults and provenance', () => {
     expect(event).toMatchObject({ epicId: null, runId: null, ticketId: null, payload: {} })
   })
 
+  it('stores hostile kinds, references and payloads verbatim', () => {
+    const ctx = createTestCtx()
+    const kind = `x'); DELETE FROM events; --`
+    appendEvent(ctx, { kind, epicId: `ep_'"`, payload: { text: `"quoted" 'text' \\ \u0000 ünï` } })
+    const [event] = listEvents(ctx, {}).events
+    expect(event).toMatchObject({ kind, epicId: `ep_'"`, payload: { text: `"quoted" 'text' \\ \u0000 ünï` } })
+  })
+
   it('keeps explicit null references as null', () => {
     const ctx = createTestCtx()
     appendEvent(ctx, { kind: 'nulls', epicId: null, runId: null, ticketId: null })

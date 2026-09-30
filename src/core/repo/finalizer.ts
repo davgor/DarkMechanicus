@@ -121,11 +121,18 @@ function writeSnapshot(env: WriteEnv, record: SnapshotRecord): void {
     }
     return
   }
-  writeFileSafely(env, target, prettyJson(record), (written) => {
-    if (parseRecord(snapshotRecord, written, shown).contentHash !== record.contentHash) {
-      fail('internal', `Read-back of ${shown} does not match the revision's content hash.`)
-    }
-  })
+  try {
+    writeFileSafely(env, target, prettyJson(record), (written) => {
+      if (parseRecord(snapshotRecord, written, shown).contentHash !== record.contentHash) {
+        fail('internal', `Read-back of ${shown} does not match the revision's content hash.`)
+      }
+    })
+  } catch (error: unknown) {
+    // The file did not exist before this write and nothing points at it yet: drop an unverified
+    // copy so the retry writes it again instead of refusing to rewrite a snapshot.
+    discard(env.fs, target)
+    throw error
+  }
 }
 
 function nextGeneration(db: Db, kind: 'epic' | 'run', entityId: string): number {

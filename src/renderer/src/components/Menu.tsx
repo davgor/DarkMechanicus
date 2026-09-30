@@ -16,6 +16,11 @@ interface MenuProps {
   onOpenChange(open: boolean): void
 }
 
+/** Puts focus back on the button that opened the menu. */
+function focusTrigger(anchor: RefObject<HTMLElement>): void {
+  anchor.current?.querySelector<HTMLElement>('.btn')?.focus()
+}
+
 /** Closes the menu on Escape or a press outside it, only while it is open. */
 function useDismiss(open: boolean, anchor: RefObject<HTMLElement>, dismiss: () => void): void {
   useEffect(() => {
@@ -30,6 +35,7 @@ function useDismiss(open: boolean, anchor: RefObject<HTMLElement>, dismiss: () =
     const onKey = (event: globalThis.KeyboardEvent): void => {
       if (event.key === 'Escape') {
         dismiss()
+        focusTrigger(anchor)
       }
     }
     document.addEventListener('mousedown', onPress)
@@ -65,6 +71,7 @@ export function Menu({ label, open, items, onOpenChange }: MenuProps): JSX.Eleme
               className="menu-item"
               onClick={() => {
                 onOpenChange(false)
+                focusTrigger(anchor)
                 item.onSelect()
               }}
             >
