@@ -37,7 +37,7 @@ A **Workspace** is opened per repository root and implements `CommandApi` (`src/
 
 1. **Validate** the untrusted input with the zod schemas in `src/core/schemas.ts` (`parseInput`). Limits (`LIMITS`) bound string sizes, list lengths, and graph sizes.
 2. **Authorize** with `requireCapability(ctx.session, capability)`. Capabilities come from the session's role, fixed when the session registered (desktop launch, or the MCP process's launch flags). A caller-supplied name is never authority.
-3. **Branch guard** — commands that save, export, or dispatch work call `ctx.assertBranch()`; it throws `branch_changed` if the coordinating checkout's branch differs from the one recorded at the last reconcile.
+3. **Branch guard** — commands that save, export, or dispatch work call `ctx.assertBranch()`; it throws `branch_changed` if the coordinating checkout's branch differs from the one recorded at the last reconcile. Flushing portable records is guarded the same way (pending exports belong to the recorded branch), and a Workspace opened after a branch switch does not reconcile automatically: the person (or agent) reconciles explicitly, which pauses active runs and records the new branch.
 4. **Transact** — the whole mutation runs in one transaction, optionally wrapped by `withIdempotency` (same key + same request ⇒ original response; same key + different request ⇒ `idempotency_mismatch`).
 5. **Record** — append an event (`appendEvent`) and enqueue portable-record work (`enqueueOutbox`) inside that same transaction.
 6. **Flush** — after commit, the Workspace runs the finalizer to write portable records. Flush failure never rolls back the command; it leaves the outbox entry `pending/failed` and storage status shows it.
@@ -91,7 +91,7 @@ An edge `{from: A, to: B}` means **B requires A's accepted result**. Relations (
 
 - One active run per epic (`queued|running|awaiting_checkpoint|paused`), enforced by a partial unique index.
 - `queueRun` (desktop) creates a `queued` run pinned to the current saved revision; `startRun` (orchestrator) picks up the queued run or creates one, binds the epic branch (explicit input, else the current checkout branch + HEAD), sets the first sprint active, and moves the epic to `in_progress`.
-- A run is pinned to `revision_id`. Saving a new revision never changes an active run; `adoptRevision` switches it only at a checkpoint (or while paused) with no open attempts. Accepted tickets whose content hash is unchanged keep their acceptance; changed tickets need explicit `carryForward` or new work (old attempts get `superseded_at`).
+- A run is pinned to `revision_id`. Saving a new revision never changes an active run; `adoptRevision` switches it only at a checkpoint (or while paused) with no open attempts. Accepted tickets whose content hash is unchanged keep their acceptance; changed tickets need explicit `carryForward` or new work (old attempts get `superseded_at`). A changed ticket in a sprint the run already passed can never be redone in that run, so adoption refuses it unless it is carried forward. The desktop's Saved view shows the revision an active run executes.
 - Runs carry `owner_machine_id`. A run imported from another machine rejects execution commands with `run_not_owned` until `takeoverRun`, which marks its leased attempts `lease_expired` (uncertain, needs reconciliation) and pauses the run.
 - **Readiness** is computed server-side for the active sprint: a ticket is `ready` when every prerequisite is accepted in this run (or carried forward), it has no open attempt, its last attempt does not need reconciliation, it is under the retry limit, and capacity (sprint cap, plan `maxConcurrency`) allows. Tickets of later sprints are `later_sprint`. Blockers explain why (`prerequisite`, `concurrency`, `retry_limit`, `lease_expired`, `run_state`). There is no global wave barrier inside a sprint.
 - **Claim** (`claimTicket`) is transactional: re-computes readiness, creates an attempt (`claimed`) with `fencing_token` = previous claims + 1, a lease, and a secret; returns a claim token (`<attemptId>.<secret>`) and a bounded execution packet (pinned ticket content, acceptance criteria, predecessor outputs, constraints, reporting contract). The partial unique index on open attempts makes duplicate concurrent claims impossible.
@@ -109,7 +109,8 @@ An edge `{from: A, to: B}` means **B requires A's accepted result**. Relations (
 - Gate conditions (`getCheckpoint`): report submitted for the active sprint · no open leases in the sprint · every required ticket accepted · every exit criterion reported met · (final sprint) epic outcome with all success criteria met · authorization.
 - Authorization: sprint `checkpoint.mode = human` (default) needs a one-use **approval grant** issued by the desktop (`approveCheckpoint`), bound to project, epic, run, pinned revision, sprint, report id, report hash, and action. `advanceSprint` consumes the exact grant in the same transaction as the transition. A new report revision, an adopted revision, or a consumed grant invalidates it (forged/replayed/stale grants fail). `auto` mode only takes effect when the person enabled `authorizeAutoContinue` on that run; plan edits cannot relax this, and imported runs never carry the authorization.
 - `approveAndAdvance` is the desktop's single-click path (issue + consume atomically).
-- Advancing the final sprint completes the run and the epic (records the outcome).
+- Advancing the final sprint completes the run and the epic (records the outcome). The final gate checks every required ticket of the plan, not only the final sprint's.
+- Checkpoint reads and advances first expire overdue leases, so the gate never shows an expired claim as still holding a lease.
 - `grantRetry` (desktop) allows one more attempt for a ticket in this run and returns an `awaiting_checkpoint` run to `running`.
 - Idempotency keys make repeated advance calls return the original outcome.
 
@@ -143,6 +144,22 @@ An edge `{from: A, to: B}` means **B requires A's accepted result**. Relations (
 - Tracked folders are a machine-local list in `userData/folders.json`, keyed by canonical real path (tracking an existing path selects it instead of duplicating). Stop tracking removes only that entry.
 - The main process caches one Workspace (desktop session) per folder. IPC channels `dm:*` validate payloads and call `CommandApi`. The renderer polls `listEvents` with a cursor (bounded interval) and refetches what changed; unsaved form edits survive refreshes and conflicts.
 - Markdown is rendered by a small safe renderer (no raw HTML); links are allow-listed (`http`, `https`, `mailto`) and opened through the main process. Navigation and new windows are denied.
+
+## Verification tooling
+
+- `npm run smoke:mcp` launches the built `out/main/mcp.js` over real stdio (set `MCP_SMOKE_COMMAND` to Electron's binary to use its runtime) and plans, saves, and runs a ticket end to end.
+- `npm run spike:claims` races claims on one ticket from 8 processes (exactly one winner per round).
+- `src/integration/` exercises the real Workspace through the command table, MCP tools (in-memory transport), and desktop IPC handlers.
+- Fireguard scopes mutants to the graded tests that import the mutated module and bounds each test run with `testTimeoutMs`, so milestone-sized branches grade in hours, not days, and an infinite-loop mutant counts as killed.
+
+## Decisions taken during implementation
+
+The product plan's open decisions were settled as follows (all revisitable):
+
+- **Git tracks portable records**, not SQLite snapshots: JSON records under `.darkmechanicus/` plus a Git-ignored working database, rebuilt on clone.
+- **First host:** any stdio MCP host; a Claude Code skill wrapper ships (`installSkills`) and the six skills are also plain MCP prompts, so no host-specific API is assumed.
+- **Sprint advancement defaults to a human checkpoint** (`checkpoint.mode = human`); `auto` needs per-run authorization in the desktop.
+- **Deletion stays deferred**, as the plan requires: no delete UI or tools ship (mockup 06 is not implemented).
 
 ## Testing conventions
 
