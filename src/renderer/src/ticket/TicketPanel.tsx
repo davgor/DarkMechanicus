@@ -7,6 +7,7 @@ import type { Runner } from '../epic/runner'
 import { StatePill } from '../epic/StatePill'
 import type { ReviewInput } from '../epic/workspaceActions'
 import { AttemptList } from './AttemptList'
+import { CommentsTab } from './CommentsTab'
 import { EvidenceTab, HistoryTab, OverviewTab } from './panelTabs'
 import { metaLine, statePill } from './ticketView'
 
@@ -18,7 +19,7 @@ export interface TicketPanelProps {
   /** Changes whenever the workspace reloads, so the panel refetches. */
   reloadKey: unknown
   now: number
-  /** Offer "Edit in draft" (unfinished epics only). */
+  /** The epic is unfinished: offer "Edit in draft" and adding comments. */
   canEdit: boolean
   onEditInDraft(): void
   onClose(): void
@@ -26,7 +27,7 @@ export interface TicketPanelProps {
   onReview(input: ReviewInput): Promise<string | null>
 }
 
-type TabId = 'overview' | 'attempts' | 'evidence' | 'history'
+type TabId = 'overview' | 'attempts' | 'evidence' | 'comments' | 'history'
 
 interface DetailState {
   detail: TicketDetailView | null
@@ -63,6 +64,7 @@ function Tabs(props: { tab: TabId; attempts: number; onTab(tab: TabId): void }):
     ['overview', 'Overview'],
     ['attempts', `Attempts (${props.attempts})`],
     ['evidence', 'Evidence'],
+    ['comments', 'Comments'],
     ['history', 'History']
   ]
   return (
@@ -85,6 +87,17 @@ function TabBody(props: { tab: TabId; detail: TicketDetailView; panel: TicketPan
       return <AttemptList attempts={detail.attempts} now={panel.now} onReview={panel.onReview} />
     case 'evidence':
       return <EvidenceTab detail={detail} />
+    case 'comments':
+      return (
+        <CommentsTab
+          runner={panel.runner}
+          epicId={panel.epicId}
+          ticketId={detail.ticket.id}
+          now={panel.now}
+          reloadKey={panel.reloadKey}
+          canComment={panel.canEdit}
+        />
+      )
     case 'history':
       return (
         <HistoryTab runner={panel.runner} epicId={panel.epicId} ticketId={panel.ticketId} now={panel.now} reloadKey={panel.reloadKey} />
@@ -119,7 +132,7 @@ function PanelHead(props: { panel: TicketPanelProps; detail: TicketDetailView; t
   )
 }
 
-/** Read view of one ticket: Markdown, criteria, capability profile, links, attempts, evidence, history. */
+/** Read view of one ticket: Markdown, criteria, capability profile, links, attempts, evidence, comments, history. */
 export function TicketPanel(props: TicketPanelProps): JSX.Element {
   const { detail, error } = useTicketDetail(props)
   const [tab, setTab] = useState<TabId>('overview')

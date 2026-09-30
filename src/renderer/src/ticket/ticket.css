@@ -279,6 +279,40 @@
   font-size: 12.5px;
 }
 
+/* Comments */
+.tp-comments {
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tp-comment {
+  padding: 10px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tp-comment-head {
+  margin: 0;
+  font-size: 12.5px;
+}
+
+.tp-comment-author {
+  font-weight: 600;
+}
+
+.tp-comment-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 /* Editor */
 .tp-form {
   gap: 16px;
@@ -300,7 +334,8 @@
 
 .tp-input,
 .tp-form select,
-.tp-reject textarea {
+.tp-reject textarea,
+.tp-comment-form textarea {
   box-sizing: border-box;
   width: 100%;
   padding: 7px 10px;

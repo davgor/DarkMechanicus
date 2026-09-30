@@ -17,6 +17,7 @@ import type { AttemptState, TicketExecutionState } from '../../../../shared/doma
 import type {
   AttemptView,
   CheckpointView,
+  CommentView,
   EpicDetailView,
   EventView,
   GateCondition,
@@ -493,6 +494,19 @@ export function validation(patch: Partial<ValidationReport> = {}): ValidationRep
         ticketIds: ['tk_305']
       }
     ],
+    ...patch
+  }
+}
+
+/** A comment on DM-202 by a worker, written `minutesAgo` minutes before NOW. */
+export function comment(n: number, minutesAgo: number, patch: Partial<CommentView> = {}): CommentView {
+  return {
+    id: `cm_${n}`,
+    epicId: EPIC_ID,
+    ticketId: 'tk_202',
+    body: `Comment ${n}`,
+    author: { role: 'worker', label: 'worker-a' },
+    createdAt: iso(-minutesAgo * MINUTE),
     ...patch
   }
 }
