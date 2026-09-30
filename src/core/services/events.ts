@@ -58,6 +58,9 @@ export function listEvents(
 ): EventsPage {
   const since = Math.max(0, Math.floor(input.sinceSeq ?? 0))
   const limit = Math.min(MAX_EVENT_PAGE, Math.max(1, Math.floor(input.limit ?? 200)))
+  // Read the high-water mark before the page: an event another process commits in between is
+  // either in the page or newer than the cursor, so a polling client can never skip it.
+  const horizon = latestSeq(ctx, since)
   const rows = ctx.db.all<EventRow>(
     `SELECT * FROM events
      WHERE seq > ? AND (? IS NULL OR epic_id = ?) AND (? IS NULL OR run_id = ?)
@@ -71,7 +74,7 @@ export function listEvents(
   )
   const events = rows.map(toEventView)
   const last = events[events.length - 1]
-  return { events, cursor: last ? last.seq : latestSeq(ctx, since) }
+  return { events, cursor: last ? last.seq : horizon }
 }
 
 function latestSeq(ctx: Ctx, fallback: number): number {
