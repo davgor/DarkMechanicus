@@ -48,13 +48,13 @@ function conflictsOf(db: Db): StorageStatusView['conflicts'] {
   return rows.map((row) => ({ epicId: row.run_epic ?? row.entity_id, message: row.conflict }))
 }
 
-function databaseStatus(db: Db, clock: Clock, current: string | null): DatabaseStatus {
-  const branch = branchState(db, current)
+function databaseStatus(db: Db, clock: Clock, head: { current: string | null; repository: boolean }): DatabaseStatus {
+  const branch = branchState(db, head.current)
   return {
     schemaVersion: readSchemaVersion(db),
     outbox: outboxStatus(db),
     lastFlushAt: getMeta(db, META_KEYS.lastFlushAt),
-    branch: { current, recorded: branch.recorded, changed: branch.changed },
+    branch: { current: head.current, recorded: branch.recorded, changed: branch.changed, repository: head.repository },
     conflicts: conflictsOf(db),
     sessions: summarizeActiveSessions({ db, clock })
   }
@@ -71,12 +71,13 @@ const NO_DATABASE: Omit<DatabaseStatus, 'branch'> = {
 /** Storage health for the desktop footer and `get_storage_status`; works before initialization. */
 export async function getStorageStatus(deps: StorageDeps): Promise<StorageStatusView> {
   const project = projectOrNull(deps)
-  const current = deps.git.head()?.branch ?? null
+  const gitHead = deps.git.head()
+  const head = { current: gitHead?.branch ?? null, repository: gitHead !== null }
   const uncommittedRecordFiles = await deps.git.countUncommitted('.darkmechanicus')
   const database =
     deps.db === null
-      ? { ...NO_DATABASE, branch: { current, recorded: null, changed: false } }
-      : databaseStatus(deps.db, deps.clock, current)
+      ? { ...NO_DATABASE, branch: { current: head.current, recorded: null, changed: false, repository: head.repository } }
+      : databaseStatus(deps.db, deps.clock, head)
   return {
     initialized: project !== null,
     repoRoot: deps.layout.root,

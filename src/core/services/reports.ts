@@ -153,7 +153,7 @@ function insertReport(ctx: Ctx, run: RunRow, sprintId: string, content: SprintRe
     report_revision: (previous?.latest ?? 0) + 1,
     content_json: toJson(content),
     content_hash: contentHash(content),
-    submitted_by: ctx.session.id,
+    submitted_by: ctx.session.label,
     created_at: ctx.clock.nowIso()
   }
   ctx.db.run(

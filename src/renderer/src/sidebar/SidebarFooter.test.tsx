@@ -87,7 +87,7 @@ describe('SidebarFooter storage line', () => {
 })
 
 describe('SidebarFooter branch warning', () => {
-  const changed = storageStatus({ branch: { recorded: 'main', current: 'feature/x', changed: true } })
+  const changed = storageStatus({ branch: { recorded: 'main', current: 'feature/x', changed: true, repository: true } })
 
   it('is absent while the branch matches', () => {
     renderFooter({ status: storageStatus() })

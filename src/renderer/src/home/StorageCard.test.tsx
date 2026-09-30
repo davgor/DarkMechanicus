@@ -90,7 +90,7 @@ describe('StorageCard content', () => {
 
 describe('StorageCard warnings', () => {
   it('warns about a changed branch', () => {
-    renderCard(storageStatus({ branch: { current: 'feature/x', recorded: 'main', changed: true } }))
+    renderCard(storageStatus({ branch: { current: 'feature/x', recorded: 'main', changed: true, repository: true } }))
     expect(screen.getByText('Branch changed: main → feature/x')).toBeTruthy()
   })
 
@@ -125,5 +125,15 @@ describe('StorageCard actions', () => {
     renderCard(storageStatus(), { flush: true, reconcile: false })
     expect((screen.getByRole('button', { name: 'Flush' }) as HTMLButtonElement).disabled).toBe(true)
     expect((screen.getByRole('button', { name: 'Reconcile' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+})
+
+describe('StorageCard branch row', () => {
+  it('names a detached HEAD and a folder outside Git differently', () => {
+    renderCard(storageStatus({ branch: { current: null, recorded: '', changed: false, repository: true } }))
+    expect(row('Branch')).toBe('detached HEAD')
+    cleanup()
+    renderCard(storageStatus({ branch: { current: null, recorded: '', changed: false, repository: false } }))
+    expect(row('Branch')).toBe('Not a Git repository')
   })
 })

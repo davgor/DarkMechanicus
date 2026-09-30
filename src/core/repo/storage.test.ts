@@ -44,7 +44,7 @@ describe('getStorageStatus without a database', () => {
       schemaVersion: null,
       outbox: { pending: 0, failed: 0, lastError: null },
       lastFlushAt: null,
-      branch: { current: null, recorded: null, changed: false },
+      branch: { current: null, recorded: null, changed: false, repository: true },
       uncommittedRecordFiles: null,
       conflicts: [],
       sessions: { active: 0, byRole: {} }
@@ -58,7 +58,7 @@ describe('getStorageStatus without a database', () => {
       projectId: PROJECT.projectId,
       projectName: 'Demo',
       uncommittedRecordFiles: 3,
-      branch: { current: 'main', recorded: null, changed: false }
+      branch: { current: 'main', recorded: null, changed: false, repository: true }
     })
   })
 
@@ -106,7 +106,7 @@ describe('getStorageStatus with a database', () => {
       schemaVersion: SCHEMA_VERSION,
       outbox: { pending: 2, failed: 1, lastError: 'permission denied' },
       lastFlushAt: '2026-01-01T00:05:00.000Z',
-      branch: { current: 'main', recorded: 'release', changed: true },
+      branch: { current: 'main', recorded: 'release', changed: true, repository: true },
       uncommittedRecordFiles: 0,
       conflicts: [
         { epicId: idOf('epic', 1), message: 'epic conflict' },
@@ -121,7 +121,15 @@ describe('getStorageStatus with a database', () => {
     setMeta(db, 'checkout_branch', 'main')
     const status = await getStorageStatus({ db, layout, fs: initializedFs(), git: gitWith(0, 'main'), clock: createTestClock() })
     expect(status.outbox).toEqual({ pending: 0, failed: 0, lastError: null })
-    expect(status.branch).toEqual({ current: 'main', recorded: 'main', changed: false })
+    expect(status.branch).toEqual({ current: 'main', recorded: 'main', changed: false, repository: true })
     expect(status.conflicts).toEqual([])
+  })
+})
+
+describe('getStorageStatus outside Git', () => {
+  it('reports a folder that is not a Git checkout instead of a detached HEAD', async () => {
+    const git: GitAdapter = { ...createStubGit('main'), head: () => null, countUncommitted: async () => null }
+    const status = await getStorageStatus({ db: null, layout, fs: initializedFs(), git, clock: createTestClock() })
+    expect(status.branch).toEqual({ current: null, recorded: null, changed: false, repository: false })
   })
 })

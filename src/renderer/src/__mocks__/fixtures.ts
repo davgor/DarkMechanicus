@@ -91,7 +91,7 @@ export function storageStatus(patch: Partial<StorageStatusView> = {}): StorageSt
     schemaVersion: 1,
     outbox: { pending: 0, failed: 0, lastError: null },
     lastFlushAt: null,
-    branch: { current: 'main', recorded: 'main', changed: false },
+    branch: { current: 'main', recorded: 'main', changed: false, repository: true },
     uncommittedRecordFiles: 0,
     conflicts: [],
     sessions: { active: 0, byRole: {} },

@@ -14,6 +14,13 @@ interface StorageCardProps {
   onReconcile(): void
 }
 
+function branchLabel(branch: StorageStatusView['branch']): string {
+  if (!branch.repository) {
+    return 'Not a Git repository'
+  }
+  return branch.current ?? 'detached HEAD'
+}
+
 function Row({ label, children }: { label: string; children: ReactNode }): JSX.Element {
   return (
     <div className="kv-row">
@@ -38,7 +45,7 @@ function Details({ status, titles }: { status: StorageStatusView; titles: Readon
         <span className="mono">{status.projectId ?? 'none'}</span>
       </Row>
       <Row label="Schema">{status.schemaVersion === null ? '—' : `v${status.schemaVersion}`}</Row>
-      <Row label="Branch">{status.branch.current ?? 'detached HEAD'}</Row>
+      <Row label="Branch">{branchLabel(status.branch)}</Row>
       <Row label="Export">
         <span className={`tone-${exported.tone}`}>{exported.text}</span>
       </Row>

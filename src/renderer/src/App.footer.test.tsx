@@ -87,7 +87,7 @@ describe('App flush', () => {
 })
 
 describe('App reconcile', () => {
-  const changed = storageStatus({ branch: { recorded: 'main', current: 'feature/x', changed: true } })
+  const changed = storageStatus({ branch: { recorded: 'main', current: 'feature/x', changed: true, repository: true } })
 
   it('warns after a branch change and reconciles on request', async () => {
     h.statuses['/a'] = changed

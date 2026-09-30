@@ -89,7 +89,7 @@ describe('storageFooterLine for exported repositories', () => {
 
 describe('branchWarning', () => {
   const changed = (recorded: string | null, current: string | null): StorageStatusView =>
-    storageStatus({ branch: { recorded, current, changed: true } })
+    storageStatus({ branch: { recorded, current, changed: true, repository: true } })
 
   it('is null when the branch is unchanged or unknown', () => {
     expect(branchWarning(storageStatus())).toBeNull()

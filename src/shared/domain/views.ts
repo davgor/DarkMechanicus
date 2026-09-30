@@ -487,7 +487,8 @@ export interface StorageStatusView {
   schemaVersion: number | null
   outbox: { pending: number; failed: number; lastError: string | null }
   lastFlushAt: string | null
-  branch: { current: string | null; recorded: string | null; changed: boolean }
+  /** `repository` is false outside a Git checkout (then `current` is null too, but not because HEAD is detached). */
+  branch: { current: string | null; recorded: string | null; changed: boolean; repository: boolean }
   uncommittedRecordFiles: number | null
   conflicts: { epicId: string; message: string }[]
   sessions: { active: number; byRole: Record<string, number> }

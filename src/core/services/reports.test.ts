@@ -64,7 +64,7 @@ describe('submitSprintReport storage', () => {
       reportRevision: 1,
       contentHash: contentHash(MINIMAL),
       report: MINIMAL,
-      submittedBy: ctx.session.id,
+      submittedBy: ctx.session.label,
       createdAt: '2026-01-01T00:00:00.000Z'
     })
     expect(runRow(ctx, runId)).toMatchObject({ state: 'awaiting_checkpoint', revision: 2 })
