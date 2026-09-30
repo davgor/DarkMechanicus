@@ -255,6 +255,43 @@ describe('applyDraftOps ref resolution', () => {
   })
 })
 
+describe('applyDraftOps refs named like inherited properties', () => {
+  const NAMES = ['constructor', 'toString', 'hasOwnProperty', '__proto__', 'valueOf']
+
+  it.each(NAMES)('accepts %s as a client ref', (ref) => {
+    const { bundle, refMap } = apply(
+      baseBundle(),
+      { op: 'add_ticket', ref, sprint: '1', ticket: { title: 'New' } },
+      { op: 'update_ticket', ticket: ref, patch: { title: 'Renamed' } }
+    )
+    expect(bundle.tickets[3]?.title).toBe('Renamed')
+    expect(Object.keys(refMap)).toEqual([ref])
+    expect(refMap[ref]).toBe('tk_new1')
+  })
+
+  it.each(NAMES)('still rejects %s declared twice', (ref) => {
+    const failure = rejection(
+      baseBundle(),
+      { op: 'add_sprint', ref, sprint: { goal: 'g' } },
+      { op: 'add_ticket', ref, sprint: '1', ticket: { title: 'T' } }
+    )
+    expect(failure?.message).toBe(`Client ref "${ref}" is declared twice in one request.`)
+  })
+
+  it('does not treat an undeclared inherited name as a ref', () => {
+    const failure = rejection(baseBundle(), { op: 'update_ticket', ticket: 'constructor', patch: {} })
+    expect(failure?.message).toBe('Unknown ticket "constructor".')
+    expect(rejection(baseBundle(), { op: 'remove_sprint', sprint: '__proto__' })?.message).toBe('Unknown sprint "__proto__".')
+  })
+
+  it('never pollutes Object.prototype', () => {
+    apply(baseBundle(), { op: 'add_sprint', ref: '__proto__', sprint: { goal: 'g' } })
+    expect(Reflect.getPrototypeOf({})).toBe(Object.prototype)
+    expect(Object.keys(Object.prototype)).toEqual([])
+    expect(({} as Record<string, unknown>).sp_new1).toBeUndefined()
+  })
+})
+
 describe('set_epic', () => {
   const withOwner = (): PlanBundle => {
     const bundle = baseBundle()
