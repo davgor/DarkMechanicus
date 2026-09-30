@@ -68,7 +68,8 @@ export function useShell(scheduler: Scheduler): ShellModel {
   const tick = useRefreshTick({ scheduler, everyMs: STATUS_REFRESH_MS, enabled: statusPath !== null })
   const status = useStorageStatus({
     path: statusPath,
-    token: (statusPath === null ? 0 : folderToken(feed.tokens, statusPath)) + tick,
+    token: statusPath === null ? 0 : folderToken(feed.tokens, statusPath),
+    tick,
     onError: toasts.reportError
   })
 

@@ -9,8 +9,8 @@ export type Resource<T> = { status: 'loading' } | Outcome<T>
 interface ResourceOptions<T> {
   /** Identity of what is loaded (e.g. a folder path). Null means there is nothing to load. */
   key: string | null
-  /** Bump to refetch the same key. */
-  version: number
+  /** Change to refetch the same key. */
+  version: number | string
   load(): Promise<T>
   onError(error: unknown): void
 }

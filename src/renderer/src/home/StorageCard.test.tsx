@@ -42,6 +42,13 @@ describe('StorageCard content', () => {
     renderCard(null)
     expect(screen.getByText('Loading storage status…')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Flush' })).toBeNull()
+    expect(screen.queryByText(/Flush writes pending changes/)).toBeNull()
+  })
+
+  it('explains the two actions once the status is known', () => {
+    renderCard(storageStatus())
+    expect(screen.getByText(/Flush writes pending changes to the repository files\./)).toBeTruthy()
+    expect(screen.getByText(/Reconcile re-reads them after a pull, clone or branch switch\./)).toBeTruthy()
   })
 
   it('describes the project and where its records live', () => {

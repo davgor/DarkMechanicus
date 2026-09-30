@@ -1,4 +1,4 @@
-export interface SnippetPart {
+interface SnippetPart {
   text: string
   match: boolean
 }
