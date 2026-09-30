@@ -2,7 +2,7 @@
 import { cpSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { GitAdapter, GitHead } from '../core/repo/types'
+import type { FsAdapter, GitAdapter, GitHead } from '../core/repo/types'
 import { openWorkspace, type Workspace } from '../core/workspace'
 import type { SessionRole } from '../shared/domain/views'
 import { createSequentialIds, createTestClock, type TestClock } from './testContext'
@@ -29,7 +29,7 @@ export interface Harness {
   root: string
   clock: TestClock
   git: FakeGit
-  open(role: SessionRole, options?: { allowSave?: boolean; root?: string }): Workspace
+  open(role: SessionRole, options?: { allowSave?: boolean; root?: string; fs?: FsAdapter }): Workspace
   /** Copies tracked records (without local/) into a fresh directory, like a clone. */
   cloneTracked(): string
   cleanup(): void
@@ -56,6 +56,7 @@ export function createHarness(): Harness {
         clock,
         ids,
         git,
+        ...(options.fs ? { fs: options.fs } : {}),
         serverInfo: { name: 'darkmechanicus-test', version: '0.0.0-test' }
       })
       workspaces.push(workspace)

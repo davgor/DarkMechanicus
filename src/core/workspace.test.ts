@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, sep } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createHarness, type Harness } from '../test/workspaceHarness'
+import { nodeFs } from './repo/nodeFs'
 import type { Workspace } from './workspace'
 
 async function codeOf(promise: Promise<unknown>): Promise<string> {
@@ -68,5 +69,54 @@ describe('Workspace branch guard', () => {
     expect(await codeOf(reopened.startRun({ epicId }))).toBe('branch_changed')
     await reopened.reconcileRepository()
     expect((await reopened.startRun({ epicId })).state).toBe('running')
+  })
+})
+
+describe('Workspace save durability and pinning', () => {
+  let harness: Harness
+
+  beforeEach(() => {
+    harness = createHarness()
+  })
+
+  afterEach(() => {
+    harness.cleanup()
+  })
+
+  it('reports a save as pending, keeping the draft, until the snapshot is durable', async () => {
+    let failSnapshots = true
+    const fs = {
+      ...nodeFs,
+      rename: (from: string, to: string) => {
+        if (failSnapshots && to.includes(`${sep}snapshots${sep}`)) {
+          throw new Error('disk full')
+        }
+        nodeFs.rename(from, to)
+      }
+    }
+    const agent = harness.open('orchestrator', { fs })
+    await agent.initializeRepository({ name: 'durable-repo' })
+    const epic = await agent.createEpic({ title: 'Durable epic' })
+    const draft = await agent.updatePlanDraft({ epicId: epic.id, ops: [{ op: 'add_ticket', sprint: '1', ticket: { title: 'One' } }] })
+    const pending = await agent.savePlan({ epicId: epic.id, expectedDraftRevision: draft.draftRevision })
+    expect([pending.status, pending.error]).toEqual(['pending', 'disk full'])
+    expect((await agent.getEpic({ epicId: epic.id })).hasDraft).toBe(true)
+    expect(await codeOf(agent.getPlan({ epicId: epic.id, view: 'saved' }))).toBe('not_found')
+
+    failSnapshots = false
+    expect((await agent.flushPortableState()).failed).toBe(0)
+    const saved = await agent.getPlan({ epicId: epic.id, view: 'saved' })
+    expect([saved.revisionNumber, (await agent.getEpic({ epicId: epic.id })).hasDraft]).toEqual([1, false])
+  })
+
+  it('keeps a running run on its pinned revision after a newer save', async () => {
+    const agent = harness.open('orchestrator')
+    const epicId = await savedEpic(agent)
+    const run = await agent.startRun({ epicId })
+    const draft = await agent.updatePlanDraft({ epicId, ops: [{ op: 'add_ticket', sprint: '1', ticket: { title: 'Later ticket' } }] })
+    const second = await agent.savePlan({ epicId, expectedDraftRevision: draft.draftRevision })
+    const current = await agent.getRun({ runId: run.id })
+    expect([second.revisionNumber, current?.revisionNumber, current?.revisionId]).toEqual([2, 1, run.revisionId])
+    expect(current?.tickets.map((ticket) => ticket.key)).toEqual(['BR-1'])
   })
 })
