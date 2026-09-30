@@ -55,6 +55,12 @@ describe('FolderRow header', () => {
     expect(screen.getByText('~/code/alpha')).toBeTruthy()
   })
 
+  it('shows the full name and canonical path as tooltips', () => {
+    renderRow()
+    expect(screen.getByText('alpha').getAttribute('title')).toBe('alpha')
+    expect(screen.getByText('~/code/alpha').getAttribute('title')).toBe('/a')
+  })
+
   it('selects the folder from its name', () => {
     const calls = renderRow()
     fireEvent.click(screen.getByRole('button', { name: FOLDER_BUTTON }))

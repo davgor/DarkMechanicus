@@ -17,7 +17,9 @@ export function EpicRow({ epic, selected, onOpen }: EpicRowProps): JSX.Element {
       aria-current={selected ? 'true' : undefined}
       onClick={() => onOpen(epic.id)}
     >
-      <span className="epic-row-title">{epic.title}</span>{' '}
+      <span className="epic-row-title" title={epic.title}>
+        {epic.title}
+      </span>{' '}
       <span className="epic-row-meta">
         <EpicStatusText epic={epic} /> <EpicBadges epic={epic} />
       </span>

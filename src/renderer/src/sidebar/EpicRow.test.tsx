@@ -33,6 +33,13 @@ describe('EpicRow content', () => {
     expect(toneOf('Awaiting checkpoint')).toBe('epic-status epic-status-attention')
   })
 
+  it('exposes the full title as a tooltip for truncated rows', () => {
+    renderRow(epicSummary({ title: 'A very long epic title that will not fit' }))
+    expect(screen.getByText('A very long epic title that will not fit').getAttribute('title')).toBe(
+      'A very long epic title that will not fit'
+    )
+  })
+
   it('draws the status dot decoratively', () => {
     renderRow(epicSummary())
     expect(document.querySelector('.epic-status-dot')?.getAttribute('aria-hidden')).toBe('true')

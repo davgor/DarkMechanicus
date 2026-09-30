@@ -59,8 +59,12 @@ function FolderHeader(props: HeaderProps): JSX.Element {
       >
         <Icon name="folder" />
         <span className="folder-text">
-          <span className="folder-name">{folder.name}</span>{' '}
-          <span className="folder-path mono">{folder.displayPath}</span>
+          <span className="folder-name" title={folder.name}>
+            {folder.name}
+          </span>{' '}
+          <span className="folder-path mono" title={folder.path}>
+            {folder.displayPath}
+          </span>
         </span>
       </button>
       <Menu
