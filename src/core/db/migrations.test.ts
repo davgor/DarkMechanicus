@@ -3,7 +3,7 @@ import { ATTEMPT_STATES, RUN_STATES, WORK_STATUSES } from '../../shared/domain/s
 import { thrownBy } from '../../test/thrownBy'
 import { DomainError } from '../errors'
 import { type Db, openDatabase } from './database'
-import { migrate, readSchemaVersion, SCHEMA_VERSION } from './migrations'
+import { MIGRATIONS, migrate, readSchemaVersion, SCHEMA_VERSION } from './migrations'
 
 const openDbs: Db[] = []
 
@@ -37,19 +37,19 @@ afterEach(() => {
 })
 
 describe('migrate on a fresh database', () => {
-  it('starts at schema version 0 and targets SCHEMA_VERSION 1', () => {
-    expect(SCHEMA_VERSION).toBe(1)
+  it('starts at schema version 0 and targets SCHEMA_VERSION 2', () => {
+    expect(SCHEMA_VERSION).toBe(2)
     expect(readSchemaVersion(freshDb())).toBe(0)
   })
 
-  it('applies schema v1 and records it in user_version', () => {
+  it('applies every migration and records the latest in user_version', () => {
     const db = freshDb()
     expect(migrate(db)).toEqual({ from: 0, to: SCHEMA_VERSION })
     expect(readSchemaVersion(db)).toBe(SCHEMA_VERSION)
-    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(1)
+    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(2)
   })
 
-  it('creates every table of schema v1', () => {
+  it('creates every table of the schema', () => {
     expect(objectNames(migratedDb(), 'table')).toEqual([
       'approvals',
       'attempts',
@@ -72,7 +72,7 @@ describe('migrate on a fresh database', () => {
     ])
   })
 
-  it('creates every index of schema v1', () => {
+  it('creates every index of the schema', () => {
     expect(objectNames(migratedDb(), 'index')).toEqual([
       'attempts_one_open_per_ticket',
       'attempts_run_state',
@@ -89,8 +89,8 @@ describe('migrate on a fresh database', () => {
 describe('migrate when already current', () => {
   it('is a no-op the second time', () => {
     const db = migratedDb()
-    expect(migrate(db)).toEqual({ from: 1, to: 1 })
-    expect(readSchemaVersion(db)).toBe(1)
+    expect(migrate(db)).toEqual({ from: 2, to: 2 })
+    expect(readSchemaVersion(db)).toBe(2)
   })
 
   it('keeps existing data', () => {
@@ -109,10 +109,10 @@ describe('migrate refuses newer databases', () => {
     expect(error).toBeInstanceOf(DomainError)
     expect((error as DomainError).code).toBe('incompatible_schema')
     expect((error as DomainError).message).toBe(
-      'Database schema v2 is newer than this build supports (v1). Update Dark Mechanicus.'
+      'Database schema v3 is newer than this build supports (v2). Update Dark Mechanicus.'
     )
-    expect((error as DomainError).details).toEqual({ found: 2, supported: 1 })
-    expect(readSchemaVersion(db)).toBe(2)
+    expect((error as DomainError).details).toEqual({ found: 3, supported: 2 })
+    expect(readSchemaVersion(db)).toBe(3)
     expect(objectNames(db, 'table')).toEqual([])
   })
 
@@ -121,13 +121,79 @@ describe('migrate refuses newer databases', () => {
     db.exec('PRAGMA user_version = 7')
     const error = thrownBy(() => migrate(db))
     expect((error as DomainError).code).toBe('incompatible_schema')
-    expect((error as DomainError).details).toEqual({ found: 7, supported: 1 })
+    expect((error as DomainError).details).toEqual({ found: 7, supported: 2 })
     expect(objectNames(db, 'table')).toContain('epics')
   })
 
   it('accepts a database exactly at the supported version', () => {
     const db = migratedDb()
     expect(thrownBy(() => migrate(db))).toBeUndefined()
+  })
+})
+
+function v1Db(): Db {
+  const db = freshDb()
+  migrate(db, MIGRATIONS.filter((migration) => migration.version === 1))
+  return db
+}
+
+function outboxRows(db: Db): unknown[] {
+  return db.all('SELECT id, kind, epic_id, run_id, revision_id, entity_id, state, attempts, last_error FROM outbox ORDER BY id')
+}
+
+describe('migrate a v1 database to v2', () => {
+  it('keeps every outbox row and id, with no entity id yet', () => {
+    const db = v1Db()
+    db.run(
+      `INSERT INTO outbox (kind, epic_id, run_id, revision_id, state, attempts, last_error, created_at)
+       VALUES ('snapshot', 'ep1', NULL, 'rv1', 'done', 1, NULL, 't'), ('run_history', 'ep1', 'rn1', NULL, 'failed', 3, 'disk full', 't')`
+    )
+    expect(migrate(db)).toEqual({ from: 1, to: 2 })
+    expect(outboxRows(db)).toEqual([
+      { id: 1, kind: 'snapshot', epic_id: 'ep1', run_id: null, revision_id: 'rv1', entity_id: null, state: 'done', attempts: 1, last_error: null },
+      { id: 2, kind: 'run_history', epic_id: 'ep1', run_id: 'rn1', revision_id: null, entity_id: null, state: 'failed', attempts: 3, last_error: 'disk full' }
+    ])
+  })
+
+  it('never reuses an outbox id, even one deleted before the upgrade', () => {
+    const db = v1Db()
+    db.run("INSERT INTO outbox (kind, state, created_at) VALUES ('snapshot', 'done', 't'), ('snapshot', 'done', 't')")
+    db.run('DELETE FROM outbox WHERE id = 2')
+    migrate(db)
+    expect(db.run("INSERT INTO outbox (kind, state, created_at) VALUES ('comment', 'pending', 't')").lastInsertRowid).toBe(3)
+  })
+
+  it('keeps every sync state row', () => {
+    const db = v1Db()
+    db.run(
+      `INSERT INTO sync_state (kind, entity_id, exported_hash, generation, imported_hash, conflict, updated_at)
+       VALUES ('epic', 'ep1', 'sha256:a', 4, 'sha256:b', 'diverged', 't1'), ('run', 'rn1', NULL, 0, NULL, NULL, 't2')`
+    )
+    migrate(db)
+    expect(db.all('SELECT * FROM sync_state ORDER BY kind')).toEqual([
+      { kind: 'epic', entity_id: 'ep1', exported_hash: 'sha256:a', generation: 4, imported_hash: 'sha256:b', conflict: 'diverged', updated_at: 't1' },
+      { kind: 'run', entity_id: 'rn1', exported_hash: null, generation: 0, imported_hash: null, conflict: null, updated_at: 't2' }
+    ])
+  })
+
+  it('keeps the pending-work index on the rebuilt outbox', () => {
+    const db = v1Db()
+    migrate(db)
+    expect(objectNames(db, 'index')).toContain('outbox_state')
+  })
+})
+
+describe('schema v2 record kinds', () => {
+  it.each(['comment', 'profile'])('accepts outbox entries of kind %s keyed by entity id', (kind) => {
+    const db = migratedDb()
+    db.run("INSERT INTO outbox (kind, entity_id, state, created_at) VALUES (?, 'key-1', 'pending', 't')", kind)
+    expect(db.get<{ entity_id: string }>('SELECT entity_id FROM outbox WHERE kind = ?', kind)?.entity_id).toBe('key-1')
+  })
+
+  it.each(['comment', 'profile'])('accepts sync state of kind %s', (kind) => {
+    const db = migratedDb()
+    db.run("INSERT INTO sync_state (kind, entity_id, updated_at) VALUES (?, 'key-1', 't')", kind)
+    expect(db.get<{ n: number }>('SELECT COUNT(*) AS n FROM sync_state WHERE kind = ?', kind)?.n).toBe(1)
   })
 })
 
@@ -196,7 +262,7 @@ describe('migrate failure handling', () => {
     const db = freshDb()
     thrownBy(() => migrate(db, [{ version: 1, sql: 'NOT SQL' }]))
     expect(db.inTransaction()).toBe(false)
-    expect(migrate(db)).toEqual({ from: 0, to: 1 })
+    expect(migrate(db)).toEqual({ from: 0, to: 2 })
   })
 })
 

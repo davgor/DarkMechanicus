@@ -8,6 +8,7 @@ interface OutboxRow {
   epic_id: string | null
   run_id: string | null
   revision_id: string | null
+  entity_id: string | null
   state: string
   attempts: number
   last_error: string | null
@@ -35,6 +36,7 @@ describe('enqueueOutbox row contents', () => {
         epic_id: 'ep_1',
         run_id: null,
         revision_id: 'rv_1',
+        entity_id: null,
         state: 'pending',
         attempts: 0,
         last_error: null,
@@ -48,6 +50,23 @@ describe('enqueueOutbox row contents', () => {
     const ctx = createTestCtx()
     enqueueOutbox(ctx, { kind: 'run_history', runId: 'rn_1' })
     expect(rows(ctx)[0]).toMatchObject({ kind: 'run_history', epic_id: null, run_id: 'rn_1', revision_id: null })
+  })
+})
+
+describe('enqueueOutbox entity keys', () => {
+  it('stores the entity id', () => {
+    const ctx = createTestCtx()
+    enqueueOutbox(ctx, { kind: 'run_history', runId: 'rn_1', entityId: 'key-1' })
+    expect(rows(ctx)[0]).toMatchObject({ run_id: 'rn_1', entity_id: 'key-1' })
+  })
+
+  it('coalesces pending entries only when the entity id matches too', () => {
+    const ctx = createTestCtx()
+    enqueueOutbox(ctx, { kind: 'epic_state', epicId: 'ep_1', entityId: 'a' })
+    enqueueOutbox(ctx, { kind: 'epic_state', epicId: 'ep_1', entityId: 'b' })
+    enqueueOutbox(ctx, { kind: 'epic_state', epicId: 'ep_1', entityId: 'a' })
+    enqueueOutbox(ctx, { kind: 'epic_state', epicId: 'ep_1' })
+    expect(rows(ctx).map((row) => row.entity_id)).toEqual(['a', 'b', null])
   })
 })
 

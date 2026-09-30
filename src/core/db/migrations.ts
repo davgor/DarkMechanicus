@@ -2,7 +2,7 @@ import { fail } from '../errors'
 import type { Db } from './database'
 
 /** Highest schema version this build understands. Newer databases are refused, never downgraded. */
-export const SCHEMA_VERSION = 1
+export const SCHEMA_VERSION = 2
 
 interface Migration {
   version: number
@@ -243,7 +243,53 @@ CREATE VIRTUAL TABLE search_index USING fts5(
 );
 `
 
-const MIGRATIONS: Migration[] = [{ version: 1, sql: V1 }]
+/**
+ * v2 widens the outbox and sync state to comment and profile records and adds `outbox.entity_id` for
+ * records keyed by something other than an epic, run, or revision. SQLite cannot alter a CHECK
+ * constraint, so both tables are rebuilt; row ids and the outbox id sequence carry over.
+ */
+const V2 = `
+CREATE TABLE outbox_v2 (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind TEXT NOT NULL CHECK (kind IN ('snapshot','epic_state','run_history','comment','profile')),
+  epic_id TEXT,
+  run_id TEXT,
+  revision_id TEXT,
+  entity_id TEXT,
+  state TEXT NOT NULL CHECK (state IN ('pending','done','failed')),
+  attempts INTEGER NOT NULL DEFAULT 0,
+  last_error TEXT,
+  created_at TEXT NOT NULL,
+  done_at TEXT
+);
+INSERT INTO outbox_v2 (id, kind, epic_id, run_id, revision_id, state, attempts, last_error, created_at, done_at)
+  SELECT id, kind, epic_id, run_id, revision_id, state, attempts, last_error, created_at, done_at FROM outbox;
+DELETE FROM sqlite_sequence WHERE name = 'outbox_v2';
+INSERT INTO sqlite_sequence (name, seq) SELECT 'outbox_v2', seq FROM sqlite_sequence WHERE name = 'outbox';
+DROP TABLE outbox;
+ALTER TABLE outbox_v2 RENAME TO outbox;
+CREATE INDEX outbox_state ON outbox(state, id);
+
+CREATE TABLE sync_state_v2 (
+  kind TEXT NOT NULL CHECK (kind IN ('epic','run','comment','profile')),
+  entity_id TEXT NOT NULL,
+  exported_hash TEXT,
+  generation INTEGER NOT NULL DEFAULT 0,
+  imported_hash TEXT,
+  conflict TEXT,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (kind, entity_id)
+);
+INSERT INTO sync_state_v2 (kind, entity_id, exported_hash, generation, imported_hash, conflict, updated_at)
+  SELECT kind, entity_id, exported_hash, generation, imported_hash, conflict, updated_at FROM sync_state;
+DROP TABLE sync_state;
+ALTER TABLE sync_state_v2 RENAME TO sync_state;
+`
+
+export const MIGRATIONS: Migration[] = [
+  { version: 1, sql: V1 },
+  { version: 2, sql: V2 }
+]
 
 export function readSchemaVersion(db: Db): number {
   return db.get<{ user_version: number }>('PRAGMA user_version')?.user_version ?? 0
