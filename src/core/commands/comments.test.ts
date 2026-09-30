@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, rmSync } from 'node:fs'
+import { cpSync, existsSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createHarness, type Harness } from '../../test/workspaceHarness'
@@ -132,5 +132,30 @@ describe('comment command exports', () => {
     const epicId = 'ep_0000000000000000000000000z'
     expect((await failureOf(agent.addComment({ epicId, body: '' }))).code).toBe('invalid_input')
     expect((await failureOf(agent.addComment({ epicId, body: 'x' }))).code).toBe('not_initialized')
+  })
+})
+
+describe('comment exports across branches', () => {
+  it('keeps a comment out of a checkout without its epic, and exports it once the epic is checked out again', async () => {
+    const agent = harness.open('orchestrator')
+    const { epicId } = await seedSavedEpic(agent)
+    const epicDir = join(harness.root, '.darkmechanicus', 'epics', epicId)
+    const stash = join(harness.root, 'stash')
+    cpSync(epicDir, stash, { recursive: true })
+    harness.git.setHead({ branch: 'docs-only', commit: 'b'.repeat(40), detached: false })
+    rmSync(epicDir, { recursive: true })
+    expect(await agent.reconcileRepository()).toMatchObject({ branchChanged: true, rejected: [] })
+    const comment = await agent.addComment({ epicId, body: 'Written while docs-only is checked out' })
+    const message = `Comment ${comment.id} is not exported: the records of epic ${epicId} are not in this checkout. It is exported once they are, for example after checking out the epic's branch.`
+    expect(existsSync(epicDir)).toBe(false)
+    expect((await agent.reconcileRepository()).rejected).toEqual([])
+    expect((await agent.getStorageStatus()).outbox).toEqual({ pending: 1, failed: 0, lastError: message })
+    harness.git.setHead({ branch: 'main', commit: 'a'.repeat(40), detached: false })
+    cpSync(stash, epicDir, { recursive: true })
+    expect(await agent.reconcileRepository()).toMatchObject({ branchChanged: true, rejected: [] })
+    expect(readdirSync(join(epicDir, 'comments'))).toEqual([`${comment.id}.json`])
+    expect((await agent.getStorageStatus()).outbox).toEqual({ pending: 0, failed: 0, lastError: null })
+    const clone = harness.open('desktop', { root: harness.cloneTracked() })
+    expect(await clone.listComments({ epicId })).toEqual([comment])
   })
 })

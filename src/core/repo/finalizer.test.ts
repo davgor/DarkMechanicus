@@ -1,7 +1,7 @@
 import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { makeBundle, tid } from '../../test/bundles'
-import type { FaultSpec } from '../../test/memoryFs'
+import { createMemoryFs, type FaultSpec, isWithin } from '../../test/memoryFs'
 import { idOf, insertComment, insertEpic, insertOutbox, insertProfile, insertRevision, insertRun, insertTicketStatus, T0 } from '../../test/repoFixtures'
 import { createRepoEnv, flush, type RepoEnv, saveRevision, stageRevision } from '../../test/repoEnv'
 import { contentHash, prettyJson } from '../canonical'
@@ -437,6 +437,58 @@ describe('flushOutbox comment export failures', () => {
     expect(tempFiles(env)).toEqual([])
     expect(flush(env).flushed).toBe(1)
     expect(outboxRow(env, entry)).toMatchObject({ state: 'done', attempts: 1 })
+  })
+})
+
+/** The same database on a checkout of another branch, whose `.darkmechanicus/` has none of EPIC's records. */
+function otherCheckout(env: RepoEnv): RepoEnv {
+  const branch: RepoEnv = { ...env, fs: createMemoryFs() }
+  branch.fs.mkdirp(env.layout.dmDir)
+  return branch
+}
+
+/** EPIC's own records come back into `branch`, as checking out the epic's branch again would bring them. */
+function restoreEpic(from: RepoEnv, branch: RepoEnv): void {
+  const dir = ownedPaths(from.layout).epicDir(EPIC)
+  for (const [path, text] of from.fs.files()) {
+    if (isWithin(dir, path)) {
+      branch.fs.put(path, text)
+    }
+  }
+}
+
+/** EPIC saved on its branch; on another checkout that has only OTHER_EPIC, comments of both are queued. */
+function seedCommentsOffBranch(): { env: RepoEnv; branch: RepoEnv; held: number; other: number } {
+  const env = seedSavedFirstRevision()
+  const branch = otherCheckout(env)
+  saveRevision(branch, { epicId: OTHER_EPIC, revisionId: R2, number: 1 })
+  insertComment(env.db, { id: C1, epicId: EPIC })
+  insertComment(env.db, { id: C2, epicId: OTHER_EPIC })
+  const held = insertOutbox(env.db, { kind: 'comment', epicId: EPIC, entityId: C1 })
+  const other = insertOutbox(env.db, { kind: 'comment', epicId: OTHER_EPIC, entityId: C2 })
+  return { env, branch, held, other }
+}
+
+const OFF_BRANCH = `Comment ${C1} is not exported: the records of epic ${EPIC} are not in this checkout. It is exported once they are, for example after checking out the epic's branch.`
+
+describe('flushOutbox comments of an epic outside the checkout', () => {
+  it('holds the comment without writing into the epic folder, and still exports other entries', () => {
+    const { env, branch, held, other } = seedCommentsOffBranch()
+    expect(flush(branch)).toEqual({ flushed: 1, failed: 1, errors: [`comment ${C1}: ${OFF_BRANCH}`], savedRevisionIds: [], failedRevisionIds: [] })
+    expect(branch.fs.exists(ownedPaths(env.layout).epicDir(EPIC))).toBe(false)
+    expect(outboxRow(env, held)).toEqual({ state: 'pending', attempts: 1, last_error: OFF_BRANCH })
+    expect(outboxRow(env, other)).toEqual({ state: 'done', attempts: 0, last_error: null })
+    expect(branch.fs.get(commentFile(env, C2, OTHER_EPIC))).toBe(prettyJson(buildCommentRecord(env.db, C2)))
+    expect(commentSync(env, C1)).toBeUndefined()
+  })
+
+  it('exports the held comment once the epic records are back in the checkout', () => {
+    const { env, branch, held } = seedCommentsOffBranch()
+    flush(branch)
+    restoreEpic(env, branch)
+    expect(flush(branch)).toEqual({ flushed: 1, failed: 0, errors: [], savedRevisionIds: [], failedRevisionIds: [] })
+    expect(outboxRow(env, held)).toEqual({ state: 'done', attempts: 1, last_error: null })
+    expect(branch.fs.get(commentFile(env, C1))).toBe(prettyJson(buildCommentRecord(env.db, C1)))
   })
 })
 

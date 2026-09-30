@@ -207,13 +207,29 @@ function writeCommentFile(env: WriteEnv, target: string, record: CommentRecord):
   return text
 }
 
-/** Comments are exported beside their epic's records, so only once the epic has a saved plan. */
+/**
+ * A checkout of another branch may not hold the epic's records at all: a comment written there would
+ * leave an epic folder with only `comments/`, which every reconcile rejects. The entry waits instead.
+ */
+function requireEpicRecords(deps: FinalizerDeps, epicId: string, commentId: string): void {
+  const pointer = ownedPaths(deps.layout).epicPointerFile(epicId)
+  assertContained(deps.layout, deps.fs, pointer)
+  if (!deps.fs.exists(pointer)) {
+    fail(
+      'not_found',
+      `Comment ${commentId} is not exported: the records of epic ${epicId} are not in this checkout. It is exported once they are, for example after checking out the epic's branch.`
+    )
+  }
+}
+
+/** Comments are exported beside their epic's records, so only once the epic has a saved plan in this checkout. */
 function exportComment(deps: FinalizerDeps, commentId: string): void {
   const record = buildCommentRecord(deps.db, commentId)
   const epic = deps.db.get<{ current_revision_id: string | null }>('SELECT current_revision_id FROM epics WHERE id = ?', record.epicId)
   if ((epic?.current_revision_id ?? null) === null) {
     fail('internal', `Comment ${commentId} belongs to epic ${record.epicId}, which has no saved plan to export it with yet.`)
   }
+  requireEpicRecords(deps, record.epicId, commentId)
   const text = writeCommentFile(deps, ownedPaths(deps.layout).commentFile(record.epicId, commentId), record)
   recordExport(deps, { kind: 'comment', entityId: commentId, hash: trackedCommentHash(text), generation: nextGeneration(deps.db, 'comment', commentId) })
 }
