@@ -50,13 +50,13 @@ Rejected tickets become retryable: claim again and add the rejection reasons to 
 
 1. When every required ticket of the sprint is accepted (or the rest are blocked or failed and you must report that), and no leases are open, call `submit_sprint_report`. Follow the sprint reporter skill (`darkmechanicus-sprint-reporter`) for content. The final sprint needs `epicOutcome` with a result for every epic success criterion.
 2. The run now waits at the checkpoint. Tell the person the report is ready for approval in the desktop app. Poll `get_checkpoint` (or read `get_run_events` from your last cursor) at a sensible interval. Each condition says what is unmet. You cannot approve. Never ask a worker to.
-3. When `canAdvance` is true, call `advance_sprint`. If it fails with `approval_required` or `gate_blocked`, read the reasons. Do not retry in a loop.
+3. When `canAdvance` is true, call `advance_sprint`. If it fails with `approval_required` or `gate_blocked`, read the reasons. Do not retry in a loop. If the person pressed **Approve & advance** in the desktop app, the run is already in the next sprint (`get_run` shows it `running`): just continue the execution loop.
 4. Automatic continuation happens only if the person authorized it on this run. You cannot enable it and plan edits cannot relax it.
 5. Advancing the final sprint completes the run and the epic. Then read the result with `get_run` and `get_epic` and tell the person.
 
 ## 5. Plan changes and recovery
 
-- A run stays pinned to the revision it started with. If a newer revision was saved, `adopt_revision` is allowed only at a checkpoint (or while paused) with no open attempts. Unchanged accepted tickets keep their acceptance. For changed tickets, list them in `carryForward` or call `carry_forward_ticket` with an explicit note, or do the work again.
+- A run stays pinned to the revision it started with. If a newer revision was saved, `adopt_revision` is allowed only at a checkpoint (or while paused) with no open attempts. Unchanged accepted tickets keep their acceptance. For changed tickets, list them in `carryForward` or call `carry_forward_ticket` with an explicit note, or do the work again. A changed ticket in a sprint the run already passed can never be redone in this run, so adoption refuses it unless you carry it forward; otherwise start a new run.
 - Follow-up ideas from workers or reports go to the person or the planner as proposals. Do not add tickets to a running plan yourself.
 - A run imported from another computer shows `ownedByThisMachine: false`. Make sure the other computer has stopped, then call `takeover_run`. It marks leased attempts `lease_expired` and pauses the run. Reconcile each attempt, then `resume_run`. Local leases cannot stop two computers working at once.
 - After an interruption, `get_run` and `get_run_events` are the source of truth for where things stand. Do not rely on memory.
