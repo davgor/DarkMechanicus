@@ -35,6 +35,9 @@ export function normalizeCriteria(
     const byText = existing.find((item) => item.text === text && !used.has(item.id))
     let id = requested && CRITERION_ID_PATTERN.test(requested) && !used.has(requested) ? requested : byText?.id
     if (id === undefined) {
+      while (used.has(`${prefix}${next}`)) {
+        next += 1
+      }
       id = `${prefix}${next}`
       next += 1
     }

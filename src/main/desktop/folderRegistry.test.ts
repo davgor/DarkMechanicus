@@ -24,7 +24,8 @@ interface Sandbox {
 }
 
 function withSandbox(run: (sandbox: Sandbox) => void): void {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), 'dm-registry-')))
+  // Native realpath, like production, so Windows 8.3 temp names (RUNNER~1) are already expanded.
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'dm-registry-')))
   try {
     run({ root, file: join(root, 'state', 'folders.json'), home: join(root, 'home') })
   } finally {
@@ -88,6 +89,9 @@ describe('createFolderRegistry tracking', () => {
     })
   })
 
+})
+
+describe('createFolderRegistry persistence', () => {
   it('persists a versioned JSON file atomically through a temp file', () => {
     withSandbox(({ file, home }) => {
       const folder = makeFolder(home, 'alpha')
@@ -165,13 +169,17 @@ describe('createFolderRegistry canonical paths', () => {
       const registry = createFolderRegistry({ file, homeDir: home })
       registry.track(folder)
 
-      const result = registry.track(join(home, 'beta', '..', 'alpha'))
+      // Built by hand: path.join would normalize the detour away.
+      const result = registry.track(`${home}${sep}beta${sep}..${sep}alpha`)
 
       expect(result.added).toBe(false)
       expect(registry.list()).toHaveLength(1)
     })
   })
 
+})
+
+describe('createFolderRegistry symbolic links', () => {
   it('stores the real path when tracking through a symbolic link, and dedupes both ways', () => {
     withSandbox(({ root, file, home }) => {
       const folder = makeFolder(home, 'alpha')
@@ -189,6 +197,9 @@ describe('createFolderRegistry canonical paths', () => {
     })
   })
 
+})
+
+describe('createFolderRegistry resolving', () => {
   it('resolves aliases of tracked folders to the canonical path and nothing else', () => {
     withSandbox(({ root, file, home }) => {
       const folder = makeFolder(home, 'alpha')
@@ -308,6 +319,9 @@ describe('createFolderRegistry untracking', () => {
     })
   })
 
+})
+
+describe('createFolderRegistry untracking edge cases', () => {
   it('does nothing, and writes nothing, for a folder that is not tracked', () => {
     withSandbox(({ file, home }) => {
       const tracked = makeFolder(home, 'tracked')
@@ -369,6 +383,9 @@ describe('createFolderRegistry recovery', () => {
     })
   })
 
+})
+
+describe('createFolderRegistry partial recovery', () => {
   it('keeps well-formed entries and drops malformed ones', () => {
     withSandbox(({ file, home }) => {
       const folder = makeFolder(home, 'alpha')

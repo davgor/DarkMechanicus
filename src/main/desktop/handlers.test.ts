@@ -4,6 +4,7 @@ import { DomainError } from '../../core/errors'
 import type { Workspace } from '../../core/workspace'
 import {
   DESKTOP_COMMANDS,
+  type CommandResult,
   type McpConfigView,
   type TrackedFolderView
 } from '../../shared/desktop/api'
@@ -60,6 +61,8 @@ interface WorldOptions {
 
 interface World {
   deps: DesktopHandlerDeps
+  /** Messages of failures reported through onUnexpectedError. */
+  unexpected: string[]
   tracked: string[]
   opened: string[]
   closed: string[]
@@ -69,52 +72,69 @@ interface World {
   installCalls: string[]
 }
 
+function createRegistryFake(
+  tracked: string[],
+  aliases: Record<string, string>
+): DesktopHandlerDeps['registry'] {
+  return {
+    list: () => tracked.map(view),
+    track(path) {
+      const canonical = aliases[path] ?? path
+      const added = !tracked.includes(canonical)
+      if (added) {
+        tracked.push(canonical)
+      }
+      return { folder: view(canonical), added }
+    },
+    untrack(path) {
+      const index = tracked.indexOf(aliases[path] ?? path)
+      if (index >= 0) {
+        tracked.splice(index, 1)
+      }
+      return tracked.map(view)
+    },
+    resolve(path) {
+      const canonical = aliases[path] ?? path
+      return tracked.includes(canonical) ? canonical : null
+    }
+  }
+}
+
+function createPoolFake(
+  log: { opened: string[]; closed: string[] },
+  options: WorldOptions
+): DesktopHandlerDeps['pool'] {
+  return {
+    get(path) {
+      log.opened.push(path)
+      if (options.openError !== undefined) {
+        throw options.openError
+      }
+      return options.workspace ?? echoWorkspace(path)
+    },
+    close(path) {
+      log.closed.push(path)
+    }
+  }
+}
+
 function createWorld(options: WorldOptions = {}): World {
   const tracked = [...(options.tracked ?? [])]
-  const aliases = options.aliases ?? {}
   const picks = [...(options.picks ?? [])]
+  const log: { opened: string[]; closed: string[] } = { opened: [], closed: [] }
   const world: World = {
     tracked,
-    opened: [],
-    closed: [],
+    ...log,
+    unexpected: [],
     clipboard: [],
     external: [],
     mcpCalls: [],
     installCalls: [],
     deps: {
-      registry: {
-        list: () => tracked.map(view),
-        track(path) {
-          const canonical = aliases[path] ?? path
-          const added = !tracked.includes(canonical)
-          if (added) {
-            tracked.push(canonical)
-          }
-          return { folder: view(canonical), added }
-        },
-        untrack(path) {
-          const index = tracked.indexOf(aliases[path] ?? path)
-          if (index >= 0) {
-            tracked.splice(index, 1)
-          }
-          return tracked.map(view)
-        },
-        resolve(path) {
-          const canonical = aliases[path] ?? path
-          return tracked.includes(canonical) ? canonical : null
-        }
-      },
-      pool: {
-        get(path) {
-          world.opened.push(path)
-          if (options.openError !== undefined) {
-            throw options.openError
-          }
-          return options.workspace ?? echoWorkspace(path)
-        },
-        close(path) {
-          world.closed.push(path)
-        }
+      registry: createRegistryFake(tracked, options.aliases ?? {}),
+      pool: createPoolFake(log, options),
+      onUnexpectedError: (error) => {
+        world.unexpected.push(error instanceof Error ? error.message : String(error))
       },
       pickDirectory: () => Promise.resolve(picks.shift() ?? null),
       writeClipboard: (text) => {
@@ -137,6 +157,11 @@ function createWorld(options: WorldOptions = {}): World {
     }
   }
   return world
+}
+
+/** 'allowed' for a successful result, otherwise the error code. */
+function outcomes(results: CommandResult<unknown>[]): string[] {
+  return results.map((result) => (result.ok ? 'allowed' : result.error.code))
 }
 
 async function rejectionOf(promise: Promise<unknown>): Promise<{ code: string; message: string }> {
@@ -237,7 +262,7 @@ describe('untrackFolder', () => {
   })
 })
 
-describe('command', () => {
+describe('command execution', () => {
   it('runs an allow-listed command on the tracked folder with its input', async () => {
     const world = createWorld({ tracked: ['/repos/a'] })
     const handlers = createDesktopHandlers(world.deps)
@@ -279,17 +304,18 @@ describe('command', () => {
       }))
     )
   })
+})
 
+describe('command authorization', () => {
   it('refuses agent-only commands even though the workspace implements them', async () => {
     const world = createWorld({ tracked: ['/repos/a'] })
     const handlers = createDesktopHandlers(world.deps)
 
     const results = await Promise.all(AGENT_ONLY_COMMANDS.map((name) => handlers.command('/repos/a', name, {})))
 
-    expect(results.map((result) => (result.ok ? 'allowed' : result.error.code))).toEqual(
-      AGENT_ONLY_COMMANDS.map(() => 'unauthorized')
-    )
+    expect(outcomes(results)).toEqual(AGENT_ONLY_COMMANDS.map(() => 'unauthorized'))
     expect(world.opened).toEqual([])
+    expect(world.unexpected).toEqual([])
   })
 
   it('refuses names that are not commands, including workspace internals', async () => {
@@ -299,9 +325,7 @@ describe('command', () => {
 
     const results = await Promise.all(names.map((name) => handlers.command('/repos/a', name, {})))
 
-    expect(results.map((result) => (result.ok ? 'allowed' : result.error.code))).toEqual(
-      names.map(() => 'unauthorized')
-    )
+    expect(outcomes(results)).toEqual(names.map(() => 'unauthorized'))
     expect(world.opened).toEqual([])
   })
 
@@ -324,22 +348,28 @@ describe('command', () => {
     })
     expect(world.opened).toEqual([])
   })
+})
 
-  it('rejects a folder or command name that is not a usable string', async () => {
+describe('command validation', () => {
+  it('rejects a folder that is not a usable string', async () => {
     const world = createWorld({ tracked: ['/repos/a'] })
     const handlers = createDesktopHandlers(world.deps)
     const badFolders = [42, null, undefined, {}, ['/repos/a'], '', 'x'.repeat(32_768)]
+
+    const results = await Promise.all(badFolders.map((folder) => handlers.command(folder, 'getProject', {})))
+
+    expect(outcomes(results)).toEqual(badFolders.map(() => 'invalid_input'))
+    expect(world.opened).toEqual([])
+  })
+
+  it('rejects a command name that is not a usable string', async () => {
+    const world = createWorld({ tracked: ['/repos/a'] })
+    const handlers = createDesktopHandlers(world.deps)
     const badNames = [42, null, undefined, {}, ['getProject'], '', 'y'.repeat(65)]
 
-    const folderResults = await Promise.all(badFolders.map((folder) => handlers.command(folder, 'getProject', {})))
-    const nameResults = await Promise.all(badNames.map((name) => handlers.command('/repos/a', name, {})))
+    const results = await Promise.all(badNames.map((name) => handlers.command('/repos/a', name, {})))
 
-    expect(folderResults.map((result) => (result.ok ? 'allowed' : result.error.code))).toEqual(
-      badFolders.map(() => 'invalid_input')
-    )
-    expect(nameResults.map((result) => (result.ok ? 'allowed' : result.error.code))).toEqual(
-      badNames.map(() => 'invalid_input')
-    )
+    expect(outcomes(results)).toEqual(badNames.map(() => 'invalid_input'))
     expect(world.opened).toEqual([])
   })
 
@@ -351,19 +381,23 @@ describe('command', () => {
 
     expect(result).toEqual({ ok: false, error: { code: 'unauthorized', message: NOT_TRACKED } })
   })
+})
 
+describe('command failures', () => {
   it('maps domain errors, keeping their code and details', async () => {
     const workspace = echoWorkspace('/repos/a')
     Object.assign(workspace, {
       savePlan: () =>
         Promise.reject(new DomainError('stale_draft', 'The draft moved on.', { expected: 3, actual: 4 }))
     })
-    const handlers = createDesktopHandlers(createWorld({ tracked: ['/repos/a'], workspace }).deps)
+    const world = createWorld({ tracked: ['/repos/a'], workspace })
+    const handlers = createDesktopHandlers(world.deps)
 
     expect(await handlers.command('/repos/a', 'savePlan', { epicId: 'ep_1' })).toEqual({
       ok: false,
       error: { code: 'stale_draft', message: 'The draft moved on.', details: { expected: 3, actual: 4 } }
     })
+    expect(world.unexpected).toEqual([])
   })
 
   it('maps unexpected failures, sync or async, to an internal error', async () => {
@@ -374,7 +408,8 @@ describe('command', () => {
       },
       listEpics: () => Promise.reject(new Error('async boom'))
     })
-    const handlers = createDesktopHandlers(createWorld({ tracked: ['/repos/a'], workspace }).deps)
+    const world = createWorld({ tracked: ['/repos/a'], workspace })
+    const handlers = createDesktopHandlers(world.deps)
 
     expect(await handlers.command('/repos/a', 'getProject', undefined)).toEqual({
       ok: false,
@@ -384,8 +419,11 @@ describe('command', () => {
       ok: false,
       error: { code: 'internal', message: 'async boom' }
     })
+    expect(world.unexpected).toEqual(['sync boom', 'async boom'])
   })
+})
 
+describe('command infrastructure failures', () => {
   it('maps a workspace that cannot be opened', async () => {
     const openError = new DomainError('incompatible_schema', 'Database is newer than this build.')
     const handlers = createDesktopHandlers(createWorld({ tracked: ['/repos/a'], openError }).deps)
@@ -408,6 +446,17 @@ describe('command', () => {
     expect(await createDesktopHandlers(world.deps).command('/repos/a', 'getProject', undefined)).toEqual({
       ok: false,
       error: { code: 'internal', message: 'registry offline' }
+    })
+    expect(world.unexpected).toEqual(['registry offline'])
+  })
+
+  it('works without an unexpected-error hook', async () => {
+    const world = createWorld({ tracked: ['/repos/a'], openError: new Error('disk gone') })
+    delete world.deps.onUnexpectedError
+
+    expect(await createDesktopHandlers(world.deps).command('/repos/a', 'getProject', undefined)).toEqual({
+      ok: false,
+      error: { code: 'internal', message: 'disk gone' }
     })
   })
 })
@@ -524,6 +573,9 @@ describe('openExternal', () => {
     expect(world.external).toEqual([])
   })
 
+})
+
+describe('openExternal limits and failures', () => {
   it('accepts a URL exactly at the length limit', async () => {
     const world = createWorld()
     const handlers = createDesktopHandlers(world.deps)

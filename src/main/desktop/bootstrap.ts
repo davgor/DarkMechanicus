@@ -71,7 +71,10 @@ export function startDesktopBridge(skills: readonly SkillDefinition[]): void {
         appPath: app.getAppPath(),
         repoPath
       }),
-    installSkills: (repoPath) => ({ written: installClaudeSkills(repoPath, skills) })
+    installSkills: (repoPath) => ({ written: installClaudeSkills(repoPath, skills) }),
+    onUnexpectedError: (error) => {
+      logger.error('Desktop command failed:', error)
+    }
   })
   registerDesktopIpc(ipcMain, handlers)
   setInterval(() => pool.heartbeatAll(), HEARTBEAT_INTERVAL_MS)

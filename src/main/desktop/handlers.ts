@@ -40,6 +40,8 @@ export interface DesktopHandlerDeps {
   openExternal: (url: string) => Promise<void>
   mcpConfig: (repoPath: string) => McpConfigView
   installSkills: (repoPath: string) => { written: string[] }
+  /** Told about command failures that are not DomainErrors (bugs, I/O), so main can log the stack. */
+  onUnexpectedError?: (error: unknown) => void
 }
 
 /** Arguments are `unknown` because they come straight from IPC. */
@@ -91,6 +93,9 @@ async function runCommand(deps: DesktopHandlerDeps, request: CommandRequest): Pr
     const workspace = deps.pool.get(repoPath)
     return { ok: true, data: await invokeCommand(workspace, name, request.input) }
   } catch (error) {
+    if (!(error instanceof DomainError)) {
+      deps.onUnexpectedError?.(error)
+    }
     return { ok: false, error: toErrorShape(error) }
   }
 }

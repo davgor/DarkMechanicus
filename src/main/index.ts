@@ -1,13 +1,11 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'node:path'
+import { SKILLS } from '../mcp/skills'
 import { initAutoUpdate, registerAutoUpdateHandlers } from './autoUpdate'
 import { startDesktopBridge } from './desktop/bootstrap'
 import { hardenWebContents, resolveAppUrl } from './desktop/navigation'
 import { logger, setupGlobalErrorLogging } from './logger'
 import { loadRendererContent, onActivateCreateWindow, onLastWindowClosed } from './windowPolicy'
-// TODO(integrator): replace this empty list with `import { SKILLS } from '../mcp/skills'` once
-// src/mcp/skills.ts exists (its entries already satisfy the SkillDefinition shape).
-const SKILLS: { name: string; description: string; body: string }[] = []
 
 setupGlobalErrorLogging()
 
@@ -31,6 +29,11 @@ function createMainWindow(): BrowserWindow {
       nodeIntegration: false,
       sandbox: true
     }
+  })
+
+  // Keep the configured title; otherwise the page's <title> replaces it on load.
+  mainWindow.on('page-title-updated', (event) => {
+    event.preventDefault()
   })
 
   const rendererUrl = process.env['ELECTRON_RENDERER_URL']

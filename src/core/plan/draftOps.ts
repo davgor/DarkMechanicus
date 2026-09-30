@@ -244,7 +244,10 @@ const HANDLERS: { [K in DraftOp['op']]: Handler<K> } = {
 }
 
 function applyOne(state: OpState, op: DraftOp): void {
-  const handler = HANDLERS[op.op] as Handler<DraftOp['op']> | undefined
+  // Own properties only: inherited names such as `constructor` are unknown operations too.
+  const handler = (Object.hasOwn(HANDLERS, op.op) ? HANDLERS[op.op] : undefined) as
+    | Handler<DraftOp['op']>
+    | undefined
   if (!handler) {
     reject(`Unknown draft operation "${String((op as { op: unknown }).op)}".`)
   }

@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os'
 import { join, sep } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { DomainError } from '../../core/errors'
+import { SKILLS } from '../../mcp/skills'
 import { installClaudeSkills, type SkillFs } from './skillInstall'
 
 interface Sandbox {
@@ -22,7 +23,8 @@ interface Sandbox {
 
 /** A repository and an unrelated directory that must never be written to. */
 function withSandbox(run: (sandbox: Sandbox) => void): void {
-  const base = realpathSync(mkdtempSync(join(tmpdir(), 'dm-skills-')))
+  // Native realpath, like production, so Windows 8.3 temp names (RUNNER~1) are already expanded.
+  const base = realpathSync.native(mkdtempSync(join(tmpdir(), 'dm-skills-')))
   try {
     const repo = join(base, 'repo')
     const outside = join(base, 'outside')
@@ -50,6 +52,19 @@ function errorMessage(action: () => unknown): string {
     return error instanceof Error ? error.message : String(error)
   }
   return 'no error'
+}
+
+/** File symlinks need a privilege on Windows; report false there instead of failing the suite. */
+function tryFileSymlink(target: string, path: string): boolean {
+  try {
+    symlinkSync(target, path, 'file')
+    return true
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'EPERM') {
+      return false
+    }
+    throw error
+  }
 }
 
 function skill(name: string, description = 'Does a thing', body = 'Body\n') {
@@ -266,7 +281,10 @@ describe('installClaudeSkills symbolic links', () => {
       writeFileSync(target, 'precious')
       const dir = join(repo, '.claude', 'skills', 'darkmechanicus-planner')
       mkdirSync(dir, { recursive: true })
-      symlinkSync(target, join(dir, 'SKILL.md'))
+      if (!tryFileSymlink(target, join(dir, 'SKILL.md'))) {
+        expect(process.platform).toBe('win32')
+        return
+      }
 
       expect(errorCode(() => installClaudeSkills(repo, [skill('planner')]))).toBe('unsafe_path')
       expect(readFileSync(target, 'utf8')).toBe('precious')
@@ -381,5 +399,28 @@ describe('installClaudeSkills containment', () => {
 
     expect(installClaudeSkills(root, [skill('planner')], fs)).toHaveLength(1)
     expect(written).toHaveLength(1)
+  })
+})
+
+describe('installClaudeSkills with the shipped skills', () => {
+  /** The description as a YAML reader sees it: plain text, or a double-quoted JSON string. */
+  function readDescription(line: string): string {
+    const value = line.slice('description: '.length)
+    return value.startsWith('"') ? JSON.parse(value) : value
+  }
+
+  it('installs every shipped skill with front matter that round-trips', () => {
+    withSandbox(({ repo }) => {
+      const written = installClaudeSkills(repo, SKILLS)
+
+      expect(written).toEqual(SKILLS.map((item) => `.claude/skills/darkmechanicus-${item.name}/SKILL.md`))
+      for (const item of SKILLS) {
+        const lines = readFileSync(skillFile(repo, item.name), 'utf8').split('\n')
+        expect(lines.slice(0, 2)).toEqual(['---', `name: darkmechanicus-${item.name}`])
+        expect(lines.slice(3, 5)).toEqual(['---', ''])
+        expect(readDescription(lines[2] ?? '')).toBe(item.description.replace(/\s+/g, ' ').trim())
+        expect(lines.slice(5).join('\n')).toBe(item.body)
+      }
+    })
   })
 })
