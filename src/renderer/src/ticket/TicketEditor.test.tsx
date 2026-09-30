@@ -30,7 +30,7 @@ function opsOf(h: WorkspaceHarness): unknown[] {
   return h.backend.inputs('updatePlanDraft').map((input) => (input as { ops: unknown }).ops)
 }
 
-describe('ticket editor: apply', () => {
+describe('ticket editor: apply (1)', () => {
   it('applies local edits as one update_ticket patch with the expected draft revision', async () => {
     const { h, editor } = await openEditor()
     expect(field(editor, 'Title').value).toBe('Transactional bundle import')
@@ -72,7 +72,9 @@ describe('ticket editor: apply', () => {
       expectedDraftRevision: 8
     })
   })
+})
 
+describe('ticket editor: apply (2)', () => {
   it('surfaces a rejected edit and validates the form before sending', async () => {
     const { h, editor } = await openEditor()
     fireEvent.change(field(editor, 'Estimated input tokens'), { target: { value: '12k' } })

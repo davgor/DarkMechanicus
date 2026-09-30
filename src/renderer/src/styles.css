@@ -668,21 +668,26 @@ textarea.input {
   background: var(--panel-3);
 }
 
+/* Centered over the workspace (right of the 272px sidebar), so a notice never covers the
+   header actions of the open view. */
 .toast-viewport {
   position: fixed;
-  top: 16px;
-  right: 16px;
+  right: 0;
+  bottom: 16px;
+  left: 272px;
   z-index: 60;
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 8px;
-  width: min(420px, calc(100vw - 32px));
+  padding: 0 16px;
   pointer-events: none;
 }
 
 .toast {
   display: flex;
   align-items: flex-start;
+  width: min(520px, 100%);
   gap: 10px;
   padding: 10px 8px 10px 12px;
   background: var(--panel-2);
@@ -1497,6 +1502,13 @@ textarea.input {
 .result-snippet {
   color: #a8a092;
   font-size: 12.5px;
+}
+
+.result-snippet mark {
+  padding: 0 2px;
+  border-radius: 3px;
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .connection {

@@ -83,9 +83,9 @@
 
 .pg-card-label {
   font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: 10px;
   line-height: 15px;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.03em;
   color: var(--tone);
   white-space: nowrap;
   overflow: hidden;

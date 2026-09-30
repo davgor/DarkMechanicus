@@ -21,7 +21,7 @@ import {
 } from './ticketForm'
 import { MODALITY_LABELS, REASONING_LABELS, TOOL_LABELS, WORK_TYPE_LABELS } from './ticketView'
 
-export interface FieldProps {
+interface FieldProps {
   form: TicketForm
   update(form: TicketForm): void
 }

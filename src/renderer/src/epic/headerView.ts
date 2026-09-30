@@ -5,7 +5,7 @@ import { runLabel } from './runBarView'
 
 export const READ_ONLY_MESSAGE = 'Completed epics are read-only. Create a new epic to extend this work.'
 
-export interface HeaderInput {
+interface HeaderInput {
   folderName: string
   epic: EpicDetailView
   view: 'saved' | 'draft'
@@ -78,7 +78,7 @@ export function headerView(input: HeaderInput): HeaderView {
   }
 }
 
-export interface ConfirmCopy {
+interface ConfirmCopy {
   title: string
   text: string
   confirm: string

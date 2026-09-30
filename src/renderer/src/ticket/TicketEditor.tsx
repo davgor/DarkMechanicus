@@ -19,7 +19,7 @@ import {
   type TicketForm
 } from './ticketForm'
 
-export interface TicketEditorProps {
+interface TicketEditorProps {
   bundle: PlanBundle
   ticketId: string
   badge: TicketBadge

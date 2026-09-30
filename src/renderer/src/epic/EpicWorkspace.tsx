@@ -43,6 +43,7 @@ function GraphStage({ ws, input }: { ws: WorkspaceHandle; input: GraphInput }): 
   const addTicket = useCallback((sprintId: string) => void actions.addTicket(sprintId), [actions])
   return (
     <PlanGraph
+      key={input.mode}
       model={model}
       editable={input.mode === 'draft' && !input.plan.readOnly}
       legend={legendKindFor(input.mode, input.run !== null)}
@@ -162,7 +163,7 @@ function WorkspaceView({ ws }: { ws: WorkspaceHandle }): JSX.Element {
       <Notices header={header} loadError={ws.state.loadError} />
       {draft ? <DraftBar ws={ws} /> : <RunBar ws={ws} />}
       <ConfirmStrip ws={ws} />
-      <div className="ew-main">
+      <div className={ws.state.selectedTicketId === null ? 'ew-main' : 'ew-main has-panel'}>
         <Stage ws={ws} />
         <SidePanel ws={ws} />
       </div>

@@ -54,6 +54,9 @@ describe('useFolders loading', () => {
     expect((errors[0] as Error).message).toBe('registry unreadable')
   })
 
+})
+
+describe('useFolders refreshing', () => {
   it('reloads when the window regains focus', async () => {
     const { view } = await mount()
     dm.folders = [alpha]
@@ -71,6 +74,14 @@ describe('useFolders loading', () => {
     window.dispatchEvent(new Event('focus'))
     await settle()
     expect(dm.calls.filter((call) => call === 'listFolders')).toHaveLength(before)
+  })
+
+  it('keeps folder objects stable across a reload that changed nothing', async () => {
+    dm.folders = [alpha, beta]
+    const { view } = await mount()
+    const before = view.result.current.folders
+    await act(() => view.result.current.reload())
+    expect(view.result.current.folders).toBe(before)
   })
 
   it('reloads on request', async () => {

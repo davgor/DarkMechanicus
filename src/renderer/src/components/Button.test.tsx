@@ -54,6 +54,32 @@ describe('Button content', () => {
   })
 })
 
+describe('Button tooltip', () => {
+  it('shows the accessible name of an icon-only button as its tooltip', () => {
+    render(<Button icon="plus" aria-label="Track a folder" />)
+    expect(screen.getByRole('button', { name: 'Track a folder' }).getAttribute('title')).toBe('Track a folder')
+  })
+
+  it('prefers an explicit title', () => {
+    render(<Button icon="plus" aria-label="Track a folder" title="Pick a folder" />)
+    expect(screen.getByRole('button').getAttribute('title')).toBe('Pick a folder')
+  })
+
+  it('adds no tooltip to a labelled button', () => {
+    render(
+      <Button icon="plus" aria-label="Add">
+        Add
+      </Button>
+    )
+    expect(screen.getByRole('button').getAttribute('title')).toBeNull()
+  })
+
+  it('keeps an explicit title on a labelled button', () => {
+    render(<Button title="More detail">Label</Button>)
+    expect(screen.getByRole('button').getAttribute('title')).toBe('More detail')
+  })
+})
+
 describe('Button state', () => {
   it('is disabled and marked busy while busy', () => {
     render(<Button busy>Working</Button>)

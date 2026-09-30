@@ -68,6 +68,18 @@ describe('App event polling', () => {
     expect(stub()).toBe(`alpha|${EPIC_A}|1`)
   })
 
+  it('hands the epic view callbacks that stay the same while tokens change', async () => {
+    await openEpicA()
+    h.log('/a').append({ epicId: EPIC_A })
+    await pollEvents()
+    h.log('/a').append({ epicId: EPIC_A })
+    await pollEvents()
+    expect(h.epicProps.length).toBeGreaterThan(2)
+    expect(new Set(h.epicProps.map((props) => props.onChanged)).size).toBe(1)
+    expect(new Set(h.epicProps.map((props) => props.onOpenEpic)).size).toBe(1)
+    expect(new Set(h.epicProps.map((props) => props.folder)).size).toBe(1)
+  })
+
   it('keeps the epic view mounted, and its state, while tokens change', async () => {
     await openEpicA()
     const before = screen.getByTestId('epic-stub')

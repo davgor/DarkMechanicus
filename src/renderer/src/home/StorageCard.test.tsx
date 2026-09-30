@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
-import { storageStatus } from '../__mocks__/fixtures'
+import { localNoonIso, storageStatus } from '../__mocks__/fixtures'
 import type { StorageStatusView } from '../../../shared/domain/views'
 import { StorageCard } from './StorageCard'
 
@@ -53,7 +53,7 @@ describe('StorageCard content', () => {
   })
 
   it('shows the export state and the last export date', () => {
-    renderCard(storageStatus({ uncommittedRecordFiles: 2, lastFlushAt: '2026-03-15T12:00:00.000Z' }))
+    renderCard(storageStatus({ uncommittedRecordFiles: 2, lastFlushAt: localNoonIso(2026, 3, 15) }))
     expect(row('Export')).toBe('Exported · 2 files uncommitted')
     expect(row('Last export')).toBe('Mar 15, 2026')
   })

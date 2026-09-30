@@ -48,14 +48,14 @@ export const MODALITY_LABELS: Record<Modality, string> = { text: 'Text', images:
 const CHECK_ICONS: Record<CheckStatus, string> = { passed: '✓', failed: '✗', skipped: '–' }
 const MAX_FILES = 12
 
-export interface CriterionItem {
+interface CriterionItem {
   id: string
   text: string
   verified: boolean
   note: string
 }
 
-export interface CapabilityRow {
+interface CapabilityRow {
   label: string
   value: string
   note: string
@@ -90,14 +90,14 @@ export interface AttemptCard {
   canAbandon: boolean
 }
 
-export interface EvidenceView {
+interface EvidenceView {
   source: string
   checks: { name: string; status: CheckStatus; detail: string; icon: string }[]
   criteria: { text: string; met: boolean; note: string }[]
   notes: string
 }
 
-export interface HistoryItem {
+interface HistoryItem {
   seq: number
   title: string
   when: string

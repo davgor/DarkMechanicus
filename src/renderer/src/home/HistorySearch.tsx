@@ -6,6 +6,7 @@ import type { SearchResultView } from '../../../shared/domain/views'
 import { plural } from '../app/plural'
 import { useToasts } from '../app/toasts'
 import { Button } from '../components/Button'
+import { splitSnippet } from './snippet'
 
 const SEARCH_LIMIT = 25
 
@@ -52,7 +53,11 @@ function Results({ state, onOpenEpic }: ResultsProps): JSX.Element | null {
                 <span className="result-type mono">{DOC_LABELS[result.docType]}</span>{' '}
                 <span className="result-title">{result.title}</span>{' '}
                 <span className="result-epic muted">in {result.epicTitle}</span>{' '}
-                <span className="result-snippet">{result.snippet}</span>
+                <span className="result-snippet">
+                  {splitSnippet(result.snippet).map((part, index) =>
+                    part.match ? <mark key={index}>{part.text}</mark> : part.text
+                  )}
+                </span>
               </button>
             </li>
           ))}

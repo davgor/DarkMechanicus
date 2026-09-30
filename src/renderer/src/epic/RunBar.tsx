@@ -1,6 +1,6 @@
 import { isActiveRunState } from '../../../shared/domain/status'
 import type { RunView } from '../../../shared/domain/views'
-import { adoptNotice, runActions, runCounts, runPill, runSummary, type AdoptNotice, type RunActions } from './runBarView'
+import { adoptNotice, runActions, runBarCounts, runPill, runSummary, type AdoptNotice, type RunActions } from './runBarView'
 import { StatePill } from './StatePill'
 import type { WorkspaceHandle } from './useWorkspace'
 
@@ -77,7 +77,7 @@ export function RunBar({ ws }: { ws: WorkspaceHandle }): JSX.Element | null {
         <StatePill tone={pill.tone} label={pill.label} />
         <span className="ew-bar-text">{runSummary(run, ws.now, reportAt)}</span>
         <ul className="ew-counts" aria-label="Ticket counts">
-          {runCounts(run.counts).map((item) => (
+          {runBarCounts(run).map((item) => (
             <li key={item.key} className={`ew-count ew-tone-${item.tone}`}>
               <span className="ew-dot" aria-hidden="true" />
               {item.label}

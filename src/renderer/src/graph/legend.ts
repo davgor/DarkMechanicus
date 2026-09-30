@@ -2,7 +2,7 @@ import type { Tone } from './ticketStates'
 
 export type LegendKind = 'execution' | 'draft' | 'plain'
 
-export interface LegendEntries {
+interface LegendEntries {
   states: { tone: Tone; label: string }[]
   edges: { label: string; dashed: boolean }[]
 }

@@ -65,6 +65,7 @@ describe('ticket panel overview', () => {
     expect(within(profile).getByText('Multi-step').textContent).toBe('Multi-step · transaction and outbox ordering')
     expect(within(profile).getByText('~40k tokens').textContent).toBe('~40k tokens · (estimate)')
     expect(within(profile).getByText('Database design').className).toBe('ew-chip')
+    expect(within(profile).getByText('Implementation').textContent).toBe('Implementation')
     const requires = screen.getByLabelText('REQUIRES')
     expect(within(requires).getAllByRole('button').map((item) => item.textContent)).toEqual([
       'DM-102SQLite schema & migrationsACCEPTED',
@@ -158,6 +159,7 @@ describe('ticket panel evidence and history', () => {
     fireEvent.click(await screen.findByRole('tab', { name: 'History' }))
     const items = await screen.findAllByRole('listitem')
     expect(items.map((item) => item.textContent)).toEqual(['Attempt failed · 2m ago2 tests failed', 'Attempt claimed · 1m ago'])
+    expect(document.querySelectorAll('.tp-history-detail').length).toBe(1)
   })
 
   it('reports empty and failing history', async () => {
@@ -171,5 +173,47 @@ describe('ticket panel evidence and history', () => {
     renderPanel(failing)
     fireEvent.click(await screen.findByRole('tab', { name: 'History' }))
     expect((await screen.findByRole('alert')).textContent).toBe('Event log unavailable.')
+  })
+})
+
+describe('ticket panel attempt details', () => {
+  it('shows outputs, decisions, carry-forward and supersession details only when present', async () => {
+    const files = Array.from({ length: 14 }, (_, index) => `src/file${index}.ts`)
+    const decided = attempt('DM-202', 4, 'rejected', {
+      kind: 'carry_forward',
+      superseded: true,
+      outputs: { summary: 'Reworked the importer.', artifacts: [], commits: ['0123456789', 'abcdef9999'], changedFiles: files, branch: null },
+      decision: { outcome: 'rejected', notes: 'Retry with tests', reasons: ['c2 unmet'], decidedBy: 'reviewer' }
+    })
+    const plain = attempt('DM-202', 3, 'canceled', {
+      worker: { sessionId: null, label: 'w', modelId: null, hostId: null, catalogRevision: null, rationale: null }
+    })
+    renderPanel(new FakeBackend(scenario({ ticket: ticketDetail({ attempts: [decided, plain] }) })))
+    fireEvent.click(await screen.findByRole('tab', { name: 'Attempts (2)' }))
+    const [rich, bare] = screen.getAllByRole('listitem').filter((item) => item.className.startsWith('tp-attempt'))
+    expect(rich?.className).toBe('tp-attempt is-superseded')
+    const richText = within(rich as HTMLElement)
+    expect(richText.getByText('Reworked the importer.').className).toBe('tp-attempt-summary')
+    expect(richText.getByText('0123456 · abcdef9').textContent).toBe('0123456 · abcdef9')
+    expect(richText.getByText('and 2 more').textContent).toBe('and 2 more')
+    expect(within(richText.getByLabelText('Changed files')).getAllByRole('listitem').length).toBe(13)
+    expect(richText.getByText('Rejected by reviewer: Retry with tests').textContent).toBe('Rejected by reviewer: Retry with tests')
+    expect(richText.getByText('c2 unmet').tagName).toBe('LI')
+    expect(richText.getByText('carried forward').className).toBe('ew-chip')
+    expect(richText.getByText('superseded').className).toBe('ew-chip')
+    expect(bare?.className).toBe('tp-attempt')
+    expect(bare?.querySelectorAll('p').length).toBe(1)
+    expect(bare?.querySelectorAll('.ew-chip, ul').length).toBe(0)
+  })
+
+  it('lists changed files without an overflow line when there are few', async () => {
+    const small = attempt('DM-202', 1, 'accepted', {
+      outputs: { summary: '', artifacts: [], commits: [], changedFiles: ['a.ts'], branch: null }
+    })
+    renderPanel(new FakeBackend(scenario({ ticket: ticketDetail({ attempts: [small] }) })))
+    fireEvent.click(await screen.findByRole('tab', { name: 'Attempts (1)' }))
+    expect(within(screen.getByLabelText('Changed files')).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['a.ts'])
+    expect(document.querySelectorAll('.tp-attempt-summary').length).toBe(0)
+    expect(screen.getByText('Needs multi-step reasoning').textContent).toBe('Needs multi-step reasoning')
   })
 })

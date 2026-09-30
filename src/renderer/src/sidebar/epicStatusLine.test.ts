@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { epicSummary, runSummary } from '../__mocks__/fixtures'
+import { epicSummary, localNoonIso, runSummary } from '../__mocks__/fixtures'
 import type { EpicSummaryView } from '../../../shared/domain/views'
 import type { EpicStatusLine } from './epicStatusLine'
 import { epicBadges, epicStatusLine, formatShortDate } from './epicStatusLine'
@@ -56,7 +56,7 @@ describe('epicStatusLine', () => {
 
 describe('epicStatusLine for completed epics', () => {
   it('shows the completion date', () => {
-    const epic = epicSummary({ status: 'completed', completedAt: '2026-03-15T12:00:00.000Z' })
+    const epic = epicSummary({ status: 'completed', completedAt: localNoonIso(2026, 3, 15) })
     expect(epicStatusLine(epic)).toEqual({ text: 'Completed Mar 15, 2026', tone: 'completed' })
   })
 
@@ -73,15 +73,15 @@ describe('epicStatusLine for completed epics', () => {
 
 describe('formatShortDate', () => {
   it('formats a date with month name, day and year', () => {
-    expect(formatShortDate('2026-09-30T12:00:00.000Z')).toBe('Sep 30, 2026')
+    expect(formatShortDate(localNoonIso(2026, 9, 30))).toBe('Sep 30, 2026')
   })
 
   it('does not pad the day', () => {
-    expect(formatShortDate('2026-01-05T12:00:00.000Z')).toBe('Jan 5, 2026')
+    expect(formatShortDate(localNoonIso(2026, 1, 5))).toBe('Jan 5, 2026')
   })
 
   it('covers the last month of the year', () => {
-    expect(formatShortDate('2026-12-31T12:00:00.000Z')).toBe('Dec 31, 2026')
+    expect(formatShortDate(localNoonIso(2026, 12, 31))).toBe('Dec 31, 2026')
   })
 
   it('returns unparseable input unchanged', () => {

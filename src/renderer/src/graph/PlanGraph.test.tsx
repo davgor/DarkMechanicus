@@ -64,6 +64,8 @@ describe('PlanGraph in the Saved view', () => {
     expect(container.querySelector('[data-ticket="tk_301"]')?.className).toBe('pg-card ew-tone-waiting is-dashed')
     expect(container.querySelector('.pg')?.className).toBe('pg is-readonly')
     expect(screen.queryAllByText('+ Ticket').length).toBe(0)
+    expect(container.querySelectorAll('.pg-note').length).toBe(0)
+    expect(container.querySelector('.pg-sprint.is-active')?.textContent).toBe('SPRINT 2Authoring through MCPActive · 1 of 4 accepted')
   })
 
   it('shows the execution legend', () => {

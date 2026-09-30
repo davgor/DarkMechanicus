@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
-import { EPIC_A, EPIC_B, EPIC_C, epicSummary, runSummary } from '../__mocks__/fixtures'
+import { EPIC_A, EPIC_B, EPIC_C, epicSummary, localNoonIso, runSummary } from '../__mocks__/fixtures'
 import type { EpicListState } from '../app/useEpicLists'
 import { EpicBuckets } from './EpicBuckets'
 
@@ -18,7 +18,7 @@ function renderBuckets(list: EpicListState): string[] {
 const mixed = ready([
   epicSummary({ id: EPIC_A, title: 'Running one', status: 'in_progress', run: runSummary(), hasDraft: true }),
   epicSummary({ id: EPIC_B, title: 'Waiting one', status: 'backlog', ticketCount: 1, sprintCount: 1 }),
-  epicSummary({ id: EPIC_C, title: 'Done one', status: 'completed', completedAt: '2026-03-15T12:00:00.000Z' })
+  epicSummary({ id: EPIC_C, title: 'Done one', status: 'completed', completedAt: localNoonIso(2026, 3, 15) })
 ])
 
 describe('EpicBuckets states', () => {

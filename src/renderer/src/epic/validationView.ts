@@ -19,7 +19,7 @@ export interface ChangeRow {
   text: string
 }
 
-export interface SaveOutcome {
+interface SaveOutcome {
   kind: SaveResultView['status']
   message: string
 }

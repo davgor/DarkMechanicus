@@ -37,7 +37,7 @@ import {
   validation
 } from './fixtures'
 
-export interface Scenario {
+interface Scenario {
   epic: EpicDetailView
   saved: PlanView | null
   draft: PlanView | null
@@ -48,7 +48,7 @@ export interface Scenario {
   events: EventView[]
 }
 
-export interface RecordedCall {
+interface RecordedCall {
   name: CommandName
   input: unknown
 }

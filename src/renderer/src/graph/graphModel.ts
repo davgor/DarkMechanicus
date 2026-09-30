@@ -9,8 +9,8 @@ import type { DependencyEdge, PlanBundle, SprintDef, TicketContent } from '../..
 import { isActiveRunState, type WorkStatus } from '../../../shared/domain/status'
 import { DASHED_EXECUTION, EXECUTION_LABELS, EXECUTION_TONES, STATUS_LABELS, STATUS_TONES, type Tone } from './ticketStates'
 
-export const CARD_WIDTH = 210
-export const CARD_HEIGHT = 72
+const CARD_WIDTH = 210
+const CARD_HEIGHT = 72
 const COLUMN_PITCH = 250
 const COLUMN_GAP = 40
 const ROW_PITCH = 112
@@ -26,6 +26,8 @@ const BAND_GAP = 52
 const DIVIDER_X = 16
 const DIVIDER_HEIGHT = 28
 const RIGHT_MARGIN = 24
+/** Empty lane right of the cards where the legend floats (dividers run underneath it). */
+const LEGEND_LANE = 240
 const MAX_COLUMNS = 6
 const MIN_COLUMNS = 3
 
@@ -51,7 +53,7 @@ interface Box {
   height: number
 }
 
-export type DividerTone = 'passed' | 'locked' | 'neutral'
+type DividerTone = 'passed' | 'locked' | 'neutral'
 
 export interface EpicNodeModel extends Box {
   kind: 'epic'
@@ -91,7 +93,7 @@ export interface TicketNodeModel extends Box {
 
 export type GraphNode = EpicNodeModel | SprintNodeModel | DividerNodeModel | TicketNodeModel
 
-export interface GraphEdge {
+interface GraphEdge {
   id: string
   from: string
   to: string
@@ -100,7 +102,7 @@ export interface GraphEdge {
 }
 
 /** Vertical drop zone of a sprint, bounded by the checkpoint dividers around it. */
-export interface SprintBand {
+interface SprintBand {
   sprintId: string
   top: number
   bottom: number
@@ -530,7 +532,7 @@ export function buildGraphModel(input: GraphInput): GraphModel {
   const plans = layoutSprints(context.bundle)
   const frames = toFrames(plans)
   const width = contentWidth(plans)
-  const dividerWidth = FIRST_COLUMN_X + width + RIGHT_MARGIN - DIVIDER_X
+  const dividerWidth = FIRST_COLUMN_X + width + RIGHT_MARGIN + LEGEND_LANE - DIVIDER_X
   const lastBottom = frames[frames.length - 1]?.bottom ?? FIRST_BAND_TOP
   const nodes: GraphNode[] = [
     epicNode(context, width),

@@ -7,7 +7,7 @@ export interface Clock {
   subscribe(tick: () => void): () => void
 }
 
-export const SYSTEM_CLOCK: Clock = {
+const SYSTEM_CLOCK: Clock = {
   now: () => Date.now(),
   subscribe: (tick) => {
     const handle = window.setInterval(tick, 1_000)

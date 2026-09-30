@@ -18,7 +18,7 @@ import {
   type WorkType
 } from '../../../shared/domain/bundle'
 
-export interface CriterionField {
+interface CriterionField {
   /** Stable React key: the criterion id, or `new-n` for unsaved rows. */
   key: string
   id: string | null
@@ -44,7 +44,7 @@ export interface TicketForm {
   tokens: string
 }
 
-export interface Option {
+interface Option {
   id: string
   label: string
 }
@@ -282,7 +282,7 @@ export function prerequisiteOptions(bundle: PlanBundle, ticketId: string, form: 
 
 export const CONFLICT_MESSAGE = 'The draft changed while you were editing — review and apply again.'
 
-export interface EditorMessage {
+interface EditorMessage {
   tone: 'error' | 'info'
   text: string
 }
@@ -296,7 +296,7 @@ export interface EditorState {
   message: EditorMessage | null
 }
 
-export type ApplyOutcome = { ok: true } | { ok: false; code: string | null; message: string }
+type ApplyOutcome = { ok: true } | { ok: false; code: string | null; message: string }
 
 export function initialEditor(bundle: PlanBundle, ticketId: string): EditorState {
   return { form: formFromBundle(bundle, ticketId), touched: false, awaitingSync: false, message: null }

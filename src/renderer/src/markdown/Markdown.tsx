@@ -2,7 +2,7 @@ import { useMemo, type MouseEvent, type ReactNode } from 'react'
 import { parseMarkdown, type Block, type Inline, type ListItem } from './parse'
 import './markdown.css'
 
-export interface MarkdownProps {
+interface MarkdownProps {
   source: string
   className?: string
 }

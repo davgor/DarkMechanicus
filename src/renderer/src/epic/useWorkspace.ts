@@ -13,7 +13,7 @@ import {
   type WorkspaceState
 } from './workspaceState'
 
-export interface WorkspaceController {
+interface WorkspaceController {
   state: WorkspaceState
   dispatch: Dispatch<WorkspaceAction>
   actions: WorkspaceActions

@@ -14,7 +14,7 @@ import type { WorkspaceAction, WorkspaceState } from './workspaceState'
 
 export type Result<T> = { ok: true; value: T } | { ok: false; failure: Failure }
 
-export interface ActionDeps {
+interface ActionDeps {
   runner: Runner
   epicId: string
   getState(): WorkspaceState
@@ -23,7 +23,7 @@ export interface ActionDeps {
   onChanged(): void
 }
 
-export type RunCommandKind = 'pause' | 'resume' | 'cancel' | 'takeover'
+type RunCommandKind = 'pause' | 'resume' | 'cancel' | 'takeover'
 
 export type ReviewInput =
   | { attemptId: string; decision: 'accept' }

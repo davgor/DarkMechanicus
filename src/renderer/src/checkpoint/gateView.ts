@@ -15,14 +15,14 @@ import type {
 } from '../../../shared/domain/views'
 import { formatAgo } from '../epic/time'
 
-export interface GateInput {
+interface GateInput {
   checkpoint: CheckpointView
   run: RunView
   /** The plan the run executes (for keys, goals and optional flags); null when unavailable. */
   bundle: PlanBundle | null
 }
 
-export interface RetryAction {
+interface RetryAction {
   ticketId: string
   label: string
 }

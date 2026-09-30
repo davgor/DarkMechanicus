@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { MINUTE, NOW, epicDetail, iso, runView } from './__mocks__/fixtures'
-import { adoptNotice, runActions, runCounts, runLabel, runPill, runSummary } from './runBarView'
+import { adoptNotice, runActions, runBarCounts, runCounts, runLabel, runPill, runSummary } from './runBarView'
 
 describe('run bar summary', () => {
   it('describes a running run with its pinned revision, sprint, age and host', () => {
@@ -118,5 +118,12 @@ describe('adopt notice', () => {
     expect(adoptNotice(runView(), epicDetail())).toBe(null)
     expect(adoptNotice(runView({ state: 'completed' }), newer)).toBe(null)
     expect(adoptNotice(runView(), epicDetail({ currentRevisionId: null, currentRevisionNumber: null }))).toBe(null)
+  })
+})
+
+describe('run bar counts', () => {
+  it('hides counts while the run waits at a checkpoint', () => {
+    expect(runBarCounts(runView({ state: 'awaiting_checkpoint' }))).toEqual([])
+    expect(runBarCounts(runView()).length).toBe(5)
   })
 })

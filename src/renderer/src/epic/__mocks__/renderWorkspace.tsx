@@ -6,7 +6,7 @@ import { EpicWorkspace, type EpicWorkspaceProps } from '../EpicWorkspace'
 import type { FakeBackend } from './fakeBackend'
 import { NOW, folder } from './fixtures'
 
-export const FIXED_CLOCK: Clock = {
+const FIXED_CLOCK: Clock = {
   now: () => NOW,
   subscribe: () => () => undefined
 }

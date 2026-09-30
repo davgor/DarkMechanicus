@@ -4,7 +4,7 @@ import type { AttemptView, RunView } from '../../../shared/domain/views'
 import { ATTEMPT_LABELS, ATTEMPT_TONES, type Tone } from '../graph/ticketStates'
 import { formatCountdown, formatElapsed } from './time'
 
-export interface StripItem {
+interface StripItem {
   attemptId: string
   ticketId: string
   text: string

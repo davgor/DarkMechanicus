@@ -211,6 +211,7 @@
 }
 
 .ew-bar-text {
+  flex: 1 1 320px;
   min-width: 0;
   color: var(--ink-2);
   overflow: hidden;
@@ -240,7 +241,9 @@
 
 .ew-counts {
   display: flex;
-  gap: 14px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px 14px;
   margin: 0 0 0 auto;
   padding: 0;
   list-style: none;
@@ -280,6 +283,15 @@
   flex: 1;
   min-height: 0;
   display: flex;
+}
+
+/* With the ticket panel open, the legend hides under it and the zoom controls move left. */
+.ew-main.has-panel .pg .react-flow__panel.top.right {
+  display: none;
+}
+
+.ew-main.has-panel .pg .react-flow__panel.bottom.right {
+  right: min(480px, 55%);
 }
 
 .ew-stage {
@@ -353,8 +365,29 @@
 
 .ew-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 13px;
+}
+
+.ew-table th:nth-child(1) {
+  width: 90px;
+}
+
+.ew-table th:nth-child(3) {
+  width: 120px;
+}
+
+.ew-table th:nth-child(4) {
+  width: 200px;
+}
+
+.ew-table th:nth-child(5) {
+  width: 90px;
+}
+
+.ew-table th:nth-child(6) {
+  width: 200px;
 }
 
 .ew-table th {
@@ -538,4 +571,12 @@
   font-size: 11.5px;
   color: var(--muted);
   white-space: nowrap;
+}
+
+/* A disabled primary action must not look actionable (mockup 05: blocked "Advance" button). */
+.ew .btn-primary:disabled {
+  background: var(--panel-2);
+  border-color: var(--line-soft);
+  color: var(--muted);
+  opacity: 1;
 }

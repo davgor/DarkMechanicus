@@ -86,7 +86,7 @@ describe('graph layout of the sample plan (1) (1)', () => {
     expect(node(model, 'epic')).toMatchObject({ x: 320, y: 24, width: 440, height: 64 })
     expect(node(model, 'sprint:sp_1')).toMatchObject({ x: 24, y: 132, width: 140, height: 72 })
     expect(node(model, 'sprint:sp_2')).toMatchObject({ x: 24, y: 308, height: 184 })
-    expect(node(model, 'checkpoint:1')).toMatchObject({ x: 16, y: 238, width: 903, height: 28 })
+    expect(node(model, 'checkpoint:1')).toMatchObject({ x: 16, y: 238, width: 1143, height: 28 })
     expect(node(model, 'checkpoint:2')).toMatchObject({ y: 526 })
     expect(node(model, 'checks')).toMatchObject({ y: 702 })
     expect(model.nodes.filter((item) => item.kind === 'divider').map((item) => item.id)).toEqual([
@@ -310,7 +310,7 @@ describe('graph draft view', () => {
   it('widens the canvas for a fourth column', () => {
     expect(box(model, 'tk_305')).toEqual([935, 592])
     expect(node(model, 'epic')).toMatchObject({ x: 445 })
-    expect(node(model, 'checkpoint:1')).toMatchObject({ width: 1153 })
+    expect(node(model, 'checkpoint:1')).toMatchObject({ width: 1393 })
   })
 
   it('annotates both tickets of a rejected dependency edit', () => {

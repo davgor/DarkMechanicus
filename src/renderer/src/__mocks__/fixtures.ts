@@ -15,6 +15,14 @@ export const EPIC_A = 'ep_0000000000000000000000000a'
 export const EPIC_B = 'ep_0000000000000000000000000b'
 export const EPIC_C = 'ep_0000000000000000000000000c'
 
+/**
+ * ISO timestamp for noon on a calendar date in the machine's own time zone, so date labels
+ * (which are shown in local time) come out the same wherever the tests run.
+ */
+export function localNoonIso(year: number, month: number, day: number): string {
+  return new Date(year, month - 1, day, 12).toISOString()
+}
+
 export function folderView(patch: Partial<TrackedFolderView> = {}): TrackedFolderView {
   return {
     path: '/home/u/code/alpha',

@@ -4,7 +4,7 @@ import type { EpicDetailView, RunCounts, RunView } from '../../../shared/domain/
 import { RUN_STATE_LABELS, RUN_STATE_TONES, type Tone } from '../graph/ticketStates'
 import { formatAgo } from './time'
 
-export interface RunCountItem {
+interface RunCountItem {
   key: keyof RunCounts
   label: string
   tone: Tone
@@ -72,6 +72,11 @@ function phaseParts(run: RunView, now: number, reportAt: string | null): string[
 export function runSummary(run: RunView, now: number, reportAt: string | null): string {
   const host = run.host ? [`host ${run.host.label}`] : []
   return [runLabel(run), `pinned to rev ${run.revisionNumber}`, ...phaseParts(run, now, reportAt), ...host].join(' · ')
+}
+
+/** Counts shown in the run bar; hidden while the run waits at a checkpoint (nothing is moving). */
+export function runBarCounts(run: RunView): RunCountItem[] {
+  return run.state === 'awaiting_checkpoint' ? [] : runCounts(run.counts)
 }
 
 export function runCounts(counts: RunCounts): RunCountItem[] {

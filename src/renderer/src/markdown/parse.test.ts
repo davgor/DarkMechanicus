@@ -83,6 +83,7 @@ describe('parseInline (2)', () => {
     ])
     expect(parseInline('snake_case_name')).toEqual([{ kind: 'text', text: 'snake_case_name' }])
     expect(parseInline('x*')).toEqual([{ kind: 'text', text: 'x*' }])
+    expect(parseInline('* a*')).toEqual([{ kind: 'text', text: '* a*' }])
   })
 
   it('rejects an empty emphasis span', () => {

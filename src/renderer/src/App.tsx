@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import type { ComponentType } from 'react'
 import type { TrackedFolderView } from '../../shared/desktop/api'
 import { listFor } from './app/useEpicLists'
 import { browserScheduler } from './app/scheduler'
 import type { Scheduler } from './app/scheduler'
 import { LoadingView, UnavailableView, WelcomeView } from './app/MainViews'
+import { useLatest } from './app/useLatest'
 import { ToastProvider } from './app/toasts'
 import { useShell } from './app/useShell'
 import type { ShellModel } from './app/useShell'
@@ -33,21 +34,38 @@ interface PaneProps {
   onRequestUntrack(folder: TrackedFolderView): void
 }
 
+interface EpicPaneProps {
+  shell: ShellModel
+  EpicView: EpicView
+  folder: TrackedFolderView
+  epicId: string
+}
+
+/** The epic view with callbacks whose identity only changes with the folder, not on every render. */
+function EpicPane({ shell, EpicView, folder, epicId }: EpicPaneProps): JSX.Element {
+  const actions = useLatest(shell.actions)
+  const onChanged = useCallback(() => actions.current.changed(folder.path), [actions, folder.path])
+  const onOpenEpic = useCallback(
+    (id: string) => actions.current.selectEpic(folder.path, id),
+    [actions, folder.path]
+  )
+  return (
+    <EpicView
+      key={`${folder.path}:${epicId}`}
+      folder={folder}
+      epicId={epicId}
+      refreshToken={shell.epicToken(folder.path, epicId)}
+      onChanged={onChanged}
+      onOpenEpic={onOpenEpic}
+    />
+  )
+}
+
 /** An open folder: either one of its epics, or the folder home. */
 function FolderPane({ shell, EpicView }: PaneProps): JSX.Element | null {
   const { view, actions } = shell
   if (view.kind === 'epic') {
-    const { folder, epicId } = view
-    return (
-      <EpicView
-        key={`${folder.path}:${epicId}`}
-        folder={folder}
-        epicId={epicId}
-        refreshToken={shell.epicToken(folder.path, epicId)}
-        onChanged={() => actions.changed(folder.path)}
-        onOpenEpic={(id) => actions.selectEpic(folder.path, id)}
-      />
-    )
+    return <EpicPane shell={shell} EpicView={EpicView} folder={view.folder} epicId={view.epicId} />
   }
   if (view.kind !== 'home') {
     return null

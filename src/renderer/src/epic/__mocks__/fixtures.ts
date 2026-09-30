@@ -31,7 +31,7 @@ import type {
 } from '../../../../shared/domain/views'
 
 export const NOW = Date.parse('2026-09-30T12:00:00.000Z')
-export const EPIC_ID = 'ep_1'
+const EPIC_ID = 'ep_1'
 
 export function iso(offsetMs: number): string {
   return new Date(NOW + offsetMs).toISOString()
@@ -86,7 +86,7 @@ export function edge(from: number, to: number): DependencyEdge {
   return { from: `tk_${from}`, to: `tk_${to}` }
 }
 
-export const SAMPLE_TICKETS: TicketContent[] = [
+const SAMPLE_TICKETS: TicketContent[] = [
   ticket('DM-101', 'Repository init'),
   ticket('DM-102', 'SQLite schema & migrations'),
   ticket('DM-103', 'Portable export outbox'),

@@ -270,12 +270,13 @@ function skipSpaces(scan: Scan, pos: number): number {
   return cursor
 }
 
-function readAngleTarget(scan: Scan, pos: number): { url: string; next: number } | null {
-  const close = findChar(scan, pos + 1, '>')
+/** A `<…>` destination; `from` is the position just after `<`. */
+function readAngleTarget(scan: Scan, from: number): { url: string; next: number } | null {
+  const close = findChar(scan, from, '>')
   if (close < 0) {
     return null
   }
-  const url = scan.text.slice(pos + 1, close)
+  const url = scan.text.slice(from, close)
   return url.includes('\n') ? null : { url, next: close + 1 }
 }
 
@@ -317,7 +318,7 @@ function readLinkParts(scan: Scan, pos: number): LinkParts | null {
     return null
   }
   const start = skipSpaces(scan, close + 2)
-  const target = charAt(scan, start) === '<' ? readAngleTarget(scan, start) : readBareTarget(scan, start)
+  const target = charAt(scan, start) === '<' ? readAngleTarget(scan, start + 1) : readBareTarget(scan, start)
   const after = target ? skipTitle(scan, skipSpaces(scan, target.next)) : -1
   if (!target || after < 0 || charAt(scan, after) !== ')') {
     return null

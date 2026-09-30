@@ -1,6 +1,11 @@
 /* Ticket detail panel and draft editor (right side of the workspace; mockup 03). */
+/* The panel floats over the right of the canvas (the graph keeps its viewport). */
 .tp {
-  flex-shrink: 0;
+  position: absolute;
+  z-index: 6;
+  top: 0;
+  right: 0;
+  bottom: 0;
   box-sizing: border-box;
   width: 480px;
   max-width: 55%;

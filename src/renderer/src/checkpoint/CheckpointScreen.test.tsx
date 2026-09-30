@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { DmApi } from '../../../shared/desktop/api'
 import type { FollowUpProposal } from '../../../shared/domain/views'
@@ -88,7 +88,7 @@ describe('checkpoint report', () => {
     const recorded = renderScreen({}, false)
     const followUps = screen.getByLabelText('Proposed follow-ups')
     fireEvent.click(within(followUps).getAllByRole('button')[1] as HTMLElement)
-    await Promise.resolve()
+    await act(async () => undefined)
     expect(recorded.followUps).toEqual(['Re-run driver load test'])
     expect(within(followUps).getAllByRole('button').length).toBe(2)
   })

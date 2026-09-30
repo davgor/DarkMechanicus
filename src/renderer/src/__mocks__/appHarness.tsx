@@ -9,23 +9,10 @@ import { FakeDm } from './fakeDm'
 import { EPIC_B, storageStatus } from './fixtures'
 import { ManualScheduler } from './manualScheduler'
 
-/** Stands in for the real epic view so shell tests only rely on the props contract. */
-function StubEpicView(props: EpicWorkspaceProps): JSX.Element {
-  return (
-    <section aria-label="Epic stub">
-      <p data-testid="epic-stub">{`${props.folder.name}|${props.epicId}|${props.refreshToken}`}</p>
-      <button type="button" onClick={props.onChanged}>
-        stub changed
-      </button>
-      <button type="button" onClick={() => props.onOpenEpic(EPIC_B)}>
-        stub open other
-      </button>
-    </section>
-  )
-}
-
 /** A whole fake desktop: window.dm, window.autoUpdate, a manual scheduler and per-folder data. */
 export class AppHarness {
+  /** Every props object the epic view was rendered with, oldest first. */
+  readonly epicProps: EpicWorkspaceProps[] = []
   readonly dm = new FakeDm()
   readonly autoUpdate = new FakeAutoUpdate()
   readonly scheduler = new ManualScheduler()
@@ -50,7 +37,23 @@ export class AppHarness {
     return created
   }
 
+  /** Stands in for the real epic view so shell tests only rely on the props contract. */
+  private readonly epicView = (props: EpicWorkspaceProps): JSX.Element => {
+    this.epicProps.push(props)
+    return (
+      <section aria-label="Epic stub">
+        <p data-testid="epic-stub">{`${props.folder.name}|${props.epicId}|${props.refreshToken}`}</p>
+        <button type="button" onClick={props.onChanged}>
+          stub changed
+        </button>
+        <button type="button" onClick={() => props.onOpenEpic(EPIC_B)}>
+          stub open other
+        </button>
+      </section>
+    )
+  }
+
   mount(): RenderResult {
-    return render(<App scheduler={this.scheduler} EpicView={StubEpicView} />)
+    return render(<App scheduler={this.scheduler} EpicView={this.epicView} />)
   }
 }

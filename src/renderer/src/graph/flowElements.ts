@@ -9,10 +9,10 @@ import type {
   TicketNodeModel
 } from './graphModel'
 
-export type TicketNodeData = { model: TicketNodeModel; active: boolean; editable: boolean }
-export type SprintNodeData = { model: SprintNodeModel; editable: boolean; onAddTicket: (sprintId: string) => void }
-export type DividerNodeData = { model: DividerNodeModel }
-export type EpicNodeData = { model: EpicNodeModel }
+type TicketNodeData = { model: TicketNodeModel; active: boolean; editable: boolean }
+type SprintNodeData = { model: SprintNodeModel; editable: boolean; onAddTicket: (sprintId: string) => void }
+type DividerNodeData = { model: DividerNodeModel }
+type EpicNodeData = { model: EpicNodeModel }
 
 export type TicketFlowNode = Node<TicketNodeData, 'ticket'>
 export type SprintFlowNode = Node<SprintNodeData, 'sprint'>
@@ -20,7 +20,7 @@ export type DividerFlowNode = Node<DividerNodeData, 'divider'>
 export type EpicFlowNode = Node<EpicNodeData, 'epic'>
 export type FlowNode = TicketFlowNode | SprintFlowNode | DividerFlowNode | EpicFlowNode
 
-export interface FlowOptions {
+interface FlowOptions {
   editable: boolean
   selectedTicketId: string | null
   onAddTicket(sprintId: string): void

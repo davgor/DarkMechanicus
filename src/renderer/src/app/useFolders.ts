@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { FolderPickResult, TrackedFolderView } from '../../../shared/desktop/api'
-import { upsertFolder } from './folderList'
+import { reconcileFolders, upsertFolder } from './folderList'
 import { useLatest } from './useLatest'
 
 export interface FoldersModel {
@@ -27,7 +27,7 @@ export function useFolders(onError: (error: unknown) => void): FoldersModel {
   const reload = useCallback(async () => {
     try {
       const folders = await window.dm.listFolders()
-      setState({ folders, loaded: true })
+      setState((previous) => ({ folders: reconcileFolders(previous.folders, folders), loaded: true }))
     } catch (error) {
       setState((previous) => ({ ...previous, loaded: true }))
       report.current(error)
@@ -49,14 +49,17 @@ export function useFolders(onError: (error: unknown) => void): FoldersModel {
     const result = await window.dm.pickFolder()
     const picked = result.folder
     if (picked !== null) {
-      setState((previous) => ({ ...previous, folders: upsertFolder(previous.folders, picked) }))
+      setState((previous) => ({
+        ...previous,
+        folders: reconcileFolders(previous.folders, upsertFolder(previous.folders, picked))
+      }))
     }
     return result
   }, [])
 
   const untrack = useCallback(async (path: string) => {
     const folders = await window.dm.untrackFolder(path)
-    setState({ folders, loaded: true })
+    setState((previous) => ({ folders: reconcileFolders(previous.folders, folders), loaded: true }))
   }, [])
 
   return { folders: state.folders, loaded: state.loaded, reload, pick, untrack }

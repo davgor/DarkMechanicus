@@ -91,6 +91,18 @@ describe('HistorySearch results', () => {
     expect(within(screen.getByRole('button', { name: /Sprint 1 report/ })).getByText('Report')).toBeTruthy()
   })
 
+})
+
+describe('HistorySearch result details', () => {
+  it('highlights the matched terms in a snippet', async () => {
+    dm.responses.searchHistory = [hit({ snippet: 'Build the [telemetry] dashboard' })]
+    renderSearch()
+    await search('telemetry')
+    const snippet = document.querySelector('.result-snippet') as HTMLElement
+    expect(snippet.textContent).toBe('Build the telemetry dashboard')
+    expect(Array.from(snippet.querySelectorAll('mark')).map((mark) => mark.textContent)).toEqual(['telemetry'])
+  })
+
   it('labels every kind of document', async () => {
     dm.responses.searchHistory = [
       hit({ docType: 'epic', docId: 'e', title: 'E' }),

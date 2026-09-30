@@ -10,7 +10,7 @@ import type {
   ValidationReport
 } from '../../../shared/domain/views'
 
-export type PlanViewKind = 'saved' | 'draft'
+type PlanViewKind = 'saved' | 'draft'
 
 export interface WorkspaceData {
   epic: EpicDetailView
@@ -23,7 +23,7 @@ export interface WorkspaceData {
   validation: ValidationReport | null
 }
 
-export interface Notice {
+interface Notice {
   tone: 'error' | 'info'
   text: string
 }
