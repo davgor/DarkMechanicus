@@ -1030,9 +1030,9 @@ function applyPlan(deps: ImporterDeps, context: ApplyContext): ReconcileResultVi
 /**
  * Reconciles tracked records into the local database under the write lock (so no finalizer can be
  * mid-write while files are read). Throws `not_initialized`, `project_mismatch`, or `unsafe_path`
- * (a linked `epics/`, `history/`, or `profiles/`) without changing anything; per-epic, per-run, and
- * per-profile problems are reported in `rejected`/`conflicts`/`profileConflicts` and leave those
- * entities as they were.
+ * (a linked `epics/` or `history/`) without changing anything; per-epic, per-run, and per-profile
+ * problems (including a `profiles` that is a link or not a directory) are reported in
+ * `rejected`/`conflicts`/`profileConflicts` and leave those entities as they were.
  */
 export function reconcileRepository(deps: ImporterDeps): ReconcileResultView {
   return deps.db.tx(() => {

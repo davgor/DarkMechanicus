@@ -4,10 +4,11 @@
  * Every entry is untrusted, exactly like epic and run records: only `<name>.json` files with a
  * portable profile name are read, through the contained owned path (links, junctions, and
  * directories are refused), within a size bound, and must hold a strict profile record naming the
- * profile of its file name. A bad entry is rejected and reported and never stops the others; a
- * linked `profiles/` directory fails the whole reconcile, like a linked `epics/`. A changed profile
- * is imported unless the local profile has unexported changes: that is a conflict, the local
- * profile is kept, and its next export writes it over the tracked file.
+ * profile of its file name. A bad entry is rejected and reported and never stops the others; so is
+ * a `profiles` that is a link, a redirect outside, or not a directory at all, which is then read as
+ * empty so the rest of the reconcile (and opening the repository) goes on. A changed profile is
+ * imported unless the local profile has unexported changes: that is a conflict, the local profile
+ * is kept, and its next export writes it over the tracked file.
  */
 import { type Db, toJson } from '../db/database'
 import { fail } from '../errors'
@@ -66,17 +67,24 @@ function conflictMessage(name: string): string {
   return `Tracked profile ${name} changed while local profile changes are waiting to be exported. Flush or resolve the local changes before importing.`
 }
 
-/** Entries of `profiles/` (dot entries ignored). A linked directory fails the whole reconcile. */
-function listProfileEntries(deps: ProfileImportDeps): string[] {
+/** Entries of `profiles/` (dot entries ignored); throws when `profiles` is a link or not a directory. */
+function listProfileEntries(deps: ProfileImportDeps, shownDir: string): string[] {
   const dir = deps.layout.profilesDir
   if (!deps.fs.exists(dir) && !deps.fs.isSymlink(dir)) {
     return []
   }
   assertContained(deps.layout, deps.fs, dir)
-  return deps.fs
+  if (!deps.fs.isDirectory(dir)) {
+    reject(shownDir, 'is not a directory')
+  }
+  const entries = deps.fs
     .readdir(dir)
     .filter((entry) => !entry.startsWith('.'))
     .sort()
+  if (entries.length > MAX_PROFILES) {
+    reject(shownDir, `holds more than ${MAX_PROFILES} profiles`)
+  }
+  return entries
 }
 
 function syncedHash(db: Db, name: string, hash: string): boolean {
@@ -140,10 +148,12 @@ function sortEntry(scan: ProfileScan, db: Db, found: StagedProfile): void {
 /** Reads and validates every entry of `profiles/`, staging changed profiles for import. */
 export function scanProfiles(deps: ProfileImportDeps): ProfileScan {
   const scan: ProfileScan = { staged: [], unchanged: [], conflicts: [], rejected: [] }
-  const entries = listProfileEntries(deps)
   const shownDir = displayPath(deps.layout, deps.layout.profilesDir)
-  if (entries.length > MAX_PROFILES) {
-    scan.rejected.push({ path: shownDir, message: `${shownDir} holds more than ${MAX_PROFILES} profiles.` })
+  let entries: string[]
+  try {
+    entries = listProfileEntries(deps, shownDir)
+  } catch (error: unknown) {
+    scan.rejected.push({ path: shownDir, message: messageOf(error) })
     return scan
   }
   for (const entry of entries) {

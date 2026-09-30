@@ -667,11 +667,15 @@ describe('hostile profile links', () => {
     expect(outsideReads(state)).toEqual([])
   })
 
-  it('fails closed on a linked profiles directory without reading outside or changing anything', () => {
+  it('rejects a linked profiles directory without reading outside or changing anything', () => {
     const state = profiled()
     state.target.fs.put(join(OUTSIDE, 'evil.json'), profileText(state, 'evil'))
     state.target.fs.symlink(state.target.layout.profilesDir, OUTSIDE)
-    expect(domainErrorOf(() => reconcile(state)).code).toBe('unsafe_path')
+    const result = reconcile(state)
+    expect(result.rejected).toEqual([
+      { path: PROFILES_DIR, message: `Unsafe repository path ${PROFILES_DIR}: symbolic links and junctions are not allowed inside .darkmechanicus.` }
+    ])
+    expect([result.imported, result.unchanged]).toEqual([[], []])
     expect(storedNames(state)).toEqual(['ok'])
     expect(outsideReads(state)).toEqual([])
   })
@@ -683,6 +687,28 @@ describe('hostile profile links', () => {
       { path: `${PROFILES_DIR}/folder.json`, message: `${PROFILES_DIR}/folder.json is a directory, not a profile record.` }
     ])
     expect(storedNames(state)).toEqual(['ok'])
+  })
+})
+
+describe('hostile profiles directory', () => {
+  it('reports a file in place of the profiles directory and still imports the rest', () => {
+    const state = imported()
+    state.target.fs.put(state.target.layout.profilesDir, 'oops')
+    touchEpic(state)
+    const result = reconcile(state)
+    expect(result.rejected).toEqual([{ path: PROFILES_DIR, message: `${PROFILES_DIR} is not a directory.` }])
+    expect([result.imported, result.unchanged]).toEqual([[EPIC], [RUN]])
+  })
+
+  it('reports a profiles directory redirected outside and still imports the rest, without reading outside', () => {
+    const state = imported()
+    state.target.fs.put(join(OUTSIDE, 'evil.json'), '{}')
+    state.target.fs.junction(state.target.layout.profilesDir, OUTSIDE)
+    touchEpic(state)
+    const result = reconcile(state)
+    expect(result.rejected).toEqual([{ path: PROFILES_DIR, message: `Unsafe repository path ${PROFILES_DIR}: it resolves outside .darkmechanicus.` }])
+    expect([result.imported, result.unchanged]).toEqual([[EPIC], [RUN]])
+    expect(outsideReads(state)).toEqual([])
   })
 })
 

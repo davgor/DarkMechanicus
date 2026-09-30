@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join, sep } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { defaultCapabilityProfile } from '../shared/domain/bundle'
@@ -258,5 +258,39 @@ describe('Workspace reconcile reads', () => {
     agent.heartbeat()
     expect(trackedReadsSince(settled)).toEqual([])
     expect(await profileNames(agent)).toEqual(['deep-review'])
+  })
+})
+
+describe('Workspace open with a broken profiles directory', () => {
+  let harness: Harness
+
+  beforeEach(() => {
+    harness = createHarness()
+  })
+
+  afterEach(() => {
+    harness.cleanup()
+  })
+
+  it('opens and reports a file or a link in place of the profiles directory instead of failing', async () => {
+    const first = harness.open('desktop')
+    await first.initializeRepository({ name: 'broken-profiles' })
+    first.close()
+    const profiles = join(harness.root, '.darkmechanicus', 'profiles')
+    rmSync(profiles, { recursive: true })
+    writeFileSync(profiles, 'oops')
+    const onFile = harness.open('orchestrator')
+    expect(onFile.isInitialized()).toBe(true)
+    expect((await onFile.reconcileRepository()).rejected).toEqual([{ path: '.darkmechanicus/profiles', message: '.darkmechanicus/profiles is not a directory.' }])
+    onFile.close()
+    rmSync(profiles)
+    mkdirSync(join(harness.root, 'elsewhere'))
+    symlinkSync(join(harness.root, 'elsewhere'), profiles, 'junction')
+    const onLink = harness.open('orchestrator')
+    expect(onLink.isInitialized()).toBe(true)
+    // Windows may report the junction as a link or only by where it resolves; either way it is rejected.
+    expect((await onLink.reconcileRepository()).rejected).toEqual([
+      { path: '.darkmechanicus/profiles', message: expect.stringContaining('Unsafe repository path .darkmechanicus/profiles: ') }
+    ])
   })
 })
