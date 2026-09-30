@@ -214,7 +214,13 @@ export const planBundle = z.strictObject({
 
 export const epicBranch = z.strictObject({
   repository: z.string().max(LIMITS.shortText).nullable(),
-  name: z.string().min(1).max(255).regex(/^[^\s~^:?*[\\]+$/, 'Not a valid branch name'),
+  // A subset of git check-ref-format: no whitespace or ~^:?*[\, no leading dash, "..", "@{",
+  // trailing "/", "." or ".lock".
+  name: z
+    .string()
+    .min(1)
+    .max(255)
+    .regex(/^(?!-)(?!.*\.\.)(?!.*@\{)(?!.*(?:\/|\.|\.lock)$)[^\s~^:?*[\\]+$/, 'Not a valid branch name'),
   startCommit: z.string().regex(/^[0-9a-f]{7,64}$/).nullable()
 })
 

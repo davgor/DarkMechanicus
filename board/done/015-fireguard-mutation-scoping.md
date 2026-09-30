@@ -7,6 +7,7 @@ Fireguard's mutation gate re-runs every graded test file for every mutant, which
 - [x] A static import graph (relative imports, `.ts/.tsx/.mjs/.js`, index files) maps each changed module to the graded tests that reach it (tested in `fireguard/test`)
 - [x] The mutation gate runs each module's mutants against only its related graded tests; modules with none still count as survivors (tested)
 - [x] `npm run test:fireguard` passes
+- [x] Each test run is bounded by `testTimeoutMs` (default 5 min, `FIREGUARD_TEST_TIMEOUT_MS`); a timed-out run kills its whole process tree and counts as failed, so infinite-loop mutants are killed instead of hanging the gate (`fireguard/test/runnerTimeout.test.ts`)
 
 ## Verification — 2026-09-30
 

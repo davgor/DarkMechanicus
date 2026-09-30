@@ -18,6 +18,7 @@ export const DEFAULT_CONFIG: FireguardConfig = {
   exclude: ['**/__mocks__/**', '**/node_modules/**', 'e2e/**'],
   baseRef: 'main',
   testCommand: 'npx vitest run',
+  testTimeoutMs: 300_000,
 };
 
 export interface LoadConfigOptions {
@@ -66,6 +67,9 @@ function applyEnvOverrides(
   }
   if (env.FIREGUARD_TEST_COMMAND) {
     next.testCommand = env.FIREGUARD_TEST_COMMAND;
+  }
+  if (env.FIREGUARD_TEST_TIMEOUT_MS) {
+    next.testTimeoutMs = Number(env.FIREGUARD_TEST_TIMEOUT_MS);
   }
   return next;
 }

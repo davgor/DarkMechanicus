@@ -70,7 +70,9 @@ Also writes `GITHUB_STEP_SUMMARY` when that env var is set.
 }
 ```
 
-Env overrides: `FIREGUARD_MIN_MUTATION_SCORE`, `FIREGUARD_MAX_MOCK_RATIO`, `FIREGUARD_AGENTIC_FLAKINESS_RUNS`, `FIREGUARD_BASE_REF`, `FIREGUARD_TEST_COMMAND`.
+Env overrides: `FIREGUARD_MIN_MUTATION_SCORE`, `FIREGUARD_MAX_MOCK_RATIO`, `FIREGUARD_AGENTIC_FLAKINESS_RUNS`, `FIREGUARD_BASE_REF`, `FIREGUARD_TEST_COMMAND`, `FIREGUARD_TEST_TIMEOUT_MS`.
+
+`testTimeoutMs` (default 300000) bounds each test run. A run that exceeds it is killed together with every process it started and counts as failed: a mutant that makes code loop forever is **killed**, and a hung flake run is **flaky**, instead of hanging fireguard.
 
 ## Scope rules
 

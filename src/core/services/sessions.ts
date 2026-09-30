@@ -95,13 +95,17 @@ export function listSessions(deps: { db: Db; clock: Clock }, limit = 50): Sessio
 export function summarizeActiveSessions(
   deps: { db: Db; clock: Clock }
 ): { active: number; byRole: Record<string, number> } {
+  const since = new Date(deps.clock.nowMs() - SESSION_ACTIVE_WINDOW_MS).toISOString()
+  const rows = deps.db.all<{ role: string; n: number }>(
+    `SELECT role, COUNT(*) AS n FROM sessions
+     WHERE ended_at IS NULL AND last_seen_at >= ? GROUP BY role ORDER BY role`,
+    since
+  )
   const byRole: Record<string, number> = {}
   let active = 0
-  for (const session of listSessions(deps, 500)) {
-    if (session.active) {
-      active += 1
-      byRole[session.role] = (byRole[session.role] ?? 0) + 1
-    }
+  for (const row of rows) {
+    byRole[row.role] = row.n
+    active += row.n
   }
   return { active, byRole }
 }

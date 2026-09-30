@@ -16,6 +16,12 @@ export interface FireguardConfig {
   exclude: string[];
   baseRef: string;
   testCommand: string;
+  /**
+   * Wall-clock limit for one test run. A run that exceeds it is killed (with everything it
+   * started) and reported as failed, so a mutant that makes code loop forever counts as killed
+   * and a hung flake run counts as flaky instead of hanging fireguard.
+   */
+  testTimeoutMs: number;
 }
 
 export interface AstFinding {

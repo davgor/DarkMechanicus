@@ -882,3 +882,13 @@ describe('set_rationale', () => {
     expect(apply(first, { op: 'set_rationale', rationale: '' }).bundle.rationale).toBe('')
   })
 })
+
+describe('set_epic title', () => {
+  it('rejects a blank title like ticket titles', () => {
+    expect(rejection(baseBundle(), { op: 'set_epic', title: '   ' })).toEqual({
+      code: 'invalid_input',
+      message: 'The epic needs a title.',
+      details: { opIndex: 0, op: 'set_epic' }
+    })
+  })
+})

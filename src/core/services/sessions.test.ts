@@ -261,3 +261,16 @@ describe('summarizeActiveSessions', () => {
     expect(summarizeActiveSessions(fx.deps)).toEqual({ active: 0, byRole: {} })
   })
 })
+
+describe('summarizeActiveSessions at scale', () => {
+  it('counts an old active session even behind more than 500 newer ones', () => {
+    const fx = fixture()
+    const veteran = register(fx, 'orchestrator')
+    fx.clock.advanceSeconds(1)
+    for (let i = 0; i < 501; i += 1) {
+      endSession(fx.deps, register(fx, 'worker'))
+    }
+    touchSession(fx.deps, veteran)
+    expect(summarizeActiveSessions(fx.deps)).toEqual({ active: 1, byRole: { orchestrator: 1 } })
+  })
+})

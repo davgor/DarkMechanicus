@@ -1014,3 +1014,20 @@ describe('parseInput messages', () => {
     expect(error.message).toContain('bogus')
   })
 })
+
+describe('epicBranch git ref rules', () => {
+  it.each([
+    ['a leading dash', '-rf'],
+    ['a double dot', 'feature..main'],
+    ['a reflog selector', 'main@{1}'],
+    ['a .lock suffix', 'feature.lock'],
+    ['a trailing slash', 'feature/'],
+    ['a trailing dot', 'feature.']
+  ])('rejects %s', (_label, name) => {
+    expect(accepts(epicBranch, { ...BRANCH, name })).toBe(false)
+  })
+
+  it.each([['feature/plan-v2'], ['epic/dm-12.a'], ['release-2026.09']])('accepts %s', (name) => {
+    expect(accepts(epicBranch, { ...BRANCH, name })).toBe(true)
+  })
+})

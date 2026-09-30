@@ -77,6 +77,9 @@ function insertAt<T>(items: T[], item: T, position: number | undefined): T[] {
 }
 
 const setEpic: Handler<'set_epic'> = (state, op) => {
+  if (op.title !== undefined && op.title.trim() === '') {
+    reject('The epic needs a title.')
+  }
   const epic = state.bundle.epic
   state.bundle.epic = {
     title: op.title === undefined ? epic.title : op.title.trim(),
