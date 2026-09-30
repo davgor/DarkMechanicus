@@ -20,7 +20,7 @@ import { UntrackDialog } from './sidebar/UntrackDialog'
 
 type EpicView = ComponentType<EpicWorkspaceProps>
 
-export interface AppProps {
+interface AppProps {
   /** Timers for polling and toast dismissal. Tests inject a manual one. */
   scheduler?: Scheduler
   /** The epic view. Injectable so shell tests do not depend on its implementation. */

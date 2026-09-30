@@ -2,7 +2,7 @@
 export type KeyValueStore = Pick<Storage, 'getItem' | 'setItem'>
 
 /** localStorage, or null when the browser blocks it (private windows, cleared site data). */
-export function browserStorage(): KeyValueStore | null {
+function browserStorage(): KeyValueStore | null {
   try {
     return window.localStorage
   } catch {

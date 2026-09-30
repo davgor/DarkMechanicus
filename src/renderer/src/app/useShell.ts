@@ -21,7 +21,7 @@ import { useFolders } from './useFolders'
 import { usePersistentState } from './usePersistentState'
 import { useStorageStatus } from './useStorageStatus'
 
-export const SELECTION_STORAGE_KEY = 'dm.selection'
+const SELECTION_STORAGE_KEY = 'dm.selection'
 
 export interface ShellModel {
   folders: TrackedFolderView[]

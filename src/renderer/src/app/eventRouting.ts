@@ -11,7 +11,7 @@ export interface Tokens {
   epics: Record<string, TokenMap>
 }
 
-export interface EventRoute {
+interface EventRoute {
   /** Epics named by the events, each once, in first-seen order. */
   epicIds: string[]
   /** True when there was at least one event, whatever it concerned. */

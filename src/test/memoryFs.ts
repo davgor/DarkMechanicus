@@ -7,7 +7,7 @@
 import { basename, dirname, join, parse, resolve, sep } from 'node:path'
 import type { FsAdapter } from '../core/repo/types'
 
-export type FsOperation = 'writeFile' | 'fsyncFile' | 'rename' | 'readFile' | 'mkdirp' | 'readdir' | 'remove'
+type FsOperation = 'writeFile' | 'fsyncFile' | 'rename' | 'readFile' | 'mkdirp' | 'readdir' | 'remove'
 
 export interface FaultSpec {
   op: FsOperation

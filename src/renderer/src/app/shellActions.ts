@@ -10,7 +10,7 @@ import type { ToastTone } from './toastState'
 export type BusyKey = 'initialize' | 'flush' | 'reconcile'
 
 /** Everything the actions need from the shell, so they can be exercised without React. */
-export interface ShellDeps {
+interface ShellDeps {
   toasts: {
     push(tone: ToastTone, message: string): void
     reportError(error: unknown): void

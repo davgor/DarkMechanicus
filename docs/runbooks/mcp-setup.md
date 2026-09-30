@@ -106,6 +106,8 @@ Give each role its own entry name (for example `darkmechanicus-planner` with `--
 
 Ask the agent to call `get_capabilities`. It reports the role, the repository root, the skills version, and whether the repository is `initialized`. A new folder needs `initialize_repository` once (planner and orchestrator roles). That creates `.darkmechanicus/` and never commits anything.
 
+To check a build without a host, run `npm run build && npm run smoke:mcp`. It launches the built server against a temporary repository, plans and saves an epic, and runs one ticket through claim, submit, and accept.
+
 ## Roles and `--allow-save`
 
 Roles are fixed at launch. Nothing a tool call says can change them.

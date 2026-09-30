@@ -168,6 +168,9 @@ describe('hostile file contents', () => {
     expectUnchanged(state, result)
   })
 
+})
+
+describe('hostile sizes', () => {
   it('rejects an epic whose snapshots exceed the byte budget, and too many snapshots, without reading them', () => {
     const state = imported()
     const snapshot = paths(state).snapshotFile(EPIC, R1)

@@ -1,7 +1,7 @@
 import type { RunState } from '../../../shared/domain/status'
 import type { EpicSummaryView, RunSummaryView } from '../../../shared/domain/views'
 
-export type StatusTone =
+type StatusTone =
   | 'running'
   | 'attention'
   | 'paused'
@@ -16,7 +16,7 @@ export interface EpicStatusLine {
   tone: StatusTone
 }
 
-export interface EpicBadge {
+interface EpicBadge {
   kind: 'draft' | 'save-pending' | 'conflict'
   label: string
   title: string

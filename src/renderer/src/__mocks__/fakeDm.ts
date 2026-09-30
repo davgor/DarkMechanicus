@@ -12,7 +12,7 @@ import type {
   TrackedFolderView
 } from '../../../shared/desktop/api'
 
-export interface CommandCall {
+interface CommandCall {
   folder: string
   name: CommandName
   input: unknown

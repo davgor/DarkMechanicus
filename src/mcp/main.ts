@@ -9,6 +9,7 @@ import { dirname, join } from 'node:path'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
+import { capabilitiesForRole } from '../core/authz'
 import { DomainError } from '../core/errors'
 import { MCP_SERVER_NAME } from '../core/version'
 import { openWorkspace, type OpenWorkspaceOptions, type Workspace } from '../core/workspace'
@@ -107,11 +108,16 @@ function createShutdown(parts: ShutdownParts): () => Promise<void> {
 }
 
 function logReady({ workspace, args, options }: ServeContext): void {
-  const save = args.allowSave ? 'allowed' : 'not allowed'
+  const canSave = capabilitiesForRole(args.role, { allowSave: args.allowSave }).includes('plan.save')
   const session = workspace.sessionId() ?? 'none'
   options.log(
-    `${MCP_SERVER_NAME} ${options.version} ready: repo=${workspace.repoRoot} role=${args.role} save=${save} session=${session}`
+    `${MCP_SERVER_NAME} ${options.version} ready: repo=${workspace.repoRoot} role=${args.role} save=${canSave ? 'allowed' : 'not allowed'} session=${session}`
   )
+  if (args.allowSave && !canSave) {
+    options.log(
+      `--allow-save has no effect for the ${args.role} role: only planner and orchestrator sessions can save plans.`
+    )
+  }
   if (!workspace.isInitialized()) {
     options.log(
       'This repository is not initialized yet. Call the initialize_repository tool (planner or orchestrator role) to set it up.'

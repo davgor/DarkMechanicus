@@ -10,7 +10,7 @@ import { EPIC_B, storageStatus } from './fixtures'
 import { ManualScheduler } from './manualScheduler'
 
 /** Stands in for the real epic view so shell tests only rely on the props contract. */
-export function StubEpicView(props: EpicWorkspaceProps): JSX.Element {
+function StubEpicView(props: EpicWorkspaceProps): JSX.Element {
   return (
     <section aria-label="Epic stub">
       <p data-testid="epic-stub">{`${props.folder.name}|${props.epicId}|${props.refreshToken}`}</p>

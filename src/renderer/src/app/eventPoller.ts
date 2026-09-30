@@ -5,7 +5,7 @@ export const MAX_PAGES_PER_TICK = 5
 /** 2^40 events is far beyond any real log; the bound also guarantees the search terminates. */
 const MAX_SEARCH_STEPS = 40
 
-export interface PageRequest {
+interface PageRequest {
   sinceSeq: number
   limit: number
 }
@@ -40,7 +40,7 @@ export async function findHeadSeq(hasEventAfter: HasEventAfter): Promise<number>
   return high
 }
 
-export interface EventPollerOptions {
+interface EventPollerOptions {
   fetchPage(request: PageRequest): Promise<EventsPage>
   /** Called with each page of events that arrived after the baseline. */
   onEvents(events: EventView[]): void

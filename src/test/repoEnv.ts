@@ -32,7 +32,7 @@ export function createRepoEnv(options: { root?: string; fs?: MemoryFs; clock?: T
   return { root, layout, fs, db, clock, hook: createSaveHook(db, clock) }
 }
 
-export interface StagedRevision {
+interface StagedRevision {
   epicId: string
   revisionId: string
   number: number
@@ -66,7 +66,7 @@ export function saveRevision(env: RepoEnv, input: StagedRevision): FlushOutcome 
   return flush(env)
 }
 
-export interface StubGit extends GitAdapter {
+interface StubGit extends GitAdapter {
   setBranch(branch: string | null): void
 }
 

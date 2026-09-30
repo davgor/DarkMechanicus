@@ -8,7 +8,7 @@ import type { FinalizerHooks } from '../core/repo/finalizer'
 import type { PlanBundle } from '../shared/domain/bundle'
 import type { AttemptState, RunState } from '../shared/domain/status'
 
-export interface CapturedDomainError {
+interface CapturedDomainError {
   code: string
   message: string
   details: Record<string, unknown> | undefined
@@ -47,7 +47,7 @@ export function idOf(kind: IdKind, n: number): string {
 
 export const T0 = '2026-01-01T00:00:00.000Z'
 
-export interface EpicRowInput {
+interface EpicRowInput {
   id: string
   title?: string
   status?: 'backlog' | 'in_progress' | 'completed'
@@ -81,7 +81,7 @@ export function insertEpic(db: Db, input: EpicRowInput): void {
   )
 }
 
-export interface RevisionRowInput {
+interface RevisionRowInput {
   id: string
   epicId: string
   number: number
@@ -110,7 +110,7 @@ export function insertRevision(db: Db, input: RevisionRowInput): void {
   )
 }
 
-export interface OutboxRowInput {
+interface OutboxRowInput {
   kind: 'snapshot' | 'epic_state' | 'run_history'
   epicId?: string | null
   runId?: string | null
@@ -133,7 +133,7 @@ export function insertOutbox(db: Db, input: OutboxRowInput): number {
   ).lastInsertRowid
 }
 
-export interface RunRowInput {
+interface RunRowInput {
   id: string
   epicId: string
   revisionId: string
@@ -169,7 +169,7 @@ export function insertRun(db: Db, input: RunRowInput): void {
   )
 }
 
-export interface AttemptRowInput {
+interface AttemptRowInput {
   id: string
   runId: string
   ticketId: string
@@ -213,7 +213,7 @@ export function insertAttempt(db: Db, input: AttemptRowInput): void {
   )
 }
 
-export interface ReportRowInput {
+interface ReportRowInput {
   id: string
   runId: string
   sprintId: string

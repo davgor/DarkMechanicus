@@ -142,6 +142,18 @@ describe('startMcpServer serving', () => {
     expect(rig.logs[0]).toBe('darkmechanicus 1.2.3 ready: repo=/repo role=orchestrator save=not allowed session=none')
   })
 
+  it('reports the effective save permission and explains an --allow-save that cannot apply', async () => {
+    const reviewer = await startRig(['--role', 'reviewer', '--allow-save'])
+    expect(reviewer.logs).toEqual([
+      'darkmechanicus 1.2.3 ready: repo=/repo role=reviewer save=not allowed session=ss_stub',
+      '--allow-save has no effect for the reviewer role: only planner and orchestrator sessions can save plans.'
+    ])
+    const orchestrator = await startRig(['--role', 'orchestrator', '--allow-save'])
+    expect(orchestrator.logs).toEqual([
+      'darkmechanicus 1.2.3 ready: repo=/repo role=orchestrator save=allowed session=ss_stub'
+    ])
+  })
+
   it('hints at initialize_repository only when the repository is not initialized', async () => {
     const fresh = await startRig([], { initialized: false })
     expect(fresh.logs).toHaveLength(2)

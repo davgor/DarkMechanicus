@@ -3,7 +3,7 @@ import { plural } from '../app/plural'
 
 type FooterTone = 'ok' | 'muted' | 'warn' | 'error'
 
-export interface FooterLine {
+interface FooterLine {
   text: string
   tone: FooterTone
   title?: string
