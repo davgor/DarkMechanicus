@@ -3,8 +3,11 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { installDomShims } from '../epic/__mocks__/domShims'
 import { draftPlan, runView, savedPlan } from '../epic/__mocks__/fixtures'
+import { allowSlowRendering } from '../epic/__mocks__/testTiming'
 import { buildGraphModel, type GraphModel } from './graphModel'
 import { PlanGraph, type PlanGraphProps } from './PlanGraph'
+
+allowSlowRendering()
 
 beforeAll(() => {
   installDomShims()

@@ -213,6 +213,8 @@ describe('attempt cards (2)', () => {
       moreFiles: 2
     })
     expect(rejected?.files.length).toBe(12)
+    const claimed = attempt('DM-202', 6, 'claimed', { leaseExpiresAt: iso(4 * MINUTE) })
+    expect(attemptCards([claimed], NOW)[0]?.lease).toBe('lease 04:00 left')
     const bare = attempt('DM-202', 5, 'claimed', {
       worker: { sessionId: null, label: 'w', modelId: null, hostId: null, catalogRevision: null, rationale: null },
       decision: { outcome: 'accepted', notes: '', reasons: [], decidedBy: 'desktop' }

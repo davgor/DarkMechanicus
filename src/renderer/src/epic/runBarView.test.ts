@@ -9,9 +9,9 @@ describe('run bar summary', () => {
     )
   })
 
-  it('falls back to the creation time and omits a missing host or number', () => {
-    const run = runView({ startedAt: null, host: null, number: undefined })
-    expect(runSummary(run, NOW, null)).toBe('Run · pinned to rev 4 · Sprint 2 of 3 · started 2h 20m ago')
+  it('falls back to the creation time and omits a missing host', () => {
+    const run = runView({ startedAt: null, host: null, number: 3 })
+    expect(runSummary(run, NOW, null)).toBe('Run #3 · pinned to rev 4 · Sprint 2 of 3 · started 2h 20m ago')
     expect(runLabel(runView())).toBe('Run #2')
   })
 

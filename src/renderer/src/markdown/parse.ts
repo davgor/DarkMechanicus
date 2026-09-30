@@ -1,8 +1,9 @@
 /**
  * A small, safe Markdown parser. It produces a plain tree that `Markdown.tsx` turns into React
  * elements; it never produces HTML, so raw HTML in the source is kept as text. Links keep only
- * allow-listed targets (`http:`, `https:`, `mailto:`). Every scan is bounded so hostile input
- * cannot make parsing quadratic or recurse without limit.
+ * allow-listed targets (`http:`, `https:`, `mailto:`). Every scan is bounded and every loop
+ * advances by at least one character or line, so hostile input cannot make parsing quadratic,
+ * loop forever or recurse without limit.
  */
 
 export type Inline =
@@ -41,7 +42,11 @@ export function safeHref(raw: string): string | null {
 // ---------------------------------------------------------------------------------------------
 // Inline parsing
 
-const MAX_INLINE_DEPTH = 6
+/**
+ * Emphasis nesting limit. Links never nest and each emphasis kind can open only once per level
+ * chain, so real text stays well below it; it bounds recursion if the rules ever loosen.
+ */
+const MAX_INLINE_DEPTH = 4
 const MAX_TARGET = 2048
 const PUNCTUATION = /^[!-/:-@[-`{-~]$/
 const URI = /^[a-z][a-z0-9+.-]{1,31}:[^\s<>]*$/i
@@ -70,8 +75,12 @@ class InlineBuilder {
       this.flush()
       this.nodes.push(step.node)
     } else {
-      this.buffer += step.text
+      this.text(step.text)
     }
+  }
+
+  text(text: string): void {
+    this.buffer += text
   }
 
   newline(): void {
@@ -105,17 +114,25 @@ function parseRange(text: string, start: number, end: number, depth: number): In
   const out = new InlineBuilder()
   let pos = start
   while (pos < end) {
-    const ch = text.charAt(pos)
-    if (ch === '\n') {
-      out.newline()
-      pos += 1
-      continue
-    }
-    const step = READERS.get(ch)?.(scan, pos) ?? { next: pos + 1, text: ch }
-    out.add(step)
-    pos = step.next
+    pos += consume(scan, pos, out)
   }
   return out.result()
+}
+
+/** Adds the token at `pos` to `out` and returns its length, which is always at least 1. */
+function consume(scan: Scan, pos: number, out: InlineBuilder): number {
+  const ch = scan.text.charAt(pos)
+  if (ch === '\n') {
+    out.newline()
+    return 1
+  }
+  const step = READERS.get(ch)?.(scan, pos) ?? null
+  if (step === null) {
+    out.text(ch)
+    return 1
+  }
+  out.add(step)
+  return Math.max(step.next - pos, 1)
 }
 
 function charAt(scan: Scan, index: number): string {
@@ -124,7 +141,7 @@ function charAt(scan: Scan, index: number): string {
 
 function runLength(scan: Scan, pos: number, ch: string): number {
   let cursor = pos
-  while (charAt(scan, cursor) === ch) {
+  while (cursor < scan.end && scan.text.charAt(cursor) === ch) {
     cursor += 1
   }
   return cursor - pos
@@ -175,7 +192,8 @@ function findBacktickRun(scan: Scan, from: number, size: number): number {
     if (run === size) {
       return pos
     }
-    pos = scan.text.indexOf('`', pos + run)
+    pos += Math.max(run, 1)
+    pos = scan.text.indexOf('`', pos)
   }
   scan.failed.set(key, from)
   return -1
@@ -209,14 +227,22 @@ function acceptsRun(run: number, size: number): boolean {
   return size === 2 ? run >= 2 : run !== 2
 }
 
-function closerAt(scan: Scan, pos: number, from: number, size: number): { close: number; next: number } {
+interface Closer {
+  /** Where the closing delimiter starts, or -1 when the run at this position cannot close. */
+  close: number
+  run: number
+}
+
+const NO_CLOSER: Closer = { close: -1, run: 1 }
+
+function closerAt(scan: Scan, pos: number, from: number, size: number): Closer {
   const ch = scan.text.charAt(pos)
   const run = runLength(scan, pos, ch)
   const close = pos + run - size
   const flanking = !isSpace(scan.text.charAt(pos - 1))
   const wordSafe = ch !== '_' || !isWordChar(charAt(scan, pos + run))
   const ok = acceptsRun(run, size) && close > from && flanking && wordSafe
-  return { close: ok ? close : -1, next: pos + run }
+  return { close: ok ? close : -1, run }
 }
 
 function findCloser(scan: Scan, from: number, ch: string, size: number): number {
@@ -231,11 +257,11 @@ function findCloser(scan: Scan, from: number, ch: string, size: number): number 
       pos += 2
       continue
     }
-    const found = current === ch ? closerAt(scan, pos, from, size) : { close: -1, next: pos + 1 }
+    const found = current === ch ? closerAt(scan, pos, from, size) : NO_CLOSER
     if (found.close >= 0) {
       return found.close
     }
-    pos = found.next
+    pos += Math.max(found.run, 1)
   }
   scan.failed.set(key, from)
   return -1
@@ -393,7 +419,8 @@ const TASK = /^\[([ xX])\][ \t]+/
 
 interface BlockStep {
   block: Block | null
-  next: number
+  /** How many lines the block used (at least one). */
+  size: number
 }
 
 type BlockReader = (lines: string[], index: number, depth: number) => BlockStep | null
@@ -418,7 +445,7 @@ function parseBlocks(lines: string[], depth: number): Block[] {
     if (step.block) {
       blocks.push(step.block)
     }
-    index = step.next
+    index += Math.max(step.size, 1)
   }
   return blocks
 }
@@ -446,7 +473,7 @@ function isBlank(line: string): boolean {
 }
 
 function readBlank(lines: string[], index: number): BlockStep | null {
-  return isBlank(lineAt(lines, index)) ? { block: null, next: index + 1 } : null
+  return isBlank(lineAt(lines, index)) ? { block: null, size: 1 } : null
 }
 
 function headingText(raw: string): string {
@@ -465,7 +492,7 @@ function readHeading(lines: string[], index: number): BlockStep | null {
     return null
   }
   const level = (match[1] ?? '#').length
-  return { block: { kind: 'heading', level, children: parseInline(headingText(match[2] ?? '')) }, next: index + 1 }
+  return { block: { kind: 'heading', level, children: parseInline(headingText(match[2] ?? '')) }, size: 1 }
 }
 
 function isRule(line: string): boolean {
@@ -477,7 +504,7 @@ function isRule(line: string): boolean {
 }
 
 function readRule(lines: string[], index: number): BlockStep | null {
-  return isRule(lineAt(lines, index)) ? { block: { kind: 'rule' }, next: index + 1 } : null
+  return isRule(lineAt(lines, index)) ? { block: { kind: 'rule' }, size: 1 } : null
 }
 
 function isFenceClose(line: string, marker: string): boolean {
@@ -501,8 +528,10 @@ function readFence(lines: string[], index: number): BlockStep | null {
   while (end < lines.length && !isFenceClose(lineAt(lines, end), fence.marker)) {
     end += 1
   }
+  const body = lines.slice(index + 1, end)
   const lang = fence.info.split(/\s+/)[0] ?? ''
-  return { block: { kind: 'code', lang, text: lines.slice(index + 1, end).join('\n') }, next: end + 1 }
+  // The opening fence, the body and the closing fence (which may be missing at the end).
+  return { block: { kind: 'code', lang, text: body.join('\n') }, size: body.length + 2 }
 }
 
 function readQuote(lines: string[], index: number, depth: number): BlockStep | null {
@@ -517,7 +546,7 @@ function readQuote(lines: string[], index: number, depth: number): BlockStep | n
     cursor += 1
     match = QUOTE.exec(lineAt(lines, cursor))
   }
-  return { block: { kind: 'quote', blocks: parseBlocks(inner, depth + 1) }, next: cursor }
+  return { block: { kind: 'quote', blocks: parseBlocks(inner, depth + 1) }, size: inner.length }
 }
 
 function parseMarker(line: string): Marker | null {
@@ -586,8 +615,20 @@ function buildItem(marker: Marker, rest: string[], depth: number): ListItem {
   return { task: task ? state : null, blocks: parseBlocks([first, ...dedented], depth + 1) }
 }
 
-function sameList(a: Marker, b: Marker | null): boolean {
+interface ItemStart {
+  marker: Marker
+  index: number
+}
+
+function sameList(a: Marker, b: Marker | null): b is Marker {
   return b !== null && a.ordered === b.ordered && a.bullet === b.bullet
+}
+
+/** The next item of the list that `first` opened, if one starts after `end` (and after `after`). */
+function nextItem(lines: string[], first: Marker, end: number, after: number): ItemStart | null {
+  const index = nextNonBlank(lines, end)
+  const marker = parseMarker(lineAt(lines, index))
+  return index > after && sameList(first, marker) ? { marker, index } : null
 }
 
 function readList(lines: string[], index: number, depth: number): BlockStep | null {
@@ -596,17 +637,14 @@ function readList(lines: string[], index: number, depth: number): BlockStep | nu
     return null
   }
   const items: ListItem[] = []
-  let cursor = index
-  let marker: Marker | null = first
-  while (marker) {
-    const end = itemEnd(lines, cursor, marker)
-    items.push(buildItem(marker, lines.slice(cursor + 1, end), depth))
-    const next = nextNonBlank(lines, end)
-    const following = parseMarker(lineAt(lines, next))
-    marker = sameList(first, following) ? following : null
-    cursor = marker ? next : end
+  let item: ItemStart | null = { marker: first, index }
+  let end = index
+  while (item) {
+    end = itemEnd(lines, item.index, item.marker)
+    items.push(buildItem(item.marker, lines.slice(item.index + 1, end), depth))
+    item = nextItem(lines, first, end, item.index)
   }
-  return { block: { kind: 'list', ordered: first.ordered, start: first.start, items }, next: cursor }
+  return { block: { kind: 'list', ordered: first.ordered, start: first.start, items }, size: end - index }
 }
 
 function readParagraph(lines: string[], index: number): BlockStep {
@@ -616,7 +654,7 @@ function readParagraph(lines: string[], index: number): BlockStep {
     collected.push(lineAt(lines, cursor).trimStart())
     cursor += 1
   }
-  return { block: { kind: 'paragraph', children: parseInline(collected.join('\n').trimEnd()) }, next: cursor }
+  return { block: { kind: 'paragraph', children: parseInline(collected.join('\n').trimEnd()) }, size: collected.length }
 }
 
 const BLOCK_READERS: BlockReader[] = [readBlank, readFence, readHeading, readRule, readQuote, readList]

@@ -157,6 +157,22 @@ describe('sprint report (2)', () => {
     })
   })
 
+  it('explains a failure by the latest failed or rejected attempt', () => {
+    const run = runView({
+      tickets: [execution('DM-201', 'sp_2', 'failed', { attemptCount: 2 })],
+      attempts: [
+        attempt('DM-201', 1, 'failed', { failure: { reason: 'flaky', details: '', retryable: true } }),
+        attempt('DM-201', 2, 'rejected', {
+          decision: { outcome: 'rejected', notes: '', reasons: ['Rollback is untested'], decidedBy: 'you' }
+        })
+      ]
+    })
+    const report = reportFixture({ report: { ...reportFixture().report, failed: ['DM-201'] } })
+    expect(reportView(report, { run, bundle: bundle(), now: NOW }).failed).toEqual([
+      { ticketId: 'tk_201', key: 'DM-201', title: 'MCP authoring tools', detail: 'attempt 2 of 2 · Rollback is untested' }
+    ])
+  })
+
   it('describes failures without run details and without a bundle', () => {
     const view = reportView(reportFixture(), { run: runView({ tickets: [], attempts: [] }), bundle: null, now: NOW })
     expect(view.header).toBe('SPRINT ? REPORT · WRITTEN BY SPRINT REPORTER 12M AGO')
@@ -173,6 +189,8 @@ describe('follow-up proposals', () => {
       op: { op: 'add_ticket', sprint: 'sp_3', ticket: { title: 'Provide a signing identity', body: 'Needs a person.' } }
     })
     expect(followUpOp(proposal, draftPlan().bundle, 3)?.sprintOrdinal).toBe(3)
+    const reversed = { ...draftPlan().bundle, sprints: [...draftPlan().bundle.sprints].reverse() }
+    expect(followUpOp(proposal, reversed, 3)?.sprintOrdinal).toBe(3)
     expect(followUpOp(proposal, { ...draftPlan().bundle, sprints: [] }, 1)).toBe(null)
   })
 })

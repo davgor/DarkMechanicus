@@ -390,8 +390,8 @@ export interface RunCounts {
 
 export interface RunView {
   id: string
-  /** Display-only run number per epic (`runs.number`), e.g. "Run #2". Optional for older builds. */
-  number?: number
+  /** Display-only run number per epic (`runs.number`), e.g. "Run #2". */
+  number: number
   epicId: string
   revisionId: string
   revisionNumber: number

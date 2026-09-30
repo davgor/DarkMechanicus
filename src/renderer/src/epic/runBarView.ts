@@ -37,7 +37,7 @@ const COUNT_ORDER: [keyof RunCounts, string, Tone][] = [
 ]
 
 export function runLabel(run: RunView): string {
-  return run.number === undefined ? 'Run' : `Run #${run.number}`
+  return `Run #${run.number}`
 }
 
 export function runPill(run: RunView): { label: string; tone: Tone } {

@@ -4,7 +4,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { DmApi } from '../../../shared/desktop/api'
 import type { FollowUpProposal } from '../../../shared/domain/views'
 import { NOW, bundle, checkpointView, condition, execution, runView } from '../epic/__mocks__/fixtures'
+import { allowSlowRendering } from '../epic/__mocks__/testTiming'
 import { CheckpointScreen, type CheckpointScreenProps } from './CheckpointScreen'
+
+allowSlowRendering()
 
 beforeEach(() => {
   window.dm = { openExternal: () => Promise.resolve(true) } as Pick<DmApi, 'openExternal'> as DmApi

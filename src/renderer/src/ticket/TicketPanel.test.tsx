@@ -3,8 +3,11 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, describe, expect, it } from 'vitest'
 import { FakeBackend, scenario } from '../epic/__mocks__/fakeBackend'
 import { NOW, attempt, savedPlan, ticketDetail } from '../epic/__mocks__/fixtures'
+import { allowSlowRendering } from '../epic/__mocks__/testTiming'
 import type { ReviewInput } from '../epic/workspaceActions'
 import { TicketPanel, type TicketPanelProps } from './TicketPanel'
+
+allowSlowRendering()
 
 afterEach(() => {
   cleanup()

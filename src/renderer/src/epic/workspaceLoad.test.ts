@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { FakeBackend, scenario } from './__mocks__/fakeBackend'
-import { checkpointView, draftPlan, epicDetail, runView } from './__mocks__/fixtures'
+import { checkpointView, draftPlan, epicDetail, runView, savedPlan } from './__mocks__/fixtures'
 import { loadWorkspace } from './workspaceLoad'
 
 describe('loadWorkspace (1)', () => {
@@ -61,5 +61,29 @@ describe('loadWorkspace (2)', () => {
     const backend = new FakeBackend()
     backend.fail('getEpic', 'not_found', 'Epic ep_1 not found.')
     await expect(loadWorkspace(backend.runner, 'ep_1')).rejects.toThrow('Epic ep_1 not found.')
+  })
+})
+
+describe('loadWorkspace (3)', () => {
+  it('shows the revision an active run executes when a newer revision was saved', async () => {
+    const epic = epicDetail({ currentRevisionId: 'rv_5', currentRevisionNumber: 5 })
+    const saved = savedPlan({ revisionId: 'rv_5', revisionNumber: 5 })
+    const backend = new FakeBackend(scenario({ epic, saved, run: runView({ revisionId: 'rv_4', revisionNumber: 4 }) }))
+    const data = await loadWorkspace(backend.runner, 'ep_1')
+    expect(backend.inputs('getPlan')).toEqual([
+      { epicId: 'ep_1', view: 'saved' },
+      { epicId: 'ep_1', view: 'saved', revisionId: 'rv_4' }
+    ])
+    expect([data.saved?.revisionId, data.saved?.revisionNumber]).toEqual(['rv_4', 4])
+  })
+
+  it('keeps the current revision once the run has finished', async () => {
+    const epic = epicDetail({ currentRevisionId: 'rv_5', currentRevisionNumber: 5 })
+    const saved = savedPlan({ revisionId: 'rv_5', revisionNumber: 5 })
+    const run = runView({ revisionId: 'rv_4', revisionNumber: 4, state: 'completed' })
+    const backend = new FakeBackend(scenario({ epic, saved, run }))
+    const data = await loadWorkspace(backend.runner, 'ep_1')
+    expect(backend.inputs('getPlan')).toEqual([{ epicId: 'ep_1', view: 'saved' }])
+    expect(data.saved?.revisionNumber).toBe(5)
   })
 })

@@ -158,6 +158,16 @@ function planOf(state: Scenario, view: 'saved' | 'draft'): PlanView {
   return (view === 'draft' ? state.draft : state.saved) ?? notFound(`No ${view} plan`)
 }
 
+/** An explicit revision id reads that saved revision (numbered from its `rv_<n>` id). */
+function pinnedPlanOf(state: Scenario, input: { view: 'saved' | 'draft'; revisionId?: string }): PlanView {
+  const plan = planOf(state, input.view)
+  if (input.revisionId === undefined || input.revisionId === plan.revisionId) {
+    return plan
+  }
+  const revisionNumber = Number.parseInt(input.revisionId.replace('rv_', ''), 10)
+  return { ...plan, revisionId: input.revisionId, revisionNumber, contentHash: `hash-${revisionNumber}` }
+}
+
 function ticketOf(state: Scenario, input: { ticketId: string; view: 'saved' | 'draft' }): TicketDetailView {
   if (input.ticketId === state.ticket.ticket.id && input.view === state.ticket.view) {
     return state.ticket
@@ -227,7 +237,7 @@ function runHandlers(state: Scenario): Partial<Record<CommandName, Handler>> {
 function defaultHandlers(state: Scenario): Partial<Record<CommandName, Handler>> {
   return {
     getEpic: () => state.epic,
-    getPlan: (input: { view: 'saved' | 'draft' }) => planOf(state, input.view),
+    getPlan: (input: { view: 'saved' | 'draft'; revisionId?: string }) => pinnedPlanOf(state, input),
     listTickets: (input: { view: 'saved' | 'draft' }) => summaries(planOf(state, input.view).bundle),
     validatePlan: () => state.validation,
     getTicket: (input: { ticketId: string; view: 'saved' | 'draft' }) => ticketOf(state, input),

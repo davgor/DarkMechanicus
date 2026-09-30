@@ -61,8 +61,8 @@ describe('changes since the base revision', () => {
 describe('save note and outcome', () => {
   it('explains that saving never changes an active run', () => {
     expect(saveNote(runView(), 5)).toBe("Saving doesn't change run #2. Adopt rev 5 at the Sprint 2 checkpoint.")
-    expect(saveNote(runView({ activeSprintOrdinal: null, number: undefined }), 5)).toBe(
-      "Saving doesn't change the active run. Adopt rev 5 at its next checkpoint."
+    expect(saveNote(runView({ activeSprintOrdinal: null, number: 7 }), 5)).toBe(
+      "Saving doesn't change run #7. Adopt rev 5 at its next checkpoint."
     )
     expect(saveNote(runView({ state: 'completed' }), 5)).toBe('Saving makes rev 5 the plan the next run executes.')
     expect(saveNote(null, 1)).toBe('Saving makes rev 1 the plan the next run executes.')

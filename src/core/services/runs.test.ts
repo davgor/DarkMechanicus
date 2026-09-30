@@ -74,8 +74,10 @@ describe('queueRun', () => {
   it('numbers runs per epic', () => {
     const ctx = createTestCtx({ role: 'desktop' })
     const { epicId } = seedEpic(ctx)
-    cancelRun(ctx, { runId: queueRun(ctx, { epicId }).id })
-    expect(runRow(ctx, queueRun(ctx, { epicId }).id).number).toBe(2)
+    const first = queueRun(ctx, { epicId })
+    cancelRun(ctx, { runId: first.id })
+    const second = queueRun(ctx, { epicId })
+    expect([first.number, second.number, runRow(ctx, second.id).number]).toEqual([1, 2, 2])
   })
 
   it('is reserved for the person at the desktop', () => {

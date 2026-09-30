@@ -71,7 +71,7 @@ export function saveNote(run: RunView | null, nextNumber: number): string {
   if (run === null || !isActiveRunState(run.state)) {
     return `Saving makes rev ${nextNumber} the plan the next run executes.`
   }
-  const name = run.number === undefined ? 'the active run' : `run #${run.number}`
+  const name = `run #${run.number}`
   const where = run.activeSprintOrdinal === null ? 'its next checkpoint' : `the Sprint ${run.activeSprintOrdinal} checkpoint`
   return `Saving doesn't change ${name}. Adopt rev ${nextNumber} at ${where}.`
 }

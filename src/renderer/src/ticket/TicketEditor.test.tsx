@@ -5,6 +5,9 @@ import { installDomShims } from '../epic/__mocks__/domShims'
 import { FakeBackend, scenario } from '../epic/__mocks__/fakeBackend'
 import { draftPlan, epicDetail } from '../epic/__mocks__/fixtures'
 import { renderWorkspace, type WorkspaceHarness } from '../epic/__mocks__/renderWorkspace'
+import { allowSlowRendering } from '../epic/__mocks__/testTiming'
+
+allowSlowRendering()
 
 beforeAll(() => {
   installDomShims()
@@ -102,6 +105,7 @@ describe('ticket editor: apply (2)', () => {
 describe('ticket editor: fields', () => {
   it('edits criteria, prerequisites and the capability profile', async () => {
     const { h, editor } = await openEditor()
+    expect(within(editor).queryByText('No prerequisites.')).toBe(null)
     fireEvent.click(within(editor).getByRole('button', { name: 'Move criterion 2 up' }))
     fireEvent.click(within(editor).getByRole('button', { name: 'Remove criterion 4' }))
     fireEvent.click(within(editor).getByRole('button', { name: '+ Criterion' }))
@@ -116,6 +120,10 @@ describe('ticket editor: fields', () => {
     await within(editor).findByText('Applied to the draft.')
     const [ops] = opsOf(h) as { op: string; patch?: unknown }[][]
     expect(ops?.map((op) => op.op)).toEqual(['update_ticket', 'remove_dependency', 'add_dependency'])
+    expect(ops?.slice(1)).toEqual([
+      { op: 'remove_dependency', from: 'tk_103', to: 'tk_202' },
+      { op: 'add_dependency', from: 'tk_201', to: 'tk_202' }
+    ])
     expect(ops?.[0]?.patch).toEqual({
       acceptanceCriteria: [
         { id: 'c2', text: 'An invalid edge rejects the whole bundle and nothing persists' },
@@ -143,5 +151,16 @@ describe('ticket editor: fields', () => {
     fireEvent.click(within(within(editor).getByRole('alertdialog')).getByRole('button', { name: 'Remove ticket' }))
     await waitFor(() => expect(screen.queryByLabelText('Edit ticket DM-202')).toBe(null))
     expect(opsOf(h)).toEqual([[{ op: 'remove_ticket', ticket: 'tk_202' }]])
+  })
+})
+
+describe('ticket editor: header', () => {
+  it('shows the draft change badge of the ticket being edited', async () => {
+    renderWorkspace(new FakeBackend(scenario({ epic: epicDetail({ hasDraft: true }), draft: draftPlan() })))
+    fireEvent.click(await screen.findByRole('button', { name: 'View draft' }))
+    fireEvent.click(await screen.findByText('Plan list view'))
+    const editor = await screen.findByLabelText('Edit ticket DM-305')
+    expect(within(editor).getByText('NEW IN REV 5').textContent).toBe('NEW IN REV 5')
+    expect(within(editor).getByText('No prerequisites.').textContent).toBe('No prerequisites.')
   })
 })

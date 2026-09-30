@@ -74,7 +74,8 @@ describe('workspace view resolution', () => {
     const withCheckpoint = workspaceReducer(selected, { type: 'open_checkpoint' })
     expect(loaded({}, withCheckpoint).checkpointOpen).toBe(true)
     expect(loaded({ checkpoint: null }, withCheckpoint).checkpointOpen).toBe(false)
-    const gone = savedPlan({ bundle: { ...savedPlan().bundle, tickets: [] } })
+    const others = savedPlan().bundle.tickets.filter((item) => item.id !== 'tk_202')
+    const gone = savedPlan({ bundle: { ...savedPlan().bundle, tickets: others } })
     expect(loaded({ saved: gone }, selected).selectedTicketId).toBe(null)
     const newTicket = workspaceReducer(workspaceReducer(loaded(), { type: 'show_view', view: 'draft' }), {
       type: 'select_ticket',

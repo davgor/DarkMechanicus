@@ -168,6 +168,7 @@ function buildRunView(ctx: Ctx, runId: string): RunView {
   const revision = ctx.db.get<{ number: number }>('SELECT number FROM plan_revisions WHERE id = ?', run.revision_id)
   return {
     id: run.id,
+    number: run.number,
     epicId: run.epic_id,
     revisionId: run.revision_id,
     revisionNumber: revision?.number ?? 0,

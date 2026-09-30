@@ -29,14 +29,15 @@ function harness(patch: Partial<WorkspaceData> = {}, backend = new FakeBackend(s
   const dispatched: WorkspaceAction[] = []
   const counts = { reloads: 0, changes: 0 }
   let current: WorkspaceState = workspaceReducer(initialWorkspaceState(), { type: 'load_succeeded', data: data(patch), at: 0 })
+  const dispatch = (action: WorkspaceAction): void => {
+    dispatched.push(action)
+    current = workspaceReducer(current, action)
+  }
   const actions = createWorkspaceActions({
     runner: backend.runner,
     epicId: 'ep_1',
     getState: () => current,
-    dispatch: (action) => {
-      dispatched.push(action)
-      current = workspaceReducer(current, action)
-    },
+    dispatch,
     reload: () => {
       counts.reloads += 1
     },
@@ -44,7 +45,7 @@ function harness(patch: Partial<WorkspaceData> = {}, backend = new FakeBackend(s
       counts.changes += 1
     }
   })
-  return { actions, backend, dispatched, counts, state: () => current }
+  return { actions, backend, dispatched, dispatch, counts, state: () => current }
 }
 
 describe('perform', () => {
@@ -85,13 +86,15 @@ describe('draft lifecycle actions (1)', () => {
 
   it('discards the draft with its expected revision', async () => {
     const h = harness()
+    h.dispatch({ type: 'show_view', view: 'draft' })
     await h.actions.discardDraft()
     expect(h.backend.inputs('discardPlanDraft')).toEqual([{ epicId: 'ep_1', expectedDraftRevision: 7 }])
     expect([h.state().view, h.state().toast, h.state().confirm]).toEqual(['saved', 'Draft discarded.', null])
     const failing = harness()
+    failing.dispatch({ type: 'show_view', view: 'draft' })
     failing.backend.fail('discardPlanDraft', 'conflict', 'The draft changed.')
     await failing.actions.discardDraft()
-    expect(failing.state().banner).toBe('The draft changed.')
+    expect([failing.state().view, failing.state().banner]).toEqual(['draft', 'The draft changed.'])
   })
 
   it('saves and switches to the Saved view with a toast', async () => {
@@ -224,16 +227,17 @@ describe('graph edit actions (2)', () => {
 describe('checkpoint actions', () => {
   it('approves and advances, then closes the checkpoint view', async () => {
     const h = harness()
-    h.dispatched.length = 0
+    h.dispatch({ type: 'open_checkpoint' })
     await h.actions.approve('sr_1')
     expect(h.backend.inputs('approveAndAdvance')).toEqual([{ runId: 'rn_2', reportId: 'sr_1' }])
     expect([h.state().checkpointOpen, h.state().toast]).toEqual([false, 'Checkpoint approved — Sprint 3 started.'])
     h.backend.handlers.approveAndAdvance = () => runView({ state: 'completed' })
     await h.actions.approve('sr_1')
     expect(h.state().toast).toBe('Checkpoint approved — the epic is complete.')
+    h.dispatch({ type: 'open_checkpoint' })
     h.backend.fail('approveAndAdvance', 'gate_blocked', 'Sprint 2 gates are not met.')
     await h.actions.approve('sr_1')
-    expect(h.state().banner).toBe('Sprint 2 gates are not met.')
+    expect([h.state().checkpointOpen, h.state().banner]).toEqual([true, 'Sprint 2 gates are not met.'])
   })
 
   it('grants retries and toggles automatic continuation', async () => {

@@ -5,6 +5,9 @@ import { installDomShims } from './__mocks__/domShims'
 import { FakeBackend, scenario } from './__mocks__/fakeBackend'
 import { draftPlan, epicDetail, runView } from './__mocks__/fixtures'
 import { renderWorkspace } from './__mocks__/renderWorkspace'
+import { allowSlowRendering } from './__mocks__/testTiming'
+
+allowSlowRendering()
 
 beforeAll(() => {
   installDomShims()

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseInline, parseMarkdown, safeHref } from './parse'
+import { parseInline, parseMarkdown, safeHref, type Inline } from './parse'
 
 
 describe('safeHref', () => {
@@ -84,6 +84,10 @@ describe('parseInline (2)', () => {
     expect(parseInline('snake_case_name')).toEqual([{ kind: 'text', text: 'snake_case_name' }])
     expect(parseInline('x*')).toEqual([{ kind: 'text', text: 'x*' }])
     expect(parseInline('* a*')).toEqual([{ kind: 'text', text: '* a*' }])
+    expect(parseInline('***a*')).toEqual([
+      { kind: 'text', text: '**' },
+      { kind: 'em', children: [{ kind: 'text', text: 'a' }] }
+    ])
   })
 
   it('rejects an empty emphasis span', () => {
@@ -104,6 +108,9 @@ describe('parseInline (2)', () => {
     expect(parseInline('end\\')).toEqual([{ kind: 'text', text: 'end\\' }])
   })
 
+})
+
+describe('parseInline (2b)', () => {
   it('parses code spans with longer fences and trims one padding space', () => {
     expect(parseInline('`` a`b ``')).toEqual([{ kind: 'code', text: 'a`b' }])
     expect(parseInline('` `')).toEqual([{ kind: 'code', text: ' ' }])
@@ -182,6 +189,17 @@ describe('parseInline (4)', () => {
     ])
   })
 
+  it('finds a link or autolink right after a stray closing bracket', () => {
+    expect(parseInline('a][b](https://e.com)')).toEqual([
+      { kind: 'text', text: 'a]' },
+      { kind: 'link', href: 'https://e.com/', children: [{ kind: 'text', text: 'b' }] }
+    ])
+    expect(parseInline('-><https://e.com>')).toEqual([
+      { kind: 'text', text: '->' },
+      { kind: 'link', href: 'https://e.com/', children: [{ kind: 'text', text: 'https://e.com' }] }
+    ])
+  })
+
   it('leaves malformed links literal', () => {
     expect(parseInline('[a] (https://e.com)')).toEqual([{ kind: 'text', text: '[a] (https://e.com)' }])
     expect(parseInline('[a](https://e.com')).toEqual([{ kind: 'text', text: '[a](https://e.com' }])
@@ -240,6 +258,42 @@ describe('parseInline (5)', () => {
     expect(parseInline(angles)).toEqual([{ kind: 'text', text: angles }])
     const ticks = `${'`'.repeat(3)}${'a'.repeat(10)}${'``'}`
     expect(parseInline(ticks)).toEqual([{ kind: 'text', text: ticks }])
+  })
+})
+
+describe('parseInline (6)', () => {
+  const t = (text: string): Inline => ({ kind: 'text', text })
+
+  it('nests four emphasis levels and keeps a fifth level (inside link text) literal', () => {
+    expect(parseInline('**a *b __c _d_ c__ b* a**')).toEqual([
+      {
+        kind: 'strong',
+        children: [
+          t('a '),
+          {
+            kind: 'em',
+            children: [
+              t('b '),
+              { kind: 'strong', children: [t('c '), { kind: 'em', children: [t('d')] }, t(' c')] },
+              t(' b')
+            ]
+          },
+          t(' a')
+        ]
+      }
+    ])
+    expect(parseInline('[**a *b __c _d_ c__ b* a**](https://x.y)')).toEqual([
+      {
+        kind: 'link',
+        href: 'https://x.y/',
+        children: [
+          {
+            kind: 'strong',
+            children: [t('a '), { kind: 'em', children: [t('b '), { kind: 'strong', children: [t('c _d_ c')] }, t(' b')] }, t(' a')]
+          }
+        ]
+      }
+    ])
   })
 })
 
@@ -398,6 +452,35 @@ describe('parseMarkdown (4)', () => {
     expect(parseMarkdown('-\n-x')).toEqual([
       { kind: 'list', ordered: false, start: 1, items: [{ task: null, blocks: [] }] },
       { kind: 'paragraph', children: [{ kind: 'text', text: '-x' }] }
+    ])
+  })
+})
+
+describe('parseMarkdown (4b)', () => {
+  it('dedents item content by the marker width, so deeper indentation stays in the item', () => {
+    expect(parseMarkdown('- a\n\n     # h')).toEqual([
+      {
+        kind: 'list',
+        ordered: false,
+        start: 1,
+        items: [
+          {
+            task: null,
+            blocks: [
+              { kind: 'paragraph', children: [{ kind: 'text', text: 'a' }] },
+              { kind: 'heading', level: 1, children: [{ kind: 'text', text: 'h' }] }
+            ]
+          }
+        ]
+      }
+    ])
+  })
+
+  it('continues after a fenced code block that follows a paragraph', () => {
+    expect(parseMarkdown('text\n```\ncode\n```\nafter')).toEqual([
+      { kind: 'paragraph', children: [{ kind: 'text', text: 'text' }] },
+      { kind: 'code', lang: '', text: 'code' },
+      { kind: 'paragraph', children: [{ kind: 'text', text: 'after' }] }
     ])
   })
 })

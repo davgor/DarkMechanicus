@@ -190,6 +190,8 @@ describe('ticket form membership and dependencies', () => {
     ])
     expect(prerequisiteOptions(BUNDLE, 'tk_101', form('tk_101')).map((item) => item.id)).toEqual(['tk_102', 'tk_103'])
     expect(prerequisiteOptions(BUNDLE, 'tk_202', { ...form(), sprintId: 'sp_x' })).toEqual([])
+    const reversed = { ...BUNDLE, sprints: [...BUNDLE.sprints].reverse() }
+    expect(prerequisiteOptions(reversed, 'tk_202', form()).map((item) => item.id)).toEqual(['tk_101', 'tk_201', 'tk_203', 'tk_204'])
   })
 
   it('lists sprints in order with their goals', () => {
@@ -198,6 +200,8 @@ describe('ticket form membership and dependencies', () => {
       { id: 'sp_2', label: 'Sprint 2 · Authoring through MCP' },
       { id: 'sp_3', label: 'Sprint 3 · Desktop editing' }
     ])
+    const reversed = { ...BUNDLE, sprints: [...BUNDLE.sprints].reverse() }
+    expect(sprintOptions(reversed).map((item) => item.id)).toEqual(['sp_1', 'sp_2', 'sp_3'])
     const unnamed = { ...BUNDLE, sprints: [{ ...BUNDLE.sprints[0], goal: ' ', id: 'sp_1' }] }
     expect(sprintOptions(unnamed as typeof BUNDLE)).toEqual([{ id: 'sp_1', label: 'Sprint 1' }])
   })
