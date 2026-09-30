@@ -1,14 +1,15 @@
 /**
  * Reconcile for named capability profiles (`.darkmechanicus/profiles/<name>.json`).
  *
- * Every entry is untrusted, exactly like epic and run records: only `<name>.json` files with a
- * portable profile name are read, through the contained owned path (links, junctions, and
- * directories are refused), within a size bound, and must hold a strict profile record naming the
- * profile of its file name. A bad entry is rejected and reported and never stops the others; so is
- * a `profiles` that is a link, a redirect outside, or not a directory at all, which is then read as
- * empty so the rest of the reconcile (and opening the repository) goes on. A changed profile is
- * imported unless the local profile has unexported changes: that is a conflict, the local profile
- * is kept, and its next export writes it over the tracked file.
+ * Every entry is untrusted, exactly like epic and run records: only `<name>.json` files are read
+ * (other names, such as temp files, are ignored), through the contained owned path of a portable
+ * profile name (links, junctions, and directories are refused), within a size bound, and must hold a
+ * strict profile record naming the profile of its file name. A bad entry is rejected and reported
+ * and never stops the others; so is a `profiles` that is a link, a redirect outside, or not a
+ * directory at all, which is then read as empty so the rest of the reconcile (and opening the
+ * repository) goes on. A changed profile is imported unless the local profile has unexported
+ * changes: that is a conflict, the local profile is kept, and its next export writes it over the
+ * tracked file.
  */
 import { type Db, toJson } from '../db/database'
 import { fail } from '../errors'
@@ -67,7 +68,10 @@ function conflictMessage(name: string): string {
   return `Tracked profile ${name} changed while local profile changes are waiting to be exported. Flush or resolve the local changes before importing.`
 }
 
-/** Entries of `profiles/` (dot entries ignored); throws when `profiles` is a link or not a directory. */
+/**
+ * `.json` entries of `profiles/`; dot entries and other names (such as the temp file of an
+ * interrupted export) are ignored. Throws when `profiles` is a link or not a directory.
+ */
 function listProfileEntries(deps: ProfileImportDeps, shownDir: string): string[] {
   const dir = deps.layout.profilesDir
   if (!deps.fs.exists(dir) && !deps.fs.isSymlink(dir)) {
@@ -79,7 +83,7 @@ function listProfileEntries(deps: ProfileImportDeps, shownDir: string): string[]
   }
   const entries = deps.fs
     .readdir(dir)
-    .filter((entry) => !entry.startsWith('.'))
+    .filter((entry) => !entry.startsWith('.') && entry.endsWith(JSON_SUFFIX))
     .sort()
   if (entries.length > MAX_PROFILES) {
     reject(shownDir, `holds more than ${MAX_PROFILES} profiles`)
@@ -117,9 +121,6 @@ function readProfileText(deps: ProfileImportDeps, file: string, shownEntry: stri
 
 /** Reads one entry; null when it matches the last sync (then it is not even parsed again). */
 function readProfileEntry(deps: ProfileImportDeps, entry: string, shownEntry: string): StagedProfile | null {
-  if (!entry.endsWith(JSON_SUFFIX)) {
-    reject(shownEntry, 'is not a profile record: profiles are stored as <name>.json')
-  }
   const name = entry.slice(0, -JSON_SUFFIX.length)
   const file = ownedPaths(deps.layout).profileFile(name)
   const changed = readUnlessSynced(deps, file, {

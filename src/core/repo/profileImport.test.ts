@@ -1,4 +1,5 @@
 /** Named capability profiles are reconstructed and refreshed from `.darkmechanicus/profiles/` on reconcile. */
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { defaultCapabilityProfile } from '../../shared/domain/bundle'
 import { isWithin } from '../../test/memoryFs'
@@ -177,6 +178,19 @@ describe('reconcileRepository profile conflicts', () => {
     expect(JSON.parse(profileText(target, 'ui'))).toMatchObject({ description: 'Local edit' })
     expect(target.db.get("SELECT conflict FROM sync_state WHERE kind = 'profile' AND entity_id = 'ui'")).toEqual({ conflict: null })
     expect(reconcileRepository(deps)).toMatchObject({ imported: [], profileConflicts: [] })
+  })
+})
+
+describe('reconcileRepository profile file names', () => {
+  it('ignores the temp file a crashed export left beside a profile, on every reconcile', () => {
+    const target = cloneOf(profileSource())
+    const deps = importerDeps(target, createStubGit('main'))
+    reconcileRepository(deps)
+    target.fs.put(`${ownedPaths(target.layout).profileFile('ui')}.tmp-4242`, '{"half": ')
+    target.fs.put(join(target.layout.profilesDir, 'README.md'), '# Profiles')
+    for (const result of [reconcileRepository(deps), reconcileRepository(deps)]) {
+      expect(result).toMatchObject({ imported: [], unchanged: ['profile:deep-review', 'profile:ui'], rejected: [] })
+    }
   })
 })
 

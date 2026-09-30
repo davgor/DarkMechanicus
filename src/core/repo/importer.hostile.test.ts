@@ -627,24 +627,16 @@ function storedNames(state: Imported): string[] {
   return state.target.db.all<{ name: string }>('SELECT name FROM profiles ORDER BY name').map((row) => row.name)
 }
 
-function notARecord(entry: string): { path: string; message: string } {
-  return { path: `${PROFILES_DIR}/${entry}`, message: `${PROFILES_DIR}/${entry} is not a profile record: profiles are stored as <name>.json.` }
-}
-
 const HOSTILE_NAMES = ['Bad.json', 'a_b.json', 'con.json', 'lpt1.json', 'nul.json', 'trailing-.json', 'x/../../escape.json']
 
 describe('hostile profile file names', () => {
-  it('rejects unsafe or non-record names and still imports valid profiles', () => {
+  it('rejects unsafe record names, ignores other names, and still imports valid profiles', () => {
     const state = profiled()
     state.target.fs.put(profilePath(state, 'good'), profileText(state, 'good'))
-    const listing = ['..', '.hidden.json', ...HOSTILE_NAMES, 'notes.txt', 'noext', 'good.json', 'ok.json']
+    const listing = ['..', '.hidden.json', ...HOSTILE_NAMES, 'notes.txt', 'noext', 'good.json.tmp-4242', 'good.json', 'ok.json']
     state.target.fs.setReaddir(state.target.layout.profilesDir, listing)
     const result = reconcile(state)
-    expect(result.rejected).toEqual([
-      ...HOSTILE_NAMES.map((entry) => ({ path: `${PROFILES_DIR}/${entry}`, message: INVALID_NAME })),
-      notARecord('noext'),
-      notARecord('notes.txt')
-    ].sort((a, b) => (a.path < b.path ? -1 : 1)))
+    expect(result.rejected).toEqual(HOSTILE_NAMES.map((entry) => ({ path: `${PROFILES_DIR}/${entry}`, message: INVALID_NAME })))
     expect([result.imported, result.unchanged]).toEqual([['profile:good'], ['profile:ok']])
     expect(storedNames(state)).toEqual(['good', 'ok'])
     expect(outsideReads(state)).toEqual([])
