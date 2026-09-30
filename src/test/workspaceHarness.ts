@@ -3,7 +3,7 @@ import { cpSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { GitAdapter, GitHead } from '../core/repo/types'
-import { openWorkspace, type Workspace } from '../core/workspace'
+import { openWorkspace, type Workspace } from '../core/repositoryWorkspace'
 import type { SessionRole } from '../shared/domain/views'
 import { createSequentialIds, createTestClock, type TestClock } from './testContext'
 

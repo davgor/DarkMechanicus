@@ -1,4 +1,5 @@
-import type { TicketDetailView, TicketExecutionState } from '../../shared/domain/views'
+import type { TicketExecutionState } from '../../shared/domain/status'
+import type { TicketDetailView } from '../../shared/domain/views'
 import { COMMAND_SCHEMAS } from '../commandSchemas'
 import type { Ctx } from '../context'
 import { createEpic, getEpic, listEpics, setEpicBranch, setEpicStatus } from '../services/epics'
