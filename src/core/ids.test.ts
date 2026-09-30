@@ -150,7 +150,8 @@ describe('createIdGenerator kinds and secrets', () => {
       report: 'rp',
       approval: 'ap',
       checkpoint: 'ck',
-      hostCatalog: 'hc'
+      hostCatalog: 'hc',
+      comment: 'cm'
     })
   })
 
