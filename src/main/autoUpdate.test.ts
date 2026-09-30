@@ -1,3 +1,4 @@
+import type { IpcMainInvokeEvent } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const checkForUpdates = vi.fn()
@@ -158,6 +159,45 @@ describe('checkForUpdatesNow guards', () => {
     expect(isAutoUpdateEnabled()).toBe(false)
     await checkForUpdatesNow()
     expect(callCount(checkForUpdates)).toBe(0)
+  })
+})
+
+describe('registerAutoUpdateHandlers', () => {
+  beforeEach(resetAutoUpdateTest)
+  afterEach(restoreAutoUpdateTest)
+
+  it('registers the update channels on the registrar it is given', async () => {
+    const { registerAutoUpdateHandlers, getAutoUpdateState } = await loadModule()
+    const listeners = new Map<string, () => unknown>()
+    registerAutoUpdateHandlers({
+      handle: (channel, listener) => {
+        listeners.set(channel, () => listener({} as IpcMainInvokeEvent))
+      }
+    })
+
+    expect([...listeners.keys()].sort()).toEqual([
+      'autoUpdate:checkForUpdates',
+      'autoUpdate:getState',
+      'autoUpdate:quitAndInstall'
+    ])
+    expect(listeners.get('autoUpdate:getState')?.()).toEqual({ phase: 'idle', currentVersion: '1.2.3' })
+    expect(getAutoUpdateState()).toEqual({ phase: 'idle', currentVersion: '1.2.3' })
+  })
+
+  it('forwards update checks and the silent install to the updater', async () => {
+    const { registerAutoUpdateHandlers } = await loadModule()
+    const listeners = new Map<string, () => unknown>()
+    registerAutoUpdateHandlers({
+      handle: (channel, listener) => {
+        listeners.set(channel, () => listener({} as IpcMainInvokeEvent))
+      }
+    })
+
+    await listeners.get('autoUpdate:checkForUpdates')?.()
+    listeners.get('autoUpdate:quitAndInstall')?.()
+
+    expect(callCount(checkForUpdates)).toBe(1)
+    expect(quitAndInstall.mock.calls[0] ?? []).toEqual([true, true])
   })
 })
 

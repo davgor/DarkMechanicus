@@ -28,8 +28,9 @@ export function resolveAppUrl(rendererUrl: string | undefined, rendererFile: str
 type AppUrlMatcher = (candidate: URL, app: URL) => boolean
 
 const sameOrigin: AppUrlMatcher = (candidate, app) => candidate.origin === app.origin
+/** The same local file: a file URL on another host is a network share, never the packaged page. */
 const samePage: AppUrlMatcher = (candidate, app) =>
-  candidate.protocol === 'file:' && candidate.pathname === app.pathname
+  candidate.protocol === 'file:' && candidate.host === app.host && candidate.pathname === app.pathname
 
 const APP_URL_MATCHERS: Partial<Record<string, AppUrlMatcher>> = {
   'http:': sameOrigin,
@@ -37,8 +38,12 @@ const APP_URL_MATCHERS: Partial<Record<string, AppUrlMatcher>> = {
   'file:': samePage
 }
 
-/** Parsed comparison (never a string prefix): `http://localhost:5173.evil.example` is not the app. */
-function isAppUrl(target: string, appUrl: string | null): boolean {
+/**
+ * Whether `target` is the app's own page: the dev server's origin, or the packaged page's resolved
+ * file path (query and hash ignored). Parsed comparison, never a string prefix:
+ * `http://localhost:5173.evil.example` is not the app. Navigation and the IPC sender guard share it.
+ */
+export function isAppUrl(target: string, appUrl: string | null): boolean {
   if (appUrl === null) {
     return false
   }

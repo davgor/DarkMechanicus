@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   hardenWebContents,
   isAllowedExternalUrl,
+  isAppUrl,
   normalizeExternalUrl,
   resolveAppUrl
 } from './navigation'
@@ -182,6 +183,37 @@ describe('hardenWebContents packaged navigation', () => {
     expect(contents.navigate('will-navigate', pathToFileURL('/opt/app/other.html').href)).toBe(true)
     expect(contents.navigate('will-navigate', pathToFileURL('/etc/passwd').href)).toBe(true)
     expect(contents.navigate('will-navigate', 'http://localhost:5173/')).toBe(true)
+  })
+
+  it('blocks the packaged path on another host, which is a different (network) file', () => {
+    const contents = hardened(page)
+
+    expect(contents.navigate('will-navigate', 'file://evil.example/opt/app/out/renderer/index.html')).toBe(true)
+    expect(contents.navigate('will-navigate', 'file://localhost/opt/app/out/renderer/index.html')).toBe(false)
+  })
+})
+
+describe('isAppUrl', () => {
+  const page = pathToFileURL('/opt/app/out/renderer/index.html').href
+
+  it('matches the packaged page by its resolved path, ignoring query and hash', () => {
+    expect(isAppUrl(page, page)).toBe(true)
+    expect(isAppUrl('file:///opt/app/out/renderer/../renderer/index.html', page)).toBe(true)
+    expect(isAppUrl(`${page}?view=list#/epic/1`, page)).toBe(true)
+    expect(isAppUrl(`${page}.evil`, page)).toBe(false)
+    expect(isAppUrl('file:///opt/app/out/renderer/index.html/../other.html', page)).toBe(false)
+  })
+
+  it('matches the dev server by origin only', () => {
+    expect(isAppUrl('http://localhost:5173/#/epic/1', 'http://localhost:5173')).toBe(true)
+    expect(isAppUrl('http://localhost:5173.evil.example/', 'http://localhost:5173')).toBe(false)
+    expect(isAppUrl('http://localhost:5173/', page)).toBe(false)
+  })
+
+  it('matches nothing without a usable app URL or target', () => {
+    expect(isAppUrl(page, null)).toBe(false)
+    expect(isAppUrl('not a url', page)).toBe(false)
+    expect(isAppUrl('about:blank', 'about:blank')).toBe(false)
   })
 })
 

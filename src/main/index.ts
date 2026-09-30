@@ -1,13 +1,20 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, type IpcMain } from 'electron'
 import { join } from 'node:path'
 import { SKILLS } from '../mcp/skills'
 import { initAutoUpdate, registerAutoUpdateHandlers } from './autoUpdate'
 import { startDesktopBridge } from './desktop/bootstrap'
 import { hardenWebContents, resolveAppUrl } from './desktop/navigation'
+import { guardIpc } from './ipcGuard'
 import { logger, setupGlobalErrorLogging } from './logger'
 import { loadRendererContent, onActivateCreateWindow, onLastWindowClosed } from './windowPolicy'
 
 setupGlobalErrorLogging()
+
+/** The dev server in development (electron-vite sets it); otherwise the packaged page beside this bundle. */
+const rendererUrl = process.env['ELECTRON_RENDERER_URL']
+const rendererFile = join(__dirname, '../renderer/index.html')
+/** The one page this app trusts: the window may only navigate within it, and IPC answers only it. */
+const appUrl = resolveAppUrl(rendererUrl, rendererFile)
 
 function openLinkInBrowser(url: string): void {
   shell.openExternal(url).catch((error: unknown) => {
@@ -36,10 +43,8 @@ function createMainWindow(): BrowserWindow {
     event.preventDefault()
   })
 
-  const rendererUrl = process.env['ELECTRON_RENDERER_URL']
-  const rendererFile = join(__dirname, '../renderer/index.html')
   hardenWebContents(mainWindow.webContents, {
-    appUrl: resolveAppUrl(rendererUrl, rendererFile),
+    appUrl,
     openExternal: openLinkInBrowser
   })
 
@@ -55,15 +60,22 @@ function createMainWindow(): BrowserWindow {
   return mainWindow
 }
 
-function registerAppVersionHandler(): void {
-  ipcMain.handle('app:getVersion', () => app.getVersion())
+function registerAppVersionHandler(ipc: Pick<IpcMain, 'handle'>): void {
+  ipc.handle('app:getVersion', () => app.getVersion())
 }
 
 app.whenReady().then(() => {
-  registerAppVersionHandler()
-  registerAutoUpdateHandlers()
+  // Every IPC handler is registered through the guard: it answers only the app page's top frame.
+  const ipc = guardIpc(ipcMain, {
+    appUrl,
+    onRefused: (channel, senderUrl) => {
+      logger.warn(`Refused IPC call on ${channel} from ${senderUrl}`)
+    }
+  })
+  registerAppVersionHandler(ipc)
+  registerAutoUpdateHandlers(ipc)
   initAutoUpdate()
-  startDesktopBridge(SKILLS)
+  startDesktopBridge(SKILLS, ipc)
   createMainWindow()
 
   app.on('activate', () => {

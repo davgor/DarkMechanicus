@@ -8,8 +8,8 @@ import {
   BrowserWindow,
   clipboard,
   dialog,
-  ipcMain,
   shell,
+  type IpcMain,
   type OpenDialogOptions
 } from 'electron'
 import { join } from 'node:path'
@@ -49,8 +49,11 @@ function openDesktopWorkspace(repoRoot: string): Workspace {
   })
 }
 
-/** Registers the `dm:*` IPC handlers and the background heartbeat/shutdown for open workspaces. */
-export function startDesktopBridge(skills: readonly SkillDefinition[]): void {
+/**
+ * Registers the `dm:*` IPC handlers on `ipc` (the sender-guarded registrar from `guardIpc`) and the
+ * background heartbeat/shutdown for open workspaces.
+ */
+export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick<IpcMain, 'handle'>): void {
   const registry = createFolderRegistry({
     file: join(app.getPath('userData'), 'folders.json'),
     homeDir: app.getPath('home')
@@ -76,7 +79,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[]): void {
       logger.error('Desktop command failed:', error)
     }
   })
-  registerDesktopIpc(ipcMain, handlers)
+  registerDesktopIpc(ipc, handlers)
   setInterval(() => pool.heartbeatAll(), HEARTBEAT_INTERVAL_MS)
   app.on('before-quit', () => pool.closeAll())
 }
