@@ -53,8 +53,9 @@ function Details({ status, titles }: { status: StorageStatusView; titles: Readon
       <Row label="Save queue">{queueText(status)}</Row>
       {status.conflicts.length + status.profileConflicts.length === 0 ? null : (
         <Row label="Conflicts">
-          {status.conflicts.map((conflict) => (
-            <div key={conflict.epicId}>
+          {/* One epic can have several conflicts (its own, runs, comments), so the epic id alone is no key. */}
+          {status.conflicts.map((conflict, index) => (
+            <div key={`${index}:${conflict.epicId}:${conflict.message}`}>
               {titles[conflict.epicId] ?? conflict.epicId}: {conflict.message}
             </div>
           ))}

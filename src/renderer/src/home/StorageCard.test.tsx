@@ -116,6 +116,19 @@ describe('StorageCard warnings', () => {
     expect(row('Conflicts')).toBe('ep_1: edited on two machinesProfile deep-review: saved on two machines')
   })
 
+  it('lists every conflict of one epic, and only those still open after an update', () => {
+    const first = { epicId: 'ep_1', message: 'Comment cm_1 already exists with different content.' }
+    const second = { epicId: 'ep_1', message: 'Comment cm_2 already exists with different content.' }
+    const other = { epicId: 'ep_2', message: 'edited on two machines' }
+    const card = (conflicts: StorageStatusView['conflicts']): JSX.Element => (
+      <StorageCard status={storageStatus({ conflicts })} titles={{}} busy={{ flush: false, reconcile: false }} onFlush={() => undefined} onReconcile={() => undefined} />
+    )
+    const { rerender } = render(card([first, other, second]))
+    expect(row('Conflicts')).toBe(`ep_1: ${first.message}ep_2: ${other.message}ep_1: ${second.message}`)
+    rerender(card([other, second]))
+    expect(row('Conflicts')).toBe(`ep_2: ${other.message}ep_1: ${second.message}`)
+  })
+
   it('shows the conflicts row for profile conflicts alone', () => {
     renderCard(storageStatus({ profileConflicts: [{ name: 'ui', message: 'saved on two machines' }] }))
     expect(row('Conflicts')).toBe('Profile ui: saved on two machines')
