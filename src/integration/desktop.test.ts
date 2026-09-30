@@ -1,4 +1,4 @@
-import { mkdtempSync, realpathSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -7,6 +7,7 @@ import { createFolderRegistry } from '../main/desktop/folderRegistry'
 import { createDesktopHandlers, type DesktopHandlers } from '../main/desktop/handlers'
 import { buildMcpConfig } from '../main/desktop/mcpConfig'
 import { createWorkspacePool, type WorkspacePool } from '../main/desktop/workspacePool'
+import { defaultCapabilityProfile } from '../shared/domain/bundle'
 import { createSequentialIds, createTestClock } from '../test/testContext'
 import { createFakeGit } from '../test/workspaceHarness'
 
@@ -84,5 +85,35 @@ describe('desktop IPC handlers over the real Workspace', () => {
     expect(elsewhere.ok ? 'ok' : elsewhere.error.code).toBe('unauthorized')
     const invalid = await desktop.handlers.command(desktop.repo, 'getEpic', { epicId: '../../etc' })
     expect(invalid.ok ? 'ok' : invalid.error.code).toBe('invalid_input')
+  })
+})
+
+describe('named capability profiles through dm:command', () => {
+  let desktop: Desktop
+
+  beforeEach(() => {
+    desktop = createDesktop()
+  })
+
+  afterEach(() => {
+    desktop.cleanup()
+  })
+
+  it('saves, lists, and reads profiles, and rejects unsafe names', async () => {
+    await desktop.handlers.pickFolder()
+    await desktop.handlers.command(desktop.repo, 'initializeRepository', { name: 'desk' })
+    const capability = { ...defaultCapabilityProfile(), workType: 'review' as const }
+    const saved = await desktop.handlers.command(desktop.repo, 'saveProfile', { name: 'deep-review', description: 'Careful', capability })
+    expect(saved).toEqual({
+      ok: true,
+      data: { name: 'deep-review', description: 'Careful', capability, revision: 1, updatedAt: '2026-04-01T09:00:00.000Z' }
+    })
+    const listed = await desktop.handlers.command(desktop.repo, 'listProfiles', undefined)
+    expect(listed.ok ? (listed.data as { name: string }[]).map((profile) => profile.name) : listed.error).toEqual(['deep-review'])
+    const read = await desktop.handlers.command(desktop.repo, 'getProfile', { name: 'deep-review' })
+    expect(read.ok ? (read.data as { revision: number }).revision : read.error).toBe(1)
+    const unsafe = await desktop.handlers.command(desktop.repo, 'saveProfile', { name: '../escape', capability })
+    expect(unsafe.ok ? 'ok' : unsafe.error.code).toBe('invalid_input')
+    expect(existsSync(join(desktop.repo, '.darkmechanicus', 'profiles', 'deep-review.json'))).toBe(true)
   })
 })

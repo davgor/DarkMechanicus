@@ -110,6 +110,7 @@ function DraftEditorPanel(props: { ws: WorkspaceHandle; plan: PlanView; ticketId
   return (
     <TicketEditor
       key={ticketId}
+      runner={ws.runner}
       bundle={plan.bundle}
       ticketId={ticketId}
       badge={badge}

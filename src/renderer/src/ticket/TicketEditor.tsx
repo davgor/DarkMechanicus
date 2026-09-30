@@ -3,10 +3,12 @@ import './ticket.css'
 import { useCallback, useEffect, useState } from 'react'
 import type { DraftOp } from '../../../shared/domain/api'
 import type { PlanBundle } from '../../../shared/domain/bundle'
+import type { Runner } from '../epic/runner'
 import { StatePill } from '../epic/StatePill'
 import type { Result } from '../epic/workspaceActions'
 import type { TicketBadge } from '../graph/graphModel'
 import { BasicFields, CapabilityFields, CriteriaFields, DetailFields, PrerequisiteFields } from './editorFields'
+import { ProfileBar } from './ProfileBar'
 import {
   applyOutcome,
   editForm,
@@ -20,6 +22,8 @@ import {
 } from './ticketForm'
 
 interface TicketEditorProps {
+  /** Reads and saves named capability profiles for this folder. */
+  runner: Runner
   bundle: PlanBundle
   ticketId: string
   badge: TicketBadge
@@ -149,7 +153,9 @@ export function TicketEditor(props: TicketEditorProps): JSX.Element {
         <CriteriaFields form={form} update={editor.update} />
         <DetailFields form={form} update={editor.update} bundle={props.bundle} />
         <PrerequisiteFields form={form} update={editor.update} bundle={props.bundle} ticketId={props.ticketId} />
-        <CapabilityFields form={form} update={editor.update} />
+        <CapabilityFields form={form} update={editor.update}>
+          <ProfileBar runner={props.runner} form={form} update={editor.update} />
+        </CapabilityFields>
         <RemoveTicket busy={props.busy} onRemove={() => void editor.remove()} />
       </div>
       <EditorFooter editor={editor} busy={props.busy} />
