@@ -154,7 +154,8 @@ class RepositoryWorkspace implements WorkspaceCore {
       db.close()
       throw error
     }
-    if (this.options.autoReconcile !== false) {
+    // A branch that moved while closed is never acknowledged silently: reconcile stays explicit.
+    if (this.options.autoReconcile !== false && !this.branchChanged()) {
       this.reconcile()
     }
     this.safeFlush()
@@ -247,6 +248,8 @@ class RepositoryWorkspace implements WorkspaceCore {
 
   flush(): FlushResultView {
     const store = this.requireStore()
+    // Pending exports belong to the recorded branch; never write them into another checkout.
+    this.assertBranch()
     const outcome = flushOutbox(
       { db: store.db, layout: this.layout, fs: this.fs, clock: this.clock },
       { onSnapshotSaved: (revisionId) => completeSavedRevision(store.ctx, revisionId) }

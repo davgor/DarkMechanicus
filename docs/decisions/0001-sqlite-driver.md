@@ -59,3 +59,16 @@ opens with the same rows.
   touches the MCP stdio protocol on stdout.
 - **API stability:** `node:sqlite` is still marked experimental on Node 22. The wrapper interface (`Db`) is the only
   place that touches it, so a future API change stays a one-file change.
+
+## Shared-database proof (ticket 009.6)
+
+- **Competing claims across processes.** `npm run spike:claims` (`scripts/spike/claim-stress.ts`) forks 8 processes,
+  each with its own connection to one file database, releases them on a shared timestamp, and races `claimTicket` on
+  one ready ticket for 25 rounds. Run on 2026-09-30 under system Node 22.22.2: **25/25 rounds had exactly one winner**
+  and 7 `already_claimed`, 0 busy errors, exactly one open attempt after every round; 24/25 rounds were truly
+  contended (124 claims started while the winner's transaction was in flight). The partial unique index on open
+  attempts plus `BEGIN IMMEDIATE` makes a duplicate claim impossible rather than unlikely.
+- **Desktop runtime + headless process.** `npm run smoke:mcp` launches the built `out/main/mcp.js` over real stdio and
+  plans, saves, starts a run, and claims/submits/accepts a ticket against a temporary repository. It passes under
+  system Node 22 and under Electron's own runtime (`ELECTRON_RUN_AS_NODE=1`, the packaged-app path), and the desktop
+  app opens the same `.darkmechanicus/local/state.sqlite` through the same `Workspace`.

@@ -62,6 +62,15 @@ function pointerText(epicId: string, revisionNumber: number): string {
   })
 }
 
+/** `count` epics with only a state record, numbered from `first`. */
+function stateFiles(first: number, count: number): Tree {
+  const tree: Tree = {}
+  for (let n = first; n < first + count; n += 1) {
+    tree[`.darkmechanicus/epics/${idOf('epic', n)}/state.json`] = stateText(idOf('epic', n), `Epic ${n}`)
+  }
+  return tree
+}
+
 function epicFiles(epicId: string, title: string, revisionNumber: number): Tree {
   return {
     [`.darkmechanicus/epics/${epicId}/state.json`]: stateText(epicId, title),
@@ -126,14 +135,11 @@ describe('listBranchEpics limits', () => {
     expect(await listBranchEpics({ db: createTestDb(), git: limited, layout })).toHaveLength(50)
     expect(limited.listed).toHaveLength(50)
 
-    const many: Tree = {}
-    for (let n = 1; n <= 501; n += 1) {
-      Object.assign(many, { [`.darkmechanicus/epics/${idOf('epic', n)}/state.json`]: stateText(idOf('epic', n), `Epic ${n}`) })
-    }
-    const crowded = fakeGit('main', { crowded: many, later: epicFiles(idOf('epic', 999), 'Too late', 1) })
+    const crowded = fakeGit('main', { first: stateFiles(1, 300), second: stateFiles(301, 300), third: stateFiles(601, 1) })
     const views = await listBranchEpics({ db: createTestDb(), git: crowded, layout })
     expect(views).toHaveLength(500)
-    expect(views.every((view) => view.branch === 'crowded')).toBe(true)
-    expect(crowded.listed).toEqual(['crowded'])
+    expect(views.filter((view) => view.branch === 'first')).toHaveLength(300)
+    expect(views.filter((view) => view.branch === 'second')).toHaveLength(200)
+    expect(crowded.listed).toEqual(['first', 'second'])
   })
 })
