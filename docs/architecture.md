@@ -36,7 +36,7 @@ SQLite through the built-in **`node:sqlite`** module (`DatabaseSync`). It ships 
 A **Workspace** is opened per repository root and implements `CommandApi` (`src/shared/domain/api.ts`). Each public command follows the same sequence:
 
 1. **Validate** the untrusted input with the zod schemas in `src/core/schemas.ts` (`parseInput`). Limits (`LIMITS`) bound string sizes, list lengths, and graph sizes.
-2. **Authorize** with `requireCapability(ctx.session, capability)`. Capabilities come from the session's role, fixed when the session registered (desktop launch, or the MCP process's launch flags). A caller-supplied name is never authority.
+2. **Authorize** with `requireCapability(ctx.session, capability)`. Capabilities come from the session's role, fixed when the session registered (desktop launch, or the MCP process's launch flags). A caller-supplied name is never authority. The capability each command requires is declared once in `COMMAND_CAPABILITIES` (`src/core/commands/capabilities.ts`, exhaustive over `CommandName`); a test proves the services enforce exactly that table for every role.
 3. **Branch guard** — commands that save, export, or dispatch work call `ctx.assertBranch()`; it throws `branch_changed` if the coordinating checkout's branch differs from the one recorded at the last reconcile. Flushing portable records is guarded the same way (pending exports belong to the recorded branch), and a Workspace opened after a branch switch does not reconcile automatically: the person (or agent) reconciles explicitly, which pauses active runs and records the new branch.
 4. **Transact** — the whole mutation runs in one transaction, optionally wrapped by `withIdempotency` (same key + same request ⇒ original response; same key + different request ⇒ `idempotency_mismatch`).
 5. **Record** — append an event (`appendEvent`) and enqueue portable-record work (`enqueueOutbox`) inside that same transaction.
@@ -137,13 +137,21 @@ An edge `{from: A, to: B}` means **B requires A's accepted result**. Relations (
 
 ## MCP server (`src/mcp`)
 
-`node out/main/mcp.js --repo <path> [--role orchestrator|planner|worker|reviewer] [--allow-save] [--label <name>]` (packaged: the app executable with `ELECTRON_RUN_AS_NODE=1`). Diagnostics go to stderr. Tool results are JSON (`{ ok: true, data }` or `{ ok: false, error: { code, message, details } }`) in both `content` text and `structuredContent`, with `isError` on failures. Skills are exposed as MCP prompts.
+`node out/main/mcp.js --repo <path> [--role orchestrator|planner|worker|reviewer] [--allow-save] [--label <name>]` (packaged: the app executable with `ELECTRON_RUN_AS_NODE=1`). Diagnostics go to stderr. Tool results are JSON (`{ ok: true, data }` or `{ ok: false, error: { code, message, details } }`) in both `content` text and `structuredContent`, with `isError` on failures; arguments that fail a tool's input schema are `invalid_input`. A session lists only the tools its role may call. Skills are exposed as MCP prompts.
 
 ## Desktop (`src/main`, `src/preload`, `src/renderer`)
 
 - Tracked folders are a machine-local list in `userData/folders.json`, keyed by canonical real path (tracking an existing path selects it instead of duplicating). Stop tracking removes only that entry.
-- The main process caches one Workspace (desktop session) per folder. IPC channels `dm:*` validate payloads and call `CommandApi`. The renderer polls `listEvents` with a cursor (bounded interval) and refetches what changed; unsaved form edits survive refreshes and conflicts.
+- The main process caches one Workspace (desktop session) per folder. IPC channels `dm:*` validate payloads and call `CommandApi`, and only after the sender check below. The renderer polls `listEvents` with a cursor (bounded interval) and refetches what changed; unsaved form edits survive refreshes and conflicts.
 - Markdown is rendered by a small safe renderer (no raw HTML); links are allow-listed (`http`, `https`, `mailto`) and opened through the main process. Navigation and new windows are denied.
+
+## Bridge hardening
+
+Defense in depth on both adapters; the command layer's authorization stays the real boundary.
+
+- **IPC sender check** (`src/main/ipcGuard.ts`). `index.ts` wraps `ipcMain` once with `guardIpc` and passes the result to every registrar (`dm:*`, auto-update, app version); nothing else touches `ipcMain`, and a test scans `src/main` to keep it that way. A call runs only when `event.senderFrame` is live, attached, top-level, and shows the app's own page: `isAppUrl` (shared with the navigation guard) compares the dev server's origin in development, and in production the packaged `index.html` by parsed protocol, host, and resolved path (query and hash ignored, never a prefix). Anything else gets `{ ok: false, error: { code: 'unauthorized' } }`, the handler never runs, and main logs the refusal.
+- **Tools per role** (`src/mcp/tools/define.ts`). Each tool adapts one command (its camel-cased name, or an explicit `command` the compiler requires otherwise). `createMcpServer` grants the server the session's capabilities (`capabilitiesForRole(role, { allowSave })`), and `registerTools` registers a tool only when that set holds `COMMAND_CAPABILITIES[command]`. Read-only tools need `read`, which every role has; `save_plan` needs `plan.save`, which only `--allow-save` adds for planner and orchestrator. A withheld tool is still known to the server: calling it answers `unauthorized` without running anything.
+- **Structured validation errors.** The SDK validates tool arguments before the tool callback and answers failures as plain text. The server replaces the SDK's `tools/call` handler with one that parses each tool's zod shape itself and answers failures with `invalid_input` (`details.issues`: path and message per field). `tools/list` stays the SDK's, so advertised JSON schemas are unchanged; a test pins each one to its fingerprint from before the change.
 
 ## Verification tooling
 

@@ -2,7 +2,7 @@
 
 Dark Mechanicus ships a headless MCP server: `out/main/mcp.js`. An agent host launches it as a child process and talks to it over stdio. It opens the repository's `.darkmechanicus/local/state.sqlite` directly, so it works with the desktop app closed and shares the same data when the app is open.
 
-One process is one session with one role. Start one server entry per role you want to give an agent (see [Roles](#roles-and---allow-save)). Every server exposes 50 tools and 6 prompts (the shipped skills).
+One process is one session with one role. Start one server entry per role you want to give an agent (see [Roles](#roles-and---allow-save)). Every server offers the 6 shipped skills as prompts and lists only the tools its role may call (see [Tools per role](#tools-per-role)).
 
 ## Requirements
 
@@ -129,6 +129,44 @@ Some actions exist only in the desktop app and are not available over MCP for an
 
 Suggested setup: planning sessions as `planner` without `--allow-save` (the person reviews and presses Save), execution as `orchestrator`. Add `--allow-save` only when you want an agent to save without you.
 
+## Tools per role
+
+A session lists only the tools its role may call. Each tool adapts one command, and each command declares the capability it needs (`src/core/commands/capabilities.ts`); a tool is listed when the role holds that capability. Calling an unlisted tool anyway gets `unauthorized` and runs nothing.
+
+| Tools | planner | orchestrator | worker | reviewer |
+|-------|:-------:|:------------:|:------:|:--------:|
+| Read-only (20): `get_capabilities`, `get_project`, `list_projects`, `get_storage_status`, `search_history`, `list_branch_epics`, `list_sessions`, `list_epics`, `get_epic`, `list_tickets`, `get_ticket`, `get_plan`, `validate_plan`, `list_revisions`, `match_capabilities`, `get_run`, `get_ready_tickets`, `get_sprint_report`, `get_checkpoint`, `get_run_events` | yes | yes | yes | yes |
+| Repository and drafts: `initialize_repository`, `flush_portable_state`, `reconcile_repository`, `create_epic`, `create_ticket`, `update_ticket`, `open_plan_draft`, `update_plan_draft`, `discard_plan_draft` | yes | yes | | |
+| `save_plan` | with `--allow-save` | with `--allow-save` | | |
+| Epic and ticket status: `set_epic_status`, `set_epic_branch`, `set_ticket_status` | | yes | | |
+| Runs: `register_host`, `start_run`, `pause_run`, `resume_run`, `cancel_run`, `takeover_run`, `adopt_revision` | | yes | | |
+| Claims and reporting: `claim_ticket`, `reconcile_attempt`, `carry_forward_ticket` | | yes | | |
+| `heartbeat_attempt`, `submit_attempt`, `fail_attempt` | | yes | yes | |
+| `accept_attempt`, `reject_attempt` | | yes | | yes |
+| Checkpoints: `submit_sprint_report`, `advance_sprint` | | yes | | |
+| **Total** | 29 (30 with `--allow-save`) | 49 (50 with `--allow-save`) | 23 | 22 |
+
+`--allow-save` has no effect for `worker` and `reviewer`. No role lists a tool for the desktop-only actions.
+
+## Tool results and errors
+
+Every tool answers with one JSON payload, in `structuredContent` and as the text content: `{"ok": true, "data": ...}`, or on failure `{"ok": false, "error": {"code", "message", "details"}}` with `isError` set. `code` is the stable part; see the table below.
+
+Arguments that do not match a tool's input schema fail with `invalid_input` before anything runs. The message and `details.issues` name each offending field by its path (up to ten):
+
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "invalid_input",
+    "message": "Invalid arguments for get_plan: view: Invalid option: expected one of \"saved\"|\"draft\"",
+    "details": { "tool": "get_plan", "issues": [{ "path": "view", "message": "Invalid option: expected one of \"saved\"|\"draft\"" }] }
+  }
+}
+```
+
+Nested fields use dotted paths such as `ops.0.ticket.title`. Omitted `arguments` count as an empty object.
+
 ## Skills
 
 The six shipped skills are served as MCP prompts: `darkmechanicus-planner`, `darkmechanicus-graph-planner`, `darkmechanicus-orchestrator`, `darkmechanicus-worker`, `darkmechanicus-reviewer`, and `darkmechanicus-sprint-reporter`. Load the one that matches the job before starting. `get_capabilities` reports the skills version, and runs record it.
@@ -158,10 +196,11 @@ If the host reports that the connection closed at once, run the same command in 
 | `incompatible_schema` | The repository's database was created by a newer build. Update this app or checkout to the same version as the desktop. Databases are never downgraded. |
 | `branch_changed` | The coordinating checkout's Git branch differs from the one recorded at the last reconcile. Saves and dispatch are blocked and active runs are paused. Switch back to the epic branch, or if the change is intended call `reconcile_repository`, then `resume_run`. Drafts are kept. |
 | `run_not_owned` | The run was imported from another computer. Make sure the other computer has stopped, call `takeover_run` (it pauses the run and marks leased attempts `lease_expired`), call `reconcile_attempt` for each, then `resume_run`. |
-| `unauthorized` | The session's role lacks the capability. Check `get_capabilities` and relaunch with the right `--role`. `save_plan` also needs `--allow-save`. |
+| `unauthorized` | The session's role lacks the capability (the tool is not in its list either). Check `get_capabilities` and relaunch with the right `--role`. `save_plan` also needs `--allow-save`. |
+| A tool from the docs or a skill is missing from the host's tool list | The role does not include it. See [Tools per role](#tools-per-role). |
 | `not_initialized` | Call `initialize_repository`. |
 | `approval_required` or `gate_blocked` on `advance_sprint` | Waiting for a person's approval, or a gate condition is unmet. `get_checkpoint` lists what is missing. |
 | `stale_claim` or `expired_claim` | The claim was superseded or its lease ran out. Stop the worker. The orchestrator reconciles the attempt before any retry. |
-| `MCP error -32602: Input validation error ...` | The MCP layer rejected the arguments before anything ran. The message names the field. |
+| `invalid_input` | The arguments do not match the tool's input schema; nothing ran. `details.issues` lists each field by path with what is wrong. |
 | Long plans are cut off by the host | Use `list_tickets` and `get_ticket` instead of `get_plan` for large plans. |
 | `list_sessions` shows old sessions | Sessions that were killed cannot close themselves. They fall out of the active list after 60 seconds and are harmless. |
