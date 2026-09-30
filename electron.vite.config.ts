@@ -41,7 +41,11 @@ export default defineConfig(({ command }) => {
       build: {
         outDir: 'out/main',
         rollupOptions: {
-          input: 'src/main/index.ts'
+          // `mcp` is the headless stdio MCP server agents launch; it shares src/core with the desktop.
+          input: {
+            index: 'src/main/index.ts',
+            mcp: 'src/mcp/main.ts'
+          }
         }
       }
     },

@@ -21,7 +21,10 @@
     "test:fireguard": "vitest run --config fireguard/vitest.config.ts",
     "fireguard": "node fireguard/bin/fireguard.mjs",
     "deadcode": "node scripts/deadcode-check.mjs",
-    "deadcode:refresh": "node scripts/deadcode-refresh.mjs"
+    "deadcode:refresh": "node scripts/deadcode-refresh.mjs",
+    "mcp": "node out/main/mcp.js",
+    "smoke:mcp": "node scripts/mcp-smoke.mjs",
+    "spike:claims": "tsx scripts/spike/claim-stress.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.31.0",

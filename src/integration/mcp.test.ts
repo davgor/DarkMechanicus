@@ -1,0 +1,85 @@
+import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { createMcpServer } from '../mcp/server'
+import { createHarness, type Harness } from '../test/workspaceHarness'
+import type { Workspace } from '../core/workspace'
+
+interface Payload {
+  ok: boolean
+  data?: Record<string, unknown>
+  error?: { code: string; message: string }
+}
+
+async function connect(workspace: Workspace): Promise<Client> {
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+  const server = createMcpServer(workspace, { name: 'darkmechanicus', version: 'test' })
+  await server.connect(serverTransport)
+  const client = new Client({ name: 'integration-test', version: '1.0.0' })
+  await client.connect(clientTransport)
+  return client
+}
+
+async function call(client: Client, name: string, args: Record<string, unknown> = {}): Promise<Payload> {
+  const result = await client.callTool({ name, arguments: args })
+  return result.structuredContent as unknown as Payload
+}
+
+function data<T>(payload: Payload): T {
+  expect(payload.error).toBeUndefined()
+  return payload.data as T
+}
+
+describe('MCP tools over the real Workspace', () => {
+  let harness: Harness
+
+  beforeEach(() => {
+    harness = createHarness()
+  })
+
+  afterEach(() => {
+    harness.cleanup()
+  })
+
+  it('lets an agent plan, save, and read back an epic headlessly', async () => {
+    const client = await connect(harness.open('orchestrator', { allowSave: true }))
+    data(await call(client, 'initialize_repository', { name: 'agent-repo' }))
+    const epic = data<{ id: string }>(await call(client, 'create_epic', { title: 'Agent epic', successCriteria: ['Works'] }))
+    const first = data<{ ticketId: string; draftRevision: number }>(
+      await call(client, 'create_ticket', { epicId: epic.id, ticket: { title: 'Foundation', acceptanceCriteria: ['Built'] } })
+    )
+    const second = data<{ ticketId: string; draftRevision: number }>(
+      await call(client, 'create_ticket', {
+        epicId: epic.id,
+        ticket: { title: 'Feature' },
+        requires: [first.ticketId],
+        expectedDraftRevision: first.draftRevision
+      })
+    )
+    const validation = data<{ valid: boolean }>(await call(client, 'validate_plan', { epicId: epic.id, view: 'draft' }))
+    expect(validation.valid).toBe(true)
+    const saved = data<{ status: string; revisionNumber: number }>(
+      await call(client, 'save_plan', { epicId: epic.id, expectedDraftRevision: second.draftRevision })
+    )
+    expect([saved.status, saved.revisionNumber]).toEqual(['saved', 1])
+    const plan = data<{ bundle: { edges: { from: string; to: string }[] } }>(
+      await call(client, 'get_plan', { epicId: epic.id, view: 'saved' })
+    )
+    expect(plan.bundle.edges).toEqual([{ from: first.ticketId, to: second.ticketId }])
+  })
+
+  it('returns structured errors for rule violations and malformed input', async () => {
+    const client = await connect(harness.open('planner', { allowSave: false }))
+    const notReady = await call(client, 'list_epics')
+    expect(notReady.error?.code).toBe('not_initialized')
+    data(await call(client, 'initialize_repository', {}))
+    const epic = data<{ id: string }>(await call(client, 'create_epic', { title: 'Planner epic' }))
+    const draft = data<{ draftRevision: number }>(
+      await call(client, 'create_ticket', { epicId: epic.id, ticket: { title: 'Only ticket' } })
+    )
+    const denied = await call(client, 'save_plan', { epicId: epic.id, expectedDraftRevision: draft.draftRevision })
+    expect(denied.error?.code).toBe('unauthorized')
+    const malformed = await client.callTool({ name: 'get_epic', arguments: { epicId: 'not-an-id' } })
+    expect(malformed.isError).toBe(true)
+  })
+})
