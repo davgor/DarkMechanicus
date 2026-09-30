@@ -120,7 +120,7 @@ const SETUP_TOOLS = [
   defineTool({
     name: 'register_host',
     description:
-      'Registers the models and tools this host can really use, so ticket capability profiles can be matched. Call before start_run, and again with a new catalogRevision when the catalog changes. Do not list models you cannot use.',
+      'Registers the models and tools this host can really use, so ticket capability profiles can be matched. Returns the catalog id to pass as hostCatalogId to start_run. Call it before start_run, and again with a new catalogRevision when the catalog changes. Do not list models you cannot use.',
     kind: 'write',
     input: hostCatalog.shape,
     run: (api, input) => api.registerHost(input)
@@ -128,7 +128,7 @@ const SETUP_TOOLS = [
   defineTool({
     name: 'match_capabilities',
     description:
-      'Matches a ticket\'s capability profile against the host catalog: eligible models with scores and reasons, rejected models with failures, host failures, and unknownRequirements. Hard constraints filter, preferences only rank. Never treat unknownRequirements as satisfied: ask or escalate.',
+      'Matches a ticket\'s capability profile against the host catalog of the run: eligible models with scores and reasons, rejected models with failures, host failures, and unknownRequirements. Hard constraints filter, preferences only rank. Never treat unknownRequirements as satisfied: ask or escalate.',
     kind: 'read',
     input: { ticketId, runId },
     run: (api, input) => api.matchCapabilities(input)
@@ -136,7 +136,7 @@ const SETUP_TOOLS = [
   defineTool({
     name: 'start_run',
     description:
-      'Starts execution of the epic\'s current SAVED revision (or picks up a run a person queued in the desktop app) and activates sprint 1. One active run per epic. Binds the epic feature branch. Fails with `completed_epic`, `active_run_exists`, or `branch_changed`.',
+      'Starts execution of the epic\'s current SAVED revision (or picks up a run a person queued in the desktop app) and activates sprint 1. One active run per epic. Binds the epic feature branch: the branch you pass, else the current checkout branch and HEAD. Fails with `completed_epic`, `active_run_exists`, or `branch_changed`.',
     kind: 'write',
     input: START_RUN_INPUT,
     run: (api, input) => api.startRun({ ...input, skillVersion: input.skillVersion ?? SKILLS_VERSION })
