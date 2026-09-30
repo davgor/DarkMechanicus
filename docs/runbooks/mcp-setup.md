@@ -120,7 +120,7 @@ Roles are fixed at launch. Nothing a tool call says can change them.
 
 | Role | Can do |
 |------|--------|
-| `planner` | Read, create epics, edit drafts. `save_plan` only with `--allow-save`. |
+| `planner` | Read, create epics, edit drafts, save named capability profiles (`save_profile`). `save_plan` only with `--allow-save`. |
 | `orchestrator` (default) | Everything a planner can, plus register hosts, start and control runs, claim tickets, review attempts, submit sprint reports, and advance sprints. Never approves. |
 | `worker` | Heartbeat, submit, and fail for the claim it holds. |
 | `reviewer` | Accept or reject submitted attempts. |
