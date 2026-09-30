@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { ATTEMPT_STATES, RUN_STATES, WORK_STATUSES } from '../../shared/domain/status'
+import { thrownBy } from '../../test/thrownBy'
 import { DomainError } from '../errors'
 import { type Db, openDatabase } from './database'
 import { migrate, readSchemaVersion, SCHEMA_VERSION } from './migrations'
-import { thrownBy } from '../../test/thrownBy'
 
 const openDbs: Db[] = []
 

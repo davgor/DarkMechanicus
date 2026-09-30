@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { z } from 'zod'
 import { defaultCapabilityProfile, type PlanBundle } from '../shared/domain/bundle'
 import { makeBundle, makeSprint, makeTicket, sid, tid } from '../test/bundles'
+import { thrownBy } from '../test/thrownBy'
 import { DomainError } from './errors'
 import {
   artifactRef,
@@ -33,7 +34,6 @@ import {
   ticketReference,
   workStatus
 } from './schemas'
-import { thrownBy } from '../test/thrownBy'
 
 type Case = [label: string, value: unknown]
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { SessionRole } from '../shared/domain/views'
+import { thrownBy } from '../test/thrownBy'
 import {
   type Capability,
   CAPABILITIES,
@@ -9,7 +10,6 @@ import {
   type SessionContext
 } from './authz'
 import { DomainError } from './errors'
-import { thrownBy } from '../test/thrownBy'
 
 const PLANNER: Capability[] = ['read', 'repo.init', 'repo.flush', 'repo.reconcile', 'epic.create', 'draft.edit']
 

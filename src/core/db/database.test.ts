@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import { thrownBy } from '../../test/thrownBy'
 import {
   bool,
   DEFAULT_BUSY_TIMEOUT_MS,
@@ -12,7 +13,6 @@ import {
   parseJson,
   toJson
 } from './database'
-import { thrownBy } from '../../test/thrownBy'
 
 const tempDirs: string[] = []
 const openDbs: Db[] = []

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { createTestCtx, type TestCtx } from '../../test/testContext'
+import { thrownBy } from '../../test/thrownBy'
 import { contentHash } from '../canonical'
 import { DomainError } from '../errors'
 import { getMeta, META_KEYS, setMeta } from '../meta'
 import { requestWithoutKey, withIdempotency } from './idempotency'
-import { thrownBy } from '../../test/thrownBy'
 
 interface StoredRow {
   command: string

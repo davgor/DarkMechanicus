@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { DomainError, fail, toErrorShape } from './errors'
 import { thrownBy } from '../test/thrownBy'
+import { DomainError, fail, toErrorShape } from './errors'
 
 describe('DomainError', () => {
   it('carries code, message and details', () => {
