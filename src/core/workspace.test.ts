@@ -1,6 +1,8 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { join, sep } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { defaultCapabilityProfile } from '../shared/domain/bundle'
+import type { SessionView } from '../shared/domain/views'
 import { createHarness, type Harness } from '../test/workspaceHarness'
 import { nodeFs } from './repo/nodeFs'
 import type { Workspace } from './workspace'
@@ -118,5 +120,100 @@ describe('Workspace save durability and pinning', () => {
     const current = await agent.getRun({ runId: run.id })
     expect([second.revisionNumber, current?.revisionNumber, current?.revisionId]).toEqual([2, 1, run.revisionId])
     expect(current?.tickets.map((ticket) => ticket.key)).toEqual(['BR-1'])
+  })
+})
+
+/** A valid profile record written straight into the tracked records, as a pull would. */
+function writeTrackedProfile(root: string, name: string): void {
+  const record = {
+    format: 'darkmechanicus.profile',
+    formatVersion: 1,
+    name,
+    description: 'Careful review',
+    capability: defaultCapabilityProfile(),
+    createdAt: '2026-03-01T09:00:00.000Z',
+    updatedAt: '2026-03-01T09:00:00.000Z'
+  }
+  writeFileSync(join(root, '.darkmechanicus', 'profiles', `${name}.json`), `${JSON.stringify(record, null, 2)}\n`)
+}
+
+async function profileNames(workspace: Workspace): Promise<string[]> {
+  return (await workspace.listProfiles()).map((profile) => profile.name)
+}
+
+function roles(sessions: SessionView[]): string[] {
+  return sessions.map((session) => session.role).sort()
+}
+
+describe('Workspace repository root', () => {
+  let harness: Harness
+
+  beforeEach(() => {
+    harness = createHarness()
+  })
+
+  afterEach(() => {
+    harness.cleanup()
+  })
+
+  it('searches upward for the repository root in stdio sessions only', async () => {
+    await harness.open('orchestrator').initializeRepository({ name: 'root-repo' })
+    const nested = join(harness.root, 'packages', 'app')
+    mkdirSync(nested, { recursive: true })
+    const stdio = harness.open('worker', { root: nested, transport: 'stdio' })
+    const inProcess = harness.open('worker', { root: nested })
+    expect([stdio.repoRoot, stdio.isInitialized()]).toEqual([realpathSync(harness.root), true])
+    expect([inProcess.repoRoot, inProcess.isInitialized()]).toEqual([nested, false])
+  })
+})
+
+describe('Workspace heartbeat', () => {
+  let harness: Harness
+
+  beforeEach(() => {
+    harness = createHarness()
+  })
+
+  afterEach(() => {
+    harness.cleanup()
+  })
+
+  it('stays idle before the repository exists and joins it once another session initializes it', async () => {
+    const desktop = harness.open('desktop')
+    desktop.heartbeat()
+    expect([desktop.isInitialized(), existsSync(join(harness.root, '.darkmechanicus'))]).toEqual([false, false])
+    const agent = harness.open('orchestrator')
+    await agent.initializeRepository({ name: 'late-repo' })
+    expect(roles(await agent.listSessions())).toEqual(['orchestrator'])
+    desktop.heartbeat()
+    expect(roles(await agent.listSessions())).toEqual(['desktop', 'orchestrator'])
+  })
+
+  it('imports tracked records that changed on disk', async () => {
+    const agent = harness.open('orchestrator')
+    await agent.initializeRepository({ name: 'pull-repo' })
+    writeTrackedProfile(harness.root, 'deep-review')
+    expect(await profileNames(agent)).toEqual([])
+    agent.heartbeat()
+    expect(await profileNames(agent)).toEqual(['deep-review'])
+  })
+
+  it('leaves changed records for an explicit reconcile when auto-reconcile is off', async () => {
+    const agent = harness.open('orchestrator', { autoReconcile: false })
+    await agent.initializeRepository({ name: 'manual-repo' })
+    writeTrackedProfile(harness.root, 'deep-review')
+    agent.heartbeat()
+    expect(await profileNames(agent)).toEqual([])
+    await agent.reconcileRepository()
+    expect(await profileNames(agent)).toEqual(['deep-review'])
+  })
+
+  it('does not reconcile on heartbeat once the checkout has moved', async () => {
+    const agent = harness.open('orchestrator')
+    await agent.initializeRepository({ name: 'moved-repo' })
+    harness.git.setHead({ branch: 'feature', commit: 'e'.repeat(40), detached: false })
+    writeTrackedProfile(harness.root, 'deep-review')
+    agent.heartbeat()
+    expect(await profileNames(agent)).toEqual([])
   })
 })

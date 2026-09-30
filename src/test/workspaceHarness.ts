@@ -3,7 +3,7 @@ import { cpSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { FsAdapter, GitAdapter, GitHead } from '../core/repo/types'
-import { openWorkspace, type Workspace } from '../core/workspace'
+import { openWorkspace, type OpenWorkspaceOptions, type Workspace } from '../core/workspace'
 import type { SessionRole } from '../shared/domain/views'
 import { createSequentialIds, createTestClock, type TestClock } from './testContext'
 
@@ -29,10 +29,19 @@ export interface Harness {
   root: string
   clock: TestClock
   git: FakeGit
-  open(role: SessionRole, options?: { allowSave?: boolean; root?: string; fs?: FsAdapter }): Workspace
+  open(role: SessionRole, options?: OpenOptions): Workspace
   /** Copies tracked records (without local/) into a fresh directory, like a clone. */
   cloneTracked(): string
   cleanup(): void
+}
+
+interface OpenOptions {
+  allowSave?: boolean
+  root?: string
+  fs?: FsAdapter
+  /** Defaults to in-process; stdio sessions search upward for the repository root. */
+  transport?: OpenWorkspaceOptions['transport']
+  autoReconcile?: boolean
 }
 
 export function createHarness(): Harness {
@@ -51,12 +60,13 @@ export function createHarness(): Harness {
         repoRoot: options.root ?? root,
         role,
         label: `${role} session`,
-        transport: 'in_process',
+        transport: options.transport ?? 'in_process',
         allowSave: options.allowSave ?? true,
         clock,
         ids,
         git,
         ...(options.fs ? { fs: options.fs } : {}),
+        ...(options.autoReconcile === undefined ? {} : { autoReconcile: options.autoReconcile }),
         serverInfo: { name: 'darkmechanicus-test', version: '0.0.0-test' }
       })
       workspaces.push(workspace)
