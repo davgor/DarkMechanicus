@@ -9,7 +9,17 @@ import { contentHash } from '../canonical'
 import { type Db, parseJson } from '../db/database'
 import { fail } from '../errors'
 import { type IdKind, isStableId, STABLE_ID_PATTERN } from '../ids'
-import { artifactRef, checkResult, criterionResult, epicBranch, LIMITS, planBundle, workStatus } from '../schemas'
+import {
+  artifactRef,
+  capabilityProfile,
+  checkResult,
+  criterionResult,
+  epicBranch,
+  LIMITS,
+  planBundle,
+  profileName,
+  workStatus
+} from '../schemas'
 import { assertContained, displayPath } from './paths'
 import type { FsAdapter, RepoLayout } from './types'
 
@@ -256,6 +266,21 @@ const RUN_UNIQUENESS: { what: string; path: string; keys: (record: RunHistorySha
   { what: 'checkpoint id', path: 'checkpoints', keys: (record) => record.checkpoints.map((item) => item.id) }
 ]
 
+/**
+ * A named capability profile. The local save revision is not tracked: it is each database's own
+ * optimistic-concurrency counter, and imports bump it.
+ */
+export const profileRecord = z.strictObject({
+  format: z.literal('darkmechanicus.profile'),
+  formatVersion: z.literal(1),
+  name: profileName,
+  description: z.string().max(LIMITS.profileDescription),
+  capability: capabilityProfile,
+  createdAt: isoTime,
+  updatedAt: isoTime
+})
+export type ProfileRecord = z.infer<typeof profileRecord>
+
 export const runHistoryRecord = runHistoryShape.superRefine((record, ctx) => {
   for (const rule of RUN_UNIQUENESS) {
     const duplicate = firstDuplicate(rule.keys(record))
@@ -341,6 +366,11 @@ export function trackedEpicHash(pointerText: string, stateText: string): string 
 
 /** Change-detection hash of a run history file's text. */
 export function trackedRunHash(text: string): string {
+  return contentHash([normalizeNewlines(text)])
+}
+
+/** Change-detection hash of a profile record's text (CRLF-insensitive, like the others). */
+export function trackedProfileHash(text: string): string {
   return contentHash([normalizeNewlines(text)])
 }
 
@@ -589,4 +619,29 @@ export function buildRunHistoryRecord(db: Db, runId: string): RunHistoryRecord {
     checkpoints: db.all<CheckpointRow>('SELECT * FROM checkpoints WHERE run_id = ? ORDER BY id', runId).map(checkpointEntry)
   }
   return exportable(runHistoryRecord, record, `run history ${runId}`)
+}
+
+interface ProfileRow {
+  name: string
+  description: string
+  capability_json: string
+  created_at: string
+  updated_at: string
+}
+
+export function buildProfileRecord(db: Db, name: string): ProfileRecord {
+  const row = db.get<ProfileRow>('SELECT * FROM profiles WHERE name = ?', name)
+  if (row === undefined) {
+    fail('not_found', `Profile ${name} does not exist.`)
+  }
+  const record = {
+    format: 'darkmechanicus.profile',
+    formatVersion: 1,
+    name: row.name,
+    description: row.description,
+    capability: parseJson<unknown>(row.capability_json, null),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  }
+  return exportable(profileRecord, record, `profile ${name}`)
 }

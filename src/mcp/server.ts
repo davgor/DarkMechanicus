@@ -7,6 +7,7 @@ import { registerCheckpointTools } from './tools/checkpoints'
 import { registerDiscoveryTools } from './tools/discovery'
 import { registerExecutionTools } from './tools/execution'
 import { registerPlanningTools } from './tools/planning'
+import { registerProfileTools } from './tools/profiles'
 
 function buildInstructions(): string {
   return [
@@ -27,6 +28,7 @@ export function createMcpServer(api: CommandApi, info: { name: string; version: 
   const server = new McpServer(info, { instructions: buildInstructions() })
   registerDiscoveryTools(server, api)
   registerAuthoringTools(server, api)
+  registerProfileTools(server, api)
   registerPlanningTools(server, api)
   registerExecutionTools(server, api)
   registerCheckpointTools(server, api)

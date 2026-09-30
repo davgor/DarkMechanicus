@@ -1,6 +1,6 @@
 import type { Ctx } from '../context'
 
-export type OutboxKind = 'snapshot' | 'epic_state' | 'run_history'
+export type OutboxKind = 'snapshot' | 'epic_state' | 'run_history' | 'profile'
 
 interface OutboxEntry {
   kind: OutboxKind

@@ -5,7 +5,7 @@ import type { Db } from '../core/db/database'
 import { DomainError } from '../core/errors'
 import { encodeBase32, ID_PREFIXES, type IdKind } from '../core/ids'
 import type { FinalizerHooks } from '../core/repo/finalizer'
-import type { PlanBundle } from '../shared/domain/bundle'
+import { defaultCapabilityProfile, type PlanBundle } from '../shared/domain/bundle'
 import type { AttemptState, RunState } from '../shared/domain/status'
 
 interface CapturedDomainError {
@@ -111,22 +111,24 @@ export function insertRevision(db: Db, input: RevisionRowInput): void {
 }
 
 interface OutboxRowInput {
-  kind: 'snapshot' | 'epic_state' | 'run_history'
+  kind: 'snapshot' | 'epic_state' | 'run_history' | 'profile'
   epicId?: string | null
   runId?: string | null
   revisionId?: string | null
+  entityId?: string | null
   state?: 'pending' | 'done' | 'failed'
   attempts?: number
 }
 
 export function insertOutbox(db: Db, input: OutboxRowInput): number {
   return db.run(
-    `INSERT INTO outbox (kind, epic_id, run_id, revision_id, state, attempts, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO outbox (kind, epic_id, run_id, revision_id, entity_id, state, attempts, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     input.kind,
     input.epicId ?? null,
     input.runId ?? null,
     input.revisionId ?? null,
+    input.entityId ?? null,
     input.state ?? 'pending',
     input.attempts ?? 0,
     T0
@@ -254,6 +256,29 @@ export function insertTicketStatus(db: Db, input: { ticketId: string; epicId: st
     input.epicId,
     input.status ?? 'backlog',
     T0
+  )
+}
+
+interface ProfileRowInput {
+  name: string
+  description?: string
+  capability?: unknown
+  revision?: number
+  createdAt?: string
+  updatedAt?: string
+}
+
+/** A named capability profile row, as saveProfile stores it (capability defaults to the ticket default). */
+export function insertProfile(db: Db, input: ProfileRowInput): void {
+  db.run(
+    `INSERT INTO profiles (name, description, capability_json, revision, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    input.name,
+    input.description ?? '',
+    JSON.stringify(input.capability ?? defaultCapabilityProfile()),
+    input.revision ?? 1,
+    input.createdAt ?? T0,
+    input.updatedAt ?? input.createdAt ?? T0
   )
 }
 

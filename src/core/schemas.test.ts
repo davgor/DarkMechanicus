@@ -24,6 +24,7 @@ import {
   parseInput,
   planBundle,
   policiesPatch,
+  profileName,
   sprintDef,
   sprintInput,
   sprintReportInput,
@@ -62,7 +63,8 @@ describe('LIMITS', () => {
       relations: 5_000,
       opsPerRequest: 500,
       listItems: 500,
-      models: 200
+      models: 200,
+      profileDescription: 500
     })
   })
 })
@@ -147,6 +149,21 @@ describe('idempotencyKey', () => {
     ['null', null]
   ])('rejects %s', (_label, value) => {
     expect(accepts(idempotencyKey, value)).toBe(false)
+  })
+})
+
+describe('profileName', () => {
+  it('accepts portable profile names', () => {
+    expect(['ui-implementation', 'deep-review', '0', `a${'b'.repeat(63)}`].map((value) => accepts(profileName, value))).toEqual([true, true, true, true])
+  })
+
+  it('rejects anything else with the naming rule as the message', () => {
+    for (const value of ['', 'Deep', 'con', 'lpt1', '../x', 'a-', `a${'b'.repeat(64)}`]) {
+      expect(profileName.safeParse(value).error?.issues[0]?.message).toBe(
+        'Use 1-64 lowercase letters, digits, or hyphens, starting and ending with a letter or digit; device names such as con or nul are not allowed.'
+      )
+    }
+    expect([accepts(profileName, 7), accepts(profileName, null)]).toEqual([false, false])
   })
 })
 

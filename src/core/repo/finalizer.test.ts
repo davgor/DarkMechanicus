@@ -2,13 +2,22 @@ import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { makeBundle, tid } from '../../test/bundles'
 import type { FaultSpec } from '../../test/memoryFs'
-import { idOf, insertEpic, insertOutbox, insertRevision, insertRun, insertTicketStatus, T0 } from '../../test/repoFixtures'
+import { idOf, insertEpic, insertOutbox, insertProfile, insertRevision, insertRun, insertTicketStatus, T0 } from '../../test/repoFixtures'
 import { createRepoEnv, flush, type RepoEnv, saveRevision, stageRevision } from '../../test/repoEnv'
 import { contentHash, prettyJson } from '../canonical'
 import { getMeta } from '../meta'
 import { flushOutbox, type FlushOutcome, writeFileSafely } from './finalizer'
 import { ownedPaths } from './paths'
-import { epicPointerRecord, epicStateRecord, parseRecord, snapshotRecord, trackedEpicHash, trackedRunHash } from './portable'
+import {
+  epicPointerRecord,
+  epicStateRecord,
+  parseRecord,
+  profileRecord,
+  snapshotRecord,
+  trackedEpicHash,
+  trackedProfileHash,
+  trackedRunHash
+} from './portable'
 
 const EPIC = idOf('epic', 1)
 const OTHER_EPIC = idOf('epic', 2)
@@ -346,5 +355,72 @@ describe('flushOutbox path safety', () => {
     insertOutbox(env.db, { kind: 'snapshot', epicId: EPIC, revisionId: R1 })
     flush(env)
     expect(parseRecord(epicStateRecord, env.fs.get(files(env).state) ?? '', 's').ticketStatuses[tid(1)]).toBe('in_progress')
+  })
+})
+
+function profileFile(env: RepoEnv, name: string): string {
+  return ownedPaths(env.layout).profileFile(name)
+}
+
+function queueProfile(env: RepoEnv, name: string): number {
+  return insertOutbox(env.db, { kind: 'profile', entityId: name })
+}
+
+describe('flushOutbox profile exports', () => {
+  it('writes profiles/<name>.json as a pretty record and records its export hash', () => {
+    const env = createRepoEnv()
+    insertProfile(env.db, { name: 'deep-review', description: 'Careful review', revision: 3 })
+    const entry = queueProfile(env, 'deep-review')
+    expect(flush(env)).toEqual({ flushed: 1, failed: 0, errors: [], savedRevisionIds: [], failedRevisionIds: [] })
+    const text = env.fs.get(profileFile(env, 'deep-review')) ?? ''
+    expect(text).toBe(prettyJson(parseRecord(profileRecord, text, 'profile')))
+    expect(parseRecord(profileRecord, text, 'profile')).toMatchObject({ format: 'darkmechanicus.profile', name: 'deep-review', description: 'Careful review' })
+    expect(env.db.all('SELECT kind, entity_id, exported_hash, generation, imported_hash, conflict FROM sync_state')).toEqual([
+      { kind: 'profile', entity_id: 'deep-review', exported_hash: trackedProfileHash(text), generation: 1, imported_hash: null, conflict: null }
+    ])
+    expect(outboxRow(env, entry)).toEqual({ state: 'done', attempts: 0, last_error: null })
+    queueProfile(env, 'deep-review')
+    flush(env)
+    expect(env.db.get('SELECT generation FROM sync_state WHERE kind = ?', 'profile')).toEqual({ generation: 2 })
+  })
+
+  it('fails an entry that names no profile, or a profile that does not exist', () => {
+    const env = createRepoEnv()
+    const nameless = insertOutbox(env.db, { kind: 'profile' })
+    const missing = queueProfile(env, 'ghost')
+    const outcome = flush(env)
+    expect(outcome.errors).toEqual([`profile ${nameless}: Outbox entry has no entity id.`, 'profile ghost: Profile ghost does not exist.'])
+    expect([outboxRow(env, nameless)?.state, outboxRow(env, missing)?.last_error]).toEqual(['pending', 'Profile ghost does not exist.'])
+  })
+})
+
+describe('flushOutbox profile failures', () => {
+  it('holds later writes of a profile whose earlier write failed, but not other profiles', () => {
+    const env = createRepoEnv()
+    insertProfile(env.db, { name: 'deep-review' })
+    insertProfile(env.db, { name: 'ui' })
+    const first = queueProfile(env, 'deep-review')
+    const other = queueProfile(env, 'ui')
+    env.db.run("UPDATE outbox SET state = 'done' WHERE id = ?", first)
+    const failing = queueProfile(env, 'deep-review')
+    const later = insertOutbox(env.db, { kind: 'profile', entityId: 'deep-review', state: 'failed', attempts: 1 })
+    env.fs.failOn({ op: 'rename', match: (path) => path.endsWith('deep-review.json') })
+    const outcome = flush(env)
+    expect([outcome.flushed, outcome.failed]).toEqual([1, 1])
+    expect(outcome.errors[0]).toMatch(/^profile deep-review: Injected rename fault/)
+    expect([outboxRow(env, failing)?.attempts, outboxRow(env, later)?.attempts, outboxRow(env, other)?.state]).toEqual([1, 1, 'done'])
+    expect(env.fs.get(profileFile(env, 'deep-review'))).toBeUndefined()
+  })
+
+  it('refuses to write through a linked profiles directory', () => {
+    const env = createRepoEnv()
+    insertProfile(env.db, { name: 'deep-review' })
+    queueProfile(env, 'deep-review')
+    env.fs.put(resolve('/outside/keep.txt'), 'x')
+    env.fs.symlink(env.layout.profilesDir, resolve('/outside'))
+    const outcome = flush(env)
+    expect(outcome.errors[0]).toContain('symbolic links and junctions are not allowed')
+    expect(env.fs.writes.filter((path) => path.startsWith(resolve('/outside')))).toEqual([])
+    expect([...env.fs.files().keys()].filter((path) => path.startsWith(resolve('/outside')))).toEqual([resolve('/outside/keep.txt')])
   })
 })

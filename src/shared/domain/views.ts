@@ -3,6 +3,7 @@
  * Plain JSON-serializable data only.
  */
 import type {
+  CapabilityProfile,
   Criterion,
   EpicBranch,
   EpicProvenance,
@@ -562,4 +563,17 @@ export interface DraftUpdateResultView {
   draftRevision: number
   refMap: Record<string, string>
   validation: ValidationReport
+}
+
+/**
+ * A named, reusable capability profile (`.darkmechanicus/profiles/<name>.json`): provider-neutral
+ * requirements a ticket can start from. Applying one copies it into the ticket.
+ */
+export interface ProfileView {
+  name: string
+  description: string
+  capability: CapabilityProfile
+  /** Optimistic-concurrency revision for saveProfile; kept by this repository's local database. */
+  revision: number
+  updatedAt: string
 }

@@ -2,7 +2,7 @@
 
 Dark Mechanicus ships a headless MCP server: `out/main/mcp.js`. An agent host launches it as a child process and talks to it over stdio. It opens the repository's `.darkmechanicus/local/state.sqlite` directly, so it works with the desktop app closed and shares the same data when the app is open.
 
-One process is one session with one role. Start one server entry per role you want to give an agent (see [Roles](#roles-and---allow-save)). Every server exposes 50 tools and 6 prompts (the shipped skills).
+One process is one session with one role. Start one server entry per role you want to give an agent (see [Roles](#roles-and---allow-save)). Every server exposes 53 tools and 6 prompts (the shipped skills).
 
 ## Requirements
 

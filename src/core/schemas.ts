@@ -15,6 +15,7 @@ import { WORK_STATUSES } from '../shared/domain/status'
 import { DomainError } from './errors'
 import { STABLE_ID_PATTERN } from './ids'
 import { CRITERION_ID_PATTERN } from './plan/normalize'
+import { isProfileName, PROFILE_NAME_RULE } from './profileNames'
 
 /** Size limits applied to every untrusted input: tool calls, IPC payloads, and imported records. */
 export const LIMITS = {
@@ -32,13 +33,16 @@ export const LIMITS = {
   relations: 5_000,
   opsPerRequest: 500,
   listItems: 500,
-  models: 200
+  models: 200,
+  profileDescription: 500
 } as const
 
 export const stableId = z.string().regex(STABLE_ID_PATTERN, 'Expected a stable id such as tk_…')
 /** A stable id, a ticket key, or a client-local ref declared in the same request. */
 export const entityRef = z.string().min(1).max(64).regex(/^[A-Za-z0-9_.:-]+$/)
 export const idempotencyKey = z.string().min(1).max(200).optional()
+/** A named capability profile's name, which doubles as its portable file name. */
+export const profileName = z.string().refine(isProfileName, { message: PROFILE_NAME_RULE })
 
 const title = z.string().max(LIMITS.title)
 const markdown = z.string().max(LIMITS.markdown)

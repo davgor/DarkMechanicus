@@ -20,6 +20,7 @@ import { assertContained, displayPath, ownedPaths } from './paths'
 import {
   buildEpicPointerRecord,
   buildEpicStateRecord,
+  buildProfileRecord,
   buildRunHistoryRecord,
   buildSnapshotRecord,
   parseRecord,
@@ -27,6 +28,7 @@ import {
   type SnapshotRecord,
   snapshotRecord,
   trackedEpicHash,
+  trackedProfileHash,
   trackedRunHash
 } from './portable'
 import type { FsAdapter, RepoLayout } from './types'
@@ -63,7 +65,11 @@ interface OutboxRow {
   epic_id: string | null
   run_id: string | null
   revision_id: string | null
+  entity_id: string | null
 }
+
+/** Kinds of `sync_state` rows the finalizer records exports for. */
+type SyncKind = 'epic' | 'run' | 'profile'
 
 type WriteEnv = Pick<FinalizerDeps, 'layout' | 'fs'>
 
@@ -135,12 +141,12 @@ function writeSnapshot(env: WriteEnv, record: SnapshotRecord): void {
   }
 }
 
-function nextGeneration(db: Db, kind: 'epic' | 'run', entityId: string): number {
+function nextGeneration(db: Db, kind: SyncKind, entityId: string): number {
   const row = db.get<{ generation: number }>('SELECT generation FROM sync_state WHERE kind = ? AND entity_id = ?', kind, entityId)
   return (row?.generation ?? 0) + 1
 }
 
-function recordExport(deps: FinalizerDeps, entry: { kind: 'epic' | 'run'; entityId: string; hash: string; generation: number }): void {
+function recordExport(deps: FinalizerDeps, entry: { kind: SyncKind; entityId: string; hash: string; generation: number }): void {
   deps.db.run(
     `INSERT INTO sync_state (kind, entity_id, exported_hash, generation, imported_hash, conflict, updated_at)
      VALUES (?, ?, ?, ?, NULL, NULL, ?)
@@ -197,6 +203,12 @@ const HANDLERS: Record<OutboxKind, EntryHandler> = {
     const text = prettyJson(buildRunHistoryRecord(deps.db, runId))
     writeFileSafely(deps, ownedPaths(deps.layout).runHistoryFile(runId), text)
     recordExport(deps, { kind: 'run', entityId: runId, hash: trackedRunHash(text), generation: nextGeneration(deps.db, 'run', runId) })
+  },
+  profile: (deps, _hooks, entry) => {
+    const name = required(entry.entity_id, 'entity id')
+    const text = prettyJson(buildProfileRecord(deps.db, name))
+    writeFileSafely(deps, ownedPaths(deps.layout).profileFile(name), text)
+    recordExport(deps, { kind: 'profile', entityId: name, hash: trackedProfileHash(text), generation: nextGeneration(deps.db, 'profile', name) })
   }
 }
 
@@ -236,11 +248,14 @@ function entityKeys(entry: OutboxRow): string[] {
   if (entry.run_id !== null) {
     keys.push(`run:${entry.run_id}`)
   }
+  if (entry.entity_id !== null) {
+    keys.push(`${entry.kind}:${entry.entity_id}`)
+  }
   return keys
 }
 
 function describeEntry(entry: OutboxRow): string {
-  return `${entry.kind} ${entry.revision_id ?? entry.run_id ?? entry.epic_id ?? entry.id}`
+  return `${entry.kind} ${entry.revision_id ?? entry.run_id ?? entry.entity_id ?? entry.epic_id ?? entry.id}`
 }
 
 function noteSuccess(outcome: FlushOutcome, entry: OutboxRow, result: EntryResult): void {
@@ -260,14 +275,14 @@ function noteFailure(outcome: FlushOutcome, entry: OutboxRow, message: string): 
 
 /**
  * Flushes pending (and previously failed) outbox entries in id order. A failed entry blocks later
- * entries of the same epic/run so their records are never written out of order; other entities
- * continue. Flush failures never throw: they are counted, and the entry keeps its last error.
+ * entries of the same epic, run, or keyed record (such as a profile) so their records are never
+ * written out of order; other entities continue. Flush failures never throw: they are counted, and the entry keeps its last error.
  */
 export function flushOutbox(deps: FinalizerDeps, hooks: FinalizerHooks): FlushOutcome {
   const outcome: FlushOutcome = { flushed: 0, failed: 0, errors: [], savedRevisionIds: [], failedRevisionIds: [] }
   const blocked = new Set<string>()
   const entries = deps.db.all<OutboxRow>(
-    "SELECT id, kind, epic_id, run_id, revision_id FROM outbox WHERE state IN ('pending', 'failed') ORDER BY id"
+    "SELECT id, kind, epic_id, run_id, revision_id, entity_id FROM outbox WHERE state IN ('pending', 'failed') ORDER BY id"
   )
   for (const entry of entries) {
     const keys = entityKeys(entry)
