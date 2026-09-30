@@ -11,7 +11,8 @@ describe('meta keys', () => {
       machineId: 'machine_id',
       checkoutBranch: 'checkout_branch',
       lastFlushAt: 'last_flush_at',
-      lastReconcileAt: 'last_reconcile_at'
+      lastReconcileAt: 'last_reconcile_at',
+      reconcileProblems: 'reconcile_problems'
     })
   })
 })

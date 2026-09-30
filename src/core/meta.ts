@@ -9,7 +9,9 @@ export const META_KEYS = {
   /** Checkout branch recorded at the last reconcile; a different current branch means `branch_changed`. */
   checkoutBranch: 'checkout_branch',
   lastFlushAt: 'last_flush_at',
-  lastReconcileAt: 'last_reconcile_at'
+  lastReconcileAt: 'last_reconcile_at',
+  /** Digest of the conflicts and rejections the last reconcile reported; repeating them records no event. */
+  reconcileProblems: 'reconcile_problems'
 } as const
 
 type MetaKey = (typeof META_KEYS)[keyof typeof META_KEYS]

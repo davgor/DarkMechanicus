@@ -994,11 +994,26 @@ interface ApplyContext {
   branchChanged: boolean
 }
 
-/** Records a `repository.reconciled` event when the reconcile found or changed anything. */
+/**
+ * Whether the conflicts and rejections differ from those the previous reconcile reported (stored
+ * as a digest in meta), so a file that stays rejected is not recorded again on every heartbeat.
+ */
+function problemsChanged(db: Db, result: ReconcileResultView): boolean {
+  const digest = contentHash({ conflicts: result.conflicts, profileConflicts: result.profileConflicts, rejected: result.rejected })
+  const changed = getMeta(db, META_KEYS.reconcileProblems) !== digest
+  setMeta(db, META_KEYS.reconcileProblems, digest)
+  return changed
+}
+
+/**
+ * Records a `repository.reconciled` event when the reconcile imported something, saw the branch
+ * change, or reports conflicts or rejections other than those the previous reconcile reported.
+ */
 function recordReconciled(deps: ImporterDeps, result: ReconcileResultView): void {
   const { imported, rejected, branchChanged, pausedRuns } = result
   const conflicts = result.conflicts.length + result.profileConflicts.length
-  if (imported.length > 0 || conflicts > 0 || rejected.length > 0 || branchChanged) {
+  const newProblems = problemsChanged(deps.db, result) && conflicts + rejected.length > 0
+  if (imported.length > 0 || branchChanged || newProblems) {
     const payload = { imported, unchanged: result.unchanged.length, conflicts, rejected: rejected.length, branchChanged, pausedRuns }
     insertEvent(deps, { kind: 'repository.reconciled', payload })
   }

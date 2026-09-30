@@ -446,6 +446,65 @@ describe('reconcileRepository comment conflicts', () => {
   })
 })
 
+interface ReconciledPayload {
+  imported: string[]
+  rejected: number
+  branchChanged: boolean
+}
+
+function reconciledEvents(env: RepoEnv): ReconciledPayload[] {
+  return env.db
+    .all<{ payload_json: string }>("SELECT payload_json FROM events WHERE kind = 'repository.reconciled' ORDER BY seq")
+    .map((row) => JSON.parse(row.payload_json) as ReconciledPayload)
+}
+
+const BAD_EPIC = { path: '.darkmechanicus/epics/ep_bad', message: 'Refusing to build a repository path from an invalid epic id.' }
+
+describe('reconcileRepository reconciled events', () => {
+  it('records a rejection that persists across heartbeats once, and again when it comes back', () => {
+    const target = cloneOf(buildSource())
+    const deps = importerDeps(target, createStubGit('main'))
+    reconcileRepository(deps)
+    target.fs.setReaddir(target.layout.epicsDir, [EPIC, 'ep_bad'])
+    for (let round = 0; round < 3; round += 1) {
+      expect(reconcileRepository(deps).rejected).toEqual([BAD_EPIC])
+    }
+    target.fs.setReaddir(target.layout.epicsDir, [EPIC])
+    expect(reconcileRepository(deps).rejected).toEqual([])
+    target.fs.setReaddir(target.layout.epicsDir, [EPIC, 'ep_bad'])
+    expect(reconcileRepository(deps).rejected).toEqual([BAD_EPIC])
+    expect(reconciledEvents(target).map((event) => [event.imported, event.rejected])).toEqual([
+      [[EPIC, RUN], 0],
+      [[], 1],
+      [[], 1]
+    ])
+  })
+
+  it('still records imports and branch changes while the same rejection persists', () => {
+    const source = withComments(buildSource())
+    const target = cloneOf(source)
+    const git = createStubGit('main')
+    const deps = importerDeps(target, git)
+    reconcileRepository(deps)
+    target.fs.setReaddir(target.layout.epicsDir, [EPIC, 'ep_bad'])
+    reconcileRepository(deps)
+    insertComment(source.db, { id: C3, epicId: EPIC })
+    insertOutbox(source.db, { kind: 'comment', epicId: EPIC, entityId: C3 })
+    flush(source)
+    copyTracked(source, target)
+    reconcileRepository(deps)
+    git.setBranch('feature')
+    reconcileRepository(deps)
+    reconcileRepository(deps)
+    expect(reconciledEvents(target).map((event) => [event.imported, event.rejected, event.branchChanged])).toEqual([
+      [[EPIC, RUN, C1, C2], 0, false],
+      [[], 1, false],
+      [[C3], 1, false],
+      [[], 1, true]
+    ])
+  })
+})
+
 describe('reconcileRepository comment text', () => {
   it('imports a comment whose body puts marker-like text between U+2028 and U+2029 separators', () => {
     const source = buildSource()
