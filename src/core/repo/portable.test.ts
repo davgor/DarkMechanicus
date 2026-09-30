@@ -93,7 +93,12 @@ describe('parseRecord size and markers', () => {
     ['>>>>>>> theirs', `${prettyJson(PROJECT)}>>>>>>> theirs\n`],
     ['=======', `{\n=======\n}`],
     ['======= (CRLF)', `{\r\n=======\r\n}`],
-    ['||||||| base', `{\n||||||| base\n}`]
+    ['||||||| base', `{\n||||||| base\n}`],
+    ['<<<<<<< HEAD (CRLF)', `{\r\n<<<<<<< HEAD\r\n}`],
+    ['>>>>>>> theirs (CRLF)', `{\r\n>>>>>>> theirs\r\n}`],
+    ['||||||| base (CRLF)', `{\r\n||||||| base\r\n}`],
+    ['======= on the last line', `{\n=======`],
+    ['======= (CRLF) on the last line', `{\r\n=======\r`]
   ])('rejects unresolved merge markers (%s)', (_label, text) => {
     expect(rejection(() => parseRecord(projectRecord, text, PATH))).toEqual({
       code: 'import_rejected',
@@ -102,9 +107,19 @@ describe('parseRecord size and markers', () => {
   })
 
   it('does not mistake marker-like lines for merge markers', () => {
-    for (const text of ['{\n========\n}', '{\n======= x\n}', '<<<<<<<HEAD\n', '  <<<<<<< HEAD\n']) {
+    for (const text of ['{\n========\n}', '{\n======= x\n}', '<<<<<<<HEAD\n', '  <<<<<<< HEAD\n', '{\r=======\r}']) {
       expect(rejection(() => parseRecord(projectRecord, text, PATH)).message).toBe(`${PATH} is not valid JSON.`)
     }
+  })
+
+  it.each([
+    ['U+2028', '\u2028'],
+    ['U+2029', '\u2029']
+  ])('accepts marker-like text after %s, which JSON leaves unescaped, as no line break', (_label, separator) => {
+    const body = ['Decision', '=======', 'Use the v2 schema', '<<<<<<< HEAD', '>>>>>>> theirs', '||||||| base'].join(separator)
+    const text = prettyJson({ ...COMMENT, body })
+    expect(text).toContain(`${separator}=======${separator}`)
+    expect(parseRecord(commentRecord, text, PATH)).toEqual({ ...COMMENT, body })
   })
 })
 

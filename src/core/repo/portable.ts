@@ -29,7 +29,11 @@ export const MAX_RECORD_BYTES = 8 * 1024 * 1024
 /** A comment file holds at most 20,000 characters of Markdown; anything far larger is not a comment. */
 export const MAX_COMMENT_RECORD_BYTES = 256 * 1024
 export const KEY_PREFIX_PATTERN = /^[A-Z][A-Z0-9]{0,11}$/
-const MERGE_MARKER_PATTERN = /^(?:<{7} |>{7} |\|{7} |={7}\r?$)/m
+/**
+ * A Git conflict marker at the start of a line. Only `\n` (with an optional `\r`) ends a line: no `m`
+ * flag, whose `^`/`$` would also split at U+2028/U+2029, which JSON leaves unescaped in text.
+ */
+const MERGE_MARKER_PATTERN = /(?:^|\n)(?:<{7} |>{7} |\|{7} |={7}\r?(?:\n|$))/
 const MAX_ATTEMPTS = 10_000
 const MAX_REPORTS = 5_000
 const MAX_CHECKPOINTS = 1_000

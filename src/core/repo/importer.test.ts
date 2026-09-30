@@ -446,6 +446,19 @@ describe('reconcileRepository comment conflicts', () => {
   })
 })
 
+describe('reconcileRepository comment text', () => {
+  it('imports a comment whose body puts marker-like text between U+2028 and U+2029 separators', () => {
+    const source = buildSource()
+    const body = 'Decision ======= Use the v2 schema <<<<<<< HEAD done'
+    insertComment(source.db, { id: C3, epicId: EPIC, body })
+    insertOutbox(source.db, { kind: 'comment', epicId: EPIC, entityId: C3 })
+    expect(flush(source).failed).toBe(0)
+    const target = cloneOf(source)
+    expect(reconcileRepository(importerDeps(target, createStubGit('main')))).toMatchObject({ imported: [EPIC, RUN, C3], rejected: [] })
+    expect(target.db.get('SELECT body FROM comments WHERE id = ?', C3)).toEqual({ body })
+  })
+})
+
 describe('reconcileRepository unchanged comment files', () => {
   it('does not read comment files again while they are unchanged', () => {
     const target = cloneOf(withComments(buildSource()))
