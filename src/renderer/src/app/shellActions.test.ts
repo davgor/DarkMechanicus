@@ -1,0 +1,223 @@
+// @vitest-environment jsdom
+import { beforeEach, describe, expect, it } from 'vitest'
+import { FakeDm } from '../__mocks__/fakeDm'
+import { epicDetail, folderView } from '../__mocks__/fixtures'
+import type { FolderPickResult } from '../../../shared/desktop/api'
+import type { WorkStatus } from '../../../shared/domain/status'
+import type { Selection } from './selection'
+import { createShellActions } from './shellActions'
+import type { BusyKey, ShellActions } from './shellActions'
+import type { ToastTone } from './toastState'
+
+const alpha = folderView({ path: '/a', name: 'alpha' })
+
+/** Records every effect the actions ask of the shell. */
+class Recorder {
+  toasts: [ToastTone, string][] = []
+  errors: string[] = []
+  selections: Selection[] = []
+  revealed: string[] = []
+  refreshed: string[] = []
+  busy: string[] = []
+  reloads = 0
+  untracked: string[] = []
+  picked: FolderPickResult = { folder: null, added: false }
+  pickError: string | null = null
+  untrackError: string | null = null
+  buckets: Record<string, WorkStatus> = {}
+
+  actions(selectedPath: string | null = '/a'): ShellActions {
+    return createShellActions({
+      toasts: {
+        push: (tone, message) => this.toasts.push([tone, message]),
+        reportError: (error) => this.errors.push((error as Error).message)
+      },
+      folders: {
+        pick: () => (this.pickError === null ? Promise.resolve(this.picked) : Promise.reject(new Error(this.pickError))),
+        untrack: (path) => {
+          this.untracked.push(path)
+          return this.untrackError === null ? Promise.resolve() : Promise.reject(new Error(this.untrackError))
+        },
+        reload: () => {
+          this.reloads += 1
+          return Promise.resolve()
+        }
+      },
+      select: (selection) => this.selections.push(selection),
+      reveal: (path, bucket) => this.revealed.push(bucket === null ? path : `${path}:${bucket}`),
+      bucketOf: (path, epicId) => this.buckets[`${path}:${epicId}`] ?? null,
+      refresh: (path) => this.refreshed.push(path),
+      setBusy: (key: BusyKey, value: boolean) => this.busy.push(`${key}:${value}`),
+      selectedPath
+    })
+  }
+}
+
+let recorder: Recorder
+let dm: FakeDm
+
+beforeEach(() => {
+  recorder = new Recorder()
+  dm = new FakeDm()
+  window.dm = dm
+})
+
+describe('selection actions', () => {
+  it('selects a folder without an epic and reveals it', () => {
+    recorder.actions().selectFolder('/a')
+    expect(recorder.selections).toEqual([{ folderPath: '/a', epicId: null }])
+    expect(recorder.revealed).toEqual(['/a'])
+  })
+
+  it('selects an epic and reveals its bucket', () => {
+    recorder.buckets['/a:ep_1'] = 'completed'
+    recorder.actions().selectEpic('/a', 'ep_1')
+    expect(recorder.selections).toEqual([{ folderPath: '/a', epicId: 'ep_1' }])
+    expect(recorder.revealed).toEqual(['/a:completed'])
+  })
+
+  it('reveals only the folder when the epic is not listed yet', () => {
+    recorder.actions().selectEpic('/a', 'ep_new')
+    expect(recorder.revealed).toEqual(['/a'])
+  })
+
+  it('asks for a refresh after a change', () => {
+    recorder.actions().changed('/a')
+    expect(recorder.refreshed).toEqual(['/a'])
+  })
+})
+
+describe('track', () => {
+  it('selects a newly added folder', async () => {
+    recorder.picked = { folder: alpha, added: true }
+    await recorder.actions().track()
+    expect(recorder.selections).toEqual([{ folderPath: '/a', epicId: null }])
+    expect(recorder.toasts).toEqual([])
+  })
+
+  it('selects an already tracked folder and says so', async () => {
+    recorder.picked = { folder: alpha, added: false }
+    await recorder.actions().track()
+    expect(recorder.selections).toEqual([{ folderPath: '/a', epicId: null }])
+    expect(recorder.toasts).toEqual([['info', 'alpha is already tracked.']])
+  })
+
+  it('does nothing when the picker is canceled', async () => {
+    await recorder.actions().track()
+    expect(recorder.selections).toEqual([])
+    expect(recorder.toasts).toEqual([])
+  })
+
+  it('reports a picker failure', async () => {
+    recorder.pickError = 'dialog failed'
+    await recorder.actions().track()
+    expect(recorder.errors).toEqual(['dialog failed'])
+    expect(recorder.selections).toEqual([])
+  })
+})
+
+describe('untrack', () => {
+  it('stops tracking the folder', async () => {
+    await recorder.actions().untrack('/a')
+    expect(recorder.untracked).toEqual(['/a'])
+  })
+
+  it('reports a failure', async () => {
+    recorder.untrackError = 'registry locked'
+    await recorder.actions().untrack('/a')
+    expect(recorder.errors).toEqual(['registry locked'])
+  })
+})
+
+describe('initialize', () => {
+  it('initializes, reloads folders, refreshes and confirms', async () => {
+    await recorder.actions().initialize(alpha)
+    expect(dm.callsOf('initializeRepository').map((call) => [call.folder, call.input])).toEqual([['/a', {}]])
+    expect(recorder.reloads).toBe(1)
+    expect(recorder.refreshed).toEqual(['/a'])
+    expect(recorder.toasts).toEqual([['success', 'Initialized alpha.']])
+  })
+
+  it('marks the initialization busy only while it runs', async () => {
+    await recorder.actions().initialize(alpha)
+    expect(recorder.busy).toEqual(['initialize:true', 'initialize:false'])
+  })
+
+  it('reports a failure without reloading and clears busy', async () => {
+    dm.failures.initializeRepository = { code: 'already_initialized', message: 'Already set up' }
+    await recorder.actions().initialize(alpha)
+    expect(recorder.errors).toEqual(['Already set up'])
+    expect(recorder.reloads).toBe(0)
+    expect(recorder.busy).toEqual(['initialize:true', 'initialize:false'])
+  })
+})
+
+describe('flush', () => {
+  it('flushes the selected folder and reports the outcome', async () => {
+    dm.responses.flushPortableState = { flushed: 2, failed: 0, errors: [] }
+    await recorder.actions('/a').flush()
+    expect(dm.callsOf('flushPortableState').map((call) => call.folder)).toEqual(['/a'])
+    expect(recorder.toasts).toEqual([['success', 'Exported 2 pending changes.']])
+    expect(recorder.refreshed).toEqual(['/a'])
+    expect(recorder.busy).toEqual(['flush:true', 'flush:false'])
+  })
+
+  it('does nothing without a selected folder', async () => {
+    await recorder.actions(null).flush()
+    expect(dm.commandCalls).toEqual([])
+    expect(recorder.busy).toEqual([])
+  })
+
+  it('reports a failure and clears busy', async () => {
+    dm.failures.flushPortableState = { code: 'internal', message: 'flush broke' }
+    await recorder.actions('/a').flush()
+    expect(recorder.errors).toEqual(['flush broke'])
+    expect(recorder.busy).toEqual(['flush:true', 'flush:false'])
+    expect(recorder.refreshed).toEqual([])
+  })
+})
+
+describe('reconcile', () => {
+  const clean = { imported: ['x'], unchanged: [], conflicts: [], rejected: [], branchChanged: false, pausedRuns: [] }
+
+  it('reconciles the selected folder and reports the summary', async () => {
+    dm.responses.reconcileRepository = clean
+    await recorder.actions('/a').reconcile()
+    expect(dm.callsOf('reconcileRepository').map((call) => call.folder)).toEqual(['/a'])
+    expect(recorder.toasts).toEqual([['info', 'Reconciled. 1 record imported.']])
+    expect(recorder.refreshed).toEqual(['/a'])
+    expect(recorder.busy).toEqual(['reconcile:true', 'reconcile:false'])
+  })
+
+  it('does nothing without a selected folder', async () => {
+    await recorder.actions(null).reconcile()
+    expect(dm.commandCalls).toEqual([])
+  })
+
+  it('reports a failure', async () => {
+    dm.failures.reconcileRepository = { code: 'branch_changed', message: 'Switch back first' }
+    await recorder.actions('/a').reconcile()
+    expect(recorder.errors).toEqual(['Switch back first'])
+    expect(recorder.busy).toEqual(['reconcile:true', 'reconcile:false'])
+  })
+})
+
+describe('createEpic', () => {
+  it('creates the epic, refreshes, opens it and returns it', async () => {
+    const created = epicDetail({ id: 'ep_new', title: 'Ship' })
+    dm.responses.createEpic = created
+    const result = await recorder.actions().createEpic(alpha, { title: 'Ship' })
+    expect(result).toEqual(created)
+    expect(dm.callsOf('createEpic').map((call) => [call.folder, call.input])).toEqual([['/a', { title: 'Ship' }]])
+    expect(recorder.refreshed).toEqual(['/a'])
+    expect(recorder.selections).toEqual([{ folderPath: '/a', epicId: 'ep_new' }])
+  })
+
+  it('reports a failure and returns null without opening anything', async () => {
+    dm.failures.createEpic = { code: 'invalid_input', message: 'Title too long' }
+    const result = await recorder.actions().createEpic(alpha, { title: 'x' })
+    expect(result).toBeNull()
+    expect(recorder.errors).toEqual(['Title too long'])
+    expect(recorder.selections).toEqual([])
+  })
+})

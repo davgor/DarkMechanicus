@@ -2,21 +2,21 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { ClaimTicketInput } from '../shared/domain/api'
+import type { ClaimTicketInput, SubmitAttemptInput } from '../shared/domain/api'
 import type { EpicBranch, PlanBundle, PlanPolicies } from '../shared/domain/bundle'
 import type { WorkStatus } from '../shared/domain/status'
-import type { ClaimResultView, HostCatalog, HostModel } from '../shared/domain/views'
+import type { AttemptView, ClaimResultView, HostCatalog, HostModel } from '../shared/domain/views'
 import { contentHash } from '../core/canonical'
 import type { Ctx } from '../core/context'
 import { toJson } from '../core/db/database'
 import { DomainError } from '../core/errors'
-import { claimTicket } from '../core/services/attempts'
+import { acceptAttempt, claimTicket, submitAttempt } from '../core/services/attempts'
 import type { AttemptRow, RunRow } from '../core/services/execution'
 import { startRun } from '../core/services/runs'
 import { makeBundle, tid } from './bundles'
 import { type TestCtx, withRole } from './testContext'
 
-export interface SeedEpicOptions {
+interface SeedEpicOptions {
   bundle?: PlanBundle
   status?: WorkStatus
   branch?: EpicBranch | null
@@ -24,7 +24,7 @@ export interface SeedEpicOptions {
   saved?: boolean
 }
 
-export interface SeededEpic {
+interface SeededEpic {
   epicId: string
   revisionId: string | null
   bundle: PlanBundle
@@ -86,7 +86,7 @@ export function seedEpic(ctx: Ctx, options: SeedEpicOptions = {}): SeededEpic {
   return { epicId, revisionId, bundle }
 }
 
-export interface StartedRun extends SeededEpic {
+interface StartedRun extends SeededEpic {
   runId: string
 }
 
@@ -114,6 +114,42 @@ export function claim(
   extra: Partial<ClaimTicketInput> = {}
 ): ClaimResultView {
   return claimTicket(ctx, { runId, ticketId: tid(ticket), worker: { label: 'worker-1' }, ...extra })
+}
+
+/** Submits a claim with its own token (default outputs: a one-line summary). */
+export function submitClaim(
+  ctx: Ctx,
+  claimed: ClaimResultView,
+  extra: Partial<SubmitAttemptInput> = {}
+): AttemptView {
+  return submitAttempt(ctx, {
+    attemptId: claimed.attempt.id,
+    claimToken: claimed.packet.claimToken,
+    outputs: { summary: 'done' },
+    ...extra
+  })
+}
+
+/** Claims, submits, and accepts ticket number `ticket`, returning the accepted attempt. */
+export function completeTicket(
+  ctx: Ctx,
+  runId: string,
+  ticket: number,
+  outputs?: SubmitAttemptInput['outputs']
+): AttemptView {
+  const claimed = claim(ctx, runId, ticket)
+  submitClaim(ctx, claimed, outputs ? { outputs } : {})
+  return acceptAttempt(ctx, { attemptId: claimed.attempt.id })
+}
+
+/** Ids of the run's open (claimed/running/submitted) attempts in creation order. */
+export function openAttemptIds(ctx: Ctx, runId: string): string[] {
+  return ctx.db
+    .all<{ id: string }>(
+      "SELECT id FROM attempts WHERE run_id = ? AND state IN ('claimed', 'running', 'submitted') ORDER BY rowid",
+      runId
+    )
+    .map((row) => row.id)
 }
 
 export function attemptRow(ctx: Ctx, attemptId: string): AttemptRow {

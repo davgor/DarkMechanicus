@@ -47,7 +47,8 @@ function withPolicies(patch: Partial<PlanBundle['policies']>): PlanBundle {
 
 function withSprintCap(cap: number | null): PlanBundle {
   const bundle = cleanBundle()
-  return { ...bundle, sprints: bundle.sprints.map((sprint, index) => (index === 0 ? { ...sprint, concurrencyCap: cap } : sprint)) }
+  const sprints = bundle.sprints.map((sprint, index) => (index === 0 ? { ...sprint, concurrencyCap: cap } : sprint))
+  return { ...bundle, sprints }
 }
 
 describe('findCycle acyclic graphs', () => {
@@ -204,12 +205,19 @@ describe('validatePlan cycles and edge shape', () => {
     const fromUnknown = makeBundle([[1]], [], { edges: [{ from: unknown, to: tid(1) }] })
     const bothUnknown = makeBundle([[1]], [], { edges: [{ from: tid(98), to: unknown }] })
     expect(errorsOf(toUnknown)).toEqual([
-      { code: 'edge_missing_ticket', message: `Dependency references unknown ticket ${unknown}.`, edge: { from: tid(1), to: unknown } }
+      {
+        code: 'edge_missing_ticket',
+        message: `Dependency references unknown ticket ${unknown}.`,
+        edge: { from: tid(1), to: unknown }
+      }
     ])
     expect(errorsOf(fromUnknown)[0]?.message).toBe(`Dependency references unknown ticket ${unknown}.`)
     expect(errorsOf(bothUnknown)[0]?.message).toBe(`Dependency references unknown ticket ${tid(98)}, ${unknown}.`)
   })
 
+})
+
+describe('validatePlan duplicate edges and mixed problems', () => {
   it('reports duplicate edges once per repeat', () => {
     const plan = makeBundle([[1, 2]], [[1, 2], [1, 2], [1, 2]])
     expect(errorsOf(plan)).toEqual([
@@ -390,7 +398,8 @@ describe('validatePlan criterion ids', () => {
 
   it('reports repeated ticket acceptance criterion ids with the ticket', () => {
     const plan = cleanBundle()
-    plan.tickets = [makeTicket(1), makeTicket(2, { acceptanceCriteria: [{ id: 'c4', text: 'a' }, { id: 'c4', text: 'b' }] }), makeTicket(3)]
+    const repeated = [{ id: 'c4', text: 'a' }, { id: 'c4', text: 'b' }]
+    plan.tickets = [makeTicket(1), makeTicket(2, { acceptanceCriteria: repeated }), makeTicket(3)]
     expect(errorsOf(plan)).toEqual([
       {
         code: 'duplicate_criterion_id',

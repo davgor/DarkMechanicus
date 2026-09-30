@@ -1,6 +1,6 @@
 import type { PlanBundle, RelationKind, TicketContent } from '../../shared/domain/bundle'
 import type { WorkStatus } from '../../shared/domain/status'
-import type { PlanView, TicketDetailView, TicketLinkView, TicketSummaryView } from '../../shared/domain/views'
+import type { TicketDetailView, TicketLinkView, TicketSummaryView } from '../../shared/domain/views'
 import { requireCapability } from '../authz'
 import type { Ctx } from '../context'
 import { fail } from '../errors'
@@ -8,7 +8,7 @@ import { type BundleIndex, dependentsOf, indexBundle, prerequisitesOf, sortedSpr
 import { activeRun, applyEpicStatus, assertEpicOpen, type EpicRow, loadEpicRow } from './epics'
 import { appendEvent } from './events'
 import { enqueueOutbox } from './outbox'
-import { getPlan } from './plans'
+import { readPlanBundle } from './plans'
 
 type PlanViewKind = 'saved' | 'draft'
 
@@ -60,8 +60,10 @@ function orderedTickets(bundle: PlanBundle, index: BundleIndex): TicketContent[]
 }
 
 export function listTickets(ctx: Ctx, input: { epicId: string; view: PlanViewKind }): TicketSummaryView[] {
-  const { bundle } = getPlan(ctx, { epicId: input.epicId, view: input.view })
-  const statuses = statusesOf(ctx, input.epicId)
+  requireCapability(ctx.session, 'read')
+  const epic = loadEpicRow(ctx, input.epicId)
+  const { bundle } = readPlanBundle(ctx, epic, input.view)
+  const statuses = statusesOf(ctx, epic.id)
   const index = indexBundle(bundle)
   return orderedTickets(bundle, index).map((ticket) => summarize(ticket, index, statuses.get(ticket.id) ?? null))
 }
@@ -87,15 +89,15 @@ function relationsOf(bundle: PlanBundle, ticketId: string): { kind: string; othe
   return [...outgoing, ...incoming]
 }
 
-function readOnlyReason(ctx: Ctx, epic: EpicRow, plan: PlanView): string | null {
+function readOnlyReason(ctx: Ctx, epic: EpicRow, revisionId: string | null): string | null {
   if (epic.status === 'completed') {
     return 'Completed epics are read-only.'
   }
-  if (plan.view === 'draft') {
+  if (revisionId === null) {
     return null
   }
   const run = activeRun(ctx, epic.id)
-  return run?.revision_id === plan.revisionId
+  return run?.revision_id === revisionId
     ? `Read-only while run #${run.number} is active. Changes go to a draft.`
     : 'Saved revisions are immutable. Edit a draft.'
 }
@@ -105,16 +107,17 @@ export function getTicket(
   ctx: Ctx,
   input: { epicId: string; ticketId: string; view: PlanViewKind }
 ): TicketDetailView {
-  const plan = getPlan(ctx, { epicId: input.epicId, view: input.view })
+  requireCapability(ctx.session, 'read')
   const epic = loadEpicRow(ctx, input.epicId)
+  const { bundle, revisionId } = readPlanBundle(ctx, epic, input.view)
   const ticket =
-    plan.bundle.tickets.find((item) => item.id === input.ticketId || item.key === input.ticketId) ??
+    bundle.tickets.find((item) => item.id === input.ticketId || item.key === input.ticketId) ??
     fail('not_found', `Ticket ${input.ticketId} is not in the ${input.view} plan.`, { ticketId: input.ticketId })
   const statuses = statusesOf(ctx, epic.id)
-  const index = indexBundle(plan.bundle)
+  const index = indexBundle(bundle)
   const link = (ticketId: string): TicketLinkView => linkTo(index, statuses, ticketId)
   const summary = summarize(ticket, index, statuses.get(ticket.id) ?? null)
-  const reason = readOnlyReason(ctx, epic, plan)
+  const reason = readOnlyReason(ctx, epic, revisionId)
   return {
     epicId: epic.id,
     view: input.view,
@@ -122,9 +125,9 @@ export function getTicket(
     status: summary.status,
     sprintId: summary.sprintId,
     sprintOrdinal: summary.sprintOrdinal,
-    prerequisites: prerequisitesOf(plan.bundle, ticket.id).map(link),
-    dependents: dependentsOf(plan.bundle, ticket.id).map(link),
-    relations: relationsOf(plan.bundle, ticket.id).map(({ kind, other }) => ({ kind, ticket: link(other) })),
+    prerequisites: prerequisitesOf(bundle, ticket.id).map(link),
+    dependents: dependentsOf(bundle, ticket.id).map(link),
+    relations: relationsOf(bundle, ticket.id).map(({ kind, other }) => ({ kind, ticket: link(other) })),
     execution: null,
     attempts: [],
     readOnly: reason !== null,
@@ -132,8 +135,8 @@ export function getTicket(
   }
 }
 
-/** The ticket as described by the newest saved revision of its epic that contains it. */
-function savedTicketSummary(ctx: Ctx, row: TicketStatusRow, status: WorkStatus): TicketSummaryView {
+/** The ticket as the newest saved revision of its epic that contains it describes it. */
+function savedTicket(ctx: Ctx, row: TicketStatusRow): { ticket: TicketContent; index: BundleIndex } {
   const revision = ctx.db.get<{ bundle_json: string }>(
     `SELECT p.bundle_json FROM plan_revisions p, json_each(p.bundle_json, '$.tickets') t
      WHERE p.epic_id = ? AND p.state = 'saved' AND json_extract(t.value, '$.id') = ?
@@ -141,13 +144,12 @@ function savedTicketSummary(ctx: Ctx, row: TicketStatusRow, status: WorkStatus):
     row.epic_id,
     row.ticket_id
   )
-  const bundle = JSON.parse(revision?.bundle_json ?? 'null') as PlanBundle | null
-  const index = bundle ? indexBundle(bundle) : null
-  const ticket = index?.tickets.get(row.ticket_id)
-  if (!index || !ticket) {
+  const bundle = revision ? (JSON.parse(revision.bundle_json) as PlanBundle) : null
+  const ticket = bundle?.tickets.find((item) => item.id === row.ticket_id)
+  if (!bundle || !ticket) {
     return fail('not_found', `Ticket ${row.ticket_id} is not in a saved plan.`, { ticketId: row.ticket_id })
   }
-  return summarize(ticket, index, status)
+  return { ticket, index: indexBundle(bundle) }
 }
 
 function assertTicketRevision(row: TicketStatusRow, expected: number | undefined): void {
@@ -229,11 +231,12 @@ export function setTicketStatus(
       fail('not_found', 'Only tickets in a saved plan have a status.', { ticketId: input.ticketId })
     const epic = loadEpicRow(ctx, row.epic_id)
     assertEpicOpen(epic)
+    const { ticket, index } = savedTicket(ctx, row)
     if (input.status !== row.status) {
       assertTicketRevision(row, input.expectedRevision)
       assertTicketTransition(ctx, row, input.status)
       applyTicketStatus(ctx, row, { epic, status: input.status })
     }
-    return savedTicketSummary(ctx, row, input.status)
+    return summarize(ticket, index, input.status)
   })
 }

@@ -284,7 +284,7 @@ export function advanceTicketStatus(ctx: Ctx, target: { epicId: string; ticketId
   enqueueOutbox(ctx, { kind: 'epic_state', epicId: target.epicId })
 }
 
-export interface NewAttempt {
+interface NewAttempt {
   run: RunRow
   ticket: TicketContent
   kind: AttemptKind

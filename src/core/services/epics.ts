@@ -1,5 +1,5 @@
 import type { CreateEpicInput } from '../../shared/domain/api'
-import type { EpicBranch, EpicContent, EpicProvenance, PlanBundle } from '../../shared/domain/bundle'
+import type { EpicBranch, EpicContent, EpicProvenance } from '../../shared/domain/bundle'
 import type { RunState, WorkStatus } from '../../shared/domain/status'
 import type { EpicDetailView, EpicOutcome, EpicSummaryView, RunSummaryView } from '../../shared/domain/views'
 import { requireCapability } from '../authz'
@@ -32,24 +32,56 @@ interface ActiveRunRow {
   revision_id: string
 }
 
-interface EpicSource {
-  row: EpicRow
-  /** Current saved bundle, else the draft of a never-saved epic. */
-  bundle: PlanBundle | null
-  currentNumber: number | null
-  draftRevision: number | null
+/** An epic row plus what its summary needs, extracted in SQL (bundles are never parsed whole). */
+interface EpicSourceRow extends EpicRow {
+  current_number: number | null
+  draft_revision: number | null
+  /** Title of the current saved bundle, else of the draft of a never-saved epic. */
+  content_title: string | null
+  ticket_count: number | null
+  sprint_count: number | null
+  pending_save: number
+  conflict: string | null
+}
+
+interface EpicDetailRow extends EpicSourceRow {
+  /** `epic` object of the same bundle as `content_title`. */
+  epic_json: string | null
 }
 
 interface RunSummaryRow {
   id: string
   state: RunState
-  active_sprint_id: string | null
   pause_reason: string | null
   revision_number: number
-  bundle_json: string
+  active_sprint_ordinal: number | null
+  sprint_count: number
 }
 
 const ACTIVE_RUN_SQL = `('queued','running','awaiting_checkpoint','paused')`
+
+const SUMMARY_COLUMNS = `s.id, s.title, s.status, s.current_revision_id, s.branch_json, s.provenance_json,
+  s.outcome_json, s.revision, s.created_at, s.updated_at, s.completed_at, s.current_number, s.draft_revision,
+  s.pending_save, s.conflict, json_extract(s.bundle_json, '$.epic.title') AS content_title,
+  json_array_length(s.bundle_json, '$.tickets') AS ticket_count,
+  json_array_length(s.bundle_json, '$.sprints') AS sprint_count`
+
+/** Epics joined with their content bundle: the current saved one, else the draft of a never-saved epic. */
+function epicSourceSql(columns: string, where: string): string {
+  return `SELECT ${columns}
+    FROM (
+      SELECT e.*,
+        (SELECT number FROM plan_revisions WHERE id = e.current_revision_id) AS current_number,
+        (SELECT draft_revision FROM drafts WHERE epic_id = e.id) AS draft_revision,
+        COALESCE(
+          (SELECT bundle_json FROM plan_revisions WHERE id = e.current_revision_id),
+          (SELECT bundle_json FROM drafts WHERE epic_id = e.id)
+        ) AS bundle_json,
+        EXISTS (SELECT 1 FROM plan_revisions WHERE epic_id = e.id AND state = 'pending') AS pending_save,
+        (SELECT conflict FROM sync_state WHERE kind = 'epic' AND entity_id = e.id) AS conflict
+      FROM epics e ${where}
+    ) s`
+}
 
 const COMPLETION_RULE =
   'Epics complete when the final sprint checkpoint advances (advance_sprint); status tools cannot bypass completion rules.'
@@ -109,27 +141,12 @@ export function applyEpicStatus(ctx: Ctx, row: EpicRow, status: WorkStatus): voi
   exportEpicState(ctx, row)
 }
 
-function loadSource(ctx: Ctx, row: EpicRow): EpicSource {
-  const current = ctx.db.get<{ number: number; bundle_json: string }>(
-    'SELECT number, bundle_json FROM plan_revisions WHERE id = ?',
-    row.current_revision_id
-  )
-  const draft = ctx.db.get<{ draft_revision: number; bundle_json: string }>(
-    'SELECT draft_revision, bundle_json FROM drafts WHERE epic_id = ?',
-    row.id
-  )
-  const json = current?.bundle_json ?? draft?.bundle_json
-  return {
-    row,
-    bundle: json === undefined ? null : (JSON.parse(json) as PlanBundle),
-    currentNumber: current?.number ?? null,
-    draftRevision: draft?.draft_revision ?? null
-  }
-}
-
 function runSummary(ctx: Ctx, epicId: string): RunSummaryView | null {
   const run = ctx.db.get<RunSummaryRow>(
-    `SELECT r.id, r.state, r.active_sprint_id, r.pause_reason, p.number AS revision_number, p.bundle_json
+    `SELECT r.id, r.state, r.pause_reason, p.number AS revision_number,
+       json_array_length(p.bundle_json, '$.sprints') AS sprint_count,
+       (SELECT json_extract(sp.value, '$.ordinal') FROM json_each(p.bundle_json, '$.sprints') sp
+         WHERE json_extract(sp.value, '$.id') = r.active_sprint_id) AS active_sprint_ordinal
      FROM runs r JOIN plan_revisions p ON p.id = r.revision_id
      WHERE r.epic_id = ?
      ORDER BY CASE WHEN r.state IN ${ACTIVE_RUN_SQL} THEN 0 ELSE 1 END, r.number DESC, r.created_at DESC
@@ -139,61 +156,44 @@ function runSummary(ctx: Ctx, epicId: string): RunSummaryView | null {
   if (!run) {
     return null
   }
-  const sprints = (JSON.parse(run.bundle_json) as PlanBundle).sprints
   return {
     id: run.id,
     state: run.state,
     revisionNumber: run.revision_number,
-    activeSprintOrdinal: sprints.find((sprint) => sprint.id === run.active_sprint_id)?.ordinal ?? null,
-    sprintCount: sprints.length,
+    activeSprintOrdinal: run.active_sprint_ordinal,
+    sprintCount: run.sprint_count,
     pauseReason: run.pause_reason
   }
 }
 
-function hasPendingSave(ctx: Ctx, epicId: string): boolean {
-  const row = ctx.db.get<{ pending: number }>(
-    "SELECT EXISTS (SELECT 1 FROM plan_revisions WHERE epic_id = ? AND state = 'pending') AS pending",
-    epicId
-  )
-  return row?.pending === 1
-}
-
-function syncConflict(ctx: Ctx, epicId: string): string | null {
-  const row = ctx.db.get<{ conflict: string | null }>(
-    "SELECT conflict FROM sync_state WHERE kind = 'epic' AND entity_id = ?",
-    epicId
-  )
-  return row?.conflict ?? null
-}
-
-function toSummary(ctx: Ctx, source: EpicSource): EpicSummaryView {
-  const { row, bundle } = source
+function toSummary(ctx: Ctx, row: EpicSourceRow): EpicSummaryView {
   return {
     id: row.id,
-    title: bundle?.epic.title ?? row.title,
+    title: row.content_title ?? row.title,
     status: row.status,
     revision: row.revision,
     currentRevisionId: row.current_revision_id,
-    currentRevisionNumber: source.currentNumber,
-    hasDraft: source.draftRevision !== null,
-    draftRevision: source.draftRevision,
-    ticketCount: bundle?.tickets.length ?? 0,
-    sprintCount: bundle?.sprints.length ?? 0,
+    currentRevisionNumber: row.current_number,
+    hasDraft: row.draft_revision !== null,
+    draftRevision: row.draft_revision,
+    ticketCount: row.ticket_count ?? 0,
+    sprintCount: row.sprint_count ?? 0,
     run: runSummary(ctx, row.id),
     branch: parseJson<EpicBranch | null>(row.branch_json, null),
-    pendingSave: hasPendingSave(ctx, row.id),
-    conflict: syncConflict(ctx, row.id),
+    pendingSave: row.pending_save === 1,
+    conflict: row.conflict,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     completedAt: row.completed_at
   }
 }
 
-function epicDetail(ctx: Ctx, row: EpicRow): EpicDetailView {
-  const source = loadSource(ctx, row)
-  const epic = source.bundle?.epic
+function epicDetail(ctx: Ctx, epicId: string): EpicDetailView {
+  const sql = epicSourceSql(`${SUMMARY_COLUMNS}, json_extract(s.bundle_json, '$.epic') AS epic_json`, 'WHERE e.id = ?')
+  const row = ctx.db.get<EpicDetailRow>(sql, epicId) ?? fail('not_found', `Epic ${epicId} not found.`, { epicId })
+  const epic = parseJson<EpicContent | null>(row.epic_json, null)
   return {
-    ...toSummary(ctx, source),
+    ...toSummary(ctx, row),
     intent: epic?.intent ?? '',
     successCriteria: epic?.successCriteria ?? [],
     ownerRole: epic?.ownerRole ?? null,
@@ -261,23 +261,23 @@ export function createEpic(ctx: Ctx, input: CreateEpicInput): EpicDetailView {
     }
     const id = insertEpic(ctx, input, title)
     appendEvent(ctx, { kind: 'epic.created', epicId: id, payload: { title } })
-    return epicDetail(ctx, loadEpicRow(ctx, id))
+    return epicDetail(ctx, id)
   })
 }
 
 /** Epics ordered in progress, backlog, completed; most recently updated first within a status. */
 export function listEpics(ctx: Ctx): EpicSummaryView[] {
   requireCapability(ctx.session, 'read')
-  const rows = ctx.db.all<EpicRow>(
-    `SELECT * FROM epics
-     ORDER BY CASE status WHEN 'in_progress' THEN 0 WHEN 'backlog' THEN 1 ELSE 2 END, updated_at DESC, id DESC`
+  const rows = ctx.db.all<EpicSourceRow>(
+    `${epicSourceSql(SUMMARY_COLUMNS, '')}
+     ORDER BY CASE s.status WHEN 'in_progress' THEN 0 WHEN 'backlog' THEN 1 ELSE 2 END, s.updated_at DESC, s.id DESC`
   )
-  return rows.map((row) => toSummary(ctx, loadSource(ctx, row)))
+  return rows.map((row) => toSummary(ctx, row))
 }
 
 export function getEpic(ctx: Ctx, input: { epicId: string }): EpicDetailView {
   requireCapability(ctx.session, 'read')
-  return epicDetail(ctx, loadEpicRow(ctx, input.epicId))
+  return epicDetail(ctx, input.epicId)
 }
 
 export function setEpicStatus(
@@ -298,7 +298,7 @@ export function setEpicStatus(
       }
       applyEpicStatus(ctx, row, input.status)
     }
-    return epicDetail(ctx, loadEpicRow(ctx, row.id))
+    return epicDetail(ctx, row.id)
   })
 }
 
@@ -320,6 +320,6 @@ export function setEpicBranch(
     )
     appendEvent(ctx, { kind: 'epic.branch_set', epicId: row.id, payload: { branch: input.branch } })
     exportEpicState(ctx, row)
-    return epicDetail(ctx, loadEpicRow(ctx, row.id))
+    return epicDetail(ctx, row.id)
   })
 }

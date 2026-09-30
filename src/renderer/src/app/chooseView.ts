@@ -1,6 +1,13 @@
 import type { TrackedFolderView } from '../../../shared/desktop/api'
 
-export type MainView = 'loading' | 'welcome' | 'unavailable' | 'onboarding' | 'epic' | 'home'
+/** What the main area renders; variants that need a folder carry it, so rendering needs no null checks. */
+export type MainView =
+  | { kind: 'loading' }
+  | { kind: 'welcome' }
+  | { kind: 'unavailable'; folder: TrackedFolderView }
+  | { kind: 'onboarding'; folder: TrackedFolderView }
+  | { kind: 'home'; folder: TrackedFolderView }
+  | { kind: 'epic'; folder: TrackedFolderView; epicId: string }
 
 interface ViewInput {
   loaded: boolean
@@ -8,20 +15,20 @@ interface ViewInput {
   epicId: string | null
 }
 
-/** Decides what the main area renders for the current selection. */
+/** Decides what the main area shows for the current selection. */
 export function chooseView(input: ViewInput): MainView {
+  const { folder, epicId } = input
   if (!input.loaded) {
-    return 'loading'
+    return { kind: 'loading' }
   }
-  const { folder } = input
   if (folder === null) {
-    return 'welcome'
+    return { kind: 'welcome' }
   }
   if (!folder.available) {
-    return 'unavailable'
+    return { kind: 'unavailable', folder }
   }
   if (!folder.initialized) {
-    return 'onboarding'
+    return { kind: 'onboarding', folder }
   }
-  return input.epicId === null ? 'home' : 'epic'
+  return epicId === null ? { kind: 'home', folder } : { kind: 'epic', folder, epicId }
 }

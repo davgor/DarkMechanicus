@@ -16,9 +16,11 @@ import {
 } from '../../test/repoFixtures'
 import { createTestDb } from '../../test/testContext'
 import { contentHash, prettyJson } from '../canonical'
+import type { Db } from '../db/database'
 import { LIMITS } from '../schemas'
 import { resolveLayout } from './layout'
 import {
+  buildEpicPointerRecord,
   buildEpicStateRecord,
   buildRunHistoryRecord,
   buildSnapshotRecord,
@@ -39,6 +41,7 @@ const EPIC = idOf('epic', 1)
 const REV = idOf('revision', 1)
 const RUN = idOf('run', 1)
 const PATH = '.darkmechanicus/project.json'
+const BUNDLE = makeBundle([[1, 2]], [[1, 2]])
 
 const PROJECT = {
   format: 'darkmechanicus.project',
@@ -54,22 +57,24 @@ function rejection(action: () => unknown): { code: string; message: string } {
   return { code: error.code, message: error.message }
 }
 
-describe('parseRecord', () => {
+function padTo(text: string, length: number): string {
+  return text + ' '.repeat(length - text.length)
+}
+
+describe('parseRecord size and markers', () => {
   it('parses a valid record written with prettyJson', () => {
     expect(parseRecord(projectRecord, prettyJson(PROJECT), PATH)).toEqual(PROJECT)
   })
 
   it('accepts a record of exactly 8 MiB and rejects one byte more', () => {
-    const text = prettyJson(PROJECT)
-    const padded = text + ' '.repeat(MAX_RECORD_BYTES - text.length)
+    const padded = padTo(prettyJson(PROJECT), MAX_RECORD_BYTES)
     expect(parseRecord(projectRecord, padded, PATH)).toEqual(PROJECT)
     const error = rejection(() => parseRecord(projectRecord, `${padded} `, PATH))
     expect(error).toEqual({ code: 'import_rejected', message: `${PATH} is larger than the 8 MiB record limit.` })
   })
 
   it('counts bytes, not characters, against the size limit', () => {
-    const text = prettyJson({ ...PROJECT, name: 'é' })
-    const padded = text + ' '.repeat(MAX_RECORD_BYTES - text.length)
+    const padded = padTo(prettyJson({ ...PROJECT, name: 'é' }), MAX_RECORD_BYTES)
     expect(rejection(() => parseRecord(projectRecord, padded, PATH)).code).toBe('import_rejected')
   })
 
@@ -91,7 +96,9 @@ describe('parseRecord', () => {
       expect(rejection(() => parseRecord(projectRecord, text, PATH)).message).toBe(`${PATH} is not valid JSON.`)
     }
   })
+})
 
+describe('parseRecord schema errors', () => {
   it('names the first schema issue and its path', () => {
     const error = rejection(() => parseRecord(projectRecord, JSON.stringify({ ...PROJECT, keyPrefix: 'lower' }), PATH))
     expect(error.code).toBe('import_rejected')
@@ -116,49 +123,53 @@ describe('parseRecord', () => {
   })
 })
 
-describe('snapshot and epic records', () => {
-  const bundle = makeBundle([[1, 2]], [[1, 2]])
-  const snapshot = {
-    format: 'darkmechanicus.plan-snapshot',
+const SNAPSHOT = {
+  format: 'darkmechanicus.plan-snapshot',
+  formatVersion: 1,
+  epicId: EPIC,
+  revisionId: REV,
+  number: 1,
+  baseRevisionId: null,
+  contentHash: contentHash(BUNDLE),
+  createdAt: T0,
+  savedAt: T0,
+  bundle: BUNDLE
+}
+
+function stateWith(ticketStatuses: Record<string, string>): unknown {
+  return {
+    format: 'darkmechanicus.epic-state',
     formatVersion: 1,
     epicId: EPIC,
-    revisionId: REV,
-    number: 1,
-    baseRevisionId: null,
-    contentHash: contentHash(bundle),
+    title: 'Epic',
+    status: 'backlog',
+    branch: null,
+    provenance: null,
+    outcome: null,
     createdAt: T0,
-    savedAt: T0,
-    bundle
+    completedAt: null,
+    ticketStatuses,
+    generation: 1,
+    updatedAt: T0
   }
+}
 
+function statuses(count: number): Record<string, string> {
+  return Object.fromEntries(Array.from({ length: count }, (_, index) => [tid(index + 1), 'backlog']))
+}
+
+describe('snapshot, state, and pointer schemas', () => {
   it('accepts a snapshot whose hash matches its bundle and rejects a mismatch', () => {
-    expect(snapshotRecord.parse(snapshot)).toEqual(snapshot)
-    const tampered = { ...snapshot, bundle: { ...bundle, rationale: 'changed' } }
+    expect(snapshotRecord.parse(SNAPSHOT)).toEqual(SNAPSHOT)
+    const tampered = { ...SNAPSHOT, bundle: { ...BUNDLE, rationale: 'changed' } }
     const error = rejection(() => parseRecord(snapshotRecord, JSON.stringify(tampered), 'snap.json'))
     expect(error.message).toBe('snap.json is not a valid record: contentHash: Snapshot contentHash does not match its bundle.')
   })
 
   it('bounds ticket statuses at the ticket limit and requires ticket ids as keys', () => {
-    const statuses = (count: number): Record<string, string> =>
-      Object.fromEntries(Array.from({ length: count }, (_, index) => [tid(index + 1), 'backlog']))
-    const state = {
-      format: 'darkmechanicus.epic-state',
-      formatVersion: 1,
-      epicId: EPIC,
-      title: 'Epic',
-      status: 'backlog',
-      branch: null,
-      provenance: null,
-      outcome: null,
-      createdAt: T0,
-      completedAt: null,
-      ticketStatuses: statuses(LIMITS.tickets),
-      generation: 1,
-      updatedAt: T0
-    }
-    expect(Object.keys(epicStateRecord.parse(state).ticketStatuses)).toHaveLength(LIMITS.tickets)
-    expect(epicStateRecord.safeParse({ ...state, ticketStatuses: statuses(LIMITS.tickets + 1) }).success).toBe(false)
-    expect(epicStateRecord.safeParse({ ...state, ticketStatuses: { [EPIC]: 'backlog' } }).success).toBe(false)
+    expect(Object.keys(epicStateRecord.parse(stateWith(statuses(LIMITS.tickets))).ticketStatuses)).toHaveLength(LIMITS.tickets)
+    expect(epicStateRecord.safeParse(stateWith(statuses(LIMITS.tickets + 1))).success).toBe(false)
+    expect(epicStateRecord.safeParse(stateWith({ [EPIC]: 'backlog' })).success).toBe(false)
   })
 
   it('requires positive revision numbers and generations in pointers', () => {
@@ -168,7 +179,7 @@ describe('snapshot and epic records', () => {
       epicId: EPIC,
       revisionId: REV,
       revisionNumber: 1,
-      contentHash: contentHash(bundle),
+      contentHash: contentHash(BUNDLE),
       generation: 1,
       updatedAt: T0
     }
@@ -178,28 +189,29 @@ describe('snapshot and epic records', () => {
   })
 })
 
-describe('builders', () => {
-  function seededDb(): ReturnType<typeof createTestDb> {
-    const db = createTestDb()
-    insertEpic(db, {
-      id: EPIC,
-      title: 'Seeded epic',
-      status: 'in_progress',
-      currentRevisionId: REV,
-      branch: { repository: null, name: 'epic/seeded', startCommit: 'abcdef1' },
-      provenance: { sourceEpicId: idOf('epic', 9), note: 'follow-up' },
-      outcome: { summary: 'Done', successCriteria: [{ criterionId: 's1', met: true, note: '' }], recordedAt: T0, runId: RUN }
-    })
-    insertRevision(db, { id: REV, epicId: EPIC, number: 1, bundle: makeBundle([[1, 2]]), createdAt: '2026-01-02T00:00:00.000Z' })
-    insertTicketStatus(db, { ticketId: tid(2), epicId: EPIC, status: 'in_progress' })
-    insertTicketStatus(db, { ticketId: tid(1), epicId: EPIC, status: 'completed' })
-    return db
-  }
+const OUTCOME = { summary: 'Done', successCriteria: [{ criterionId: 's1', met: true, note: '' }], recordedAt: T0, runId: RUN }
 
+function seededDb(): Db {
+  const db = createTestDb()
+  insertEpic(db, {
+    id: EPIC,
+    title: 'Seeded epic',
+    status: 'in_progress',
+    currentRevisionId: REV,
+    branch: { repository: null, name: 'epic/seeded', startCommit: 'abcdef1' },
+    provenance: { sourceEpicId: idOf('epic', 9), note: 'follow-up' },
+    outcome: OUTCOME
+  })
+  insertRevision(db, { id: REV, epicId: EPIC, number: 1, bundle: makeBundle([[1, 2]]), createdAt: '2026-01-02T00:00:00.000Z' })
+  insertTicketStatus(db, { ticketId: tid(2), epicId: EPIC, status: 'in_progress' })
+  insertTicketStatus(db, { ticketId: tid(1), epicId: EPIC, status: 'completed' })
+  return db
+}
+
+describe('buildSnapshotRecord', () => {
   it('builds a snapshot record from a pending revision, dating it by its creation', () => {
     const db = seededDb()
-    const record = buildSnapshotRecord(db, REV)
-    expect(record).toEqual({
+    expect(buildSnapshotRecord(db, REV)).toEqual({
       format: 'darkmechanicus.plan-snapshot',
       formatVersion: 1,
       epicId: EPIC,
@@ -218,12 +230,33 @@ describe('builders', () => {
   it('refuses to export a missing revision or one whose hash does not match its bundle', () => {
     const db = seededDb()
     expect(domainErrorOf(() => buildSnapshotRecord(db, idOf('revision', 99))).code).toBe('not_found')
-    db.run("UPDATE plan_revisions SET content_hash = ? WHERE id = ?", `sha256:${'f'.repeat(64)}`, REV)
+    db.run('UPDATE plan_revisions SET content_hash = ? WHERE id = ?', `sha256:${'f'.repeat(64)}`, REV)
     const error = domainErrorOf(() => buildSnapshotRecord(db, REV))
     expect(error.code).toBe('internal')
     expect(error.message).toBe(`Cannot export snapshot ${REV}: contentHash: Snapshot contentHash does not match its bundle`)
   })
+})
 
+describe('buildEpicPointerRecord', () => {
+  it('points at the snapshot with the given generation and refuses generation 0', () => {
+    const snapshot = buildSnapshotRecord(seededDb(), REV)
+    expect(buildEpicPointerRecord(snapshot, { generation: 2, updatedAt: T0 })).toEqual({
+      format: 'darkmechanicus.epic-pointer',
+      formatVersion: 1,
+      epicId: EPIC,
+      revisionId: REV,
+      revisionNumber: 1,
+      contentHash: snapshot.contentHash,
+      generation: 2,
+      updatedAt: T0
+    })
+    const error = domainErrorOf(() => buildEpicPointerRecord(snapshot, { generation: 0, updatedAt: T0 }))
+    expect(error.code).toBe('internal')
+    expect(error.message).toMatch(new RegExp(`^Cannot export pointer for ${EPIC}: generation: `))
+  })
+})
+
+describe('buildEpicStateRecord', () => {
   it('builds epic state with sorted ticket statuses and the given generation', () => {
     const db = seededDb()
     const record = buildEpicStateRecord(db, EPIC, { generation: 3, updatedAt: '2026-02-01T00:00:00.000Z' })
@@ -235,7 +268,7 @@ describe('builders', () => {
       status: 'in_progress',
       branch: { repository: null, name: 'epic/seeded', startCommit: 'abcdef1' },
       provenance: { sourceEpicId: idOf('epic', 9), note: 'follow-up' },
-      outcome: { summary: 'Done', successCriteria: [{ criterionId: 's1', met: true, note: '' }], recordedAt: T0, runId: RUN },
+      outcome: OUTCOME,
       createdAt: T0,
       completedAt: null,
       ticketStatuses: { [tid(1)]: 'completed', [tid(2)]: 'in_progress' },
@@ -243,39 +276,68 @@ describe('builders', () => {
       updatedAt: '2026-02-01T00:00:00.000Z'
     })
     expect(Object.keys(record.ticketStatuses)).toEqual([tid(1), tid(2)])
-    expect(domainErrorOf(() => buildEpicStateRecord(db, idOf('epic', 99), { generation: 1, updatedAt: T0 })).code).toBe('not_found')
   })
 
+  it('refuses a missing epic', () => {
+    const db = seededDb()
+    expect(domainErrorOf(() => buildEpicStateRecord(db, idOf('epic', 99), { generation: 1, updatedAt: T0 })).code).toBe('not_found')
+  })
+})
+
+function seedRunHistory(db: Db): void {
+  insertRun(db, { id: RUN, epicId: EPIC, revisionId: REV, autoContinue: true, host: { label: 'Host', type: 'test' }, activeSprintId: sid(1) })
+  insertAttempt(db, {
+    id: idOf('attempt', 2),
+    runId: RUN,
+    ticketId: tid(2),
+    revisionId: REV,
+    state: 'running',
+    claimSecret: 'top-secret',
+    leaseExpiresAt: '2026-01-01T00:15:00.000Z'
+  })
+  insertAttempt(db, {
+    id: idOf('attempt', 1),
+    runId: RUN,
+    ticketId: tid(1),
+    revisionId: REV,
+    outputs: { summary: 'Built it' },
+    evidence: { checks: [{ name: 'unit', status: 'passed', detail: '' }] },
+    failure: { reason: 'flaky' },
+    decision: { outcome: 'accepted', notes: 'ok', reasons: [], decidedBy: 'desktop' }
+  })
+  insertReport(db, { id: idOf('report', 1), runId: RUN, sprintId: sid(1), content: { summary: 'Sprint done' } })
+  insertCheckpoint(db, { id: idOf('checkpoint', 1), runId: RUN, sprintId: sid(1), reportId: idOf('report', 1) })
+}
+
+describe('buildRunHistoryRecord exclusions', () => {
   it('builds run history without leases, secrets, sessions, approvals, or auto-continue', () => {
     const db = seededDb()
-    insertRun(db, { id: RUN, epicId: EPIC, revisionId: REV, autoContinue: true, host: { label: 'Host', type: 'test' }, activeSprintId: sid(1) })
-    insertAttempt(db, {
-      id: idOf('attempt', 2),
-      runId: RUN,
-      ticketId: tid(2),
-      revisionId: REV,
-      state: 'running',
-      claimSecret: 'top-secret',
-      leaseExpiresAt: '2026-01-01T00:15:00.000Z'
-    })
-    insertAttempt(db, {
-      id: idOf('attempt', 1),
-      runId: RUN,
-      ticketId: tid(1),
-      revisionId: REV,
-      outputs: { summary: 'Built it' },
-      evidence: { checks: [{ name: 'unit', status: 'passed', detail: '' }] },
-      failure: { reason: 'flaky' },
-      decision: { outcome: 'accepted', notes: 'ok', reasons: [], decidedBy: 'desktop' }
-    })
-    insertReport(db, { id: idOf('report', 1), runId: RUN, sprintId: sid(1), content: { summary: 'Sprint done' } })
-    insertCheckpoint(db, { id: idOf('checkpoint', 1), runId: RUN, sprintId: sid(1), reportId: idOf('report', 1) })
-
+    seedRunHistory(db)
     const record = buildRunHistoryRecord(db, RUN)
     const text = prettyJson(record)
     for (const secret of ['top-secret', 'lease', 'heartbeat', 'claimSecret', 'autoContinue', 'approval', 'ss_00000000000000000000000009']) {
       expect(text).not.toContain(secret)
     }
+    expect(record).toMatchObject({ runId: RUN, epicId: EPIC, state: 'running', host: { label: 'Host', type: 'test' }, activeSprintId: sid(1) })
+    expect(parseRecord(runHistoryRecord, text, 'run.json')).toEqual(record)
+  })
+
+  it('refuses to export a missing run or one with malformed stored JSON', () => {
+    const db = seededDb()
+    expect(domainErrorOf(() => buildRunHistoryRecord(db, RUN)).code).toBe('not_found')
+    insertRun(db, { id: RUN, epicId: EPIC, revisionId: REV })
+    insertAttempt(db, { id: idOf('attempt', 1), runId: RUN, ticketId: tid(1), revisionId: REV, worker: { label: 'w', surprise: 1 } })
+    const error = domainErrorOf(() => buildRunHistoryRecord(db, RUN))
+    expect(error.code).toBe('internal')
+    expect(error.message).toContain('attempts.0.worker')
+  })
+})
+
+describe('buildRunHistoryRecord contents', () => {
+  it('orders rows by id and fills defaults for partially stored JSON', () => {
+    const db = seededDb()
+    seedRunHistory(db)
+    const record = buildRunHistoryRecord(db, RUN)
     expect(record.attempts.map((attempt) => attempt.id)).toEqual([idOf('attempt', 1), idOf('attempt', 2)])
     expect(record.attempts[0]?.worker).toEqual({
       sessionId: null,
@@ -293,90 +355,79 @@ describe('builders', () => {
     expect(record.checkpoints).toEqual([
       { id: idOf('checkpoint', 1), sprintId: sid(1), reportId: idOf('report', 1), outcome: 'advanced', policy: 'human', decidedBy: 'desktop', decidedAt: T0 }
     ])
-    expect(record).toMatchObject({ runId: RUN, epicId: EPIC, state: 'running', host: { label: 'Host', type: 'test' }, activeSprintId: sid(1) })
-    expect(parseRecord(runHistoryRecord, text, 'run.json')).toEqual(record)
-  })
-
-  it('refuses to export a missing run or one with malformed stored JSON', () => {
-    const db = seededDb()
-    expect(domainErrorOf(() => buildRunHistoryRecord(db, RUN)).code).toBe('not_found')
-    insertRun(db, { id: RUN, epicId: EPIC, revisionId: REV })
-    insertAttempt(db, { id: idOf('attempt', 1), runId: RUN, ticketId: tid(1), revisionId: REV, worker: { label: 'w', surprise: 1 } })
-    const error = domainErrorOf(() => buildRunHistoryRecord(db, RUN))
-    expect(error.code).toBe('internal')
-    expect(error.message).toContain('attempts.0.worker')
   })
 })
 
+function runRecord(attempts: unknown[], reports: unknown[] = []): unknown {
+  return {
+    format: 'darkmechanicus.run',
+    formatVersion: 1,
+    runId: RUN,
+    epicId: EPIC,
+    number: 1,
+    revisionId: REV,
+    state: 'running',
+    activeSprintId: null,
+    host: null,
+    hostCatalogId: null,
+    skillVersion: null,
+    ownerMachineId: idOf('machine', 1),
+    pauseReason: null,
+    createdAt: T0,
+    startedAt: null,
+    updatedAt: T0,
+    endedAt: null,
+    attempts,
+    reports,
+    checkpoints: []
+  }
+}
+
+function attempt(n: number, ticket: number, state: string, number = 1): unknown {
+  return {
+    id: idOf('attempt', n),
+    ticketId: tid(ticket),
+    number,
+    kind: 'work',
+    state,
+    fencingToken: number,
+    worker: { label: 'w' },
+    revisionId: REV,
+    ticketContentHash: 'sha256:x',
+    outputs: null,
+    evidence: null,
+    failure: null,
+    decision: null,
+    createdAt: T0,
+    updatedAt: T0,
+    submittedAt: null,
+    decidedAt: null,
+    reconciledAt: null,
+    supersededAt: null
+  }
+}
+
+function report(n: number, revision: number): unknown {
+  return { id: idOf('report', n), sprintId: sid(1), reportRevision: revision, contentHash: 'h', content: { summary: 's' }, submittedBy: null, createdAt: T0 }
+}
+
+function firstIssue(value: unknown): string {
+  const result = runHistoryRecord.safeParse(value)
+  return result.success ? 'ok' : (result.error.issues[0]?.message ?? '')
+}
+
 describe('run history consistency', () => {
-  function runRecord(attempts: unknown[], reports: unknown[] = []): unknown {
-    return {
-      format: 'darkmechanicus.run',
-      formatVersion: 1,
-      runId: RUN,
-      epicId: EPIC,
-      number: 1,
-      revisionId: REV,
-      state: 'running',
-      activeSprintId: null,
-      host: null,
-      hostCatalogId: null,
-      skillVersion: null,
-      ownerMachineId: idOf('machine', 1),
-      pauseReason: null,
-      createdAt: T0,
-      startedAt: null,
-      updatedAt: T0,
-      endedAt: null,
-      attempts,
-      reports,
-      checkpoints: []
-    }
-  }
-
-  function attempt(n: number, ticket: number, state: string, number = 1): unknown {
-    return {
-      id: idOf('attempt', n),
-      ticketId: tid(ticket),
-      number,
-      kind: 'work',
-      state,
-      fencingToken: number,
-      worker: { label: 'w' },
-      revisionId: REV,
-      ticketContentHash: 'sha256:x',
-      outputs: null,
-      evidence: null,
-      failure: null,
-      decision: null,
-      createdAt: T0,
-      updatedAt: T0,
-      submittedAt: null,
-      decidedAt: null,
-      reconciledAt: null,
-      supersededAt: null
-    }
-  }
-
-  function report(n: number, revision: number): unknown {
-    return { id: idOf('report', n), sprintId: sid(1), reportRevision: revision, contentHash: 'h', content: { summary: 's' }, submittedBy: null, createdAt: T0 }
-  }
-
-  function issue(value: unknown): string {
-    const result = runHistoryRecord.safeParse(value)
-    return result.success ? 'ok' : (result.error.issues[0]?.message ?? '')
-  }
-
   it('accepts distinct attempts and one open attempt per ticket', () => {
-    expect(issue(runRecord([attempt(1, 1, 'failed'), attempt(2, 1, 'running', 2), attempt(3, 2, 'submitted')], [report(1, 1), report(2, 2)]))).toBe('ok')
+    const attempts = [attempt(1, 1, 'failed'), attempt(2, 1, 'running', 2), attempt(3, 2, 'submitted')]
+    expect(firstIssue(runRecord(attempts, [report(1, 1), report(2, 2)]))).toBe('ok')
   })
 
   it('rejects duplicate ids, numbers, open attempts, and report revisions', () => {
-    expect(issue(runRecord([attempt(1, 1, 'failed'), attempt(1, 2, 'failed')]))).toBe(`Duplicate attempt id: ${idOf('attempt', 1)}`)
-    expect(issue(runRecord([attempt(1, 1, 'failed'), attempt(2, 1, 'failed')]))).toBe(`Duplicate attempt number for a ticket: ${tid(1)}#1`)
-    expect(issue(runRecord([attempt(1, 1, 'claimed'), attempt(2, 1, 'submitted', 2)]))).toBe(`Duplicate open attempt for a ticket: ${tid(1)}`)
-    expect(issue(runRecord([], [report(1, 1), report(1, 2)]))).toBe(`Duplicate report id: ${idOf('report', 1)}`)
-    expect(issue(runRecord([], [report(1, 1), report(2, 1)]))).toBe(`Duplicate report revision for a sprint: ${sid(1)}#1`)
+    expect(firstIssue(runRecord([attempt(1, 1, 'failed'), attempt(1, 2, 'failed')]))).toBe(`Duplicate attempt id: ${idOf('attempt', 1)}`)
+    expect(firstIssue(runRecord([attempt(1, 1, 'failed'), attempt(2, 1, 'failed')]))).toBe(`Duplicate attempt number for a ticket: ${tid(1)}#1`)
+    expect(firstIssue(runRecord([attempt(1, 1, 'claimed'), attempt(2, 1, 'submitted', 2)]))).toBe(`Duplicate open attempt for a ticket: ${tid(1)}`)
+    expect(firstIssue(runRecord([], [report(1, 1), report(1, 2)]))).toBe(`Duplicate report id: ${idOf('report', 1)}`)
+    expect(firstIssue(runRecord([], [report(1, 1), report(2, 1)]))).toBe(`Duplicate report revision for a sprint: ${sid(1)}#1`)
   })
 })
 
@@ -395,45 +446,44 @@ describe('tracked hashes', () => {
   })
 })
 
-describe('reading owned record files', () => {
-  const root = resolve('/repo')
-  const layout = resolveLayout(root)
+const LAYOUT = resolveLayout(resolve('/repo'))
 
+describe('reading owned record files', () => {
   it('returns null for a missing file and the parsed record for a valid one', () => {
     const fs = createMemoryFs()
-    fs.mkdirp(layout.dmDir)
-    expect(readOwnedText({ layout, fs }, layout.projectFile)).toBeNull()
-    expect(readOwnedRecord({ layout, fs }, projectRecord, layout.projectFile)).toBeNull()
-    fs.put(layout.projectFile, prettyJson(PROJECT))
-    expect(readOwnedRecord({ layout, fs }, projectRecord, layout.projectFile)).toEqual(PROJECT)
+    fs.mkdirp(LAYOUT.dmDir)
+    expect(readOwnedText({ layout: LAYOUT, fs }, LAYOUT.projectFile)).toBeNull()
+    expect(readOwnedRecord({ layout: LAYOUT, fs }, projectRecord, LAYOUT.projectFile)).toBeNull()
+    fs.put(LAYOUT.projectFile, prettyJson(PROJECT))
+    expect(readOwnedRecord({ layout: LAYOUT, fs }, projectRecord, LAYOUT.projectFile)).toEqual(PROJECT)
   })
 
   it('rejects empty and oversized files without reading them', () => {
     const fs = createMemoryFs()
-    fs.put(layout.projectFile, '')
+    fs.put(LAYOUT.projectFile, '')
     fs.failOn({ op: 'readFile' })
-    expect(rejection(() => readOwnedText({ layout, fs }, layout.projectFile))).toEqual({
+    expect(rejection(() => readOwnedText({ layout: LAYOUT, fs }, LAYOUT.projectFile))).toEqual({
       code: 'import_rejected',
       message: `${PATH} is empty.`
     })
-    fs.put(layout.projectFile, 'x'.repeat(MAX_RECORD_BYTES + 1))
-    expect(rejection(() => readOwnedText({ layout, fs }, layout.projectFile)).message).toBe(`${PATH} is larger than the 8 MiB record limit.`)
-    fs.put(layout.projectFile, 'x'.repeat(MAX_RECORD_BYTES))
-    expect(() => readOwnedText({ layout, fs }, layout.projectFile)).toThrow(/Injected readFile fault/)
+    fs.put(LAYOUT.projectFile, 'x'.repeat(MAX_RECORD_BYTES + 1))
+    expect(rejection(() => readOwnedText({ layout: LAYOUT, fs }, LAYOUT.projectFile)).message).toBe(`${PATH} is larger than the 8 MiB record limit.`)
+    fs.put(LAYOUT.projectFile, 'x'.repeat(MAX_RECORD_BYTES))
+    expect(() => readOwnedText({ layout: LAYOUT, fs }, LAYOUT.projectFile)).toThrow(/Injected readFile fault/)
   })
 
   it('refuses a linked record file with unsafe_path', () => {
     const fs = createMemoryFs()
-    fs.mkdirp(layout.dmDir)
+    fs.mkdirp(LAYOUT.dmDir)
     fs.put(resolve('/outside/project.json'), prettyJson(PROJECT))
-    fs.symlink(layout.projectFile, resolve('/outside/project.json'))
-    expect(rejection(() => readOwnedRecord({ layout, fs }, projectRecord, layout.projectFile)).code).toBe('unsafe_path')
+    fs.symlink(LAYOUT.projectFile, resolve('/outside/project.json'))
+    expect(rejection(() => readOwnedRecord({ layout: LAYOUT, fs }, projectRecord, LAYOUT.projectFile)).code).toBe('unsafe_path')
     expect(fs.reads).not.toContain(resolve('/outside/project.json'))
   })
 
   it('names files by their repository-relative path', () => {
     const fs = createMemoryFs()
-    fs.put(join(layout.dmDir, 'project.json'), '{')
-    expect(rejection(() => readOwnedRecord({ layout, fs }, projectRecord, layout.projectFile)).message).toBe(`${PATH} is not valid JSON.`)
+    fs.put(join(LAYOUT.dmDir, 'project.json'), '{')
+    expect(rejection(() => readOwnedRecord({ layout: LAYOUT, fs }, projectRecord, LAYOUT.projectFile)).message).toBe(`${PATH} is not valid JSON.`)
   })
 })

@@ -8,8 +8,7 @@ type RunGit = (args: string[]) => Promise<{ code: number; stdout: string }>
 
 const HEADS_PREFIX = 'refs/heads/'
 const SHA_PATTERN = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/
-/** Local branch refs git itself would accept (no traversal, whitespace, or special characters). */
-const BRANCH_REF_PATTERN = /^refs\/heads\/(?!.*\.\.)(?!.*\/\/)[^\s~^:?*[\\\u0000-\u001f\u007f]+$/
+const BRANCH_REF_PATTERN = /^refs\/heads\/[^\s~^:?*[\\]+$/
 const MAX_GIT_FILE_BYTES = 1024 * 1024
 const MAX_PACKED_REFS_BYTES = 16 * 1024 * 1024
 const GIT_TIMEOUT_MS = 10_000
@@ -80,9 +79,19 @@ function resolveRef(fs: FsAdapter, gitDir: string, ref: string): string | null {
   return null
 }
 
+function isControlCharacter(char: string): boolean {
+  const code = char.charCodeAt(0)
+  return code < 32 || code === 127
+}
+
+/** Local branch refs git itself would accept: no traversal, whitespace, or special characters. */
+function isBranchRef(ref: string): boolean {
+  return BRANCH_REF_PATTERN.test(ref) && !ref.includes('..') && !ref.includes('//') && ![...ref].some(isControlCharacter)
+}
+
 function parseHead(fs: FsAdapter, gitDir: string, head: string): GitHead {
   const ref = /^ref:\s*(\S+)$/.exec(head)?.[1] ?? ''
-  if (BRANCH_REF_PATTERN.test(ref)) {
+  if (isBranchRef(ref)) {
     return { branch: ref.slice(HEADS_PREFIX.length), commit: resolveRef(fs, gitDir, ref), detached: false }
   }
   return { branch: null, commit: SHA_PATTERN.test(head) ? head : null, detached: true }

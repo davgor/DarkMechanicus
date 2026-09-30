@@ -26,6 +26,7 @@ const HUMAN_REQUIRED = 'A person must approve this checkpoint in the desktop app
 interface AttemptRow {
   ticket_id: string
   state: AttemptState
+  reconciled_at: string | null
   superseded_at: string | null
 }
 
@@ -92,9 +93,15 @@ function leaseGate(input: GateInput): GateCondition {
   return condition('no_active_leases', 'No worker still holds a lease', problems, 'All claims released or expired')
 }
 
+/** An expired lease that was reconciled (abandoned) no longer needs attention; it just used a try. */
+function attemptPhrase(attempt: AttemptRow, attempts: number): string {
+  const abandoned = attempt.state === 'lease_expired' && attempt.reconciled_at !== null
+  return abandoned ? 'was abandoned after its lease expired' : ATTEMPT_PHRASES[attempt.state](attempts)
+}
+
 function pendingReason(key: string, attempts: AttemptRow[]): string {
   const latest = attempts.at(-1)
-  return latest === undefined ? `${key} not started` : `${key} ${ATTEMPT_PHRASES[latest.state](attempts.length)}`
+  return latest === undefined ? `${key} not started` : `${key} ${attemptPhrase(latest, attempts.length)}`
 }
 
 function requiredGate(input: GateInput): GateCondition {
@@ -106,9 +113,13 @@ function requiredGate(input: GateInput): GateCondition {
   )
   const problems = required
     .filter((id) => !accepted.has(id))
-    .map((id) => pendingReason(ticketLabel(input.index, id), input.attempts.filter((attempt) => attempt.ticket_id === id)))
+    .map((id) => {
+      const attempts = input.attempts.filter((attempt) => attempt.ticket_id === id)
+      return pendingReason(ticketLabel(input.index, id), attempts)
+    })
   const total = required.length
-  return condition('required_accepted', 'Every required ticket accepted', problems, `${total} of ${total} required tickets accepted`)
+  const metDetail = `${total} of ${total} required tickets accepted`
+  return condition('required_accepted', 'Every required ticket accepted', problems, metDetail)
 }
 
 function noteSuffix(note: string): string {
@@ -150,7 +161,12 @@ function outcomeGate(bundle: PlanBundle, report: SprintReportView | null): GateC
 }
 
 function evaluateGates(input: GateInput, isFinal: boolean): GateCondition[] {
-  const gates = [reportGate(input.sprint, input.report), leaseGate(input), requiredGate(input), exitGate(input.sprint, input.report)]
+  const gates = [
+    reportGate(input.sprint, input.report),
+    leaseGate(input),
+    requiredGate(input),
+    exitGate(input.sprint, input.report)
+  ]
   return isFinal ? [...gates, outcomeGate(input.bundle, input.report)] : gates
 }
 
@@ -189,7 +205,7 @@ function evaluate(ctx: Ctx, run: RunRow): Evaluation {
   const next = sprints[index + 1] ?? null
   const report = latestReport(ctx, run.id, sprint.id)
   const attempts = ctx.db.all<AttemptRow>(
-    'SELECT ticket_id, state, superseded_at FROM attempts WHERE run_id = ? ORDER BY ticket_id, number',
+    'SELECT ticket_id, state, reconciled_at, superseded_at FROM attempts WHERE run_id = ? ORDER BY ticket_id, number',
     run.id
   )
   const gates = evaluateGates({ index: indexBundle(bundle), bundle, sprint, report, attempts }, next === null)
@@ -257,7 +273,13 @@ function requireGatesMet(evaluation: Evaluation): SprintReportView {
 
 function issueGrant(ctx: Ctx, evaluation: Evaluation, report: SprintReportView): ApprovalView {
   const { run, sprint } = evaluation
-  const approval = { id: ctx.ids.next('approval'), runId: run.id, sprintId: sprint.id, reportId: report.id, issuedAt: ctx.clock.nowIso() }
+  const approval: ApprovalView = {
+    id: ctx.ids.next('approval'),
+    runId: run.id,
+    sprintId: sprint.id,
+    reportId: report.id,
+    issuedAt: ctx.clock.nowIso()
+  }
   ctx.db.run(
     `INSERT INTO approvals (id, project_id, epic_id, run_id, revision_id, sprint_id, report_id, report_hash, action,
        issued_by, issued_at)
@@ -286,10 +308,8 @@ export function approveCheckpoint(ctx: Ctx, input: { runId: string; reportId: st
   return ctx.db.tx(() => {
     const run = loadRun(ctx, input.runId)
     if (run.state !== 'awaiting_checkpoint') {
-      fail('run_not_active', `Run #${run.number} is ${run.state}; only a run awaiting its checkpoint can be approved.`, {
-        runId: run.id,
-        state: run.state
-      })
+      const message = `Run #${run.number} is ${run.state}; only a run awaiting its checkpoint can be approved.`
+      fail('run_not_active', message, { runId: run.id, state: run.state })
     }
     const evaluation = evaluate(ctx, run)
     if (evaluation.report === null || evaluation.report.id !== input.reportId) {
@@ -310,7 +330,7 @@ export function approveCheckpoint(ctx: Ctx, input: { runId: string; reportId: st
   })
 }
 
-export interface AdvanceResult {
+interface AdvanceResult {
   runId: string
   outcome: 'advanced' | 'completed'
   activeSprintId: string | null
@@ -325,7 +345,8 @@ interface Decision {
 function authorize(ctx: Ctx, evaluation: Evaluation): Decision {
   const { grant } = evaluation
   if (grant !== null) {
-    ctx.db.run('UPDATE approvals SET consumed_at = ?, consumed_by = ? WHERE id = ?', ctx.clock.nowIso(), ctx.session.id, grant.id)
+    const now = ctx.clock.nowIso()
+    ctx.db.run('UPDATE approvals SET consumed_at = ?, consumed_by = ? WHERE id = ?', now, ctx.session.id, grant.id)
     return { policy: 'human', approvalId: grant.id }
   }
   if (autoAuthorized(evaluation)) {
@@ -383,7 +404,12 @@ function moveToSprint(ctx: Ctx, step: Step, next: SprintDef): AdvanceResult {
 function completeEpic(ctx: Ctx, run: RunRow, report: SprintReportView): void {
   const now = ctx.clock.nowIso()
   const reported = report.report.epicOutcome ?? { summary: '', successCriteria: [] }
-  const outcome: EpicOutcome = { summary: reported.summary, successCriteria: reported.successCriteria, recordedAt: now, runId: run.id }
+  const outcome: EpicOutcome = {
+    summary: reported.summary,
+    successCriteria: reported.successCriteria,
+    recordedAt: now,
+    runId: run.id
+  }
   ctx.db.run(
     `UPDATE epics SET status = 'completed', completed_at = ?, outcome_json = ?, revision = revision + 1, updated_at = ?
      WHERE id = ?`,
@@ -407,7 +433,12 @@ function completeRun(ctx: Ctx, step: Step): AdvanceResult {
     run.id
   )
   completeEpic(ctx, run, step.report)
-  appendEvent(ctx, { kind: 'run.completed', epicId: run.epic_id, runId: run.id, payload: { checkpointId, sprintId: sprint.id } })
+  appendEvent(ctx, {
+    kind: 'run.completed',
+    epicId: run.epic_id,
+    runId: run.id,
+    payload: { checkpointId, sprintId: sprint.id }
+  })
   appendEvent(ctx, { kind: 'epic.completed', epicId: run.epic_id, runId: run.id, payload: { runId: run.id } })
   enqueueOutbox(ctx, { kind: 'epic_state', epicId: run.epic_id })
   return { runId: run.id, outcome: 'completed', activeSprintId: null }
@@ -472,7 +503,12 @@ export function authorizeAutoContinue(ctx: Ctx, input: { runId: string; enabled:
   requireCapability(ctx.session, 'run.authorize_auto')
   ctx.db.tx(() => {
     const run = requireActiveRun(ctx, input.runId)
-    ctx.db.run('UPDATE runs SET auto_continue = ?, updated_at = ? WHERE id = ?', bool(input.enabled), ctx.clock.nowIso(), run.id)
+    ctx.db.run(
+      'UPDATE runs SET auto_continue = ?, updated_at = ? WHERE id = ?',
+      bool(input.enabled),
+      ctx.clock.nowIso(),
+      run.id
+    )
     appendEvent(ctx, {
       kind: 'run.auto_continue_changed',
       epicId: run.epic_id,

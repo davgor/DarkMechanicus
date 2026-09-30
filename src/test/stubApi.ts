@@ -6,7 +6,7 @@
 import { DomainError } from '../core/errors'
 import type { CommandApi, CommandName } from '../shared/domain/api'
 
-export interface StubCall {
+interface StubCall {
   name: string
   input: unknown
 }

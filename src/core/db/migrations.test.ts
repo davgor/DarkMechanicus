@@ -29,7 +29,9 @@ function thrownBy(action: () => unknown): unknown {
 function objectNames(db: Db, type: 'table' | 'index'): string[] {
   return db
     .all<{ name: string }>(
-      `SELECT name FROM sqlite_master WHERE type = ? AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'search_index_%' ORDER BY name`,
+      `SELECT name FROM sqlite_master
+       WHERE type = ? AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'search_index_%'
+       ORDER BY name`,
       type
     )
     .map((row) => row.name)

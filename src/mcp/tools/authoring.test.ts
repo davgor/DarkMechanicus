@@ -10,6 +10,11 @@ const TICKET = sampleId('ticket', 7)
 const MARKER = { marker: 'canned' }
 const BRANCH = { repository: null, name: 'epic/checkout', startCommit: 'abc1234' }
 
+/** Runs a body against a server carrying only the authoring tools. */
+function inRig<T>(api: StubApi, body: (rig: McpRig) => Promise<T>): Promise<T> {
+  return withRig(areaServer(registerAuthoringTools), api, body)
+}
+
 interface Case {
   tool: string
   args: Record<string, unknown>
@@ -114,11 +119,6 @@ const DRAFT_RESULT: DraftUpdateResultView = {
 function opsSent(api: { calls: { input: unknown }[] }): DraftOp[] {
   const input = api.calls[0]?.input as { ops: DraftOp[] }
   return input.ops
-}
-
-/** Runs a body against a server carrying only the authoring tools. */
-function inRig<T>(api: StubApi, body: (rig: McpRig) => Promise<T>): Promise<T> {
-  return withRig(areaServer(registerAuthoringTools), api, body)
 }
 
 const JOIN_TICKET = { title: 'Join', acceptanceCriteria: ['Both branches merged'], priority: 'high' }

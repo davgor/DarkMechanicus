@@ -16,11 +16,11 @@ interface Calls {
   track: number
   folders: string[]
   epics: string[]
-  untracked: string[]
+  untrackRequests: string[]
 }
 
 function renderSidebar(folders: TrackedFolderView[], lists: Record<string, EpicListState> = {}): Calls {
-  const calls: Calls = { track: 0, folders: [], epics: [], untracked: [] }
+  const calls: Calls = { track: 0, folders: [], epics: [], untrackRequests: [] }
   render(
     <Sidebar
       version="0.4.0"
@@ -34,7 +34,7 @@ function renderSidebar(folders: TrackedFolderView[], lists: Record<string, EpicL
       }}
       onSelectFolder={(path) => calls.folders.push(path)}
       onSelectEpic={(path, id) => calls.epics.push(`${path}:${id}`)}
-      onUntrack={(path) => calls.untracked.push(path)}
+      onRequestUntrack={(folder) => calls.untrackRequests.push(folder.path)}
     />
   )
   return calls
@@ -95,41 +95,11 @@ describe('Sidebar folders', () => {
 })
 
 describe('Sidebar stop tracking', () => {
-  function askToStop(): void {
+  it('asks the shell to confirm when the folder menu item is chosen', () => {
+    const calls = renderSidebar([alpha], { '/a': listOf('Shipping') })
     fireEvent.click(screen.getByRole('button', { name: 'Actions for alpha' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Stop tracking folder' }))
-  }
-
-  it('confirms first, explaining that repository data is untouched', () => {
-    const calls = renderSidebar([alpha], { '/a': listOf('Shipping') })
-    askToStop()
-    const dialog = screen.getByRole('dialog', { name: 'Stop tracking alpha?' })
-    expect(dialog.textContent).toContain('only removes the folder from this sidebar')
-    expect(dialog.textContent).toContain('~/code/alpha')
-    expect(calls.untracked).toEqual([])
-  })
-
-  it('untracks only after confirmation and closes the dialog', () => {
-    const calls = renderSidebar([alpha], { '/a': listOf('Shipping') })
-    askToStop()
-    fireEvent.click(screen.getByRole('button', { name: 'Stop tracking' }))
-    expect(calls.untracked).toEqual(['/a'])
-    expect(screen.queryByRole('dialog')).toBeNull()
-  })
-
-  it('keeps tracking when canceled', () => {
-    const calls = renderSidebar([alpha], { '/a': listOf('Shipping') })
-    askToStop()
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    expect(calls.untracked).toEqual([])
-    expect(screen.queryByRole('dialog')).toBeNull()
-  })
-
-  it('keeps tracking when dismissed with Escape', () => {
-    const calls = renderSidebar([alpha], { '/a': listOf('Shipping') })
-    askToStop()
-    fireEvent.keyDown(screen.getByRole('button', { name: 'Cancel' }), { key: 'Escape' })
-    expect(calls.untracked).toEqual([])
+    expect(calls.untrackRequests).toEqual(['/a'])
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 })

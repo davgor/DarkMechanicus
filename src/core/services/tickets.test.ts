@@ -330,6 +330,26 @@ describe('setTicketStatus guards', () => {
     expect(statusRow(ctx, saved.refMap.a)).toEqual({ status: 'backlog', revision: 1 })
   })
 
+})
+
+describe('setTicketStatus ticket content', () => {
+  it('fails cleanly for a status row whose ticket is in no saved revision', () => {
+    const ctx = createTestCtx()
+    const saved = createSavedEpic(ctx)
+    ctx.db.run(
+      "INSERT INTO ticket_status (ticket_id, epic_id, status, revision, updated_at) VALUES ('tk_orphan', ?, 'backlog', 1, ?)",
+      saved.epicId,
+      '2026-01-01T00:00:00.000Z'
+    )
+    expect(captureError(() => setTicketStatus(ctx, { ticketId: 'tk_orphan', status: 'in_progress' }))).toEqual({
+      code: 'not_found',
+      message: 'Ticket tk_orphan is not in a saved plan.',
+      details: { ticketId: 'tk_orphan' }
+    })
+    expect(statusRow(ctx, 'tk_orphan')).toEqual({ status: 'backlog', revision: 1 })
+    expect(getEpic(ctx, { epicId: saved.epicId }).status).toBe('backlog')
+  })
+
   it('describes tickets removed from the current plan using the newest saved revision that has them', () => {
     const ctx = createTestCtx()
     const saved = createSavedEpic(ctx)
@@ -337,5 +357,17 @@ describe('setTicketStatus guards', () => {
     saveNow(ctx, saved.epicId)
     const summary = setTicketStatus(ctx, { ticketId: saved.refMap.b, status: 'in_progress' })
     expect(summary).toMatchObject({ id: saved.refMap.b, key: 'DM-2', title: 'Beta', status: 'in_progress' })
+  })
+})
+
+describe('ticket reads', () => {
+  it('require the read capability', () => {
+    const ctx = createTestCtx()
+    const saved = createSavedEpic(ctx)
+    const noRead = withRole(ctx, 'worker', { capabilities: [] })
+    expect(captureError(() => listTickets(noRead, { epicId: saved.epicId, view: 'saved' })).code).toBe('unauthorized')
+    const error = captureError(() => getTicket(noRead, { epicId: saved.epicId, ticketId: 'DM-1', view: 'saved' }))
+    expect(error.details).toEqual({ role: 'worker', capability: 'read' })
+    expect(listTickets(withRole(ctx, 'worker'), { epicId: saved.epicId, view: 'saved' })).toHaveLength(2)
   })
 })

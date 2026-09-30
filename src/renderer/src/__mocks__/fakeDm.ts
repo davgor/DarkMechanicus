@@ -29,7 +29,11 @@ export const MCP_JSON = '{\n  "mcpServers": {\n    "darkmechanicus": { "command"
 export class FakeDm implements DmApi {
   folders: TrackedFolderView[] = []
   pickQueue: FolderPickResult[] = []
-  responses: Partial<Record<CommandName, unknown>> = {}
+  responses: Partial<Record<CommandName, unknown>> = {
+    listEpics: [],
+    searchHistory: [],
+    listBranchEpics: []
+  }
   handlers: Partial<Record<CommandName, (input: unknown, folder: string) => unknown>> = {}
   failures: Partial<Record<CommandName, DomainErrorShape>> = {}
   holds: Partial<Record<CommandName, Deferred[]>> = {}

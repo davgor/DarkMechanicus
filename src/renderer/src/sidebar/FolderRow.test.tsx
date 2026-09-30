@@ -136,7 +136,7 @@ describe('FolderRow load states', () => {
 })
 
 describe('FolderRow special folders', () => {
-  const setup = folderView({ path: '/s', name: 'setup-me', initialized: false })
+  const setup = folderView({ path: '/s', name: 'setup-me', displayPath: '~/code/setup-me', initialized: false })
 
   it('shows a Setup required row that selects the folder', () => {
     const calls = renderRow({ folder: setup })
@@ -148,7 +148,7 @@ describe('FolderRow special folders', () => {
   it('highlights the Setup row, not the header, when the folder is selected', () => {
     renderRow({ folder: setup, selection: { folderPath: '/s', epicId: null } })
     expect(screen.getByRole('button', { name: 'Setup required' }).getAttribute('aria-current')).toBe('true')
-    expect(screen.getByRole('button', { name: 'setup-me ~/code/alpha' }).getAttribute('aria-current')).toBeNull()
+    expect(screen.getByRole('button', { name: 'setup-me ~/code/setup-me' }).getAttribute('aria-current')).toBeNull()
   })
 
   it('shows a missing folder as unavailable', () => {

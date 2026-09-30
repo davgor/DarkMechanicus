@@ -155,12 +155,14 @@ describe('required_accepted gate', () => {
   })
 
   it('describes the latest attempt of every ticket that is not accepted in this run', () => {
-    const { ctx, run } = setup({ bundle: makeBundle([[1, 2, 3, 4, 5, 6, 7, 8]]) })
+    const { ctx, run } = setup({ bundle: makeBundle([[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]]) })
     const states = ['failed', 'rejected', 'canceled', 'lease_expired', 'claimed', 'submitted'] as const
     states.forEach((state, index) => seedAttempt(ctx, run, { ticket: index + 1, state }))
     seedAttempt(ctx, run, { ticket: 7, state: 'accepted', superseded: true })
     seedAttempt(ctx, run, { ticket: 8, state: 'failed' })
     seedAttempt(ctx, run, { ticket: 8, state: 'running' })
+    seedAttempt(ctx, run, { ticket: 9, state: 'lease_expired', reconciled: true })
+    seedAttempt(ctx, run, { ticket: 10, state: 'submitted', reconciled: true })
     expect(gate(ctx, run, 'required_accepted')?.detail.split('; ')).toEqual([
       'DM-1 failed after 1 attempt',
       'DM-2 was rejected after 1 attempt',
@@ -169,7 +171,9 @@ describe('required_accepted gate', () => {
       'DM-5 is claimed',
       'DM-6 is awaiting review',
       'DM-7 changed in an adopted revision and needs new work',
-      'DM-8 is still running'
+      'DM-8 is still running',
+      'DM-9 was abandoned after its lease expired',
+      'DM-10 is awaiting review'
     ])
   })
 

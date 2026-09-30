@@ -139,10 +139,29 @@ function savedView(ctx: Ctx, epic: EpicRow, revisionId: string | undefined): Pla
   }
 }
 
+function requireDraft(ctx: Ctx, epic: EpicRow): DraftRow {
+  const draft = loadDraftRow(ctx, epic.id)
+  return draft ?? fail('not_found', 'No draft. Open one with openDraft or update_plan_draft.', { epicId: epic.id })
+}
+
+/**
+ * The bundle a saved (current revision) or draft read sees, without building a full plan view.
+ * Callers check the `read` capability.
+ */
+export function readPlanBundle(
+  ctx: Ctx,
+  epic: EpicRow,
+  view: 'saved' | 'draft'
+): { bundle: PlanBundle; revisionId: string | null } {
+  if (view === 'draft') {
+    return { bundle: parseBundle(requireDraft(ctx, epic).bundle_json), revisionId: null }
+  }
+  const revision = findSavedRevision(ctx, epic, undefined)
+  return { bundle: parseBundle(revision.bundle_json), revisionId: revision.id }
+}
+
 function draftView(ctx: Ctx, epic: EpicRow): PlanView {
-  const draft =
-    loadDraftRow(ctx, epic.id) ??
-    fail('not_found', 'No draft. Open one with openDraft or update_plan_draft.', { epicId: epic.id })
+  const draft = requireDraft(ctx, epic)
   const bundle = parseBundle(draft.bundle_json)
   const base = ctx.db.get<{ bundle_json: string }>(
     'SELECT bundle_json FROM plan_revisions WHERE id = ?',
@@ -177,7 +196,8 @@ export function getPlan(
 }
 
 export function validatePlanView(ctx: Ctx, input: { epicId: string; view: 'saved' | 'draft' }): ValidationReport {
-  return validatePlan(getPlan(ctx, { epicId: input.epicId, view: input.view }).bundle)
+  requireCapability(ctx.session, 'read')
+  return validatePlan(readPlanBundle(ctx, loadEpicRow(ctx, input.epicId), input.view).bundle)
 }
 
 function savableBundle(epic: EpicRow, draft: DraftRow): PlanBundle {

@@ -16,7 +16,7 @@ export interface McpRig {
 }
 
 /** What a tool call returned, reduced to the parts adapters promise to keep stable. */
-export interface ToolOutcome {
+interface ToolOutcome {
   isError: boolean
   payload: Record<string, unknown> | undefined
   text: string

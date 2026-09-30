@@ -1,8 +1,10 @@
 /** Fixtures for repository-layer tests: ids, error capture, and raw DB rows. Not shipped. */
 import { contentHash } from '../core/canonical'
+import type { Clock } from '../core/clock'
 import type { Db } from '../core/db/database'
 import { DomainError } from '../core/errors'
 import { encodeBase32, ID_PREFIXES, type IdKind } from '../core/ids'
+import type { FinalizerHooks } from '../core/repo/finalizer'
 import type { PlanBundle } from '../shared/domain/bundle'
 import type { AttemptState, RunState } from '../shared/domain/status'
 
@@ -253,4 +255,46 @@ export function insertTicketStatus(db: Db, input: { ticketId: string; epicId: st
     input.status ?? 'backlog',
     T0
   )
+}
+
+export interface RecordingSaveHook extends FinalizerHooks {
+  /** Revisions whose DB side was applied (including ones later rolled back). */
+  calls: string[]
+  /** When set, the next call throws (simulates the DB side of a save failing to commit). */
+  failNext: boolean
+}
+
+/**
+ * Minimal stand-in for the real save completion: marks the revision saved, advances the epic's
+ * current revision, and creates backlog statuses for new tickets.
+ */
+export function createSaveHook(db: Db, clock: Clock): RecordingSaveHook {
+  const hook: RecordingSaveHook = {
+    calls: [],
+    failNext: false,
+    onSnapshotSaved(revisionId) {
+      hook.calls.push(revisionId)
+      if (hook.failNext) {
+        hook.failNext = false
+        throw new Error('Injected DB commit failure')
+      }
+      const row = db.get<{ epic_id: string; bundle_json: string }>(
+        'SELECT epic_id, bundle_json FROM plan_revisions WHERE id = ?',
+        revisionId
+      )
+      const now = clock.nowIso()
+      db.run("UPDATE plan_revisions SET state = 'saved', saved_at = ? WHERE id = ?", now, revisionId)
+      db.run('UPDATE epics SET current_revision_id = ?, updated_at = ? WHERE id = ?', revisionId, now, row?.epic_id ?? '')
+      const bundle = JSON.parse(row?.bundle_json ?? '{"tickets":[]}') as { tickets: { id: string }[] }
+      for (const ticket of bundle.tickets) {
+        db.run(
+          "INSERT OR IGNORE INTO ticket_status (ticket_id, epic_id, status, revision, updated_at) VALUES (?, ?, 'backlog', 1, ?)",
+          ticket.id,
+          row?.epic_id ?? '',
+          now
+        )
+      }
+    }
+  }
+  return hook
 }

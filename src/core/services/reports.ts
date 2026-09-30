@@ -157,7 +157,8 @@ function insertReport(ctx: Ctx, run: RunRow, sprintId: string, content: SprintRe
     created_at: ctx.clock.nowIso()
   }
   ctx.db.run(
-    `INSERT INTO sprint_reports (id, run_id, sprint_id, report_revision, content_json, content_hash, submitted_by, created_at)
+    `INSERT INTO sprint_reports
+       (id, run_id, sprint_id, report_revision, content_json, content_hash, submitted_by, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     row.id,
     row.run_id,

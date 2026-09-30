@@ -426,6 +426,24 @@ export function buildEpicStateRecord(
   return exportable(epicStateRecord, record, `epic state ${epicId}`)
 }
 
+/** The pointer to `snapshot`, written last so it only ever names a complete, verified snapshot. */
+export function buildEpicPointerRecord(
+  snapshot: SnapshotRecord,
+  meta: { generation: number; updatedAt: string }
+): EpicPointerRecord {
+  const record = {
+    format: 'darkmechanicus.epic-pointer',
+    formatVersion: 1,
+    epicId: snapshot.epicId,
+    revisionId: snapshot.revisionId,
+    revisionNumber: snapshot.number,
+    contentHash: snapshot.contentHash,
+    generation: meta.generation,
+    updatedAt: meta.updatedAt
+  }
+  return exportable(epicPointerRecord, record, `pointer for ${snapshot.epicId}`)
+}
+
 interface RunRow {
   id: string
   epic_id: string

@@ -8,7 +8,7 @@ import { appendEvent } from './events'
 import { enqueueOutbox } from './outbox'
 import { loadBundle, loadRun, requireOwnedRun, type RunRow } from './reports'
 
-export interface AdoptionResult {
+interface AdoptionResult {
   runId: string
   /** Tickets whose acceptance in this run carries over to the adopted revision. */
   kept: string[]
@@ -44,7 +44,10 @@ function loadTargetBundle(ctx: Ctx, run: RunRow, revisionId: string): PlanBundle
   if (revisionId === run.revision_id) {
     fail('conflict', 'The run already executes this revision.', { revisionId })
   }
-  const epic = ctx.db.get<{ current_revision_id: string | null }>('SELECT current_revision_id FROM epics WHERE id = ?', run.epic_id)
+  const epic = ctx.db.get<{ current_revision_id: string | null }>(
+    'SELECT current_revision_id FROM epics WHERE id = ?',
+    run.epic_id
+  )
   if (epic?.current_revision_id !== revisionId) {
     fail('conflict', "Only the epic's current saved revision can be adopted.", {
       revisionId,

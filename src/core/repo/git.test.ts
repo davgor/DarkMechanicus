@@ -52,11 +52,23 @@ describe('GitAdapter.head (reads files, never spawns git)', () => {
   })
 
   it('treats unrecognized HEAD contents and hostile ref names as detached without a commit', () => {
-    for (const head of ['garbage\n', 'ref: refs/remotes/origin/main\n', 'ref: refs/heads/../../../etc/passwd\n']) {
+    const heads = [
+      'garbage\n',
+      'ref: refs/remotes/origin/main\n',
+      'ref: refs/heads/../../../etc/passwd\n',
+      'ref: refs/heads/a//b\n',
+      'ref: refs/heads/a\u0001b\n',
+      'ref: refs/heads/a\u007fb\n',
+      'ref: refs/heads/a~1\n'
+    ]
+    for (const head of heads) {
       expect(createGitAdapter(ROOT, { fs: gitDirRepo(head) }).head()).toEqual({ branch: null, commit: null, detached: true })
     }
   })
 
+})
+
+describe('GitAdapter.head for worktrees and missing metadata', () => {
   it('resolves a worktree through a relative gitdir file and its commondir', () => {
     const fs = createMemoryFs()
     const main = resolve('/main')
@@ -170,7 +182,7 @@ describe('GitAdapter with the real git binary', () => {
   })
 
   function git(root: string, args: string[]): string {
-    const env = { ...process.env, GIT_CONFIG_NOSYSTEM: '1' }
+    const env: NodeJS.ProcessEnv = { ...process.env, GIT_CONFIG_NOSYSTEM: '1' }
     delete env['GIT_DIR']
     delete env['GIT_WORK_TREE']
     delete env['GIT_INDEX_FILE']

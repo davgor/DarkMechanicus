@@ -487,8 +487,15 @@ describe('takeoverRun', () => {
     const submitted = claim(ctx, runId, 2)
     submitAttempt(ctx, { attemptId: submitted.attempt.id, claimToken: submitted.packet.claimToken, outputs: { summary: 's' } })
     giveAway(ctx, runId)
+    ctx.db.run('UPDATE runs SET auto_continue = 1 WHERE id = ?', runId)
     const view = takeoverRun(ctx, { runId })
-    expect(view).toMatchObject({ state: 'paused', pauseReason: 'taken_over', ownerMachineId: ctx.machineId, ownedByThisMachine: true })
+    expect(view).toMatchObject({
+      state: 'paused',
+      pauseReason: 'taken_over',
+      ownerMachineId: ctx.machineId,
+      ownedByThisMachine: true,
+      autoContinue: false
+    })
     expect([attemptRow(ctx, leased).state, attemptRow(ctx, submitted.attempt.id).state]).toEqual(['lease_expired', 'submitted'])
     expect(lastEventPayload(ctx, 'run.taken_over')).toEqual({ previousOwner: 'mc_other', expiredAttempts: [leased] })
   })
@@ -497,7 +504,8 @@ describe('takeoverRun', () => {
     const ctx = createTestCtx()
     const { runId } = startedRun(ctx)
     const leased = claim(ctx, runId, 1).attempt.id
-    expect(takeoverRun(ctx, { runId }).state).toBe('running')
+    ctx.db.run('UPDATE runs SET auto_continue = 1 WHERE id = ?', runId)
+    expect(takeoverRun(ctx, { runId })).toMatchObject({ state: 'running', autoContinue: true })
     expect(attemptRow(ctx, leased).state).toBe('claimed')
     expect(eventKinds(ctx, 'run.taken_over')).toEqual([])
   })

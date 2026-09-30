@@ -1,0 +1,512 @@
+/**
+ * Test-only builders for the epic workspace, graph, ticket and checkpoint tests. They model the
+ * "Planning vertical slice" sample from the design mockups. Lives under __mocks__ so fireguard
+ * treats it as support code rather than a production module.
+ */
+import type { TrackedFolderView } from '../../../../shared/desktop/api'
+import {
+  DEFAULT_POLICIES,
+  defaultCapabilityProfile,
+  PLAN_FORMAT_VERSION,
+  type DependencyEdge,
+  type PlanBundle,
+  type SprintDef,
+  type TicketContent
+} from '../../../../shared/domain/bundle'
+import type { AttemptState, TicketExecutionState } from '../../../../shared/domain/status'
+import type {
+  AttemptView,
+  CheckpointView,
+  EpicDetailView,
+  EventView,
+  GateCondition,
+  PlanView,
+  RunView,
+  SprintReportView,
+  TicketDetailView,
+  TicketExecutionView,
+  TicketLinkView,
+  TicketSummaryView,
+  ValidationReport
+} from '../../../../shared/domain/views'
+
+export const NOW = Date.parse('2026-09-30T12:00:00.000Z')
+export const EPIC_ID = 'ep_1'
+
+export function iso(offsetMs: number): string {
+  return new Date(NOW + offsetMs).toISOString()
+}
+
+export const MINUTE = 60_000
+
+export function folder(patch: Partial<TrackedFolderView> = {}): TrackedFolderView {
+  return {
+    path: '/home/u/code/darkmechanicus',
+    name: 'darkmechanicus',
+    displayPath: '~/code/darkmechanicus',
+    initialized: true,
+    available: true,
+    addedAt: '2026-01-01T00:00:00.000Z',
+    ...patch
+  }
+}
+
+export function ticket(key: string, title: string, patch: Partial<TicketContent> = {}): TicketContent {
+  return {
+    id: `tk_${key.slice(3)}`,
+    key,
+    title,
+    body: '',
+    acceptanceCriteria: [{ id: 'c1', text: `${title} works` }],
+    tags: [],
+    priority: 'normal',
+    capability: defaultCapabilityProfile(),
+    references: [],
+    expectedArtifacts: [],
+    optional: false,
+    ...patch
+  }
+}
+
+export function sprint(ordinal: number, goal: string, ticketIds: string[], patch: Partial<SprintDef> = {}): SprintDef {
+  return {
+    id: `sp_${ordinal}`,
+    ordinal,
+    goal,
+    ticketIds,
+    entryCriteria: [],
+    exitCriteria: [],
+    concurrencyCap: null,
+    checkpoint: { mode: 'human' },
+    ...patch
+  }
+}
+
+export function edge(from: number, to: number): DependencyEdge {
+  return { from: `tk_${from}`, to: `tk_${to}` }
+}
+
+export const SAMPLE_TICKETS: TicketContent[] = [
+  ticket('DM-101', 'Repository init'),
+  ticket('DM-102', 'SQLite schema & migrations'),
+  ticket('DM-103', 'Portable export outbox'),
+  ticket('DM-201', 'MCP authoring tools'),
+  ticket('DM-202', 'Transactional bundle import', {
+    body: '`save_plan_draft` accepts one bundle of tickets.',
+    acceptanceCriteria: [
+      { id: 'c1', text: 'Bundle with client-local refs returns stable IDs' },
+      { id: 'c2', text: 'An invalid edge rejects the whole bundle and nothing persists' },
+      { id: 'c3', text: 'A retry with the same idempotency key returns the original result' },
+      { id: 'c4', text: 'Export outbox entry is written in the same transaction' }
+    ],
+    tags: ['storage'],
+    priority: 'high',
+    capability: {
+      ...defaultCapabilityProfile(),
+      reasoning: { level: 'multi_step', rationale: 'transaction and outbox ordering' },
+      tools: ['repo_read', 'repo_write', 'shell', 'test_execution'],
+      skills: ['TypeScript', 'SQLite', 'Database design', 'MCP'],
+      context: { estimatedInputTokens: 40_000, requiredArtifacts: [] }
+    }
+  }),
+  ticket('DM-203', 'Folder registry & picker'),
+  ticket('DM-204', 'Sidebar plan buckets'),
+  ticket('DM-301', 'Plan graph view'),
+  ticket('DM-302', 'Ticket detail editor'),
+  ticket('DM-304', 'Safe plan deletion')
+]
+
+export function bundle(patch: Partial<PlanBundle> = {}): PlanBundle {
+  return {
+    formatVersion: PLAN_FORMAT_VERSION,
+    epic: {
+      title: 'Plan through MCP, edit on the desktop',
+      intent: 'Agents plan through MCP; people edit on the desktop.',
+      successCriteria: [
+        { id: 's1', text: 'An agent saves a plan through MCP' },
+        { id: 's2', text: 'The desktop edits the same plan' },
+        { id: 's3', text: 'Saved state survives a restart' }
+      ],
+      ownerRole: null
+    },
+    tickets: SAMPLE_TICKETS,
+    sprints: [
+      sprint(1, 'Storage foundation', ['tk_101', 'tk_102', 'tk_103']),
+      sprint(2, 'Authoring through MCP', ['tk_201', 'tk_202', 'tk_203', 'tk_204']),
+      sprint(3, 'Desktop editing', ['tk_301', 'tk_302', 'tk_304'])
+    ],
+    edges: [
+      edge(101, 203),
+      edge(102, 201),
+      edge(102, 202),
+      edge(103, 202),
+      edge(203, 204),
+      edge(204, 301),
+      edge(201, 301),
+      edge(201, 302),
+      edge(202, 304)
+    ],
+    relations: [{ kind: 'related_to', from: 'tk_301', to: 'tk_302' }],
+    policies: { ...DEFAULT_POLICIES, retryLimit: 2 },
+    rationale: '',
+    ...patch
+  }
+}
+
+export function savedPlan(patch: Partial<PlanView> = {}): PlanView {
+  return {
+    epicId: EPIC_ID,
+    view: 'saved',
+    revisionId: 'rv_4',
+    revisionNumber: 4,
+    baseRevisionId: null,
+    baseRevisionNumber: null,
+    draftRevision: null,
+    contentHash: 'hash-4',
+    bundle: bundle(),
+    readOnly: true,
+    readOnlyReason: 'Saved revisions are read-only. Edit the draft instead.',
+    changes: [],
+    stale: false,
+    ...patch
+  }
+}
+
+export function draftPlan(patch: Partial<PlanView> = {}): PlanView {
+  const draftBundle = bundle({
+    tickets: [...SAMPLE_TICKETS, ticket('DM-305', 'Plan list view')],
+    sprints: [
+      sprint(1, 'Storage foundation', ['tk_101', 'tk_102', 'tk_103']),
+      sprint(2, 'Authoring through MCP', ['tk_201', 'tk_202', 'tk_203', 'tk_204']),
+      sprint(3, 'Desktop editing', ['tk_301', 'tk_302', 'tk_304', 'tk_305'])
+    ]
+  })
+  return {
+    ...savedPlan(),
+    view: 'draft',
+    revisionId: null,
+    revisionNumber: null,
+    baseRevisionId: 'rv_4',
+    baseRevisionNumber: 4,
+    draftRevision: 7,
+    contentHash: 'hash-draft',
+    bundle: draftBundle,
+    readOnly: false,
+    readOnlyReason: null,
+    changes: [
+      { kind: 'added', target: 'ticket', id: 'tk_305', label: 'DM-305 Plan list view', detail: 'added to Sprint 3' },
+      { kind: 'edited', target: 'ticket', id: 'tk_302', label: 'DM-302', detail: 'acceptance criteria edited (2 lines)' },
+      { kind: 'edited', target: 'sprint', id: 'sp_3', label: 'Sprint 3', detail: 'concurrency cap 2 → 3' },
+      { kind: 'removed', target: 'edge', id: 'tk_102->tk_202', label: 'DM-202', detail: 'no longer requires DM-102' }
+    ],
+    ...patch
+  }
+}
+
+export function epicDetail(patch: Partial<EpicDetailView> = {}): EpicDetailView {
+  return {
+    id: EPIC_ID,
+    title: 'Planning vertical slice',
+    status: 'in_progress',
+    revision: 3,
+    currentRevisionId: 'rv_4',
+    currentRevisionNumber: 4,
+    hasDraft: false,
+    draftRevision: null,
+    ticketCount: 10,
+    sprintCount: 3,
+    run: null,
+    branch: null,
+    pendingSave: false,
+    conflict: null,
+    createdAt: iso(-24 * 60 * MINUTE),
+    updatedAt: iso(-10 * MINUTE),
+    completedAt: null,
+    intent: 'Agents plan through MCP; people edit on the desktop.',
+    successCriteria: bundle().epic.successCriteria,
+    ownerRole: null,
+    provenance: null,
+    outcome: null,
+    ...patch
+  }
+}
+
+export function execution(
+  key: string,
+  sprintId: string,
+  state: TicketExecutionState,
+  patch: Partial<TicketExecutionView> = {}
+): TicketExecutionView {
+  return {
+    ticketId: `tk_${key.slice(3)}`,
+    key,
+    sprintId,
+    state,
+    attemptCount: state === 'later_sprint' || state === 'ready' ? 0 : 1,
+    latestAttemptId: null,
+    blockers: [],
+    prerequisites: [],
+    ...patch
+  }
+}
+
+export function attempt(ticketKey: string, number: number, state: AttemptState, patch: Partial<AttemptView> = {}): AttemptView {
+  return {
+    id: `at_${ticketKey.slice(3)}_${number}`,
+    runId: 'rn_2',
+    ticketId: `tk_${ticketKey.slice(3)}`,
+    number,
+    kind: 'work',
+    state,
+    fencingToken: number,
+    worker: {
+      sessionId: 'ss_1',
+      label: 'worker-a',
+      modelId: 'model-large',
+      hostId: 'claude-code',
+      catalogRevision: 'cat-1',
+      rationale: 'Needs multi-step reasoning'
+    },
+    revisionId: 'rv_4',
+    ticketContentHash: 'th',
+    leaseExpiresAt: null,
+    heartbeatAt: null,
+    outputs: null,
+    evidence: null,
+    failure: null,
+    decision: null,
+    createdAt: iso(-60 * MINUTE),
+    updatedAt: iso(-30 * MINUTE),
+    submittedAt: null,
+    decidedAt: null,
+    reconciledAt: null,
+    superseded: false,
+    ...patch
+  }
+}
+
+export const SAMPLE_ATTEMPTS: AttemptView[] = [
+  attempt('DM-101', 1, 'accepted', {
+    outputs: { summary: 'Init done', artifacts: [], commits: ['3f9a0d1c'], changedFiles: ['src/init.ts'], branch: 'epic' },
+    updatedAt: iso(-100 * MINUTE)
+  }),
+  attempt('DM-202', 1, 'failed', {
+    failure: { reason: '2 tests failed', details: 'idempotency replay returned a new id', retryable: true },
+    evidence: {
+      checks: [
+        { name: 'Unit tests', status: 'failed', detail: '2 failed' },
+        { name: 'Typecheck', status: 'passed', detail: '0 errors' },
+        { name: 'Lint', status: 'skipped', detail: 'not configured' }
+      ],
+      criteria: [
+        { criterionId: 'c1', met: true, note: 'stable ids returned' },
+        { criterionId: 'c2', met: false, note: 'partial rows remained' }
+      ],
+      notes: 'Replay test is **flaky**.'
+    },
+    updatedAt: iso(-20 * MINUTE)
+  }),
+  attempt('DM-202', 2, 'running', {
+    leaseExpiresAt: iso(4 * MINUTE + 12_000),
+    heartbeatAt: iso(-20_000),
+    updatedAt: iso(-1 * MINUTE)
+  }),
+  attempt('DM-201', 1, 'submitted', {
+    outputs: {
+      summary: 'Added create_epic and update_plan_draft tools.',
+      artifacts: [],
+      commits: ['a1b2c3d4e5f6'],
+      changedFiles: ['src/mcp/tools.ts', 'src/mcp/server.ts'],
+      branch: 'epic/planning'
+    },
+    submittedAt: iso(-5 * MINUTE),
+    updatedAt: iso(-5 * MINUTE)
+  })
+]
+
+export function runView(patch: Partial<RunView> = {}): RunView {
+  return {
+    id: 'rn_2',
+    number: 2,
+    epicId: EPIC_ID,
+    revisionId: 'rv_4',
+    revisionNumber: 4,
+    state: 'running',
+    activeSprintId: 'sp_2',
+    activeSprintOrdinal: 2,
+    sprintCount: 3,
+    host: { label: 'Claude Code', type: 'claude-code', catalogId: null },
+    skillVersion: '1',
+    ownerMachineId: 'mc_1',
+    ownedByThisMachine: true,
+    pauseReason: null,
+    autoContinue: false,
+    createdAt: iso(-(2 * 60 + 20) * MINUTE),
+    startedAt: iso(-(2 * 60 + 14) * MINUTE),
+    updatedAt: iso(-1 * MINUTE),
+    endedAt: null,
+    counts: {
+      accepted: 4,
+      submitted: 1,
+      running: 1,
+      ready: 1,
+      waiting: 3,
+      blocked: 0,
+      failed: 0,
+      needsReconciliation: 0
+    },
+    tickets: [
+      execution('DM-101', 'sp_1', 'accepted'),
+      execution('DM-102', 'sp_1', 'accepted'),
+      execution('DM-103', 'sp_1', 'accepted'),
+      execution('DM-201', 'sp_2', 'submitted'),
+      execution('DM-202', 'sp_2', 'running', { attemptCount: 2 }),
+      execution('DM-203', 'sp_2', 'accepted'),
+      execution('DM-204', 'sp_2', 'ready'),
+      execution('DM-301', 'sp_3', 'later_sprint'),
+      execution('DM-302', 'sp_3', 'later_sprint'),
+      execution('DM-304', 'sp_3', 'later_sprint')
+    ],
+    attempts: SAMPLE_ATTEMPTS,
+    checkpoint: null,
+    ...patch
+  }
+}
+
+export function condition(id: GateCondition['id'], met: boolean, detail = ''): GateCondition {
+  const labels: Record<GateCondition['id'], string> = {
+    report_submitted: 'Sprint report submitted',
+    no_active_leases: 'No worker still holds a lease',
+    required_accepted: 'Every required ticket accepted',
+    exit_criteria: 'Exit criteria: driver loads on both platforms',
+    epic_outcome: 'Epic outcome recorded',
+    approval: 'Approval'
+  }
+  return { id, label: labels[id], met, detail }
+}
+
+export function reportView(patch: Partial<SprintReportView> = {}): SprintReportView {
+  return {
+    id: 'sr_1',
+    runId: 'rn_2',
+    sprintId: 'sp_2',
+    reportRevision: 1,
+    contentHash: 'rh',
+    report: {
+      summary: 'Authoring works end to end. **Import** is still flaky.',
+      accepted: ['tk_203', 'DM-201'],
+      failed: ['tk_202'],
+      blocked: [],
+      changes: { files: ['src/mcp/tools.ts'], commits: ['a1b2c3d'] },
+      checks: [
+        { name: 'Typecheck', status: 'passed', detail: '0 errors' },
+        { name: 'Package · macos-latest', status: 'failed', detail: 'exit 1' },
+        { name: 'Docs', status: 'skipped', detail: 'n/a' }
+      ],
+      risks: ['macOS signing is unverified'],
+      followUps: [
+        { title: 'Provide a signing identity', body: 'Needs a person: certificate access.' },
+        { title: 'Re-run driver load test', body: 'Separates signing from loading' }
+      ],
+      exitCriteria: [{ criterionId: 'x1', met: false, note: 'macOS unverified' }],
+      epicOutcome: null
+    },
+    submittedBy: 'sprint reporter',
+    createdAt: iso(-12 * MINUTE),
+    ...patch
+  }
+}
+
+export function checkpointView(patch: Partial<CheckpointView> = {}): CheckpointView {
+  return {
+    runId: 'rn_2',
+    sprintId: 'sp_2',
+    sprintOrdinal: 2,
+    sprintCount: 3,
+    isFinalSprint: false,
+    policy: 'human',
+    autoContinueAuthorized: false,
+    report: reportView(),
+    conditions: [
+      condition('report_submitted', true, 'Required by checkpoint policy'),
+      condition('no_active_leases', true, 'All claims released or expired'),
+      condition('required_accepted', false, 'DM-202 failed after 2 attempts'),
+      condition('exit_criteria', false, 'macOS unverified'),
+      condition('approval', false, 'Waiting for your approval')
+    ],
+    gatesMet: false,
+    canAdvance: false,
+    approval: null,
+    ...patch
+  }
+}
+
+export function link(key: string, title: string, state: TicketExecutionState | null): TicketLinkView {
+  return { ticketId: `tk_${key.slice(3)}`, key, title, status: 'in_progress', executionState: state }
+}
+
+export function ticketDetail(patch: Partial<TicketDetailView> = {}): TicketDetailView {
+  const content = SAMPLE_TICKETS.find((item) => item.key === 'DM-202') ?? SAMPLE_TICKETS[0]
+  return {
+    epicId: EPIC_ID,
+    view: 'saved',
+    ticket: content as TicketContent,
+    status: 'in_progress',
+    sprintId: 'sp_2',
+    sprintOrdinal: 2,
+    prerequisites: [link('DM-102', 'SQLite schema & migrations', 'accepted'), link('DM-103', 'Portable export outbox', 'accepted')],
+    dependents: [link('DM-304', 'Safe plan deletion', 'waiting')],
+    relations: [],
+    execution: execution('DM-202', 'sp_2', 'running', { attemptCount: 2 }),
+    attempts: SAMPLE_ATTEMPTS.filter((item) => item.ticketId === 'tk_202'),
+    readOnly: true,
+    readOnlyReason: 'Read-only while run #2 is active',
+    ...patch
+  }
+}
+
+export function summaries(plan: PlanBundle, status: TicketSummaryView['status'] = 'backlog'): TicketSummaryView[] {
+  return plan.tickets.map((item) => {
+    const home = plan.sprints.find((entry) => entry.ticketIds.includes(item.id))
+    return {
+      id: item.id,
+      key: item.key,
+      title: item.title,
+      status,
+      sprintId: home?.id ?? null,
+      sprintOrdinal: home?.ordinal ?? null,
+      priority: item.priority,
+      tags: item.tags,
+      optional: item.optional
+    }
+  })
+}
+
+export function validation(patch: Partial<ValidationReport> = {}): ValidationReport {
+  return {
+    valid: true,
+    errors: [],
+    warnings: [
+      {
+        code: 'isolated_ticket',
+        message: 'DM-305 has no prerequisites and nothing depends on it. It can start as soon as its sprint opens.',
+        ticketIds: ['tk_305']
+      }
+    ],
+    ...patch
+  }
+}
+
+export function event(seq: number, kind: string, patch: Partial<EventView> = {}): EventView {
+  return {
+    seq,
+    at: iso(-seq * MINUTE),
+    kind,
+    epicId: EPIC_ID,
+    runId: 'rn_2',
+    ticketId: 'tk_202',
+    sessionId: null,
+    payload: {},
+    ...patch
+  }
+}

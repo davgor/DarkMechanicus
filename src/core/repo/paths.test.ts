@@ -95,6 +95,9 @@ describe('assertContained (in-memory filesystem)', () => {
     expect(error.details).toEqual({ path: 'src/x.ts' })
   })
 
+})
+
+describe('assertContained links (in-memory filesystem)', () => {
   it('fails closed when .darkmechanicus is missing or is itself a link', () => {
     const missing = createMemoryFs()
     expect(captureError(() => assertContained(layout, missing, layout.projectFile)).code).toBe('unsafe_path')

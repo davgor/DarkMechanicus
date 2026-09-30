@@ -38,7 +38,7 @@ export function seedEpic(ctx: TestCtx, title = 'Test epic'): string {
   return id
 }
 
-export interface SeedRevisionOptions {
+interface SeedRevisionOptions {
   state?: 'pending' | 'saved' | 'failed'
   /** Point the epic's current_revision_id at the new revision (default true). */
   current?: boolean
@@ -110,12 +110,14 @@ export function seedRun(ctx: TestCtx, options: SeedRunOptions = {}): SeededRun {
   return { epicId, revisionId, runId, bundle }
 }
 
-export interface SeedAttemptOptions {
+interface SeedAttemptOptions {
   /** Ticket number (as in `tid(n)`) or a ticket id. */
   ticket: number | string
   state: AttemptState
   kind?: AttemptKind
   superseded?: boolean
+  /** Sets reconciled_at (an expired lease that was abandoned, or a resubmission). */
+  reconciled?: boolean
 }
 
 function ticketIdOf(ticket: number | string): string {
@@ -137,8 +139,8 @@ export function seedAttempt(ctx: TestCtx, run: SeededRun, options: SeedAttemptOp
   const ticket = run.bundle.tickets.find((candidate) => candidate.id === ticketId)
   ctx.db.run(
     `INSERT INTO attempts (id, run_id, ticket_id, number, kind, state, fencing_token, worker_json, revision_id,
-       ticket_content_hash, created_at, updated_at, superseded_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       ticket_content_hash, created_at, updated_at, reconciled_at, superseded_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     run.runId,
     ticketId,
@@ -151,12 +153,13 @@ export function seedAttempt(ctx: TestCtx, run: SeededRun, options: SeedAttemptOp
     contentHash(ticket ?? null),
     now,
     now,
+    options.reconciled === true ? now : null,
     options.superseded === true ? now : null
   )
   return id
 }
 
-export function setTicketStatus(ctx: TestCtx, ticket: number | string, status: WorkStatus): void {
+function markTicketStatus(ctx: TestCtx, ticket: number | string, status: WorkStatus): void {
   ctx.db.run('UPDATE ticket_status SET status = ? WHERE ticket_id = ?', status, ticketIdOf(ticket))
 }
 
@@ -164,7 +167,7 @@ export function setTicketStatus(ctx: TestCtx, ticket: number | string, status: W
 export function acceptTickets(ctx: TestCtx, run: SeededRun, tickets: number[]): void {
   for (const ticket of tickets) {
     seedAttempt(ctx, run, { ticket, state: 'accepted' })
-    setTicketStatus(ctx, ticket, 'completed')
+    markTicketStatus(ctx, ticket, 'completed')
   }
 }
 
@@ -173,7 +176,7 @@ export function ticketStatusOf(ctx: TestCtx, ticket: number | string): string | 
   return row?.status ?? null
 }
 
-export interface RunSnapshot {
+interface RunSnapshot {
   state: string
   revision_id: string
   active_sprint_id: string | null
@@ -195,7 +198,7 @@ export function setRunState(ctx: TestCtx, runId: string, state: RunState): void 
   ctx.db.run('UPDATE runs SET state = ? WHERE id = ?', state, runId)
 }
 
-export interface OutboxSnapshot {
+interface OutboxSnapshot {
   kind: string
   epic_id: string | null
   run_id: string | null
@@ -205,7 +208,7 @@ export function outboxEntries(ctx: TestCtx): OutboxSnapshot[] {
   return ctx.db.all<OutboxSnapshot>('SELECT kind, epic_id, run_id FROM outbox ORDER BY id')
 }
 
-export interface EventSnapshot {
+interface EventSnapshot {
   kind: string
   epicId: string | null
   runId: string | null

@@ -1,0 +1,224 @@
+import { describe, expect, it } from 'vitest'
+import { draftPlan } from '../epic/__mocks__/fixtures'
+import {
+  addCriterion,
+  editCriterion,
+  formErrors,
+  formFromBundle,
+  formToOps,
+  moveCriterion,
+  prerequisiteOptions,
+  removeCriterion,
+  splitList,
+  sprintOptions,
+  toggleValue,
+  type TicketForm
+} from './ticketForm'
+
+const BUNDLE = draftPlan().bundle
+
+function form(ticketId = 'tk_202'): TicketForm {
+  const value = formFromBundle(BUNDLE, ticketId)
+  if (!value) {
+    throw new Error('missing ticket')
+  }
+  return value
+}
+
+describe('ticket form from the draft bundle', () => {
+  it('copies every editable field', () => {
+    expect(form()).toEqual({
+      title: 'Transactional bundle import',
+      body: '`save_plan_draft` accepts one bundle of tickets.',
+      criteria: [
+        { key: 'c1', id: 'c1', text: 'Bundle with client-local refs returns stable IDs' },
+        { key: 'c2', id: 'c2', text: 'An invalid edge rejects the whole bundle and nothing persists' },
+        { key: 'c3', id: 'c3', text: 'A retry with the same idempotency key returns the original result' },
+        { key: 'c4', id: 'c4', text: 'Export outbox entry is written in the same transaction' }
+      ],
+      nextKey: 1,
+      tags: 'storage',
+      priority: 'high',
+      optional: false,
+      sprintId: 'sp_2',
+      prerequisites: ['tk_102', 'tk_103'],
+      workType: 'implementation',
+      reasoningLevel: 'multi_step',
+      rationale: 'transaction and outbox ordering',
+      tools: ['repo_read', 'repo_write', 'shell', 'test_execution'],
+      modalities: ['text'],
+      skills: 'TypeScript, SQLite, Database design, MCP',
+      tokens: '40000'
+    })
+    expect(form('tk_101').tokens).toBe('')
+    expect(formFromBundle(BUNDLE, 'tk_nope')).toBe(null)
+  })
+
+  it('produces no operations when nothing changed', () => {
+    expect(formToOps(form(), BUNDLE, 'tk_202')).toEqual([])
+    expect(formToOps(form(), BUNDLE, 'tk_nope')).toEqual([])
+  })
+})
+
+describe('ticket form operations (1)', () => {
+  it('patches only changed fields in one update_ticket op', () => {
+    const edited: TicketForm = { ...form(), title: '  Import v2  ', priority: 'critical' }
+    expect(formToOps(edited, BUNDLE, 'tk_202')).toEqual([
+      { op: 'update_ticket', ticket: 'tk_202', patch: { title: 'Import v2', priority: 'critical' } }
+    ])
+  })
+
+  it('patches body, criteria, tags and optional', () => {
+    const base = form()
+    const edited: TicketForm = {
+      ...addCriterion(removeCriterion(base, 3)),
+      body: 'New body',
+      tags: 'storage, Import, storage, ',
+      optional: true
+    }
+    const withText = editCriterion(edited, 3, '  Added check  ')
+    expect(formToOps(withText, BUNDLE, 'tk_202')).toEqual([
+      {
+        op: 'update_ticket',
+        ticket: 'tk_202',
+        patch: {
+          body: 'New body',
+          acceptanceCriteria: [
+            { id: 'c1', text: 'Bundle with client-local refs returns stable IDs' },
+            { id: 'c2', text: 'An invalid edge rejects the whole bundle and nothing persists' },
+            { id: 'c3', text: 'A retry with the same idempotency key returns the original result' },
+            { text: 'Added check' }
+          ],
+          tags: ['storage', 'Import'],
+          optional: true
+        }
+      }
+    ])
+  })
+
+  it('drops blank criteria and detects reordering', () => {
+    const blank = addCriterion(form())
+    expect(formToOps(blank, BUNDLE, 'tk_202')).toEqual([])
+    const reordered = moveCriterion(form(), 0, 1)
+    expect(reordered.criteria.map((item) => item.id)).toEqual(['c2', 'c1', 'c3', 'c4'])
+    const [op] = formToOps(reordered, BUNDLE, 'tk_202')
+    expect(op).toMatchObject({ op: 'update_ticket', patch: { acceptanceCriteria: [{ id: 'c2' }, { id: 'c1' }, { id: 'c3' }, { id: 'c4' }] } })
+  })
+})
+
+describe('ticket form operations (2)', () => {
+  it('patches capability groups that changed', () => {
+    const edited: TicketForm = {
+      ...form(),
+      workType: 'testing',
+      rationale: 'needs care',
+      tools: ['shell', 'repo_read'],
+      modalities: ['images', 'text'],
+      skills: 'TypeScript',
+      tokens: '1200'
+    }
+    const [op] = formToOps(edited, BUNDLE, 'tk_202')
+    expect(op).toEqual({
+      op: 'update_ticket',
+      ticket: 'tk_202',
+      patch: {
+        capability: {
+          workType: 'testing',
+          reasoning: { level: 'multi_step', rationale: 'needs care' },
+          tools: ['repo_read', 'shell'],
+          modalities: ['text', 'images'],
+          skills: ['TypeScript'],
+          context: { estimatedInputTokens: 1200, requiredArtifacts: [] }
+        }
+      }
+    })
+  })
+})
+
+describe('ticket form capability details', () => {
+  it('treats reordered tool selections as unchanged and a new reasoning level as changed', () => {
+    const reordered: TicketForm = { ...form(), tools: ['test_execution', 'shell', 'repo_write', 'repo_read'] }
+    expect(formToOps(reordered, BUNDLE, 'tk_202')).toEqual([])
+    const deeper: TicketForm = { ...form(), reasoningLevel: 'deep' }
+    expect(formToOps(deeper, BUNDLE, 'tk_202')).toEqual([
+      {
+        op: 'update_ticket',
+        ticket: 'tk_202',
+        patch: { capability: { reasoning: { level: 'deep', rationale: 'transaction and outbox ordering' } } }
+      }
+    ])
+    const cleared: TicketForm = { ...form(), tokens: ' ' }
+    expect(formToOps(cleared, BUNDLE, 'tk_202')).toEqual([
+      {
+        op: 'update_ticket',
+        ticket: 'tk_202',
+        patch: { capability: { context: { estimatedInputTokens: null, requiredArtifacts: [] } } }
+      }
+    ])
+    const fewer: TicketForm = { ...form(), tools: ['repo_read'] }
+    expect(formToOps(fewer, BUNDLE, 'tk_202')[0]).toMatchObject({ patch: { capability: { tools: ['repo_read'] } } })
+  })
+})
+
+describe('ticket form membership and dependencies', () => {
+  it('orders removals before the move and additions after it', () => {
+    const edited: TicketForm = { ...form(), sprintId: 'sp_3', prerequisites: ['tk_103', 'tk_201'] }
+    expect(formToOps(edited, BUNDLE, 'tk_202')).toEqual([
+      { op: 'remove_dependency', from: 'tk_102', to: 'tk_202' },
+      { op: 'move_ticket', ticket: 'tk_202', toSprint: 'sp_3' },
+      { op: 'add_dependency', from: 'tk_201', to: 'tk_202' }
+    ])
+  })
+
+  it('never moves to an empty sprint selection', () => {
+    expect(formToOps({ ...form(), sprintId: '' }, BUNDLE, 'tk_202')).toEqual([])
+  })
+
+  it('offers prerequisite candidates from the same or an earlier sprint only', () => {
+    expect(prerequisiteOptions(BUNDLE, 'tk_202', form())).toEqual([
+      { id: 'tk_101', label: 'DM-101 Repository init' },
+      { id: 'tk_201', label: 'DM-201 MCP authoring tools' },
+      { id: 'tk_203', label: 'DM-203 Folder registry & picker' },
+      { id: 'tk_204', label: 'DM-204 Sidebar plan buckets' }
+    ])
+    expect(prerequisiteOptions(BUNDLE, 'tk_101', form('tk_101')).map((item) => item.id)).toEqual(['tk_102', 'tk_103'])
+    expect(prerequisiteOptions(BUNDLE, 'tk_202', { ...form(), sprintId: 'sp_x' })).toEqual([])
+  })
+
+  it('lists sprints in order with their goals', () => {
+    expect(sprintOptions(BUNDLE)).toEqual([
+      { id: 'sp_1', label: 'Sprint 1 · Storage foundation' },
+      { id: 'sp_2', label: 'Sprint 2 · Authoring through MCP' },
+      { id: 'sp_3', label: 'Sprint 3 · Desktop editing' }
+    ])
+    const unnamed = { ...BUNDLE, sprints: [{ ...BUNDLE.sprints[0], goal: ' ', id: 'sp_1' }] }
+    expect(sprintOptions(unnamed as typeof BUNDLE)).toEqual([{ id: 'sp_1', label: 'Sprint 1' }])
+  })
+})
+
+describe('ticket form helpers', () => {
+  it('validates the title and token estimate', () => {
+    expect(formErrors(form())).toBe(null)
+    expect(formErrors({ ...form(), title: '   ' })).toBe('Title is required.')
+    expect(formErrors({ ...form(), tokens: '12k' })).toBe('Estimated tokens must be a whole number.')
+    expect(formErrors({ ...form(), tokens: '' })).toBe(null)
+  })
+
+  it('edits, removes and moves criteria within bounds', () => {
+    const added = addCriterion(form())
+    expect(added.criteria[4]).toEqual({ key: 'new-1', id: null, text: '' })
+    expect(addCriterion(added).criteria[5]?.key).toBe('new-2')
+    expect(editCriterion(form(), 1, 'x').criteria[1]).toEqual({ key: 'c2', id: 'c2', text: 'x' })
+    expect(removeCriterion(form(), 0).criteria.map((item) => item.id)).toEqual(['c2', 'c3', 'c4'])
+    expect(moveCriterion(form(), 3, 1).criteria.map((item) => item.id)).toEqual(['c1', 'c2', 'c3', 'c4'])
+    expect(moveCriterion(form(), 0, -1).criteria.map((item) => item.id)).toEqual(['c1', 'c2', 'c3', 'c4'])
+    expect(moveCriterion(form(), 2, -1).criteria.map((item) => item.id)).toEqual(['c1', 'c3', 'c2', 'c4'])
+  })
+
+  it('splits comma lists without blanks or case-insensitive duplicates, and toggles values', () => {
+    expect(splitList(' a, b ,, A ,c')).toEqual(['a', 'b', 'c'])
+    expect(splitList('')).toEqual([])
+    expect(toggleValue(['a', 'b'], 'a')).toEqual(['b'])
+    expect(toggleValue(['a'], 'b')).toEqual(['a', 'b'])
+  })
+})

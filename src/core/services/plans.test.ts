@@ -17,7 +17,16 @@ import { isStableId } from '../ids'
 import { computeChanges } from '../plan/diff'
 import { discardPlanDraft, openDraft, updatePlanDraft } from './drafts'
 import { createEpic, getEpic, listEpics } from './epics'
-import { completeSavedRevision, getPlan, listRevisions, requestSave, saveResult, validatePlanView } from './plans'
+import {
+  completeSavedRevision,
+  currentSavedBundle,
+  getPlan,
+  listRevisions,
+  loadRevisionBundle,
+  requestSave,
+  saveResult,
+  validatePlanView
+} from './plans'
 
 const T0 = '2026-01-01T00:00:00.000Z'
 const SAVED_REASON = 'Saved revisions are immutable. Edit a draft to change the plan.'
@@ -442,6 +451,8 @@ describe('validatePlanView', () => {
     const draft = validatePlanView(ctx, { epicId: saved.epicId, view: 'draft' })
     expect(draft.valid).toBe(false)
     expect(draft.errors.map((issue) => issue.code)).toEqual(['ticket_not_in_sprint', 'ticket_not_in_sprint'])
+    const noRead = withRole(ctx, 'worker', { capabilities: [] })
+    expect(captureError(() => validatePlanView(noRead, { epicId: saved.epicId, view: 'saved' })).code).toBe('unauthorized')
   })
 })
 
@@ -500,5 +511,18 @@ describe('discard after a save', () => {
     discardPlanDraft(ctx, { epicId: saved.epicId })
     expect(getPlan(ctx, { epicId: saved.epicId, view: 'saved' })).toEqual(before)
     expect(openDraft(ctx, { epicId: saved.epicId }).bundle).toEqual(before.bundle)
+  })
+})
+
+describe('revision helpers for other services', () => {
+  it('load a revision bundle and the current saved bundle', () => {
+    const ctx = createTestCtx()
+    const saved = createSavedEpic(ctx)
+    const unsaved = createEpic(ctx, { title: 'Unsaved' })
+    const bundle = loadRevisionBundle(ctx, saved.revisionId)
+    expect(bundle).toEqual(getPlan(ctx, { epicId: saved.epicId, view: 'saved' }).bundle)
+    expect(currentSavedBundle(ctx, saved.epicId)).toEqual({ revisionId: saved.revisionId, number: 1, bundle })
+    expect(currentSavedBundle(ctx, unsaved.id)).toBeNull()
+    expect(captureError(() => loadRevisionBundle(ctx, 'rv_missing')).code).toBe('not_found')
   })
 })

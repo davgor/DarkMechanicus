@@ -4,17 +4,17 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createTempRepo, linkDirectory, type TempRepo } from '../../test/tempRepo'
 import { nodeFs } from './nodeFs'
 
-describe('nodeFs', () => {
-  let repo: TempRepo
+let repo: TempRepo
 
-  beforeEach(() => {
-    repo = createTempRepo()
-  })
+beforeEach(() => {
+  repo = createTempRepo()
+})
 
-  afterEach(() => {
-    repo.cleanup()
-  })
+afterEach(() => {
+  repo.cleanup()
+})
 
+describe('nodeFs files', () => {
   it('writes, reads, sizes, and fsyncs files', () => {
     const file = join(repo.root, 'note.txt')
     nodeFs.writeFile(file, 'héllo')
@@ -43,15 +43,6 @@ describe('nodeFs', () => {
     expect(nodeFs.isDirectory(below)).toBe(false)
   })
 
-  it('creates nested directories and lists entries', () => {
-    const nested = join(repo.root, 'a', 'b', 'c')
-    nodeFs.mkdirp(nested)
-    nodeFs.mkdirp(nested)
-    writeFileSync(join(repo.root, 'a', 'file.json'), '{}')
-    expect(nodeFs.isDirectory(nested)).toBe(true)
-    expect(nodeFs.readdir(join(repo.root, 'a')).sort()).toEqual(['b', 'file.json'])
-  })
-
   it('renames over an existing file atomically', () => {
     const target = join(repo.root, 'target.json')
     const temp = join(repo.root, 'target.json.tmp-1')
@@ -62,19 +53,30 @@ describe('nodeFs', () => {
     expect(existsSync(temp)).toBe(false)
   })
 
-  it('detects linked directories and resolves real paths', () => {
-    const link = join(repo.root, 'escape')
-    linkDirectory(repo.outside, link)
-    expect(nodeFs.isSymlink(link)).toBe(true)
-    expect(nodeFs.isSymlink(repo.outside)).toBe(false)
-    expect(nodeFs.realpath(link)).toBe(repo.outside)
-  })
-
   it('removes files and ignores missing ones', () => {
     const file = join(repo.root, 'gone.txt')
     writeFileSync(file, 'x')
     nodeFs.remove(file)
     nodeFs.remove(file)
     expect(existsSync(file)).toBe(false)
+  })
+})
+
+describe('nodeFs directories and links', () => {
+  it('creates nested directories and lists entries', () => {
+    const nested = join(repo.root, 'a', 'b', 'c')
+    nodeFs.mkdirp(nested)
+    nodeFs.mkdirp(nested)
+    writeFileSync(join(repo.root, 'a', 'file.json'), '{}')
+    expect(nodeFs.isDirectory(nested)).toBe(true)
+    expect(nodeFs.readdir(join(repo.root, 'a')).sort()).toEqual(['b', 'file.json'])
+  })
+
+  it('detects linked directories and resolves real paths', () => {
+    const link = join(repo.root, 'escape')
+    linkDirectory(repo.outside, link)
+    expect(nodeFs.isSymlink(link)).toBe(true)
+    expect(nodeFs.isSymlink(repo.outside)).toBe(false)
+    expect(nodeFs.realpath(link)).toBe(repo.outside)
   })
 })

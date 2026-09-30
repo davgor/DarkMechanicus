@@ -1,44 +1,155 @@
-import { AppVersionLabel } from './autoUpdate/AppVersionLabel'
+import { useState } from 'react'
+import type { ComponentType } from 'react'
+import type { TrackedFolderView } from '../../shared/desktop/api'
+import { listFor } from './app/useEpicLists'
+import { browserScheduler } from './app/scheduler'
+import type { Scheduler } from './app/scheduler'
+import { LoadingView, UnavailableView, WelcomeView } from './app/MainViews'
+import { ToastProvider } from './app/toasts'
+import { useShell } from './app/useShell'
+import type { ShellModel } from './app/useShell'
 import { CheckForUpdatesButton } from './autoUpdate/CheckForUpdatesButton'
 import { UpdateBanner, useAppUpdate } from './autoUpdate/UpdateBanner'
+import { EpicWorkspace } from './epic/EpicWorkspace'
+import type { EpicWorkspaceProps } from './epic/EpicWorkspace'
+import { FolderHome } from './home/FolderHome'
+import { OnboardingView } from './onboarding/OnboardingView'
+import { Sidebar } from './sidebar/Sidebar'
+import { SidebarFooter } from './sidebar/SidebarFooter'
+import { UntrackDialog } from './sidebar/UntrackDialog'
 
-export function App(): JSX.Element {
-  const update = useAppUpdate()
+type EpicView = ComponentType<EpicWorkspaceProps>
 
+export interface AppProps {
+  /** Timers for polling and toast dismissal. Tests inject a manual one. */
+  scheduler?: Scheduler
+  /** The epic view. Injectable so shell tests do not depend on its implementation. */
+  EpicView?: EpicView
+}
+
+interface PaneProps {
+  shell: ShellModel
+  EpicView: EpicView
+  onRequestUntrack(folder: TrackedFolderView): void
+}
+
+/** An open folder: either one of its epics, or the folder home. */
+function FolderPane({ shell, EpicView }: PaneProps): JSX.Element | null {
+  const { view, actions } = shell
+  if (view.kind === 'epic') {
+    const { folder, epicId } = view
+    return (
+      <EpicView
+        key={`${folder.path}:${epicId}`}
+        folder={folder}
+        epicId={epicId}
+        refreshToken={shell.epicToken(folder.path, epicId)}
+        onChanged={() => actions.changed(folder.path)}
+        onOpenEpic={(id) => actions.selectEpic(folder.path, id)}
+      />
+    )
+  }
+  if (view.kind !== 'home') {
+    return null
+  }
+  const { folder } = view
   return (
-    <main className="app-shell">
-      <header className="app-header">
-        <h1>DarkMechanicus</h1>
-        <AppVersionLabel version={update.currentVersion} />
-      </header>
-      <p className="app-lede">A local workspace for tickets, agents, and their dependencies.</p>
-      <section className="workspace-preview" aria-label="Development workspace placeholders">
-        <article className="workspace-card">
-          <span className="workspace-status">Placeholder · tickets</span>
-          <h2>Plan the work</h2>
-          <p>Start with ticket IDs, descriptions, acceptance criteria, and status.</p>
-          <div className="ticket-stages" aria-label="Planned ticket statuses">
-            <span>Backlog</span><span>In progress</span><span>Done</span>
-          </div>
-        </article>
-        <article className="workspace-card">
-          <span className="workspace-status">Placeholder · agent graph</span>
-          <h2>Connect the work</h2>
-          <p>Map tickets to agents and make dependencies visible. React Flow is installed.</p>
-          <p className="graph-preview">Ticket → Agent → Result</p>
-        </article>
-        <article className="workspace-card">
-          <span className="workspace-status">Placeholder · MCP</span>
-          <h2>Expose the tools</h2>
-          <p>The MCP SDK and Zod are installed. No server is running or connected yet.</p>
-          <p className="workspace-note">Next: list tickets, read a ticket, update status.</p>
-        </article>
-      </section>
-      <section className="app-settings" aria-label="Updates">
-        <h2>Updates</h2>
+    <FolderHome
+      key={folder.path}
+      folder={folder}
+      list={listFor(shell.lists, folder.path)}
+      status={shell.status}
+      busy={shell.busy}
+      onOpenEpic={(id) => actions.selectEpic(folder.path, id)}
+      onCreateEpic={(input) => actions.createEpic(folder, input)}
+      onFlush={() => void actions.flush()}
+      onReconcile={() => void actions.reconcile()}
+    />
+  )
+}
+
+function MainPane(props: PaneProps): JSX.Element | null {
+  const { shell } = props
+  const { view, actions } = shell
+  switch (view.kind) {
+    case 'loading':
+      return <LoadingView />
+    case 'welcome':
+      return <WelcomeView onTrack={() => void actions.track()} />
+    case 'unavailable':
+      return <UnavailableView folder={view.folder} onStopTracking={props.onRequestUntrack} />
+    case 'onboarding':
+      return (
+        <OnboardingView
+          folder={view.folder}
+          busy={shell.busy.initialize}
+          onInitialize={() => void actions.initialize(view.folder)}
+          onChooseDifferent={() => void actions.track()}
+        />
+      )
+    default:
+      return <FolderPane {...props} />
+  }
+}
+
+function ShellFooter({ shell }: { shell: ShellModel }): JSX.Element {
+  const folderReady = shell.view.kind === 'home' || shell.view.kind === 'epic'
+  return (
+    <SidebarFooter
+      status={shell.status}
+      folderReady={folderReady}
+      busy={shell.busy}
+      onFlush={() => void shell.actions.flush()}
+      onReconcile={() => void shell.actions.reconcile()}
+    >
+      <div className="footer-actions">
         <CheckForUpdatesButton />
-      </section>
+      </div>
+    </SidebarFooter>
+  )
+}
+
+function Shell({ scheduler, EpicView }: { scheduler: Scheduler; EpicView: EpicView }): JSX.Element {
+  const update = useAppUpdate()
+  const shell = useShell(scheduler)
+  const [pending, setPending] = useState<TrackedFolderView | null>(null)
+  const { actions } = shell
+  return (
+    <div className="app-shell">
+      <Sidebar
+        version={update.currentVersion}
+        folders={shell.folders}
+        lists={shell.lists}
+        selection={shell.selection}
+        expansion={shell.expansion}
+        footer={<ShellFooter shell={shell} />}
+        onTrack={() => void actions.track()}
+        onSelectFolder={actions.selectFolder}
+        onSelectEpic={actions.selectEpic}
+        onRequestUntrack={setPending}
+      />
+      <main className="app-main" aria-label="Workspace">
+        <MainPane shell={shell} EpicView={EpicView} onRequestUntrack={setPending} />
+      </main>
       <UpdateBanner />
-    </main>
+      {pending === null ? null : (
+        <UntrackDialog
+          folder={pending}
+          onCancel={() => setPending(null)}
+          onConfirm={() => {
+            void actions.untrack(pending.path)
+            setPending(null)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+export function App({ scheduler = browserScheduler, EpicView = EpicWorkspace }: AppProps): JSX.Element {
+  return (
+    <ToastProvider scheduler={scheduler}>
+      <Shell scheduler={scheduler} EpicView={EpicView} />
+    </ToastProvider>
   )
 }
