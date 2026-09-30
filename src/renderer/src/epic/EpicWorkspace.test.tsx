@@ -35,7 +35,8 @@ describe('epic workspace: Saved view (1)', () => {
       '1 ready',
       '3 waiting'
     ])
-    expect(screen.getByText('DM-202 · RUNNING · ATTEMPT 2').textContent).toBe('DM-202 · RUNNING · ATTEMPT 2')
+    // React Flow renders node contents after measuring, so wait for the card rather than reading it synchronously.
+    expect((await screen.findByText('DM-202 · RUNNING · ATTEMPT 2')).textContent).toBe('DM-202 · RUNNING · ATTEMPT 2')
     expect(button('Edit draft').disabled).toBe(false)
     expect(screen.queryByRole('button', { name: 'Start run' })).toBe(null)
   })

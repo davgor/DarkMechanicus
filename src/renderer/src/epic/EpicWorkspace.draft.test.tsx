@@ -24,6 +24,8 @@ async function openDraftView(backend = new FakeBackend(scenario({ epic: epicDeta
   const h = renderWorkspace(backend)
   fireEvent.click(await screen.findByRole('button', { name: 'View draft' }))
   await screen.findByText('DRAFT REV 5 · UNSAVED')
+  // Graph nodes (cards, handles, sprint labels) render after React Flow measures; wait for them too.
+  await screen.findAllByRole('button', { name: '+ Ticket' })
   return h
 }
 
