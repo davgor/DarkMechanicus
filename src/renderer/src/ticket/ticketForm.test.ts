@@ -71,7 +71,8 @@ describe('ticket form from the draft bundle', () => {
       skills: 'TypeScript, SQLite, Database design, MCP',
       tokens: '40000',
       profile: '',
-      baseCapability: DM_202_CAPABILITY
+      baseCapability: DM_202_CAPABILITY,
+      loadedCapability: DM_202_CAPABILITY
     })
     expect(form('tk_101').tokens).toBe('')
     expect(formFromBundle(BUNDLE, 'tk_nope')).toBe(null)
@@ -258,6 +259,72 @@ describe('ticket form named profile edge cases', () => {
     expect(formToOps(edited, BUNDLE, 'tk_202')[0]).toMatchObject({
       patch: { capability: { workType: 'testing', context: { estimatedInputTokens: null, requiredArtifacts: ['docs/architecture.md'] } } }
     })
+  })
+})
+
+/** The latest draft after someone else (an agent's update_ticket) changed DM-202's requirements. */
+function changedElsewhere(change: (capability: CapabilityProfile) => CapabilityProfile): typeof BUNDLE {
+  return { ...BUNDLE, tickets: BUNDLE.tickets.map((item) => (item.id === 'tk_202' ? { ...item, capability: change(item.capability) } : item)) }
+}
+
+/** A cost ceiling, a model override, and a required artifact: groups the editor never shows. */
+function hiddenChanges(capability: CapabilityProfile): CapabilityProfile {
+  return {
+    ...capability,
+    constraints: { ...capability.constraints, maxCostUsd: 5 },
+    preferences: { ...capability.preferences, modelOverride: 'some-model' },
+    context: { ...capability.context, requiredArtifacts: ['docs/architecture.md'] }
+  }
+}
+
+describe('ticket form apply after concurrent requirement changes', () => {
+  it('writes only the title when that is all the person edited, keeping the hidden groups changed meanwhile', () => {
+    const latest = changedElsewhere(hiddenChanges)
+    const edited = editForm(initialEditor(BUNDLE, 'tk_202'), { ...form(), title: 'Renamed by the person' })
+    const kept = syncEditor(edited, latest, 'tk_202')
+    expect(kept).toBe(edited)
+    expect(kept.form === null ? 'no form' : formToOps(kept.form, latest, 'tk_202')).toEqual([
+      { op: 'update_ticket', ticket: 'tk_202', patch: { title: 'Renamed by the person' } }
+    ])
+  })
+
+  it('never reverts visible requirements changed meanwhile that the person left alone', () => {
+    const latest = changedElsewhere((capability) => ({ ...capability, workType: 'testing', tools: ['browser'], context: { ...capability.context, estimatedInputTokens: 9000 } }))
+    expect(formToOps({ ...form(), priority: 'low' }, latest, 'tk_202')).toEqual([{ op: 'update_ticket', ticket: 'tk_202', patch: { priority: 'low' } }])
+  })
+
+  it('writes the fields the person changed, with the required artifacts added meanwhile', () => {
+    const edited: TicketForm = { ...form(), workType: 'testing', tokens: '1200' }
+    expect(formToOps(edited, changedElsewhere(hiddenChanges), 'tk_202')).toEqual([
+      {
+        op: 'update_ticket',
+        ticket: 'tk_202',
+        patch: { capability: { workType: 'testing', context: { estimatedInputTokens: 1200, requiredArtifacts: ['docs/architecture.md'] } } }
+      }
+    ])
+  })
+
+  it('lets the person win a group both sides changed', () => {
+    const latest = changedElsewhere((capability) => ({ ...capability, tools: ['browser'] }))
+    expect(formToOps({ ...form(), tools: ['shell'] }, latest, 'tk_202')).toEqual([{ op: 'update_ticket', ticket: 'tk_202', patch: { capability: { tools: ['shell'] } } }])
+  })
+})
+
+describe('ticket form apply of a profile after concurrent requirement changes', () => {
+  it('writes the hidden group a chosen profile changes and keeps the ones it leaves as loaded', () => {
+    const constraints = { ...DM_202_CAPABILITY.constraints, environments: ['ci'] }
+    const profile = profileView({ capability: { ...DM_202_CAPABILITY, constraints } })
+    expect(formToOps(applyProfile(form(), profile), changedElsewhere(hiddenChanges), 'tk_202')).toEqual([
+      { op: 'update_ticket', ticket: 'tk_202', patch: { capability: { constraints } } }
+    ])
+  })
+
+  it('merges context per field: the profile artifacts with a token estimate changed meanwhile', () => {
+    const latest = changedElsewhere((capability) => ({ ...capability, context: { ...capability.context, estimatedInputTokens: 9000 } }))
+    const profile = profileView({ capability: { ...DM_202_CAPABILITY, context: { estimatedInputTokens: 40_000, requiredArtifacts: ['README.md'] } } })
+    expect(formToOps(applyProfile(form(), profile), latest, 'tk_202')).toEqual([
+      { op: 'update_ticket', ticket: 'tk_202', patch: { capability: { context: { estimatedInputTokens: 9000, requiredArtifacts: ['README.md'] } } } }
+    ])
   })
 })
 

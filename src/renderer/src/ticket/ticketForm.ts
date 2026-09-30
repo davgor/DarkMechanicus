@@ -3,6 +3,8 @@
  * differences against the latest draft into one `updatePlanDraft` request: an `update_ticket`
  * patch with only the changed fields, then dependency removals, the sprint move, and additions.
  * Starting from a named profile only refills the capability fields; it is applied like any edit.
+ * Apply writes only the capability groups the person changed since the form was loaded, so it
+ * never reverts requirements someone else (an agent) changed in the draft meanwhile.
  */
 import type { CriterionInput, DraftOp, TicketInput } from '../../../shared/domain/api'
 import {
@@ -51,6 +53,8 @@ export interface TicketForm {
    * preferences) come from: the ticket's own, or those of the last applied profile.
    */
   baseCapability: CapabilityProfile
+  /** The ticket's requirements when the form was loaded: a group still equal to them is not the person's edit. */
+  loadedCapability: CapabilityProfile
 }
 
 type CapabilityFields = Pick<
@@ -105,7 +109,8 @@ export function formFromBundle(bundle: PlanBundle, ticketId: string): TicketForm
     sprintId: sprintOf(bundle, ticketId),
     prerequisites: prerequisitesOf(bundle, ticketId),
     profile: '',
-    ...capabilityFields(ticket.capability)
+    ...capabilityFields(ticket.capability),
+    loadedCapability: ticket.capability
   }
 }
 
@@ -263,8 +268,36 @@ function setGroup<K extends CapabilityGroup>(patch: Partial<CapabilityProfile>, 
   patch[group] = value
 }
 
+type CapabilityContext = CapabilityProfile['context']
+
+/** `context` mixes a visible field (the token estimate) with a hidden one, so it is merged per field. */
+function appliedContext(mine: CapabilityContext, loaded: CapabilityContext, latest: CapabilityContext): CapabilityContext {
+  const tokensEdited = mine.estimatedInputTokens !== loaded.estimatedInputTokens
+  const artifactsEdited = !sameValue(mine.requiredArtifacts, loaded.requiredArtifacts)
+  return {
+    estimatedInputTokens: tokensEdited ? mine.estimatedInputTokens : latest.estimatedInputTokens,
+    requiredArtifacts: artifactsEdited ? mine.requiredArtifacts : latest.requiredArtifacts
+  }
+}
+
+/**
+ * The requirements Apply writes: each group the person changed since the form was loaded (through
+ * a field or a profile) from the form, every other group from the latest ticket.
+ */
+function appliedCapability(form: TicketForm, latest: CapabilityProfile): CapabilityProfile {
+  const mine = formCapability(form)
+  const loaded = form.loadedCapability
+  const applied = { ...mine }
+  for (const group of CAPABILITY_GROUPS) {
+    if (sameGroup(group, mine, loaded)) {
+      setGroup(applied, group, latest[group])
+    }
+  }
+  return { ...applied, context: appliedContext(mine.context, loaded.context, latest.context) }
+}
+
 function capabilityPatch(form: TicketForm, current: CapabilityProfile): Partial<CapabilityProfile> {
-  const next = formCapability(form)
+  const next = appliedCapability(form, current)
   const patch: Partial<CapabilityProfile> = {}
   for (const group of CAPABILITY_GROUPS) {
     if (!sameGroup(group, next, current)) {
