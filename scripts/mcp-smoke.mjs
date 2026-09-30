@@ -1,7 +1,9 @@
 /**
  * Headless MCP smoke test: launches the built stdio server (out/main/mcp.js) against a temporary
  * repository with the MCP SDK client, plans an epic, saves it, and runs one ticket end to end.
- * Usage: npm run build && npm run smoke:mcp   (optional: MCP_SMOKE_COMMAND=/path/to/runtime)
+ * Usage: npm run build && npm run smoke:mcp
+ * Optional: MCP_SMOKE_COMMAND=/path/to/runtime (for example the packaged app executable) and
+ * MCP_SMOKE_SERVER=/path/to/mcp.js (for example <resources>/app.asar/out/main/mcp.js).
  */
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -11,7 +13,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
-const SERVER = join(ROOT, 'out', 'main', 'mcp.js')
+const SERVER = process.env.MCP_SMOKE_SERVER ?? join(ROOT, 'out', 'main', 'mcp.js')
 
 /** @param {Client} client @param {string} name @param {Record<string, unknown>} args */
 async function call(client, name, args = {}) {

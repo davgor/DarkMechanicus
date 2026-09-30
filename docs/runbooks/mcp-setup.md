@@ -108,6 +108,12 @@ Ask the agent to call `get_capabilities`. It reports the role, the repository ro
 
 To check a build without a host, run `npm run build && npm run smoke:mcp`. It launches the built server against a temporary repository, plans and saves an epic, and runs one ticket through claim, submit, and accept.
 
+To check an installed app the same way, point the script at the app executable and the server inside `app.asar`:
+
+```bash
+MCP_SMOKE_COMMAND="<app executable>" MCP_SMOKE_SERVER="<resources>/app.asar/out/main/mcp.js" npm run smoke:mcp
+```
+
 ## Roles and `--allow-save`
 
 Roles are fixed at launch. Nothing a tool call says can change them.
