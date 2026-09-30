@@ -1,6 +1,7 @@
+import type { CommentView } from '../../shared/domain/views'
 import type { Db } from '../db/database'
 
-type SearchDocType = 'epic' | 'ticket' | 'attempt' | 'report'
+type SearchDocType = 'epic' | 'ticket' | 'attempt' | 'report' | 'comment'
 
 export interface SearchDocument {
   docType: SearchDocType
@@ -26,4 +27,16 @@ export function indexDocument(db: Db, doc: SearchDocument): void {
     doc.title,
     doc.body
   )
+}
+
+/** Indexes a comment's Markdown under its epic (and ticket), titled with its author. */
+export function indexComment(db: Db, comment: Pick<CommentView, 'id' | 'epicId' | 'ticketId' | 'body' | 'author'>): void {
+  indexDocument(db, {
+    docType: 'comment',
+    docId: comment.id,
+    epicId: comment.epicId,
+    ticketId: comment.ticketId,
+    title: `Comment by ${comment.author.label}`,
+    body: comment.body
+  })
 }

@@ -2,6 +2,7 @@ import { z } from 'zod'
 import {
   attemptEvidenceInput,
   attemptOutputsInput,
+  commentBody,
   criterionInput,
   criterionResult,
   draftOps,
@@ -73,6 +74,8 @@ export const COMMAND_SCHEMAS = {
   listTickets: z.strictObject({ epicId: stableId, view }),
   getTicket: z.strictObject({ epicId: stableId, ticketId: entityRef, view }),
   setTicketStatus: z.strictObject({ ticketId: stableId, status: workStatus, expectedRevision: revision.optional() }),
+  addComment: z.strictObject({ epicId: stableId, ticketId: stableId.optional(), body: commentBody, idempotencyKey }),
+  listComments: z.strictObject({ epicId: stableId, ticketId: stableId.optional() }),
   registerHost: hostCatalog,
   matchCapabilities: z.strictObject({ ticketId: stableId, runId: stableId }),
   queueRun: epicRef,

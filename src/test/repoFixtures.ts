@@ -7,6 +7,7 @@ import { encodeBase32, ID_PREFIXES, type IdKind } from '../core/ids'
 import type { FinalizerHooks } from '../core/repo/finalizer'
 import type { PlanBundle } from '../shared/domain/bundle'
 import type { AttemptState, RunState } from '../shared/domain/status'
+import type { SessionRole } from '../shared/domain/views'
 
 interface CapturedDomainError {
   code: string
@@ -111,26 +112,52 @@ export function insertRevision(db: Db, input: RevisionRowInput): void {
 }
 
 interface OutboxRowInput {
-  kind: 'snapshot' | 'epic_state' | 'run_history'
+  kind: 'snapshot' | 'epic_state' | 'run_history' | 'comment'
   epicId?: string | null
   runId?: string | null
   revisionId?: string | null
+  entityId?: string | null
   state?: 'pending' | 'done' | 'failed'
   attempts?: number
 }
 
 export function insertOutbox(db: Db, input: OutboxRowInput): number {
   return db.run(
-    `INSERT INTO outbox (kind, epic_id, run_id, revision_id, state, attempts, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO outbox (kind, epic_id, run_id, revision_id, entity_id, state, attempts, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     input.kind,
     input.epicId ?? null,
     input.runId ?? null,
     input.revisionId ?? null,
+    input.entityId ?? null,
     input.state ?? 'pending',
     input.attempts ?? 0,
     T0
   ).lastInsertRowid
+}
+
+interface CommentRowInput {
+  id: string
+  epicId: string
+  ticketId?: string | null
+  body?: string
+  role?: SessionRole
+  label?: string
+  createdAt?: string
+}
+
+export function insertComment(db: Db, input: CommentRowInput): void {
+  db.run(
+    `INSERT INTO comments (id, epic_id, ticket_id, body, author_role, author_label, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    input.id,
+    input.epicId,
+    input.ticketId ?? null,
+    input.body ?? 'A **comment**',
+    input.role ?? 'worker',
+    input.label ?? 'worker-1',
+    input.createdAt ?? T0
+  )
 }
 
 interface RunRowInput {

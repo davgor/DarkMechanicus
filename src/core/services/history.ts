@@ -35,7 +35,7 @@ function clampLimit(limit: number | undefined): number {
   return Number.isFinite(value) ? Math.min(MAX_LIMIT, Math.max(1, Math.floor(value))) : DEFAULT_LIMIT
 }
 
-/** Keyword search over indexed epics, tickets, attempt outcomes, and sprint reports (best match first). */
+/** Keyword search over indexed epics, tickets, attempt outcomes, sprint reports, and comments (best match first). */
 export function searchHistory(
   ctx: Ctx,
   input: { query: string; limit?: number; epicId?: string }

@@ -32,13 +32,23 @@ export const LIMITS = {
   relations: 5_000,
   opsPerRequest: 500,
   listItems: 500,
-  models: 200
+  models: 200,
+  /** Characters in one comment's Markdown body. */
+  comment: 20_000,
+  /** Comments one epic may hold (the importer reads at most this many per epic). */
+  commentsPerEpic: 10_000
 } as const
 
 export const stableId = z.string().regex(STABLE_ID_PATTERN, 'Expected a stable id such as tk_…')
 /** A stable id, a ticket key, or a client-local ref declared in the same request. */
 export const entityRef = z.string().min(1).max(64).regex(/^[A-Za-z0-9_.:-]+$/)
 export const idempotencyKey = z.string().min(1).max(200).optional()
+
+/** A comment's Markdown: not blank, at most `LIMITS.comment` characters, whitespace kept as written. */
+export const commentBody = z
+  .string()
+  .max(LIMITS.comment, `A comment is at most ${LIMITS.comment} characters.`)
+  .refine((body) => body.trim() !== '', 'A comment needs some text.')
 
 const title = z.string().max(LIMITS.title)
 const markdown = z.string().max(LIMITS.markdown)

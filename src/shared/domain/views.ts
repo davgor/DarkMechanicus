@@ -506,7 +506,7 @@ export interface SessionView {
 }
 
 export interface SearchResultView {
-  docType: 'epic' | 'ticket' | 'attempt' | 'report'
+  docType: 'epic' | 'ticket' | 'attempt' | 'report' | 'comment'
   docId: string
   epicId: string
   epicTitle: string
@@ -562,4 +562,16 @@ export interface DraftUpdateResultView {
   draftRevision: number
   refMap: Record<string, string>
   validation: ValidationReport
+}
+
+/** An append-only Markdown note on an epic (`ticketId` null) or one of its tickets. */
+export interface CommentView {
+  id: string
+  epicId: string
+  ticketId: string | null
+  /** Untrusted Markdown: render it through the safe renderer only. */
+  body: string
+  /** The session that wrote it (role and label), never caller-supplied. */
+  author: { role: SessionRole; label: string }
+  createdAt: string
 }

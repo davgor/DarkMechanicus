@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { errorOf, seedEpic } from '../../test/checkpointSeed'
 import { createTestCtx, type TestCtx } from '../../test/testContext'
 import { searchHistory } from './history'
-import { indexDocument } from './searchIndex'
+import { indexComment, indexDocument } from './searchIndex'
 
 function seedHistory(ctx: TestCtx): { alpha: string; beta: string } {
   const alpha = seedEpic(ctx, 'Driver selection')
@@ -84,6 +84,34 @@ describe('searchHistory results', () => {
     const ctx = createTestCtx()
     indexDocument(ctx.db, { docType: 'ticket', docId: 'tk_orphan', epicId: 'ep_missing', title: 'Orphan', body: 'lonely' })
     expect(searchHistory(ctx, { query: 'lonely' }).map((result) => result.epicTitle)).toEqual([''])
+  })
+})
+
+describe('searchHistory comment results', () => {
+  it('finds comments by body or author and identifies them as comments', () => {
+    const ctx = createTestCtx()
+    const { alpha } = seedHistory(ctx)
+    indexComment(ctx.db, {
+      id: 'cm_note',
+      epicId: alpha,
+      ticketId: 'tk_schema',
+      body: 'Migration blocked until the fixture lands',
+      author: { role: 'reviewer', label: 'Ada' }
+    })
+    expect(searchHistory(ctx, { query: 'fixture' })).toEqual([
+      {
+        docType: 'comment',
+        docId: 'cm_note',
+        epicId: alpha,
+        epicTitle: 'Driver selection',
+        runId: null,
+        ticketId: 'tk_schema',
+        title: 'Comment by Ada',
+        snippet: 'Migration blocked until the [fixture] lands'
+      }
+    ])
+    expect(docIds(ctx, 'ada')).toEqual(['cm_note'])
+    expect(docIds(ctx, 'migration')).toEqual(['at_lock', 'cm_note', 'tk_schema'])
   })
 })
 

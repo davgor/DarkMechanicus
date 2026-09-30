@@ -11,6 +11,7 @@ import {
   capabilityPatch,
   capabilityProfile,
   checkResult,
+  commentBody,
   criterion,
   criterionInput,
   criterionResult,
@@ -62,8 +63,41 @@ describe('LIMITS', () => {
       relations: 5_000,
       opsPerRequest: 500,
       listItems: 500,
-      models: 200
+      models: 200,
+      comment: 20_000,
+      commentsPerEpic: 10_000
     })
+  })
+})
+
+describe('commentBody', () => {
+  it('accepts Markdown up to exactly 20,000 characters, whitespace kept', () => {
+    expect(commentBody.parse(text(20_000))).toBe(text(20_000))
+    expect(commentBody.parse('  **Blocked** on DM-3\n')).toBe('  **Blocked** on DM-3\n')
+    expect(commentBody.parse('x')).toBe('x')
+  })
+
+  it('rejects 20,001 characters with a readable message', () => {
+    const error = thrownBy(() => parseInput(commentBody, text(20_001), 'comment')) as DomainError
+    expect(error.code).toBe('invalid_input')
+    expect(error.message).toBe('Invalid comment: A comment is at most 20000 characters.')
+  })
+
+  it.each([
+    ['empty', ''],
+    ['spaces', '   '],
+    ['newlines and tabs', '\n\t \r\n']
+  ])('rejects a %s body as blank', (_label, value) => {
+    const error = thrownBy(() => parseInput(commentBody, value, 'comment')) as DomainError
+    expect(error.message).toBe('Invalid comment: A comment needs some text.')
+  })
+
+  it.each([
+    ['a number', 42],
+    ['null', null],
+    ['an object', { body: 'x' }]
+  ])('rejects %s', (_label, value) => {
+    expect(accepts(commentBody, value)).toBe(false)
   })
 })
 

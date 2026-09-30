@@ -23,6 +23,7 @@ import type {
   CapabilityMatchView,
   CheckpointView,
   ClaimResultView,
+  CommentView,
   CriterionResult,
   DraftUpdateResultView,
   EpicDetailView,
@@ -146,6 +147,15 @@ export interface StartRunInput {
 
 export type SprintReportInput = Partial<SprintReportContent> & { summary: string }
 
+export interface AddCommentInput {
+  epicId: string
+  /** A ticket of the epic's saved plan or draft; omit for a comment on the epic itself. */
+  ticketId?: string
+  /** Markdown, at most 20,000 characters and not blank. */
+  body: string
+  idempotencyKey?: string
+}
+
 export interface CommandApi {
   // Discovery and repository lifecycle
   getCapabilities(): Promise<CapabilitiesView>
@@ -211,6 +221,11 @@ export interface CommandApi {
     status: WorkStatus
     expectedRevision?: number
   }): Promise<TicketSummaryView>
+
+  // Comments (append-only; the author is the calling session)
+  addComment(input: AddCommentInput): Promise<CommentView>
+  /** Oldest first. Without ticketId: every comment of the epic, epic-level and ticket-level. */
+  listComments(input: { epicId: string; ticketId?: string }): Promise<CommentView[]>
 
   // Execution
   registerHost(input: HostCatalog): Promise<HostCatalogView>

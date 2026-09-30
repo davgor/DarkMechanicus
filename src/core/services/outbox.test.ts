@@ -165,3 +165,18 @@ describe('enqueueOutbox run_history coalescing', () => {
     expect(rows(ctx).map((row) => row.state)).toEqual(['done', 'pending'])
   })
 })
+
+describe('enqueueOutbox comment entries', () => {
+  it('keeps one pending entry per comment of an epic', () => {
+    const ctx = createTestCtx()
+    enqueueOutbox(ctx, { kind: 'comment', epicId: 'ep_1', entityId: 'cm_1' })
+    enqueueOutbox(ctx, { kind: 'comment', epicId: 'ep_1', entityId: 'cm_2' })
+    enqueueOutbox(ctx, { kind: 'comment', epicId: 'ep_1', entityId: 'cm_1' })
+    enqueueOutbox(ctx, { kind: 'epic_state', epicId: 'ep_1' })
+    expect(rows(ctx).map((row) => [row.kind, row.epic_id, row.entity_id, row.state])).toEqual([
+      ['comment', 'ep_1', 'cm_1', 'pending'],
+      ['comment', 'ep_1', 'cm_2', 'pending'],
+      ['epic_state', 'ep_1', null, 'pending']
+    ])
+  })
+})

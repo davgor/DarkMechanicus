@@ -1,7 +1,7 @@
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { createMemoryFs } from '../../test/memoryFs'
-import { idOf, insertEpic, insertOutbox, insertRevision, insertRun, T0 } from '../../test/repoFixtures'
+import { idOf, insertComment, insertEpic, insertOutbox, insertRevision, insertRun, T0 } from '../../test/repoFixtures'
 import { createStubGit } from '../../test/repoEnv'
 import { makeBundle } from '../../test/bundles'
 import { createTestClock, createTestDb } from '../../test/testContext'
@@ -114,6 +114,22 @@ describe('getStorageStatus with a database', () => {
       ],
       sessions: { active: 1, byRole: { orchestrator: 1 } }
     })
+  })
+
+  it('attributes a conflicting comment to its epic', async () => {
+    const db = createTestDb()
+    insertEpic(db, { id: idOf('epic', 3) })
+    insertComment(db, { id: idOf('comment', 1), epicId: idOf('epic', 3) })
+    const conflict = 'INSERT INTO sync_state (kind, entity_id, conflict, updated_at) VALUES (?, ?, ?, ?)'
+    db.run(conflict, 'epic', idOf('epic', 4), 'epic conflict', T0)
+    db.run(conflict, 'comment', idOf('comment', 1), 'comment conflict', T0)
+    db.run(conflict, 'comment', idOf('comment', 2), 'unknown comment', T0)
+    const status = await getStorageStatus({ db, layout, fs: initializedFs(), git: gitWith(0, 'main'), clock: createTestClock() })
+    expect(status.conflicts).toEqual([
+      { epicId: idOf('epic', 3), message: 'comment conflict' },
+      { epicId: idOf('comment', 2), message: 'unknown comment' },
+      { epicId: idOf('epic', 4), message: 'epic conflict' }
+    ])
   })
 
   it('reports a clean database as idle and unchanged', async () => {

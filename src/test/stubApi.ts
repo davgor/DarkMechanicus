@@ -43,6 +43,8 @@ const COMMAND_FLAGS: Record<CommandName, true> = {
   listTickets: true,
   getTicket: true,
   setTicketStatus: true,
+  addComment: true,
+  listComments: true,
   registerHost: true,
   matchCapabilities: true,
   queueRun: true,

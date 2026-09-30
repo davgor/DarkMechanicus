@@ -7,6 +7,7 @@ import { toJson } from '../db/database'
 import { fail } from '../errors'
 import { computeChanges } from '../plan/diff'
 import { validatePlan } from '../plan/graph'
+import { enqueueUnexportedComments } from './comments'
 import { assertEpicOpen, type EpicRow, loadEpicRow } from './epics'
 import { appendEvent } from './events'
 import { requestWithoutKey, withIdempotency } from './idempotency'
@@ -357,6 +358,8 @@ export function completeSavedRevision(ctx: Ctx, revisionId: string): void {
     markSaved(ctx, revision, bundle)
     settleDraft(ctx, revision)
     indexRevision(ctx, revision.epic_id, bundle)
+    // Comments written before the epic's first save were kept local until now.
+    enqueueUnexportedComments(ctx, revision.epic_id)
     appendEvent(ctx, {
       kind: 'plan.saved',
       epicId: revision.epic_id,

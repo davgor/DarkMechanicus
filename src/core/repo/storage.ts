@@ -40,12 +40,13 @@ function outboxStatus(db: Db): StorageStatusView['outbox'] {
 }
 
 function conflictsOf(db: Db): StorageStatusView['conflicts'] {
-  const rows = db.all<{ entity_id: string; conflict: string; run_epic: string | null }>(
-    `SELECT s.entity_id, s.conflict, r.epic_id AS run_epic
+  const rows = db.all<{ entity_id: string; conflict: string; run_epic: string | null; comment_epic: string | null }>(
+    `SELECT s.entity_id, s.conflict, r.epic_id AS run_epic, c.epic_id AS comment_epic
      FROM sync_state s LEFT JOIN runs r ON s.kind = 'run' AND r.id = s.entity_id
+       LEFT JOIN comments c ON s.kind = 'comment' AND c.id = s.entity_id
      WHERE s.conflict IS NOT NULL ORDER BY s.kind, s.entity_id`
   )
-  return rows.map((row) => ({ epicId: row.run_epic ?? row.entity_id, message: row.conflict }))
+  return rows.map((row) => ({ epicId: row.run_epic ?? row.comment_epic ?? row.entity_id, message: row.conflict }))
 }
 
 function databaseStatus(db: Db, clock: Clock, head: { current: string | null; repository: boolean }): DatabaseStatus {

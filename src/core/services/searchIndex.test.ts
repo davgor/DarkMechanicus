@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createTestDb } from '../../test/testContext'
 import type { Db } from '../db/database'
-import { indexDocument, type SearchDocument } from './searchIndex'
+import { indexComment, indexDocument, type SearchDocument } from './searchIndex'
 
 function doc(overrides: Partial<SearchDocument> = {}): SearchDocument {
   return {
@@ -122,5 +122,40 @@ describe('indexDocument upsert', () => {
     expect(hits(db, 'version')).toEqual(['epic:shared', 'ticket:other'])
     expect(hits(db, 'revised')).toEqual(['ticket:shared'])
     expect(hits(db, 'ticket')).toEqual(['ticket:shared'])
+  })
+})
+
+const COMMENT = {
+  id: 'cm_1',
+  epicId: 'ep_1',
+  ticketId: 'tk_7',
+  body: 'Blocked until the **keychain** fix lands',
+  author: { role: 'worker' as const, label: 'worker-3' }
+}
+
+describe('indexComment', () => {
+  it('indexes a ticket comment by body and author under its epic and ticket', () => {
+    const db = createTestDb()
+    indexComment(db, COMMENT)
+    expect(db.all('SELECT * FROM search_index')).toEqual([
+      {
+        doc_type: 'comment',
+        doc_id: 'cm_1',
+        epic_id: 'ep_1',
+        run_id: null,
+        ticket_id: 'tk_7',
+        title: 'Comment by worker-3',
+        body: 'Blocked until the **keychain** fix lands'
+      }
+    ])
+    expect(hits(db, 'keychain')).toEqual(['comment:cm_1'])
+    expect(hits(db, 'worker')).toEqual(['comment:cm_1'])
+  })
+
+  it('indexes an epic-level comment without a ticket, once per comment id', () => {
+    const db = createTestDb()
+    indexComment(db, { ...COMMENT, ticketId: null })
+    indexComment(db, { ...COMMENT, ticketId: null })
+    expect(db.all('SELECT doc_id, ticket_id FROM search_index')).toEqual([{ doc_id: 'cm_1', ticket_id: null }])
   })
 })
