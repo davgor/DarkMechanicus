@@ -39,6 +39,8 @@ const TOOLS: Record<string, { method: CommandName; kind: Kind }> = {
   create_ticket: { method: 'updatePlanDraft', kind: 'write' },
   update_ticket: { method: 'updatePlanDraft', kind: 'write' },
   set_ticket_status: { method: 'setTicketStatus', kind: 'idempotent' },
+  add_comment: { method: 'addComment', kind: 'write' },
+  list_comments: { method: 'listComments', kind: 'read' },
   get_plan: { method: 'getPlan', kind: 'read' },
   open_plan_draft: { method: 'openDraft', kind: 'idempotent' },
   update_plan_draft: { method: 'updatePlanDraft', kind: 'write' },
@@ -106,7 +108,7 @@ describe('tool inventory', () => {
     await withRig(build, createStubApi(), async (rig) => {
       const { tools } = await rig.client.listTools()
       expect(tools.map((tool) => tool.name).sort()).toEqual(Object.keys(TOOLS).sort())
-      expect(tools).toHaveLength(50)
+      expect(tools).toHaveLength(52)
     })
   })
 
@@ -232,6 +234,8 @@ describe('server metadata', () => {
         'get_checkpoint',
         'cannot approve',
         'task data',
+        'add_comment',
+        'list_comments',
         'isError',
         'darkmechanicus-planner',
         'darkmechanicus-sprint-reporter'

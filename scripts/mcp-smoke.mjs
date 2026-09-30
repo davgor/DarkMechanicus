@@ -1,6 +1,7 @@
 /**
  * Headless MCP smoke test: launches the built stdio server (out/main/mcp.js) against a temporary
- * repository with the MCP SDK client, plans an epic, saves it, and runs one ticket end to end.
+ * repository with the MCP SDK client, plans an epic, saves it, runs one ticket end to end, and
+ * round-trips a ticket comment.
  * Usage: npm run build && npm run smoke:mcp
  * Optional: MCP_SMOKE_COMMAND=/path/to/runtime (for example the packaged app executable) and
  * MCP_SMOKE_SERVER=/path/to/mcp.js (for example <resources>/app.asar/out/main/mcp.js).
@@ -63,6 +64,16 @@ async function runOneTicket(client, plan) {
   return call(client, 'get_run', { runId: run.id })
 }
 
+/** @param {Client} client @param {{ epicId: string, first: string }} plan */
+async function commentOnTicket(client, plan) {
+  const added = await call(client, 'add_comment', { epicId: plan.epicId, ticketId: plan.first, body: 'Smoke **note**' })
+  const listed = await call(client, 'list_comments', { epicId: plan.epicId, ticketId: plan.first })
+  if (listed.length !== 1 || listed[0].id !== added.id || listed[0].body !== 'Smoke **note**') {
+    throw new Error(`unexpected comments: ${JSON.stringify(listed)}`)
+  }
+  return listed.length
+}
+
 async function main() {
   const repo = mkdtempSync(join(tmpdir(), 'dm-mcp-smoke-'))
   const transport = new StdioClientTransport({
@@ -78,8 +89,9 @@ async function main() {
     const prompts = await client.listPrompts()
     const plan = await planAndSave(client)
     const run = await runOneTicket(client, plan)
+    const comments = await commentOnTicket(client, plan)
     console.log(
-      JSON.stringify({ tools: tools.tools.length, prompts: prompts.prompts.length, runState: run.state, counts: run.counts })
+      JSON.stringify({ tools: tools.tools.length, prompts: prompts.prompts.length, runState: run.state, counts: run.counts, comments })
     )
   } finally {
     await client.close()

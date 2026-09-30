@@ -83,3 +83,37 @@ describe('MCP tools over the real Workspace', () => {
     expect(malformed.isError).toBe(true)
   })
 })
+
+describe('MCP comment tools over the real Workspace', () => {
+  let harness: Harness
+
+  beforeEach(() => {
+    harness = createHarness()
+  })
+
+  afterEach(() => {
+    harness.cleanup()
+  })
+
+  it('lets a worker comment on a ticket and an orchestrator read it back', async () => {
+    const orchestrator = await connect(harness.open('orchestrator', { allowSave: true }))
+    data(await call(orchestrator, 'initialize_repository', { name: 'comment-repo' }))
+    const epic = data<{ id: string }>(await call(orchestrator, 'create_epic', { title: 'Commented epic' }))
+    const ticket = data<{ ticketId: string; draftRevision: number }>(
+      await call(orchestrator, 'create_ticket', { epicId: epic.id, ticket: { title: 'Only ticket' } })
+    )
+    data(await call(orchestrator, 'save_plan', { epicId: epic.id, expectedDraftRevision: ticket.draftRevision }))
+    const worker = await connect(harness.open('worker'))
+    const note = data<{ id: string }>(
+      await call(worker, 'add_comment', { epicId: epic.id, ticketId: ticket.ticketId, body: 'Blocked: the fixture is missing' })
+    )
+    const listed = data<{ id: string; ticketId: string; author: { role: string; label: string } }[]>(
+      await call(orchestrator, 'list_comments', { epicId: epic.id })
+    )
+    expect(listed.map((comment) => [comment.id, comment.ticketId, comment.author])).toEqual([
+      [note.id, ticket.ticketId, { role: 'worker', label: 'worker session' }]
+    ])
+    const found = data<{ docType: string; docId: string }[]>(await call(orchestrator, 'search_history', { query: 'fixture' }))
+    expect(found.map((hit) => [hit.docType, hit.docId])).toEqual([['comment', note.id]])
+  })
+})

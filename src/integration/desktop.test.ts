@@ -86,3 +86,33 @@ describe('desktop IPC handlers over the real Workspace', () => {
     expect(invalid.ok ? 'ok' : invalid.error.code).toBe('invalid_input')
   })
 })
+
+describe('desktop comments over the real Workspace', () => {
+  let desktop: Desktop
+
+  beforeEach(() => {
+    desktop = createDesktop()
+  })
+
+  afterEach(() => {
+    desktop.cleanup()
+  })
+
+  it('adds and lists a ticket comment through dm:command, signed by the desktop session', async () => {
+    await desktop.handlers.pickFolder()
+    await desktop.handlers.command(desktop.repo, 'initializeRepository', { name: 'desk' })
+    const created = await desktop.handlers.command(desktop.repo, 'createEpic', { title: 'Commented epic' })
+    const epicId = created.ok ? (created.data as { id: string }).id : ''
+    const draft = await desktop.handlers.command(desktop.repo, 'updatePlanDraft', {
+      epicId,
+      ops: [{ op: 'add_ticket', ref: 't', sprint: '1', ticket: { title: 'Only ticket' } }]
+    })
+    const ticketId = draft.ok ? ((draft.data as { refMap: Record<string, string> }).refMap['t'] ?? '') : ''
+    const added = await desktop.handlers.command(desktop.repo, 'addComment', { epicId, ticketId, body: 'Looks **good**' })
+    expect(added.ok ? added.data : added.error).toMatchObject({ epicId, ticketId, body: 'Looks **good**', author: { role: 'desktop', label: 'Desktop' } })
+    const listed = await desktop.handlers.command(desktop.repo, 'listComments', { epicId, ticketId })
+    expect(listed.ok ? listed.data : listed.error).toEqual([added.ok ? added.data : null])
+    const blank = await desktop.handlers.command(desktop.repo, 'addComment', { epicId, body: '   ' })
+    expect(blank.ok ? 'ok' : blank.error.code).toBe('invalid_input')
+  })
+})
