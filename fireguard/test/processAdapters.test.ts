@@ -1,8 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createMutationApplier } from '../src/processAdapters.js';
+import {
+  createMutationApplier,
+  readWorkspaceFileSync,
+  workspaceFileExists,
+} from '../src/processAdapters.js';
 
 describe('createMutationApplier', () => {
   it('restores original source after applying a mutant', async () => {
@@ -49,5 +53,35 @@ describe('createMutationApplier', () => {
     });
     expect(result.ok).toBe(true);
     expect(await readFile(join(dir, rel), 'utf8')).toBe('export const n = 1;\n');
+  });
+});
+
+async function withWorkspace(run: (dir: string) => void | Promise<void>): Promise<void> {
+  const dir = await mkdtemp(join(tmpdir(), 'fireguard-probe-'));
+  try {
+    await mkdir(join(dir, 'src', 'dir'), { recursive: true });
+    await writeFile(join(dir, 'src', 'a.ts'), 'export const a = 1;\n', 'utf8');
+    await run(dir);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+describe('workspace file probes', () => {
+  it('reports regular files only', async () => {
+    await withWorkspace((dir) => {
+      expect(workspaceFileExists(dir, 'src/a.ts')).toBe(true);
+      expect(workspaceFileExists(dir, 'src/dir')).toBe(false);
+      expect(workspaceFileExists(dir, 'src/missing.ts')).toBe(false);
+      expect(workspaceFileExists(dir, 'src/a.ts/child')).toBe(false);
+    });
+  });
+
+  it('reads files synchronously and returns null when they cannot be read', async () => {
+    await withWorkspace((dir) => {
+      expect(readWorkspaceFileSync(dir, 'src/a.ts')).toBe('export const a = 1;\n');
+      expect(readWorkspaceFileSync(dir, 'src/missing.ts')).toBeNull();
+      expect(readWorkspaceFileSync(dir, 'src/dir')).toBeNull();
+    });
   });
 });

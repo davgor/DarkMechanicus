@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { readFile, writeFile } from 'node:fs/promises';
-import { writeFileSync } from 'node:fs';
+import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseNameStatus } from './gitScope.js';
 import type { DiffEntry, FireguardConfig, RunOnceResult } from './types.js';
@@ -121,4 +121,22 @@ export function createMutationApplier(options: {
 
 export async function readWorkspaceFile(cwd: string, path: string): Promise<string> {
   return readFile(join(cwd, path), 'utf8');
+}
+
+/** True for regular files only, so a directory never shadows `./x.ts` when resolving imports. */
+export function workspaceFileExists(cwd: string, path: string): boolean {
+  try {
+    return statSync(join(cwd, path)).isFile();
+  } catch {
+    return false;
+  }
+}
+
+/** Synchronous read for import-graph scans; null when the file is missing or unreadable. */
+export function readWorkspaceFileSync(cwd: string, path: string): string | null {
+  try {
+    return readFileSync(join(cwd, path), 'utf8');
+  } catch {
+    return null;
+  }
 }

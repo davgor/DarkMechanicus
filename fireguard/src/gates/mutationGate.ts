@@ -138,10 +138,11 @@ export function scoreMutations(options: {
   minScore: number;
   survivors: MutationSurvivor[];
   modules: string[];
+  moduleTests?: Record<string, number>;
 }): MutationGateResult {
   const total = options.killed + options.survived;
   const score = total === 0 ? 100 : Math.round((options.killed / total) * 100);
-  return {
+  const result: MutationGateResult = {
     name: 'mutation',
     pass: score >= options.minScore,
     killed: options.killed,
@@ -151,35 +152,58 @@ export function scoreMutations(options: {
     survivors: options.survivors,
     modules: options.modules,
   };
+  // Only scoped runs carry per-module counts, so unscoped results keep their previous shape.
+  return options.moduleTests ? { ...result, moduleTests: options.moduleTests } : result;
+}
+
+type ApplyAndTest = (input: {
+  file: string;
+  originalSource: string;
+  mutatedSource: string;
+  relatedTests: string[];
+}) => Promise<RunOnceResult>;
+
+async function isKilled(input: {
+  mod: { path: string; source: string };
+  mutant: Mutant;
+  tests: string[];
+  applyAndTest: ApplyAndTest;
+}): Promise<boolean> {
+  // No test can reach this module, so nothing can kill the mutant: skip applying it.
+  if (input.tests.length === 0) return false;
+  const result = await input.applyAndTest({
+    file: input.mod.path,
+    originalSource: input.mod.source,
+    mutatedSource: input.mutant.mutatedSource,
+    relatedTests: input.tests,
+  });
+  // ok:false means tests failed => mutant killed
+  return !result.ok;
 }
 
 export async function runMutationGate(options: {
   config: FireguardConfig;
   modules: Array<{ path: string; source: string }>;
   relatedTests: string[];
-  applyAndTest: (input: {
-    file: string;
-    originalSource: string;
-    mutatedSource: string;
-    relatedTests: string[];
-  }) => Promise<RunOnceResult>;
+  /**
+   * Graded tests that can kill the mutants of one module (those that transitively import it).
+   * When omitted, every module's mutants run against all of `relatedTests`.
+   */
+  relatedTestsFor?: (modulePath: string) => string[];
+  applyAndTest: ApplyAndTest;
 }): Promise<MutationGateResult> {
   let killed = 0;
   let survived = 0;
   const survivors: MutationSurvivor[] = [];
-  const modules = options.modules.map((m) => m.path);
+  const moduleTests: Record<string, number> = {};
 
   for (const mod of options.modules) {
-    const mutants = generateMutants(mod.path, mod.source);
-    for (const mutant of mutants) {
-      const result = await options.applyAndTest({
-        file: mod.path,
-        originalSource: mod.source,
-        mutatedSource: mutant.mutatedSource,
-        relatedTests: options.relatedTests,
-      });
-      // ok:false means tests failed => mutant killed
-      if (!result.ok) {
+    const tests = options.relatedTestsFor
+      ? options.relatedTestsFor(mod.path)
+      : options.relatedTests;
+    moduleTests[mod.path] = tests.length;
+    for (const mutant of generateMutants(mod.path, mod.source)) {
+      if (await isKilled({ mod, mutant, tests, applyAndTest: options.applyAndTest })) {
         killed += 1;
       } else {
         survived += 1;
@@ -197,6 +221,7 @@ export async function runMutationGate(options: {
     survived,
     minScore: options.config.thresholds.minMutationScore,
     survivors,
-    modules,
+    modules: options.modules.map((m) => m.path),
+    moduleTests: options.relatedTestsFor ? moduleTests : undefined,
   });
 }

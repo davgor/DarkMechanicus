@@ -6,7 +6,7 @@ Fireguard assigns a letter grade (**A–F**) using three fail-fast gates — no 
 
 1. **AST** — mock/assert ratio, tautological assertions, empty tests  
 2. **Flake** — added/modified tests (git diff vs `main`) must pass **100** isolated runs at **0%** flake (fail-fast; reports `executed/configuredRuns`)  
-3. **Mutation** — changed production modules must kill ≥ **75%** of mutants  
+3. **Mutation** — changed production modules must kill ≥ **75%** of mutants; a module's mutants run only against the graded tests that transitively import it  
 
 Playwright / e2e is out of scope.
 
@@ -80,6 +80,20 @@ Env overrides: `FIREGUARD_MIN_MUTATION_SCORE`, `FIREGUARD_MAX_MOCK_RATIO`, `FIRE
 - No graded tests and no module changes → skip with grade A
 - Mutation runs when there are graded tests and changed modules
 - Mutation writes in-place with `try/finally` restore plus a process `exit` hook to avoid dirty trees
+
+## Mutation
+
+Each changed production module is mutated one operator at a time (`+ - * / < > <= >= === !==`, `if` inversion, boolean/number `return` tweaks) and the tests are re-run against every mutant; a mutant that still passes them survives.
+
+**Mutants of a module run only against graded tests that transitively import it.** Only those tests can load the mutated code, so grading semantics are unchanged, but a milestone-sized branch no longer re-runs every graded test file for every mutant. Fireguard builds a static import graph with the TypeScript compiler (nothing is executed):
+
+- Follows relative specifiers (`./x`, `../x`) in `import … from`, `export … from`, `import x = require()`, and `import()` / `require()` calls with a string literal.
+- Resolves the exact path, then `.ts`, `.tsx`, `.mts`, `.js`, `.mjs`, `.jsx`, then `index.*` files. `./x.js` also matches `x.ts` / `x.tsx`, and Vite suffixes such as `?raw` are ignored.
+- Ignores package and alias specifiers (tsconfig `paths`, Vite `resolve.alias`), `vi.mock(...)` / `vi.importActual(...)` targets, `import.meta.glob`, and computed `import(expr)` calls, so a test that reaches a module only that way is not run for its mutants. Use relative imports for the modules under test.
+- A changed module that no graded test reaches keeps every mutant as a survivor. The report shows it as `tests per module: … src/x.ts=0 (no graded test imports it)`; add or extend a test that imports it.
+- A test whose import closure exceeds 5,000 files is treated as related to every module (fail-safe).
+
+`--json` output carries the same counts as `gates.mutation.moduleTests` (module path → number of graded test files its mutants ran against). Callers of `runFireguard` that do not supply `fileExists` and `readFileSync` keep the previous behavior of running every graded test for every mutant.
 
 ## Grades
 

@@ -1,4 +1,27 @@
-import type { FireguardReport } from './types.js';
+import type { FireguardReport, MutationGateResult } from './types.js';
+
+function formatModuleTests(moduleTests: Record<string, number> | undefined): string {
+  return Object.entries(moduleTests ?? {})
+    .map(([path, count]) =>
+      count === 0 ? `${path}=0 (no graded test imports it)` : `${path}=${count}`
+    )
+    .join(', ');
+}
+
+function mutationLines(mutation: MutationGateResult): string[] {
+  const lines = [
+    `Gate 3 Mutation: ${mutation.pass ? 'PASS' : 'FAIL'}`,
+    `  score=${mutation.score}% killed=${mutation.killed} survived=${mutation.survived} total=${mutation.total}`,
+  ];
+  const perModule = formatModuleTests(mutation.moduleTests);
+  if (perModule) {
+    lines.push(`  tests per module: ${perModule}`);
+  }
+  for (const survivor of mutation.survivors.slice(0, 20)) {
+    lines.push(`  - survivor ${survivor.file}:${survivor.line} ${survivor.description}`);
+  }
+  return lines;
+}
 
 export function formatHumanReport(report: FireguardReport): string {
   const lines: string[] = [];
@@ -45,13 +68,7 @@ export function formatHumanReport(report: FireguardReport): string {
 
   const mutation = report.gates.mutation;
   if (mutation) {
-    lines.push(`Gate 3 Mutation: ${mutation.pass ? 'PASS' : 'FAIL'}`);
-    lines.push(
-      `  score=${mutation.score}% killed=${mutation.killed} survived=${mutation.survived} total=${mutation.total}`
-    );
-    for (const survivor of mutation.survivors.slice(0, 20)) {
-      lines.push(`  - survivor ${survivor.file}:${survivor.line} ${survivor.description}`);
-    }
+    lines.push(...mutationLines(mutation));
   }
 
   return lines.join('\n');

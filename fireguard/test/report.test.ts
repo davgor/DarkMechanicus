@@ -47,3 +47,52 @@ describe('report', () => {
     expect(json.gates.ast?.pass).toBe(false);
   });
 });
+
+function mutationReport(moduleTests?: Record<string, number>): FireguardReport {
+  return {
+    grade: { letter: 'F', score: 0, reasons: ['mutation gate failed'] },
+    gates: {
+      mutation: {
+        name: 'mutation',
+        pass: false,
+        killed: 2,
+        survived: 1,
+        total: 3,
+        score: 67,
+        survivors: [
+          { file: 'src/orphan.ts', line: 2, description: 'operator-swap: swap operator to *' },
+        ],
+        modules: ['src/add.ts', 'src/orphan.ts'],
+        moduleTests,
+      },
+    },
+    scope: {
+      baseRef: 'main',
+      gradedTestFiles: ['src/add.test.ts'],
+      changedModules: ['src/add.ts', 'src/orphan.ts'],
+    },
+    skipped: false,
+  };
+}
+
+describe('report mutation scoping', () => {
+  it('lists how many graded tests each module ran against', () => {
+    const text = formatHumanReport(mutationReport({ 'src/add.ts': 3, 'src/orphan.ts': 0 }));
+    expect(text).toContain(
+      '  tests per module: src/add.ts=3, src/orphan.ts=0 (no graded test imports it)'
+    );
+    expect(text).toContain('  score=67% killed=2 survived=1 total=3');
+    expect(text).toContain('  - survivor src/orphan.ts:2 operator-swap: swap operator to *');
+  });
+
+  it('leaves the per-module line out when mutants were not scoped', () => {
+    expect(formatHumanReport(mutationReport())).not.toContain('tests per module');
+    expect(formatHumanReport(mutationReport({}))).not.toContain('tests per module');
+  });
+
+  it('keeps moduleTests in the JSON report', () => {
+    const report = mutationReport({ 'src/add.ts': 1 });
+    const json = JSON.parse(formatJsonReport(report)) as FireguardReport;
+    expect(json.gates.mutation?.moduleTests).toEqual({ 'src/add.ts': 1 });
+  });
+});

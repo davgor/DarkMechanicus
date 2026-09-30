@@ -66,6 +66,12 @@ export interface MutationGateResult {
   score: number;
   survivors: MutationSurvivor[];
   modules: string[];
+  /**
+   * Graded test files each module's mutants ran against (module path -> count). Present when
+   * mutants were scoped to the tests that transitively import their module; 0 means no graded
+   * test reaches the module, so every one of its mutants counted as survived.
+   */
+  moduleTests?: Record<string, number>;
 }
 
 export type GateResult = AstGateResult | FlakeGateResult | MutationGateResult;

@@ -4,6 +4,7 @@ export { resolveGitScope, parseNameStatus } from './gitScope.js';
 export { runAstGate, analyzeTestSource } from './gates/astGate.js';
 export { runFlakeGate } from './gates/flakeGate.js';
 export { generateMutants, runMutationGate, scoreMutations } from './gates/mutationGate.js';
+export { buildRelatedTests, collectImports, resolveRelative } from './importGraph.js';
 export { runFireguard } from './runFireguard.js';
 export { formatHumanReport, formatJsonReport } from './report.js';
 export { runCli } from './cli.js';
