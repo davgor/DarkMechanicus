@@ -7,6 +7,7 @@
 import type { DraftOp } from '../../../shared/domain/api'
 import type { DraftUpdateResultView, FollowUpProposal, PlanView, RunView } from '../../../shared/domain/views'
 import { followUpOp } from '../checkpoint/gateView'
+import { dropTarget, type GraphModel } from '../graph/graphModel'
 import { failureOf, type Failure, type Runner } from './runner'
 import { saveOutcome } from './validationView'
 import type { WorkspaceAction, WorkspaceState } from './workspaceState'
@@ -41,6 +42,8 @@ export interface WorkspaceActions {
   connect(from: string, to: string): Promise<void>
   move(ticketId: string, sprintId: string): Promise<void>
   disconnect(from: string, to: string): Promise<void>
+  /** A dragged card dropped at `top`: moves the ticket only when it lands in another sprint. */
+  dropTicket(model: GraphModel, ticketId: string, top: number): Promise<void>
   addTicket(sprintId: string): Promise<void>
   addSprint(): Promise<void>
   approve(reportId: string): Promise<void>
@@ -178,7 +181,7 @@ function runActions(deps: ActionDeps): Pick<WorkspaceActions, 'startRun' | 'runC
 function graphActions(
   deps: ActionDeps,
   applyOps: WorkspaceActions['applyOps']
-): Pick<WorkspaceActions, 'connect' | 'move' | 'disconnect' | 'addTicket' | 'addSprint'> {
+): Pick<WorkspaceActions, 'connect' | 'move' | 'disconnect' | 'dropTicket' | 'addTicket' | 'addSprint'> {
   const edit = async (ops: DraftOp[]): Promise<void> => {
     const result = await applyOps(ops)
     deps.dispatch({ type: 'banner', text: result.ok ? null : result.failure.message })
@@ -192,6 +195,12 @@ function graphActions(
     },
     move: (ticketId, sprintId) => edit([{ op: 'move_ticket', ticket: ticketId, toSprint: sprintId }]),
     disconnect: (from, to) => edit([{ op: 'remove_dependency', from, to }]),
+    async dropTicket(model, ticketId, top) {
+      const target = dropTarget(model, ticketId, top)
+      if (target !== null) {
+        await edit([{ op: 'move_ticket', ticket: ticketId, toSprint: target }])
+      }
+    },
     async addTicket(sprintId) {
       const result = await applyOps([{ op: 'add_ticket', ref: 'new', sprint: sprintId, ticket: { title: 'New ticket' } }])
       deps.dispatch(

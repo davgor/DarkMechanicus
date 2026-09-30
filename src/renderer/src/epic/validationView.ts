@@ -1,6 +1,10 @@
 /** Pure view model for the Draft view's validation, changes and Save panel. */
 import { isActiveRunState } from '../../../shared/domain/status'
 import type { ChangeKind, PlanChange, PlanView, RunView, SaveResultView, ValidationReport } from '../../../shared/domain/views'
+import { runLabel } from './runBarView'
+
+export const STALE_DRAFT_NOTE =
+  'The saved plan changed since this draft was opened. Saving will be rejected: discard this draft and edit again from the current revision.'
 
 export interface ValidationItem {
   tone: 'ok' | 'error' | 'warning'
@@ -86,4 +90,13 @@ export function saveOutcome(result: SaveResultView): SaveOutcome {
       }
     }
   }
+}
+
+/** "Changes stay in draft rev 5 until you save. Run #2 keeps executing rev 4 unchanged." */
+export function draftBarNote(run: RunView | null, nextNumber: number): string {
+  const lead = `Changes stay in draft rev ${nextNumber} until you save.`
+  if (run === null || !isActiveRunState(run.state)) {
+    return lead
+  }
+  return `${lead} ${runLabel(run)} keeps executing rev ${run.revisionNumber} unchanged.`
 }

@@ -71,6 +71,11 @@ function writeSnapshot(state: Imported, revisionId: string, bundle: PlanBundle, 
   state.target.fs.put(paths(state).snapshotFile(EPIC, revisionId), prettyJson({ ...record, revisionId, number: 9, contentHash: hash, bundle }))
 }
 
+/** Makes the epic's tracked state differ from the last sync, as a pull that changed the epic would. */
+function touchEpic(state: Imported): void {
+  editJson(state, paths(state).epicStateFile(EPIC), (value) => ({ ...value, updatedAt: '2026-02-02T00:00:00.000Z' }))
+}
+
 function expectUnchanged(state: Imported, result: ReturnType<typeof reconcileRepository>): void {
   expect(result.imported).toEqual([])
   expect(dumpDomain(state.target.db)).toEqual(state.before)
@@ -100,6 +105,7 @@ describe('hostile directory names', () => {
     const state = imported()
     state.target.fs.put(join(paths(state).snapshotsDir(EPIC), 'rv_bad.json'), '{}')
     state.target.fs.put(join(state.target.layout.historyDir, 'rn_bad', 'run.json'), '{}')
+    touchEpic(state)
     const result = reconcile(state)
     expect(result.rejected).toEqual([
       { path: EPIC_DIR, message: 'Refusing to build a repository path from an invalid revision id.' },
@@ -124,6 +130,7 @@ describe('hostile links', () => {
     const state = imported()
     state.target.fs.put(join(OUTSIDE, 'snaps', `${R1}.json`), state.target.fs.get(paths(state).snapshotFile(EPIC, R1)) ?? '')
     state.target.fs.symlink(paths(state).snapshotsDir(EPIC), join(OUTSIDE, 'snaps'))
+    touchEpic(state)
     const result = reconcile(state)
     expect(result.rejected).toEqual([{ path: EPIC_DIR, message: expect.stringContaining('symbolic links and junctions are not allowed') }])
     expectUnchanged(state, result)
@@ -133,6 +140,7 @@ describe('hostile links', () => {
     const state = imported()
     state.target.fs.put(join(OUTSIDE, 'snaps', `${R1}.json`), state.target.fs.get(paths(state).snapshotFile(EPIC, R1)) ?? '')
     state.target.fs.junction(paths(state).snapshotsDir(EPIC), join(OUTSIDE, 'snaps'))
+    touchEpic(state)
     const result = reconcile(state)
     expect(result.rejected).toEqual([{ path: EPIC_DIR, message: expect.stringContaining('resolves outside .darkmechanicus') }])
     expectUnchanged(state, result)
@@ -167,7 +175,6 @@ describe('hostile file contents', () => {
     expect(result.rejected).toEqual([{ path: EPIC_DIR, message: `${EPIC_DIR}/state.json is larger than the 8 MiB record limit.` }])
     expectUnchanged(state, result)
   })
-
 })
 
 describe('hostile sizes', () => {
@@ -176,6 +183,7 @@ describe('hostile sizes', () => {
     const snapshot = paths(state).snapshotFile(EPIC, R1)
     state.target.fs.setSize(snapshot, 256 * 1024 * 1024 + 1)
     state.target.fs.failOn({ op: 'readFile', match: (path) => path === snapshot })
+    touchEpic(state)
     const result = reconcile(state)
     expect(result.rejected).toEqual([{ path: EPIC_DIR, message: `${EPIC_DIR}/snapshots holds more than 256 MiB of snapshots.` }])
     expectUnchanged(state, result)
@@ -183,6 +191,7 @@ describe('hostile sizes', () => {
     const crowded = imported()
     const names = Array.from({ length: 1_001 }, (_, index) => `${idOf('revision', index + 100)}.json`)
     crowded.target.fs.setReaddir(paths(crowded).snapshotsDir(EPIC), names)
+    touchEpic(crowded)
     const tooMany = reconcile(crowded)
     expect(tooMany.rejected).toEqual([{ path: EPIC_DIR, message: `${EPIC_DIR}/snapshots holds more than 1000 snapshots.` }])
   })
@@ -197,9 +206,24 @@ describe('hostile sizes', () => {
       }
       state.target.fs.setSize(paths(state).snapshotFile(EPIC, revisionId), MAX_RECORD_BYTES)
     }
+    touchEpic(state)
     const result = reconcile(state)
     expect(result.rejected).toEqual([])
-    expect(result.unchanged).toEqual([EPIC, RUN])
+    expect(result.imported).toEqual([EPIC])
+    expect(state.target.db.all('SELECT id FROM plan_revisions')).toHaveLength(32)
+  })
+
+})
+
+describe('unchanged epics', () => {
+  it('does not re-read the snapshots of an epic whose tracked state is unchanged', () => {
+    const state = imported()
+    const snapshot = paths(state).snapshotFile(EPIC, R1)
+    state.target.fs.put(snapshot, '<<<<<<< HEAD\n')
+    const result = reconcile(state)
+    expect(result).toMatchObject({ imported: [], unchanged: [EPIC, RUN], rejected: [] })
+    expect(state.target.fs.reads.slice(state.readsBefore)).not.toContain(snapshot)
+    expect(dumpDomain(state.target.db)).toEqual(state.before)
   })
 
   it('rejects an oversized graph', () => {
@@ -207,6 +231,7 @@ describe('hostile sizes', () => {
     const count = LIMITS.tickets + 1
     const bundle = makeBundle([Array.from({ length: count }, (_, index) => index + 1)])
     writeSnapshot(state, R9, bundle)
+    touchEpic(state)
     const result = reconcile(state)
     expect(result.rejected).toEqual([{ path: EPIC_DIR, message: expect.stringMatching(new RegExp(`^${EPIC_DIR}/snapshots/${R9}\\.json is not a valid record: bundle\\.tickets`)) }])
     expectUnchanged(state, result)
@@ -217,6 +242,7 @@ describe('hostile plans and hashes', () => {
   it('rejects a cyclic bundle even when its hash is consistent', () => {
     const state = imported()
     writeSnapshot(state, R9, makeBundle([[1, 2]], [[1, 2], [2, 1]]))
+    touchEpic(state)
     const result = reconcile(state)
     expect(result.rejected).toEqual([{ path: EPIC_DIR, message: expect.stringContaining(`${R9}.json holds an invalid plan: Dependency cycle`) }])
     expectUnchanged(state, result)
@@ -225,6 +251,7 @@ describe('hostile plans and hashes', () => {
   it('rejects a snapshot whose hash does not match its bundle', () => {
     const state = imported()
     writeSnapshot(state, R9, makeBundle([[1, 2, 3]]), contentHash(makeBundle([[1, 2]])))
+    touchEpic(state)
     const result = reconcile(state)
     expect(result.rejected).toEqual([{ path: EPIC_DIR, message: expect.stringContaining('Snapshot contentHash does not match its bundle') }])
     expectUnchanged(state, result)
@@ -233,6 +260,7 @@ describe('hostile plans and hashes', () => {
   it('rejects a snapshot whose ids differ from its file name', () => {
     const state = imported()
     state.target.fs.put(paths(state).snapshotFile(EPIC, R9), state.target.fs.get(paths(state).snapshotFile(EPIC, R1)) ?? '')
+    touchEpic(state)
     const result = reconcile(state)
     expect(result.rejected).toEqual([{ path: EPIC_DIR, message: `${EPIC_DIR}/snapshots/${R9}.json names a different epic or revision than its path.` }])
     expectUnchanged(state, result)

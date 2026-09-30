@@ -15,6 +15,7 @@ export function WelcomeView({ onTrack }: { onTrack(): void }): JSX.Element {
   return (
     <EmptyState
       icon="folder"
+      headingLevel={1}
       title="Track a folder to get started"
       action={
         <Button variant="primary" icon="plus" onClick={onTrack}>
@@ -37,6 +38,7 @@ export function UnavailableView({ folder, onStopTracking }: UnavailableViewProps
   return (
     <EmptyState
       icon="warning"
+      headingLevel={1}
       title={`${folder.name} can’t be found`}
       action={<Button onClick={() => onStopTracking(folder)}>Stop tracking folder</Button>}
     >

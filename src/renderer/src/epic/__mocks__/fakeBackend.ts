@@ -167,6 +167,13 @@ function ticketOf(state: Scenario, input: { ticketId: string; view: 'saved' | 'd
   return ticketDetail({ view: input.view, ticket: content, execution: null, attempts: [], readOnly: false, readOnlyReason: null })
 }
 
+/** Same paging semantics as the core `listEvents`: events after `sinceSeq`, at most `limit`. */
+function eventsPage(events: EventView[], input: { sinceSeq?: number; limit?: number }): unknown {
+  const since = input.sinceSeq ?? 0
+  const page = events.filter((item) => item.seq > since).slice(0, input.limit ?? 200)
+  return { events: page, cursor: page[page.length - 1]?.seq ?? since }
+}
+
 function openDraft(state: Scenario): PlanView {
   state.draft = state.draft ?? draftPlan({ changes: [] })
   state.epic = { ...state.epic, hasDraft: true, draftRevision: state.draft.draftRevision }
@@ -224,7 +231,7 @@ function defaultHandlers(state: Scenario): Partial<Record<CommandName, Handler>>
     listTickets: (input: { view: 'saved' | 'draft' }) => summaries(planOf(state, input.view).bundle),
     validatePlan: () => state.validation,
     getTicket: (input: { ticketId: string; view: 'saved' | 'draft' }) => ticketOf(state, input),
-    listEvents: () => ({ events: state.events, cursor: state.events.length }),
+    listEvents: (input: { sinceSeq?: number; limit?: number }) => eventsPage(state.events, input),
     openDraft: () => openDraft(state),
     updatePlanDraft: () => updateDraft(state),
     savePlan: () => save(state),

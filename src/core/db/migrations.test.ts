@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
+import { ATTEMPT_STATES, RUN_STATES, WORK_STATUSES } from '../../shared/domain/status'
 import { DomainError } from '../errors'
 import { type Db, openDatabase } from './database'
 import { migrate, readSchemaVersion, SCHEMA_VERSION } from './migrations'
@@ -384,5 +385,76 @@ describe('schema constraints', () => {
     insert('save', 'k1')
     insert('advance', 'k1')
     expect(() => insert('save', 'k1')).toThrow(/UNIQUE constraint failed/)
+  })
+})
+
+describe('schema constraints match the shared vocabulary', () => {
+  it.each(WORK_STATUSES)('accepts the work status %s for epics and tickets', (status) => {
+    const db = runsDb()
+    expect(() =>
+      db.run(
+        "INSERT INTO epics (id, title, status, created_at, updated_at) VALUES (?, 'T', ?, 't', 't')",
+        `ep_${status}`,
+        status
+      )
+    ).not.toThrow()
+    expect(() => db.run("INSERT INTO ticket_status VALUES (?, 'ep1', ?, 1, 't')", `tk_${status}`, status)).not.toThrow()
+  })
+
+  it.each(RUN_STATES)('accepts the run state %s', (state) => {
+    const db = runsDb()
+    insertEpic(db, `ep_${state}`)
+    expect(() => insertRun(db, { id: `rn_${state}`, state, epicId: `ep_${state}` })).not.toThrow()
+  })
+
+  it.each(ATTEMPT_STATES)('accepts the attempt state %s', (state) => {
+    const db = attemptsDb()
+    expect(() => insertAttempt(db, { id: `at_${state}`, state, number: 1, ticketId: `tk_${state}` })).not.toThrow()
+  })
+})
+
+describe('schema constraints on other vocabularies', () => {
+  it('rejects run and attempt states outside the vocabulary', () => {
+    const db = attemptsDb()
+    insertEpic(db, 'ep_other')
+    expect(() => insertRun(db, { id: 'rn_bad', state: 'exploded', epicId: 'ep_other' })).toThrow(/CHECK constraint failed/)
+    expect(() => insertAttempt(db, { id: 'at_bad', state: 'exploded', number: 1, ticketId: 'tk_bad' })).toThrow(
+      /CHECK constraint failed/
+    )
+  })
+
+  it.each(['work', 'carry_forward'])('accepts the attempt kind %s and rejects others', (kind) => {
+    const db = attemptsDb()
+    const insert = (value: string): number =>
+      db.run(
+        `INSERT INTO attempts (id, run_id, ticket_id, number, kind, state, fencing_token, worker_json,
+           revision_id, ticket_content_hash, created_at, updated_at)
+         VALUES (?, 'rn1', ?, 1, ?, 'accepted', 1, '{}', 'rv1', 'h', 't', 't')`,
+        `at_${value}`,
+        `tk_${value}`,
+        value
+      ).changes
+    expect(() => insert(kind)).not.toThrow()
+    expect(() => insert('mystery')).toThrow(/CHECK constraint failed/)
+  })
+
+  it.each(['desktop', 'planner', 'orchestrator', 'worker', 'reviewer'])('accepts the session role %s', (role) => {
+    const db = migratedDb()
+    expect(() =>
+      db.run("INSERT INTO sessions VALUES (?, ?, 'l', '[]', 'stdio', NULL, 't', 't', NULL)", `ss_${role}`, role)
+    ).not.toThrow()
+  })
+
+  it.each(['pending', 'saved', 'failed'])('accepts the plan revision state %s', (state) => {
+    const db = runsDb()
+    const insert = (value: string): number =>
+      db.run(
+        `INSERT INTO plan_revisions (id, epic_id, number, content_hash, bundle_json, state, created_at)
+         VALUES (?, 'ep1', 2, 'h', '{}', ?, 't')`,
+        `rv_${value}`,
+        value
+      ).changes
+    expect(() => insert(state)).not.toThrow()
+    expect(() => insert('draft')).toThrow(/CHECK constraint failed/)
   })
 })

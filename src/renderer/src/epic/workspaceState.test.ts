@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { checkpointView, draftPlan, epicDetail, runView, savedPlan, validation } from './__mocks__/fixtures'
-import { initialWorkspaceState, workspaceReducer, type WorkspaceData, type WorkspaceState } from './workspaceState'
+import type { TicketSummaryView } from '../../../shared/domain/views'
+import { graphInputFor, initialWorkspaceState, workspaceReducer, type WorkspaceData, type WorkspaceState } from './workspaceState'
 
 function data(patch: Partial<WorkspaceData> = {}): WorkspaceData {
   return {
@@ -118,3 +119,50 @@ describe('workspace feedback', () => {
     expect(workspaceReducer(selected, { type: 'select_ticket', ticketId: null }).selectedTicketId).toBe(null)
   })
 })
+
+describe('graph input for the shown view', () => {
+  it('is null until a plan is loaded', () => {
+    expect(graphInputFor(initialWorkspaceState())).toBe(null)
+    expect(graphInputFor(loaded({ saved: null, draft: null }))).toBe(null)
+  })
+
+  it('uses the saved plan, saved statuses and the recorded epic outcome in the Saved view', () => {
+    const outcome = { summary: 'x', successCriteria: [{ criterionId: 's1', met: true, note: '' }], recordedAt: '', runId: null }
+    const state = loaded({
+      epic: epicDetail({ hasDraft: true, outcome }),
+      savedTickets: [{ ...summaryRow('tk_101'), status: 'completed' }]
+    })
+    const input = graphInputFor(state)
+    expect(input?.mode).toBe('saved')
+    expect(input?.plan.view).toBe('saved')
+    expect(input?.statuses.get('tk_101')).toBe('completed')
+    expect(input?.outcome).toEqual(outcome.successCriteria)
+    expect(input?.draftNumber).toBe(5)
+    expect(input?.run?.id).toBe('rn_2')
+  })
+
+  it('uses the draft plan and draft statuses in the Draft view and the final report outcome as a fallback', () => {
+    const report = checkpointView().report
+    const final = checkpointView({
+      report: report === null ? null : { ...report, report: { ...report.report, epicOutcome: { summary: '', successCriteria: [] } } }
+    })
+    const state = workspaceReducer(
+      loaded({ draftTickets: [{ ...summaryRow('tk_305'), status: null }], checkpoint: final }),
+      { type: 'show_view', view: 'draft' }
+    )
+    const rejected = workspaceReducer(state, { type: 'banner', text: 'x', rejected: { from: 'a', to: 'b' } })
+    const input = graphInputFor(rejected)
+    expect([input?.mode, input?.plan.view, input?.statuses.get('tk_305'), input?.rejected]).toEqual([
+      'draft',
+      'draft',
+      null,
+      { from: 'a', to: 'b' }
+    ])
+    expect(input?.outcome).toEqual([])
+    expect(graphInputFor(loaded({ checkpoint: null }))?.outcome).toBe(null)
+  })
+})
+
+function summaryRow(id: string): TicketSummaryView {
+  return { id, key: id, title: id, status: 'backlog', sprintId: null, sprintOrdinal: null, priority: 'normal', tags: [], optional: false }
+}

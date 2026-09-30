@@ -1,4 +1,6 @@
 /** Pure state for the epic workspace: loaded data, the shown view, selection, and feedback. */
+import type { GraphInput } from '../graph/graphModel'
+import { nextRevisionNumber } from './headerView'
 import type {
   CheckpointView,
   EpicDetailView,
@@ -147,4 +149,27 @@ const HANDLERS: Handlers = {
 export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): WorkspaceState {
   const handler = HANDLERS[action.type] as (state: WorkspaceState, action: WorkspaceAction) => WorkspaceState
   return handler(state, action)
+}
+
+function outcomeOf(data: WorkspaceData): GraphInput['outcome'] {
+  return data.epic.outcome?.successCriteria ?? data.checkpoint?.report?.report.epicOutcome?.successCriteria ?? null
+}
+
+/** Everything the graph and list views need for the currently shown plan. */
+export function graphInputFor(state: WorkspaceState): GraphInput | null {
+  const data = state.data
+  const plan = data === null ? null : planFor(data, state.view)
+  if (data === null || plan === null) {
+    return null
+  }
+  const tickets = state.view === 'draft' ? data.draftTickets : data.savedTickets
+  return {
+    plan,
+    mode: state.view,
+    run: data.run,
+    statuses: new Map(tickets.map((item) => [item.id, item.status])),
+    outcome: outcomeOf(data),
+    rejected: state.rejected,
+    draftNumber: nextRevisionNumber(data.epic)
+  }
 }

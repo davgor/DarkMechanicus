@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { draftPlan, runView, validation } from './__mocks__/fixtures'
-import { changeRows, changesHeading, saveBlocked, saveNote, saveOutcome, validationSummary } from './validationView'
+import { changeRows, changesHeading, draftBarNote, saveBlocked, saveNote, saveOutcome, validationSummary } from './validationView'
 
 describe('validation summary', () => {
   it('counts errors and warnings and confirms a clean graph', () => {
@@ -83,5 +83,13 @@ describe('save note and outcome', () => {
       kind: 'unchanged',
       message: 'Nothing to save — the draft matches rev 4.'
     })
+  })
+})
+
+describe('draft bar note', () => {
+  it('reminds that the draft never changes the active run', () => {
+    expect(draftBarNote(runView(), 5)).toBe('Changes stay in draft rev 5 until you save. Run #2 keeps executing rev 4 unchanged.')
+    expect(draftBarNote(runView({ state: 'canceled' }), 5)).toBe('Changes stay in draft rev 5 until you save.')
+    expect(draftBarNote(null, 1)).toBe('Changes stay in draft rev 1 until you save.')
   })
 })

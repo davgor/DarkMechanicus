@@ -69,9 +69,11 @@ interface RunFiles {
   trackedHash: string
 }
 
+/** Changed entities (parsed and validated) plus ids whose tracked files match the last sync. */
 interface Scan {
   epics: EpicFiles[]
   runs: RunFiles[]
+  unchanged: string[]
   rejected: Rejection[]
   /** Directory names under `epics/` whose records were rejected. */
   rejectedEpics: Set<string>
@@ -213,56 +215,101 @@ function checkEpicFiles(files: Omit<EpicFiles, 'path' | 'trackedHash'>, shown: {
   }
 }
 
-function readEpicFiles(deps: ImporterDeps, epicId: string): EpicFiles {
+interface EpicTexts {
+  epicId: string
+  dir: string
+  pointerText: string
+  stateText: string
+  trackedHash: string
+}
+
+function parseEpicFiles(deps: ImporterDeps, texts: EpicTexts): EpicFiles {
+  const paths = ownedPaths(deps.layout)
+  const shown = {
+    pointer: displayPath(deps.layout, paths.epicPointerFile(texts.epicId)),
+    state: displayPath(deps.layout, paths.epicStateFile(texts.epicId))
+  }
+  const pointer = parseRecord(epicPointerRecord, texts.pointerText, shown.pointer)
+  const state = parseRecord(epicStateRecord, texts.stateText, shown.state)
+  const snapshots = readSnapshots(deps, texts.epicId)
+  checkEpicFiles({ epicId: texts.epicId, pointer, state, snapshots }, shown)
+  return { epicId: texts.epicId, path: displayPath(deps.layout, texts.dir), pointer, state, snapshots, trackedHash: texts.trackedHash }
+}
+
+/**
+ * Reads an epic's pointer and state; null when they match the last sync (nothing to import, so the
+ * snapshots are not re-read on every heartbeat). Otherwise every file is parsed and validated.
+ */
+function readEpicFiles(deps: ImporterDeps, epicId: string): EpicFiles | null {
   const paths = ownedPaths(deps.layout)
   const dir = paths.epicDir(epicId)
   assertContained(deps.layout, deps.fs, dir)
   if (!deps.fs.isDirectory(dir)) {
     reject(displayPath(deps.layout, dir), 'is not a directory')
   }
-  const shown = { pointer: displayPath(deps.layout, paths.epicPointerFile(epicId)), state: displayPath(deps.layout, paths.epicStateFile(epicId)) }
   const pointerText = requireText(deps, paths.epicPointerFile(epicId))
   const stateText = requireText(deps, paths.epicStateFile(epicId))
-  const pointer = parseRecord(epicPointerRecord, pointerText, shown.pointer)
-  const state = parseRecord(epicStateRecord, stateText, shown.state)
-  const snapshots = readSnapshots(deps, epicId)
-  checkEpicFiles({ epicId, pointer, state, snapshots }, shown)
-  return { epicId, path: displayPath(deps.layout, dir), pointer, state, snapshots, trackedHash: trackedEpicHash(pointerText, stateText) }
+  const trackedHash = trackedEpicHash(pointerText, stateText)
+  if (matchesSync(deps.db, 'epic', epicId, trackedHash)) {
+    return null
+  }
+  return parseEpicFiles(deps, { epicId, dir, pointerText, stateText, trackedHash })
 }
 
-function readRunFiles(deps: ImporterDeps, runId: string): RunFiles {
+function readRunFiles(deps: ImporterDeps, runId: string): RunFiles | null {
   const file = ownedPaths(deps.layout).runHistoryFile(runId)
-  const shown = displayPath(deps.layout, file)
   const text = requireText(deps, file)
+  const trackedHash = trackedRunHash(text)
+  if (matchesSync(deps.db, 'run', runId, trackedHash)) {
+    return null
+  }
+  const shown = displayPath(deps.layout, file)
   const record = parseRecord(runHistoryRecord, text, shown)
   if (record.runId !== runId) {
     reject(shown, 'belongs to a different run')
   }
-  return { runId, path: shown, record, trackedHash: trackedRunHash(text) }
+  return { runId, path: shown, record, trackedHash }
 }
 
-function collect<T>(names: string[], read: (name: string) => T, onReject: (name: string, message: string) => void): T[] {
-  const found: T[] = []
+interface ScanSink<T> {
+  found: T[]
+  unchanged: string[]
+  onReject: (name: string, message: string) => void
+}
+
+function scanEntries<T>(names: string[], read: (name: string) => T | null, sink: ScanSink<T>): void {
   for (const name of names) {
     try {
-      found.push(read(name))
+      const found = read(name)
+      if (found === null) {
+        sink.unchanged.push(name)
+      } else {
+        sink.found.push(found)
+      }
     } catch (error: unknown) {
-      onReject(name, messageOf(error))
+      sink.onReject(name, messageOf(error))
     }
   }
-  return found
 }
 
 function scanRepository(deps: ImporterDeps): Scan {
-  const scan: Scan = { epics: [], runs: [], rejected: [], rejectedEpics: new Set() }
+  const scan: Scan = { epics: [], runs: [], unchanged: [], rejected: [], rejectedEpics: new Set() }
   const epicNames = listEntries(deps, deps.layout.epicsDir)
   const runNames = listEntries(deps, deps.layout.historyDir)
-  scan.epics = collect(epicNames, (name) => readEpicFiles(deps, name), (name, message) => {
-    scan.rejectedEpics.add(name)
-    scan.rejected.push({ path: displayPath(deps.layout, join(deps.layout.epicsDir, name)), message })
+  scanEntries(epicNames, (name) => readEpicFiles(deps, name), {
+    found: scan.epics,
+    unchanged: scan.unchanged,
+    onReject: (name, message) => {
+      scan.rejectedEpics.add(name)
+      scan.rejected.push({ path: displayPath(deps.layout, join(deps.layout.epicsDir, name)), message })
+    }
   })
-  scan.runs = collect(runNames, (name) => readRunFiles(deps, name), (name, message) => {
-    scan.rejected.push({ path: displayPath(deps.layout, join(deps.layout.historyDir, name)), message })
+  scanEntries(runNames, (name) => readRunFiles(deps, name), {
+    found: scan.runs,
+    unchanged: scan.unchanged,
+    onReject: (name, message) => {
+      scan.rejected.push({ path: displayPath(deps.layout, join(deps.layout.historyDir, name)), message })
+    }
   })
   return scan
 }
@@ -356,10 +403,6 @@ function epicConflictMessage(epicId: string): string {
 function planEpics(db: Db, scan: Scan, plan: Plan): Set<string> {
   const skipped = new Set(scan.rejectedEpics)
   for (const files of scan.epics) {
-    if (matchesSync(db, 'epic', files.epicId, files.trackedHash)) {
-      plan.unchanged.push(files.epicId)
-      continue
-    }
     if (hasPendingEpicChanges(db, files.epicId)) {
       skipped.add(files.epicId)
       plan.conflicts.push({ kind: 'epic', entityId: files.epicId, epicId: files.epicId, message: epicConflictMessage(files.epicId) })
@@ -379,10 +422,6 @@ function planEpics(db: Db, scan: Scan, plan: Plan): Set<string> {
 function planRuns(db: Db, scan: Scan, plan: Plan, skippedEpics: Set<string>): void {
   const staged = new Map(plan.epics.map((files) => [files.epicId, files]))
   for (const run of scan.runs.filter((item) => !skippedEpics.has(item.record.epicId))) {
-    if (matchesSync(db, 'run', run.runId, run.trackedHash)) {
-      plan.unchanged.push(run.runId)
-      continue
-    }
     if (hasPendingRunChanges(db, run.runId)) {
       const message = `Tracked history for run ${run.runId} changed while local run changes are waiting to be exported.`
       plan.conflicts.push({ kind: 'run', entityId: run.runId, epicId: run.record.epicId, message })
@@ -398,7 +437,7 @@ function planRuns(db: Db, scan: Scan, plan: Plan, skippedEpics: Set<string>): vo
 }
 
 function planImport(db: Db, scan: Scan): Plan {
-  const plan: Plan = { epics: [], runs: [], unchanged: [], conflicts: [], rejected: [...scan.rejected] }
+  const plan: Plan = { epics: [], runs: [], unchanged: [...scan.unchanged], conflicts: [], rejected: [...scan.rejected] }
   planRuns(db, scan, plan, planEpics(db, scan, plan))
   return plan
 }

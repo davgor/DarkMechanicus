@@ -614,6 +614,11 @@ describe('move_ticket placement', () => {
     expect(ticketIdsOf(bundle, 2)).toEqual([tid(3)])
   })
 
+  it('moves a ticket that is already in the target sprint to the end when no position is given', () => {
+    const { bundle } = apply(baseBundle(), { op: 'move_ticket', ticket: 'DM-1', toSprint: '1' })
+    expect(ticketIdsOf(bundle, 1)).toEqual([tid(2), tid(1)])
+  })
+
   it('resolves the ticket and sprint by id and by ref', () => {
     const { bundle } = apply(
       baseBundle(),

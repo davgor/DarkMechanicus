@@ -60,6 +60,14 @@ describe('ToastProvider messages', () => {
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
+  it('marks errors with a warning icon and other toasts with a check', () => {
+    renderToasts()
+    press('fail')
+    press('good')
+    expect(screen.getByRole('alert').querySelector('[data-icon="warning"]')).not.toBeNull()
+    expect(screen.getByRole('status').querySelector('[data-icon="check"]')).not.toBeNull()
+  })
+
   it('labels the tone in text, not only color', () => {
     renderToasts()
     press('fail')

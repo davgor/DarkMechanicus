@@ -53,14 +53,14 @@ interface ListOptions {
 export function useEpicLists(options: ListOptions): Lists {
   const [lists, dispatch] = useReducer(listsReducer, {})
   const fetched = useRef(new Map<string, number>())
-  const latest = useRef(new Map<string, number>())
+  const latest = useRef(new Map<string, object>())
   const onError = useLatest(options.onError)
   const { paths, tokens } = options
   const stateKey = paths.map((path) => `${path}\0${folderToken(tokens, path)}`).join('\n')
 
   useEffect(() => {
     const load = async (path: string): Promise<void> => {
-      const ticket = (latest.current.get(path) ?? 0) + 1
+      const ticket = {}
       latest.current.set(path, ticket)
       dispatch({ type: 'loading', path })
       try {

@@ -40,23 +40,29 @@ describe('groupEpics buckets', () => {
 })
 
 describe('groupEpics ordering', () => {
-  it('orders open epics by creation time, oldest first, then by id', () => {
+  it('orders open epics by creation time, oldest first, whatever their ids', () => {
     const buckets = groupEpics([
-      epicSummary({ id: 'c', createdAt: '2026-02-01T00:00:00.000Z' }),
-      epicSummary({ id: 'b', createdAt: '2026-01-01T00:00:00.000Z' }),
-      epicSummary({ id: 'a', createdAt: '2026-01-01T00:00:00.000Z' })
+      epicSummary({ id: 'a', createdAt: '2026-02-01T00:00:00.000Z' }),
+      epicSummary({ id: 'c', createdAt: '2026-01-01T00:00:00.000Z' }),
+      epicSummary({ id: 'b', createdAt: '2026-01-15T00:00:00.000Z' })
     ])
-    expect(ids(buckets[1])).toEqual(['a', 'b', 'c'])
+    expect(ids(buckets[1])).toEqual(['c', 'b', 'a'])
   })
 
-  it('orders completed epics by completion time, newest first', () => {
+  it('breaks creation-time ties by id ascending', () => {
+    const at = { createdAt: '2026-01-01T00:00:00.000Z' }
+    const buckets = groupEpics([epicSummary({ ...at, id: 'b' }), epicSummary({ ...at, id: 'a' })])
+    expect(ids(buckets[1])).toEqual(['a', 'b'])
+  })
+
+  it('orders completed epics by completion time, newest first, whatever their ids', () => {
     const done = { status: 'completed' } as const
     const buckets = groupEpics([
-      epicSummary({ ...done, id: 'old', completedAt: '2026-01-05T00:00:00.000Z' }),
-      epicSummary({ ...done, id: 'new', completedAt: '2026-03-05T00:00:00.000Z' }),
-      epicSummary({ ...done, id: 'mid', completedAt: '2026-02-05T00:00:00.000Z' })
+      epicSummary({ ...done, id: 'a', completedAt: '2026-01-05T00:00:00.000Z' }),
+      epicSummary({ ...done, id: 'c', completedAt: '2026-03-05T00:00:00.000Z' }),
+      epicSummary({ ...done, id: 'b', completedAt: '2026-02-05T00:00:00.000Z' })
     ])
-    expect(ids(buckets[2])).toEqual(['new', 'mid', 'old'])
+    expect(ids(buckets[2])).toEqual(['c', 'b', 'a'])
   })
 
   it('falls back to the update time for completed epics without a completion time', () => {

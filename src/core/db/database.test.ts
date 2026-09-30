@@ -210,6 +210,9 @@ describe('run, get and all', () => {
     expect(names(db)).toEqual(['first', 'second'])
   })
 
+})
+
+describe('parameter binding', () => {
   it('round-trips null, strings, numbers and blobs as parameters', () => {
     const db = open()
     const row = db.get<{ a: null; b: string; c: number; d: Uint8Array }>(
@@ -223,6 +226,11 @@ describe('run, get and all', () => {
     expect(row?.b).toBe('text')
     expect(row?.c).toBe(2.5)
     expect([...(row?.d ?? [])]).toEqual([1, 2, 3])
+  })
+
+  it('binds bigint parameters', () => {
+    const db = open()
+    expect(db.get<{ n: number }>('SELECT ? AS n', 5n)?.n).toBe(5)
   })
 
   it('executes several statements with exec', () => {

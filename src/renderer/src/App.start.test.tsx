@@ -137,3 +137,33 @@ describe('App folder states', () => {
     expect(screen.getByRole('heading', { name: 'Track a folder to get started' })).toBeTruthy()
   })
 })
+
+describe('App initialization progress', () => {
+  it('shows progress while initializing and blocks a second press', async () => {
+    h.dm.folders = [setup]
+    const gate = h.dm.holdNext('initializeRepository')
+    h.dm.handlers.initializeRepository = () => {
+      h.dm.folders = [ready]
+      return initResult
+    }
+    h.mount()
+    await settle()
+    fireEvent.click(screen.getByRole('button', { name: 'Initialize folder' }))
+    await settle()
+    const busy = screen.getByRole('button', { name: 'Initializing…' }) as HTMLButtonElement
+    expect(busy.disabled).toBe(true)
+    gate.resolve()
+    await settle()
+    expect(screen.queryByRole('button', { name: 'Initializing…' })).toBeNull()
+    expect(screen.getByRole('heading', { level: 1, name: 'new-service' })).toBeTruthy()
+  })
+
+  it('tells the person when an epic list cannot be loaded', async () => {
+    h.dm.folders = [ready]
+    h.dm.failures.listEpics = { code: 'internal', message: 'database is locked' }
+    h.mount()
+    await settle()
+    expect(screen.getAllByRole('alert')[0]?.textContent).toContain('database is locked')
+    expect(screen.getAllByText('Could not refresh epics').length).toBeGreaterThan(0)
+  })
+})

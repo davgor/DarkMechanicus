@@ -12,6 +12,14 @@ describe('EmptyState', () => {
     expect(screen.getByText('Add something to begin.')).toBeTruthy()
   })
 
+  it('uses a level-2 heading by default and level 1 on request', () => {
+    render(<EmptyState title="Default" />)
+    expect(screen.getByRole('heading', { name: 'Default' }).tagName).toBe('H2')
+    cleanup()
+    render(<EmptyState title="Page" headingLevel={1} />)
+    expect(screen.getByRole('heading', { name: 'Page' }).tagName).toBe('H1')
+  })
+
   it('renders an optional icon and action', () => {
     render(<EmptyState title="Empty" icon="folder" action={<button type="button">Do it</button>} />)
     expect(document.querySelector('[data-icon="folder"]')).not.toBeNull()

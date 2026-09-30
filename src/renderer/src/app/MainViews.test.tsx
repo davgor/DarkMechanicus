@@ -10,7 +10,7 @@ describe('WelcomeView', () => {
   it('invites the person to track a folder', () => {
     const calls: string[] = []
     render(<WelcomeView onTrack={() => calls.push('track')} />)
-    expect(screen.getByRole('heading', { name: 'Track a folder to get started' })).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 1, name: 'Track a folder to get started' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Choose folder' }))
     expect(calls).toEqual(['track'])
   })
@@ -21,7 +21,7 @@ describe('UnavailableView', () => {
     const requests: string[] = []
     const folder = folderView({ path: '/gone', name: 'gone', displayPath: '~/code/gone', available: false })
     render(<UnavailableView folder={folder} onStopTracking={(f) => requests.push(f.path)} />)
-    expect(screen.getByRole('heading', { name: 'gone can’t be found' })).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 1, name: 'gone can’t be found' })).toBeTruthy()
     expect(screen.getByText(/~\/code\/gone/)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Stop tracking folder' }))
     expect(requests).toEqual(['/gone'])

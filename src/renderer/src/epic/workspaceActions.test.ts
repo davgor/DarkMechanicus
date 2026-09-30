@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { FakeBackend, scenario } from './__mocks__/fakeBackend'
 import { checkpointView, draftPlan, epicDetail, runView, savedPlan, validation } from './__mocks__/fixtures'
+import { buildGraphModel } from '../graph/graphModel'
 import { createWorkspaceActions } from './workspaceActions'
 import {
   initialWorkspaceState,
@@ -298,5 +299,26 @@ describe('follow-up and review actions', () => {
     ])
     h.backend.fail('acceptAttempt', 'stale_claim', 'The attempt is no longer submitted.')
     expect(await h.actions.review({ attemptId: 'at_1', decision: 'accept' })).toBe('The attempt is no longer submitted.')
+  })
+})
+
+describe('dropping a dragged card', () => {
+  it('moves the ticket only when its card lands in another sprint band', async () => {
+    const h = harness()
+    const model = buildGraphModel({
+      plan: draftPlan(),
+      mode: 'draft',
+      run: null,
+      statuses: new Map(),
+      outcome: null,
+      rejected: null,
+      draftNumber: 5
+    })
+    await h.actions.dropTicket(model, 'tk_204', 420)
+    expect(h.backend.names()).toEqual([])
+    await h.actions.dropTicket(model, 'tk_204', 600)
+    expect(h.backend.inputs('updatePlanDraft')).toEqual([
+      { epicId: 'ep_1', ops: [{ op: 'move_ticket', ticket: 'tk_204', toSprint: 'sp_3' }], expectedDraftRevision: 7 }
+    ])
   })
 })
