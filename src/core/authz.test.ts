@@ -11,7 +11,7 @@ import {
 } from './authz'
 import { DomainError } from './errors'
 
-const PLANNER: Capability[] = ['read', 'repo.init', 'repo.flush', 'repo.reconcile', 'epic.create', 'draft.edit']
+const PLANNER: Capability[] = ['read', 'repo.init', 'repo.flush', 'repo.reconcile', 'epic.create', 'draft.edit', 'comment.write']
 
 const ORCHESTRATOR: Capability[] = [
   ...PLANNER,
@@ -35,8 +35,8 @@ const ORCHESTRATOR: Capability[] = [
   'checkpoint.advance'
 ]
 
-const WORKER: Capability[] = ['read', 'attempt.heartbeat', 'attempt.submit', 'attempt.fail']
-const REVIEWER: Capability[] = ['read', 'attempt.review']
+const WORKER: Capability[] = ['read', 'attempt.heartbeat', 'attempt.submit', 'attempt.fail', 'comment.write']
+const REVIEWER: Capability[] = ['read', 'attempt.review', 'comment.write']
 
 const DESKTOP: Capability[] = [
   'read',
@@ -59,7 +59,8 @@ const DESKTOP: Capability[] = [
   'attempt.review',
   'attempt.reconcile',
   'checkpoint.approve',
-  'checkpoint.advance'
+  'checkpoint.advance',
+  'comment.write'
 ]
 
 /** Capabilities the desktop never holds: they belong to the agents that execute work. */
@@ -87,8 +88,8 @@ function sessionWith(role: SessionRole, capabilities: Capability[]): SessionCont
 
 describe('capability vocabulary', () => {
   it('lists every capability exactly once', () => {
-    expect(CAPABILITIES).toHaveLength(29)
-    expect(new Set(CAPABILITIES).size).toBe(29)
+    expect(CAPABILITIES).toHaveLength(30)
+    expect(new Set(CAPABILITIES).size).toBe(30)
     expect(sorted(CAPABILITIES)).toEqual(sorted([...DESKTOP, ...AGENT_ONLY]))
   })
 
@@ -114,6 +115,10 @@ describe('capabilitiesForRole exact sets', () => {
     const capabilities = capabilitiesForRole(role, { allowSave: true })
     expect(new Set(capabilities).size).toBe(capabilities.length)
     expect(capabilities.filter((capability) => !CAPABILITIES.includes(capability))).toEqual([])
+  })
+
+  it.each(ALL_ROLES)('lets the %s role write comments', (role) => {
+    expect(capabilitiesForRole(role).filter((capability) => capability === 'comment.write')).toEqual(['comment.write'])
   })
 
   it('lets the orchestrator do everything the planner can', () => {

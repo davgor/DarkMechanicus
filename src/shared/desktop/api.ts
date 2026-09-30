@@ -84,6 +84,8 @@ const DESKTOP_COMMANDS = [
   'listTickets',
   'getTicket',
   'setTicketStatus',
+  'addComment',
+  'listComments',
   'queueRun',
   'getRun',
   'getReadyTickets',

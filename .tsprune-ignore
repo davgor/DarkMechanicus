@@ -1,22 +1,23 @@
 # Baseline ignore for ts-prune (one pattern per line)
 # Generated from tsconfig.node.json + tsconfig.web.json
 # Refresh after export moves/deletes: npm run deadcode:refresh
-# Refreshed 2026-09-30 (45 entries)
+# Refreshed 2026-09-30 (46 entries)
 
 electron.vite.config.ts:37 - default
 src/preload/index.ts:24 - AutoUpdateApi
 src/preload/index.ts:25 - AppInfoApi
 src/shared/autoUpdate/types.ts:17 - AUTO_UPDATE_EVENT_CHANNEL
-src/shared/desktop/api.ts:108 - DesktopCommandName
-src/shared/desktop/api.ts:110 - DESKTOP_COMMANDS
+src/shared/desktop/api.ts:110 - DesktopCommandName
+src/shared/desktop/api.ts:112 - DESKTOP_COMMANDS
 src/shared/desktop/api.ts:21 - CommandInput
 src/shared/desktop/api.ts:25 - CommandOutput
-src/shared/domain/api.ts:115 - ClaimTicketInput
-src/shared/domain/api.ts:129 - SubmitAttemptInput
-src/shared/domain/api.ts:137 - StartRunInput
-src/shared/domain/api.ts:147 - SprintReportInput
-src/shared/domain/api.ts:52 - API_VERSION
-src/shared/domain/api.ts:72 - SprintInput
+src/shared/domain/api.ts:116 - ClaimTicketInput
+src/shared/domain/api.ts:130 - SubmitAttemptInput
+src/shared/domain/api.ts:138 - StartRunInput
+src/shared/domain/api.ts:148 - SprintReportInput
+src/shared/domain/api.ts:150 - AddCommentInput
+src/shared/domain/api.ts:53 - API_VERSION
+src/shared/domain/api.ts:73 - SprintInput
 src/shared/domain/bundle.ts:111 - CHECKPOINT_MODES
 src/shared/domain/bundle.ts:134 - RELATION_KINDS
 src/shared/domain/bundle.ts:138 - Relation

@@ -27,11 +27,16 @@ const READ_TOOLS = [
   'get_ready_tickets',
   'get_sprint_report',
   'get_checkpoint',
-  'get_run_events'
+  'get_run_events',
+  'list_comments'
 ]
+
+/** Every role may comment. */
+const COMMENT_TOOLS = ['add_comment']
 
 const PLANNER_TOOLS = [
   ...READ_TOOLS,
+  ...COMMENT_TOOLS,
   'initialize_repository',
   'flush_portable_state',
   'reconcile_repository',
@@ -67,8 +72,8 @@ const ORCHESTRATOR_TOOLS = [
   'advance_sprint'
 ]
 
-const WORKER_TOOLS = [...READ_TOOLS, 'heartbeat_attempt', 'submit_attempt', 'fail_attempt']
-const REVIEWER_TOOLS = [...READ_TOOLS, 'accept_attempt', 'reject_attempt']
+const WORKER_TOOLS = [...READ_TOOLS, ...COMMENT_TOOLS, 'heartbeat_attempt', 'submit_attempt', 'fail_attempt']
+const REVIEWER_TOOLS = [...READ_TOOLS, ...COMMENT_TOOLS, 'accept_attempt', 'reject_attempt']
 
 interface ListingCase {
   role: SessionRole

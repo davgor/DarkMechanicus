@@ -106,7 +106,7 @@ Give each role its own entry name (for example `darkmechanicus-planner` with `--
 
 Ask the agent to call `get_capabilities`. It reports the role, the repository root, the skills version, and whether the repository is `initialized`. A new folder needs `initialize_repository` once (planner and orchestrator roles). That creates `.darkmechanicus/` and never commits anything.
 
-To check a build without a host, run `npm run build && npm run smoke:mcp`. It launches the built server against a temporary repository, plans and saves an epic, and runs one ticket through claim, submit, and accept.
+To check a build without a host, run `npm run build && npm run smoke:mcp`. It launches the built server against a temporary repository, plans and saves an epic, runs one ticket through claim, submit, and accept, and adds and lists a ticket comment.
 
 To check an installed app the same way, point the script at the app executable and the server inside `app.asar`:
 
@@ -120,10 +120,12 @@ Roles are fixed at launch. Nothing a tool call says can change them.
 
 | Role | Can do |
 |------|--------|
-| `planner` | Read, create epics, edit drafts. `save_plan` only with `--allow-save`. |
+| `planner` | Read, create epics, edit drafts, comment. `save_plan` only with `--allow-save`. |
 | `orchestrator` (default) | Everything a planner can, plus register hosts, start and control runs, claim tickets, review attempts, submit sprint reports, and advance sprints. Never approves. |
-| `worker` | Heartbeat, submit, and fail for the claim it holds. |
-| `reviewer` | Accept or reject submitted attempts. |
+| `worker` | Heartbeat, submit, and fail for the claim it holds; comment. |
+| `reviewer` | Accept or reject submitted attempts; comment. |
+
+Every role can read and add comments (`list_comments`, `add_comment`): append-only Markdown notes on an epic or one of its tickets, signed with the session's role and label. Completed epics refuse new comments.
 
 Some actions exist only in the desktop app and are not available over MCP for any role: approving a checkpoint, authorizing auto-continue, granting a retry, and queueing a run.
 
@@ -135,7 +137,8 @@ A session lists only the tools its role may call. Each tool adapts one command, 
 
 | Tools | planner | orchestrator | worker | reviewer |
 |-------|:-------:|:------------:|:------:|:--------:|
-| Read-only (20): `get_capabilities`, `get_project`, `list_projects`, `get_storage_status`, `search_history`, `list_branch_epics`, `list_sessions`, `list_epics`, `get_epic`, `list_tickets`, `get_ticket`, `get_plan`, `validate_plan`, `list_revisions`, `match_capabilities`, `get_run`, `get_ready_tickets`, `get_sprint_report`, `get_checkpoint`, `get_run_events` | yes | yes | yes | yes |
+| Read-only (21): `get_capabilities`, `get_project`, `list_projects`, `get_storage_status`, `search_history`, `list_branch_epics`, `list_sessions`, `list_epics`, `get_epic`, `list_tickets`, `get_ticket`, `get_plan`, `validate_plan`, `list_revisions`, `match_capabilities`, `get_run`, `get_ready_tickets`, `get_sprint_report`, `get_checkpoint`, `get_run_events`, `list_comments` | yes | yes | yes | yes |
+| Comments: `add_comment` | yes | yes | yes | yes |
 | Repository and drafts: `initialize_repository`, `flush_portable_state`, `reconcile_repository`, `create_epic`, `create_ticket`, `update_ticket`, `open_plan_draft`, `update_plan_draft`, `discard_plan_draft` | yes | yes | | |
 | `save_plan` | with `--allow-save` | with `--allow-save` | | |
 | Epic and ticket status: `set_epic_status`, `set_epic_branch`, `set_ticket_status` | | yes | | |
@@ -144,7 +147,7 @@ A session lists only the tools its role may call. Each tool adapts one command, 
 | `heartbeat_attempt`, `submit_attempt`, `fail_attempt` | | yes | yes | |
 | `accept_attempt`, `reject_attempt` | | yes | | yes |
 | Checkpoints: `submit_sprint_report`, `advance_sprint` | | yes | | |
-| **Total** | 29 (30 with `--allow-save`) | 49 (50 with `--allow-save`) | 23 | 22 |
+| **Total** | 31 (32 with `--allow-save`) | 51 (52 with `--allow-save`) | 25 | 24 |
 
 `--allow-save` has no effect for `worker` and `reviewer`. No role lists a tool for the desktop-only actions.
 

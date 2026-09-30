@@ -37,8 +37,8 @@ afterEach(() => {
 })
 
 describe('migrate on a fresh database', () => {
-  it('starts at schema version 0 and targets SCHEMA_VERSION 2', () => {
-    expect(SCHEMA_VERSION).toBe(2)
+  it('starts at schema version 0 and targets SCHEMA_VERSION 3', () => {
+    expect(SCHEMA_VERSION).toBe(3)
     expect(readSchemaVersion(freshDb())).toBe(0)
   })
 
@@ -46,7 +46,7 @@ describe('migrate on a fresh database', () => {
     const db = freshDb()
     expect(migrate(db)).toEqual({ from: 0, to: SCHEMA_VERSION })
     expect(readSchemaVersion(db)).toBe(SCHEMA_VERSION)
-    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(2)
+    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(3)
   })
 
   it('creates every table of the schema', () => {
@@ -54,6 +54,7 @@ describe('migrate on a fresh database', () => {
       'approvals',
       'attempts',
       'checkpoints',
+      'comments',
       'drafts',
       'epics',
       'events',
@@ -76,6 +77,7 @@ describe('migrate on a fresh database', () => {
     expect(objectNames(migratedDb(), 'index')).toEqual([
       'attempts_one_open_per_ticket',
       'attempts_run_state',
+      'comments_epic_ticket',
       'events_epic',
       'events_run',
       'outbox_state',
@@ -89,8 +91,8 @@ describe('migrate on a fresh database', () => {
 describe('migrate when already current', () => {
   it('is a no-op the second time', () => {
     const db = migratedDb()
-    expect(migrate(db)).toEqual({ from: 2, to: 2 })
-    expect(readSchemaVersion(db)).toBe(2)
+    expect(migrate(db)).toEqual({ from: 3, to: 3 })
+    expect(readSchemaVersion(db)).toBe(3)
   })
 
   it('keeps existing data', () => {
@@ -109,10 +111,10 @@ describe('migrate refuses newer databases', () => {
     expect(error).toBeInstanceOf(DomainError)
     expect((error as DomainError).code).toBe('incompatible_schema')
     expect((error as DomainError).message).toBe(
-      'Database schema v3 is newer than this build supports (v2). Update Dark Mechanicus.'
+      'Database schema v4 is newer than this build supports (v3). Update Dark Mechanicus.'
     )
-    expect((error as DomainError).details).toEqual({ found: 3, supported: 2 })
-    expect(readSchemaVersion(db)).toBe(3)
+    expect((error as DomainError).details).toEqual({ found: 4, supported: 3 })
+    expect(readSchemaVersion(db)).toBe(4)
     expect(objectNames(db, 'table')).toEqual([])
   })
 
@@ -121,7 +123,7 @@ describe('migrate refuses newer databases', () => {
     db.exec('PRAGMA user_version = 7')
     const error = thrownBy(() => migrate(db))
     expect((error as DomainError).code).toBe('incompatible_schema')
-    expect((error as DomainError).details).toEqual({ found: 7, supported: 2 })
+    expect((error as DomainError).details).toEqual({ found: 7, supported: 3 })
     expect(objectNames(db, 'table')).toContain('epics')
   })
 
@@ -148,7 +150,7 @@ describe('migrate a v1 database to v2', () => {
       `INSERT INTO outbox (kind, epic_id, run_id, revision_id, state, attempts, last_error, created_at)
        VALUES ('snapshot', 'ep1', NULL, 'rv1', 'done', 1, NULL, 't'), ('run_history', 'ep1', 'rn1', NULL, 'failed', 3, 'disk full', 't')`
     )
-    expect(migrate(db)).toEqual({ from: 1, to: 2 })
+    expect(migrate(db)).toEqual({ from: 1, to: 3 })
     expect(outboxRows(db)).toEqual([
       { id: 1, kind: 'snapshot', epic_id: 'ep1', run_id: null, revision_id: 'rv1', entity_id: null, state: 'done', attempts: 1, last_error: null },
       { id: 2, kind: 'run_history', epic_id: 'ep1', run_id: 'rn1', revision_id: null, entity_id: null, state: 'failed', attempts: 3, last_error: 'disk full' }
@@ -194,6 +196,70 @@ describe('schema v2 record kinds', () => {
     const db = migratedDb()
     db.run("INSERT INTO sync_state (kind, entity_id, updated_at) VALUES (?, 'key-1', 't')", kind)
     expect(db.get<{ n: number }>('SELECT COUNT(*) AS n FROM sync_state WHERE kind = ?', kind)?.n).toBe(1)
+  })
+})
+
+function insertComment(db: Db, spec: { id: string; epicId?: string; ticketId?: string | null; role?: string }): void {
+  db.run(
+    `INSERT INTO comments (id, epic_id, ticket_id, body, author_role, author_label, created_at)
+     VALUES (?, ?, ?, 'Looks **good**', ?, 'Ada', 't')`,
+    spec.id,
+    spec.epicId ?? 'ep1',
+    spec.ticketId ?? null,
+    spec.role ?? 'desktop'
+  )
+}
+
+function commentsDb(): Db {
+  const db = migratedDb()
+  insertEpic(db, 'ep1')
+  return db
+}
+
+describe('schema v3 comments', () => {
+  it('migrates a v2 database to v3 and keeps its epics', () => {
+    const db = freshDb()
+    migrate(db, MIGRATIONS.filter((migration) => migration.version <= 2))
+    insertEpic(db, 'ep1')
+    expect(migrate(db)).toEqual({ from: 2, to: 3 })
+    insertComment(db, { id: 'cm1' })
+    expect(db.all('SELECT id, epic_id, ticket_id, body, author_role, author_label, created_at FROM comments')).toEqual([
+      { id: 'cm1', epic_id: 'ep1', ticket_id: null, body: 'Looks **good**', author_role: 'desktop', author_label: 'Ada', created_at: 't' }
+    ])
+    expect(db.all('SELECT id FROM epics')).toEqual([{ id: 'ep1' }])
+  })
+
+  it.each(['desktop', 'planner', 'orchestrator', 'worker', 'reviewer'])('accepts comments written by the %s role', (role) => {
+    const db = commentsDb()
+    insertComment(db, { id: `cm_${role}`, ticketId: 'tk1', role })
+    expect(db.get<{ author_role: string; ticket_id: string }>('SELECT author_role, ticket_id FROM comments')).toEqual({
+      author_role: role,
+      ticket_id: 'tk1'
+    })
+  })
+
+  it('rejects an unknown author role, a missing epic, and a duplicate id', () => {
+    const db = commentsDb()
+    expect(() => insertComment(db, { id: 'cm1', role: 'admin' })).toThrow(/CHECK constraint failed/)
+    expect(() => insertComment(db, { id: 'cm1', epicId: 'nope' })).toThrow(/FOREIGN KEY constraint failed/)
+    insertComment(db, { id: 'cm1' })
+    expect(() => insertComment(db, { id: 'cm1' })).toThrow(/UNIQUE constraint failed/)
+  })
+
+  it.each([
+    ['body', "NULL, 'desktop', 'Ada', 't'"],
+    ['author_label', "'b', 'desktop', NULL, 't'"],
+    ['created_at', "'b', 'desktop', 'Ada', NULL"]
+  ])('requires comments.%s', (column, values) => {
+    const db = commentsDb()
+    const insert = `INSERT INTO comments (id, epic_id, ticket_id, body, author_role, author_label, created_at) VALUES ('cm1', 'ep1', NULL, ${values})`
+    expect(() => db.run(insert)).toThrow(`NOT NULL constraint failed: comments.${column}`)
+  })
+
+  it('lists an epic’s comments through the (epic, ticket, time) index', () => {
+    const db = commentsDb()
+    const plan = db.all<{ detail: string }>("EXPLAIN QUERY PLAN SELECT id FROM comments WHERE epic_id = 'ep1' AND ticket_id = 'tk1' ORDER BY created_at")
+    expect(plan.map((row) => row.detail).join(' ')).toContain('USING INDEX comments_epic_ticket (epic_id=? AND ticket_id=?)')
   })
 })
 
@@ -262,7 +328,7 @@ describe('migrate failure handling', () => {
     const db = freshDb()
     thrownBy(() => migrate(db, [{ version: 1, sql: 'NOT SQL' }]))
     expect(db.inTransaction()).toBe(false)
-    expect(migrate(db)).toEqual({ from: 0, to: 2 })
+    expect(migrate(db)).toEqual({ from: 0, to: 3 })
   })
 })
 

@@ -56,7 +56,7 @@ Errors are `DomainError(code, message, details)` with codes from `src/shared/dom
 | `worker` | MCP `--role worker` | heartbeat/submit/fail for a claim token it holds |
 | `reviewer` | MCP `--role reviewer` | accept/reject submissions |
 
-See `src/core/authz.ts` for the exact sets. No agent role receives a human-only capability.
+See `src/core/authz.ts` for the exact sets. No agent role receives a human-only capability. Every role holds `comment.write` (see [Comments](#comments)).
 
 ## Domain rules
 
@@ -114,6 +114,16 @@ An edge `{from: A, to: B}` means **B requires A's accepted result**. Relations (
 - `grantRetry` (desktop) allows one more attempt for a ticket in this run and returns an `awaiting_checkpoint` run to `running`.
 - Idempotency keys make repeated advance calls return the original outcome.
 
+### Comments
+
+- Comments are append-only Markdown notes on an epic (`ticketId` null) or one of its tickets, written by people (desktop) and agents (MCP). There is no edit or delete (deletion stays deferred product-wide). Table `comments` (schema v3), ids with the `cm` prefix.
+- `addComment({ epicId, ticketId?, body, idempotencyKey? })` needs capability `comment.write`, which every role holds; `listComments({ epicId, ticketId? })` needs `read` and returns comments oldest first (`created_at`, then id): without `ticketId` every comment of the epic, epic-level and ticket-level; with it only that ticket's.
+- The author is the calling session's role and label (the label cut to 200 characters), never input. The body is Markdown, not blank, at most 20,000 characters (`commentBody`). A `ticketId` must be in the epic's current saved plan or its draft (else `not_found`). Completed epics refuse new comments with `completed_epic`; their comments stay readable. The branch guard applies, and an epic holds at most 10,000 comments (`capacity_exceeded`), the most a reconcile reads back.
+- Each comment appends a `comment.added` event (payload: comment id and author) and a search document of type `comment` (title "Comment by <label>", body the Markdown), so `search_history` finds comments and labels them.
+- Export: one immutable file per comment, `epics/<epicId>/comments/<commentId>.json` (format `darkmechanicus.comment` v1), so writers on different machines never touch the same file. A `comment` outbox entry (epic id, entity id = comment id) is queued in the same transaction; the finalizer writes the file with `writeFileSafely`. An existing file must hold the same comment (else `conflict`, never rewritten). Comment entries never block, or wait for, their epic's plan records. Like the epic itself, comments of a never-saved epic stay local: completing the epic's first save queues every comment without an export record, and the finalizer runs up to three passes so entries queued while flushing are written by the same flush.
+- Import: for every epic whose own records are not rejected, the importer reads `comments/` as untrusted input: containment and link checks, regular files only, at most 256 KiB per file and 10,000 files per epic, names `<commentId>.json` built from validated ids (dot entries and other names such as temp files are ignored), the strict schema, and an id and epic matching the path. Each bad file is rejected on its own. New comments are inserted, indexed, and recorded in `sync_state` (kind `comment`); an id that already exists with different content is a conflict (reported with its epic, never overwritten) that clears once the file matches again. A comment waiting for export does not count as an unexported epic change.
+- Desktop: the ticket panel's Comments tab lists a ticket's comments (author, role, time, body through the safe Markdown renderer) and, for open epics, adds one.
+
 ## Repository-owned persistence
 
 ```text
@@ -123,6 +133,7 @@ An edge `{from: A, to: B}` means **B requires A's accepted result**. Relations (
   epics/<epicId>/current.json         # saved-revision pointer + content hash + generation
   epics/<epicId>/state.json           # epic status, branch, outcome, ticket statuses (durable)
   epics/<epicId>/snapshots/<revId>.json  # complete immutable plan bundles
+  epics/<epicId>/comments/<commentId>.json  # one immutable file per comment
   history/<runId>/run.json            # run, attempts, reports, checkpoints (no leases, tokens, or grants)
   profiles/<name>.json                # reusable capability profiles
   local/                              # Git-ignored: state.sqlite(+wal/shm), machine.json

@@ -14,7 +14,8 @@ const DOC_LABELS: Record<SearchResultView['docType'], string> = {
   epic: 'Epic',
   ticket: 'Ticket',
   attempt: 'Attempt',
-  report: 'Report'
+  report: 'Report',
+  comment: 'Comment'
 }
 
 type SearchState =
@@ -72,7 +73,7 @@ interface HistorySearchProps {
   onOpenEpic(epicId: string): void
 }
 
-/** Full-text search over epics, tickets, attempt outcomes and sprint reports; results open their epic. */
+/** Full-text search over epics, tickets, attempt outcomes, sprint reports and comments; results open their epic. */
 export function HistorySearch({ folder, onOpenEpic }: HistorySearchProps): JSX.Element {
   const toasts = useToasts()
   const [query, setQuery] = useState('')
@@ -103,7 +104,7 @@ export function HistorySearch({ folder, onOpenEpic }: HistorySearchProps): JSX.E
           type="search"
           className="input"
           aria-label="Search plans and run history"
-          placeholder="Search epics, tickets, attempts and reports"
+          placeholder="Search epics, tickets, attempts, reports and comments"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />

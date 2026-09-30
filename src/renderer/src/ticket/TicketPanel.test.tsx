@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
+import { deferred } from '../__mocks__/deferred'
 import { FakeBackend, scenario } from '../epic/__mocks__/fakeBackend'
-import { NOW, attempt, savedPlan, ticketDetail } from '../epic/__mocks__/fixtures'
+import { NOW, attempt, comment, savedPlan, ticketDetail } from '../epic/__mocks__/fixtures'
 import { allowSlowRendering } from '../epic/__mocks__/testTiming'
 import type { ReviewInput } from '../epic/workspaceActions'
 import { TicketPanel, type TicketPanelProps } from './TicketPanel'
@@ -218,5 +219,116 @@ describe('ticket panel attempt details', () => {
     expect(within(screen.getByLabelText('Changed files')).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['a.ts'])
     expect(document.querySelectorAll('.tp-attempt-summary').length).toBe(0)
     expect(screen.getByText('Needs multi-step reasoning').textContent).toBe('Needs multi-step reasoning')
+  })
+})
+
+const HOSTILE_NOTE = [
+  '**Blocked** on DM-102',
+  '',
+  '<script>alert(1)</script> [run](javascript:alert(1)) [docs](https://example.com/docs)'
+].join('\n')
+
+async function openComments(): Promise<HTMLElement> {
+  fireEvent.click(await screen.findByRole('tab', { name: 'Comments' }))
+  return screen.findByRole('list', { name: 'Comments' })
+}
+
+async function openEmptyComments(): Promise<void> {
+  fireEvent.click(await screen.findByRole('tab', { name: 'Comments' }))
+  await screen.findByText('No comments yet.')
+}
+
+describe('ticket panel comments list', () => {
+  it("lists the ticket's comments oldest first with author, role and time", async () => {
+    const other = comment(9, 1, { ticketId: 'tk_101', body: 'Elsewhere' })
+    const backend = new FakeBackend(scenario({ comments: [comment(1, 90), other, comment(2, 5, { author: { role: 'desktop', label: 'Ada' } })] }))
+    renderPanel(backend)
+    const list = await openComments()
+    const items = within(list).getAllByRole('listitem')
+    expect(items.map((item) => item.getAttribute('aria-label'))).toEqual(['Comment by worker-a', 'Comment by Ada'])
+    expect(within(items[0] as HTMLElement).getByText('worker-a').className).toBe('tp-comment-author')
+    expect(within(items[0] as HTMLElement).getByText('Worker').className).toBe('ew-chip')
+    expect(within(items[0] as HTMLElement).getByText('1h 30m ago').getAttribute('datetime')).toBe(new Date(NOW - 90 * 60_000).toISOString())
+    expect(within(items[1] as HTMLElement).getByText('Desktop').className).toBe('ew-chip')
+    expect(backend.inputs('listComments')).toEqual([{ epicId: 'ep_1', ticketId: 'tk_202' }])
+    expect(screen.getByRole('tab', { name: 'Comments' }).getAttribute('aria-selected')).toBe('true')
+  })
+
+  it('renders comment Markdown through the safe renderer', async () => {
+    renderPanel(new FakeBackend(scenario({ comments: [comment(1, 3, { body: HOSTILE_NOTE })] })))
+    const list = await openComments()
+    expect(list.querySelector('.md strong')?.textContent).toBe('Blocked')
+    expect(list.querySelectorAll('script, img, iframe').length).toBe(0)
+    expect(list.textContent?.includes('<script>alert(1)</script>')).toBe(true)
+    expect([...list.querySelectorAll('a')].map((link) => link.getAttribute('href'))).toEqual(['https://example.com/docs'])
+  })
+
+  it('says when there are no comments and shows a load failure', async () => {
+    renderPanel(new FakeBackend())
+    fireEvent.click(await screen.findByRole('tab', { name: 'Comments' }))
+    expect((await screen.findByText('No comments yet.')).tagName).toBe('P')
+    cleanup()
+    const failing = new FakeBackend()
+    failing.fail('listComments', 'internal', 'Comments unavailable.')
+    renderPanel(failing)
+    fireEvent.click(await screen.findByRole('tab', { name: 'Comments' }))
+    expect((await screen.findByRole('alert')).textContent).toBe('Comments unavailable.')
+  })
+})
+
+function typeComment(text: string): HTMLButtonElement {
+  fireEvent.change(screen.getByRole('textbox', { name: 'New comment' }), { target: { value: text } })
+  return screen.getByRole('button', { name: 'Add comment' }) as HTMLButtonElement
+}
+
+describe('ticket panel comment form', () => {
+  it('adds a comment, clears the form and shows the refreshed list', async () => {
+    const backend = new FakeBackend(scenario({ comments: [comment(1, 30)] }))
+    renderPanel(backend)
+    await openComments()
+    fireEvent.click(typeComment('Decision: **ship** it'))
+    const added = await screen.findByRole('listitem', { name: 'Comment by Desktop' })
+    expect(added.querySelector('.md strong')?.textContent).toBe('ship')
+    expect(backend.inputs('addComment')).toEqual([{ epicId: 'ep_1', ticketId: 'tk_202', body: 'Decision: **ship** it' }])
+    expect((screen.getByRole('textbox', { name: 'New comment' }) as HTMLTextAreaElement).value).toBe('')
+    expect(within(screen.getByRole('list', { name: 'Comments' })).getAllByRole('listitem')).toHaveLength(2)
+  })
+
+  it('offers Add comment only for text and not while the comment is being added', async () => {
+    const backend = new FakeBackend()
+    const hold = deferred()
+    backend.gates.addComment = hold.promise
+    renderPanel(backend)
+    await openEmptyComments()
+    const button = screen.getByRole('button', { name: 'Add comment' }) as HTMLButtonElement
+    expect(button.disabled).toBe(true)
+    expect(typeComment('  \n ').disabled).toBe(true)
+    expect(typeComment('Looks good').disabled).toBe(false)
+    fireEvent.click(button)
+    expect(button.disabled).toBe(true)
+    hold.resolve()
+    expect(await screen.findByRole('listitem', { name: 'Comment by Desktop' })).toBeTruthy()
+    expect(button.disabled).toBe(true)
+    expect(typeComment('Another').disabled).toBe(false)
+  })
+
+  it('shows why a comment was refused and keeps the text', async () => {
+    const backend = new FakeBackend()
+    backend.fail('addComment', 'completed_epic', 'Completed epics are read-only. Create a new epic to extend this work.')
+    renderPanel(backend)
+    await openEmptyComments()
+    fireEvent.click(typeComment('Too late'))
+    expect((await screen.findByRole('alert')).textContent).toBe('Completed epics are read-only. Create a new epic to extend this work.')
+    expect((screen.getByRole('textbox', { name: 'New comment' }) as HTMLTextAreaElement).value).toBe('Too late')
+    expect((screen.getByRole('button', { name: 'Add comment' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('shows comments read-only, without the form, when the epic is completed', async () => {
+    renderPanel(new FakeBackend(scenario({ comments: [comment(1, 2)] })), { canEdit: false })
+    const list = await openComments()
+    expect(within(list).getAllByRole('listitem')).toHaveLength(1)
+    expect(screen.queryByRole('textbox', { name: 'New comment' })).toBe(null)
+    expect(screen.queryByRole('button', { name: 'Add comment' })).toBe(null)
+    expect(screen.getByText('Comments on a completed epic are read-only.').tagName).toBe('P')
   })
 })

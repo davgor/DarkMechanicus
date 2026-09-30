@@ -11,6 +11,7 @@ import { assertContained, displayPath, ownedPaths } from './paths'
 const EPIC = idOf('epic', 7)
 const REVISION = idOf('revision', 8)
 const RUN = idOf('run', 9)
+const COMMENT = idOf('comment', 10)
 const ROOT = resolve('/repo')
 const layout = resolveLayout(ROOT)
 
@@ -33,6 +34,8 @@ describe('ownedPaths', () => {
     expect(paths.runDir(RUN)).toBe(join(ROOT, '.darkmechanicus', 'history', RUN))
     expect(paths.runHistoryFile(RUN)).toBe(join(ROOT, '.darkmechanicus', 'history', RUN, 'run.json'))
     expect(paths.profileFile('fast-lane-2')).toBe(join(ROOT, '.darkmechanicus', 'profiles', 'fast-lane-2.json'))
+    expect(paths.commentsDir(EPIC)).toBe(join(epicDir, 'comments'))
+    expect(paths.commentFile(EPIC, COMMENT)).toBe(join(epicDir, 'comments', `${COMMENT}.json`))
   })
 
   it.each([
@@ -44,7 +47,12 @@ describe('ownedPaths', () => {
     ['an epic id used as a revision id', () => paths.snapshotFile(EPIC, EPIC)],
     ['a revision with a path separator', () => paths.snapshotFile(EPIC, `${REVISION}/x`)],
     ['a revision id used as a run id', () => paths.runHistoryFile(REVISION)],
-    ['a traversal run id', () => paths.runDir('..')]
+    ['a traversal run id', () => paths.runDir('..')],
+    ['a traversal epic id for comments', () => paths.commentsDir('../..')],
+    ['a ticket id used as a comment id', () => paths.commentFile(EPIC, idOf('ticket', 1))],
+    ['a traversal comment id', () => paths.commentFile(EPIC, '../../state')],
+    ['a comment id with a separator', () => paths.commentFile(EPIC, `${COMMENT}/x`)],
+    ['a comment filed under a comment id', () => paths.commentFile(COMMENT, COMMENT)]
   ])('rejects %s with unsafe_path', (_label, build) => {
     expect(captureError(build).code).toBe('unsafe_path')
   })

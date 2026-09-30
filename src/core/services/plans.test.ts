@@ -15,6 +15,7 @@ import { contentHash } from '../canonical'
 import { DomainError } from '../errors'
 import { isStableId } from '../ids'
 import { computeChanges } from '../plan/diff'
+import { addComment } from './comments'
 import { discardPlanDraft, openDraft, updatePlanDraft } from './drafts'
 import { createEpic, getEpic, listEpics } from './epics'
 import {
@@ -272,6 +273,22 @@ describe('completeSavedRevision search index', () => {
       message: 'Revision rv_missing not found.',
       details: { revisionId: 'rv_missing' }
     })
+  })
+})
+
+describe('completeSavedRevision releases comments', () => {
+  it('queues the export of comments written before the first save and while it was pending', () => {
+    const ctx = createTestCtx()
+    const epicId = newEpicWithTickets(ctx)
+    const early = addComment(ctx, { epicId, body: 'before the save' })
+    const { revisionId } = requestSave(ctx, { epicId, expectedDraftRevision: 2 })
+    const racing = addComment(ctx, { epicId, body: 'while the save is pending' })
+    expect(outboxRows(ctx).map((row) => row.kind)).toEqual(['snapshot'])
+    ctx.db.tx(() => completeSavedRevision(ctx, revisionId))
+    expect(ctx.db.all("SELECT epic_id, entity_id, state FROM outbox WHERE kind = 'comment' ORDER BY id")).toEqual([
+      { epic_id: epicId, entity_id: early.id, state: 'pending' },
+      { epic_id: epicId, entity_id: racing.id, state: 'pending' }
+    ])
   })
 })
 

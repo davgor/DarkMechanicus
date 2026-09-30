@@ -45,3 +45,7 @@ Report unmet criteria as `met: false` with the reason. Do not submit unfinished 
 ## Blockers
 
 If you cannot complete the ticket (missing access, a broken prerequisite, contradictory or impossible requirements, a needed change outside scope), call `fail_attempt` with a clear `reason`, `details` (what you tried and what is needed), and `retryable` (true when a fresh attempt could succeed). Leave the repository clean or describe its state in the details.
+
+## Comments
+
+Read the ticket's earlier notes with `list_comments` (`epicId` and `ticketId`) before you start: people and other agents record blockers and decisions there. To leave a note that should outlive this attempt (a blocker you hit, a decision you had to make, a question for a person), call `add_comment` with the ticket's `ticketId` and a short Markdown `body`. Comments are append-only and signed with your session. They never replace `fail_attempt` or the evidence in your submission, and they never contain the claim token.

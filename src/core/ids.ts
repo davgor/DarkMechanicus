@@ -18,7 +18,8 @@ export const ID_PREFIXES = {
   report: 'rp',
   approval: 'ap',
   checkpoint: 'ck',
-  hostCatalog: 'hc'
+  hostCatalog: 'hc',
+  comment: 'cm'
 } as const
 
 export type IdKind = keyof typeof ID_PREFIXES

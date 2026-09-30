@@ -10,7 +10,7 @@
  */
 import { dirname } from 'node:path'
 import type { FlushResultView } from '../../shared/domain/views'
-import { prettyJson } from '../canonical'
+import { contentHash, prettyJson } from '../canonical'
 import type { Clock } from '../clock'
 import type { Db } from '../db/database'
 import { fail } from '../errors'
@@ -18,14 +18,18 @@ import { META_KEYS, setMeta } from '../meta'
 import type { OutboxKind } from '../services/outbox'
 import { assertContained, displayPath, ownedPaths } from './paths'
 import {
+  buildCommentRecord,
   buildEpicPointerRecord,
   buildEpicStateRecord,
   buildRunHistoryRecord,
   buildSnapshotRecord,
+  type CommentRecord,
+  commentRecord,
   parseRecord,
   readOwnedText,
   type SnapshotRecord,
   snapshotRecord,
+  trackedCommentHash,
   trackedEpicHash,
   trackedRunHash
 } from './portable'
@@ -56,6 +60,8 @@ export interface FlushOutcome extends FlushResultView {
 /** An entry becomes `failed` after this many attempts (flush still retries it when called). */
 const MAX_FLUSH_ATTEMPTS = 5
 const MAX_ERROR_LENGTH = 2_000
+/** Entries queued while flushing (a first save queues its epic's earlier comments) get further passes. */
+const MAX_FLUSH_PASSES = 3
 
 interface OutboxRow {
   id: number
@@ -63,6 +69,7 @@ interface OutboxRow {
   epic_id: string | null
   run_id: string | null
   revision_id: string | null
+  entity_id: string | null
 }
 
 type WriteEnv = Pick<FinalizerDeps, 'layout' | 'fs'>
@@ -135,12 +142,14 @@ function writeSnapshot(env: WriteEnv, record: SnapshotRecord): void {
   }
 }
 
-function nextGeneration(db: Db, kind: 'epic' | 'run', entityId: string): number {
+type ExportKind = 'epic' | 'run' | 'comment'
+
+function nextGeneration(db: Db, kind: ExportKind, entityId: string): number {
   const row = db.get<{ generation: number }>('SELECT generation FROM sync_state WHERE kind = ? AND entity_id = ?', kind, entityId)
   return (row?.generation ?? 0) + 1
 }
 
-function recordExport(deps: FinalizerDeps, entry: { kind: 'epic' | 'run'; entityId: string; hash: string; generation: number }): void {
+function recordExport(deps: FinalizerDeps, entry: { kind: ExportKind; entityId: string; hash: string; generation: number }): void {
   deps.db.run(
     `INSERT INTO sync_state (kind, entity_id, exported_hash, generation, imported_hash, conflict, updated_at)
      VALUES (?, ?, ?, ?, NULL, NULL, ?)
@@ -174,6 +183,38 @@ function exportEpic(deps: FinalizerDeps, epicId: string): void {
   recordExport(deps, { kind: 'epic', entityId: epicId, hash: trackedEpicHash(pointerText, stateText), generation: meta.generation })
 }
 
+/** Writes a comment file once and returns the text on disk; an existing file must hold the same comment. */
+function writeCommentFile(env: WriteEnv, target: string, record: CommentRecord): string {
+  const shown = displayPath(env.layout, target)
+  const existing = readOwnedText(env, target)
+  if (existing !== null) {
+    if (contentHash(parseRecord(commentRecord, existing, shown)) !== contentHash(record)) {
+      fail('conflict', `${shown} already exists with different content; comments are never rewritten.`)
+    }
+    return existing
+  }
+  const text = prettyJson(record)
+  try {
+    writeFileSafely(env, target, text)
+  } catch (error: unknown) {
+    // Nothing existed before this write: drop an unverified copy so the retry writes it again.
+    discard(env.fs, target)
+    throw error
+  }
+  return text
+}
+
+/** Comments are exported beside their epic's records, so only once the epic has a saved plan. */
+function exportComment(deps: FinalizerDeps, commentId: string): void {
+  const record = buildCommentRecord(deps.db, commentId)
+  const epic = deps.db.get<{ current_revision_id: string | null }>('SELECT current_revision_id FROM epics WHERE id = ?', record.epicId)
+  if ((epic?.current_revision_id ?? null) === null) {
+    fail('internal', `Comment ${commentId} belongs to epic ${record.epicId}, which has no saved plan to export it with yet.`)
+  }
+  const text = writeCommentFile(deps, ownedPaths(deps.layout).commentFile(record.epicId, commentId), record)
+  recordExport(deps, { kind: 'comment', entityId: commentId, hash: trackedCommentHash(text), generation: nextGeneration(deps.db, 'comment', commentId) })
+}
+
 function required(value: string | null, what: string): string {
   if (value === null) {
     fail('internal', `Outbox entry has no ${what}.`)
@@ -197,7 +238,8 @@ const HANDLERS: Record<OutboxKind, EntryHandler> = {
     const text = prettyJson(buildRunHistoryRecord(deps.db, runId))
     writeFileSafely(deps, ownedPaths(deps.layout).runHistoryFile(runId), text)
     recordExport(deps, { kind: 'run', entityId: runId, hash: trackedRunHash(text), generation: nextGeneration(deps.db, 'run', runId) })
-  }
+  },
+  comment: (deps, _hooks, entry) => exportComment(deps, required(entry.entity_id, 'comment id'))
 }
 
 type EntryResult = 'flushed' | 'skipped'
@@ -229,6 +271,10 @@ function recordFailure(deps: FinalizerDeps, entry: OutboxRow, message: string): 
 }
 
 function entityKeys(entry: OutboxRow): string[] {
+  // A comment file stands alone: it never waits for, or holds back, its epic's plan records.
+  if (entry.kind === 'comment') {
+    return [`comment:${entry.entity_id ?? entry.id}`]
+  }
   const keys: string[] = []
   if (entry.epic_id !== null) {
     keys.push(`epic:${entry.epic_id}`)
@@ -240,7 +286,7 @@ function entityKeys(entry: OutboxRow): string[] {
 }
 
 function describeEntry(entry: OutboxRow): string {
-  return `${entry.kind} ${entry.revision_id ?? entry.run_id ?? entry.epic_id ?? entry.id}`
+  return `${entry.kind} ${entry.revision_id ?? entry.run_id ?? entry.entity_id ?? entry.epic_id ?? entry.id}`
 }
 
 function noteSuccess(outcome: FlushOutcome, entry: OutboxRow, result: EntryResult): void {
@@ -258,30 +304,54 @@ function noteFailure(outcome: FlushOutcome, entry: OutboxRow, message: string): 
   }
 }
 
+interface FlushState {
+  outcome: FlushOutcome
+  blocked: Set<string>
+}
+
+function flushEntry(deps: FinalizerDeps, hooks: FinalizerHooks, entry: OutboxRow, state: FlushState): void {
+  const keys = entityKeys(entry)
+  if (keys.some((key) => state.blocked.has(key))) {
+    return
+  }
+  try {
+    noteSuccess(state.outcome, entry, deps.db.tx(() => processEntry(deps, hooks, entry)))
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error)
+    recordFailure(deps, entry, message)
+    keys.forEach((key) => state.blocked.add(key))
+    noteFailure(state.outcome, entry, message)
+  }
+}
+
+function queuedAfter(db: Db, afterId: number): OutboxRow[] {
+  return db.all<OutboxRow>(
+    "SELECT id, kind, epic_id, run_id, revision_id, entity_id FROM outbox WHERE state IN ('pending', 'failed') AND id > ? ORDER BY id",
+    afterId
+  )
+}
+
 /**
  * Flushes pending (and previously failed) outbox entries in id order. A failed entry blocks later
  * entries of the same epic/run so their records are never written out of order; other entities
- * continue. Flush failures never throw: they are counted, and the entry keeps its last error.
+ * continue. Entries queued by the flush itself are picked up by a further pass (bounded). Flush
+ * failures never throw: they are counted, and the entry keeps its last error.
  */
 export function flushOutbox(deps: FinalizerDeps, hooks: FinalizerHooks): FlushOutcome {
-  const outcome: FlushOutcome = { flushed: 0, failed: 0, errors: [], savedRevisionIds: [], failedRevisionIds: [] }
-  const blocked = new Set<string>()
-  const entries = deps.db.all<OutboxRow>(
-    "SELECT id, kind, epic_id, run_id, revision_id FROM outbox WHERE state IN ('pending', 'failed') ORDER BY id"
-  )
-  for (const entry of entries) {
-    const keys = entityKeys(entry)
-    if (keys.some((key) => blocked.has(key))) {
-      continue
-    }
-    try {
-      noteSuccess(outcome, entry, deps.db.tx(() => processEntry(deps, hooks, entry)))
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error)
-      recordFailure(deps, entry, message)
-      keys.forEach((key) => blocked.add(key))
-      noteFailure(outcome, entry, message)
-    }
+  const state: FlushState = {
+    outcome: { flushed: 0, failed: 0, errors: [], savedRevisionIds: [], failedRevisionIds: [] },
+    blocked: new Set<string>()
   }
-  return outcome
+  let afterId = 0
+  for (let pass = 0; pass < MAX_FLUSH_PASSES; pass += 1) {
+    const entries = queuedAfter(deps.db, afterId)
+    if (entries.length === 0) {
+      break
+    }
+    for (const entry of entries) {
+      flushEntry(deps, hooks, entry, state)
+    }
+    afterId = entries[entries.length - 1]?.id ?? afterId
+  }
+  return state.outcome
 }

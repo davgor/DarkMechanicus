@@ -5,15 +5,18 @@
  */
 import { z } from 'zod'
 import { ATTEMPT_STATES, OPEN_ATTEMPT_STATES, RUN_STATES } from '../../shared/domain/status'
+import type { SessionRole } from '../../shared/domain/views'
 import { contentHash } from '../canonical'
 import { type Db, parseJson } from '../db/database'
 import { fail } from '../errors'
 import { type IdKind, isStableId, STABLE_ID_PATTERN } from '../ids'
-import { artifactRef, checkResult, criterionResult, epicBranch, LIMITS, planBundle, workStatus } from '../schemas'
+import { artifactRef, checkResult, commentBody, criterionResult, epicBranch, LIMITS, planBundle, workStatus } from '../schemas'
 import { assertContained, displayPath } from './paths'
 import type { FsAdapter, RepoLayout } from './types'
 
 export const MAX_RECORD_BYTES = 8 * 1024 * 1024
+/** A comment file holds at most 20,000 characters of Markdown; anything far larger is not a comment. */
+export const MAX_COMMENT_RECORD_BYTES = 256 * 1024
 export const KEY_PREFIX_PATTERN = /^[A-Z][A-Z0-9]{0,11}$/
 const MERGE_MARKER_PATTERN = /^(?:<{7} |>{7} |\|{7} |={7}\r?$)/m
 const MAX_ATTEMPTS = 10_000
@@ -256,6 +259,25 @@ const RUN_UNIQUENESS: { what: string; path: string; keys: (record: RunHistorySha
   { what: 'checkpoint id', path: 'checkpoints', keys: (record) => record.checkpoints.map((item) => item.id) }
 ]
 
+const SESSION_ROLES = ['desktop', 'planner', 'orchestrator', 'worker', 'reviewer'] as const satisfies readonly SessionRole[]
+
+/**
+ * One immutable file per comment (`epics/<epicId>/comments/<commentId>.json`), so concurrent writers
+ * on different machines never edit the same file and merges stay trivial.
+ */
+export const commentRecord = z.strictObject({
+  format: z.literal('darkmechanicus.comment'),
+  formatVersion: z.literal(1),
+  id: idOf('comment'),
+  epicId: idOf('epic'),
+  // Plan bundles accept any stable id for a ticket, so a comment's ticket reference does too.
+  ticketId: anyStableId.nullable(),
+  body: commentBody,
+  author: z.strictObject({ role: z.enum(SESSION_ROLES), label }),
+  createdAt: isoTime
+})
+export type CommentRecord = z.infer<typeof commentRecord>
+
 export const runHistoryRecord = runHistoryShape.superRefine((record, ctx) => {
   for (const rule of RUN_UNIQUENESS) {
     const duplicate = firstDuplicate(rule.keys(record))
@@ -342,6 +364,11 @@ export function trackedEpicHash(pointerText: string, stateText: string): string 
 /** Change-detection hash of a run history file's text. */
 export function trackedRunHash(text: string): string {
   return contentHash([normalizeNewlines(text)])
+}
+
+/** Change-detection hash of one comment file's text. */
+export function trackedCommentHash(text: string): string {
+  return contentHash(['comment', normalizeNewlines(text)])
 }
 
 function exportable<T>(schema: z.ZodType<T>, value: unknown, what: string): T {
@@ -589,4 +616,37 @@ export function buildRunHistoryRecord(db: Db, runId: string): RunHistoryRecord {
     checkpoints: db.all<CheckpointRow>('SELECT * FROM checkpoints WHERE run_id = ? ORDER BY id', runId).map(checkpointEntry)
   }
   return exportable(runHistoryRecord, record, `run history ${runId}`)
+}
+
+interface CommentRow {
+  id: string
+  epic_id: string
+  ticket_id: string | null
+  body: string
+  author_role: string
+  author_label: string
+  created_at: string
+}
+
+/** A comment row in its record shape, not validated (the importer compares tracked files with it); null when absent. */
+export function readCommentRecord(db: Db, commentId: string): Record<string, unknown> | null {
+  const row = db.get<CommentRow>('SELECT * FROM comments WHERE id = ?', commentId)
+  if (row === undefined) {
+    return null
+  }
+  return {
+    format: 'darkmechanicus.comment',
+    formatVersion: 1,
+    id: row.id,
+    epicId: row.epic_id,
+    ticketId: row.ticket_id,
+    body: row.body,
+    author: { role: row.author_role, label: row.author_label },
+    createdAt: row.created_at
+  }
+}
+
+export function buildCommentRecord(db: Db, commentId: string): CommentRecord {
+  const record = readCommentRecord(db, commentId) ?? fail('not_found', `Comment ${commentId} does not exist.`)
+  return exportable(commentRecord, record, `comment ${commentId}`)
 }

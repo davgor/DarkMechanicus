@@ -63,5 +63,7 @@ export const COMMAND_CAPABILITIES: Readonly<Record<CommandName, Capability>> = {
   advanceSprint: 'checkpoint.advance',
   approveAndAdvance: 'checkpoint.approve',
   authorizeAutoContinue: 'run.authorize_auto',
-  grantRetry: 'ticket.retry_grant'
+  grantRetry: 'ticket.retry_grant',
+  addComment: 'comment.write',
+  listComments: 'read'
 }

@@ -1,5 +1,6 @@
 import { authoringCommands } from './authoring'
 import { checkpointCommands } from './checkpoints'
+import { commentCommands } from './comments'
 import { executionCommands } from './execution'
 import { repositoryCommands } from './repository'
 import type { CommandTable } from './types'
@@ -9,5 +10,6 @@ export const COMMANDS: CommandTable = {
   ...repositoryCommands,
   ...authoringCommands,
   ...executionCommands,
-  ...checkpointCommands
+  ...checkpointCommands,
+  ...commentCommands
 }

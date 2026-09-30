@@ -7,6 +7,7 @@ import {
   idOf,
   insertAttempt,
   insertCheckpoint,
+  insertComment,
   insertEpic,
   insertReport,
   insertRevision,
@@ -20,19 +21,23 @@ import type { Db } from '../db/database'
 import { LIMITS } from '../schemas'
 import { resolveLayout } from './layout'
 import {
+  buildCommentRecord,
   buildEpicPointerRecord,
   buildEpicStateRecord,
   buildRunHistoryRecord,
   buildSnapshotRecord,
+  commentRecord,
   epicPointerRecord,
   epicStateRecord,
   MAX_RECORD_BYTES,
   parseRecord,
   projectRecord,
+  readCommentRecord,
   readOwnedRecord,
   readOwnedText,
   runHistoryRecord,
   snapshotRecord,
+  trackedCommentHash,
   trackedEpicHash,
   trackedRunHash
 } from './portable'
@@ -443,6 +448,102 @@ describe('tracked hashes', () => {
     expect(trackedEpicHash(`${pointer}${state}`, '')).not.toBe(base)
     expect(trackedRunHash(pointer)).toBe(trackedRunHash(pointer.replace(/\n/g, '\r\n')))
     expect(trackedRunHash(pointer)).not.toBe(trackedRunHash(state))
+  })
+})
+
+const COMMENT_ID = idOf('comment', 1)
+
+const COMMENT = {
+  format: 'darkmechanicus.comment',
+  formatVersion: 1,
+  id: COMMENT_ID,
+  epicId: EPIC,
+  ticketId: tid(1),
+  body: 'Blocked on **DM-2**',
+  author: { role: 'worker', label: 'worker-1' },
+  createdAt: T0
+}
+
+function commentIssue(record: unknown): string {
+  const result = commentRecord.safeParse(record)
+  return result.success ? 'ok' : `${result.error.issues[0]?.path.join('.')}: ${result.error.issues[0]?.message}`
+}
+
+describe('comment record schema', () => {
+  it('accepts ticket and epic comments of every author role', () => {
+    expect(commentRecord.parse(COMMENT)).toEqual(COMMENT)
+    expect(commentIssue({ ...COMMENT, ticketId: null })).toBe('ok')
+    for (const role of ['desktop', 'planner', 'orchestrator', 'worker', 'reviewer']) {
+      expect(commentIssue({ ...COMMENT, author: { role, label: 'x' } })).toBe('ok')
+    }
+    expect(commentIssue({ ...COMMENT, body: 'b'.repeat(LIMITS.comment), author: { role: 'worker', label: 'l'.repeat(LIMITS.label) } })).toBe('ok')
+  })
+
+  it('rejects blank or oversized bodies, unknown roles, and long labels', () => {
+    expect(commentIssue({ ...COMMENT, body: ' \n' })).toBe('body: A comment needs some text')
+    expect(commentIssue({ ...COMMENT, body: 'b'.repeat(LIMITS.comment + 1) })).toBe('body: A comment is at most 20000 characters')
+    expect(commentIssue({ ...COMMENT, author: { role: 'admin', label: 'x' } })).toMatch(/^author\.role: /)
+    expect(commentIssue({ ...COMMENT, author: { role: 'worker', label: 'l'.repeat(LIMITS.label + 1) } })).toMatch(/^author\.label: /)
+  })
+
+  it('rejects wrong-kind ids, unknown keys, other formats and versions, and bad times', () => {
+    expect(commentIssue({ ...COMMENT, id: idOf('ticket', 1) })).toBe('id: Expected a comment id')
+    expect(commentIssue({ ...COMMENT, epicId: COMMENT_ID })).toBe('epicId: Expected a epic id')
+    expect(commentIssue({ ...COMMENT, ticketId: 'DM-1' })).toMatch(/^ticketId: /)
+    expect(commentIssue({ ...COMMENT, ticketId: `zz_${'0'.repeat(26)}` })).toBe('ok')
+    expect(commentIssue({ ...COMMENT, editedAt: T0 })).toMatch(/^: Unrecognized key/)
+    expect(commentIssue({ ...COMMENT, author: { role: 'worker', label: 'x', sessionId: 'ss_1' } })).toMatch(/^author: Unrecognized key/)
+    expect(commentIssue({ ...COMMENT, formatVersion: 2 })).toMatch(/^formatVersion: /)
+    expect(commentIssue({ ...COMMENT, format: 'darkmechanicus.run' })).toMatch(/^format: /)
+    expect(commentIssue({ ...COMMENT, createdAt: 'yesterday' })).toMatch(/^createdAt: /)
+  })
+})
+
+describe('buildCommentRecord', () => {
+  it('builds the record of a ticket comment and of an epic comment from their rows', () => {
+    const db = createTestDb()
+    insertEpic(db, { id: EPIC })
+    insertComment(db, { id: COMMENT_ID, epicId: EPIC, ticketId: tid(1), body: 'Blocked on **DM-2**' })
+    insertComment(db, { id: idOf('comment', 2), epicId: EPIC, role: 'desktop', label: 'Ada', createdAt: '2026-02-03T04:05:06.007Z' })
+    expect(buildCommentRecord(db, COMMENT_ID)).toEqual(COMMENT)
+    expect(buildCommentRecord(db, idOf('comment', 2))).toEqual({
+      ...COMMENT,
+      id: idOf('comment', 2),
+      ticketId: null,
+      body: 'A **comment**',
+      author: { role: 'desktop', label: 'Ada' },
+      createdAt: '2026-02-03T04:05:06.007Z'
+    })
+  })
+
+  it('reads a comment row in record shape without validating it', () => {
+    const db = createTestDb()
+    insertEpic(db, { id: EPIC })
+    insertComment(db, { id: COMMENT_ID, epicId: EPIC, ticketId: tid(1), body: '   ', label: 'l'.repeat(LIMITS.label + 1) })
+    expect(readCommentRecord(db, COMMENT_ID)).toEqual({ ...COMMENT, body: '   ', author: { role: 'worker', label: 'l'.repeat(LIMITS.label + 1) } })
+    expect(readCommentRecord(db, idOf('comment', 9))).toBeNull()
+  })
+
+  it('refuses a missing comment and one the importer would reject', () => {
+    const db = createTestDb()
+    insertEpic(db, { id: EPIC })
+    insertComment(db, { id: COMMENT_ID, epicId: EPIC, body: '   ' })
+    expect(rejection(() => buildCommentRecord(db, idOf('comment', 9)))).toEqual({
+      code: 'not_found',
+      message: `Comment ${idOf('comment', 9)} does not exist.`
+    })
+    expect(rejection(() => buildCommentRecord(db, COMMENT_ID))).toEqual({
+      code: 'internal',
+      message: `Cannot export comment ${COMMENT_ID}: body: A comment needs some text`
+    })
+  })
+
+  it('hashes comment text for change detection, ignoring only CRLF line endings', () => {
+    const text = prettyJson(COMMENT)
+    expect(trackedCommentHash(text)).toMatch(/^sha256:[0-9a-f]{64}$/)
+    expect(trackedCommentHash(text.replace(/\n/g, '\r\n'))).toBe(trackedCommentHash(text))
+    expect(trackedCommentHash(`${text} `)).not.toBe(trackedCommentHash(text))
+    expect(trackedCommentHash(text)).not.toBe(trackedRunHash(text))
   })
 })
 

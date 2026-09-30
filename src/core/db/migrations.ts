@@ -2,7 +2,7 @@ import { fail } from '../errors'
 import type { Db } from './database'
 
 /** Highest schema version this build understands. Newer databases are refused, never downgraded. */
-export const SCHEMA_VERSION = 2
+export const SCHEMA_VERSION = 3
 
 interface Migration {
   version: number
@@ -286,9 +286,27 @@ DROP TABLE sync_state;
 ALTER TABLE sync_state_v2 RENAME TO sync_state;
 `
 
+/**
+ * v3 adds comments: append-only Markdown notes on an epic (`ticket_id` NULL) or one of its tickets.
+ * The author is the writing session's role and label, never caller input.
+ */
+const V3 = `
+CREATE TABLE comments (
+  id TEXT PRIMARY KEY,
+  epic_id TEXT NOT NULL REFERENCES epics(id),
+  ticket_id TEXT,
+  body TEXT NOT NULL,
+  author_role TEXT NOT NULL CHECK (author_role IN ('desktop','planner','orchestrator','worker','reviewer')),
+  author_label TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX comments_epic_ticket ON comments(epic_id, ticket_id, created_at);
+`
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, sql: V1 },
-  { version: 2, sql: V2 }
+  { version: 2, sql: V2 },
+  { version: 3, sql: V3 }
 ]
 
 export function readSchemaVersion(db: Db): number {

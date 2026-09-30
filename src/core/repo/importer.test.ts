@@ -2,7 +2,7 @@ import { cpSync, existsSync, mkdirSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { makeBundle, sid, tid } from '../../test/bundles'
-import { domainErrorOf, idOf, insertAttempt, insertCheckpoint, insertOutbox, insertReport, insertRun, T0 } from '../../test/repoFixtures'
+import { domainErrorOf, idOf, insertAttempt, insertCheckpoint, insertComment, insertOutbox, insertReport, insertRun, T0 } from '../../test/repoFixtures'
 import {
   copyTracked,
   createRepoEnv,
@@ -25,7 +25,7 @@ import { initializeRepository } from './initialize'
 import { resolveLayout } from './layout'
 import { nodeFs } from './nodeFs'
 import { ownedPaths } from './paths'
-import { trackedEpicHash, trackedRunHash } from './portable'
+import { trackedCommentHash, trackedEpicHash, trackedRunHash } from './portable'
 
 const EPIC = idOf('epic', 1)
 const R1 = idOf('revision', 1)
@@ -354,6 +354,93 @@ describe('reconcileRepository run validation', () => {
     ])
     expect(result.imported).toEqual([])
     expect(target.db.all('SELECT id FROM runs')).toEqual([])
+  })
+})
+
+const C1 = idOf('comment', 1)
+const C2 = idOf('comment', 2)
+const C3 = idOf('comment', 3)
+
+/** Adds comments (one on ticket 1, one on the epic) to the source and exports them. */
+function withComments(source: RepoEnv): RepoEnv {
+  insertComment(source.db, { id: C1, epicId: EPIC, ticketId: tid(1), body: 'Blocked on the **keychain** fixture' })
+  insertComment(source.db, { id: C2, epicId: EPIC, body: 'Decision: ship behind a flag', role: 'desktop', label: 'Ada' })
+  insertOutbox(source.db, { kind: 'comment', epicId: EPIC, entityId: C1 })
+  insertOutbox(source.db, { kind: 'comment', epicId: EPIC, entityId: C2 })
+  expect(flush(source).failed).toBe(0)
+  return source
+}
+
+function commentFileText(env: RepoEnv, commentId: string): string {
+  return env.fs.get(ownedPaths(env.layout).commentFile(EPIC, commentId)) ?? ''
+}
+
+describe('reconcileRepository comments', () => {
+  it('reconstructs comments, their sync hashes, and their search documents', () => {
+    const source = withComments(buildSource())
+    const target = cloneOf(source)
+    const result = reconcileRepository(importerDeps(target, createStubGit('main')))
+    expect(result).toMatchObject({ imported: [EPIC, RUN, C1, C2], conflicts: [], rejected: [] })
+    expect(target.db.all('SELECT * FROM comments ORDER BY id')).toEqual(source.db.all('SELECT * FROM comments ORDER BY id'))
+    expect(target.db.all("SELECT entity_id, exported_hash, imported_hash, conflict FROM sync_state WHERE kind = 'comment' ORDER BY entity_id")).toEqual(
+      [C1, C2].map((id) => {
+        const hash = trackedCommentHash(commentFileText(target, id))
+        return { entity_id: id, exported_hash: hash, imported_hash: hash, conflict: null }
+      })
+    )
+    expect(target.db.all("SELECT doc_id, epic_id, ticket_id, title FROM search_index WHERE doc_type = 'comment' AND search_index MATCH 'keychain'")).toEqual([
+      { doc_id: C1, epic_id: EPIC, ticket_id: tid(1), title: 'Comment by worker-1' }
+    ])
+  })
+
+  it('imports a pulled comment for an unchanged epic once, and sees its own exports as unchanged', () => {
+    const source = withComments(buildSource())
+    const target = cloneOf(source)
+    const deps = importerDeps(target, createStubGit('main'))
+    reconcileRepository(deps)
+    insertComment(source.db, { id: C3, epicId: EPIC, body: 'Pulled later' })
+    insertOutbox(source.db, { kind: 'comment', epicId: EPIC, entityId: C3 })
+    flush(source)
+    copyTracked(source, target)
+    expect(reconcileRepository(deps)).toMatchObject({ imported: [C3], unchanged: [EPIC, RUN], rejected: [], conflicts: [] })
+    const events = target.db.all('SELECT seq FROM events').length
+    expect(reconcileRepository(deps)).toMatchObject({ imported: [], rejected: [], conflicts: [] })
+    expect(target.db.all('SELECT seq FROM events')).toHaveLength(events)
+    expect(reconcileRepository(importerDeps(source, createStubGit('main')))).toMatchObject({ imported: [], conflicts: [], rejected: [] })
+  })
+
+  it('imports a pulled epic change while one of its comments waits to be exported', () => {
+    const source = buildSource()
+    const target = cloneOf(source)
+    const deps = importerDeps(target, createStubGit('main'))
+    reconcileRepository(deps)
+    insertComment(target.db, { id: C1, epicId: EPIC })
+    insertOutbox(target.db, { kind: 'comment', epicId: EPIC, entityId: C1, state: 'failed' })
+    saveRevision(source, { epicId: EPIC, revisionId: R3, number: 3, bundle: BUNDLE_3, baseRevisionId: R2 })
+    copyTracked(source, target)
+    expect(reconcileRepository(deps)).toMatchObject({ imported: [EPIC], conflicts: [] })
+  })
+})
+
+describe('reconcileRepository comment conflicts', () => {
+  it('reports a comment whose file differs from the local one, keeps the local text, and clears it once restored', () => {
+    const source = withComments(buildSource())
+    const target = cloneOf(source)
+    const deps = importerDeps(target, createStubGit('main'))
+    reconcileRepository(deps)
+    const file = ownedPaths(target.layout).commentFile(EPIC, C1)
+    const original = target.fs.get(file) ?? ''
+    target.fs.put(file, original.replace('Blocked on the **keychain** fixture', 'Rewritten history'))
+    const result = reconcileRepository(deps)
+    const shown = `.darkmechanicus/epics/${EPIC}/comments/${C1}.json`
+    expect(result).toMatchObject({ imported: [], rejected: [] })
+    expect(result.conflicts).toEqual([{ epicId: EPIC, message: `Comment ${C1} already exists with different content; ${shown} was not imported.` }])
+    expect(target.db.get('SELECT body FROM comments WHERE id = ?', C1)).toEqual({ body: 'Blocked on the **keychain** fixture' })
+    const conflict = (): unknown => target.db.get("SELECT conflict FROM sync_state WHERE kind = 'comment' AND entity_id = ?", C1)
+    expect(conflict()).toEqual({ conflict: result.conflicts[0]?.message })
+    target.fs.put(file, original)
+    expect(reconcileRepository(deps)).toMatchObject({ imported: [], conflicts: [], rejected: [] })
+    expect(conflict()).toEqual({ conflict: null })
   })
 })
 

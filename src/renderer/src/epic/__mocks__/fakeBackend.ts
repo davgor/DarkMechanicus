@@ -16,6 +16,7 @@ import type {
 } from '../../../../shared/desktop/api'
 import type {
   CheckpointView,
+  CommentView,
   EpicDetailView,
   EventView,
   PlanView,
@@ -30,6 +31,7 @@ import {
   draftPlan,
   epicDetail,
   event,
+  iso,
   runView,
   savedPlan,
   summaries,
@@ -46,6 +48,7 @@ interface Scenario {
   validation: ValidationReport
   ticket: TicketDetailView
   events: EventView[]
+  comments: CommentView[]
 }
 
 interface RecordedCall {
@@ -65,6 +68,7 @@ export function scenario(patch: Partial<Scenario> = {}): Scenario {
     validation: validation(),
     ticket: ticketDetail(),
     events: [event(1, 'attempt.claimed'), event(2, 'attempt.failed', { payload: { reason: '2 tests failed' } })],
+    comments: [],
     ...patch
   }
 }
@@ -204,6 +208,20 @@ function save(state: Scenario): unknown {
   return { status: 'saved', epicId: state.epic.id, revisionId: `rv_${number}`, revisionNumber: number, contentHash: 'h', error: null }
 }
 
+/** New comments are signed by the desktop session and dated NOW, like the real command. */
+function addComment(state: Scenario, input: { epicId: string; ticketId?: string; body: string }): CommentView {
+  const created: CommentView = {
+    id: `cm_new_${state.comments.length + 1}`,
+    epicId: input.epicId,
+    ticketId: input.ticketId ?? null,
+    body: input.body,
+    author: { role: 'desktop', label: 'Desktop' },
+    createdAt: iso(0)
+  }
+  state.comments = [...state.comments, created]
+  return created
+}
+
 function discard(state: Scenario): unknown {
   state.draft = null
   state.epic = { ...state.epic, hasDraft: false, draftRevision: null }
@@ -246,6 +264,9 @@ function defaultHandlers(state: Scenario): Partial<Record<CommandName, Handler>>
     updatePlanDraft: () => updateDraft(state),
     savePlan: () => save(state),
     discardPlanDraft: () => discard(state),
+    listComments: (input: { ticketId?: string }) =>
+      state.comments.filter((item) => input.ticketId === undefined || item.ticketId === input.ticketId),
+    addComment: (input: { epicId: string; ticketId?: string; body: string }) => addComment(state, input),
     ...runHandlers(state)
   }
 }

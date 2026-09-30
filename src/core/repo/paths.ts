@@ -27,6 +27,7 @@ export function ownedPaths(layout: RepoLayout) {
   const epicDir = (epicId: string): string => join(layout.epicsDir, checkedId(epicId, 'epic'))
   const snapshotsDir = (epicId: string): string => join(epicDir(epicId), 'snapshots')
   const runDir = (runId: string): string => join(layout.historyDir, checkedId(runId, 'run'))
+  const commentsDir = (epicId: string): string => join(epicDir(epicId), 'comments')
   return {
     epicDir,
     snapshotsDir,
@@ -36,7 +37,10 @@ export function ownedPaths(layout: RepoLayout) {
     epicStateFile: (epicId: string): string => join(epicDir(epicId), 'state.json'),
     runDir,
     runHistoryFile: (runId: string): string => join(runDir(runId), 'run.json'),
-    profileFile: (name: string): string => join(layout.profilesDir, `${checkedProfileName(name)}.json`)
+    profileFile: (name: string): string => join(layout.profilesDir, `${checkedProfileName(name)}.json`),
+    commentsDir,
+    commentFile: (epicId: string, commentId: string): string =>
+      join(commentsDir(epicId), `${checkedId(commentId, 'comment')}.json`)
   }
 }
 

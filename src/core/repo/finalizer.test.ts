@@ -2,13 +2,22 @@ import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { makeBundle, tid } from '../../test/bundles'
 import type { FaultSpec } from '../../test/memoryFs'
-import { idOf, insertEpic, insertOutbox, insertRevision, insertRun, insertTicketStatus, T0 } from '../../test/repoFixtures'
+import { idOf, insertComment, insertEpic, insertOutbox, insertRevision, insertRun, insertTicketStatus, T0 } from '../../test/repoFixtures'
 import { createRepoEnv, flush, type RepoEnv, saveRevision, stageRevision } from '../../test/repoEnv'
 import { contentHash, prettyJson } from '../canonical'
 import { getMeta } from '../meta'
 import { flushOutbox, type FlushOutcome, writeFileSafely } from './finalizer'
 import { ownedPaths } from './paths'
-import { epicPointerRecord, epicStateRecord, parseRecord, snapshotRecord, trackedEpicHash, trackedRunHash } from './portable'
+import {
+  buildCommentRecord,
+  epicPointerRecord,
+  epicStateRecord,
+  parseRecord,
+  snapshotRecord,
+  trackedCommentHash,
+  trackedEpicHash,
+  trackedRunHash
+} from './portable'
 
 const EPIC = idOf('epic', 1)
 const OTHER_EPIC = idOf('epic', 2)
@@ -346,5 +355,148 @@ describe('flushOutbox path safety', () => {
     insertOutbox(env.db, { kind: 'snapshot', epicId: EPIC, revisionId: R1 })
     flush(env)
     expect(parseRecord(epicStateRecord, env.fs.get(files(env).state) ?? '', 's').ticketStatuses[tid(1)]).toBe('in_progress')
+  })
+})
+
+const C1 = idOf('comment', 1)
+const C2 = idOf('comment', 2)
+
+function commentFile(env: RepoEnv, commentId: string, epicId = EPIC): string {
+  return ownedPaths(env.layout).commentFile(epicId, commentId)
+}
+
+/** A saved epic with comment C1 on ticket 1 and its queued export. */
+function seedComment(): { env: RepoEnv; entry: number } {
+  const env = seedSavedFirstRevision()
+  insertComment(env.db, { id: C1, epicId: EPIC, ticketId: tid(1), body: 'Blocked on **DM-2**' })
+  return { env, entry: insertOutbox(env.db, { kind: 'comment', epicId: EPIC, entityId: C1 }) }
+}
+
+function commentSync(env: RepoEnv, commentId: string): unknown {
+  return env.db.get('SELECT exported_hash, imported_hash, generation, conflict FROM sync_state WHERE kind = ? AND entity_id = ?', 'comment', commentId)
+}
+
+describe('flushOutbox comment exports', () => {
+  it('writes each comment of a saved epic to its own file and records the exported hash', () => {
+    const { env, entry } = seedComment()
+    expect(flush(env)).toEqual({ flushed: 1, failed: 0, errors: [], savedRevisionIds: [], failedRevisionIds: [] })
+    const text = env.fs.get(commentFile(env, C1)) ?? ''
+    expect(text).toBe(prettyJson(buildCommentRecord(env.db, C1)))
+    expect(JSON.parse(text)).toMatchObject({ format: 'darkmechanicus.comment', id: C1, epicId: EPIC, ticketId: tid(1), body: 'Blocked on **DM-2**' })
+    expect(commentSync(env, C1)).toEqual({ exported_hash: trackedCommentHash(text), imported_hash: null, generation: 1, conflict: null })
+    expect(outboxRow(env, entry)).toEqual({ state: 'done', attempts: 0, last_error: null })
+  })
+
+  it('keeps an identical file left by an interrupted flush without rewriting it', () => {
+    const { env } = seedComment()
+    const existing = prettyJson(buildCommentRecord(env.db, C1)).replace(/\n/g, '\r\n')
+    env.fs.put(commentFile(env, C1), existing)
+    expect(flush(env).flushed).toBe(1)
+    expect(env.fs.writes).not.toContain(resolve(commentFile(env, C1)))
+    expect(env.fs.get(commentFile(env, C1))).toBe(existing)
+    expect(commentSync(env, C1)).toMatchObject({ exported_hash: trackedCommentHash(existing) })
+  })
+
+  it('fails closed when the file already holds a different comment', () => {
+    const { env, entry } = seedComment()
+    const foreign = prettyJson({ ...buildCommentRecord(env.db, C1), body: 'Someone else wrote this' })
+    env.fs.put(commentFile(env, C1), foreign)
+    const outcome = flush(env)
+    const shown = `.darkmechanicus/epics/${EPIC}/comments/${C1}.json`
+    expect(outcome).toEqual({
+      flushed: 0,
+      failed: 1,
+      errors: [`comment ${C1}: ${shown} already exists with different content; comments are never rewritten.`],
+      savedRevisionIds: [],
+      failedRevisionIds: []
+    })
+    expect(env.fs.get(commentFile(env, C1))).toBe(foreign)
+    expect(outboxRow(env, entry)).toMatchObject({ state: 'pending', attempts: 1 })
+    expect(commentSync(env, C1)).toBeUndefined()
+  })
+
+})
+
+describe('flushOutbox comment export failures', () => {
+  it('refuses to export a comment of an epic that has never been saved', () => {
+    const env = createRepoEnv()
+    insertEpic(env.db, { id: EPIC })
+    insertComment(env.db, { id: C1, epicId: EPIC })
+    insertOutbox(env.db, { kind: 'comment', epicId: EPIC, entityId: C1 })
+    expect(flush(env).errors).toEqual([`comment ${C1}: Comment ${C1} belongs to epic ${EPIC}, which has no saved plan to export it with yet.`])
+    expect(env.fs.writes.filter((path) => path.endsWith('.json'))).toEqual([])
+  })
+
+  it('drops a new comment file that could not be verified so the retry writes it again', () => {
+    const { env, entry } = seedComment()
+    env.fs.failOn({ op: 'readFile', match: (path) => path.endsWith(`${C1}.json`) })
+    expect(flush(env).failed).toBe(1)
+    expect(env.fs.get(commentFile(env, C1))).toBeUndefined()
+    expect(tempFiles(env)).toEqual([])
+    expect(flush(env).flushed).toBe(1)
+    expect(outboxRow(env, entry)).toMatchObject({ state: 'done', attempts: 1 })
+  })
+})
+
+describe('flushOutbox comment ordering', () => {
+  it('never lets a failing comment hold back its epic or other comments', () => {
+    const { env } = seedComment()
+    env.fs.put(commentFile(env, C1), prettyJson({ ...buildCommentRecord(env.db, C1), body: 'different' }))
+    const retry = insertOutbox(env.db, { kind: 'comment', epicId: EPIC, entityId: C1 })
+    const state = insertOutbox(env.db, { kind: 'epic_state', epicId: EPIC })
+    insertComment(env.db, { id: C2, epicId: EPIC })
+    const other = insertOutbox(env.db, { kind: 'comment', epicId: EPIC, entityId: C2 })
+    expect(flush(env)).toMatchObject({ flushed: 2, failed: 1 })
+    expect(outboxRow(env, retry)).toEqual({ state: 'pending', attempts: 0, last_error: null })
+    expect(outboxRow(env, state)?.state).toBe('done')
+    expect(outboxRow(env, other)?.state).toBe('done')
+  })
+
+  it('exports comments while an earlier save of their epic keeps failing', () => {
+    const { env, entry } = seedComment()
+    env.db.run('DELETE FROM outbox WHERE id = ?', entry)
+    stageRevision(env, { epicId: EPIC, revisionId: R2, number: 2, bundle: BUNDLE_2, baseRevisionId: R1 })
+    const comment = insertOutbox(env.db, { kind: 'comment', epicId: EPIC, entityId: C1 })
+    env.fs.failOn({ op: 'writeFile', match: (path) => path.includes(`${R2}.json.tmp-`) })
+    expect(flush(env)).toMatchObject({ flushed: 1, failed: 1, failedRevisionIds: [R2] })
+    expect(outboxRow(env, comment)?.state).toBe('done')
+  })
+})
+
+describe('flushOutbox passes', () => {
+  it('flushes entries queued while flushing, such as comments released by a first save', () => {
+    const env = createRepoEnv()
+    stageRevision(env, { epicId: EPIC, revisionId: R1, number: 1, bundle: BUNDLE_1 })
+    insertComment(env.db, { id: C1, epicId: EPIC })
+    const hook = {
+      onSnapshotSaved(revisionId: string): void {
+        env.hook.onSnapshotSaved(revisionId)
+        insertOutbox(env.db, { kind: 'comment', epicId: EPIC, entityId: C1 })
+      }
+    }
+    expect(flushOutbox(env, hook)).toEqual({ flushed: 2, failed: 0, errors: [], savedRevisionIds: [R1], failedRevisionIds: [] })
+    expect(parseRecord(snapshotRecord, env.fs.get(files(env).snapshot(R1)) ?? '', 's').revisionId).toBe(R1)
+    expect(JSON.parse(env.fs.get(commentFile(env, C1)) ?? '{}')).toMatchObject({ id: C1, epicId: EPIC })
+  })
+
+  it('stops after three passes, leaving entries queued by the third for the next flush', () => {
+    const env = createRepoEnv()
+    const revisions = [1, 2, 3, 4].map((n) => idOf('revision', n))
+    const epics = [1, 2, 3, 4].map((n) => idOf('epic', n))
+    revisions.forEach((revisionId, index) => {
+      insertEpic(env.db, { id: epics[index] ?? '' })
+      insertRevision(env.db, { id: revisionId, epicId: epics[index] ?? '', number: 1, bundle: BUNDLE_1 })
+    })
+    insertOutbox(env.db, { kind: 'snapshot', epicId: epics[0], revisionId: revisions[0] })
+    const hook = {
+      onSnapshotSaved(revisionId: string): void {
+        env.hook.onSnapshotSaved(revisionId)
+        const next = revisions.indexOf(revisionId) + 1
+        insertOutbox(env.db, { kind: 'snapshot', epicId: epics[next], revisionId: revisions[next] })
+      }
+    }
+    expect(flushOutbox(env, hook).savedRevisionIds).toEqual(revisions.slice(0, 3))
+    expect(revisionState(env, revisions[3] ?? '')).toBe('pending')
+    expect(env.db.all("SELECT revision_id FROM outbox WHERE state = 'pending'")).toEqual([{ revision_id: revisions[3] }])
   })
 })

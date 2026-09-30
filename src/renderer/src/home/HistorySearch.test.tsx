@@ -106,12 +106,15 @@ describe('HistorySearch result details', () => {
   it('labels every kind of document', async () => {
     dm.responses.searchHistory = [
       hit({ docType: 'epic', docId: 'e', title: 'E' }),
-      hit({ docType: 'attempt', docId: 'a', title: 'A' })
+      hit({ docType: 'attempt', docId: 'a', title: 'A' }),
+      hit({ docType: 'comment', docId: 'cm_1', title: 'Comment by worker-3', snippet: 'blocked on the [keychain]' })
     ]
     renderSearch()
     await search('x')
     expect(within(screen.getByRole('button', { name: /^Epic/ })).getByText('Epic')).toBeTruthy()
     expect(within(screen.getByRole('button', { name: /^Attempt/ })).getByText('Attempt')).toBeTruthy()
+    const comment = screen.getByRole('button', { name: /Comment by worker-3/ })
+    expect(comment.querySelector('.result-type')?.textContent).toBe('Comment')
   })
 
   it('opens the epic of the clicked result', async () => {

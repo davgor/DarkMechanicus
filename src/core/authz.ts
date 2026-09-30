@@ -30,7 +30,8 @@ export const CAPABILITIES = [
   'attempt.carry_forward',
   'report.submit',
   'checkpoint.approve',
-  'checkpoint.advance'
+  'checkpoint.advance',
+  'comment.write'
 ] as const
 
 export type Capability = (typeof CAPABILITIES)[number]
@@ -43,7 +44,7 @@ export const HUMAN_ONLY_CAPABILITIES: readonly Capability[] = [
   'run.queue'
 ]
 
-const PLANNER: Capability[] = ['read', 'repo.init', 'repo.flush', 'repo.reconcile', 'epic.create', 'draft.edit']
+const PLANNER: Capability[] = ['read', 'repo.init', 'repo.flush', 'repo.reconcile', 'epic.create', 'draft.edit', 'comment.write']
 
 const ORCHESTRATOR: Capability[] = [
   ...PLANNER,
@@ -83,8 +84,8 @@ const ROLE_CAPABILITIES: Record<SessionRole, Capability[]> = {
   desktop: DESKTOP,
   planner: PLANNER,
   orchestrator: ORCHESTRATOR,
-  worker: ['read', 'attempt.heartbeat', 'attempt.submit', 'attempt.fail'],
-  reviewer: ['read', 'attempt.review']
+  worker: ['read', 'attempt.heartbeat', 'attempt.submit', 'attempt.fail', 'comment.write'],
+  reviewer: ['read', 'attempt.review', 'comment.write']
 }
 
 interface RoleOptions {

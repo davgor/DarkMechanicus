@@ -11,26 +11,33 @@ import { join } from 'node:path'
 import type { PlanBundle } from '../../shared/domain/bundle'
 import { LEASED_ATTEMPT_STATES, OPEN_ATTEMPT_STATES } from '../../shared/domain/status'
 import type { ReconcileResultView } from '../../shared/domain/views'
+import { contentHash } from '../canonical'
 import type { Clock } from '../clock'
 import { type Db, parseJson, toJson } from '../db/database'
 import { fail } from '../errors'
 import { getMeta, META_KEYS, setMeta } from '../meta'
 import { validatePlan } from '../plan/graph'
-import { indexDocument } from '../services/searchIndex'
+import { LIMITS } from '../schemas'
+import { indexComment, indexDocument } from '../services/searchIndex'
 import { readProject } from './initialize'
 import { assertContained, displayPath, ownedPaths } from './paths'
 import {
+  type CommentRecord,
+  commentRecord,
   type EpicPointerRecord,
   epicPointerRecord,
   type EpicStateRecord,
   epicStateRecord,
+  MAX_COMMENT_RECORD_BYTES,
   parseRecord,
   type ProjectRecord,
+  readCommentRecord,
   readOwnedText,
   type RunHistoryRecord,
   runHistoryRecord,
   type SnapshotRecord,
   snapshotRecord,
+  trackedCommentHash,
   trackedEpicHash,
   trackedRunHash
 } from './portable'
@@ -69,10 +76,20 @@ interface RunFiles {
   trackedHash: string
 }
 
+interface CommentFiles {
+  commentId: string
+  epicId: string
+  path: string
+  record: CommentRecord
+  trackedHash: string
+}
+
 /** Changed entities (parsed and validated) plus ids whose tracked files match the last sync. */
 interface Scan {
   epics: EpicFiles[]
   runs: RunFiles[]
+  /** Comment files not yet synced with this exact text (unchanged ones are not listed). */
+  comments: CommentFiles[]
   unchanged: string[]
   rejected: Rejection[]
   /** Directory names under `epics/` whose records were rejected. */
@@ -80,7 +97,7 @@ interface Scan {
 }
 
 interface Conflict {
-  kind: 'epic' | 'run'
+  kind: 'epic' | 'run' | 'comment'
   entityId: string
   epicId: string
   message: string
@@ -89,6 +106,10 @@ interface Conflict {
 interface Plan {
   epics: EpicFiles[]
   runs: RunFiles[]
+  /** New comments to insert. */
+  comments: CommentFiles[]
+  /** Files identical to comments already here: only their sync record is written. */
+  syncedComments: CommentFiles[]
   unchanged: string[]
   conflicts: Conflict[]
   rejected: Rejection[]
@@ -292,8 +313,88 @@ function scanEntries<T>(names: string[], read: (name: string) => T | null, sink:
   }
 }
 
+/** A comment file already imported or exported with exactly this text and not in conflict. */
+function commentSynced(db: Db, commentId: string, hash: string): boolean {
+  const row = db.get<{ exported_hash: string | null; imported_hash: string | null; conflict: string | null }>(
+    "SELECT exported_hash, imported_hash, conflict FROM sync_state WHERE kind = 'comment' AND entity_id = ?",
+    commentId
+  )
+  return row !== undefined && row.conflict === null && (row.exported_hash === hash || row.imported_hash === hash)
+}
+
+/** `.json` names in an epic's comments directory; dot entries and other names (such as temp files) are ignored. */
+function listCommentNames(deps: ImporterDeps, dir: string): string[] {
+  if (!deps.fs.exists(dir) && !deps.fs.isSymlink(dir)) {
+    return []
+  }
+  assertContained(deps.layout, deps.fs, dir)
+  if (!deps.fs.isDirectory(dir)) {
+    reject(displayPath(deps.layout, dir), 'is not a directory')
+  }
+  const names = deps.fs
+    .readdir(dir)
+    .filter((name) => !name.startsWith('.') && name.endsWith(JSON_SUFFIX))
+    .sort()
+  if (names.length > LIMITS.commentsPerEpic) {
+    reject(displayPath(deps.layout, dir), `holds more than ${LIMITS.commentsPerEpic} comments`)
+  }
+  return names
+}
+
+/** Reads one comment file's text: contained, a regular file, and within the comment size limit. */
+function readCommentText(deps: ImporterDeps, file: string, shown: string): string {
+  assertContained(deps.layout, deps.fs, file)
+  if (deps.fs.isDirectory(file)) {
+    reject(shown, 'is not a regular file')
+  }
+  if (deps.fs.fileSize(file) > MAX_COMMENT_RECORD_BYTES) {
+    reject(shown, 'is larger than the 256 KiB comment limit')
+  }
+  return requireText(deps, file)
+}
+
+/** A comment file named `<commentId>.json`; null when its text matches the last sync. */
+function readCommentFile(deps: ImporterDeps, epicId: string, name: string): CommentFiles | null {
+  const commentId = name.slice(0, -JSON_SUFFIX.length)
+  const file = ownedPaths(deps.layout).commentFile(epicId, commentId)
+  const shown = displayPath(deps.layout, file)
+  const text = readCommentText(deps, file, shown)
+  const trackedHash = trackedCommentHash(text)
+  if (commentSynced(deps.db, commentId, trackedHash)) {
+    return null
+  }
+  const record = parseRecord(commentRecord, text, shown)
+  if (record.id !== commentId) {
+    reject(shown, 'names a different comment than its file name')
+  }
+  if (record.epicId !== epicId) {
+    reject(shown, 'belongs to a different epic')
+  }
+  return { commentId, epicId, path: shown, record, trackedHash }
+}
+
+/** Every comment file of one epic; each bad file is rejected on its own. */
+function scanComments(deps: ImporterDeps, epicId: string, scan: Scan): void {
+  const dir = ownedPaths(deps.layout).commentsDir(epicId)
+  const shownDir = displayPath(deps.layout, dir)
+  let names: string[]
+  try {
+    names = listCommentNames(deps, dir)
+  } catch (error: unknown) {
+    scan.rejected.push({ path: shownDir, message: messageOf(error) })
+    return
+  }
+  scanEntries(names, (name) => readCommentFile(deps, epicId, name), {
+    found: scan.comments,
+    unchanged: [],
+    onReject: (name, message) => {
+      scan.rejected.push({ path: `${shownDir}/${name}`, message })
+    }
+  })
+}
+
 function scanRepository(deps: ImporterDeps): Scan {
-  const scan: Scan = { epics: [], runs: [], unchanged: [], rejected: [], rejectedEpics: new Set() }
+  const scan: Scan = { epics: [], runs: [], comments: [], unchanged: [], rejected: [], rejectedEpics: new Set() }
   const epicNames = listEntries(deps, deps.layout.epicsDir)
   const runNames = listEntries(deps, deps.layout.historyDir)
   scanEntries(epicNames, (name) => readEpicFiles(deps, name), {
@@ -311,6 +412,10 @@ function scanRepository(deps: ImporterDeps): Scan {
       scan.rejected.push({ path: displayPath(deps.layout, join(deps.layout.historyDir, name)), message })
     }
   })
+  // Comments of an epic whose own records were rejected stay unread until those records are fixed.
+  for (const epicId of epicNames.filter((name) => !scan.rejectedEpics.has(name))) {
+    scanComments(deps, epicId, scan)
+  }
   return scan
 }
 
@@ -323,9 +428,10 @@ function matchesSync(db: Db, kind: 'epic' | 'run', entityId: string, hash: strin
   return row !== undefined && (row.exported_hash === hash || row.imported_hash === hash)
 }
 
+/** Unexported plan or state changes; a comment waiting for export never touches those files. */
 function hasPendingEpicChanges(db: Db, epicId: string): boolean {
   const row = db.get<{ pending: number }>(
-    `SELECT EXISTS (SELECT 1 FROM outbox WHERE epic_id = ? AND state IN ('pending', 'failed'))
+    `SELECT EXISTS (SELECT 1 FROM outbox WHERE epic_id = ? AND kind <> 'comment' AND state IN ('pending', 'failed'))
          OR EXISTS (SELECT 1 FROM plan_revisions WHERE epic_id = ? AND state = 'pending') AS pending`,
     epicId,
     epicId
@@ -437,13 +543,50 @@ function planRuns(db: Db, scan: Scan, plan: Plan, skippedEpics: Set<string>): vo
   }
 }
 
+function planKnownComment(plan: Plan, file: CommentFiles, known: Record<string, unknown>): void {
+  if (contentHash(known) === contentHash(file.record)) {
+    plan.syncedComments.push(file)
+    return
+  }
+  const message = `Comment ${file.commentId} already exists with different content; ${file.path} was not imported.`
+  plan.conflicts.push({ kind: 'comment', entityId: file.commentId, epicId: file.epicId, message })
+}
+
+/**
+ * Comments are immutable: an id already present (here, or earlier in this import) with other
+ * content is a conflict, never an overwrite. A new comment is imported once its epic exists here
+ * or is imported now; otherwise its epic's own rejection or conflict explains the wait.
+ */
+function planComments(db: Db, scan: Scan, plan: Plan): void {
+  const stagedEpics = new Set(plan.epics.map((files) => files.epicId))
+  const seen = new Map<string, CommentRecord>()
+  for (const file of scan.comments) {
+    const known = readCommentRecord(db, file.commentId) ?? seen.get(file.commentId)
+    if (known !== undefined) {
+      planKnownComment(plan, file, known)
+    } else if (stagedEpics.has(file.epicId) || db.get('SELECT id FROM epics WHERE id = ?', file.epicId) !== undefined) {
+      seen.set(file.commentId, file.record)
+      plan.comments.push(file)
+    }
+  }
+}
+
 function planImport(db: Db, scan: Scan): Plan {
-  const plan: Plan = { epics: [], runs: [], unchanged: [...scan.unchanged], conflicts: [], rejected: [...scan.rejected] }
+  const plan: Plan = {
+    epics: [],
+    runs: [],
+    comments: [],
+    syncedComments: [],
+    unchanged: [...scan.unchanged],
+    conflicts: [],
+    rejected: [...scan.rejected]
+  }
   planRuns(db, scan, plan, planEpics(db, scan, plan))
+  planComments(db, scan, plan)
   return plan
 }
 
-function markSynced(db: Db, entry: { kind: 'epic' | 'run'; entityId: string; hash: string; generation: number | null; now: string }): void {
+function markSynced(db: Db, entry: { kind: Conflict['kind']; entityId: string; hash: string; generation: number | null; now: string }): void {
   db.run(
     `INSERT INTO sync_state (kind, entity_id, exported_hash, generation, imported_hash, conflict, updated_at)
      VALUES (?, ?, ?, COALESCE(?, 0), ?, NULL, ?)
@@ -717,6 +860,23 @@ function applyRun(db: Db, run: RunFiles, now: string): void {
   indexRun(db, record)
 }
 
+function applyComment(db: Db, file: CommentFiles, now: string): void {
+  const { record } = file
+  db.run(
+    `INSERT INTO comments (id, epic_id, ticket_id, body, author_role, author_label, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    record.id,
+    record.epicId,
+    record.ticketId,
+    record.body,
+    record.author.role,
+    record.author.label,
+    record.createdAt
+  )
+  markSynced(db, { kind: 'comment', entityId: file.commentId, hash: file.trackedHash, generation: null, now })
+  indexComment(db, record)
+}
+
 /** Applies one staged item under a savepoint; a constraint failure rejects only that item. */
 function applyItem(db: Db, path: string, apply: () => void, rejected: Rejection[]): boolean {
   try {
@@ -787,7 +947,26 @@ function applyStaged(deps: ImporterDeps, plan: Plan, now: string): { imported: s
       imported.push(run.runId)
     }
   }
+  applyComments(deps.db, plan, { now, failedEpics, imported, rejected })
   return { imported, rejected }
+}
+
+interface CommentApply {
+  now: string
+  failedEpics: Set<string>
+  imported: string[]
+  rejected: Rejection[]
+}
+
+function applyComments(db: Db, plan: Plan, apply: CommentApply): void {
+  for (const file of plan.comments.filter((item) => !apply.failedEpics.has(item.epicId))) {
+    if (applyItem(db, file.path, () => applyComment(db, file, apply.now), apply.rejected)) {
+      apply.imported.push(file.commentId)
+    }
+  }
+  for (const file of plan.syncedComments) {
+    markSynced(db, { kind: 'comment', entityId: file.commentId, hash: file.trackedHash, generation: null, now: apply.now })
+  }
 }
 
 function rememberProject(db: Db, project: ProjectRecord): void {

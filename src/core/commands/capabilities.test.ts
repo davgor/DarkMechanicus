@@ -82,7 +82,9 @@ const PROBES: Record<CommandName, unknown> = {
   approveAndAdvance: { runId: RUN, reportId: probeId('report') },
   authorizeAutoContinue: { runId: RUN, enabled: true },
   grantRetry: { runId: RUN, ticketId: TICKET },
-  listEvents: {}
+  listEvents: {},
+  addComment: { epicId: EPIC, body: 'probe' },
+  listComments: { epicId: EPIC }
 }
 
 const COMMAND_NAMES = Object.keys(PROBES) as CommandName[]
