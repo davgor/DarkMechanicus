@@ -12,6 +12,7 @@ export const CAPABILITIES = [
   'epic.branch',
   'draft.edit',
   'plan.save',
+  'profile.write',
   'ticket.status',
   'ticket.retry_grant',
   'host.register',
@@ -43,7 +44,7 @@ export const HUMAN_ONLY_CAPABILITIES: readonly Capability[] = [
   'run.queue'
 ]
 
-const PLANNER: Capability[] = ['read', 'repo.init', 'repo.flush', 'repo.reconcile', 'epic.create', 'draft.edit']
+const PLANNER: Capability[] = ['read', 'repo.init', 'repo.flush', 'repo.reconcile', 'epic.create', 'draft.edit', 'profile.write']
 
 const ORCHESTRATOR: Capability[] = [
   ...PLANNER,

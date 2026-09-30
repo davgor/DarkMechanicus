@@ -2,7 +2,7 @@ import { fail } from '../errors'
 import type { Db } from './database'
 
 /** Highest schema version this build understands. Newer databases are refused, never downgraded. */
-export const SCHEMA_VERSION = 2
+export const SCHEMA_VERSION = 4
 
 interface Migration {
   version: number
@@ -286,9 +286,26 @@ DROP TABLE sync_state;
 ALTER TABLE sync_state_v2 RENAME TO sync_state;
 `
 
+/**
+ * v4 adds named capability profiles: reusable, provider-neutral presets keyed by a file-safe name and
+ * exported as `.darkmechanicus/profiles/<name>.json`. `revision` is this database's optimistic
+ * concurrency counter for saves; it is not part of the tracked record.
+ */
+const V4 = `
+CREATE TABLE profiles (
+  name TEXT PRIMARY KEY,
+  description TEXT NOT NULL DEFAULT '',
+  capability_json TEXT NOT NULL,
+  revision INTEGER NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+`
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, sql: V1 },
-  { version: 2, sql: V2 }
+  { version: 2, sql: V2 },
+  { version: 4, sql: V4 }
 ]
 
 export function readSchemaVersion(db: Db): number {
