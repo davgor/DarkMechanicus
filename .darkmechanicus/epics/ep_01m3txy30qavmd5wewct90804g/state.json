@@ -1,0 +1,38 @@
+{
+  "branch": {
+    "name": "main",
+    "repository": null,
+    "startCommit": "50e56aec28d6cfa757d4d3a06643ccdd7cfb5dce"
+  },
+  "completedAt": "2026-10-01T05:19:45.466Z",
+  "createdAt": "2026-10-01T05:10:30.679Z",
+  "epicId": "ep_01m3txy30qavmd5wewct90804g",
+  "format": "darkmechanicus.epic-state",
+  "formatVersion": 1,
+  "generation": 7,
+  "outcome": {
+    "recordedAt": "2026-10-01T05:19:45.466Z",
+    "runId": "rn_01m3txzt9wj79mxsq50f5ktf1q",
+    "successCriteria": [
+      {
+        "criterionId": "s1",
+        "met": true,
+        "note": "Epic and both tickets listed (DM-1 accepted); the person saved and queued it from the desktop."
+      },
+      {
+        "criterionId": "s2",
+        "met": true,
+        "note": "Draft saved as revision 1 from the desktop (DM-2 accepted)."
+      }
+    ],
+    "summary": "The MCP authoring and execution path works end to end with the installed app: an agent can create epics and tickets, a person saves and queues in the desktop, and an agent can execute the run up to the human checkpoint."
+  },
+  "provenance": null,
+  "status": "completed",
+  "ticketStatuses": {
+    "tk_01m3txy30tjnwv2m5kjebfq0aj": "completed",
+    "tk_01m3txy30tvtfbzj1ecax0dvb0": "completed"
+  },
+  "title": "MCP connection test",
+  "updatedAt": "2026-10-01T05:19:45.482Z"
+}
