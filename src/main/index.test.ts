@@ -1,4 +1,5 @@
 import type { BrowserWindowConstructorOptions } from 'electron'
+import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const startup = vi.hoisted(() => ({
@@ -61,7 +62,7 @@ describe('desktop startup icon', () => {
     expect(startup.dockIcons).toEqual([options.icon])
     expect(options.title).toBe('Dark Mechanicus')
     expect(options.webPreferences).toMatchObject({ contextIsolation: true, nodeIntegration: false, sandbox: true })
-    expect(startup.loadedFiles).toEqual([expect.stringContaining('renderer/index.html')])
+    expect(startup.loadedFiles).toEqual([expect.stringContaining(join('renderer', 'index.html'))])
     expect(startup.loadedUrls).toHaveLength(0)
   })
 
