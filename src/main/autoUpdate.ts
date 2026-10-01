@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, type IpcMain } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import type { AutoUpdatePhase, AutoUpdateState } from '../shared/autoUpdate/types'
 import { logger } from './logger'
@@ -71,12 +71,13 @@ export async function checkForUpdatesNow(): Promise<void> {
   }
 }
 
-export function registerAutoUpdateHandlers(): void {
-  ipcMain.handle('autoUpdate:getState', () => getAutoUpdateState())
-  ipcMain.handle('autoUpdate:quitAndInstall', () => {
+/** Registers the update channels on `ipc` (the sender-guarded registrar from `guardIpc`). */
+export function registerAutoUpdateHandlers(ipc: Pick<IpcMain, 'handle'>): void {
+  ipc.handle('autoUpdate:getState', () => getAutoUpdateState())
+  ipc.handle('autoUpdate:quitAndInstall', () => {
     quitAndInstallUpdate()
   })
-  ipcMain.handle('autoUpdate:checkForUpdates', () => checkForUpdatesNow())
+  ipc.handle('autoUpdate:checkForUpdates', () => checkForUpdatesNow())
 }
 
 function wireAutoUpdaterEvents(): void {

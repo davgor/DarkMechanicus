@@ -55,6 +55,28 @@ describe('formatPrMarkdown', () => {
   });
 });
 
+describe('formatPrMarkdown mutation scoping', () => {
+  it('shows per-module test counts in the full report section', () => {
+    const md = formatPrMarkdown({
+      ...report,
+      gates: {
+        mutation: {
+          name: 'mutation',
+          pass: false,
+          killed: 0,
+          survived: 1,
+          total: 1,
+          score: 0,
+          survivors: [],
+          modules: ['src/x.ts'],
+          moduleTests: { 'src/x.ts': 0 },
+        },
+      },
+    });
+    expect(md).toContain('tests per module: src/x.ts=0 (no graded test imports it)');
+  });
+});
+
 describe('upsertPrComment', () => {
   it('updates an existing fireguard comment when marker is present', async () => {
     const updateComment = vi.fn(async () => undefined);

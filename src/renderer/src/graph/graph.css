@@ -1,0 +1,317 @@
+/* Plan graph: React Flow canvas themed as the dark "forge console" (see docs/design mockups 02/04). */
+.pg {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 320px;
+  background: var(--bg);
+}
+
+.pg .react-flow {
+  --xy-background-color: var(--bg);
+  --xy-edge-stroke: #8a8070;
+  --xy-edge-stroke-selected: var(--accent);
+  --xy-connectionline-stroke: var(--accent);
+  --xy-handle-background-color: var(--panel-3);
+  --xy-handle-border-color: var(--line);
+  --xy-controls-button-background-color: var(--panel);
+  --xy-controls-button-background-color-hover: var(--panel-2);
+  --xy-controls-button-color: var(--ink-2);
+  --xy-controls-button-color-hover: var(--ink);
+  --xy-controls-button-border-color: var(--line-soft);
+  --xy-controls-box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+  font-family: var(--font-sans);
+  color: var(--ink);
+}
+
+.pg .react-flow__controls {
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.pg .react-flow__controls-button {
+  width: 30px;
+  height: 30px;
+}
+
+.pg .react-flow__node:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 14px;
+}
+
+/* Ticket cards */
+.pg-card {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  background: color-mix(in srgb, var(--tone) 10%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--tone) 55%, var(--line));
+  border-radius: 14px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.38);
+  cursor: pointer;
+}
+
+.pg.is-editable .pg-card {
+  cursor: grab;
+}
+
+.pg-card.ew-tone-neutral,
+.pg-card.ew-tone-waiting {
+  background: #1d1a16;
+  border-color: var(--line);
+}
+
+.pg-card.is-dashed {
+  border-style: dashed;
+}
+
+.pg-card.ew-tone-running {
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.38), 0 0 0 4px color-mix(in srgb, var(--st-running) 16%, transparent);
+}
+
+.pg-card.is-active {
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.38), 0 0 0 2px var(--accent);
+}
+
+.pg-card-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 15px;
+  letter-spacing: 0.03em;
+  color: var(--tone);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pg-card.ew-tone-neutral .pg-card-label {
+  color: var(--ink-2);
+}
+
+.pg-card-title {
+  font-size: 13.5px;
+  line-height: 18px;
+  font-weight: 600;
+  color: var(--ink);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.pg-note {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 6px);
+  width: 100%;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--st-failed);
+  pointer-events: none;
+}
+
+.pg .react-flow__handle {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.pg.is-readonly .react-flow__handle {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Dependency edges: solid when the prerequisite is accepted, dashed while waiting on it. */
+.pg-edge .react-flow__edge-path {
+  stroke: #8a8070;
+  stroke-width: 2;
+}
+
+.pg-edge.is-waiting .react-flow__edge-path {
+  stroke: #6a6254;
+  stroke-dasharray: 6 6;
+}
+
+.pg-edge.selected .react-flow__edge-path,
+.pg-edge:focus-visible .react-flow__edge-path {
+  stroke: var(--accent);
+}
+
+/* Sprint labels */
+.pg-sprint {
+  display: flex;
+  flex-direction: column;
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--ink-2);
+}
+
+.pg-sprint-heading {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+
+.pg-sprint.is-active .pg-sprint-heading {
+  color: var(--accent);
+}
+
+.pg-sprint-goal {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.pg-add {
+  align-self: flex-start;
+  margin-top: 6px;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pg-add:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Checkpoint dividers and the epic checks pill */
+.pg-divider {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.pg-divider::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: 1px dashed var(--line);
+}
+
+.pg-divider-pill {
+  position: absolute;
+  left: 8px;
+  top: 0;
+  box-sizing: border-box;
+  height: 28px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg);
+  border: 1px solid var(--tone);
+  border-radius: 14px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  color: var(--tone);
+  white-space: nowrap;
+}
+
+/* Epic containment node */
+.pg-epic {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: 10px 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 32px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.38);
+}
+
+.pg-epic-icon {
+  flex-shrink: 0;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.pg-epic-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.pg-epic-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  line-height: 15px;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
+.pg-epic-title {
+  font-family: var(--font-serif);
+  font-size: 16px;
+  line-height: 21px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Legend */
+.pg-legend {
+  width: 190px;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-2);
+}
+
+.pg-legend-states {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pg-legend-states:not(:empty) {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.pg-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pg-legend-line {
+  display: inline-block;
+  width: 20px;
+  border-top: 2px solid #8a8070;
+}
+
+.pg-legend-line.is-dashed {
+  border-top-style: dashed;
+  border-top-color: #6a6254;
+}

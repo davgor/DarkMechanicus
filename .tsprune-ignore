@@ -1,10 +1,51 @@
 # Baseline ignore for ts-prune (one pattern per line)
 # Generated from tsconfig.node.json + tsconfig.web.json
 # Refresh after export moves/deletes: npm run deadcode:refresh
-# Refreshed 2026-08-13 (5 entries)
+# Refreshed 2026-09-30 (46 entries)
 
 electron.vite.config.ts:37 - default
 src/preload/index.ts:24 - AutoUpdateApi
 src/preload/index.ts:25 - AppInfoApi
-src/shared/autoUpdate/types.ts:1 - AutoUpdatePhase
 src/shared/autoUpdate/types.ts:17 - AUTO_UPDATE_EVENT_CHANNEL
+src/shared/desktop/api.ts:113 - DesktopCommandName
+src/shared/desktop/api.ts:115 - DESKTOP_COMMANDS
+src/shared/desktop/api.ts:21 - CommandInput
+src/shared/desktop/api.ts:25 - CommandOutput
+src/shared/domain/api.ts:118 - ClaimTicketInput
+src/shared/domain/api.ts:132 - SubmitAttemptInput
+src/shared/domain/api.ts:140 - StartRunInput
+src/shared/domain/api.ts:150 - SprintReportInput
+src/shared/domain/api.ts:152 - AddCommentInput
+src/shared/domain/api.ts:55 - API_VERSION
+src/shared/domain/api.ts:75 - SprintInput
+src/shared/domain/bundle.ts:111 - CHECKPOINT_MODES
+src/shared/domain/bundle.ts:134 - RELATION_KINDS
+src/shared/domain/bundle.ts:138 - Relation
+src/shared/domain/bundle.ts:144 - TICKET_FAILURE_POLICIES
+src/shared/domain/bundle.ts:157 - EpicContent
+src/shared/domain/bundle.ts:23 - WorkType
+src/shared/domain/bundle.ts:26 - ReasoningLevel
+src/shared/domain/bundle.ts:29 - Modality
+src/shared/domain/bundle.ts:39 - ToolCapability
+src/shared/domain/bundle.ts:82 - REFERENCE_KINDS
+src/shared/domain/errors.ts:5 - DOMAIN_ERROR_CODES
+src/shared/domain/status.ts:21 - ACTIVE_RUN_STATES
+src/shared/domain/status.ts:28 - ATTEMPT_STATES
+src/shared/domain/status.ts:41 - OPEN_ATTEMPT_STATES
+src/shared/domain/status.ts:44 - LEASED_ATTEMPT_STATES
+src/shared/domain/status.ts:49 - TICKET_EXECUTION_STATES
+src/shared/domain/status.ts:6 - WORK_STATUSES
+src/shared/domain/status.ts:70 - isLeasedAttemptState
+src/shared/domain/status.ts:74 - WORK_STATUS_LABELS
+src/shared/domain/status.ts:9 - RUN_STATES
+src/shared/domain/views.ts:185 - PrerequisiteOutcome
+src/shared/domain/views.ts:203 - WorkerInfo
+src/shared/domain/views.ts:21 - SessionRole
+src/shared/domain/views.ts:227 - CheckStatus
+src/shared/domain/views.ts:253 - AttemptDecision
+src/shared/domain/views.ts:285 - HostModel
+src/shared/domain/views.ts:320 - FollowUpProposal
+src/shared/domain/views.ts:349 - GateConditionId
+src/shared/domain/views.ts:428 - ExecutionPacket
+src/shared/domain/views.ts:73 - EpicOutcome
+src/shared/domain/views.ts:88 - ValidationIssue

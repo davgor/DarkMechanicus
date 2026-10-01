@@ -1,0 +1,54 @@
+/* State tones shared by the epic workspace, graph, ticket panel and checkpoint view.
+   A tone only sets --tone; every tone is always shown next to its text label. */
+.ew-tone-accepted { --tone: var(--st-accepted); }
+.ew-tone-review { --tone: var(--st-review); }
+.ew-tone-running { --tone: var(--st-running); }
+.ew-tone-ready { --tone: var(--st-ready); }
+.ew-tone-waiting { --tone: var(--st-waiting); }
+.ew-tone-blocked { --tone: var(--st-blocked); }
+.ew-tone-failed { --tone: var(--st-failed); }
+.ew-tone-neutral { --tone: var(--muted); }
+.ew-tone-new { --tone: var(--accent); }
+.ew-tone-edited { --tone: #e8b86a; }
+.ew-tone-rejected { --tone: var(--st-failed); }
+
+.ew-dot {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--tone, var(--muted));
+}
+
+.ew-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--tone, var(--line));
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--tone, var(--muted)) 12%, var(--bg));
+  color: var(--tone, var(--ink-2));
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.ew-pill .ew-dot {
+  width: 6px;
+  height: 6px;
+}
+
+.ew-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--tone, var(--ink-2));
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: nowrap;
+}

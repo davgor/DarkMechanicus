@@ -16,6 +16,12 @@ export interface FireguardConfig {
   exclude: string[];
   baseRef: string;
   testCommand: string;
+  /**
+   * Wall-clock limit for one test run. A run that exceeds it is killed (with everything it
+   * started) and reported as failed, so a mutant that makes code loop forever counts as killed
+   * and a hung flake run counts as flaky instead of hanging fireguard.
+   */
+  testTimeoutMs: number;
 }
 
 export interface AstFinding {
@@ -66,6 +72,12 @@ export interface MutationGateResult {
   score: number;
   survivors: MutationSurvivor[];
   modules: string[];
+  /**
+   * Graded test files each module's mutants ran against (module path -> count). Present when
+   * mutants were scoped to the tests that transitively import their module; 0 means no graded
+   * test reaches the module, so every one of its mutants counted as survived.
+   */
+  moduleTests?: Record<string, number>;
 }
 
 export type GateResult = AstGateResult | FlakeGateResult | MutationGateResult;

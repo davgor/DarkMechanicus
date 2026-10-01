@@ -5,6 +5,8 @@ import {
   createVitestRunner,
   getGitDiffEntries,
   readWorkspaceFile,
+  readWorkspaceFileSync,
+  workspaceFileExists,
 } from './processAdapters.js';
 import {
   formatPrMarkdown,
@@ -13,7 +15,7 @@ import {
 } from './prComment.js';
 import { formatHumanReport, formatJsonReport } from './report.js';
 import { runFireguard, type RunFireguardDeps } from './runFireguard.js';
-import type { FireguardReport } from './types.js';
+import type { FireguardConfig, FireguardReport } from './types.js';
 
 export interface CliOptions {
   cwd?: string;
@@ -33,6 +35,20 @@ function flagValue(argv: string[], name: string): string | undefined {
   const idx = argv.indexOf(name);
   if (idx === -1) return undefined;
   return argv[idx + 1];
+}
+
+/** Git/vitest/filesystem-backed dependencies for a real run. */
+function createDeps(cwd: string, config: FireguardConfig): RunFireguardDeps {
+  const runOnce = createVitestRunner({ cwd, config });
+  return {
+    config,
+    getDiffEntries: () => getGitDiffEntries({ cwd, baseRef: config.baseRef }),
+    readFile: (path) => readWorkspaceFile(cwd, path),
+    fileExists: (path) => workspaceFileExists(cwd, path),
+    readFileSync: (path) => readWorkspaceFileSync(cwd, path),
+    runOnce,
+    applyAndTest: createMutationApplier({ cwd, runOnce }),
+  };
 }
 
 export async function runCli(options: CliOptions = {}): Promise<number> {
@@ -81,17 +97,8 @@ Exit codes:
   let report: FireguardReport;
   try {
     const config = loadConfig({ cwd, env });
-    const runOnce = createVitestRunner({ cwd, config });
-    const applyAndTest = createMutationApplier({ cwd, runOnce });
-    const deps: RunFireguardDeps = {
-      config,
-      getDiffEntries: () => getGitDiffEntries({ cwd, baseRef: config.baseRef }),
-      readFile: (path) => readWorkspaceFile(cwd, path),
-      runOnce,
-      applyAndTest,
-    };
     const run = options.runFireguardFn ?? runFireguard;
-    report = await run(deps);
+    report = await run(createDeps(cwd, config));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     stderr(`fireguard error: ${message}\n`);

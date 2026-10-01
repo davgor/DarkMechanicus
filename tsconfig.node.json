@@ -14,7 +14,11 @@
     "electron.vite.config.ts",
     "src/main/**/*",
     "src/preload/**/*",
-    "src/shared/**/*"
+    "src/shared/**/*",
+    "src/core/**/*",
+    "src/mcp/**/*",
+    "src/test/**/*",
+    "src/integration/**/*"
   ],
   "exclude": ["src/renderer"]
 }

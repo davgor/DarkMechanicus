@@ -1,23 +1,57 @@
 import { spawn } from 'node:child_process';
 import { readFile, writeFile } from 'node:fs/promises';
-import { writeFileSync } from 'node:fs';
+import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseNameStatus } from './gitScope.js';
 import type { DiffEntry, FireguardConfig, RunOnceResult } from './types.js';
 
-function runCommand(
+export interface CommandResult {
+  code: number;
+  stdout: string;
+  stderr: string;
+  timedOut: boolean;
+}
+
+/** Exit code reported for a run that fireguard killed after `timeoutMs` (the `timeout(1)` convention). */
+const TIMEOUT_EXIT_CODE = 124;
+
+/** Kills a spawned command together with everything it started (vitest workers, grandchildren). */
+function killTree(pid: number | undefined): void {
+  if (pid === undefined) return;
+  try {
+    if (process.platform === 'win32') {
+      spawn('taskkill', ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore' });
+    } else {
+      // The child was spawned detached, so it leads its own process group: `-pid` signals all of it.
+      process.kill(-pid, 'SIGKILL');
+    }
+  } catch {
+    // Already gone.
+  }
+}
+
+export function runCommand(
   command: string,
   args: string[],
-  cwd: string
-): Promise<{ code: number; stdout: string; stderr: string }> {
+  options: { cwd: string; timeoutMs?: number }
+): Promise<CommandResult> {
   return new Promise((resolvePromise) => {
     const child = spawn(command, args, {
-      cwd,
+      cwd: options.cwd,
       shell: false,
       env: process.env,
+      detached: process.platform !== 'win32',
     });
     let stdout = '';
     let stderr = '';
+    let timedOut = false;
+    const timer =
+      options.timeoutMs === undefined
+        ? undefined
+        : setTimeout(() => {
+            timedOut = true;
+            killTree(child.pid);
+          }, options.timeoutMs);
     child.stdout.on('data', (chunk: Buffer) => {
       stdout += chunk.toString();
     });
@@ -25,7 +59,14 @@ function runCommand(
       stderr += chunk.toString();
     });
     child.on('close', (code) => {
-      resolvePromise({ code: code ?? 1, stdout, stderr });
+      clearTimeout(timer);
+      const note = timedOut ? `\nfireguard: test run timed out after ${options.timeoutMs}ms` : '';
+      resolvePromise({
+        code: timedOut ? TIMEOUT_EXIT_CODE : (code ?? 1),
+        stdout,
+        stderr: `${stderr}${note}`,
+        timedOut,
+      });
     });
   });
 }
@@ -35,14 +76,12 @@ export async function getGitDiffEntries(options: {
   baseRef: string;
 }): Promise<DiffEntry[]> {
   const range = `${options.baseRef}...HEAD`;
-  const result = await runCommand('git', ['diff', '--name-status', range], options.cwd);
+  const result = await runCommand('git', ['diff', '--name-status', range], { cwd: options.cwd });
   if (result.code !== 0) {
     // Fallback for shallow clones / missing merge-base: diff against baseRef
-    const fallback = await runCommand(
-      'git',
-      ['diff', '--name-status', options.baseRef],
-      options.cwd
-    );
+    const fallback = await runCommand('git', ['diff', '--name-status', options.baseRef], {
+      cwd: options.cwd,
+    });
     if (fallback.code !== 0) {
       throw new Error(
         `git diff failed: ${result.stderr || fallback.stderr || 'unknown git error'}`
@@ -62,12 +101,14 @@ export function createVitestRunner(options: {
     const parts = options.config.testCommand.split(/\s+/).filter(Boolean);
     const command = parts[0] ?? 'npx';
     const baseArgs = parts.slice(1);
-    const result = await runCommand(command, [...baseArgs, ...files], options.cwd);
+    const result = await runCommand(command, [...baseArgs, ...files], {
+      cwd: options.cwd,
+      timeoutMs: options.config.testTimeoutMs,
+    });
     if (result.code === 0) return { ok: true };
-    return {
-      ok: false,
-      error: (result.stderr || result.stdout || `exit ${result.code}`).slice(0, 2000),
-    };
+    const output = result.stderr || result.stdout || `exit ${result.code}`;
+    // Keep the tail: vitest prints the summary (and fireguard its timeout note) last.
+    return { ok: false, error: output.slice(-2000) };
   };
 }
 
@@ -121,4 +162,22 @@ export function createMutationApplier(options: {
 
 export async function readWorkspaceFile(cwd: string, path: string): Promise<string> {
   return readFile(join(cwd, path), 'utf8');
+}
+
+/** True for regular files only, so a directory never shadows `./x.ts` when resolving imports. */
+export function workspaceFileExists(cwd: string, path: string): boolean {
+  try {
+    return statSync(join(cwd, path)).isFile();
+  } catch {
+    return false;
+  }
+}
+
+/** Synchronous read for import-graph scans; null when the file is missing or unreadable. */
+export function readWorkspaceFileSync(cwd: string, path: string): string | null {
+  try {
+    return readFileSync(join(cwd, path), 'utf8');
+  } catch {
+    return null;
+  }
 }

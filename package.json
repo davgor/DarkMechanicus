@@ -21,7 +21,10 @@
     "test:fireguard": "vitest run --config fireguard/vitest.config.ts",
     "fireguard": "node fireguard/bin/fireguard.mjs",
     "deadcode": "node scripts/deadcode-check.mjs",
-    "deadcode:refresh": "node scripts/deadcode-refresh.mjs"
+    "deadcode:refresh": "node scripts/deadcode-refresh.mjs",
+    "mcp": "node out/main/mcp.js",
+    "smoke:mcp": "node scripts/mcp-smoke.mjs",
+    "spike:claims": "tsx scripts/spike/claim-stress.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.31.0",
@@ -33,14 +36,17 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
     "@types/minimatch": "^5.1.2",
-    "@types/node": "^20.14.0",
+    "@types/node": "~24.19.0",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^5.2.0",
     "electron": "^42.6.0",
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
+    "jsdom": "^30.1.1",
     "minimatch": "^10.2.6",
     "oxlint": "^1.71.0",
     "ts-prune": "^0.10.3",

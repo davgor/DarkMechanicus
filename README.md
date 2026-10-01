@@ -1,6 +1,23 @@
 # DarkMechanicus
 
-Electron desktop app (TypeScript + React) — a dark factory shell for coding projects.
+Local planning and execution coordination for agentic development: an **MCP server** for agents and an **Electron desktop app** for people, both operating on the same repository-owned state with the same rules.
+
+An agent helps you shape an epic, decomposes it into tickets with acceptance criteria and capability profiles, wires dependencies and sprint checkpoints, and writes the plan as a draft. You review and edit the plan graph in the desktop app and press **Save**. An orchestrator agent then runs the saved revision: it claims ready tickets for its own workers, records submissions and acceptance, and stops at each sprint checkpoint until you approve.
+
+- Product specification: [`docs/product-plan.md`](docs/product-plan.md)
+- Implementation architecture: [`docs/architecture.md`](docs/architecture.md)
+- Connecting an agent host: [`docs/runbooks/mcp-setup.md`](docs/runbooks/mcp-setup.md)
+- Agent skills (provider-neutral, also served as MCP prompts): [`skills/`](skills/)
+
+## Using it
+
+1. **Track a folder** — press **+** in the sidebar and pick a repository. Each tracked folder expands into **In progress**, **Backlog**, and **Completed** epics.
+2. **Initialize** — a new folder shows the setup screen; initializing creates `.darkmechanicus/` (Git-tracked plans and history, plus a Git-ignored `local/` working database). Nothing is committed for you.
+3. **Connect an agent** — copy the MCP snippet from the setup screen into your agent host. The server runs headless: agents can plan and execute with the desktop closed. `--allow-save` lets an agent save plans; without it, you save in the app.
+4. **Plan** — agents (or you) edit a **draft**; the saved plan only changes on Save. Invalid edits are rejected with a concrete reason (cycles, a prerequisite in a later sprint, …). Reusable capability requirements live in named profiles (`.darkmechanicus/profiles/`): pick one with **Start from profile** in the ticket editor, or let agents use `list_profiles` and `save_profile`.
+5. **Run** — press **Start run** (or let the orchestrator start one). Runs pin a saved revision; tickets become ready when their prerequisites are accepted.
+6. **Checkpoint** — at the end of each sprint the orchestrator files a report; you review it and **Approve & advance**. The final checkpoint completes the epic, which then becomes read-only history that agents can search.
+7. **Comment** — people and agents leave Markdown notes on tickets (the ticket panel's **Comments** tab, or `add_comment` over MCP): blockers, decisions, review notes. Comments travel with the repository and show up in history search.
 
 Epic-flow process and CI/CD mirrored from [CapitalGains](https://github.com/davgor/CapitalGains) (itself aligned with [AI-DND-Matrix](https://github.com/davgor/AI-DND-Matrix) packaging/deploy).
 
@@ -28,6 +45,8 @@ Each ticket has a description and checkable acceptance criteria. Implementation 
 ## Stack
 
 - Electron + React + TypeScript
+- SQLite via built-in `node:sqlite` (one repository-local database shared by the desktop and headless MCP processes)
+- `@modelcontextprotocol/sdk` stdio server, React Flow plan graph, zod validation
 - electron-vite / electron-builder for build and packaging
 - Vitest for unit tests
 - oxlint for lint
@@ -49,6 +68,9 @@ npm run package:win  # Windows NSIS + portable
 npm run package:mac  # macOS .dmg
 npm run deadcode     # ts-prune vs .tsprune-ignore
 npm run deadcode:refresh
+npm run mcp -- --repo <path>   # headless stdio MCP server (after npm run build)
+npm run smoke:mcp    # drive the built MCP server end to end over stdio
+npm run spike:claims # multi-process competing-claim stress proof
 ```
 
 ## CI
