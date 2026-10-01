@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, shell, type IpcMain } from 'electron'
 import { join } from 'node:path'
+import appIcon from '../../build/icon.png?asset'
 import { SKILLS } from '../mcp/skills'
 import { initAutoUpdate, registerAutoUpdateHandlers } from './autoUpdate'
 import { startDesktopBridge } from './desktop/bootstrap'
@@ -30,6 +31,7 @@ function createMainWindow(): BrowserWindow {
     minHeight: 680,
     backgroundColor: '#141310',
     title: 'Dark Mechanicus',
+    icon: appIcon,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -65,6 +67,7 @@ function registerAppVersionHandler(ipc: Pick<IpcMain, 'handle'>): void {
 }
 
 app.whenReady().then(() => {
+  app.dock?.setIcon(appIcon)
   // Every IPC handler is registered through the guard: it answers only the app page's top frame.
   const ipc = guardIpc(ipcMain, {
     appUrl,
