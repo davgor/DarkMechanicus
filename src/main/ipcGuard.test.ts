@@ -42,9 +42,9 @@ describe('isTrustedSender for the packaged page', () => {
   })
 
   it('compares the resolved path, never a prefix', () => {
-    expect(isTrustedSender(frameAt('file:///opt/app/out/renderer/../renderer/index.html'), PAGE)).toBe(true)
+    expect(isTrustedSender(frameAt(PAGE.replace('/renderer/index.html', '/renderer/../renderer/index.html')), PAGE)).toBe(true)
     expect(isTrustedSender(frameAt(`${PAGE}.html`), PAGE)).toBe(false)
-    expect(isTrustedSender(frameAt('file:///opt/app/out/renderer/index.html/../../../../etc/passwd'), PAGE)).toBe(false)
+    expect(isTrustedSender(frameAt(`${PAGE}/../../../../etc/passwd`), PAGE)).toBe(false)
   })
 
   it('refuses another file on the same scheme', () => {

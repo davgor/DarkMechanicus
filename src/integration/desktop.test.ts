@@ -19,7 +19,7 @@ interface Desktop {
 }
 
 function createDesktop(): Desktop {
-  const repo = realpathSync(mkdtempSync(join(tmpdir(), 'dm-desktop-repo-')))
+  const repo = realpathSync.native(mkdtempSync(join(tmpdir(), 'dm-desktop-repo-')))
   const config = mkdtempSync(join(tmpdir(), 'dm-desktop-config-'))
   const clock = createTestClock('2026-04-01T09:00:00.000Z')
   const ids = createSequentialIds()

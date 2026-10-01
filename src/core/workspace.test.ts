@@ -163,7 +163,7 @@ describe('Workspace repository root', () => {
     mkdirSync(nested, { recursive: true })
     const stdio = harness.open('worker', { root: nested, transport: 'stdio' })
     const inProcess = harness.open('worker', { root: nested })
-    expect([stdio.repoRoot, stdio.isInitialized()]).toEqual([realpathSync(harness.root), true])
+    expect([stdio.repoRoot, stdio.isInitialized()]).toEqual([realpathSync.native(harness.root), true])
     expect([inProcess.repoRoot, inProcess.isInitialized()]).toEqual([nested, false])
   })
 })

@@ -188,8 +188,8 @@ describe('hardenWebContents packaged navigation', () => {
   it('blocks the packaged path on another host, which is a different (network) file', () => {
     const contents = hardened(page)
 
-    expect(contents.navigate('will-navigate', 'file://evil.example/opt/app/out/renderer/index.html')).toBe(true)
-    expect(contents.navigate('will-navigate', 'file://localhost/opt/app/out/renderer/index.html')).toBe(false)
+    expect(contents.navigate('will-navigate', page.replace('file:///', 'file://evil.example/'))).toBe(true)
+    expect(contents.navigate('will-navigate', page.replace('file:///', 'file://localhost/'))).toBe(false)
   })
 })
 
@@ -198,10 +198,10 @@ describe('isAppUrl', () => {
 
   it('matches the packaged page by its resolved path, ignoring query and hash', () => {
     expect(isAppUrl(page, page)).toBe(true)
-    expect(isAppUrl('file:///opt/app/out/renderer/../renderer/index.html', page)).toBe(true)
+    expect(isAppUrl(page.replace('/renderer/index.html', '/renderer/../renderer/index.html'), page)).toBe(true)
     expect(isAppUrl(`${page}?view=list#/epic/1`, page)).toBe(true)
     expect(isAppUrl(`${page}.evil`, page)).toBe(false)
-    expect(isAppUrl('file:///opt/app/out/renderer/index.html/../other.html', page)).toBe(false)
+    expect(isAppUrl(`${page}/../other.html`, page)).toBe(false)
   })
 
   it('matches the dev server by origin only', () => {
