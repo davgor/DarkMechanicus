@@ -109,6 +109,12 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: false
         run: npm run package:mac
 
+      - name: Verify macOS app signatures
+        run: |
+          for app in release/mac*/*.app; do
+            codesign --verify --deep --strict --verbose=2 "$app"
+          done
+
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
         with:

@@ -17,6 +17,16 @@ function releaseJobSource(yml) {
   return normalized.slice(match.index)
 }
 
+/** Slice the `package-mac:` job block (until the next top-level job). */
+function packageMacJobSource(yml) {
+  const normalized = yml.replace(/\r\n/g, '\n')
+  const match = /\n {2}package-mac:\n[\s\S]*?(?=\n {2}[\w-]+:\n|$)/.exec(normalized)
+  if (!match) {
+    throw new Error('deploy.yml: could not find top-level package-mac job')
+  }
+  return match[0]
+}
+
 describe('releaseJobSource', () => {
   it('finds the release job when the workflow uses CRLF line endings', () => {
     const crlf = [
@@ -32,6 +42,39 @@ describe('releaseJobSource', () => {
 
     expect(releaseJobSource(crlf)).toContain('  release:\n')
     expect(releaseJobSource(crlf)).toContain('actions/checkout@v4')
+  })
+})
+
+describe('packageMacJobSource', () => {
+  it('stops at the next top-level job', () => {
+    const yml = [
+      'jobs:',
+      '  package-mac:',
+      '    runs-on: macos-latest',
+      '  release:',
+      '    runs-on: ubuntu-latest',
+      ''
+    ].join('\n')
+
+    expect(packageMacJobSource(yml)).toContain('macos-latest')
+    expect(packageMacJobSource(yml)).not.toContain('ubuntu-latest')
+  })
+})
+
+describe('deploy.yml package-mac job', () => {
+  const packageMac = packageMacJobSource(deployYml)
+
+  it('strictly verifies every packaged app signature between packaging and upload', () => {
+    const packageAt = packageMac.indexOf('npm run package:mac')
+    const verifyAt = packageMac.search(
+      /codesign --verify --deep --strict[^\n]*"\$app"/
+    )
+    const uploadAt = packageMac.indexOf('actions/upload-artifact')
+
+    expect(packageMac).toMatch(/for app in release\/mac\*\/\*\.app/)
+    expect(packageAt).toBeGreaterThan(-1)
+    expect(verifyAt).toBeGreaterThan(packageAt)
+    expect(uploadAt).toBeGreaterThan(verifyAt)
   })
 })
 

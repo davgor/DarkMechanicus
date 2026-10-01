@@ -106,7 +106,9 @@
         }
       ],
       "artifactName": "${productName}-${version}-${arch}.${ext}",
-      "icon": "build/icon.icns"
+      "icon": "build/icon.icns",
+      "identity": "-",
+      "hardenedRuntime": false
     }
   },
   "optionalDependencies": {

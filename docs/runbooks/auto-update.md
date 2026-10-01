@@ -14,6 +14,19 @@ CI builds with `electron-builder --publish never` (artifacts only). The deploy w
 
 Install the **Setup** build for automatic updates on Windows. Keep the portable build for users who want a single file without installing.
 
+## First launch on macOS
+
+macOS builds are **ad-hoc signed** (`mac.identity: "-"`, hardened runtime off) until Developer ID signing and notarization are set up. The deploy job runs `codesign --verify --deep --strict` on each packaged `.app` so a broken bundle signature (which Gatekeeper reports as "damaged … move to the Trash") cannot ship.
+
+Ad-hoc apps are still not notarized, so the first launch of a downloaded build is blocked. Either:
+
+- Try to open the app once, then **System Settings → Privacy & Security → Open Anyway**, or
+- Clear the download quarantine after copying to Applications:
+
+```bash
+xattr -cr /Applications/DarkMechanicus.app
+```
+
 ## How checks run (Setup builds)
 
 1. **Initial check** ~8 seconds after launch

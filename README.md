@@ -101,4 +101,6 @@ Successful merges to `main` (CI Checks green, not `[skip ci]`) trigger **Deploy*
 2. Package on `windows-latest` (`DarkMechanicus-Setup-*.exe` NSIS + portable) and `macos-latest` (`.dmg`)
 3. Create a GitHub Release with top-level `release/` files only (including `latest.yml` for updater)
 
+macOS builds are ad-hoc signed (no Developer ID / notarization yet), so the first launch of a downloaded `.dmg` is blocked by Gatekeeper. See [first launch on macOS](docs/runbooks/auto-update.md#first-launch-on-macos).
+
 In-app updates use `electron-updater` against GitHub Releases. See [`docs/runbooks/auto-update.md`](docs/runbooks/auto-update.md).
