@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { GraphInput } from '../graph/graphModel'
 import { draftPlan, runView, savedPlan, sprint, bundle } from './__mocks__/fixtures'
-import { listSections } from './listView'
+import { listSections } from './listSections'
 
 function input(patch: Partial<GraphInput> = {}): GraphInput {
   return {

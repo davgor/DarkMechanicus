@@ -1,4 +1,4 @@
-import type { ListRow, ListSection } from './listView'
+import type { ListRow, ListSection } from './listSections'
 import { StateLabel } from './StatePill'
 
 interface ListViewProps {
