@@ -168,7 +168,8 @@ function failedDetail(context: ReportContext, ticketId: string | null): string {
     .join(' · ')
 }
 
-function criterionLines(results: CriterionResult[], criteria: Criterion[]): CriterionLine[] {
+/** Each reported result beside its criterion text (the id when the plan has no such criterion). */
+export function criterionLines(results: CriterionResult[], criteria: Criterion[]): CriterionLine[] {
   const texts = new Map(criteria.map((item) => [item.id, item.text]))
   return results.map((result) => ({ text: texts.get(result.criterionId) ?? result.criterionId, met: result.met, note: result.note }))
 }

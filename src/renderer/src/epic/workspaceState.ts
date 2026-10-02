@@ -1,4 +1,5 @@
 /** Pure state for the epic workspace: loaded data, the shown view, selection, and feedback. */
+import type { PlanBundle } from '../../../shared/domain/bundle'
 import type { GraphInput } from '../graph/graphModel'
 import { nextRevisionNumber } from './headerView'
 import type {
@@ -6,11 +7,20 @@ import type {
   EpicDetailView,
   PlanView,
   RunView,
+  SprintReportView,
   TicketSummaryView,
   ValidationReport
 } from '../../../shared/domain/views'
 
 type PlanViewKind = 'saved' | 'draft'
+
+/** What a completed run leaves for the epic overview, read from the run history. */
+export interface OverviewData {
+  /** The revision the run executed (sprint ordinals, ticket keys, criterion texts); null if unreadable. */
+  bundle: PlanBundle | null
+  /** The latest report of each sprint, in sprint order. */
+  reports: SprintReportView[]
+}
 
 export interface WorkspaceData {
   epic: EpicDetailView
@@ -18,6 +28,8 @@ export interface WorkspaceData {
   draft: PlanView | null
   run: RunView | null
   checkpoint: CheckpointView | null
+  /** Loaded once the run completed: the read-only overview of the finished epic. */
+  overview: OverviewData | null
   savedTickets: TicketSummaryView[]
   draftTickets: TicketSummaryView[]
   validation: ValidationReport | null
@@ -36,6 +48,7 @@ export interface WorkspaceState {
   view: PlanViewKind
   layout: 'graph' | 'list'
   selectedTicketId: string | null
+  /** The checkpoint review, or a completed epic's overview, is shown instead of the plan. */
   checkpointOpen: boolean
   /** Rejected edit or failed action, shown over the canvas. */
   banner: string | null
@@ -112,7 +125,8 @@ function loadSucceeded(state: WorkspaceState, data: WorkspaceData, at: number): 
     loadedAt: at,
     view,
     selectedTicketId: keepSelection(state.selectedTicketId, planFor(data, view)),
-    checkpointOpen: state.checkpointOpen && data.checkpoint !== null,
+    // Approving the final checkpoint completes the run: its overview replaces the review in place.
+    checkpointOpen: state.checkpointOpen && (data.checkpoint !== null || data.overview !== null),
     validation: data.validation
   }
 }

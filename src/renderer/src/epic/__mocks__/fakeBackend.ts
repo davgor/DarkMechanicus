@@ -23,6 +23,7 @@ import type {
   PlanView,
   ProfileView,
   RunView,
+  SprintReportView,
   TicketDetailView,
   ValidationReport
 } from '../../../../shared/domain/views'
@@ -47,6 +48,8 @@ interface Scenario {
   draft: PlanView | null
   run: RunView | null
   checkpoint: CheckpointView | null
+  /** Stored sprint reports, answered per run and sprint by getSprintReport. */
+  reports: SprintReportView[]
   validation: ValidationReport
   ticket: TicketDetailView
   events: EventView[]
@@ -69,6 +72,7 @@ export function scenario(patch: Partial<Scenario> = {}): Scenario {
     draft: null,
     run: runView(),
     checkpoint: checkpointView({ report: null }),
+    reports: [],
     validation: validation(),
     ticket: ticketDetail(),
     events: [event(1, 'attempt.claimed'), event(2, 'attempt.failed', { payload: { reason: '2 tests failed' } })],
@@ -242,6 +246,8 @@ function runHandlers(state: Scenario): Partial<Record<CommandName, Handler>> {
   return {
     getRun: () => state.run,
     getCheckpoint: () => state.checkpoint ?? notFound('No checkpoint'),
+    getSprintReport: (input: { runId: string; sprintId?: string }) =>
+      state.reports.find((item) => item.runId === input.runId && item.sprintId === input.sprintId) ?? null,
     queueRun: () => updateRun(state, { state: 'queued', activeSprintOrdinal: null }),
     pauseRun: () => updateRun(state, { state: 'paused' }),
     resumeRun: () => updateRun(state, { state: 'running' }),

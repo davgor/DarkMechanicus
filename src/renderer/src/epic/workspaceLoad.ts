@@ -1,9 +1,12 @@
 import { isActiveRunState, type RunState } from '../../../shared/domain/status'
-import type { CheckpointView, EpicDetailView, RunView } from '../../../shared/domain/views'
+import type { CheckpointView, EpicDetailView, PlanView, RunView, SprintReportView } from '../../../shared/domain/views'
 import type { Runner } from './runner'
-import type { WorkspaceData } from './workspaceState'
+import type { OverviewData, WorkspaceData } from './workspaceState'
 
-/** Run states whose checkpoint (gate status and report) the workspace shows. */
+/**
+ * Run states whose checkpoint (gate status and report) the workspace shows. A completed run has no
+ * active sprint, so no checkpoint: its overview is read from the run history instead.
+ */
 const CHECKPOINT_STATES = new Set<RunState>(['running', 'awaiting_checkpoint'])
 
 /** An active run keeps executing the revision it pinned, even after a newer Save. */
@@ -32,15 +35,47 @@ function loadCheckpoint(runner: Runner, run: RunView | null): Promise<Checkpoint
   return runner('getCheckpoint', { runId: run.id }).catch(() => null)
 }
 
+/** The plan a finished run executed: the current revision, unless a newer one was saved meanwhile. */
+async function executedPlan(runner: Runner, epicId: string, run: RunView, saved: PlanView | null): Promise<PlanView | null> {
+  if (saved?.revisionId === run.revisionId) {
+    return saved
+  }
+  return runner('getPlan', { epicId, view: 'saved', revisionId: run.revisionId }).catch(() => saved)
+}
+
+/** A completed run's overview: the plan it executed and each sprint's latest report, in sprint order. */
+async function loadOverview(runner: Runner, epicId: string, run: RunView | null, saved: PlanView | null): Promise<OverviewData | null> {
+  if (run === null || run.state !== 'completed') {
+    return null
+  }
+  const bundle = (await executedPlan(runner, epicId, run, saved))?.bundle ?? null
+  const sprints = [...(bundle?.sprints ?? [])].sort((a, b) => a.ordinal - b.ordinal)
+  const reports = await Promise.all(
+    sprints.map((sprint) => runner('getSprintReport', { runId: run.id, sprintId: sprint.id }).catch(() => null))
+  )
+  return { bundle, reports: reports.filter((report): report is SprintReportView => report !== null) }
+}
+
 /** Loads everything the epic workspace shows, skipping reads for things that do not exist. */
 export async function loadWorkspace(runner: Runner, epicId: string): Promise<WorkspaceData> {
   const epic = await runner('getEpic', { epicId })
   const { saved, draft, run } = await loadPlans(runner, epic)
-  const [checkpoint, savedTickets, draftTickets, validation] = await Promise.all([
+  const [checkpoint, overview, savedTickets, draftTickets, validation] = await Promise.all([
     loadCheckpoint(runner, run),
+    loadOverview(runner, epicId, run, saved),
     saved === null ? [] : runner('listTickets', { epicId, view: 'saved' }),
     draft === null ? [] : runner('listTickets', { epicId, view: 'draft' }),
     draft === null ? null : runner('validatePlan', { epicId, view: 'draft' })
   ])
-  return { epic, saved, draft, run, checkpoint: checkpoint ?? run?.checkpoint ?? null, savedTickets, draftTickets, validation }
+  return {
+    epic,
+    saved,
+    draft,
+    run,
+    checkpoint: checkpoint ?? run?.checkpoint ?? null,
+    overview,
+    savedTickets,
+    draftTickets,
+    validation
+  }
 }

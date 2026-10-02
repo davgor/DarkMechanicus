@@ -3,7 +3,18 @@ import { cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { installDomShims } from './__mocks__/domShims'
 import { FakeBackend, scenario } from './__mocks__/fakeBackend'
-import { attempt, checkpointView, condition, epicDetail, runView, ticketDetail } from './__mocks__/fixtures'
+import {
+  attempt,
+  checkpointView,
+  condition,
+  epicDetail,
+  mcpTestEpic,
+  mcpTestPlan,
+  mcpTestReport,
+  mcpTestRun,
+  runView,
+  ticketDetail
+} from './__mocks__/fixtures'
 import { renderWorkspace } from './__mocks__/renderWorkspace'
 import { allowSlowRendering } from './__mocks__/testTiming'
 
@@ -106,6 +117,47 @@ describe('checkpoint review in the workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry DM-202' }))
     expect(await screen.findByText('Retry granted. The orchestrator can claim the ticket again.')).toBeTruthy()
     expect(h.backend.inputs('grantRetry')).toEqual([{ runId: 'rn_2', ticketId: 'tk_202' }])
+  })
+})
+
+describe('completed epic overview in the workspace', () => {
+  function completedEpic(): FakeBackend {
+    return new FakeBackend(
+      scenario({ epic: mcpTestEpic(), saved: mcpTestPlan(), run: mcpTestRun(), checkpoint: null, reports: [mcpTestReport()] })
+    )
+  }
+
+  it('offers the overview of a completed epic from the run bar, read-only, and returns to the graph', async () => {
+    const h = renderWorkspace(completedEpic())
+    fireEvent.click(await within(await screen.findByLabelText('Run')).findByRole('button', { name: 'Epic report' }))
+    const overview = screen.getByLabelText('Epic overview')
+    expect(within(overview).getByText(/^The MCP authoring and execution path works end to end/)).toBeTruthy()
+    expect(within(overview).getByLabelText('Sprint 1 report').tagName).toBe('ARTICLE')
+    expect(screen.queryByLabelText('Plan graph')).toBe(null)
+    expect(screen.queryByLabelText('Sprint checkpoint')).toBe(null)
+    expect(within(overview).queryAllByRole('button')).toEqual([])
+    expect(screen.queryAllByRole('checkbox')).toEqual([])
+    expect(within(runBar()).getAllByRole('button').map((item) => item.textContent)).toEqual(['Open graph'])
+    expect(h.backend.names().includes('getCheckpoint')).toBe(false)
+    fireEvent.click(within(runBar()).getByRole('button', { name: 'Open graph' }))
+    expect(screen.getByLabelText('Plan graph').className).toBe('pg is-readonly')
+  })
+
+  it('keeps the overview open after the final checkpoint is approved', async () => {
+    const final = checkpointView({ gatesMet: true, isFinalSprint: true, sprintOrdinal: 3, conditions: [condition('report_submitted', true, 'ok')] })
+    const h = renderWorkspace(new FakeBackend(scenario({ run: runView({ state: 'awaiting_checkpoint' }), checkpoint: final })))
+    h.backend.handlers.approveAndAdvance = () => {
+      Object.assign(h.backend.state, { epic: mcpTestEpic(), saved: mcpTestPlan(), run: mcpTestRun(), checkpoint: null, reports: [mcpTestReport()] })
+      return h.backend.state.run
+    }
+    fireEvent.click(await within(await screen.findByLabelText('Run')).findByRole('button', { name: 'Sprint report' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Approve & complete epic' }))
+    expect(await screen.findByText('Checkpoint approved — the epic is complete.')).toBeTruthy()
+    const overview = await screen.findByLabelText('Epic overview')
+    expect(within(overview).getByRole('heading', { name: 'Epic complete' })).toBeTruthy()
+    expect(screen.queryByLabelText('Plan graph')).toBe(null)
+    expect(screen.queryByRole('button', { name: /Approve/ })).toBe(null)
+    expect(within(runBar()).getByRole('button', { name: 'Open graph' })).toBeTruthy()
   })
 })
 

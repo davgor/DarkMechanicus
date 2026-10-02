@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { checkpointView, draftPlan, epicDetail, runView, savedPlan, validation } from './__mocks__/fixtures'
+import {
+  checkpointView,
+  draftPlan,
+  epicDetail,
+  mcpTestEpic,
+  mcpTestPlan,
+  mcpTestReport,
+  mcpTestRun,
+  runView,
+  savedPlan,
+  validation
+} from './__mocks__/fixtures'
 import type { TicketSummaryView } from '../../../shared/domain/views'
 import { graphInputFor, initialWorkspaceState, workspaceReducer, type WorkspaceData, type WorkspaceState } from './workspaceState'
 
@@ -10,10 +21,25 @@ function data(patch: Partial<WorkspaceData> = {}): WorkspaceData {
     draft: draftPlan(),
     run: runView(),
     checkpoint: checkpointView(),
+    overview: null,
     savedTickets: [],
     draftTickets: [],
     validation: validation(),
     ...patch
+  }
+}
+
+/** The completed "MCP connection test" epic: no checkpoint any more, an overview instead. */
+function completed(): Partial<WorkspaceData> {
+  const saved = mcpTestPlan()
+  return {
+    epic: mcpTestEpic(),
+    saved,
+    draft: null,
+    run: mcpTestRun(),
+    checkpoint: null,
+    overview: { bundle: saved.bundle, reports: [mcpTestReport()] },
+    validation: null
   }
 }
 
@@ -92,6 +118,25 @@ describe('workspace view resolution', () => {
     const open = workspaceReducer(loaded(), { type: 'open_checkpoint' })
     expect(open.checkpointOpen).toBe(true)
     expect(workspaceReducer(open, { type: 'close_checkpoint' }).checkpointOpen).toBe(false)
+  })
+})
+
+describe('completed epic overview state', () => {
+  it('keeps the review open as the overview once the final approval completes the run', () => {
+    const reviewing = workspaceReducer(loaded({ run: runView({ state: 'awaiting_checkpoint' }) }), { type: 'open_checkpoint' })
+    const done = loaded(completed(), reviewing)
+    expect([done.checkpointOpen, done.data?.checkpoint, done.data?.overview?.reports.length]).toEqual([true, null, 1])
+    expect(loaded({}, done).checkpointOpen).toBe(true)
+  })
+
+  it('opens and closes the overview of a completed epic, and closes when neither review nor overview remains', () => {
+    const graph = loaded(completed())
+    expect([graph.checkpointOpen, graph.view]).toEqual([false, 'saved'])
+    const open = workspaceReducer(graph, { type: 'open_checkpoint' })
+    expect(open.checkpointOpen).toBe(true)
+    expect(workspaceReducer(open, { type: 'close_checkpoint' }).checkpointOpen).toBe(false)
+    expect(loaded({ checkpoint: null, overview: null }, open).checkpointOpen).toBe(false)
+    expect(loaded({ ...completed(), overview: null }, open).checkpointOpen).toBe(false)
   })
 })
 
