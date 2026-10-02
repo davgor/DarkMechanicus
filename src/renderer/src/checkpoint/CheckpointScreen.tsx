@@ -93,13 +93,30 @@ function Checks({ report }: { report: ReportSections }): JSX.Element | null {
   )
 }
 
-function FollowUps(props: { proposals: FollowUpProposal[]; busy: boolean; onAdd(proposal: FollowUpProposal): Promise<boolean> }): JSX.Element | null {
+/** "+ Add to draft" on proposed follow-ups; a report without it lists them read-only. */
+interface FollowUpAdder {
+  busy: boolean
+  onAdd(proposal: FollowUpProposal): Promise<boolean>
+}
+
+function FollowUpAction(props: { added: boolean; busy: boolean; onAdd(): void }): JSX.Element {
+  return props.added ? (
+    <span className="ew-chip">Added to draft</span>
+  ) : (
+    <button type="button" className="btn" disabled={props.busy} onClick={props.onAdd}>
+      + Add to draft
+    </button>
+  )
+}
+
+function FollowUps(props: { proposals: FollowUpProposal[]; adder: FollowUpAdder | undefined }): JSX.Element | null {
   const [added, setAdded] = useState<string[]>([])
+  const adder = props.adder
   if (props.proposals.length === 0) {
     return null
   }
-  const add = async (proposal: FollowUpProposal): Promise<void> => {
-    const ok = await props.onAdd(proposal)
+  const add = async (target: FollowUpAdder, proposal: FollowUpProposal): Promise<void> => {
+    const ok = await target.onAdd(proposal)
     setAdded((current) => (ok ? [...current, proposal.title] : current))
   }
   return (
@@ -111,16 +128,54 @@ function FollowUps(props: { proposals: FollowUpProposal[]; busy: boolean; onAdd(
             <span>{proposal.title}</span>
             <span className="ew-muted">{proposal.body}</span>
           </span>
-          {added.includes(proposal.title) ? (
-            <span className="ew-chip">Added to draft</span>
-          ) : (
-            <button type="button" className="btn" disabled={props.busy} onClick={() => void add(proposal)}>
-              + Add to draft
-            </button>
+          {adder === undefined ? null : (
+            <FollowUpAction added={added.includes(proposal.title)} busy={adder.busy} onAdd={() => void add(adder, proposal)} />
           )}
         </div>
       ))}
     </section>
+  )
+}
+
+function Risks({ risks }: { risks: string[] }): JSX.Element | null {
+  if (risks.length === 0) {
+    return null
+  }
+  return (
+    <section className="cp-section" aria-label="Risks">
+      <h3 className="ew-eyebrow">RISKS</h3>
+      <ul className="cp-risks">
+        {risks.map((risk) => (
+          <li key={risk}>{risk}</li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+interface SprintReportProps {
+  label: string
+  report: ReportSections
+  /** Offers "+ Add to draft" on proposed follow-ups; without it the report is read-only. */
+  followUps?: FollowUpAdder
+  onSelectTicket(ticketId: string): void
+}
+
+/** One sprint report, shared by the checkpoint review and the completed epic's overview. */
+export function SprintReport(props: SprintReportProps): JSX.Element {
+  const { report } = props
+  return (
+    <article className="cp-report" aria-label={props.label}>
+      <span className="ew-eyebrow">{report.header}</span>
+      <Markdown source={report.summary} className="cp-summary" />
+      <Rows title="ACCEPTED" rows={report.accepted} failed={false} onSelect={props.onSelectTicket} />
+      <Rows title="FAILED" rows={report.failed} failed onSelect={props.onSelectTicket} />
+      <Checks report={report} />
+      <Criteria title="EXIT CRITERIA" lines={report.exitCriteria} />
+      <Criteria title="EPIC OUTCOME" lines={report.outcome?.criteria ?? []} />
+      <FollowUps proposals={report.followUps} adder={props.followUps} />
+      <Risks risks={report.risks} />
+    </article>
   )
 }
 
@@ -133,28 +188,13 @@ function Report(props: CheckpointScreenProps): JSX.Element {
       </article>
     )
   }
-  const report = reportView(source, { run: props.run, bundle: props.bundle, now: props.now })
   return (
-    <article className="cp-report" aria-label="Sprint report">
-      <span className="ew-eyebrow">{report.header}</span>
-      <Markdown source={report.summary} className="cp-summary" />
-      <Rows title="ACCEPTED" rows={report.accepted} failed={false} onSelect={props.onSelectTicket} />
-      <Rows title="FAILED" rows={report.failed} failed onSelect={props.onSelectTicket} />
-      <Checks report={report} />
-      <Criteria title="EXIT CRITERIA" lines={report.exitCriteria} />
-      <Criteria title="EPIC OUTCOME" lines={report.outcome?.criteria ?? []} />
-      <FollowUps proposals={report.followUps} busy={props.busy} onAdd={props.onAddFollowUp} />
-      {report.risks.length === 0 ? null : (
-        <section className="cp-section" aria-label="Risks">
-          <h3 className="ew-eyebrow">RISKS</h3>
-          <ul className="cp-risks">
-            {report.risks.map((risk) => (
-              <li key={risk}>{risk}</li>
-            ))}
-          </ul>
-        </section>
-      )}
-    </article>
+    <SprintReport
+      label="Sprint report"
+      report={reportView(source, { run: props.run, bundle: props.bundle, now: props.now })}
+      followUps={{ busy: props.busy, onAdd: props.onAddFollowUp }}
+      onSelectTicket={props.onSelectTicket}
+    />
   )
 }
 

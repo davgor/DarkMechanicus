@@ -221,7 +221,8 @@ function checkpointActions(deps: ActionDeps): Pick<WorkspaceActions, 'approve' |
         return
       }
       const result = await perform(deps, () => deps.runner('approveAndAdvance', { runId: run.id, reportId }))
-      if (result.ok) {
+      // The final approval keeps the view open: once reloaded, it shows the completed epic's overview.
+      if (result.ok && result.value.state !== 'completed') {
         deps.dispatch({ type: 'close_checkpoint' })
       }
       feedback(deps, result, result.ok ? approvalToast(result.value) : '')

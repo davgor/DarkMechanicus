@@ -29,11 +29,11 @@ function RunButtons({ ws, actions }: { ws: WorkspaceHandle; actions: RunActions 
           Cancel run
         </button>
       ) : null}
-      {actions.report ? (
+      {actions.report === null ? null : (
         <button type="button" className="btn" onClick={() => ws.dispatch({ type: open ? 'close_checkpoint' : 'open_checkpoint' })}>
-          {open ? 'Open graph' : 'Sprint report'}
+          {open ? 'Open graph' : actions.report}
         </button>
-      ) : null}
+      )}
     </div>
   )
 }
@@ -84,7 +84,7 @@ export function RunBar({ ws }: { ws: WorkspaceHandle }): JSX.Element | null {
             </li>
           ))}
         </ul>
-        <RunButtons ws={ws} actions={runActions(run, ws.data.checkpoint !== null)} />
+        <RunButtons ws={ws} actions={runActions(run, { checkpoint: ws.data.checkpoint !== null, overview: ws.data.overview !== null })} />
       </div>
       {adopt === null ? null : <AdoptLine ws={ws} notice={adopt} />}
       <OwnershipLine run={run} />

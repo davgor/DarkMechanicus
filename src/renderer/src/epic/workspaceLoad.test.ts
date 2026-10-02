@@ -1,6 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import { FakeBackend, scenario } from './__mocks__/fakeBackend'
-import { checkpointView, draftPlan, epicDetail, runView, savedPlan } from './__mocks__/fixtures'
+import {
+  bundle,
+  checkpointView,
+  draftPlan,
+  epicDetail,
+  MCP_TEST,
+  mcpTestEpic,
+  mcpTestPlan,
+  mcpTestReport,
+  mcpTestRun,
+  reportView,
+  runView,
+  savedPlan,
+  sprint
+} from './__mocks__/fixtures'
 import { loadWorkspace } from './workspaceLoad'
 
 describe('loadWorkspace (1)', () => {
@@ -29,6 +43,7 @@ describe('loadWorkspace (1)', () => {
     expect(data.checkpoint?.sprintOrdinal).toBe(2)
     expect([data.savedTickets.length, data.draftTickets.length]).toEqual([10, 11])
     expect(data.validation?.warnings.length).toBe(1)
+    expect(data.overview).toBe(null)
   })
 
   it('skips what does not exist: no saved revision, no run, no draft validation', async () => {
@@ -39,8 +54,9 @@ describe('loadWorkspace (1)', () => {
     expect([data.saved, data.run, data.checkpoint, data.savedTickets]).toEqual([null, null, null, []])
     const plain = new FakeBackend(scenario({ run: runView({ state: 'completed' }) }))
     const saved = await loadWorkspace(plain.runner, 'ep_1')
-    expect(plain.names()).toEqual(['getEpic', 'getPlan', 'getRun', 'listTickets'])
+    expect(plain.names()).toEqual(['getEpic', 'getPlan', 'getRun', 'listTickets', 'getSprintReport', 'getSprintReport', 'getSprintReport'])
     expect([saved.draft, saved.checkpoint, saved.validation, saved.draftTickets]).toEqual([null, null, null, []])
+    expect(saved.overview?.reports).toEqual([])
   })
 })
 
@@ -80,10 +96,73 @@ describe('loadWorkspace (3)', () => {
   it('keeps the current revision once the run has finished', async () => {
     const epic = epicDetail({ currentRevisionId: 'rv_5', currentRevisionNumber: 5 })
     const saved = savedPlan({ revisionId: 'rv_5', revisionNumber: 5 })
-    const run = runView({ revisionId: 'rv_4', revisionNumber: 4, state: 'completed' })
+    const run = runView({ revisionId: 'rv_4', revisionNumber: 4, state: 'canceled' })
     const backend = new FakeBackend(scenario({ epic, saved, run }))
     const data = await loadWorkspace(backend.runner, 'ep_1')
     expect(backend.inputs('getPlan')).toEqual([{ epicId: 'ep_1', view: 'saved' }])
     expect(data.saved?.revisionNumber).toBe(5)
+  })
+})
+
+function notFound(): never {
+  throw new Error('Plan revision rv_4 not found.')
+}
+
+describe('loadWorkspace (4)', () => {
+  it('loads the overview of a completed run from the plan it ran and its sprint reports, not from a checkpoint', async () => {
+    const report = mcpTestReport()
+    const backend = new FakeBackend(
+      scenario({ epic: mcpTestEpic(), saved: mcpTestPlan(), run: mcpTestRun(), checkpoint: null, reports: [report] })
+    )
+    const data = await loadWorkspace(backend.runner, MCP_TEST.epicId)
+    expect(backend.names()).toEqual(['getEpic', 'getPlan', 'getRun', 'listTickets', 'getSprintReport'])
+    expect(backend.inputs('getSprintReport')).toEqual([{ runId: MCP_TEST.runId, sprintId: MCP_TEST.sprintId }])
+    expect(data.checkpoint).toBe(null)
+    expect(data.overview).toEqual({ bundle: mcpTestPlan().bundle, reports: [report] })
+  })
+
+  it('lists sprint reports in sprint order and skips sprints without a readable report', async () => {
+    const saved = savedPlan({ bundle: bundle({ sprints: [...bundle().sprints].reverse() }) })
+    const run = runView({ state: 'completed', activeSprintId: null, activeSprintOrdinal: null })
+    const reports = [reportView({ id: 'sr_3', sprintId: 'sp_3' }), reportView({ id: 'sr_2', sprintId: 'sp_2' }), reportView({ id: 'sr_1', sprintId: 'sp_1' })]
+    const backend = new FakeBackend(scenario({ saved, run, reports }))
+    backend.fail('getSprintReport', 'internal', 'Report unreadable')
+    const data = await loadWorkspace(backend.runner, 'ep_1')
+    expect(backend.inputs('getSprintReport')).toEqual(['sp_1', 'sp_2', 'sp_3'].map((sprintId) => ({ runId: 'rn_2', sprintId })))
+    expect(data.overview?.reports.map((item) => item.id)).toEqual(['sr_2', 'sr_3'])
+    const missing = new FakeBackend(scenario({ run, reports: [reportView({ sprintId: 'sp_2' })] }))
+    expect((await loadWorkspace(missing.runner, 'ep_1')).overview?.reports.map((item) => item.sprintId)).toEqual(['sp_2'])
+  })
+
+})
+
+describe('loadWorkspace (5)', () => {
+  it('reads the revision a completed run executed when a newer one was saved, falling back to the current plan', async () => {
+    const epic = epicDetail({ status: 'completed', currentRevisionId: 'rv_5', currentRevisionNumber: 5 })
+    const saved = savedPlan({ revisionId: 'rv_5', revisionNumber: 5 })
+    const ran = savedPlan({ bundle: bundle({ sprints: [sprint(1, 'Old goal', ['tk_101'])] }) })
+    const run = runView({ state: 'completed', revisionId: 'rv_4', revisionNumber: 4 })
+    const backend = new FakeBackend(scenario({ epic, saved, run }))
+    backend.handlers.getPlan = (input: { revisionId?: string }) => (input.revisionId === 'rv_4' ? ran : saved)
+    const data = await loadWorkspace(backend.runner, 'ep_1')
+    expect(backend.inputs('getPlan')).toEqual([
+      { epicId: 'ep_1', view: 'saved' },
+      { epicId: 'ep_1', view: 'saved', revisionId: 'rv_4' }
+    ])
+    expect([data.saved?.revisionNumber, data.overview?.bundle?.sprints[0]?.goal]).toEqual([5, 'Old goal'])
+    expect(backend.inputs('getSprintReport')).toEqual([{ runId: 'rn_2', sprintId: 'sp_1' }])
+    const unreadable = new FakeBackend(scenario({ epic, saved, run }))
+    unreadable.handlers.getPlan = (input: { revisionId?: string }) => (input.revisionId === 'rv_4' ? notFound() : saved)
+    expect((await loadWorkspace(unreadable.runner, 'ep_1')).overview?.bundle).toBe(saved.bundle)
+    expect(unreadable.inputs('getSprintReport').length).toBe(3)
+  })
+
+  it('loads no overview for runs that did not complete', async () => {
+    for (const state of ['canceled', 'failed', 'paused', 'awaiting_checkpoint'] as const) {
+      const backend = new FakeBackend(scenario({ run: runView({ state }) }))
+      const data = await loadWorkspace(backend.runner, 'ep_1')
+      expect([state, data.overview, backend.names().includes('getSprintReport')]).toEqual([state, null, false])
+    }
+    expect((await loadWorkspace(new FakeBackend(scenario({ run: null })).runner, 'ep_1')).overview).toBe(null)
   })
 })

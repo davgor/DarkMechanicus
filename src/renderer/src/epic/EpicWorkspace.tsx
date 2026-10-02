@@ -5,6 +5,7 @@ import type { TrackedFolderView } from '../../../shared/desktop/api'
 import { isActiveRunState } from '../../../shared/domain/status'
 import type { CheckpointView, PlanView, RunView } from '../../../shared/domain/views'
 import { CheckpointScreen } from '../checkpoint/CheckpointScreen'
+import { EpicOverview } from '../checkpoint/EpicOverview'
 import { badgeResolver, buildGraphModel, type GraphInput } from '../graph/graphModel'
 import { legendKindFor } from '../graph/legend'
 import { PlanGraph } from '../graph/PlanGraph'
@@ -21,7 +22,7 @@ import { RunBar } from './RunBar'
 import { useWorkspace, type WorkspaceHandle } from './useWorkspace'
 import { ValidationPanel } from './ValidationPanel'
 import { WorkspaceHeader } from './WorkspaceHeader'
-import { graphInputFor, planFor } from './workspaceState'
+import { graphInputFor, planFor, type OverviewData } from './workspaceState'
 
 export interface EpicWorkspaceProps {
   folder: TrackedFolderView
@@ -77,10 +78,35 @@ function CheckpointStage(props: { ws: WorkspaceHandle; checkpoint: CheckpointVie
   )
 }
 
-function StageContent({ ws, input }: { ws: WorkspaceHandle; input: GraphInput | null }): JSX.Element {
-  const { checkpoint, run } = ws.data
-  if (ws.state.checkpointOpen && checkpoint !== null && run !== null) {
+function OverviewStage(props: { ws: WorkspaceHandle; overview: OverviewData; run: RunView }): JSX.Element {
+  const { ws } = props
+  return (
+    <EpicOverview
+      epic={ws.data.epic}
+      run={props.run}
+      overview={props.overview}
+      now={ws.now}
+      onSelectTicket={(ticketId) => ws.dispatch({ type: 'select_ticket', ticketId })}
+    />
+  )
+}
+
+/** While open: the checkpoint review of an active run, or the overview of a completed one. */
+function reviewStage(ws: WorkspaceHandle): JSX.Element | null {
+  const { checkpoint, overview, run } = ws.data
+  if (!ws.state.checkpointOpen || run === null) {
+    return null
+  }
+  if (checkpoint !== null) {
     return <CheckpointStage ws={ws} checkpoint={checkpoint} run={run} />
+  }
+  return overview === null ? null : <OverviewStage ws={ws} overview={overview} run={run} />
+}
+
+function StageContent({ ws, input }: { ws: WorkspaceHandle; input: GraphInput | null }): JSX.Element {
+  const review = reviewStage(ws)
+  if (review !== null) {
+    return review
   }
   if (input === null) {
     return <p className="ew-empty">This epic has no plan yet.</p>

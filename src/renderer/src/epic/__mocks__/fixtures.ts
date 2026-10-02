@@ -444,6 +444,140 @@ export function checkpointView(patch: Partial<CheckpointView> = {}): CheckpointV
   }
 }
 
+/**
+ * The completed "MCP connection test" epic committed in this repository's portable state
+ * (`.darkmechanicus/epics/ep_01m3txy30qavmd5wewct90804g` and its run history), shaped as the core
+ * serves it after an import. Ids and text are the real ones; times are relative to NOW.
+ */
+export const MCP_TEST = {
+  epicId: 'ep_01m3txy30qavmd5wewct90804g',
+  runId: 'rn_01m3txzt9wj79mxsq50f5ktf1q',
+  revisionId: 'rv_01m3txzpv9ws6fbj6p211ghkn9',
+  sprintId: 'sp_01m3txy30q8sb4f7ekx20btcr6',
+  reportId: 'rp_01m3ty66d960gb6z5bt9y4th60'
+}
+
+const MCP_TEST_TICKETS: TicketContent[] = [
+  ticket('DM-1', 'Confirm epic is visible in the app', {
+    id: 'tk_01m3txy30tjnwv2m5kjebfq0aj',
+    acceptanceCriteria: [{ id: 'c1', text: 'Epic shows in the epic list' }]
+  }),
+  ticket('DM-2', 'Save or discard the draft', {
+    id: 'tk_01m3txy30tvtfbzj1ecax0dvb0',
+    acceptanceCriteria: [{ id: 'c1', text: 'Draft saved or discarded from the desktop' }]
+  })
+]
+
+const MCP_TEST_OUTCOME = {
+  summary:
+    'The MCP authoring and execution path works end to end with the installed app: an agent can create epics and tickets, a person saves and queues in the desktop, and an agent can execute the run up to the human checkpoint.',
+  successCriteria: [
+    { criterionId: 's1', met: true, note: 'Epic and both tickets listed (DM-1 accepted); the person saved and queued it from the desktop.' },
+    { criterionId: 's2', met: true, note: 'Draft saved as revision 1 from the desktop (DM-2 accepted).' }
+  ]
+}
+
+export function mcpTestPlan(): PlanView {
+  const [first, second] = MCP_TEST_TICKETS.map((item) => item.id)
+  return savedPlan({
+    epicId: MCP_TEST.epicId,
+    revisionId: MCP_TEST.revisionId,
+    revisionNumber: 1,
+    contentHash: 'sha256:c052780122fb60803fd440e33f7137b68a85c324f73038692cb8f0782525528d',
+    bundle: bundle({
+      epic: {
+        title: 'MCP connection test',
+        intent: 'Created by Claude Code over MCP to confirm an agent can author epics. Safe to discard.',
+        successCriteria: [
+          { id: 's1', text: 'Epic and tickets appear in the desktop app' },
+          { id: 's2', text: 'A person can Save or discard the draft' }
+        ],
+        ownerRole: null
+      },
+      tickets: MCP_TEST_TICKETS,
+      sprints: [sprint(1, '', [first ?? '', second ?? ''], { id: MCP_TEST.sprintId })],
+      edges: [{ from: first ?? '', to: second ?? '' }],
+      relations: [],
+      policies: { ...DEFAULT_POLICIES, retryLimit: 3 }
+    })
+  })
+}
+
+export function mcpTestEpic(patch: Partial<EpicDetailView> = {}): EpicDetailView {
+  const plan = mcpTestPlan()
+  return epicDetail({
+    id: MCP_TEST.epicId,
+    title: 'MCP connection test',
+    status: 'completed',
+    currentRevisionId: MCP_TEST.revisionId,
+    currentRevisionNumber: 1,
+    ticketCount: 2,
+    sprintCount: 1,
+    completedAt: iso(-40 * MINUTE),
+    intent: plan.bundle.epic.intent,
+    successCriteria: plan.bundle.epic.successCriteria,
+    outcome: { ...MCP_TEST_OUTCOME, recordedAt: iso(-40 * MINUTE), runId: MCP_TEST.runId },
+    ...patch
+  })
+}
+
+export function mcpTestRun(patch: Partial<RunView> = {}): RunView {
+  const tickets = MCP_TEST_TICKETS.map((item) => execution(item.key, MCP_TEST.sprintId, 'accepted', { ticketId: item.id }))
+  return runView({
+    id: MCP_TEST.runId,
+    number: 1,
+    epicId: MCP_TEST.epicId,
+    revisionId: MCP_TEST.revisionId,
+    revisionNumber: 1,
+    state: 'completed',
+    activeSprintId: null,
+    activeSprintOrdinal: null,
+    sprintCount: 1,
+    createdAt: iso(-48 * MINUTE),
+    startedAt: iso(-46 * MINUTE),
+    updatedAt: iso(-40 * MINUTE),
+    endedAt: iso(-40 * MINUTE),
+    counts: { accepted: 2, submitted: 0, running: 0, ready: 0, waiting: 0, blocked: 0, failed: 0, needsReconciliation: 0 },
+    tickets,
+    attempts: [],
+    ...patch
+  })
+}
+
+export function mcpTestReport(): SprintReportView {
+  return reportView({
+    id: MCP_TEST.reportId,
+    runId: MCP_TEST.runId,
+    sprintId: MCP_TEST.sprintId,
+    contentHash: 'sha256:b0e8d703b5b92ef6c8d2cc9c758aaf7444cccd345f0530a4a43ecefd0f02b998',
+    submittedBy: 'Claude Code (orchestrator)',
+    createdAt: iso(-45 * MINUTE),
+    report: {
+      summary:
+        'Sprint 1 confirmed the full MCP loop from an external agent host (Claude Code) against the installed v0.8.0 app. Nothing failed or is blocked.',
+      accepted: [
+        'DM-1 Confirm epic is visible in the app: verified via list_epics; desktop-only save and queue confirm it was visible in the app',
+        'DM-2 Save or discard the draft: revision 1 saved from the desktop, no draft outstanding'
+      ],
+      failed: [],
+      blocked: [],
+      changes: { commits: [], files: [] },
+      checks: [
+        { name: 'installed-app MCP smoke (npm run smoke:mcp)', status: 'passed', detail: '55 tools, 6 prompts' },
+        { name: 'draft plan validation', status: 'passed', detail: 'validate_plan view=draft: valid, no errors or warnings' },
+        { name: 'dependency gating', status: 'passed', detail: 'DM-2 stayed waiting until DM-1 was accepted' }
+      ],
+      risks: ['Reviews were not independent: the orchestrator session did the work and accepted it.'],
+      followUps: [
+        { title: 'Register darkmechanicus MCP server in Claude Code', body: 'So sessions get native tools.' },
+        { title: 'Use a separate reviewer session for real epics', body: 'Review independent of the worker.' }
+      ],
+      exitCriteria: [],
+      epicOutcome: MCP_TEST_OUTCOME
+    }
+  })
+}
+
 export function link(key: string, title: string, state: TicketExecutionState | null): TicketLinkView {
   return { ticketId: `tk_${key.slice(3)}`, key, title, status: 'in_progress', executionState: state }
 }
