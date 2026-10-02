@@ -4,6 +4,7 @@ import { DomainError } from '../../core/errors'
 import type { Workspace } from '../../core/workspace'
 import {
   DESKTOP_COMMANDS,
+  type ClaudeCodeConnectRequest,
   type CommandResult,
   type McpConfigView,
   type TrackedFolderView
@@ -70,6 +71,7 @@ interface World {
   external: string[]
   mcpCalls: string[]
   installCalls: string[]
+  connectCalls: [string, ClaudeCodeConnectRequest][]
 }
 
 function createRegistryFake(
@@ -130,6 +132,7 @@ function createWorld(options: WorldOptions = {}): World {
     external: [],
     mcpCalls: [],
     installCalls: [],
+    connectCalls: [],
     deps: {
       registry: createRegistryFake(tracked, options.aliases ?? {}),
       pool: createPoolFake(log, options),
@@ -153,6 +156,10 @@ function createWorld(options: WorldOptions = {}): World {
       installSkills: (repoPath) => {
         world.installCalls.push(repoPath)
         return { written: [`${repoPath}/.claude/skills/x/SKILL.md`] }
+      },
+      connectClaudeCode: (repoPath, request) => {
+        world.connectCalls.push([repoPath, request])
+        return { outcome: 'conflict', existing: '{}' }
       }
     }
   }
@@ -510,6 +517,62 @@ describe('installSkills', () => {
     })
     expect((await rejectionOf(handlers.installSkills(null))).code).toBe('invalid_input')
     expect(world.installCalls).toEqual([])
+  })
+})
+
+describe('connectClaudeCode', () => {
+  const request: ClaudeCodeConnectRequest = { role: 'planner', allowSave: true, replace: false }
+
+  it('writes for the canonical tracked path with the validated request and returns the outcome', async () => {
+    const world = createWorld({ tracked: ['/repos/a'], aliases: { '/link/a': '/repos/a' } })
+    const handlers = createDesktopHandlers(world.deps)
+
+    expect(await handlers.connectClaudeCode('/link/a', request)).toEqual({ outcome: 'conflict', existing: '{}' })
+    expect(await handlers.connectClaudeCode('/repos/a', { role: 'orchestrator', allowSave: false, replace: true })).toEqual({
+      outcome: 'conflict',
+      existing: '{}'
+    })
+    expect(world.connectCalls).toEqual([
+      ['/repos/a', request],
+      ['/repos/a', { role: 'orchestrator', allowSave: false, replace: true }]
+    ])
+  })
+
+  it('never writes into a folder that is not tracked', async () => {
+    const world = createWorld({ tracked: ['/repos/a'] })
+    const handlers = createDesktopHandlers(world.deps)
+
+    expect(await rejectionOf(handlers.connectClaudeCode('/etc', request))).toEqual({
+      code: 'unauthorized',
+      message: NOT_TRACKED
+    })
+    expect((await rejectionOf(handlers.connectClaudeCode(undefined, request))).code).toBe('invalid_input')
+    expect(world.connectCalls).toEqual([])
+  })
+
+  it('rejects a malformed request before writing anything', async () => {
+    const world = createWorld({ tracked: ['/repos/a'] })
+    const handlers = createDesktopHandlers(world.deps)
+    const malformed = [
+      undefined,
+      null,
+      'planner',
+      {},
+      { ...request, role: 'desktop' },
+      { ...request, role: 'worker' },
+      { ...request, role: 'Planner' },
+      { ...request, allowSave: 'yes' },
+      { ...request, replace: 1 },
+      { role: 'planner', allowSave: true },
+      { ...request, label: 'Claude Code' }
+    ]
+
+    const codes = await Promise.all(
+      malformed.map(async (input) => (await rejectionOf(handlers.connectClaudeCode('/repos/a', input))).code)
+    )
+
+    expect(codes).toEqual(malformed.map(() => 'invalid_input'))
+    expect(world.connectCalls).toEqual([])
   })
 })
 

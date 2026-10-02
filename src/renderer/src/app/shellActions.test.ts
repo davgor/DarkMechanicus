@@ -129,26 +129,84 @@ describe('untrack', () => {
   })
 })
 
+const INIT_ONLY = { writeMcpConfig: false }
+const INIT_AND_CONNECT = { writeMcpConfig: true }
+const ONBOARDING_CONNECT = { role: 'planner', allowSave: true, replace: false }
+
 describe('initialize', () => {
   it('initializes, reloads folders, refreshes and confirms', async () => {
-    await recorder.actions().initialize(alpha)
+    await recorder.actions().initialize(alpha, INIT_ONLY)
     expect(dm.callsOf('initializeRepository').map((call) => [call.folder, call.input])).toEqual([['/a', {}]])
     expect(recorder.reloads).toBe(1)
     expect(recorder.refreshed).toEqual(['/a'])
     expect(recorder.toasts).toEqual([['success', 'Initialized alpha.']])
+    expect(dm.claudeConnects).toEqual([])
   })
 
   it('marks the initialization busy only while it runs', async () => {
-    await recorder.actions().initialize(alpha)
+    await recorder.actions().initialize(alpha, INIT_AND_CONNECT)
     expect(recorder.busy).toEqual(['initialize:true', 'initialize:false'])
   })
 
   it('reports a failure without reloading and clears busy', async () => {
     dm.failures.initializeRepository = { code: 'already_initialized', message: 'Already set up' }
-    await recorder.actions().initialize(alpha)
+    await recorder.actions().initialize(alpha, INIT_ONLY)
     expect(recorder.errors).toEqual(['Already set up'])
     expect(recorder.reloads).toBe(0)
     expect(recorder.busy).toEqual(['initialize:true', 'initialize:false'])
+  })
+})
+
+describe('initialize with .mcp.json', () => {
+  it('writes .mcp.json for Claude Code after initializing, and says so', async () => {
+    await recorder.actions().initialize(alpha, INIT_AND_CONNECT)
+    expect(dm.calls.filter((call) => call === 'connectClaudeCode')).toHaveLength(1)
+    expect(dm.claudeConnects).toEqual([{ folder: '/a', request: ONBOARDING_CONNECT }])
+    expect(recorder.reloads).toBe(1)
+    expect(recorder.toasts).toEqual([
+      ['success', 'Initialized alpha.'],
+      ['success', 'Created .mcp.json for Claude Code.']
+    ])
+  })
+
+  it('leaves a different existing entry alone and says where to replace it', async () => {
+    dm.claudeOutcomes = [{ outcome: 'conflict', existing: '{}' }]
+    await recorder.actions().initialize(alpha, INIT_AND_CONNECT)
+    expect(dm.claudeConnects).toHaveLength(1)
+    expect(recorder.toasts).toEqual([
+      ['success', 'Initialized alpha.'],
+      [
+        'info',
+        '.mcp.json already has a different darkmechanicus entry, so it was left as it is. Replace it from the MCP card on the folder home.'
+      ]
+    ])
+  })
+
+  it('does not write .mcp.json when initialization fails', async () => {
+    dm.failures.initializeRepository = { code: 'unsafe_path', message: 'Cannot write here' }
+    await recorder.actions().initialize(alpha, INIT_AND_CONNECT)
+    expect(recorder.errors).toEqual(['Cannot write here'])
+    expect(dm.claudeConnects).toEqual([])
+  })
+
+  it('reports a failed write without undoing the initialization', async () => {
+    dm.rejects.connectClaudeCode = 'Refusing to write .mcp.json'
+    await recorder.actions().initialize(alpha, INIT_AND_CONNECT)
+    expect(recorder.errors).toEqual(['Refusing to write .mcp.json'])
+    expect(recorder.toasts).toEqual([['success', 'Initialized alpha.']])
+    expect(recorder.reloads).toBe(1)
+    expect(recorder.busy).toEqual(['initialize:true', 'initialize:false'])
+  })
+
+  it('stays busy until .mcp.json is written', async () => {
+    const busyDuringWrite: string[][] = []
+    const original = dm.connectClaudeCode.bind(dm)
+    dm.connectClaudeCode = (folder, request) => {
+      busyDuringWrite.push([...recorder.busy])
+      return original(folder, request)
+    }
+    await recorder.actions().initialize(alpha, INIT_AND_CONNECT)
+    expect(busyDuringWrite).toEqual([['initialize:true']])
   })
 })
 

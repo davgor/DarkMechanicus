@@ -5,6 +5,7 @@ import { FakeDm, MCP_JSON } from '../__mocks__/fakeDm'
 import { folderView } from '../__mocks__/fixtures'
 import { ManualScheduler } from '../__mocks__/manualScheduler'
 import { settle } from '../__mocks__/settle'
+import type { InitializeOptions } from '../app/shellActions'
 import { ToastProvider } from '../app/toasts'
 import { OnboardingView } from './OnboardingView'
 
@@ -25,19 +26,19 @@ const folder = folderView({
 })
 
 interface Calls {
-  initialize: number
+  initialize: InitializeOptions[]
   different: number
 }
 
 function renderView(busy = false): Calls {
-  const calls: Calls = { initialize: 0, different: 0 }
+  const calls: Calls = { initialize: [], different: 0 }
   render(
     <ToastProvider scheduler={new ManualScheduler()}>
       <OnboardingView
         folder={folder}
         busy={busy}
-        onInitialize={() => {
-          calls.initialize += 1
+        onInitialize={(options) => {
+          calls.initialize.push(options)
         }}
         onChooseDifferent={() => {
           calls.different += 1
@@ -118,11 +119,14 @@ describe('OnboardingView creation plan', () => {
   })
 })
 
+const writeMcpJson = (): HTMLInputElement =>
+  screen.getByRole('checkbox', { name: 'Also write .mcp.json so Claude Code can connect' }) as HTMLInputElement
+
 describe('OnboardingView actions', () => {
   it('initializes on request', () => {
     const calls = renderView()
     fireEvent.click(screen.getByRole('button', { name: 'Initialize folder' }))
-    expect(calls.initialize).toBe(1)
+    expect(calls.initialize).toEqual([{ writeMcpConfig: true }])
   })
 
   it('offers a different folder', () => {
@@ -136,6 +140,30 @@ describe('OnboardingView actions', () => {
     const button = screen.getByRole('button', { name: 'Initializing…' }) as HTMLButtonElement
     expect(button.disabled).toBe(true)
     expect(button.getAttribute('aria-busy')).toBe('true')
+    expect(writeMcpJson().disabled).toBe(true)
+  })
+})
+
+describe('OnboardingView Claude Code option', () => {
+  it('offers to write .mcp.json as well, on by default', () => {
+    renderView()
+    expect(writeMcpJson().checked).toBe(true)
+    expect(writeMcpJson().disabled).toBe(false)
+  })
+
+  it('explains what the file holds and that committing it is up to the person', () => {
+    renderView()
+    expect(document.querySelector('.onboarding-option-note')?.textContent).toBe(
+      'Adds a darkmechanicus server (planner, may save plans) to .mcp.json at the repository root. The file contains this machine’s path to the Dark Mechanicus app; whether to commit it is up to you.'
+    )
+  })
+
+  it('initializes without writing .mcp.json when the option is turned off', () => {
+    const calls = renderView()
+    fireEvent.click(writeMcpJson())
+    fireEvent.click(screen.getByRole('button', { name: 'Initialize folder' }))
+    expect(writeMcpJson().checked).toBe(false)
+    expect(calls.initialize).toEqual([{ writeMcpConfig: false }])
   })
 })
 

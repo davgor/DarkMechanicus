@@ -1,4 +1,6 @@
+import { useId, useState } from 'react'
 import type { TrackedFolderView } from '../../../shared/desktop/api'
+import type { InitializeOptions } from '../app/shellActions'
 import { Button } from '../components/Button'
 import { classNames } from '../components/classNames'
 import { Icon } from '../components/Icon'
@@ -9,7 +11,7 @@ interface OnboardingViewProps {
   folder: TrackedFolderView
   /** True while `initializeRepository` runs. */
   busy: boolean
-  onInitialize(): void
+  onInitialize(options: InitializeOptions): void
   onChooseDifferent(): void
 }
 
@@ -63,8 +65,40 @@ function CreatedFiles(): JSX.Element {
   )
 }
 
+interface McpJsonOptionProps {
+  checked: boolean
+  disabled: boolean
+  onChange(checked: boolean): void
+}
+
+/** The opt-out for writing Claude Code's `.mcp.json` along with the repository records. */
+function McpJsonOption({ checked, disabled, onChange }: McpJsonOptionProps): JSX.Element {
+  const noteId = useId()
+  return (
+    <div className="onboarding-option">
+      <label className="onboarding-option-label">
+        <input
+          type="checkbox"
+          checked={checked}
+          disabled={disabled}
+          aria-describedby={noteId}
+          onChange={(event) => onChange(event.target.checked)}
+        />
+        <span>
+          Also write <code>.mcp.json</code> so Claude Code can connect
+        </span>
+      </label>
+      <p id={noteId} className="onboarding-option-note">
+        Adds a <code>darkmechanicus</code> server (planner, may save plans) to <code>.mcp.json</code> at the repository
+        root. The file contains this machine’s path to the Dark Mechanicus app; whether to commit it is up to you.
+      </p>
+    </div>
+  )
+}
+
 /** Shown for a tracked folder that has no `.darkmechanicus/` yet: explains and performs setup. */
 export function OnboardingView({ folder, busy, onInitialize, onChooseDifferent }: OnboardingViewProps): JSX.Element {
+  const [writeMcpConfig, setWriteMcpConfig] = useState(true)
   return (
     <div className="onboarding">
       <Stepper />
@@ -88,8 +122,9 @@ export function OnboardingView({ folder, busy, onInitialize, onChooseDifferent }
               Adds <code>.darkmechanicus/.gitignore</code> so <code>local/</code> is never committed
             </span>
           </p>
+          <McpJsonOption checked={writeMcpConfig} disabled={busy} onChange={setWriteMcpConfig} />
           <div className="button-row">
-            <Button variant="primary" busy={busy} onClick={onInitialize}>
+            <Button variant="primary" busy={busy} onClick={() => onInitialize({ writeMcpConfig })}>
               {busy ? 'Initializing…' : 'Initialize folder'}
             </Button>
             <Button onClick={onChooseDifferent}>Choose a different folder</Button>

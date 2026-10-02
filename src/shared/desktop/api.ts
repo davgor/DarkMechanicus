@@ -36,6 +36,28 @@ export interface McpConfigView {
   note: string
 }
 
+/** Roles Claude Code can be connected as from the app. */
+export const CLAUDE_CODE_ROLES = ['planner', 'orchestrator'] as const
+
+export type ClaudeCodeRole = (typeof CLAUDE_CODE_ROLES)[number]
+
+/** Writes the `darkmechanicus` server into the repository's `.mcp.json` for Claude Code. */
+export interface ClaudeCodeConnectRequest {
+  role: ClaudeCodeRole
+  /** Adds `--allow-save`, so the agent may call `save_plan`. */
+  allowSave: boolean
+  /** Replace a different existing `darkmechanicus` entry; without it the entry is reported, not touched. */
+  replace: boolean
+}
+
+/** What happened to `.mcp.json`. Only created, added and replaced wrote the file. */
+export type ClaudeCodeConnectResult =
+  | { outcome: 'created' | 'added' | 'replaced' | 'unchanged' }
+  /** A different `darkmechanicus` entry is there (pretty JSON); nothing was written. */
+  | { outcome: 'conflict'; existing: string }
+  /** The file could not be merged (not JSON, or not shaped like an MCP config); it was left untouched. */
+  | { outcome: 'invalid'; message: string }
+
 export interface FolderPickResult {
   folder: TrackedFolderView | null
   /** False when the picked folder was already tracked (it is selected instead). */
@@ -53,6 +75,7 @@ export interface DmApi {
   ): Promise<CommandResult<CommandOutput<K>>>
   getMcpConfig(folder: string): Promise<McpConfigView>
   installSkills(folder: string): Promise<{ written: string[] }>
+  connectClaudeCode(folder: string, request: ClaudeCodeConnectRequest): Promise<ClaudeCodeConnectResult>
   copyText(text: string): Promise<void>
   openExternal(url: string): Promise<boolean>
 }

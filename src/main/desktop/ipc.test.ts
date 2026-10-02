@@ -59,6 +59,10 @@ function createRecordingHandlers(): { handlers: DesktopHandlers; calls: unknown[
       calls.push(['installSkills', folder])
       return { written: ['a'] }
     },
+    connectClaudeCode: async (folder, request) => {
+      calls.push(['connectClaudeCode', folder, request])
+      return { outcome: 'created' }
+    },
     copyText: async (text) => {
       calls.push(['copyText', text])
     },
@@ -72,6 +76,7 @@ function createRecordingHandlers(): { handlers: DesktopHandlers; calls: unknown[
 
 const EXPECTED_CHANNELS = [
   'dm:command',
+  'dm:connectClaudeCode',
   'dm:copyText',
   'dm:getMcpConfig',
   'dm:installSkills',
@@ -97,10 +102,12 @@ describe('registerDesktopIpc registration', () => {
 
     await ipc.invoke('dm:command')
     await ipc.invoke('dm:untrackFolder')
+    await ipc.invoke('dm:connectClaudeCode', '/repos/a')
 
     expect(calls).toEqual([
       ['command', undefined, undefined, undefined],
-      ['untrackFolder', undefined]
+      ['untrackFolder', undefined],
+      ['connectClaudeCode', '/repos/a', undefined]
     ])
   })
 })
@@ -117,6 +124,7 @@ describe('registerDesktopIpc forwarding', () => {
     await ipc.invoke('dm:command', '/repos/a', 'getEpic', { epicId: 'e' }, 'stray')
     await ipc.invoke('dm:getMcpConfig', '/repos/a', 'stray')
     await ipc.invoke('dm:installSkills', '/repos/a', 'stray')
+    await ipc.invoke('dm:connectClaudeCode', '/repos/a', { role: 'planner' }, 'stray')
     await ipc.invoke('dm:copyText', 'text', 'stray')
     await ipc.invoke('dm:openExternal', 'https://example.com', 'stray')
 
@@ -127,6 +135,7 @@ describe('registerDesktopIpc forwarding', () => {
       ['command', '/repos/a', 'getEpic', { epicId: 'e' }],
       ['getMcpConfig', '/repos/a'],
       ['installSkills', '/repos/a'],
+      ['connectClaudeCode', '/repos/a', { role: 'planner' }],
       ['copyText', 'text'],
       ['openExternal', 'https://example.com']
     ])
@@ -142,6 +151,7 @@ describe('registerDesktopIpc forwarding', () => {
     expect(await ipc.invoke('dm:command', 'f', 'n', 'i')).toEqual({ ok: true, data: 'command-result' })
     expect(await ipc.invoke('dm:getMcpConfig', 'f')).toEqual(MCP_VIEW)
     expect(await ipc.invoke('dm:installSkills', 'f')).toEqual({ written: ['a'] })
+    expect(await ipc.invoke('dm:connectClaudeCode', 'f', 'r')).toEqual({ outcome: 'created' })
     expect(await ipc.invoke('dm:copyText', 't')).toBeUndefined()
     expect(await ipc.invoke('dm:openExternal', 'u')).toBe(true)
   })

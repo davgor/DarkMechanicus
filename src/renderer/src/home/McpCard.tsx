@@ -6,6 +6,7 @@ import { useToasts } from '../app/toasts'
 import { Button } from '../components/Button'
 import { McpSnippet } from '../components/McpSnippet'
 import { mcpFooterLine } from '../sidebar/footerStatus'
+import { ClaudeCodeConnect } from './ClaudeCodeConnect'
 
 interface McpCardProps {
   folder: TrackedFolderView
@@ -52,7 +53,10 @@ function SkillInstaller({ folder }: { folder: TrackedFolderView }): JSX.Element 
   )
 }
 
-/** How agents reach this folder: live sessions, the MCP config to paste, and skill installation. */
+/**
+ * How agents reach this folder: live sessions, the MCP config to paste, writing it for Claude Code,
+ * and skill installation.
+ */
 export function McpCard({ folder, status }: McpCardProps): JSX.Element {
   const connection = mcpFooterLine(status)
   return (
@@ -61,6 +65,7 @@ export function McpCard({ folder, status }: McpCardProps): JSX.Element {
       <p className={`connection tone-${connection.tone}`}>{connection.text}</p>
       <McpSnippet folderPath={folder.path} heading="MCP SERVER CONFIG" />
       <p className="note">The MCP server runs headless, so agents can plan with this window closed.</p>
+      <ClaudeCodeConnect folder={folder} />
       <SkillInstaller folder={folder} />
     </section>
   )

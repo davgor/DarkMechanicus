@@ -1398,6 +1398,28 @@ textarea.input {
   line-height: 19px;
 }
 
+.onboarding-option {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.onboarding-option-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.onboarding-option-note {
+  margin: 0;
+  padding-left: 23px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
 .snippet {
   display: flex;
   flex-direction: column;
@@ -1618,6 +1640,65 @@ textarea.input {
   color: var(--ink-2);
   font-size: 12px;
   overflow-wrap: anywhere;
+}
+
+.connect {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.connect-facts {
+  align-self: stretch;
+}
+
+.connect-facts .kv-row {
+  align-items: baseline;
+}
+
+.connect-facts .mono {
+  font-size: 12.5px;
+}
+
+.connect-select {
+  padding: 4px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--code-bg);
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.connect-select:focus-visible {
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 1px var(--ring);
+}
+
+.connect-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+}
+
+.connect-check input,
+.onboarding-option-label input {
+  accent-color: var(--primary);
+}
+
+.connect-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-self: stretch;
+  padding: 12px 14px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
 }
 
 .branch-epic {

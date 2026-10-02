@@ -109,6 +109,27 @@ describe('App onboarding', () => {
   })
 })
 
+describe('App onboarding with Claude Code', () => {
+  it('writes .mcp.json for Claude Code while initializing, unless the option is turned off', async () => {
+    h.dm.folders = [setup]
+    h.dm.handlers.initializeRepository = () => initResult
+    h.mount()
+    await settle()
+    fireEvent.click(screen.getByRole('button', { name: 'Initialize folder' }))
+    await settle()
+    expect(h.dm.claudeConnects).toEqual([
+      { folder: setup.path, request: { role: 'planner', allowSave: true, replace: false } }
+    ])
+    expect(screen.getByText('Created .mcp.json for Claude Code.')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Also write .mcp.json so Claude Code can connect' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Initialize folder' }))
+    await settle()
+    expect(h.dm.callsOf('initializeRepository')).toHaveLength(2)
+    expect(h.dm.claudeConnects).toHaveLength(1)
+  })
+})
+
 describe('App folder states', () => {
   it('selects an already tracked folder instead of duplicating it', async () => {
     h.dm.folders = [ready]

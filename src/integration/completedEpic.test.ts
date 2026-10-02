@@ -50,7 +50,8 @@ function createDesktop(repo: string, config: string): Desktop {
     writeClipboard: () => undefined,
     openExternal: async () => undefined,
     mcpConfig: (repoPath) => buildMcpConfig({ packaged: false, execPath: 'electron', appPath: '/app', repoPath }),
-    installSkills: () => ({ written: [] })
+    installSkills: () => ({ written: [] }),
+    connectClaudeCode: () => ({ outcome: 'unchanged' })
   })
   return { handlers, repo, cleanup: () => pool.closeAll() }
 }
