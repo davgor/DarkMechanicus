@@ -6,6 +6,7 @@
 import type { CommandName } from '../../../../shared/domain/api'
 import type { DomainErrorShape } from '../../../../shared/domain/errors'
 import type {
+  ClaudeCodeConnectResult,
   CommandInput,
   CommandOutput,
   CommandResult,
@@ -151,6 +152,10 @@ export class FakeBackend implements DmApi {
 
   installSkills(): Promise<{ written: string[] }> {
     return Promise.resolve({ written: [] })
+  }
+
+  connectClaudeCode(): Promise<ClaudeCodeConnectResult> {
+    return Promise.resolve({ outcome: 'unchanged' })
   }
 
   copyText(): Promise<void> {

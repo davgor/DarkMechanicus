@@ -8,7 +8,10 @@ import { DomainError, toErrorShape } from '../../core/errors'
 import { parseInput } from '../../core/schemas'
 import type { Workspace } from '../../core/workspace'
 import {
+  CLAUDE_CODE_ROLES,
   DESKTOP_COMMANDS,
+  type ClaudeCodeConnectRequest,
+  type ClaudeCodeConnectResult,
   type CommandResult,
   type DesktopCommandName,
   type FolderPickResult,
@@ -30,6 +33,11 @@ const folderSchema = z.string().min(1).max(MAX_PATH_LENGTH)
 const commandNameSchema = z.string().min(1).max(MAX_COMMAND_NAME_LENGTH)
 const copyTextSchema = z.string().max(MAX_COPY_TEXT_LENGTH)
 const externalUrlSchema = z.string().max(MAX_EXTERNAL_URL_LENGTH)
+const claudeCodeRequestSchema = z.strictObject({
+  role: z.enum(CLAUDE_CODE_ROLES),
+  allowSave: z.boolean(),
+  replace: z.boolean()
+})
 
 export interface DesktopHandlerDeps {
   registry: Pick<FolderRegistry, 'list' | 'track' | 'untrack' | 'resolve'>
@@ -40,6 +48,8 @@ export interface DesktopHandlerDeps {
   openExternal: (url: string) => Promise<void>
   mcpConfig: (repoPath: string) => McpConfigView
   installSkills: (repoPath: string) => { written: string[] }
+  /** Writes the `darkmechanicus` server into the repository's `.mcp.json`; never commits. */
+  connectClaudeCode: (repoPath: string, request: ClaudeCodeConnectRequest) => ClaudeCodeConnectResult
   /** Told about command failures that are not DomainErrors (bugs, I/O), so main can log the stack. */
   onUnexpectedError?: (error: unknown) => void
 }
@@ -52,6 +62,7 @@ export interface DesktopHandlers {
   command(folder: unknown, name: unknown, input: unknown): Promise<CommandResult<unknown>>
   getMcpConfig(folder: unknown): Promise<McpConfigView>
   installSkills(folder: unknown): Promise<{ written: string[] }>
+  connectClaudeCode(folder: unknown, request: unknown): Promise<ClaudeCodeConnectResult>
   copyText(text: unknown): Promise<void>
   openExternal(url: unknown): Promise<boolean>
 }
@@ -148,6 +159,10 @@ export function createDesktopHandlers(deps: DesktopHandlerDeps): DesktopHandlers
     command: (folder, name, input) => runCommand(deps, { folder, name, input }),
     getMcpConfig: async (folder) => deps.mcpConfig(requireTracked(deps.registry, folder)),
     installSkills: async (folder) => deps.installSkills(requireTracked(deps.registry, folder)),
+    connectClaudeCode: async (folder, request) => {
+      const repoPath = requireTracked(deps.registry, folder)
+      return deps.connectClaudeCode(repoPath, parseInput(claudeCodeRequestSchema, request, 'Claude Code connection'))
+    },
     copyText: async (text) => {
       deps.writeClipboard(parseInput(copyTextSchema, text, 'clipboard text'))
     },

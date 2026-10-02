@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -6,6 +6,8 @@ import { openWorkspace } from '../core/workspace'
 import { createFolderRegistry } from '../main/desktop/folderRegistry'
 import { createDesktopHandlers, type DesktopHandlers } from '../main/desktop/handlers'
 import { buildMcpConfig } from '../main/desktop/mcpConfig'
+import { claudeCodeServer } from '../main/desktop/mcpJson'
+import { writeMcpServer } from '../main/desktop/mcpJsonFile'
 import { createWorkspacePool, type WorkspacePool } from '../main/desktop/workspacePool'
 import { defaultCapabilityProfile } from '../shared/domain/bundle'
 import { createSequentialIds, createTestClock } from '../test/testContext'
@@ -16,6 +18,11 @@ interface Desktop {
   pool: WorkspacePool
   repo: string
   cleanup(): void
+}
+
+/** The composition `bootstrap.ts` uses, for a development build at /app. */
+function mcpConfigFor(repoPath: string) {
+  return buildMcpConfig({ packaged: false, execPath: 'electron', appPath: '/app', repoPath })
 }
 
 function createDesktop(): Desktop {
@@ -33,8 +40,10 @@ function createDesktop(): Desktop {
     pickDirectory: async () => repo,
     writeClipboard: () => undefined,
     openExternal: async () => undefined,
-    mcpConfig: (repoPath) => buildMcpConfig({ packaged: false, execPath: 'electron', appPath: '/app', repoPath }),
-    installSkills: () => ({ written: [] })
+    mcpConfig: mcpConfigFor,
+    installSkills: () => ({ written: [] }),
+    connectClaudeCode: (repoPath, { role, allowSave, replace }) =>
+      writeMcpServer(repoPath, claudeCodeServer(mcpConfigFor(repoPath), { role, allowSave }), { replace })
   })
   return {
     handlers,
@@ -85,6 +94,42 @@ describe('desktop IPC handlers over the real Workspace', () => {
     expect(elsewhere.ok ? 'ok' : elsewhere.error.code).toBe('unauthorized')
     const invalid = await desktop.handlers.command(desktop.repo, 'getEpic', { epicId: '../../etc' })
     expect(invalid.ok ? 'ok' : invalid.error.code).toBe('invalid_input')
+  })
+})
+
+describe('connecting Claude Code over the real registry and file system', () => {
+  let desktop: Desktop
+
+  beforeEach(() => {
+    desktop = createDesktop()
+  })
+
+  afterEach(() => {
+    desktop.cleanup()
+  })
+
+  it('writes .mcp.json into a tracked folder only, and finds it up to date afterwards', async () => {
+    const request = { role: 'planner', allowSave: true, replace: false }
+    const file = join(desktop.repo, '.mcp.json')
+
+    await expect(desktop.handlers.connectClaudeCode(desktop.repo, request)).rejects.toThrow('not tracked')
+    expect(existsSync(file)).toBe(false)
+
+    await desktop.handlers.pickFolder()
+    expect(await desktop.handlers.connectClaudeCode(desktop.repo, request)).toEqual({ outcome: 'created' })
+    expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({
+      mcpServers: {
+        darkmechanicus: {
+          command: 'node',
+          args: [join('/app', 'out', 'main', 'mcp.js'), '--repo', desktop.repo, '--role', 'planner', '--allow-save', '--label', 'Claude Code']
+        }
+      }
+    })
+    expect(await desktop.handlers.connectClaudeCode(desktop.repo, request)).toEqual({ outcome: 'unchanged' })
+    expect(await desktop.handlers.connectClaudeCode(desktop.repo, { ...request, allowSave: false })).toEqual({
+      outcome: 'conflict',
+      existing: JSON.stringify(JSON.parse(readFileSync(file, 'utf8')).mcpServers.darkmechanicus, null, 2)
+    })
   })
 })
 

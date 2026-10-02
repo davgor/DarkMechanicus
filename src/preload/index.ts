@@ -32,6 +32,7 @@ const dm: DmApi = {
   command: (folder, name, input) => ipcRenderer.invoke('dm:command', folder, name, input),
   getMcpConfig: (folder) => ipcRenderer.invoke('dm:getMcpConfig', folder),
   installSkills: (folder) => ipcRenderer.invoke('dm:installSkills', folder),
+  connectClaudeCode: (folder, request) => ipcRenderer.invoke('dm:connectClaudeCode', folder, request),
   copyText: (text) => ipcRenderer.invoke('dm:copyText', text),
   openExternal: (url) => ipcRenderer.invoke('dm:openExternal', url)
 }

@@ -3,6 +3,8 @@ import { deferred } from './deferred'
 import type { Deferred } from './deferred'
 import type { DomainErrorShape } from '../../../shared/domain/errors'
 import type {
+  ClaudeCodeConnectRequest,
+  ClaudeCodeConnectResult,
   CommandInput,
   CommandOutput,
   CommandResult,
@@ -18,7 +20,13 @@ interface CommandCall {
   input: unknown
 }
 
-type PlainMethod = 'listFolders' | 'pickFolder' | 'untrackFolder' | 'getMcpConfig' | 'installSkills'
+type PlainMethod =
+  | 'listFolders'
+  | 'pickFolder'
+  | 'untrackFolder'
+  | 'getMcpConfig'
+  | 'installSkills'
+  | 'connectClaudeCode'
 
 export const MCP_JSON = '{\n  "mcpServers": {\n    "darkmechanicus": { "command": "dm-mcp" }\n  }\n}'
 
@@ -44,6 +52,9 @@ export class FakeDm implements DmApi {
   copied: string[] = []
   skillInstalls: string[] = []
   skillsWritten: string[] = ['.claude/skills/darkmechanicus-planner/SKILL.md']
+  claudeConnects: { folder: string; request: ClaudeCodeConnectRequest }[] = []
+  /** Answers to connectClaudeCode, in order; once used up, every write is `created`. */
+  claudeOutcomes: ClaudeCodeConnectResult[] = []
   mcpConfig: McpConfigView = {
     command: 'dm-mcp',
     args: ['--repo', '~/code/alpha'],
@@ -75,6 +86,11 @@ export class FakeDm implements DmApi {
   installSkills(folder: string): Promise<{ written: string[] }> {
     this.skillInstalls.push(folder)
     return this.answer('installSkills', () => ({ written: this.skillsWritten }))
+  }
+
+  connectClaudeCode(folder: string, request: ClaudeCodeConnectRequest): Promise<ClaudeCodeConnectResult> {
+    this.claudeConnects.push({ folder, request })
+    return this.answer('connectClaudeCode', () => this.claudeOutcomes.shift() ?? { outcome: 'created' })
   }
 
   copyText(text: string): Promise<void> {

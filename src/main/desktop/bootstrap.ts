@@ -14,11 +14,14 @@ import {
 } from 'electron'
 import { join } from 'node:path'
 import { openWorkspace, type Workspace } from '../../core/workspace'
+import type { McpConfigView } from '../../shared/desktop/api'
 import { logger } from '../logger'
 import { createFolderRegistry } from './folderRegistry'
 import { createDesktopHandlers, firstPickedDirectory } from './handlers'
 import { registerDesktopIpc } from './ipc'
 import { buildMcpConfig } from './mcpConfig'
+import { claudeCodeServer } from './mcpJson'
+import { writeMcpServer } from './mcpJsonFile'
 import { installClaudeSkills, type SkillDefinition } from './skillInstall'
 import { createWorkspacePool } from './workspacePool'
 
@@ -36,6 +39,16 @@ function pickDirectory(): Promise<string | null> {
     ? dialog.showOpenDialog(parent, FOLDER_DIALOG)
     : dialog.showOpenDialog(FOLDER_DIALOG)
   return shown.then(firstPickedDirectory)
+}
+
+/** The MCP launch command for `repoPath`, for this build of the app (packaged or development). */
+function mcpConfigFor(repoPath: string): McpConfigView {
+  return buildMcpConfig({
+    packaged: app.isPackaged,
+    execPath: process.execPath,
+    appPath: app.getAppPath(),
+    repoPath
+  })
 }
 
 function openDesktopWorkspace(repoRoot: string): Workspace {
@@ -67,14 +80,10 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
     pickDirectory,
     writeClipboard: (text) => clipboard.writeText(text),
     openExternal: (url) => shell.openExternal(url),
-    mcpConfig: (repoPath) =>
-      buildMcpConfig({
-        packaged: app.isPackaged,
-        execPath: process.execPath,
-        appPath: app.getAppPath(),
-        repoPath
-      }),
+    mcpConfig: mcpConfigFor,
     installSkills: (repoPath) => ({ written: installClaudeSkills(repoPath, skills) }),
+    connectClaudeCode: (repoPath, { role, allowSave, replace }) =>
+      writeMcpServer(repoPath, claudeCodeServer(mcpConfigFor(repoPath), { role, allowSave }), { replace }),
     onUnexpectedError: (error) => {
       logger.error('Desktop command failed:', error)
     }
