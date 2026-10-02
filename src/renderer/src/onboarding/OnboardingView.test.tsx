@@ -65,6 +65,17 @@ describe('OnboardingView header', () => {
     )
   })
 
+  it('shows the tech-priest with the setup heading, as a decorative image', () => {
+    renderView()
+    const head = screen.getByRole('heading', { level: 1 }).closest('.onboarding-head') as HTMLElement
+    const image = head.querySelector('img')
+    expect(image).toBeTruthy()
+    expect(image?.getAttribute('alt')).toBe('')
+    expect(image?.getAttribute('src')).toMatch(/brand-icon-128.*\.png$/)
+    expect(image?.getAttribute('width')).toBe('96')
+    expect(document.querySelectorAll('.onboarding img')).toHaveLength(1)
+  })
+
   it('promises that initializing only creates files', () => {
     renderView()
     expect(

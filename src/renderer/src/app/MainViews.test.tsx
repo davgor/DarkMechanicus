@@ -14,6 +14,18 @@ describe('WelcomeView', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Choose folder' }))
     expect(calls).toEqual(['track'])
   })
+
+  it('shows the tech-priest above the heading, as a decorative image', () => {
+    render(<WelcomeView onTrack={() => undefined} />)
+    const image = document.querySelector('.empty-state img') as HTMLImageElement
+    expect(image).toBeTruthy()
+    expect(image.getAttribute('alt')).toBe('')
+    expect(image.getAttribute('src')).toMatch(/brand-icon-128.*\.png$/)
+    expect(image.getAttribute('width')).toBe('128')
+    const heading = screen.getByRole('heading', { level: 1, name: 'Track a folder to get started' })
+    expect(image.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(document.querySelector('[data-icon="folder"]')).toBeNull()
+  })
 })
 
 describe('UnavailableView', () => {
@@ -25,6 +37,13 @@ describe('UnavailableView', () => {
     expect(screen.getByText(/~\/code\/gone/)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Stop tracking folder' }))
     expect(requests).toEqual(['/gone'])
+  })
+
+  it('keeps its warning icon and shows no mascot', () => {
+    const folder = folderView({ path: '/gone', name: 'gone', displayPath: '~/code/gone', available: false })
+    render(<UnavailableView folder={folder} onStopTracking={() => undefined} />)
+    expect(document.querySelector('[data-icon="warning"]')).not.toBeNull()
+    expect(document.querySelector('img')).toBeNull()
   })
 })
 

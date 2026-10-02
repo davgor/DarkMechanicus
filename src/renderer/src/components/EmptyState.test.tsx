@@ -26,9 +26,29 @@ describe('EmptyState', () => {
     expect(screen.getByRole('button', { name: 'Do it' })).toBeTruthy()
   })
 
+  it('renders an optional illustration above the title', () => {
+    render(<EmptyState title="Welcome" illustration={<img alt="" src="art.png" />} />)
+    const image = document.querySelector('img') as HTMLImageElement
+    const title = screen.getByRole('heading', { name: 'Welcome' })
+    expect(image.closest('.empty-state-illustration')).not.toBeNull()
+    expect(image.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('shows the illustration instead of the icon when both are given', () => {
+    render(<EmptyState title="Welcome" icon="folder" illustration={<img alt="" src="art.png" />} />)
+    expect(document.querySelector('img')).not.toBeNull()
+    expect(document.querySelector('[data-icon="folder"]')).toBeNull()
+  })
+
   it('omits the icon and action when not given', () => {
     render(<EmptyState title="Empty" />)
     expect(document.querySelector('svg')).toBeNull()
     expect(screen.queryByRole('button')).toBeNull()
+  })
+
+  it('omits the illustration slot when none is given', () => {
+    render(<EmptyState title="Empty" icon="folder" />)
+    expect(document.querySelector('.empty-state-illustration')).toBeNull()
+    expect(document.querySelector('[data-icon="folder"]')).not.toBeNull()
   })
 })

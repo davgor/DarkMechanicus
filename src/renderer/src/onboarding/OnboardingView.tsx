@@ -2,6 +2,7 @@ import type { TrackedFolderView } from '../../../shared/desktop/api'
 import { Button } from '../components/Button'
 import { classNames } from '../components/classNames'
 import { Icon } from '../components/Icon'
+import { Mascot } from '../components/Mascot'
 import { McpSnippet } from '../components/McpSnippet'
 
 interface OnboardingViewProps {
@@ -68,6 +69,7 @@ export function OnboardingView({ folder, busy, onInitialize, onChooseDifferent }
     <div className="onboarding">
       <Stepper />
       <header className="onboarding-head">
+        <Mascot size={96} />
         <h1 className="display">{folder.name} isn’t set up for Dark Mechanicus yet</h1>
         <p className="lede">
           Plans, tickets and run history will live inside this repository so they travel with it.
