@@ -30,6 +30,8 @@ function createFakeIpcMain(): {
 }
 
 const MCP_VIEW = { command: 'node', args: [], env: {}, json: '{}', note: 'n' }
+const REMOVAL_PLAN = { remove: ['board/x.md'], kept: [], editByHand: [] }
+const REMOVAL_RESULT = { removed: ['board/x.md'], removedFolders: ['board'], kept: [], editByHand: [] }
 
 /** Handlers that log each call as [name, ...args] and return a recognizable value. */
 function createRecordingHandlers(): { handlers: DesktopHandlers; calls: unknown[][] } {
@@ -63,6 +65,14 @@ function createRecordingHandlers(): { handlers: DesktopHandlers; calls: unknown[
       calls.push(['connectClaudeCode', folder, request])
       return { outcome: 'created' }
     },
+    previewBoardRemoval: async (folder) => {
+      calls.push(['previewBoardRemoval', folder])
+      return REMOVAL_PLAN
+    },
+    removeBoardFiles: async (folder, paths) => {
+      calls.push(['removeBoardFiles', folder, paths])
+      return REMOVAL_RESULT
+    },
     copyText: async (text) => {
       calls.push(['copyText', text])
     },
@@ -83,6 +93,8 @@ const EXPECTED_CHANNELS = [
   'dm:listFolders',
   'dm:openExternal',
   'dm:pickFolder',
+  'dm:previewBoardRemoval',
+  'dm:removeBoardFiles',
   'dm:untrackFolder'
 ]
 
@@ -103,11 +115,13 @@ describe('registerDesktopIpc registration', () => {
     await ipc.invoke('dm:command')
     await ipc.invoke('dm:untrackFolder')
     await ipc.invoke('dm:connectClaudeCode', '/repos/a')
+    await ipc.invoke('dm:removeBoardFiles', '/repos/a')
 
     expect(calls).toEqual([
       ['command', undefined, undefined, undefined],
       ['untrackFolder', undefined],
-      ['connectClaudeCode', '/repos/a', undefined]
+      ['connectClaudeCode', '/repos/a', undefined],
+      ['removeBoardFiles', '/repos/a', undefined]
     ])
   })
 })
@@ -125,6 +139,8 @@ describe('registerDesktopIpc forwarding', () => {
     await ipc.invoke('dm:getMcpConfig', '/repos/a', 'stray')
     await ipc.invoke('dm:installSkills', '/repos/a', 'stray')
     await ipc.invoke('dm:connectClaudeCode', '/repos/a', { role: 'planner' }, 'stray')
+    await ipc.invoke('dm:previewBoardRemoval', '/repos/a', 'stray')
+    await ipc.invoke('dm:removeBoardFiles', '/repos/a', ['board/x.md'], 'stray')
     await ipc.invoke('dm:copyText', 'text', 'stray')
     await ipc.invoke('dm:openExternal', 'https://example.com', 'stray')
 
@@ -136,6 +152,8 @@ describe('registerDesktopIpc forwarding', () => {
       ['getMcpConfig', '/repos/a'],
       ['installSkills', '/repos/a'],
       ['connectClaudeCode', '/repos/a', { role: 'planner' }],
+      ['previewBoardRemoval', '/repos/a'],
+      ['removeBoardFiles', '/repos/a', ['board/x.md']],
       ['copyText', 'text'],
       ['openExternal', 'https://example.com']
     ])
@@ -152,6 +170,8 @@ describe('registerDesktopIpc forwarding', () => {
     expect(await ipc.invoke('dm:getMcpConfig', 'f')).toEqual(MCP_VIEW)
     expect(await ipc.invoke('dm:installSkills', 'f')).toEqual({ written: ['a'] })
     expect(await ipc.invoke('dm:connectClaudeCode', 'f', 'r')).toEqual({ outcome: 'created' })
+    expect(await ipc.invoke('dm:previewBoardRemoval', 'f')).toEqual(REMOVAL_PLAN)
+    expect(await ipc.invoke('dm:removeBoardFiles', 'f', ['p'])).toEqual(REMOVAL_RESULT)
     expect(await ipc.invoke('dm:copyText', 't')).toBeUndefined()
     expect(await ipc.invoke('dm:openExternal', 'u')).toBe(true)
   })

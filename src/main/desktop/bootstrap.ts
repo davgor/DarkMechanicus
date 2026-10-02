@@ -16,6 +16,7 @@ import { join } from 'node:path'
 import { openWorkspace, type Workspace } from '../../core/workspace'
 import type { McpConfigView } from '../../shared/desktop/api'
 import { logger } from '../logger'
+import { previewBoardRemoval, removeBoardFiles } from './boardRemovalFiles'
 import { createFolderRegistry } from './folderRegistry'
 import { createDesktopHandlers, firstPickedDirectory } from './handlers'
 import { registerDesktopIpc } from './ipc'
@@ -84,6 +85,8 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
     installSkills: (repoPath) => ({ written: installClaudeSkills(repoPath, skills) }),
     connectClaudeCode: (repoPath, { role, allowSave, replace }) =>
       writeMcpServer(repoPath, claudeCodeServer(mcpConfigFor(repoPath), { role, allowSave }), { replace }),
+    previewBoardRemoval: (repoPath) => previewBoardRemoval(repoPath),
+    removeBoardFiles: (repoPath, confirmed) => removeBoardFiles(repoPath, confirmed),
     onUnexpectedError: (error) => {
       logger.error('Desktop command failed:', error)
     }

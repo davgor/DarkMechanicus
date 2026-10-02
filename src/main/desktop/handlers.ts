@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { DomainError, toErrorShape } from '../../core/errors'
 import { parseInput } from '../../core/schemas'
 import type { Workspace } from '../../core/workspace'
+import type { BoardRemovalResultView, BoardRemovalView } from '../../shared/domain/views'
 import {
   CLAUDE_CODE_ROLES,
   DESKTOP_COMMANDS,
@@ -28,11 +29,15 @@ const MAX_COMMAND_NAME_LENGTH = 64
 /** The most text the UI may put on the clipboard (the 100 KB Markdown body limit). */
 const MAX_COPY_TEXT_LENGTH = 100_000
 const MAX_EXTERNAL_URL_LENGTH = 4_096
+/** Bounds the confirmed list of board files to remove: more than every removal root may hold. */
+const MAX_REMOVAL_PATHS = 20_000
+const MAX_REMOVAL_PATH_LENGTH = 4_096
 
 const folderSchema = z.string().min(1).max(MAX_PATH_LENGTH)
 const commandNameSchema = z.string().min(1).max(MAX_COMMAND_NAME_LENGTH)
 const copyTextSchema = z.string().max(MAX_COPY_TEXT_LENGTH)
 const externalUrlSchema = z.string().max(MAX_EXTERNAL_URL_LENGTH)
+const removalPathsSchema = z.array(z.string().min(1).max(MAX_REMOVAL_PATH_LENGTH)).max(MAX_REMOVAL_PATHS)
 const claudeCodeRequestSchema = z.strictObject({
   role: z.enum(CLAUDE_CODE_ROLES),
   allowSave: z.boolean(),
@@ -50,6 +55,10 @@ export interface DesktopHandlerDeps {
   installSkills: (repoPath: string) => { written: string[] }
   /** Writes the `darkmechanicus` server into the repository's `.mcp.json`; never commits. */
   connectClaudeCode: (repoPath: string, request: ClaudeCodeConnectRequest) => ClaudeCodeConnectResult
+  /** What removing the old board workflow would delete; changes nothing. */
+  previewBoardRemoval: (repoPath: string) => BoardRemovalView
+  /** Deletes the confirmed board files that are still candidates, then the folders left empty; never commits. */
+  removeBoardFiles: (repoPath: string, confirmed: readonly string[]) => BoardRemovalResultView
   /** Told about command failures that are not DomainErrors (bugs, I/O), so main can log the stack. */
   onUnexpectedError?: (error: unknown) => void
 }
@@ -63,6 +72,8 @@ export interface DesktopHandlers {
   getMcpConfig(folder: unknown): Promise<McpConfigView>
   installSkills(folder: unknown): Promise<{ written: string[] }>
   connectClaudeCode(folder: unknown, request: unknown): Promise<ClaudeCodeConnectResult>
+  previewBoardRemoval(folder: unknown): Promise<BoardRemovalView>
+  removeBoardFiles(folder: unknown, paths: unknown): Promise<BoardRemovalResultView>
   copyText(text: unknown): Promise<void>
   openExternal(url: unknown): Promise<boolean>
 }
@@ -146,6 +157,27 @@ async function openExternalUrl(deps: DesktopHandlerDeps, url: unknown): Promise<
   }
 }
 
+/**
+ * Refuses while the board still has open epics that no import brought in: removing `board/` then
+ * would lose them. The renderer only offers the removal once nothing is left to import.
+ */
+async function assertBoardImported(workspace: Workspace): Promise<void> {
+  const board = await workspace.previewBoardImport()
+  const waiting = board.open.filter((epic) => epic.state === 'new').length
+  if (waiting > 0) {
+    const epics = waiting === 1 ? '1 open epic on it has' : `${waiting} open epics on it have`
+    throw new DomainError('conflict', `Import the board first: ${epics} not been imported yet.`)
+  }
+}
+
+/** Deletes the confirmed board files of a tracked folder, once nothing on its board is left to import. */
+async function removeBoardFiles(deps: DesktopHandlerDeps, folder: unknown, paths: unknown): Promise<BoardRemovalResultView> {
+  const repoPath = requireTracked(deps.registry, folder)
+  const confirmed = parseInput(removalPathsSchema, paths, 'files to remove')
+  await assertBoardImported(deps.pool.get(repoPath))
+  return deps.removeBoardFiles(repoPath, confirmed)
+}
+
 /** The first folder chosen in a native open dialog result, or null when cancelled or empty. */
 export function firstPickedDirectory(result: { canceled: boolean; filePaths: readonly string[] }): string | null {
   return result.canceled ? null : (result.filePaths[0] ?? null)
@@ -163,6 +195,8 @@ export function createDesktopHandlers(deps: DesktopHandlerDeps): DesktopHandlers
       const repoPath = requireTracked(deps.registry, folder)
       return deps.connectClaudeCode(repoPath, parseInput(claudeCodeRequestSchema, request, 'Claude Code connection'))
     },
+    previewBoardRemoval: async (folder) => deps.previewBoardRemoval(requireTracked(deps.registry, folder)),
+    removeBoardFiles: (folder, paths) => removeBoardFiles(deps, folder, paths),
     copyText: async (text) => {
       deps.writeClipboard(parseInput(copyTextSchema, text, 'clipboard text'))
     },

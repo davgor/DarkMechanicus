@@ -33,6 +33,8 @@ const dm: DmApi = {
   getMcpConfig: (folder) => ipcRenderer.invoke('dm:getMcpConfig', folder),
   installSkills: (folder) => ipcRenderer.invoke('dm:installSkills', folder),
   connectClaudeCode: (folder, request) => ipcRenderer.invoke('dm:connectClaudeCode', folder, request),
+  previewBoardRemoval: (folder) => ipcRenderer.invoke('dm:previewBoardRemoval', folder),
+  removeBoardFiles: (folder, paths) => ipcRenderer.invoke('dm:removeBoardFiles', folder, paths),
   copyText: (text) => ipcRenderer.invoke('dm:copyText', text),
   openExternal: (url) => ipcRenderer.invoke('dm:openExternal', url)
 }

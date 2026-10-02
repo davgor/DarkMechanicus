@@ -47,6 +47,11 @@ describe('board module purity', () => {
     expect(forbiddenImports(['core/board/parse.ts', 'core/board/plan.ts'])).toEqual([])
   })
 
+  it('keeps the removal candidate detection pure as well', () => {
+    expect([...importClosure(['core/board/removal.ts']).keys()].map(shown)).toContain('core/board/removal.ts')
+    expect(forbiddenImports(['core/board/removal.ts'])).toEqual([])
+  })
+
   it('would catch such an import: the file adapter itself reads through one', () => {
     expect(forbiddenImports(['core/repo/nodeFs.ts'])).toEqual(['core/repo/nodeFs.ts -> node:fs'])
   })

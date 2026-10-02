@@ -51,7 +51,9 @@ function createDesktop(repo: string, config: string): Desktop {
     openExternal: async () => undefined,
     mcpConfig: (repoPath) => buildMcpConfig({ packaged: false, execPath: 'electron', appPath: '/app', repoPath }),
     installSkills: () => ({ written: [] }),
-    connectClaudeCode: () => ({ outcome: 'unchanged' })
+    connectClaudeCode: () => ({ outcome: 'unchanged' }),
+    previewBoardRemoval: () => ({ remove: [], kept: [], editByHand: [] }),
+    removeBoardFiles: () => ({ removed: [], removedFolders: [], kept: [], editByHand: [] })
   })
   return { handlers, repo, cleanup: () => pool.closeAll() }
 }
