@@ -129,7 +129,7 @@ function draftActions(deps: ActionDeps): Pick<WorkspaceActions, 'editDraft' | 'd
       const expected = draftRevision(deps)
       const result = await perform(deps, () => deps.runner('discardPlanDraft', { epicId, expectedDraftRevision: expected }))
       if (result.ok) {
-        deps.dispatch({ type: 'show_view', view: 'saved' })
+        deps.dispatch({ type: 'draft_closed' })
       }
       feedback(deps, result, 'Draft discarded.')
     },
@@ -148,7 +148,7 @@ function draftActions(deps: ActionDeps): Pick<WorkspaceActions, 'editDraft' | 'd
         deps.dispatch({ type: 'save_notice', notice: { tone: 'info', text: outcome.message } })
         return
       }
-      deps.dispatch({ type: 'show_view', view: 'saved' })
+      deps.dispatch({ type: 'draft_closed' })
       deps.dispatch({ type: 'toast', text: outcome.message })
     }
   }
