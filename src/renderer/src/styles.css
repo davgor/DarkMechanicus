@@ -1872,6 +1872,70 @@ summary.board-group-title::marker {
   color: var(--muted);
 }
 
+/* Removing the old workflow: its own step under the preview, every file listed under its folder. */
+.board-removal {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.board-removal > .note {
+  margin: 0;
+}
+
+/* After the removal the preview is gone, so nothing above needs dividing off. */
+.card-title + .board-removal {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.removal-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.removal-group {
+  padding: 8px 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.removal-folder {
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.removal-files {
+  margin: 4px 0 0;
+  padding: 0 0 0 12px;
+  border-left: 1px solid var(--line-soft);
+  list-style: none;
+}
+
+.removal-file {
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+/* Onboarding has the width to show a long folder of files in two columns. */
+.onboarding-board .removal-files {
+  columns: 2;
+  column-gap: 24px;
+}
+
 @media (max-width: 1180px) {
   .home-grid {
     grid-template-columns: minmax(0, 1fr);
@@ -1888,7 +1952,8 @@ summary.board-group-title::marker {
     padding: 24px;
   }
 
-  .onboarding-board .board-done {
+  .onboarding-board .board-done,
+  .onboarding-board .removal-files {
     columns: 1;
   }
 }

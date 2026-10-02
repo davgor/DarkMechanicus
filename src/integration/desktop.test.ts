@@ -1,10 +1,11 @@
-import { cpSync, existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { FIXTURE_ROOT } from '../core/board/__mocks__/boardFixtures'
 import { openWorkspace } from '../core/workspace'
 import { createFolderRegistry } from '../main/desktop/folderRegistry'
+import { previewBoardRemoval, removeBoardFiles } from '../main/desktop/boardRemovalFiles'
 import { createDesktopHandlers, type DesktopHandlers } from '../main/desktop/handlers'
 import { buildMcpConfig } from '../main/desktop/mcpConfig'
 import { claudeCodeServer } from '../main/desktop/mcpJson'
@@ -45,7 +46,9 @@ function createDesktop(): Desktop {
     mcpConfig: mcpConfigFor,
     installSkills: () => ({ written: [] }),
     connectClaudeCode: (repoPath, { role, allowSave, replace }) =>
-      writeMcpServer(repoPath, claudeCodeServer(mcpConfigFor(repoPath), { role, allowSave }), { replace })
+      writeMcpServer(repoPath, claudeCodeServer(mcpConfigFor(repoPath), { role, allowSave }), { replace }),
+    previewBoardRemoval: (repoPath) => previewBoardRemoval(repoPath),
+    removeBoardFiles: (repoPath, confirmed) => removeBoardFiles(repoPath, confirmed)
   })
   return {
     handlers,
@@ -192,6 +195,44 @@ describe('importing an old-style board through dm:command', () => {
     expect(epics.ok ? (epics.data as { status: string; hasDraft: boolean }[]) : epics.error).toMatchObject([
       { status: 'backlog', hasDraft: true, currentRevisionId: null }
     ])
+  })
+})
+
+describe('removing an old-style board after importing it', () => {
+  let desktop: Desktop
+
+  beforeEach(() => {
+    desktop = createDesktop()
+    cpSync(join(FIXTURE_ROOT, 'board'), join(desktop.repo, 'board'), { recursive: true })
+    for (const skill of ['complete-ticket', 'delivery-standards']) {
+      mkdirSync(join(desktop.repo, '.claude', 'skills', skill), { recursive: true })
+      writeFileSync(join(desktop.repo, '.claude', 'skills', skill, 'SKILL.md'), `# ${skill}\n\nWork from \`/board\`.\n`)
+    }
+  })
+
+  afterEach(() => {
+    desktop.cleanup()
+  })
+
+  it('refuses to delete while an open epic is not imported, then removes exactly the listed files', async () => {
+    await desktop.handlers.pickFolder()
+    const preview = await desktop.handlers.previewBoardRemoval(desktop.repo)
+    expect(preview.remove).toContain('board/in-progress/014-cross-host-release.md')
+    expect(preview.remove).toContain('.claude/skills/complete-ticket/SKILL.md')
+    expect(preview.editByHand).toEqual([{ path: '.claude/skills/delivery-standards/SKILL.md', lines: [3] }])
+
+    await expect(desktop.handlers.removeBoardFiles(desktop.repo, preview.remove)).rejects.toThrow('Import the board first')
+    expect(existsSync(join(desktop.repo, 'board', 'in-progress', '014-cross-host-release.md'))).toBe(true)
+
+    await desktop.handlers.command(desktop.repo, 'initializeRepository', { name: 'desk' })
+    await desktop.handlers.command(desktop.repo, 'importBoard', {})
+    const result = await desktop.handlers.removeBoardFiles(desktop.repo, preview.remove)
+
+    expect(result.removed).toEqual(preview.remove)
+    expect(result.removedFolders).toContain('board')
+    expect(existsSync(join(desktop.repo, 'board'))).toBe(false)
+    expect(readdirSync(join(desktop.repo, '.claude', 'skills'))).toEqual(['delivery-standards'])
+    expect(readdirSync(desktop.repo).sort()).toEqual(['.claude', '.darkmechanicus'])
   })
 })
 

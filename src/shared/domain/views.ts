@@ -586,6 +586,39 @@ export interface BoardImportView {
   skipped: { path: string; reason: string }[]
 }
 
+/** A path the board removal leaves where it is, and why. Repository-relative, with forward slashes. */
+export interface BoardKeptPathView {
+  path: string
+  reason: string
+}
+
+/** A file that still mentions the board. It is never deleted; the person edits it by hand. */
+export interface BoardMentionView {
+  path: string
+  /** 1-based numbers of the lines that mention the board. */
+  lines: number[]
+}
+
+/**
+ * What removing the old board workflow (`board/` and the board-only skill folders) would delete,
+ * before anything is deleted. Every list is in path order.
+ */
+export interface BoardRemovalView {
+  /** Every file the removal deletes, repository-relative with forward slashes. */
+  remove: string[]
+  kept: BoardKeptPathView[]
+  editByHand: BoardMentionView[]
+}
+
+/** What the confirmed board removal did. Nothing is committed. */
+export interface BoardRemovalResultView {
+  removed: string[]
+  /** Folders removed because the deletion left them empty, deepest first. */
+  removedFolders: string[]
+  kept: BoardKeptPathView[]
+  editByHand: BoardMentionView[]
+}
+
 export interface InitializeResultView {
   projectId: string
   name: string

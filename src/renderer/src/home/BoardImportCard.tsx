@@ -4,6 +4,7 @@ import type { BoardImportView } from '../../../shared/domain/views'
 import { useToasts } from '../app/toasts'
 import { useBoardPreview } from '../app/useBoardPreview'
 import { BoardPreview } from '../board/BoardPreview'
+import { BoardRemoval } from '../board/BoardRemoval'
 import { boardFound, importButtonLabel, newEpicCount } from '../board/boardImport'
 import { Button } from '../components/Button'
 
@@ -25,13 +26,15 @@ function NothingNew({ view }: { view: BoardImportView }): JSX.Element | null {
 
 /**
  * The folder's old-style Markdown `board/`, while it still has one: what an import brings in and,
- * after one, what it created. Hidden for folders without a board.
+ * after one, what it created. Once nothing is left to import it offers to remove the old workflow
+ * files, and after that shows only what the removal did. Hidden for folders without a board.
  */
 export function BoardImportCard({ folder, version, onImport, onOpenEpic }: BoardImportCardProps): JSX.Element | null {
   const toasts = useToasts()
   const preview = useBoardPreview(folder.path, version, toasts.reportError)
   const [result, setResult] = useState<BoardImportView | null>(null)
   const [busy, setBusy] = useState(false)
+  const [removed, setRemoved] = useState(false)
   const view = result ?? (preview.status === 'ready' ? preview.value : null)
   if (view === null || !boardFound(view)) {
     return null
@@ -53,11 +56,16 @@ export function BoardImportCard({ folder, version, onImport, onOpenEpic }: Board
   return (
     <section className="card board-card" aria-label="Old-style board">
       <h2 className="card-title">Old-style board</h2>
-      <p className="note">
-        This repository still has a Markdown <code>board/</code>. Importing brings its open epics in as Backlog epics
-        whose plans stay drafts until you review them and press Save. Board files are only read; nothing is committed.
-      </p>
-      <BoardPreview view={view} onOpenEpic={onOpenEpic} />
+      {removed ? null : (
+        <>
+          <p className="note">
+            This repository still has a Markdown <code>board/</code>. Importing brings its open epics in as Backlog
+            epics whose plans stay drafts until you review them and press Save. Importing only reads the board files;
+            nothing is committed.
+          </p>
+          <BoardPreview view={view} onOpenEpic={onOpenEpic} />
+        </>
+      )}
       {count > 0 ? (
         <div className="button-row">
           <Button variant="primary" icon="download" busy={busy} onClick={() => void importNow()}>
@@ -65,7 +73,10 @@ export function BoardImportCard({ folder, version, onImport, onOpenEpic }: Board
           </Button>
         </div>
       ) : (
-        <NothingNew view={view} />
+        <>
+          {removed ? null : <NothingNew view={view} />}
+          <BoardRemoval folder={folder} onRemoved={() => setRemoved(true)} />
+        </>
       )}
     </section>
   )

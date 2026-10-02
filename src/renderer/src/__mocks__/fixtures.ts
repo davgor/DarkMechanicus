@@ -6,6 +6,7 @@ import type { TrackedFolderView } from '../../../shared/desktop/api'
 import type {
   BoardImportView,
   BoardOpenEpicView,
+  BoardRemovalView,
   EpicDetailView,
   EpicSummaryView,
   EventView,
@@ -155,6 +156,25 @@ export function boardImport(patch: Partial<BoardImportView> = {}): BoardImportVi
       }
     ],
     skipped: [{ path: 'board/backlog/notes.txt', reason: 'is not a Markdown file' }],
+    ...patch
+  }
+}
+
+/** Removing the old workflow of the board fixture: its files and one board skill, with what is left. */
+export function boardRemoval(patch: Partial<BoardRemovalView> = {}): BoardRemovalView {
+  return {
+    remove: [
+      '.claude/skills/complete-ticket/SKILL.md',
+      'board/backlog/.gitkeep',
+      'board/done/008-desktop-mockups.md',
+      'board/done/013-checkpoints-and-recovery.md',
+      'board/in-progress/014-cross-host-release.md'
+    ],
+    kept: [{ path: '.cursor/skills/collapse-epic', reason: 'its SKILL.md does not refer to the board' }],
+    editByHand: [
+      { path: '.ai-instructions.md', lines: [52] },
+      { path: 'README.md', lines: [29, 37, 39, 40, 41] }
+    ],
     ...patch
   }
 }

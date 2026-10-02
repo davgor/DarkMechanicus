@@ -5,6 +5,7 @@ import type { InitializeOptions } from '../app/shellActions'
 import { useToasts } from '../app/toasts'
 import { useBoardPreview } from '../app/useBoardPreview'
 import { BoardPreview } from '../board/BoardPreview'
+import { BoardRemoval } from '../board/BoardRemoval'
 import { boardFound, newEpicCount } from '../board/boardImport'
 import { Button } from '../components/Button'
 import { classNames } from '../components/classNames'
@@ -134,16 +135,39 @@ function BoardImportOption({ count, checked, disabled, onChange }: BoardImportOp
   )
 }
 
-/** The old-style board this folder still has: what an import would bring in and what it leaves alone. */
-function BoardCard({ view }: { view: BoardImportView }): JSX.Element {
+interface BoardCardProps {
+  folder: TrackedFolderView
+  view: BoardImportView
+  /** Nothing on the board is left to import, so its old workflow files may be removed. */
+  removable: boolean
+}
+
+/**
+ * The old-style board this folder still has: what an import would bring in and what it leaves alone.
+ * A board with nothing to import can have its old workflow files removed right here.
+ */
+function BoardCard({ folder, view, removable }: BoardCardProps): JSX.Element {
+  const [removed, setRemoved] = useState(false)
   return (
     <section className="card board-card onboarding-board" aria-label="Old-style board">
       <h2 className="card-title">Old-style board found</h2>
-      <p className="note">
-        This folder has a Markdown <code>board/</code>. Its open epics can come in as draft plans when you initialize;
-        done epics stay in Git history. Nothing in <code>board/</code> is moved, deleted or committed.
-      </p>
-      <BoardPreview view={view} doneExpanded />
+      {removed ? null : (
+        <>
+          <p className="note">
+            This folder has a Markdown <code>board/</code>. Its open epics can come in as draft plans when you
+            initialize; done epics stay in Git history.{' '}
+            {removable ? (
+              <>Nothing is deleted unless you confirm the removal below, and nothing is committed.</>
+            ) : (
+              <>
+                Nothing in <code>board/</code> is moved, deleted or committed.
+              </>
+            )}
+          </p>
+          <BoardPreview view={view} doneExpanded />
+        </>
+      )}
+      {removable ? <BoardRemoval folder={folder} onRemoved={() => setRemoved(true)} /> : null}
     </section>
   )
 }
@@ -205,7 +229,7 @@ export function OnboardingView({ folder, busy, onInitialize, onChooseDifferent }
           <p className="note">The MCP server runs headless, so agents can plan with this window closed.</p>
         </section>
       </div>
-      {board === null ? null : <BoardCard view={board} />}
+      {board === null ? null : <BoardCard folder={folder} view={board} removable={importable === 0} />}
     </div>
   )
 }

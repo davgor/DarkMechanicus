@@ -49,7 +49,9 @@ function createDesktop(): Desktop {
     openExternal: async () => undefined,
     mcpConfig: () => ({ command: '', args: [], env: {}, json: '{}', note: '' }),
     installSkills: () => ({ written: [] }),
-    connectClaudeCode: () => ({ outcome: 'unchanged' })
+    connectClaudeCode: () => ({ outcome: 'unchanged' }),
+    previewBoardRemoval: () => ({ remove: [], kept: [], editByHand: [] }),
+    removeBoardFiles: () => ({ removed: [], removedFolders: [], kept: [], editByHand: [] })
   })
   return {
     handlers,

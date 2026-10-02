@@ -5,6 +5,7 @@
  */
 import type { CommandApi, CommandName } from '../domain/api'
 import type { DomainErrorShape } from '../domain/errors'
+import type { BoardRemovalResultView, BoardRemovalView } from '../domain/views'
 
 export interface TrackedFolderView {
   /** Canonical real path; the registry key. */
@@ -76,6 +77,10 @@ export interface DmApi {
   getMcpConfig(folder: string): Promise<McpConfigView>
   installSkills(folder: string): Promise<{ written: string[] }>
   connectClaudeCode(folder: string, request: ClaudeCodeConnectRequest): Promise<ClaudeCodeConnectResult>
+  /** What removing the old board workflow (`board/`, board-only skills) would delete; changes nothing. */
+  previewBoardRemoval(folder: string): Promise<BoardRemovalView>
+  /** Deletes the confirmed files that are still files to remove, then the folders left empty; never commits. */
+  removeBoardFiles(folder: string, paths: string[]): Promise<BoardRemovalResultView>
   copyText(text: string): Promise<void>
   openExternal(url: string): Promise<boolean>
 }

@@ -9,6 +9,7 @@ import {
   type McpConfigView,
   type TrackedFolderView
 } from '../../shared/desktop/api'
+import type { BoardImportView, BoardOpenEpicView, BoardRemovalResultView, BoardRemovalView } from '../../shared/domain/views'
 import { createDesktopHandlers, firstPickedDirectory, type DesktopHandlerDeps } from './handlers'
 
 /** Commands that exist on a Workspace but are agent-only: the desktop must not reach them. */
@@ -25,6 +26,19 @@ const AGENT_ONLY_COMMANDS = [
 ]
 
 const NOT_TRACKED = 'That folder is not tracked by Dark Mechanicus.'
+
+const REMOVAL_PLAN: BoardRemovalView = {
+  remove: ['board/done/001-a.md'],
+  kept: [],
+  editByHand: [{ path: 'README.md', lines: [3] }]
+}
+
+const REMOVAL_RESULT: BoardRemovalResultView = {
+  removed: ['board/done/001-a.md'],
+  removedFolders: ['board/done', 'board'],
+  kept: [],
+  editByHand: [{ path: 'README.md', lines: [3] }]
+}
 
 function view(path: string): TrackedFolderView {
   return {
@@ -72,6 +86,8 @@ interface World {
   mcpCalls: string[]
   installCalls: string[]
   connectCalls: [string, ClaudeCodeConnectRequest][]
+  removalPreviews: string[]
+  removals: [string, string[]][]
 }
 
 function createRegistryFake(
@@ -133,6 +149,8 @@ function createWorld(options: WorldOptions = {}): World {
     mcpCalls: [],
     installCalls: [],
     connectCalls: [],
+    removalPreviews: [],
+    removals: [],
     deps: {
       registry: createRegistryFake(tracked, options.aliases ?? {}),
       pool: createPoolFake(log, options),
@@ -160,10 +178,25 @@ function createWorld(options: WorldOptions = {}): World {
       connectClaudeCode: (repoPath, request) => {
         world.connectCalls.push([repoPath, request])
         return { outcome: 'conflict', existing: '{}' }
-      }
+      },
+      ...boardRemovalDeps(() => world)
     }
   }
   return world
+}
+
+/** Board removal that records each call on the world and answers with the canned plan and result. */
+function boardRemovalDeps(world: () => World): Pick<DesktopHandlerDeps, 'previewBoardRemoval' | 'removeBoardFiles'> {
+  return {
+    previewBoardRemoval: (repoPath) => {
+      world().removalPreviews.push(repoPath)
+      return REMOVAL_PLAN
+    },
+    removeBoardFiles: (repoPath, paths) => {
+      world().removals.push([repoPath, [...paths]])
+      return REMOVAL_RESULT
+    }
+  }
 }
 
 /** 'allowed' for a successful result, otherwise the error code. */
@@ -573,6 +606,123 @@ describe('connectClaudeCode', () => {
 
     expect(codes).toEqual(malformed.map(() => 'invalid_input'))
     expect(world.connectCalls).toEqual([])
+  })
+})
+
+/** A workspace whose board preview has open epics in these states. */
+function boardWorkspace(repoRoot: string, states: BoardOpenEpicView['state'][]): Workspace {
+  const view: BoardImportView = {
+    open: states.map((state, index) => ({
+      boardId: String(index + 1).padStart(3, '0'),
+      kind: 'epic',
+      title: `Epic ${index + 1}`,
+      folder: 'backlog',
+      sourcePath: null,
+      sourcePaths: [],
+      ticketCount: 1,
+      doneTickets: [],
+      state,
+      epicId: state === 'new' ? null : `ep_${index}`
+    })),
+    done: [],
+    skipped: []
+  }
+  return { ...echoWorkspace(repoRoot), previewBoardImport: () => Promise.resolve(view) } as unknown as Workspace
+}
+
+describe('previewBoardRemoval', () => {
+  it('previews for the canonical tracked path and changes nothing', async () => {
+    const world = createWorld({ tracked: ['/repos/a'], aliases: { '/link/a': '/repos/a' } })
+    const handlers = createDesktopHandlers(world.deps)
+
+    expect(await handlers.previewBoardRemoval('/link/a')).toEqual(REMOVAL_PLAN)
+    expect(world.removalPreviews).toEqual(['/repos/a'])
+    expect(world.removals).toEqual([])
+  })
+
+  it('never looks into a folder that is not tracked', async () => {
+    const world = createWorld({ tracked: ['/repos/a'] })
+    const handlers = createDesktopHandlers(world.deps)
+
+    expect(await rejectionOf(handlers.previewBoardRemoval('/etc'))).toEqual({ code: 'unauthorized', message: NOT_TRACKED })
+    expect((await rejectionOf(handlers.previewBoardRemoval(null))).code).toBe('invalid_input')
+    expect(world.removalPreviews).toEqual([])
+  })
+})
+
+describe('removeBoardFiles', () => {
+  const confirmed = ['board/done/001-a.md', '.claude/skills/complete-ticket/SKILL.md']
+
+  it('removes the confirmed files of the canonical tracked path once every open epic was imported', async () => {
+    const world = createWorld({
+      tracked: ['/repos/a'],
+      aliases: { '/link/a': '/repos/a' },
+      workspace: boardWorkspace('/repos/a', ['imported', 'created'])
+    })
+    const handlers = createDesktopHandlers(world.deps)
+
+    expect(await handlers.removeBoardFiles('/link/a', confirmed)).toEqual(REMOVAL_RESULT)
+    expect(world.removals).toEqual([['/repos/a', confirmed]])
+  })
+
+  it('removes a board whose epics are all done', async () => {
+    const world = createWorld({ tracked: ['/repos/a'], workspace: boardWorkspace('/repos/a', []) })
+    const handlers = createDesktopHandlers(world.deps)
+
+    expect(await handlers.removeBoardFiles('/repos/a', [])).toEqual(REMOVAL_RESULT)
+    expect(world.removals).toEqual([['/repos/a', []]])
+  })
+
+})
+
+describe('removeBoardFiles refusals', () => {
+  const confirmed = ['board/done/001-a.md']
+
+  it('refuses while an open epic on the board has not been imported, deleting nothing', async () => {
+    const world = createWorld({ tracked: ['/repos/a'], workspace: boardWorkspace('/repos/a', ['new', 'imported', 'new']) })
+    const handlers = createDesktopHandlers(world.deps)
+
+    expect(await rejectionOf(handlers.removeBoardFiles('/repos/a', confirmed))).toEqual({
+      code: 'conflict',
+      message: 'Import the board first: 2 open epics on it have not been imported yet.'
+    })
+    expect(world.removals).toEqual([])
+  })
+
+  it('never deletes in a folder that is not tracked, and never opens it', async () => {
+    const world = createWorld({ tracked: ['/repos/a'] })
+    const handlers = createDesktopHandlers(world.deps)
+
+    expect(await rejectionOf(handlers.removeBoardFiles('/etc', confirmed))).toEqual({
+      code: 'unauthorized',
+      message: NOT_TRACKED
+    })
+    expect((await rejectionOf(handlers.removeBoardFiles(undefined, confirmed))).code).toBe('invalid_input')
+    expect(world.opened).toEqual([])
+    expect(world.removals).toEqual([])
+  })
+
+  it('rejects a malformed list of files before opening the folder', async () => {
+    const world = createWorld({ tracked: ['/repos/a'], workspace: boardWorkspace('/repos/a', []) })
+    const handlers = createDesktopHandlers(world.deps)
+    const malformed = [
+      undefined,
+      null,
+      'board/done/001-a.md',
+      { paths: confirmed },
+      [42],
+      [''],
+      ['a'.repeat(4_097)],
+      Array.from({ length: 20_001 }, (_, index) => `board/done/${index}.md`)
+    ]
+
+    const codes = await Promise.all(
+      malformed.map(async (input) => (await rejectionOf(handlers.removeBoardFiles('/repos/a', input))).code)
+    )
+
+    expect(codes).toEqual(malformed.map(() => 'invalid_input'))
+    expect(world.opened).toEqual([])
+    expect(world.removals).toEqual([])
   })
 })
 

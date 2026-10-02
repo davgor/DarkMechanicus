@@ -2,6 +2,7 @@ import type { CommandName } from '../../../shared/domain/api'
 import { deferred } from './deferred'
 import type { Deferred } from './deferred'
 import type { DomainErrorShape } from '../../../shared/domain/errors'
+import type { BoardRemovalResultView, BoardRemovalView } from '../../../shared/domain/views'
 import type {
   ClaudeCodeConnectRequest,
   ClaudeCodeConnectResult,
@@ -27,6 +28,8 @@ type PlainMethod =
   | 'getMcpConfig'
   | 'installSkills'
   | 'connectClaudeCode'
+  | 'previewBoardRemoval'
+  | 'removeBoardFiles'
 
 export const MCP_JSON = '{\n  "mcpServers": {\n    "darkmechanicus": { "command": "dm-mcp" }\n  }\n}'
 
@@ -56,6 +59,13 @@ export class FakeDm implements DmApi {
   claudeConnects: { folder: string; request: ClaudeCodeConnectRequest }[] = []
   /** Answers to connectClaudeCode, in order; once used up, every write is `created`. */
   claudeOutcomes: ClaudeCodeConnectResult[] = []
+  /** What previewBoardRemoval answers. */
+  boardRemoval: BoardRemovalView = { remove: [], kept: [], editByHand: [] }
+  /** What removeBoardFiles answers; by default every confirmed path was removed. */
+  boardRemovalResult: BoardRemovalResultView | null = null
+  boardRemovals: { folder: string; paths: string[] }[] = []
+  /** Makes the next removeBoardFiles call wait until this is resolved. */
+  removalHold: Deferred | null = null
   mcpConfig: McpConfigView = {
     command: 'dm-mcp',
     args: ['--repo', '~/code/alpha'],
@@ -92,6 +102,19 @@ export class FakeDm implements DmApi {
   connectClaudeCode(folder: string, request: ClaudeCodeConnectRequest): Promise<ClaudeCodeConnectResult> {
     this.claudeConnects.push({ folder, request })
     return this.answer('connectClaudeCode', () => this.claudeOutcomes.shift() ?? { outcome: 'created' })
+  }
+
+  previewBoardRemoval(): Promise<BoardRemovalView> {
+    return this.answer('previewBoardRemoval', () => this.boardRemoval)
+  }
+
+  async removeBoardFiles(folder: string, paths: string[]): Promise<BoardRemovalResultView> {
+    this.boardRemovals.push({ folder, paths: [...paths] })
+    await this.removalHold?.promise
+    return this.answer('removeBoardFiles', () => {
+      const { kept, editByHand } = this.boardRemoval
+      return this.boardRemovalResult ?? { removed: [...paths], removedFolders: [], kept, editByHand }
+    })
   }
 
   copyText(text: string): Promise<void> {

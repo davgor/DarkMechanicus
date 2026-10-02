@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { FakeDm, MCP_JSON } from '../__mocks__/fakeDm'
-import { boardImport, boardOpenEpic, folderView } from '../__mocks__/fixtures'
+import { boardImport, boardOpenEpic, boardRemoval, folderView } from '../__mocks__/fixtures'
 import { ManualScheduler } from '../__mocks__/manualScheduler'
 import { settle } from '../__mocks__/settle'
 import type { InitializeOptions } from '../app/shellActions'
@@ -252,5 +252,34 @@ describe('OnboardingView old-style board import option', () => {
     renderView(true)
     await settle()
     expect(importBoard().disabled).toBe(true)
+  })
+})
+
+describe('OnboardingView removal of the old workflow', () => {
+  const offer = (): HTMLElement | null =>
+    within(screen.getByRole('region', { name: 'Old-style board' })).queryByRole('region', {
+      name: 'Remove the old board workflow'
+    })
+
+  it('offers no removal while the board has open epics to import', async () => {
+    dm.responses.previewBoardImport = boardImport()
+    renderView()
+    await settle()
+    expect(offer()).toBeNull()
+    expect(screen.getByText(/Nothing in/).textContent).toContain('is moved, deleted or committed')
+  })
+
+  it('offers the removal for a board whose epics are all done, and says nothing goes without confirming', async () => {
+    dm.responses.previewBoardImport = boardImport({ open: [] })
+    dm.boardRemoval = boardRemoval()
+    renderView()
+    await settle()
+    const removal = offer()
+    expect(removal).not.toBeNull()
+    expect(screen.getByText(/unless you confirm the removal below/)).toBeTruthy()
+    fireEvent.click(within(removal as HTMLElement).getByRole('button', { name: 'Review files to remove' }))
+    await settle()
+    expect(within(removal as HTMLElement).getByRole('region', { name: 'Files to delete' })).toBeTruthy()
+    expect(dm.boardRemovals).toEqual([])
   })
 })

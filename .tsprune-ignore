@@ -7,10 +7,10 @@ electron.vite.config.ts:37 - default
 src/preload/index.ts:24 - AutoUpdateApi
 src/preload/index.ts:25 - AppInfoApi
 src/shared/autoUpdate/types.ts:17 - AUTO_UPDATE_EVENT_CHANNEL
-src/shared/desktop/api.ts:138 - DesktopCommandName
-src/shared/desktop/api.ts:140 - DESKTOP_COMMANDS
-src/shared/desktop/api.ts:21 - CommandInput
-src/shared/desktop/api.ts:25 - CommandOutput
+src/shared/desktop/api.ts:143 - DesktopCommandName
+src/shared/desktop/api.ts:145 - DESKTOP_COMMANDS
+src/shared/desktop/api.ts:22 - CommandInput
+src/shared/desktop/api.ts:26 - CommandOutput
 src/shared/domain/api.ts:119 - ClaimTicketInput
 src/shared/domain/api.ts:133 - SubmitAttemptInput
 src/shared/domain/api.ts:141 - StartRunInput
