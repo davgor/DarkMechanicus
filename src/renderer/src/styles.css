@@ -850,15 +850,51 @@ textarea.input {
   border-bottom: 1px solid var(--line);
 }
 
+/* The sidebar is a fixed 272px column at every window width, leaving 236px inside the 18px
+   padding: the 32px icon and 10px gap leave 194px for the text block. The name takes the full
+   first row (about 137px in the mono face). The tagline (about 127px) and the version share the
+   second row: the version keeps its width and the tagline gives way with an ellipsis. */
 .brand-mark {
-  color: var(--accent);
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+}
+
+.brand-text {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: 8px;
+  row-gap: 1px;
+  min-width: 0;
 }
 
 .brand-name {
+  grid-column: 1 / -1;
+  min-width: 0;
+  overflow: hidden;
   font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.16em;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.brand-tagline {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.brand-text .app-version-label {
+  line-height: 14px;
 }
 
 .sidebar-head {

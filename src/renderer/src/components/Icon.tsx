@@ -2,7 +2,6 @@ import { classNames } from './classNames'
 
 /** 16×16 stroke icons, drawn inline so they follow `currentColor` and need no asset loading. */
 const ICON_PATHS = {
-  hex: 'M8 1.5l5.6 3.25v6.5L8 14.5l-5.6-3.25v-6.5zM8 6v4M6.2 7l3.6 2',
   'chevron-down': 'M4 6l4 4 4-4',
   'chevron-right': 'M6 4l4 4-4 4',
   folder: 'M2 4.5h4l1.5 1.5H14v6.5H2z',
