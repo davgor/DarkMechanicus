@@ -41,7 +41,8 @@ export class FakeDm implements DmApi {
     listEpics: [],
     searchHistory: [],
     listBranchEpics: [],
-    listProfiles: []
+    listProfiles: [],
+    previewBoardImport: { open: [], done: [], skipped: [] }
   }
   handlers: Partial<Record<CommandName, (input: unknown, folder: string) => unknown>> = {}
   failures: Partial<Record<CommandName, DomainErrorShape>> = {}

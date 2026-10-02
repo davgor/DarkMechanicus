@@ -1,5 +1,5 @@
 import type { ClaudeCodeConnectResult } from '../../../shared/desktop/api'
-import type { FlushResultView, ReconcileResultView } from '../../../shared/domain/views'
+import type { BoardImportView, FlushResultView, ReconcileResultView } from '../../../shared/domain/views'
 import { plural } from './plural'
 import type { ToastTone } from './toastState'
 
@@ -62,4 +62,23 @@ const CONNECT_NOTICES: Record<Exclude<ClaudeCodeConnectResult['outcome'], 'inval
 /** Turns the outcome of writing `.mcp.json` into a toast; a file that could not be read is an error. */
 export function describeClaudeConnect(result: ClaudeCodeConnectResult): Notice {
   return result.outcome === 'invalid' ? { tone: 'error', message: result.message } : CONNECT_NOTICES[result.outcome]
+}
+
+/** Turns an old-style board import into a toast: what it created, and that the drafts wait for Save. */
+export function describeBoardImport(result: BoardImportView): Notice {
+  const created = result.open.filter((epic) => epic.state === 'created').length
+  const earlier = result.open.length - created
+  if (created === 0) {
+    const message =
+      result.open.length === 0
+        ? 'Nothing to import from board/: every epic on the board is done.'
+        : 'Nothing new to import from board/: every open epic was imported before.'
+    return { tone: 'info', message }
+  }
+  const drafts =
+    created === 1
+      ? 'Imported 1 epic from board/ as a draft. Review it and press Save.'
+      : `Imported ${created} epics from board/ as drafts. Review them and press Save.`
+  const skipped = earlier > 0 ? ` Skipped ${plural(earlier, 'epic')} imported before.` : ''
+  return { tone: 'success', message: `${drafts}${skipped}` }
 }

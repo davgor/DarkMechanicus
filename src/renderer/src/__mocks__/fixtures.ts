@@ -4,6 +4,8 @@
  */
 import type { TrackedFolderView } from '../../../shared/desktop/api'
 import type {
+  BoardImportView,
+  BoardOpenEpicView,
   EpicDetailView,
   EpicSummaryView,
   EventView,
@@ -114,3 +116,48 @@ export function eventView(patch: Partial<EventView> = {}): EventView {
     ...patch
   }
 }
+
+/** The open epic 014 of the old board fixture, not imported yet. */
+export function boardOpenEpic(patch: Partial<BoardOpenEpicView> = {}): BoardOpenEpicView {
+  return {
+    boardId: '014',
+    kind: 'epic',
+    title: 'Cross-host validation and release',
+    folder: 'in-progress',
+    sourcePath: 'board/in-progress/014-cross-host-release.md',
+    sourcePaths: ['board/in-progress/014-cross-host-release.md', 'board/done/014.1-package-mcp-entry.md'],
+    ticketCount: 2,
+    doneTickets: [{ boardId: '014.1', title: 'Package the MCP entry', sourcePath: 'board/done/014.1-package-mcp-entry.md' }],
+    state: 'new',
+    epicId: null,
+    ...patch
+  }
+}
+
+/** An old board with one open epic, two done epics and one skipped file. */
+export function boardImport(patch: Partial<BoardImportView> = {}): BoardImportView {
+  return {
+    open: [boardOpenEpic()],
+    done: [
+      {
+        boardId: '008',
+        title: 'Desktop experience mockups',
+        sourcePath: 'board/done/008-desktop-mockups.md',
+        sourcePaths: ['board/done/008-desktop-mockups.md'],
+        ticketCount: 1
+      },
+      {
+        boardId: '013',
+        title: 'Sprint checkpoints and recovery',
+        sourcePath: 'board/done/013-checkpoints-and-recovery.md',
+        sourcePaths: ['board/done/013-checkpoints-and-recovery.md'],
+        ticketCount: 6
+      }
+    ],
+    skipped: [{ path: 'board/backlog/notes.txt', reason: 'is not a Markdown file' }],
+    ...patch
+  }
+}
+
+/** What a repository without an old board answers. */
+export const NO_BOARD: BoardImportView = { open: [], done: [], skipped: [] }

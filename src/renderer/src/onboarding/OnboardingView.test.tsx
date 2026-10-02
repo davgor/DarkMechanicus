@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { FakeDm, MCP_JSON } from '../__mocks__/fakeDm'
-import { folderView } from '../__mocks__/fixtures'
+import { boardImport, boardOpenEpic, folderView } from '../__mocks__/fixtures'
 import { ManualScheduler } from '../__mocks__/manualScheduler'
 import { settle } from '../__mocks__/settle'
 import type { InitializeOptions } from '../app/shellActions'
@@ -126,7 +126,7 @@ describe('OnboardingView actions', () => {
   it('initializes on request', () => {
     const calls = renderView()
     fireEvent.click(screen.getByRole('button', { name: 'Initialize folder' }))
-    expect(calls.initialize).toEqual([{ writeMcpConfig: true }])
+    expect(calls.initialize).toEqual([{ writeMcpConfig: true, importBoard: false }])
   })
 
   it('offers a different folder', () => {
@@ -163,7 +163,7 @@ describe('OnboardingView Claude Code option', () => {
     fireEvent.click(writeMcpJson())
     fireEvent.click(screen.getByRole('button', { name: 'Initialize folder' }))
     expect(writeMcpJson().checked).toBe(false)
-    expect(calls.initialize).toEqual([{ writeMcpConfig: false }])
+    expect(calls.initialize).toEqual([{ writeMcpConfig: false, importBoard: false }])
   })
 })
 
@@ -185,5 +185,72 @@ describe('OnboardingView MCP card', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Copy' }))
     await settle()
     expect(dm.copied).toEqual([MCP_JSON])
+  })
+})
+
+const importBoard = (name = 'Import 1 open epic from board/ as a draft'): HTMLInputElement =>
+  screen.getByRole('checkbox', { name }) as HTMLInputElement
+
+describe('OnboardingView old-style board preview', () => {
+  it('shows no board section or import option for a folder without a board', async () => {
+    renderView()
+    await settle()
+    expect(dm.callsOf('previewBoardImport').map((call) => call.folder)).toEqual(['/home/u/code/new-service'])
+    expect(screen.queryByRole('region', { name: 'Old-style board' })).toBeNull()
+    expect(screen.queryByRole('checkbox', { name: /^Import / })).toBeNull()
+  })
+
+  it('previews the board: open epics, done epics left in history, and skipped files', async () => {
+    dm.responses.previewBoardImport = boardImport()
+    renderView()
+    await settle()
+    const board = within(screen.getByRole('region', { name: 'Old-style board' }))
+    expect(board.getByText('Cross-host validation and release')).toBeTruthy()
+    expect(board.getByText('2 open tickets · 1 done on the board')).toBeTruthy()
+    expect((board.getByRole('group', { name: 'Done epics' }) as HTMLDetailsElement).open).toBe(true)
+    expect(board.getByText('left in Git history, not imported')).toBeTruthy()
+    expect(board.getByText('Desktop experience mockups')).toBeTruthy()
+    expect(board.getByText('board/backlog/notes.txt')).toBeTruthy()
+    expect(board.getByText('is not a Markdown file')).toBeTruthy()
+  })
+})
+
+describe('OnboardingView old-style board import option', () => {
+  it('offers the import off by default, so importing takes an explicit choice', async () => {
+    dm.responses.previewBoardImport = boardImport()
+    const calls = renderView()
+    await settle()
+    expect(importBoard().checked).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Initialize folder' }))
+    expect(calls.initialize).toEqual([{ writeMcpConfig: true, importBoard: false }])
+  })
+
+  it('imports after initializing when the person chooses it, and says what that does', async () => {
+    dm.responses.previewBoardImport = boardImport({ open: [boardOpenEpic(), boardOpenEpic({ boardId: '021' })] })
+    const calls = renderView()
+    await settle()
+    fireEvent.click(importBoard('Import 2 open epics from board/ as drafts'))
+    fireEvent.click(screen.getByRole('button', { name: 'Initialize folder' }))
+    expect(calls.initialize).toEqual([{ writeMcpConfig: true, importBoard: true }])
+    expect(
+      screen.getByText(/Each becomes a Backlog epic whose plan stays a draft until you review it and press Save/)
+    ).toBeTruthy()
+  })
+
+  it('offers no import when every epic on the board is done', async () => {
+    dm.responses.previewBoardImport = boardImport({ open: [] })
+    const calls = renderView()
+    await settle()
+    expect(screen.getByRole('region', { name: 'Old-style board' })).toBeTruthy()
+    expect(screen.queryByRole('checkbox', { name: /^Import / })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Initialize folder' }))
+    expect(calls.initialize).toEqual([{ writeMcpConfig: true, importBoard: false }])
+  })
+
+  it('locks the import option while initializing', async () => {
+    dm.responses.previewBoardImport = boardImport()
+    renderView(true)
+    await settle()
+    expect(importBoard().disabled).toBe(true)
   })
 })

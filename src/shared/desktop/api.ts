@@ -97,6 +97,8 @@ const DESKTOP_COMMANDS = [
   'getEpic',
   'setEpicStatus',
   'setEpicBranch',
+  'previewBoardImport',
+  'importBoard',
   'getPlan',
   'openDraft',
   'updatePlanDraft',

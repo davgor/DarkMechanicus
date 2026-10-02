@@ -2,11 +2,11 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { FakeDm } from '../__mocks__/fakeDm'
-import { EPIC_A, epicDetail, epicSummary, folderView, storageStatus } from '../__mocks__/fixtures'
+import { boardImport, boardOpenEpic, EPIC_A, epicDetail, epicSummary, folderView, storageStatus } from '../__mocks__/fixtures'
 import { ManualScheduler } from '../__mocks__/manualScheduler'
 import { settle } from '../__mocks__/settle'
 import type { CreateEpicInput } from '../../../shared/domain/api'
-import type { EpicDetailView } from '../../../shared/domain/views'
+import type { BoardImportView, EpicDetailView } from '../../../shared/domain/views'
 import { ToastProvider } from '../app/toasts'
 import type { EpicListState } from '../app/useEpicLists'
 import { FolderHome } from './FolderHome'
@@ -32,10 +32,11 @@ interface Calls {
   created: CreateEpicInput[]
   flush: number
   reconcile: number
+  boardImports: number
 }
 
 function renderHome(create: () => Promise<EpicDetailView | null> = () => Promise.resolve(epicDetail())): Calls {
-  const calls: Calls = { opened: [], created: [], flush: 0, reconcile: 0 }
+  const calls: Calls = { opened: [], created: [], flush: 0, reconcile: 0, boardImports: 0 }
   render(
     <ToastProvider scheduler={new ManualScheduler()}>
       <FolderHome
@@ -54,11 +55,17 @@ function renderHome(create: () => Promise<EpicDetailView | null> = () => Promise
         onReconcile={() => {
           calls.reconcile += 1
         }}
+        onImportBoard={() => {
+          calls.boardImports += 1
+          return Promise.resolve<BoardImportView | null>(IMPORTED)
+        }}
       />
     </ToastProvider>
   )
   return calls
 }
+
+const IMPORTED = boardImport({ open: [boardOpenEpic({ state: 'created', epicId: EPIC_A })] })
 
 describe('FolderHome layout', () => {
   it('names the folder and shows where it lives', async () => {
@@ -137,5 +144,27 @@ describe('FolderHome storage actions', () => {
     expect(calls.flush).toBe(1)
     expect(calls.reconcile).toBe(1)
     await settle()
+  })
+})
+
+describe('FolderHome old-style board', () => {
+  it('shows no board card when the folder has no old board', async () => {
+    renderHome()
+    await settle()
+    expect(dm.callsOf('previewBoardImport').map((call) => call.folder)).toEqual(['/a'])
+    expect(screen.queryByRole('region', { name: 'Old-style board' })).toBeNull()
+  })
+
+  it('offers the board import first in the side column, imports through the shell and opens what it created', async () => {
+    dm.responses.previewBoardImport = boardImport()
+    const calls = renderHome()
+    await settle()
+    const card = screen.getByRole('region', { name: 'Old-style board' })
+    expect(card.parentElement?.firstElementChild).toBe(card)
+    fireEvent.click(within(card).getByRole('button', { name: 'Import 1 epic as a draft' }))
+    await settle()
+    expect(calls.boardImports).toBe(1)
+    fireEvent.click(within(card).getByRole('button', { name: 'Open epic' }))
+    expect(calls.opened).toEqual([EPIC_A])
   })
 })

@@ -1,6 +1,11 @@
 import { useId, useState } from 'react'
 import type { TrackedFolderView } from '../../../shared/desktop/api'
+import type { BoardImportView } from '../../../shared/domain/views'
 import type { InitializeOptions } from '../app/shellActions'
+import { useToasts } from '../app/toasts'
+import { useBoardPreview } from '../app/useBoardPreview'
+import { BoardPreview } from '../board/BoardPreview'
+import { boardFound, newEpicCount } from '../board/boardImport'
 import { Button } from '../components/Button'
 import { classNames } from '../components/classNames'
 import { Icon } from '../components/Icon'
@@ -96,20 +101,78 @@ function McpJsonOption({ checked, disabled, onChange }: McpJsonOptionProps): JSX
   )
 }
 
+interface BoardImportOptionProps {
+  /** Open board epics the import would create. */
+  count: number
+  checked: boolean
+  disabled: boolean
+  onChange(checked: boolean): void
+}
+
+/** The opt-in for importing an old-style board's open epics right after initializing. */
+function BoardImportOption({ count, checked, disabled, onChange }: BoardImportOptionProps): JSX.Element {
+  const noteId = useId()
+  const label =
+    count === 1 ? 'Import 1 open epic from board/ as a draft' : `Import ${count} open epics from board/ as drafts`
+  return (
+    <div className="onboarding-option">
+      <label className="onboarding-option-label">
+        <input
+          type="checkbox"
+          checked={checked}
+          disabled={disabled}
+          aria-describedby={noteId}
+          onChange={(event) => onChange(event.target.checked)}
+        />
+        <span>{label}</span>
+      </label>
+      <p id={noteId} className="onboarding-option-note">
+        Each becomes a Backlog epic whose plan stays a draft until you review it and press Save. The board is shown
+        below; its files are only read, and importing again later never creates duplicates.
+      </p>
+    </div>
+  )
+}
+
+/** The old-style board this folder still has: what an import would bring in and what it leaves alone. */
+function BoardCard({ view }: { view: BoardImportView }): JSX.Element {
+  return (
+    <section className="card board-card onboarding-board" aria-label="Old-style board">
+      <h2 className="card-title">Old-style board found</h2>
+      <p className="note">
+        This folder has a Markdown <code>board/</code>. Its open epics can come in as draft plans when you initialize;
+        done epics stay in Git history. Nothing in <code>board/</code> is moved, deleted or committed.
+      </p>
+      <BoardPreview view={view} doneExpanded />
+    </section>
+  )
+}
+
+function OnboardingHead({ name }: { name: string }): JSX.Element {
+  return (
+    <header className="onboarding-head">
+      <Mascot size={96} />
+      <h1 className="display">{name} isn’t set up for Dark Mechanicus yet</h1>
+      <p className="lede">
+        Plans, tickets and run history will live inside this repository so they travel with it.
+        Initializing only creates files; nothing is committed or pushed.
+      </p>
+    </header>
+  )
+}
+
 /** Shown for a tracked folder that has no `.darkmechanicus/` yet: explains and performs setup. */
 export function OnboardingView({ folder, busy, onInitialize, onChooseDifferent }: OnboardingViewProps): JSX.Element {
+  const toasts = useToasts()
   const [writeMcpConfig, setWriteMcpConfig] = useState(true)
+  const [importBoard, setImportBoard] = useState(false)
+  const preview = useBoardPreview(folder.path, 0, toasts.reportError)
+  const board = preview.status === 'ready' && boardFound(preview.value) ? preview.value : null
+  const importable = board === null ? 0 : newEpicCount(board)
   return (
     <div className="onboarding">
       <Stepper />
-      <header className="onboarding-head">
-        <Mascot size={96} />
-        <h1 className="display">{folder.name} isn’t set up for Dark Mechanicus yet</h1>
-        <p className="lede">
-          Plans, tickets and run history will live inside this repository so they travel with it.
-          Initializing only creates files; nothing is committed or pushed.
-        </p>
-      </header>
+      <OnboardingHead name={folder.name} />
       <div className="onboarding-grid">
         <section className="card card-strong" aria-label="What initializing creates">
           <span className="eyebrow">
@@ -123,8 +186,15 @@ export function OnboardingView({ folder, busy, onInitialize, onChooseDifferent }
             </span>
           </p>
           <McpJsonOption checked={writeMcpConfig} disabled={busy} onChange={setWriteMcpConfig} />
+          {importable > 0 ? (
+            <BoardImportOption count={importable} checked={importBoard} disabled={busy} onChange={setImportBoard} />
+          ) : null}
           <div className="button-row">
-            <Button variant="primary" busy={busy} onClick={() => onInitialize({ writeMcpConfig })}>
+            <Button
+              variant="primary"
+              busy={busy}
+              onClick={() => onInitialize({ writeMcpConfig, importBoard: importable > 0 && importBoard })}
+            >
               {busy ? 'Initializing…' : 'Initialize folder'}
             </Button>
             <Button onClick={onChooseDifferent}>Choose a different folder</Button>
@@ -135,6 +205,7 @@ export function OnboardingView({ folder, busy, onInitialize, onChooseDifferent }
           <p className="note">The MCP server runs headless, so agents can plan with this window closed.</p>
         </section>
       </div>
+      {board === null ? null : <BoardCard view={board} />}
     </div>
   )
 }
