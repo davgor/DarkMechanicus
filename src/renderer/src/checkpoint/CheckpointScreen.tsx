@@ -21,6 +21,23 @@ export interface CheckpointScreenProps {
   onSelectTicket(ticketId: string): void
 }
 
+/** The ticket key (a link when the plan has the ticket); an entry that names no ticket has none. */
+function RowKey(props: { row: ReportRow; onSelect(ticketId: string): void }): JSX.Element | null {
+  const { row } = props
+  if (row.key === '') {
+    return null
+  }
+  if (row.ticketId === null) {
+    return <span className="ew-mono cp-key">{row.key}</span>
+  }
+  const ticketId = row.ticketId
+  return (
+    <button type="button" className="ew-link ew-mono cp-key" onClick={() => props.onSelect(ticketId)}>
+      {row.key}
+    </button>
+  )
+}
+
 function Rows(props: { title: string; rows: ReportRow[]; failed: boolean; onSelect(ticketId: string): void }): JSX.Element | null {
   if (props.rows.length === 0) {
     return null
@@ -31,16 +48,11 @@ function Rows(props: { title: string; rows: ReportRow[]; failed: boolean; onSele
         {props.title} · {props.rows.length}
       </h3>
       <ul className="cp-rows">
-        {props.rows.map((row) => (
-          <li key={row.key} className={props.failed ? 'cp-row is-failed' : 'cp-row'}>
-            {row.ticketId === null ? (
-              <span className="ew-mono cp-key">{row.key}</span>
-            ) : (
-              <button type="button" className="ew-link ew-mono cp-key" onClick={() => props.onSelect(row.ticketId ?? '')}>
-                {row.key}
-              </button>
-            )}
-            <span className="cp-row-title">{row.title}</span>
+        {props.rows.map((row, index) => (
+          // Entries can share a ticket key or have none, so the position identifies the row.
+          <li key={`${index}:${row.key}`} className={props.failed ? 'cp-row is-failed' : 'cp-row'}>
+            <RowKey row={row} onSelect={props.onSelect} />
+            <span className={row.key === '' ? 'cp-row-title is-keyless' : 'cp-row-title'}>{row.title}</span>
             {row.detail === '' ? null : <span className="ew-mono cp-row-detail">{row.detail}</span>}
           </li>
         ))}
@@ -62,7 +74,7 @@ function Criteria(props: { title: string; lines: CriterionLine[] }): JSX.Element
             <span className="cp-icon" aria-label={line.met ? 'met' : 'not met'}>
               {line.met ? '✓' : '✗'}
             </span>
-            <span>{line.text}</span>
+            <span className="cp-check-name">{line.text}</span>
             <span className="ew-muted">{line.note}</span>
           </li>
         ))}
@@ -84,7 +96,7 @@ function Checks({ report }: { report: ReportSections }): JSX.Element | null {
             <span className="cp-icon" aria-label={check.status}>
               {check.icon}
             </span>
-            <span>{check.name}</span>
+            <span className="cp-check-name">{check.name}</span>
             <span className="ew-mono ew-muted">{check.detail}</span>
           </li>
         ))}

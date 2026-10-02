@@ -72,13 +72,24 @@ describe('completed epic overview', () => {
     expect(within(report).queryByLabelText('EPIC OUTCOME')).toBe(null)
   })
 
+  it('puts only the ticket key in the key column of each accepted entry, with the sentence beside it', () => {
+    const selected = renderMcpTest()
+    const rows = within(within(screen.getByLabelText('Sprint 1 report')).getByLabelText('ACCEPTED')).getAllByRole('listitem')
+    expect(rows.map((row) => row.querySelector('.cp-key')?.textContent)).toEqual(['DM-1', 'DM-2'])
+    expect(rows.map((row) => row.querySelector('.cp-row-title')?.textContent)).toEqual([
+      'Confirm epic is visible in the app: verified via list_epics; desktop-only save and queue confirm it was visible in the app',
+      'Save or discard the draft: revision 1 saved from the desktop, no draft outstanding'
+    ])
+    fireEvent.click(within(rows[1] as HTMLElement).getByRole('button', { name: 'DM-2' }))
+    expect(selected).toEqual(['tk_01m3txy30tvtfbzj1ecax0dvb0'])
+  })
 })
 
 describe('completed epic overview controls', () => {
-  it('is read-only: no approve, advance, retry, follow-up, draft or auto-continue controls', () => {
+  it('is read-only: only ticket links, no approve, advance, retry, follow-up, draft or auto-continue controls', () => {
     renderMcpTest()
     const overview = screen.getByLabelText('Epic overview')
-    expect(within(overview).queryAllByRole('button')).toEqual([])
+    expect(within(overview).getAllByRole('button').map((item) => item.textContent)).toEqual(['DM-1', 'DM-2'])
     expect(within(overview).queryAllByRole('checkbox')).toEqual([])
     expect(screen.queryByLabelText('Checkpoint gate')).toBe(null)
     expect(within(overview).queryByText(/Approve|Retry|Add to draft|Edit draft|automatic continuation/)).toBe(null)
