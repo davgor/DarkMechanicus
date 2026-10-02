@@ -202,6 +202,7 @@ function openDraft(state: Scenario): PlanView {
 function updateDraft(state: Scenario): unknown {
   const draft = openDraft(state)
   state.draft = { ...draft, draftRevision: (draft.draftRevision ?? 0) + 1 }
+  state.epic = { ...state.epic, draftChanged: true }
   return { epicId: state.epic.id, draftRevision: state.draft.draftRevision, refMap: { new: 'tk_new' }, validation: state.validation }
 }
 
@@ -209,7 +210,13 @@ function save(state: Scenario): unknown {
   const number = (state.epic.currentRevisionNumber ?? 0) + 1
   state.saved = savedPlan({ revisionId: `rv_${number}`, revisionNumber: number })
   state.draft = null
-  state.epic = { ...state.epic, hasDraft: false, currentRevisionId: `rv_${number}`, currentRevisionNumber: number }
+  state.epic = {
+    ...state.epic,
+    hasDraft: false,
+    draftChanged: false,
+    currentRevisionId: `rv_${number}`,
+    currentRevisionNumber: number
+  }
   return { status: 'saved', epicId: state.epic.id, revisionId: `rv_${number}`, revisionNumber: number, contentHash: 'h', error: null }
 }
 
@@ -229,7 +236,7 @@ function addComment(state: Scenario, input: { epicId: string; ticketId?: string;
 
 function discard(state: Scenario): unknown {
   state.draft = null
-  state.epic = { ...state.epic, hasDraft: false, draftRevision: null }
+  state.epic = { ...state.epic, hasDraft: false, draftRevision: null, draftChanged: false }
   return { discarded: true }
 }
 

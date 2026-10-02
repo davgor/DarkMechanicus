@@ -57,6 +57,7 @@ export function epicSummary(patch: Partial<EpicSummaryView> = {}): EpicSummaryVi
     currentRevisionNumber: 1,
     hasDraft: false,
     draftRevision: null,
+    draftChanged: false,
     ticketCount: 4,
     sprintCount: 2,
     run: null,
