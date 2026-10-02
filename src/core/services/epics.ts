@@ -3,6 +3,7 @@ import type { EpicBranch, EpicContent, EpicProvenance } from '../../shared/domai
 import type { RunState, WorkStatus } from '../../shared/domain/status'
 import type { EpicDetailView, EpicOutcome, EpicSummaryView, RunSummaryView } from '../../shared/domain/views'
 import { requireCapability } from '../authz'
+import { contentHash } from '../canonical'
 import type { Ctx } from '../context'
 import { parseJson, toJson } from '../db/database'
 import { fail } from '../errors'
@@ -32,10 +33,18 @@ interface ActiveRunRow {
   revision_id: string
 }
 
-/** An epic row plus what its summary needs, extracted in SQL (bundles are never parsed whole). */
+/**
+ * How a draft's text compares with the current saved bundle's; null without a draft or a saved plan.
+ * Equal content always serializes to equal length (only key order can differ), so only `unsure` needs
+ * the content hashed.
+ */
+type DraftMatch = 'same' | 'unsure' | 'changed'
+
+/** An epic row plus what its summary needs, extracted in SQL (bundles are parsed only for an `unsure` draft). */
 interface EpicSourceRow extends EpicRow {
   current_number: number | null
   draft_revision: number | null
+  draft_match: DraftMatch | null
   /** Title of the current saved bundle, else of the draft of a never-saved epic. */
   content_title: string | null
   ticket_count: number | null
@@ -62,7 +71,7 @@ const ACTIVE_RUN_SQL = `('queued','running','awaiting_checkpoint','paused')`
 
 const SUMMARY_COLUMNS = `s.id, s.title, s.status, s.current_revision_id, s.branch_json, s.provenance_json,
   s.outcome_json, s.revision, s.created_at, s.updated_at, s.completed_at, s.current_number, s.draft_revision,
-  s.pending_save, s.conflict, json_extract(s.bundle_json, '$.epic.title') AS content_title,
+  s.draft_match, s.pending_save, s.conflict, json_extract(s.bundle_json, '$.epic.title') AS content_title,
   json_array_length(s.bundle_json, '$.tickets') AS ticket_count,
   json_array_length(s.bundle_json, '$.sprints') AS sprint_count`
 
@@ -73,6 +82,9 @@ function epicSourceSql(columns: string, where: string): string {
       SELECT e.*,
         (SELECT number FROM plan_revisions WHERE id = e.current_revision_id) AS current_number,
         (SELECT draft_revision FROM drafts WHERE epic_id = e.id) AS draft_revision,
+        (SELECT CASE WHEN d.bundle_json = p.bundle_json THEN 'same'
+            WHEN length(d.bundle_json) = length(p.bundle_json) THEN 'unsure' ELSE 'changed' END
+          FROM drafts d JOIN plan_revisions p ON p.id = e.current_revision_id WHERE d.epic_id = e.id) AS draft_match,
         COALESCE(
           (SELECT bundle_json FROM plan_revisions WHERE id = e.current_revision_id),
           (SELECT bundle_json FROM drafts WHERE epic_id = e.id)
@@ -166,6 +178,26 @@ function runSummary(ctx: Ctx, epicId: string): RunSummaryView | null {
   }
 }
 
+/**
+ * Whether the draft holds changes the saved plan lacks. Edit draft copies the saved plan, so that
+ * copy is no change; every draft of a never-saved epic is.
+ */
+function draftChanged(ctx: Ctx, row: EpicSourceRow): boolean {
+  if (row.draft_revision === null) {
+    return false
+  }
+  if (row.draft_match !== 'unsure') {
+    return row.draft_match !== 'same'
+  }
+  const texts = ctx.db.get<{ draft_json: string; saved_hash: string }>(
+    `SELECT d.bundle_json AS draft_json, p.content_hash AS saved_hash
+     FROM drafts d JOIN plan_revisions p ON p.id = ? WHERE d.epic_id = ?`,
+    row.current_revision_id,
+    row.id
+  )
+  return texts === undefined || contentHash(JSON.parse(texts.draft_json)) !== texts.saved_hash
+}
+
 function toSummary(ctx: Ctx, row: EpicSourceRow): EpicSummaryView {
   return {
     id: row.id,
@@ -176,6 +208,7 @@ function toSummary(ctx: Ctx, row: EpicSourceRow): EpicSummaryView {
     currentRevisionNumber: row.current_number,
     hasDraft: row.draft_revision !== null,
     draftRevision: row.draft_revision,
+    draftChanged: draftChanged(ctx, row),
     ticketCount: row.ticket_count ?? 0,
     sprintCount: row.sprint_count ?? 0,
     run: runSummary(ctx, row.id),

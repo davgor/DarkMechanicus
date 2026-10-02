@@ -21,7 +21,7 @@ function seed(): void {
   h.dm.folders = [alpha]
   h.epics['/a'] = [
     epicSummary({ id: EPIC_A, title: 'Planning slice', status: 'in_progress', run: runSummary() }),
-    epicSummary({ id: EPIC_B, title: 'Backlog idea', status: 'backlog', hasDraft: true }),
+    epicSummary({ id: EPIC_B, title: 'Backlog idea', status: 'backlog', hasDraft: true, draftChanged: true }),
     epicSummary({ id: EPIC_C, title: 'Old work', status: 'completed', completedAt: '2026-03-15T12:00:00.000Z' })
   ]
 }

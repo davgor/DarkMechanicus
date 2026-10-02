@@ -16,7 +16,7 @@ function renderBuckets(list: EpicListState): string[] {
 }
 
 const mixed = ready([
-  epicSummary({ id: EPIC_A, title: 'Running one', status: 'in_progress', run: runSummary(), hasDraft: true }),
+  epicSummary({ id: EPIC_A, title: 'Running one', status: 'in_progress', run: runSummary(), hasDraft: true, draftChanged: true }),
   epicSummary({ id: EPIC_B, title: 'Waiting one', status: 'backlog', ticketCount: 1, sprintCount: 1 }),
   epicSummary({ id: EPIC_C, title: 'Done one', status: 'completed', completedAt: localNoonIso(2026, 3, 15) })
 ])

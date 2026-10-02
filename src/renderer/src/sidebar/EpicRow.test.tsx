@@ -70,7 +70,7 @@ describe('EpicRow interaction', () => {
 
 describe('EpicRow badges', () => {
   it('shows a draft badge', () => {
-    renderRow(epicSummary({ hasDraft: true }))
+    renderRow(epicSummary({ hasDraft: true, draftChanged: true }))
     expect(screen.getByText('draft').className).toBe('badge badge-draft')
   })
 

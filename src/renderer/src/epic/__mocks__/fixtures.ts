@@ -215,6 +215,7 @@ export function epicDetail(patch: Partial<EpicDetailView> = {}): EpicDetailView 
     currentRevisionNumber: 4,
     hasDraft: false,
     draftRevision: null,
+    draftChanged: false,
     ticketCount: 10,
     sprintCount: 3,
     run: null,

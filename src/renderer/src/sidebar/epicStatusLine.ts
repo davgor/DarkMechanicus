@@ -75,10 +75,13 @@ export function epicStatusLine(epic: EpicSummaryView): EpicStatusLine {
     : { text: 'Not started', tone: 'idle' }
 }
 
-/** Draft indicators are badges, never another bucket. */
+/**
+ * Draft indicators are badges, never another bucket. A draft that still matches the saved plan (just
+ * opened with Edit draft) has nothing unsaved, so it gets no badge.
+ */
 export function epicBadges(epic: EpicSummaryView): EpicBadge[] {
   const badges: EpicBadge[] = []
-  if (epic.hasDraft) {
+  if (epic.draftChanged) {
     badges.push({ kind: 'draft', label: 'draft', title: 'Has unsaved draft changes' })
   }
   if (epic.pendingSave) {
