@@ -71,7 +71,7 @@ describe('flow edges', () => {
       target: 'tk_203',
       type: 'default',
       className: 'pg-edge is-met',
-      markerEnd: { type: 'arrowclosed', width: 16, height: 16, color: '#8a8070' },
+      markerEnd: { type: 'arrowclosed', width: 16, height: 16, color: 'var(--edge)' },
       selectable: true,
       deletable: true,
       focusable: true,
@@ -80,7 +80,7 @@ describe('flow edges', () => {
     const waiting = edges.find((item) => item.id === 'tk_204->tk_301')
     expect(waiting).toMatchObject({
       className: 'pg-edge is-waiting',
-      markerEnd: { color: '#6a6254' },
+      markerEnd: { color: 'var(--edge-waiting)' },
       ariaLabel: 'DM-301 requires DM-204 (waiting)'
     })
     expect(toFlowEdges(MODEL, false)[0]).toMatchObject({ selectable: false, deletable: false, focusable: false })

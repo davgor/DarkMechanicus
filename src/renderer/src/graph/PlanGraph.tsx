@@ -132,7 +132,7 @@ function GraphCanvas(props: PlanGraphProps): JSX.Element {
         maxZoom={1.5}
         proOptions={PRO_OPTIONS}
       >
-        <Background variant={BackgroundVariant.Dots} gap={22} size={1.2} color="rgba(236, 230, 218, 0.16)" />
+        <Background variant={BackgroundVariant.Dots} gap={22} size={1.2} />
         <Controls position="bottom-right" orientation="horizontal" showInteractive={false} />
         <Panel position="top-right">
           <GraphLegend kind={props.legend} draftNumber={props.draftNumber} />

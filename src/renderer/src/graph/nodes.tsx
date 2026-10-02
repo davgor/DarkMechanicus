@@ -3,9 +3,10 @@ import type { CSSProperties } from 'react'
 import type { DividerFlowNode, EpicFlowNode, SprintFlowNode, TicketFlowNode } from './flowElements'
 import type { Tone } from './ticketStates'
 
-const DIVIDER_TONES: Record<'passed' | 'locked' | 'neutral', Tone> = {
+const DIVIDER_TONES: Record<'passed' | 'locked' | 'awaiting' | 'neutral', Tone> = {
   passed: 'accepted',
   locked: 'running',
+  awaiting: 'attention',
   neutral: 'neutral'
 }
 

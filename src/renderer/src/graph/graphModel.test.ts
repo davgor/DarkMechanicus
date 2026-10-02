@@ -212,7 +212,7 @@ describe('graph run phases', () => {
     expect(labels(runView({ state: 'awaiting_checkpoint' }))).toEqual([
       'SPRINT 2 | Authoring through MCP | Awaiting checkpoint',
       'CHECKPOINT 1 · PASSED (passed)',
-      'CHECKPOINT 2 · AWAITING APPROVAL (locked)'
+      'CHECKPOINT 2 · AWAITING APPROVAL (awaiting)'
     ])
   })
 

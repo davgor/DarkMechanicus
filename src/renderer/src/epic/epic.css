@@ -1,4 +1,8 @@
-/* Epic workspace chrome (header, bars, stage, panels). Tokens come from the app shell (:root). */
+/*
+ * Epic workspace chrome (header, bars, stage, panels). Tokens come from the app shell (:root); roles
+ * follow docs/design/palette.md: bone display ink for titles, brass for links and notes, crimson
+ * (--primary-soft, --ring) for selection, and the state tones for run and ticket states.
+ */
 .ew {
   position: relative;
   display: flex;
@@ -75,12 +79,6 @@
   color: var(--ink);
 }
 
-.ew .btn-danger {
-  border: 1px solid var(--st-failed);
-  background: color-mix(in srgb, var(--st-failed) 18%, var(--panel));
-  color: var(--ink);
-}
-
 .ew-chip {
   display: inline-flex;
   align-items: center;
@@ -133,6 +131,7 @@
 
 .ew-title {
   margin: 0;
+  color: var(--ink-display);
   font-family: var(--font-serif);
   font-size: 22px;
   line-height: 28px;
@@ -408,7 +407,7 @@
 }
 
 .ew-table tr.is-selected td {
-  background: var(--panel);
+  background: var(--primary-soft);
 }
 
 /* Draft validation panel */

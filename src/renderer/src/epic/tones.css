@@ -7,6 +7,7 @@
 .ew-tone-waiting { --tone: var(--st-waiting); }
 .ew-tone-blocked { --tone: var(--st-blocked); }
 .ew-tone-failed { --tone: var(--st-failed); }
+.ew-tone-attention { --tone: var(--attention); }
 .ew-tone-neutral { --tone: var(--muted); }
 .ew-tone-new { --tone: var(--accent); }
 .ew-tone-edited { --tone: var(--tone-edited); }

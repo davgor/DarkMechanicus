@@ -97,3 +97,7 @@
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+
+.md .md-link:hover {
+  color: var(--accent-hover);
+}
