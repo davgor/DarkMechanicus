@@ -1,5 +1,11 @@
 /*
- * Dark Mechanicus — global theme.
+ * Dark Mechanicus — global theme: the Mechanicus palette, sampled from the tech-priest app icon.
+ *
+ * Dark only. Crimson (the hood) is the primary accent: --primary for fills, --ring for focus and
+ * selection lines. Brass (the fittings) is the secondary accent and the only accent used as text.
+ * Bone (the cog trim) is the display ink. Gunmetal (the respirator) tints every surface and line.
+ * Lens green is kept for the brand glow and the running state. Values and roles come from
+ * docs/design/palette.md; theme.contrast.test.ts holds these tokens to that doc and its contrast table.
  *
  * Tokens first, then generic utilities shared by every view (buttons, pills, cards, dialogs,
  * toasts), then the app shell, sidebar, onboarding and folder home. The epic workspace agent
@@ -12,54 +18,65 @@
 :root {
   color-scheme: dark;
 
-  /* Surfaces */
-  --bg: #141310;
-  --bg-canvas: #171511;
-  --panel: #1f1c17;
-  --panel-2: #26221c;
-  --panel-3: #2e2922;
-  --sidebar: #1b1915;
-  --code-bg: #0f0e0b;
-  --overlay: rgba(8, 7, 5, 0.72);
+  /* Surfaces: gunmetal hue */
+  --bg: #151211;
+  --bg-canvas: #181412;
+  --panel: #211b18;
+  --panel-2: #28211d;
+  --panel-3: #302823;
+  --sidebar: #1c1816;
+  --code-bg: #100d0c;
+  --overlay: rgba(9, 7, 6, 0.72);
 
   /* Lines */
-  --line: #3a342b;
-  --line-soft: #2a261f;
-  --line-strong: #4a4439;
+  --line: #3d332d;
+  --line-soft: #2c2520;
+  --line-strong: #4e423b;
 
-  /* Text */
+  /* Text; bone display ink for titles, the wordmark and large numerals */
   --ink: #ece6da;
+  --ink-display: #f2d7ae;
   --ink-2: #c9c1b2;
   --ink-soft: #a8a092;
-  --muted: #8f8778;
-  --faint: #6b6458;
+  --muted: #9c9284;
+  --faint: #797165;
 
-  /* Brass accent */
-  --accent: #e0a24a;
-  --accent-hover: #f0c27a;
+  /* Crimson primary accent: fills use --primary, lines (focus, selection, active bars) use --ring */
+  --primary: #b51a1f;
+  --primary-hover: #c51e21;
+  --primary-ink: #fbe9c8;
+  --primary-soft: rgba(181, 26, 31, 0.24);
+  --ring: #ea4134;
+
+  /* Brass secondary accent: links, rules, highlights, warnings */
+  --accent: #d69b4a;
+  --accent-hover: #dfbb72;
   --accent-ink: #1a1408;
-  --accent-soft: rgba(224, 162, 74, 0.14);
-  --btn-primary-hover: #eab265;
+  --accent-soft: rgba(214, 155, 74, 0.14);
+  --btn-primary-hover: #e2aa55;
+
+  /* Lens green: brand glow only; the running state shares it */
+  --lens: #84c20a;
 
   /* State colors — always paired with a text label in the UI */
-  --st-accepted: #5fbf8a;
+  --st-accepted: #4cc7a8;
   --st-review: #a78bfa;
-  --st-running: #e0a24a;
+  --st-running: #84c20a;
   --st-ready: #6aa7ff;
-  --st-waiting: #8f8778;
-  --st-failed: #e06a5a;
-  --st-blocked: #d4855a;
-  --attention: #f08e78;
-  --danger: #c4503c;
-  --danger-ink: #fff4f0;
-  --btn-danger-hover: #d4604c;
-  --tone-ok: #86cfab;
+  --st-waiting: #9c9284;
+  --st-failed: #ef6b8f;
+  --st-blocked: #e5793f;
+  --attention: #e889d0;
+  --danger: #e5547c;
+  --danger-ink: #350000;
+  --btn-danger-hover: #f07894;
+  --tone-ok: #84d6be;
   --tone-edited: #e8b86a;
 
   /* Plan graph */
-  --edge: #8a8070;
-  --edge-waiting: #6a6254;
-  --node-bg: #1d1a16;
+  --edge: #8f7d73;
+  --edge-waiting: #6f6057;
+  --node-bg: #1e1917;
 
   --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
