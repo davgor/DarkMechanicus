@@ -48,7 +48,8 @@ export function displayPath(layout: RepoLayout, path: string): string {
   return relative(layout.root, resolve(path)).split(sep).join('/')
 }
 
-function isStrictlyInside(base: string, target: string): boolean {
+/** Whether `target` lies below `base` (not `base` itself), compared lexically. */
+export function isStrictlyInside(base: string, target: string): boolean {
   const rel = relative(base, target)
   return rel !== '' && rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel)
 }
