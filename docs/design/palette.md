@@ -1,6 +1,6 @@
 # Mechanicus palette
 
-**Status:** proposal for the sprint 1 checkpoint (DM-4). The app does not change until "Apply the Mechanicus palette" (DM-6) copies these values into `:root` of `src/renderer/src/styles.css`. The two restyle tickets (DM-7 shell, DM-8 epic workspace) then apply the roles below.
+**Status:** approved at the sprint 1 checkpoint of the "Mechanicus UI revamp" epic (DM-4) and applied: DM-6 put these values into `:root` of `src/renderer/src/styles.css`, and DM-7 (shell) and DM-8 (epic workspace) apply the roles below. `src/renderer/src/theme.contrast.test.ts` keeps `:root` and the section 3 tables in step and enforces the contrast pairs in section 5, so a token change means updating both.
 
 **Source:** the chibi tech-priest in [`build/icon.png`](../../build/icon.png). The master [`build/mechanicus-cute-master.png`](../../build/mechanicus-cute-master.png) is the same artwork at 1254 px; its region means match the icon's within 1/255 per channel.
 
