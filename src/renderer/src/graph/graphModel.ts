@@ -7,6 +7,7 @@
 import type { ChangeKind, CriterionResult, PlanView, RunView, TicketExecutionView } from '../../../shared/domain/views'
 import type { DependencyEdge, PlanBundle, SprintDef, TicketContent } from '../../../shared/domain/bundle'
 import { isActiveRunState, type WorkStatus } from '../../../shared/domain/status'
+import { sprintLabelSize, type SprintLabelSize } from './sprintLabel'
 import { DASHED_EXECUTION, EXECUTION_LABELS, EXECUTION_TONES, STATUS_LABELS, STATUS_TONES, type Tone } from './ticketStates'
 
 const CARD_WIDTH = 210
@@ -23,6 +24,10 @@ const EPIC_WIDTH = 440
 const EPIC_HEIGHT = 64
 const FIRST_BAND_TOP = 128
 const BAND_GAP = 52
+/** The sprint label starts this far below the top of its band. */
+const LABEL_OFFSET_Y = 4
+/** Breathing room kept between the bottom of a sprint label and the checkpoint pill under it. */
+const LABEL_CLEARANCE = 4
 const DIVIDER_X = 16
 const DIVIDER_HEIGHT = 28
 const RIGHT_MARGIN = 24
@@ -70,6 +75,10 @@ export interface SprintNodeModel extends Box {
   goal: string
   detail: string
   active: boolean
+  /** Lines the goal is clamped to (the rest is cut with an ellipsis); the layout reserves exactly these. */
+  goalLines: number
+  /** Height the layout reserved for the label, heading to detail (and the + Ticket button while editing). */
+  labelHeight: number
 }
 
 export interface DividerNodeModel extends Box {
@@ -143,6 +152,7 @@ interface SprintPlan {
 
 interface Frame {
   plan: SprintPlan
+  label: SprintLabelSize
   top: number
   bottom: number
 }
@@ -341,11 +351,20 @@ function layoutSprints(bundle: PlanBundle): SprintPlan[] {
   })
 }
 
-function toFrames(plans: SprintPlan[]): Frame[] {
+/** How far a label may hang below its band's cards before it would touch the checkpoint pill. */
+const LABEL_HANG = BAND_GAP - DIVIDER_HEIGHT / 2 - LABEL_CLEARANCE
+
+/** Bands are as tall as their card rows, or taller when the sprint label needs the room. */
+function bandHeight(plan: SprintPlan, label: SprintLabelSize): number {
+  return Math.max(plan.rows * ROW_PITCH - ROW_GAP, LABEL_OFFSET_Y + label.height - LABEL_HANG)
+}
+
+function toFrames(plans: SprintPlan[], context: Context): Frame[] {
   let top = FIRST_BAND_TOP
   return plans.map((plan) => {
-    const bottom = top + plan.rows * ROW_PITCH - ROW_GAP
-    const frame = { plan, top, bottom }
+    const label = labelSize(plan.sprint, context)
+    const bottom = top + bandHeight(plan, label)
+    const frame = { plan, label, top, bottom }
     top = bottom + BAND_GAP + BAND_GAP
     return frame
   })
@@ -394,6 +413,15 @@ function sprintDetail(sprint: SprintDef, context: Context): string {
     return added > 0 ? `${total} · ${added} new` : total
   }
   return context.run === null || activeOrdinal(context) === null ? total : runSprintDetail(sprint, context.run, context)
+}
+
+function sprintGoal(sprint: SprintDef): string {
+  return sprint.goal.trim() === '' ? 'No goal yet' : sprint.goal
+}
+
+/** The draft canvas also shows a + Ticket button under the label, so it reserves room for it. */
+function labelSize(sprint: SprintDef, context: Context): SprintLabelSize {
+  return sprintLabelSize(sprintGoal(sprint), sprintDetail(sprint, context), context.input.mode === 'draft')
 }
 
 const POLICY_LABELS = { human: 'HUMAN APPROVAL', auto: 'AUTO CONTINUE' } as const
@@ -465,13 +493,15 @@ function sprintNode(context: Context, frame: Frame): SprintNodeModel {
     id: `sprint:${sprint.id}`,
     sprintId: sprint.id,
     heading: `SPRINT ${sprint.ordinal}`,
-    goal: sprint.goal.trim() === '' ? 'No goal yet' : sprint.goal,
+    goal: sprintGoal(sprint),
     detail: sprintDetail(sprint, context),
     active: run !== null && isActiveRunState(run.state) && activeOrdinal(context) === sprint.ordinal,
+    goalLines: frame.label.goalLines,
+    labelHeight: frame.label.height,
     x: LABEL_X,
-    y: frame.top + 4,
+    y: frame.top + LABEL_OFFSET_Y,
     width: LABEL_WIDTH,
-    height: frame.bottom - frame.top
+    height: Math.max(frame.bottom - frame.top, frame.label.height)
   }
 }
 
@@ -530,7 +560,7 @@ function bandsOf(frames: Frame[]): SprintBand[] {
 export function buildGraphModel(input: GraphInput): GraphModel {
   const context = createContext(input)
   const plans = layoutSprints(context.bundle)
-  const frames = toFrames(plans)
+  const frames = toFrames(plans, context)
   const width = contentWidth(plans)
   const dividerWidth = FIRST_COLUMN_X + width + RIGHT_MARGIN + LEGEND_LANE - DIVIDER_X
   const lastBottom = frames[frames.length - 1]?.bottom ?? FIRST_BAND_TOP

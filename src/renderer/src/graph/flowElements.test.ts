@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { runView, savedPlan } from '../epic/__mocks__/fixtures'
+import { bundle, runView, savedPlan, sprint } from '../epic/__mocks__/fixtures'
 import { toFlowEdges, toFlowNodes } from './flowElements'
 import { buildGraphModel, type GraphModel } from './graphModel'
 
@@ -84,5 +84,46 @@ describe('flow edges', () => {
       ariaLabel: 'DM-301 requires DM-204 (waiting)'
     })
     expect(toFlowEdges(MODEL, false)[0]).toMatchObject({ selectable: false, deletable: false, focusable: false })
+  })
+})
+
+describe('flow nodes for a long sprint goal', () => {
+  const goal = 'Every word of this goal is shown or reachable, and it keeps going so that the label needs many lines. '.repeat(4)
+  const sprints = [sprint(1, goal, ['tk_101']), sprint(2, 'Next', ['tk_201'])]
+  const longModel = buildGraphModel({
+    plan: savedPlan({ bundle: bundle({ sprints, edges: [] }) }),
+    mode: 'saved',
+    run: null,
+    statuses: new Map(),
+    outcome: null,
+    rejected: null,
+    draftNumber: 5
+  })
+  const nodes = toFlowNodes(longModel, { ...OPTIONS, editable: false })
+
+  function find(id: string) {
+    const found = nodes.find((item) => item.id === id)
+    if (!found) {
+      throw new Error(`missing node ${id}`)
+    }
+    return found
+  }
+
+  it('places the checkpoint divider below the whole sprint label', () => {
+    expect(goal.length).toBeGreaterThanOrEqual(300)
+    const label = find('sprint:sp_1')
+    const divider = find('checkpoint:1')
+    expect(label.height).toBeGreaterThan(72)
+    expect(label.position.y + (label.height ?? 0)).toBeLessThanOrEqual(divider.position.y)
+  })
+
+  it('keeps the next sprint label under the divider pill', () => {
+    const divider = find('checkpoint:1')
+    expect(divider.position.y + (divider.height ?? 0)).toBeLessThanOrEqual(find('sprint:sp_2').position.y)
+  })
+
+  it('hands the node the reserved line count so it can clamp the goal', () => {
+    const label = find('sprint:sp_1')
+    expect(label.type === 'sprint' ? label.data.model.goalLines : null).toBe(6)
   })
 })

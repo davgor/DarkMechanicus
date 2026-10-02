@@ -145,7 +145,7 @@
   stroke: var(--accent);
 }
 
-/* Sprint labels */
+/* Sprint labels. The layout reserves their height from the line height and width below (sprintLabel.ts). */
 .pg-sprint {
   display: flex;
   flex-direction: column;
@@ -168,6 +168,12 @@
 .pg-sprint-goal {
   color: var(--ink);
   font-weight: 500;
+  /* Cut with an ellipsis after the lines the layout reserved (--pg-goal-lines, set by the node); the full goal is the node's title. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--pg-goal-lines, 6);
+  overflow: hidden;
+  overflow-wrap: anywhere;
 }
 
 .pg-add {
