@@ -1,0 +1,2154 @@
+{
+  "activeSprintId": null,
+  "attempts": [
+    {
+      "createdAt": "2026-10-02T03:27:03.556Z",
+      "decidedAt": "2026-10-02T03:40:45.418Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator",
+        "notes": "Reviewed by the orchestrator: read the diff, re-ran all six checks on the integrated branch (all pass), and confirmed that substituting each new token's value reproduces the base CSS byte for byte.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "oxlint src scripts, exit 0",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "node, web and fireguard tsconfigs clean",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "185 files / 3347 tests + fireguard suite 20 / 105, on the integrated branch",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "grade A (100); styles.test.ts graded",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "electron-vite build",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "grep finds hex literals only in styles.css lines 16-62 (inside :root); enforced by styles.test.ts 'hardcodes no hex color outside that :root block'."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Token names describe roles (edge, node-bg, tone-edited, accent-hover, ink-soft...), none a hue."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Substituting each new token's value back into the three sheets reproduces the base files byte for byte."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "All six checks pass on the integrated branch."
+          }
+        ],
+        "notes": "Worker: Sonnet 5.5 subagent. Out of scope and left for sprint 2: `graph/flowElements.ts` hardcodes the edge arrowhead colors (`MET_COLOR`, `WAITING_COLOR`) in TS, and four `rgba(236, 230, 218, 0.04)` hover washes in styles.css are not tokenized."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m3xadcc4m3xh0ybmnm0br9hq",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": "worktree-agent-a594838e803d0949c (merged into mechanicus-ui-revamp)",
+        "changedFiles": [
+          "src/renderer/src/styles.css",
+          "src/renderer/src/graph/graph.css",
+          "src/renderer/src/epic/tones.css",
+          "src/renderer/src/styles.test.ts"
+        ],
+        "commits": [
+          "f2bac63d526b8fd15f12668bae911e0f252ca9a0",
+          "95b8ca4"
+        ],
+        "summary": "Routed every hardcoded renderer hex color through role-named `:root` tokens in `src/renderer/src/styles.css`, with no visual change. The ticket listed 9 literals; a re-scan found 26 outside `:root` (including 12× `#a8a092`, `#86cfab`, 2× `#eab265`, 2× `#d4604c`, and the graph legend lines). Nine tokens were added: `--ink-soft`, `--accent-hover`, `--btn-primary-hover`, `--btn-danger-hover`, `--tone-ok`, `--tone-edited`, `--edge`, `--edge-waiting`, `--node-bg`. A new guard test, `src/renderer/src/styles.test.ts`, fails on any hex literal in renderer CSS outside the single `:root` block of `styles.css`; it was written first and failed with exactly the 26 offenders."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m3w0xjat8axnbbrjzyc06ep2",
+      "state": "accepted",
+      "submittedAt": "2026-10-02T03:40:29.846Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:454a00efa65b529c3f2a5ed0d66141e48e2730eafd88e6f76ae5f50a5244bd70",
+      "ticketId": "tk_01m3tyychppab0t8b70mdk43p5",
+      "updatedAt": "2026-10-02T03:40:45.418Z",
+      "worker": {
+        "catalogRevision": "2026-10-01.1",
+        "hostId": "claude-code-desktop-mac",
+        "label": "DM-3 worker (claude-sonnet-5-5)",
+        "modelId": "claude-sonnet-5-5",
+        "rationale": "Routine, mechanical token extraction with no behavior change; Sonnet is eligible and cheaper than Opus at equal score.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-02T03:27:03.730Z",
+      "decidedAt": "2026-10-02T03:53:42.243Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator",
+        "notes": "Reviewed by the orchestrator: reconciled the token names with DM-3, cross-checked token coverage against styles.css, recomputed every required contrast pair independently, and verified the cited icon pixels.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "worker run; doc-only change",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "worker run; doc-only change",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "worker run; doc-only change",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "grade A; no changed tests",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "worker run; doc-only change",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Orchestrator cross-check: all 37 color tokens in :root of styles.css (including the 9 DM-3 tokens) have a row with today's value matching the CSS, a proposed value and a role."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Section 2 names crimson as primary, brass as secondary, bone as display ink, and lists where lens green is allowed and not allowed."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Section 4 gives hue distance and OKLab dE for crimson vs failed/danger and lens vs accepted, with the re-tuned state values and a per-state nearest-neighbour table."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Orchestrator recomputed every required pair with its own WCAG 2.x script from the doc's proposed values: all match the doc to 2 decimals, 0 failures (lowest: --muted on --panel-2 5.17, --faint on --panel-2 3.29, --primary-ink on --primary-hover 4.91)."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Orchestrator read the cited pixels from build/icon.png via an independent BMP conversion: (412,104) #b51a1f, (400,420) #84c20a, (697,556) #28211d, (536,333) #d69b4a, (884,490) #350000, all exactly as cited."
+          }
+        ],
+        "notes": "Worker: Opus 5.5 subagent. The person approves this doc at the sprint 1 checkpoint (sprint 2 entry criterion n1)."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m3xadchjrtrb2qrw45q6tnbb",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Palette proposal",
+            "location": "docs/design/palette.md",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "worktree-agent-a9415f59486f5f517 (merged into mechanicus-ui-revamp)",
+        "changedFiles": [
+          "docs/design/palette.md"
+        ],
+        "commits": [
+          "ccaa65e6d202330d12a1647b73b289012ea4b8b1",
+          "c5d6904"
+        ],
+        "summary": "Wrote `docs/design/palette.md`: the Mechanicus palette sampled from `build/icon.png`, for approval at the sprint 1 checkpoint. Crimson becomes the primary accent as a new `--primary` family (`#b51a1f` fill, `#c51e21` hover, bone `#fbe9c8` ink) plus `--ring` `#ea4134` for focus and selection lines (the deep crimson only reaches 2.2–2.8:1 as a line). Brass stays the secondary accent under `--accent`, bone becomes `--ink-display`, surfaces take the gunmetal hue at today's lightness, and lens green `#84c20a` is limited to the brand glow and the running state. Five states are re-tuned off the crimson and lens hues (failed and danger to signal rose, attention to orchid, blocked to stronger orange, accepted to jade). Every required pair passes contrast, and four contrast failures that exist today are fixed. The doc ends with seven decisions to confirm, each with an alternative.\n\nIntegration: the orchestrator renamed four suggested tokens to the names DM-3 shipped (`--ink-soft`, `--btn-primary-hover`, `--btn-danger-hover`, `--tone-ok`) so the tables cover every `:root` token."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m3w0xjat8axnbbrjzyc06ep2",
+      "state": "accepted",
+      "submittedAt": "2026-10-02T03:53:42.083Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:f601cd6d673ebe06fd1dcb3e3b30fb2fa076f19dece0ca0cb98372e7fc841ecb",
+      "ticketId": "tk_01m3tyychqv82vnsame123ab73",
+      "updatedAt": "2026-10-02T03:53:42.243Z",
+      "worker": {
+        "catalogRevision": "2026-10-01.1",
+        "hostId": "claude-code-desktop-mac",
+        "label": "DM-4 worker (claude-opus-5-5)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Architecture work at multi_step reasoning with image input and contrast math; Opus has the top score and deep reasoning for the brand-vs-state trade-offs.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-02T03:27:03.897Z",
+      "decidedAt": "2026-10-02T03:40:45.558Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator",
+        "notes": "Reviewed by the orchestrator: read the diff, re-ran all six checks on the integrated branch (all pass), and checked the brand in screenshots of the running build, with element boxes measured over CDP (no overlap or overflow at the fixed 272 px sidebar).",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "oxlint clean",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "all three projects clean",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "185 files / 3347 tests + fireguard suite, on the integrated branch",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "grade A (100): Sidebar.test.tsx, brandStyles.test.ts, Icon.test.tsx graded",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "brand-icon-64 emitted as a hashed asset",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Screenshot: mascot at left of name and version. Test 'shows the tech-priest as a decorative 1x/2x image beside the brand name'."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "alt=\"\" asserted; name text unchanged; existing brand/version test passes untouched."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Two Sidebar tests written first and failed (no image, no tagline) before the change."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "favicon.png is a 64x64 PNG regenerated from build/icon.png."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "electron.vite.config.ts untouched; all six checks pass."
+          },
+          {
+            "criterionId": "c6",
+            "met": true,
+            "note": "Tagline 10.5 px vs name 12 px, color var(--muted), directly under the name (screenshot and brandStyles.test.ts)."
+          },
+          {
+            "criterionId": "c7",
+            "met": true,
+            "note": "Sidebar is a fixed 272 px column at every window size. Measured in the running app: name 193 px wide, tagline 145 px and version 40 px on row 2, no element overflows."
+          }
+        ],
+        "notes": "Worker: Sonnet 5.5 subagent. Screenshots were taken from an isolated dev build against a throwaway fixture copy of the repository's records."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m3xadcps770gcjvam99e6jhj",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Before: sidebar brand (hex glyph), 1440x900",
+            "location": "scratchpad/shot/shots/before/home-1440.png",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "After: sidebar brand with mascot and tagline, 1440x900",
+            "location": "scratchpad/shot/shots/after/home-1440.png",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "After: brand bar at 3x",
+            "location": "scratchpad/shot/shots/after/DM-5-brand-zoom.png",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "worktree-agent-a8bfee031ca562059 (merged into mechanicus-ui-revamp)",
+        "changedFiles": [
+          "src/renderer/public/favicon.png",
+          "src/renderer/src/assets/brand-icon-32.png",
+          "src/renderer/src/assets/brand-icon-64.png",
+          "src/renderer/src/components/Icon.test.tsx",
+          "src/renderer/src/components/Icon.tsx",
+          "src/renderer/src/sidebar/Sidebar.test.tsx",
+          "src/renderer/src/sidebar/Sidebar.tsx",
+          "src/renderer/src/sidebar/brandStyles.test.ts",
+          "src/renderer/src/styles.css"
+        ],
+        "commits": [
+          "d0f5b33acbd40347d24968de85606f3d9ec747e0",
+          "ea8fd60"
+        ],
+        "summary": "The sidebar brand shows the tech-priest (32 px, 1x/2x `srcSet`, `alt=\"\"`) where the hex glyph was, with \"All hail the machine spirit\" under `DARK MECHANICUS` and the version label on the tagline row. Assets come from `build/icon.png` via `sips` (2,980 B and 8,387 B) and are imported through Vite; the 32 px file is inlined as a data URI, which the unchanged CSP already allows. `favicon.png` is regenerated at 64 px. The unused `hex` icon path is removed. The bar stays 56 px."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m3w0xjat8axnbbrjzyc06ep2",
+      "state": "accepted",
+      "submittedAt": "2026-10-02T03:40:30.249Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:ee160701174bb9017639f9c18fdec6b3a4e275e66b8060af675076e22e57ce0a",
+      "ticketId": "tk_01m3tyychqx4qcqp76fd6w3xtt",
+      "updatedAt": "2026-10-02T03:40:45.558Z",
+      "worker": {
+        "catalogRevision": "2026-10-01.1",
+        "hostId": "claude-code-desktop-mac",
+        "label": "DM-5 worker (claude-sonnet-5-5)",
+        "modelId": "claude-sonnet-5-5",
+        "rationale": "Routine component change with an asset step and a test; Sonnet covers routine reasoning and images at lower cost.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-02T03:27:04.069Z",
+      "decidedAt": "2026-10-02T03:57:25.219Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator",
+        "notes": "Retry builds on the merged work (commits b194f05, 2bf0539). c2 to c6 were verified and stay valid; c1 needs the reproduction steps and the root cause above, with a failing test first.",
+        "outcome": "rejected",
+        "reasons": [
+          "The person confirmed the reported symptom: an epic with unsaved draft changes reopens in the Saved view (REV n · SAVED, draft hidden behind View draft) after navigating away and back, so after saving one epic every other epic looks out of draft. Root cause: src/renderer/src/epic/workspaceState.ts initialWorkspaceState starts at view 'saved' and resolveView keeps it whenever a saved revision exists. Fix it test-first: an epic whose draft has unsaved changes opens in the Draft view, and a Draft/Saved choice the person makes on an epic is remembered for that epic for the rest of the app session. Keep the merged draftChanged badge fix and the two-epic isolation tests."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "oxlint exit 0",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "all three projects",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "worker: 184 files / 3341 tests; orchestrator re-ran the DM-11 tests on the integrated branch (14 files / 173 tests)",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "grade A (100), mutation 41/41 killed",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "no new dead exports (.tsprune-ignore line numbers shifted by the new field)",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "electron-vite build",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": false,
+            "note": "Met for the identical-draft oddity (steps and root cause given). Not met for the main report: it did not reproduce at the core, IPC or renderer-state layers. The orchestrator found a likely UI cause (the view resets to Saved), pending the person's confirmation."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "6 tests failed before the fix for the right reason (e.g. epicBadges 'does not flag a draft that still matches the saved plan') and pass after; before-fix output kept in the scratchpad."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "epicDrafts.test.ts asserts other epics' summaries and drafts are unchanged after save, discard, status change and queue run."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "src/integration/epicDrafts.test.ts covers two epics per folder across two folders through dm:command."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Verified in the running app: Edit draft on a saved epic shows no badge; after + Sprint the draft badge appears."
+          },
+          {
+            "criterionId": "c6",
+            "met": true,
+            "note": "All six checks pass."
+          }
+        ],
+        "notes": "Worker: Opus 5.5 subagent. Deviation: the worker read a copy of this repository's live state.sqlite (read-only, copy deleted) for the event log. The permission system blocked reading the second tracked folder's database, and nobody bypassed that."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m3xadcw5kn59ftzm6ntf5gsj",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "After Edit draft on a saved epic: no draft badge",
+            "location": "scratchpad/shot/shots/after/DM-11-edit-draft-no-badge.png",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "After an edit: draft badge appears",
+            "location": "scratchpad/shot/shots/after/DM-11-after-edit-badge.png",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Likely cause: epic with unsaved changes reopens as REV 1 · SAVED",
+            "location": "scratchpad/shot/shots/after/DM-11-reopen-shows-saved.png",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "worktree-agent-a77d07f2b4811343a (merged into mechanicus-ui-revamp)",
+        "changedFiles": [
+          ".tsprune-ignore",
+          "src/core/services/epics.ts",
+          "src/core/services/epics.test.ts",
+          "src/integration/epicDrafts.test.ts",
+          "src/renderer/src/App.sidebar.test.tsx",
+          "src/renderer/src/__mocks__/fixtures.ts",
+          "src/renderer/src/epic/__mocks__/fakeBackend.ts",
+          "src/renderer/src/epic/__mocks__/fixtures.ts",
+          "src/renderer/src/home/EpicBuckets.test.tsx",
+          "src/renderer/src/sidebar/EpicRow.test.tsx",
+          "src/renderer/src/sidebar/epicStatusLine.test.ts",
+          "src/renderer/src/sidebar/epicStatusLine.ts",
+          "src/shared/domain/views.ts"
+        ],
+        "commits": [
+          "b194f05b921d3730dd8bfbd81b7a6a832a742e8f",
+          "2bf0539e1c9b665fd296e7fd3c1e88d9ffeb786f",
+          "ae22363"
+        ],
+        "summary": "**Main report not reproduced at the data layer.** Save, discard, status change, queue run, Draft/Saved switching and Edit draft on one epic left every other epic's summary and draft unchanged: in core (desktop plus planner sessions, four epics), through the desktop IPC handlers over two tracked folders, and in a real-renderer run. The live event log shows the UI revamp epic was the only open epic in this repository at report time, so \"all epics\" likely included the second tracked folder (`davgor.github.io`), whose database was not inspected.\n\n**Fixed (the related oddity):** Edit draft copies the saved plan into a new draft, and the sidebar badged that identical copy as \"Has unsaved draft changes\". Epic summaries now carry `draftChanged` (true only when the draft's content differs from the saved revision, always true for a never-saved epic), and `epicBadges` uses it. Root cause: `src/renderer/src/sidebar/epicStatusLine.ts` `epicBadges` badged any existing draft (`hasDraft`), because `src/core/services/epics.ts` `toSummary` only reported whether a draft row existed.\n\n**Guard:** `src/integration/epicDrafts.test.ts` drives the desktop handlers over real workspaces in two folders and asserts, after save, discard, status change, queue run and save-then-Edit-draft on one epic, that every other epic's summary and draft are unchanged.\n\n**Orchestrator finding (likely cause, not yet fixed):** in the running app, an epic with unsaved draft changes reopens in the Saved view (\"REV 1 · SAVED\", the draft hidden behind \"View draft\") whenever the person navigates away and back. `initialWorkspaceState` starts at `view: 'saved'` and `resolveView` keeps it whenever a saved revision exists. After saving one epic and clicking through the others, every other epic would look \"out of draft\"."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m3w0xjat8axnbbrjzyc06ep2",
+      "state": "rejected",
+      "submittedAt": "2026-10-02T03:56:22.404Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:2c2cf72abcbb96aeadbe6f23d2d391017e6d204ec7434b1c9e839ecb3037f42f",
+      "ticketId": "tk_01m3vzynetd2vnkw9bmmah76yq",
+      "updatedAt": "2026-10-02T03:57:25.219Z",
+      "worker": {
+        "catalogRevision": "2026-10-01.1",
+        "hostId": "claude-code-desktop-mac",
+        "label": "DM-11 worker (claude-opus-5-5)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Root cause unknown across core, IPC and renderer; needs deep reasoning, and Opus is the only eligible model.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-02T03:27:04.236Z",
+      "decidedAt": "2026-10-02T03:50:52.450Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator",
+        "notes": "Reviewed by the orchestrator: read the diff, re-ran all six checks on the integrated branch (all pass), and verified c1, c2 and c4 in screenshots of the running build with label and pill boxes measured over CDP, in both the Saved and Draft views.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "oxlint clean",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "all three projects clean",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "186 files / 3373 tests + fireguard suite 20 / 105, integrated branch",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "grade A (100); graph tests graded, mutation 100%",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "electron-vite build",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Before/after screenshots with a 320-character goal. Measured in the running app (draft view): label bottom 436 px, pill top 440 px; saved view also clear. Tests: graphModel 'keeps the checkpoint divider and its pill below the label of a 300+ character goal', flowElements 'flow nodes for a long sprint goal'."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Goal clamped with an ellipsis; the span's title holds the full 370-character goal (checked in the running app). PlanGraph test 'keeps the full goal reachable'."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Layout tests written first and ran red (9 failed) before the fix."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Completed 'MCP connection test' graph: epic, cards and epic-checks divider at the same y as before (305, 404, 510, 614). Test 'keeps short goals exactly where they were'."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "All six checks pass on the integrated branch."
+          }
+        ],
+        "notes": "Worker: Sonnet 5.5 subagent. Keep the constants in sprintLabel.ts (18 px line, 140 px width, 30 px button) in sync with `.pg-sprint` and `.pg-add` in graph.css; a comment in graph.css points to them."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m3xadd1c8d3bn2ev7f2b74j9",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Before: 320-character goal overlaps the checkpoint pill and sprint 2",
+            "location": "scratchpad/shot/shots/before/DM-21-graph-1440.png",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "After: Saved view, goal clamped to 6 lines, pill clear",
+            "location": "scratchpad/shot/shots/after/DM-21-graph-1440.png",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "After: Draft view with + Ticket buttons, pill clear",
+            "location": "scratchpad/shot/shots/after/DM-21-graph-draft-1440.png",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "After: short-goal epic unchanged",
+            "location": "scratchpad/shot/shots/after/DM-21-short-goal-1440.png",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "worktree-agent-ae1750310c8047d18 (merged into mechanicus-ui-revamp)",
+        "changedFiles": [
+          "src/renderer/src/graph/sprintLabel.ts",
+          "src/renderer/src/graph/sprintLabel.test.ts",
+          "src/renderer/src/graph/graphModel.ts",
+          "src/renderer/src/graph/graphModel.test.ts",
+          "src/renderer/src/graph/flowElements.test.ts",
+          "src/renderer/src/graph/nodes.tsx",
+          "src/renderer/src/graph/PlanGraph.test.tsx",
+          "src/renderer/src/graph/graph.css"
+        ],
+        "commits": [
+          "47e24b26d5fa04880f3ccd35889665d4b78f1fde",
+          "011f414"
+        ],
+        "summary": "The layout model now owns the sprint label's height. A new pure module, `graph/sprintLabel.ts`, estimates how many lines the goal and detail wrap to in the 140 px gutter, caps the goal at 6 lines, and adds the 30 px `+ Ticket` button in the draft view. `graphModel.ts` sizes each sprint band so the label can hang at most to 4 px above the checkpoint pill; when it needs more room the band grows and everything below shifts down by exactly that amount. `nodes.tsx` clamps the goal to the reserved line count (`-webkit-line-clamp: var(--pg-goal-lines)`) with an ellipsis and carries the full goal in `title`. Because the clamp equals the reservation, a wrong text-width estimate can only truncate a line, never cause an overlap.\n\n**Root cause:** the sprint node's height was its band's card height, but its text wrapped past that box with nothing reserving or clipping the overflow; the pill sits only 38 px below the band's cards."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m3w0xjat8axnbbrjzyc06ep2",
+      "state": "accepted",
+      "submittedAt": "2026-10-02T03:50:52.267Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:80657afde25938d6ec72b6da0194174c499db5df4c85ca0c9df1276f15170334",
+      "ticketId": "tk_01m3w0xjama79h4bf1s55fcndp",
+      "updatedAt": "2026-10-02T03:50:52.450Z",
+      "worker": {
+        "catalogRevision": "2026-10-01.1",
+        "hostId": "claude-code-desktop-mac",
+        "label": "DM-21 worker (claude-sonnet-5-5)",
+        "modelId": "claude-sonnet-5-5",
+        "rationale": "Multi-step layout math plus CSS with a regression test; Sonnet is eligible for multi_step and the change is contained to the graph module.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-02T03:27:04.403Z",
+      "decidedAt": "2026-10-02T04:50:19.249Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator",
+        "notes": "Reviewed by the orchestrator: read the diff, re-ran all six checks on the integrated branch (all pass, fireguard A 97), and confirmed in the running build, opened on a fixture with no local database, that the completed epic offers a read-only Epic report with the outcome, the criteria and the sprint report.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "oxlint clean, integrated branch",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "all three projects, integrated branch",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "190 files / 3403 tests + fireguard suite 20 / 105, integrated branch",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "grade A (97), all hard gates passed, integrated branch",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "electron-vite build after fireguard finished",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Screenshot: the completed 'MCP connection test' run bar offers Epic report; the overview shows the outcome summary, s1 and s2 with ✓ and their notes, and the sprint 1 report."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Covered by tests (no live run at its final checkpoint exists to screenshot): state 'keeps the review open as the overview once the final approval completes the run', actions 'approves and advances, closing the checkpoint view unless the approval completed the epic', workspace render 'keeps the overview open after the final checkpoint is approved'."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "The screenshot fixture has no local database (portable records only, as after a clone) and the overview loads; integration test src/integration/completedEpic.test.ts also covers a fresh clone and a reopen."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "In the running app the overview (.cp) contains no buttons or inputs; the run bar offers only Open graph. Tests assert no approve, advance, retry, follow-up, draft or auto-continue controls."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Load, state, actions, run-bar and rendering tests were written first and failed for the right reasons before the fix."
+          },
+          {
+            "criterionId": "c6",
+            "met": true,
+            "note": "All six checks pass on the integrated branch."
+          }
+        ],
+        "notes": "Worker: Opus 5.5 subagent. The overview's ACCEPTED rows render one word per line (the free-text entries land in the narrow key column); that is DM-23, now unblocked."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m3xadd6ke7kd50kcvmg57d38",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Before: completed epic, no way to open its overview",
+            "location": "scratchpad/shot/shots/before/DM-22-completed-1440.png",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "After: completed epic overview (Epic report)",
+            "location": "scratchpad/shot/shots/after/DM-22-overview-1440.png",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "worktree-agent-aaf9dc883b7c2f6b5 (merged into mechanicus-ui-revamp)",
+        "changedFiles": [
+          "src/integration/completedEpic.test.ts",
+          "src/renderer/src/checkpoint/CheckpointScreen.tsx",
+          "src/renderer/src/checkpoint/EpicOverview.test.tsx",
+          "src/renderer/src/checkpoint/EpicOverview.tsx",
+          "src/renderer/src/checkpoint/gateView.ts",
+          "src/renderer/src/checkpoint/overviewView.test.ts",
+          "src/renderer/src/checkpoint/overviewView.ts",
+          "src/renderer/src/epic/EpicWorkspace.run.test.tsx",
+          "src/renderer/src/epic/EpicWorkspace.tsx",
+          "src/renderer/src/epic/RunBar.tsx",
+          "src/renderer/src/epic/__mocks__/fakeBackend.ts",
+          "src/renderer/src/epic/__mocks__/fixtures.ts",
+          "src/renderer/src/epic/runBarView.test.ts",
+          "src/renderer/src/epic/runBarView.ts",
+          "src/renderer/src/epic/workspaceActions.test.ts",
+          "src/renderer/src/epic/workspaceActions.ts",
+          "src/renderer/src/epic/workspaceLoad.test.ts",
+          "src/renderer/src/epic/workspaceLoad.ts",
+          "src/renderer/src/epic/workspaceState.test.ts",
+          "src/renderer/src/epic/workspaceState.ts"
+        ],
+        "commits": [
+          "8d966140e36baf282497433e0f205972b18f0dcf",
+          "a28b9f9"
+        ],
+        "summary": "A completed run has no active sprint, so the workspace never loaded a checkpoint for it, and three things made the overview vanish: `CHECKPOINT_STATES` in `epic/workspaceLoad.ts` skipped completed runs, `loadSucceeded` in `epic/workspaceState.ts` closed the view once `data.checkpoint` was null, and the approve action in `workspaceActions.ts` dispatched `close_checkpoint` itself. The outcome and sprint reports were stored all along.\n\n`loadWorkspace` now loads `WorkspaceData.overview` for completed runs (the revision the run executed plus each sprint's latest report). The run bar offers an **Epic report** toggle for completed runs. The view stays open while a checkpoint or an overview exists, and the final approval no longer closes it. The new read-only `EpicOverview` reuses the sprint-report rendering (now a shared `SprintReport`) and adds an outcome card with each success criterion, met or not, and its note."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m3w0xjat8axnbbrjzyc06ep2",
+      "state": "accepted",
+      "submittedAt": "2026-10-02T04:50:19.099Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:ded91880746e270bdeb195aa9fc2f43e3eba2452731907e4f368f617beff667c",
+      "ticketId": "tk_01m3w0xjanqx13s1d2b27sddfe",
+      "updatedAt": "2026-10-02T04:50:19.249Z",
+      "worker": {
+        "catalogRevision": "2026-10-01.1",
+        "hostId": "claude-code-desktop-mac",
+        "label": "DM-22 worker (claude-opus-5-5)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Load and view-state changes across run states plus persisted-outcome reading after restart; Opus for careful state reasoning across layers.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-02T03:57:31.226Z",
+      "decidedAt": "2026-10-02T05:37:49.924Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator",
+        "notes": "Reviewed by the orchestrator: read the diff, resolved the test-file merge conflict with DM-22, re-ran all six checks on the integrated branch (all pass), and confirmed in the running build that an edited draft reopens in the Draft view after visiting another epic, an explicit View saved is remembered, and Edit draft alone shows no badge. The person confirmed this view reset was the symptom they reported.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "oxlint clean, integrated branch",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "all three projects, integrated branch",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "191 files / 3413 tests + fireguard suite 20 / 105, integrated branch",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "grade A (97), all hard gates passed",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "electron-vite build after fireguard finished",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Steps: open a saved epic, Edit draft, + Sprint (DRAFT REV 2 · UNSAVED); click another epic; click back: it showed REV 1 · SAVED with View draft. Root cause: initialWorkspaceState() and resolveView() via loadSucceeded() in src/renderer/src/epic/workspaceState.ts."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "12 tests failed on the unfixed code (rendering repro: expected 'REV 4 · SAVED' to be 'DRAFT REV 5 · UNSAVED') and pass after; attempt 1's 6 badge tests likewise."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "In the running app: an edited draft reopens as DRAFT REV 2 · UNSAVED after visiting another epic; an explicit View saved is remembered (REV 1 · SAVED on return). epicDrafts.test.ts proves save, discard, status change and queue run on one epic leave the others' drafts unchanged."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "src/integration/epicDrafts.test.ts: two epics per folder across two folders, end to end through dm:command; plus the rendering-level round trip in EpicWorkspace.draft.test.tsx."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Verified in the running app: Edit draft on a saved epic shows no badge; after + Sprint the draft badge appears."
+          },
+          {
+            "criterionId": "c6",
+            "met": true,
+            "note": "All six checks pass on the integrated branch at 29d9f80."
+          }
+        ],
+        "notes": "Retry 1, worker: Opus 5.5 subagent. A merge conflict in workspaceState.test.ts with DM-22 (both added a describe block) was resolved by keeping both."
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m3xc556tj937jwazgrfem384",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Before: edited draft reopens as REV 1 · SAVED",
+            "location": "scratchpad/shot/shots/after/DM-11-reopen-shows-saved.png",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "After: edited draft reopens as DRAFT REV 2 · UNSAVED",
+            "location": "scratchpad/shot/shots/after/DM-11-reopen-keeps-draft.png",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Edit draft alone: no draft badge",
+            "location": "scratchpad/shot/shots/after/DM-11-edit-draft-no-badge.png",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "worktree-agent-acf092cf3ac6734bf (merged into mechanicus-ui-revamp at 29d9f80)",
+        "changedFiles": [
+          "src/renderer/src/epic/workspaceState.ts",
+          "src/renderer/src/epic/workspaceActions.ts",
+          "src/renderer/src/epic/useWorkspace.ts",
+          "src/renderer/src/epic/viewMemory.ts",
+          "src/renderer/src/epic/viewMemory.test.ts",
+          "src/renderer/src/epic/workspaceState.test.ts",
+          "src/renderer/src/epic/workspaceActions.test.ts",
+          "src/renderer/src/epic/EpicWorkspace.draft.test.tsx",
+          "src/renderer/src/epic/__mocks__/renderWorkspace.tsx",
+          "src/core/services/epics.ts",
+          "src/renderer/src/sidebar/epicStatusLine.ts",
+          "src/shared/domain/views.ts",
+          "src/integration/epicDrafts.test.ts"
+        ],
+        "commits": [
+          "b194f05b921d3730dd8bfbd81b7a6a832a742e8f",
+          "2bf0539e1c9b665fd296e7fd3c1e88d9ffeb786f",
+          "0c71e6c08e2615da8887c0aa265ae8be144df848",
+          "29d9f80"
+        ],
+        "summary": "**Reported bug, confirmed by the person:** an epic with unsaved draft changes reopened on its saved plan (\"REV n · SAVED\", the draft hidden behind View draft) after visiting another epic, so after saving one epic every other epic looked \"out of draft\".\n\n**Root cause:** `src/renderer/src/epic/workspaceState.ts`. `initialWorkspaceState()` started every mount at `view: 'saved'`, and `resolveView` (called from `loadSucceeded`) kept `'saved'` whenever a saved revision existed. `EpicWorkspace` remounts per folder and epic, so the view the person left was forgotten on every visit.\n\n**Fix (renderer only):** the first load picks the view: the person's remembered choice for that epic, else Draft when the draft differs from the saved plan (`draftChanged`), else Saved. Later loads keep the view on screen, so background refreshes never flip it. Explicit switches (Edit draft, View draft, View saved) are remembered per folder and epic for the app session in an in-memory store (`epic/viewMemory.ts`, provided through React context). Save and Discard show Saved and forget the choice, so the next draft opens by the default rule.\n\nKept from attempt 1 (already merged): `draftChanged` on epic summaries, the sidebar badge only for real changes, and the two-folder isolation tests in `src/integration/epicDrafts.test.ts`."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m3w0xjat8axnbbrjzyc06ep2",
+      "state": "accepted",
+      "submittedAt": "2026-10-02T05:37:49.766Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:2c2cf72abcbb96aeadbe6f23d2d391017e6d204ec7434b1c9e839ecb3037f42f",
+      "ticketId": "tk_01m3vzynetd2vnkw9bmmah76yq",
+      "updatedAt": "2026-10-02T05:37:49.924Z",
+      "worker": {
+        "catalogRevision": "2026-10-01.1",
+        "hostId": "claude-code-desktop-mac",
+        "label": "DM-11 worker, retry 1 (claude-opus-5-5)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Retry after rejection with a confirmed root cause; the ticket requires deep reasoning and Opus is the only eligible model.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-02T04:50:54.923Z",
+      "decidedAt": "2026-10-02T06:36:04.799Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator",
+        "notes": "Reviewed by the orchestrator: read the diff, re-ran all six checks on the integrated branch (all pass, fireguard A 100), and checked the overview at 1024, 1280 and 1440 px and the live sprint checkpoint in screenshots of the running build.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "oxlint src scripts: 0 errors, 0 warnings (integrated branch at 1633f38)",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "node, web and fireguard tsconfigs: 0 errors",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "vitest 192 files / 3426 tests, plus fireguard suite 20 files / 105 tests",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "grade A (score 100), all hard gates passed",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "electron-vite build, run after fireguard finished on a clean tree",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Orchestrator screenshots of the running build at 1024, 1280 and 1440: summary, criteria notes and ACCEPTED rows wrap at a reading width (worker measured 31, 61 and 61 characters per line for DM-1, up from about 7). Tests: gateView 'report entries written as free text' (5), CheckpointScreen 'checkpoint report entries' (2), EpicOverview key-column test, checkpointStyles.test.ts (4), written first and failing before the fix."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Cause: .cp-row's fixed 72 px .cp-key track, fed by resolveRow in gateView.ts putting the whole entry in key. Fix: split the leading key in resolveRow, render no key cell for keyless entries (RowKey in CheckpointScreen.tsx), and .cp-row-title.is-keyless spans both leading columns."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Orchestrator screenshot of the live sprint checkpoint (running UI revamp epic, Sprint report) at 1280 lays out correctly with the 360 px gate card; the worker also rendered the real CheckpointScreen with free-text report rows at three widths."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "All six checks pass on the integrated branch at 1633f38."
+          }
+        ],
+        "notes": "Worker: Sonnet 5.5 subagent. The overview's ticket keys are now links that open the ticket panel (navigation only; no approve, retry or follow-up controls), so two existing tests now expect the DM-1 and DM-2 key buttons. At 1024 px the report column is 308 px wide by design (272 px sidebar plus 360 px gate); stacking the gate under the report at narrow widths is proposed as a follow-up."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m3xf6xtbkey7jewc3b7p6epg",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Before: overview at 1440, one word per line",
+            "location": "scratchpad/shot/shots/before/DM-23-overview-1440.png",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Before: overview at 1024/1280/1440 (worker)",
+            "location": "scratchpad/shot/shots/dm23/before-overview-*.png",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "After: overview at 1024",
+            "location": "scratchpad/shot/shots/after/DM-23-overview-1024.png",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "After: overview at 1280",
+            "location": "scratchpad/shot/shots/after/DM-23-overview-1280.png",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "After: overview at 1440",
+            "location": "scratchpad/shot/shots/after/DM-23-overview-1440.png",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "After: live sprint checkpoint at 1280",
+            "location": "scratchpad/shot/shots/after/DM-23-live-checkpoint-1280.png",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "After: live checkpoint with report rows at 1024/1280/1440 (worker; real CheckpointScreen markup, fixture report data)",
+            "location": "scratchpad/shot/shots/dm23/live-checkpoint-with-report-*.png",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "worktree-agent-a389441e4c4e309f0 (merged into mechanicus-ui-revamp)",
+        "changedFiles": [
+          "src/renderer/src/checkpoint/gateView.ts",
+          "src/renderer/src/checkpoint/CheckpointScreen.tsx",
+          "src/renderer/src/checkpoint/checkpoint.css",
+          "src/renderer/src/checkpoint/gateView.test.ts",
+          "src/renderer/src/checkpoint/CheckpointScreen.test.tsx",
+          "src/renderer/src/checkpoint/EpicOverview.test.tsx",
+          "src/renderer/src/checkpoint/checkpointStyles.test.ts",
+          "src/renderer/src/epic/EpicWorkspace.run.test.tsx"
+        ],
+        "commits": [
+          "5263c8f944c4fe8c7727050b1de96a80fbfb2533",
+          "1633f38"
+        ],
+        "summary": "**Root cause:** report entries are free text such as \"DM-1 Confirm epic is visible in the app: verified via list_epics; …\". `resolveRow` in `checkpoint/gateView.ts` only recognised an entry that was exactly a ticket id or key, so every sentence went into `ReportRow.key` with an empty title, and `Rows` in `CheckpointScreen.tsx` rendered it in `.cp-key`, the fixed 72 px first track of `.cp-row` (`grid-template-columns: 72px minmax(0, 1fr) auto`). The cell was 72 px at every window width, about 7 characters per line. It was not the two-column `minmax(0, 1fr) 360px` grid.\n\n**Fix:** an entry starting with a ticket key shows the key in the key column (a link when the plan has the ticket) and the rest as the row text; an entry with no leading key has no key cell, and its text spans both leading columns (`.cp-row-title.is-keyless { grid-column: 1 / span 2 }`). `.cp-row-title` gets `min-width: 0` and `overflow-wrap: anywhere`. A second squeeze in the checks list (name and detail shrinking side by side) is fixed by letting the row wrap so the detail drops under the name. No widths are hard-coded for one screen size, and no colors changed."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m3w0xjat8axnbbrjzyc06ep2",
+      "state": "accepted",
+      "submittedAt": "2026-10-02T06:36:04.680Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:4309519b63137c84ecb71fc5dea1a375c2408fd5b06b12d7475397e0f8b7348e",
+      "ticketId": "tk_01m3w0xjancr76jdhrz81zpfwf",
+      "updatedAt": "2026-10-02T06:36:04.799Z",
+      "worker": {
+        "catalogRevision": "2026-10-01.1",
+        "hostId": "claude-code-desktop-mac",
+        "label": "DM-23 worker (claude-sonnet-5-5)",
+        "modelId": "claude-sonnet-5-5",
+        "rationale": "Routine CSS layout fix verified with screenshots; Sonnet covers routine reasoning and images at lower cost than Opus.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-02T07:02:59.628Z",
+      "decidedAt": "2026-10-02T08:04:35.842Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator",
+        "notes": "Reviewed by the orchestrator: read the diff, independently compared all 44 :root color tokens with the approved doc (0 mismatches), re-ran lint, typecheck, tests, deadcode and build on the integrated branch (all pass), and checked the new palette in screenshots of the integrated build.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "0 errors, 0 warnings on the integrated branch (322ef68)",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "all three projects, integrated branch",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "194 files / 3447 tests + fireguard suite 20 / 105, integrated branch",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "worker run: grade A (100) against main, mutation 359/361 (survivors in untouched EpicWorkspace.tsx); scoped to the diff: grade A; re-run on the fully integrated branch in DM-10",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found, integrated branch",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "electron-vite build, integrated branch",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Orchestrator's own script: all 44 :root color tokens equal the doc's Proposed values (0 mismatches); also enforced by the test 'gives every :root color token the value the approved palette doc proposes'."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "theme.contrast.test.ts enforces sections 5.1 to 5.5; four guard tests break tokens and assert exact failures (e.g. '--ring on --panel-3: 2.16 (needs 3)'); a hand-broken --muted failed with '4.45 (needs 4.5)'."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Commit 0005042 adds the test alone and fails 6 of 13 against the old tokens; be0ca85 turns it green. fireguard grades it A."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Before/after screenshots of the welcome screen, a folder home and a plan graph (worker, 1440x900), plus the orchestrator's plan graph and folder home from the integrated branch."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Five checks re-run on the integrated branch; fireguard passed on the worker's branch and is re-run on the integrated branch in DM-10."
+          }
+        ],
+        "notes": "Worker: Opus 5.5 subagent. The doc-match test means any future :root color change must update the doc's section 3 tables too. Leftovers for DM-7/DM-8/DM-10: src/main/index.ts still sets the window backgroundColor to the old --bg #141310 (now #151211); graph/flowElements.ts arrowhead colors; the palette doc's status line still says 'proposal'."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m3xprrscbgjj3xk4vyrehek5",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Before/after welcome, folder home and plan graph (worker)",
+            "location": "scratchpad/shot/shots/DM-6/",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "After: plan graph mid-run on the integrated branch",
+            "location": "scratchpad/shot/shots/after/DM-6-plan-graph.png",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "After: folder home on the integrated branch",
+            "location": "scratchpad/shot/shots/after/DM-6-folder-home.png",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "worktree-agent-a568397c0101232c3 (merged into mechanicus-ui-revamp)",
+        "changedFiles": [
+          "src/renderer/src/styles.css",
+          "src/renderer/src/theme.contrast.test.ts"
+        ],
+        "commits": [
+          "0005042c93bde9f867828bbcf785157478467d15",
+          "be0ca853eefc9cd578d638e1e512fd5925d69c41",
+          "322ef68"
+        ],
+        "summary": "The approved palette is now the `:root` block of `src/renderer/src/styles.css`: every Proposed value from `docs/design/palette.md` (including the DM-3 tokens) plus the seven new tokens `--primary`, `--primary-hover`, `--primary-ink`, `--primary-soft`, `--ring`, `--ink-display` and `--lens`. The header comment now describes the Mechanicus theme. No component rules changed, so primary buttons and focus rings stay brass until DM-7 and DM-8. Visible now: running is lens green, accepted jade, failed rose, awaiting checkpoint orchid, blocked a stronger orange, surfaces slightly warmer, `--muted` and `--faint` lighter, and the danger fill light rose with dark text.\n\nNew `src/renderer/src/theme.contrast.test.ts` (13 tests) reads `styles.css` and the palette doc. It checks every `:root` color token against the doc's Proposed values in both directions, and enforces all 70 contrast pairs and thresholds in doc sections 5.1 to 5.5, compositing translucent tokens first. It proves it bites by breaking tokens in memory and asserting the exact failures."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m3w0xjat8axnbbrjzyc06ep2",
+      "state": "accepted",
+      "submittedAt": "2026-10-02T08:04:35.684Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:f5435088babbf0dbb1e124409abf8a3702519a167682760be937384d270bfa82",
+      "ticketId": "tk_01m3tyychq07sc0mpj1dca391g",
+      "updatedAt": "2026-10-02T08:04:35.842Z",
+      "worker": {
+        "catalogRevision": "2026-10-01.1",
+        "hostId": "claude-code-desktop-mac",
+        "label": "DM-6 worker (claude-opus-5-5)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Critical path for sprint 2: swaps every token and writes the contrast guard test the two restyle tickets build on; Opus for the highest score and care with the full token set.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-02T07:02:59.815Z",
+      "decidedAt": "2026-10-02T07:59:46.469Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator",
+        "notes": "Reviewed by the orchestrator: read the diff, re-ran lint, typecheck, tests, deadcode and build on the integrated branch (all pass), and checked the welcome and onboarding screenshots.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "0 errors, 0 warnings on the integrated branch at 403b825",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "all three projects, integrated branch",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "193 files / 3434 tests + fireguard suite 20 / 105, integrated branch",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "worker run on its commit (base 1633f38): all hard gates passed, mutation 363/365 with no survivors in DM-9 files; re-run on the fully integrated branch in DM-10",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found, integrated branch",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "electron-vite build, integrated branch",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Screenshot: 128 px mascot above 'Track a folder to get started'. MainViews.test 'shows the tech-priest above the heading, as a decorative image'."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Screenshot: 96 px mascot beside the 'isn't set up for Dark Mechanicus yet' heading and lede. OnboardingView.test 'shows the tech-priest with the setup heading'."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "EmptyState.test: 'renders an optional illustration above the title', 'shows the illustration instead of the icon when both are given', 'omits the illustration slot when none is given'; written first; existing tests unchanged; UnavailableView keeps its warning icon."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "alt=\"\" asserted; images imported through Vite; CSP unchanged; Mascot.test asserts no style attribute."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Five checks re-run on the integrated branch; fireguard passed on the worker's commit and is re-run on the integrated branch in DM-10."
+          }
+        ],
+        "notes": "Worker: Sonnet 5.5 subagent. The new PNGs are unoptimised sips output (27 KB and 94 KB); a lossless optimiser pass would shrink the 256 px file."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m3xprrz7r2jgkeksr846cz0j",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Before/after welcome screen",
+            "location": "scratchpad/shot/shots/DM-9/before-welcome.png, after-welcome.png",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Before/after onboarding screen",
+            "location": "scratchpad/shot/shots/DM-9/before-onboarding.png, after-onboarding.png, after-onboarding-1024.png",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "worktree-agent-a1e635581fecf7fec (merged into mechanicus-ui-revamp)",
+        "changedFiles": [
+          "src/renderer/src/assets/brand-icon-128.png",
+          "src/renderer/src/assets/brand-icon-256.png",
+          "src/renderer/src/components/Mascot.tsx",
+          "src/renderer/src/components/Mascot.test.tsx",
+          "src/renderer/src/components/EmptyState.tsx",
+          "src/renderer/src/components/EmptyState.test.tsx",
+          "src/renderer/src/app/MainViews.tsx",
+          "src/renderer/src/app/MainViews.test.tsx",
+          "src/renderer/src/onboarding/OnboardingView.tsx",
+          "src/renderer/src/onboarding/OnboardingView.test.tsx",
+          "src/renderer/src/styles.css"
+        ],
+        "commits": [
+          "38a951b0ddd41b11e1254ab086e35f79e353edae",
+          "403b825"
+        ],
+        "summary": "`EmptyState` gains an optional `illustration` slot that renders above the title and replaces the stroke icon when given; without it the output is unchanged. A new decorative `Mascot` component (`components/Mascot.tsx`: bundled 128 px and 256 px PNGs from `build/icon.png`, 1x/2x `srcSet`, `alt=\"\"`, sized by width and height attributes, no inline styles) shows the tech-priest at 128 px above the welcome heading and at 96 px beside the onboarding heading and lede. `UnavailableView` and the other empty states keep their stroke icons. Styles are limited to `.empty-state-illustration`, `.mascot` and `.onboarding-head` (now a two-column grid, max width 720 to 840 px so the heading still wraps in two lines), with no color values."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m3w0xjat8axnbbrjzyc06ep2",
+      "state": "accepted",
+      "submittedAt": "2026-10-02T07:59:46.230Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:1a4aa6578fc986b0758ba7cc8e4dc8ee0ce1b1409ea5a5e97ce7208a680da9af",
+      "ticketId": "tk_01m3tyychq27mw397j0qv8zw8a",
+      "updatedAt": "2026-10-02T07:59:46.469Z",
+      "worker": {
+        "catalogRevision": "2026-10-01.1",
+        "hostId": "claude-code-desktop-mac",
+        "label": "DM-9 worker (claude-sonnet-5-5)",
+        "modelId": "claude-sonnet-5-5",
+        "rationale": "Routine component extension with two call sites and tests; Sonnet covers routine reasoning and images at lower cost.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-02T08:04:46.612Z",
+      "decidedAt": "2026-10-02T09:04:50.518Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator",
+        "notes": "Reviewed by the orchestrator: read the stylesheet diff against the palette doc roles, re-ran lint, typecheck, tests, deadcode and build on the integrated branch (all pass), and checked the selected row, focus ring and primary-vs-danger screenshots.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "0 errors, 0 warnings on the integrated branch (9978404)",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "all three projects, integrated branch",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "195 files / 3463 tests + fireguard suite 20 / 105, integrated branch",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "worker run: grade A (100), mutation 363/365 (survivors in untouched EpicWorkspace.tsx); re-run on the fully integrated branch in DM-10",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found, integrated branch",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "electron-vite build, integrated branch",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Screenshots: the selected sidebar epic row has a crimson wash and ring bar, the focused menu button a crimson ring, and primary (bone on deep crimson) vs danger (dark ink on light rose) are clearly different. theme.roles.test.ts (15 tests) pins the roles."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "styles.test.ts 'hardcodes no hex color outside that :root block' passes on the integrated branch; translucent values use color-mix."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Before and after sets for the welcome screen, onboarding, folder home, expanded sidebar, dialogs and a toast at 1440x900 (the primary-vs-danger comparison is staged by adding a danger button through eval)."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "No existing renderer test changed except dropping the retired --btn-primary-hover contrast pair."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Five checks re-run on the integrated branch; fireguard passed on the worker's branch and is re-run on the integrated branch in DM-10."
+          }
+        ],
+        "notes": "Worker: Opus 5.5 subagent. The brand-mark lens glow is deliberately faint (30% lens, 5 px blur)."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m3xt9wwm37k3prggd07g912s",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Before (base 322ef68) and after: welcome, onboarding, folder home, expanded sidebar, dialogs, toast, menu, focus rings, primary vs danger, selected epic row, brand mark",
+            "location": "scratchpad/shot/shots/DM-7/before/ and scratchpad/shot/shots/DM-7/after/",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "worktree-agent-a9e45c498fdb07341 (merged into mechanicus-ui-revamp)",
+        "changedFiles": [
+          "src/renderer/src/styles.css",
+          "src/renderer/src/theme.roles.test.ts",
+          "src/renderer/src/theme.contrast.test.ts",
+          "docs/design/palette.md",
+          "src/main/index.ts",
+          "src/main/index.test.ts"
+        ],
+        "commits": [
+          "e79cada57f05f40252454ce605e86acb89d72b81",
+          "77cb311802e340ac41fa9563226018ad088d1558",
+          "9978404"
+        ],
+        "summary": "The shell now follows the palette roles. **Crimson:** `.btn-primary` and its hover, `.update-banner-restart` (plus a hover) and the active onboarding step fill with `--primary`/`--primary-hover` and `--primary-ink` text; `:focus-visible` and `.input:focus-visible` draw in `--ring`; `::selection` uses `--primary-soft`; the selected folder, status and epic rows in the sidebar get a `--primary-soft` wash plus a 2 px `--ring` bar (placed after the hover rules so a hovered active row keeps it). **Bone:** `.display`, `.dialog-title`, `.empty-state-title` and `.brand-name` use `--ink-display`. **Text fixes:** errors move from `--attention` to `--st-failed`; every `--faint`-as-text use moves to `--muted`. Links, warnings and the draft badge stay brass. Two token-based touches: a brass hairline under the brand bar and a faint lens glow on the brand mark. `--btn-primary-hover` is retired from `:root` and the palette doc. The window `backgroundColor` in `src/main/index.ts` is the new `--bg` `#151211`, with a test that reads `--bg` from `styles.css` so they can't drift."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m3w0xjat8axnbbrjzyc06ep2",
+      "state": "accepted",
+      "submittedAt": "2026-10-02T09:04:50.359Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:510868b5543d50ae15655ef6d6e38ceb72f12d8bb97bd5fcfa1ea03b739a55c0",
+      "ticketId": "tk_01m3tyychqjb873jngta3s4dzc",
+      "updatedAt": "2026-10-02T09:04:50.518Z",
+      "worker": {
+        "catalogRevision": "2026-10-01.1",
+        "hostId": "claude-code-desktop-mac",
+        "label": "DM-7 worker (claude-opus-5-5)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Visual restyle across many shell components where judgment about roles and subtle Mechanicus touches matters; Opus for design quality.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-02T08:04:46.781Z",
+      "decidedAt": "2026-10-02T09:20:43.080Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator",
+        "notes": "Reviewed by the orchestrator: read the report and the four extra changes (attention divider, Blocked legend entry, removed outlined danger button, list selection and bone titles), all within the palette doc roles; re-ran lint, typecheck, tests, deadcode and build on the integrated branch (all pass); checked the run-states and selected-running screenshots.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "0 errors, 0 warnings on the integrated branch (bfc6cad)",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "all three projects, integrated branch",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "196 files / 3482 tests + fireguard suite 20 / 105, integrated branch",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "worker run: grade A (100), mutation 373/374 (survivor in untouched EpicWorkspace.tsx); re-run on the fully integrated branch in DM-10",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found, integrated branch",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "electron-vite build, integrated branch; no old edge hex left in the bundle (worker)",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Screenshot of a real run with accepted, in review, running, ready, waiting and failed cards (plus blocked on the revamp epic), each a distinct color with its label; solid met edges vs dashed waiting edges. workspace.palette.test.ts asserts the 7 ticket tones and 7 run tones resolve to distinct colors; legend.test.ts now requires Blocked."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Zoom screenshot: selected running card has the crimson --ring with the lens glow outside it. Tests: 'rings the focused and the selected graph node with --ring', 'rings the running card in the lens green and lets it glow', 'keeps the glow around the selection ring when a running card is selected'. --ring is 4.71:1 on --bg and 4.40:1 on --node-bg."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "styles.test.ts passes on the integrated branch; no hex literal remains in non-test renderer TS (orchestrator grep), the two in flowElements.ts were removed."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "12 before / 12 after screenshots at 1440x900 covering a running plan graph, the ticket panel, a checkpoint with a failed gate and a draft with a validation error (duplicate_criterion_id)."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Five checks re-run on the integrated branch; fireguard passed on the worker's branch and is re-run on the integrated branch in DM-10."
+          }
+        ],
+        "notes": "Worker: Opus 5.5 subagent. Open choice for the person: the active sprint's LOCKED divider still uses the running tone (now lens green), also while paused; mapping it to brass would keep lens green to the pill, dot and glow only."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m3xt9x1xet1bme9442c4wm8b",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Before/after: running graph, selection and glow zooms, ticket panel, failed-gate checkpoint, draft with a validation error",
+            "location": "scratchpad/shot/shots/DM-8/",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "worktree-agent-a5b6ec3592f250193 (merged into mechanicus-ui-revamp)",
+        "changedFiles": [
+          "src/renderer/src/graph/graph.css",
+          "src/renderer/src/epic/epic.css",
+          "src/renderer/src/epic/tones.css",
+          "src/renderer/src/ticket/ticket.css",
+          "src/renderer/src/checkpoint/checkpoint.css",
+          "src/renderer/src/markdown/markdown.css",
+          "src/renderer/src/graph/flowElements.ts",
+          "src/renderer/src/graph/PlanGraph.tsx",
+          "src/renderer/src/graph/ticketStates.ts",
+          "src/renderer/src/graph/graphModel.ts",
+          "src/renderer/src/graph/nodes.tsx",
+          "src/renderer/src/graph/legend.ts",
+          "src/renderer/src/workspace.palette.test.ts",
+          "src/renderer/src/graph/flowElements.test.ts",
+          "src/renderer/src/graph/PlanGraph.test.tsx",
+          "src/renderer/src/graph/graphModel.test.ts",
+          "src/renderer/src/graph/legend.test.ts",
+          "src/renderer/src/epic/runBarView.test.ts",
+          "src/renderer/src/epic/EpicWorkspace.test.tsx"
+        ],
+        "commits": [
+          "d9dde6548f967ab13872a79aa8fba1c1d8b031b9",
+          "bfc6cad"
+        ],
+        "summary": "The epic workspace follows the palette roles. Crimson `--ring` marks the focused and selected node, the selected edge, new connections and the selected ticket tab; the selected list row is filled with `--primary-soft`. The running card's 16% ring became a lens-green glow (30% ring plus an 18 px halo), kept outside the crimson ring when a running card is selected. Links, inline code, the \"new\" tone and the active sprint heading stay brass; Markdown links brighten to `--accent-hover`. Workspace, ticket panel, checkpoint gate and graph epic titles use bone `--ink-display`.\n\nEdge arrowheads in `graph/flowElements.ts` now use `var(--edge)` and `var(--edge-waiting)` (React Flow paints markers through `style`, so the variables resolve), and the canvas dots come from `--xy-background-pattern-color: var(--line)`. No color literals remain in the graph TS. A new `attention` tone (orchid) covers awaiting checkpoint in the run bar and the awaiting-approval divider, matching the sidebar; Blocked is added to the legend; `.ew .btn-danger` (whose hover fell to about 2.2:1) is removed in favour of the approved light rose button. No `:root` tokens added or removed; `styles.css` untouched; layout and sprint label sizing unchanged."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m3w0xjat8axnbbrjzyc06ep2",
+      "state": "accepted",
+      "submittedAt": "2026-10-02T09:20:42.954Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:fc72744c2e48b9dee46b535b5c946952e284a9db2ca5f4d93bf526b04966aac1",
+      "ticketId": "tk_01m3tyychqczmcex77vdw3s6rj",
+      "updatedAt": "2026-10-02T09:20:43.080Z",
+      "worker": {
+        "catalogRevision": "2026-10-01.1",
+        "hostId": "claude-code-desktop-mac",
+        "label": "DM-8 worker (claude-opus-5-5)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Restyles the graph, ticket panel and checkpoint where state distinctness and the selected/running highlights must hold; Opus for careful visual and accessibility judgment.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-02T09:20:56.851Z",
+      "decidedAt": "2026-10-02T10:11:52.114Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator",
+        "notes": "Integration done and verified by the orchestrator: all six checks plus smoke:mcp pass on 06304f1, the final screenshot set was taken from one clean build, and each epic success criterion has evidence in the sprint 2 report.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "oxlint src scripts: exit 0 (integrated branch at 06304f1)",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "node, web and fireguard tsconfigs: 0 errors",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "vitest 196 files / 3482 tests, plus fireguard suite 20 files / 105 tests",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "grade A (score 100), all hard gates passed, 37 graded test files, mutation 373/374 killed",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "electron-vite build after fireguard finished, clean tree",
+            "name": "build",
+            "status": "passed"
+          },
+          {
+            "detail": "55 tools, 6 prompts; temp repo epic saved, one ticket accepted, comment round-trip",
+            "name": "smoke:mcp",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "DM-6, DM-7, DM-8 and DM-9 are merged into mechanicus-ui-revamp (merge commits in this submission); no conflicts arose."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "All six checks pass on the integrated branch at 06304f1; npm run smoke:mcp also passes."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "scratchpad/shot/shots/final/: 01 welcome, 02 onboarding, 03 folder home, 04 dialog, 07 running plan graph, 08 ticket panel, 09 sprint checkpoint, plus 05 long-goal graph and 06 completed overview. The update banner needs a pending update and was not reachable in the fixture."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "docs/design/README.md \"Visual direction\" describes the Mechanicus roles, links palette.md, and says the mockups predate the revamp."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Evidence for s1 to s8 is in the sprint 2 report epicOutcome and repeated in the notes below."
+          }
+        ],
+        "notes": "- **s1:** docs/design/palette.md derives every brand value from build/icon.png (crimson #b51a1f, bone #f2d7ae, brass #d69b4a, gunmetal #28211d, lens #84c20a; cited pixels re-read independently). DM-6 applied it; theme.contrast.test.ts checks all :root color tokens against the doc.\n- **s2:** styles.test.ts fails on any hex color in renderer CSS outside the :root block of styles.css; it passes. No hex literal remains in non-test renderer TS (the edge arrowheads now use var(--edge)/var(--edge-waiting)).\n- **s3:** Sidebar brand shows the tech-priest with \"All hail the machine spirit\" under the name (DM-5); the welcome and onboarding screens show the mascot (DM-9). Screenshots scratchpad/shot/shots/final/01-welcome.png, 02-onboarding.png, 03-folder-home.png.\n- **s4:** Palette doc section 4 collision rules (no state on the crimson hue; accepted moved to jade away from the lens). workspace.palette.test.ts asserts the 7 ticket tones and 7 run tones resolve to distinct colors; every card and pill keeps its text label; Blocked added to the legend. Screenshot scratchpad/shot/shots/final/07-plan-graph-running.png shows accepted, in review, running, ready, waiting and failed together.\n- **s5:** theme.contrast.test.ts enforces the palette doc sections 5.1 to 5.5 (70 pairs): body text and state labels at least 4.5:1 on their surfaces, --faint and --ring at least 3:1; guard tests prove it fails when a token breaks contrast.\n- **s6:** All six pass on the integrated branch at 06304f1: lint passed, typecheck passed, test passed, fireguard passed, deadcode passed, build passed, smoke:mcp passed.\n- **s7:** src/integration/epicDrafts.test.ts drives the desktop handlers over two folders and asserts saving, discarding, status changes and queueing on one epic leave every other epic's summary and draft unchanged; the reported symptom (an edited epic reopening in the Saved view) is fixed and covered by workspaceState and EpicWorkspace.draft tests (DM-11).\n- **s8:** Sprint labels reserve their height and clamp long goals (DM-21, layout tests; scratchpad/shot/shots/final/05-long-goal-graph.png). A completed epic offers a read-only Epic report that survives the final approval and loads from portable records (DM-22). Its text wraps at a reading width at 1024, 1280 and 1440 px (DM-23; scratchpad/shot/shots/final/06-completed-overview-1280.png)."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m3xync0kx8hc7xfkrdpy3tyz",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Final screenshots: welcome, onboarding, folder home, dialog, long-goal graph, completed overview, running graph, ticket panel, checkpoint",
+            "location": "scratchpad/shot/shots/final/",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Pre-revamp screenshots for comparison",
+            "location": "scratchpad/shot/shots/pre-revamp/",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "mechanicus-ui-revamp",
+        "changedFiles": [
+          "docs/design/README.md",
+          "docs/design/palette.md"
+        ],
+        "commits": [
+          "06304f1",
+          "bfc6cad",
+          "9978404",
+          "322ef68",
+          "403b825"
+        ],
+        "summary": "Integrated sprint 2 on `mechanicus-ui-revamp`: DM-9, DM-6, DM-7 and DM-8 were merged in that order. No conflicts; DM-6 and DM-9 touched separate parts of `styles.css`, and DM-7 and DM-8 owned separate stylesheets under a no-new-tokens rule. Ran all six checks on the integrated branch, took the final screenshot set from one clean build, and rewrote the \"Visual direction\" section of `docs/design/README.md` around the Mechanicus palette, linking `palette.md` and noting that the static mockups predate the revamp. The palette doc's status line now says approved and applied."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m3w0xjat8axnbbrjzyc06ep2",
+      "state": "accepted",
+      "submittedAt": "2026-10-02T10:11:51.957Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:7a627ac3e7ea476af7631017e18f2ea2400a60131d38ed6fe348b164f867dd1f",
+      "ticketId": "tk_01m3tyychqbd8g26x1eh0n13jv",
+      "updatedAt": "2026-10-02T10:11:52.114Z",
+      "worker": {
+        "catalogRevision": "2026-10-01.1",
+        "hostId": "claude-code-desktop-mac",
+        "label": "orchestrator (claude-opus-5-5)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "The integration ticket is merge order, combined checks and evidence for every success criterion; the orchestrator already merged every branch and holds the review context, so it does the work itself on Opus.",
+        "sessionId": null
+      }
+    }
+  ],
+  "checkpoints": [
+    {
+      "decidedAt": "2026-10-02T07:01:30.989Z",
+      "decidedBy": "ss_01m3txs8cszadspzsd81328dt0",
+      "id": "ck_01m3xpp27drestq7tkrqs56dpt",
+      "outcome": "advanced",
+      "policy": "human",
+      "reportId": "rp_01m3xn7x61ffm4tdjbvj7s7c30",
+      "sprintId": "sp_01m3tyvx2t9c2g79fc6h3ksjea"
+    },
+    {
+      "decidedAt": "2026-10-02T13:06:01.503Z",
+      "decidedBy": "ss_01m3txs8cszadspzsd81328dt0",
+      "id": "ck_01m3ybhg4znkybzy0zawjmv9a7",
+      "outcome": "completed",
+      "policy": "human",
+      "reportId": "rp_01m3y1jksp4tza90y38qt8vhv2",
+      "sprintId": "sp_01m3tyychp0ntnpq5n28ckcsbq"
+    }
+  ],
+  "createdAt": "2026-10-02T03:25:25.536Z",
+  "endedAt": "2026-10-02T13:06:01.503Z",
+  "epicId": "ep_01m3tyvx2t4scbd6g2fp1z7yxb",
+  "format": "darkmechanicus.run",
+  "formatVersion": 1,
+  "host": {
+    "label": "Claude Code (desktop)",
+    "type": "claude-code"
+  },
+  "hostCatalogId": "hc_01m3xaa7tyhene9mnwjpsdpadv",
+  "number": 1,
+  "ownerMachineId": "mc_01m3txs8ccqdybpr4wd3wygaxw",
+  "pauseReason": null,
+  "reports": [
+    {
+      "content": {
+        "accepted": [
+          "DM-3 Move hardcoded renderer colors into theme tokens: 26 literals (not 9) routed through 9 role-named tokens, byte-identical after substitution, guarded by styles.test.ts.",
+          "DM-4 Define the Mechanicus palette from the app icon: docs/design/palette.md with icon-traced values, roles, collision rules and a contrast table (0 required failures, independently recomputed).",
+          "DM-5 Add the tech-priest icon and the tagline to the sidebar brand: 32 px mascot with 1x/2x sources, tagline under the name, favicon regenerated.",
+          "DM-11 Fix: taking one epic out of draft takes every epic out of draft: 2 attempts. Epics with unsaved changes reopen in Draft, view choice remembered per epic, draft badge only for real changes, two-folder isolation tests.",
+          "DM-21 Fix: long sprint goals overlap the checkpoint divider: layout reserves the label height and clamps the goal to 6 lines with the full text in a title.",
+          "DM-22 Fix: a completed epic's overview disappears: read-only Epic report with outcome, criteria and sprint reports, kept open after the final approval, works from portable records.",
+          "DM-23 Fix: completed overview text wraps one word per line: report sentences no longer land in the 72 px key column; checks list wraps cleanly."
+        ],
+        "blocked": [],
+        "changes": {
+          "commits": [
+            "1633f38 Merge DM-23: completed overview text wraps at a reading width",
+            "5263c8f DM-23: stop report entries wrapping one word per line in the key column",
+            "29d9f80 Merge DM-11 retry: reopen an epic in the draft view it was left in",
+            "0c71e6c DM-11: reopen an epic in the draft view it was left in",
+            "a28b9f9 Merge DM-22: completed epics keep a read-only overview",
+            "ae22363 Merge DM-11: draft badge only for real changes, two-epic draft isolation tests",
+            "c5d6904 DM-4: use the token names DM-3 shipped in the palette doc",
+            "5fd0724 Merge DM-4: Mechanicus palette proposal",
+            "ccaa65e DM-4: define the Mechanicus palette from the app icon",
+            "2bf0539 DM-11: prove an action on one epic leaves other epics' drafts alone",
+            "b194f05 DM-11: badge a draft only when it differs from the saved plan",
+            "8d96614 DM-22: keep a completed epic's overview and let it be reopened",
+            "011f414 Merge DM-21: keep long sprint goals clear of the checkpoint divider",
+            "47e24b2 DM-21: reserve room for long sprint goals so labels clear the checkpoint divider",
+            "ea8fd60 Merge DM-5: tech-priest icon and tagline in the sidebar brand",
+            "95b8ca4 Merge DM-3: route renderer colors through theme tokens",
+            "d0f5b33 DM-5: add the tech-priest icon and tagline to the sidebar brand",
+            "f2bac63 DM-3: route renderer colors through theme tokens"
+          ],
+          "files": [
+            ".tsprune-ignore",
+            "docs/design/palette.md",
+            "src/core/services/epics.test.ts",
+            "src/core/services/epics.ts",
+            "src/integration/completedEpic.test.ts",
+            "src/integration/epicDrafts.test.ts",
+            "src/renderer/public/favicon.png",
+            "src/renderer/src/App.sidebar.test.tsx",
+            "src/renderer/src/__mocks__/fixtures.ts",
+            "src/renderer/src/assets/brand-icon-32.png",
+            "src/renderer/src/assets/brand-icon-64.png",
+            "src/renderer/src/checkpoint/CheckpointScreen.test.tsx",
+            "src/renderer/src/checkpoint/CheckpointScreen.tsx",
+            "src/renderer/src/checkpoint/EpicOverview.test.tsx",
+            "src/renderer/src/checkpoint/EpicOverview.tsx",
+            "src/renderer/src/checkpoint/checkpoint.css",
+            "src/renderer/src/checkpoint/checkpointStyles.test.ts",
+            "src/renderer/src/checkpoint/gateView.test.ts",
+            "src/renderer/src/checkpoint/gateView.ts",
+            "src/renderer/src/checkpoint/overviewView.test.ts",
+            "src/renderer/src/checkpoint/overviewView.ts",
+            "src/renderer/src/components/Icon.test.tsx",
+            "src/renderer/src/components/Icon.tsx",
+            "src/renderer/src/epic/EpicWorkspace.draft.test.tsx",
+            "src/renderer/src/epic/EpicWorkspace.run.test.tsx",
+            "src/renderer/src/epic/EpicWorkspace.tsx",
+            "src/renderer/src/epic/RunBar.tsx",
+            "src/renderer/src/epic/__mocks__/fakeBackend.ts",
+            "src/renderer/src/epic/__mocks__/fixtures.ts",
+            "src/renderer/src/epic/__mocks__/renderWorkspace.tsx",
+            "src/renderer/src/epic/runBarView.test.ts",
+            "src/renderer/src/epic/runBarView.ts",
+            "src/renderer/src/epic/tones.css",
+            "src/renderer/src/epic/useWorkspace.ts",
+            "src/renderer/src/epic/viewMemory.test.ts",
+            "src/renderer/src/epic/viewMemory.ts",
+            "src/renderer/src/epic/workspaceActions.test.ts",
+            "src/renderer/src/epic/workspaceActions.ts",
+            "src/renderer/src/epic/workspaceLoad.test.ts",
+            "src/renderer/src/epic/workspaceLoad.ts",
+            "src/renderer/src/epic/workspaceState.test.ts",
+            "src/renderer/src/epic/workspaceState.ts",
+            "src/renderer/src/graph/PlanGraph.test.tsx",
+            "src/renderer/src/graph/flowElements.test.ts",
+            "src/renderer/src/graph/graph.css",
+            "src/renderer/src/graph/graphModel.test.ts",
+            "src/renderer/src/graph/graphModel.ts",
+            "src/renderer/src/graph/nodes.tsx",
+            "src/renderer/src/graph/sprintLabel.test.ts",
+            "src/renderer/src/graph/sprintLabel.ts",
+            "src/renderer/src/home/EpicBuckets.test.tsx",
+            "src/renderer/src/sidebar/EpicRow.test.tsx",
+            "src/renderer/src/sidebar/Sidebar.test.tsx",
+            "src/renderer/src/sidebar/Sidebar.tsx",
+            "src/renderer/src/sidebar/brandStyles.test.ts",
+            "src/renderer/src/sidebar/epicStatusLine.test.ts",
+            "src/renderer/src/sidebar/epicStatusLine.ts",
+            "src/renderer/src/styles.css",
+            "src/renderer/src/styles.test.ts",
+            "src/shared/domain/views.ts"
+          ]
+        },
+        "checks": [
+          {
+            "detail": "oxlint src scripts: 0 errors, 0 warnings (integrated branch at 1633f38)",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "node, web and fireguard tsconfigs: 0 errors",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "vitest 192 files / 3426 tests, plus fireguard suite 20 files / 105 tests",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "grade A (score 100), all hard gates passed",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "electron-vite build, run after fireguard finished on a clean tree",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "epicOutcome": null,
+        "exitCriteria": [
+          {
+            "criterionId": "e1",
+            "met": true,
+            "note": "DM-3: hex literals only inside :root of styles.css; substitution reproduces the old CSS byte for byte; styles.test.ts guards it."
+          },
+          {
+            "criterionId": "e2",
+            "met": true,
+            "note": "DM-4: docs/design/palette.md covers all 37 :root color tokens with roles, collision rules and a contrast table (0 required failures, independently recomputed), with seven decisions to confirm."
+          },
+          {
+            "criterionId": "e3",
+            "met": true,
+            "note": "DM-5: mascot and tagline in the sidebar brand (screenshot); favicon.png regenerated from build/icon.png."
+          },
+          {
+            "criterionId": "e4",
+            "met": true,
+            "note": "DM-11: src/integration/epicDrafts.test.ts proves save, discard, status change and queue run on one epic leave other epics' drafts unchanged across two folders; the view-reset symptom is fixed and tested."
+          },
+          {
+            "criterionId": "e5",
+            "met": true,
+            "note": "DM-21: label clears the checkpoint pill with a 320-character goal (screenshots, layout tests). DM-22/DM-23: completed overview opens from Epic report, survives the final approval, and wraps at 1024/1280/1440 (screenshots)."
+          }
+        ],
+        "failed": [],
+        "followUps": [
+          {
+            "body": "`src/renderer/src/graph/flowElements.ts` hardcodes `MET_COLOR = \"#8a8070\"` and `WAITING_COLOR = \"#6a6254\"` for edge arrowheads (TS, so the CSS guard test cannot see them). Apply in DM-6 or DM-8 so arrowheads follow `--edge` / `--edge-waiting` after the palette swap. Also recorded as a comment on DM-6.",
+            "title": "Route the graph edge arrowhead colors through tokens"
+          },
+          {
+            "body": "At a 1024 px window the report column is 308 px wide (272 px sidebar plus the 360 px gate card). A layout that stacks the gate below the report under about 900 px of stage width would read better; it moves the Approve button, so it needs a design decision.",
+            "title": "Stack the checkpoint gate under the report at narrow widths"
+          },
+          {
+            "body": "This sprint used a scratch harness (isolated Electron user-data dir, throwaway fixture repo from the portable records, CDP screenshots at set viewports). A `scripts/` version would let restyle tickets (DM-7, DM-8) attach before/after screenshots reproducibly.",
+            "title": "Commit a screenshot harness for visual evidence"
+          },
+          {
+            "body": "The mutation gate edits production files in place, so a concurrent build, dev server or editor save can pick up or clobber a mutant. Running mutants in a temporary copy or worktree would remove the hazard.",
+            "title": "Run fireguard mutation testing on a copy of the tree"
+          },
+          {
+            "body": "docs/design/palette.md notes `--bg-canvas` is defined in `:root` but used nowhere.",
+            "title": "Remove the unused --bg-canvas token"
+          }
+        ],
+        "risks": [
+          "Palette not yet approved: sprint 2 (DM-6 onward) must not start until the person approves docs/design/palette.md or records changes (sprint 2 entry criterion n1).",
+          "The epic branch includes origin/main's v0.9.0 version bump (443b9d7): worker worktrees were created from origin/main, so the epic branch was fast-forwarded to it before the first merge.",
+          "fireguard's mutation gate rewrites source files in place while it runs; one orchestrator build during that window picked up a mutant (caught and rebuilt). Builds and screenshots must not overlap fireguard.",
+          "DM-11: no data-layer cross-epic bug was found. The person confirmed the view reset as their symptom, but the second tracked folder (davgor.github.io) was never inspected (reading it was blocked by permissions).",
+          "Screenshots were taken from an isolated dev build against a throwaway copy of the repository records, not the installed app; they live in the session scratchpad, not the repository.",
+          "Sprint label sizing in graph/sprintLabel.ts mirrors the 18 px line height, 140 px width and 30 px button in graph.css; a font or size change there must update both."
+        ],
+        "summary": "Sprint 1 met its goal. Every renderer color now flows through `:root` tokens with no visual change, `docs/design/palette.md` proposes the Mechanicus palette for approval, and the sidebar brand shows the tech-priest with \"All hail the machine spirit\". All four bug fixes landed: long sprint goals no longer overlap the checkpoint divider, a completed epic keeps a read-only Epic report overview that reads at a normal width, and an epic left mid-edit reopens in its Draft view instead of looking \"out of draft\". DM-11 took two attempts. The data layer never changed other epics' drafts; the reported symptom was the workspace resetting to the Saved view, which the person confirmed, and the retry fixed it. All seven tickets were accepted after the orchestrator merged each into `mechanicus-ui-revamp`, re-ran the six checks on the integrated branch and verified visual criteria in screenshots of an isolated build. **Decision needed at this checkpoint:** approve `docs/design/palette.md` (or record changes in a comment) before sprint 2 applies it; section 7 lists seven decisions, each with an alternative."
+      },
+      "contentHash": "sha256:19002ce5b4e59a739c2874a4fd320fbb0f0547f82695d91d1ec528440cf2cbc1",
+      "createdAt": "2026-10-02T06:36:18.497Z",
+      "id": "rp_01m3xn7x61ffm4tdjbvj7s7c30",
+      "reportRevision": 1,
+      "sprintId": "sp_01m3tyvx2t9c2g79fc6h3ksjea",
+      "submittedBy": "Claude Code orchestrator"
+    },
+    {
+      "content": {
+        "accepted": [
+          "DM-6 Apply the Mechanicus palette to the theme tokens: all 44 :root color tokens match the approved doc; theme.contrast.test.ts enforces 70 contrast pairs and the doc match.",
+          "DM-7 Restyle the shell, sidebar and home screens: crimson primary buttons, focus ring and active row; bone titles; light rose danger buttons; window background follows --bg.",
+          "DM-8 Restyle the epic workspace, plan graph, ticket panel and checkpoint: crimson selection ring, lens running glow, token arrowheads, orchid awaiting checkpoint, Blocked in the legend.",
+          "DM-9 Show the mascot on the welcome and onboarding screens: optional EmptyState illustration and a shared decorative Mascot component.",
+          "DM-10 Integrate the Mechanicus revamp and verify it end to end: merged, checked, screenshotted, design README updated, evidence for s1 to s8."
+        ],
+        "blocked": [],
+        "changes": {
+          "commits": [
+            "06304f1 DM-10: describe the Mechanicus visual direction in the design README",
+            "bfc6cad Merge DM-8: restyle the epic workspace, graph, ticket panel and checkpoint",
+            "9978404 Merge DM-7: restyle the shell, sidebar and home for the Mechanicus palette",
+            "d9dde65 DM-8: restyle the epic workspace for the Mechanicus palette",
+            "77cb311 DM-7: paint the window background in the theme's new --bg",
+            "e79cada DM-7: restyle the shell, sidebar and home screens for the Mechanicus palette",
+            "322ef68 Merge DM-6: apply the Mechanicus palette to the theme tokens",
+            "403b825 Merge DM-9: tech-priest on the welcome and onboarding screens",
+            "be0ca85 DM-6: apply the Mechanicus palette to the theme tokens",
+            "0005042 DM-6: add the palette contrast guard test (red against today's tokens)",
+            "38a951b DM-9: show the tech-priest on the welcome and onboarding screens"
+          ],
+          "files": [
+            "docs/design/README.md",
+            "docs/design/palette.md",
+            "src/main/index.test.ts",
+            "src/main/index.ts",
+            "src/renderer/src/app/MainViews.test.tsx",
+            "src/renderer/src/app/MainViews.tsx",
+            "src/renderer/src/assets/brand-icon-128.png",
+            "src/renderer/src/assets/brand-icon-256.png",
+            "src/renderer/src/checkpoint/checkpoint.css",
+            "src/renderer/src/components/EmptyState.test.tsx",
+            "src/renderer/src/components/EmptyState.tsx",
+            "src/renderer/src/components/Mascot.test.tsx",
+            "src/renderer/src/components/Mascot.tsx",
+            "src/renderer/src/epic/EpicWorkspace.test.tsx",
+            "src/renderer/src/epic/epic.css",
+            "src/renderer/src/epic/runBarView.test.ts",
+            "src/renderer/src/epic/tones.css",
+            "src/renderer/src/graph/PlanGraph.test.tsx",
+            "src/renderer/src/graph/PlanGraph.tsx",
+            "src/renderer/src/graph/flowElements.test.ts",
+            "src/renderer/src/graph/flowElements.ts",
+            "src/renderer/src/graph/graph.css",
+            "src/renderer/src/graph/graphModel.test.ts",
+            "src/renderer/src/graph/graphModel.ts",
+            "src/renderer/src/graph/legend.test.ts",
+            "src/renderer/src/graph/legend.ts",
+            "src/renderer/src/graph/nodes.tsx",
+            "src/renderer/src/graph/ticketStates.ts",
+            "src/renderer/src/markdown/markdown.css",
+            "src/renderer/src/onboarding/OnboardingView.test.tsx",
+            "src/renderer/src/onboarding/OnboardingView.tsx",
+            "src/renderer/src/styles.css",
+            "src/renderer/src/theme.contrast.test.ts",
+            "src/renderer/src/theme.roles.test.ts",
+            "src/renderer/src/ticket/ticket.css",
+            "src/renderer/src/workspace.palette.test.ts"
+          ]
+        },
+        "checks": [
+          {
+            "detail": "oxlint src scripts: exit 0 (integrated branch at 06304f1)",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "node, web and fireguard tsconfigs: 0 errors",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "vitest 196 files / 3482 tests, plus fireguard suite 20 files / 105 tests",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "grade A (score 100), all hard gates passed, 37 graded test files, mutation 373/374 killed",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "electron-vite build after fireguard finished, clean tree",
+            "name": "build",
+            "status": "passed"
+          },
+          {
+            "detail": "55 tools, 6 prompts; temp repo epic saved, one ticket accepted, comment round-trip",
+            "name": "smoke:mcp",
+            "status": "passed"
+          }
+        ],
+        "epicOutcome": {
+          "successCriteria": [
+            {
+              "criterionId": "s1",
+              "met": true,
+              "note": "docs/design/palette.md derives every brand value from build/icon.png (crimson #b51a1f, bone #f2d7ae, brass #d69b4a, gunmetal #28211d, lens #84c20a; cited pixels re-read independently). DM-6 applied it; theme.contrast.test.ts checks all :root color tokens against the doc."
+            },
+            {
+              "criterionId": "s2",
+              "met": true,
+              "note": "styles.test.ts fails on any hex color in renderer CSS outside the :root block of styles.css; it passes. No hex literal remains in non-test renderer TS (the edge arrowheads now use var(--edge)/var(--edge-waiting))."
+            },
+            {
+              "criterionId": "s3",
+              "met": true,
+              "note": "Sidebar brand shows the tech-priest with \"All hail the machine spirit\" under the name (DM-5); the welcome and onboarding screens show the mascot (DM-9). Screenshots scratchpad/shot/shots/final/01-welcome.png, 02-onboarding.png, 03-folder-home.png."
+            },
+            {
+              "criterionId": "s4",
+              "met": true,
+              "note": "Palette doc section 4 collision rules (no state on the crimson hue; accepted moved to jade away from the lens). workspace.palette.test.ts asserts the 7 ticket tones and 7 run tones resolve to distinct colors; every card and pill keeps its text label; Blocked added to the legend. Screenshot scratchpad/shot/shots/final/07-plan-graph-running.png shows accepted, in review, running, ready, waiting and failed together."
+            },
+            {
+              "criterionId": "s5",
+              "met": true,
+              "note": "theme.contrast.test.ts enforces the palette doc sections 5.1 to 5.5 (70 pairs): body text and state labels at least 4.5:1 on their surfaces, --faint and --ring at least 3:1; guard tests prove it fails when a token breaks contrast."
+            },
+            {
+              "criterionId": "s6",
+              "met": true,
+              "note": "All six pass on the integrated branch at 06304f1: lint passed, typecheck passed, test passed, fireguard passed, deadcode passed, build passed, smoke:mcp passed."
+            },
+            {
+              "criterionId": "s7",
+              "met": true,
+              "note": "src/integration/epicDrafts.test.ts drives the desktop handlers over two folders and asserts saving, discarding, status changes and queueing on one epic leave every other epic's summary and draft unchanged; the reported symptom (an edited epic reopening in the Saved view) is fixed and covered by workspaceState and EpicWorkspace.draft tests (DM-11)."
+            },
+            {
+              "criterionId": "s8",
+              "met": true,
+              "note": "Sprint labels reserve their height and clamp long goals (DM-21, layout tests; scratchpad/shot/shots/final/05-long-goal-graph.png). A completed epic offers a read-only Epic report that survives the final approval and loads from portable records (DM-22). Its text wraps at a reading width at 1024, 1280 and 1440 px (DM-23; scratchpad/shot/shots/final/06-completed-overview-1280.png)."
+            }
+          ],
+          "summary": "Dark Mechanicus now looks like it belongs to the Adeptus Mechanicus. Its palette comes from the tech-priest icon: crimson primary, brass secondary, bone display ink, gunmetal surfaces and a sparing lens green. Every color is a :root token guarded by tests for hardcoded colors, doc drift and WCAG contrast, and the mascot appears in the sidebar and on the first-run screens. Along the way, four reported bugs were fixed: drafts appearing to leave draft, sprint labels overlapping checkpoints, the vanishing completed-epic overview, and its one-word-per-line text."
+        },
+        "exitCriteria": [
+          {
+            "criterionId": "e1",
+            "met": true,
+            "note": "DM-6: the approved palette is in :root and theme.contrast.test.ts guards contrast and the doc match."
+          },
+          {
+            "criterionId": "e2",
+            "met": true,
+            "note": "DM-7 and DM-8: shell and epic workspace restyled, with before and after screenshots for each."
+          },
+          {
+            "criterionId": "e3",
+            "met": true,
+            "note": "DM-9: welcome and onboarding show the mascot (screenshots)."
+          },
+          {
+            "criterionId": "e4",
+            "met": true,
+            "note": "DM-10: all six checks pass on the integrated branch at 06304f1, with evidence for every epic success criterion."
+          }
+        ],
+        "failed": [],
+        "followUps": [
+          {
+            "body": "The LOCKED · n OF m ACCEPTED divider uses the running tone, now lens green, also while a run is paused. Mapping it to brass would keep lens green to the running pill, dot and glow only (palette doc section 2).",
+            "title": "Decide the colour of the active sprint LOCKED divider"
+          },
+          {
+            "body": "Brass --accent and --tone-edited (#e8b86a) read close together; dashed vs solid borders and the labels carry the difference today. Needs a token change and a palette doc update.",
+            "title": "Separate \"New in rev\" from \"Edited\" in the draft legend"
+          },
+          {
+            "body": "brand-icon-128.png (27 KB) and brand-icon-256.png (94 KB) are unoptimised sips output. A lossless pass would shrink them.",
+            "title": "Optimise the mascot PNGs"
+          },
+          {
+            "body": "At a 1024 px window the report column is 308 px wide beside the 360 px gate card. Carried over from sprint 1.",
+            "title": "Stack the checkpoint gate under the report at narrow widths"
+          },
+          {
+            "body": "The scratch harness (isolated user-data dir, fixture repo from portable records, CDP screenshots) made visual evidence reproducible this epic and belongs in scripts/. Separately, fireguard should mutate a temporary copy rather than the working tree.",
+            "title": "Commit the screenshot harness and run fireguard mutants in a copy"
+          },
+          {
+            "body": "Worker fireguard runs reported surviving mutants at src/renderer/src/epic/EpicWorkspace.tsx lines 50 and 134, and the final integrated run still has one survivor there: a test gap in the workspace shell.",
+            "title": "Kill the two surviving EpicWorkspace.tsx mutants"
+          }
+        ],
+        "risks": [
+          "Screenshots come from an isolated dev build against throwaway copies of the repository records, not the installed app (v0.8.0). The installed app shows none of this until a release is built from main.",
+          "mechanicus-ui-revamp is not pushed or merged. It also carries the untracked .darkmechanicus epic records and .mcp.json in the working tree, which were never committed.",
+          "The primary-vs-danger comparison screenshot in DM-7 is staged: the harness added a danger button beside \"New epic\", since no screen shows both.",
+          "theme.contrast.test.ts ties :root to the palette doc in both directions, so any future token change must update docs/design/palette.md section 3 (and section 5 for contrast pairs).",
+          "fireguard grades every module changed against main, so each worker re-graded the whole epic (50 to 75 minutes per run), and its mutation gate rewrites source files in place."
+        ],
+        "summary": "Sprint 2 met its goal: the whole app now uses the Mechanicus palette and the tech-priest greets new users. DM-6 applied the approved palette to the `:root` tokens behind a contrast guard test that also keeps the tokens and `docs/design/palette.md` in step. DM-7 moved primary actions, focus rings and the active sidebar row to crimson with bone titles, and DM-8 did the same for the epic workspace, graph, ticket panel and checkpoint, including a lens-green running glow and token-driven edge arrowheads. DM-9 put the mascot on the welcome and onboarding screens. DM-10 integrated the branch, re-ran every check, took the final screenshots and rewrote the design README. All five tickets were accepted on their first attempt, and every epic success criterion (s1 to s8) has evidence. Merging `mechanicus-ui-revamp` into `main` is a separate step for the person."
+      },
+      "contentHash": "sha256:80544cd1025ddb1b24043c121abf7caed005734b33738df746635759b28a9ea0",
+      "createdAt": "2026-10-02T10:11:52.246Z",
+      "id": "rp_01m3y1jksp4tza90y38qt8vhv2",
+      "reportRevision": 1,
+      "sprintId": "sp_01m3tyychp0ntnpq5n28ckcsbq",
+      "submittedBy": "Claude Code orchestrator"
+    }
+  ],
+  "revisionId": "rv_01m3w0xjat8axnbbrjzyc06ep2",
+  "runId": "rn_01m3xaacn05hve1r51rn8hv26v",
+  "skillVersion": "1.1.0",
+  "startedAt": "2026-10-02T03:25:25.537Z",
+  "state": "completed",
+  "updatedAt": "2026-10-02T13:06:01.503Z"
+}

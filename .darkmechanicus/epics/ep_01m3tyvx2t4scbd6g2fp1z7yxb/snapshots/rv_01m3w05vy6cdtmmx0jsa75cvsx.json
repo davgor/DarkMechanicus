@@ -1,0 +1,1229 @@
+{
+  "baseRevisionId": "rv_01m3vywqdtyaaz09021vye5skr",
+  "bundle": {
+    "edges": [
+      {
+        "from": "tk_01m3tyychppab0t8b70mdk43p5",
+        "to": "tk_01m3tyychq07sc0mpj1dca391g"
+      },
+      {
+        "from": "tk_01m3tyychqv82vnsame123ab73",
+        "to": "tk_01m3tyychq07sc0mpj1dca391g"
+      },
+      {
+        "from": "tk_01m3tyychq07sc0mpj1dca391g",
+        "to": "tk_01m3tyychqjb873jngta3s4dzc"
+      },
+      {
+        "from": "tk_01m3tyychq07sc0mpj1dca391g",
+        "to": "tk_01m3tyychqczmcex77vdw3s6rj"
+      },
+      {
+        "from": "tk_01m3tyychqx4qcqp76fd6w3xtt",
+        "to": "tk_01m3tyychq27mw397j0qv8zw8a"
+      },
+      {
+        "from": "tk_01m3tyychqjb873jngta3s4dzc",
+        "to": "tk_01m3tyychqbd8g26x1eh0n13jv"
+      },
+      {
+        "from": "tk_01m3tyychqczmcex77vdw3s6rj",
+        "to": "tk_01m3tyychqbd8g26x1eh0n13jv"
+      },
+      {
+        "from": "tk_01m3tyychq27mw397j0qv8zw8a",
+        "to": "tk_01m3tyychqbd8g26x1eh0n13jv"
+      },
+      {
+        "from": "tk_01m3vzynetd2vnkw9bmmah76yq",
+        "to": "tk_01m3tyychqbd8g26x1eh0n13jv"
+      }
+    ],
+    "epic": {
+      "intent": "Make the desktop app look like it belongs to the Adeptus Mechanicus, matching the app icon.\n\n**Today:** the renderer uses a generic graphite \"forge console\" palette with an amber accent (`src/renderer/src/styles.css`), and the sidebar brand is a stroke hex glyph. The chibi tech-priest appears in the dock/taskbar and the favicon, but nowhere a person actually looks inside the app.\n\n**Outcome:** a palette taken from the icon (Mars crimson hood and robe, bone/ivory cog trim, brass fittings, gunmetal respirator, with the green cybernetic lens as a sparing highlight) applied across the shell, sidebar, home, epic workspace, plan graph, ticket panel and checkpoint screens. The tech-priest becomes the sidebar brand mark and greets people on the welcome and onboarding screens.\n\n**Why:** the app should feel like one product with its icon, and the palette change is a chance to route every color through tokens and guard contrast with a test.\n\n**Out of scope:** layout or information-architecture changes, new features, a light theme, new fonts, regenerating the icon artwork, and packaging icons (`build/icon.icns`, `build/icon.ico`; done in board epic 019).\n\n**Bundled bug fix:** taking one epic out of draft currently takes every epic out of draft. It is fixed in sprint 1 so later sprints can run with several epics open.",
+      "ownerRole": null,
+      "successCriteria": [
+        {
+          "id": "s1",
+          "text": "The desktop app's colors come from a Mechanicus palette derived from the app icon (crimson, bone, brass, gunmetal), documented in `docs/design/palette.md`."
+        },
+        {
+          "id": "s2",
+          "text": "Every renderer color flows through `:root` tokens in `src/renderer/src/styles.css`; no component stylesheet hardcodes a hex color."
+        },
+        {
+          "id": "s3",
+          "text": "The sidebar brand shows the tech-priest icon, and the welcome and onboarding screens show the mascot."
+        },
+        {
+          "id": "s4",
+          "text": "Every ticket and run state stays distinguishable from the brand colors and from each other, and always shows its text label."
+        },
+        {
+          "id": "s5",
+          "text": "Body text and state labels meet WCAG AA contrast (at least 4.5:1) on their surfaces, enforced by a unit test."
+        },
+        {
+          "id": "s6",
+          "text": "Lint, typecheck, unit tests, fireguard, deadcode and build pass on the integrated branch."
+        },
+        {
+          "id": "s7",
+          "text": "Saving, discarding or changing the status of one epic leaves every other epic's draft untouched, covered by a regression test."
+        }
+      ],
+      "title": "Mechanicus UI revamp: crimson, brass and the tech-priest mascot"
+    },
+    "formatVersion": 1,
+    "policies": {
+      "leaseSeconds": 900,
+      "maxConcurrency": null,
+      "onTicketFailure": "continue_independent",
+      "retryLimit": 3
+    },
+    "rationale": "**Shape.** Two sprints. Sprint 1 does the safe groundwork in parallel (token consolidation, the palette proposal, the sidebar brand mark), so the sprint 1 checkpoint is a real decision: the person approves the palette before anyone applies it. Sprint 2 applies the palette (with a contrast guard test written first), then restyles the shell and the epic workspace in parallel, adds the mascot to the first-run screens, and ends with an integration ticket.\n\n**Critical path:** palette (or token consolidation) → apply palette → shell or workspace restyle → integrate.\n\n**Integration ticket.** The shell restyle and the mascot ticket both edit `src/renderer/src/styles.css`, and the workspace restyle edits the shared tones, so the integration ticket owns merging, conflict resolution, the full check suite, the design README, and evidence for each success criterion.\n\n**Assumptions** (from a one-line request; change any of these before saving):\n- The app stays dark-only, with IBM Plex type and the current layout. This is a color and branding pass, not a redesign.\n- Crimson is the primary accent, brass the secondary, bone for display text. The lens green appears sparingly.\n- The icon artwork is final. Packaging icons are already done (board epic 019), so this epic only uses the icon inside the renderer.\n- The static mockups in `docs/design/mockups/` are not regenerated. The README notes that they predate the revamp.\n- Visual changes are verified with screenshots attached to submissions, and contrast is enforced by a unit test.\n\n**Bug fix in sprint 1.** The \"one epic out of draft takes every epic out of draft\" bug runs in sprint 1, in parallel with the groundwork. It touches no theme files, and fixing it early keeps the person's other drafts safe while this epic is saved and re-saved. The integration ticket requires it so success criterion s7 is verified with the rest.",
+    "relations": [],
+    "sprints": [
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": null,
+        "entryCriteria": [],
+        "exitCriteria": [
+          {
+            "id": "e1",
+            "text": "Every renderer color flows through `:root` tokens in `styles.css`, with no visual change."
+          },
+          {
+            "id": "e2",
+            "text": "`docs/design/palette.md` proposes the full token set with roles, collision rules and a contrast table, ready for the person to approve at this checkpoint."
+          },
+          {
+            "id": "e3",
+            "text": "The sidebar brand shows the tech-priest icon, and the favicon matches the current icon."
+          },
+          {
+            "id": "e4",
+            "text": "Acting on one epic's draft no longer changes any other epic's draft, proven by a regression test."
+          }
+        ],
+        "goal": "Palette decided, every color routed through tokens, and the tech-priest in the brand bar.",
+        "id": "sp_01m3tyvx2t9c2g79fc6h3ksjea",
+        "ordinal": 1,
+        "ticketIds": [
+          "tk_01m3tyychppab0t8b70mdk43p5",
+          "tk_01m3tyychqv82vnsame123ab73",
+          "tk_01m3tyychqx4qcqp76fd6w3xtt",
+          "tk_01m3vzynetd2vnkw9bmmah76yq"
+        ]
+      },
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": null,
+        "entryCriteria": [
+          {
+            "id": "n1",
+            "text": "The person approved `docs/design/palette.md` at the sprint 1 checkpoint (or recorded the changes to make in a comment)."
+          }
+        ],
+        "exitCriteria": [
+          {
+            "id": "e1",
+            "text": "The approved palette is applied to the `:root` tokens and guarded by a contrast unit test."
+          },
+          {
+            "id": "e2",
+            "text": "The shell and epic workspace surfaces are restyled, with before/after screenshots."
+          },
+          {
+            "id": "e3",
+            "text": "The welcome and onboarding screens show the mascot."
+          },
+          {
+            "id": "e4",
+            "text": "The integration ticket passes every check and gives evidence for every epic success criterion."
+          }
+        ],
+        "goal": "The whole app uses the Mechanicus palette, and the mascot greets new users.",
+        "id": "sp_01m3tyychp0ntnpq5n28ckcsbq",
+        "ordinal": 2,
+        "ticketIds": [
+          "tk_01m3tyychq07sc0mpj1dca391g",
+          "tk_01m3tyychqjb873jngta3s4dzc",
+          "tk_01m3tyychqczmcex77vdw3s6rj",
+          "tk_01m3tyychq27mw397j0qv8zw8a",
+          "tk_01m3tyychqbd8g26x1eh0n13jv"
+        ]
+      }
+    ],
+    "tickets": [
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "No hex color literal appears in renderer CSS outside the `:root` token block of `src/renderer/src/styles.css`."
+          },
+          {
+            "id": "c2",
+            "text": "Each new token is named for the role it plays (what it colors), not for its hue."
+          },
+          {
+            "id": "c3",
+            "text": "Rendered colors do not change: each replaced literal maps one to one to a token that holds the same value."
+          },
+          {
+            "id": "c4",
+            "text": "`npm run lint`, `npm run typecheck`, `npm test`, `npm run fireguard`, `npm run deadcode` and `npm run build` pass."
+          }
+        ],
+        "body": "Later in this epic the palette swap should only change values in the `:root` block of `src/renderer/src/styles.css`. Right now a few component stylesheets hardcode their own colors:\n\n- `graph/graph.css`: `#8a8070` (`--xy-edge-stroke`, the accepted edge stroke, the sprint divider), `#6a6254` (waiting edge, waiting divider), `#1d1a16` (node background)\n- `epic/tones.css`: `#e8b86a` (`.ew-tone-edited`)\n- `styles.css`: `#f0c27a` (`a:hover`)\n\nGive each one a token in `:root` named for what it colors (for example `--edge`, `--edge-waiting`, `--node-bg`, `--tone-edited`, `--accent-hover`) and use that token instead. Every rendered color must stay exactly the same. This ticket is a refactor with no visual change.\n\n**In scope:** renderer CSS only.\n**Out of scope:** changing any color value. Literal `rgba(0, 0, 0, …)` box-shadows can stay.\n\n**Verify:** `grep -rnE '#[0-9a-fA-F]{3,8}\\b' src/renderer/src --include='*.css'` only matches lines inside the `:root` block of `styles.css`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": 30000,
+            "requiredArtifacts": [
+              "src/renderer/src/styles.css"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": "standard"
+          },
+          "reasoning": {
+            "level": "routine",
+            "rationale": "Mechanical token extraction with no behavior change."
+          },
+          "skills": [
+            "css",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/styles.css",
+          "src/renderer/src/graph/graph.css",
+          "src/renderer/src/epic/tones.css"
+        ],
+        "id": "tk_01m3tyychppab0t8b70mdk43p5",
+        "key": "DM-3",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/styles.css",
+            "location": "src/renderer/src/styles.css",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/graph/graph.css",
+            "location": "src/renderer/src/graph/graph.css",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/epic/tones.css",
+            "location": "src/renderer/src/epic/tones.css",
+            "remoteOnly": false
+          }
+        ],
+        "tags": [
+          "ui",
+          "theme",
+          "refactor"
+        ],
+        "title": "Move hardcoded renderer colors into theme tokens"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "`docs/design/palette.md` lists every `:root` color token with its current value, proposed value and role."
+          },
+          {
+            "id": "c2",
+            "text": "The doc names the primary accent, the secondary accent, and where the lens green may appear."
+          },
+          {
+            "id": "c3",
+            "text": "The doc explains how the crimson accent stays distinct from failed/danger and the green from accepted, including any re-tuned state values."
+          },
+          {
+            "id": "c4",
+            "text": "The contrast table shows at least 4.5:1 for every text and state-label pair listed in the ticket, and at least 3:1 for `--faint`."
+          },
+          {
+            "id": "c5",
+            "text": "Each proposed brand value can be traced to a color sampled from `build/icon.png`."
+          }
+        ],
+        "body": "Decide the new color tokens before anyone touches the theme. Take the palette from the chibi tech-priest in `build/icon.png` (the master is `build/mechanicus-cute-master.png`): Mars crimson hood and robe, bone/ivory cog trim, brass fittings, gunmetal respirator, and the green cybernetic lens.\n\nWrite `docs/design/palette.md` with:\n\n1. **Token table.** Every color token in `:root` of `src/renderer/src/styles.css` (surfaces, lines, text, accent, states, danger, and the tokens added by the token-consolidation ticket), each with its current value, proposed value and role.\n2. **Roles.** The primary accent (primary buttons, focus ring, selection, active sidebar row), the secondary accent (rules, highlights, links), display/heading ink, and where the green lens glow is allowed. Use it sparingly, for example the brand glow or the running indicator.\n3. **Collision rules.** The crimson accent must not read as `--st-failed` or `--danger`, and the lens green must not read as `--st-accepted`. Re-tune state colors where needed and say how each state stays distinct (hue distance plus its text label).\n4. **Contrast table** (WCAG 2.x ratios) for `--ink`, `--ink-2` and `--muted` on `--bg`, `--panel`, `--panel-2` and `--sidebar`; every `--st-*` on `--panel`; `--accent-ink` on `--accent`; `--danger-ink` on `--danger`. Body text and state labels need at least 4.5:1. `--faint` (decorative only) needs at least 3:1.\n\nStarting samples from the icon (approximate, so check them against the image): crimson about `#b3201c` to `#c62a22`, deep hood shadow about `#480101`, bone trim about `#deba94` to `#e9dcc0`, brass about `#b5893a`, gunmetal about `#2a2624`, lens green about `#84c20a`.\n\nKeep the dark-only theme, the IBM Plex fonts and the current layout. **Out of scope:** editing any stylesheet. The \"Apply the Mechanicus palette\" ticket does that once the person approves this doc at the sprint 1 checkpoint.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": 20000,
+            "requiredArtifacts": [
+              "build/icon.png",
+              "src/renderer/src/styles.css"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": "high"
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": "Balancing brand hues against distinct state colors and contrast takes deliberate trade-offs."
+          },
+          "skills": [
+            "ui",
+            "design",
+            "accessibility"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell"
+          ],
+          "workType": "architecture"
+        },
+        "expectedArtifacts": [
+          "docs/design/palette.md"
+        ],
+        "id": "tk_01m3tyychqv82vnsame123ab73",
+        "key": "DM-4",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "App icon (source of the palette)",
+            "location": "build/icon.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Icon master artwork",
+            "location": "build/mechanicus-cute-master.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Current theme tokens",
+            "location": "src/renderer/src/styles.css",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Current visual direction",
+            "location": "docs/design/README.md",
+            "remoteOnly": false
+          }
+        ],
+        "tags": [
+          "ui",
+          "theme",
+          "design",
+          "accessibility"
+        ],
+        "title": "Define the Mechanicus palette from the app icon"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The sidebar brand shows the tech-priest image, with 1x and 2x sources, where the hex glyph was, next to the name and version."
+          },
+          {
+            "id": "c2",
+            "text": "The image is decorative (`alt=\"\"`) and the brand name text is unchanged, so the existing brand assertions still pass."
+          },
+          {
+            "id": "c3",
+            "text": "A Sidebar unit test, written before the change, asserts that the brand image renders."
+          },
+          {
+            "id": "c4",
+            "text": "`src/renderer/public/favicon.png` is regenerated from the current `build/icon.png`."
+          },
+          {
+            "id": "c5",
+            "text": "The CSP is unchanged, and `npm run lint`, `npm run typecheck`, `npm test`, `npm run fireguard`, `npm run deadcode` and `npm run build` pass."
+          }
+        ],
+        "body": "The sidebar brand (`Brand` in `src/renderer/src/sidebar/Sidebar.tsx`) shows a stroke hex glyph (`<Icon name=\"hex\">`). Replace it with the app icon so the window carries the same mascot as the dock and taskbar.\n\n- Generate small renderer assets from `build/icon.png`, for example 32 px and 64 px for a 1x/2x display size of about 28 to 32 px. Put them under `src/renderer/src/assets/` and import them through Vite so they are hashed and bundled. Keep each file small (aim for under 20 KB).\n- Render an `<img>` with a 1x/2x `srcSet`. It sits next to the `DARK MECHANICUS` text, so it is decorative: `alt=\"\"`.\n- The CSP already allows `img-src 'self' data: file:` (`electron.vite.config.ts`). Do not loosen it.\n- Regenerate `src/renderer/public/favicon.png` (64 px) from the current `build/icon.png` so it matches the approved revision.\n- If nothing else uses the `hex` icon path in `components/Icon.tsx`, remove it so `npm run deadcode` stays clean.\n- Write the Sidebar test change first: the brand renders the image and still shows the name and version.\n\n**Out of scope:** packaging icons (`build/icon.icns`, `build/icon.ico`), regenerating artwork, palette changes.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": 25000,
+            "requiredArtifacts": [
+              "src/renderer/src/sidebar/Sidebar.tsx",
+              "build/icon.png"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": "high"
+          },
+          "reasoning": {
+            "level": "routine",
+            "rationale": "A small component change with an asset pipeline step and a test."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/assets/ (brand icon PNGs)",
+          "src/renderer/public/favicon.png"
+        ],
+        "id": "tk_01m3tyychqx4qcqp76fd6w3xtt",
+        "key": "DM-5",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/sidebar/Sidebar.tsx",
+            "location": "src/renderer/src/sidebar/Sidebar.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/sidebar/Sidebar.test.tsx",
+            "location": "src/renderer/src/sidebar/Sidebar.test.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/components/Icon.tsx",
+            "location": "src/renderer/src/components/Icon.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "build/icon.png",
+            "location": "build/icon.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Renderer CSP",
+            "location": "electron.vite.config.ts",
+            "remoteOnly": false
+          }
+        ],
+        "tags": [
+          "ui",
+          "branding"
+        ],
+        "title": "Use the tech-priest icon as the sidebar brand mark"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Every `:root` color token in `src/renderer/src/styles.css` matches its value in `docs/design/palette.md`."
+          },
+          {
+            "id": "c2",
+            "text": "A contrast guard test reads the tokens from `styles.css` and enforces the pairs and thresholds from the palette doc. Changing a token so that it breaks contrast makes the test fail."
+          },
+          {
+            "id": "c3",
+            "text": "The guard test was written before the token change and fireguard grades it above F."
+          },
+          {
+            "id": "c4",
+            "text": "Screenshots of the welcome screen, a folder home and a plan graph in the new palette are attached to the submission."
+          },
+          {
+            "id": "c5",
+            "text": "`npm run lint`, `npm run typecheck`, `npm test`, `npm run fireguard`, `npm run deadcode` and `npm run build` pass."
+          }
+        ],
+        "body": "Change the `:root` token values in `src/renderer/src/styles.css` to the palette in `docs/design/palette.md`, which the person approved at the sprint 1 checkpoint. Because the token-consolidation ticket routed every color through `:root`, this should only change values in that one block.\n\n**TDD first:** add a Vitest test (for example `src/renderer/src/theme.contrast.test.ts`) that parses the `:root` block of `styles.css`, computes WCAG contrast ratios, and asserts the pairs and thresholds from the contrast table in the palette doc. Write it against the new values, watch it fail on the old ones, then change the tokens.\n\nAlso update the header comment in `styles.css` that describes the theme. Component-level polish belongs to the two restyle tickets that follow. Keep this ticket to token values plus the guard test.\n\n**Verify:** run `npm run dev` and screenshot the welcome screen, a folder home and an epic plan graph.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": 40000,
+            "requiredArtifacts": [
+              "docs/design/palette.md",
+              "src/renderer/src/styles.css"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": "high"
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": "Introduces a contrast guard test and swaps the whole token set, which every screen depends on."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/styles.css",
+          "src/renderer/src/theme.contrast.test.ts",
+          "Screenshots: welcome, folder home, plan graph"
+        ],
+        "id": "tk_01m3tyychq07sc0mpj1dca391g",
+        "key": "DM-6",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Approved palette (from sprint 1)",
+            "location": "docs/design/palette.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/styles.css",
+            "location": "src/renderer/src/styles.css",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "vitest.config.ts",
+            "location": "vitest.config.ts",
+            "remoteOnly": false
+          }
+        ],
+        "tags": [
+          "ui",
+          "theme",
+          "accessibility"
+        ],
+        "title": "Apply the Mechanicus palette to the theme tokens"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Primary buttons, focus rings and the selected sidebar row use the primary accent from the palette doc, and danger buttons look clearly different from primary buttons."
+          },
+          {
+            "id": "c2",
+            "text": "No hex color literals are added outside the `:root` block."
+          },
+          {
+            "id": "c3",
+            "text": "Before and after screenshots of the welcome screen, onboarding, a folder home, the expanded sidebar, a dialog and a toast are attached to the submission."
+          },
+          {
+            "id": "c4",
+            "text": "Existing renderer tests pass, either unchanged or with only class-name assertions updated."
+          },
+          {
+            "id": "c5",
+            "text": "`npm run lint`, `npm run typecheck`, `npm test`, `npm run fireguard`, `npm run deadcode` and `npm run build` pass."
+          }
+        ],
+        "body": "With the new token values in place, adjust the component rules in `src/renderer/src/styles.css` that look wrong in crimson, brass and bone: the sidebar (active and hover rows, bucket headers, footer), the brand bar, buttons (primary, ghost, danger), pills, cards, dialogs, menus, toasts, the update banner, onboarding, and the folder home (MCP card, storage card, branch epics, history search).\n\n**Direction:** crimson for primary actions and the active selection, brass for rules and secondary highlights, bone for display text on dark surfaces, all following the roles in `docs/design/palette.md`. Small Mechanicus touches are welcome if they stay subtle and token-based, for example a brass hairline under the brand bar or a cog-tooth divider. Add no new layout and no new fonts, and use no inline styles (the CSP is `style-src 'self'`).\n\n**Out of scope:** the epic workspace, graph, ticket panel and checkpoint stylesheets (they have their own ticket); the mascot illustration on the welcome and onboarding screens (also its own ticket).\n\n**Verify:** before and after screenshots of the welcome screen (no folders), onboarding, a folder home, the sidebar with a folder expanded, a dialog and a toast.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": 60000,
+            "requiredArtifacts": [
+              "src/renderer/src/styles.css",
+              "docs/design/palette.md"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": "high"
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": "Visual tuning across many shell components that must stay consistent with the palette roles."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/styles.css",
+          "Before/after screenshots of shell screens"
+        ],
+        "id": "tk_01m3tyychqjb873jngta3s4dzc",
+        "key": "DM-7",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/styles.css",
+            "location": "src/renderer/src/styles.css",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/design/palette.md",
+            "location": "docs/design/palette.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/sidebar/Sidebar.tsx",
+            "location": "src/renderer/src/sidebar/Sidebar.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/home/FolderHome.tsx",
+            "location": "src/renderer/src/home/FolderHome.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/onboarding/OnboardingView.tsx",
+            "location": "src/renderer/src/onboarding/OnboardingView.tsx",
+            "remoteOnly": false
+          }
+        ],
+        "tags": [
+          "ui",
+          "theme"
+        ],
+        "title": "Restyle the shell, sidebar and home screens for the Mechanicus palette"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "In the plan graph, every ticket state has a distinct color plus its label, and accepted edges are easy to tell apart from waiting edges."
+          },
+          {
+            "id": "c2",
+            "text": "The selected-node ring and the running highlight use palette tokens and stand out against the new canvas."
+          },
+          {
+            "id": "c3",
+            "text": "No hex color literals are added outside the `:root` block of `styles.css`."
+          },
+          {
+            "id": "c4",
+            "text": "Before and after screenshots of a running plan graph, a draft with a validation error, the ticket panel and a checkpoint with a failed gate are attached to the submission."
+          },
+          {
+            "id": "c5",
+            "text": "`npm run lint`, `npm run typecheck`, `npm test`, `npm run fireguard`, `npm run deadcode` and `npm run build` pass."
+          }
+        ],
+        "body": "Adjust the epic workspace stylesheets for the new tokens: `epic/epic.css`, `epic/tones.css`, `graph/graph.css`, `ticket/ticket.css`, `checkpoint/checkpoint.css` and `markdown/markdown.css` under `src/renderer/src/`.\n\n**Focus areas:**\n- the dotted graph canvas and node cards on the new surfaces;\n- edge strokes, where accepted (solid) and waiting (dashed) must stay easy to tell apart;\n- the selected-node ring and the running glow;\n- sprint checkpoint dividers;\n- state pills and dots, where every state must stay distinct and keep its text label;\n- the ticket side panel and its tabs;\n- checkpoint gate rows;\n- Markdown code blocks and links.\n\nFollow the roles and collision rules in `docs/design/palette.md`.\n\n**Out of scope:** `styles.css` shell rules (they have their own ticket), graph layout, React Flow behavior.\n\n**Verify:** before and after screenshots of a plan graph mid-run with several ticket states visible, a draft with a validation error, the ticket panel, and a sprint checkpoint with a failed gate.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": 60000,
+            "requiredArtifacts": [
+              "docs/design/palette.md",
+              "src/renderer/src/graph/graph.css"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": "high"
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": "Many state-dependent visuals in the graph and panels must stay distinct and legible."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/graph/graph.css",
+          "src/renderer/src/epic/epic.css",
+          "src/renderer/src/ticket/ticket.css",
+          "src/renderer/src/checkpoint/checkpoint.css",
+          "Before/after screenshots of workspace screens"
+        ],
+        "id": "tk_01m3tyychqczmcex77vdw3s6rj",
+        "key": "DM-8",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/graph/graph.css",
+            "location": "src/renderer/src/graph/graph.css",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/epic/epic.css",
+            "location": "src/renderer/src/epic/epic.css",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/epic/tones.css",
+            "location": "src/renderer/src/epic/tones.css",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/ticket/ticket.css",
+            "location": "src/renderer/src/ticket/ticket.css",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/checkpoint/checkpoint.css",
+            "location": "src/renderer/src/checkpoint/checkpoint.css",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/markdown/markdown.css",
+            "location": "src/renderer/src/markdown/markdown.css",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/design/palette.md",
+            "location": "docs/design/palette.md",
+            "remoteOnly": false
+          }
+        ],
+        "tags": [
+          "ui",
+          "theme",
+          "graph"
+        ],
+        "title": "Restyle the epic workspace, plan graph, ticket panel and checkpoint for the Mechanicus palette"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The welcome screen (no tracked folders) shows the mascot above its heading."
+          },
+          {
+            "id": "c2",
+            "text": "The onboarding screen shows the mascot with the setup heading."
+          },
+          {
+            "id": "c3",
+            "text": "`EmptyState` accepts an optional illustration, covered by a test written first, and existing callers render as before."
+          },
+          {
+            "id": "c4",
+            "text": "The images are decorative (`alt=\"\"`) and come from bundled assets, with no new CSP sources."
+          },
+          {
+            "id": "c5",
+            "text": "`npm run lint`, `npm run typecheck`, `npm test`, `npm run fireguard`, `npm run deadcode` and `npm run build` pass."
+          }
+        ],
+        "body": "Put the tech-priest on the first-run screens. Reuse the renderer icon assets added for the sidebar brand mark, and add a larger size (for example 128 px and 256 px) if needed.\n\n- `components/EmptyState.tsx`: add an optional illustration slot (for example `illustration?: ReactNode`) that renders above the title instead of the stroke icon. Write the EmptyState test first.\n- `app/MainViews.tsx`, `WelcomeView` (\"Track a folder to get started\"): show the mascot at about 96 to 128 px.\n- `onboarding/OnboardingView.tsx`: show the mascot beside or above the \"isn't set up for Dark Mechanicus yet\" heading.\n- Decorative images use `alt=\"\"`. `UnavailableView` and the other empty states keep their stroke icons.\n- Styles go in `styles.css` (`.empty-state`, `.onboarding-head`). No inline styles.\n\n**Out of scope:** animation, new copy, other screens.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": 30000,
+            "requiredArtifacts": [
+              "src/renderer/src/components/EmptyState.tsx"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": "high"
+          },
+          "reasoning": {
+            "level": "routine",
+            "rationale": "A small component extension with two call sites and tests."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/components/EmptyState.tsx",
+          "src/renderer/src/app/MainViews.tsx",
+          "src/renderer/src/onboarding/OnboardingView.tsx"
+        ],
+        "id": "tk_01m3tyychq27mw397j0qv8zw8a",
+        "key": "DM-9",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/components/EmptyState.tsx",
+            "location": "src/renderer/src/components/EmptyState.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/app/MainViews.tsx",
+            "location": "src/renderer/src/app/MainViews.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/onboarding/OnboardingView.tsx",
+            "location": "src/renderer/src/onboarding/OnboardingView.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "build/icon.png",
+            "location": "build/icon.png",
+            "remoteOnly": false
+          }
+        ],
+        "tags": [
+          "ui",
+          "branding"
+        ],
+        "title": "Show the mascot on the welcome and onboarding screens"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "All changes from the branch tickets are on the epic branch, with conflicts resolved."
+          },
+          {
+            "id": "c2",
+            "text": "lint, typecheck, tests, fireguard, deadcode and build all pass on the integrated branch."
+          },
+          {
+            "id": "c3",
+            "text": "A set of screenshots covering the welcome screen, onboarding, a folder home, a running plan graph, the ticket panel, a checkpoint and a dialog is attached."
+          },
+          {
+            "id": "c4",
+            "text": "`docs/design/README.md` describes the new visual direction and links the palette doc."
+          },
+          {
+            "id": "c5",
+            "text": "The submission gives evidence for every epic success criterion (s1 to s7)."
+          }
+        ],
+        "body": "The shell restyle, the workspace restyle and the mascot ticket all touch renderer files, especially `src/renderer/src/styles.css` and the onboarding and empty-state rules. Bring them together on the epic branch and verify the whole revamp.\n\n1. Merge the commits from those tickets onto the epic feature branch and resolve conflicts, especially in `styles.css`.\n2. Run `npm run lint`, `npm run typecheck`, `npm test`, `npm run fireguard`, `npm run deadcode` and `npm run build`.\n3. Run the app (`npm run dev`) and take one screenshot each of: the welcome screen, onboarding, a folder home, a plan graph mid-run, the ticket panel, a sprint checkpoint, a dialog, and the update banner if you can reach it.\n4. Update the \"Visual direction\" section of `docs/design/README.md` to describe the Mechanicus palette, link `docs/design/palette.md`, and note that the static mockups predate the revamp.\n5. Check each epic success criterion and report evidence for it.\n\n**Out of scope:** new styling beyond conflict resolution and small fixes found during verification.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": 50000,
+            "requiredArtifacts": [
+              "docs/design/palette.md",
+              "src/renderer/src/styles.css"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": "high"
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": "Merges parallel UI branches touching the same stylesheet and verifies every success criterion."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "docs/design/README.md",
+          "Screenshot set of every main screen",
+          "Success-criteria evidence report"
+        ],
+        "id": "tk_01m3tyychqbd8g26x1eh0n13jv",
+        "key": "DM-10",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/design/README.md",
+            "location": "docs/design/README.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/design/palette.md",
+            "location": "docs/design/palette.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/styles.css",
+            "location": "src/renderer/src/styles.css",
+            "remoteOnly": false
+          }
+        ],
+        "tags": [
+          "ui",
+          "integration",
+          "verification"
+        ],
+        "title": "Integrate the Mechanicus revamp and verify it end to end"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The submission gives the exact reproduction steps and the root cause (file and function)."
+          },
+          {
+            "id": "c2",
+            "text": "A regression test written before the fix fails on the old code and passes with the fix."
+          },
+          {
+            "id": "c3",
+            "text": "With two epics that each have a draft, saving, discarding or changing the status of one leaves the other epic's draft, `draftRevision`, sidebar badge and status line unchanged."
+          },
+          {
+            "id": "c4",
+            "text": "An integration test in `src/integration/` covers the two-epic case end to end."
+          },
+          {
+            "id": "c5",
+            "text": "The sidebar shows the `draft` badge only when a draft differs from the saved plan, or the submission explains why an identical draft is intended."
+          },
+          {
+            "id": "c6",
+            "text": "`npm run lint`, `npm run typecheck`, `npm test`, `npm run fireguard`, `npm run deadcode` and `npm run build` pass."
+          }
+        ],
+        "body": "**Reported 2026-10-01:** \"when you pull one epic out of draft it pulls all epics out of draft.\" An action on one epic's draft changes the draft state of every other epic.\n\n**Reproduce first.** The exact action is not pinned down yet. Set up two or more open epics that each have a draft, in one tracked folder and also across two folders. Then try each of these:\n- save a draft (DraftBar **Save**, or `save_plan`);\n- discard a draft;\n- move an epic between Backlog and In progress, or start or queue a run;\n- switch between the Draft and Saved views in the workspace.\n\nAfter each action, check every *other* epic: its sidebar `draft` badge and \"Draft · not saved\" status line, `hasDraft` and `draftRevision` from `list_epics`, and its workspace view.\n\n**Already ruled out, by reading the code (no tests yet):**\n- The draft SQL in `src/core/services/drafts.ts` and `settleDraft` in `src/core/services/plans.ts` all filter by `epic_id`.\n- `EpicWorkspace` remounts per folder and epic (it is keyed), so its reducer's `view` is not shared between epics.\n\n**Still suspect:**\n- renderer state shared across epics: `app/useEpicLists.ts`, `app/eventRouting.ts` and `app/useRefreshTick.ts` (refresh after a change), `sidebar/epicStatusLine.ts`;\n- the desktop IPC handlers and workspace pool in `src/main/desktop/`;\n- portable export and import (`src/core/repo/portable.ts`, `importer.ts`) rewriting other epics' files.\n\n**A related oddity to explain or fix:** on this epic, right after revision 1 was saved, a new draft identical to the saved plan existed (`hasDraft: true`, `draftRevision: 1`). The sidebar would then show \"Has unsaved draft changes\" when nothing is unsaved.\n\n**Fix TDD-first:** first write a failing regression test at the lowest layer where the bug lives (core service, IPC handler or renderer), then fix the bug. Also add an integration test in `src/integration/` with two epics, proving that an action on one leaves the other's draft untouched.\n\n**Out of scope:** UI restyling. This ticket is independent of the palette work.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": 80000,
+            "requiredArtifacts": [
+              "src/core/services/drafts.ts",
+              "src/core/services/plans.ts",
+              "src/renderer/src/app/useEpicLists.ts"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": "high"
+          },
+          "reasoning": {
+            "level": "deep",
+            "rationale": "The root cause is unknown and could be in the core services, the IPC layer or renderer state, so it needs careful reproduction and isolation."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "database",
+            "debugging"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Regression test at the root-cause layer",
+          "src/integration/ two-epic draft test",
+          "Root-cause note in the submission"
+        ],
+        "id": "tk_01m3vzynetd2vnkw9bmmah76yq",
+        "key": "DM-11",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/drafts.ts",
+            "location": "src/core/services/drafts.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "save_plan and settleDraft",
+            "location": "src/core/services/plans.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "list_epics hasDraft",
+            "location": "src/core/services/epics.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/app/useEpicLists.ts",
+            "location": "src/renderer/src/app/useEpicLists.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/app/eventRouting.ts",
+            "location": "src/renderer/src/app/eventRouting.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/sidebar/epicStatusLine.ts",
+            "location": "src/renderer/src/sidebar/epicStatusLine.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/handlers.ts",
+            "location": "src/main/desktop/handlers.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/workspacePool.ts",
+            "location": "src/main/desktop/workspacePool.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/portable.ts",
+            "location": "src/core/repo/portable.ts",
+            "remoteOnly": false
+          }
+        ],
+        "tags": [
+          "bug",
+          "drafts",
+          "regression-test"
+        ],
+        "title": "Fix: taking one epic out of draft takes every epic out of draft"
+      }
+    ]
+  },
+  "contentHash": "sha256:3f15fe5480d7f3adfb5e180ec1f01018fc81d2e1c8221c72be7456a6307e792d",
+  "createdAt": "2026-10-01T15:08:57.158Z",
+  "epicId": "ep_01m3tyvx2t4scbd6g2fp1z7yxb",
+  "format": "darkmechanicus.plan-snapshot",
+  "formatVersion": 1,
+  "number": 2,
+  "revisionId": "rv_01m3w05vy6cdtmmx0jsa75cvsx",
+  "savedAt": "2026-10-01T15:08:57.158Z"
+}

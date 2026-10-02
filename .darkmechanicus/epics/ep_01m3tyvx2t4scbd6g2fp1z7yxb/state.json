@@ -1,0 +1,78 @@
+{
+  "branch": {
+    "name": "mechanicus-ui-revamp",
+    "repository": null,
+    "startCommit": "52d6a0c72510edd7990949cf7202d43da10f3866"
+  },
+  "completedAt": "2026-10-02T13:06:01.503Z",
+  "createdAt": "2026-10-01T05:26:47.642Z",
+  "epicId": "ep_01m3tyvx2t4scbd6g2fp1z7yxb",
+  "format": "darkmechanicus.epic-state",
+  "formatVersion": 1,
+  "generation": 30,
+  "outcome": {
+    "recordedAt": "2026-10-02T13:06:01.503Z",
+    "runId": "rn_01m3xaacn05hve1r51rn8hv26v",
+    "successCriteria": [
+      {
+        "criterionId": "s1",
+        "met": true,
+        "note": "docs/design/palette.md derives every brand value from build/icon.png (crimson #b51a1f, bone #f2d7ae, brass #d69b4a, gunmetal #28211d, lens #84c20a; cited pixels re-read independently). DM-6 applied it; theme.contrast.test.ts checks all :root color tokens against the doc."
+      },
+      {
+        "criterionId": "s2",
+        "met": true,
+        "note": "styles.test.ts fails on any hex color in renderer CSS outside the :root block of styles.css; it passes. No hex literal remains in non-test renderer TS (the edge arrowheads now use var(--edge)/var(--edge-waiting))."
+      },
+      {
+        "criterionId": "s3",
+        "met": true,
+        "note": "Sidebar brand shows the tech-priest with \"All hail the machine spirit\" under the name (DM-5); the welcome and onboarding screens show the mascot (DM-9). Screenshots scratchpad/shot/shots/final/01-welcome.png, 02-onboarding.png, 03-folder-home.png."
+      },
+      {
+        "criterionId": "s4",
+        "met": true,
+        "note": "Palette doc section 4 collision rules (no state on the crimson hue; accepted moved to jade away from the lens). workspace.palette.test.ts asserts the 7 ticket tones and 7 run tones resolve to distinct colors; every card and pill keeps its text label; Blocked added to the legend. Screenshot scratchpad/shot/shots/final/07-plan-graph-running.png shows accepted, in review, running, ready, waiting and failed together."
+      },
+      {
+        "criterionId": "s5",
+        "met": true,
+        "note": "theme.contrast.test.ts enforces the palette doc sections 5.1 to 5.5 (70 pairs): body text and state labels at least 4.5:1 on their surfaces, --faint and --ring at least 3:1; guard tests prove it fails when a token breaks contrast."
+      },
+      {
+        "criterionId": "s6",
+        "met": true,
+        "note": "All six pass on the integrated branch at 06304f1: lint passed, typecheck passed, test passed, fireguard passed, deadcode passed, build passed, smoke:mcp passed."
+      },
+      {
+        "criterionId": "s7",
+        "met": true,
+        "note": "src/integration/epicDrafts.test.ts drives the desktop handlers over two folders and asserts saving, discarding, status changes and queueing on one epic leave every other epic's summary and draft unchanged; the reported symptom (an edited epic reopening in the Saved view) is fixed and covered by workspaceState and EpicWorkspace.draft tests (DM-11)."
+      },
+      {
+        "criterionId": "s8",
+        "met": true,
+        "note": "Sprint labels reserve their height and clamp long goals (DM-21, layout tests; scratchpad/shot/shots/final/05-long-goal-graph.png). A completed epic offers a read-only Epic report that survives the final approval and loads from portable records (DM-22). Its text wraps at a reading width at 1024, 1280 and 1440 px (DM-23; scratchpad/shot/shots/final/06-completed-overview-1280.png)."
+      }
+    ],
+    "summary": "Dark Mechanicus now looks like it belongs to the Adeptus Mechanicus. Its palette comes from the tech-priest icon: crimson primary, brass secondary, bone display ink, gunmetal surfaces and a sparing lens green. Every color is a :root token guarded by tests for hardcoded colors, doc drift and WCAG contrast, and the mascot appears in the sidebar and on the first-run screens. Along the way, four reported bugs were fixed: drafts appearing to leave draft, sprint labels overlapping checkpoints, the vanishing completed-epic overview, and its one-word-per-line text."
+  },
+  "provenance": null,
+  "status": "completed",
+  "ticketStatuses": {
+    "tk_01m3tyychppab0t8b70mdk43p5": "completed",
+    "tk_01m3tyychq07sc0mpj1dca391g": "completed",
+    "tk_01m3tyychq27mw397j0qv8zw8a": "completed",
+    "tk_01m3tyychqbd8g26x1eh0n13jv": "completed",
+    "tk_01m3tyychqczmcex77vdw3s6rj": "completed",
+    "tk_01m3tyychqjb873jngta3s4dzc": "completed",
+    "tk_01m3tyychqv82vnsame123ab73": "completed",
+    "tk_01m3tyychqx4qcqp76fd6w3xtt": "completed",
+    "tk_01m3vzynetd2vnkw9bmmah76yq": "completed",
+    "tk_01m3w0xjama79h4bf1s55fcndp": "completed",
+    "tk_01m3w0xjancr76jdhrz81zpfwf": "completed",
+    "tk_01m3w0xjanqx13s1d2b27sddfe": "completed"
+  },
+  "title": "Mechanicus UI revamp: crimson, brass and the tech-priest mascot",
+  "updatedAt": "2026-10-02T13:06:01.527Z"
+}
