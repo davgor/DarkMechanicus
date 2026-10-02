@@ -30,13 +30,16 @@
   /* Text */
   --ink: #ece6da;
   --ink-2: #c9c1b2;
+  --ink-soft: #a8a092;
   --muted: #8f8778;
   --faint: #6b6458;
 
   /* Brass accent */
   --accent: #e0a24a;
+  --accent-hover: #f0c27a;
   --accent-ink: #1a1408;
   --accent-soft: rgba(224, 162, 74, 0.14);
+  --btn-primary-hover: #eab265;
 
   /* State colors — always paired with a text label in the UI */
   --st-accepted: #5fbf8a;
@@ -49,6 +52,14 @@
   --attention: #f08e78;
   --danger: #c4503c;
   --danger-ink: #fff4f0;
+  --btn-danger-hover: #d4604c;
+  --tone-ok: #86cfab;
+  --tone-edited: #e8b86a;
+
+  /* Plan graph */
+  --edge: #8a8070;
+  --edge-waiting: #6a6254;
+  --node-bg: #1d1a16;
 
   --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
@@ -90,7 +101,7 @@ a {
 }
 
 a:hover {
-  color: #f0c27a;
+  color: var(--accent-hover);
 }
 
 code {
@@ -172,7 +183,7 @@ code {
   max-width: 720px;
   font-size: 15px;
   line-height: 23px;
-  color: #a8a092;
+  color: var(--ink-soft);
   text-wrap: pretty;
 }
 
@@ -180,11 +191,11 @@ code {
   margin: 0;
   font-size: 13px;
   line-height: 19px;
-  color: #a8a092;
+  color: var(--ink-soft);
 }
 
 .tone-ok {
-  color: #86cfab;
+  color: var(--tone-ok);
 }
 
 .tone-muted {
@@ -239,13 +250,13 @@ code {
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #eab265;
-  border-color: #eab265;
+  background: var(--btn-primary-hover);
+  border-color: var(--btn-primary-hover);
 }
 
 .btn-ghost {
   border-color: transparent;
-  color: #a8a092;
+  color: var(--ink-soft);
 }
 
 .btn-ghost:hover:not(:disabled) {
@@ -260,8 +271,8 @@ code {
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: #d4604c;
-  border-color: #d4604c;
+  background: var(--btn-danger-hover);
+  border-color: var(--btn-danger-hover);
 }
 
 .btn-sm {
@@ -429,7 +440,7 @@ code {
   padding: 0 6px;
   border-radius: 4px;
   background: var(--panel-2);
-  color: #a8a092;
+  color: var(--ink-soft);
   font-family: var(--font-mono);
   font-size: 11px;
   line-height: 18px;
@@ -559,7 +570,7 @@ textarea.input {
   margin: 0;
   font-size: 14px;
   line-height: 21px;
-  color: #a8a092;
+  color: var(--ink-soft);
 }
 
 /* ---------- Dialog, menu, toast ---------- */
@@ -611,7 +622,7 @@ textarea.input {
   margin: 0;
   font-size: 13.5px;
   line-height: 20px;
-  color: #a8a092;
+  color: var(--ink-soft);
 }
 
 .dialog-body {
@@ -930,7 +941,7 @@ textarea.input {
 }
 
 .folder-main .icon {
-  color: #a8a092;
+  color: var(--ink-soft);
 }
 
 .folder-text {
@@ -997,7 +1008,7 @@ textarea.input {
   border: 0;
   border-radius: 7px;
   background: transparent;
-  color: #a8a092;
+  color: var(--ink-soft);
   font-size: 13px;
   font-weight: 500;
   text-align: left;
@@ -1146,11 +1157,11 @@ textarea.input {
 }
 
 .footer-line .icon {
-  color: #a8a092;
+  color: var(--ink-soft);
 }
 
 .footer-key {
-  color: #a8a092;
+  color: var(--ink-soft);
 }
 
 .footer-text {
@@ -1290,7 +1301,7 @@ textarea.input {
 
 .created-path.is-nested {
   padding-left: 20px;
-  color: #a8a092;
+  color: var(--ink-soft);
 }
 
 .created-path.is-accent {
@@ -1306,7 +1317,7 @@ textarea.input {
   align-items: flex-start;
   gap: 10px;
   margin: 0;
-  color: #a8a092;
+  color: var(--ink-soft);
   font-size: 13px;
   line-height: 19px;
 }
@@ -1500,7 +1511,7 @@ textarea.input {
 }
 
 .result-snippet {
-  color: #a8a092;
+  color: var(--ink-soft);
   font-size: 12.5px;
 }
 

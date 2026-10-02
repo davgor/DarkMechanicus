@@ -9,7 +9,7 @@
 
 .pg .react-flow {
   --xy-background-color: var(--bg);
-  --xy-edge-stroke: #8a8070;
+  --xy-edge-stroke: var(--edge);
   --xy-edge-stroke-selected: var(--accent);
   --xy-connectionline-stroke: var(--accent);
   --xy-handle-background-color: var(--panel-3);
@@ -65,7 +65,7 @@
 
 .pg-card.ew-tone-neutral,
 .pg-card.ew-tone-waiting {
-  background: #1d1a16;
+  background: var(--node-bg);
   border-color: var(--line);
 }
 
@@ -131,12 +131,12 @@
 
 /* Dependency edges: solid when the prerequisite is accepted, dashed while waiting on it. */
 .pg-edge .react-flow__edge-path {
-  stroke: #8a8070;
+  stroke: var(--edge);
   stroke-width: 2;
 }
 
 .pg-edge.is-waiting .react-flow__edge-path {
-  stroke: #6a6254;
+  stroke: var(--edge-waiting);
   stroke-dasharray: 6 6;
 }
 
@@ -308,10 +308,10 @@
 .pg-legend-line {
   display: inline-block;
   width: 20px;
-  border-top: 2px solid #8a8070;
+  border-top: 2px solid var(--edge);
 }
 
 .pg-legend-line.is-dashed {
   border-top-style: dashed;
-  border-top-color: #6a6254;
+  border-top-color: var(--edge-waiting);
 }
