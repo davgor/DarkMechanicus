@@ -19,7 +19,7 @@ interface BoardImportCardProps {
 /** What is left to do once nothing new would be imported. */
 function NothingNew({ view }: { view: BoardImportView }): JSX.Element | null {
   return view.open.length === 0 ? null : (
-    <p className="note">Nothing new to import: every open epic was imported before.</p>
+    <p className="note">Nothing new to import: every open epic on the board has been imported.</p>
   )
 }
 

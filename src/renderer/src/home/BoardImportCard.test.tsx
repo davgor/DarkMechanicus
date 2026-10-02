@@ -74,7 +74,7 @@ describe('BoardImportCard preview', () => {
     renderCard(() => Promise.resolve(null))
     await settle()
     expect(within(card()).getByText('Already imported')).toBeTruthy()
-    expect(within(card()).getByText('Nothing new to import: every open epic was imported before.')).toBeTruthy()
+    expect(within(card()).getByText('Nothing new to import: every open epic on the board has been imported.')).toBeTruthy()
     expect(within(card()).queryByRole('button', { name: /^Import / })).toBeNull()
   })
 
@@ -101,6 +101,7 @@ describe('BoardImportCard import', () => {
     expect(calls.imports).toBe(1)
     expect(within(card()).getByText('Imported now')).toBeTruthy()
     expect(within(card()).queryByRole('button', { name: /^Import / })).toBeNull()
+    expect(within(card()).getByText('Nothing new to import: every open epic on the board has been imported.')).toBeTruthy()
     fireEvent.click(within(card()).getByRole('button', { name: 'Open epic' }))
     expect(calls.opened).toEqual([EPIC_A])
   })

@@ -31,8 +31,10 @@ function OpenEpicRow({ epic, onOpenEpic }: { epic: BoardOpenEpicView; onOpenEpic
   return (
     <li className="board-epic">
       <span className="board-id mono">{epic.boardId}</span>
-      <span className="board-epic-title">{epic.title}</span>
-      <span className={`pill ${pill.tone}`}>{pill.label}</span>
+      <span className="board-epic-head">
+        <span className="board-epic-title">{epic.title}</span>
+        <span className={`pill ${pill.tone}`}>{pill.label}</span>
+      </span>
       <span className="board-epic-meta">{ticketSummary(epic)}</span>
       <span className="board-path mono">{sourceOf(epic)}</span>
       {onOpenEpic === undefined || epicId === null ? null : (
