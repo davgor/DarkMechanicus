@@ -12,6 +12,7 @@ export type Tone =
   | 'waiting'
   | 'blocked'
   | 'failed'
+  | 'attention'
   | 'neutral'
   | 'new'
   | 'edited'
@@ -101,7 +102,7 @@ export const RUN_STATE_LABELS: Record<RunState, string> = {
 export const RUN_STATE_TONES: Record<RunState, Tone> = {
   queued: 'ready',
   running: 'running',
-  awaiting_checkpoint: 'failed',
+  awaiting_checkpoint: 'attention',
   paused: 'blocked',
   failed: 'failed',
   canceled: 'neutral',

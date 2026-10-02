@@ -77,7 +77,29 @@ describe('PlanGraph in the Saved view', () => {
   it('shows the execution legend', () => {
     renderGraph('saved')
     const legend = screen.getByLabelText('Legend')
-    expect(legend.textContent).toBe('AcceptedIn reviewRunningReadyWaitingFailedPrerequisite metWaiting on it')
+    expect(legend.textContent).toBe('AcceptedIn reviewRunningReadyWaitingBlockedFailedPrerequisite metWaiting on it')
+  })
+
+  it('colors the checkpoint awaiting approval with the attention tone, as the run bar does', () => {
+    const awaiting = buildGraphModel({
+      plan: savedPlan(),
+      mode: 'saved',
+      run: runView({ state: 'awaiting_checkpoint' }),
+      statuses: new Map(),
+      outcome: null,
+      rejected: null,
+      draftNumber: 5
+    })
+    renderGraph('saved', awaiting)
+    expect(screen.getByText('CHECKPOINT 2 · AWAITING APPROVAL').parentElement?.className).toBe('pg-divider ew-tone-attention')
+    expect(screen.getByText('CHECKPOINT 1 · PASSED').parentElement?.className).toBe('pg-divider ew-tone-accepted')
+  })
+
+  it('leaves the canvas dot color to the theme stylesheet', () => {
+    const { container } = renderGraph('saved')
+    const background = container.querySelector('.react-flow__background')
+    expect(background === null).toBe(false)
+    expect(background?.getAttribute('style') ?? '').not.toContain('--xy-background-pattern-color-props')
   })
 
   it('selects tickets on click but not structure nodes', () => {

@@ -58,7 +58,7 @@ interface Box {
   height: number
 }
 
-type DividerTone = 'passed' | 'locked' | 'neutral'
+type DividerTone = 'passed' | 'locked' | 'awaiting' | 'neutral'
 
 export interface EpicNodeModel extends Box {
   kind: 'epic'
@@ -439,11 +439,10 @@ function checkpointLabel(sprint: SprintDef, context: Context): { label: string; 
   if (sprint.ordinal > active) {
     return { label: `${base} · LOCKED`, tone: 'neutral' }
   }
-  const detail =
-    run.state === 'awaiting_checkpoint'
-      ? 'AWAITING APPROVAL'
-      : `LOCKED · ${acceptedIn(sprint, context)} OF ${sprint.ticketIds.length} ACCEPTED`
-  return { label: `${base} · ${detail}`, tone: 'locked' }
+  if (run.state === 'awaiting_checkpoint') {
+    return { label: `${base} · AWAITING APPROVAL`, tone: 'awaiting' }
+  }
+  return { label: `${base} · LOCKED · ${acceptedIn(sprint, context)} OF ${sprint.ticketIds.length} ACCEPTED`, tone: 'locked' }
 }
 
 function checksLabel(context: Context): { label: string; tone: DividerTone } {

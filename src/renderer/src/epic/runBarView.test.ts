@@ -42,7 +42,7 @@ describe('run bar summary', () => {
 describe('run bar pill and counts', () => {
   it('pairs the run state label with a tone', () => {
     expect(runPill(runView())).toEqual({ label: 'RUNNING', tone: 'running' })
-    expect(runPill(runView({ state: 'awaiting_checkpoint' }))).toEqual({ label: 'AWAITING CHECKPOINT', tone: 'failed' })
+    expect(runPill(runView({ state: 'awaiting_checkpoint' }))).toEqual({ label: 'AWAITING CHECKPOINT', tone: 'attention' })
   })
 
   it('lists non-zero counts in a fixed order', () => {

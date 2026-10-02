@@ -168,6 +168,7 @@
 
 .cp-gate-title {
   margin: 0;
+  color: var(--ink-display);
   font-family: var(--font-serif);
   font-size: 20px;
   line-height: 26px;

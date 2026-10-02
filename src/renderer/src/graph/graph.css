@@ -1,4 +1,8 @@
-/* Plan graph: React Flow canvas themed as the dark "forge console" (see docs/design mockups 02/04). */
+/*
+ * Plan graph: React Flow canvas themed as the dark "forge console" (see docs/design mockups 02/04).
+ * Roles from docs/design/palette.md: crimson --ring for focus and selection, lens green only for the
+ * running card, brass for the active sprint heading, --edge / --edge-waiting for met / waiting edges.
+ */
 .pg {
   position: relative;
   width: 100%;
@@ -9,9 +13,10 @@
 
 .pg .react-flow {
   --xy-background-color: var(--bg);
+  --xy-background-pattern-color: var(--line);
   --xy-edge-stroke: var(--edge);
-  --xy-edge-stroke-selected: var(--accent);
-  --xy-connectionline-stroke: var(--accent);
+  --xy-edge-stroke-selected: var(--ring);
+  --xy-connectionline-stroke: var(--ring);
   --xy-handle-background-color: var(--panel-3);
   --xy-handle-border-color: var(--line);
   --xy-controls-button-background-color: var(--panel);
@@ -36,7 +41,7 @@
 }
 
 .pg .react-flow__node:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ring);
   outline-offset: 3px;
   border-radius: 14px;
 }
@@ -73,12 +78,25 @@
   border-style: dashed;
 }
 
+/* The lens glow of a running card: a tight ring, then a soft halo that reads on the dark canvas. */
 .pg-card.ew-tone-running {
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.38), 0 0 0 4px color-mix(in srgb, var(--st-running) 16%, transparent);
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.38),
+    0 0 0 3px color-mix(in srgb, var(--st-running) 30%, transparent),
+    0 0 18px 3px color-mix(in srgb, var(--st-running) 34%, transparent);
 }
 
 .pg-card.is-active {
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.38), 0 0 0 2px var(--accent);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.38), 0 0 0 2px var(--ring);
+}
+
+/* A selected running card keeps its glow, outside the selection ring. */
+.pg-card.ew-tone-running.is-active {
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.38),
+    0 0 0 2px var(--ring),
+    0 0 0 5px color-mix(in srgb, var(--st-running) 30%, transparent),
+    0 0 20px 5px color-mix(in srgb, var(--st-running) 34%, transparent);
 }
 
 .pg-card-label {
@@ -142,7 +160,7 @@
 
 .pg-edge.selected .react-flow__edge-path,
 .pg-edge:focus-visible .react-flow__edge-path {
-  stroke: var(--accent);
+  stroke: var(--ring);
 }
 
 /* Sprint labels. The layout reserves their height from the line height and width below (sprintLabel.ts). */
@@ -269,6 +287,7 @@
 }
 
 .pg-epic-title {
+  color: var(--ink-display);
   font-family: var(--font-serif);
   font-size: 16px;
   line-height: 21px;
