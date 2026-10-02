@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { installDomShims } from '../epic/__mocks__/domShims'
-import { draftPlan, runView, savedPlan } from '../epic/__mocks__/fixtures'
+import { bundle, draftPlan, runView, savedPlan, sprint } from '../epic/__mocks__/fixtures'
 import { allowSlowRendering } from '../epic/__mocks__/testTiming'
 import { buildGraphModel, type GraphModel } from './graphModel'
 import { PlanGraph, type PlanGraphProps } from './PlanGraph'
@@ -37,10 +37,13 @@ interface Recorded {
   added: string[]
 }
 
-function renderGraph(mode: 'saved' | 'draft'): { recorded: Recorded; container: HTMLElement } {
+function renderGraph(
+  mode: 'saved' | 'draft',
+  graphModel: GraphModel = model(mode)
+): { recorded: Recorded; container: HTMLElement } {
   const recorded: Recorded = { selected: [], connected: [], dropped: [], removed: [], added: [] }
   const props: PlanGraphProps = {
-    model: model(mode),
+    model: graphModel,
     editable: mode === 'draft',
     legend: mode === 'draft' ? 'draft' : 'execution',
     draftNumber: 5,
@@ -135,5 +138,39 @@ describe('PlanGraph dependency edges', () => {
     fireEvent.keyDown(document.body, { key: 'Delete', code: 'Delete' })
     await act(async () => undefined)
     expect(recorded.removed).toEqual([])
+  })
+})
+
+describe('PlanGraph sprint labels', () => {
+  const LONG_GOAL = `The card's words and pictures are ready: ${'every ticket title reads clearly and the sprint label wraps. '.repeat(5)}`
+
+  function longGoalModel(): GraphModel {
+    const sprints = [sprint(1, LONG_GOAL, ['tk_101', 'tk_102']), sprint(2, 'Desktop editing', ['tk_301'])]
+    return buildGraphModel({
+      plan: savedPlan({ bundle: bundle({ sprints, edges: [] }) }),
+      mode: 'saved',
+      run: null,
+      statuses: new Map(),
+      outcome: null,
+      rejected: null,
+      draftNumber: 5
+    })
+  }
+
+  it('keeps the full goal reachable: complete text in the DOM and as a tooltip, clamped to the reserved lines', () => {
+    expect(LONG_GOAL.length).toBeGreaterThanOrEqual(300)
+    const { container } = renderGraph('saved', longGoalModel())
+    const goals = [...container.querySelectorAll<HTMLElement>('.pg-sprint-goal')]
+    expect(goals.map((goal) => goal.textContent)).toEqual([LONG_GOAL, 'Desktop editing'])
+    expect(goals.map((goal) => goal.getAttribute('title'))).toEqual([LONG_GOAL, 'Desktop editing'])
+    expect(goals.map((goal) => goal.style.getPropertyValue('--pg-goal-lines'))).toEqual(['6', '1'])
+  })
+
+  it('gives the sprint label the height the layout reserved', () => {
+    const graphModel = longGoalModel()
+    const { container } = renderGraph('saved', graphModel)
+    const reserved = graphModel.nodes.flatMap((item) => (item.kind === 'sprint' ? [item.height] : []))
+    const rendered = [...container.querySelectorAll<HTMLElement>('.react-flow__node-sprint')].map((item) => item.style.height)
+    expect(rendered).toEqual(reserved.map((height) => `${height}px`))
   })
 })
