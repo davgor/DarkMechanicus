@@ -1,5 +1,5 @@
 ---
-description: TDD, lint/test/build gate, and /board ticket traceability for all implementation work
+description: TDD, lint/test/build gate, and Dark Mechanicus ticket tracking for all implementation work
 alwaysApply: true
 ---
 
@@ -17,13 +17,13 @@ Any implementation work in this repo must follow `.cursor/skills/delivery-standa
    - `npm run typecheck`
    - `npm run deadcode` (ts-prune vs `.tsprune-ignore`; if export moves/deletes drift the baseline, run `npm run deadcode:refresh` after confirming the new findings are intentional)
    - `npm run build`
-3. **Board traceability** — create a ticket in `/board/backlog/` or update the related epic/ticket before or as you start. If the user named a ticket id, use `complete-ticket` skill.
+3. **Dark Mechanicus tracking** — new work becomes a new epic, or a ticket on the related existing epic, planned as a draft through the `darkmechanicus` MCP server (see `.mcp.json`) and then saved (the person presses Save in the desktop app, unless your session may save). Records live in `.darkmechanicus/`; do not hand-edit them. Follow the role guide for your job in `skills/`: `planner.md`, `orchestrator.md`, `worker.md` or `reviewer.md`.
 
 ## Also required
 
 - Read `README.md` and `.ai-instructions.md` for process boundaries.
-- Check off acceptance criteria only after verification; move tickets to `done/` when complete.
-- Do not commit unless the user explicitly asks.
+- Record evidence in the attempt submission (checks run, and per-criterion `met` with a note) only after verification; do not accept or reject your own work.
+- Do not commit unless the user explicitly asks (or the execution packet or orchestrator tells you to).
 
 ## Exceptions
 

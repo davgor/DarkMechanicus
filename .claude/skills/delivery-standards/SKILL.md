@@ -1,49 +1,55 @@
 ---
 name: delivery-standards
 description: >-
-  Enforces TDD-first implementation, lint/unit-test/build verification, and
-  /board ticket or epic updates for all code work in DarkMechanicus. Use for
-  every feature, bug fix, refactor, or follow-up unless the user explicitly
-  asks for a read-only answer with no code changes.
+  Enforces TDD-first implementation, lint/typecheck/unit-test/fireguard/
+  deadcode/build verification, and Dark Mechanicus epic and ticket tracking
+  for all code work in DarkMechanicus. Use for every feature, bug fix,
+  refactor, or follow-up unless the user explicitly asks for a read-only
+  answer with no code changes.
 ---
 
 # Delivery standards (all implementation work)
 
-Mirrors `.cursor/skills/delivery-standards/SKILL.md` — keep both in sync when changing workflow rules.
+This skill exists as two identical copies, `.claude/skills/delivery-standards/SKILL.md` and `.cursor/skills/delivery-standards/SKILL.md`. Keep them byte-identical when changing workflow rules.
 
-Epic-flow process mirrored from [davgor.github.io](https://github.com/davgor/davgor.github.io). Deploy/CI shape mirrored from [AI-DND-Matrix](https://github.com/davgor/AI-DND-Matrix).
+Deploy/CI shape mirrored from [AI-DND-Matrix](https://github.com/davgor/AI-DND-Matrix).
 
 ## Standing rules
 
-Any work you do going forward needs to have the lint, unit test, and build confirming, everything needs to be written TDD style, and you either need to create a ticket, or update an epic if it relates.
+Any work you do going forward needs to have the lint, unit test, and build confirming, everything needs to be written TDD style, and it needs to be tracked in Dark Mechanicus: either a new epic, or a ticket on the existing epic it relates to.
 
-Read `README.md` and `.ai-instructions.md` for process boundaries. For board tickets already in scope, also follow [complete-ticket](../complete-ticket/SKILL.md).
+Read `README.md` and `.ai-instructions.md` for process boundaries. For tickets already in scope, also follow the shipped role guides listed in section 1.
 
-## 1. Board tracking (before or as you start)
+## 1. Dark Mechanicus tracking (before or as you start)
 
-Every implementation task must be traceable on `/board`:
+Work in this repository is planned and tracked as Dark Mechanicus epics and tickets. Their records live in `.darkmechanicus/` and are read and written through the `darkmechanicus` MCP server, which a project `.mcp.json` configures (that file is machine-specific, so it may not be in your checkout). Call `get_capabilities` first: it shows your role and what you may do. Never hand-edit `.darkmechanicus/` records, and if the server's tools are not available in your session, tell the person instead of working around it.
+
+The role guides shipped in `skills/` say how each job is done. Follow the one that matches your job:
+
+| Job | Guide |
+|-----|-------|
+| Turn a goal into an epic with tickets, edited as a draft | [skills/planner.md](../../../skills/planner.md), with [skills/graph-planner.md](../../../skills/graph-planner.md) for sprints and dependencies |
+| Run a saved plan: claim tickets, hand out packets, accept or reject results | [skills/orchestrator.md](../../../skills/orchestrator.md), with [skills/sprint-reporter.md](../../../skills/sprint-reporter.md) at each checkpoint |
+| Do one claimed ticket from its execution packet | [skills/worker.md](../../../skills/worker.md) |
+| Independently verify a submitted attempt | [skills/reviewer.md](../../../skills/reviewer.md) |
 
 | Situation | Action |
 |-----------|--------|
-| User named a ticket/epic id | Use [complete-ticket](../complete-ticket/SKILL.md): move to `in-progress`, check off criteria when verified |
-| Work extends an existing epic | Add or update a sub-ticket under that epic (`NNN.M`), update the epic index file, move to `in-progress` when starting |
-| Standalone bug/feature/refactor | Create a new epic or sub-ticket in `/board/backlog/` with Description + checkable Acceptance Criteria |
+| User or orchestrator named a ticket or epic | Read it (`get_ticket`, `get_epic`, `list_comments`) and work it as the worker guide says, staying inside its acceptance criteria |
+| Work extends an existing epic | Add a ticket on that epic through a planner draft (`create_ticket` or `update_plan_draft`, then `validate_plan`). A completed epic is read-only: create a new epic with `provenance` set to it instead |
+| Standalone bug/feature/refactor | Create a new epic (`create_epic`) with success criteria, and plan its tickets as a draft |
 | Exploratory spike with no code | Ticket optional; say so in the report |
 
-**Ticket format** (match existing files):
+**Planning drafts, then Save.** Plans are edited as drafts and execution reads only saved revisions. When the draft validates, either save it (only if your session has the `plan.save` capability and the person has seen the summary) or tell the person it is ready and ask them to review it in the desktop app and press Save. Do not claim tickets or start runs for work that is not saved.
 
-```markdown
-# EPIC: Short title   (or # 048.1 — Sub-ticket title)
+**Ticket content** (what a planner draft must contain):
 
-Description paragraph: what, why, dependencies.
+- `title`: imperative and specific
+- `body`: context, what is in and out of scope, files to respect, how to verify. Files and commits go in `references`
+- `acceptanceCriteria`: 2 to 6 checkable statements with observable results, and tests or runbook steps named explicitly where relevant
+- `expectedArtifacts`: the files or reports the ticket must produce
 
-## Acceptance criteria
-
-- [ ] Observable behavior with verification method
-- [ ] Tests / runbook step named explicitly where relevant
-```
-
-Do not check off criteria or move tickets to `done/` until section 3 passes.
+Do not report a criterion as met until section 3 passes.
 
 ## 2. TDD-first implementation
 
@@ -86,10 +92,16 @@ npm run build
 
 ## 4. Close out
 
-- Check off verified acceptance criteria (`- [x]`)
-- `git mv` ticket to `/board/done/` when all criteria met
-- Summarize: what changed, test/lint/build output, ticket ids touched
-- Do **not** commit unless the user explicitly asks
+Evidence goes into the attempt submission (`submit_attempt`, or the same content handed to the orchestrator when you hold no claim token), not into checked boxes:
+
+- `outputs`: `summary`, `artifacts`, `commits` (full hashes), `changedFiles`, `branch`
+- `evidence.checks`: each of the section 3 checks with `passed`, `failed` or `skipped` and a short detail
+- `evidence.criteria`: one entry per acceptance criterion with `met` and a `note` saying where it is shown (a test name, a command output, a file). Report an unmet criterion as `met: false` with the reason
+- `evidence.notes`: limits, risks, suggested follow-ups
+
+Leave status changes to the process: never accept or reject your own work, and never change ticket statuses or the plan. Acceptance belongs to the orchestrator or reviewer, and sprint approval to a person in the desktop app. A blocker you cannot resolve goes to `fail_attempt`, and a decision or question that should outlive the attempt goes to `add_comment`.
+
+Summarize in your report: what changed, test/lint/build output, ticket ids touched. Do **not** commit unless the user explicitly asks, or the execution packet or orchestrator tells you to commit.
 
 ## Quick checklist
 
@@ -97,7 +109,7 @@ Copy and track:
 
 ```
 Delivery:
-- [ ] Ticket/epic created or updated on /board
+- [ ] Work is tracked in Dark Mechanicus: new epic, or ticket on an existing epic (draft saved or handed over for Save)
 - [ ] Failing test(s) written first (where applicable)
 - [ ] Implementation complete
 - [ ] npm run lint — pass
@@ -106,5 +118,5 @@ Delivery:
 - [ ] npm run typecheck — pass
 - [ ] npm run deadcode — pass
 - [ ] npm run build — pass
-- [ ] Acceptance criteria checked off only when verified
+- [ ] Evidence recorded in the attempt submission, per criterion, only for what was verified
 ```
