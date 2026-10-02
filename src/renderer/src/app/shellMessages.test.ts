@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ReconcileResultView } from '../../../shared/domain/views'
-import { describeFlush, describeReconcile } from './shellMessages'
+import { describeClaudeConnect, describeFlush, describeReconcile } from './shellMessages'
 
 describe('describeFlush', () => {
   it('reports an export failure as an error with the first reason', () => {
@@ -85,6 +85,45 @@ describe('describeReconcile', () => {
     expect(describeReconcile(result)).toEqual({
       tone: 'error',
       message: 'Reconciled. 1 file rejected.'
+    })
+  })
+})
+
+describe('describeClaudeConnect', () => {
+  it('confirms each kind of write', () => {
+    expect(describeClaudeConnect({ outcome: 'created' })).toEqual({
+      tone: 'success',
+      message: 'Created .mcp.json for Claude Code.'
+    })
+    expect(describeClaudeConnect({ outcome: 'added' })).toEqual({
+      tone: 'success',
+      message: 'Added the darkmechanicus server to .mcp.json.'
+    })
+    expect(describeClaudeConnect({ outcome: 'replaced' })).toEqual({
+      tone: 'success',
+      message: 'Replaced the darkmechanicus entry in .mcp.json.'
+    })
+  })
+
+  it('says when nothing needed writing', () => {
+    expect(describeClaudeConnect({ outcome: 'unchanged' })).toEqual({
+      tone: 'info',
+      message: '.mcp.json already connects Claude Code with these settings.'
+    })
+  })
+
+  it('says a different entry was kept and where to replace it', () => {
+    expect(describeClaudeConnect({ outcome: 'conflict', existing: '{}' })).toEqual({
+      tone: 'info',
+      message:
+        '.mcp.json already has a different darkmechanicus entry, so it was left as it is. Replace it from the MCP card on the folder home.'
+    })
+  })
+
+  it('passes on why the file could not be read, as an error', () => {
+    expect(describeClaudeConnect({ outcome: 'invalid', message: '.mcp.json is not valid JSON.' })).toEqual({
+      tone: 'error',
+      message: '.mcp.json is not valid JSON.'
     })
   })
 })

@@ -1,3 +1,4 @@
+import type { ClaudeCodeConnectResult } from '../../../shared/desktop/api'
 import type { FlushResultView, ReconcileResultView } from '../../../shared/domain/views'
 import { plural } from './plural'
 import type { ToastTone } from './toastState'
@@ -44,4 +45,21 @@ export function describeReconcile(result: ReconcileResultView): Notice {
   const details = reconcileDetails(result)
   const message = ['Reconciled.', ...(details.length > 0 ? details : ['Already up to date.'])].join(' ')
   return { tone: result.rejected.length > 0 ? 'error' : 'info', message }
+}
+
+const CONNECT_NOTICES: Record<Exclude<ClaudeCodeConnectResult['outcome'], 'invalid'>, Notice> = {
+  created: { tone: 'success', message: 'Created .mcp.json for Claude Code.' },
+  added: { tone: 'success', message: 'Added the darkmechanicus server to .mcp.json.' },
+  replaced: { tone: 'success', message: 'Replaced the darkmechanicus entry in .mcp.json.' },
+  unchanged: { tone: 'info', message: '.mcp.json already connects Claude Code with these settings.' },
+  conflict: {
+    tone: 'info',
+    message:
+      '.mcp.json already has a different darkmechanicus entry, so it was left as it is. Replace it from the MCP card on the folder home.'
+  }
+}
+
+/** Turns the outcome of writing `.mcp.json` into a toast; a file that could not be read is an error. */
+export function describeClaudeConnect(result: ClaudeCodeConnectResult): Notice {
+  return result.outcome === 'invalid' ? { tone: 'error', message: result.message } : CONNECT_NOTICES[result.outcome]
 }
