@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { FakeDm } from '../__mocks__/fakeDm'
-import { boardImport, boardOpenEpic, EPIC_A, folderView, NO_BOARD } from '../__mocks__/fixtures'
+import { boardImport, boardOpenEpic, boardRemoval, EPIC_A, folderView, NO_BOARD } from '../__mocks__/fixtures'
 import { ManualScheduler } from '../__mocks__/manualScheduler'
 import { settle } from '../__mocks__/settle'
 import type { BoardImportView } from '../../../shared/domain/views'
@@ -48,6 +48,17 @@ function renderCard(answer: () => Promise<BoardImportView | null>, version = 1):
 let rerenderCard: (version: number) => void = () => undefined
 
 const card = (): HTMLElement => screen.getByRole('region', { name: 'Old-style board' })
+const removalOffer = (): HTMLElement | null => within(card()).queryByRole('region', { name: 'Remove the old board workflow' })
+
+async function reviewRemoval(): Promise<HTMLElement> {
+  const offer = removalOffer()
+  if (offer === null) {
+    throw new Error('No removal offer')
+  }
+  fireEvent.click(within(offer).getByRole('button', { name: 'Review files to remove' }))
+  await settle()
+  return offer
+}
 
 describe('BoardImportCard preview', () => {
   it('shows nothing for a repository without an old board', async () => {
@@ -114,5 +125,60 @@ describe('BoardImportCard import', () => {
     await settle()
     expect(calls.imports).toBe(1)
     expect(within(card()).getByRole('button', { name: 'Import 1 epic as a draft' })).toBeTruthy()
+  })
+})
+
+describe('BoardImportCard removal of the old workflow', () => {
+  beforeEach(() => {
+    dm.boardRemoval = boardRemoval()
+  })
+
+  it('offers no removal while open epics are left to import', async () => {
+    dm.responses.previewBoardImport = boardImport()
+    renderCard(() => Promise.resolve(null))
+    await settle()
+    expect(removalOffer()).toBeNull()
+    expect(dm.calls).not.toContain('previewBoardRemoval')
+  })
+
+  it('offers the removal after an import and lists every file it would delete, deleting nothing yet', async () => {
+    dm.responses.previewBoardImport = boardImport()
+    renderCard(() => Promise.resolve(boardImport({ open: [boardOpenEpic({ state: 'created', epicId: EPIC_A })] })))
+    await settle()
+    fireEvent.click(within(card()).getByRole('button', { name: 'Import 1 epic as a draft' }))
+    await settle()
+
+    const offer = await reviewRemoval()
+
+    const files = Array.from(offer.querySelectorAll('.removal-file')).map((file) => file.textContent)
+    expect(files).toEqual(boardRemoval().remove.map((path) => path.slice(path.lastIndexOf('/') + 1)))
+    expect(within(offer).getByRole('region', { name: 'Still mentions the board, edit by hand' })).toBeTruthy()
+    expect(dm.boardRemovals).toEqual([])
+  })
+
+  it('offers the removal when every open epic was imported before, and when the board has only done epics', async () => {
+    dm.responses.previewBoardImport = boardImport({ open: [boardOpenEpic({ state: 'imported', epicId: EPIC_A })] })
+    renderCard(() => Promise.resolve(null), 1)
+    await settle()
+    expect(removalOffer()).not.toBeNull()
+    dm.responses.previewBoardImport = boardImport({ open: [] })
+    rerenderCard(2)
+    await settle()
+    expect(removalOffer()).not.toBeNull()
+  })
+
+  it('shows what the removal did instead of the board once it is done', async () => {
+    dm.responses.previewBoardImport = boardImport({ open: [] })
+    renderCard(() => Promise.resolve(null))
+    await settle()
+    const offer = await reviewRemoval()
+    fireEvent.click(within(offer).getByRole('button', { name: 'Delete 5 files…' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete 5 files' }))
+    await settle()
+
+    expect(dm.boardRemovals).toEqual([{ folder: '/a', paths: boardRemoval().remove }])
+    expect(within(card()).queryByRole('group', { name: 'Done epics' })).toBeNull()
+    expect(within(card()).queryByText(/still has a Markdown/)).toBeNull()
+    expect(within(card()).getByText(/Removed 5 files/)).toBeTruthy()
   })
 })
