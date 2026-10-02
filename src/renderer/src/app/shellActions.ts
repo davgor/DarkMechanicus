@@ -1,13 +1,24 @@
 import type { CreateEpicInput } from '../../../shared/domain/api'
-import type { FolderPickResult, TrackedFolderView } from '../../../shared/desktop/api'
+import type { ClaudeCodeConnectRequest, FolderPickResult, TrackedFolderView } from '../../../shared/desktop/api'
 import type { WorkStatus } from '../../../shared/domain/status'
-import type { EpicDetailView } from '../../../shared/domain/views'
+import type { BoardImportView, EpicDetailView } from '../../../shared/domain/views'
 import { runCommand } from '../api/dm'
 import type { Selection } from './selection'
-import { describeFlush, describeReconcile } from './shellMessages'
+import { describeBoardImport, describeClaudeConnect, describeFlush, describeReconcile } from './shellMessages'
 import type { ToastTone } from './toastState'
 
 export type BusyKey = 'initialize' | 'flush' | 'reconcile'
+
+/** Choices on the onboarding screen that shape what Initialize does. */
+export interface InitializeOptions {
+  /** Also write `.mcp.json` so Claude Code can connect. */
+  writeMcpConfig: boolean
+  /** Then import the open epics of an old-style `board/` as drafts; the person opts in explicitly. */
+  importBoard: boolean
+}
+
+/** Onboarding connects Claude Code as a planner that may save, and never replaces an existing entry. */
+const ONBOARDING_CONNECTION: ClaudeCodeConnectRequest = { role: 'planner', allowSave: true, replace: false }
 
 /** Everything the actions need from the shell, so they can be exercised without React. */
 interface ShellDeps {
@@ -36,7 +47,9 @@ export interface ShellActions {
   changed(path: string): void
   track(): Promise<void>
   untrack(path: string): Promise<void>
-  initialize(folder: TrackedFolderView): Promise<void>
+  initialize(folder: TrackedFolderView, options: InitializeOptions): Promise<void>
+  /** Resolves with what the import did, or null after reporting why it failed. */
+  importBoard(folder: TrackedFolderView): Promise<BoardImportView | null>
   flush(): Promise<void>
   reconcile(): Promise<void>
   /** Resolves with the new epic, or null after reporting why it could not be created. */
@@ -102,17 +115,39 @@ async function onSelectedFolder(deps: ShellDeps, work: (path: string) => Promise
   }
 }
 
-function repositoryActions(deps: ShellDeps): Pick<ShellActions, 'initialize' | 'flush' | 'reconcile'> {
+/** Imports the folder's old-style board as draft epics, then refreshes its epics and says what happened. */
+function importBoard(deps: ShellDeps, folder: TrackedFolderView): Promise<BoardImportView | null> {
+  return guarded(deps, async () => {
+    const result = await runCommand(folder.path, 'importBoard', {})
+    deps.refresh(folder.path)
+    const notice = describeBoardImport(result)
+    deps.toasts.push(notice.tone, notice.message)
+    return result
+  })
+}
+
+function repositoryActions(deps: ShellDeps): Pick<ShellActions, 'initialize' | 'importBoard' | 'flush' | 'reconcile'> {
   return {
-    initialize: (folder) =>
+    initialize: (folder, options) =>
       whileBusy(deps, 'initialize', async () => {
-        await guarded(deps, async () => {
+        const initialized = await guarded(deps, async () => {
           await runCommand(folder.path, 'initializeRepository', {})
           await deps.folders.reload()
           deps.refresh(folder.path)
           deps.toasts.push('success', `Initialized ${folder.name}.`)
+          return true
         })
+        if (initialized === true && options.writeMcpConfig) {
+          await guarded(deps, async () => {
+            const notice = describeClaudeConnect(await window.dm.connectClaudeCode(folder.path, ONBOARDING_CONNECTION))
+            deps.toasts.push(notice.tone, notice.message)
+          })
+        }
+        if (initialized === true && options.importBoard) {
+          await importBoard(deps, folder)
+        }
       }),
+    importBoard: (folder) => importBoard(deps, folder),
     flush: () =>
       onSelectedFolder(deps, (path) =>
         whileBusy(deps, 'flush', async () => {

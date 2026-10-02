@@ -1398,6 +1398,28 @@ textarea.input {
   line-height: 19px;
 }
 
+.onboarding-option {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.onboarding-option-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.onboarding-option-note {
+  margin: 0;
+  padding-left: 23px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
 .snippet {
   display: flex;
   flex-direction: column;
@@ -1620,6 +1642,65 @@ textarea.input {
   overflow-wrap: anywhere;
 }
 
+.connect {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.connect-facts {
+  align-self: stretch;
+}
+
+.connect-facts .kv-row {
+  align-items: baseline;
+}
+
+.connect-facts .mono {
+  font-size: 12.5px;
+}
+
+.connect-select {
+  padding: 4px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--code-bg);
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.connect-select:focus-visible {
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 1px var(--ring);
+}
+
+.connect-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+}
+
+.connect-check input,
+.onboarding-option-label input {
+  accent-color: var(--primary);
+}
+
+.connect-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-self: stretch;
+  padding: 12px 14px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+}
+
 .branch-epic {
   display: flex;
   flex-direction: column;
@@ -1642,6 +1723,219 @@ textarea.input {
   font-size: 12px;
 }
 
+/* ---------- Old-style board import (onboarding and folder home) ---------- */
+
+.onboarding-board {
+  max-width: 1040px;
+}
+
+.board-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Block, not flex: a <details> group keeps its disclosure marker and folds reliably. */
+.board-group {
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.board-group > .note {
+  margin-top: 6px;
+}
+
+.board-group-title {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+summary.board-group-title {
+  cursor: pointer;
+}
+
+summary.board-group-title::marker {
+  color: var(--muted);
+}
+
+.board-count {
+  margin-left: 2px;
+  padding: 0 6px;
+  border-radius: 9px;
+  background: var(--panel-3);
+  color: var(--ink-soft);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.board-group-note {
+  margin-left: 8px;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.board-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.board-epic {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 2px 10px;
+  padding: 10px 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.board-id {
+  color: var(--accent);
+  font-size: 12px;
+}
+
+/* The state pill sits beside the title, and drops below it in a narrow card. */
+.board-epic-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 10px;
+  min-width: 0;
+}
+
+.board-epic-title {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.board-epic-meta,
+.board-path,
+.board-open {
+  grid-column: 2;
+}
+
+.board-epic-meta {
+  color: var(--ink-soft);
+  font-size: 12.5px;
+}
+
+.board-path {
+  color: var(--muted);
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+}
+
+.board-open {
+  justify-self: start;
+  margin-top: 4px;
+}
+
+.board-done {
+  gap: 2px;
+}
+
+.board-done-epic {
+  display: flex;
+  gap: 10px;
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 22px;
+}
+
+/* Onboarding has the width to show every done epic at once, in two columns. */
+.onboarding-board .board-done {
+  display: block;
+  columns: 2;
+  column-gap: 32px;
+}
+
+.onboarding-board .board-done-epic {
+  break-inside: avoid;
+}
+
+.board-skipped {
+  color: var(--ink-2);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+.board-reason {
+  color: var(--muted);
+}
+
+/* Removing the old workflow: its own step under the preview, every file listed under its folder. */
+.board-removal {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.board-removal > .note {
+  margin: 0;
+}
+
+/* After the removal the preview is gone, so nothing above needs dividing off. */
+.card-title + .board-removal {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.removal-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.removal-group {
+  padding: 8px 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.removal-folder {
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.removal-files {
+  margin: 4px 0 0;
+  padding: 0 0 0 12px;
+  border-left: 1px solid var(--line-soft);
+  list-style: none;
+}
+
+.removal-file {
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+/* Onboarding has the width to show a long folder of files in two columns. */
+.onboarding-board .removal-files {
+  columns: 2;
+  column-gap: 24px;
+}
+
 @media (max-width: 1180px) {
   .home-grid {
     grid-template-columns: minmax(0, 1fr);
@@ -1656,5 +1950,10 @@ textarea.input {
   .onboarding,
   .home {
     padding: 24px;
+  }
+
+  .onboarding-board .board-done,
+  .onboarding-board .removal-files {
+    columns: 1;
   }
 }

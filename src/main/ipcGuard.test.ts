@@ -195,7 +195,10 @@ function trustingDesktop() {
     writeClipboard: () => undefined,
     openExternal: async () => undefined,
     mcpConfig: () => ({ command: 'node', args: [], env: {}, json: '{}', note: 'n' }),
-    installSkills: () => ({ written: [] })
+    installSkills: () => ({ written: [] }),
+    connectClaudeCode: () => ({ outcome: 'unchanged' }),
+    previewBoardRemoval: () => ({ remove: [], kept: [], editByHand: [] }),
+    removeBoardFiles: () => ({ removed: [], removedFolders: [], kept: [], editByHand: [] })
   })
   return { workspace, opened, handlers }
 }
@@ -232,7 +235,7 @@ describe('guarded desktop channels', () => {
 
     const answers = await Promise.all(ipc.channels().map((channel) => ipc.invoke(channel, frameAt(PAGE), FOLDER)))
 
-    expect(ipc.channels()).toHaveLength(8)
+    expect(ipc.channels()).toHaveLength(11)
     expect(answers).toEqual(ipc.channels().map(() => REFUSED))
   })
 })

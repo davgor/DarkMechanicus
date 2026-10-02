@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { AppHarness } from './__mocks__/appHarness'
-import { folderView } from './__mocks__/fixtures'
+import { boardImport, boardOpenEpic, EPIC_A, folderView } from './__mocks__/fixtures'
 import { settle } from './__mocks__/settle'
 
 let h: AppHarness
@@ -106,6 +106,48 @@ describe('App onboarding', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Choose a different folder' }))
     await settle()
     expect(h.dm.calls).toContain('pickFolder')
+  })
+})
+
+describe('App onboarding with Claude Code', () => {
+  it('writes .mcp.json for Claude Code while initializing, unless the option is turned off', async () => {
+    h.dm.folders = [setup]
+    h.dm.handlers.initializeRepository = () => initResult
+    h.mount()
+    await settle()
+    fireEvent.click(screen.getByRole('button', { name: 'Initialize folder' }))
+    await settle()
+    expect(h.dm.claudeConnects).toEqual([
+      { folder: setup.path, request: { role: 'planner', allowSave: true, replace: false } }
+    ])
+    expect(screen.getByText('Created .mcp.json for Claude Code.')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Also write .mcp.json so Claude Code can connect' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Initialize folder' }))
+    await settle()
+    expect(h.dm.callsOf('initializeRepository')).toHaveLength(2)
+    expect(h.dm.claudeConnects).toHaveLength(1)
+  })
+})
+
+describe('App onboarding with an old-style board', () => {
+  it('previews the board, imports it after initializing when chosen, and lands on the folder home', async () => {
+    h.dm.folders = [setup]
+    h.dm.responses.previewBoardImport = boardImport()
+    h.dm.responses.importBoard = boardImport({ open: [boardOpenEpic({ state: 'created', epicId: EPIC_A })] })
+    h.dm.handlers.initializeRepository = () => {
+      h.dm.folders = [ready]
+      return initResult
+    }
+    h.mount()
+    await settle()
+    expect(screen.getByRole('region', { name: 'Old-style board' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Import 1 open epic from board/ as a draft' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Initialize folder' }))
+    await settle()
+    expect(h.dm.callsOf('importBoard').map((call) => [call.folder, call.input])).toEqual([[setup.path, {}]])
+    expect(screen.getByText('Imported 1 epic from board/ as a draft. Review it and press Save.')).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 1, name: 'new-service' })).toBeTruthy()
   })
 })
 

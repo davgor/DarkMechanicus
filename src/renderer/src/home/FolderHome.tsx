@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import type { TrackedFolderView } from '../../../shared/desktop/api'
 import type { CreateEpicInput } from '../../../shared/domain/api'
-import type { EpicDetailView, StorageStatusView } from '../../../shared/domain/views'
+import type { BoardImportView, EpicDetailView, StorageStatusView } from '../../../shared/domain/views'
 import type { EpicListState } from '../app/useEpicLists'
 import { Button } from '../components/Button'
+import { BoardImportCard } from './BoardImportCard'
 import { BranchEpics } from './BranchEpics'
 import { EpicBuckets } from './EpicBuckets'
 import { HistorySearch } from './HistorySearch'
@@ -21,9 +22,14 @@ interface FolderHomeProps {
   onCreateEpic(input: CreateEpicInput): Promise<EpicDetailView | null>
   onFlush(): void
   onReconcile(): void
+  /** Imports the folder's old-style board; resolves with the result, or null once a failure was reported. */
+  onImportBoard(): Promise<BoardImportView | null>
 }
 
-/** An initialized folder with no epic open: its epics, history search, storage and MCP status. */
+/**
+ * An initialized folder with no epic open: its epics, history search, storage and MCP status, and
+ * the import of an old-style board while the folder still has one.
+ */
 export function FolderHome(props: FolderHomeProps): JSX.Element {
   const { folder } = props
   const [creating, setCreating] = useState(false)
@@ -48,6 +54,12 @@ export function FolderHome(props: FolderHomeProps): JSX.Element {
           <HistorySearch folder={folder} onOpenEpic={props.onOpenEpic} />
         </div>
         <div className="home-secondary">
+          <BoardImportCard
+            folder={folder}
+            version={props.list.epics.length}
+            onImport={props.onImportBoard}
+            onOpenEpic={props.onOpenEpic}
+          />
           <StorageCard
             status={props.status}
             titles={titles}

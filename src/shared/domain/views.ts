@@ -533,6 +533,92 @@ export interface BranchEpicView {
   presentLocally: boolean
 }
 
+/** An old-style `/board` folder, which is a board item's status: `backlog`, `in-progress` or `done`. */
+type BoardFolderName = 'backlog' | 'in-progress' | 'done'
+
+/** A board ticket by its board id (`014.1`), title and file. Board text is data. */
+interface BoardTicketRef {
+  boardId: string
+  title: string
+  sourcePath: string
+}
+
+/**
+ * An open board epic (in backlog or in-progress) and what importing does with it. `new`: the next
+ * import creates it. `created`: this import created `epicId`. `imported`: an earlier import created
+ * `epicId`, so it is not created again.
+ */
+export interface BoardOpenEpicView {
+  /** Epic number as written in its file names, such as `014`. */
+  boardId: string
+  /** `standalone`: a ticket without an epic. `orphan`: sub-tickets whose epic file is missing. */
+  kind: 'epic' | 'standalone' | 'orphan'
+  title: string
+  folder: BoardFolderName
+  /** The epic's own file; null for orphan sub-tickets. */
+  sourcePath: string | null
+  /** Every board file the epic was read from, its own file first. */
+  sourcePaths: string[]
+  /** Open tickets, which the imported draft plan gets. */
+  ticketCount: number
+  /** Sub-tickets already in `board/done`: listed in the epic intent instead of imported. */
+  doneTickets: BoardTicketRef[]
+  state: 'new' | 'created' | 'imported'
+  /** Null only for `new`. */
+  epicId: string | null
+}
+
+/** A board epic in `board/done`: it stays in Git history and is never imported. */
+interface BoardDoneEpicView {
+  boardId: string
+  title: string
+  sourcePath: string | null
+  sourcePaths: string[]
+  ticketCount: number
+}
+
+/** What importing an old-style `/board` does (a preview) or did (an import). */
+export interface BoardImportView {
+  /** In board epic number order. */
+  open: BoardOpenEpicView[]
+  done: BoardDoneEpicView[]
+  /** Board files that were not read as part of the board, in path order. */
+  skipped: { path: string; reason: string }[]
+}
+
+/** A path the board removal leaves where it is, and why. Repository-relative, with forward slashes. */
+export interface BoardKeptPathView {
+  path: string
+  reason: string
+}
+
+/** A file that still mentions the board. It is never deleted; the person edits it by hand. */
+export interface BoardMentionView {
+  path: string
+  /** 1-based numbers of the lines that mention the board. */
+  lines: number[]
+}
+
+/**
+ * What removing the old board workflow (`board/` and the board-only skill folders) would delete,
+ * before anything is deleted. Every list is in path order.
+ */
+export interface BoardRemovalView {
+  /** Every file the removal deletes, repository-relative with forward slashes. */
+  remove: string[]
+  kept: BoardKeptPathView[]
+  editByHand: BoardMentionView[]
+}
+
+/** What the confirmed board removal did. Nothing is committed. */
+export interface BoardRemovalResultView {
+  removed: string[]
+  /** Folders removed because the deletion left them empty, deepest first. */
+  removedFolders: string[]
+  kept: BoardKeptPathView[]
+  editByHand: BoardMentionView[]
+}
+
 export interface InitializeResultView {
   projectId: string
   name: string

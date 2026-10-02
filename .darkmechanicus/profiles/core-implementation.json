@@ -1,0 +1,47 @@
+{
+  "capability": {
+    "constraints": {
+      "dataLocation": null,
+      "environments": [],
+      "maxCostUsd": null,
+      "maxDurationMinutes": null
+    },
+    "context": {
+      "estimatedInputTokens": null,
+      "requiredArtifacts": []
+    },
+    "modalities": [
+      "text"
+    ],
+    "preferences": {
+      "autonomy": null,
+      "cost": null,
+      "latency": null,
+      "modelOverride": null,
+      "quality": "high"
+    },
+    "reasoning": {
+      "level": "multi_step",
+      "rationale": "Core, main-process and IPC changes with file-system side effects need careful tests first."
+    },
+    "skills": [
+      "typescript",
+      "node",
+      "electron",
+      "testing"
+    ],
+    "tools": [
+      "repo_read",
+      "repo_write",
+      "shell",
+      "test_execution"
+    ],
+    "workType": "implementation"
+  },
+  "createdAt": "2026-10-01T15:16:32.699Z",
+  "description": "Core, main-process or IPC TypeScript changes, tested first, with no visual work.",
+  "format": "darkmechanicus.profile",
+  "formatVersion": 1,
+  "name": "core-implementation",
+  "updatedAt": "2026-10-01T15:16:32.699Z"
+}

@@ -39,6 +39,8 @@ const PROBES: Record<CommandName, unknown> = {
   getEpic: { epicId: EPIC },
   setEpicStatus: { epicId: EPIC, status: 'in_progress' },
   setEpicBranch: { epicId: EPIC, branch: { repository: null, name: 'feature/probe', startCommit: null } },
+  previewBoardImport: undefined,
+  importBoard: {},
   getPlan: { epicId: EPIC, view: 'draft' },
   openDraft: { epicId: EPIC },
   updatePlanDraft: { epicId: EPIC, ops: [{ op: 'set_rationale', rationale: 'probe' }] },

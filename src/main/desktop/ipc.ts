@@ -14,6 +14,13 @@ export function registerDesktopIpc(ipcMain: Pick<IpcMain, 'handle'>, handlers: D
   )
   ipcMain.handle('dm:getMcpConfig', (_event, folder: unknown) => handlers.getMcpConfig(folder))
   ipcMain.handle('dm:installSkills', (_event, folder: unknown) => handlers.installSkills(folder))
+  ipcMain.handle('dm:connectClaudeCode', (_event, folder: unknown, request: unknown) =>
+    handlers.connectClaudeCode(folder, request)
+  )
+  ipcMain.handle('dm:previewBoardRemoval', (_event, folder: unknown) => handlers.previewBoardRemoval(folder))
+  ipcMain.handle('dm:removeBoardFiles', (_event, folder: unknown, paths: unknown) =>
+    handlers.removeBoardFiles(folder, paths)
+  )
   ipcMain.handle('dm:copyText', (_event, text: unknown) => handlers.copyText(text))
   ipcMain.handle('dm:openExternal', (_event, url: unknown) => handlers.openExternal(url))
 }

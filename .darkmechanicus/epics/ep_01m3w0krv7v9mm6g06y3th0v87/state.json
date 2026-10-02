@@ -1,0 +1,63 @@
+{
+  "branch": {
+    "name": "planning-switchover",
+    "repository": null,
+    "startCommit": "4fafc8cd367a8eedf0d9233b74368ef9e0628ba5"
+  },
+  "completedAt": "2026-10-02T21:20:35.424Z",
+  "createdAt": "2026-10-01T15:16:32.743Z",
+  "epicId": "ep_01m3w0krv7v9mm6g06y3th0v87",
+  "format": "darkmechanicus.epic-state",
+  "formatVersion": 1,
+  "generation": 17,
+  "outcome": {
+    "recordedAt": "2026-10-02T21:20:35.424Z",
+    "runId": "rn_01m3ycb51r8dh5qh2mzwtdv990",
+    "successCriteria": [
+      {
+        "criterionId": "s1",
+        "met": true,
+        "note": "DM-16: the folder home \"Claude Code\" section (and the onboarding option) writes the darkmechanicus entry. mcpJson.test covers keeping other servers and unknown keys and replacing a different entry only on request. scratchpad/shot/shots/DM-16/2-replace-confirmation.png shows the confirmation with a github server and a notes key kept; scratchpad/shot/shots/DM-20/03-mcp-json-written.png shows the packaged app writing it."
+      },
+      {
+        "criterionId": "s2",
+        "met": true,
+        "note": "In a clone set up by the packaged app, Claude Code 2.1.284 found the generated project server (\"Pending approval\", the host's one-time approval). Once approved for the session, it reported darkmechanicus connected and listed 37 tools (scratchpad/shot/shots/DM-20/09-claude-code-session.jsonl). get_capabilities through the same config returned planner with plan.save (10-…json). Nobody edited config by hand. Caveat: the CLI's own expired login stopped its model turn, so get_capabilities was not called by the model itself."
+      },
+      {
+        "criterionId": "s3",
+        "met": true,
+        "note": "DM-17 parser and mapping (real fixtures from 52d6a0c, validated against the command schemas) and DM-18 import: onboarding and folder-home preview of open epics, done epics and skipped files (scratchpad/shot/shots/DM-18/1-onboarding-preview.png). Importing creates Backlog epics whose draft keeps titles, Markdown bodies and unchecked criteria (board.test, after-first-import.json)."
+      },
+      {
+        "criterionId": "s4",
+        "met": true,
+        "note": "DM-19: removal is its own step, offered only when nothing is left to import. It lists every file, grouped by folder (30 in the 52d6a0c clone), asks for confirmation, deletes only those files and the emptied folders, and commits nothing (scratchpad/shot/shots/DM-20/05-08, git status shows 30 deletions and HEAD unchanged)."
+      },
+      {
+        "criterionId": "s5",
+        "met": true,
+        "note": "On 0e99dff there is no board/, and .claude/skills and .cursor/skills hold only delivery-standards. grep for /board, board/, complete-ticket and collapse-epic over README.md, .ai-instructions.md, .cursor, .claude, docs and skills prints nothing. The delivery standards still require TDD-first and lint, typecheck, test, fireguard, deadcode and build (DM-14)."
+      },
+      {
+        "criterionId": "s6",
+        "met": true,
+        "note": "On 0e99dff: npm run lint, typecheck, test (3754 + 105), fireguard (A, 98), deadcode, build and smoke:mcp (57 tools) all pass (scratchpad/gate2.log)."
+      }
+    ],
+    "summary": "Dark Mechanicus is now the planning system for this repository, and setup can bring other board-style repositories over. This repository has no board, no board skills and no board instructions. Its delivery standards keep TDD-first and the full gate while tracking work as Dark Mechanicus epics. Setting up a repository can write the Claude Code `.mcp.json`. It can also import an old `/board` as draft epics and remove the old workflow files after an explicit, itemised confirmation, never committing anything. Every check passes on `planning-switchover` (0e99dff). Merging it into main, and committing the `.darkmechanicus` records and possibly `.mcp.json`, are decisions for the person."
+  },
+  "provenance": null,
+  "status": "completed",
+  "ticketStatuses": {
+    "tk_01m3w0krva7rcssvhgqswp7203": "completed",
+    "tk_01m3w0krvafkgw9n6s4x93bbdw": "completed",
+    "tk_01m3w0krvaqvbp404p49xxg667": "completed",
+    "tk_01m3w0krvb1en986wh8p8bfzce": "completed",
+    "tk_01m3w0krvbh6yandcyr06vx4qr": "completed",
+    "tk_01m3w0krvbny76xf0rkqh165hj": "completed",
+    "tk_01m3w0krvbv35y4zfakysk49s8": "completed"
+  },
+  "title": "Make Dark Mechanicus the planning system: agent-ready setup and /board retirement",
+  "updatedAt": "2026-10-02T21:20:35.453Z"
+}

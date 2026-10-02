@@ -237,7 +237,7 @@ These are proposed implementation milestones for building Dark Mechanicus, disti
 5. **Sprint checkpoints and recovery.** Add reports, advancement, pause/cancel, crash reconciliation, revision adoption at checkpoints, searchable historical memory, and backup/export. Demonstrate a failed gate blocking the next sprint, explicit takeover after importing an interrupted run, conflict detection after branch changes, and historical evidence surviving reconstruction. Test forged/replayed/stale checkpoint approvals and hostile repository imports before release.
 6. **Cross-host validation and release.** Run the same planning/execution contract in another host without changing stored task requirements. Verify Windows/macOS packaging, headless startup, data-directory discovery, migrations, and desktop updates.
 
-The first usable product is milestone 2. The core promise in the sketch is met at milestone 5. Initial implementation tickets should follow repository TDD, board tracking, and delivery checks.
+The first usable product is milestone 2. The core promise in the sketch is met at milestone 5. Initial implementation tickets should follow repository TDD, tracking in Dark Mechanicus itself, and delivery checks.
 
 ## Decisions still open
 
@@ -248,7 +248,7 @@ The first usable product is milestone 2. The core promise in the sketch is met a
 
 ## Evidence and technical references
 
-Repository inspection: `README.md`, `package.json`, `src/renderer/src/App.tsx`, `src/main/mcp/README.md`, and `src/main/tickets/README.md`. The Electron shell, MCP SDK, Zod, and React Flow are present; application ticket storage and the MCP server are placeholders. The development `/board` is separate from future application data.
+Repository inspection: `README.md`, `package.json`, `src/renderer/src/App.tsx`, `src/main/mcp/README.md`, and `src/main/tickets/README.md`. The Electron shell, MCP SDK, Zod, and React Flow are present; application ticket storage and the MCP server are placeholders. That snapshot predates this repository's own use of Dark Mechanicus: its development is now planned and run in the app itself, and its records live in `.darkmechanicus/`.
 
 SQLite WAL behavior: https://www.sqlite.org/wal.html
 

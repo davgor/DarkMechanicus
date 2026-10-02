@@ -61,6 +61,7 @@ export const COMMAND_SCHEMAS = {
   getEpic: epicRef,
   setEpicStatus: z.strictObject({ epicId: stableId, status: workStatus, expectedRevision: revision.optional() }),
   setEpicBranch: z.strictObject({ epicId: stableId, branch: epicBranch, expectedRevision: revision.optional() }),
+  importBoard: z.strictObject({ idempotencyKey }),
   getPlan: z.strictObject({ epicId: stableId, view, revisionId: stableId.optional() }),
   openDraft: epicRef,
   updatePlanDraft: z.strictObject({

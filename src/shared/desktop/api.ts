@@ -5,6 +5,7 @@
  */
 import type { CommandApi, CommandName } from '../domain/api'
 import type { DomainErrorShape } from '../domain/errors'
+import type { BoardRemovalResultView, BoardRemovalView } from '../domain/views'
 
 export interface TrackedFolderView {
   /** Canonical real path; the registry key. */
@@ -36,6 +37,28 @@ export interface McpConfigView {
   note: string
 }
 
+/** Roles Claude Code can be connected as from the app. */
+export const CLAUDE_CODE_ROLES = ['planner', 'orchestrator'] as const
+
+export type ClaudeCodeRole = (typeof CLAUDE_CODE_ROLES)[number]
+
+/** Writes the `darkmechanicus` server into the repository's `.mcp.json` for Claude Code. */
+export interface ClaudeCodeConnectRequest {
+  role: ClaudeCodeRole
+  /** Adds `--allow-save`, so the agent may call `save_plan`. */
+  allowSave: boolean
+  /** Replace a different existing `darkmechanicus` entry; without it the entry is reported, not touched. */
+  replace: boolean
+}
+
+/** What happened to `.mcp.json`. Only created, added and replaced wrote the file. */
+export type ClaudeCodeConnectResult =
+  | { outcome: 'created' | 'added' | 'replaced' | 'unchanged' }
+  /** A different `darkmechanicus` entry is there (pretty JSON); nothing was written. */
+  | { outcome: 'conflict'; existing: string }
+  /** The file could not be merged (not JSON, or not shaped like an MCP config); it was left untouched. */
+  | { outcome: 'invalid'; message: string }
+
 export interface FolderPickResult {
   folder: TrackedFolderView | null
   /** False when the picked folder was already tracked (it is selected instead). */
@@ -53,6 +76,11 @@ export interface DmApi {
   ): Promise<CommandResult<CommandOutput<K>>>
   getMcpConfig(folder: string): Promise<McpConfigView>
   installSkills(folder: string): Promise<{ written: string[] }>
+  connectClaudeCode(folder: string, request: ClaudeCodeConnectRequest): Promise<ClaudeCodeConnectResult>
+  /** What removing the old board workflow (`board/`, board-only skills) would delete; changes nothing. */
+  previewBoardRemoval(folder: string): Promise<BoardRemovalView>
+  /** Deletes the confirmed files that are still files to remove, then the folders left empty; never commits. */
+  removeBoardFiles(folder: string, paths: string[]): Promise<BoardRemovalResultView>
   copyText(text: string): Promise<void>
   openExternal(url: string): Promise<boolean>
 }
@@ -74,6 +102,8 @@ const DESKTOP_COMMANDS = [
   'getEpic',
   'setEpicStatus',
   'setEpicBranch',
+  'previewBoardImport',
+  'importBoard',
   'getPlan',
   'openDraft',
   'updatePlanDraft',

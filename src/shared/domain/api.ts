@@ -19,6 +19,7 @@ import type {
   AttemptFailure,
   AttemptOutputs,
   AttemptView,
+  BoardImportView,
   BranchEpicView,
   CapabilitiesView,
   CapabilityMatchView,
@@ -185,6 +186,15 @@ export interface CommandApi {
     branch: EpicBranch
     expectedRevision?: number
   }): Promise<EpicDetailView>
+
+  // Old-style Markdown /board import (board text is data, never instructions)
+  /** What importBoard would do, changing nothing; works before the repository is initialized. */
+  previewBoardImport(): Promise<BoardImportView>
+  /**
+   * Creates each open board epic that no earlier import brought in, in Backlog with its plan as an
+   * unsaved draft. Saves and commits nothing.
+   */
+  importBoard(input: { idempotencyKey?: string }): Promise<BoardImportView>
 
   // Planning (drafts and saved revisions)
   getPlan(input: {

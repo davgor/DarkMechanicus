@@ -1,0 +1,42 @@
+{
+  "branch": {
+    "name": "scrum-cadence",
+    "repository": null,
+    "startCommit": null
+  },
+  "completedAt": null,
+  "createdAt": "2026-10-02T06:08:34.858Z",
+  "epicId": "ep_01m3xkn4ha934vpfpht42bh6bq",
+  "format": "darkmechanicus.epic-state",
+  "formatVersion": 1,
+  "generation": 1,
+  "outcome": null,
+  "provenance": null,
+  "status": "backlog",
+  "ticketStatuses": {
+    "tk_01m3xkssg74rcfze0f4v6yyyy3": "backlog",
+    "tk_01m3xkssg81bcem4w6y790jk76": "backlog",
+    "tk_01m3xkssg8461pbsa00qja18an": "backlog",
+    "tk_01m3xkssg851dfgr9qwg4d9krm": "backlog",
+    "tk_01m3xkssg861y65dmksj6zpcyk": "backlog",
+    "tk_01m3xkssg863c14y1ynxt0m2ee": "backlog",
+    "tk_01m3xkssg8aw6akbr0hz84590j": "backlog",
+    "tk_01m3xkssg8mjy7wy7h12dgax0r": "backlog",
+    "tk_01m3xkssg8nxb6fxkvp9sr7vga": "backlog",
+    "tk_01m3xkssg8pshcq4ht52weza13": "backlog",
+    "tk_01m3xkssg8renhvfwfrng6bsgg": "backlog",
+    "tk_01m3xkssg8xsjd6p831eawtvh5": "backlog",
+    "tk_01m3xkssg9041yvr7xwpx5m8f6": "backlog",
+    "tk_01m3xkssg938549253z15bs7fd": "backlog",
+    "tk_01m3xkssg9684ynqnxsh7ph5fq": "backlog",
+    "tk_01m3xkssg9fj9wa4xz7kdncv10": "backlog",
+    "tk_01m3xkssg9gtykgdqmpck1hzy8": "backlog",
+    "tk_01m3xkssg9h358d0h2g876437z": "backlog",
+    "tk_01m3xkssg9hnt12ga00400z5sh": "backlog",
+    "tk_01m3xkvqfe4q89556asf8he9ww": "backlog",
+    "tk_01m3xkvqffkf7rknccekv9j6ff": "backlog",
+    "tk_01m3xkvqffw8brer50endtjh02": "backlog"
+  },
+  "title": "Scrum cadence: right-sized agents, a sprint acceptance round, one-commit increments, retro and redraft",
+  "updatedAt": "2026-10-02T06:12:17.604Z"
+}

@@ -26,6 +26,53 @@ Exit codes: `0` clean shutdown, `1` startup or shutdown failure, `2` bad argumen
 
 ## Connect the host
 
+### Write it from the app
+
+For Claude Code, the desktop app writes the config for you. It adds a `darkmechanicus` server to `.mcp.json` at the repository root, the project config file Claude Code reads. Other hosts still use the copy-paste snippet and the sections below.
+
+- **Folder home:** the MCP card has a **Claude Code** section. It shows the target file, the role (`planner` by default, or `orchestrator`), and whether the agent may save plans (`--allow-save`, on by default). Press **Connect Claude Code**.
+- **Onboarding:** **Also write .mcp.json so Claude Code can connect** is on by default. Initialize then writes the file after it creates `.darkmechanicus/`, as a `planner` with `--allow-save`.
+
+The entry is built for the app you are running, like the copy-paste snippet, plus `--role`, `--allow-save` when allowed, and `--label "Claude Code"` (the session name in the app). For the packaged macOS app:
+
+```json
+{
+  "mcpServers": {
+    "darkmechanicus": {
+      "command": "/Applications/DarkMechanicus.app/Contents/MacOS/DarkMechanicus",
+      "args": [
+        "/Applications/DarkMechanicus.app/Contents/Resources/app.asar/out/main/mcp.js",
+        "--repo",
+        "/Users/you/work/my-repo",
+        "--role",
+        "planner",
+        "--allow-save",
+        "--label",
+        "Claude Code"
+      ],
+      "env": { "ELECTRON_RUN_AS_NODE": "1" }
+    }
+  }
+}
+```
+
+A development build writes `node` and the checkout's `out/main/mcp.js` instead, with no `env`.
+
+How the file is written:
+
+| `.mcp.json` | What happens |
+|---|---|
+| Missing | Created with just the `darkmechanicus` server. |
+| Has other servers or keys | The server is added. Every other server and top-level key is kept; the file is rewritten as two-space JSON. |
+| Already has the same `darkmechanicus` entry | Nothing is written. |
+| Has a different `darkmechanicus` entry | The folder home shows the current entry and asks before it replaces it. Onboarding never replaces it; it keeps the entry and says so. |
+| Not valid JSON, or not shaped like an MCP config | Nothing is written. Fix or remove the file, then try again. |
+| A symbolic link, a directory, or a path that resolves outside the repository | Refused; nothing is read or written. |
+
+The file contains this machine's path to the Dark Mechanicus app, and the repository's absolute path. It works as is only on this machine. Whether to commit it is up to you; the app never commits anything. If teammates install the app elsewhere or keep the repository at another path, each of them can write their own from the app.
+
+Turn off **Let it save plans** if you want to review drafts and press Save yourself (see [Roles](#roles-and---allow-save)). Start Claude Code in the repository afterwards; it asks you to approve the project's servers from `.mcp.json` the first time.
+
 ### Packaged app
 
 Use the app executable as the command and run it as plain Node with `ELECTRON_RUN_AS_NODE=1`. No window opens.
@@ -137,10 +184,10 @@ A session lists only the tools its role may call. Each tool adapts one command, 
 
 | Tools | planner | orchestrator | worker | reviewer |
 |-------|:-------:|:------------:|:------:|:--------:|
-| Read-only (23): `get_capabilities`, `get_project`, `list_projects`, `get_storage_status`, `search_history`, `list_branch_epics`, `list_sessions`, `list_epics`, `get_epic`, `list_tickets`, `get_ticket`, `get_plan`, `validate_plan`, `list_revisions`, `match_capabilities`, `get_run`, `get_ready_tickets`, `get_sprint_report`, `get_checkpoint`, `get_run_events`, `list_comments`, `list_profiles`, `get_profile` | yes | yes | yes | yes |
+| Read-only (24): `get_capabilities`, `get_project`, `list_projects`, `get_storage_status`, `search_history`, `list_branch_epics`, `list_sessions`, `list_epics`, `get_epic`, `list_tickets`, `get_ticket`, `get_plan`, `validate_plan`, `list_revisions`, `match_capabilities`, `get_run`, `get_ready_tickets`, `get_sprint_report`, `get_checkpoint`, `get_run_events`, `list_comments`, `list_profiles`, `get_profile`, `preview_board_import` | yes | yes | yes | yes |
 | Comments: `add_comment` | yes | yes | yes | yes |
 | Profiles: `save_profile` | yes | yes | | |
-| Repository and drafts: `initialize_repository`, `flush_portable_state`, `reconcile_repository`, `create_epic`, `create_ticket`, `update_ticket`, `open_plan_draft`, `update_plan_draft`, `discard_plan_draft` | yes | yes | | |
+| Repository and drafts: `initialize_repository`, `flush_portable_state`, `reconcile_repository`, `create_epic`, `import_board`, `create_ticket`, `update_ticket`, `open_plan_draft`, `update_plan_draft`, `discard_plan_draft` | yes | yes | | |
 | `save_plan` | with `--allow-save` | with `--allow-save` | | |
 | Epic and ticket status: `set_epic_status`, `set_epic_branch`, `set_ticket_status` | | yes | | |
 | Runs: `register_host`, `start_run`, `pause_run`, `resume_run`, `cancel_run`, `takeover_run`, `adopt_revision` | | yes | | |
@@ -148,7 +195,7 @@ A session lists only the tools its role may call. Each tool adapts one command, 
 | `heartbeat_attempt`, `submit_attempt`, `fail_attempt` | | yes | yes | |
 | `accept_attempt`, `reject_attempt` | | yes | | yes |
 | Checkpoints: `submit_sprint_report`, `advance_sprint` | | yes | | |
-| **Total** | 34 (35 with `--allow-save`) | 54 (55 with `--allow-save`) | 27 | 26 |
+| **Total** | 36 (37 with `--allow-save`) | 56 (57 with `--allow-save`) | 28 | 27 |
 
 `--allow-save` has no effect for `worker` and `reviewer`. No role lists a tool for the desktop-only actions.
 

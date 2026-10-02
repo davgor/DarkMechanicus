@@ -6,6 +6,7 @@
 import type { CommandName } from '../../../../shared/domain/api'
 import type { DomainErrorShape } from '../../../../shared/domain/errors'
 import type {
+  ClaudeCodeConnectResult,
   CommandInput,
   CommandOutput,
   CommandResult,
@@ -16,6 +17,8 @@ import type {
 } from '../../../../shared/desktop/api'
 import type { CapabilityProfile } from '../../../../shared/domain/bundle'
 import type {
+  BoardRemovalResultView,
+  BoardRemovalView,
   CheckpointView,
   CommentView,
   EpicDetailView,
@@ -151,6 +154,18 @@ export class FakeBackend implements DmApi {
 
   installSkills(): Promise<{ written: string[] }> {
     return Promise.resolve({ written: [] })
+  }
+
+  connectClaudeCode(): Promise<ClaudeCodeConnectResult> {
+    return Promise.resolve({ outcome: 'unchanged' })
+  }
+
+  previewBoardRemoval(): Promise<BoardRemovalView> {
+    return Promise.resolve({ remove: [], kept: [], editByHand: [] })
+  }
+
+  removeBoardFiles(): Promise<BoardRemovalResultView> {
+    return Promise.resolve({ removed: [], removedFolders: [], kept: [], editByHand: [] })
   }
 
   copyText(): Promise<void> {

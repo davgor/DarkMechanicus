@@ -82,6 +82,7 @@ function FolderPane({ shell, EpicView }: PaneProps): JSX.Element | null {
       onCreateEpic={(input) => actions.createEpic(folder, input)}
       onFlush={() => void actions.flush()}
       onReconcile={() => void actions.reconcile()}
+      onImportBoard={() => actions.importBoard(folder)}
     />
   )
 }
@@ -101,7 +102,7 @@ function MainPane(props: PaneProps): JSX.Element | null {
         <OnboardingView
           folder={view.folder}
           busy={shell.busy.initialize}
-          onInitialize={() => void actions.initialize(view.folder)}
+          onInitialize={(options) => void actions.initialize(view.folder, options)}
           onChooseDifferent={() => void actions.track()}
         />
       )

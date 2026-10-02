@@ -1,0 +1,2056 @@
+{
+  "baseRevisionId": null,
+  "bundle": {
+    "edges": [
+      {
+        "from": "tk_01m3xkssg74rcfze0f4v6yyyy3",
+        "to": "tk_01m3xkssg8461pbsa00qja18an"
+      },
+      {
+        "from": "tk_01m3xkssg74rcfze0f4v6yyyy3",
+        "to": "tk_01m3xkssg8nxb6fxkvp9sr7vga"
+      },
+      {
+        "from": "tk_01m3xkssg74rcfze0f4v6yyyy3",
+        "to": "tk_01m3xkssg8pshcq4ht52weza13"
+      },
+      {
+        "from": "tk_01m3xkssg8461pbsa00qja18an",
+        "to": "tk_01m3xkssg851dfgr9qwg4d9krm"
+      },
+      {
+        "from": "tk_01m3xkssg8xsjd6p831eawtvh5",
+        "to": "tk_01m3xkssg81bcem4w6y790jk76"
+      },
+      {
+        "from": "tk_01m3xkssg81bcem4w6y790jk76",
+        "to": "tk_01m3xkssg863c14y1ynxt0m2ee"
+      },
+      {
+        "from": "tk_01m3xkssg8mjy7wy7h12dgax0r",
+        "to": "tk_01m3xkssg863c14y1ynxt0m2ee"
+      },
+      {
+        "from": "tk_01m3xkssg81bcem4w6y790jk76",
+        "to": "tk_01m3xkssg8aw6akbr0hz84590j"
+      },
+      {
+        "from": "tk_01m3xkssg8xsjd6p831eawtvh5",
+        "to": "tk_01m3xkssg9fj9wa4xz7kdncv10"
+      },
+      {
+        "from": "tk_01m3xkssg863c14y1ynxt0m2ee",
+        "to": "tk_01m3xkssg9fj9wa4xz7kdncv10"
+      },
+      {
+        "from": "tk_01m3xkssg8renhvfwfrng6bsgg",
+        "to": "tk_01m3xkssg9fj9wa4xz7kdncv10"
+      },
+      {
+        "from": "tk_01m3xkssg8aw6akbr0hz84590j",
+        "to": "tk_01m3xkssg9fj9wa4xz7kdncv10"
+      },
+      {
+        "from": "tk_01m3xkssg861y65dmksj6zpcyk",
+        "to": "tk_01m3xkssg9fj9wa4xz7kdncv10"
+      },
+      {
+        "from": "tk_01m3xkssg863c14y1ynxt0m2ee",
+        "to": "tk_01m3xkssg938549253z15bs7fd"
+      },
+      {
+        "from": "tk_01m3xkssg8renhvfwfrng6bsgg",
+        "to": "tk_01m3xkssg938549253z15bs7fd"
+      },
+      {
+        "from": "tk_01m3xkssg8aw6akbr0hz84590j",
+        "to": "tk_01m3xkssg938549253z15bs7fd"
+      },
+      {
+        "from": "tk_01m3xkssg9gtykgdqmpck1hzy8",
+        "to": "tk_01m3xkssg9041yvr7xwpx5m8f6"
+      },
+      {
+        "from": "tk_01m3xkssg9041yvr7xwpx5m8f6",
+        "to": "tk_01m3xkssg9hnt12ga00400z5sh"
+      },
+      {
+        "from": "tk_01m3xkssg9gtykgdqmpck1hzy8",
+        "to": "tk_01m3xkssg9684ynqnxsh7ph5fq"
+      },
+      {
+        "from": "tk_01m3xkssg9hnt12ga00400z5sh",
+        "to": "tk_01m3xkssg9684ynqnxsh7ph5fq"
+      },
+      {
+        "from": "tk_01m3xkssg9hnt12ga00400z5sh",
+        "to": "tk_01m3xkssg9h358d0h2g876437z"
+      },
+      {
+        "from": "tk_01m3xkssg74rcfze0f4v6yyyy3",
+        "to": "tk_01m3xkssg9gtykgdqmpck1hzy8"
+      },
+      {
+        "from": "tk_01m3xkssg81bcem4w6y790jk76",
+        "to": "tk_01m3xkssg9gtykgdqmpck1hzy8"
+      },
+      {
+        "from": "tk_01m3xkssg74rcfze0f4v6yyyy3",
+        "to": "tk_01m3xkvqfe4q89556asf8he9ww"
+      },
+      {
+        "from": "tk_01m3xkssg8461pbsa00qja18an",
+        "to": "tk_01m3xkvqfe4q89556asf8he9ww"
+      },
+      {
+        "from": "tk_01m3xkssg8nxb6fxkvp9sr7vga",
+        "to": "tk_01m3xkvqfe4q89556asf8he9ww"
+      },
+      {
+        "from": "tk_01m3xkssg8pshcq4ht52weza13",
+        "to": "tk_01m3xkvqfe4q89556asf8he9ww"
+      },
+      {
+        "from": "tk_01m3xkssg851dfgr9qwg4d9krm",
+        "to": "tk_01m3xkvqfe4q89556asf8he9ww"
+      },
+      {
+        "from": "tk_01m3xkssg8mjy7wy7h12dgax0r",
+        "to": "tk_01m3xkvqffw8brer50endtjh02"
+      },
+      {
+        "from": "tk_01m3xkssg861y65dmksj6zpcyk",
+        "to": "tk_01m3xkvqffw8brer50endtjh02"
+      },
+      {
+        "from": "tk_01m3xkssg8xsjd6p831eawtvh5",
+        "to": "tk_01m3xkvqffw8brer50endtjh02"
+      },
+      {
+        "from": "tk_01m3xkssg81bcem4w6y790jk76",
+        "to": "tk_01m3xkvqffw8brer50endtjh02"
+      },
+      {
+        "from": "tk_01m3xkssg863c14y1ynxt0m2ee",
+        "to": "tk_01m3xkvqffw8brer50endtjh02"
+      },
+      {
+        "from": "tk_01m3xkssg8renhvfwfrng6bsgg",
+        "to": "tk_01m3xkvqffw8brer50endtjh02"
+      },
+      {
+        "from": "tk_01m3xkssg8aw6akbr0hz84590j",
+        "to": "tk_01m3xkvqffw8brer50endtjh02"
+      },
+      {
+        "from": "tk_01m3xkssg9fj9wa4xz7kdncv10",
+        "to": "tk_01m3xkvqffw8brer50endtjh02"
+      },
+      {
+        "from": "tk_01m3xkssg938549253z15bs7fd",
+        "to": "tk_01m3xkvqffw8brer50endtjh02"
+      },
+      {
+        "from": "tk_01m3xkssg9gtykgdqmpck1hzy8",
+        "to": "tk_01m3xkvqffkf7rknccekv9j6ff"
+      },
+      {
+        "from": "tk_01m3xkssg9041yvr7xwpx5m8f6",
+        "to": "tk_01m3xkvqffkf7rknccekv9j6ff"
+      },
+      {
+        "from": "tk_01m3xkssg9hnt12ga00400z5sh",
+        "to": "tk_01m3xkvqffkf7rknccekv9j6ff"
+      },
+      {
+        "from": "tk_01m3xkssg9684ynqnxsh7ph5fq",
+        "to": "tk_01m3xkvqffkf7rknccekv9j6ff"
+      },
+      {
+        "from": "tk_01m3xkssg9h358d0h2g876437z",
+        "to": "tk_01m3xkvqffkf7rknccekv9j6ff"
+      }
+    ],
+    "epic": {
+      "intent": "Dark Mechanicus is Scrum with sub-agents as the developers. Run 1 of the Mechanicus UI revamp showed that the cadence is off: every node gets the full treatment.\n\n**What we saw (sprint 1 of the UI revamp)**\n- **No downleveling.** The matcher treats reasoning level only as a floor and never rewards a model that fits. `quality: high` (set by both repo profiles and copied into 11 of 12 tickets) is effectively a bonus for the biggest model, and cost only counts when a ticket asks for it (none do). Opus wrote a docs-only palette proposal. The small model was eligible for four tickets and was never chosen. Every mid-tier pick overrode the score.\n- **No size or effort.** Tickets have no size, no \"micro\" flag and no reasoning effort, and a claim records only the model.\n- **Heavy nodes.** After every ticket the orchestrator re-ran all six checks on the integrated branch, took screenshots and made its own merge commit: 19 commits for 7 tickets.\n- **Checkpoints read like audits, not sprint reviews.** There is no retro, and nothing turns leftovers or discoveries into the next sprint.\n\n**The cadence we want, mirroring a real Scrum team**\n1. **Right-sized developers.** Every ticket has an honest size (micro, small, medium, large) and effort. The orchestrator dispatches the smallest model that fits, at that effort, and escalates one tier at a time only after a rejection.\n2. **Light tickets.** A sub-agent does each ticket and runs targeted checks. Review checks that ticket's acceptance criteria from that evidence and nothing more.\n3. **Row checks.** When a row of parallel tickets (same-sprint dependency depth) is accepted, the orchestrator checks that the code combined cleanly before more work builds on it.\n4. **A planned acceptance round.** Every sprint ends in an acceptance node: one verification step per item, planned up front, plus the project's Definition of Done (full tests, coverage thresholds, fireguard, deadcode, build).\n5. **One commit per sprint.** The sprint is squashed into a single commit on the epic branch, and the server verifies it.\n6. **Retro.** The sprint report becomes a sprint review and retrospective: what was delivered and how to see it, what went well and poorly, whether each developer was sized right, discoveries, and leftovers.\n7. **Redraft.** The retro feeds the next sprint: leftovers move with a fresh retry budget and discoveries become tickets. The person approves the retro and the redraft in one step.\n\n**Out of scope:** running checks on the server (DM still records evidence and does not execute builds), merging the epic into the default branch (still a person's step), and changing the in-flight UI revamp run.",
+      "ownerRole": null,
+      "successCriteria": [
+        {
+          "id": "s1",
+          "text": "For a ticket with no cost or quality preference, match_capabilities recommends the cheapest eligible model whose reasoning range fits the ticket, explains why, and after a rejection recommends one tier (or one effort) up; a deep ticket still matches only deep-capable models."
+        },
+        {
+          "id": "s2",
+          "text": "Every ticket can carry a size (micro, small, medium, large) and a reasoning effort; both show in the ticket view and on graph nodes, and every claim records the model and effort actually used."
+        },
+        {
+          "id": "s3",
+          "text": "Every sprint ends in an acceptance node that runs after all of the sprint's other required tickets, plans one verification step per ticket plus the project's Definition of Done (including code coverage thresholds), and the checkpoint cannot be approved until it is accepted."
+        },
+        {
+          "id": "s4",
+          "text": "Per-ticket review checks acceptance criteria from the worker's targeted evidence only; the full sweep runs once, in the acceptance node; a failed row integration check blocks the tickets that build on that row."
+        },
+        {
+          "id": "s5",
+          "text": "Each sprint lands on the epic branch as exactly one squashed commit, which the server verifies and the sprint report shows."
+        },
+        {
+          "id": "s6",
+          "text": "Every sprint report carries a retro (delivered items with how to see them, went well, went poorly, tier fit per ticket from real attempts, discoveries, leftovers), shown on the checkpoint screen and the completed-epic overview."
+        },
+        {
+          "id": "s7",
+          "text": "At a checkpoint the next sprint is redrafted from the retro (leftovers moved with a fresh retry budget, discoveries added as tickets), the person approves the retro and the redraft in one step, and the run continues on the redrafted plan."
+        }
+      ],
+      "title": "Scrum cadence: right-sized agents, a sprint acceptance round, one-commit increments, retro and redraft"
+    },
+    "formatVersion": 1,
+    "policies": {
+      "leaseSeconds": 900,
+      "maxConcurrency": null,
+      "onTicketFailure": "continue_independent",
+      "retryLimit": 3
+    },
+    "rationale": "**Why three sprints, in this order.** They follow the person's priorities: (1) right-size the developers, (2) make tickets light and move the heavy testing into a planned acceptance round with one commit per sprint, (3) add the retro and the redraft. Sprint 1 cuts cost immediately and is self-contained. Sprint 2 is the riskiest (a new ticket kind, gates, rows, git verification) and lands before the retro, which depends on acceptance nodes and sizes.\n\n**This epic dogfoods the cadence before it exists.** Every ticket is sized (a `size:` tag until DM-24 adds the field), micro tasks are called out (DM-27, DM-30), and capabilities are written by hand at `quality: standard` with `cost: low`, rather than copied from the repo profiles, which force the biggest model today. Only DM-40 is `deep`. Each work ticket's own checks are targeted (the touched tests plus typecheck). Each sprint ends with an acceptance ticket that requires every other ticket in the sprint, plans one verification criterion per item, runs the full sweep once and squashes the sprint into one commit. Until DM-38 lands, acceptance tickets keep a tier-fit table in their evidence notes so each sprint report can carry a hand-written retro.\n\n**Graph.** In sprint 1, DM-24 (schema) comes first; DM-25, DM-26 and DM-27 run in parallel after it; DM-28 follows DM-25. In sprint 2 there are three parallel starts: DM-29 and DM-30 (independent), DM-31 then DM-32 (the acceptance-node chain), and DM-34 (rows). DM-33 joins DM-32 and DM-29; DM-35 follows DM-32; DM-36 joins all of them; DM-37 follows the server tickets. Sprint 3 is a chain: DM-38, DM-39, DM-40, then DM-41 and DM-42. The critical path is DM-31, DM-32, DM-35, DM-36, then acceptance.\n\n**Assumptions to confirm**\n1. The squashed sprint commit lands on the **epic branch** (`scrum-cadence`). Merging the epic into the default branch stays a person's step, as today.\n2. DM keeps recording evidence and does not run checks. The Definition of Done gate checks named, reported checks. Only the increment is verified independently, with read-only git.\n3. Coverage thresholds start at the measured baseline, rounded down, so coverage cannot regress. Raise them later.\n4. The size scale is micro, small, medium and large; `large` warns to split.\n5. A row is same-sprint dependency depth (the graph's rows), excluding the acceptance node. A row check holds back only the work built on that row; it is not a sprint-wide barrier.\n6. New gates (acceptance, Definition of Done, increment, retro) apply only to sprints that have an acceptance node, so in-flight runs on older plans, including the UI revamp, keep working.\n7. Skills stay vendor-neutral (enforced by skills.test.ts). The Claude Code specifics go in a host runbook.\n8. The orchestrator for this epic runs on the installed app. Sprint 1's matcher and skills only take effect for later sprints after the app is rebuilt and installed.",
+    "relations": [],
+    "sprints": [
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": null,
+        "entryCriteria": [],
+        "exitCriteria": [
+          {
+            "id": "e1",
+            "text": "match_capabilities recommends the cheapest fitting model and effort for routine and multi-step tickets with no preferences, explains why, and escalates one step after a rejection."
+          },
+          {
+            "id": "e2",
+            "text": "Ticket size and reasoning effort exist in plans, host catalogs, claims and run history, and show in the ticket view and on graph nodes."
+          },
+          {
+            "id": "e3",
+            "text": "The repo profiles no longer force the biggest model, and a micro-change profile exists."
+          },
+          {
+            "id": "e4",
+            "text": "The planner and orchestrator skills tell agents how to size tickets, call out micro tasks, and escalate one tier at a time; a Claude Code host runbook shows the catalog and how to dispatch at a model and effort."
+          },
+          {
+            "id": "e5",
+            "text": "The sprint acceptance ticket verified each item, ran the full sweep once, and landed sprint 1 as one squashed commit on scrum-cadence."
+          }
+        ],
+        "goal": "Right-sized developers: every ticket carries an honest size and effort, and the orchestrator is steered to the smallest model that can do it, escalating only after a rejection.",
+        "id": "sp_01m3xkn4haw723yxy7t1et5s9k",
+        "ordinal": 1,
+        "ticketIds": [
+          "tk_01m3xkssg74rcfze0f4v6yyyy3",
+          "tk_01m3xkssg8461pbsa00qja18an",
+          "tk_01m3xkssg8nxb6fxkvp9sr7vga",
+          "tk_01m3xkssg8pshcq4ht52weza13",
+          "tk_01m3xkssg851dfgr9qwg4d9krm",
+          "tk_01m3xkvqfe4q89556asf8he9ww"
+        ]
+      },
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": null,
+        "entryCriteria": [],
+        "exitCriteria": [
+          {
+            "id": "e1",
+            "text": "Every new sprint has an acceptance node that runs after all of the sprint's other required tickets and must be accepted before the checkpoint can be approved."
+          },
+          {
+            "id": "e2",
+            "text": "The project's Definition of Done, including code coverage thresholds, is recorded, and the acceptance node's evidence must show every check passing."
+          },
+          {
+            "id": "e3",
+            "text": "The server knows each ticket's dependency row and holds back work that builds on a row whose integration check failed."
+          },
+          {
+            "id": "e4",
+            "text": "The sprint's squashed commit is verified on the epic branch and shown in the report and the graph."
+          },
+          {
+            "id": "e5",
+            "text": "The worker, reviewer, orchestrator and graph-planner skills describe the light-ticket cadence and the acceptance round."
+          },
+          {
+            "id": "e6",
+            "text": "Sprint 2 landed as one squashed commit on scrum-cadence after its acceptance ticket."
+          }
+        ],
+        "goal": "Light tickets and a planned acceptance round: tickets are reviewed against their own criteria only, each dependency row gets a combined check, and every sprint closes with an acceptance node that runs the Definition of Done and lands one verified, squashed commit.",
+        "id": "sp_01m3xkssg61w4a6x93cvx48cxs",
+        "ordinal": 2,
+        "ticketIds": [
+          "tk_01m3xkssg8mjy7wy7h12dgax0r",
+          "tk_01m3xkssg861y65dmksj6zpcyk",
+          "tk_01m3xkssg8xsjd6p831eawtvh5",
+          "tk_01m3xkssg81bcem4w6y790jk76",
+          "tk_01m3xkssg863c14y1ynxt0m2ee",
+          "tk_01m3xkssg8renhvfwfrng6bsgg",
+          "tk_01m3xkssg8aw6akbr0hz84590j",
+          "tk_01m3xkssg9fj9wa4xz7kdncv10",
+          "tk_01m3xkssg938549253z15bs7fd",
+          "tk_01m3xkvqffw8brer50endtjh02"
+        ]
+      },
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": null,
+        "entryCriteria": [],
+        "exitCriteria": [
+          {
+            "id": "e1",
+            "text": "Sprint reports carry a retro (delivered, went well, went poorly, actions, discoveries, leftovers, tier-fit verdicts) and the tier facts are computed from real attempts."
+          },
+          {
+            "id": "e2",
+            "text": "The checkpoint screen reads demo first, then retro, then the redraft, and the completed-epic overview shows each sprint's retro."
+          },
+          {
+            "id": "e3",
+            "text": "At a checkpoint, leftovers move to the next sprint with a fresh retry budget, discoveries become tickets, and the person approves the retro and the redraft in one step."
+          },
+          {
+            "id": "e4",
+            "text": "The skills describe the retro and the redraft loop."
+          },
+          {
+            "id": "e5",
+            "text": "A scratch epic ran through the whole cadence end to end, and every epic success criterion is checked."
+          }
+        ],
+        "goal": "Retro and redraft: each sprint closes with a review and retro that a person reads like a sprint demo, and the next sprint is redrafted from it before the run moves on.",
+        "id": "sp_01m3xkssg6tqcng6regh4j65yr",
+        "ordinal": 3,
+        "ticketIds": [
+          "tk_01m3xkssg9gtykgdqmpck1hzy8",
+          "tk_01m3xkssg9041yvr7xwpx5m8f6",
+          "tk_01m3xkssg9hnt12ga00400z5sh",
+          "tk_01m3xkssg9684ynqnxsh7ph5fq",
+          "tk_01m3xkssg9h358d0h2g876437z",
+          "tk_01m3xkvqffkf7rknccekv9j6ff"
+        ]
+      }
+    ],
+    "tickets": [
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "create_ticket, update_ticket and update_plan_draft accept `size` and `capability.reasoning.effort`; get_ticket and list_tickets return them; changing either shows up in the draft's changes."
+          },
+          {
+            "id": "c2",
+            "text": "A plan snapshot and a run history saved before this change (use ones from `.darkmechanicus/` as fixtures) still import, parse and keep their content hash."
+          },
+          {
+            "id": "c3",
+            "text": "validate_plan warns, without erroring, on a `large` ticket and on a `micro` ticket at `deep`."
+          },
+          {
+            "id": "c4",
+            "text": "register_host accepts per-model `efforts`; claim_ticket records `worker.effort`, refuses an effort the model does not declare, and the execution packet and exported run history carry it."
+          },
+          {
+            "id": "c5",
+            "text": "The new tests were written first and failed for the right reason before the change; the touched test files and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. Today a ticket has no size and no effort. The only intensity signal is `reasoning.level` (`routine`, `multi_step`, `deep`), which is a floor, not a fit. Add both, so planners can call out micro tasks and the orchestrator can dispatch at a matching model and effort.\n\n**Ticket size.** Add an optional `size` on the ticket: `micro`, `small`, `medium` or `large`.\n- micro: one obvious change in one or two files, one targeted test, no design choice.\n- small: one coherent change inside one module.\n- medium: several modules, or one real design choice.\n- large: should usually be split.\n\n**Reasoning effort.** Add an optional `capability.reasoning.effort`: `low`, `medium` or `high`. It is provider-neutral (how hard the worker should think), separate from `level` (what the model must be capable of).\n\n**Host catalog and claims.**\n- `register_host` models gain optional `efforts`: the efforts the host can run that model at.\n- The `claim_ticket` `worker` gains optional `effort`. Refuse an effort the model does not declare, when it declares any. Record the effort on the attempt (`WorkerInfo`), return it in the execution packet, and export it in run history.\n\n**Validation warnings** (not errors): a `large` ticket (suggest splitting); a `micro` ticket at `deep`.\n\n**Compatibility (must hold).** `planBundle` and `capabilityProfile` are strict objects, and portable snapshots are checked against their content hash (`src/core/repo/portable.ts:114-119`). The new fields are optional and get **no** zod `.default()`, so plans saved before this change still parse and keep their hash. Keep `PLAN_FORMAT_VERSION` unless a migration is truly needed.\n\n**Where**\n- Capability schema: `src/core/schemas.ts:75-109`. Host catalog schema: `src/core/schemas.ts:297-317`.\n- `src/shared/domain/bundle.ts:45-77,184-206` and `src/core/plan/normalize.ts:66-84`.\n- `src/core/plan/diff.ts`: size and effort edits show as draft changes.\n- `src/core/plan/graph.ts`: the `validatePlan` warnings.\n- `src/core/commandSchemas.ts:105-118`: the claim worker.\n- `src/shared/domain/views.ts:208-215,290-308`.\n- `src/core/services/attempts.ts:172-190,223-247`.\n- The portable attempt schema in `src/core/repo/portable.ts`.\n- The MCP tool descriptions for `create_ticket`, `update_ticket`, `update_plan_draft`, `register_host` and `claim_ticket`.\n\n**Checks for this ticket:** targeted only, meaning the tests for the files you touch plus `npm run typecheck`. The full sweep runs in the sprint acceptance ticket.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": "low",
+            "latency": null,
+            "modelOverride": null,
+            "quality": "standard"
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": "Schema change across core, MCP and portable records under a strict snapshot-hash compatibility constraint."
+          },
+          "skills": [
+            "typescript",
+            "zod"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m3xkssg74rcfze0f4v6yyyy3",
+        "key": "DM-24",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Capability and catalog schemas",
+            "location": "src/core/schemas.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Plan bundle types",
+            "location": "src/shared/domain/bundle.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Portable records",
+            "location": "src/core/repo/portable.ts",
+            "remoteOnly": false
+          }
+        ],
+        "tags": [
+          "size:medium",
+          "core",
+          "schema"
+        ],
+        "title": "Add ticket size and reasoning effort to plans, host catalogs and claims"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "With a fixture catalog shaped like the live one (a deep model at high cost, a multi_step model at normal cost, a routine model at low cost), a routine ticket with no preferences recommends the routine model, a multi_step ticket the multi_step model, and a deep ticket only the deep model."
+          },
+          {
+            "id": "c2",
+            "text": "`quality: high` on a routine or multi_step ticket does not put a deeper model first, and a model listing more skill tags does not beat a better-fitting model on tags alone."
+          },
+          {
+            "id": "c3",
+            "text": "Equal scores sort by cost tier, cheaper first, then by model id."
+          },
+          {
+            "id": "c4",
+            "text": "The result includes `recommended` with model, effort and reasons; after a rejected attempt it recommends one tier up, or a higher effort on the same model when no tier is above."
+          },
+          {
+            "id": "c5",
+            "text": "`reasons` explains the fit, cost and quality terms; the tests were written first and failed before the change; the touched tests and typecheck pass."
+          }
+        ],
+        "body": "Size: **small**. The matcher never steers work to a cheaper model. In run 1 of the UI revamp, Opus wrote a docs-only palette proposal, and the small model, though eligible on four tickets, was never picked. Every mid-tier pick overrode the score.\n\n**Why** (all in `src/core/plan/capabilities.ts`)\n- Reasoning is only a floor (`:59-70`). `scoreModel` (`:107-116`) never compares the model's highest level with the ticket's, so an over-capable model loses nothing.\n- `quality: high` gives +15 only to deep-capable models (`:24-27`), even on routine tickets. Both repo profiles set it.\n- Cost tiers count only when `cost: low` (`:28-37`), and nothing sets that.\n- Each skill tag the model self-declares adds +10 (`:108-109`). The host declared 10 tags for its biggest model and 1 for its smallest.\n- Ties sort by model id (`:133`).\n\n**Change**\n1. **Fit.** Penalise each reasoning rank by which a model's highest level exceeds the ticket's need (use `REASONING_RANK`, `rankOf` and `highestLevel` at `:14,45-57`), and say so in `reasons`.\n2. **Quality.** `quality: high` must not put a deeper model ahead of one that fits. It may break ties among fitting models.\n3. **Cost.** With no cost preference, a cheaper `costTier` beats a pricier one at equal fit. Ties sort by cost tier, then by id.\n4. **Skills.** Tag matches cannot outweigh fit: cap them, or count only the tags the ticket needs.\n5. **Size.** `micro` and `small` tickets (from the size ticket in this sprint) favour the cheapest fitting model.\n6. **Recommendation.** Add `recommended { modelId, effort, reasons }` to the result: the top fit, at the ticket's effort or, when that is unset, `low` for micro and small, `medium` for medium and `high` for large.\n7. **Escalation.** After a rejected or failed attempt on the ticket in this run, recommend the cheapest eligible model one tier above the last attempt's model. When nothing is above it, recommend the same model at a higher effort. This needs the run's attempts (`matchCapabilities` in `src/core/services/hosts.ts:52-60`).\n\nThe hard filters stay as they are: a deep ticket still matches only deep-capable models.\n\n**Checks for this ticket:** the targeted tests for `capabilities.ts` and `hosts.ts`, plus typecheck.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": "low",
+            "latency": null,
+            "modelOverride": null,
+            "quality": "standard"
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": "A small scoring module, but the fit, cost and escalation rules need careful cases."
+          },
+          "skills": [
+            "typescript"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m3xkssg8461pbsa00qja18an",
+        "key": "DM-25",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Matcher",
+            "location": "src/core/plan/capabilities.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "match_capabilities service",
+            "location": "src/core/services/hosts.ts",
+            "remoteOnly": false
+          }
+        ],
+        "tags": [
+          "size:small",
+          "core",
+          "matching"
+        ],
+        "title": "Rank the right-sized model first in match_capabilities"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The ticket view shows size, reasoning level, effort, quality and cost; a ticket without them shows nothing extra."
+          },
+          {
+            "id": "c2",
+            "text": "The ticket editor edits size and effort and can clear quality and cost, and the saved draft carries the change."
+          },
+          {
+            "id": "c3",
+            "text": "Graph nodes show a size badge, and a micro ticket is visibly distinct (screenshot)."
+          },
+          {
+            "id": "c4",
+            "text": "Attempt rows show the model and effort the claim recorded."
+          },
+          {
+            "id": "c5",
+            "text": "The component and view tests were written first; the touched tests pass."
+          }
+        ],
+        "body": "Size: **small**. People can't see a ticket's intensity today. The ticket view shows the reasoning level but not quality or cost (`src/renderer/src/ticket/ticketView.ts:144-157`), and the editor passes preferences through untouched (`src/renderer/src/ticket/ticketForm.ts:50-55,201-212`), so an inherited `quality: high` is invisible.\n\n- **Ticket view:** show size, reasoning level, effort, quality and cost.\n- **Ticket editor:** edit size and effort; show quality and cost and let them be cleared.\n- **Graph node:** a compact size badge, with `micro` visibly called out.\n- **Attempt rows:** the model and effort used.\n\nUse theme tokens only: `styles.test.ts` fails on new hex literals.\n\n**Checks for this ticket:** targeted component and view tests, plus before and after screenshots of the ticket panel and the graph.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": "low",
+            "latency": null,
+            "modelOverride": null,
+            "quality": "standard"
+          },
+          "reasoning": {
+            "level": "routine",
+            "rationale": "Adds fields to existing views and the editor following established patterns."
+          },
+          "skills": [
+            "react",
+            "css",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m3xkssg8nxb6fxkvp9sr7vga",
+        "key": "DM-26",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "tags": [
+          "size:small",
+          "ui"
+        ],
+        "title": "Show size and effort on tickets, graph nodes and attempts"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "list_profiles shows core-implementation and ui-implementation with no quality preference."
+          },
+          {
+            "id": "c2",
+            "text": "list_profiles shows a micro-change profile (routine, effort low, cost low) with a one-line description of when to use it."
+          },
+          {
+            "id": "c3",
+            "text": "No profile names a vendor or model."
+          }
+        ],
+        "body": "Size: **micro**. Both repo profiles set `quality: high` with `multi_step` (`.darkmechanicus/profiles/core-implementation.json` and `ui-implementation.json`), so every ticket built from them ranks the biggest model first, even after its level is lowered.\n\n- Set `preferences.quality` to null in both profiles. Leave reasoning at `multi_step`.\n- Add a `micro-change` profile: `routine`, effort `low`, `cost: low`, tools `repo_read`, `repo_write`, `shell` and `test_execution`, text only, with a one-line description of when to use it.\n\nThe orchestrator can call `save_profile`, passing each profile's current `revision`. A worker that cannot call it hands the three capabilities back for the orchestrator to save. Profiles stay vendor-neutral. Tickets that already copied a profile are unaffected.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": "low",
+            "latency": null,
+            "modelOverride": null,
+            "quality": "standard"
+          },
+          "reasoning": {
+            "level": "routine",
+            "rationale": "Three small record edits with no code."
+          },
+          "skills": [],
+          "tools": [
+            "repo_read",
+            "repo_write"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m3xkssg8pshcq4ht52weza13",
+        "key": "DM-27",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "tags": [
+          "size:micro",
+          "profiles"
+        ],
+        "title": "Right-size the repository's capability profiles"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "planner.md has the size rubric with an example per size, says to call out micro tasks and set an effort, and says to leave quality unset unless asked."
+          },
+          {
+            "id": "c2",
+            "text": "orchestrator.md says to dispatch the recommended model and effort, and to escalate one tier or one effort step at a time after a rejection, with the reason in the claim rationale."
+          },
+          {
+            "id": "c3",
+            "text": "A Claude Code host runbook under docs/runbooks shows an example catalog with cost tiers and efforts, and how to dispatch a worker at a chosen model and effort."
+          },
+          {
+            "id": "c4",
+            "text": "The skills name no vendor or model; skills.test.ts covers the new required phrases; SKILLS_VERSION is bumped; the skills tests pass."
+          }
+        ],
+        "body": "Size: **small**. Nothing in the skills pushes toward cheaper workers. `skills/planner.md:44-49` lists the reasoning levels with no guidance on when to pick `routine`, and tells planners to start from a profile, which copied `quality: high`. `skills/orchestrator.md:30-34` says to choose by score and judgment.\n\n**planner.md**\n- A sizing rubric: micro, small, medium and large, with one example each.\n- Call out micro tasks explicitly, and set an effort.\n- Leave `quality` unset unless the person asked for it.\n- Split `large` tickets.\n- Say that precise ticket bodies are what let small workers succeed.\n\n**orchestrator.md**\n- Register each model's efforts.\n- Take `recommended` from match_capabilities unless there is a stated reason not to, and dispatch at the recommended effort.\n- On a rejection, escalate one tier (or one effort step), never straight to the top, and put the reason in the claim `rationale`.\n- Report repeated escalations as profile proposals.\n\n**docs/runbooks**\n- Add a Claude Code host runbook. Vendor names are fine in docs, not in skills.\n- Give an example catalog for the current model family, with cost tiers and efforts.\n- Show how to dispatch a subagent at a given model and effort. Agent definitions under `.claude/agents/` carry the model and effort; verify how effort is actually set before documenting it.\n\n**Constraints**\n- Keep the skills vendor-neutral (`src/mcp/skills.test.ts:14,48-49`) and update the required phrases there.\n- Bump `SKILLS_VERSION` in `src/core/version.ts:2`.\n\n**Checks for this ticket:** `src/mcp/skills.test.ts` and typecheck.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": "low",
+            "latency": null,
+            "modelOverride": null,
+            "quality": "standard"
+          },
+          "reasoning": {
+            "level": "routine",
+            "rationale": "Guidance text and one runbook following the behaviour the other sprint 1 tickets define."
+          },
+          "skills": [
+            "technical-writing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "documentation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m3xkssg851dfgr9qwg4d9krm",
+        "key": "DM-28",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Planner skill",
+            "location": "skills/planner.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Orchestrator skill",
+            "location": "skills/orchestrator.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Skill guard tests",
+            "location": "src/mcp/skills.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "tags": [
+          "size:small",
+          "skills",
+          "docs"
+        ],
+        "title": "Teach planners to size tickets and orchestrators to dispatch the smallest capable worker"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "`npm run coverage` runs the main suite with v8 coverage and fails when a threshold is not met (shown by raising one threshold a point)."
+          },
+          {
+            "id": "c2",
+            "text": "The thresholds equal the measured baseline rounded down, and the baseline is recorded in the evidence."
+          },
+          {
+            "id": "c3",
+            "text": "pr-checks.yml runs coverage on pull requests."
+          }
+        ],
+        "body": "Size: **small**. There is no coverage today: no `coverage` block in `vitest.config.ts`, no `@vitest/coverage-*` package and no script.\n\n- Add `@vitest/coverage-v8` as a dev dependency and a `coverage` script (`vitest run --coverage` for the main suite).\n- Add thresholds in `vitest.config.ts` for lines, branches, functions and statements, set to the measured baseline rounded down to a whole percent, so coverage cannot regress.\n- Exclude generated output, test files, `__mocks__` and `out/`.\n- Add a coverage step to `.github/workflows/pr-checks.yml`.\n- `coverage/` is already in `.gitignore`.\n\nRecord the baseline numbers in the ticket evidence.\n\n**Checks for this ticket:** `npm run coverage`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": "low",
+            "latency": null,
+            "modelOverride": null,
+            "quality": "standard"
+          },
+          "reasoning": {
+            "level": "routine",
+            "rationale": "Standard tooling setup: one dev dependency, config, a script and a CI step."
+          },
+          "skills": [
+            "vitest",
+            "ci"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution",
+            "network"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m3xkssg8mjy7wy7h12dgax0r",
+        "key": "DM-29",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "tags": [
+          "size:small",
+          "tooling",
+          "ci"
+        ],
+        "title": "Measure code coverage and enforce thresholds"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The checkpoint report shows BLOCKED, CHANGES (files and short commit hashes) and the epic outcome summary when present, and omits empty sections."
+          },
+          {
+            "id": "c2",
+            "text": "The completed-epic overview shows them too."
+          },
+          {
+            "id": "c3",
+            "text": "View tests cover each section; the touched tests pass."
+          }
+        ],
+        "body": "Size: **micro**. The checkpoint screen drops three report fields it already receives: `blocked`, `changes` (files and commits) and `epicOutcome.summary` (`src/renderer/src/checkpoint/CheckpointScreen.tsx:177-192`, `gateView.ts:53-63,205-230`).\n\n- Render them in the same style as the existing sections.\n- The completed-epic overview reuses `SprintReport`, so it gets them too.\n- Show commits as short hashes, as `ticketView.ts:234` does.\n\n**Checks for this ticket:** the targeted tests for `gateView.ts` and the checkpoint component.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": "low",
+            "latency": null,
+            "modelOverride": null,
+            "quality": "standard"
+          },
+          "reasoning": {
+            "level": "routine",
+            "rationale": "Three more sections in an existing view, following the pattern of the sections already there."
+          },
+          "skills": [
+            "react",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m3xkssg861y65dmksj6zpcyk",
+        "key": "DM-30",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "tags": [
+          "size:micro",
+          "ui",
+          "checkpoint"
+        ],
+        "title": "Render the report's blocked list, changes and epic outcome summary"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A ticket can be created with kind acceptance; add_sprint and create_epic create one per new sprint; a second acceptance node in a sprint is a validation error."
+          },
+          {
+            "id": "c2",
+            "text": "validate_plan warns for a sprint with work tickets but no acceptance node, and for each required work ticket that no acceptance criterion covers."
+          },
+          {
+            "id": "c3",
+            "text": "An edge from the acceptance node to a ticket in its own sprint is rejected, and moving the node to another sprint is refused."
+          },
+          {
+            "id": "c4",
+            "text": "Plans and snapshots saved before this change parse, keep their hash, and validate with warnings only."
+          },
+          {
+            "id": "c5",
+            "text": "The tests were written first; the touched tests and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. The full verification sweep should be a planned node at the end of every sprint, not repeated on every ticket. This ticket adds the node to plans. The next ticket gates the run on it.\n\n- **Kind.** Add a ticket `kind`: `work` (absent means work) or `acceptance`. It is optional, with no zod default, for the same snapshot-hash reason as size and effort.\n- **One per sprint.** A second acceptance node in a sprint is a validation error. A sprint with work tickets but no acceptance node is a validation warning, so older plans still save.\n- **Created automatically.** `add_sprint` and `create_epic` create the sprint's acceptance node (title \"Sprint N acceptance\", workType `testing`, criteria to fill in). The desktop will offer to add one to a sprint that lacks it: the renderer work comes in the UI ticket, but the op must exist here.\n- **Implicit dependencies.** The acceptance node implicitly requires every other required ticket in its sprint. No edges are stored, so moving tickets between sprints needs no rewiring.\n  - An explicit edge into it from its own sprint is redundant and gets a warning.\n  - An edge out of it to a ticket in its own sprint is an error, because it runs last.\n  - Later sprints may depend on it.\n  - It cannot be moved to another sprint.\n- **Per-item coverage.** An acceptance criterion may carry `covers: <ticketId>`. Validation warns for each required work ticket in the sprint that no criterion covers, so the planner plans a verification step per item.\n- Views, diffs and portable records carry `kind` and `covers`.\n\n**Where**\n- `src/core/schemas.ts` (ticket, criterion) and `src/shared/domain/bundle.ts`.\n- `src/core/plan/draftOps.ts:95-176`.\n- `src/core/plan/graph.ts` (`validatePlan` at `:325`).\n- `src/core/plan/normalize.ts` and `src/core/plan/diff.ts`.\n- `src/core/repo/portable.ts`.\n- The MCP tool descriptions.\n\n**Checks for this ticket:** the targeted tests for the touched plan modules, plus typecheck.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": "low",
+            "latency": null,
+            "modelOverride": null,
+            "quality": "standard"
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": "New ticket kind with implicit edges, validation and draft-op rules, under the snapshot compatibility constraint."
+          },
+          "skills": [
+            "typescript",
+            "zod"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m3xkssg8xsjd6p831eawtvh5",
+        "key": "DM-31",
+        "optional": false,
+        "priority": "high",
+        "references": [],
+        "tags": [
+          "size:medium",
+          "core",
+          "schema",
+          "acceptance"
+        ],
+        "title": "Add the sprint acceptance node to the plan model"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "An acceptance node stays blocked until every other required ticket in its sprint is accepted, and get_ready_tickets names them as prerequisites."
+          },
+          {
+            "id": "c2",
+            "text": "A sprint with an acceptance node cannot pass its checkpoint until that node is accepted, and the gate says what is missing."
+          },
+          {
+            "id": "c3",
+            "text": "A sprint without an acceptance node (an older plan) behaves exactly as before."
+          },
+          {
+            "id": "c4",
+            "text": "An integration test runs a sprint with two work tickets and an acceptance node through to an approvable checkpoint."
+          },
+          {
+            "id": "c5",
+            "text": "The tests were written first; the touched tests and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. Make the acceptance node the sprint's last step in execution.\n\n- **Readiness.** An acceptance node is ready only when every other required ticket in its sprint is accepted. Until then `get_ready_tickets` lists it as blocked, with those tickets as prerequisites (`src/core/plan/readiness.ts:145-170`).\n- **New gate `acceptance_accepted`.** It requires an accepted, non-superseded attempt on the sprint's acceptance node (`src/core/services/checkpoints.ts:164-173`, and `GateConditionId` in `src/shared/domain/views.ts:354-360`). Sprints without an acceptance node (older plans) don't get the gate.\n- `get_run` shows acceptance nodes with their implicit prerequisites.\n- Update the `get_checkpoint` description (`src/mcp/tools/checkpoints.ts:28`).\n\nThe checkpoint screen loops over conditions, so the gate appears without renderer work.\n\n**Checks for this ticket:** the targeted tests for readiness and checkpoints, plus typecheck. Add one integration test that runs a two-ticket sprint with an acceptance node through to the checkpoint.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": "low",
+            "latency": null,
+            "modelOverride": null,
+            "quality": "standard"
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": "Readiness and gate changes that must leave older plans untouched."
+          },
+          "skills": [
+            "typescript"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m3xkssg81bcem4w6y790jk76",
+        "key": "DM-32",
+        "optional": false,
+        "priority": "high",
+        "references": [],
+        "tags": [
+          "size:medium",
+          "core",
+          "checkpoint",
+          "acceptance"
+        ],
+        "title": "Gate the checkpoint on the sprint's acceptance node"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "get_project returns the Definition of Done; set_definition_of_done changes it for planner and desktop sessions and is refused for workers."
+          },
+          {
+            "id": "c2",
+            "text": "The acceptance node's execution packet lists the Definition of Done checks."
+          },
+          {
+            "id": "c3",
+            "text": "The checkpoint shows definition_of_done unmet until the accepted acceptance attempt reports every named check as passed, and names the missing ones."
+          },
+          {
+            "id": "c4",
+            "text": "This repository's project config holds the seven checks with their commands."
+          },
+          {
+            "id": "c5",
+            "text": "The tests were written first; the touched tests and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. In Scrum the Definition of Done belongs to the team, not to one story. Store it once per project and make every sprint's acceptance node prove it.\n\n- **Project-level `definitionOfDone`.** Ordered checks, each `{ name, command, description }`.\n  - Stored in `.darkmechanicus/project.json`, so it is portable and travels with the repo.\n  - Returned by `get_project`.\n  - Set by a new `set_definition_of_done` for planner and desktop sessions. Add a new capability following the patterns in `src/core/authz.ts`.\n- **New gate `definition_of_done`** on sprints with an acceptance node: the node's accepted attempt has a `passed` check in its evidence for every DoD name. DM still doesn't run commands; it checks the named evidence.\n- The acceptance node's execution packet includes the DoD, so the worker knows what to run.\n- **Seed this repository's DoD:** lint, typecheck, test, coverage, fireguard (base = the sprint's start commit), deadcode and build, each with its npm command.\n\n**Checks for this ticket:** the targeted tests for project config, authz and checkpoints, plus typecheck.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": "low",
+            "latency": null,
+            "modelOverride": null,
+            "quality": "standard"
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": "New portable project setting, a capability and a gate that reads attempt evidence."
+          },
+          "skills": [
+            "typescript"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m3xkssg863c14y1ynxt0m2ee",
+        "key": "DM-33",
+        "optional": false,
+        "priority": "high",
+        "references": [],
+        "tags": [
+          "size:medium",
+          "core",
+          "checkpoint",
+          "acceptance"
+        ],
+        "title": "Record the project's Definition of Done and require it in the acceptance node"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Core computes each ticket's row from same-sprint dependencies, and the graph renders exactly as before using it (the graph tests are unchanged and pass)."
+          },
+          {
+            "id": "c2",
+            "text": "get_ready_tickets and get_run report each ticket's row and each row's latest check."
+          },
+          {
+            "id": "c3",
+            "text": "record_row_check stores a row check; while a row's latest check has failed, its dependents and the acceptance node show row_check_failed, and a passing check clears it."
+          },
+          {
+            "id": "c4",
+            "text": "Row checks are exported with the run history and survive a re-import."
+          },
+          {
+            "id": "c5",
+            "text": "The tests were written first; the touched tests and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. The orchestrator should check that a row of parallel work combined cleanly before more work builds on it. Rows exist only in the renderer today (`src/renderer/src/graph/graphModel.ts:255-287`, `sprintDepths` and `groupByDepth`), and the server has no layer concept (`docs/architecture.md:96`).\n\n- **Rows in core.** Move the same-sprint dependency depth into core (`src/core/plan/graph.ts`) as the definition of a row: row 1 has no same-sprint prerequisites, and the acceptance node is in no row.\n  - The graph renderer uses the shared function, with no visual change.\n  - Its 6-column visual wrap stays a rendering detail.\n- **Row state in views.** `get_ready_tickets` and `get_run` give each ticket's row and, per row, its tickets and latest row check.\n- **New orchestrator tool** `record_row_check { runId, sprintId, row, commit, checks[] }`. It is recorded as a run event and exported with the run history.\n- **Holding back dependents.** While a row's latest check has failed, every ticket that requires any ticket in that row gets a `row_check_failed` blocker, and so does the sprint's acceptance node. A later passing check clears it.\n\nOtherwise readiness stays per ticket: there is still no barrier between rows.\n\n**Checks for this ticket:** the targeted tests for graph, readiness and the new command, plus typecheck and the graphModel tests.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": "low",
+            "latency": null,
+            "modelOverride": null,
+            "quality": "standard"
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": "Moves layout logic into core, adds a command, an event and a readiness blocker, and keeps the renderer identical."
+          },
+          "skills": [
+            "typescript"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m3xkssg8renhvfwfrng6bsgg",
+        "key": "DM-34",
+        "optional": false,
+        "priority": "high",
+        "references": [],
+        "tags": [
+          "size:medium",
+          "core",
+          "readiness"
+        ],
+        "title": "Compute dependency rows on the server and hold dependents on a failed row check"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The git adapter answers is-ancestor and parents without writing to the repository."
+          },
+          {
+            "id": "c2",
+            "text": "Submitting the acceptance node with a squashed commit on the epic branch passes verification; a merge commit, a commit not on the epic branch, or a sprint whose worker commits are reachable from the epic branch fails with a reason."
+          },
+          {
+            "id": "c3",
+            "text": "The checkpoint shows increment_merged unmet until verification passes."
+          },
+          {
+            "id": "c4",
+            "text": "get_run, the sprint report view and the run history show each sprint's increment commit."
+          },
+          {
+            "id": "c5",
+            "text": "The tests were written first, using a temporary repository; the touched tests and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. Each sprint should reach the epic branch as one squashed commit, and the server should check that rather than trust it. The git adapter is read-only today and has no ancestry query (`src/core/repo/types.ts:35-45`, `src/core/repo/git.ts:145-163`).\n\n- Add read-only git queries: is-ancestor, and a commit's parents.\n- The acceptance node's submission names the sprint increment `{ branch, commit }`.\n- **On submit, verify and store the result.**\n  - The commit exists and has exactly one parent (it is not a merge).\n  - It is reachable from the epic branch.\n  - It is not reachable from the previous sprint's increment; for sprint 1, it comes after the epic's start commit.\n  - No commit recorded by the sprint's accepted work attempts is reachable from the epic branch. This proves the sprint was squashed, not merged.\n- **New gate `increment_merged`** on sprints with an acceptance node. It reads the stored result, because gate evaluation is synchronous SQL; verify at submit time instead.\n- Store each sprint's increment on the run. The sprint report and the run history show it.\n- The integration target is the epic branch. Merging the epic into the default branch stays a person's step.\n\n**Checks for this ticket:** targeted tests against a temporary git repository, plus typecheck.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": "low",
+            "latency": null,
+            "modelOverride": null,
+            "quality": "standard"
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": "Read-only git queries, an async verification stored for a synchronous gate, and squash-versus-merge edge cases."
+          },
+          "skills": [
+            "typescript",
+            "git"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m3xkssg8aw6akbr0hz84590j",
+        "key": "DM-35",
+        "optional": false,
+        "priority": "high",
+        "references": [],
+        "tags": [
+          "size:medium",
+          "core",
+          "git"
+        ],
+        "title": "Verify each sprint lands as one squashed commit on the epic branch"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The acceptance node renders last in each sprint band, visibly distinct, with one join from the band, and no sprint label or divider overlaps (screenshot)."
+          },
+          {
+            "id": "c2",
+            "text": "Rows show their latest check state, and a failed row check is visible on the graph."
+          },
+          {
+            "id": "c3",
+            "text": "The draft view offers + Acceptance on a sprint without one, and it adds the node."
+          },
+          {
+            "id": "c4",
+            "text": "The acceptance node's panel groups criteria by covered ticket and lists the Definition of Done."
+          },
+          {
+            "id": "c5",
+            "text": "The checkpoint report shows the sprint increment commit; the component tests pass."
+          }
+        ],
+        "body": "Size: **medium**. Make the new cadence visible.\n\n**Graph**\n- Draw each sprint's acceptance node as the last card in its sprint band, styled apart from work tickets (theme tokens only).\n- Show its implicit dependency as one bracket or join from the band, not an edge per ticket.\n- Show each row's latest check (passed, failed or none) at the row.\n- In the draft view, a sprint without an acceptance node offers \"+ Acceptance\".\n\n**Ticket panel for an acceptance node:** its criteria grouped by the ticket each one `covers`, plus the project's Definition of Done checks.\n\n**Checkpoint:** the report shows the sprint's increment commit. The new gates already render through the generic condition list.\n\nKeep the `graphModel.ts` layout constants in sync with `graph.css` (see the note left by DM-21 in `sprintLabel.ts`).\n\n**Checks for this ticket:** targeted graph and checkpoint tests, plus before and after screenshots of a plan with an acceptance node and a failed row check.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": "low",
+            "latency": null,
+            "modelOverride": null,
+            "quality": "standard"
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": "Graph layout changes across sprint bands plus three surfaces, checked visually."
+          },
+          "skills": [
+            "react",
+            "css",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m3xkssg9fj9wa4xz7kdncv10",
+        "key": "DM-36",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "tags": [
+          "size:medium",
+          "ui",
+          "graph"
+        ],
+        "title": "Show acceptance nodes, rows and increments in the graph and the checkpoint"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "worker.md limits workers to targeted checks and says the full sweep belongs to the acceptance node."
+          },
+          {
+            "id": "c2",
+            "text": "orchestrator.md describes per-ticket review against the criteria, merging into the sprint integration worktree, row checks with record_row_check, and the acceptance round ending in one squashed commit."
+          },
+          {
+            "id": "c3",
+            "text": "graph-planner.md tells planners to write one covers criterion per ticket in the acceptance node."
+          },
+          {
+            "id": "c4",
+            "text": "docs/architecture.md describes rows, the acceptance node, the Definition of Done and increments."
+          },
+          {
+            "id": "c5",
+            "text": "The skills name no vendor; the skills tests cover the new required phrases; SKILLS_VERSION is bumped."
+          }
+        ],
+        "body": "Size: **small**. Describe the new cadence in the skills the agents follow.\n\n- **worker.md**\n  - Work in a worktree branched from the sprint integration branch.\n  - Run only targeted checks: tests for the touched files, typecheck when types changed, and a screenshot only when a criterion needs one. Record them.\n  - Never run the full sweep.\n- **reviewer.md and orchestrator.md §2 (review):** review a ticket against its own criteria and the worker's targeted evidence. No full sweep, and no per-ticket merge commit on the epic branch.\n- **orchestrator.md (integration)**\n  - Keep the coordinating checkout on the epic branch, because switching it pauses the run with `branch_changed`. Integrate in a separate worktree on the sprint integration branch.\n  - Merge each accepted ticket there.\n  - When a row is fully accepted, run the combined check (typecheck plus the tests touching that row's files) and `record_row_check`.\n  - When the acceptance node is ready: run the Definition of Done (fireguard against the sprint's start commit), verify each covered item, squash the sprint into one commit on the epic branch, and submit it as the increment.\n- **graph-planner.md:** replace per-branch integration tickets with the acceptance node. Plan one `covers` criterion per ticket: the specific screenshot, measurement or end-to-end check for that item. Keep extra integration tickets only for work that must combine mid-sprint.\n- **sprint-reporter.md:** the new gate ids.\n- **docs/architecture.md:** rows, the acceptance node, the Definition of Done and increments. Replace the \"no global wave barrier\" paragraph at `:96`.\n- Keep the skills vendor-neutral, update `src/mcp/skills.test.ts`, and bump `SKILLS_VERSION`.\n\n**Checks for this ticket:** the skills tests and typecheck.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": "low",
+            "latency": null,
+            "modelOverride": null,
+            "quality": "standard"
+          },
+          "reasoning": {
+            "level": "routine",
+            "rationale": "Guidance text that follows behaviour defined and built by the other sprint 2 tickets."
+          },
+          "skills": [
+            "technical-writing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "documentation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m3xkssg938549253z15bs7fd",
+        "key": "DM-37",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "tags": [
+          "size:small",
+          "skills",
+          "docs"
+        ],
+        "title": "Rewrite the execution skills for light tickets, row checks and the acceptance round"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "submit_sprint_report accepts a retro with delivered, went well, went poorly, actions, discoveries, leftovers and tier-fit verdicts, and get_sprint_report returns it."
+          },
+          {
+            "id": "c2",
+            "text": "The report view includes computed tier facts per ticket: size, planned level and effort, each attempt's model and effort, attempts, rejections and escalation."
+          },
+          {
+            "id": "c3",
+            "text": "On a sprint with an acceptance node, the retro gate stays unmet until a report with a retro is submitted; older plans are unaffected."
+          },
+          {
+            "id": "c4",
+            "text": "Reports saved before this change still load and import, and retro text is searchable."
+          },
+          {
+            "id": "c5",
+            "text": "The tests were written first; the touched tests and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. A checkpoint should read like a sprint review and retrospective: what was delivered and how to see it, what went well and poorly, whether the developers were sized right, what was discovered, and what is left.\n\n**Report input gains an optional `retro`**\n- `delivered[]`: `{ ticket, demo, evidence }`, meaning what to look at and where (an artifact, a screenshot or a commit).\n- `wentWell[]`, `wentPoorly[]` and `actions[]` (process changes for the next sprint).\n- `discoveries[]`: `{ title, body, ticket? }`, for new work found during the sprint.\n- `leftovers[]`: `{ ticket, reason }`, for required work that was not accepted.\n- `tierFit[]`: `{ ticket, verdict: right_sized | oversized | undersized, note }`.\n\n**Computed tier facts.** The report view adds facts per ticket, computed by the server from attempts rather than written by the reporter: size, planned level and effort, each attempt's model and effort, attempt and rejection counts, and whether it escalated.\n\n**Retro gate.** On sprints with an acceptance node, a report without a retro leaves a new `retro` gate unmet. Older plans are unaffected.\n\n**Compatibility**\n- Legacy rows read with `retro: null` (`src/core/services/reports.ts:75-86,103-116`).\n- The portable report schema is strict, so it needs `.nullable().default(null)` (`src/core/repo/portable.ts:181-197`).\n- Search indexes the retro text (`reports.ts:175-185`, `importer.ts:861-872`).\n\n**Checks for this ticket:** the targeted tests for reports, portable and importer, plus typecheck.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": "low",
+            "latency": null,
+            "modelOverride": null,
+            "quality": "standard"
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": "Report schema and storage changes, computed facts from attempts, and strict portable records."
+          },
+          "skills": [
+            "typescript",
+            "zod"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m3xkssg9gtykgdqmpck1hzy8",
+        "key": "DM-38",
+        "optional": false,
+        "priority": "high",
+        "references": [],
+        "tags": [
+          "size:medium",
+          "core",
+          "report"
+        ],
+        "title": "Add a retro to the sprint report"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "redraft_next_sprint moves each leftover to the next sprint (creating one after a final sprint) and adds each discovery there as an unsized ticket; the draft validates."
+          },
+          {
+            "id": "c2",
+            "text": "After the redraft is saved and adopted, a moved leftover that had reached its retry limit is ready again with a fresh budget."
+          },
+          {
+            "id": "c3",
+            "text": "While a run is active, validate_plan warns about edits to passed sprints and about sprints inserted before the active one."
+          },
+          {
+            "id": "c4",
+            "text": "Workers and reviewers cannot call redraft_next_sprint."
+          },
+          {
+            "id": "c5",
+            "text": "The tests were written first; the touched tests and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. Today follow-ups reach the plan only through the desktop's \"+ Add to draft\", which carries a title and body only (`src/renderer/src/checkpoint/gateView.ts:233-247`), and leftovers have no path at all. Make the retro drive the next sprint's draft.\n\n**New command `redraft_next_sprint { runId }`** for orchestrator and desktop sessions, at a checkpoint. It opens the epic draft and:\n- moves each retro leftover from the active sprint to the next sprint, adding a sprint after the active one if it is the final sprint, and keeps prerequisites valid (moving dependents along when needed);\n- adds each discovery as a ticket in the next sprint (title, body, and the source ticket in references), unsized, so the planner must size it;\n- returns the draft changes.\n\nThe orchestrator then refines the draft with `update_plan_draft`; it already has draft.edit.\n\n**Fresh retry budget.** When a revision is adopted, the failed, rejected and abandoned attempts of a ticket that moved to a later sprint are superseded, so a leftover doesn't arrive already at its retry limit (`src/core/services/adoption.ts:85-106`, `src/core/plan/readiness.ts:126-143`).\n\n**Run-aware draft warnings.** While a run is active, editing a sprint the run has already passed, or inserting a sprint before the active one, is a validation warning.\n\n**Checks for this ticket:** the targeted tests for the command, adoption and readiness, plus typecheck.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": "low",
+            "latency": null,
+            "modelOverride": null,
+            "quality": "standard"
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": "A draft-building command plus changes to adoption and readiness that touch retry accounting."
+          },
+          "skills": [
+            "typescript"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m3xkssg9041yvr7xwpx5m8f6",
+        "key": "DM-39",
+        "optional": false,
+        "priority": "high",
+        "references": [],
+        "tags": [
+          "size:medium",
+          "core",
+          "plan"
+        ],
+        "title": "Redraft the next sprint from the retro"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "plan_current blocks approval while an unsaved redraft or an unadopted saved revision exists, and says how to resolve it."
+          },
+          {
+            "id": "c2",
+            "text": "approve_with_redraft saves, adopts, approves and advances in that order, and the run's next sprint contains the moved leftovers and the discoveries."
+          },
+          {
+            "id": "c3",
+            "text": "A refusal at any step stops the steps after it and names the failing step; agents cannot call the command."
+          },
+          {
+            "id": "c4",
+            "text": "An integration test runs report with retro, then redraft, then approve with redraft, and ends with the next sprint running."
+          },
+          {
+            "id": "c5",
+            "text": "The tests were written first; the touched tests and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**, but **deep**. Approval grants bind the run, revision, sprint, report id and report hash (`src/core/services/checkpoints.ts:184-200,308-333`), and nothing forces a redraft to be adopted before the run advances. Make the person's approval cover the retro and the redraft together.\n\n**New gate `plan_current`.** While the epic has a draft that differs from the saved plan, or a saved revision newer than the run's, the checkpoint cannot be approved. The condition says to save and adopt, or to discard.\n\n**New desktop command `approve_with_redraft { runId, expectedDraftRevision }`.** In order, it:\n1. saves the draft;\n2. adopts the new revision into the run;\n3. recomputes the gates on it, so leftovers moved out of the active sprint no longer block `required_accepted`;\n4. approves the current report;\n5. advances.\n\nIf any step refuses, nothing after it runs and the error names the step. A failure after the save leaves the saved revision in place and reports that adoption is still needed.\n\n**Report staleness.** When adoption changes the active sprint's exit criteria or required tickets beyond removing leftovers, require a new report revision before approval.\n\nApproval stays human-only: agents still cannot approve.\n\n**Checks for this ticket:** the targeted tests for checkpoints and adoption, plus an integration test of the full loop.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": "standard"
+          },
+          "reasoning": {
+            "level": "deep",
+            "rationale": "Approval grants, adoption and gate re-evaluation interact; ordering and partial-failure handling must be exactly right, and it is human-only authority."
+          },
+          "skills": [
+            "typescript"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m3xkssg9hnt12ga00400z5sh",
+        "key": "DM-40",
+        "optional": false,
+        "priority": "high",
+        "references": [],
+        "tags": [
+          "size:medium",
+          "core",
+          "checkpoint"
+        ],
+        "title": "Approve the retro and the redraft in one step"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The checkpoint shows Delivered first, then the retro sections and the tier-fit table (screenshot)."
+          },
+          {
+            "id": "c2",
+            "text": "Discoveries and leftovers can be added or moved to the next sprint from the checkpoint."
+          },
+          {
+            "id": "c3",
+            "text": "With a redraft, the checkpoint shows its changes and Approve retro & redraft; without one, it shows Approve & advance as today."
+          },
+          {
+            "id": "c4",
+            "text": "The completed-epic overview shows each sprint's retro read-only."
+          },
+          {
+            "id": "c5",
+            "text": "The component tests were written first; the touched tests pass."
+          }
+        ],
+        "body": "Size: **medium**. The checkpoint should read like a sprint demo, then a retro, then the next sprint's plan.\n\n**Order on the screen**\n1. Delivered: each item with what to look at and its evidence links.\n2. Went well, went poorly and actions.\n3. Tier fit: planned size, level and effort against the models and efforts actually used, attempts and verdict.\n4. Discoveries and leftovers.\n5. The existing gate list and sections.\n\n**Actions on items:** discoveries get \"+ Add to next sprint\" and leftovers get \"Move to next sprint\" (generalise `followUpOp`, `src/renderer/src/checkpoint/gateView.ts:233-247`).\n\n**Redraft panel:** the draft's changes against the run's revision (`PlanView.changes`), with \"Approve retro & redraft\" as the primary action calling `approve_with_redraft`. Plain \"Approve & advance\" stays when there is no redraft.\n\nThe completed-epic overview shows each sprint's retro read-only (`overviewView.ts`). Theme tokens only.\n\n**Checks for this ticket:** targeted view and component tests, plus screenshots of a checkpoint with a retro and a redraft.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": "low",
+            "latency": null,
+            "modelOverride": null,
+            "quality": "standard"
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": "Several new sections and actions on one screen, wired to new commands, checked visually."
+          },
+          "skills": [
+            "react",
+            "css",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m3xkssg9684ynqnxsh7ph5fq",
+        "key": "DM-41",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "tags": [
+          "size:medium",
+          "ui",
+          "checkpoint"
+        ],
+        "title": "Show the retro and the redraft on the checkpoint screen"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "sprint-reporter.md describes each retro section and says tier-fit verdicts come from the computed facts."
+          },
+          {
+            "id": "c2",
+            "text": "orchestrator.md describes the redraft loop ending in one approval, and limits plan edits to future sprints."
+          },
+          {
+            "id": "c3",
+            "text": "worker.md asks for discoveries with a title and a reason."
+          },
+          {
+            "id": "c4",
+            "text": "docs/architecture.md documents the retro and the redraft loop."
+          },
+          {
+            "id": "c5",
+            "text": "The skills name no vendor; the skills tests cover the new phrases; SKILLS_VERSION is bumped."
+          }
+        ],
+        "body": "Size: **small**.\n\n- **sprint-reporter.md:** write the retro from evidence:\n  - delivered items, with what to look at;\n  - an honest account of what went well and what went poorly;\n  - a tier-fit verdict per ticket, from the computed facts;\n  - discoveries, from worker notes and reviews;\n  - leftovers, with reasons;\n  - actions for the next sprint.\n- **orchestrator.md §4-5**\n  - After the report, call `redraft_next_sprint`.\n  - Refine the draft: size every new ticket, and write the next acceptance node's `covers` criteria for the moved and new items.\n  - Validate, then tell the person that the retro and the redraft are ready to approve in one step.\n  - Lift \"do not add tickets to a running plan\" (`:60`) for this loop only.\n- **worker.md:** record discoveries as structured notes the reporter can lift, each with a title and a reason.\n- **planner.md:** redraft only future sprints; never edit passed sprints.\n- **docs/architecture.md:** the retro and the redraft loop.\n- Keep the skills vendor-neutral, update the skills tests, and bump `SKILLS_VERSION`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": "low",
+            "latency": null,
+            "modelOverride": null,
+            "quality": "standard"
+          },
+          "reasoning": {
+            "level": "routine",
+            "rationale": "Guidance text that follows behaviour built by the other sprint 3 tickets."
+          },
+          "skills": [
+            "technical-writing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "documentation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m3xkssg9h358d0h2g876437z",
+        "key": "DM-42",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "tags": [
+          "size:small",
+          "skills",
+          "docs"
+        ],
+        "title": "Teach the retro and the redraft loop in the skills"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "DM-24: a ticket with a size and an effort round-trips through create_ticket, save_plan and get_ticket, and an existing snapshot from .darkmechanicus/epics imports with its content hash unchanged."
+          },
+          {
+            "id": "c2",
+            "text": "DM-25: against the UI revamp epic's tickets and the catalog of run 1, match_capabilities now recommends the routine model for DM-3, DM-5, DM-9 and DM-23, and the deep model for DM-11; the before and after table is in the evidence."
+          },
+          {
+            "id": "c3",
+            "text": "DM-26: screenshots of the ticket view, the ticket editor and the graph show size and effort, and a micro ticket stands out."
+          },
+          {
+            "id": "c4",
+            "text": "DM-27: list_profiles shows the right-sized profiles, and a ticket built from micro-change is recommended the routine model at low effort."
+          },
+          {
+            "id": "c5",
+            "text": "DM-28: the planner and orchestrator skills and the host runbook agree with the matcher's real behaviour on one routine and one deep ticket."
+          },
+          {
+            "id": "c6",
+            "text": "The full sweep passes on the combined branch: lint, typecheck, test, fireguard (base = the sprint's start commit), deadcode and build."
+          },
+          {
+            "id": "c7",
+            "text": "Sprint 1 is one squashed commit on scrum-cadence whose message lists DM-24 to DM-28, and the epic branch has no per-ticket merge commits for this sprint."
+          }
+        ],
+        "body": "The planned final round for sprint 1. Every other sprint 1 ticket was reviewed only against its own criteria, using targeted checks. This ticket does the full verification once, on the combined work. (Until DM-31 lands, the acceptance node is a convention: an ordinary ticket that requires every other ticket in the sprint.)\n\n1. **Combine.** Make sure every accepted sprint 1 ticket is merged into the sprint integration branch, which was branched from `scrum-cadence` at the sprint's start. Resolve any conflicts.\n2. **Verify each item** (criteria c1 to c5).\n3. **Full sweep** on the combined branch: `npm run lint`, `npm run typecheck`, `npm test`, `npm run fireguard` with `FIREGUARD_BASE_REF` set to the sprint's start commit, `npm run deadcode` and `npm run build`.\n4. **Squash** the sprint into **one** commit on `scrum-cadence`, with a message that names the sprint and lists the ticket keys. No per-ticket merge commits land on the epic branch.\n\nRecord the commit, each check and each criterion in the evidence. Until the retro arrives (DM-38), put a tier-fit table in the evidence notes so the sprint report can carry a hand-written retro: the model and effort used for each ticket, the number of attempts, and whether it was right-sized.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": "standard"
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": "Combines the sprint, verifies each item end to end (including screenshots), runs the full sweep and squashes."
+          },
+          "skills": [
+            "typescript",
+            "testing",
+            "git"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m3xkvqfe4q89556asf8he9ww",
+        "key": "DM-43",
+        "optional": false,
+        "priority": "high",
+        "references": [],
+        "tags": [
+          "acceptance",
+          "size:medium"
+        ],
+        "title": "Sprint 1 acceptance: verify each item, run the full sweep, land one commit"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "DM-29: coverage runs in the sweep and meets its thresholds."
+          },
+          {
+            "id": "c2",
+            "text": "DM-30: a screenshot of a checkpoint report shows blocked, changes and the epic outcome summary."
+          },
+          {
+            "id": "c3",
+            "text": "DM-31 and DM-32: in the scratch epic, a sprint with two work tickets and an acceptance node keeps the node blocked until both are accepted, and keeps the checkpoint unapprovable until the node is accepted; an older plan without a node runs as before."
+          },
+          {
+            "id": "c4",
+            "text": "DM-33: the scratch run shows definition_of_done unmet until every named check is reported passed."
+          },
+          {
+            "id": "c5",
+            "text": "DM-34: a failed row check in the scratch run blocks the dependent ticket and the acceptance node, and a passing check clears both."
+          },
+          {
+            "id": "c6",
+            "text": "DM-35: a real squash on a scratch branch passes increment verification, and a merge of the same work fails it."
+          },
+          {
+            "id": "c7",
+            "text": "DM-36: screenshots of the scratch epic's graph (the acceptance node and row check states) and its checkpoint (the increment commit)."
+          },
+          {
+            "id": "c8",
+            "text": "DM-37: the skills match the server behaviour verified above."
+          },
+          {
+            "id": "c9",
+            "text": "The Definition of Done passes on the combined branch: lint, typecheck, test, coverage, fireguard (base = the sprint's start commit), deadcode and build."
+          },
+          {
+            "id": "c10",
+            "text": "Sprint 2 is one squashed commit on scrum-cadence whose message lists DM-29 to DM-37, with no per-ticket merge commits for this sprint."
+          }
+        ],
+        "body": "The planned final round for sprint 2, run once on the combined work.\n\n1. **Combine** every accepted sprint 2 ticket on the sprint integration branch.\n2. **Verify each item** in a scratch epic, created in a temporary copy of the repository so the real `.darkmechanicus` state is untouched (criteria c1 to c8).\n3. **Run the Definition of Done:** lint, typecheck, test, coverage, fireguard against the sprint's start commit, deadcode and build.\n4. **Squash** the sprint into one commit on `scrum-cadence`.\n\nKeep the tier-fit table in the evidence notes, as in sprint 1.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": "standard"
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": "End-to-end verification in a scratch epic, screenshots, the full Definition of Done and the squash."
+          },
+          "skills": [
+            "typescript",
+            "testing",
+            "git"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m3xkvqffw8brer50endtjh02",
+        "key": "DM-44",
+        "optional": false,
+        "priority": "high",
+        "references": [],
+        "tags": [
+          "acceptance",
+          "size:medium"
+        ],
+        "title": "Sprint 2 acceptance: verify each item, run the Definition of Done, land one commit"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "DM-38: a scratch run's sprint report carries a retro with computed tier facts, and the retro gate blocks a report without one."
+          },
+          {
+            "id": "c2",
+            "text": "DM-39: the redraft moves a leftover that had hit its retry limit and adds a discovery, and after adoption the leftover is ready."
+          },
+          {
+            "id": "c3",
+            "text": "DM-40: plan_current blocks approval while a redraft is unadopted, and approve with redraft advances the scratch run into the redrafted sprint."
+          },
+          {
+            "id": "c4",
+            "text": "DM-41: screenshots of the checkpoint (delivered, retro, tier fit, redraft panel) and of the completed-epic overview."
+          },
+          {
+            "id": "c5",
+            "text": "DM-42: the skills match the behaviour verified above."
+          },
+          {
+            "id": "c6",
+            "text": "End to end: the two-sprint scratch epic runs through sized tickets dispatched at the recommended model and effort, a row check, an acceptance node with the Definition of Done, one squashed commit per sprint, a retro, a redraft and one-step approval; each epic success criterion s1 to s7 is checked with a note."
+          },
+          {
+            "id": "c7",
+            "text": "The Definition of Done passes on the combined branch: lint, typecheck, test, coverage, fireguard (base = the sprint's start commit), deadcode and build."
+          },
+          {
+            "id": "c8",
+            "text": "Sprint 3 is one squashed commit on scrum-cadence whose message lists DM-38 to DM-42."
+          }
+        ],
+        "body": "The final round for the epic.\n\n1. **Combine** sprint 3 on its integration branch.\n2. **Verify each item** (criteria c1 to c5).\n3. **Run the whole cadence once, end to end,** with a build of this branch. Use a two-sprint scratch epic in a temporary copy of the repository, and check every epic success criterion (s1 to s7) with a note.\n4. **Run the Definition of Done.**\n5. **Squash** the sprint into one commit on `scrum-cadence`.\n\nThe sprint report for this sprint is the first one to carry a real retro.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": "standard"
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": "End-to-end verification of the whole cadence across two scratch sprints, plus the full Definition of Done."
+          },
+          "skills": [
+            "typescript",
+            "testing",
+            "git"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m3xkvqffkf7rknccekv9j6ff",
+        "key": "DM-45",
+        "optional": false,
+        "priority": "high",
+        "references": [],
+        "tags": [
+          "acceptance",
+          "size:medium"
+        ],
+        "title": "Sprint 3 acceptance: verify each item and run the whole cadence end to end"
+      }
+    ]
+  },
+  "contentHash": "sha256:353ae35cdbdec0c5088a986e3f0c0d403a1a75b6006cb5023eab94f5fae5c3c7",
+  "createdAt": "2026-10-02T06:12:17.580Z",
+  "epicId": "ep_01m3xkn4ha934vpfpht42bh6bq",
+  "format": "darkmechanicus.plan-snapshot",
+  "formatVersion": 1,
+  "number": 1,
+  "revisionId": "rv_01m3xkvy1cr7rr0xv2n1vrxr0z",
+  "savedAt": "2026-10-02T06:12:17.580Z"
+}

@@ -1,0 +1,48 @@
+{
+  "capability": {
+    "constraints": {
+      "dataLocation": null,
+      "environments": [],
+      "maxCostUsd": null,
+      "maxDurationMinutes": null
+    },
+    "context": {
+      "estimatedInputTokens": null,
+      "requiredArtifacts": []
+    },
+    "modalities": [
+      "text",
+      "images"
+    ],
+    "preferences": {
+      "autonomy": null,
+      "cost": null,
+      "latency": null,
+      "modelOverride": null,
+      "quality": "high"
+    },
+    "reasoning": {
+      "level": "multi_step",
+      "rationale": "UI changes span shared tokens, stylesheets and component tests and must stay consistent across screens."
+    },
+    "skills": [
+      "typescript",
+      "react",
+      "css",
+      "ui"
+    ],
+    "tools": [
+      "repo_read",
+      "repo_write",
+      "shell",
+      "test_execution"
+    ],
+    "workType": "implementation"
+  },
+  "createdAt": "2026-10-01T05:26:47.630Z",
+  "description": "Renderer UI work in React/CSS that must be checked visually: theme, components, assets.",
+  "format": "darkmechanicus.profile",
+  "formatVersion": 1,
+  "name": "ui-implementation",
+  "updatedAt": "2026-10-01T05:26:47.630Z"
+}

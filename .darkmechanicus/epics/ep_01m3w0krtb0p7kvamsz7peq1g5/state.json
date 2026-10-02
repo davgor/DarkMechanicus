@@ -1,0 +1,18 @@
+{
+  "branch": null,
+  "completedAt": null,
+  "createdAt": "2026-10-01T15:16:32.715Z",
+  "epicId": "ep_01m3w0krtb0p7kvamsz7peq1g5",
+  "format": "darkmechanicus.epic-state",
+  "formatVersion": 1,
+  "generation": 1,
+  "outcome": null,
+  "provenance": null,
+  "status": "backlog",
+  "ticketStatuses": {
+    "tk_01m3w0krtf2pcdb4x1c88jpwwe": "backlog",
+    "tk_01m3w0krtfqhgg026fxpk8adjh": "backlog"
+  },
+  "title": "Cross-host validation and release",
+  "updatedAt": "2026-10-01T15:16:32.730Z"
+}

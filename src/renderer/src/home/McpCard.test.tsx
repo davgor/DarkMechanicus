@@ -51,6 +51,22 @@ describe('McpCard connection', () => {
   })
 })
 
+describe('McpCard Claude Code', () => {
+  it('offers to connect Claude Code next to the skill installer', async () => {
+    renderCard()
+    await settle()
+    expect(screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual([
+      'Claude Code',
+      'Agent skills'
+    ])
+    expect(screen.getByText('~/code/alpha/.mcp.json')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Connect Claude Code' }))
+    await settle()
+    expect(dm.claudeConnects).toEqual([{ folder: '/a', request: { role: 'planner', allowSave: true, replace: false } }])
+    expect(dm.skillInstalls).toEqual([])
+  })
+})
+
 describe('McpCard skills', () => {
   it('installs the agent skills into the folder and lists what was written', async () => {
     dm.skillsWritten = ['.claude/skills/darkmechanicus-planner/SKILL.md', '.claude/skills/darkmechanicus-worker/SKILL.md']
