@@ -1,4 +1,5 @@
 import type { BrowserWindowConstructorOptions } from 'electron'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -77,5 +78,17 @@ describe('desktop startup icon', () => {
     expect(startup.dockIcons).toHaveLength(0)
     expect(startup.loadedUrls).toEqual(['http://localhost:5173'])
     expect(startup.loadedFiles).toHaveLength(0)
+  })
+})
+
+describe('desktop startup background', () => {
+  it('paints the window in the theme --bg, so no other color shows before the page loads', async () => {
+    const styles = readFileSync(join(__dirname, '..', 'renderer', 'src', 'styles.css'), 'utf8')
+    const themeBg = /--bg:\s*(#[0-9a-f]{6});/i.exec(styles)?.[1]
+    expect(themeBg).toMatch(/^#[0-9a-f]{6}$/i)
+    await import('./index')
+    startup.ready!()
+    await Promise.resolve()
+    expect(startup.options[0].backgroundColor?.toLowerCase()).toBe(themeBg?.toLowerCase())
   })
 })

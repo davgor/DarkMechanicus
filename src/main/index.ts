@@ -29,7 +29,8 @@ function createMainWindow(): BrowserWindow {
     height: 900,
     minWidth: 1024,
     minHeight: 680,
-    backgroundColor: '#141310',
+    // The theme's --bg (renderer styles.css), so nothing else shows before the page paints.
+    backgroundColor: '#151211',
     title: 'Dark Mechanicus',
     icon: appIcon,
     webPreferences: {

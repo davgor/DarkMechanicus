@@ -30,7 +30,7 @@
 | Bone cog trim, lit | same | `#fbe9c8` | 90th percentile, at (570,190) | `--primary-ink` |
 | Brass forehead plate | (470,220)–(560,380), 2,344 px | `#d69b4a` | median, at (536,333) | `--accent` |
 | Brass forehead plate | same | `#dfbb72` | 90th percentile, at (556,324) | `--accent-hover` |
-| Brass goggle rings and fittings | (280,320)–(800,640), 21,186 px | `#e2aa55` | 90th percentile, at (446,362) (mean `#ab793c`) | `--btn-primary-hover` |
+| Brass goggle rings and fittings | (280,320)–(800,640), 21,186 px | `#e2aa55` | 90th percentile, at (446,362) (mean `#ab793c`) | `--btn-primary-hover` (retired in DM-7, when `.btn-primary` moved to crimson) |
 | Gunmetal mask | (280,240)–(760,640), 19,996 px | `#28211d` | median, at (697,556) | `--panel-2`, and the hue of all surfaces and lines |
 | Green lens, glowing iris | pixel (400,420) | `#84c20a` | single pixel (region median `#2b7a02` is the dark iris) | `--lens`, `--st-running` |
 
@@ -69,7 +69,7 @@ The ticket's starting estimates hold up. Crimson `#b3201c`–`#c62a22` matches `
 
 ## 3. Token table
 
-Tokens marked (DM-3) were added by the token-consolidation ticket for colors that component stylesheets used to hardcode: `--ink-soft`, `--accent-hover`, `--btn-primary-hover`, `--btn-danger-hover`, `--tone-ok`, `--tone-edited`, `--edge`, `--edge-waiting` and `--node-bg`. "New" tokens do not exist yet; DM-6 adds them, and DM-7 and DM-8 put them to use.
+Tokens marked (DM-3) were added by the token-consolidation ticket for colors that component stylesheets used to hardcode: `--ink-soft`, `--accent-hover`, `--btn-danger-hover`, `--tone-ok`, `--tone-edited`, `--edge`, `--edge-waiting` and `--node-bg`. A tenth, `--btn-primary-hover` (the brass primary button's hover), was retired in DM-7 once `.btn-primary` hovered to `--primary-hover`. "New" tokens do not exist yet; DM-6 adds them, and DM-7 and DM-8 put them to use.
 
 ### Surfaces
 
@@ -125,7 +125,6 @@ Tokens marked (DM-3) were added by the token-consolidation ticket for colors tha
 | `--accent-soft` | `rgba(224, 162, 74, 0.14)` | `rgba(214, 155, 74, 0.14)` | Search-hit and warning backgrounds |
 | `--accent-hover` (DM-3) | `#f0c27a` | `#dfbb72` | Link hover |
 | `--tone-edited` (DM-3) | `#e8b86a` | `#e8b86a` (unchanged) | "Edited" tone in draft changes |
-| `--btn-primary-hover` (DM-3) | `#eab265` | `#e2aa55` | Hover fill of today's brass `.btn-primary` (brass ring highlight). Once DM-7 moves `.btn-primary` to crimson its hover uses `--primary-hover`, and this token can go. |
 
 ### Lens (new)
 
@@ -247,7 +246,6 @@ The ticket's pair is "on `--panel`". The other two columns are where the labels 
 | `--danger-ink` on `--danger` | **4.27** | 5.12 |
 | `--primary-ink` on `--primary` | — | 5.62 |
 | `--primary-ink` on `--primary-hover` | — | 4.91 |
-| `--accent-ink` on `--btn-primary-hover` | 9.63 | 8.81 |
 | `--danger-ink` on `--btn-danger-hover` | **3.49** | 6.79 |
 | `--ink` on `--primary-soft` over `--sidebar` (active row) | — | 12.33 |
 | `--ink` on `--primary-soft` over `--panel` (selection) | — | 11.91 |

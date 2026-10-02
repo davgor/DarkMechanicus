@@ -152,7 +152,6 @@ const PALETTE_CHECKS: ContrastCheck[] = [
   { fg: '--danger-ink', bg: ['--danger'], min: BODY },
   { fg: '--primary-ink', bg: ['--primary'], min: BODY },
   { fg: '--primary-ink', bg: ['--primary-hover'], min: BODY },
-  { fg: '--accent-ink', bg: ['--btn-primary-hover'], min: BODY },
   { fg: '--danger-ink', bg: ['--btn-danger-hover'], min: BODY },
   { fg: '--ink', bg: ['--sidebar', '--primary-soft'], min: BODY },
   { fg: '--ink', bg: ['--panel', '--primary-soft'], min: BODY },
