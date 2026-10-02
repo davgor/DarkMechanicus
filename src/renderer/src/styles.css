@@ -557,6 +557,17 @@ textarea.input {
   color: var(--muted);
 }
 
+.empty-state-illustration {
+  display: flex;
+  margin-bottom: 6px;
+}
+
+/* The tech-priest on the first-run screens; its size comes from the width and height attributes. */
+.mascot {
+  display: block;
+  flex-shrink: 0;
+}
+
 .empty-state-title {
   margin: 0;
   font-family: var(--font-serif);
@@ -1250,11 +1261,17 @@ textarea.input {
   line-height: 42px;
 }
 
+/* The mascot sits beside the heading and lede, spanning both rows. */
 .onboarding-head {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-width: 720px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 8px 24px;
+  max-width: 840px;
+}
+
+.onboarding-head .mascot {
+  grid-row: 1 / span 2;
 }
 
 .onboarding-grid {

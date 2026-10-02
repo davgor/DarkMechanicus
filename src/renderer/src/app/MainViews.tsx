@@ -1,6 +1,7 @@
 import type { TrackedFolderView } from '../../../shared/desktop/api'
 import { Button } from '../components/Button'
 import { EmptyState } from '../components/EmptyState'
+import { Mascot } from '../components/Mascot'
 
 export function LoadingView(): JSX.Element {
   return (
@@ -14,7 +15,7 @@ export function LoadingView(): JSX.Element {
 export function WelcomeView({ onTrack }: { onTrack(): void }): JSX.Element {
   return (
     <EmptyState
-      icon="folder"
+      illustration={<Mascot size={128} />}
       headingLevel={1}
       title="Track a folder to get started"
       action={
