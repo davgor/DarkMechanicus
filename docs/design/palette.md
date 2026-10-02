@@ -30,7 +30,7 @@
 | Bone cog trim, lit | same | `#fbe9c8` | 90th percentile, at (570,190) | `--primary-ink` |
 | Brass forehead plate | (470,220)–(560,380), 2,344 px | `#d69b4a` | median, at (536,333) | `--accent` |
 | Brass forehead plate | same | `#dfbb72` | 90th percentile, at (556,324) | `--accent-hover` |
-| Brass goggle rings and fittings | (280,320)–(800,640), 21,186 px | `#e2aa55` | 90th percentile, at (446,362) (mean `#ab793c`) | `--accent-fill-hover` |
+| Brass goggle rings and fittings | (280,320)–(800,640), 21,186 px | `#e2aa55` | 90th percentile, at (446,362) (mean `#ab793c`) | `--btn-primary-hover` |
 | Gunmetal mask | (280,240)–(760,640), 19,996 px | `#28211d` | median, at (697,556) | `--panel-2`, and the hue of all surfaces and lines |
 | Green lens, glowing iris | pixel (400,420) | `#84c20a` | single pixel (region median `#2b7a02` is the dark iris) | `--lens`, `--st-running` |
 
@@ -69,7 +69,7 @@ The ticket's starting estimates hold up. Crimson `#b3201c`–`#c62a22` matches `
 
 ## 3. Token table
 
-The DM-3 tokens (`--edge`, `--edge-waiting`, `--node-bg`, `--tone-edited`, `--accent-hover`) are named as that ticket suggests; the orchestrator reconciles the names at merge. "New" tokens do not exist yet; DM-6 adds them, and DM-7 and DM-8 put them to use.
+Tokens marked (DM-3) were added by the token-consolidation ticket for colors that component stylesheets used to hardcode: `--ink-soft`, `--accent-hover`, `--btn-primary-hover`, `--btn-danger-hover`, `--tone-ok`, `--tone-edited`, `--edge`, `--edge-waiting` and `--node-bg`. "New" tokens do not exist yet; DM-6 adds them, and DM-7 and DM-8 put them to use.
 
 ### Surfaces
 
@@ -102,6 +102,7 @@ The DM-3 tokens (`--edge`, `--edge-waiting`, `--node-bg`, `--tone-edited`, `--ac
 | `--ink` | `#ece6da` | `#ece6da` (unchanged) | Body text |
 | `--ink-display` (new) | — | `#f2d7ae` | Display and heading ink (bone trim) |
 | `--ink-2` | `#c9c1b2` | `#c9c1b2` (unchanged) | Secondary text |
+| `--ink-soft` (DM-3) | `#a8a092` | `#a8a092` (unchanged) | Ledes, notes, ghost buttons, dialog descriptions, sidebar and footer icons (13 rules) |
 | `--muted` | `#8f8778` | `#9c9284` | Labels and metadata; lighter to pass 4.5:1 on `--panel-2` |
 | `--faint` | `#6b6458` | `#797165` | Decorative only (dots, hints); lighter to pass 3:1 |
 
@@ -124,6 +125,7 @@ The DM-3 tokens (`--edge`, `--edge-waiting`, `--node-bg`, `--tone-edited`, `--ac
 | `--accent-soft` | `rgba(224, 162, 74, 0.14)` | `rgba(214, 155, 74, 0.14)` | Search-hit and warning backgrounds |
 | `--accent-hover` (DM-3) | `#f0c27a` | `#dfbb72` | Link hover |
 | `--tone-edited` (DM-3) | `#e8b86a` | `#e8b86a` (unchanged) | "Edited" tone in draft changes |
+| `--btn-primary-hover` (DM-3) | `#eab265` | `#e2aa55` | Hover fill of today's brass `.btn-primary` (brass ring highlight). Once DM-7 moves `.btn-primary` to crimson its hover uses `--primary-hover`, and this token can go. |
 
 ### Lens (new)
 
@@ -145,19 +147,10 @@ The DM-3 tokens (`--edge`, `--edge-waiting`, `--node-bg`, `--tone-edited`, `--ac
 | `--attention` | `#f08e78` | `#e889d0` | Awaiting checkpoint (orchid); also form and snippet errors today |
 | `--danger` | `#c4503c` | `#e5547c` | Destructive button fill (light rose) |
 | `--danger-ink` | `#fff4f0` | `#350000` | Text on the danger fill (hood shadow) |
+| `--btn-danger-hover` (DM-3) | `#d4604c` | `#f07894` | Destructive button hover fill |
+| `--tone-ok` (DM-3) | `#86cfab` | `#84d6be` | Success text (`.tone-ok`), a lighter tint of the new accepted |
 
-### Other literals DM-3 has to move
-
-DM-3's acceptance criteria forbid any hex outside `:root`, but its list leaves out these four literals. The names are suggestions; the values are the proposal.
-
-| Literal today | Where | Suggested token | Proposed |
-|---|---|---|---|
-| `#a8a092` | 13 rules: `.lede`, `.note`, `.btn-ghost`, `.empty-state-text`, `.dialog-description`, sidebar icons, bucket headers, footer keys, … | `--ink-3` | `#a8a092` (unchanged) |
-| `#86cfab` | `.tone-ok` | `--tone-ok` | `#84d6be` (lighter tint of the new accepted) |
-| `#eab265` | `.btn-primary:hover` | `--accent-fill-hover` | `#e2aa55` (brass ring highlight) |
-| `#d4604c` | `.btn-danger:hover` | `--danger-hover` | `#f07894` |
-
-`rgba(236, 230, 218, 0.04)` (sidebar row hover) is not a hex literal and can stay as it is.
+`rgba(236, 230, 218, 0.04)` (the sidebar row hover wash, `--ink` at 4%) is not a hex literal. `--ink` keeps its value, so it can stay as it is.
 
 ## 4. Collision rules
 
@@ -226,7 +219,7 @@ Each cell reads today → proposed.
 | `--ink-2` | 10.40 → 10.43 | 9.50 → 9.52 | 8.85 → 8.87 | 9.82 → 9.86 |
 | `--muted` | 5.22 → 6.09 | 4.77 → 5.55 | **4.45** → 5.17 | 4.94 → 5.76 |
 | `--faint` (min 3) | 3.18 → 3.87 | **2.90** → 3.53 | **2.70** → 3.29 | 3.00 → 3.66 |
-| `--ink-3` (`#a8a092`) | 7.17 → 7.20 | 6.56 → 6.57 | 6.11 → 6.12 | 6.78 → 6.80 |
+| `--ink-soft` | 7.17 → 7.20 | 6.56 → 6.57 | 6.11 → 6.12 | 6.78 → 6.80 |
 | `--ink-display` | — → 13.41 | — → 12.24 | — → 11.40 | — → 12.68 |
 | `--accent` (as text) | 8.35 → 7.68 | 7.63 → 7.00 | 7.11 → 6.52 | 7.89 → 7.26 |
 
@@ -254,8 +247,8 @@ The ticket's pair is "on `--panel`". The other two columns are where the labels 
 | `--danger-ink` on `--danger` | **4.27** | 5.12 |
 | `--primary-ink` on `--primary` | — | 5.62 |
 | `--primary-ink` on `--primary-hover` | — | 4.91 |
-| `--accent-ink` on `--accent-fill-hover` | 9.63 | 8.81 |
-| `--danger-ink` on `--danger-hover` | **3.49** | 6.79 |
+| `--accent-ink` on `--btn-primary-hover` | 9.63 | 8.81 |
+| `--danger-ink` on `--btn-danger-hover` | **3.49** | 6.79 |
 | `--ink` on `--primary-soft` over `--sidebar` (active row) | — | 12.33 |
 | `--ink` on `--primary-soft` over `--panel` (selection) | — | 11.91 |
 
