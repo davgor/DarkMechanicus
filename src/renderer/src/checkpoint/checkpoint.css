@@ -66,6 +66,16 @@
   text-align: left;
 }
 
+.cp-row-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* An entry that names no ticket has no key, so its text takes the key column too. */
+.cp-row-title.is-keyless {
+  grid-column: 1 / span 2;
+}
+
 .cp-row-detail {
   font-size: 11.5px;
   color: var(--ink-2);
@@ -80,9 +90,27 @@
   font-size: 13.5px;
 }
 
+/*
+ * The detail drops under the name when both do not fit on one line, so a long detail cannot squeeze
+ * the name. The name and the detail never exceed the line less the icon's 16px and the 10px gap, so
+ * the icon is never left alone on a line, and a detail on its own line lines up under the name.
+ */
+.cp-checks li {
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+
+.cp-check-name {
+  min-width: 0;
+  max-width: calc(100% - 26px);
+}
+
 .cp-checks li > .ew-muted {
+  min-width: 0;
+  max-width: calc(100% - 26px);
   margin-left: auto;
   font-size: 11.5px;
+  overflow-wrap: anywhere;
 }
 
 .cp-icon {

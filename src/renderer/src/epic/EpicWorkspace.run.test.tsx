@@ -135,7 +135,7 @@ describe('completed epic overview in the workspace', () => {
     expect(within(overview).getByLabelText('Sprint 1 report').tagName).toBe('ARTICLE')
     expect(screen.queryByLabelText('Plan graph')).toBe(null)
     expect(screen.queryByLabelText('Sprint checkpoint')).toBe(null)
-    expect(within(overview).queryAllByRole('button')).toEqual([])
+    expect(within(overview).getAllByRole('button').map((item) => item.textContent)).toEqual(['DM-1', 'DM-2'])
     expect(screen.queryAllByRole('checkbox')).toEqual([])
     expect(within(runBar()).getAllByRole('button').map((item) => item.textContent)).toEqual(['Open graph'])
     expect(h.backend.names().includes('getCheckpoint')).toBe(false)
