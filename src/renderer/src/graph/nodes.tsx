@@ -1,10 +1,12 @@
 import { Handle, Position, type NodeProps, type NodeTypes } from '@xyflow/react'
+import type { CSSProperties } from 'react'
 import type { DividerFlowNode, EpicFlowNode, SprintFlowNode, TicketFlowNode } from './flowElements'
 import type { Tone } from './ticketStates'
 
-const DIVIDER_TONES: Record<'passed' | 'locked' | 'neutral', Tone> = {
+const DIVIDER_TONES: Record<'passed' | 'locked' | 'awaiting' | 'neutral', Tone> = {
   passed: 'accepted',
   locked: 'running',
+  awaiting: 'attention',
   neutral: 'neutral'
 }
 
@@ -27,7 +29,9 @@ function SprintNode({ data }: NodeProps<SprintFlowNode>): JSX.Element {
   return (
     <div className={sprint.active ? 'pg-sprint is-active' : 'pg-sprint'}>
       <span className="pg-sprint-heading">{sprint.heading}</span>
-      <span className="pg-sprint-goal">{sprint.goal}</span>
+      <span className="pg-sprint-goal" title={sprint.goal} style={{ '--pg-goal-lines': sprint.goalLines } as CSSProperties}>
+        {sprint.goal}
+      </span>
       <span className="pg-sprint-detail">{sprint.detail}</span>
       {data.editable ? (
         <button type="button" className="pg-add nodrag" onClick={() => data.onAddTicket(sprint.sprintId)}>

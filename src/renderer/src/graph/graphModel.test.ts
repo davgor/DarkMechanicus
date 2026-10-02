@@ -11,7 +11,15 @@ import {
   sprint,
   ticket
 } from '../epic/__mocks__/fixtures'
-import { buildGraphModel, dropTarget, sprintAtY, type GraphInput, type GraphModel, type GraphNode } from './graphModel'
+import {
+  buildGraphModel,
+  dropTarget,
+  sprintAtY,
+  type GraphInput,
+  type GraphModel,
+  type GraphNode,
+  type SprintNodeModel
+} from './graphModel'
 
 function input(patch: Partial<GraphInput> = {}): GraphInput {
   return {
@@ -30,6 +38,14 @@ function node(model: GraphModel, id: string): GraphNode {
   const found = model.nodes.find((item) => item.id === id)
   if (!found) {
     throw new Error(`missing node ${id}`)
+  }
+  return found
+}
+
+function sprintNode(model: GraphModel, sprintId: string): SprintNodeModel {
+  const found = node(model, `sprint:${sprintId}`)
+  if (found.kind !== 'sprint') {
+    throw new Error(`${sprintId} is not a sprint`)
   }
   return found
 }
@@ -196,7 +212,7 @@ describe('graph run phases', () => {
     expect(labels(runView({ state: 'awaiting_checkpoint' }))).toEqual([
       'SPRINT 2 | Authoring through MCP | Awaiting checkpoint',
       'CHECKPOINT 1 · PASSED (passed)',
-      'CHECKPOINT 2 · AWAITING APPROVAL (locked)'
+      'CHECKPOINT 2 · AWAITING APPROVAL (awaiting)'
     ])
   })
 
@@ -411,5 +427,114 @@ describe('sprint drop targets', () => {
     expect(dropTarget(model, 'tk_204', 100)).toBe('sp_1')
     expect(dropTarget(model, 'epic', 600)).toBe(null)
     expect(dropTarget(model, 'nope', 600)).toBe(null)
+  })
+})
+
+const LONG_GOAL =
+  'The card’s words and pictures are ready: every ticket title reads clearly, the mascot art is in place, ' +
+  'the brass trim and the crimson accents match the mockups, the sprint labels wrap without clipping, and a ' +
+  'reviewer can open the plan graph on a small window and still follow the whole story from the first checkpoint.'
+const LABEL_TICKETS = [ticket('DM-1', 'One'), ticket('DM-2', 'Two')]
+
+function twoSprints(goal: string, patch: Partial<GraphInput> = {}): GraphModel {
+  const sprints = [sprint(1, goal, ['tk_1']), sprint(2, 'Next', ['tk_2'])]
+  return buildGraphModel({ ...withSprints(sprints, [], LABEL_TICKETS), ...patch })
+}
+
+describe('a long sprint goal', () => {
+  it('uses a goal of 300 or more characters for these cases', () => {
+    expect(LONG_GOAL.length).toBeGreaterThanOrEqual(300)
+  })
+
+  it('keeps the checkpoint divider and its pill below the label of a 300+ character goal', () => {
+    const model = twoSprints(LONG_GOAL)
+    const label = sprintNode(model, 'sp_1')
+    const divider = node(model, 'checkpoint:1')
+    expect(label.labelHeight).toBeGreaterThan(72)
+    expect(label.y + label.labelHeight).toBeLessThanOrEqual(divider.y)
+    expect(divider.y + divider.height).toBeLessThanOrEqual(sprintNode(model, 'sp_2').y)
+  })
+
+  it('clamps a 300+ character goal to six lines instead of growing without bound', () => {
+    const label = sprintNode(twoSprints(LONG_GOAL), 'sp_1')
+    expect(label.goalLines).toBe(6)
+    expect(label.labelHeight).toBe(18 + 6 * 18 + 18)
+    expect(label.goal).toBe(LONG_GOAL)
+  })
+
+  it('moves the next sprint, its tickets and the dividers down by the reserved space only', () => {
+    const short = twoSprints('Short')
+    const long = twoSprints(LONG_GOAL)
+    const growth = node(long, 'checkpoint:1').y - node(short, 'checkpoint:1').y
+    expect(growth).toBeGreaterThan(0)
+    expect(box(long, 'tk_1')).toEqual(box(short, 'tk_1'))
+    expect(node(long, 'tk_2').y - node(short, 'tk_2').y).toBe(growth)
+    expect(node(long, 'checks').y - node(short, 'checks').y).toBe(growth)
+    expect(long.bands[0]?.bottom).toBe((short.bands[0]?.bottom ?? 0) + growth)
+  })
+
+  it('clears the epic checks divider under the last sprint too', () => {
+    const model = buildGraphModel(withSprints([sprint(1, LONG_GOAL, ['tk_1'])], [], LABEL_TICKETS))
+    const label = sprintNode(model, 'sp_1')
+    expect(label.y + label.labelHeight).toBeLessThanOrEqual(node(model, 'checks').y)
+  })
+
+  it('sizes the sprint node to hold the label', () => {
+    const label = sprintNode(twoSprints(LONG_GOAL), 'sp_1')
+    expect(label.height).toBeGreaterThanOrEqual(label.labelHeight)
+  })
+
+  it('adds no space to a band that is already taller than the label', () => {
+    const chain = [1, 2, 3, 4].map((index) => ticket(`DM-${index}`, `T${index}`))
+    const sprints = [sprint(1, LONG_GOAL, chain.map((item) => item.id)), sprint(2, 'Next', [])]
+    const model = buildGraphModel(withSprints(sprints, [edge(1, 2), edge(2, 3), edge(3, 4)], chain))
+    expect(sprintNode(model, 'sp_1')).toMatchObject({ height: 4 * 112 - 40, goalLines: 6 })
+    expect(node(model, 'checkpoint:1').y).toBe(128 + 4 * 112 - 40 + 38)
+  })
+})
+
+describe('sprint labels with short goals and details', () => {
+  it('keeps short goals exactly where they were', () => {
+    for (const goal of ['Storage foundation', 'Two lines of goal text here', '']) {
+      const model = twoSprints(goal)
+      expect(sprintNode(model, 'sp_1')).toMatchObject({ y: 132, height: 72 })
+      expect(node(model, 'checkpoint:1').y).toBe(238)
+      expect(box(model, 'tk_2')).toEqual([185, 304])
+      expect(node(model, 'checks').y).toBe(414)
+    }
+  })
+
+  it('keeps short goals in place in the Draft view, which also reserves the + Ticket button', () => {
+    const model = twoSprints('Two lines of goal text here', { mode: 'draft', run: null })
+    expect(sprintNode(model, 'sp_1')).toMatchObject({ y: 132, goalLines: 2, labelHeight: 18 + 36 + 18 + 30 })
+    expect(node(model, 'checkpoint:1').y).toBe(238)
+    expect(box(model, 'tk_2')).toEqual([185, 304])
+    expect(node(model, 'checks').y).toBe(414)
+  })
+
+  it('reserves the + Ticket button in the Draft view only', () => {
+    const goal = 'A goal that wraps to three lines of text and more'
+    const savedModel = twoSprints(goal)
+    const draftModel = twoSprints(goal, { mode: 'draft' })
+    const saved = sprintNode(savedModel, 'sp_1')
+    const draft = sprintNode(draftModel, 'sp_1')
+    expect(saved.goalLines).toBe(3)
+    expect(draft.labelHeight - saved.labelHeight).toBe(30)
+    expect(saved.y + saved.labelHeight).toBeLessThanOrEqual(node(savedModel, 'checkpoint:1').y)
+    expect(draft.y + draft.labelHeight).toBeLessThanOrEqual(node(draftModel, 'checkpoint:1').y)
+    expect(node(savedModel, 'checkpoint:1').y).toBe(238)
+    expect(node(draftModel, 'checkpoint:1').y).toBeGreaterThan(238)
+  })
+
+  it('counts a detail line that wraps, such as an active sprint progress note', () => {
+    const model = buildGraphModel(input())
+    expect(sprintNode(model, 'sp_2')).toMatchObject({ detail: 'Active · 1 of 4 accepted', labelHeight: 18 + 36 + 36 })
+  })
+
+  it('gives a taller label to a long goal in every sprint independently', () => {
+    const sprints = [sprint(1, LONG_GOAL, ['tk_1']), sprint(2, 'Short', ['tk_2'])]
+    const model = buildGraphModel(withSprints(sprints, [], LABEL_TICKETS))
+    expect(sprintNode(model, 'sp_2').labelHeight).toBe(18 + 18 + 18)
+    expect(sprintNode(model, 'sp_2').height).toBe(72)
   })
 })

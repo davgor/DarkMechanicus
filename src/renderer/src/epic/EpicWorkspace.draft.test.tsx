@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { installDomShims } from './__mocks__/domShims'
 import { FakeBackend, scenario } from './__mocks__/fakeBackend'
@@ -42,6 +42,64 @@ describe('discarding a draft', () => {
     expect(await screen.findByText('Draft discarded.')).toBeTruthy()
     expect(h.backend.inputs('discardPlanDraft')).toEqual([{ epicId: 'ep_1', expectedDraftRevision: 7 }])
     expect((await screen.findByText('REV 4 · SAVED')).textContent).toBe('REV 4 · SAVED')
+  })
+})
+
+/** Lets the workspace switch to a second epic with a saved plan and no draft. */
+function withOtherEpic(backend: FakeBackend): FakeBackend {
+  backend.handlers.getEpic = (input: { epicId: string }) =>
+    input.epicId === 'ep_2' ? epicDetail({ id: 'ep_2', title: 'Other epic' }) : backend.state.epic
+  return backend
+}
+
+/** Picks the other epic in the sidebar, then this one again. */
+async function visitOtherEpicAndReturn(h: WorkspaceHarness): Promise<void> {
+  h.openEpic('ep_2')
+  await screen.findByRole('heading', { level: 1, name: 'Other epic' })
+  h.openEpic('ep_1')
+  await screen.findByRole('heading', { level: 1, name: 'Planning vertical slice' })
+}
+
+function shownRevision(): string | null {
+  return screen.queryByText(/REV \d+ · (SAVED|UNSAVED)/)?.textContent ?? null
+}
+
+describe('returning to an epic', () => {
+  it('reopens an edited draft in the Draft view after visiting another epic', async () => {
+    const h = renderWorkspace(withOtherEpic(new FakeBackend()))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit draft' }))
+    await screen.findByText('DRAFT REV 5 · UNSAVED')
+    fireEvent.click(await screen.findByRole('button', { name: '+ Sprint' }))
+    await waitFor(() => expect(h.backend.inputs('updatePlanDraft')).toHaveLength(1))
+    await waitFor(() => expect((screen.getByRole('button', { name: '+ Sprint' }) as HTMLButtonElement).disabled).toBe(false))
+    await visitOtherEpicAndReturn(h)
+    expect(shownRevision()).toBe('DRAFT REV 5 · UNSAVED')
+    expect(screen.getByLabelText('Draft').textContent).toContain('EDITING DRAFT')
+    expect(screen.queryByRole('button', { name: 'View draft' })).toBe(null)
+  })
+
+  it('opens a draft with unsaved changes in the Draft view', async () => {
+    const epic = epicDetail({ hasDraft: true, draftRevision: 7, draftChanged: true })
+    renderWorkspace(new FakeBackend(scenario({ epic, draft: draftPlan() })))
+    await screen.findByRole('heading', { level: 1, name: 'Planning vertical slice' })
+    expect(shownRevision()).toBe('DRAFT REV 5 · UNSAVED')
+  })
+
+  it('remembers the view the person picked for the epic, over the default', async () => {
+    const epic = epicDetail({ hasDraft: true, draftRevision: 7 })
+    const h = renderWorkspace(withOtherEpic(new FakeBackend(scenario({ epic, draft: draftPlan() }))))
+    fireEvent.click(await screen.findByRole('button', { name: 'View draft' }))
+    await screen.findByText('DRAFT REV 5 · UNSAVED')
+    await visitOtherEpicAndReturn(h)
+    expect(shownRevision()).toBe('DRAFT REV 5 · UNSAVED')
+    h.backend.state.epic = { ...h.backend.state.epic, draftChanged: true }
+    fireEvent.click(screen.getByRole('button', { name: 'View saved' }))
+    await screen.findByText('REV 4 · SAVED')
+    await visitOtherEpicAndReturn(h)
+    expect(shownRevision()).toBe('REV 4 · SAVED')
+    h.refresh(1)
+    await waitFor(() => expect(h.backend.inputs('getEpic').filter((input) => (input as { epicId: string }).epicId === 'ep_1')).toHaveLength(4))
+    expect(shownRevision()).toBe('REV 4 · SAVED')
   })
 })
 

@@ -95,9 +95,13 @@ describe('epicBadges', () => {
   })
 
   it('flags an unsaved draft', () => {
-    expect(epicBadges(epicSummary({ hasDraft: true }))).toEqual([
+    expect(epicBadges(epicSummary({ hasDraft: true, draftChanged: true }))).toEqual([
       { kind: 'draft', label: 'draft', title: 'Has unsaved draft changes' }
     ])
+  })
+
+  it('does not flag a draft that still matches the saved plan', () => {
+    expect(epicBadges(epicSummary({ hasDraft: true, draftRevision: 1, draftChanged: false }))).toEqual([])
   })
 
   it('flags a save that is waiting to be written to the repository', () => {
@@ -113,7 +117,7 @@ describe('epicBadges', () => {
   })
 
   it('lists draft, save pending and conflict in that order', () => {
-    const epic = epicSummary({ hasDraft: true, pendingSave: true, conflict: 'x' })
+    const epic = epicSummary({ hasDraft: true, draftChanged: true, pendingSave: true, conflict: 'x' })
     expect(epicBadges(epic).map((badge) => badge.kind)).toEqual(['draft', 'save-pending', 'conflict'])
   })
 })

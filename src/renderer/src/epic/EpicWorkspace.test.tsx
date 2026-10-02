@@ -131,7 +131,7 @@ describe('epic workspace: details that must appear only when relevant', () => {
     renderWorkspace(new FakeBackend())
     const badge = await screen.findByText('REV 4 · SAVED')
     expect(badge.closest('.ew-pill')?.className).toBe('ew-pill ew-tone-accepted')
-    expect(screen.getByLabelText('Legend').textContent).toBe('AcceptedIn reviewRunningReadyWaitingFailedPrerequisite metWaiting on it')
+    expect(screen.getByLabelText('Legend').textContent).toBe('AcceptedIn reviewRunningReadyWaitingBlockedFailedPrerequisite metWaiting on it')
     expect(within(screen.getByLabelText('Run activity')).queryByText('No open attempts')).toBe(null)
   })
 

@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DmApi } from '../../../shared/desktop/api'
 import type { FollowUpProposal } from '../../../shared/domain/views'
-import { NOW, bundle, checkpointView, condition, execution, runView } from '../epic/__mocks__/fixtures'
+import { NOW, bundle, checkpointView, condition, execution, reportView, runView } from '../epic/__mocks__/fixtures'
 import { allowSlowRendering } from '../epic/__mocks__/testTiming'
 import { CheckpointScreen, type CheckpointScreenProps } from './CheckpointScreen'
 
@@ -101,6 +101,34 @@ describe('checkpoint report', () => {
     expect(screen.getByText(/No sprint report yet\./).textContent).toBe(
       "No sprint report yet. The orchestrator writes it when the sprint's required work is done."
     )
+  })
+})
+
+describe('checkpoint report entries', () => {
+  const cells = (row: HTMLElement, selector: string): string[] => [...row.querySelectorAll(selector)].map((item) => item.textContent ?? '')
+
+  it('keeps free-text report entries out of the key column', () => {
+    const entries = ['DM-203 Folder picker works: verified by hand', 'Verified list_epics against the installed app', 'DM-998 Never started']
+    const report = reportView({ report: { ...reportView().report, accepted: entries.slice(0, 2), failed: entries.slice(2) } })
+    renderScreen({ checkpoint: checkpointView({ report }) })
+    const accepted = within(screen.getByLabelText('ACCEPTED')).getAllByRole('listitem')
+    expect(accepted.map((row) => [cells(row, '.cp-key'), cells(row, '.cp-row-title')])).toEqual([
+      [['DM-203'], ['Folder picker works: verified by hand']],
+      [[], ['Verified list_epics against the installed app']]
+    ])
+    expect(accepted[1]?.querySelector('.cp-row-title')?.classList.contains('is-keyless')).toBe(true)
+    expect(accepted[0]?.querySelector('.cp-row-title')?.classList.contains('is-keyless')).toBe(false)
+    const failed = within(screen.getByLabelText('FAILED')).getAllByRole('listitem')
+    expect(failed.map((row) => [cells(row, '.cp-key'), cells(row, '.cp-row-title')])).toEqual([[['DM-998'], ['Never started']]])
+  })
+
+  it('lists entries that share a ticket key or have none without duplicate React keys', () => {
+    const accepted = ['DM-203 Picker works', 'DM-203 Picker remembers its folder', 'Checked the installed app', 'Checked the packaged app']
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    renderScreen({ checkpoint: checkpointView({ report: reportView({ report: { ...reportView().report, accepted } }) }) })
+    expect(within(screen.getByLabelText('ACCEPTED')).getAllByRole('listitem').length).toBe(4)
+    expect(errors).not.toHaveBeenCalled()
+    errors.mockRestore()
   })
 })
 

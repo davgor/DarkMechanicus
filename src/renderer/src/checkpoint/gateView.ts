@@ -125,11 +125,31 @@ interface ReportContext {
   now: number
 }
 
+/** A ticket key such as `DM-12` at the start of an entry, then the separator before the rest of the sentence. */
+const LEADING_KEY = /^([A-Z][A-Z0-9]{0,11}-\d+)(?![\w-])[\s:–—-]*/
+
+/**
+ * An entry is a bare ticket id or key, or a sentence the agent wrote. A sentence that starts with a
+ * ticket key keeps the key in the key column (linked when the plan has it) and the rest as text;
+ * any other sentence has no key, so it never lands in the narrow key column.
+ */
 function resolveRow(entry: string, bundle: PlanBundle | null): ReportRow {
-  const found = bundle?.tickets.find((item) => item.id === entry || item.key === entry)
-  return found
-    ? { ticketId: found.id, key: found.key, title: found.title, detail: '' }
-    : { ticketId: null, key: entry, title: '', detail: '' }
+  const tickets = bundle?.tickets ?? []
+  const found = tickets.find((item) => item.id === entry || item.key === entry)
+  if (found) {
+    return { ticketId: found.id, key: found.key, title: found.title, detail: '' }
+  }
+  const text = entry.trim()
+  if (!/\s/.test(text)) {
+    return { ticketId: null, key: text, title: '', detail: '' }
+  }
+  const lead = LEADING_KEY.exec(text)
+  if (lead === null) {
+    return { ticketId: null, key: '', title: text, detail: '' }
+  }
+  const key = lead[1] ?? ''
+  const named = tickets.find((item) => item.key === key)
+  return { ticketId: named?.id ?? null, key, title: text.slice(lead[0].length), detail: '' }
 }
 
 function attemptsOf(run: RunView, ticketId: string | null): AttemptView[] {
@@ -168,7 +188,8 @@ function failedDetail(context: ReportContext, ticketId: string | null): string {
     .join(' · ')
 }
 
-function criterionLines(results: CriterionResult[], criteria: Criterion[]): CriterionLine[] {
+/** Each reported result beside its criterion text (the id when the plan has no such criterion). */
+export function criterionLines(results: CriterionResult[], criteria: Criterion[]): CriterionLine[] {
   const texts = new Map(criteria.map((item) => [item.id, item.text]))
   return results.map((result) => ({ text: texts.get(result.criterionId) ?? result.criterionId, met: result.met, note: result.note }))
 }

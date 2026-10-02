@@ -9,8 +9,9 @@ import {
   saveNow
 } from '../../test/authoring'
 import { createTestCtx, type TestCtx, withRole } from '../../test/testContext'
+import { canonicalJson } from '../canonical'
 import { createInitialBundle } from '../plan/normalize'
-import { updatePlanDraft } from './drafts'
+import { openDraft, updatePlanDraft } from './drafts'
 import { assertEpicOpen, createEpic, getEpic, listEpics, loadEpicRow, setEpicBranch, setEpicStatus } from './epics'
 import { requestSave } from './plans'
 
@@ -38,6 +39,7 @@ describe('createEpic', () => {
       currentRevisionNumber: null,
       hasDraft: true,
       draftRevision: 1,
+      draftChanged: true,
       ticketCount: 0,
       sprintCount: 1,
       run: null,
@@ -197,7 +199,48 @@ describe('listEpics summaries of saved and unsaved epics', () => {
       saved.epicId,
       T0
     )
-    expect(listEpics(ctx)[0]).toMatchObject({ hasDraft: false, draftRevision: null, conflict: 'Tracked state changed' })
+    expect(listEpics(ctx)[0]).toMatchObject({
+      hasDraft: false,
+      draftRevision: null,
+      draftChanged: false,
+      conflict: 'Tracked state changed'
+    })
+  })
+})
+
+function draftJson(ctx: TestCtx, epicId: string): string {
+  return ctx.db.get<{ bundle_json: string }>('SELECT bundle_json FROM drafts WHERE epic_id = ?', epicId)?.bundle_json ?? ''
+}
+
+describe('listEpics draft changes', () => {
+  it('does not count a draft opened from the saved plan as a change until it is edited', () => {
+    const ctx = createTestCtx()
+    const saved = createSavedEpic(ctx)
+    openDraft(ctx, { epicId: saved.epicId })
+    expect(listEpics(ctx)[0]).toMatchObject({ hasDraft: true, draftRevision: 1, draftChanged: false })
+    updatePlanDraft(ctx, { epicId: saved.epicId, ops: [{ op: 'set_rationale', rationale: 'Smaller steps' }] })
+    expect(listEpics(ctx)[0]).toMatchObject({ hasDraft: true, draftRevision: 2, draftChanged: true })
+  })
+
+  it('compares plan content, not how the draft happens to be serialized', () => {
+    const ctx = createTestCtx()
+    const saved = createSavedEpic(ctx)
+    openDraft(ctx, { epicId: saved.epicId })
+    const reordered = canonicalJson(JSON.parse(draftJson(ctx, saved.epicId)))
+    expect(reordered).not.toBe(draftJson(ctx, saved.epicId))
+    ctx.db.run('UPDATE drafts SET bundle_json = ? WHERE epic_id = ?', reordered, saved.epicId)
+    expect(getEpic(ctx, { epicId: saved.epicId }).draftChanged).toBe(false)
+    const alpha = saved.refMap['a'] ?? ''
+    updatePlanDraft(ctx, { epicId: saved.epicId, ops: [{ op: 'update_ticket', ticket: alpha, patch: { title: 'Alphb' } }] })
+    expect(getEpic(ctx, { epicId: saved.epicId }).draftChanged).toBe(true)
+  })
+
+  it('counts the draft of a never-saved epic as a change and reports none for an epic without a draft', () => {
+    const ctx = createTestCtx()
+    const unsaved = createEpic(ctx, { title: 'Draft only' })
+    const clean = createSavedEpic(ctx, { title: 'Clean' })
+    expect(getEpic(ctx, { epicId: unsaved.id }).draftChanged).toBe(true)
+    expect(getEpic(ctx, { epicId: clean.epicId })).toMatchObject({ hasDraft: false, draftChanged: false })
   })
 })
 

@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code planner",
+    "role": "planner"
+  },
+  "body": "**Open questions before Save** (planner)\n\n1. **Primary accent:** crimson (the plan assumes this, with brass as secondary), or keep brass primary and use crimson for chrome and rules?\n2. **Feature branch:** no epic branch is set. Name one (for example `mechanicus-ui-revamp`) so work integrates there and not straight into `main`.\n3. **Mascot placement:** the plan puts it in the sidebar brand, the welcome screen and onboarding. Anywhere else (update banner, About, checkpoint-complete)?\n4. **Board mirror:** this epic lives only in Dark Mechanicus, not in `/board`. Say so if you also want a markdown epic there.",
+  "createdAt": "2026-10-01T05:28:26.442Z",
+  "epicId": "ep_01m3tyvx2t4scbd6g2fp1z7yxb",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m3tyyxja7rkjwwb2wvatx0p1",
+  "ticketId": null
+}

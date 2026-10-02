@@ -15,8 +15,14 @@ export interface RunActions {
   resume: boolean
   cancel: boolean
   takeover: boolean
-  /** "Sprint report" opens the checkpoint view. */
-  report: boolean
+  /** The toggle that swaps the plan for the checkpoint review, or for a completed run's epic overview. */
+  report: 'Sprint report' | 'Epic report' | null
+}
+
+/** Which review views the loaded workspace can show. */
+interface ReviewViews {
+  checkpoint: boolean
+  overview: boolean
 }
 
 export interface AdoptNotice {
@@ -87,7 +93,14 @@ export function runCounts(counts: RunCounts): RunCountItem[] {
   }))
 }
 
-export function runActions(run: RunView, hasCheckpoint: boolean): RunActions {
+function reportToggle(views: ReviewViews): RunActions['report'] {
+  if (views.checkpoint) {
+    return 'Sprint report'
+  }
+  return views.overview ? 'Epic report' : null
+}
+
+export function runActions(run: RunView, views: ReviewViews): RunActions {
   const active = isActiveRunState(run.state)
   const owned = run.ownedByThisMachine
   return {
@@ -95,7 +108,7 @@ export function runActions(run: RunView, hasCheckpoint: boolean): RunActions {
     resume: owned && run.state === 'paused',
     cancel: owned && active,
     takeover: active && !owned,
-    report: hasCheckpoint
+    report: reportToggle(views)
   }
 }
 

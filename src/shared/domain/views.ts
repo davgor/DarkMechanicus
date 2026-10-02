@@ -59,6 +59,11 @@ export interface EpicSummaryView {
   currentRevisionNumber: number | null
   hasDraft: boolean
   draftRevision: number | null
+  /**
+   * True when the draft's content differs from the current saved plan; always true for the draft of
+   * a never-saved epic. A draft just opened from the saved plan (Edit draft) is not a change yet.
+   */
+  draftChanged: boolean
   ticketCount: number
   sprintCount: number
   run: RunSummaryView | null

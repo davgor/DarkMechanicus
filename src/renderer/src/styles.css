@@ -1,5 +1,11 @@
 /*
- * Dark Mechanicus — global theme.
+ * Dark Mechanicus — global theme: the Mechanicus palette, sampled from the tech-priest app icon.
+ *
+ * Dark only. Crimson (the hood) is the primary accent: --primary for fills, --ring for focus and
+ * selection lines. Brass (the fittings) is the secondary accent and the only accent used as text.
+ * Bone (the cog trim) is the display ink. Gunmetal (the respirator) tints every surface and line.
+ * Lens green is kept for the brand glow and the running state. Values and roles come from
+ * docs/design/palette.md; theme.contrast.test.ts holds these tokens to that doc and its contrast table.
  *
  * Tokens first, then generic utilities shared by every view (buttons, pills, cards, dialogs,
  * toasts), then the app shell, sidebar, onboarding and folder home. The epic workspace agent
@@ -12,43 +18,64 @@
 :root {
   color-scheme: dark;
 
-  /* Surfaces */
-  --bg: #141310;
-  --bg-canvas: #171511;
-  --panel: #1f1c17;
-  --panel-2: #26221c;
-  --panel-3: #2e2922;
-  --sidebar: #1b1915;
-  --code-bg: #0f0e0b;
-  --overlay: rgba(8, 7, 5, 0.72);
+  /* Surfaces: gunmetal hue */
+  --bg: #151211;
+  --bg-canvas: #181412;
+  --panel: #211b18;
+  --panel-2: #28211d;
+  --panel-3: #302823;
+  --sidebar: #1c1816;
+  --code-bg: #100d0c;
+  --overlay: rgba(9, 7, 6, 0.72);
 
   /* Lines */
-  --line: #3a342b;
-  --line-soft: #2a261f;
-  --line-strong: #4a4439;
+  --line: #3d332d;
+  --line-soft: #2c2520;
+  --line-strong: #4e423b;
 
-  /* Text */
+  /* Text; bone display ink for titles, the wordmark and large numerals */
   --ink: #ece6da;
+  --ink-display: #f2d7ae;
   --ink-2: #c9c1b2;
-  --muted: #8f8778;
-  --faint: #6b6458;
+  --ink-soft: #a8a092;
+  --muted: #9c9284;
+  --faint: #797165;
 
-  /* Brass accent */
-  --accent: #e0a24a;
+  /* Crimson primary accent: fills use --primary, lines (focus, selection, active bars) use --ring */
+  --primary: #b51a1f;
+  --primary-hover: #c51e21;
+  --primary-ink: #fbe9c8;
+  --primary-soft: rgba(181, 26, 31, 0.24);
+  --ring: #ea4134;
+
+  /* Brass secondary accent: links, rules, highlights, warnings */
+  --accent: #d69b4a;
+  --accent-hover: #dfbb72;
   --accent-ink: #1a1408;
-  --accent-soft: rgba(224, 162, 74, 0.14);
+  --accent-soft: rgba(214, 155, 74, 0.14);
+
+  /* Lens green: brand glow only; the running state shares it */
+  --lens: #84c20a;
 
   /* State colors — always paired with a text label in the UI */
-  --st-accepted: #5fbf8a;
+  --st-accepted: #4cc7a8;
   --st-review: #a78bfa;
-  --st-running: #e0a24a;
+  --st-running: #84c20a;
   --st-ready: #6aa7ff;
-  --st-waiting: #8f8778;
-  --st-failed: #e06a5a;
-  --st-blocked: #d4855a;
-  --attention: #f08e78;
-  --danger: #c4503c;
-  --danger-ink: #fff4f0;
+  --st-waiting: #9c9284;
+  --st-failed: #ef6b8f;
+  --st-blocked: #e5793f;
+  --attention: #e889d0;
+  --danger: #e5547c;
+  --danger-ink: #350000;
+  --btn-danger-hover: #f07894;
+  --tone-ok: #84d6be;
+  --tone-edited: #e8b86a;
+
+  /* Plan graph */
+  --edge: #8f7d73;
+  --edge-waiting: #6f6057;
+  --node-bg: #1e1917;
 
   --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
@@ -90,7 +117,7 @@ a {
 }
 
 a:hover {
-  color: #f0c27a;
+  color: var(--accent-hover);
 }
 
 code {
@@ -100,11 +127,12 @@ code {
 }
 
 ::selection {
-  background: var(--accent-soft);
+  background: var(--primary-soft);
 }
 
+/* The lit crimson: it holds 3:1 on every surface, where the deep fill crimson does not. */
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
 
@@ -165,6 +193,7 @@ code {
   line-height: 38px;
   font-weight: 600;
   letter-spacing: -0.02em;
+  color: var(--ink-display);
 }
 
 .lede {
@@ -172,7 +201,7 @@ code {
   max-width: 720px;
   font-size: 15px;
   line-height: 23px;
-  color: #a8a092;
+  color: var(--ink-soft);
   text-wrap: pretty;
 }
 
@@ -180,11 +209,11 @@ code {
   margin: 0;
   font-size: 13px;
   line-height: 19px;
-  color: #a8a092;
+  color: var(--ink-soft);
 }
 
 .tone-ok {
-  color: #86cfab;
+  color: var(--tone-ok);
 }
 
 .tone-muted {
@@ -196,7 +225,7 @@ code {
 }
 
 .tone-error {
-  color: var(--attention);
+  color: var(--st-failed);
 }
 
 /* ---------- Buttons ---------- */
@@ -231,21 +260,22 @@ code {
   cursor: progress;
 }
 
+/* Primary is bone on deep crimson; danger is dark ink on light rose, the opposite polarity. */
 .btn-primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-ink);
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-ink);
   font-weight: 600;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #eab265;
-  border-color: #eab265;
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
 }
 
 .btn-ghost {
   border-color: transparent;
-  color: #a8a092;
+  color: var(--ink-soft);
 }
 
 .btn-ghost:hover:not(:disabled) {
@@ -260,8 +290,8 @@ code {
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: #d4604c;
-  border-color: #d4604c;
+  background: var(--btn-danger-hover);
+  border-color: var(--btn-danger-hover);
 }
 
 .btn-sm {
@@ -348,7 +378,7 @@ code {
 }
 
 .pill-later_sprint {
-  --pill: var(--faint);
+  --pill: var(--muted);
   border-style: dashed;
 }
 
@@ -429,7 +459,7 @@ code {
   padding: 0 6px;
   border-radius: 4px;
   background: var(--panel-2);
-  color: #a8a092;
+  color: var(--ink-soft);
   font-family: var(--font-mono);
   font-size: 11px;
   line-height: 18px;
@@ -484,13 +514,13 @@ code {
 }
 
 .input::placeholder {
-  color: var(--faint);
+  color: var(--muted);
 }
 
 .input:focus-visible {
   outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
+  border-color: var(--ring);
+  box-shadow: 0 0 0 1px var(--ring);
 }
 
 textarea.input {
@@ -521,7 +551,7 @@ textarea.input {
 
 .form-error {
   margin: 0;
-  color: var(--attention);
+  color: var(--st-failed);
   font-size: 13px;
 }
 
@@ -546,20 +576,31 @@ textarea.input {
   color: var(--muted);
 }
 
+.empty-state-illustration {
+  display: flex;
+  margin-bottom: 6px;
+}
+
+/* The tech-priest on the first-run screens; its size comes from the width and height attributes. */
+.mascot {
+  display: block;
+  flex-shrink: 0;
+}
+
 .empty-state-title {
   margin: 0;
   font-family: var(--font-serif);
   font-size: 22px;
   line-height: 28px;
   font-weight: 600;
-  color: var(--ink);
+  color: var(--ink-display);
 }
 
 .empty-state-text {
   margin: 0;
   font-size: 14px;
   line-height: 21px;
-  color: #a8a092;
+  color: var(--ink-soft);
 }
 
 /* ---------- Dialog, menu, toast ---------- */
@@ -605,13 +646,14 @@ textarea.input {
   font-size: 22px;
   line-height: 28px;
   font-weight: 600;
+  color: var(--ink-display);
 }
 
 .dialog-description {
   margin: 0;
   font-size: 13.5px;
   line-height: 20px;
-  color: #a8a092;
+  color: var(--ink-soft);
 }
 
 .dialog-body {
@@ -787,13 +829,18 @@ textarea.input {
   flex-shrink: 0;
   height: 28px;
   padding: 0 12px;
-  border: 1px solid var(--accent);
+  border: 1px solid var(--primary);
   border-radius: 7px;
-  background: var(--accent);
-  color: var(--accent-ink);
+  background: var(--primary);
+  color: var(--primary-ink);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
+}
+
+.update-banner-restart:hover {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
 }
 
 /* ---------- App shell ---------- */
@@ -836,18 +883,58 @@ textarea.input {
   height: 56px;
   flex-shrink: 0;
   padding: 0 18px;
-  border-bottom: 1px solid var(--line);
+  /* A brass hairline, like the fittings on the tech-priest. */
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
+/* The sidebar is a fixed 272px column at every window width, leaving 236px inside the 18px
+   padding: the 32px icon and 10px gap leave 194px for the text block. The name takes the full
+   first row (about 137px in the mono face). The tagline (about 127px) and the version share the
+   second row: the version keeps its width and the tagline gives way with an ellipsis. The icon
+   carries the faint lens-green brand glow, the one place in the shell the lens color appears. */
 .brand-mark {
-  color: var(--accent);
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--lens) 30%, transparent));
+}
+
+.brand-text {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: 8px;
+  row-gap: 1px;
+  min-width: 0;
 }
 
 .brand-name {
+  grid-column: 1 / -1;
+  min-width: 0;
+  overflow: hidden;
   font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.16em;
+  line-height: 16px;
+  color: var(--ink-display);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.brand-tagline {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.brand-text .app-version-label {
+  line-height: 14px;
 }
 
 .sidebar-head {
@@ -892,11 +979,6 @@ textarea.input {
   background: rgba(236, 230, 218, 0.04);
 }
 
-.folder-row.is-selected {
-  background: var(--panel-2);
-  box-shadow: inset 0 0 0 1px var(--line-strong);
-}
-
 .folder-chevron {
   display: inline-flex;
   align-items: center;
@@ -930,7 +1012,7 @@ textarea.input {
 }
 
 .folder-main .icon {
-  color: #a8a092;
+  color: var(--ink-soft);
 }
 
 .folder-text {
@@ -976,11 +1058,6 @@ textarea.input {
   background: rgba(236, 230, 218, 0.04);
 }
 
-.status-row.is-selected {
-  background: var(--panel-2);
-  box-shadow: inset 0 0 0 1px var(--line-strong);
-}
-
 .buckets {
   display: flex;
   flex-direction: column;
@@ -997,7 +1074,7 @@ textarea.input {
   border: 0;
   border-radius: 7px;
   background: transparent;
-  color: #a8a092;
+  color: var(--ink-soft);
   font-size: 13px;
   font-weight: 500;
   text-align: left;
@@ -1045,9 +1122,13 @@ textarea.input {
   background: rgba(236, 230, 218, 0.04);
 }
 
+/* The active row: a crimson wash with a 2px lit-crimson bar on its leading edge. It follows the
+   hover rules so a hovered active row keeps it. */
+.folder-row.is-selected,
+.status-row.is-selected,
 .epic-row.is-selected {
-  background: var(--panel-2);
-  box-shadow: inset 0 0 0 1px var(--line-strong);
+  background: var(--primary-soft);
+  box-shadow: inset 2px 0 0 var(--ring);
 }
 
 .epic-row-meta {
@@ -1070,7 +1151,7 @@ textarea.input {
 }
 
 .epic-status {
-  --tone: var(--faint);
+  --tone: var(--muted);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1146,11 +1227,11 @@ textarea.input {
 }
 
 .footer-line .icon {
-  color: #a8a092;
+  color: var(--ink-soft);
 }
 
 .footer-key {
-  color: #a8a092;
+  color: var(--ink-soft);
 }
 
 .footer-text {
@@ -1203,11 +1284,17 @@ textarea.input {
   line-height: 42px;
 }
 
+/* The mascot sits beside the heading and lede, spanning both rows. */
 .onboarding-head {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-width: 720px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 8px 24px;
+  max-width: 840px;
+}
+
+.onboarding-head .mascot {
+  grid-row: 1 / span 2;
 }
 
 .onboarding-grid {
@@ -1265,9 +1352,9 @@ textarea.input {
 }
 
 .step.is-active .step-dot {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-ink);
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-ink);
 }
 
 .created-list {
@@ -1290,7 +1377,7 @@ textarea.input {
 
 .created-path.is-nested {
   padding-left: 20px;
-  color: #a8a092;
+  color: var(--ink-soft);
 }
 
 .created-path.is-accent {
@@ -1306,7 +1393,7 @@ textarea.input {
   align-items: flex-start;
   gap: 10px;
   margin: 0;
-  color: #a8a092;
+  color: var(--ink-soft);
   font-size: 13px;
   line-height: 19px;
 }
@@ -1327,7 +1414,7 @@ textarea.input {
 
 .snippet-error {
   margin: 0;
-  color: var(--attention);
+  color: var(--st-failed);
   font-size: 13px;
 }
 
@@ -1500,7 +1587,7 @@ textarea.input {
 }
 
 .result-snippet {
-  color: #a8a092;
+  color: var(--ink-soft);
   font-size: 12.5px;
 }
 

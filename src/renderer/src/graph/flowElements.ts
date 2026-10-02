@@ -26,8 +26,12 @@ interface FlowOptions {
   onAddTicket(sprintId: string): void
 }
 
-const MET_COLOR = '#8a8070'
-const WAITING_COLOR = '#6a6254'
+/**
+ * Arrowhead colors are the edge tokens. React Flow paints a marker through its style attribute
+ * (`stroke` and `fill`), so a `var()` resolves against :root like the edge strokes in graph.css.
+ */
+const MET_COLOR = 'var(--edge)'
+const WAITING_COLOR = 'var(--edge-waiting)'
 const HANDLE_SIZE = 1
 
 const FIXED = { draggable: false, selectable: false, connectable: false, focusable: false, deletable: false }

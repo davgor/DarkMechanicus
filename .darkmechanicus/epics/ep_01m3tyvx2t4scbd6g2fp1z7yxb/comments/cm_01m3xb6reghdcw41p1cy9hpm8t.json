@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code orchestrator",
+    "role": "orchestrator"
+  },
+  "body": "**From DM-3 review (orchestrator):** two color sources sit outside the `:root` tokens, so changing token values alone will miss them:\n\n- `src/renderer/src/graph/flowElements.ts` hardcodes the edge arrowhead colors as `MET_COLOR = \"#8a8070\"` and `WAITING_COLOR = \"#6a6254\"` (`markerEnd.color`). They equal `--edge` and `--edge-waiting`, but in TS, so the arrowheads keep the old colors after a palette swap.\n- `src/renderer/src/styles.css` has four `rgba(236, 230, 218, 0.04)` hover washes (the old `--ink` at 4%) that are not tokens.\n\nRoute both through tokens when applying the palette (or in DM-8 for the graph).",
+  "createdAt": "2026-10-02T03:40:55.120Z",
+  "epicId": "ep_01m3tyvx2t4scbd6g2fp1z7yxb",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m3xb6reghdcw41p1cy9hpm8t",
+  "ticketId": "tk_01m3tyychq07sc0mpj1dca391g"
+}

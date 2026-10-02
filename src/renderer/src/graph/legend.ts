@@ -13,6 +13,7 @@ const EXECUTION_STATES: LegendEntries['states'] = [
   { tone: 'running', label: 'Running' },
   { tone: 'ready', label: 'Ready' },
   { tone: 'waiting', label: 'Waiting' },
+  { tone: 'blocked', label: 'Blocked' },
   { tone: 'failed', label: 'Failed' }
 ]
 

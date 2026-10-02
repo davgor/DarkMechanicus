@@ -3,6 +3,7 @@ import type { TrackedFolderView } from '../../../shared/desktop/api'
 import { errorMessage } from '../api/dm'
 import { useClock } from './clock'
 import { bindRunner, type Runner } from './runner'
+import { useViewMemory } from './viewMemory'
 import { createWorkspaceActions, type WorkspaceActions } from './workspaceActions'
 import { loadWorkspace } from './workspaceLoad'
 import {
@@ -41,18 +42,25 @@ interface WorkspaceInput {
   onChanged(): void
 }
 
-/** Loads the epic (again whenever `refreshToken` changes or an action reloads) and binds actions. */
+/**
+ * Loads the epic (again whenever `refreshToken` changes or an action reloads) and binds actions. The
+ * view the person picks is remembered for the epic, so it reopens there after visiting another one.
+ */
 export function useWorkspace(input: WorkspaceInput): WorkspaceController {
   const clock = useClock()
+  const memory = useViewMemory()
   const { folderPath, epicId, refreshToken } = input
   const runner = useMemo(() => bindRunner(folderPath), [folderPath])
-  const [state, dispatch] = useReducer(workspaceReducer, undefined, initialWorkspaceState)
+  const [state, dispatch] = useReducer(workspaceReducer, memory.recall(folderPath, epicId), initialWorkspaceState)
   const [reloadToken, setReloadToken] = useState<object>({})
   const stateRef = useRef(state)
   stateRef.current = state
   const changedRef = useRef(input.onChanged)
   changedRef.current = input.onChanged
   const reload = useCallback(() => setReloadToken({}), [])
+  useEffect(() => {
+    memory.remember(folderPath, epicId, state.chosenView)
+  }, [memory, folderPath, epicId, state.chosenView])
   useEffect(() => {
     let active = true
     dispatch({ type: 'load_started' })

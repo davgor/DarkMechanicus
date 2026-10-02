@@ -42,7 +42,7 @@ describe('run bar summary', () => {
 describe('run bar pill and counts', () => {
   it('pairs the run state label with a tone', () => {
     expect(runPill(runView())).toEqual({ label: 'RUNNING', tone: 'running' })
-    expect(runPill(runView({ state: 'awaiting_checkpoint' }))).toEqual({ label: 'AWAITING CHECKPOINT', tone: 'failed' })
+    expect(runPill(runView({ state: 'awaiting_checkpoint' }))).toEqual({ label: 'AWAITING CHECKPOINT', tone: 'attention' })
   })
 
   it('lists non-zero counts in a fixed order', () => {
@@ -67,36 +67,53 @@ describe('run bar pill and counts', () => {
 })
 
 describe('run bar actions', () => {
+  const checkpoint = { checkpoint: true, overview: false }
+  const none = { checkpoint: false, overview: false }
+
   it('offers pause and cancel while running, resume while paused', () => {
-    expect(runActions(runView(), true)).toEqual({ pause: true, resume: false, cancel: true, takeover: false, report: true })
-    expect(runActions(runView({ state: 'queued' }), false)).toEqual({
+    expect(runActions(runView(), checkpoint)).toEqual({ pause: true, resume: false, cancel: true, takeover: false, report: 'Sprint report' })
+    expect(runActions(runView({ state: 'queued' }), none)).toEqual({
       pause: true,
       resume: false,
       cancel: true,
       takeover: false,
-      report: false
+      report: null
     })
-    expect(runActions(runView({ state: 'paused' }), false)).toMatchObject({ pause: false, resume: true, cancel: true })
-    expect(runActions(runView({ state: 'awaiting_checkpoint' }), true)).toMatchObject({ pause: false, cancel: true })
+    expect(runActions(runView({ state: 'paused' }), none)).toMatchObject({ pause: false, resume: true, cancel: true })
+    expect(runActions(runView({ state: 'awaiting_checkpoint' }), checkpoint)).toMatchObject({ pause: false, cancel: true })
   })
 
   it('offers only take over for an imported run and nothing for a finished one', () => {
-    expect(runActions(runView({ ownedByThisMachine: false }), true)).toEqual({
+    expect(runActions(runView({ ownedByThisMachine: false }), checkpoint)).toEqual({
       pause: false,
       resume: false,
       cancel: false,
       takeover: true,
-      report: true
+      report: 'Sprint report'
     })
-    expect(runActions(runView({ state: 'paused', ownedByThisMachine: false }), false)).toMatchObject({ resume: false })
-    expect(runActions(runView({ state: 'completed' }), false)).toEqual({
+    expect(runActions(runView({ state: 'paused', ownedByThisMachine: false }), none)).toMatchObject({ resume: false })
+    expect(runActions(runView({ state: 'completed' }), none)).toEqual({
       pause: false,
       resume: false,
       cancel: false,
       takeover: false,
-      report: false
+      report: null
     })
-    expect(runActions(runView({ state: 'failed', ownedByThisMachine: false }), false)).toMatchObject({ takeover: false })
+    expect(runActions(runView({ state: 'failed', ownedByThisMachine: false }), none)).toMatchObject({ takeover: false })
+  })
+
+  it('offers the epic report, and nothing else, for a completed run with an overview', () => {
+    expect(runActions(runView({ state: 'completed' }), { checkpoint: false, overview: true })).toEqual({
+      pause: false,
+      resume: false,
+      cancel: false,
+      takeover: false,
+      report: 'Epic report'
+    })
+    expect(runActions(runView({ state: 'completed', ownedByThisMachine: false }), { checkpoint: false, overview: true }).report).toBe(
+      'Epic report'
+    )
+    expect(runActions(runView({ state: 'awaiting_checkpoint' }), { checkpoint: true, overview: true }).report).toBe('Sprint report')
   })
 })
 

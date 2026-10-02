@@ -18,6 +18,7 @@ function data(patch: Partial<WorkspaceData> = {}): WorkspaceData {
     draft: draftPlan(),
     run: runView(),
     checkpoint: checkpointView(),
+    overview: null,
     savedTickets: [],
     draftTickets: [],
     validation: validation(),
@@ -74,10 +75,10 @@ describe('draft lifecycle actions (1)', () => {
   it('switches to an existing draft without a command, or opens one first', async () => {
     const existing = harness()
     await existing.actions.editDraft()
-    expect([existing.backend.names(), existing.state().view]).toEqual([[], 'draft'])
+    expect([existing.backend.names(), existing.state().view, existing.state().chosenView]).toEqual([[], 'draft', 'draft'])
     const fresh = harness({ epic: epicDetail(), draft: null }, new FakeBackend(scenario()))
     await fresh.actions.editDraft()
-    expect([fresh.backend.names(), fresh.state().view]).toEqual([['openDraft'], 'draft'])
+    expect([fresh.backend.names(), fresh.state().view, fresh.state().chosenView]).toEqual([['openDraft'], 'draft', 'draft'])
     const failing = harness({ epic: epicDetail(), draft: null })
     failing.backend.fail('openDraft', 'completed_epic', 'Completed epics are read-only.')
     await failing.actions.editDraft()
@@ -90,18 +91,20 @@ describe('draft lifecycle actions (1)', () => {
     await h.actions.discardDraft()
     expect(h.backend.inputs('discardPlanDraft')).toEqual([{ epicId: 'ep_1', expectedDraftRevision: 7 }])
     expect([h.state().view, h.state().toast, h.state().confirm]).toEqual(['saved', 'Draft discarded.', null])
+    expect(h.state().chosenView).toBe(null)
     const failing = harness()
     failing.dispatch({ type: 'show_view', view: 'draft' })
     failing.backend.fail('discardPlanDraft', 'conflict', 'The draft changed.')
     await failing.actions.discardDraft()
-    expect([failing.state().view, failing.state().banner]).toEqual(['draft', 'The draft changed.'])
+    expect([failing.state().view, failing.state().banner, failing.state().chosenView]).toEqual(['draft', 'The draft changed.', 'draft'])
   })
 
-  it('saves and switches to the Saved view with a toast', async () => {
+  it('saves and switches to the Saved view with a toast, forgetting the chosen Draft view', async () => {
     const h = harness()
+    h.dispatch({ type: 'show_view', view: 'draft' })
     await h.actions.saveDraft()
     expect(h.backend.inputs('savePlan')).toEqual([{ epicId: 'ep_1', expectedDraftRevision: 7 }])
-    expect([h.state().view, h.state().toast]).toEqual(['saved', 'Saved rev 5.'])
+    expect([h.state().view, h.state().toast, h.state().chosenView]).toEqual(['saved', 'Saved rev 5.', null])
   })
 })
 
@@ -114,7 +117,7 @@ describe('draft lifecycle actions (2)', () => {
       tone: 'info',
       text: "Save pending — the snapshot hasn't been written yet; your draft is kept."
     })
-    expect(pending.dispatched.some((action) => action.type === 'show_view')).toBe(false)
+    expect(pending.dispatched.some((action) => action.type === 'show_view' || action.type === 'draft_closed')).toBe(false)
     const stale = harness()
     stale.backend.fail('savePlan', 'stale_draft', 'The saved plan changed since this draft was opened.')
     await stale.actions.saveDraft()
@@ -225,16 +228,17 @@ describe('graph edit actions (2)', () => {
 })
 
 describe('checkpoint actions', () => {
-  it('approves and advances, then closes the checkpoint view', async () => {
+  it('approves and advances, closing the checkpoint view unless the approval completed the epic', async () => {
     const h = harness()
     h.dispatch({ type: 'open_checkpoint' })
     await h.actions.approve('sr_1')
     expect(h.backend.inputs('approveAndAdvance')).toEqual([{ runId: 'rn_2', reportId: 'sr_1' }])
     expect([h.state().checkpointOpen, h.state().toast]).toEqual([false, 'Checkpoint approved — Sprint 3 started.'])
+    h.dispatch({ type: 'open_checkpoint' })
     h.backend.handlers.approveAndAdvance = () => runView({ state: 'completed' })
     await h.actions.approve('sr_1')
-    expect(h.state().toast).toBe('Checkpoint approved — the epic is complete.')
-    h.dispatch({ type: 'open_checkpoint' })
+    expect([h.state().checkpointOpen, h.state().toast]).toEqual([true, 'Checkpoint approved — the epic is complete.'])
+    expect(h.dispatched.filter((action) => action.type === 'close_checkpoint').length).toBe(1)
     h.backend.fail('approveAndAdvance', 'gate_blocked', 'Sprint 2 gates are not met.')
     await h.actions.approve('sr_1')
     expect([h.state().checkpointOpen, h.state().banner]).toEqual([true, 'Sprint 2 gates are not met.'])

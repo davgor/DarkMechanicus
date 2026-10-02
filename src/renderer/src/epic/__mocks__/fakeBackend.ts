@@ -23,6 +23,7 @@ import type {
   PlanView,
   ProfileView,
   RunView,
+  SprintReportView,
   TicketDetailView,
   ValidationReport
 } from '../../../../shared/domain/views'
@@ -47,6 +48,8 @@ interface Scenario {
   draft: PlanView | null
   run: RunView | null
   checkpoint: CheckpointView | null
+  /** Stored sprint reports, answered per run and sprint by getSprintReport. */
+  reports: SprintReportView[]
   validation: ValidationReport
   ticket: TicketDetailView
   events: EventView[]
@@ -69,6 +72,7 @@ export function scenario(patch: Partial<Scenario> = {}): Scenario {
     draft: null,
     run: runView(),
     checkpoint: checkpointView({ report: null }),
+    reports: [],
     validation: validation(),
     ticket: ticketDetail(),
     events: [event(1, 'attempt.claimed'), event(2, 'attempt.failed', { payload: { reason: '2 tests failed' } })],
@@ -202,6 +206,7 @@ function openDraft(state: Scenario): PlanView {
 function updateDraft(state: Scenario): unknown {
   const draft = openDraft(state)
   state.draft = { ...draft, draftRevision: (draft.draftRevision ?? 0) + 1 }
+  state.epic = { ...state.epic, draftChanged: true }
   return { epicId: state.epic.id, draftRevision: state.draft.draftRevision, refMap: { new: 'tk_new' }, validation: state.validation }
 }
 
@@ -209,7 +214,13 @@ function save(state: Scenario): unknown {
   const number = (state.epic.currentRevisionNumber ?? 0) + 1
   state.saved = savedPlan({ revisionId: `rv_${number}`, revisionNumber: number })
   state.draft = null
-  state.epic = { ...state.epic, hasDraft: false, currentRevisionId: `rv_${number}`, currentRevisionNumber: number }
+  state.epic = {
+    ...state.epic,
+    hasDraft: false,
+    draftChanged: false,
+    currentRevisionId: `rv_${number}`,
+    currentRevisionNumber: number
+  }
   return { status: 'saved', epicId: state.epic.id, revisionId: `rv_${number}`, revisionNumber: number, contentHash: 'h', error: null }
 }
 
@@ -229,7 +240,7 @@ function addComment(state: Scenario, input: { epicId: string; ticketId?: string;
 
 function discard(state: Scenario): unknown {
   state.draft = null
-  state.epic = { ...state.epic, hasDraft: false, draftRevision: null }
+  state.epic = { ...state.epic, hasDraft: false, draftRevision: null, draftChanged: false }
   return { discarded: true }
 }
 
@@ -242,6 +253,8 @@ function runHandlers(state: Scenario): Partial<Record<CommandName, Handler>> {
   return {
     getRun: () => state.run,
     getCheckpoint: () => state.checkpoint ?? notFound('No checkpoint'),
+    getSprintReport: (input: { runId: string; sprintId?: string }) =>
+      state.reports.find((item) => item.runId === input.runId && item.sprintId === input.sprintId) ?? null,
     queueRun: () => updateRun(state, { state: 'queued', activeSprintOrdinal: null }),
     pauseRun: () => updateRun(state, { state: 'paused' }),
     resumeRun: () => updateRun(state, { state: 'running' }),

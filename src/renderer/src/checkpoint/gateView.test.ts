@@ -181,6 +181,53 @@ describe('sprint report (2)', () => {
   })
 })
 
+describe('report entries written as free text', () => {
+  const context = { run: runView({ tickets: [], attempts: [] }), bundle: bundle(), now: NOW }
+  const withEntries = (accepted: string[], failed: string[] = []): ReturnType<typeof reportView> =>
+    reportView(reportFixture({ report: { ...reportFixture().report, accepted, failed } }), context)
+
+  it('shows the leading ticket key in the key column and the rest of the entry as text', () => {
+    expect(withEntries(['DM-203 Folder picker works: verified by hand', 'DM-201: MCP tools saved - 12 tests']).accepted).toEqual([
+      { ticketId: 'tk_203', key: 'DM-203', title: 'Folder picker works: verified by hand', detail: '' },
+      { ticketId: 'tk_201', key: 'DM-201', title: 'MCP tools saved - 12 tests', detail: '' }
+    ])
+  })
+
+  it('keeps the key of a ticket the plan does not have, as unlinked', () => {
+    expect(withEntries(['DM-999 Removed from the plan'], ['DM-998 Never started']).accepted).toEqual([
+      { ticketId: null, key: 'DM-999', title: 'Removed from the plan', detail: '' }
+    ])
+    expect(withEntries([], ['DM-998 Never started']).failed).toEqual([{ ticketId: null, key: 'DM-998', title: 'Never started', detail: '' }])
+  })
+
+  it('leaves the key column empty when the entry does not start with a ticket key', () => {
+    expect(withEntries(['Verified list_epics against the installed app', 'Rollback of DM-203 checked']).accepted).toEqual([
+      { ticketId: null, key: '', title: 'Verified list_epics against the installed app', detail: '' },
+      { ticketId: null, key: '', title: 'Rollback of DM-203 checked', detail: '' }
+    ])
+  })
+
+  it('does not take a key-shaped prefix of a longer word for a ticket key', () => {
+    expect(withEntries(['DM-203x is not a key']).accepted).toEqual([{ ticketId: null, key: '', title: 'DM-203x is not a key', detail: '' }])
+  })
+
+  it('looks up the run details of a failed ticket named at the start of a free-text entry', () => {
+    const view = reportView(reportFixture({ report: { ...reportFixture().report, failed: ['DM-202 Import still flaky'] } }), {
+      run: FAILED_RUN,
+      bundle: bundle(),
+      now: NOW
+    })
+    expect(view.failed).toEqual([
+      {
+        ticketId: 'tk_202',
+        key: 'DM-202',
+        title: 'Import still flaky',
+        detail: 'attempt 2 of 2 · codesign: no identity found · retry limit reached'
+      }
+    ])
+  })
+})
+
 describe('follow-up proposals', () => {
   it('adds the proposal to the sprint after the checkpoint, else to the last sprint', () => {
     const proposal = { title: 'Provide a signing identity', body: 'Needs a person.' }

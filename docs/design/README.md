@@ -17,9 +17,19 @@ The files in [`mockups/`](mockups/) are standalone HTML exports (1440×900). Ope
 
 ## Visual direction
 
-- Dark "forge console": graphite ground `#141310`, panels `#1f1c17`, text `#ece6da`, brass accent `#e0a24a` (continues the amber accent of the current shell).
+The app follows the **Mechanicus palette**, taken from the tech-priest in the app icon. [`palette.md`](palette.md) holds every token value, the color roles, the collision rules and the contrast table. It was approved at the sprint 1 checkpoint of the "Mechanicus UI revamp" epic and applied in DM-6 to DM-8.
+
+- **Crimson** (the hood) is the primary accent: primary buttons, the focus ring, selection and the active sidebar row. Fills use `--primary`; lines (focus, selected node, active bar) use the lit `--ring`, which keeps 3:1 on every surface.
+- **Brass** (the fittings) is the secondary accent, and the only accent used as text: links, rules, highlights and warnings (`--accent`).
+- **Bone** (the cog trim) is the display ink for screen and plan titles and the brand wordmark (`--ink-display`).
+- **Gunmetal** (the respirator) tints every surface and line. The app stays dark-only.
+- **Lens green** is kept for the brand glow and the running state.
+- Ticket and run states each have their own color and always pair it with a text label. No state sits on the crimson hue: failed and danger are a signal rose, awaiting checkpoint is orchid, accepted is jade.
+- Every renderer color is a `:root` token in `src/renderer/src/styles.css`. Tests keep it that way: `styles.test.ts` rejects hex colors outside `:root`, and `theme.contrast.test.ts` holds the tokens to `palette.md` and its contrast table.
+- The tech-priest is the sidebar brand mark and greets people on the welcome and onboarding screens.
 - Type: IBM Plex Sans (UI), IBM Plex Mono (IDs, states), IBM Plex Serif (plan and screen titles).
-- The plan graph is a top-to-bottom flow resting on a dotted canvas: floating ticket cards, curved dependency edges (solid = prerequisite accepted, dashed = waiting), sprint checkpoints as dashed dividers, and the epic as containment at the top (no dependency edges).
-- Ticket states always pair color with a text label.
+- The plan graph is a top-to-bottom flow on a dotted canvas: floating ticket cards, curved dependency edges (solid = prerequisite accepted, dashed = waiting), sprint checkpoints as dashed dividers, and the epic as containment at the top (no dependency edges).
+
+**The mockups predate the revamp.** The files in `mockups/` still show the earlier brass-on-graphite "forge console" palette (ground `#141310`, brass accent `#e0a24a`). Use them for layout and information architecture, and `palette.md` for color.
 
 All tickets, runs, commits and counts in the mockups are sample data. The MCP command in the onboarding snippet is a placeholder until the MCP entry point exists.
