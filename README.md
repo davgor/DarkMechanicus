@@ -19,28 +19,26 @@ An agent helps you shape an epic, decomposes it into tickets with acceptance cri
 6. **Checkpoint** — at the end of each sprint the orchestrator files a report; you review it and **Approve & advance**. The final checkpoint completes the epic, which then becomes read-only history that agents can search.
 7. **Comment** — people and agents leave Markdown notes on tickets (the ticket panel's **Comments** tab, or `add_comment` over MCP): blockers, decisions, review notes. Comments travel with the repository and show up in history search.
 
-Epic-flow process and CI/CD mirrored from [CapitalGains](https://github.com/davgor/CapitalGains) (itself aligned with [AI-DND-Matrix](https://github.com/davgor/AI-DND-Matrix) packaging/deploy).
+CI/CD mirrored from [CapitalGains](https://github.com/davgor/CapitalGains) (itself aligned with [AI-DND-Matrix](https://github.com/davgor/AI-DND-Matrix) packaging/deploy).
 
 ## Engineering process
 
 - **TDD-first.** Tests are written before the implementation that satisfies them for main/preload/renderer logic, shared helpers, and anything else with testable behavior. See `.cursor/skills/delivery-standards/SKILL.md`.
 - **Strict lint.** oxlint with zero warnings. Rules are never relaxed to make code pass — fix the code. After edits: follow [`.ai-instructions.md`](.ai-instructions.md).
 - **TypeScript strict mode.** No `any` escapes used to dodge a type problem.
-- **Ticket board.** Work is tracked as markdown tickets under `/board` (`backlog/` → `in-progress/` → `done/`). Epics are `NNN-*.md`, sub-tickets `NNN.M-*.md`, each with checkable acceptance criteria. The `complete-ticket` and `collapse-epic` skills in `.cursor/skills/` (mirrored in `.claude/skills/`) drive the workflow.
 - **No secrets committed.** `.env` stays gitignored.
 
 AI/agent delivery rules: [`.ai-instructions.md`](.ai-instructions.md) and
 [`.claude/skills/delivery-standards/SKILL.md`](.claude/skills/delivery-standards/SKILL.md).
 
-## Board workflow
+## Planning workflow
 
-Work is tracked as markdown tickets under [`board/`](board/):
+This repository is planned and run in Dark Mechanicus itself. Its epics, tickets, plan revisions, history, and comments are the portable records in [`.darkmechanicus/`](.darkmechanicus/), tracked in Git next to the code.
 
-- `board/backlog/` — not started
-- `board/in-progress/` — active
-- `board/done/` — completed (epics may collapse sub-tickets)
+- **Agents** connect through a project `.mcp.json` that runs the installed app's MCP server (see [`docs/runbooks/mcp-setup.md`](docs/runbooks/mcp-setup.md)). The role guides for planning, orchestrating, working, reviewing, and sprint reports are in [`skills/`](skills/); the server also serves them as MCP prompts.
+- **People** review each draft plan in the desktop app and press **Save**, then approve every sprint checkpoint there.
 
-Each ticket has a description and checkable acceptance criteria. Implementation follows TDD, then lint, unit tests, typecheck, deadcode, and build before criteria are checked off. See the [complete-ticket](.claude/skills/complete-ticket/SKILL.md) skill for the full flow.
+Implementation follows the engineering process above: tests first, then lint, typecheck, unit tests, fireguard, deadcode, and build before a ticket is accepted.
 
 ## Stack
 
