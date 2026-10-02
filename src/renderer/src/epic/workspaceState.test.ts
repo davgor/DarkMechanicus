@@ -29,6 +29,7 @@ describe('workspace loading', () => {
       loadError: null,
       loadedAt: null,
       view: 'saved',
+      chosenView: null,
       layout: 'graph',
       selectedTicketId: null,
       checkpointOpen: false,
@@ -92,6 +93,53 @@ describe('workspace view resolution', () => {
     const open = workspaceReducer(loaded(), { type: 'open_checkpoint' })
     expect(open.checkpointOpen).toBe(true)
     expect(workspaceReducer(open, { type: 'close_checkpoint' }).checkpointOpen).toBe(false)
+  })
+})
+
+const CHANGED = { epic: epicDetail({ hasDraft: true, draftRevision: 7, draftChanged: true }) }
+
+describe('the view an epic opens in', () => {
+  it('opens on a draft with unsaved changes, else on the saved plan, and on the draft of a never-saved epic', () => {
+    expect(loaded(CHANGED).view).toBe('draft')
+    expect(loaded().view).toBe('saved')
+    expect(loaded({ epic: epicDetail(), draft: null }).view).toBe('saved')
+    expect(loaded({ ...CHANGED, saved: null }).view).toBe('draft')
+  })
+
+  it('opens on the view the person last chose for the epic, over the default', () => {
+    expect(loaded(CHANGED, initialWorkspaceState('saved')).view).toBe('saved')
+    expect(loaded({}, initialWorkspaceState('draft')).view).toBe('draft')
+  })
+
+  it('falls back when the remembered view no longer exists', () => {
+    expect(loaded({ epic: epicDetail(), draft: null }, initialWorkspaceState('draft')).view).toBe('saved')
+    expect(loaded({ ...CHANGED, saved: null }, initialWorkspaceState('saved')).view).toBe('draft')
+  })
+
+  it('records an explicit switch as the choice to remember', () => {
+    const state = initialWorkspaceState('saved')
+    expect(state.chosenView).toBe('saved')
+    const toDraft = workspaceReducer(loaded(), { type: 'show_view', view: 'draft' })
+    expect([toDraft.view, toDraft.chosenView]).toEqual(['draft', 'draft'])
+    const back = workspaceReducer(toDraft, { type: 'show_view', view: 'saved' })
+    expect([back.view, back.chosenView]).toEqual(['saved', 'saved'])
+  })
+
+  it('never lets a refresh flip the shown view', () => {
+    const openedOnSaved = loaded()
+    expect(loaded(CHANGED, openedOnSaved).view).toBe('saved')
+    const openedOnDraft = loaded(CHANGED)
+    expect(loaded({}, openedOnDraft).view).toBe('draft')
+    const chosen = workspaceReducer(loaded(CHANGED), { type: 'show_view', view: 'saved' })
+    expect(loaded(CHANGED, chosen).view).toBe('saved')
+  })
+
+  it('shows Saved and forgets the choice when Save or Discard ends the draft', () => {
+    const editing = workspaceReducer(loaded(), { type: 'show_view', view: 'draft' })
+    const noisy = workspaceReducer(editing, { type: 'save_notice', notice: { tone: 'error', text: 'stale' } })
+    const closed = workspaceReducer(noisy, { type: 'draft_closed' })
+    expect(closed).toMatchObject({ view: 'saved', chosenView: null, saveNotice: null, confirm: null })
+    expect(loaded({ ...CHANGED, draft: draftPlan() }, closed).view).toBe('saved')
   })
 })
 
