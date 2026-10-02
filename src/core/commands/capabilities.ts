@@ -27,6 +27,8 @@ export const COMMAND_CAPABILITIES: Readonly<Record<CommandName, Capability>> = {
   getEpic: 'read',
   setEpicStatus: 'epic.status',
   setEpicBranch: 'epic.branch',
+  previewBoardImport: 'read',
+  importBoard: 'epic.create',
   getPlan: 'read',
   openDraft: 'draft.edit',
   updatePlanDraft: 'draft.edit',

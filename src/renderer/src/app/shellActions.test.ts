@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest'
 import { FakeDm } from '../__mocks__/fakeDm'
-import { epicDetail, folderView } from '../__mocks__/fixtures'
+import { boardImport, boardOpenEpic, EPIC_A, epicDetail, folderView } from '../__mocks__/fixtures'
 import type { FolderPickResult } from '../../../shared/desktop/api'
 import type { WorkStatus } from '../../../shared/domain/status'
 import type { Selection } from './selection'
@@ -129,9 +129,11 @@ describe('untrack', () => {
   })
 })
 
-const INIT_ONLY = { writeMcpConfig: false }
-const INIT_AND_CONNECT = { writeMcpConfig: true }
+const INIT_ONLY = { writeMcpConfig: false, importBoard: false }
+const INIT_AND_CONNECT = { writeMcpConfig: true, importBoard: false }
+const INIT_AND_IMPORT = { writeMcpConfig: false, importBoard: true }
 const ONBOARDING_CONNECT = { role: 'planner', allowSave: true, replace: false }
+const IMPORTED = boardImport({ open: [boardOpenEpic({ state: 'created', epicId: EPIC_A })] })
 
 describe('initialize', () => {
   it('initializes, reloads folders, refreshes and confirms', async () => {
@@ -207,6 +209,72 @@ describe('initialize with .mcp.json', () => {
     }
     await recorder.actions().initialize(alpha, INIT_AND_CONNECT)
     expect(busyDuringWrite).toEqual([['initialize:true']])
+  })
+})
+
+describe('initialize with a board import', () => {
+  it('imports the old board after initializing when asked, refreshes the folder and says what was created', async () => {
+    dm.responses.importBoard = IMPORTED
+    await recorder.actions().initialize(alpha, INIT_AND_IMPORT)
+    expect(dm.commandCalls.map((call) => [call.name, call.folder, call.input])).toEqual([
+      ['initializeRepository', '/a', {}],
+      ['importBoard', '/a', {}]
+    ])
+    expect(recorder.refreshed).toEqual(['/a', '/a'])
+    expect(recorder.toasts).toEqual([
+      ['success', 'Initialized alpha.'],
+      ['success', 'Imported 1 epic from board/ as a draft. Review it and press Save.']
+    ])
+    expect(recorder.busy).toEqual(['initialize:true', 'initialize:false'])
+  })
+
+  it('never imports unless asked', async () => {
+    await recorder.actions().initialize(alpha, INIT_AND_CONNECT)
+    expect(dm.callsOf('importBoard')).toEqual([])
+  })
+
+  it('writes .mcp.json first, then imports', async () => {
+    dm.responses.importBoard = IMPORTED
+    const order: string[] = []
+    const connect = dm.connectClaudeCode.bind(dm)
+    dm.connectClaudeCode = (folder, request) => {
+      order.push(`connect:${dm.callsOf('importBoard').length}`)
+      return connect(folder, request)
+    }
+    await recorder.actions().initialize(alpha, { writeMcpConfig: true, importBoard: true })
+    expect(order).toEqual(['connect:0'])
+    expect(dm.callsOf('importBoard')).toHaveLength(1)
+  })
+
+  it('does not import when initialization fails', async () => {
+    dm.failures.initializeRepository = { code: 'unsafe_path', message: 'Cannot write here' }
+    await recorder.actions().initialize(alpha, INIT_AND_IMPORT)
+    expect(dm.callsOf('importBoard')).toEqual([])
+  })
+
+  it('reports a failed import without undoing the initialization', async () => {
+    dm.failures.importBoard = { code: 'invalid_input', message: 'Bad board' }
+    await recorder.actions().initialize(alpha, INIT_AND_IMPORT)
+    expect(recorder.errors).toEqual(['Bad board'])
+    expect(recorder.toasts).toEqual([['success', 'Initialized alpha.']])
+    expect(recorder.reloads).toBe(1)
+  })
+})
+
+describe('importBoard', () => {
+  it('imports the folder board, refreshes its epics, says what was created and returns the result', async () => {
+    dm.responses.importBoard = IMPORTED
+    expect(await recorder.actions().importBoard(alpha)).toEqual(IMPORTED)
+    expect(dm.callsOf('importBoard').map((call) => [call.folder, call.input])).toEqual([['/a', {}]])
+    expect(recorder.refreshed).toEqual(['/a'])
+    expect(recorder.toasts).toEqual([['success', 'Imported 1 epic from board/ as a draft. Review it and press Save.']])
+  })
+
+  it('reports a failure and resolves with null', async () => {
+    dm.failures.importBoard = { code: 'not_initialized', message: 'Initialize first' }
+    expect(await recorder.actions().importBoard(alpha)).toBeNull()
+    expect(recorder.errors).toEqual(['Initialize first'])
+    expect(recorder.refreshed).toEqual([])
   })
 })
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ReconcileResultView } from '../../../shared/domain/views'
-import { describeClaudeConnect, describeFlush, describeReconcile } from './shellMessages'
+import { boardImport, boardOpenEpic, EPIC_A, EPIC_B } from '../__mocks__/fixtures'
+import { describeBoardImport, describeClaudeConnect, describeFlush, describeReconcile } from './shellMessages'
 
 describe('describeFlush', () => {
   it('reports an export failure as an error with the first reason', () => {
@@ -124,6 +125,40 @@ describe('describeClaudeConnect', () => {
     expect(describeClaudeConnect({ outcome: 'invalid', message: '.mcp.json is not valid JSON.' })).toEqual({
       tone: 'error',
       message: '.mcp.json is not valid JSON.'
+    })
+  })
+})
+
+describe('describeBoardImport', () => {
+  const created = boardOpenEpic({ state: 'created', epicId: EPIC_A })
+  const earlier = boardOpenEpic({ boardId: '021', state: 'imported', epicId: EPIC_B })
+
+  it('says how many epics were created as drafts and that they wait for Save', () => {
+    expect(describeBoardImport(boardImport({ open: [created] }))).toEqual({
+      tone: 'success',
+      message: 'Imported 1 epic from board/ as a draft. Review it and press Save.'
+    })
+    expect(describeBoardImport(boardImport({ open: [created, { ...created, boardId: '022' }] }))).toEqual({
+      tone: 'success',
+      message: 'Imported 2 epics from board/ as drafts. Review them and press Save.'
+    })
+  })
+
+  it('mentions the epics an earlier import already brought in', () => {
+    expect(describeBoardImport(boardImport({ open: [created, earlier] }))).toEqual({
+      tone: 'success',
+      message: 'Imported 1 epic from board/ as a draft. Review it and press Save. Skipped 1 epic imported before.'
+    })
+  })
+
+  it('says when nothing new was imported', () => {
+    expect(describeBoardImport(boardImport({ open: [earlier] }))).toEqual({
+      tone: 'info',
+      message: 'Nothing new to import from board/: every open epic was imported before.'
+    })
+    expect(describeBoardImport(boardImport({ open: [] }))).toEqual({
+      tone: 'info',
+      message: 'Nothing to import from board/: every epic on the board is done.'
     })
   })
 })

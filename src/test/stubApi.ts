@@ -33,6 +33,8 @@ const COMMAND_FLAGS: Record<CommandName, true> = {
   getEpic: true,
   setEpicStatus: true,
   setEpicBranch: true,
+  previewBoardImport: true,
+  importBoard: true,
   getPlan: true,
   openDraft: true,
   updatePlanDraft: true,

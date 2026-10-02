@@ -1,7 +1,8 @@
-import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs'
+import { cpSync, existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { FIXTURE_ROOT } from '../core/board/__mocks__/boardFixtures'
 import { openWorkspace } from '../core/workspace'
 import { createFolderRegistry } from '../main/desktop/folderRegistry'
 import { createDesktopHandlers, type DesktopHandlers } from '../main/desktop/handlers'
@@ -10,6 +11,7 @@ import { claudeCodeServer } from '../main/desktop/mcpJson'
 import { writeMcpServer } from '../main/desktop/mcpJsonFile'
 import { createWorkspacePool, type WorkspacePool } from '../main/desktop/workspacePool'
 import { defaultCapabilityProfile } from '../shared/domain/bundle'
+import type { BoardImportView } from '../shared/domain/views'
 import { createSequentialIds, createTestClock } from '../test/testContext'
 import { createFakeGit } from '../test/workspaceHarness'
 
@@ -160,6 +162,36 @@ describe('desktop comments over the real Workspace', () => {
     expect(listed.ok ? listed.data : listed.error).toEqual([added.ok ? added.data : null])
     const blank = await desktop.handlers.command(desktop.repo, 'addComment', { epicId, body: '   ' })
     expect(blank.ok ? 'ok' : blank.error.code).toBe('invalid_input')
+  })
+})
+
+describe('importing an old-style board through dm:command', () => {
+  let desktop: Desktop
+
+  beforeEach(() => {
+    desktop = createDesktop()
+    cpSync(join(FIXTURE_ROOT, 'board'), join(desktop.repo, 'board'), { recursive: true })
+  })
+
+  afterEach(() => {
+    desktop.cleanup()
+  })
+
+  it('previews the board before initializing, then imports its open epic as a draft once', async () => {
+    await desktop.handlers.pickFolder()
+    const preview = await desktop.handlers.command(desktop.repo, 'previewBoardImport', undefined)
+    const open = (result: typeof preview): unknown =>
+      result.ok ? (result.data as BoardImportView).open.map((epic) => [epic.boardId, epic.state]) : result.error
+    expect(open(preview)).toEqual([['014', 'new']])
+    expect((await desktop.handlers.command(desktop.repo, 'importBoard', {})).ok).toBe(false)
+
+    await desktop.handlers.command(desktop.repo, 'initializeRepository', { name: 'desk' })
+    expect(open(await desktop.handlers.command(desktop.repo, 'importBoard', {}))).toEqual([['014', 'created']])
+    expect(open(await desktop.handlers.command(desktop.repo, 'importBoard', {}))).toEqual([['014', 'imported']])
+    const epics = await desktop.handlers.command(desktop.repo, 'listEpics', undefined)
+    expect(epics.ok ? (epics.data as { status: string; hasDraft: boolean }[]) : epics.error).toMatchObject([
+      { status: 'backlog', hasDraft: true, currentRevisionId: null }
+    ])
   })
 })
 

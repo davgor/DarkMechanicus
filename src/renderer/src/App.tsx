@@ -82,6 +82,7 @@ function FolderPane({ shell, EpicView }: PaneProps): JSX.Element | null {
       onCreateEpic={(input) => actions.createEpic(folder, input)}
       onFlush={() => void actions.flush()}
       onReconcile={() => void actions.reconcile()}
+      onImportBoard={() => actions.importBoard(folder)}
     />
   )
 }
