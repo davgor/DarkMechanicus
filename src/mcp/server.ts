@@ -4,6 +4,7 @@ import type { SessionRole } from '../shared/domain/views'
 import { promptName, registerPrompts } from './prompts'
 import { SKILLS } from './skills'
 import { registerAuthoringTools } from './tools/authoring'
+import { registerBoardTools } from './tools/board'
 import { registerCheckpointTools } from './tools/checkpoints'
 import { registerCommentTools } from './tools/comments'
 import { grantTools } from './tools/define'
@@ -46,6 +47,7 @@ export function createMcpServer(
   grantTools(server, session)
   registerDiscoveryTools(server, api)
   registerAuthoringTools(server, api)
+  registerBoardTools(server, api)
   registerProfileTools(server, api)
   registerPlanningTools(server, api)
   registerExecutionTools(server, api)

@@ -34,6 +34,8 @@ const TOOLS: Record<string, { method: CommandName; kind: Kind }> = {
   get_epic: { method: 'getEpic', kind: 'read' },
   set_epic_status: { method: 'setEpicStatus', kind: 'idempotent' },
   set_epic_branch: { method: 'setEpicBranch', kind: 'idempotent' },
+  preview_board_import: { method: 'previewBoardImport', kind: 'read' },
+  import_board: { method: 'importBoard', kind: 'idempotent' },
   list_tickets: { method: 'listTickets', kind: 'read' },
   get_ticket: { method: 'getTicket', kind: 'read' },
   create_ticket: { method: 'updatePlanDraft', kind: 'write' },
@@ -113,7 +115,7 @@ describe('tool inventory', () => {
     await withRig(build, createStubApi(), async (rig) => {
       const { tools } = await rig.client.listTools()
       expect(tools.map((tool) => tool.name).sort()).toEqual(Object.keys(TOOLS).sort())
-      expect(tools).toHaveLength(55)
+      expect(tools).toHaveLength(57)
     })
   })
 

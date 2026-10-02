@@ -30,7 +30,8 @@ const READ_TOOLS = [
   'get_run_events',
   'list_comments',
   'list_profiles',
-  'get_profile'
+  'get_profile',
+  'preview_board_import'
 ]
 
 /** Every role may comment. */
@@ -43,6 +44,7 @@ const PLANNER_TOOLS = [
   'flush_portable_state',
   'reconcile_repository',
   'create_epic',
+  'import_board',
   'create_ticket',
   'update_ticket',
   'open_plan_draft',

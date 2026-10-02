@@ -184,10 +184,10 @@ A session lists only the tools its role may call. Each tool adapts one command, 
 
 | Tools | planner | orchestrator | worker | reviewer |
 |-------|:-------:|:------------:|:------:|:--------:|
-| Read-only (23): `get_capabilities`, `get_project`, `list_projects`, `get_storage_status`, `search_history`, `list_branch_epics`, `list_sessions`, `list_epics`, `get_epic`, `list_tickets`, `get_ticket`, `get_plan`, `validate_plan`, `list_revisions`, `match_capabilities`, `get_run`, `get_ready_tickets`, `get_sprint_report`, `get_checkpoint`, `get_run_events`, `list_comments`, `list_profiles`, `get_profile` | yes | yes | yes | yes |
+| Read-only (24): `get_capabilities`, `get_project`, `list_projects`, `get_storage_status`, `search_history`, `list_branch_epics`, `list_sessions`, `list_epics`, `get_epic`, `list_tickets`, `get_ticket`, `get_plan`, `validate_plan`, `list_revisions`, `match_capabilities`, `get_run`, `get_ready_tickets`, `get_sprint_report`, `get_checkpoint`, `get_run_events`, `list_comments`, `list_profiles`, `get_profile`, `preview_board_import` | yes | yes | yes | yes |
 | Comments: `add_comment` | yes | yes | yes | yes |
 | Profiles: `save_profile` | yes | yes | | |
-| Repository and drafts: `initialize_repository`, `flush_portable_state`, `reconcile_repository`, `create_epic`, `create_ticket`, `update_ticket`, `open_plan_draft`, `update_plan_draft`, `discard_plan_draft` | yes | yes | | |
+| Repository and drafts: `initialize_repository`, `flush_portable_state`, `reconcile_repository`, `create_epic`, `import_board`, `create_ticket`, `update_ticket`, `open_plan_draft`, `update_plan_draft`, `discard_plan_draft` | yes | yes | | |
 | `save_plan` | with `--allow-save` | with `--allow-save` | | |
 | Epic and ticket status: `set_epic_status`, `set_epic_branch`, `set_ticket_status` | | yes | | |
 | Runs: `register_host`, `start_run`, `pause_run`, `resume_run`, `cancel_run`, `takeover_run`, `adopt_revision` | | yes | | |
@@ -195,7 +195,7 @@ A session lists only the tools its role may call. Each tool adapts one command, 
 | `heartbeat_attempt`, `submit_attempt`, `fail_attempt` | | yes | yes | |
 | `accept_attempt`, `reject_attempt` | | yes | | yes |
 | Checkpoints: `submit_sprint_report`, `advance_sprint` | | yes | | |
-| **Total** | 34 (35 with `--allow-save`) | 54 (55 with `--allow-save`) | 27 | 26 |
+| **Total** | 36 (37 with `--allow-save`) | 56 (57 with `--allow-save`) | 28 | 27 |
 
 `--allow-save` has no effect for `worker` and `reviewer`. No role lists a tool for the desktop-only actions.
 
