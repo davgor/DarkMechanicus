@@ -54,6 +54,34 @@ describe('Sidebar chrome', () => {
     expect(screen.getByLabelText('Application version 0.4.0').textContent).toBe('v0.4.0')
   })
 
+  it('shows the tech-priest as a decorative 1x/2x image beside the brand name', () => {
+    renderSidebar([])
+    const brand = document.querySelector('.sidebar-brand')
+    const image = brand?.querySelector('img')
+    expect(image).toBeTruthy()
+    expect(image?.getAttribute('alt')).toBe('')
+    expect(image?.getAttribute('src')).toMatch(/brand-icon-32.*\.png$/)
+    const sources = (image?.getAttribute('srcset') ?? '').split(',').map((entry) => entry.trim())
+    expect(sources).toHaveLength(2)
+    expect(sources[0]).toMatch(/brand-icon-32.*\.png 1x$/)
+    expect(sources[1]).toMatch(/brand-icon-64.*\.png 2x$/)
+    expect(brand?.querySelector('[data-icon="hex"]')).toBeNull()
+  })
+
+  it('puts the tagline directly under the brand name, as visible text', () => {
+    renderSidebar([])
+    const tagline = screen.getByText('All hail the machine spirit')
+    expect(tagline.textContent).toBe('All hail the machine spirit')
+    expect(tagline.className).toContain('brand-tagline')
+    const name = screen.getByText('DARK MECHANICUS')
+    // Name and tagline stack in one column beside the image; the version sits in the same block.
+    const column = name.closest('.brand-text')
+    expect(column).toBeTruthy()
+    expect(name.nextElementSibling).toBe(tagline)
+    expect(column?.contains(screen.getByLabelText('Application version 0.4.0'))).toBe(true)
+    expect(column?.previousElementSibling?.tagName).toBe('IMG')
+  })
+
   it('has a FOLDERS header with a track button', () => {
     const calls = renderSidebar([])
     expect(screen.getByText('FOLDERS')).toBeTruthy()

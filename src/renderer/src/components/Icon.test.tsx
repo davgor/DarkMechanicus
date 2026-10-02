@@ -7,7 +7,6 @@ import type { IconName } from './Icon'
 afterEach(cleanup)
 
 const NAMES: IconName[] = [
-  'hex',
   'chevron-down',
   'chevron-right',
   'folder',
@@ -50,7 +49,7 @@ describe('Icon', () => {
   })
 
   it('honours size and stroke width', () => {
-    const svg = svgOf('hex', { size: 20, strokeWidth: 1.5 })
+    const svg = svgOf('plus', { size: 20, strokeWidth: 1.5 })
     expect(svg.getAttribute('width')).toBe('20')
     expect(svg.getAttribute('height')).toBe('20')
     expect(svg.getAttribute('stroke-width')).toBe('1.5')

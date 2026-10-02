@@ -4,8 +4,9 @@ import { AppVersionLabel } from '../autoUpdate/AppVersionLabel'
 import type { Selection } from '../app/selection'
 import { listFor } from '../app/useEpicLists'
 import type { EpicListState } from '../app/useEpicLists'
+import brandIcon1x from '../assets/brand-icon-32.png'
+import brandIcon2x from '../assets/brand-icon-64.png'
 import { Button } from '../components/Button'
-import { Icon } from '../components/Icon'
 import { FolderRow } from './FolderRow'
 import type { Expansion } from './useExpansion'
 
@@ -24,12 +25,24 @@ interface SidebarProps {
   onRequestUntrack(folder: TrackedFolderView): void
 }
 
+const BRAND_TAGLINE = 'All hail the machine spirit'
+
 function Brand({ version }: { version: string }): JSX.Element {
   return (
     <div className="sidebar-brand">
-      <Icon name="hex" size={20} strokeWidth={1.5} className="brand-mark" />
-      <span className="brand-name">DARK MECHANICUS</span>
-      <AppVersionLabel version={version} />
+      <img
+        className="brand-mark"
+        src={brandIcon1x}
+        srcSet={`${brandIcon1x} 1x, ${brandIcon2x} 2x`}
+        width={32}
+        height={32}
+        alt=""
+      />
+      <div className="brand-text">
+        <span className="brand-name">DARK MECHANICUS</span>
+        <span className="brand-tagline">{BRAND_TAGLINE}</span>
+        <AppVersionLabel version={version} />
+      </div>
     </div>
   )
 }
