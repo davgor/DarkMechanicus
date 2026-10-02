@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code planner",
+    "role": "planner"
+  },
+  "body": "**Open questions** (planner)\n\n1. **Committing `.mcp.json`:** it holds this Mac's absolute app and repo paths, so a Windows checkout would need its own. Commit it as-is, or keep it local (gitignored) and let setup write it on each machine?\n2. **Done board epics:** the plan leaves them in Git history. Should the import also bring them in as searchable history?\n3. **Generated role:** planner with `--allow-save` by default. Should setup also offer an orchestrator entry for execution sessions?",
+  "createdAt": "2026-10-01T15:16:32.771Z",
+  "epicId": "ep_01m3w0krv7v9mm6g06y3th0v87",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m3w0krw3sx9zckg0x7zqaqf1",
+  "ticketId": null
+}

@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code orchestrator",
+    "role": "orchestrator"
+  },
+  "body": "**Sprint 2 started** (orchestrator)\n\nSprint 1 approved; the approval covers the generated `.mcp.json` defaults (planner, `--allow-save`, `--label \"Claude Code\"`). No answers were recorded on the planner's open questions, so sprint 2 follows the plan's defaults: done board epics stay in Git history and are not imported, open epics import as drafts with their done sub-tickets listed in the intent rather than as tickets, and committing `.mcp.json` stays the person's call. DM-18 dispatched to an Opus worktree worker.",
+  "createdAt": "2026-10-02T14:39:19.205Z",
+  "epicId": "ep_01m3w0krv7v9mm6g06y3th0v87",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m3ygwan5bdjs3vj6pckfc63n",
+  "ticketId": null
+}

@@ -1,0 +1,957 @@
+{
+  "baseRevisionId": null,
+  "bundle": {
+    "edges": [
+      {
+        "from": "tk_01m3w0krvb1en986wh8p8bfzce",
+        "to": "tk_01m3w0krvbh6yandcyr06vx4qr"
+      },
+      {
+        "from": "tk_01m3w0krvaqvbp404p49xxg667",
+        "to": "tk_01m3w0krvbh6yandcyr06vx4qr"
+      },
+      {
+        "from": "tk_01m3w0krvbh6yandcyr06vx4qr",
+        "to": "tk_01m3w0krvbv35y4zfakysk49s8"
+      },
+      {
+        "from": "tk_01m3w0krvafkgw9n6s4x93bbdw",
+        "to": "tk_01m3w0krvbny76xf0rkqh165hj"
+      },
+      {
+        "from": "tk_01m3w0krva7rcssvhgqswp7203",
+        "to": "tk_01m3w0krvbny76xf0rkqh165hj"
+      },
+      {
+        "from": "tk_01m3w0krvbv35y4zfakysk49s8",
+        "to": "tk_01m3w0krvbny76xf0rkqh165hj"
+      }
+    ],
+    "epic": {
+      "intent": "Dark Mechanicus replaces the markdown `/board` workflow that this repository and the person's other repositories (for example CapitalGains and AI-DND-Matrix) were planned with. That workflow keeps `board/backlog|in-progress|done/`, with `NNN-*.md` epics and `NNN.M-*.md` sub-tickets that have checkbox acceptance criteria, driven by the `complete-ticket`, `collapse-epic` and `delivery-standards` agent skills.\n\n**Outcomes**\n1. **Agent-ready setup.** Setting up a repository can also connect Claude Code. Setup writes a project `.mcp.json` entry that launches the installed app's MCP server for that repository, merged with any servers already in the file, next to the existing \"install skills\" step.\n2. **Migration for board-style repositories.** When a repository being set up has an old-style `/board`, Dark Mechanicus detects it, previews its open epics and tickets, imports them as Dark Mechanicus epics on confirmation, and offers to remove the old board workflow files. Nothing is deleted without the person's confirmation, and nothing is committed.\n3. **Dogfood on this repository.** Retire this repository's `board/`, its board-driving skills (in `.claude/skills/` and `.cursor/skills/`), the Cursor rule, and the board sections of the README, `.ai-instructions.md` and docs. Keep the engineering standards (TDD-first, lint, tests, fireguard, deadcode, build) in a board-free form that points at Dark Mechanicus tickets.\n\n**Context:** the hand-written `.mcp.json` at the repository root (planner role, `--allow-save`, absolute macOS paths) is the reference for what setup should generate. The board's only open work (014.3 and 014.4) has already moved into the Dark Mechanicus epic \"Cross-host validation and release\".\n\n**Out of scope:** importing completed board epics as Dark Mechanicus run history (Git history keeps them); config files for agent hosts other than Claude Code (the copy-paste snippet still covers them); changing MCP roles or the tool surface.",
+      "ownerRole": null,
+      "successCriteria": [
+        {
+          "id": "s1",
+          "text": "From the desktop setup flow, a person can write a Dark Mechanicus server entry into the repository's `.mcp.json`. Other servers in the file are preserved, and an existing `darkmechanicus` entry is replaced only after confirmation."
+        },
+        {
+          "id": "s2",
+          "text": "A new Claude Code session opened in a repository set up this way lists the Dark Mechanicus tools without anyone hand-editing config (apart from the host's own one-time approval)."
+        },
+        {
+          "id": "s3",
+          "text": "Setting up a repository that has an old-style `/board` shows a preview of its open epics and tickets. On confirmation, they become Dark Mechanicus epics, with titles, bodies and acceptance criteria preserved."
+        },
+        {
+          "id": "s4",
+          "text": "Removing the old board workflow files is a separate, confirmed step that lists exactly which files will be deleted. Nothing is committed."
+        },
+        {
+          "id": "s5",
+          "text": "This repository has no `board/` directory, no `complete-ticket` or `collapse-epic` skills, and no `/board` instructions in the README, `.ai-instructions.md`, the Cursor rule, the docs or the delivery standards. The delivery standards still require TDD, lint, tests, fireguard, deadcode and build."
+        },
+        {
+          "id": "s6",
+          "text": "`npm run lint`, `npm run typecheck`, `npm test`, `npm run fireguard`, `npm run deadcode`, `npm run build` and `npm run smoke:mcp` pass."
+        }
+      ],
+      "title": "Make Dark Mechanicus the planning system: agent-ready setup and /board retirement"
+    },
+    "formatVersion": 1,
+    "policies": {
+      "leaseSeconds": 900,
+      "maxConcurrency": null,
+      "onTicketFailure": "continue_independent",
+      "retryLimit": 3
+    },
+    "rationale": "**Shape.** Sprint 1 runs four independent tickets in parallel: rewrite the standards, prune this repository's board, write `.mcp.json` from setup, and parse old boards. The riskiest new code (config merging, parsing) starts early. Sprint 2 builds the import and legacy-removal flow on top, then verifies everything.\n\n**Critical path:** parse the board, or write .mcp.json from setup → import during setup → remove legacy files → verify.\n\n**Why the importer waits for the .mcp.json ticket:** both change the onboarding screen and the desktop handlers. Running them in sequence avoids a three-way conflict, and the verification ticket handles the rest.\n\n**Assumptions:**\n- The person's other repositories (CapitalGains, AI-DND-Matrix) use the same board format as this repository's history, so fixtures from commit 52d6a0c are representative.\n- Only open board work is imported. Done epics stay in Git history.\n- Generated `.mcp.json` defaults to the planner role with `--allow-save`, matching this repository's hand-written file. Execution sessions can add an orchestrator entry later.\n- `.mcp.json` contains this machine's absolute app path. Setup says so, and the person decides whether to commit it.\n- This repository's open board work was moved to the \"Cross-host validation and release\" epic by the planner before this epic was created.",
+    "relations": [],
+    "sprints": [
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": null,
+        "entryCriteria": [],
+        "exitCriteria": [
+          {
+            "id": "e1",
+            "text": "No `/board` directory, board-only skills or board instructions remain in this repository; the delivery standards point at Dark Mechanicus."
+          },
+          {
+            "id": "e2",
+            "text": "The desktop app can write `.mcp.json` from the folder home and during onboarding."
+          },
+          {
+            "id": "e3",
+            "text": "The board parser reads this repository's historical board from fixtures."
+          }
+        ],
+        "goal": "This repository runs on Dark Mechanicus alone, setup can write the Claude Code MCP config, and old boards can be parsed.",
+        "id": "sp_01m3w0krv7tjzhka4bp3ea9qfn",
+        "ordinal": 1,
+        "ticketIds": [
+          "tk_01m3w0krvafkgw9n6s4x93bbdw",
+          "tk_01m3w0krva7rcssvhgqswp7203",
+          "tk_01m3w0krvaqvbp404p49xxg667",
+          "tk_01m3w0krvb1en986wh8p8bfzce"
+        ]
+      },
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": null,
+        "entryCriteria": [
+          {
+            "id": "n1",
+            "text": "The person approved sprint 1, including the `.mcp.json` defaults (planner role, save allowed)."
+          }
+        ],
+        "exitCriteria": [
+          {
+            "id": "e1",
+            "text": "Setup previews and imports a board as draft epics, without duplicates on re-run."
+          },
+          {
+            "id": "e2",
+            "text": "Setup offers confirmed removal of board-only files."
+          },
+          {
+            "id": "e3",
+            "text": "The end-to-end verification gives evidence for every success criterion."
+          }
+        ],
+        "goal": "Board-style repositories migrate during setup, verified end to end.",
+        "id": "sp_01m3w0krvas7ww34gbvyy4mks6",
+        "ordinal": 2,
+        "ticketIds": [
+          "tk_01m3w0krvbh6yandcyr06vx4qr",
+          "tk_01m3w0krvbv35y4zfakysk49s8",
+          "tk_01m3w0krvbny76xf0rkqh165hj"
+        ]
+      }
+    ],
+    "tickets": [
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Both delivery-standards SKILL.md copies, the Cursor rule and `.ai-instructions.md` contain no `/board` instructions, and their frontmatter descriptions do not mention the board."
+          },
+          {
+            "id": "c2",
+            "text": "The rules for TDD-first, the verification gate (lint, typecheck, tests, fireguard, deadcode, build) and native modules are kept, with the same meaning."
+          },
+          {
+            "id": "c3",
+            "text": "Tracking instructions name Dark Mechanicus epics and tickets over the `darkmechanicus` MCP server, and point at the shipped `skills/` files."
+          },
+          {
+            "id": "c4",
+            "text": "The `.claude` and `.cursor` copies of the skill are identical (`diff` is empty)."
+          }
+        ],
+        "body": "The delivery standards mix two things: engineering rules that still apply (TDD-first, the lint, test, fireguard, deadcode and build gate, the native-module note) and `/board` bookkeeping that is retired. Keep the first and replace the second.\n\nFiles (keep the Claude and Cursor copies identical):\n- `.claude/skills/delivery-standards/SKILL.md` and `.cursor/skills/delivery-standards/SKILL.md`\n- `.cursor/rules/delivery-standards.mdc`\n- `.ai-instructions.md` (its last note points at the board gate)\n\nNew tracking section: work is tracked as Dark Mechanicus epics and tickets in `.darkmechanicus/`, through the `darkmechanicus` MCP server in `.mcp.json`. New work becomes a new epic or a ticket on an existing epic (planner draft, then Save). During execution, evidence goes into the attempt submission, not into checked boxes. Point to the shipped skills in `skills/` (planner, orchestrator, worker, reviewer) instead of `complete-ticket` and `collapse-epic`. Update the skill's `description` frontmatter so it no longer mentions `/board`.\n\n**Out of scope:** deleting the board-only skills and `board/` (separate ticket); README and docs (separate ticket).",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": 15000,
+            "requiredArtifacts": [
+              ".claude/skills/delivery-standards/SKILL.md"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": "high"
+          },
+          "reasoning": {
+            "level": "routine",
+            "rationale": "Editing process docs while keeping the engineering rules intact."
+          },
+          "skills": [
+            "docs",
+            "process"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell"
+          ],
+          "workType": "documentation"
+        },
+        "expectedArtifacts": [
+          ".claude/skills/delivery-standards/SKILL.md",
+          ".cursor/skills/delivery-standards/SKILL.md",
+          ".cursor/rules/delivery-standards.mdc",
+          ".ai-instructions.md"
+        ],
+        "id": "tk_01m3w0krvafkgw9n6s4x93bbdw",
+        "key": "DM-14",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": ".claude/skills/delivery-standards/SKILL.md",
+            "location": ".claude/skills/delivery-standards/SKILL.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": ".cursor/rules/delivery-standards.mdc",
+            "location": ".cursor/rules/delivery-standards.mdc",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": ".ai-instructions.md",
+            "location": ".ai-instructions.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/planner.md",
+            "location": "skills/planner.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/worker.md",
+            "location": "skills/worker.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": ".mcp.json",
+            "location": ".mcp.json",
+            "remoteOnly": false
+          }
+        ],
+        "tags": [
+          "process",
+          "docs",
+          "skills"
+        ],
+        "title": "Rewrite the delivery standards around Dark Mechanicus tickets"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The \"Cross-host validation and release\" epic exists in Dark Mechanicus with the 014.3 and 014.4 work before `board/` is deleted."
+          },
+          {
+            "id": "c2",
+            "text": "`board/` and the `complete-ticket` and `collapse-epic` skills (in both `.claude/skills/` and `.cursor/skills/`) are gone."
+          },
+          {
+            "id": "c3",
+            "text": "`grep -rniE \"/board|board/|complete-ticket|collapse-epic\" --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=.darkmechanicus --exclude-dir=release --exclude-dir=out .` finds nothing."
+          },
+          {
+            "id": "c4",
+            "text": "The README has a \"Planning workflow\" section that describes using Dark Mechanicus on this repository, and no board workflow section."
+          },
+          {
+            "id": "c5",
+            "text": "`npm run lint`, `npm run typecheck`, `npm test`, `npm run fireguard`, `npm run deadcode` and `npm run build` pass."
+          }
+        ],
+        "body": "Retire the markdown board in this repository. Git history keeps everything that is deleted.\n\n1. Confirm that the Dark Mechanicus epic \"Cross-host validation and release\" holds the board's open work (014.3 and 014.4), using `list_epics` or the desktop app. Then delete `board/` entirely.\n2. Delete the `complete-ticket` and `collapse-epic` skills from both `.claude/skills/` and `.cursor/skills/`.\n3. In `README.md`, replace the \"Ticket board\" bullet under Engineering process and the \"Board workflow\" section with a short \"Planning workflow\" section. It should say the repository is planned and run in Dark Mechanicus itself (`.darkmechanicus/`), that Claude Code connects through `.mcp.json`, and that people review and Save in the desktop app. Also fix the \"Epic-flow process ... mirrored from CapitalGains\" line and the \"complete-ticket skill\" link at the end of the board section.\n4. Update the board mentions in `docs/product-plan.md` (the \"board tracking\" sentence and the \"development `/board` is separate\" note).\n5. Check that no CI workflow, script or config refers to `board/` (`grep -rn \"board/\" .github scripts fireguard`).\n\n**Out of scope:** the delivery-standards rewrite (separate ticket).",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": 20000,
+            "requiredArtifacts": [
+              "README.md"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": "high"
+          },
+          "reasoning": {
+            "level": "routine",
+            "rationale": "Deleting retired files and rewriting a few docs sections."
+          },
+          "skills": [
+            "docs",
+            "process"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "documentation"
+        },
+        "expectedArtifacts": [
+          "README.md",
+          "docs/product-plan.md"
+        ],
+        "id": "tk_01m3w0krva7rcssvhgqswp7203",
+        "key": "DM-15",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "README.md",
+            "location": "README.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/product-plan.md",
+            "location": "docs/product-plan.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": ".claude/skills/complete-ticket/SKILL.md",
+            "location": ".claude/skills/complete-ticket/SKILL.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": ".claude/skills/collapse-epic/SKILL.md",
+            "location": ".claude/skills/collapse-epic/SKILL.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "commit",
+            "label": "Last commit with the full /board",
+            "location": "52d6a0c",
+            "remoteOnly": false
+          }
+        ],
+        "tags": [
+          "process",
+          "docs",
+          "cleanup"
+        ],
+        "title": "Remove the /board directory, board-only skills and board docs from this repository"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Unit tests, written first, cover: creating a new `.mcp.json`; merging while keeping other servers and unknown keys; refusing invalid JSON without writing; detecting an existing different `darkmechanicus` entry and replacing it only when asked."
+          },
+          {
+            "id": "c2",
+            "text": "The generated entry for a packaged macOS app matches the shape of this repository's hand-written `.mcp.json` (command, `mcp.js` path, `--repo`, `--role planner`, `--allow-save`, `ELECTRON_RUN_AS_NODE=1`)."
+          },
+          {
+            "id": "c3",
+            "text": "The folder home's MCP card can write the file, showing the target path and asking for confirmation before replacing an entry. Onboarding can write it as part of initialization."
+          },
+          {
+            "id": "c4",
+            "text": "The write handler refuses paths outside the repository and symlinks that escape it, covered by tests."
+          },
+          {
+            "id": "c5",
+            "text": "`docs/runbooks/mcp-setup.md` documents the in-app option."
+          },
+          {
+            "id": "c6",
+            "text": "`npm run lint`, `npm run typecheck`, `npm test`, `npm run fireguard`, `npm run deadcode` and `npm run build` pass."
+          }
+        ],
+        "body": "Make \"connect Claude Code\" part of setting up a repository, so nobody has to hand-write `.mcp.json` again.\n\n**Core (TDD first):** a pure function that merges a `darkmechanicus` server entry into the text of an existing `.mcp.json`, or creates the file.\n- Preserve every other server and any unknown top-level keys.\n- If the file is not valid JSON, return a clear error and leave the file untouched.\n- If a `darkmechanicus` entry already exists and differs, report it, and replace it only when the caller says so.\n- Build the command, args and env from `buildMcpConfig` (`src/main/desktop/mcpConfig.ts`), which already handles packaged and dev builds. Add `--role` (default `planner`) and an optional `--allow-save` (default on, matching this repository's hand-written `.mcp.json`).\n\n**Main and IPC:** a desktop handler that writes the merged file at the repository root. Use the same path safety as `skillInstall.ts`: resolve real paths, stay inside the repository, never follow a symlink out. Never commit.\n\n**Renderer:**\n- In the MCP card on the folder home (`home/McpCard.tsx`), add a \"Connect Claude Code\" action next to \"Install skills\". Show the target path, the role, and whether save is allowed, plus a confirmation when it would replace an existing entry.\n- On the onboarding screen, add an option, on by default, to also write `.mcp.json` when initializing.\n- Say plainly that the file contains this machine's app path.\n\n**Docs:** add a \"Write it from the app\" section to `docs/runbooks/mcp-setup.md`.\n\n**Out of scope:** config formats for other agent hosts (the copy-paste snippet stays); the board import.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": 60000,
+            "requiredArtifacts": [
+              "src/main/desktop/mcpConfig.ts",
+              "src/main/desktop/skillInstall.ts"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": "high"
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": "Merges user-owned config across the core, IPC and renderer layers with file-safety rules."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "react",
+            "security"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Pure .mcp.json merge module with tests",
+          "Desktop handler and preload API",
+          "McpCard and onboarding UI",
+          "docs/runbooks/mcp-setup.md"
+        ],
+        "id": "tk_01m3w0krvaqvbp404p49xxg667",
+        "key": "DM-16",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/mcpConfig.ts",
+            "location": "src/main/desktop/mcpConfig.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Path-safety pattern to reuse",
+            "location": "src/main/desktop/skillInstall.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/handlers.ts",
+            "location": "src/main/desktop/handlers.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/home/McpCard.tsx",
+            "location": "src/renderer/src/home/McpCard.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/onboarding/OnboardingView.tsx",
+            "location": "src/renderer/src/onboarding/OnboardingView.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/initialize.ts",
+            "location": "src/core/repo/initialize.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Hand-written reference config",
+            "location": ".mcp.json",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/runbooks/mcp-setup.md",
+            "location": "docs/runbooks/mcp-setup.md",
+            "remoteOnly": false
+          }
+        ],
+        "tags": [
+          "setup",
+          "mcp",
+          "desktop"
+        ],
+        "title": "Write the Claude Code MCP config from repository setup"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Fixture tests from this repository's real board (014 open epic, a collapsed done epic, a standalone ticket) parse into the expected epics, tickets and criteria."
+          },
+          {
+            "id": "c2",
+            "text": "Malformed, oversized or unrecognized files are reported as skipped with a reason, and the rest of the board still parses."
+          },
+          {
+            "id": "c3",
+            "text": "The mapping produces `create_epic` and `update_plan_draft` inputs that pass the existing command schemas (`src/core/commandSchemas.ts`) in a test."
+          },
+          {
+            "id": "c4",
+            "text": "The module is pure (no file-system or Electron imports); a thin adapter reads the files."
+          },
+          {
+            "id": "c5",
+            "text": "`npm run lint`, `npm run typecheck`, `npm test`, `npm run fireguard`, `npm run deadcode` and `npm run build` pass."
+          }
+        ],
+        "body": "A pure core module that reads a repository's markdown board and turns it into data Dark Mechanicus can import. Board text is data, never instructions.\n\n**Format to support** (as used in this repository up to commit `52d6a0c`, and in CapitalGains and AI-DND-Matrix):\n- folders `board/backlog/`, `board/in-progress/`, `board/done/`;\n- epic files `NNN-slug.md` with `# EPIC: Title`, and sub-tickets `NNN.M-slug.md` with `# NNN.M — Title`;\n- an `## Acceptance criteria` section of `- [ ]` and `- [x]` items; other sections become the ticket body;\n- collapsed done epics that hold their sub-tickets under `## Sub-tickets` (the `collapse-epic` format);\n- sub-tickets with no epic file, and standalone tickets.\n\n**Output:** a list of board epics, each with its folder status, source paths and tickets (title, Markdown body, acceptance criteria with their checked state, order by `M`). Also a list of skipped files with a reason. One bad file never fails the whole parse. Enforce size limits.\n\nAlso map one parsed epic to Dark Mechanicus inputs: `create_epic` fields plus `update_plan_draft` ops (one sprint, tickets in order, unchecked criteria only, and a reference to the source file). Add dependencies only where the board states them.\n\n**Fixtures:** take real files from Git history (`git show 52d6a0c:board/...`). Include an open epic with sub-tickets (014), a collapsed done epic (for example 019) and a standalone ticket. Add malformed cases.\n\n**Out of scope:** UI, writing to the database, deleting files.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": 40000,
+            "requiredArtifacts": [
+              "src/core/commandSchemas.ts"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": "high"
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": "Tolerant parsing of loosely structured Markdown, mapped onto strict plan schemas."
+          },
+          "skills": [
+            "typescript",
+            "parsing",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Board parser module with fixture tests",
+          "Board-to-plan mapping with schema tests"
+        ],
+        "id": "tk_01m3w0krvb1en986wh8p8bfzce",
+        "key": "DM-17",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "commit",
+            "label": "Last commit with the full /board, for fixtures",
+            "location": "52d6a0c",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/commandSchemas.ts",
+            "location": "src/core/commandSchemas.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/plan/draftOps.ts",
+            "location": "src/core/plan/draftOps.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Collapsed-epic format (read from history once deleted)",
+            "location": ".claude/skills/collapse-epic/SKILL.md",
+            "remoteOnly": false
+          }
+        ],
+        "tags": [
+          "import",
+          "core"
+        ],
+        "title": "Parse an old-style /board into importable epics and tickets"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Onboarding a folder that contains an old-style `board/` shows a preview of open epics, done epics that will not be imported, and skipped files."
+          },
+          {
+            "id": "c2",
+            "text": "Confirming creates one Backlog epic per open board epic, each with a draft plan and the source path recorded. Nothing is saved or committed automatically."
+          },
+          {
+            "id": "c3",
+            "text": "Importing a second time creates no duplicate epics, covered by a test."
+          },
+          {
+            "id": "c4",
+            "text": "The import is a core command with tests, available to the desktop app and (with `epic.create`) over MCP."
+          },
+          {
+            "id": "c5",
+            "text": "`npm run lint`, `npm run typecheck`, `npm test`, `npm run fireguard`, `npm run deadcode` and `npm run build` pass."
+          }
+        ],
+        "body": "Use the board parser when setting up a repository that has a `board/` directory.\n\n- **Detect:** at onboarding and on the folder home of an initialized repository, notice an old-style `board/` (`src/core/repo/discovery.ts` is a likely home).\n- **Preview:** list the open epics (in-progress and backlog) with their ticket counts. List done epics as \"left in Git history, not imported\", and list skipped files with their reasons.\n- **Import:** on confirmation, create each open epic in Backlog with its plan as a **draft**, so the person reviews and presses Save. Record the source file path in the epic intent. Re-running the import must not duplicate an epic that was already imported from the same source path.\n- Implement the import as a core command so the desktop app and MCP share it. If its capability is `epic.create`, planner and orchestrator sessions get it as a tool automatically.\n\n**Out of scope:** deleting board files (separate ticket); importing done epics as run history.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": 70000,
+            "requiredArtifacts": [
+              "src/core/services/epics.ts"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": "high"
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": "Adds a new core command with idempotency, wired through IPC and the UI."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "react",
+            "database"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Import core command with tests",
+          "Onboarding and folder-home import preview UI"
+        ],
+        "id": "tk_01m3w0krvbh6yandcyr06vx4qr",
+        "key": "DM-18",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/discovery.ts",
+            "location": "src/core/repo/discovery.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/epics.ts",
+            "location": "src/core/services/epics.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Command and capability registry",
+            "location": "src/core/commands",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/onboarding/OnboardingView.tsx",
+            "location": "src/renderer/src/onboarding/OnboardingView.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/home/FolderHome.tsx",
+            "location": "src/renderer/src/home/FolderHome.tsx",
+            "remoteOnly": false
+          }
+        ],
+        "tags": [
+          "import",
+          "setup",
+          "desktop"
+        ],
+        "title": "Offer to import an old-style board during repository setup"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "After an import, setup offers a removal step that lists every path it will delete. Nothing is deleted without confirmation."
+          },
+          {
+            "id": "c2",
+            "text": "Only `board/` and board-only skill directories are removed. README, `.ai-instructions.md` and delivery-standards files are listed for manual editing, never deleted."
+          },
+          {
+            "id": "c3",
+            "text": "Path-safety tests cover paths outside the repository and symlinks."
+          },
+          {
+            "id": "c4",
+            "text": "Nothing is committed."
+          },
+          {
+            "id": "c5",
+            "text": "`npm run lint`, `npm run typecheck`, `npm test`, `npm run fireguard`, `npm run deadcode` and `npm run build` pass."
+          }
+        ],
+        "body": "After a board import, offer to remove the old workflow files, as a separate confirmed step.\n\n- **Candidates:** `board/`; the skills `complete-ticket` and `collapse-epic` under `.claude/skills/` and `.cursor/skills/`. Recognize them by directory name and by content that refers to `/board`.\n- Show the exact list of paths before anything is deleted. Delete only those paths, only inside the repository, and never through a symlink. Never commit.\n- Files that mention `/board` but are not safe to delete automatically (README, `.ai-instructions.md`, `delivery-standards` skills or rules) are listed as \"still mentions the board, edit by hand\", not deleted.\n- Write tests for the candidate detection and the path safety first.\n\n**Out of scope:** rewriting other repositories' READMEs or standards.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": 40000,
+            "requiredArtifacts": [
+              "src/main/desktop/skillInstall.ts"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": "high"
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": "Deletes user files, so detection and path safety must be exact and tested."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "react",
+            "security"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Legacy-file detection and removal with tests",
+          "Removal confirmation UI"
+        ],
+        "id": "tk_01m3w0krvbv35y4zfakysk49s8",
+        "key": "DM-19",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Path-safety pattern",
+            "location": "src/main/desktop/skillInstall.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/onboarding/OnboardingView.tsx",
+            "location": "src/renderer/src/onboarding/OnboardingView.tsx",
+            "remoteOnly": false
+          }
+        ],
+        "tags": [
+          "import",
+          "setup",
+          "cleanup"
+        ],
+        "title": "Offer to remove the old board workflow files after an import"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "All ticket changes are on the epic branch, with conflicts resolved."
+          },
+          {
+            "id": "c2",
+            "text": "Screenshots show a board-style scratch repository being set up: `.mcp.json` written, open epics imported as drafts, and the legacy files removed after confirmation."
+          },
+          {
+            "id": "c3",
+            "text": "A Claude Code session in that repository lists the Dark Mechanicus tools (`get_capabilities` output attached)."
+          },
+          {
+            "id": "c4",
+            "text": "This repository's `.mcp.json` matches what the app generates."
+          },
+          {
+            "id": "c5",
+            "text": "All checks, including `npm run smoke:mcp`, pass. The submission gives evidence for every success criterion (s1 to s6)."
+          }
+        ],
+        "body": "Bring the branches together on the epic branch and prove every success criterion.\n\n1. Merge the tickets' commits and resolve conflicts. The onboarding screen, `McpCard` and the desktop handlers are touched by several tickets.\n2. **Setup with a board:** create a scratch checkout of this repository at `52d6a0c` (for example `git worktree add /tmp/dm-board-fixture 52d6a0c`). Track and set it up in the desktop app: write `.mcp.json`, import the board, and remove the legacy files. Screenshot each step.\n3. **Claude Code:** open a new Claude Code session in that scratch repository, approve the project MCP server, and show that the Dark Mechanicus tools are listed (`get_capabilities` output).\n4. Compare the `.mcp.json` the app generates for this repository with the hand-written one, and replace the hand-written file if it differs only in ordering or formatting.\n5. Run `npm run lint`, `npm run typecheck`, `npm test`, `npm run fireguard`, `npm run deadcode`, `npm run build` and `npm run smoke:mcp`.\n6. Report evidence for s1 to s6.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": 50000,
+            "requiredArtifacts": [
+              ".mcp.json"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": "high"
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": "Integrates parallel branches and verifies the full flow in the real app and agent host."
+          },
+          "skills": [
+            "typescript",
+            "electron",
+            "mcp",
+            "release"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [
+          "Setup screenshots",
+          "Claude Code tool listing",
+          "Success-criteria evidence report"
+        ],
+        "id": "tk_01m3w0krvbny76xf0rkqh165hj",
+        "key": "DM-20",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "commit",
+            "label": "Board fixture commit",
+            "location": "52d6a0c",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": ".mcp.json",
+            "location": ".mcp.json",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/runbooks/mcp-setup.md",
+            "location": "docs/runbooks/mcp-setup.md",
+            "remoteOnly": false
+          }
+        ],
+        "tags": [
+          "integration",
+          "verification"
+        ],
+        "title": "Verify the planning switchover end to end"
+      }
+    ]
+  },
+  "contentHash": "sha256:ae96cf5b11b8fd1641e2ccb10fd94276d6e028963ef7d8baebd0915ad798c158",
+  "createdAt": "2026-10-01T15:16:32.748Z",
+  "epicId": "ep_01m3w0krv7v9mm6g06y3th0v87",
+  "format": "darkmechanicus.plan-snapshot",
+  "formatVersion": 1,
+  "number": 1,
+  "revisionId": "rv_01m3w0krvcp78dhx3hkx8650cd",
+  "savedAt": "2026-10-01T15:16:32.748Z"
+}

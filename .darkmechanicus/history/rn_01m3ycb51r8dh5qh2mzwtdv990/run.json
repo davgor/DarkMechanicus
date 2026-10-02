@@ -1,0 +1,1340 @@
+{
+  "activeSprintId": null,
+  "attempts": [
+    {
+      "createdAt": "2026-10-02T13:21:00.564Z",
+      "decidedAt": "2026-10-02T13:26:36.977Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator",
+        "notes": "Reviewed the diff: engineering rules unchanged in meaning, tracking rewritten, copies identical, no board mentions on the integrated branch.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "oxlint src scripts: exit 0 (worker branch)",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "node, web and fireguard tsconfigs: 0 errors",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "vitest 196 files / 3482 tests, plus fireguard suite 20 files / 105 tests",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "grade A (score 100); no unit tests added or changed, so the mutation gate had nothing to grade",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "electron-vite build, clean tree after fireguard",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "`grep -niE \"/board|board/|complete-ticket|collapse-epic|ticket board\"` over the four files prints nothing; `grep -ni board` over them (minus dashboard/onboarding/keyboard/clipboard) also prints nothing on the integrated branch 07a62f3. The frontmatter descriptions of both skill copies and the .mdc name Dark Mechanicus tracking instead of the board."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Only sections 1 (tracking) and 4 (close out), the intro and the checklist changed; sections 2 (TDD-first) and 3 (gate, deadcode/targeted-test/fireguard/native-module notes) are untouched in the diff, and the .mdc check list is unchanged."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "SKILL.md section 1 names the `darkmechanicus` MCP server, `.darkmechanicus/`, epics and tickets, draft then Save, and links skills/planner.md, graph-planner.md, orchestrator.md, sprint-reporter.md, worker.md and reviewer.md (relative links resolve to the repo root). The .mdc names the server, `.mcp.json` and the four main guides."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "`diff .claude/skills/delivery-standards/SKILL.md .cursor/skills/delivery-standards/SKILL.md` prints nothing on the integrated branch."
+          }
+        ],
+        "notes": "Two judgment calls to flag: (1) the commit rule now reads \"Do not commit unless the user explicitly asks, or the execution packet or orchestrator tells you to commit\", matching how runs actually work; (2) the \"Epic-flow process mirrored from davgor.github.io\" line was dropped because it described the board flow. Both are easy to revert if the person disagrees."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m3yccy4msyhb5p6gq9ngp24t",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": "worktree-agent-a3c4d43f969ee57e9 (merged into planning-switchover at 6c0bb91)",
+        "changedFiles": [
+          ".claude/skills/delivery-standards/SKILL.md",
+          ".cursor/skills/delivery-standards/SKILL.md",
+          ".cursor/rules/delivery-standards.mdc",
+          ".ai-instructions.md"
+        ],
+        "commits": [
+          "4b3d17a167d67807e78e06689bfb59f230860d84",
+          "6c0bb91"
+        ],
+        "summary": "Rewrote the delivery standards around Dark Mechanicus. The engineering rules keep their meaning: TDD-first, the verification gate (lint, typecheck, test, fireguard, deadcode, build with the same notes) and the native-module note. The old \"Board tracking\" section is now \"Dark Mechanicus tracking\". Records live in `.darkmechanicus/` and are reached through the `darkmechanicus` MCP server, configured by a machine-specific project `.mcp.json`. New work becomes a new epic or a ticket on an existing epic (planner draft, then Save), and a table maps each job to the shipped guide in `skills/`. \"Close out\" puts evidence in the attempt submission instead of checked boxes. The Cursor rule and the last note of `.ai-instructions.md` follow suit, and both skill copies are byte-identical."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m3w0krvcp78dhx3hkx8650cd",
+      "state": "accepted",
+      "submittedAt": "2026-10-02T13:26:36.894Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:65e72a86c5d3e5f6e7d6ab684318fb3bfaefb07366042e129afc3e7afefc3b0c",
+      "ticketId": "tk_01m3w0krvafkgw9n6s4x93bbdw",
+      "updatedAt": "2026-10-02T13:26:36.977Z",
+      "worker": {
+        "catalogRevision": "2026-10-02.1",
+        "hostId": "claude-code-desktop-mac",
+        "label": "worktree subagent (claude-sonnet-5-5)",
+        "modelId": "claude-sonnet-5-5",
+        "rationale": "Routine documentation rewrite of process files with a fixed set of rules to keep; Sonnet handles routine docs reliably at lower cost and latency than Opus.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-02T13:21:00.730Z",
+      "decidedAt": "2026-10-02T13:26:37.150Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator",
+        "notes": "Reviewed the diff and re-ran the c3 grep on the integrated branch after merging DM-14: no hits. Board and board-only skills are gone; README Planning workflow reads correctly.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "oxlint src scripts: exit 0 (worker branch)",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "node, web and fireguard tsconfigs: 0 errors",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "vitest 196 files / 3482 tests, plus fireguard suite 20 files / 105 tests",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "grade A (score 100); no unit tests added or changed, so the mutation gate had nothing to grade",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "electron-vite build, clean tree after fireguard",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Verified by the orchestrator before dispatch with list_tickets: epic \"Cross-host validation and release\" (ep_01m3w0krtb0p7kvamsz7peq1g5) holds DM-12 (014.3, Windows and macOS packaging) and DM-13 (014.4, second MCP host)."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "On the integrated branch: `ls board` fails with \"No such file or directory\"; `.claude/skills/` and `.cursor/skills/` contain only `delivery-standards`."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "On the worker branch the grep hit only DM-14 files, as planned. After merging DM-14 and DM-15 (07a62f3), the exact c3 grep run from the integration worktree root prints nothing (exit 1)."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "README.md has \"## Planning workflow\" (Dark Mechanicus records in .darkmechanicus/, agents via .mcp.json and skills/, people Save and approve in the desktop app) and no board workflow section."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "All six checks pass on the worker branch (see checks). The combined gate is re-run on the integrated branch before the sprint report."
+          }
+        ],
+        "notes": "No script, test, CI workflow, fireguard config or package.json entry read board/. A stale \"(board 009.6)\" comment remains in scripts/spike/claim-stress.ts; it is not an instruction and does not match the c3 pattern."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m3yccy9t851w9qc1w3s6t2sj",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": "worktree-agent-af4f0bb438d1e4252 (merged into planning-switchover at 07a62f3)",
+        "changedFiles": [
+          "README.md",
+          "docs/product-plan.md",
+          "board/ (deleted)",
+          ".claude/skills/complete-ticket/SKILL.md (deleted)",
+          ".claude/skills/collapse-epic/SKILL.md (deleted)",
+          ".cursor/skills/complete-ticket/SKILL.md (deleted)",
+          ".cursor/skills/collapse-epic/SKILL.md (deleted)"
+        ],
+        "commits": [
+          "2f8370ecb96d2529c46247367d94ba2fe1761d3a",
+          "07a62f3"
+        ],
+        "summary": "Retired the markdown board: deleted `board/` (22 files including two .gitkeep) and the `complete-ticket` and `collapse-epic` skills from `.claude/skills/` and `.cursor/skills/`. Git history keeps them (last full board at 52d6a0c). The README loses the \"Ticket board\" bullet and the \"Board workflow\" section. In their place, a short \"Planning workflow\" section says the repository is planned and run in Dark Mechanicus itself (`.darkmechanicus/`), that agents connect through a project `.mcp.json` (linking the MCP setup runbook) using the role guides in `skills/`, and that people press Save and approve checkpoints in the desktop app. The CapitalGains line no longer claims the epic flow, and the two board mentions in `docs/product-plan.md` now point at Dark Mechanicus."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m3w0krvcp78dhx3hkx8650cd",
+      "state": "accepted",
+      "submittedAt": "2026-10-02T13:26:37.069Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:f08ab5aba448efecc954896ac64bccd8bc460545b5c28c22a823daa0890b27b3",
+      "ticketId": "tk_01m3w0krva7rcssvhgqswp7203",
+      "updatedAt": "2026-10-02T13:26:37.150Z",
+      "worker": {
+        "catalogRevision": "2026-10-02.1",
+        "hostId": "claude-code-desktop-mac",
+        "label": "worktree subagent (claude-sonnet-5-5)",
+        "modelId": "claude-sonnet-5-5",
+        "rationale": "Routine deletion of retired files plus a few README and docs edits, checked by a grep and the standard gate; Sonnet is sufficient and cheaper.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-02T13:21:00.893Z",
+      "decidedAt": "2026-10-02T13:54:12.922Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator",
+        "notes": "Reviewed mcpJson.ts, mcpJsonFile.ts, the IPC wiring, ClaudeCodeConnect and the onboarding change; viewed the screenshots; re-ran the affected tests on the integrated branch.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "oxlint src scripts: exit 0",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "node, web and fireguard tsconfigs",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "vitest 199 files / 3552 tests + fireguard 20 files / 105 tests; 222 affected tests re-run on e8b20e6",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "grade A (99): AST gate 448 asserts 0 mocks, flake 100/100, mutation 75/77 (survivors on pre-existing App.tsx:114)",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found (.tsprune-ignore line numbers for api.ts moved)",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "electron-vite build on the clean tree after fireguard",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Tests written first in src/main/desktop/mcpJson.test.ts: \"creates a new .mcp.json holding only the darkmechanicus server\"; \"adds the server and keeps every other server and unknown top-level key\"; \"keeps the order of the existing keys and appends the new server last\"; \"refuses text that is not valid JSON, naming the file and saying it was left untouched\"; \"reports a different entry as a conflict, showing what is there, and writes nothing\"; \"replaces a different entry only when asked, in place, keeping everything else\". On disk: mcpJsonFile.test.ts \"leaves a file that is not valid JSON untouched and says why\"."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "mcpJson.test.ts \"the entry for a packaged macOS app\": feeding buildMcpConfig the packaged paths gives command .../MacOS/DarkMechanicus, args [app.asar/out/main/mcp.js, --repo, <repo>, --role, planner, --allow-save, --label, Claude Code], env ELECTRON_RUN_AS_NODE=1. \"creates the same file as the hand-written one\" and \"finds the hand-written file already up to date\" (outcome unchanged) use this repository's .mcp.json verbatim apart from the repo path; the orchestrator compared that fixture with the real file."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Screenshots in scratchpad/shot/shots/DM-16/ (orchestrator viewed them): 1 folder home \"Claude Code\" section with target path, Planner role and --allow-save checkbox; 2 replace confirmation showing the existing entry with Replace entry / Keep current entry; 3 replaced toast; 4 onboarding checkbox \"Also write .mcp.json so Claude Code can connect\" (on by default) with the machine-path note; 5 initialized + \"Created .mcp.json for Claude Code.\" Tests: ClaudeCodeConnect.test.tsx, App.start.test.tsx \"writes .mcp.json for Claude Code while initializing, unless the option is turned off\", desktop.test.ts \"writes .mcp.json into a tracked folder only, and finds it up to date afterwards\"."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "mcpJsonFile.test.ts: \"refuses when .mcp.json is a symbolic link out of the repository and leaves its target alone\", \"refuses a dangling symbolic link instead of creating its target\", \"refuses a symbolic link even when it points inside the repository\", \"refuses when the resolved file escapes the repository\", \"refuses a sibling folder whose name merely starts with the repository name\". The write also opens with O_NOFOLLOW. handlers.test.ts \"never writes into a folder that is not tracked\"."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "docs/runbooks/mcp-setup.md has \"### Write it from the app\": both entry points, an example entry, a table of outcomes per .mcp.json state, the machine-path/committing note and how to turn off --allow-save."
+          },
+          {
+            "criterionId": "c6",
+            "met": true,
+            "note": "Worker branch: lint, typecheck, test (199 files / 3552 + fireguard 105), fireguard grade A 99 (mutation 75/77; both survivors on pre-existing App.tsx:114), deadcode, build all pass. Orchestrator re-ran the 16 affected test files (222 tests) on the integrated branch e8b20e6: pass. Full gate re-runs before the sprint report."
+          }
+        ],
+        "notes": "Decisions to flag: `--label \"Claude Code\"` is added so the generated entry matches the hand-written file exactly; roles offered are planner and orchestrator; a merged file is re-rendered as two-space JSON (unchanged/conflict never write). Path-safety helpers are copied from skillInstall.ts rather than shared; a later refactor could unify them. The dev build writes `command: node` (existing buildMcpConfig behaviour); DM-20 should verify the Claude Code session against the packaged app."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m3yccyexqcg0p07cch4rstxv",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Screenshots: folder home connect, replace confirmation, after replace, onboarding option, after onboarding",
+            "location": "scratchpad/shot/shots/DM-16/",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "worktree-agent-a4afa2dda94caaa61 (merged into planning-switchover at e8b20e6)",
+        "changedFiles": [
+          "src/main/desktop/mcpJson.ts",
+          "src/main/desktop/mcpJson.test.ts",
+          "src/main/desktop/mcpJsonFile.ts",
+          "src/main/desktop/mcpJsonFile.test.ts",
+          "src/main/desktop/bootstrap.ts",
+          "src/main/desktop/handlers.ts",
+          "src/main/desktop/handlers.test.ts",
+          "src/main/desktop/ipc.ts",
+          "src/main/desktop/ipc.test.ts",
+          "src/main/ipcGuard.test.ts",
+          "src/preload/index.ts",
+          "src/shared/desktop/api.ts",
+          "src/renderer/src/home/ClaudeCodeConnect.tsx",
+          "src/renderer/src/home/ClaudeCodeConnect.test.tsx",
+          "src/renderer/src/home/McpCard.tsx",
+          "src/renderer/src/home/McpCard.test.tsx",
+          "src/renderer/src/onboarding/OnboardingView.tsx",
+          "src/renderer/src/onboarding/OnboardingView.test.tsx",
+          "src/renderer/src/app/shellActions.ts",
+          "src/renderer/src/app/shellActions.test.ts",
+          "src/renderer/src/app/shellMessages.ts",
+          "src/renderer/src/app/shellMessages.test.ts",
+          "src/renderer/src/App.tsx",
+          "src/renderer/src/App.start.test.tsx",
+          "src/renderer/src/styles.css",
+          "src/renderer/src/__mocks__/fakeDm.ts",
+          "src/renderer/src/epic/__mocks__/fakeBackend.ts",
+          "src/integration/desktop.test.ts",
+          "src/integration/completedEpic.test.ts",
+          "src/integration/epicDrafts.test.ts",
+          "docs/runbooks/mcp-setup.md",
+          ".tsprune-ignore"
+        ],
+        "commits": [
+          "6f15a1cc05fde4250d631fcde65d8c4c2d4765d2",
+          "0e26b1e49015689798e1833c90f8969dfdefc7e2",
+          "e8b20e6"
+        ],
+        "summary": "Setting up a repository can now connect Claude Code. `mergeMcpServer` (src/main/desktop/mcpJson.ts, pure) merges a `darkmechanicus` entry built from `buildMcpConfig` plus `--role`, optional `--allow-save` and `--label \"Claude Code\"` into `.mcp.json` text, keeping every other server and top-level key. It reports created, added, replaced, unchanged, conflict or invalid, and replaces a different entry only on request. `writeMcpServer` (mcpJsonFile.ts) writes it at the repository root with the skillInstall path-safety pattern (real paths, no symlinks, stays inside the repo, O_NOFOLLOW) and never commits. It is exposed as `dm:connectClaudeCode` for tracked folders with a strict request schema. The folder home MCP card gains a \"Claude Code\" section (path, role, save checkbox, replace confirmation), and onboarding gains an on-by-default \"Also write .mcp.json\" option that never replaces an existing entry. Both say the file holds this machine's app path and leave committing to the person. The runbook documents it."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m3w0krvcp78dhx3hkx8650cd",
+      "state": "accepted",
+      "submittedAt": "2026-10-02T13:54:12.832Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:164b88fe6995b7ce02a51089551e4365146247a6041fb379d3f439366dc4c685",
+      "ticketId": "tk_01m3w0krvaqvbp404p49xxg667",
+      "updatedAt": "2026-10-02T13:54:12.922Z",
+      "worker": {
+        "catalogRevision": "2026-10-02.1",
+        "hostId": "claude-code-desktop-mac",
+        "label": "worktree subagent (claude-opus-5-5)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Multi-step work across core, IPC and renderer that merges user-owned config and must get path safety right (security skill); Opus has the security skill and the strongest reasoning for it.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-02T13:21:01.057Z",
+      "decidedAt": "2026-10-02T14:36:13.097Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator",
+        "notes": "Reviewed parse.ts, plan.ts and the adapter; merged cleanly; full gate re-run on the integrated branch.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "oxlint src scripts: no findings",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "node, web and fireguard projects",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "worker: 201 files / 3535 tests + fireguard 105; new: parse.fixtures 10, parse 20, plan 10, purity 2, boardFiles 10",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "grade A (98): AST 122 asserts, 0 mocks, flake 100/100, mutation 130/137 (survivors: comparator equal cases, a scan start index, and older paths.ts lines graded because of a new export)",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports; no .tsprune-ignore entries needed",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "electron-vite build on the clean tree after fireguard",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "src/core/board/parse.fixtures.test.ts reads real files copied from 52d6a0c (blob hashes match) under src/core/board/__mocks__/board/: 014 open epic (\"reads the open epic 014: title, description, its own criteria and every source path\", \"orders 014 sub-tickets by M across folders…\", \"keeps open 014 criteria unchecked…\"), 013 collapsed done epic (\"turns each ### NNN.M section under ## Sub-tickets into a ticket, in order\"), 008 standalone (\"imports a standalone NNN ticket as an epic holding that one ticket\") and 019 (epic with no sub-tickets)."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "parse.test.ts reports skipped files with reasons while the real 014 epic still parses: files outside the folders and bad names, missing/empty/mismatched titles, collapsed sub-tickets of another epic, repeated files, files over 64 KiB (UTF-8 bytes), binary text, over-long titles and criteria, past the 3,000-file limit, epics over the op limit. boardFiles.test.ts covers links, redirects out of board/, entry caps, oversized files left unread and unreadable files."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "plan.test.ts \"maps every fixture epic to create_epic and update_plan_draft inputs the schemas accept\" validates with the real COMMAND_SCHEMAS.createEpic and .updatePlanDraft; ops are also applied with applyDraftOps on createInitialBundle (\"fills the one sprint a new epic starts with, tickets in board order\"); \"maps an epic at the plan-size limit to one request the schema still accepts\" checks exactly 500 ops."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "purity.test.ts follows every relative import of parse.ts and plan.ts with ts.preProcessFile and finds no fs, path, process or Electron module (only node:crypto via core ids), and proves it would flag one. File access is only in src/core/repo/boardFiles.ts (readBoard, through FsAdapter)."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Worker branch: all six checks pass, fireguard grade A (98), mutation 130/137. Integrated branch: all six checks plus smoke:mcp pass at af289fa (204 files / 3605 tests + 105 fireguard tests, fireguard A 99 with mutation 209/214, deadcode clean, build clean after fireguard, smoke:mcp 55 tools)."
+          }
+        ],
+        "notes": "For DM-18: createEpic carries no idempotencyKey; dedupe can use the intent line or ticket reference locations (paths change when a file moves between folders); BoardFolder and BoardEpicImport are unexported to keep deadcode clean. Done tickets are still mapped (with no criteria), so DM-18 must filter by folder. Since this merge the DM-15 c3 grep matches the importer's own code and fixtures (src/core/board, src/core/repo/boardFiles*), which is expected; the s5 scope stays clean."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m3yccym11wjwnsgwgqw6n8ss",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": "worktree-agent-acac971239f2ee1e1 (merged into planning-switchover at af289fa)",
+        "changedFiles": [
+          "src/core/board/parse.ts",
+          "src/core/board/plan.ts",
+          "src/core/repo/boardFiles.ts",
+          "src/core/repo/paths.ts",
+          "src/core/board/parse.test.ts",
+          "src/core/board/parse.fixtures.test.ts",
+          "src/core/board/plan.test.ts",
+          "src/core/board/purity.test.ts",
+          "src/core/repo/boardFiles.test.ts",
+          "src/core/board/__mocks__/boardFixtures.ts",
+          "src/core/board/__mocks__/board/ (8 fixture files from 52d6a0c)"
+        ],
+        "commits": [
+          "2e4494c6f713e9b3f9843e33f795bbfe554ae2e2",
+          "2fa5c90f348e42488a0f2e1789f82a7466bde138",
+          "af289fa"
+        ],
+        "summary": "`parseBoard(files)` (src/core/board/parse.ts) is a pure parser for old-style boards. It takes `{path, text}` pairs and returns `{epics, skipped}`. Epics come in three kinds: `epic`, `standalone` or `orphan`. Each has its folder status, source paths, body and criteria, and tickets in `M` order with Markdown bodies and checked state. Collapsed done epics yield one ticket per `### NNN.M` section under `## Sub-tickets`. Bad files are skipped one at a time with a reason, under size, count and length limits. Fenced code is never read for structure. `boardEpicImport(epic)` (plan.ts) maps one epic to `create_epic` input plus `update_plan_draft` ops: one sprint, tickets in order, unchecked criteria only, and a file reference to the source. The intent notes the source path so DM-18 can detect repeats. Dependencies come only from explicit \"Depends on\" lines and never close a cycle. `readBoard` (src/core/repo/boardFiles.ts) is the thin read-only adapter, which refuses links and paths outside board/."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m3w0krvcp78dhx3hkx8650cd",
+      "state": "accepted",
+      "submittedAt": "2026-10-02T14:36:13.018Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:64301b3d82cf4fa04bb6d1d79a6cbd149fc7e0ab011a08d656ab6dd574ae778d",
+      "ticketId": "tk_01m3w0krvb1en986wh8p8bfzce",
+      "updatedAt": "2026-10-02T14:36:13.097Z",
+      "worker": {
+        "catalogRevision": "2026-10-02.1",
+        "hostId": "claude-code-desktop-mac",
+        "label": "worktree subagent (claude-opus-5-5)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Tolerant parsing of loosely structured Markdown mapped onto strict plan schemas, with quality set to high; Opus scores highest and is better at edge cases in parsers.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-02T14:38:43.957Z",
+      "decidedAt": "2026-10-02T15:35:24.302Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator",
+        "notes": "Reviewed the command, MCP tools, dedupe rule and UI; confirmed no existing role check was removed; viewed the screenshots; re-ran affected tests on the integrated branch.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "oxlint src scripts: no findings",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "all three tsconfig projects",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "worker: 209 files / 3676 + fireguard 105; orchestrator: 39 affected files / 579 tests on 1a2731f",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "grade A (98); mutation 95% (268 killed, 14 survived; 8 are off-by-one budget tweaks in doneSection)",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found (baseline refreshed for line shifts)",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "electron-vite build on the clean tree after fireguard",
+            "name": "build",
+            "status": "passed"
+          },
+          {
+            "detail": "57 tools",
+            "name": "smoke:mcp",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "OnboardingView \"Old-style board found\" card (BoardPreview.tsx) lists open epics with open and done ticket counts, done epics \"left in Git history, not imported\" and skipped files with reasons. Tests: OnboardingView.test \"previews the board: open epics, done epics left in history, and skipped files\"; App.start.test \"previews the board, imports it after initializing when chosen, and lands on the folder home\". Screenshot 1-onboarding-preview.png (orchestrator viewed it): 014 to import (2 open, 2 done on the board), 19 done epics, 0 skipped; 6-folder-home-before-import.png shows a populated skipped list."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "board.test.ts \"creates each open board epic in Backlog with its open tickets as an unsaved draft plan\" (no saved revision, listRevisions empty), \"records the source file in the intent and the ticket references\", \"saves and commits nothing\". Live run after-first-import.json: one Backlog epic, currentRevisionId null, 2 draft tickets referencing board/backlog/014.3 and 014.4, fixture git log unchanged. The onboarding import is an explicit opt-in checkbox (off by default); the folder home uses an Import button."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "board.test.ts describe \"importBoard never duplicates\": second import creates nothing; a retried request with the same idempotency key replays the first result; an epic whose board files moved folders is still recognized. integration/desktop.test.ts runs preview new → created → imported over real IPC handlers. Screenshot 4-second-run-preview.png (orchestrator viewed it) shows \"Already imported\" with one Backlog epic."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "src/core/commands/board.ts registers previewBoardImport (read, beforeInit) and importBoard (epic.create, strict schema with idempotencyKey); both in DESKTOP_COMMANDS; MCP tools preview_board_import and import_board (idempotent) in src/mcp/tools/board.ts, descriptions say board text is task data. server.test inventory 57, roles.test updated. Orchestrator confirmed no existing role or capability check was removed (the only removed lines in core/mcp/main/shared are test counts)."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Worker branch: lint, typecheck, test (209 files / 3676 + 105), fireguard A (98, mutation 268/282), deadcode (after refresh), build; smoke:mcp 57 tools. Orchestrator re-ran 39 affected test files (579 tests) on the integrated branch 1a2731f: pass. Full gate re-runs at DM-20."
+          }
+        ],
+        "notes": "Recognition limit: if the import note and every board reference are edited out of every revision and the draft, the epic is no longer recognized (accepted). Minor gap: an MCP session opened before the desktop initializes the repository previews every epic as new; its import is unaffected. For DM-19: every preview and import entry carries sourcePaths."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m3ygv87nqd2qfz5crzcsjsjw",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Screenshots and live-run JSON: onboarding preview, after import, draft plan, second-run preview, folder-home import",
+            "location": "scratchpad/shot/shots/DM-18/",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "worktree-agent-a21be77f566c848de (merged into planning-switchover at 1a2731f)",
+        "changedFiles": [
+          "src/core/board/imports.ts",
+          "src/core/board/imports.test.ts",
+          "src/core/services/boardImport.ts",
+          "src/core/commands/board.ts",
+          "src/core/commands/board.test.ts",
+          "src/core/commands/capabilities.ts",
+          "src/core/commands/capabilities.test.ts",
+          "src/core/commands/index.ts",
+          "src/core/commandSchemas.ts",
+          "src/mcp/server.ts",
+          "src/mcp/tools/board.ts",
+          "src/mcp/tools/board.test.ts",
+          "src/mcp/server.test.ts",
+          "src/mcp/roles.test.ts",
+          "src/mcp/main.test.ts",
+          "src/shared/desktop/api.ts",
+          "src/shared/domain/api.ts",
+          "src/shared/domain/views.ts",
+          "src/renderer/src/board/BoardPreview.tsx",
+          "src/renderer/src/board/BoardPreview.test.tsx",
+          "src/renderer/src/board/boardImport.ts",
+          "src/renderer/src/home/BoardImportCard.tsx",
+          "src/renderer/src/home/BoardImportCard.test.tsx",
+          "src/renderer/src/home/FolderHome.tsx",
+          "src/renderer/src/home/FolderHome.test.tsx",
+          "src/renderer/src/onboarding/OnboardingView.tsx",
+          "src/renderer/src/onboarding/OnboardingView.test.tsx",
+          "src/renderer/src/app/useBoardPreview.ts",
+          "src/renderer/src/app/shellActions.ts",
+          "src/renderer/src/app/shellActions.test.ts",
+          "src/renderer/src/app/shellMessages.ts",
+          "src/renderer/src/app/shellMessages.test.ts",
+          "src/renderer/src/App.tsx",
+          "src/renderer/src/App.start.test.tsx",
+          "src/renderer/src/styles.css",
+          "src/renderer/src/__mocks__/fakeDm.ts",
+          "src/renderer/src/__mocks__/fixtures.ts",
+          "src/integration/desktop.test.ts",
+          "src/test/stubApi.ts",
+          "docs/runbooks/mcp-setup.md",
+          ".tsprune-ignore"
+        ],
+        "commits": [
+          "60c637b8345f28de76766c488307884002783f27",
+          "4abf51dce07b9a1469fd14c115e0184aaf4b963d",
+          "5bdc2ebaf942cbf75b8eca41c53ec36dff12e2b2",
+          "1a2731f"
+        ],
+        "summary": "Two new core commands are shared by the desktop app and MCP. `previewBoardImport` (read, works before initialization) changes nothing. It returns open epics with a new, created or imported state and an epic id, done epics that stay in Git history, and skipped files with reasons. `importBoard` (epic.create) runs in one transaction. It creates each open board epic that no earlier import created as a Backlog epic whose plan is an unsaved draft: one sprint and the open tickets in board order. Sub-tickets already in done/ are listed in the intent. Nothing is saved or committed. A repeat import is recognized from the source keys recorded in any revision's intent or in the ticket references, ignoring the folder, so moved files are still matched; the command also takes an idempotency key. MCP gains `preview_board_import` and `import_board`. Onboarding shows an \"Old-style board found\" preview with an opt-in import that runs after initialization. The folder home shows an \"Old-style board\" card with the same preview and an Import button."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m3w0krvcp78dhx3hkx8650cd",
+      "state": "accepted",
+      "submittedAt": "2026-10-02T15:35:24.220Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:24788498460b2608ea648b3f2c18edd6830f46dcabbfcbbfc9a546ad89201106",
+      "ticketId": "tk_01m3w0krvbh6yandcyr06vx4qr",
+      "updatedAt": "2026-10-02T15:35:24.302Z",
+      "worker": {
+        "catalogRevision": "2026-10-02.1",
+        "hostId": "claude-code-desktop-mac",
+        "label": "worktree subagent (claude-opus-5-5)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "A new core command with idempotent import, shared by desktop and MCP and wired through IPC and the onboarding and folder-home UI (multi_step, database, electron, react); Opus is the strongest fit and the only model with the database skill.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-02T15:35:47.818Z",
+      "decidedAt": "2026-10-02T21:15:32.813Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator",
+        "notes": "Reviewed removal.ts and boardRemovalFiles.ts path safety, viewed the screenshots and fixture git status, and ran the full gate on 0e99dff.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "oxlint src scripts: exit 0 (worker branch and 0e99dff)",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "all three tsconfigs (worker branch and 0e99dff)",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "0e99dff: 213 files / 3754 tests + fireguard 20 files / 105",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "run by the orchestrator on 0e99dff: grade A (98), mutation 95% (368/389)",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "electron-vite build before and after fireguard on 0e99dff",
+            "name": "build",
+            "status": "passed"
+          },
+          {
+            "detail": "57 tools, 6 prompts",
+            "name": "smoke:mcp",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "BoardImportCard.test \"offers the removal after an import and lists every file it would delete, deleting nothing yet\" and \"offers no removal while open epics are left to import\"; BoardRemoval.test \"lists every file it will delete, grouped by folder, and deletes nothing yet\", \"asks before deleting, saying Git history keeps only committed files, and Cancel deletes nothing\". Screenshots viewed by the orchestrator: 1c-removal-offer-lists-every-file.png (all 30 files grouped by folder), 3-confirmation.png (Delete 30 files? with the Git-history note). Main also refuses removal while open epics remain un-imported."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "removal.test \"lists every file of the board and of the board-only skills, and nothing else\", \"lists instruction files that mention the board for editing by hand, never for deletion\"; boardRemovalFiles.test \"never deletes a confirmed path that is not a file to remove\" (README, .ai-instructions.md, delivery-standards SKILL.md byte-identical). Fixture after removal: .claude/skills and .cursor/skills hold only delivery-standards; README.md, .ai-instructions.md and .cursor/rules/delivery-standards.mdc remain; the edit-by-hand list names those 5 files with line numbers."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "boardRemovalFiles.test: \"never deletes a file outside the repository, however the confirmed path reaches it\" (../, board/../../, absolute), \"refuses a board/ that is a link out of the repository and leaves its target alone\", \"keeps a link inside the board, never deletes through it\", \"never descends into a linked folder inside the board\", \"does not delete a confirmed file that was replaced by a link after the preview\", \"re-checks the folders before each deletion\", \"refuses a folder that resolves to a sibling whose name merely starts with the repository name\". Orchestrator reviewed boardRemovalFiles.ts: lstat-only, ancestors re-checked per file, plan recomputed in main on confirm."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "The removal code calls only lstat, readdir, readFile, realpath, unlink and rmdir, with no git. In the fixture afterwards, git log is unchanged and git status shows exactly 30 unstaged \" D\" lines (4 skill SKILL.md files and 26 board files), plus ?? .darkmechanicus/ from initialization."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Orchestrator ran the full gate on the integrated branch 0e99dff: lint, typecheck, test (213 files / 3754 + 105), fireguard A (98; AST, flake 100/100, mutation 95% 368/389), deadcode, build (before and after fireguard), smoke:mcp 57 tools; tree clean afterwards. The worker ran lint, typecheck, test, deadcode and build on its branch; its own fireguard run was cut off by a session stall, and the mutant it left in parse.ts was restored before merging."
+          }
+        ],
+        "notes": "Stall: the first worker session was killed by the stream watchdog during fireguard and left a mutant (start + 1 → start - 1) in src/core/board/parse.ts; the orchestrator restored the committed file, resumed the worker without fireguard, and ran fireguard itself on the integrated branch. A small check-then-unlink race remains (Node has no unlinkat), but unlink on a link only removes the link. Lease: heartbeats paused while the Mac slept (16:11 to 17:13), so the lease expired after the work was committed; reconciled as resubmit with the same outputs after verifying the merged branch."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m3ym3qvav46gyp5nkqv26zqv",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Screenshots: onboarding with import, folder-home offer, full file list, edit-by-hand list, confirmation, after removal; git status and ls after removal",
+            "location": "scratchpad/shot/shots/DM-19/",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "worktree-agent-a8d878668a239946e (merged into planning-switchover at 0e99dff)",
+        "changedFiles": [
+          "src/core/board/removal.ts",
+          "src/core/board/removal.test.ts",
+          "src/core/board/purity.test.ts",
+          "src/main/desktop/boardRemovalFiles.ts",
+          "src/main/desktop/boardRemovalFiles.test.ts",
+          "src/main/desktop/bootstrap.ts",
+          "src/main/desktop/handlers.ts",
+          "src/main/desktop/handlers.test.ts",
+          "src/main/desktop/ipc.ts",
+          "src/main/desktop/ipc.test.ts",
+          "src/main/ipcGuard.test.ts",
+          "src/preload/index.ts",
+          "src/shared/desktop/api.ts",
+          "src/shared/domain/views.ts",
+          "src/renderer/src/board/BoardRemoval.tsx",
+          "src/renderer/src/board/BoardRemoval.test.tsx",
+          "src/renderer/src/board/removalText.ts",
+          "src/renderer/src/board/removalText.test.ts",
+          "src/renderer/src/home/BoardImportCard.tsx",
+          "src/renderer/src/home/BoardImportCard.test.tsx",
+          "src/renderer/src/onboarding/OnboardingView.tsx",
+          "src/renderer/src/onboarding/OnboardingView.test.tsx",
+          "src/renderer/src/styles.css",
+          "src/renderer/src/__mocks__/fakeDm.ts",
+          "src/renderer/src/__mocks__/fixtures.ts",
+          "src/renderer/src/epic/__mocks__/fakeBackend.ts",
+          "src/integration/desktop.test.ts",
+          "src/integration/completedEpic.test.ts",
+          "src/integration/epicDrafts.test.ts",
+          ".tsprune-ignore"
+        ],
+        "commits": [
+          "53fddaae4bba7f265e192fc93637f9403897c3c0",
+          "41bbe0bda4035f803c6e019c7e03003776e66b8b",
+          "0e99dff"
+        ],
+        "summary": "After a board import, setup offers removing the old board workflow files as a separate, confirmed step. Pure detection (src/core/board/removal.ts) lists every file under board/ plus the complete-ticket and collapse-epic skill folders, but only when their SKILL.md refers to the board. Files that only mention the board (README, .ai-instructions.md, AGENTS.md, CLAUDE.md, other skills, Cursor rules) go on an \"edit by hand\" list with line numbers and are never deleted. Deletion (src/main/desktop/boardRemovalFiles.ts) is desktop-only, through dm:previewBoardRemoval and dm:removeBoardFiles, with no MCP tool. It never follows a link, recomputes the candidates on confirm, deletes only confirmed files that are still candidates, removes the folders left empty, and never runs git. Main refuses removal while open epics remain un-imported. A shared BoardRemoval component sits in the folder-home and onboarding board cards: a grouped file list, then a dialog saying Git history only keeps committed files."
+      },
+      "reconciledAt": "2026-10-02T21:15:32.724Z",
+      "revisionId": "rv_01m3w0krvcp78dhx3hkx8650cd",
+      "state": "accepted",
+      "submittedAt": "2026-10-02T21:15:32.724Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:172cc2dd8fe0765201531119497ed10895852f2d723a2417a3f7d65caff34ad9",
+      "ticketId": "tk_01m3w0krvbv35y4zfakysk49s8",
+      "updatedAt": "2026-10-02T21:15:32.813Z",
+      "worker": {
+        "catalogRevision": "2026-10-02.1",
+        "hostId": "claude-code-desktop-mac",
+        "label": "worktree subagent (claude-opus-5-5)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Deletes user files, so candidate detection and path safety must be exact (security skill), and it extends DM-18 onboarding and folder-home flows; Opus is the only eligible model with the security skill.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-02T21:15:40.797Z",
+      "decidedAt": "2026-10-02T21:19:10.888Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator",
+        "notes": "Integration and end-to-end verification done by the orchestrator; evidence re-read before accepting.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "oxlint src scripts on 0e99dff",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "all three tsconfigs on 0e99dff",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "213 files / 3754 tests + fireguard suite 20 files / 105 on 0e99dff",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "grade A (98): AST, flake 100/100, mutation 95% (368/389)",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "electron-vite build before and after fireguard; also packaged with electron-builder --mac dir --arm64",
+            "name": "build",
+            "status": "passed"
+          },
+          {
+            "detail": "57 tools, 6 prompts",
+            "name": "smoke:mcp",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "planning-switchover holds every ticket: 6c0bb91 (DM-14), 07a62f3 (DM-15), e8b20e6 (DM-16), af289fa (DM-17), 1a2731f (DM-18), 0e99dff (DM-19). Each merge was clean; the shared files (onboarding, desktop handlers, api.ts, .tsprune-ignore) merged without conflicts because the tickets ran in dependency order."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "A packaged arm64 app built from 0e99dff (electron-builder --mac dir) was run with an isolated user-data dir against a clone of this repository at 52d6a0c (the full board plus both board skills). Screenshots in scratchpad/shot/shots/DM-20/: 01 folder home with the Old-style board card; 02 Connect Claude Code; 03 .mcp.json written (\"Created .mcp.json for Claude Code.\"); 04 board imported: 014 is a Backlog draft (\"Imported now\"), 19 done epics stay in Git history; 05 removal list; 06 \"Delete 30 files?\" confirmation; 07 after removal (30 files and 8 folders removed, 5 files on the edit-by-hand list). 08-git-status-after-setup.txt: 30 \" D\" lines plus \"?? .mcp.json\", HEAD still 52d6a0c, so nothing was committed."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "In the scratch repository, the bundled Claude Code 2.1.284 `claude mcp list` showed the project server \"darkmechanicus … ⏸ Pending approval\" (the host's one-time approval). A headless session with that server approved for the one invocation (--settings enabledMcpjsonServers, nothing persisted) reported mcp_servers [{\"name\":\"darkmechanicus\",\"status\":\"connected\",\"source\":\"project\"}] and listed 37 mcp__darkmechanicus__ tools, including import_board and preview_board_import (scratchpad/shot/shots/DM-20/09-claude-code-session.jsonl). The session's model turn then failed: the bundled CLI's own OAuth login had expired, unrelated to Dark Mechanicus. So the get_capabilities output (scratchpad/shot/shots/DM-20/10-get-capabilities-via-mcp-json.json) was taken through the exact command, args and env from the generated .mcp.json: server 0.10.0, role planner, plan.save, initialized true, 37 tools."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "For the installed-app paths, the app's merge reports this repository's hand-written .mcp.json as \"unchanged\", and the generated darkmechanicus entry is identical (sameEntry true; scratchpad/shot/shots/DM-20/11-mcp-json-comparison.json). The only difference is whitespace: the hand-written file has \"env\" on one line. Rewriting the file for formatting only was blocked by the session's permission classifier, so it is left as is for the person, uncommitted."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "On 0e99dff (the epic head; DM-20 adds no code): lint, typecheck, test (213 files / 3754 tests + fireguard suite 105), fireguard A (98; mutation 95%, 368/389), deadcode, build before and after fireguard, and smoke:mcp (57 tools) all pass, with a clean tree afterwards. Evidence for s1 to s6 is in the sprint 2 report epicOutcome."
+          }
+        ],
+        "notes": "Packaging from a worktree whose node_modules is a symlink produced an app with no runtime dependencies, because electron-builder does not follow the link; an APFS clone copy (cp -Rc) fixed it. The bundled Claude Code CLI needs the person to sign in again before an interactive check can call tools."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m3z7j2vx9nf5sebjh2wqab4g",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Packaged-app setup walkthrough: folder home, .mcp.json written, board imported, removal list, confirmation, after removal, git status",
+            "location": "scratchpad/shot/shots/DM-20/01-08",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Claude Code session init (tools listed) and get_capabilities through the generated .mcp.json",
+            "location": "scratchpad/shot/shots/DM-20/09-claude-code-session.jsonl, scratchpad/shot/shots/DM-20/10-get-capabilities-via-mcp-json.json",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": ".mcp.json comparison for this repository",
+            "location": "scratchpad/shot/shots/DM-20/11-mcp-json-comparison.json",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Gate log on 0e99dff",
+            "location": "scratchpad/gate2.log",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "planning-switchover",
+        "changedFiles": [],
+        "commits": [
+          "0e99dff",
+          "1a2731f",
+          "af289fa",
+          "e8b20e6",
+          "07a62f3",
+          "6c0bb91"
+        ],
+        "summary": "Integrated and verified the planning switchover end to end. All six tickets are on `planning-switchover` (head 0e99dff) and the full gate plus `smoke:mcp` pass there. A packaged macOS app built from that head set up a clone of this repository at 52d6a0c in three steps. It wrote `.mcp.json` from the folder home, imported the open board epic 014 as a Backlog draft (19 done epics left in Git history), and removed the 30 old workflow files after a confirmation that listed every one, committing nothing. Claude Code 2.1.284 in that clone detected the project server as pending approval. With the server approved for one session, it connected and listed 37 Dark Mechanicus tools. `get_capabilities` through the generated config returned role planner with `plan.save`. The app recognises this repository's hand-written `.mcp.json` as already up to date (identical entry, whitespace differs)."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m3w0krvcp78dhx3hkx8650cd",
+      "state": "accepted",
+      "submittedAt": "2026-10-02T21:19:10.805Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:419ad100ff8e8e8a34fef4cd8631eb328f0914df33beadaecaf4104082c677e5",
+      "ticketId": "tk_01m3w0krvbny76xf0rkqh165hj",
+      "updatedAt": "2026-10-02T21:19:10.888Z",
+      "worker": {
+        "catalogRevision": "2026-10-02.1",
+        "hostId": "claude-code-desktop-mac",
+        "label": "orchestrator (claude-opus-5-5)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "The integration ticket is merge order, a packaged-app walkthrough, a Claude Code session check and evidence for every success criterion; the orchestrator already merged every branch, ran the gates and holds the review context, so it does the work itself on Opus.",
+        "sessionId": null
+      }
+    }
+  ],
+  "checkpoints": [
+    {
+      "decidedAt": "2026-10-02T14:37:34.173Z",
+      "decidedBy": "ss_01m3yfhqx6kh7a319tz2c1e9sy",
+      "id": "ck_01m3ygs42xbtmkft3106ksejky",
+      "outcome": "advanced",
+      "policy": "human",
+      "reportId": "rp_01m3ygqngrg6qpcg1t3h8kd3dc",
+      "sprintId": "sp_01m3w0krv7tjzhka4bp3ea9qfn"
+    },
+    {
+      "decidedAt": "2026-10-02T21:20:35.423Z",
+      "decidedBy": "ss_01m3z6vnbspg0ysy1askdy3qrc",
+      "id": "ck_01m3z7v2jz1s88ahyqr1axcngz",
+      "outcome": "completed",
+      "policy": "human",
+      "reportId": "rp_01m3z7sm78bahpn8fryraj87qm",
+      "sprintId": "sp_01m3w0krvas7ww34gbvyy4mks6"
+    }
+  ],
+  "createdAt": "2026-10-02T13:20:02.104Z",
+  "endedAt": "2026-10-02T21:20:35.423Z",
+  "epicId": "ep_01m3w0krv7v9mm6g06y3th0v87",
+  "format": "darkmechanicus.run",
+  "formatVersion": 1,
+  "host": {
+    "label": "Claude Code (desktop)",
+    "type": "claude-code"
+  },
+  "hostCatalogId": "hc_01m3ycarmvqrmvd94z7vynqasn",
+  "number": 1,
+  "ownerMachineId": "mc_01m3txs8ccqdybpr4wd3wygaxw",
+  "pauseReason": null,
+  "reports": [
+    {
+      "content": {
+        "accepted": [
+          "DM-14 Rewrite the delivery standards around Dark Mechanicus tickets: both skill copies (identical), the Cursor rule and .ai-instructions.md now describe Dark Mechanicus tracking and evidence in attempt submissions; TDD-first, the gate and the native-module note are unchanged.",
+          "DM-15 Remove the /board directory, board-only skills and board docs: board/ and both board skills deleted (Git keeps them, last full board at 52d6a0c); README has a short \"Planning workflow\" section; product plan updated.",
+          "DM-16 Write the Claude Code MCP config from repository setup: pure merge plus a path-safe writer behind dm:connectClaudeCode; folder home \"Claude Code\" section with replace confirmation; onboarding option on by default; runbook section.",
+          "DM-17 Parse an old-style /board into importable epics and tickets: pure parseBoard with per-file skips and limits, boardEpicImport mapping validated against the real schemas, read-only readBoard adapter; fixtures from 52d6a0c (014, collapsed 013, standalone 008, 019)."
+        ],
+        "blocked": [],
+        "changes": {
+          "commits": [
+            "4b3d17a167d67807e78e06689bfb59f230860d84",
+            "6c0bb91",
+            "2f8370ecb96d2529c46247367d94ba2fe1761d3a",
+            "07a62f3",
+            "6f15a1cc05fde4250d631fcde65d8c4c2d4765d2",
+            "0e26b1e49015689798e1833c90f8969dfdefc7e2",
+            "e8b20e6",
+            "2e4494c6f713e9b3f9843e33f795bbfe554ae2e2",
+            "2fa5c90f348e42488a0f2e1789f82a7466bde138",
+            "af289fa",
+            "af289fa (integrated sprint 1 head)"
+          ],
+          "files": [
+            ".claude/skills/delivery-standards/SKILL.md",
+            ".cursor/skills/delivery-standards/SKILL.md",
+            ".cursor/rules/delivery-standards.mdc",
+            ".ai-instructions.md",
+            "README.md",
+            "docs/product-plan.md",
+            "board/ (deleted)",
+            ".claude/skills/complete-ticket/SKILL.md (deleted)",
+            ".claude/skills/collapse-epic/SKILL.md (deleted)",
+            ".cursor/skills/complete-ticket/SKILL.md (deleted)",
+            ".cursor/skills/collapse-epic/SKILL.md (deleted)",
+            "src/main/desktop/mcpJson.ts",
+            "src/main/desktop/mcpJson.test.ts",
+            "src/main/desktop/mcpJsonFile.ts",
+            "src/main/desktop/mcpJsonFile.test.ts",
+            "src/main/desktop/bootstrap.ts",
+            "src/main/desktop/handlers.ts",
+            "src/main/desktop/handlers.test.ts",
+            "src/main/desktop/ipc.ts",
+            "src/main/desktop/ipc.test.ts",
+            "src/main/ipcGuard.test.ts",
+            "src/preload/index.ts",
+            "src/shared/desktop/api.ts",
+            "src/renderer/src/home/ClaudeCodeConnect.tsx",
+            "src/renderer/src/home/ClaudeCodeConnect.test.tsx",
+            "src/renderer/src/home/McpCard.tsx",
+            "src/renderer/src/home/McpCard.test.tsx",
+            "src/renderer/src/onboarding/OnboardingView.tsx",
+            "src/renderer/src/onboarding/OnboardingView.test.tsx",
+            "src/renderer/src/app/shellActions.ts",
+            "src/renderer/src/app/shellActions.test.ts",
+            "src/renderer/src/app/shellMessages.ts",
+            "src/renderer/src/app/shellMessages.test.ts",
+            "src/renderer/src/App.tsx",
+            "src/renderer/src/App.start.test.tsx",
+            "src/renderer/src/styles.css",
+            "src/renderer/src/__mocks__/fakeDm.ts",
+            "src/renderer/src/epic/__mocks__/fakeBackend.ts",
+            "src/integration/desktop.test.ts",
+            "src/integration/completedEpic.test.ts",
+            "src/integration/epicDrafts.test.ts",
+            "docs/runbooks/mcp-setup.md",
+            ".tsprune-ignore",
+            "src/core/board/parse.ts",
+            "src/core/board/plan.ts",
+            "src/core/repo/boardFiles.ts",
+            "src/core/repo/paths.ts",
+            "src/core/board/parse.test.ts",
+            "src/core/board/parse.fixtures.test.ts",
+            "src/core/board/plan.test.ts",
+            "src/core/board/purity.test.ts",
+            "src/core/repo/boardFiles.test.ts",
+            "src/core/board/__mocks__/boardFixtures.ts",
+            "src/core/board/__mocks__/board/ (8 fixture files from 52d6a0c)"
+          ]
+        },
+        "checks": [
+          {
+            "detail": "oxlint src scripts: exit 0 on af289fa",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "node, web and fireguard tsconfigs: exit 0 on af289fa",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "vitest 204 files / 3605 tests, plus fireguard suite 20 files / 105 tests, on af289fa",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "grade A (score 99) on af289fa; 19 graded test files; mutation 98% (209 killed, 5 survived)",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "electron-vite build before and after fireguard; tree clean afterwards",
+            "name": "build",
+            "status": "passed"
+          },
+          {
+            "detail": "55 tools, 6 prompts; temp repo plan saved, ticket accepted, comment round-trip",
+            "name": "smoke:mcp",
+            "status": "passed"
+          }
+        ],
+        "epicOutcome": null,
+        "exitCriteria": [
+          {
+            "criterionId": "e1",
+            "met": true,
+            "note": "On af289fa: no board/ directory; .claude/skills and .cursor/skills hold only delivery-standards; grep for /board, board/, complete-ticket and collapse-epic over README.md, .ai-instructions.md, .cursor, .claude, docs and skills prints nothing; the delivery standards track work as Dark Mechanicus epics and tickets (DM-14, DM-15)."
+          },
+          {
+            "criterionId": "e2",
+            "met": true,
+            "note": "DM-16: folder home \"Claude Code\" section and onboarding option write .mcp.json through dm:connectClaudeCode; screenshots in scratchpad/shot/shots/DM-16/ and tests (ClaudeCodeConnect.test.tsx, App.start.test.tsx, desktop.test.ts) pass on af289fa."
+          },
+          {
+            "criterionId": "e3",
+            "met": true,
+            "note": "DM-17: parse.fixtures.test.ts parses real board files from 52d6a0c (open 014, collapsed 013, standalone 008, 019) and plan.test.ts validates the mapping with the real command schemas; both pass on af289fa."
+          }
+        ],
+        "failed": [],
+        "followUps": [
+          {
+            "body": "src/main/desktop/mcpJsonFile.ts copies the real-path, symlink and containment checks from skillInstall.ts (DM-16 kept them separate to avoid touching skill installation). Extract one helper and use it in both, keeping both test suites.",
+            "title": "Share the path-safety helpers between skill installation and the .mcp.json writer"
+          },
+          {
+            "body": "A leftover reference to the retired board in a spike script comment. Not an instruction and outside the s5 scope, but it is the last board mention outside the importer.",
+            "title": "Remove the stale \"(board 009.6)\" comment in scripts/spike/claim-stress.ts"
+          }
+        ],
+        "risks": [
+          "Open decisions from the planner comment are still unanswered: (1) commit .mcp.json or keep it per machine (the app now says it holds this machine's app path and leaves committing to you); (2) import done board epics as history (the plan says no); (3) offer an orchestrator entry (the UI already offers planner or orchestrator).",
+          "Generated .mcp.json defaults: planner, --allow-save and --label \"Claude Code\" (the label was added so the generated entry matches the hand-written file exactly). Sprint 2 entry criterion n1 needs your approval of these defaults.",
+          "DM-15 criterion c3 (repo-wide grep for /board, board/, complete-ticket, collapse-epic) was verified empty after merging DM-14 and DM-15 (07a62f3). Since DM-17 merged, that literal grep matches the board importer's own code and fixtures (src/core/board/, src/core/repo/boardFiles*), which is expected; the s5 scope (README, .ai-instructions.md, .cursor, .claude, docs, skills) is still empty.",
+          "DM-14 made two judgment calls: the commit rule now also allows commits when the execution packet or orchestrator asks, and the \"Epic-flow process mirrored from davgor.github.io\" line was dropped. Both are easy to revert.",
+          "The Dark Mechanicus records for this epic, the Cross-host epic, the Scrum cadence epic and the profiles are still untracked in the main checkout; they need committing with this epic's PR, as was done for the UI revamp.",
+          "A development build writes `command: node` (existing buildMcpConfig behaviour, needs Node 22.13+); DM-20 should prove the Claude Code session against the packaged app."
+        ],
+        "summary": "Sprint 1 met its goal. This repository now runs on Dark Mechanicus alone: `board/`, the `complete-ticket` and `collapse-epic` skills and every board instruction are gone, and the delivery standards keep TDD-first and the full gate while tracking work as Dark Mechanicus epics and tickets. The desktop app can write the Claude Code `.mcp.json` from the folder home (role, save setting, confirmation before replacing a different entry) and during onboarding (on by default, never replaces). For the packaged macOS app the generated entry is identical to the hand-written file. A pure board parser and mapping read this repository's historical board from real fixtures and produce `create_epic` plus `update_plan_draft` inputs that the real schemas accept, ready for the sprint 2 import. All four tickets were accepted on their first attempt after the orchestrator merged each into `planning-switchover`, reviewed it, and re-ran the full gate plus `smoke:mcp` on the integrated branch (af289fa). **Decisions needed at this checkpoint:** the sprint 2 entry criterion asks you to approve the `.mcp.json` defaults (planner role, `--allow-save`, `--label \"Claude Code\"`); also see the open questions in the epic comment and the risks below."
+      },
+      "contentHash": "sha256:5eeb184f17e64c1d277cfaf0ae5d9d123524c58dec8a6c9b411b6422d54063cd",
+      "createdAt": "2026-10-02T14:36:46.488Z",
+      "id": "rp_01m3ygqngrg6qpcg1t3h8kd3dc",
+      "reportRevision": 1,
+      "sprintId": "sp_01m3w0krv7tjzhka4bp3ea9qfn",
+      "submittedBy": "Claude Code orchestrator"
+    },
+    {
+      "content": {
+        "accepted": [
+          "DM-18 Offer to import an old-style board during repository setup: previewBoardImport and importBoard core commands (MCP preview_board_import and import_board), Backlog epics with draft plans, done sub-tickets listed in the intent, no duplicates even after files move folders, onboarding opt-in and folder-home card.",
+          "DM-19 Offer to remove the old board workflow files after an import: pure detection plus a link-safe desktop-only removal that lists every file, recomputes candidates on confirm, removes emptied folders, never commits, and keeps instruction files on an edit-by-hand list (1 attempt, reconciled after a sleep-expired lease).",
+          "DM-20 Verify the planning switchover end to end: packaged-app walkthrough on a 52d6a0c clone (.mcp.json, import, removal), Claude Code lists 37 tools from the generated project server, the full gate passes, and the app sees this repository's .mcp.json as up to date."
+        ],
+        "blocked": [],
+        "changes": {
+          "commits": [
+            "60c637b8345f28de76766c488307884002783f27",
+            "4abf51dce07b9a1469fd14c115e0184aaf4b963d",
+            "5bdc2ebaf942cbf75b8eca41c53ec36dff12e2b2",
+            "1a2731f",
+            "53fddaae4bba7f265e192fc93637f9403897c3c0",
+            "41bbe0bda4035f803c6e019c7e03003776e66b8b",
+            "0e99dff",
+            "af289fa",
+            "e8b20e6",
+            "07a62f3",
+            "6c0bb91"
+          ],
+          "files": [
+            "src/core/board/imports.ts",
+            "src/core/board/imports.test.ts",
+            "src/core/services/boardImport.ts",
+            "src/core/commands/board.ts",
+            "src/core/commands/board.test.ts",
+            "src/core/commands/capabilities.ts",
+            "src/core/commands/capabilities.test.ts",
+            "src/core/commands/index.ts",
+            "src/core/commandSchemas.ts",
+            "src/mcp/server.ts",
+            "src/mcp/tools/board.ts",
+            "src/mcp/tools/board.test.ts",
+            "src/mcp/server.test.ts",
+            "src/mcp/roles.test.ts",
+            "src/mcp/main.test.ts",
+            "src/shared/desktop/api.ts",
+            "src/shared/domain/api.ts",
+            "src/shared/domain/views.ts",
+            "src/renderer/src/board/BoardPreview.tsx",
+            "src/renderer/src/board/BoardPreview.test.tsx",
+            "src/renderer/src/board/boardImport.ts",
+            "src/renderer/src/home/BoardImportCard.tsx",
+            "src/renderer/src/home/BoardImportCard.test.tsx",
+            "src/renderer/src/home/FolderHome.tsx",
+            "src/renderer/src/home/FolderHome.test.tsx",
+            "src/renderer/src/onboarding/OnboardingView.tsx",
+            "src/renderer/src/onboarding/OnboardingView.test.tsx",
+            "src/renderer/src/app/useBoardPreview.ts",
+            "src/renderer/src/app/shellActions.ts",
+            "src/renderer/src/app/shellActions.test.ts",
+            "src/renderer/src/app/shellMessages.ts",
+            "src/renderer/src/app/shellMessages.test.ts",
+            "src/renderer/src/App.tsx",
+            "src/renderer/src/App.start.test.tsx",
+            "src/renderer/src/styles.css",
+            "src/renderer/src/__mocks__/fakeDm.ts",
+            "src/renderer/src/__mocks__/fixtures.ts",
+            "src/integration/desktop.test.ts",
+            "src/test/stubApi.ts",
+            "docs/runbooks/mcp-setup.md",
+            ".tsprune-ignore",
+            "src/core/board/removal.ts",
+            "src/core/board/removal.test.ts",
+            "src/core/board/purity.test.ts",
+            "src/main/desktop/boardRemovalFiles.ts",
+            "src/main/desktop/boardRemovalFiles.test.ts",
+            "src/main/desktop/bootstrap.ts",
+            "src/main/desktop/handlers.ts",
+            "src/main/desktop/handlers.test.ts",
+            "src/main/desktop/ipc.ts",
+            "src/main/desktop/ipc.test.ts",
+            "src/main/ipcGuard.test.ts",
+            "src/preload/index.ts",
+            "src/renderer/src/board/BoardRemoval.tsx",
+            "src/renderer/src/board/BoardRemoval.test.tsx",
+            "src/renderer/src/board/removalText.ts",
+            "src/renderer/src/board/removalText.test.ts",
+            "src/renderer/src/epic/__mocks__/fakeBackend.ts",
+            "src/integration/completedEpic.test.ts",
+            "src/integration/epicDrafts.test.ts"
+          ]
+        },
+        "checks": [
+          {
+            "detail": "oxlint src scripts on 0e99dff",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "all three tsconfigs on 0e99dff",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "213 files / 3754 tests + fireguard suite 20 files / 105 on 0e99dff",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "grade A (98) on 0e99dff: AST pass, flake 100/100, mutation 95% (368 killed / 389)",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "electron-vite build before and after fireguard; electron-builder --mac dir --arm64 package used for DM-20",
+            "name": "build",
+            "status": "passed"
+          },
+          {
+            "detail": "57 tools, 6 prompts",
+            "name": "smoke:mcp",
+            "status": "passed"
+          }
+        ],
+        "epicOutcome": {
+          "successCriteria": [
+            {
+              "criterionId": "s1",
+              "met": true,
+              "note": "DM-16: the folder home \"Claude Code\" section (and the onboarding option) writes the darkmechanicus entry. mcpJson.test covers keeping other servers and unknown keys and replacing a different entry only on request. scratchpad/shot/shots/DM-16/2-replace-confirmation.png shows the confirmation with a github server and a notes key kept; scratchpad/shot/shots/DM-20/03-mcp-json-written.png shows the packaged app writing it."
+            },
+            {
+              "criterionId": "s2",
+              "met": true,
+              "note": "In a clone set up by the packaged app, Claude Code 2.1.284 found the generated project server (\"Pending approval\", the host's one-time approval). Once approved for the session, it reported darkmechanicus connected and listed 37 tools (scratchpad/shot/shots/DM-20/09-claude-code-session.jsonl). get_capabilities through the same config returned planner with plan.save (10-…json). Nobody edited config by hand. Caveat: the CLI's own expired login stopped its model turn, so get_capabilities was not called by the model itself."
+            },
+            {
+              "criterionId": "s3",
+              "met": true,
+              "note": "DM-17 parser and mapping (real fixtures from 52d6a0c, validated against the command schemas) and DM-18 import: onboarding and folder-home preview of open epics, done epics and skipped files (scratchpad/shot/shots/DM-18/1-onboarding-preview.png). Importing creates Backlog epics whose draft keeps titles, Markdown bodies and unchecked criteria (board.test, after-first-import.json)."
+            },
+            {
+              "criterionId": "s4",
+              "met": true,
+              "note": "DM-19: removal is its own step, offered only when nothing is left to import. It lists every file, grouped by folder (30 in the 52d6a0c clone), asks for confirmation, deletes only those files and the emptied folders, and commits nothing (scratchpad/shot/shots/DM-20/05-08, git status shows 30 deletions and HEAD unchanged)."
+            },
+            {
+              "criterionId": "s5",
+              "met": true,
+              "note": "On 0e99dff there is no board/, and .claude/skills and .cursor/skills hold only delivery-standards. grep for /board, board/, complete-ticket and collapse-epic over README.md, .ai-instructions.md, .cursor, .claude, docs and skills prints nothing. The delivery standards still require TDD-first and lint, typecheck, test, fireguard, deadcode and build (DM-14)."
+            },
+            {
+              "criterionId": "s6",
+              "met": true,
+              "note": "On 0e99dff: npm run lint, typecheck, test (3754 + 105), fireguard (A, 98), deadcode, build and smoke:mcp (57 tools) all pass (scratchpad/gate2.log)."
+            }
+          ],
+          "summary": "Dark Mechanicus is now the planning system for this repository, and setup can bring other board-style repositories over. This repository has no board, no board skills and no board instructions. Its delivery standards keep TDD-first and the full gate while tracking work as Dark Mechanicus epics. Setting up a repository can write the Claude Code `.mcp.json`. It can also import an old `/board` as draft epics and remove the old workflow files after an explicit, itemised confirmation, never committing anything. Every check passes on `planning-switchover` (0e99dff). Merging it into main, and committing the `.darkmechanicus` records and possibly `.mcp.json`, are decisions for the person."
+        },
+        "exitCriteria": [
+          {
+            "criterionId": "e1",
+            "met": true,
+            "note": "DM-18: setup previews and imports a board as Backlog draft epics; board.test \"creates no duplicate when the board is imported a second time\" and the moved-folder test pass on 0e99dff; screenshots scratchpad/shot/shots/DM-18/ and the packaged-app walkthrough scratchpad/shot/shots/DM-20/04-board-imported.png."
+          },
+          {
+            "criterionId": "e2",
+            "met": true,
+            "note": "DM-19: setup offers removal of board-only files as a confirmed step listing every file; scratchpad/shot/shots/DM-20/05-removal-list.png, 06-removal-confirm.png, 07-after-removal.png and 08-git-status-after-setup.txt (30 deletions, nothing committed)."
+          },
+          {
+            "criterionId": "e3",
+            "met": true,
+            "note": "DM-20 accepted with evidence for c1 to c5; the epicOutcome below gives evidence for s1 to s6."
+          }
+        ],
+        "failed": [],
+        "followUps": [
+          {
+            "body": "src/main/desktop/skillInstall.ts, mcpJsonFile.ts and boardRemovalFiles.ts each carry their own real-path, symlink and containment checks. Extract one tested helper and use it in all three.",
+            "title": "Share one path-safety helper across skill install, the .mcp.json writer and board removal"
+          },
+          {
+            "body": "electron-builder silently produced an app without node_modules when node_modules was a symlink (\"dependency not found on disk\"). Add a check (for example in scripts/mac-packaging.test.mjs or an afterPack hook) that the asar contains @modelcontextprotocol/sdk, react and zod.",
+            "title": "Make packaging fail when runtime dependencies are missing"
+          },
+          {
+            "body": "DM-18 noted that an MCP session started before the desktop initializes the repository previews every open epic as \"new\"; the import itself is unaffected.",
+            "title": "Preview board imports correctly from an MCP session opened before initialization"
+          },
+          {
+            "body": "Last reference to the retired board outside the importer.",
+            "title": "Remove the stale \"(board 009.6)\" comment in scripts/spike/claim-stress.ts"
+          }
+        ],
+        "risks": [
+          "The bundled Claude Code CLI (2.1.284) has an expired OAuth login. The headless session proved the tools are listed, but its model turn could not run, so get_capabilities was taken through the generated .mcp.json directly. Worth a 30-second interactive check: open a Claude Code session in a set-up repository, approve the server, call get_capabilities.",
+          "Committing .mcp.json is still undecided (planner open question 1). The app says it holds this machine's app path and leaves committing to you. This repository's hand-written file matches the generated entry exactly; only whitespace differs, and rewriting it was blocked by the session permission classifier.",
+          "This epic's .darkmechanicus records (and those of the Cross-host and Scrum cadence epics and the profiles) are untracked in the main checkout and need committing with the planning-switchover PR.",
+          "Orchestrator leases expire when the Mac sleeps (the daemon's heartbeat timers pause). DM-19 needed reconciling for that reason; long runs on a laptop need the machine kept awake or a reconcile after wake.",
+          "The literal DM-15 grep for \"board/\" now matches the board importer's own code and fixtures (src/core/board, src/main/desktop/boardRemovalFiles*, src/core/repo/boardFiles*); that is expected. The s5 scope (README, .ai-instructions.md, .cursor, .claude, docs, skills) is clean."
+        ],
+        "summary": "Sprint 2 met its goal, and with it the epic. Setting up a repository that has an old-style `/board` now previews its open epics, done epics and skipped files. It imports open epics as Backlog draft plans through a shared core command (`import_board` over MCP), without duplicates on re-run. Then, as a separate confirmed step, it removes the old board files after listing every one; nothing is committed. DM-20 built a packaged macOS app from the integrated branch (0e99dff) and ran the whole setup on a clone of this repository at its last board commit. A fresh Claude Code session in that clone found the generated project server, connected once approved, and listed 37 Dark Mechanicus tools. All three tickets were accepted on their first attempt. DM-19's worker stalled during fireguard and its lease expired while the Mac slept, so the orchestrator restored a leftover mutant, ran fireguard on the integrated branch, and reconciled the attempt as a resubmission. The full gate plus `smoke:mcp` passes on 0e99dff. **Decisions for you:** whether to commit `.mcp.json`, and whether to merge `planning-switchover` (a PR also needs this epic's `.darkmechanicus` records)."
+      },
+      "contentHash": "sha256:4876fd0be8664313a49fa4d6cae2e2cc3eb4111cdc77b84ab2ffbeb685bcba40",
+      "createdAt": "2026-10-02T21:19:47.944Z",
+      "id": "rp_01m3z7sm78bahpn8fryraj87qm",
+      "reportRevision": 1,
+      "sprintId": "sp_01m3w0krvas7ww34gbvyy4mks6",
+      "submittedBy": "Claude Code orchestrator"
+    }
+  ],
+  "revisionId": "rv_01m3w0krvcp78dhx3hkx8650cd",
+  "runId": "rn_01m3ycb51r8dh5qh2mzwtdv990",
+  "skillVersion": "1.1.0",
+  "startedAt": "2026-10-02T13:20:02.104Z",
+  "state": "completed",
+  "updatedAt": "2026-10-02T21:20:35.423Z"
+}
