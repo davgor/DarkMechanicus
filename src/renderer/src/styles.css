@@ -53,7 +53,6 @@
   --accent-hover: #dfbb72;
   --accent-ink: #1a1408;
   --accent-soft: rgba(214, 155, 74, 0.14);
-  --btn-primary-hover: #e2aa55;
 
   /* Lens green: brand glow only; the running state shares it */
   --lens: #84c20a;
@@ -128,11 +127,12 @@ code {
 }
 
 ::selection {
-  background: var(--accent-soft);
+  background: var(--primary-soft);
 }
 
+/* The lit crimson: it holds 3:1 on every surface, where the deep fill crimson does not. */
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
 
@@ -193,6 +193,7 @@ code {
   line-height: 38px;
   font-weight: 600;
   letter-spacing: -0.02em;
+  color: var(--ink-display);
 }
 
 .lede {
@@ -224,7 +225,7 @@ code {
 }
 
 .tone-error {
-  color: var(--attention);
+  color: var(--st-failed);
 }
 
 /* ---------- Buttons ---------- */
@@ -259,16 +260,17 @@ code {
   cursor: progress;
 }
 
+/* Primary is bone on deep crimson; danger is dark ink on light rose, the opposite polarity. */
 .btn-primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-ink);
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-ink);
   font-weight: 600;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--btn-primary-hover);
-  border-color: var(--btn-primary-hover);
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
 }
 
 .btn-ghost {
@@ -376,7 +378,7 @@ code {
 }
 
 .pill-later_sprint {
-  --pill: var(--faint);
+  --pill: var(--muted);
   border-style: dashed;
 }
 
@@ -512,13 +514,13 @@ code {
 }
 
 .input::placeholder {
-  color: var(--faint);
+  color: var(--muted);
 }
 
 .input:focus-visible {
   outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
+  border-color: var(--ring);
+  box-shadow: 0 0 0 1px var(--ring);
 }
 
 textarea.input {
@@ -549,7 +551,7 @@ textarea.input {
 
 .form-error {
   margin: 0;
-  color: var(--attention);
+  color: var(--st-failed);
   font-size: 13px;
 }
 
@@ -591,7 +593,7 @@ textarea.input {
   font-size: 22px;
   line-height: 28px;
   font-weight: 600;
-  color: var(--ink);
+  color: var(--ink-display);
 }
 
 .empty-state-text {
@@ -644,6 +646,7 @@ textarea.input {
   font-size: 22px;
   line-height: 28px;
   font-weight: 600;
+  color: var(--ink-display);
 }
 
 .dialog-description {
@@ -826,13 +829,18 @@ textarea.input {
   flex-shrink: 0;
   height: 28px;
   padding: 0 12px;
-  border: 1px solid var(--accent);
+  border: 1px solid var(--primary);
   border-radius: 7px;
-  background: var(--accent);
-  color: var(--accent-ink);
+  background: var(--primary);
+  color: var(--primary-ink);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
+}
+
+.update-banner-restart:hover {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
 }
 
 /* ---------- App shell ---------- */
@@ -875,17 +883,20 @@ textarea.input {
   height: 56px;
   flex-shrink: 0;
   padding: 0 18px;
-  border-bottom: 1px solid var(--line);
+  /* A brass hairline, like the fittings on the tech-priest. */
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
 /* The sidebar is a fixed 272px column at every window width, leaving 236px inside the 18px
    padding: the 32px icon and 10px gap leave 194px for the text block. The name takes the full
    first row (about 137px in the mono face). The tagline (about 127px) and the version share the
-   second row: the version keeps its width and the tagline gives way with an ellipsis. */
+   second row: the version keeps its width and the tagline gives way with an ellipsis. The icon
+   carries the faint lens-green brand glow, the one place in the shell the lens color appears. */
 .brand-mark {
   flex-shrink: 0;
   width: 32px;
   height: 32px;
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--lens) 30%, transparent));
 }
 
 .brand-text {
@@ -907,6 +918,7 @@ textarea.input {
   font-weight: 600;
   letter-spacing: 0.16em;
   line-height: 16px;
+  color: var(--ink-display);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -965,11 +977,6 @@ textarea.input {
 
 .folder-row:hover {
   background: rgba(236, 230, 218, 0.04);
-}
-
-.folder-row.is-selected {
-  background: var(--panel-2);
-  box-shadow: inset 0 0 0 1px var(--line-strong);
 }
 
 .folder-chevron {
@@ -1051,11 +1058,6 @@ textarea.input {
   background: rgba(236, 230, 218, 0.04);
 }
 
-.status-row.is-selected {
-  background: var(--panel-2);
-  box-shadow: inset 0 0 0 1px var(--line-strong);
-}
-
 .buckets {
   display: flex;
   flex-direction: column;
@@ -1120,9 +1122,13 @@ textarea.input {
   background: rgba(236, 230, 218, 0.04);
 }
 
+/* The active row: a crimson wash with a 2px lit-crimson bar on its leading edge. It follows the
+   hover rules so a hovered active row keeps it. */
+.folder-row.is-selected,
+.status-row.is-selected,
 .epic-row.is-selected {
-  background: var(--panel-2);
-  box-shadow: inset 0 0 0 1px var(--line-strong);
+  background: var(--primary-soft);
+  box-shadow: inset 2px 0 0 var(--ring);
 }
 
 .epic-row-meta {
@@ -1145,7 +1151,7 @@ textarea.input {
 }
 
 .epic-status {
-  --tone: var(--faint);
+  --tone: var(--muted);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1346,9 +1352,9 @@ textarea.input {
 }
 
 .step.is-active .step-dot {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-ink);
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-ink);
 }
 
 .created-list {
@@ -1408,7 +1414,7 @@ textarea.input {
 
 .snippet-error {
   margin: 0;
-  color: var(--attention);
+  color: var(--st-failed);
   font-size: 13px;
 }
 
