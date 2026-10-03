@@ -1,0 +1,32 @@
+{
+  "branch": null,
+  "completedAt": null,
+  "createdAt": "2026-10-03T16:09:47.120Z",
+  "epicId": "ep_01m418epbg8qkqa2e2krvdkqk5",
+  "format": "darkmechanicus.epic-state",
+  "formatVersion": 1,
+  "generation": 1,
+  "outcome": null,
+  "provenance": null,
+  "status": "backlog",
+  "ticketStatuses": {
+    "tk_01m418f9qyh7npd4jqpw0858bm": "backlog",
+    "tk_01m418f9qz48hfwrycgarbfqnt": "backlog",
+    "tk_01m418f9qz6sr8zxfz7h2313rx": "backlog",
+    "tk_01m418f9qz9qjx6hqkp89nj0h2": "backlog",
+    "tk_01m418f9qzb42ha3r1m9wwrmx9": "backlog",
+    "tk_01m418f9qzbw5agbhvm3krbkgm": "backlog",
+    "tk_01m418f9qzc2dggmvvph8jnyp0": "backlog",
+    "tk_01m418f9qzds56gdmqsyat5hyv": "backlog",
+    "tk_01m418f9qzhmvcd2n10ktpmefc": "backlog",
+    "tk_01m418f9qznrfb3hfjryft06qz": "backlog",
+    "tk_01m418f9qzp36fs7s95p2dwq8v": "backlog",
+    "tk_01m418f9qzrc1wnmfm7hnwp3n4": "backlog",
+    "tk_01m418f9qzsy2amzyjpw76bdw7": "backlog",
+    "tk_01m418f9qztwx9g9jxktmd8bfj": "backlog",
+    "tk_01m418f9qzwg97pr35tjd795yv": "backlog",
+    "tk_01m418f9qzxbye0apw7mgs4zm3": "backlog"
+  },
+  "title": "Agents: connect Claude, Codex and Cursor and chat with them per folder",
+  "updatedAt": "2026-10-03T16:10:17.620Z"
+}

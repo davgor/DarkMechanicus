@@ -27,6 +27,16 @@ function packageMacJobSource(yml) {
   return match[0]
 }
 
+/** Slice the `should_deploy:` job block (until the next top-level job). */
+function shouldDeployJobSource(yml) {
+  const normalized = yml.replace(/\r\n/g, '\n')
+  const match = /\n {2}should_deploy:\n[\s\S]*?(?=\n {2}[\w-]+:\n|$)/.exec(normalized)
+  if (!match) {
+    throw new Error('deploy.yml: could not find top-level should_deploy job')
+  }
+  return match[0]
+}
+
 describe('releaseJobSource', () => {
   it('finds the release job when the workflow uses CRLF line endings', () => {
     const crlf = [
@@ -58,6 +68,28 @@ describe('packageMacJobSource', () => {
 
     expect(packageMacJobSource(yml)).toContain('macos-latest')
     expect(packageMacJobSource(yml)).not.toContain('ubuntu-latest')
+  })
+})
+
+describe('deploy.yml should_deploy job', () => {
+  const gate = shouldDeployJobSource(deployYml)
+
+  it('checks out full history so it can diff against the last release commit', () => {
+    expect(gate).toMatch(/uses:\s*actions\/checkout@v4[\s\S]*fetch-depth:\s*0/)
+    expect(gate).toMatch(/git log -1 --format=%H --grep='\^chore: release v' "\$HEAD_SHA"/)
+  })
+
+  it('only deploys when the changes since the last release reach the app', () => {
+    expect(gate).toMatch(
+      /git diff --name-only "\$BASE" "\$HEAD_SHA" \| node scripts\/release-paths\.mjs/
+    )
+  })
+
+  it('still deploys on a manual dispatch without checking paths', () => {
+    const dispatchAt = gate.indexOf('"workflow_dispatch" ]')
+    const diffAt = gate.indexOf('git diff --name-only')
+    expect(dispatchAt).toBeGreaterThan(-1)
+    expect(diffAt).toBeGreaterThan(dispatchAt)
   })
 })
 
