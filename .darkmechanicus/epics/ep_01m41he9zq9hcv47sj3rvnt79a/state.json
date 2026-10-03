@@ -1,0 +1,20 @@
+{
+  "branch": null,
+  "completedAt": null,
+  "createdAt": "2026-10-03T18:46:51.640Z",
+  "epicId": "ep_01m41he9zq9hcv47sj3rvnt79a",
+  "format": "darkmechanicus.epic-state",
+  "formatVersion": 1,
+  "generation": 1,
+  "outcome": null,
+  "provenance": {
+    "note": "Split out the unfinished DM-13 (second-host sprint) so the source epic could close on DM-12.",
+    "sourceEpicId": "ep_01m3w0krtb0p7kvamsz7peq1g5"
+  },
+  "status": "backlog",
+  "ticketStatuses": {
+    "tk_01m41hen50tgww2h3r95fgztxp": "backlog"
+  },
+  "title": "Second-host MCP validation",
+  "updatedAt": "2026-10-03T18:47:10.287Z"
+}
