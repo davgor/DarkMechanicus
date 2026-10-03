@@ -1,6 +1,6 @@
 {
   "name": "dark-mechanicus",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "private": true,
   "description": "Dark factory desktop app for coding projects",
   "author": "davgor",
@@ -54,6 +54,14 @@
     "typescript": "^5.5.2",
     "vite": "^7.3.6",
     "vitest": "^4.1.9"
+  },
+  "overrides": {
+    "app-builder-lib": {
+      "@electron/get": "^5.1.0"
+    },
+    "ts-prune": {
+      "ts-morph": "^28.0.0"
+    }
   },
   "build": {
     "appId": "com.davgor.darkmechanicus",

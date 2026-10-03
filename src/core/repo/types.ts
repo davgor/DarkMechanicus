@@ -23,6 +23,8 @@ export interface FsAdapter {
   isSymlink(path: string): boolean
   isDirectory(path: string): boolean
   remove(path: string): void
+  /** Removes an empty directory; throws when it is missing or not empty. */
+  removeDir(path: string): void
 }
 
 export interface GitHead {

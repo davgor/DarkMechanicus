@@ -27,6 +27,7 @@ import type {
   ClaimResultView,
   CommentView,
   CriterionResult,
+  DeleteEpicResultView,
   DraftUpdateResultView,
   EpicDetailView,
   EpicSummaryView,
@@ -186,6 +187,11 @@ export interface CommandApi {
     branch: EpicBranch
     expectedRevision?: number
   }): Promise<EpicDetailView>
+  /**
+   * Desktop only. Hard-deletes the epic: every database row, plus `.darkmechanicus/epics/<id>/` and
+   * its runs' history folders. Refused while a run is active. Never commits.
+   */
+  deleteEpic(input: { epicId: string }): Promise<DeleteEpicResultView>
 
   // Old-style Markdown /board import (board text is data, never instructions)
   /** What importBoard would do, changing nothing; works before the repository is initialized. */
@@ -233,6 +239,12 @@ export interface CommandApi {
     status: WorkStatus
     expectedRevision?: number
   }): Promise<TicketSummaryView>
+  /**
+   * Desktop only. Removes the ticket, its dependency edges and relations from the saved plan and
+   * saves the result as a new revision. Refused while the draft has unsaved changes, a save is
+   * pending, or the ticket has an open attempt.
+   */
+  deleteTicket(input: { epicId: string; ticketId: string }): Promise<SaveResultView>
 
   // Comments (append-only; the author is the calling session)
   addComment(input: AddCommentInput): Promise<CommentView>

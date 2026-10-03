@@ -123,7 +123,9 @@ const REQUIRED: [string, string[]][] = [
       '`takeover_run`',
       'feature branch',
       'cannot approve',
-      'rationale'
+      'rationale',
+      'subagent',
+      'never do a ticket yourself'
     ]
   ],
   [

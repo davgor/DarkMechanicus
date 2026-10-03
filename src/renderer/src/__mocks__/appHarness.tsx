@@ -49,6 +49,9 @@ export class AppHarness {
         <button type="button" onClick={() => props.onOpenEpic(EPIC_B)}>
           stub open other
         </button>
+        <button type="button" onClick={props.onDeleted}>
+          stub deleted
+        </button>
       </section>
     )
   }

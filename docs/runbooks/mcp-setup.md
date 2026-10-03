@@ -30,7 +30,7 @@ Exit codes: `0` clean shutdown, `1` startup or shutdown failure, `2` bad argumen
 
 For Claude Code, the desktop app writes the config for you. It adds a `darkmechanicus` server to `.mcp.json` at the repository root, the project config file Claude Code reads. Other hosts still use the copy-paste snippet and the sections below.
 
-- **Folder home:** the MCP card has a **Claude Code** section. It shows the target file, the role (`planner` by default, or `orchestrator`), and whether the agent may save plans (`--allow-save`, on by default). Press **Connect Claude Code**.
+- **Folder home:** the MCP card has a **Claude Code** section. It shows the target file, the role (`planner` by default, or `orchestrator`), and whether the agent may save plans (`--allow-save`, on by default). Pick `orchestrator` so the session can run epics as well as plan them (see [Working model](#working-model-your-session-is-the-orchestrator)), then press **Connect Claude Code**.
 - **Onboarding:** **Also write .mcp.json so Claude Code can connect** is on by default. Initialize then writes the file after it creates `.darkmechanicus/`, as a `planner` with `--allow-save`.
 
 The entry is built for the app you are running, like the copy-paste snippet, plus `--role`, `--allow-save` when allowed, and `--label "Claude Code"` (the session name in the app). For the packaged macOS app:
@@ -176,7 +176,22 @@ Every role can read and add comments (`list_comments`, `add_comment`): append-on
 
 Some actions exist only in the desktop app and are not available over MCP for any role: approving a checkpoint, authorizing auto-continue, granting a retry, and queueing a run.
 
-Suggested setup: planning sessions as `planner` without `--allow-save` (the person reviews and presses Save), execution as `orchestrator`. Add `--allow-save` only when you want an agent to save without you.
+Suggested setup: connect the agent session you work with as `orchestrator`. Add `--allow-save` when you want it to save plans without you pressing Save. Use `planner` only for a session that must never run anything.
+
+### Working model: your session is the orchestrator
+
+The agent session you talk to is the orchestrator. It plans epics, and when you ask it to run one, it runs the epic in that same session. It does not hand the run to another session.
+
+It never does a ticket itself. For each ready ticket it:
+
+1. Claims the ticket and picks the worker's model (`match_capabilities`, `claim_ticket`).
+2. Spins up a subagent as the worker, with the ticket's content and the worker guide ([`skills/worker.md`](../../skills/worker.md)).
+3. Keeps the claim token and heartbeats while the subagent works, unless the subagent can make the reporting calls itself. Then it submits the subagent's outputs and evidence.
+4. Reviews the result against every acceptance criterion and accepts or rejects it.
+
+At the end of each sprint it files the sprint report and waits until you approve the checkpoint in the desktop app. The full loop is in [`skills/orchestrator.md`](../../skills/orchestrator.md).
+
+A session's role is fixed when it starts. If its `get_capabilities` says `planner`, change the entry to `--role orchestrator` and start a new session. A running session doesn't pick up the change.
 
 ## Tools per role
 

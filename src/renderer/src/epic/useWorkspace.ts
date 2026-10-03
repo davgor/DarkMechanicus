@@ -33,6 +33,8 @@ export interface WorkspaceHandle {
   folder: TrackedFolderView
   epicId: string
   onOpenEpic(epicId: string): void
+  /** Leaves the epic once it has been deleted. */
+  onDeleted(): void
 }
 
 interface WorkspaceInput {

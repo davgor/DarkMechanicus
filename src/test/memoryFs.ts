@@ -7,7 +7,7 @@
 import { basename, dirname, join, parse, resolve, sep } from 'node:path'
 import type { FsAdapter } from '../core/repo/types'
 
-type FsOperation = 'writeFile' | 'fsyncFile' | 'rename' | 'readFile' | 'mkdirp' | 'readdir' | 'remove'
+type FsOperation = 'writeFile' | 'fsyncFile' | 'rename' | 'readFile' | 'mkdirp' | 'readdir' | 'remove' | 'removeDir'
 
 export interface FaultSpec {
   op: FsOperation
@@ -280,6 +280,21 @@ class MemoryFsImpl implements MemoryFs {
     }
     this.links.delete(target)
     this.fileMap.delete(target)
+    this.writes.push(target)
+  }
+
+  removeDir(path: string): void {
+    this.fault('removeDir', path)
+    const target = this.linkPath(path)
+    if (!this.dirSet.has(target)) {
+      throw fsError(this.fileMap.has(target) ? 'ENOTDIR' : 'ENOENT', path)
+    }
+    const entries = [...this.fileMap.keys(), ...this.dirSet, ...this.links.keys(), ...this.junctions.keys()]
+    if (entries.some((entry) => entry !== target && dirname(entry) === target)) {
+      throw fsError('ENOTEMPTY', path)
+    }
+    this.dirSet.delete(target)
+    this.listings.delete(target)
     this.writes.push(target)
   }
 

@@ -20,7 +20,7 @@ beforeEach(() => {
 afterEach(cleanup)
 
 const alpha = folderView({ path: '/home/u/code/alpha', displayPath: '~/code/alpha' })
-const DEFAULTS = { role: 'planner', allowSave: true, replace: false }
+const DEFAULTS = { role: 'orchestrator', allowSave: true, replace: false }
 const EXISTING = '{\n  "command": "node",\n  "args": ["/old/mcp.js"]\n}'
 
 function renderConnect(folder: TrackedFolderView = alpha): void {
@@ -46,7 +46,7 @@ describe('ClaudeCodeConnect before writing', () => {
     renderConnect()
     expect(screen.getByRole('heading', { level: 3, name: 'Claude Code' })).toBeTruthy()
     expect(screen.getByText('~/code/alpha/.mcp.json')).toBeTruthy()
-    expect(role().value).toBe('planner')
+    expect(role().value).toBe('orchestrator')
     expect([...role().options].map((option) => [option.value, option.textContent])).toEqual([
       ['planner', 'Planner'],
       ['orchestrator', 'Orchestrator']
@@ -80,12 +80,12 @@ describe('ClaudeCodeConnect writing', () => {
 
   it('writes the chosen role and save setting', async () => {
     renderConnect()
-    fireEvent.change(role(), { target: { value: 'orchestrator' } })
+    fireEvent.change(role(), { target: { value: 'planner' } })
     fireEvent.click(allowSave())
     await pressConnect()
     expect(allowSave().checked).toBe(false)
     expect(dm.claudeConnects.map((call) => call.request)).toEqual([
-      { role: 'orchestrator', allowSave: false, replace: false }
+      { role: 'planner', allowSave: false, replace: false }
     ])
   })
 
