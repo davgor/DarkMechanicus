@@ -1,0 +1,60 @@
+{
+  "branch": {
+    "name": "main",
+    "repository": null,
+    "startCommit": "642c330fcb618043be6051ee721079902320ee9c"
+  },
+  "completedAt": "2026-10-03T20:24:51.927Z",
+  "createdAt": "2026-10-03T18:51:28.408Z",
+  "epicId": "ep_01m41hpr8r3ncxb6243mpej3rz",
+  "format": "darkmechanicus.epic-state",
+  "formatVersion": 1,
+  "generation": 11,
+  "outcome": {
+    "recordedAt": "2026-10-03T20:24:51.927Z",
+    "runId": "rn_01m41ht5frep6vgx5vtrjf8k5p",
+    "successCriteria": [
+      {
+        "criterionId": "s1",
+        "met": true,
+        "note": "deletion.test.ts: zero rows reference the epic or its runs, the folders are gone, and reconcile does not bring it back."
+      },
+      {
+        "criterionId": "s2",
+        "met": true,
+        "note": "Active-run refusal test: active_run_exists, nothing changed."
+      },
+      {
+        "criterionId": "s3",
+        "met": true,
+        "note": "deleteTicket saves a new revision without the ticket, its edges and its relations; UI tested end to end in EpicWorkspace.test.tsx."
+      },
+      {
+        "criterionId": "s4",
+        "met": true,
+        "note": "ticketDeletion.test.ts refusals for an unsaved draft, a pending save, a completed epic and open attempts, each changing nothing."
+      },
+      {
+        "criterionId": "s5",
+        "met": true,
+        "note": "authz.test.ts, capabilities.test.ts and server.test.ts: no agent role holds epic.delete or ticket.delete, even with --allow-save."
+      },
+      {
+        "criterionId": "s6",
+        "met": true,
+        "note": "lint, test, typecheck, deadcode, build pass locally and in CI; fireguard A (96) in CI on 5e40f2d, no graded module changed since."
+      }
+    ],
+    "summary": "Epics can be hard-deleted and tickets deleted in one step from the desktop app, and only by a person. The full gate passes, fireguard included (A, 96)."
+  },
+  "provenance": null,
+  "status": "completed",
+  "ticketStatuses": {
+    "tk_01m41hqmxsj2yreqwcxs2jz372": "completed",
+    "tk_01m41hqmxt169w2gnx4yh42jt3": "completed",
+    "tk_01m41hqmxtkt1xdxbpqzysfz1t": "completed",
+    "tk_01m41hqmxtxy90z1dtfn6jkjd3": "completed"
+  },
+  "title": "Delete epics and tickets from the desktop app",
+  "updatedAt": "2026-10-03T20:24:51.944Z"
+}
