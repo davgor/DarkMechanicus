@@ -654,6 +654,14 @@ export interface SaveResultView {
   error: string | null
 }
 
+export interface DeleteEpicResultView {
+  epicId: string
+  title: string
+  removedRuns: number
+  /** Repository-relative folders that were deleted from the checkout (left for the person to commit). */
+  removedPaths: string[]
+}
+
 export interface DraftUpdateResultView {
   epicId: string
   draftRevision: number

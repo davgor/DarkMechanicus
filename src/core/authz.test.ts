@@ -56,11 +56,13 @@ const DESKTOP: Capability[] = [
   'epic.create',
   'epic.status',
   'epic.branch',
+  'epic.delete',
   'draft.edit',
   'plan.save',
   'profile.write',
   'ticket.status',
   'ticket.retry_grant',
+  'ticket.delete',
   'run.queue',
   'run.control',
   'run.takeover',
@@ -98,14 +100,14 @@ function sessionWith(role: SessionRole, capabilities: Capability[]): SessionCont
 
 describe('capability vocabulary', () => {
   it('lists every capability exactly once', () => {
-    expect(CAPABILITIES).toHaveLength(31)
-    expect(new Set(CAPABILITIES).size).toBe(31)
+    expect(CAPABILITIES).toHaveLength(33)
+    expect(new Set(CAPABILITIES).size).toBe(33)
     expect(sorted(CAPABILITIES)).toEqual(sorted([...DESKTOP, ...AGENT_ONLY]))
   })
 
-  it('marks approval, auto-continue, retry grants and run queueing as human-only', () => {
+  it('marks approval, auto-continue, retry grants, run queueing and deletion as human-only', () => {
     expect(sorted(HUMAN_ONLY_CAPABILITIES)).toEqual(
-      sorted(['checkpoint.approve', 'run.authorize_auto', 'ticket.retry_grant', 'run.queue'])
+      sorted(['checkpoint.approve', 'run.authorize_auto', 'ticket.retry_grant', 'run.queue', 'epic.delete', 'ticket.delete'])
     )
   })
 })

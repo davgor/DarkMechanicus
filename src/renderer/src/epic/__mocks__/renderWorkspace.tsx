@@ -18,6 +18,8 @@ const FIXED_CLOCK: Clock = {
 export interface WorkspaceHarness extends RenderResult {
   backend: FakeBackend
   changes: { count: number }
+  /** Times the workspace reported its epic deleted. */
+  deleted: { count: number }
   opened: string[]
   refresh(token: number): void
   /** Shows another epic in the same place, as picking it in the sidebar does. */
@@ -27,6 +29,7 @@ export interface WorkspaceHarness extends RenderResult {
 export function renderWorkspace(backend: FakeBackend, patch: Partial<EpicWorkspaceProps> = {}): WorkspaceHarness {
   window.dm = backend
   const changes = { count: 0 }
+  const deleted = { count: 0 }
   const opened: string[] = []
   const memory = createViewMemory()
   let shown = { refreshToken: patch.refreshToken ?? 0, epicId: patch.epicId ?? 'ep_1' }
@@ -39,6 +42,9 @@ export function renderWorkspace(backend: FakeBackend, patch: Partial<EpicWorkspa
             changes.count += 1
           }}
           onOpenEpic={(epicId) => opened.push(epicId)}
+          onDeleted={() => {
+            deleted.count += 1
+          }}
           {...patch}
           {...shown}
         />
@@ -54,6 +60,7 @@ export function renderWorkspace(backend: FakeBackend, patch: Partial<EpicWorkspa
     ...result,
     backend,
     changes,
+    deleted,
     opened,
     refresh: (refreshToken) => show({ refreshToken }),
     openEpic: (epicId) => show({ epicId })

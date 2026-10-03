@@ -9,6 +9,7 @@ import {
   readFileSync,
   realpathSync,
   renameSync,
+  rmdirSync,
   rmSync,
   statSync,
   writeFileSync
@@ -61,5 +62,6 @@ export const nodeFs: FsAdapter = {
   realpath: (path) => realpathSync.native(path),
   isSymlink: isLink,
   isDirectory: (path) => statSync(path, { throwIfNoEntry: false })?.isDirectory() ?? false,
-  remove: (path) => rmSync(path, { force: true })
+  remove: (path) => rmSync(path, { force: true }),
+  removeDir: (path) => rmdirSync(path)
 }

@@ -1,3 +1,4 @@
+import { DeleteEpic } from './DeleteEpic'
 import type { HeaderActions, HeaderView } from './headerView'
 import { StatePill } from './StatePill'
 import type { WorkspaceHandle } from './useWorkspace'
@@ -103,6 +104,7 @@ export function WorkspaceHeader({ ws, header }: { ws: WorkspaceHandle; header: H
         <LayoutToggle ws={ws} />
         <SavedButtons ws={ws} actions={header.actions} />
         <DraftButtons ws={ws} actions={header.actions} />
+        <DeleteEpic ws={ws} />
       </div>
     </header>
   )

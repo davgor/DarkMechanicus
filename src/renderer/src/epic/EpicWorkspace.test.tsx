@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { installDomShims } from './__mocks__/domShims'
 import { FakeBackend, scenario } from './__mocks__/fakeBackend'
@@ -189,5 +189,101 @@ describe('epic workspace: draft validation panel', () => {
     fireEvent.click(within(await screen.findByLabelText('Draft validation')).getByRole('button', { name: 'Save rev 5' }))
     const alert = await screen.findByText('The saved plan changed since this draft was opened.')
     expect(alert.getAttribute('role')).toBe('alert')
+  })
+})
+
+function askToDeleteEpic(): HTMLElement {
+  fireEvent.click(button('Delete epic…'))
+  return screen.getByRole('alertdialog', { name: 'Delete epic' })
+}
+
+describe('epic workspace: deleting the epic', () => {
+  it('asks first, then deletes the epic and leaves it', async () => {
+    const h = renderWorkspace(new FakeBackend())
+    await screen.findByText('REV 4 · SAVED')
+    const question = askToDeleteEpic()
+    expect(question.textContent).toContain('runs, comments and .darkmechanicus files')
+    expect(h.backend.inputs('deleteEpic')).toEqual([])
+    fireEvent.click(within(question).getByRole('button', { name: 'Delete epic' }))
+    await waitFor(() => expect(h.deleted.count).toBe(1))
+    expect([h.backend.inputs('deleteEpic'), h.changes.count]).toEqual([[{ epicId: 'ep_1' }], 1])
+  })
+
+  it('keeps the epic when the person picks Keep', async () => {
+    const h = renderWorkspace(new FakeBackend())
+    await screen.findByText('REV 4 · SAVED')
+    fireEvent.click(within(askToDeleteEpic()).getByRole('button', { name: 'Keep' }))
+    expect(screen.queryByRole('alertdialog', { name: 'Delete epic' })).toBe(null)
+    expect(button('Delete epic…').disabled).toBe(false)
+    expect([h.backend.inputs('deleteEpic'), h.deleted.count]).toEqual([[], 0])
+  })
+
+  it('shows why the delete was refused and stays on the epic', async () => {
+    const backend = new FakeBackend()
+    backend.fail('deleteEpic', 'active_run_exists', 'Run #2 is active. Cancel it before deleting the epic.')
+    const h = renderWorkspace(backend)
+    await screen.findByText('REV 4 · SAVED')
+    fireEvent.click(within(askToDeleteEpic()).getByRole('button', { name: 'Delete epic' }))
+    await waitFor(() =>
+      expect(document.querySelector('.ew-banner-text')?.textContent).toBe('Run #2 is active. Cancel it before deleting the epic.')
+    )
+    expect(screen.queryByRole('alertdialog', { name: 'Delete epic' })).toBe(null)
+    expect([h.deleted.count, h.changes.count]).toEqual([0, 0])
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Planning vertical slice')
+  })
+})
+
+async function openTicketPanel(): Promise<HTMLElement> {
+  fireEvent.click(await screen.findByRole('button', { name: 'List' }))
+  fireEvent.click(within(screen.getByLabelText('Plan list')).getByRole('button', { name: 'DM-202' }))
+  return screen.findByLabelText('Ticket DM-202')
+}
+
+async function confirmTicketDelete(panel: HTMLElement): Promise<void> {
+  fireEvent.click(await within(panel).findByRole('button', { name: 'Delete ticket…' }))
+  fireEvent.click(within(within(panel).getByRole('alertdialog', { name: 'Delete ticket' })).getByRole('button', { name: 'Delete ticket' }))
+}
+
+describe('epic workspace: deleting a ticket', () => {
+  it('saves the plan without the ticket, closes its panel and says so', async () => {
+    const h = renderWorkspace(new FakeBackend())
+    await confirmTicketDelete(await openTicketPanel())
+    await waitFor(() => expect(document.querySelector('.ew-toast span')?.textContent).toBe('Deleted DM-202. Saved rev 5.'))
+    expect(h.backend.inputs('deleteTicket')).toEqual([{ epicId: 'ep_1', ticketId: 'tk_202' }])
+    expect(screen.queryByLabelText('Ticket DM-202')).toBe(null)
+    await waitFor(() => expect(within(screen.getByLabelText('Plan list')).queryByRole('button', { name: 'DM-202' })).toBe(null))
+    expect(h.changes.count).toBe(1)
+  })
+
+  it('says when the delete is saved but its snapshot is still pending', async () => {
+    const backend = new FakeBackend()
+    backend.handlers.deleteTicket = () => ({
+      status: 'pending',
+      epicId: 'ep_1',
+      revisionId: 'rv_5',
+      revisionNumber: 5,
+      contentHash: 'h',
+      error: 'disk full'
+    })
+    renderWorkspace(backend)
+    await confirmTicketDelete(await openTicketPanel())
+    await waitFor(() =>
+      expect(document.querySelector('.ew-toast span')?.textContent).toBe(
+        "Deleted DM-202. Rev 5 is pending — its snapshot hasn't been written yet. (disk full)"
+      )
+    )
+  })
+
+  it('shows a refusal inside the panel and keeps the ticket open', async () => {
+    const backend = new FakeBackend()
+    backend.fail('deleteTicket', 'conflict', 'DM-202 has an open attempt. Finish or reconcile it before deleting the ticket.')
+    const h = renderWorkspace(backend)
+    const panel = await openTicketPanel()
+    await confirmTicketDelete(panel)
+    expect((await within(panel).findByRole('alert')).textContent).toBe(
+      'DM-202 has an open attempt. Finish or reconcile it before deleting the ticket.'
+    )
+    expect([screen.getByLabelText('Ticket DM-202'), h.changes.count]).toEqual([panel, 0])
+    expect(document.querySelector('.ew-toast')).toBe(null)
   })
 })

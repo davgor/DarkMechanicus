@@ -253,6 +253,19 @@ function addComment(state: Scenario, input: { epicId: string; ticketId?: string;
   return created
 }
 
+/** Saves a new revision without the ticket, like the real one-step delete. */
+function deleteTicket(state: Scenario, ticketId: string): unknown {
+  const result = save(state)
+  const saved = state.saved ?? notFound('No saved plan')
+  const tickets = saved.bundle.tickets.filter((item) => item.id !== ticketId)
+  state.saved = { ...saved, bundle: { ...saved.bundle, tickets } }
+  return result
+}
+
+function deleteEpic(state: Scenario): unknown {
+  return { epicId: state.epic.id, title: state.epic.title, removedRuns: 1, removedPaths: [`.darkmechanicus/epics/${state.epic.id}`] }
+}
+
 function discard(state: Scenario): unknown {
   state.draft = null
   state.epic = { ...state.epic, hasDraft: false, draftRevision: null, draftChanged: false }
@@ -317,6 +330,8 @@ function defaultHandlers(state: Scenario): Partial<Record<CommandName, Handler>>
     updatePlanDraft: () => updateDraft(state),
     savePlan: () => save(state),
     discardPlanDraft: () => discard(state),
+    deleteTicket: (input: { ticketId: string }) => deleteTicket(state, input.ticketId),
+    deleteEpic: () => deleteEpic(state),
     listComments: (input: { ticketId?: string }) =>
       state.comments.filter((item) => input.ticketId === undefined || item.ticketId === input.ticketId),
     addComment: (input: { epicId: string; ticketId?: string; body: string }) => addComment(state, input),

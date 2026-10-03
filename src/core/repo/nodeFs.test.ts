@@ -100,6 +100,17 @@ describe('nodeFs directories and links', () => {
     expect(nodeFs.readdir(join(repo.root, 'a')).sort()).toEqual(['b', 'file.json'])
   })
 
+  it('removes only an empty directory', () => {
+    const parent = join(repo.root, 'parent')
+    const child = join(parent, 'child')
+    nodeFs.mkdirp(child)
+    expect(() => nodeFs.removeDir(parent)).toThrow()
+    nodeFs.removeDir(child)
+    expect(existsSync(child)).toBe(false)
+    nodeFs.removeDir(parent)
+    expect(existsSync(parent)).toBe(false)
+  })
+
   it('detects linked directories and resolves real paths', () => {
     const link = join(repo.root, 'escape')
     linkDirectory(repo.outside, link)

@@ -39,6 +39,7 @@ const PROBES: Record<CommandName, unknown> = {
   getEpic: { epicId: EPIC },
   setEpicStatus: { epicId: EPIC, status: 'in_progress' },
   setEpicBranch: { epicId: EPIC, branch: { repository: null, name: 'feature/probe', startCommit: null } },
+  deleteEpic: { epicId: EPIC },
   previewBoardImport: undefined,
   importBoard: {},
   getPlan: { epicId: EPIC, view: 'draft' },
@@ -51,6 +52,7 @@ const PROBES: Record<CommandName, unknown> = {
   listTickets: { epicId: EPIC, view: 'saved' },
   getTicket: { epicId: EPIC, ticketId: TICKET, view: 'saved' },
   setTicketStatus: { ticketId: TICKET, status: 'in_progress' },
+  deleteTicket: { epicId: EPIC, ticketId: TICKET },
   registerHost: {
     hostId: 'probe-host',
     hostType: 'probe',
@@ -151,6 +153,14 @@ describe('declared command capabilities match what the services enforce', () => 
 describe('COMMAND_CAPABILITIES', () => {
   it('reserves the human-only capabilities for the desktop actions that exist for them', () => {
     const humanOnly = COMMAND_NAMES.filter((name) => HUMAN_ONLY_CAPABILITIES.includes(COMMAND_CAPABILITIES[name]))
-    expect(humanOnly.sort()).toEqual(['approveAndAdvance', 'approveCheckpoint', 'authorizeAutoContinue', 'grantRetry', 'queueRun'])
+    expect(humanOnly.sort()).toEqual([
+      'approveAndAdvance',
+      'approveCheckpoint',
+      'authorizeAutoContinue',
+      'deleteEpic',
+      'deleteTicket',
+      'grantRetry',
+      'queueRun'
+    ])
   })
 })

@@ -69,6 +69,26 @@ describe('App sidebar buckets', () => {
     expect(stub()).toBe(`alpha|${EPIC_B}|0`)
   })
 
+})
+
+describe('App after the epic view deletes its epic', () => {
+  it('returns to the folder home with a refreshed list once the epic view reports the epic deleted', async () => {
+    seed()
+    h.mount()
+    await settle()
+    fireEvent.click(sidebar().getByRole('button', { name: /Planning slice/ }))
+    await settle()
+    h.epics['/a'] = (h.epics['/a'] ?? []).filter((epic) => epic.id !== EPIC_A)
+    fireEvent.click(screen.getByRole('button', { name: 'stub deleted' }))
+    await settle()
+    expect(screen.queryByTestId('epic-stub')).toBeNull()
+    expect(screen.getByRole('heading', { level: 1, name: 'alpha' })).toBeTruthy()
+    expect(sidebar().queryByRole('button', { name: /Planning slice/ })).toBeNull()
+    expect(sidebar().getByRole('button', { name: /Backlog idea/ })).toBeTruthy()
+  })
+})
+
+describe('App sidebar completed bucket', () => {
   it('reveals the completed bucket when a completed epic is opened from the folder home', async () => {
     seed()
     h.mount()

@@ -491,6 +491,15 @@
   color: var(--st-failed);
 }
 
+.tp-delete {
+  margin-top: 10px;
+}
+
+.tp-delete .tp-error {
+  flex-basis: 100%;
+  margin: 0;
+}
+
 .tp-footer {
   flex-shrink: 0;
   padding: 12px 24px;

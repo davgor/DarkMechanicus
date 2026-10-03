@@ -8,6 +8,7 @@ import { StatePill } from '../epic/StatePill'
 import type { ReviewInput } from '../epic/workspaceActions'
 import { AttemptList } from './AttemptList'
 import { CommentsTab } from './CommentsTab'
+import { DeleteTicketConfirm } from './DeleteTicket'
 import { EvidenceTab, HistoryTab, OverviewTab } from './panelTabs'
 import { metaLine, statePill } from './ticketView'
 
@@ -19,9 +20,11 @@ export interface TicketPanelProps {
   /** Changes whenever the workspace reloads, so the panel refetches. */
   reloadKey: unknown
   now: number
-  /** The epic is unfinished: offer "Edit in draft" and adding comments. */
+  /** The epic is unfinished: offer "Edit in draft", "Delete ticket…" and adding comments. */
   canEdit: boolean
   onEditInDraft(): void
+  /** Deletes the ticket from the saved plan; resolves to the refusal's reason, or null once it is gone. */
+  onDelete(): Promise<string | null>
   onClose(): void
   onSelectTicket(ticketId: string): void
   onReview(input: ReviewInput): Promise<string | null>
@@ -107,6 +110,7 @@ function TabBody(props: { tab: TabId; detail: TicketDetailView; panel: TicketPan
 
 function PanelHead(props: { panel: TicketPanelProps; detail: TicketDetailView; tab: TabId; onTab(tab: TabId): void }): JSX.Element {
   const { panel, detail } = props
+  const [deleting, setDeleting] = useState(false)
   const pill = statePill(detail)
   const sprint = panel.plan.bundle.sprints.find((item) => item.id === detail.sprintId)
   return (
@@ -116,9 +120,14 @@ function PanelHead(props: { panel: TicketPanelProps; detail: TicketDetailView; t
         <StatePill tone={pill.tone} label={pill.label} />
         <span className="tp-head-actions">
           {panel.canEdit ? (
-            <button type="button" className="btn btn-ghost" onClick={panel.onEditInDraft}>
-              Edit in draft
-            </button>
+            <>
+              <button type="button" className="btn btn-ghost" onClick={panel.onEditInDraft}>
+                Edit in draft
+              </button>
+              <button type="button" className="btn btn-ghost tp-danger-link" onClick={() => setDeleting(true)}>
+                Delete ticket…
+              </button>
+            </>
           ) : null}
           <button type="button" className="ew-icon-btn" aria-label="Close ticket" onClick={panel.onClose}>
             ×
@@ -127,6 +136,9 @@ function PanelHead(props: { panel: TicketPanelProps; detail: TicketDetailView; t
       </div>
       <h2 className="tp-title">{detail.ticket.title}</h2>
       <p className="tp-meta">{metaLine(detail, sprint?.goal ?? '', panel.plan.revisionNumber)}</p>
+      {deleting && panel.canEdit ? (
+        <DeleteTicketConfirm ticketKey={detail.ticket.key} onDelete={panel.onDelete} onKeep={() => setDeleting(false)} />
+      ) : null}
       <Tabs tab={props.tab} attempts={detail.attempts.length} onTab={props.onTab} />
     </div>
   )

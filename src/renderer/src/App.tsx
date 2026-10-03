@@ -49,6 +49,10 @@ function EpicPane({ shell, EpicView, folder, epicId }: EpicPaneProps): JSX.Eleme
     (id: string) => actions.current.selectEpic(folder.path, id),
     [actions, folder.path]
   )
+  const onDeleted = useCallback(() => {
+    actions.current.changed(folder.path)
+    actions.current.selectFolder(folder.path)
+  }, [actions, folder.path])
   return (
     <EpicView
       key={`${folder.path}:${epicId}`}
@@ -57,6 +61,7 @@ function EpicPane({ shell, EpicView, folder, epicId }: EpicPaneProps): JSX.Eleme
       refreshToken={shell.epicToken(folder.path, epicId)}
       onChanged={onChanged}
       onOpenEpic={onOpenEpic}
+      onDeleted={onDeleted}
     />
   )
 }
