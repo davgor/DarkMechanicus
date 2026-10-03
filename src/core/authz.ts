@@ -10,11 +10,13 @@ export const CAPABILITIES = [
   'epic.create',
   'epic.status',
   'epic.branch',
+  'epic.delete',
   'draft.edit',
   'plan.save',
   'profile.write',
   'ticket.status',
   'ticket.retry_grant',
+  'ticket.delete',
   'host.register',
   'run.queue',
   'run.start',
@@ -42,7 +44,9 @@ export const HUMAN_ONLY_CAPABILITIES: readonly Capability[] = [
   'checkpoint.approve',
   'run.authorize_auto',
   'ticket.retry_grant',
-  'run.queue'
+  'run.queue',
+  'epic.delete',
+  'ticket.delete'
 ]
 
 const PLANNER: Capability[] = [

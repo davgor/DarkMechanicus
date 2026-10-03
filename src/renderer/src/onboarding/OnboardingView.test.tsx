@@ -154,7 +154,7 @@ describe('OnboardingView Claude Code option', () => {
   it('explains what the file holds and that committing it is up to the person', () => {
     renderView()
     expect(document.querySelector('.onboarding-option-note')?.textContent).toBe(
-      'Adds a darkmechanicus server (planner, may save plans) to .mcp.json at the repository root. The file contains this machine’s path to the Dark Mechanicus app; whether to commit it is up to you.'
+      'Adds a darkmechanicus server (orchestrator, may plan and run epics, may save plans) to .mcp.json at the repository root. The file contains this machine’s path to the Dark Mechanicus app; whether to commit it is up to you.'
     )
   })
 

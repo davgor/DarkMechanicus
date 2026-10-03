@@ -1,0 +1,24 @@
+{
+  "branch": {
+    "name": "main",
+    "repository": null,
+    "startCommit": "642c330fcb618043be6051ee721079902320ee9c"
+  },
+  "completedAt": null,
+  "createdAt": "2026-10-03T18:51:28.408Z",
+  "epicId": "ep_01m41hpr8r3ncxb6243mpej3rz",
+  "format": "darkmechanicus.epic-state",
+  "formatVersion": 1,
+  "generation": 10,
+  "outcome": null,
+  "provenance": null,
+  "status": "in_progress",
+  "ticketStatuses": {
+    "tk_01m41hqmxsj2yreqwcxs2jz372": "completed",
+    "tk_01m41hqmxt169w2gnx4yh42jt3": "completed",
+    "tk_01m41hqmxtkt1xdxbpqzysfz1t": "completed",
+    "tk_01m41hqmxtxy90z1dtfn6jkjd3": "completed"
+  },
+  "title": "Delete epics and tickets from the desktop app",
+  "updatedAt": "2026-10-03T19:30:38.034Z"
+}

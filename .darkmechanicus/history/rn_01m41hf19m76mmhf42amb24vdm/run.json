@@ -1,0 +1,173 @@
+{
+  "activeSprintId": null,
+  "attempts": [
+    {
+      "createdAt": "2026-10-03T18:47:18.950Z",
+      "decidedAt": "2026-10-03T18:47:38.256Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator",
+        "notes": "Accepted at the user's direction (\"just close it\"). Only the Windows NSIS smoke run was independently reproduced.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "57 tools, 6 prompts; plan + save, claim/submit/accept of one ticket, comment round-trip all passed. Note: the first attempt from Git Bash failed with 'Connection closed' because /c/... POSIX paths were passed to the Windows exe; rerun with Windows paths from PowerShell passed.",
+            "name": "smoke:mcp (installed Windows NSIS v0.13.0)",
+            "status": "passed"
+          },
+          {
+            "detail": "Not run by the orchestrator; covered by the user's manual validation (attestation, no logs attached).",
+            "name": "Windows portable, macOS arm64, macOS x64 shared-DB check",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Windows NSIS MCP half reproduced via installed-app smoke (passed). Desktop/shared-DB half and portable build per user attestation."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Per user attestation only; cannot be verified from this Windows machine."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Windows NSIS output attached; other platforms per user attestation, output not attached."
+          }
+        ],
+        "notes": "Accepted on the user's word for everything except the Windows NSIS smoke run, which the orchestrator reproduced."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m41hf4n64jkgq1p0q6p5j8k8",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Installed-app smoke output, Windows NSIS v0.13.0",
+            "location": "MCP_SMOKE_COMMAND=C:\\Users\\davgo\\AppData\\Local\\Programs\\dark-mechanicus\\DarkMechanicus.exe MCP_SMOKE_SERVER=...\\resources\\app.asar\\out\\main\\mcp.js npm run smoke:mcp -> {\"tools\":57,\"prompts\":6,\"runState\":\"running\",\"counts\":{\"accepted\":1,\"submitted\":0,\"running\":0,\"ready\":1,\"waiting\":0,\"blocked\":0,\"failed\":0,\"needsReconciliation\":0},\"comments\":1}",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "main",
+        "changedFiles": [],
+        "commits": [],
+        "summary": "Verification only, no code changes. The user (davgor) validated the packaged builds on their own machines and reported on 2026-10-03 that Windows NSIS + portable and macOS arm64 + x64 each start the desktop app and the MCP entry against one shared database. Independently, the orchestrator ran the installed-app smoke test against the Windows NSIS install (v0.13.0) on this machine, and it passed."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m41heybnjnp992nkmbbqgzhf",
+      "state": "accepted",
+      "submittedAt": "2026-10-03T18:47:34.161Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:147e8308de1c361a93b93f4265a84b2f3494a64a33b5dc6393354277a4590659",
+      "ticketId": "tk_01m3w0krtfqhgg026fxpk8adjh",
+      "updatedAt": "2026-10-03T18:47:38.256Z",
+      "worker": {
+        "catalogRevision": null,
+        "hostId": null,
+        "label": "Claude Code orchestrator (recording user's local validation)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Verification was performed manually by the user on their own machines; this attempt records their attestation plus an installed-app smoke run on the Windows machine.",
+        "sessionId": null
+      }
+    }
+  ],
+  "checkpoints": [
+    {
+      "decidedAt": "2026-10-03T18:48:03.236Z",
+      "decidedBy": "ss_01m41f7z46px13j9epaemepyb6",
+      "id": "ck_01m41hgfx4k3g6hk59kes5wem9",
+      "outcome": "completed",
+      "policy": "human",
+      "reportId": "rp_01m41hfzg8nzdkwjpdygr0htvy",
+      "sprintId": "sp_01m3w0krtbmrrwsbe1143eff08"
+    }
+  ],
+  "createdAt": "2026-10-03T18:47:15.508Z",
+  "endedAt": "2026-10-03T18:48:03.236Z",
+  "epicId": "ep_01m3w0krtb0p7kvamsz7peq1g5",
+  "format": "darkmechanicus.run",
+  "formatVersion": 1,
+  "host": {
+    "label": "Claude Code orchestrator",
+    "type": "claude-code"
+  },
+  "hostCatalogId": null,
+  "number": 2,
+  "ownerMachineId": "mc_01m41707wstg1crxjbt3jw2ap5",
+  "pauseReason": null,
+  "reports": [
+    {
+      "content": {
+        "accepted": [
+          "DM-12: Verify the Windows and macOS packaged builds share one database between desktop and MCP"
+        ],
+        "blocked": [],
+        "changes": {
+          "commits": [],
+          "files": []
+        },
+        "checks": [
+          {
+            "detail": "{\"tools\":57,\"prompts\":6,\"runState\":\"running\",\"counts\":{\"accepted\":1,...},\"comments\":1}",
+            "name": "smoke:mcp (installed Windows NSIS v0.13.0)",
+            "status": "passed"
+          },
+          {
+            "detail": "Not run by the orchestrator; user attestation.",
+            "name": "Windows portable / macOS arm64 / macOS x64",
+            "status": "skipped"
+          }
+        ],
+        "epicOutcome": {
+          "successCriteria": [
+            {
+              "criterionId": "s1",
+              "met": true,
+              "note": "User attestation for all four builds; Windows NSIS MCP half reproduced by the orchestrator."
+            }
+          ],
+          "summary": "Packaged builds verified across Windows and macOS (per user, with Windows NSIS reproduced). Second-host validation split into its own epic."
+        },
+        "exitCriteria": [
+          {
+            "criterionId": "e1",
+            "met": true,
+            "note": "Windows NSIS smoke output attached; portable and macOS per user attestation without logs."
+          }
+        ],
+        "failed": [],
+        "followUps": [
+          {
+            "body": "Already created as a backlog epic carrying the former DM-13.",
+            "title": "Second-host MCP validation"
+          }
+        ],
+        "risks": [
+          "Windows portable and both macOS builds rest on the user's attestation; no logs or smoke output from those platforms are attached.",
+          "Running smoke:mcp from Git Bash with /c/... paths fails with 'Connection closed'; the runbook command needs Windows-style paths on Windows."
+        ],
+        "summary": "Closed out on the user's manual validation. DM-12 accepted: the user reports Windows NSIS + portable and macOS arm64 + x64 builds each share one database between the desktop app and the MCP entry; the orchestrator reproduced the installed-app smoke test on the Windows NSIS v0.13.0 install (passed). The second-host sprint (formerly DM-13) was not done and was moved to the new backlog epic \"Second-host MCP validation\" before this run (plan revision 2)."
+      },
+      "contentHash": "sha256:6685df21350a16489fbdf495bc4d4264fcb354803410fd2b30409b0b92699492",
+      "createdAt": "2026-10-03T18:47:46.440Z",
+      "id": "rp_01m41hfzg8nzdkwjpdygr0htvy",
+      "reportRevision": 1,
+      "sprintId": "sp_01m3w0krtbmrrwsbe1143eff08",
+      "submittedBy": "Claude Code orchestrator"
+    }
+  ],
+  "revisionId": "rv_01m41heybnjnp992nkmbbqgzhf",
+  "runId": "rn_01m41hf19m76mmhf42amb24vdm",
+  "skillVersion": "1.1.0",
+  "startedAt": "2026-10-03T18:47:15.508Z",
+  "state": "completed",
+  "updatedAt": "2026-10-03T18:48:03.236Z"
+}

@@ -118,7 +118,7 @@ describe('App onboarding with Claude Code', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Initialize folder' }))
     await settle()
     expect(h.dm.claudeConnects).toEqual([
-      { folder: setup.path, request: { role: 'planner', allowSave: true, replace: false } }
+      { folder: setup.path, request: { role: 'orchestrator', allowSave: true, replace: false } }
     ])
     expect(screen.getByText('Created .mcp.json for Claude Code.')).toBeTruthy()
 

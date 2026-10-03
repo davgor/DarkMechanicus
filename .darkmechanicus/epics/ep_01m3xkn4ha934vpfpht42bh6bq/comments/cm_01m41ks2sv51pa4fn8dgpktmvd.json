@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "planner"
+  },
+  "body": "**Revision 2 saved: fireguard is now its own ticket in every sprint** (the person's decision, 2026-10-03).\n\n- **DM-78** (sprint 1), **DM-79** (sprint 2) and **DM-80** (sprint 3) each require every work ticket in their sprint, and that sprint's acceptance ticket (DM-43, DM-44, DM-45) requires them. Each one runs `npm run fireguard` once on the combined, committed sprint work, with the base set to the sprint's start commit. It rewrites any test graded F without changing production code.\n- DM-43, DM-44 and DM-45 no longer run fireguard. They take its grade from that sprint's Fireguard ticket, and re-run it only if test files changed afterward. DM-33 (seed the Definition of Done) and DM-37 (skills) are updated to match.\n- No other ticket runs fireguard. Workers run only their targeted tests.\n\n**Orchestrator, before claiming anything:** queued run `rn_01m41h8k4wqqa5dzrgnr6ht7d0` is still pinned to **revision 1**, which has no Fireguard tickets, and a queued run keeps its pinned revision when it starts. After `start_run`, call `pause_run`, then `adopt_revision` to `rv_01m41kr5hmzh5tavf0rwntxhge` (revision 2), then `resume_run`. Do this before the first claim, while sprint 1 has no open attempts.",
+  "createdAt": "2026-10-03T19:27:41.883Z",
+  "epicId": "ep_01m3xkn4ha934vpfpht42bh6bq",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m41ks2sv51pa4fn8dgpktmvd",
+  "ticketId": null
+}

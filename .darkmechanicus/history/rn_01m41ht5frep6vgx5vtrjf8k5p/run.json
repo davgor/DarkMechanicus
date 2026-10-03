@@ -1,0 +1,649 @@
+{
+  "activeSprintId": "sp_01m41hpr8rpptqh947bgjnrjs1",
+  "attempts": [
+    {
+      "createdAt": "2026-10-03T19:26:51.810Z",
+      "decidedAt": "2026-10-03T19:27:41.295Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator",
+        "notes": "Accepted by the same session that did the work (no separate reviewer), on the targeted test run of 2026-10-03 19:27 (215 tests, 11 files) plus the earlier full lint/typecheck/test/deadcode/build pass. Fireguard still to run once the change is committed.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "authz, capabilities, deletion, epicRemoval, nodeFs, server: all pass (215 tests across the epic's 11 files)",
+            "name": "targeted vitest",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint clean",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "node, web and fireguard projects",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "217 files, 3806 tests (app suite). Fireguard's own runnerTimeout self-test fails on this machine (node under C:\\Program Files, command split on spaces); unrelated, fireguard/ untouched",
+            "name": "npm test",
+            "status": "passed"
+          },
+          {
+            "detail": "baseline refreshed for line shifts only, still 45 entries",
+            "name": "npm run deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "electron-vite build ok",
+            "name": "npm run build",
+            "status": "passed"
+          },
+          {
+            "detail": "Grades committed changes only; commit not yet made (blocked by permission check). Full gate at the end of the epic once committed.",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Verified: deletion.test.ts row scan over every table passes on the current tree."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Verified: folders gone and reconcile imports nothing in the same test."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Verified: active-run refusal test passes."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Verified: authz, capabilities and MCP server tests pass."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Verified: not_found test passes."
+          }
+        ],
+        "notes": ""
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m41kqhx20g28e7xy1wbs0t1q",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": "main",
+        "changedFiles": [
+          "src/core/services/epicDeletion.ts",
+          "src/core/repo/epicRemoval.ts",
+          "src/core/repo/epicRemoval.test.ts",
+          "src/core/commands/deletion.ts",
+          "src/core/commands/deletion.test.ts",
+          "src/core/commands/index.ts",
+          "src/core/commands/capabilities.ts",
+          "src/core/commands/capabilities.test.ts",
+          "src/core/commandSchemas.ts",
+          "src/core/authz.ts",
+          "src/core/authz.test.ts",
+          "src/core/repo/types.ts",
+          "src/core/repo/nodeFs.ts",
+          "src/core/repo/nodeFs.test.ts",
+          "src/test/memoryFs.ts",
+          "src/test/stubApi.ts",
+          "src/shared/domain/api.ts",
+          "src/shared/domain/views.ts",
+          "src/mcp/server.test.ts",
+          ".tsprune-ignore"
+        ],
+        "commits": [],
+        "summary": "Desktop-only deleteEpic hard-deletes an epic. One transaction deletes every row that belongs to it (attempts, retry_grants, checkpoints, sprint_reports, approvals, sync_state, outbox, search_index, events, cached idempotency replies, runs, comments, ticket_status, drafts, plan_revisions, epic), then removes .darkmechanicus/epics/<id>/ and each run's history/<runId>/ folder. Refused with active_run_exists while a run is active. New human-only capability epic.delete; not an MCP tool. Deviations from the ticket text: the command lives in a new src/core/commands/deletion.ts instead of authoring.ts; files are removed inside the transaction (not after commit) so a removal failure rolls the rows back and the write lock keeps a concurrent reconcile from re-importing; removal checks every path for links/containment/plain entry names before deleting anything. Logs an epic.deleted event that names no deleted id. Not committed: commits were blocked by the session's auto-mode permission check."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m41hrqbvb2n39c0rtbvf15ed",
+      "state": "accepted",
+      "submittedAt": "2026-10-03T19:27:28.868Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:aa248f313c66c72dfa9a8b7edb9485247812850e506b0f02d33386f8e48df188",
+      "ticketId": "tk_01m41hqmxsj2yreqwcxs2jz372",
+      "updatedAt": "2026-10-03T19:27:41.295Z",
+      "worker": {
+        "catalogRevision": "2026-10-03",
+        "hostId": "claude-code-desktop-davgo",
+        "label": "Claude Code (this session)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Already implemented in this session before the run started; submitting the existing work and its test evidence.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-03T19:26:51.854Z",
+      "decidedAt": "2026-10-03T19:28:50.404Z",
+      "decision": {
+        "decidedBy": "Desktop",
+        "notes": "",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "ticketDeletion.test.ts, deletion.test.ts, capabilities.test.ts, authz.test.ts pass",
+            "name": "targeted vitest",
+            "status": "passed"
+          },
+          {
+            "detail": "",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "217 files, 3806 tests",
+            "name": "npm test",
+            "status": "passed"
+          },
+          {
+            "detail": "",
+            "name": "npm run deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "",
+            "name": "npm run build",
+            "status": "passed"
+          },
+          {
+            "detail": "Grades committed changes only; commit not yet made. Full gate at the end of the epic once committed.",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "ticketDeletion.test.ts 'saves a new revision without the ticket, its dependency edges and its relations' (rev 1 -> 2, ticket, edge and relation gone, old revision intact); deletion.test.ts 'saves the plan without the ticket and writes the new snapshot' checks the flushed snapshot file."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "'deleteTicket refusals' blocks: unsaved draft, pending save, claimed/running/submitted attempt, completed epic, ticket not in saved plan, never-saved epic; each asserts revisions, draft, events and outbox unchanged."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "'deletes while an Edit draft without changes is open, and that draft goes away with the save'."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "ticketDeletion.test.ts refuses planner/orchestrator (allowSave), worker, reviewer with unauthorized; authz.test.ts and capabilities.test.ts cover the role table."
+          }
+        ],
+        "notes": ""
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m41kqhyeeamw9vp6eyhkmv61",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": "main",
+        "changedFiles": [
+          "src/core/services/ticketDeletion.ts",
+          "src/core/services/ticketDeletion.test.ts",
+          "src/core/commands/deletion.ts",
+          "src/core/commands/deletion.test.ts",
+          "src/core/authz.ts",
+          "src/core/commandSchemas.ts",
+          "src/core/commands/capabilities.ts",
+          "src/shared/domain/api.ts"
+        ],
+        "commits": [],
+        "summary": "Desktop-only deleteTicket removes a ticket, its dependency edges and relations from the saved plan and saves a new revision in one step. It reuses the existing path inside one transaction (openDraft, updatePlanDraft with remove_ticket, requestSave), so a refusal at any step changes nothing and the full save validation applies. Refused while the draft has unsaved changes (conflict), a save is pending (save_pending), the epic is completed (completed_epic), or the ticket has a claimed/running/submitted attempt (conflict); unknown ticket or never-saved epic is not_found. An unchanged Edit draft does not block and is settled by the save. Logs ticket.deleted. The command flushes like savePlan and returns SaveResultView. New human-only capability ticket.delete; not an MCP tool. Deviation: service is a new src/core/services/ticketDeletion.ts and the command lives in src/core/commands/deletion.ts. Not committed (commit blocked by permission check)."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m41hrqbvb2n39c0rtbvf15ed",
+      "state": "accepted",
+      "submittedAt": "2026-10-03T19:27:28.894Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:c794c2b3aeb21d62aa4dbfd2a8a4cd68aec703e0e614c3add73e96e6ae3455fa",
+      "ticketId": "tk_01m41hqmxtkt1xdxbpqzysfz1t",
+      "updatedAt": "2026-10-03T19:28:50.404Z",
+      "worker": {
+        "catalogRevision": "2026-10-03",
+        "hostId": "claude-code-desktop-davgo",
+        "label": "Claude Code (this session)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Already implemented in this session before the run started; submitting the existing work and its test evidence.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-03T19:27:54.349Z",
+      "decidedAt": "2026-10-03T19:28:55.982Z",
+      "decision": {
+        "decidedBy": "Desktop",
+        "notes": "",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "EpicWorkspace.test.tsx, App.sidebar.test.tsx, handlers.test.ts pass (part of the 215-test targeted run)",
+            "name": "targeted vitest",
+            "status": "passed"
+          },
+          {
+            "detail": "",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "217 files, 3806 tests",
+            "name": "npm test",
+            "status": "passed"
+          },
+          {
+            "detail": "",
+            "name": "npm run deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "",
+            "name": "npm run build",
+            "status": "passed"
+          },
+          {
+            "detail": "Grades committed changes only; commit not yet made.",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "Not run in the Electron app; the dropdown's visual layout is unverified (behavior covered by jsdom tests).",
+            "name": "real app run",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "EpicWorkspace.test.tsx 'asks first, then deletes the epic and leaves it' (deleteEpic called with ep_1, onDeleted fired, onChanged once) plus App.sidebar.test.tsx 'returns to the folder home with a refreshed list once the epic view reports the epic deleted'."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "'keeps the epic when the person picks Keep': no deleteEpic call."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "'shows why the delete was refused and stays on the epic': active_run_exists message in the banner, title still shown."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "src/shared/desktop/api.ts DESKTOP_COMMANDS includes deleteEpic; handlers.test.ts exercises every allow-listed command."
+          }
+        ],
+        "notes": ""
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m41ksezd7vn7gr6j02b22xa0",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": "main",
+        "changedFiles": [
+          "src/shared/desktop/api.ts",
+          "src/renderer/src/epic/DeleteEpic.tsx",
+          "src/renderer/src/epic/deletion.ts",
+          "src/renderer/src/epic/WorkspaceHeader.tsx",
+          "src/renderer/src/epic/EpicWorkspace.tsx",
+          "src/renderer/src/epic/useWorkspace.ts",
+          "src/renderer/src/epic/epic.css",
+          "src/renderer/src/App.tsx",
+          "src/renderer/src/App.sidebar.test.tsx",
+          "src/renderer/src/__mocks__/appHarness.tsx",
+          "src/renderer/src/epic/EpicWorkspace.test.tsx",
+          "src/renderer/src/epic/__mocks__/fakeBackend.ts",
+          "src/renderer/src/epic/__mocks__/renderWorkspace.tsx"
+        ],
+        "commits": [],
+        "summary": "\"Delete epic…\" in the epic workspace header (saved and draft views) opens a confirmation dropdown (role alertdialog) saying the epic, its runs, comments and .darkmechanicus files go, and that the file removal is left for the person to commit. Confirm runs deleteEpic through the workspace's perform (so the sidebar refreshes), then onDeleted sends the shell back to the folder home with a refreshed list. Keep closes it without a call. A refusal (e.g. active_run_exists) shows in the banner and the epic stays open. deleteEpic is allow-listed in DESKTOP_COMMANDS. Deviation: a self-contained DeleteEpic component with its own confirm state instead of the shared ConfirmStrip/workspaceState confirm kinds, to keep existing modules unchanged. EpicWorkspaceProps gains onDeleted; App passes changed + selectFolder. Not committed (commit blocked by permission check)."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m41hrqbvb2n39c0rtbvf15ed",
+      "state": "accepted",
+      "submittedAt": "2026-10-03T19:28:07.335Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:953aa40f4ff08f230c301b2fe84031b8be45500ecdf0a3f3c877de030ebc7211",
+      "ticketId": "tk_01m41hqmxt169w2gnx4yh42jt3",
+      "updatedAt": "2026-10-03T19:28:55.982Z",
+      "worker": {
+        "catalogRevision": "2026-10-03",
+        "hostId": "claude-code-desktop-davgo",
+        "label": "Claude Code (this session)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Already implemented in this session before the run started; submitting the existing work and its test evidence.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-03T19:30:11.391Z",
+      "decidedAt": "2026-10-03T19:30:38.030Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator",
+        "notes": "Accepted by the orchestrator session on David's instruction (2026-10-03): the saved plan is the approval and the orchestrator keeps accepting up to the checkpoint. Verified against the targeted run of 2026-10-03 19:27 (215 tests, 11 files).",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "TicketPanel.test.tsx, EpicWorkspace.test.tsx, handlers.test.ts pass (part of the 215-test targeted run)",
+            "name": "targeted vitest",
+            "status": "passed"
+          },
+          {
+            "detail": "",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "217 files, 3806 tests",
+            "name": "npm test",
+            "status": "passed"
+          },
+          {
+            "detail": "",
+            "name": "npm run deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "",
+            "name": "npm run build",
+            "status": "passed"
+          },
+          {
+            "detail": "Grades committed changes only; commit not yet made.",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "Not run in the Electron app; layout unverified (behavior covered by jsdom tests).",
+            "name": "real app run",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Verified: EpicWorkspace delete-ticket test passes on the current tree."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Verified: Keep makes no call."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Verified: refusal shown in the panel."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Verified: hidden when the epic cannot be edited."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Verified: in DESKTOP_COMMANDS."
+          }
+        ],
+        "notes": ""
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m41kxmszgzehtxw3nwwja43n",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": "main",
+        "changedFiles": [
+          "src/shared/desktop/api.ts",
+          "src/renderer/src/ticket/DeleteTicket.tsx",
+          "src/renderer/src/ticket/TicketPanel.tsx",
+          "src/renderer/src/ticket/TicketPanel.test.tsx",
+          "src/renderer/src/ticket/ticket.css",
+          "src/renderer/src/epic/deletion.ts",
+          "src/renderer/src/epic/EpicWorkspace.tsx",
+          "src/renderer/src/epic/EpicWorkspace.test.tsx",
+          "src/renderer/src/epic/__mocks__/fakeBackend.ts"
+        ],
+        "commits": [],
+        "summary": "\"Delete ticket…\" sits next to \"Edit in draft\" in the saved-view ticket panel, and only while the epic can be edited (hidden for completed epics, via canEdit). It opens an inline confirmation (DeleteTicketConfirm, role alertdialog) that names the ticket and says the plan is saved as a new revision. Confirm calls the new TicketPanel onDelete, which the workspace wires to deleteTicket through perform. On success the panel closes, the workspace reloads the new saved revision, and a toast says \"Deleted DM-n. Saved rev N.\" (or that the snapshot is pending). A refusal shows its reason inside the confirmation and the panel stays open. The confirm button is disabled while the delete is in flight. deleteTicket is allow-listed in DESKTOP_COMMANDS. Not committed (commit blocked by permission check)."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m41hrqbvb2n39c0rtbvf15ed",
+      "state": "accepted",
+      "submittedAt": "2026-10-03T19:30:32.551Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:293873f47e28ea4149e208867b842601c77d293072694f0116a82738880d8e2d",
+      "ticketId": "tk_01m41hqmxtxy90z1dtfn6jkjd3",
+      "updatedAt": "2026-10-03T19:30:38.030Z",
+      "worker": {
+        "catalogRevision": "2026-10-03",
+        "hostId": "claude-code-desktop-davgo",
+        "label": "Claude Code (this session)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Already implemented in this session before the run started; submitting the existing work and its test evidence.",
+        "sessionId": null
+      }
+    }
+  ],
+  "checkpoints": [],
+  "createdAt": "2026-10-03T18:53:20.248Z",
+  "endedAt": null,
+  "epicId": "ep_01m41hpr8r3ncxb6243mpej3rz",
+  "format": "darkmechanicus.run",
+  "formatVersion": 1,
+  "host": {
+    "label": "Claude Code (desktop app)",
+    "type": "claude-code"
+  },
+  "hostCatalogId": "hc_01m41kq8rj10fzgsd470q8fyqf",
+  "number": 1,
+  "ownerMachineId": "mc_01m41707wstg1crxjbt3jw2ap5",
+  "pauseReason": null,
+  "reports": [
+    {
+      "content": {
+        "accepted": [
+          "DM-74 Add a desktop-only deleteEpic command that hard-deletes an epic and its portable files",
+          "DM-75 Add a desktop-only deleteTicket command that removes a ticket from the saved plan and saves a new revision",
+          "DM-76 Add a Delete epic action with confirmation to the epic workspace",
+          "DM-77 Add a Delete ticket action with confirmation to the saved-view ticket panel"
+        ],
+        "blocked": [],
+        "changes": {
+          "commits": [
+            "b1da564 Add delete for epics and tickets in the desktop app",
+            "d850cfd chore: update the Dark Mechanicus records"
+          ],
+          "files": [
+            "src/core/services/epicDeletion.ts",
+            "src/core/services/ticketDeletion.ts",
+            "src/core/repo/epicRemoval.ts",
+            "src/core/commands/deletion.ts",
+            "src/core/authz.ts",
+            "src/core/commandSchemas.ts",
+            "src/core/commands/capabilities.ts",
+            "src/core/commands/index.ts",
+            "src/core/repo/types.ts",
+            "src/core/repo/nodeFs.ts",
+            "src/shared/domain/api.ts",
+            "src/shared/domain/views.ts",
+            "src/shared/desktop/api.ts",
+            "src/renderer/src/epic/DeleteEpic.tsx",
+            "src/renderer/src/epic/deletion.ts",
+            "src/renderer/src/epic/WorkspaceHeader.tsx",
+            "src/renderer/src/epic/EpicWorkspace.tsx",
+            "src/renderer/src/epic/useWorkspace.ts",
+            "src/renderer/src/ticket/DeleteTicket.tsx",
+            "src/renderer/src/ticket/TicketPanel.tsx",
+            "src/renderer/src/App.tsx",
+            "plus tests, mocks, CSS and .tsprune-ignore"
+          ]
+        },
+        "checks": [
+          {
+            "detail": "combined tree",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "combined tree",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "217 files, 3806 tests, combined tree",
+            "name": "npm test",
+            "status": "passed"
+          },
+          {
+            "detail": "no new dead exports",
+            "name": "npm run deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "",
+            "name": "npm run build",
+            "status": "passed"
+          },
+          {
+            "detail": "Not run locally (grades committed changes only; needs a Windows workaround). CI's fireguard job grades PR #8; result pending.",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "UI behavior covered by jsdom tests; layout of the two confirmations unchecked.",
+            "name": "real Electron app run",
+            "status": "skipped"
+          }
+        ],
+        "epicOutcome": {
+          "successCriteria": [
+            {
+              "criterionId": "s1",
+              "met": true,
+              "note": "deletion.test.ts: zero rows reference the epic or its runs, the folders are gone, and reconcile does not bring it back."
+            },
+            {
+              "criterionId": "s2",
+              "met": true,
+              "note": "Active-run refusal test: active_run_exists, nothing changed."
+            },
+            {
+              "criterionId": "s3",
+              "met": true,
+              "note": "deleteTicket saves a new revision without the ticket, its edges and its relations; UI tested end to end in EpicWorkspace.test.tsx."
+            },
+            {
+              "criterionId": "s4",
+              "met": true,
+              "note": "ticketDeletion.test.ts refusals for an unsaved draft, a pending save, a completed epic and open attempts, each changing nothing."
+            },
+            {
+              "criterionId": "s5",
+              "met": true,
+              "note": "authz.test.ts, capabilities.test.ts and server.test.ts: no agent role holds epic.delete or ticket.delete, even with --allow-save."
+            },
+            {
+              "criterionId": "s6",
+              "met": false,
+              "note": "lint, test, typecheck, deadcode and build pass; fireguard pending in CI on PR #8."
+            }
+          ],
+          "summary": "Epics can be hard-deleted and tickets deleted in one step from the desktop app, and only by a person. Every check passes except fireguard, which is pending in CI."
+        },
+        "exitCriteria": [
+          {
+            "criterionId": "x1",
+            "met": true,
+            "note": "DM-74 to DM-77 accepted (DM-75 and DM-76 by the desktop, DM-74 and DM-77 by the orchestrator)."
+          },
+          {
+            "criterionId": "x2",
+            "met": false,
+            "note": "lint, typecheck, test, deadcode and build pass on the combined change; fireguard is still pending in CI on PR #8. A new report revision follows once it reports."
+          }
+        ],
+        "failed": [],
+        "followUps": [
+          {
+            "body": "The 'Follows an earlier epic' link in the epic header opens a deleted epic and shows not found. Hide or relabel it when the source epic no longer exists.",
+            "title": "Handle provenance links to a deleted epic"
+          },
+          {
+            "body": "Fireguard spawns `npx` without a shell (ENOENT on Windows), and runnerTimeout.test.ts splits a `C:\\Program Files` node path on spaces. Spawn through the shell or resolve npx.cmd, and quote the exec path.",
+            "title": "Fix fireguard spawning on Windows"
+          }
+        ],
+        "risks": [
+          "Other epics whose provenance points at a deleted epic keep a dangling link (opening it shows not found).",
+          "Deleting a ticket leaves its comments, search entry and ticket_status row, as the existing draft removal does.",
+          "DM-74 and DM-77 were accepted by the same session that did the work."
+        ],
+        "summary": "All four tickets are accepted: the core deleteEpic (DM-74) and deleteTicket (DM-75) commands, and their desktop UI (DM-76 and DM-77). The work is committed on feat/delete-epics-and-tickets (b1da564) and is in PR #8 (https://github.com/davgor/DarkMechanicus/pull/8) together with the other session's orchestrator-default commit. On the combined tree, lint, typecheck, npm test (217 files, 3806 tests), deadcode and build pass. Fireguard has not reported yet: it runs in CI on PR #8."
+      },
+      "contentHash": "sha256:e05e90fe2af1bab29dde5b8eca48935fc7c758dea07502f9bf50c1fe4c05db79",
+      "createdAt": "2026-10-03T19:42:26.203Z",
+      "id": "rp_01m41mm2cvhm0bmes8yrg6frd3",
+      "reportRevision": 1,
+      "sprintId": "sp_01m41hpr8rpptqh947bgjnrjs1",
+      "submittedBy": "Claude Code orchestrator"
+    }
+  ],
+  "revisionId": "rv_01m41hrqbvb2n39c0rtbvf15ed",
+  "runId": "rn_01m41ht5frep6vgx5vtrjf8k5p",
+  "skillVersion": "1.1.0",
+  "startedAt": "2026-10-03T19:26:46.005Z",
+  "state": "awaiting_checkpoint",
+  "updatedAt": "2026-10-03T19:42:26.203Z"
+}

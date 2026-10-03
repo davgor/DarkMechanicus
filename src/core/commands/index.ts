@@ -2,6 +2,7 @@ import { authoringCommands } from './authoring'
 import { boardCommands } from './board'
 import { checkpointCommands } from './checkpoints'
 import { commentCommands } from './comments'
+import { deletionCommands } from './deletion'
 import { executionCommands } from './execution'
 import { profileCommands } from './profiles'
 import { repositoryCommands } from './repository'
@@ -15,5 +16,6 @@ export const COMMANDS: CommandTable = {
   ...profileCommands,
   ...executionCommands,
   ...checkpointCommands,
-  ...commentCommands
+  ...commentCommands,
+  ...deletionCommands
 }

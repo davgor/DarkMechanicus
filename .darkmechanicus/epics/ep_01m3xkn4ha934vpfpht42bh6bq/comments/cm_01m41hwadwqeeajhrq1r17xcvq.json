@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "planner"
+  },
+  "body": "**Decision (from the person, 2026-10-03): the agent session you work with is the orchestrator.** It runs the epic in that same session, spins up a subagent as the worker for each claimed ticket, and never does a ticket itself or hands the run to another session.\n\nThis was documented on `main` before this run started, outside any claim:\n- `skills/orchestrator.md`: an intro paragraph with the rule. `src/mcp/skills.test.ts` now requires the phrases \"subagent\" and \"never do a ticket yourself\". `SKILLS_VERSION` 1.1.0 → 1.2.0.\n- `docs/runbooks/mcp-setup.md`: the suggested setup is now `orchestrator`, and a new section \"Working model: your session is the orchestrator\" was added.\n- `README.md`: the \"Connect an agent\" step and the Planning workflow bullet.\n- `.claude/` and `.cursor/` `skills/delivery-standards/SKILL.md`: \"You are the orchestrator\", and the two copies are still byte-identical.\n\nDM-28 should extend this text, not replace it: the sizing rubric, recommended-model dispatch, and the Claude Code host runbook with subagent model and effort dispatch. When DM-28 bumps `SKILLS_VERSION`, it should go above 1.2.0.\n\nStill open: the desktop app's **Connect Claude Code** and onboarding still write `--role planner` by default. The docs say to pick `orchestrator`.",
+  "createdAt": "2026-10-03T18:54:30.845Z",
+  "epicId": "ep_01m3xkn4ha934vpfpht42bh6bq",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m41hwadwqeeajhrq1r17xcvq",
+  "ticketId": "tk_01m3xkssg851dfgr9qwg4d9krm"
+}

@@ -13,6 +13,7 @@ import { TicketEditor } from '../ticket/TicketEditor'
 import { TicketPanel } from '../ticket/TicketPanel'
 import { AttemptsStrip } from './AttemptsStrip'
 import { useNow } from './clock'
+import { deleteTicketFromPlan } from './deletion'
 import { DraftBar } from './DraftBar'
 import { Banner, ConfirmStrip, Notices, Toast } from './Feedback'
 import { headerView } from './headerView'
@@ -32,6 +33,8 @@ export interface EpicWorkspaceProps {
   /** Call after any mutation so the shell refreshes sidebar counts. */
   onChanged(): void
   onOpenEpic(epicId: string): void
+  /** The epic was deleted: leave it (the shell shows the folder home). */
+  onDeleted(): void
 }
 
 function GraphStage({ ws, input }: { ws: WorkspaceHandle; input: GraphInput }): JSX.Element {
@@ -157,6 +160,7 @@ function SidePanel({ ws }: { ws: WorkspaceHandle }): JSX.Element | null {
   if (ws.state.view === 'draft' && !plan.readOnly) {
     return <DraftEditorPanel ws={ws} plan={plan} ticketId={ticketId} />
   }
+  const key = plan.bundle.tickets.find((item) => item.id === ticketId)?.key ?? ticketId
   return (
     <TicketPanel
       key={ticketId}
@@ -171,6 +175,7 @@ function SidePanel({ ws }: { ws: WorkspaceHandle }): JSX.Element | null {
       onClose={() => ws.dispatch({ type: 'select_ticket', ticketId: null })}
       onSelectTicket={(id) => ws.dispatch({ type: 'select_ticket', ticketId: id })}
       onReview={(input) => ws.actions.review(input)}
+      onDelete={() => deleteTicketFromPlan(ws, ticketId, key)}
     />
   )
 }
@@ -238,7 +243,8 @@ function WorkspaceBody(props: EpicWorkspaceProps): JSX.Element {
     now,
     folder: props.folder,
     epicId: props.epicId,
-    onOpenEpic: props.onOpenEpic
+    onOpenEpic: props.onOpenEpic,
+    onDeleted: props.onDeleted
   }
   return <WorkspaceView ws={ws} />
 }

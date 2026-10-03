@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { deferred } from '../__mocks__/deferred'
 import { FakeBackend, scenario } from '../epic/__mocks__/fakeBackend'
@@ -17,13 +17,14 @@ afterEach(() => {
 interface Recorded {
   edits: number
   closed: number
+  deletes: number
   selected: string[]
   reviews: ReviewInput[]
 }
 
 function renderPanel(backend: FakeBackend, patch: Partial<TicketPanelProps> = {}, reviewError: string | null = null): Recorded {
   window.dm = backend
-  const recorded: Recorded = { edits: 0, closed: 0, selected: [], reviews: [] }
+  const recorded: Recorded = { edits: 0, closed: 0, deletes: 0, selected: [], reviews: [] }
   render(
     <TicketPanel
       runner={backend.runner}
@@ -43,6 +44,10 @@ function renderPanel(backend: FakeBackend, patch: Partial<TicketPanelProps> = {}
       onReview={(input) => {
         recorded.reviews.push(input)
         return Promise.resolve(reviewError)
+      }}
+      onDelete={() => {
+        recorded.deletes += 1
+        return Promise.resolve(null)
       }}
       {...patch}
     />
@@ -92,6 +97,50 @@ describe('ticket panel overview', () => {
     renderPanel(backend, { canEdit: false })
     expect((await screen.findByRole('alert')).textContent).toBe('Ticket tk_202 not found.')
     expect(screen.queryByRole('button', { name: 'Edit in draft' })).toBe(null)
+  })
+})
+
+async function askToDelete(): Promise<HTMLElement> {
+  fireEvent.click(await screen.findByRole('button', { name: 'Delete ticket…' }))
+  return screen.getByRole('alertdialog', { name: 'Delete ticket' })
+}
+
+describe('ticket panel delete', () => {
+  it('asks before deleting, then shows a refusal inside the question', async () => {
+    let asked = 0
+    renderPanel(new FakeBackend(), {
+      onDelete: () => {
+        asked += 1
+        return Promise.resolve('The draft has unsaved changes.')
+      }
+    })
+    const question = await askToDelete()
+    expect(question.textContent).toContain('Delete DM-202 from the saved plan?')
+    expect(asked).toBe(0)
+    fireEvent.click(within(question).getByRole('button', { name: 'Delete ticket' }))
+    expect((await within(question).findByRole('alert')).textContent).toBe('The draft has unsaved changes.')
+    expect(asked).toBe(1)
+    fireEvent.click(within(question).getByRole('button', { name: 'Keep' }))
+    expect(screen.queryByRole('alertdialog', { name: 'Delete ticket' })).toBe(null)
+  })
+
+  it('holds the confirmation while the delete is in flight and shows no error once it succeeds', async () => {
+    const gate = deferred()
+    renderPanel(new FakeBackend(), { onDelete: () => gate.promise.then(() => null) })
+    const confirm = within(await askToDelete()).getByRole('button', { name: 'Delete ticket' }) as HTMLButtonElement
+    expect(confirm.disabled).toBe(false)
+    fireEvent.click(confirm)
+    expect(confirm.disabled).toBe(true)
+    gate.resolve()
+    await waitFor(() => expect(confirm.disabled).toBe(false))
+    expect(screen.queryByRole('alert')).toBe(null)
+  })
+
+  it('offers Delete ticket… only while the epic can be edited', async () => {
+    const recorded = renderPanel(new FakeBackend(), { canEdit: false })
+    expect((await screen.findByRole('heading', { level: 2 })).textContent).toBe('Transactional bundle import')
+    expect(screen.queryByRole('button', { name: 'Delete ticket…' })).toBe(null)
+    expect(recorded.deletes).toBe(0)
   })
 })
 

@@ -85,7 +85,9 @@ const HUMAN_ONLY: CommandName[] = [
   'approveAndAdvance',
   'authorizeAutoContinue',
   'grantRetry',
-  'backupDatabase'
+  'backupDatabase',
+  'deleteEpic',
+  'deleteTicket'
 ]
 
 function kindOf(annotations: ToolAnnotations | undefined): Kind {
@@ -123,10 +125,11 @@ describe('tool inventory', () => {
     await withRig(build, createStubApi(), async (rig) => {
       const { tools } = await rig.client.listTools()
       const names = tools.map((tool) => tool.name)
-      for (const forbidden of ['queue_run', 'approve_checkpoint', 'approve_and_advance', 'authorize_auto_continue', 'grant_retry', 'backup_database']) {
-        expect(names).not.toContain(forbidden)
+      const forbidden = ['queue_run', 'approve_checkpoint', 'approve_and_advance', 'authorize_auto_continue', 'grant_retry', 'backup_database', 'delete_epic', 'delete_ticket']
+      for (const name of forbidden) {
+        expect(names).not.toContain(name)
       }
-      expect(names.filter((name) => /approve|queue|authorize|grant|backup/.test(name))).toEqual([])
+      expect(names.filter((name) => /approve|queue|authorize|grant|backup|delete/.test(name))).toEqual([])
     })
   })
 

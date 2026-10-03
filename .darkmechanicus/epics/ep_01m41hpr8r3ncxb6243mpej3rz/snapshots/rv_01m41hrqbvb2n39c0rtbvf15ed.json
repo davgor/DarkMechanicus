@@ -1,0 +1,382 @@
+{
+  "baseRevisionId": null,
+  "bundle": {
+    "edges": [
+      {
+        "from": "tk_01m41hqmxsj2yreqwcxs2jz372",
+        "to": "tk_01m41hqmxt169w2gnx4yh42jt3"
+      },
+      {
+        "from": "tk_01m41hqmxtkt1xdxbpqzysfz1t",
+        "to": "tk_01m41hqmxtxy90z1dtfn6jkjd3"
+      }
+    ],
+    "epic": {
+      "intent": "Users have no way to get rid of an epic, and removing a ticket today takes Edit draft → open ticket → Remove ticket… → Save. Add a real delete for both, from the desktop app.\n\n**Epic delete is a hard delete.** It removes every database row for the epic (revisions, draft, ticket statuses, runs and their attempts/reports/checkpoints/grants, approvals, comments, events, search index, sync state, pending outbox entries) and deletes `.darkmechanicus/epics/<id>/` and the `.darkmechanicus/history/<runId>/` folder of each of its runs. It never commits; the person commits the removal. It is refused while the epic has an active run (queued, running, awaiting checkpoint, paused). Completed epics can be deleted.\n\n**Ticket delete is one click from the saved view.** It removes the ticket (and its dependency edges and relations) from the current saved plan and saves a new revision in one step. It is refused when the draft holds unsaved changes, when the epic is completed, when a save is still pending, or when the ticket has an open attempt (claimed, running, submitted).\n\nBoth are desktop-only (human) capabilities; no agent role receives them.",
+      "ownerRole": "desktop",
+      "successCriteria": [
+        {
+          "id": "s1",
+          "text": "A desktop session can hard-delete an epic: afterwards no table references it, its `.darkmechanicus/epics/<id>/` and its runs' `.darkmechanicus/history/<runId>/` folders are gone, and a reconcile does not bring it back"
+        },
+        {
+          "id": "s2",
+          "text": "Deleting an epic with an active run fails with `active_run_exists` and changes nothing"
+        },
+        {
+          "id": "s3",
+          "text": "A desktop session can delete a ticket from the saved view in one action, producing a new saved revision without the ticket, its edges or relations"
+        },
+        {
+          "id": "s4",
+          "text": "Ticket delete is refused, changing nothing, when the draft has unsaved changes, the epic is completed, a save is pending, or the ticket has an open attempt"
+        },
+        {
+          "id": "s5",
+          "text": "No agent role (planner, orchestrator, worker, reviewer) holds the delete capabilities, even with --allow-save"
+        },
+        {
+          "id": "s6",
+          "text": "lint, test, fireguard, typecheck, deadcode and build all pass"
+        }
+      ],
+      "title": "Delete epics and tickets from the desktop app"
+    },
+    "formatVersion": 1,
+    "policies": {
+      "leaseSeconds": 900,
+      "maxConcurrency": null,
+      "onTicketFailure": "continue_independent",
+      "retryLimit": 3
+    },
+    "rationale": "Core commands first so the UI tickets build on a tested API. Epic and ticket tracks are independent and can run in parallel. One sprint: the work is small and each UI ticket only needs its core ticket.",
+    "relations": [],
+    "sprints": [
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": null,
+        "entryCriteria": [],
+        "exitCriteria": [
+          {
+            "id": "x1",
+            "text": "All four tickets accepted"
+          },
+          {
+            "id": "x2",
+            "text": "Full verification gate passes on the combined change"
+          }
+        ],
+        "goal": "Hard-delete epics and one-click delete tickets, end to end from core to desktop UI",
+        "id": "sp_01m41hpr8rpptqh947bgjnrjs1",
+        "ordinal": 1,
+        "ticketIds": [
+          "tk_01m41hqmxsj2yreqwcxs2jz372",
+          "tk_01m41hqmxtkt1xdxbpqzysfz1t",
+          "tk_01m41hqmxt169w2gnx4yh42jt3",
+          "tk_01m41hqmxtxy90z1dtfn6jkjd3"
+        ]
+      }
+    ],
+    "tickets": [
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A test deletes an epic that has a saved revision, a draft, a finished run with attempts/report/checkpoint, and comments, then asserts zero rows reference the epic id or its run ids in every table"
+          },
+          {
+            "id": "c2",
+            "text": "The same test asserts `.darkmechanicus/epics/<id>/` and `.darkmechanicus/history/<runId>/` no longer exist, and `reconcileRepository` afterwards does not recreate the epic"
+          },
+          {
+            "id": "c3",
+            "text": "A test shows delete with an active run fails with `active_run_exists` and leaves rows and files untouched"
+          },
+          {
+            "id": "c4",
+            "text": "A test shows only the desktop role holds `epic.delete` (planner/orchestrator with allowSave, worker, reviewer do not), and a non-desktop call fails with `unauthorized`"
+          },
+          {
+            "id": "c5",
+            "text": "Unknown epic id fails with `not_found`"
+          }
+        ],
+        "body": "**In scope**\n- New human-only capability `epic.delete` in `src/core/authz.ts` (`CAPABILITIES`, `HUMAN_ONLY_CAPABILITIES`; desktop gets it, no agent role does).\n- New `deleteEpic({ epicId })` on `CommandApi` (`src/shared/domain/api.ts`), schema in `src/core/commandSchemas.ts`, entry in `src/core/commands/capabilities.ts` and `src/core/commands/authoring.ts`. Not exposed as an MCP tool.\n- Service in `src/core/services/epics.ts` (or a new `epicDeletion.ts`): in one transaction, refuse with `active_run_exists` when `activeRun()` returns a run, otherwise delete children before parents (foreign keys are on): attempts, retry_grants, sprint_reports, checkpoints (by run), approvals, runs, ticket_status, comments, drafts, plan_revisions, events, search_index, sync_state (epic, its runs, its comments), outbox rows for the epic, its runs and its comments, then the epic row.\n- After commit, remove `.darkmechanicus/epics/<id>/` and each run's `.darkmechanicus/history/<runId>/` with `ownedPaths` + `assertContained` (no links followed). `FsAdapter` gains `removeDir` (empty directory only) in `src/core/repo/types.ts`, `nodeFs.ts`, and `src/test/memoryFs.ts`.\n- Never commits to git.\n\n**Out of scope**: UI, ticket delete, soft delete/archive.\n\n**Verify**: Vitest service and command tests using the in-memory fs; a reconcile after delete must not re-import the epic.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": ""
+          },
+          "skills": [],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/services/epics.ts (or src/core/services/epicDeletion.ts)",
+          "src/core/repo/types.ts",
+          "src/core/repo/nodeFs.ts",
+          "src/test/memoryFs.ts",
+          "src/core/authz.ts",
+          "src/shared/domain/api.ts",
+          "src/core/commandSchemas.ts",
+          "src/core/commands/capabilities.ts",
+          "src/core/commands/authoring.ts",
+          "tests for the above"
+        ],
+        "id": "tk_01m41hqmxsj2yreqwcxs2jz372",
+        "key": "DM-74",
+        "optional": false,
+        "priority": "high",
+        "references": [],
+        "tags": [],
+        "title": "Add a desktop-only deleteEpic command that hard-deletes an epic and its portable files"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A test deletes a ticket that has dependency edges and relations from a saved plan; after flush the epic's current saved revision lacks the ticket, its edges and its relations, and the revision number went up by one"
+          },
+          {
+            "id": "c2",
+            "text": "Tests show refusal, with no new revision, for: draft with unsaved changes, completed epic, pending save, ticket with an open attempt, unknown ticket"
+          },
+          {
+            "id": "c3",
+            "text": "A test shows an unchanged draft (Edit draft with no edits) does not block delete"
+          },
+          {
+            "id": "c4",
+            "text": "A test shows only the desktop role holds `ticket.delete`"
+          }
+        ],
+        "body": "**In scope**\n- New human-only capability `ticket.delete` in `src/core/authz.ts` (desktop only).\n- New `deleteTicket({ epicId, ticketId })` on `CommandApi`, schema, capability-table entry, command in `src/core/commands/authoring.ts`. Not an MCP tool.\n- Service (in `src/core/services/plans.ts` or `tickets.ts`): load the epic, `assertEpicOpen`, `ctx.assertBranch()`, refuse if a save is pending, refuse if a draft exists whose content differs from the saved revision, refuse if the ticket has an attempt in `claimed|running|submitted`; apply the existing `remove_ticket` draft op (`src/core/plan/draftOps.ts`) to the current saved bundle, validate, and record a pending revision the same way `requestSave` does (snapshot outbox entry; the finalizer completes it). Drop an unchanged draft so it does not go stale.\n- A never-saved epic has no saved view: refuse with a clear message (the draft editor's Remove ticket… covers it).\n\n**Out of scope**: UI, epic delete, changing the existing draft-only Remove ticket… flow.\n\n**Verify**: Vitest service tests.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": ""
+          },
+          "skills": [],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/services/plans.ts (or src/core/services/tickets.ts)",
+          "src/core/authz.ts",
+          "src/shared/domain/api.ts",
+          "src/core/commandSchemas.ts",
+          "src/core/commands/capabilities.ts",
+          "src/core/commands/authoring.ts",
+          "tests for the above"
+        ],
+        "id": "tk_01m41hqmxtkt1xdxbpqzysfz1t",
+        "key": "DM-75",
+        "optional": false,
+        "priority": "high",
+        "references": [],
+        "tags": [],
+        "title": "Add a desktop-only deleteTicket command that removes a ticket from the saved plan and saves a new revision"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A renderer test: clicking Delete epic… then confirming calls `deleteEpic` with the epic id and the workspace closes / navigates away"
+          },
+          {
+            "id": "c2",
+            "text": "A renderer test: cancelling the confirm makes no command call"
+          },
+          {
+            "id": "c3",
+            "text": "A renderer test: an `active_run_exists` failure shows its message and the epic stays open"
+          },
+          {
+            "id": "c4",
+            "text": "`deleteEpic` is in `DESKTOP_COMMANDS`"
+          }
+        ],
+        "body": "**In scope**\n- Allow-list `deleteEpic` in `DESKTOP_COMMANDS` (`src/shared/desktop/api.ts`).\n- A `Delete epic…` control in the epic workspace header (`src/renderer/src/epic/WorkspaceHeader.tsx`), using the existing confirm flow (`ws.dispatch({ type: 'confirm', kind: ... })`). The confirm text says it deletes the epic, its runs and history, and the files under `.darkmechanicus/` (uncommitted).\n- On success, the epic leaves the sidebar list and the app navigates away from it; on failure (e.g. active run) the error message shows.\n\n**Out of scope**: core logic, ticket delete UI.\n\n**Verify**: renderer tests (Testing Library) for confirm, cancel, success navigation, and error display.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "level": "routine",
+            "rationale": ""
+          },
+          "skills": [],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/shared/desktop/api.ts",
+          "src/renderer/src/epic/WorkspaceHeader.tsx",
+          "src/renderer/src/epic/workspaceActions.ts",
+          "src/renderer/src/epic/workspaceState.ts",
+          "renderer tests"
+        ],
+        "id": "tk_01m41hqmxt169w2gnx4yh42jt3",
+        "key": "DM-76",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "tags": [],
+        "title": "Add a Delete epic action with confirmation to the epic workspace"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A renderer test: Delete ticket… then confirm calls `deleteTicket` with epic and ticket ids, closes the panel and reloads the plan"
+          },
+          {
+            "id": "c2",
+            "text": "A renderer test: Keep (cancel) makes no command call"
+          },
+          {
+            "id": "c3",
+            "text": "A renderer test: a refusal (e.g. draft has unsaved changes) shows its message in the panel"
+          },
+          {
+            "id": "c4",
+            "text": "The control is not rendered for a completed epic"
+          },
+          {
+            "id": "c5",
+            "text": "`deleteTicket` is in `DESKTOP_COMMANDS`"
+          }
+        ],
+        "body": "**In scope**\n- Allow-list `deleteTicket` in `DESKTOP_COMMANDS`.\n- A `Delete ticket…` control in the saved-view ticket panel (`src/renderer/src/ticket/TicketPanel.tsx`) with an inline confirm like the draft editor's `RemoveTicket`. Hidden for completed epics.\n- On success, the panel closes and the workspace reloads the new saved revision; on failure the message shows in the panel.\n\n**Out of scope**: core logic, the draft editor's existing Remove ticket…, epic delete UI.\n\n**Verify**: renderer tests.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "level": "routine",
+            "rationale": ""
+          },
+          "skills": [],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/shared/desktop/api.ts",
+          "src/renderer/src/ticket/TicketPanel.tsx",
+          "renderer tests"
+        ],
+        "id": "tk_01m41hqmxtxy90z1dtfn6jkjd3",
+        "key": "DM-77",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "tags": [],
+        "title": "Add a Delete ticket action with confirmation to the saved-view ticket panel"
+      }
+    ]
+  },
+  "contentHash": "sha256:e093d77975dd2af449221040b16c22230a1c348ce08740ada72902a549fc7bf7",
+  "createdAt": "2026-10-03T18:52:33.019Z",
+  "epicId": "ep_01m41hpr8r3ncxb6243mpej3rz",
+  "format": "darkmechanicus.plan-snapshot",
+  "formatVersion": 1,
+  "number": 1,
+  "revisionId": "rv_01m41hrqbvb2n39c0rtbvf15ed",
+  "savedAt": "2026-10-03T18:52:33.019Z"
+}

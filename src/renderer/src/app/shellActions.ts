@@ -17,8 +17,8 @@ export interface InitializeOptions {
   importBoard: boolean
 }
 
-/** Onboarding connects Claude Code as a planner that may save, and never replaces an existing entry. */
-const ONBOARDING_CONNECTION: ClaudeCodeConnectRequest = { role: 'planner', allowSave: true, replace: false }
+/** Onboarding connects Claude Code as an orchestrator (it plans and runs epics) that may save, and never replaces an existing entry. */
+const ONBOARDING_CONNECTION: ClaudeCodeConnectRequest = { role: 'orchestrator', allowSave: true, replace: false }
 
 /** Everything the actions need from the shell, so they can be exercised without React. */
 interface ShellDeps {

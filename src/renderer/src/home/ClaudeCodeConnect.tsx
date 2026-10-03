@@ -130,7 +130,7 @@ function useClaudeConnect(folder: TrackedFolderView, settings: ConnectSettings) 
 
 /** Writes the `darkmechanicus` server into the folder's `.mcp.json` so Claude Code can connect. */
 export function ClaudeCodeConnect({ folder }: { folder: TrackedFolderView }): JSX.Element {
-  const [settings, setSettings] = useState<ConnectSettings>({ role: 'planner', allowSave: true })
+  const [settings, setSettings] = useState<ConnectSettings>({ role: 'orchestrator', allowSave: true })
   const { busy, conflict, connect, keep } = useClaudeConnect(folder, settings)
   return (
     <div className="connect">
