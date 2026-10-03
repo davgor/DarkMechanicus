@@ -144,3 +144,6 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Machine-specific MCP server config (absolute app/repo paths differ per OS)
+.mcp.json
