@@ -95,8 +95,8 @@ function McpJsonOption({ checked, disabled, onChange }: McpJsonOptionProps): JSX
         </span>
       </label>
       <p id={noteId} className="onboarding-option-note">
-        Adds a <code>darkmechanicus</code> server (planner, may save plans) to <code>.mcp.json</code> at the repository
-        root. The file contains this machine’s path to the Dark Mechanicus app; whether to commit it is up to you.
+        Adds a <code>darkmechanicus</code> server (orchestrator, may plan and run epics, may save plans) to{' '}
+        <code>.mcp.json</code> at the repository root. The file contains this machine’s path to the Dark Mechanicus app; whether to commit it is up to you.
       </p>
     </div>
   )

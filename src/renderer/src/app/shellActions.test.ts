@@ -132,7 +132,7 @@ describe('untrack', () => {
 const INIT_ONLY = { writeMcpConfig: false, importBoard: false }
 const INIT_AND_CONNECT = { writeMcpConfig: true, importBoard: false }
 const INIT_AND_IMPORT = { writeMcpConfig: false, importBoard: true }
-const ONBOARDING_CONNECT = { role: 'planner', allowSave: true, replace: false }
+const ONBOARDING_CONNECT = { role: 'orchestrator', allowSave: true, replace: false }
 const IMPORTED = boardImport({ open: [boardOpenEpic({ state: 'created', epicId: EPIC_A })] })
 
 describe('initialize', () => {

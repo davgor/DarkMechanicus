@@ -62,7 +62,7 @@ describe('McpCard Claude Code', () => {
     expect(screen.getByText('~/code/alpha/.mcp.json')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Connect Claude Code' }))
     await settle()
-    expect(dm.claudeConnects).toEqual([{ folder: '/a', request: { role: 'planner', allowSave: true, replace: false } }])
+    expect(dm.claudeConnects).toEqual([{ folder: '/a', request: { role: 'orchestrator', allowSave: true, replace: false } }])
     expect(dm.skillInstalls).toEqual([])
   })
 })

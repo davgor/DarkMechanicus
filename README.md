@@ -13,7 +13,7 @@ An agent helps you shape an epic, decomposes it into tickets with acceptance cri
 
 1. **Track a folder** — press **+** in the sidebar and pick a repository. Each tracked folder expands into **In progress**, **Backlog**, and **Completed** epics.
 2. **Initialize** — a new folder shows the setup screen; initializing creates `.darkmechanicus/` (Git-tracked plans and history, plus a Git-ignored `local/` working database). Nothing is committed for you.
-3. **Connect an agent** — copy the MCP snippet from the setup screen into your agent host. The server runs headless: agents can plan and execute with the desktop closed. `--allow-save` lets an agent save plans; without it, you save in the app.
+3. **Connect an agent** — copy the MCP snippet from the setup screen into your agent host. The server runs headless: agents can plan and execute with the desktop closed. `--allow-save` lets an agent save plans; without it, you save in the app. Connect the agent session you work with as `orchestrator`: that role includes everything a planner can do, so the same session plans epics and runs them (see [the working model](docs/runbooks/mcp-setup.md#working-model-your-session-is-the-orchestrator)).
 4. **Plan** — agents (or you) edit a **draft**; the saved plan only changes on Save. Invalid edits are rejected with a concrete reason (cycles, a prerequisite in a later sprint, …). Reusable capability requirements live in named profiles (`.darkmechanicus/profiles/`): pick one with **Start from profile** in the ticket editor, or let agents use `list_profiles` and `save_profile`.
 5. **Run** — press **Start run** (or let the orchestrator start one). Runs pin a saved revision; tickets become ready when their prerequisites are accepted.
 6. **Checkpoint** — at the end of each sprint the orchestrator files a report; you review it and **Approve & advance**. The final checkpoint completes the epic, which then becomes read-only history that agents can search.
@@ -36,6 +36,7 @@ AI/agent delivery rules: [`.ai-instructions.md`](.ai-instructions.md) and
 This repository is planned and run in Dark Mechanicus itself. Its epics, tickets, plan revisions, history, and comments are the portable records in [`.darkmechanicus/`](.darkmechanicus/), tracked in Git next to the code.
 
 - **Agents** connect through a project `.mcp.json` that runs the installed app's MCP server (see [`docs/runbooks/mcp-setup.md`](docs/runbooks/mcp-setup.md)). The role guides for planning, orchestrating, working, reviewing, and sprint reports are in [`skills/`](skills/); the server also serves them as MCP prompts.
+- **The agent session you work with is the orchestrator.** Connect it with `--role orchestrator --allow-save`. When you ask it to run an epic, it runs it in that session: it claims each ready ticket, spins up a subagent as the worker, reviews the result, and stops at each sprint checkpoint for your approval. It never does a ticket itself, and it doesn't hand the run to another session.
 - **People** review each draft plan in the desktop app and press **Save**, then approve every sprint checkpoint there.
 
 Implementation follows the engineering process above: tests first, then lint, typecheck, unit tests, fireguard, deadcode, and build before a ticket is accepted.
