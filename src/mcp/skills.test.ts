@@ -68,6 +68,11 @@ describe('SKILLS', () => {
   it('uses a semantic skills version', () => {
     expect(SKILLS_VERSION).toMatch(/^\d+\.\d+\.\d+$/)
   })
+
+  it('moved past 1.2.0 when the sizing and dispatch guidance was added', () => {
+    const [major = 0, minor = 0] = SKILLS_VERSION.split('.').map(Number)
+    expect(major > 1 || (major === 1 && minor >= 3)).toBe(true)
+  })
 })
 
 /** Phrases each skill must keep; a guard against accidentally dropping a rule during edits. */
@@ -86,7 +91,16 @@ const REQUIRED: [string, string[]][] = [
       '--allow-save',
       'press Save',
       '`provenance`',
-      'NEW epic'
+      'NEW epic',
+      'Give every ticket a `size`',
+      'one obvious change in one or two files',
+      'one coherent change inside one module',
+      'several modules, or one real design choice',
+      'should usually be split',
+      'Call out micro tasks',
+      '`reasoning.effort`',
+      'Leave `quality` unset unless the person asked',
+      'Precise ticket bodies'
     ]
   ],
   [
@@ -125,7 +139,15 @@ const REQUIRED: [string, string[]][] = [
       'cannot approve',
       'rationale',
       'subagent',
-      'never do a ticket yourself'
+      'never do a ticket yourself',
+      'the `efforts` it can run at',
+      'Use the recommended model and effort',
+      'at the model and effort you claimed',
+      'one tier above',
+      'one effort step',
+      'Never jump straight to the most capable worker',
+      'the reason in the claim `rationale`',
+      'profile proposal'
     ]
   ],
   [

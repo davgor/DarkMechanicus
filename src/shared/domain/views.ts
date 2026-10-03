@@ -8,7 +8,9 @@ import type {
   EpicBranch,
   EpicProvenance,
   PlanBundle,
-  TicketContent
+  ReasoningEffort,
+  TicketContent,
+  TicketSize
 } from './bundle'
 import type {
   AttemptKind,
@@ -160,6 +162,10 @@ export interface TicketSummaryView {
   sprintId: string | null
   sprintOrdinal: number | null
   priority: TicketContent['priority']
+  /** Present only once a planner has sized the ticket. */
+  size?: TicketSize
+  /** The ticket's `capability.reasoning.effort`; present only when one is set. */
+  effort?: ReasoningEffort
   tags: string[]
   optional: boolean
 }
@@ -212,6 +218,11 @@ export interface WorkerInfo {
   hostId: string | null
   catalogRevision: string | null
   rationale: string | null
+  /**
+   * The reasoning effort the worker was dispatched at. Null when the claim named none; views always
+   * carry it, but a record stored before efforts existed has no such key.
+   */
+  effort?: ReasoningEffort | null
 }
 
 interface ArtifactRef {
@@ -291,6 +302,8 @@ export interface HostModel {
   id: string
   label: string
   reasoningLevels: string[]
+  /** Efforts the host can run this model at. Absent or empty: the model declares none, so any effort is accepted. */
+  efforts?: ReasoningEffort[]
   modalities: string[]
   contextWindowTokens: number | null
   skills: string[]
@@ -313,13 +326,23 @@ export interface HostCatalogView extends HostCatalog {
   registeredBy: string | null
 }
 
+/** The model and effort to dispatch a ticket's worker at, with the reasons behind the pick. */
+export interface CapabilityRecommendation {
+  modelId: string
+  effort: ReasoningEffort
+  reasons: string[]
+}
+
 export interface CapabilityMatchView {
   ticketId: string
   catalogId: string
+  /** Best fit first: right-sized models lead, over-capable ones trail. */
   eligible: { modelId: string; score: number; reasons: string[] }[]
   rejected: { modelId: string; failures: string[] }[]
   hostFailures: string[]
   unknownRequirements: string[]
+  /** The top fit at the ticket's effort, or one tier up after a rejected or failed attempt. Null when no model is eligible. */
+  recommended: CapabilityRecommendation | null
 }
 
 export interface FollowUpProposal {
@@ -442,6 +465,8 @@ export interface ExecutionPacket {
   sprint: { id: string; ordinal: number; goal: string }
   ticket: TicketContent
   ticketContentHash: string
+  /** The reasoning effort this claim was dispatched at, or null when the claim named none. */
+  effort: ReasoningEffort | null
   predecessors: {
     ticketId: string
     key: string

@@ -3,11 +3,13 @@ import {
   CHECKPOINT_MODES,
   MODALITIES,
   PLAN_FORMAT_VERSION,
+  REASONING_EFFORTS,
   REASONING_LEVELS,
   REFERENCE_KINDS,
   RELATION_KINDS,
   TICKET_FAILURE_POLICIES,
   TICKET_PRIORITIES,
+  TICKET_SIZES,
   TOOL_CAPABILITIES,
   WORK_TYPES
 } from '../shared/domain/bundle'
@@ -74,7 +76,12 @@ const tags = z.array(z.string().max(LIMITS.tag)).max(LIMITS.tags)
 
 export const capabilityProfile = z.strictObject({
   workType: z.enum(WORK_TYPES),
-  reasoning: z.strictObject({ level: z.enum(REASONING_LEVELS), rationale: shortText }),
+  // `effort` carries no default: plans saved before it existed must parse unchanged and keep their hash.
+  reasoning: z.strictObject({
+    level: z.enum(REASONING_LEVELS),
+    rationale: shortText,
+    effort: z.enum(REASONING_EFFORTS).optional()
+  }),
   skills: tags,
   modalities: z.array(z.enum(MODALITIES)).max(MODALITIES.length),
   tools: z.array(z.enum(TOOL_CAPABILITIES)).max(TOOL_CAPABILITIES.length),
@@ -99,7 +106,11 @@ export const capabilityProfile = z.strictObject({
 
 export const capabilityPatch = z.strictObject({
   workType: capabilityProfile.shape.workType.optional(),
-  reasoning: capabilityProfile.shape.reasoning.partial().optional(),
+  // `effort: null` clears an effort; a stored profile never holds null (see capabilityProfile).
+  reasoning: capabilityProfile.shape.reasoning
+    .partial()
+    .extend({ effort: z.enum(REASONING_EFFORTS).nullable().optional() })
+    .optional(),
   skills: tags.optional(),
   modalities: capabilityProfile.shape.modalities.optional(),
   tools: capabilityProfile.shape.tools.optional(),
@@ -122,6 +133,8 @@ export const ticketInput = z.strictObject({
   acceptanceCriteria: criterionInputs.optional(),
   tags: tags.optional(),
   priority: z.enum(TICKET_PRIORITIES).optional(),
+  // `null` in a patch clears the size; saved ticket content never holds null (see ticketContent).
+  size: z.enum(TICKET_SIZES).nullable().optional(),
   capability: capabilityPatch.optional(),
   references: z.array(ticketReference).max(LIMITS.references).optional(),
   expectedArtifacts: z.array(z.string().max(LIMITS.label)).max(LIMITS.references).optional(),
@@ -183,6 +196,8 @@ export const ticketContent = z.strictObject({
   acceptanceCriteria: z.array(criterion).max(LIMITS.criteria),
   tags,
   priority: z.enum(TICKET_PRIORITIES),
+  // No default, like `capability.reasoning.effort`: an unsized ticket keeps its saved shape and hash.
+  size: z.enum(TICKET_SIZES).optional(),
   capability: capabilityProfile,
   references: z.array(ticketReference).max(LIMITS.references),
   expectedArtifacts: z.array(z.string().max(LIMITS.label)).max(LIMITS.references),
@@ -306,6 +321,8 @@ export const hostCatalog = z.strictObject({
         id: z.string().min(1).max(LIMITS.label),
         label: z.string().max(LIMITS.label).default(''),
         reasoningLevels: z.array(z.enum(REASONING_LEVELS)).max(REASONING_LEVELS.length),
+        /** Efforts the host can run this model at; absent means it declares none, so any effort is accepted. */
+        efforts: z.array(z.enum(REASONING_EFFORTS)).max(REASONING_EFFORTS.length).optional(),
         modalities: z.array(z.enum(MODALITIES)).max(MODALITIES.length),
         contextWindowTokens: z.number().int().min(1).nullable().default(null),
         skills: tags.default([]),

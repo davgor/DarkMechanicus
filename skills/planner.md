@@ -33,6 +33,19 @@ You turn a goal into a plan that other agents can execute without guessing. You 
 
 One ticket is one coherent change that a single worker can finish and a reviewer can verify in one attempt. Split tickets that mix unrelated concerns. Merge fragments that are too small to verify alone.
 
+Give every ticket a `size`, the smallest that fits. Size is how the orchestrator finds the cheapest worker that can do the ticket: sizing too big spends a costly worker on easy work, and sizing too small gets the ticket rejected and escalated.
+
+- **micro**: one obvious change in one or two files, one targeted test, no design choice. Example: add one validation rule to a field and test it.
+- **small**: one coherent change inside one module. Example: add a `--json` flag to one command and test it.
+- **medium**: several modules, or one real design choice. Example: add refunds across the API, the ledger, and the receipt view.
+- **large**: should usually be split into smaller tickets wired as dependencies. Example: "Rewrite the cache layer" becomes one ticket each for the index, the expiry rules, and the state migration. Keep a ticket large only when it cannot be split, and say why in its body.
+
+Call out micro tasks: size them `micro` rather than rounding up to small. A micro ticket is the one a low-cost worker can finish, and rounding it up sends it to a costlier one.
+
+Set `reasoning.effort` on every sized ticket: `low` for micro and small, `medium` for medium, `high` only for a large ticket you could not split. Go one step higher when the ticket has one hard part and say why in the reasoning `rationale`.
+
+Precise ticket bodies are what let small workers succeed: put the context, the interfaces and file paths, and the exact verification steps in the body, so a worker never has to guess or search.
+
 For each ticket provide:
 
 - `title`: imperative and specific ("Add refund endpoint"), not a topic.
@@ -41,12 +54,12 @@ For each ticket provide:
 - `expectedArtifacts`: files or reports the ticket must produce.
 - `capability`, a provider-neutral profile that the orchestrator matches against the models and tools a host really has. Never name vendors or models.
   - `workType`: implementation, architecture, investigation, testing, review, or documentation.
-  - `reasoning`: `level` (`routine`, `multi_step`, or `deep`) and a one-sentence `rationale` ("touches locking; needs careful multi-step reasoning").
+  - `reasoning`: `level` (`routine`, `multi_step`, or `deep`), a one-sentence `rationale` ("touches locking; needs careful multi-step reasoning"), and `effort` (`low`, `medium`, or `high`, set as above). Pick the lowest level that is true, because matching charges for reasoning depth the ticket does not need. Use `routine` when the body spells out the steps, as it should for micro and small tickets. Use `multi_step` when the worker must plan across modules or weigh options. Use `deep` only when a wrong call is costly or hard to see (locking, security, data migrations).
   - `tools`: the minimum needed from `repo_read`, `repo_write`, `shell`, `browser`, `test_execution`, `network`. `modalities`: `text`, plus `images` only if screenshots must be read.
   - `skills`: tags such as `typescript`, `database`, `ui`, `security-review`.
   - `context`: `estimatedInputTokens` is an ESTIMATE (say so in the body when it matters) and `requiredArtifacts` lists what must be read.
-  - `constraints` are hard limits that filter candidates (environments, data location, time or cost ceilings). `preferences` (quality, latency, cost, autonomy, `modelOverride`) only rank candidates. Set `modelOverride` only when the person insisted.
-  - Start from a named profile when one fits: read it with `get_profile` and pass its `capability` as the ticket's `capability`, then adjust only what this ticket needs. A ticket keeps a copy, so later profile changes never alter it.
+  - `constraints` are hard limits that filter candidates (environments, data location, time or cost ceilings). `preferences` (latency, cost, autonomy, `modelOverride`) rank candidates. Leave `quality` unset unless the person asked for a quality bar. Set `modelOverride` only when the person insisted.
+  - Start from a named profile when one fits: read it with `get_profile` and pass its `capability` as the ticket's `capability`, then adjust only what this ticket needs: set its `reasoning.effort`, and clear any `quality` the profile carries unless the person asked for it. A ticket keeps a copy, so later profile changes never alter it.
   - When the same requirements recur across tickets or epics, save them with `save_profile`: a short lowercase name (letters, digits, hyphens, such as `ui-implementation`), a one-line description of when to use it, and the complete capability. Omit `expectedRevision` to create; to change a profile, pass the `revision` you read, and on `conflict` read it again. Profiles are provider-neutral like tickets: never put vendor or model names in them.
 - `priority`, `tags`, and `optional: true` for work that must not gate a sprint or the epic.
 

@@ -281,3 +281,57 @@ describe('cancel_run', () => {
     })
   })
 })
+
+describe('reasoning effort in host catalogs and claims', () => {
+  const EFFORT_HOST = { ...HOST, models: [{ ...HOST.models[0], efforts: ['low', 'medium'] }] }
+
+  it('register_host forwards the efforts a model declares', async () => {
+    const api = createCannedApi({ registerHost: MARKER })
+    await inRig(api, async (rig) => {
+      const outcome = await callTool(rig, 'register_host', EFFORT_HOST)
+      expect(outcome.isError).toBe(false)
+      expect(api.calls).toEqual([{ name: 'registerHost', input: EFFORT_HOST }])
+    })
+  })
+
+  it('register_host adds no efforts to a model that declares none', async () => {
+    const api = createCannedApi({ registerHost: MARKER })
+    await inRig(api, async (rig) => {
+      await callTool(rig, 'register_host', HOST)
+      const input = api.calls[0]?.input as { models: Record<string, unknown>[] }
+      expect(Object.keys(input.models[0] ?? {})).not.toContain('efforts')
+    })
+  })
+
+  it('claim_ticket forwards the effort the worker is dispatched at', async () => {
+    const api = createCannedApi({ claimTicket: MARKER })
+    const args = { runId: RUN, ticketId: TICKET, worker: { label: 'w', modelId: 'model-a', effort: 'low' } }
+    await inRig(api, async (rig) => {
+      const outcome = await callTool(rig, 'claim_ticket', args)
+      expect(outcome.isError).toBe(false)
+      expect(api.calls).toEqual([{ name: 'claimTicket', input: args }])
+    })
+  })
+
+  it.each([
+    ['register_host with an unknown effort', 'register_host', { ...HOST, models: [{ ...HOST.models[0], efforts: ['max'] }] }],
+    ['claim_ticket with an unknown effort', 'claim_ticket', { runId: RUN, ticketId: TICKET, worker: { label: 'w', effort: 'max' } }]
+  ])('rejects %s without calling the command', async (_label, tool, args) => {
+    const api = createCannedApi({ registerHost: MARKER, claimTicket: MARKER })
+    await inRig(api, async (rig) => {
+      const outcome = await callTool(rig, tool, args)
+      expect(outcome.isError).toBe(true)
+      expect(api.calls).toEqual([])
+    })
+  })
+
+  it('tells orchestrators about efforts in the register_host and claim_ticket descriptions', async () => {
+    await inRig(createCannedApi({}), async (rig) => {
+      const { tools } = await rig.client.listTools()
+      const described = Object.fromEntries(tools.map((tool) => [tool.name, tool.description ?? '']))
+      expect(described['register_host']).toContain('efforts')
+      expect(described['claim_ticket']).toContain('effort')
+      expect(described['claim_ticket']).toContain('execution packet')
+    })
+  })
+})

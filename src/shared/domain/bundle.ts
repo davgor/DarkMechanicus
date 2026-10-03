@@ -25,6 +25,23 @@ export type WorkType = (typeof WORK_TYPES)[number]
 export const REASONING_LEVELS = ['routine', 'multi_step', 'deep'] as const
 export type ReasoningLevel = (typeof REASONING_LEVELS)[number]
 
+/**
+ * How hard a worker should think, separate from the reasoning level a model must be capable of.
+ * Provider-neutral: a host maps each effort onto whatever knob its models offer.
+ */
+export const REASONING_EFFORTS = ['low', 'medium', 'high'] as const
+export type ReasoningEffort = (typeof REASONING_EFFORTS)[number]
+
+/**
+ * How big a ticket is, smallest to largest.
+ * micro: one obvious change in one or two files, one targeted test, no design choice.
+ * small: one coherent change inside one module.
+ * medium: several modules, or one real design choice.
+ * large: should usually be split.
+ */
+export const TICKET_SIZES = ['micro', 'small', 'medium', 'large'] as const
+export type TicketSize = (typeof TICKET_SIZES)[number]
+
 export const MODALITIES = ['text', 'images'] as const
 export type Modality = (typeof MODALITIES)[number]
 
@@ -44,7 +61,8 @@ export type ToolCapability = (typeof TOOL_CAPABILITIES)[number]
  */
 export interface CapabilityProfile {
   workType: WorkType
-  reasoning: { level: ReasoningLevel; rationale: string }
+  /** `level` is what the model must be capable of (a floor); `effort` is how hard it should think. */
+  reasoning: { level: ReasoningLevel; rationale: string; effort?: ReasoningEffort }
   skills: string[]
   modalities: Modality[]
   tools: ToolCapability[]
@@ -64,10 +82,13 @@ export interface CapabilityProfile {
   }
 }
 
-/** A partial edit of a capability profile: any group may be given, each group partially. */
+/**
+ * A partial edit of a capability profile: any group may be given, each group partially.
+ * `reasoning.effort: null` clears the effort (the stored profile then has no `effort` key).
+ */
 export interface CapabilityPatch {
   workType?: WorkType
-  reasoning?: Partial<CapabilityProfile['reasoning']>
+  reasoning?: Partial<Omit<CapabilityProfile['reasoning'], 'effort'>> & { effort?: ReasoningEffort | null }
   skills?: string[]
   modalities?: Modality[]
   tools?: ToolCapability[]
@@ -101,6 +122,8 @@ export interface TicketContent {
   acceptanceCriteria: Criterion[]
   tags: string[]
   priority: TicketPriority
+  /** Absent until a planner sizes the ticket; never defaulted, so older plans keep their content hash. */
+  size?: TicketSize
   capability: CapabilityProfile
   references: TicketReference[]
   expectedArtifacts: string[]

@@ -173,3 +173,48 @@ describe('planning tool descriptions', () => {
     })
   })
 })
+
+describe('update_plan_draft with ticket size and reasoning effort', () => {
+  const OPS_WITH_SIZE = [
+    {
+      op: 'add_ticket',
+      ref: 'a',
+      sprint: '1',
+      ticket: { title: 'Tiny', size: 'micro', capability: { reasoning: { level: 'routine', effort: 'low' } } }
+    },
+    { op: 'update_ticket', ticket: 'DM-2', patch: { size: 'medium', capability: { reasoning: { effort: 'high' } } } }
+  ]
+
+  it('forwards the size and effort of added and updated tickets', async () => {
+    const api = createCannedApi({ updatePlanDraft: MARKER })
+    await inRig(api, async (rig) => {
+      const outcome = await callTool(rig, 'update_plan_draft', { epicId: EPIC, ops: OPS_WITH_SIZE })
+      expect(outcome.isError).toBe(false)
+      expect(api.calls).toEqual([{ name: 'updatePlanDraft', input: { epicId: EPIC, ops: OPS_WITH_SIZE } }])
+    })
+  })
+
+  it.each([
+    ['an unknown size', { op: 'update_ticket', ticket: 'DM-2', patch: { size: 'tiny' } }],
+    ['an unknown effort', { op: 'update_ticket', ticket: 'DM-2', patch: { capability: { reasoning: { effort: 'max' } } } }]
+  ])('rejects %s without calling the command', async (_label, op) => {
+    const api = createCannedApi({ updatePlanDraft: MARKER })
+    await inRig(api, async (rig) => {
+      const outcome = await callTool(rig, 'update_plan_draft', { epicId: EPIC, ops: [op] })
+      expect(outcome.isError).toBe(true)
+      expect(api.calls).toEqual([])
+    })
+  })
+
+  it('mentions both fields in the tool description, and the new validation warnings in validate_plan', async () => {
+    await inRig(createCannedApi({}), async (rig) => {
+      const { tools } = await rig.client.listTools()
+      const update = tools.find((tool) => tool.name === 'update_plan_draft')
+      expect(update?.description).toContain('size')
+      expect(update?.description).toContain('reasoning.effort')
+      const validate = tools.find((tool) => tool.name === 'validate_plan')
+      expect(validate?.description).toContain('large')
+      expect(validate?.description).toContain('micro')
+    })
+  })
+})

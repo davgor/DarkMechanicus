@@ -18,7 +18,7 @@
       "cost": null,
       "latency": null,
       "modelOverride": null,
-      "quality": "high"
+      "quality": null
     },
     "reasoning": {
       "level": "multi_step",
@@ -43,5 +43,5 @@
   "format": "darkmechanicus.profile",
   "formatVersion": 1,
   "name": "core-implementation",
-  "updatedAt": "2026-10-01T15:16:32.699Z"
+  "updatedAt": "2026-10-03T21:51:43.073Z"
 }

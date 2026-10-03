@@ -21,6 +21,7 @@ import {
   historyItems,
   linkRows,
   metaLine,
+  sizeAndEffortRows,
   statePill
 } from './ticketView'
 
@@ -227,5 +228,56 @@ describe('attempt cards (2)', () => {
       kindLabel: '',
       failure: ''
     })
+  })
+})
+
+describe('size and effort rows', () => {
+  it('shows ticket size when present', () => {
+    const sized = ticket('DM-1', 'x', { size: 'small' })
+    expect(sizeAndEffortRows(sized, IMPORT.capability)).toEqual([
+      { label: 'Size', value: 'Small', note: '' }
+    ])
+  })
+
+  it('shows reasoning effort, quality and cost when present', () => {
+    const profile: typeof IMPORT.capability = {
+      ...IMPORT.capability,
+      reasoning: { ...IMPORT.capability.reasoning, effort: 'high' },
+      preferences: { ...IMPORT.capability.preferences, quality: 'high', cost: 'low' }
+    }
+    const rows = sizeAndEffortRows(IMPORT, profile)
+    expect(rows).toContainEqual({ label: 'Effort', value: 'High', note: '' })
+    expect(rows).toContainEqual({ label: 'Quality', value: 'High', note: '' })
+    expect(rows).toContainEqual({ label: 'Cost', value: 'Low', note: '' })
+  })
+
+  it('omits empty size, effort, quality and cost fields', () => {
+    const profile = {
+      ...IMPORT.capability,
+      preferences: { ...IMPORT.capability.preferences, quality: null, cost: null }
+    }
+    const rows = sizeAndEffortRows(IMPORT, profile)
+    expect(rows).not.toContainEqual(expect.objectContaining({ label: 'Size' }))
+    expect(rows).not.toContainEqual(expect.objectContaining({ label: 'Effort' }))
+    expect(rows).not.toContainEqual(expect.objectContaining({ label: 'Quality' }))
+    expect(rows).not.toContainEqual(expect.objectContaining({ label: 'Cost' }))
+  })
+})
+
+describe('attempt cards with effort', () => {
+  it('shows the effort the worker was dispatched at', () => {
+    const withEffort = attempt('DM-202', 1, 'submitted', {
+      worker: { ...SAMPLE_ATTEMPTS[2]?.worker, effort: 'medium' }
+    })
+    const card = attemptCards([withEffort], NOW)[0]
+    expect(card?.worker).toContain('effort medium')
+  })
+
+  it('omits effort when not set', () => {
+    const noEffort = attempt('DM-202', 1, 'submitted', {
+      worker: { ...SAMPLE_ATTEMPTS[2]?.worker, effort: null }
+    })
+    const card = attemptCards([noEffort], NOW)[0]
+    expect(card?.worker).not.toContain('effort')
   })
 })

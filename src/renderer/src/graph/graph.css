@@ -114,6 +114,35 @@
   color: var(--ink-2);
 }
 
+/*
+ * Size badge: a tag on the bottom edge of the card, so the state label and the title keep their whole width.
+ * Quiet outlined pill for most sizes; micro is a filled brass pill, so the smallest tickets stand out at a glance.
+ */
+.pg-size {
+  position: absolute;
+  right: 12px;
+  bottom: -8px;
+  box-sizing: border-box;
+  height: 15px;
+  padding: 0 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  line-height: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  background: var(--panel-3);
+}
+
+.pg-size.is-micro {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  background: var(--accent);
+  font-weight: 700;
+}
+
 .pg-card-title {
   font-size: 13.5px;
   line-height: 18px;

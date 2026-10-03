@@ -669,3 +669,35 @@ describe('buildProfileRecord', () => {
     expect(trackedProfileHash(`${text} `)).not.toBe(trackedProfileHash(text))
   })
 })
+
+describe('run history worker efforts', () => {
+  function runWith(worker: Record<string, unknown>): Db {
+    const db = seededDb()
+    insertRun(db, { id: RUN, epicId: EPIC, revisionId: REV })
+    insertAttempt(db, { id: idOf('attempt', 1), runId: RUN, ticketId: tid(1), revisionId: REV, worker })
+    return db
+  }
+
+  it('exports the effort a worker ran at and parses it back', () => {
+    const record = buildRunHistoryRecord(runWith({ label: 'w', modelId: 'm', effort: 'low' }), RUN)
+    expect(record.attempts[0]?.worker.effort).toBe('low')
+    expect(parseRecord(runHistoryRecord, prettyJson(record), 'run.json')).toEqual(record)
+  })
+
+  it('exports a claim that recorded no effort as null', () => {
+    const record = buildRunHistoryRecord(runWith({ label: 'w', effort: null }), RUN)
+    expect(record.attempts[0]?.worker.effort).toBeNull()
+  })
+
+  it('leaves a worker stored before efforts existed without an effort, so its bytes do not change', () => {
+    const record = buildRunHistoryRecord(runWith({ label: 'w', modelId: 'm' }), RUN)
+    expect(Object.keys(record.attempts[0]?.worker ?? {})).not.toContain('effort')
+    expect(prettyJson(record)).not.toContain('effort')
+  })
+
+  it('refuses to export, and refuses to import, an effort that is not low, medium or high', () => {
+    expect(domainErrorOf(() => buildRunHistoryRecord(runWith({ label: 'w', effort: 'extreme' }), RUN)).code).toBe('internal')
+    const text = prettyJson(runRecord([{ ...(attempt(1, 1, 'accepted') as object), worker: { label: 'w', effort: 'extreme' } }]))
+    expect(domainErrorOf(() => parseRecord(runHistoryRecord, text, 'run.json')).code).toBe('import_rejected')
+  })
+})

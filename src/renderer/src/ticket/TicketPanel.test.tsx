@@ -382,3 +382,55 @@ describe('ticket panel comment form', () => {
     expect(screen.getByText('Comments on a completed epic are read-only.').tagName).toBe('P')
   })
 })
+
+/** DM-202 sized micro, with an effort and an inherited quality and cost. */
+function intenseDetail(): ReturnType<typeof ticketDetail> {
+  const base = ticketDetail()
+  const capability = {
+    ...base.ticket.capability,
+    reasoning: { ...base.ticket.capability.reasoning, effort: 'high' as const },
+    preferences: { ...base.ticket.capability.preferences, quality: 'high' as const, cost: 'low' as const }
+  }
+  return { ...base, ticket: { ...base.ticket, size: 'micro' as const, capability } }
+}
+
+function profileRows(profile: HTMLElement): [string, string][] {
+  return [...profile.querySelectorAll('.tp-profile-row')].map((row) => [
+    row.querySelector('dt')?.textContent ?? '',
+    row.querySelector('dd')?.textContent ?? ''
+  ])
+}
+
+describe('ticket panel size, effort, quality and cost', () => {
+  it('shows the size, reasoning level, effort, quality and cost in the capability profile', async () => {
+    renderPanel(new FakeBackend(scenario({ ticket: intenseDetail() })))
+    const rows = profileRows(await screen.findByLabelText('Capability profile'))
+    expect(rows).toContainEqual(['Size', 'Micro'])
+    expect(rows).toContainEqual(['Reasoning', 'Multi-step · transaction and outbox ordering'])
+    expect(rows).toContainEqual(['Effort', 'High'])
+    expect(rows).toContainEqual(['Quality', 'High'])
+    expect(rows).toContainEqual(['Cost', 'Low'])
+  })
+
+  it('shows nothing extra for a ticket without a size, effort, quality or cost', async () => {
+    renderPanel(new FakeBackend())
+    const labels = profileRows(await screen.findByLabelText('Capability profile')).map(([label]) => label)
+    expect(labels).toEqual(['Work type', 'Reasoning', 'Tools', 'Modalities', 'Context'])
+  })
+
+  it('shows the model and effort each attempt was claimed with', async () => {
+    const first = attempt('DM-202', 1, 'submitted')
+    const second = attempt('DM-202', 2, 'failed')
+    const claimed = { ...first, worker: { ...first.worker, effort: 'medium' as const } }
+    const unrecorded = { ...second, worker: { ...second.worker, effort: null } }
+    renderPanel(new FakeBackend(scenario({ ticket: ticketDetail({ attempts: [claimed, unrecorded] }) })))
+    fireEvent.click(await screen.findByRole('tab', { name: 'Attempts (2)' }))
+    const cards = screen.getAllByRole('listitem').filter((item) => item.className.startsWith('tp-attempt'))
+    expect(within(cards[1] as HTMLElement).getByText(/^worker-a · model model-large/).textContent).toBe(
+      'worker-a · model model-large · host claude-code · effort medium'
+    )
+    expect(within(cards[0] as HTMLElement).getByText(/^worker-a · model model-large/).textContent).toBe(
+      'worker-a · model model-large · host claude-code'
+    )
+  })
+})

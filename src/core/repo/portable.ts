@@ -4,6 +4,7 @@
  * from local database rows, so the finalizer never writes a record the importer would reject.
  */
 import { z } from 'zod'
+import { REASONING_EFFORTS } from '../../shared/domain/bundle'
 import { ATTEMPT_STATES, OPEN_ATTEMPT_STATES, RUN_STATES } from '../../shared/domain/status'
 import type { SessionRole } from '../../shared/domain/views'
 import { contentHash } from '../canonical'
@@ -125,7 +126,9 @@ const workerInfo = z.strictObject({
   modelId: label.nullable().default(null),
   hostId: label.nullable().default(null),
   catalogRevision: label.nullable().default(null),
-  rationale: shortText.nullable().default(null)
+  rationale: shortText.nullable().default(null),
+  // No default: run history written before efforts existed must parse and re-export byte for byte.
+  effort: z.enum(REASONING_EFFORTS).nullable().optional()
 })
 
 const attemptOutputs = z.strictObject({

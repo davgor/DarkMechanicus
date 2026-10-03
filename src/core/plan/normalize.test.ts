@@ -534,3 +534,101 @@ describe('maxKeyNumber', () => {
     expect(maxKeyNumber(makeBundle([[1, 5, 2]]).tickets.map((ticket) => ticket.key))).toBe(5)
   })
 })
+
+describe('ticket size and reasoning effort', () => {
+  it('builds a ticket with the size and effort it was given', () => {
+    const ticket = buildTicket({ title: 'Tiny', size: 'micro', capability: { reasoning: { level: 'routine', effort: 'low' } } }, IDENTITY)
+    expect(ticket.size).toBe('micro')
+    expect(ticket.capability.reasoning).toEqual({ level: 'routine', rationale: '', effort: 'low' })
+  })
+
+  it('builds a ticket without a size or an effort when none is given', () => {
+    const ticket = buildTicket({ title: 'Plain' }, IDENTITY)
+    expect(Object.keys(ticket)).not.toContain('size')
+    expect(Object.keys(ticket.capability.reasoning)).not.toContain('effort')
+  })
+
+  it('patches the size and keeps it through unrelated patches', () => {
+    const base = makeTicket(1)
+    const sized = patchTicket(base, { size: 'large' })
+    expect(sized.size).toBe('large')
+    expect(patchTicket(sized, { title: 'Renamed' }).size).toBe('large')
+    expect(patchTicket(sized, { size: 'small' }).size).toBe('small')
+    expect(Object.keys(patchTicket(base, { title: 'Renamed' }))).not.toContain('size')
+  })
+
+  it('patches the effort without losing the reasoning level and rationale', () => {
+    const base = makeTicket(1, { capability: mergeCapability(defaultCapabilityProfile(), { reasoning: { level: 'deep', rationale: 'hard' } }) })
+    const patched = patchTicket(base, { capability: { reasoning: { effort: 'high' } } })
+    expect(patched.capability.reasoning).toEqual({ level: 'deep', rationale: 'hard', effort: 'high' })
+    expect(patchTicket(patched, { capability: { reasoning: { level: 'routine' } } }).capability.reasoning).toEqual({
+      level: 'routine',
+      rationale: 'hard',
+      effort: 'high'
+    })
+  })
+
+  it('does not modify the original ticket when it patches a size or an effort', () => {
+    const original = makeTicket(1)
+    patchTicket(original, { size: 'micro', capability: { reasoning: { effort: 'low' } } })
+    expect(original).toEqual(makeTicket(1))
+  })
+})
+
+describe('clearing a ticket size and reasoning effort with null', () => {
+  const sizedAndEffortful = (): TicketContent =>
+    makeTicket(1, {
+      size: 'small',
+      capability: mergeCapability(defaultCapabilityProfile(), { reasoning: { level: 'deep', rationale: 'hard', effort: 'high' } })
+    })
+
+  it('removes the size key from a patched ticket, never storing null', () => {
+    const cleared = patchTicket(sizedAndEffortful(), { size: null })
+    expect(Object.keys(cleared)).not.toContain('size')
+    expect(JSON.stringify(cleared)).not.toContain('"size"')
+    expect(cleared.title).toBe(sizedAndEffortful().title)
+  })
+
+  it('removes the effort key and keeps the reasoning level and rationale', () => {
+    const cleared = patchTicket(sizedAndEffortful(), { capability: { reasoning: { effort: null } } })
+    expect(cleared.capability.reasoning).toEqual({ level: 'deep', rationale: 'hard' })
+    expect(Object.keys(cleared.capability.reasoning)).not.toContain('effort')
+    expect(cleared.size).toBe('small')
+  })
+
+  it('clears the size and the effort in one patch together with other reasoning edits', () => {
+    const cleared = patchTicket(sizedAndEffortful(), {
+      size: null,
+      capability: { reasoning: { level: 'routine', effort: null } }
+    })
+    expect(Object.keys(cleared)).not.toContain('size')
+    expect(cleared.capability.reasoning).toEqual({ level: 'routine', rationale: 'hard' })
+  })
+
+  it('leaves a ticket that has no size or effort exactly as it was', () => {
+    const base = makeTicket(1)
+    const cleared = patchTicket(base, { size: null, capability: { reasoning: { effort: null } } })
+    expect(cleared).toEqual(base)
+    expect(Object.keys(cleared)).not.toContain('size')
+    expect(Object.keys(cleared.capability.reasoning)).not.toContain('effort')
+  })
+
+  it('does not modify the original ticket when it clears a size or an effort', () => {
+    const original = sizedAndEffortful()
+    patchTicket(original, { size: null, capability: { reasoning: { effort: null } } })
+    expect(original).toEqual(sizedAndEffortful())
+  })
+
+  it('merges a null effort out of a profile without storing it', () => {
+    const base = mergeCapability(defaultCapabilityProfile(), { reasoning: { effort: 'low' } })
+    const merged = mergeCapability(base, { reasoning: { effort: null } })
+    expect(Object.keys(merged.reasoning)).not.toContain('effort')
+    expect(base.reasoning.effort).toBe('low')
+  })
+
+  it('builds a ticket without a size or an effort when the input clears them', () => {
+    const ticket = buildTicket({ title: 'Plain', size: null, capability: { reasoning: { effort: null } } }, IDENTITY)
+    expect(Object.keys(ticket)).not.toContain('size')
+    expect(Object.keys(ticket.capability.reasoning)).not.toContain('effort')
+  })
+})

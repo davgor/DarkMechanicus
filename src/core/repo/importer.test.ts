@@ -602,3 +602,22 @@ describe('reconcileRepository on disk', () => {
     expect(target.db.get('SELECT current_revision_id FROM epics')).toEqual({ current_revision_id: R1 })
   })
 })
+
+describe('reconcileRepository worker efforts', () => {
+  it('keeps the effort a worker ran at, and adds none to a worker recorded before efforts existed', () => {
+    const source = createRepoEnv({ root: '/source' })
+    initProject(source)
+    saveRevision(source, { epicId: EPIC, revisionId: R1, number: 1, bundle: BUNDLE_1 })
+    insertRun(source.db, { id: RUN, epicId: EPIC, revisionId: R1, ownerMachineId: SOURCE_MACHINE })
+    insertAttempt(source.db, { id: A1, runId: RUN, ticketId: tid(1), revisionId: R1, worker: { label: 'w', modelId: 'm', effort: 'medium' } })
+    insertAttempt(source.db, { id: A2, runId: RUN, ticketId: tid(2), revisionId: R1, worker: { label: 'old', modelId: 'm' } })
+    insertOutbox(source.db, { kind: 'run_history', epicId: EPIC, runId: RUN })
+    flush(source)
+    const target = cloneOf(source)
+    reconcileRepository(importerDeps(target, createStubGit('main')))
+    const efforts = target.db
+      .all<{ id: string; worker_json: string }>('SELECT id, worker_json FROM attempts ORDER BY id')
+      .map((row) => [row.id, (JSON.parse(row.worker_json) as { effort?: string }).effort])
+    expect(efforts).toEqual([[A1, 'medium'], [A2, undefined]])
+  })
+})

@@ -5,7 +5,7 @@
  * and columns follow the barycenter of each ticket's prerequisites to reduce crossings.
  */
 import type { ChangeKind, CriterionResult, PlanView, RunView, TicketExecutionView } from '../../../shared/domain/views'
-import type { DependencyEdge, PlanBundle, SprintDef, TicketContent } from '../../../shared/domain/bundle'
+import type { DependencyEdge, PlanBundle, SprintDef, TicketContent, TicketSize } from '../../../shared/domain/bundle'
 import { isActiveRunState, type WorkStatus } from '../../../shared/domain/status'
 import { sprintLabelSize, type SprintLabelSize } from './sprintLabel'
 import { DASHED_EXECUTION, EXECUTION_LABELS, EXECUTION_TONES, STATUS_LABELS, STATUS_TONES, type Tone } from './ticketStates'
@@ -97,7 +97,10 @@ export interface TicketNodeModel extends Box {
   label: string
   tone: Tone
   dashed: boolean
+  /** A rejected dependency edit's annotation (never the size, which has its own field). */
   note: string | null
+  /** The ticket's size for the card badge; null when the ticket has none. */
+  size: TicketSize | null
 }
 
 export type GraphNode = EpicNodeModel | SprintNodeModel | DividerNodeModel | TicketNodeModel
@@ -477,6 +480,7 @@ function ticketNode(context: Context, id: string, frame: Frame): TicketNodeModel
     tone: badge.tone,
     dashed: badge.dashed,
     note: noteFor(context, id),
+    size: content.size ?? null,
     x: FIRST_COLUMN_X + placement.column * COLUMN_PITCH,
     y: frame.top + placement.row * ROW_PITCH,
     width: CARD_WIDTH,

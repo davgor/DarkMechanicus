@@ -18,7 +18,8 @@ import {
   type GraphInput,
   type GraphModel,
   type GraphNode,
-  type SprintNodeModel
+  type SprintNodeModel,
+  type TicketNodeModel
 } from './graphModel'
 
 function input(patch: Partial<GraphInput> = {}): GraphInput {
@@ -536,5 +537,47 @@ describe('sprint labels with short goals and details', () => {
     const model = buildGraphModel(withSprints(sprints, [], LABEL_TICKETS))
     expect(sprintNode(model, 'sp_2').labelHeight).toBe(18 + 18 + 18)
     expect(sprintNode(model, 'sp_2').height).toBe(72)
+  })
+})
+
+function ticketNodeOf(model: GraphModel, id: string): TicketNodeModel {
+  const found = node(model, id)
+  if (found.kind !== 'ticket') {
+    throw new Error(`${id} is not a ticket`)
+  }
+  return found
+}
+
+describe('size on ticket nodes', () => {
+  const sized = (): GraphModel => {
+    const tickets = [ticket('DM-1', 'test', { size: 'small' }), ticket('DM-2', 'tiny', { size: 'micro' }), ticket('DM-3', 'plain')]
+    return buildGraphModel(withSprints([sprint(1, 'Test', ['tk_1', 'tk_2', 'tk_3'])], [], tickets))
+  }
+
+  it('carries the size in its own field and leaves the note empty', () => {
+    const model = sized()
+    expect(ticketNodeOf(model, 'tk_1')).toMatchObject({ size: 'small', note: null })
+    expect(ticketNodeOf(model, 'tk_2')).toMatchObject({ size: 'micro', note: null })
+  })
+
+  it('carries a null size for a ticket without one', () => {
+    expect(ticketNodeOf(sized(), 'tk_3')).toMatchObject({ size: null, note: null })
+    expect(ticketNodeOf(buildGraphModel(input()), 'tk_101').size).toBe(null)
+  })
+
+  it('keeps the rejection notes of sized tickets beside their sizes', () => {
+    const plan = draftPlan()
+    const tickets = plan.bundle.tickets.map((item) =>
+      item.id === 'tk_203' ? { ...item, size: 'micro' as const } : item.id === 'tk_301' ? { ...item, size: 'large' as const } : item
+    )
+    const rejected = buildGraphModel(
+      input({ mode: 'draft', plan: { ...plan, bundle: { ...plan.bundle, tickets } }, rejected: { from: 'tk_301', to: 'tk_203' } })
+    )
+    expect(ticketNodeOf(rejected, 'tk_203')).toMatchObject({ tone: 'rejected', size: 'micro', note: 'Rejected: would require DM-301' })
+    expect(ticketNodeOf(rejected, 'tk_301')).toMatchObject({
+      tone: 'rejected',
+      size: 'large',
+      note: 'Rejected as prerequisite of DM-203'
+    })
   })
 })

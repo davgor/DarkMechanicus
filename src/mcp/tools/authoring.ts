@@ -124,7 +124,7 @@ const AUTHORING_TOOLS = [
   defineTool({
     name: 'list_tickets',
     description:
-      'Lists an epic\'s tickets with key, title, status, sprint, priority, and tags. view "saved" (default) is what execution uses; "draft" includes unsaved edits.',
+      'Lists an epic\'s tickets with key, title, status, sprint, priority, size (when set), reasoning effort (when set), and tags. view "saved" (default) is what execution uses; "draft" includes unsaved edits.',
     kind: 'read',
     input: { epicId, view: view.default('saved') },
     run: (api, input) => api.listTickets(input)
@@ -132,7 +132,7 @@ const AUTHORING_TOOLS = [
   defineTool({
     name: 'get_ticket',
     description:
-      'Returns one ticket: Markdown body, acceptance criteria, capability profile, prerequisites, dependents, and (saved view) execution state and attempts. ticketId accepts a stable id or a display key such as DM-12.',
+      'Returns one ticket: Markdown body, acceptance criteria, size (when set), capability profile (including reasoning.effort when set), prerequisites, dependents, and (saved view) execution state and attempts. ticketId accepts a stable id or a display key such as DM-12.',
     kind: 'read',
     input: { epicId, ticketId: ticketRef, view: view.default('saved') },
     run: (api, input) => api.getTicket(input)
@@ -141,7 +141,7 @@ const AUTHORING_TOOLS = [
     name: 'create_ticket',
     command: 'updatePlanDraft',
     description:
-      'Convenience: adds one ticket to the epic DRAFT in a single atomic update. sprint is a sprint number ("1"), id, or client ref. requires lists prerequisites (ids or keys): the new ticket needs their accepted results, and prerequisites must sit in the same or an earlier sprint. Returns the new ticketId, the draftRevision, and validation. Nothing executes until save_plan.',
+      'Convenience: adds one ticket to the epic DRAFT in a single atomic update. sprint is a sprint number ("1"), id, or client ref. requires lists prerequisites (ids or keys): the new ticket needs their accepted results, and prerequisites must sit in the same or an earlier sprint. Returns the new ticketId, the draftRevision, and validation. Optional ticket.size (micro, small, medium, large) says how big the ticket is, and ticket.capability.reasoning.effort (low, medium, high) how hard the worker should think; neither is defaulted. Nothing executes until save_plan.',
     kind: 'write',
     input: CREATE_TICKET_INPUT,
     run: createTicket
@@ -150,7 +150,7 @@ const AUTHORING_TOOLS = [
     name: 'update_ticket',
     command: 'updatePlanDraft',
     description:
-      'Edits a ticket in the DRAFT; only the fields in patch change (capability groups merge one level deep). Keep criterion ids in acceptanceCriteria to preserve evidence mappings. The saved plan is unchanged until save_plan.',
+      'Edits a ticket in the DRAFT; only the fields in patch change (capability groups merge one level deep). Keep criterion ids in acceptanceCriteria to preserve evidence mappings. patch.size (micro, small, medium, large) and patch.capability.reasoning.effort (low, medium, high) set the size and the effort of the ticket; a change shows up in the changes of the draft. The saved plan is unchanged until save_plan.',
     kind: 'write',
     input: UPDATE_TICKET_INPUT,
     run: (api, input) =>

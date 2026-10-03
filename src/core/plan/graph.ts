@@ -321,6 +321,27 @@ function contentWarnings(bundle: PlanBundle, index: BundleIndex): ValidationIssu
   return warnings
 }
 
+/** A ticket sized large should usually be split; a micro ticket that needs deep reasoning contradicts itself. */
+function sizeWarnings(bundle: PlanBundle): ValidationIssue[] {
+  const warnings: ValidationIssue[] = []
+  for (const ticket of bundle.tickets) {
+    if (ticket.size === 'large') {
+      warnings.push({
+        code: 'large_ticket',
+        message: `${ticket.key} is sized large; consider splitting it into smaller tickets.`,
+        ticketIds: [ticket.id]
+      })
+    } else if (ticket.size === 'micro' && ticket.capability.reasoning.level === 'deep') {
+      warnings.push({
+        code: 'micro_ticket_deep_reasoning',
+        message: `${ticket.key} is sized micro but needs deep reasoning; check the size or the reasoning level.`,
+        ticketIds: [ticket.id]
+      })
+    }
+  }
+  return warnings
+}
+
 /** Validates the whole plan as a DAG with sprint ordering; errors block Save, warnings do not. */
 export function validatePlan(bundle: PlanBundle): ValidationReport {
   const index = indexBundle(bundle)
@@ -333,7 +354,7 @@ export function validatePlan(bundle: PlanBundle): ValidationReport {
     ...criterionIssues(bundle),
     ...policyIssues(bundle)
   ]
-  const warnings = [...isolationWarnings(bundle), ...contentWarnings(bundle, index)]
+  const warnings = [...isolationWarnings(bundle), ...contentWarnings(bundle, index), ...sizeWarnings(bundle)]
   return { valid: errors.length === 0, errors, warnings }
 }
 

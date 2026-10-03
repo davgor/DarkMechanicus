@@ -4,7 +4,7 @@
  * carry-forward of work completed earlier.
  */
 import type { ClaimTicketInput, SubmitAttemptInput } from '../../shared/domain/api'
-import type { EpicBranch, TicketContent } from '../../shared/domain/bundle'
+import type { EpicBranch, ReasoningEffort, TicketContent } from '../../shared/domain/bundle'
 import type { DomainErrorCode } from '../../shared/domain/errors'
 import {
   isActiveRunState,
@@ -189,6 +189,22 @@ function checkWorkerModel(ticket: TicketContent, catalog: HostCatalog | null, mo
   })
 }
 
+/**
+ * An effort named on a claim must be one the model declares it can run at. A model that declares no
+ * efforts accepts any, and without a model or a run catalog there is nothing to check against.
+ */
+function checkWorkerEffort(catalog: HostCatalog | null, worker: ClaimTicketInput['worker']): void {
+  const { modelId, effort } = worker
+  if (!modelId || !effort || catalog === null) {
+    return
+  }
+  const declared = catalog.models.find((model) => model.id === modelId)?.efforts ?? []
+  if (declared.length > 0 && !declared.includes(effort)) {
+    const message = `Model "${modelId}" does not run at "${effort}" effort; it declares ${declared.join(', ')}.`
+    fail('unsupported_capability', message, { modelId, effort, declaredEfforts: declared })
+  }
+}
+
 function workerInfo(ctx: Ctx, worker: ClaimTicketInput['worker'], catalog: HostCatalog | null): WorkerInfo {
   return {
     sessionId: ctx.session.id,
@@ -196,7 +212,8 @@ function workerInfo(ctx: Ctx, worker: ClaimTicketInput['worker'], catalog: HostC
     modelId: worker.modelId ?? null,
     hostId: worker.hostId ?? catalog?.hostId ?? null,
     catalogRevision: worker.catalogRevision ?? catalog?.catalogRevision ?? null,
-    rationale: worker.rationale ?? null
+    rationale: worker.rationale ?? null,
+    effort: worker.effort ?? null
   }
 }
 
@@ -218,6 +235,7 @@ interface PacketParts {
   view: TicketExecutionView
   secret: string
   leaseSeconds: number
+  effort: ReasoningEffort | null
 }
 
 function executionPacket(ctx: Ctx, parts: PacketParts): ExecutionPacket {
@@ -240,6 +258,7 @@ function executionPacket(ctx: Ctx, parts: PacketParts): ExecutionPacket {
     sprint: { id: view.sprintId, ordinal: sprint?.ordinal ?? 0, goal: sprint?.goal ?? '' },
     ticket: ticketOf(context.bundle, row.ticket_id),
     ticketContentHash: row.ticket_content_hash,
+    effort: parts.effort,
     predecessors: predecessorsOf(context, view),
     reporting: REPORTING
   }
@@ -251,6 +270,8 @@ function claimReadyTicket(ctx: Ctx, context: RunContext, input: ClaimTicketInput
   const view = claimableView(executionOf(context), ticket)
   const catalog = runCatalog(ctx, run)
   checkWorkerModel(ticket, catalog, input.worker.modelId)
+  checkWorkerEffort(catalog, input.worker)
+  const worker = workerInfo(ctx, input.worker, catalog)
   const leaseSeconds = input.leaseSeconds ?? bundle.policies.leaseSeconds
   const secret = ctx.ids.secret()
   const row = insertAttempt(ctx, {
@@ -258,7 +279,7 @@ function claimReadyTicket(ctx: Ctx, context: RunContext, input: ClaimTicketInput
     ticket,
     kind: 'work',
     state: 'claimed',
-    worker: workerInfo(ctx, input.worker, catalog),
+    worker,
     claimSecret: secret,
     leaseExpiresAt: addSeconds(ctx.clock.nowIso(), leaseSeconds),
     outputs: null,
@@ -269,7 +290,8 @@ function claimReadyTicket(ctx: Ctx, context: RunContext, input: ClaimTicketInput
     kind: 'attempt.claimed',
     payload: { number: row.number, worker: input.worker.label, modelId: input.worker.modelId ?? null }
   })
-  return { attempt: attemptView(row), packet: executionPacket(ctx, { context, row, view, secret, leaseSeconds }) }
+  const packetParts = { context, row, view, secret, leaseSeconds, effort: worker.effort ?? null }
+  return { attempt: attemptView(row), packet: executionPacket(ctx, packetParts) }
 }
 
 /**

@@ -90,3 +90,20 @@ describe('renderer stylesheets', () => {
     expect(offenders).toEqual([])
   })
 })
+
+/** The declarations of the rule that starts with exactly this selector at the beginning of a line. */
+function declarationsOf(css: string, selector: string): string {
+  const start = css.indexOf(`
+${selector} {`)
+  return start < 0 ? '' : css.slice(start, css.indexOf('}', start))
+}
+
+describe('size badge styles', () => {
+  const graph = SHEETS['./graph/graph.css'] ?? ''
+
+  it('fills the micro badge from a different theme token than the other sizes', () => {
+    expect(declarationsOf(graph, '.pg-size')).toContain('background: var(--panel-3);')
+    expect(declarationsOf(graph, '.pg-size.is-micro')).toContain('background: var(--accent);')
+    expect(declarationsOf(graph, '.pg-size.is-micro')).toContain('color: var(--accent-ink);')
+  })
+})

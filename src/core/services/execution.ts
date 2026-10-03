@@ -88,7 +88,8 @@ const EMPTY_WORKER: WorkerInfo = {
   modelId: null,
   hostId: null,
   catalogRevision: null,
-  rationale: null
+  rationale: null,
+  effort: null
 }
 
 export function attemptView(row: AttemptRow): AttemptView {
@@ -100,7 +101,8 @@ export function attemptView(row: AttemptRow): AttemptView {
     kind: row.kind,
     state: row.state,
     fencingToken: row.fencing_token,
-    worker: parseJson<WorkerInfo>(row.worker_json, EMPTY_WORKER),
+    // A worker recorded before efforts existed has no effort key; it reads back as null.
+    worker: { ...EMPTY_WORKER, ...parseJson<Partial<WorkerInfo>>(row.worker_json, EMPTY_WORKER) },
     revisionId: row.revision_id,
     ticketContentHash: row.ticket_content_hash,
     leaseExpiresAt: row.lease_expires_at,

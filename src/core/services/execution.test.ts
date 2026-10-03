@@ -34,7 +34,8 @@ const worker: WorkerInfo = {
   modelId: 'm1',
   hostId: 'h1',
   catalogRevision: 'c1',
-  rationale: 'fits'
+  rationale: 'fits',
+  effort: 'medium'
 }
 const outputs: AttemptOutputs = { summary: 'done', artifacts: [], commits: ['abc1234'], changedFiles: ['a.ts'], branch: 'epic/x' }
 const evidence: AttemptEvidence = { checks: [{ name: 'unit', status: 'passed', detail: '' }], criteria: [], notes: 'ok' }

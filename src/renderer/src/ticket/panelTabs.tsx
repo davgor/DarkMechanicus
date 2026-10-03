@@ -5,7 +5,7 @@ import type { Runner } from '../epic/runner'
 import { StateLabel } from '../epic/StatePill'
 import { Markdown } from '../markdown/Markdown'
 import { loadHistory } from './ticketData'
-import { capabilityRows, criteriaChecklist, evidenceView, historyItems, linkRows, type LinkRow } from './ticketView'
+import { capabilityRows, criteriaChecklist, evidenceView, historyItems, linkRows, sizeAndEffortRows, type LinkRow } from './ticketView'
 
 function LinkList(props: { title: string; rows: LinkRow[]; onSelect(ticketId: string): void }): JSX.Element | null {
   if (props.rows.length === 0) {
@@ -47,12 +47,14 @@ function CriteriaChecklist({ detail }: { detail: TicketDetailView }): JSX.Elemen
 }
 
 function CapabilityProfile({ detail }: { detail: TicketDetailView }): JSX.Element {
-  const capability = detail.ticket.capability
+  const ticket = detail.ticket
+  const capability = ticket.capability
+  const allRows = [...sizeAndEffortRows(ticket, capability), ...capabilityRows(capability)]
   return (
     <section className="tp-section" aria-label="Capability profile">
       <h3 className="ew-eyebrow">CAPABILITY PROFILE</h3>
       <dl className="tp-profile">
-        {capabilityRows(capability).map((row) => (
+        {allRows.map((row) => (
           <div key={row.label} className="tp-profile-row">
             <dt>{row.label}</dt>
             <dd>

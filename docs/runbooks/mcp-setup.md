@@ -184,8 +184,8 @@ The agent session you talk to is the orchestrator. It plans epics, and when you 
 
 It never does a ticket itself. For each ready ticket it:
 
-1. Claims the ticket and picks the worker's model (`match_capabilities`, `claim_ticket`).
-2. Spins up a subagent as the worker, with the ticket's content and the worker guide ([`skills/worker.md`](../../skills/worker.md)).
+1. Claims the ticket and picks the worker's model and effort (the `recommended` result of `match_capabilities`, then `claim_ticket`).
+2. Spins up a subagent as the worker at that model and effort, with the ticket's content and the worker guide ([`skills/worker.md`](../../skills/worker.md)). In Claude Code, [Dispatch a worker in Claude Code](claude-code-host.md) has the model catalog and the agent definitions.
 3. Keeps the claim token and heartbeats while the subagent works, unless the subagent can make the reporting calls itself. Then it submits the subagent's outputs and evidence.
 4. Reviews the result against every acceptance criterion and accepts or rejects it.
 

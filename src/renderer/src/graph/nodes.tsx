@@ -19,6 +19,11 @@ function TicketNode({ data }: NodeProps<TicketFlowNode>): JSX.Element {
       <Handle type="target" position={Position.Top} isConnectable={data.editable} />
       <span className="pg-card-label">{card.label}</span>
       <span className="pg-card-title">{card.title}</span>
+      {card.size === null ? null : (
+        <span className={card.size === 'micro' ? 'pg-size is-micro' : 'pg-size'} title={`Size: ${card.size}`}>
+          {card.size}
+        </span>
+      )}
       <Handle type="source" position={Position.Bottom} isConnectable={data.editable} />
     </div>
   )

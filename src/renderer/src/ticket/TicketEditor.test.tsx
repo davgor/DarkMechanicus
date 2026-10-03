@@ -154,6 +154,81 @@ describe('ticket editor: fields', () => {
   })
 })
 
+/** A draft whose DM-202 is sized and carries an effort and an inherited quality and cost. */
+function intenseDraft(): ReturnType<typeof draftPlan> {
+  const draft = draftPlan()
+  const tickets = draft.bundle.tickets.map((item) =>
+    item.id === 'tk_202'
+      ? {
+          ...item,
+          size: 'small' as const,
+          capability: {
+            ...item.capability,
+            reasoning: { ...item.capability.reasoning, effort: 'high' as const },
+            preferences: { ...item.capability.preferences, quality: 'high' as const, cost: 'low' as const }
+          }
+        }
+      : item
+  )
+  return { ...draft, bundle: { ...draft.bundle, tickets } }
+}
+
+async function openIntense(): Promise<{ h: WorkspaceHarness; editor: HTMLElement }> {
+  const h = renderWorkspace(new FakeBackend(scenario({ epic: epicDetail({ hasDraft: true }), draft: intenseDraft() })))
+  fireEvent.click(await screen.findByRole('button', { name: 'View draft' }))
+  fireEvent.click(await screen.findByText('Transactional bundle import'))
+  return { h, editor: await screen.findByLabelText('Edit ticket DM-202') }
+}
+
+describe('ticket editor: size, effort, quality and cost', () => {
+  it('shows the size, effort, quality and cost the ticket has, including an inherited quality', async () => {
+    const { editor } = await openIntense()
+    expect([field(editor, 'Size').value, field(editor, 'Effort').value]).toEqual(['small', 'high'])
+    expect([field(editor, 'Quality').value, field(editor, 'Cost').value]).toEqual(['high', 'low'])
+  })
+
+  it('offers None for each, and a ticket without them starts on None', async () => {
+    const { editor } = await openEditor()
+    for (const label of ['Size', 'Effort', 'Quality', 'Cost']) {
+      expect(field(editor, label).value).toBe('')
+      expect(within(field(editor, label)).getByRole('option', { name: 'None' })).toBeTruthy()
+    }
+  })
+
+  it('applies each cleared to None as a patch the saved draft can carry', async () => {
+    const { h, editor } = await openIntense()
+    for (const label of ['Size', 'Effort', 'Quality', 'Cost']) {
+      fireEvent.change(field(editor, label), { target: { value: '' } })
+    }
+    fireEvent.click(within(editor).getByRole('button', { name: 'Apply' }))
+    await within(editor).findByText('Applied to the draft.')
+    const [ops] = opsOf(h) as { patch: { size: unknown; capability: unknown } }[][]
+    expect(ops?.[0]?.patch).toEqual({
+      size: null,
+      capability: {
+        reasoning: { level: 'multi_step', rationale: 'transaction and outbox ordering', effort: null },
+        preferences: { quality: null, latency: null, cost: null, autonomy: null, modelOverride: null }
+      }
+    })
+  })
+
+  it('applies a new size, effort, quality and cost', async () => {
+    const { h, editor } = await openEditor()
+    fireEvent.change(field(editor, 'Size'), { target: { value: 'micro' } })
+    fireEvent.change(field(editor, 'Effort'), { target: { value: 'low' } })
+    fireEvent.change(field(editor, 'Quality'), { target: { value: 'standard' } })
+    fireEvent.change(field(editor, 'Cost'), { target: { value: 'normal' } })
+    fireEvent.click(within(editor).getByRole('button', { name: 'Apply' }))
+    await within(editor).findByText('Applied to the draft.')
+    const [ops] = opsOf(h) as { patch: { size: unknown; capability: { preferences: unknown } } }[][]
+    expect(ops?.[0]?.patch.size).toBe('micro')
+    expect(ops?.[0]?.patch.capability).toMatchObject({
+      reasoning: { effort: 'low' },
+      preferences: { quality: 'standard', cost: 'normal' }
+    })
+  })
+})
+
 describe('ticket editor: header', () => {
   it('shows the draft change badge of the ticket being edited', async () => {
     renderWorkspace(new FakeBackend(scenario({ epic: epicDetail({ hasDraft: true }), draft: draftPlan() })))

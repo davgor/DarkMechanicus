@@ -260,3 +260,63 @@ describe('authoring input validation', () => {
     })
   })
 })
+
+describe('ticket size and reasoning effort tools', () => {
+  const SIZED = { title: 'Rename it', size: 'micro', capability: { reasoning: { level: 'routine', effort: 'low' } } }
+
+  it('create_ticket sends the size and effort in the add_ticket op', async () => {
+    const api = createCannedApi({ updatePlanDraft: DRAFT_RESULT })
+    await inRig(api, async (rig) => {
+      const outcome = await callTool(rig, 'create_ticket', { epicId: EPIC, ticket: SIZED })
+      expect(outcome.isError).toBe(false)
+      expect(opsSent(api)).toEqual([{ op: 'add_ticket', ref: 'new', sprint: '1', ticket: SIZED }])
+    })
+  })
+
+  it('update_ticket sends a size patch, and an effort patch that keeps the level untouched', async () => {
+    const api = createCannedApi({ updatePlanDraft: DRAFT_RESULT })
+    await inRig(api, async (rig) => {
+      await callTool(rig, 'update_ticket', { epicId: EPIC, ticket: TICKET, patch: { size: 'large' } })
+      await callTool(rig, 'update_ticket', {
+        epicId: EPIC,
+        ticket: TICKET,
+        patch: { capability: { reasoning: { effort: 'high' } } }
+      })
+      expect(api.calls.map((call) => (call.input as { ops: DraftOp[] }).ops)).toEqual([
+        [{ op: 'update_ticket', ticket: TICKET, patch: { size: 'large' } }],
+        [{ op: 'update_ticket', ticket: TICKET, patch: { capability: { reasoning: { effort: 'high' } } } }]
+      ])
+    })
+  })
+
+})
+
+describe('ticket size and reasoning effort tool validation', () => {
+  it.each([
+    ['create_ticket with an unknown size', 'create_ticket', { epicId: EPIC, ticket: { title: 'T', size: 'huge' } }],
+    ['create_ticket with an unknown effort', 'create_ticket', { epicId: EPIC, ticket: { title: 'T', capability: { reasoning: { effort: 'max' } } } }],
+    ['update_ticket with an unknown size', 'update_ticket', { epicId: EPIC, ticket: TICKET, patch: { size: 'tiny' } }],
+    ['update_ticket with an unknown effort', 'update_ticket', { epicId: EPIC, ticket: TICKET, patch: { capability: { reasoning: { effort: 'max' } } } }]
+  ])('rejects %s without touching the draft', async (_label, tool, args) => {
+    const api = createCannedApi({ updatePlanDraft: DRAFT_RESULT })
+    await inRig(api, async (rig) => {
+      const outcome = await callTool(rig, tool, args)
+      expect(outcome.isError).toBe(true)
+      expect(api.calls).toEqual([])
+    })
+  })
+
+  it('tells planners about both fields in the tool descriptions', async () => {
+    await inRig(createCannedApi({}), async (rig) => {
+      const { tools } = await rig.client.listTools()
+      const described = Object.fromEntries(tools.map((tool) => [tool.name, tool.description ?? '']))
+      for (const name of ['create_ticket', 'update_ticket']) {
+        expect(described[name]).toContain('size')
+        expect(described[name]).toContain('micro')
+        expect(described[name]).toContain('reasoning.effort')
+      }
+      expect(described['list_tickets']).toContain('size')
+      expect(described['get_ticket']).toContain('size')
+    })
+  })
+})

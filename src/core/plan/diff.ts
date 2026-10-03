@@ -1,4 +1,5 @@
 import type {
+  CapabilityProfile,
   Criterion,
   DependencyEdge,
   EpicContent,
@@ -166,6 +167,15 @@ function optionalPhrase(before: TicketContent, after: TicketContent): Phrase {
   return after.optional ? 'now optional' : 'now required'
 }
 
+function effortText(ticket: TicketContent): string {
+  return ticket.capability.reasoning.effort ?? 'unset'
+}
+
+/** A profile compared without its reasoning effort, which the diff reports on its own. */
+function ignoringEffort(capability: CapabilityProfile): CapabilityProfile {
+  return { ...capability, reasoning: { ...capability.reasoning, effort: undefined } }
+}
+
 function ticketPhrases(before: TicketContent, after: TicketContent): Phrase[] {
   return [
     arrow('key', before.key, after.key),
@@ -174,7 +184,9 @@ function ticketPhrases(before: TicketContent, after: TicketContent): Phrase[] {
     criteriaPhrase('acceptance criteria', before.acceptanceCriteria, after.acceptanceCriteria),
     changed(before.tags, after.tags, 'tags changed'),
     arrow('priority', before.priority, after.priority),
-    changed(before.capability, after.capability, 'capability profile changed'),
+    arrow('size', before.size ?? 'unset', after.size ?? 'unset'),
+    arrow('reasoning effort', effortText(before), effortText(after)),
+    changed(ignoringEffort(before.capability), ignoringEffort(after.capability), 'capability profile changed'),
     optionalPhrase(before, after),
     changed(before.references, after.references, 'references changed'),
     changed(before.expectedArtifacts, after.expectedArtifacts, 'expected artifacts changed')

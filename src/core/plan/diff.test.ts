@@ -302,3 +302,48 @@ describe('computeChanges for epic content', () => {
     expect(details(base, next)).toEqual(['edited epic: success criteria reordered; owner role qa → none'])
   })
 })
+
+describe('computeChanges for ticket size and reasoning effort', () => {
+  const effortOf = (effort: 'low' | 'medium' | 'high') => (copy: PlanBundle) => {
+    copy.tickets[0].capability.reasoning.effort = effort
+  }
+
+  it('shows a size set on a ticket, and a size changed', () => {
+    const base = makeBundle([[1]])
+    const sized = edited(base, (copy) => {
+      copy.tickets[0].size = 'medium'
+    })
+    expect(details(base, sized)).toEqual(['edited ticket: size unset → medium'])
+    const resized = edited(sized, (copy) => {
+      copy.tickets[0].size = 'micro'
+    })
+    expect(details(sized, resized)).toEqual(['edited ticket: size medium → micro'])
+  })
+
+  it('shows a size removed again', () => {
+    const sized = edited(makeBundle([[1]]), (copy) => {
+      copy.tickets[0].size = 'small'
+    })
+    expect(details(sized, makeBundle([[1]]))).toEqual(['edited ticket: size small → unset'])
+  })
+
+  it('names an effort change on its own, without calling it a capability profile change', () => {
+    const base = makeBundle([[1]])
+    const next = edited(base, effortOf('high'))
+    expect(details(base, next)).toEqual(['edited ticket: reasoning effort unset → high'])
+    expect(details(next, edited(next, effortOf('low')))).toEqual(['edited ticket: reasoning effort high → low'])
+  })
+
+  it('reports the size, the effort and other capability edits side by side, in a fixed order', () => {
+    const base = makeBundle([[1]])
+    const next = edited(base, (copy) => {
+      copy.tickets[0].priority = 'high'
+      copy.tickets[0].size = 'large'
+      copy.tickets[0].capability.workType = 'review'
+      copy.tickets[0].capability.reasoning.effort = 'medium'
+    })
+    expect(details(base, next)).toEqual([
+      'edited ticket: priority normal → high; size unset → large; reasoning effort unset → medium; capability profile changed'
+    ])
+  })
+})

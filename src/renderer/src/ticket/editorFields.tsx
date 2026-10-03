@@ -1,8 +1,10 @@
 import { type ReactNode, useState } from 'react'
 import {
   MODALITIES,
+  REASONING_EFFORTS,
   REASONING_LEVELS,
   TICKET_PRIORITIES,
+  TICKET_SIZES,
   TOOL_CAPABILITIES,
   WORK_TYPES,
   type PlanBundle
@@ -10,16 +12,18 @@ import {
 import { Markdown } from '../markdown/Markdown'
 import {
   addCriterion,
+  COSTS,
   editCriterion,
   moveCriterion,
   pick,
   prerequisiteOptions,
+  QUALITIES,
   removeCriterion,
   sprintOptions,
   toggleValue,
   type TicketForm
 } from './ticketForm'
-import { MODALITY_LABELS, REASONING_LABELS, TOOL_LABELS, WORK_TYPE_LABELS } from './ticketView'
+import { COST_LABELS, EFFORT_LABELS, MODALITY_LABELS, QUALITY_LABELS, REASONING_LABELS, SIZE_LABELS, TOOL_LABELS, WORK_TYPE_LABELS } from './ticketView'
 
 interface FieldProps {
   form: TicketForm
@@ -106,6 +110,29 @@ export function CriteriaFields({ form, update }: FieldProps): JSX.Element {
   )
 }
 
+/** A select whose first option, None, clears the value (an empty string in the form). */
+function OptionalSelect<T extends string>(props: {
+  label: string
+  value: T | ''
+  options: readonly T[]
+  labels: Record<T, string>
+  onChange(value: T | ''): void
+}): JSX.Element {
+  return (
+    <label className="tp-field">
+      <span>{props.label}</span>
+      <select value={props.value} onChange={(event) => props.onChange(pick<T | ''>([...props.options, ''], event.target.value, props.value))}>
+        <option value="">None</option>
+        {props.options.map((option) => (
+          <option key={option} value={option}>
+            {props.labels[option]}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+}
+
 export function DetailFields({ form, update, bundle }: FieldProps & { bundle: PlanBundle }): JSX.Element {
   return (
     <fieldset className="tp-fieldset tp-grid">
@@ -133,6 +160,13 @@ export function DetailFields({ form, update, bundle }: FieldProps & { bundle: Pl
           ))}
         </select>
       </label>
+      <OptionalSelect
+        label="Size"
+        value={form.size}
+        options={TICKET_SIZES}
+        labels={SIZE_LABELS}
+        onChange={(size) => update({ ...form, size })}
+      />
       <label className="tp-field">
         <span>Tags</span>
         <input className="tp-input" value={form.tags} placeholder="comma, separated" onChange={(event) => update({ ...form, tags: event.target.value })} />
@@ -235,6 +269,27 @@ function ProfileSelects({ form, update }: FieldProps): JSX.Element {
           ))}
         </select>
       </label>
+      <OptionalSelect
+        label="Effort"
+        value={form.reasoningEffort}
+        options={REASONING_EFFORTS}
+        labels={EFFORT_LABELS}
+        onChange={(reasoningEffort) => update({ ...form, reasoningEffort })}
+      />
+      <OptionalSelect
+        label="Quality"
+        value={form.quality}
+        options={QUALITIES}
+        labels={QUALITY_LABELS}
+        onChange={(quality) => update({ ...form, quality })}
+      />
+      <OptionalSelect
+        label="Cost"
+        value={form.cost}
+        options={COSTS}
+        labels={COST_LABELS}
+        onChange={(cost) => update({ ...form, cost })}
+      />
     </div>
   )
 }

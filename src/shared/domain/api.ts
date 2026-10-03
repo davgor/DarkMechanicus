@@ -8,9 +8,11 @@ import type {
   CheckpointMode,
   EpicBranch,
   PlanPolicies,
+  ReasoningEffort,
   RelationKind,
   TicketPriority,
-  TicketReference
+  TicketReference,
+  TicketSize
 } from './bundle'
 import type { WorkStatus } from './status'
 import type {
@@ -68,6 +70,8 @@ export interface TicketInput {
   acceptanceCriteria?: (CriterionInput | string)[]
   tags?: string[]
   priority?: TicketPriority
+  /** `null` in a patch clears the size (the ticket then has no `size` key). */
+  size?: TicketSize | null
   capability?: CapabilityPatch
   references?: TicketReference[]
   expectedArtifacts?: string[]
@@ -126,6 +130,8 @@ export interface ClaimTicketInput {
     hostId?: string | null
     catalogRevision?: string | null
     rationale?: string | null
+    /** The reasoning effort the worker is dispatched at. */
+    effort?: ReasoningEffort | null
   }
   leaseSeconds?: number
   idempotencyKey?: string

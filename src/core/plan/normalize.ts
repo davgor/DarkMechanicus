@@ -8,7 +8,8 @@ import {
   type EpicContent,
   type PlanBundle,
   type SprintDef,
-  type TicketContent
+  type TicketContent,
+  type TicketSize
 } from '../../shared/domain/bundle'
 import type { CriterionInput, SprintInput, TicketInput } from '../../shared/domain/api'
 
@@ -62,6 +63,24 @@ export function normalizeTags(tags: string[]): string[] {
   return out
 }
 
+type Reasoning = CapabilityProfile['reasoning']
+
+/**
+ * Merges a reasoning patch over a base. A null `effort` removes the key: a stored profile never
+ * holds null, because saved plans hash their exact shape.
+ */
+function mergeReasoning(base: Reasoning, patch: CapabilityPatch['reasoning']): Reasoning {
+  const { effort: patched, ...fields } = patch ?? {}
+  const merged: Reasoning = { ...base, ...fields }
+  const effort = patched === undefined ? base.effort : patched
+  if (effort === null || effort === undefined) {
+    delete merged.effort
+  } else {
+    merged.effort = effort
+  }
+  return merged
+}
+
 /** Shallow-merges a partial capability profile over a base, one level deep for nested groups. */
 export function mergeCapability(
   base: CapabilityProfile,
@@ -72,7 +91,7 @@ export function mergeCapability(
   }
   return {
     workType: patch.workType ?? base.workType,
-    reasoning: { ...base.reasoning, ...patch.reasoning },
+    reasoning: mergeReasoning(base.reasoning, patch.reasoning),
     skills: patch.skills ? normalizeTags(patch.skills) : base.skills,
     modalities: patch.modalities ?? base.modalities,
     tools: patch.tools ?? base.tools,
@@ -91,6 +110,7 @@ export function buildTicket(input: TicketInput, identity: { id: string; key: str
     acceptanceCriteria: normalizeCriteria(input.acceptanceCriteria ?? [], [], 'c'),
     tags: normalizeTags(input.tags ?? []),
     priority: input.priority ?? 'normal',
+    ...(input.size === undefined || input.size === null ? {} : { size: input.size }),
     capability: mergeCapability(defaultCapabilityProfile(), input.capability),
     references: input.references ?? [],
     expectedArtifacts: input.expectedArtifacts ?? [],
@@ -98,8 +118,20 @@ export function buildTicket(input: TicketInput, identity: { id: string; key: str
   }
 }
 
+/** Sets the size of a copy of the ticket: null removes the key (never stored as null), undefined keeps it. */
+function resized(ticket: TicketContent, size: TicketSize | null | undefined): TicketContent {
+  const next = { ...ticket }
+  if (size === null) {
+    delete next.size
+  } else if (size !== undefined) {
+    next.size = size
+  }
+  return next
+}
+
+/** Applies a patch to a ticket; a null `size` or `capability.reasoning.effort` removes that key. */
 export function patchTicket(ticket: TicketContent, patch: Partial<TicketInput>): TicketContent {
-  return {
+  const patched: TicketContent = {
     ...ticket,
     title: patch.title === undefined ? ticket.title : patch.title.trim(),
     body: patch.body ?? ticket.body,
@@ -114,6 +146,7 @@ export function patchTicket(ticket: TicketContent, patch: Partial<TicketInput>):
     expectedArtifacts: patch.expectedArtifacts ?? ticket.expectedArtifacts,
     optional: patch.optional ?? ticket.optional
   }
+  return resized(patched, patch.size)
 }
 
 export function buildSprint(input: SprintInput, identity: { id: string; ordinal: number }): SprintDef {

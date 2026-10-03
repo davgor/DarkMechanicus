@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { z } from 'zod'
-import { defaultCapabilityProfile, type PlanBundle } from '../shared/domain/bundle'
+import { defaultCapabilityProfile, type PlanBundle, REASONING_EFFORTS, TICKET_SIZES } from '../shared/domain/bundle'
 import { makeBundle, makeSprint, makeTicket, sid, tid } from '../test/bundles'
+import { idOf } from '../test/repoFixtures'
 import { thrownBy } from '../test/thrownBy'
+import { contentHash } from './canonical'
+import { COMMAND_SCHEMAS } from './commandSchemas'
 import { DomainError } from './errors'
 import {
   artifactRef,
@@ -1080,5 +1083,154 @@ describe('epicBranch git ref rules', () => {
 
   it.each([['feature/plan-v2'], ['epic/dm-12.a'], ['release-2026.09']])('accepts %s', (name) => {
     expect(accepts(epicBranch, { ...BRANCH, name })).toBe(true)
+  })
+})
+
+describe('ticket size', () => {
+  it('lists the sizes from the smallest to the largest', () => {
+    expect(TICKET_SIZES).toEqual(['micro', 'small', 'medium', 'large'])
+  })
+
+  it.each(TICKET_SIZES)('accepts the size %s on a ticket input and on saved ticket content', (size) => {
+    expect(accepts(ticketInput, { title: 'T', size })).toBe(true)
+    expect(accepts(ticketContent, makeTicket(1, { size }))).toBe(true)
+    expect(accepts(draftOp, { op: 'update_ticket', ticket: 'DM-1', patch: { size } })).toBe(true)
+  })
+
+  it.each([
+    ['an unknown size', 'huge'],
+    ['an empty size', ''],
+    ['a number', 3]
+  ])('rejects %s', (_label, size) => {
+    expect(accepts(ticketInput, { title: 'T', size })).toBe(false)
+    expect(accepts(ticketContent, { ...makeTicket(1), size })).toBe(false)
+  })
+
+  it('accepts null as a size only in a ticket input or patch, where it clears the size', () => {
+    expect(accepts(ticketInput, { title: 'T', size: null })).toBe(true)
+    expect(accepts(draftOp, { op: 'update_ticket', ticket: 'DM-1', patch: { size: null } })).toBe(true)
+    expect(accepts(ticketContent, { ...makeTicket(1), size: null })).toBe(false)
+  })
+
+  it('never defaults a size: a ticket without one parses without one', () => {
+    expect(Object.keys(ticketInput.parse({ title: 'T' }))).not.toContain('size')
+    expect(Object.keys(ticketContent.parse(makeTicket(1)))).not.toContain('size')
+  })
+})
+
+describe('reasoning effort', () => {
+  const withEffort = (effort: unknown): unknown =>
+    profileWith((profile) => {
+      Object.assign(nested(profile, 'reasoning'), { effort })
+    })
+
+  it('lists the efforts from the lowest to the highest', () => {
+    expect(REASONING_EFFORTS).toEqual(['low', 'medium', 'high'])
+  })
+
+  it.each(REASONING_EFFORTS)('accepts the effort %s in a profile, a patch and a ticket input', (effort) => {
+    expect(accepts(capabilityProfile, withEffort(effort))).toBe(true)
+    expect(accepts(capabilityPatch, { reasoning: { effort } })).toBe(true)
+    expect(accepts(ticketInput, { title: 'T', capability: { reasoning: { effort } } })).toBe(true)
+  })
+
+  it.each([
+    ['an unknown effort', 'extreme'],
+    ['an empty effort', ''],
+    ['a number', 2]
+  ])('rejects %s', (_label, effort) => {
+    expect(accepts(capabilityProfile, withEffort(effort))).toBe(false)
+    expect(accepts(capabilityPatch, { reasoning: { effort } })).toBe(false)
+  })
+
+  it('accepts null as an effort only in a patch, where it clears the effort', () => {
+    expect(accepts(capabilityPatch, { reasoning: { effort: null } })).toBe(true)
+    expect(accepts(ticketInput, { title: 'T', capability: { reasoning: { effort: null } } })).toBe(true)
+    expect(
+      accepts(draftOp, { op: 'update_ticket', ticket: 'DM-1', patch: { capability: { reasoning: { effort: null } } } })
+    ).toBe(true)
+    expect(accepts(capabilityProfile, withEffort(null))).toBe(false)
+  })
+
+  it('still rejects an unknown key next to a null effort in a patch', () => {
+    expect(accepts(capabilityPatch, { reasoning: { effort: null, speed: 'fast' } })).toBe(false)
+  })
+
+  it('never defaults an effort: a profile without one parses with only a level and a rationale', () => {
+    const parsed = capabilityProfile.parse(defaultCapabilityProfile())
+    expect(Object.keys(parsed.reasoning).sort()).toEqual(['level', 'rationale'])
+  })
+
+  it('keeps the effort a profile sets, next to the level it does not replace', () => {
+    const parsed = capabilityProfile.parse(withEffort('high'))
+    expect(parsed.reasoning).toEqual({ level: 'multi_step', rationale: '', effort: 'high' })
+  })
+})
+
+describe('plans saved before ticket size and effort existed', () => {
+  it('parse back unchanged and keep their content hash', () => {
+    const bundle = makeBundle([[1, 2], [3]], [[1, 3]])
+    const parsed = parseInput(planBundle, bundle, 'plan')
+    expect(contentHash(parsed)).toBe(contentHash(bundle))
+    for (const ticket of parsed.tickets) {
+      expect(Object.keys(ticket)).not.toContain('size')
+      expect(Object.keys(ticket.capability.reasoning)).not.toContain('effort')
+    }
+  })
+
+  it('hash differently once a size or an effort is set, and parse back with them', () => {
+    const plain = makeBundle([[1]])
+    const sized = bundleWith((bundle) => {
+      bundle.tickets = [makeTicket(1, { size: 'micro', capability: reasoningOf('low') })]
+    })
+    const parsed = parseInput(planBundle, sized, 'plan')
+    expect(parsed.tickets[0]).toMatchObject({ size: 'micro', capability: { reasoning: { effort: 'low' } } })
+    expect(contentHash(parsed)).toBe(contentHash(sized))
+    expect(contentHash(sized)).not.toBe(contentHash(plain))
+  })
+})
+
+function reasoningOf(effort: 'low' | 'medium' | 'high'): PlanBundle['tickets'][number]['capability'] {
+  const profile = defaultCapabilityProfile()
+  return { ...profile, reasoning: { ...profile.reasoning, effort } }
+}
+
+describe('hostCatalog model efforts', () => {
+  it('keeps the efforts a model declares', () => {
+    const model = { ...MODEL, efforts: ['low', 'high'] }
+    expect(hostCatalog.parse({ ...CATALOG, models: [model] }).models[0]?.efforts).toEqual(['low', 'high'])
+  })
+
+  it('leaves efforts off a model that declares none, so it constrains nothing', () => {
+    const [model] = hostCatalog.parse({ ...CATALOG, models: [MODEL] }).models
+    expect(Object.keys(model ?? {})).not.toContain('efforts')
+  })
+
+  it.each([
+    ['an unknown effort', ['extreme']],
+    ['four efforts', ['low', 'low', 'medium', 'high']],
+    ['a non-list', 'high']
+  ])('rejects %s', (_label, efforts) => {
+    expect(accepts(hostCatalog, { ...CATALOG, models: [{ ...MODEL, efforts }] })).toBe(false)
+  })
+})
+
+describe('claim_ticket worker effort', () => {
+  const claim = (worker: Record<string, unknown>): Record<string, unknown> => ({
+    runId: idOf('run', 1),
+    ticketId: tid(1),
+    worker
+  })
+
+  it.each([...REASONING_EFFORTS, null])('accepts the effort %s', (effort) => {
+    expect(accepts(COMMAND_SCHEMAS.claimTicket, claim({ label: 'w', modelId: 'm', effort }))).toBe(true)
+  })
+
+  it('treats the effort as optional', () => {
+    expect(accepts(COMMAND_SCHEMAS.claimTicket, claim({ label: 'w' }))).toBe(true)
+  })
+
+  it.each([['an unknown effort', 'extreme'], ['an empty effort', ''], ['a number', 1]])('rejects %s', (_label, effort) => {
+    expect(accepts(COMMAND_SCHEMAS.claimTicket, claim({ label: 'w', effort }))).toBe(false)
   })
 })

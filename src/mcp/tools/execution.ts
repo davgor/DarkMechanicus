@@ -12,6 +12,7 @@ import {
 } from '../../core/schemas'
 import { SKILLS_VERSION } from '../../core/version'
 import type { CommandApi } from '../../shared/domain/api'
+import { REASONING_EFFORTS } from '../../shared/domain/bundle'
 import { defineTool, registerTools } from './define'
 import {
   attemptId,
@@ -68,7 +69,14 @@ const CLAIM_TICKET_INPUT = {
     modelId: optionalLabel,
     hostId: optionalLabel,
     catalogRevision: optionalLabel,
-    rationale: note.nullable().optional()
+    rationale: note.nullable().optional(),
+    effort: z
+      .enum(REASONING_EFFORTS)
+      .nullable()
+      .optional()
+      .describe(
+        'Reasoning effort (low, medium, high) the worker is dispatched at. Refused when the model declares efforts and this is not one of them.'
+      )
   }),
   leaseSeconds: leaseSeconds.optional(),
   idempotencyKey
@@ -120,7 +128,7 @@ const SETUP_TOOLS = [
   defineTool({
     name: 'register_host',
     description:
-      'Registers the models and tools this host can really use, so ticket capability profiles can be matched. Returns the catalog id to pass as hostCatalogId to start_run. Call it before start_run, and again with a new catalogRevision when the catalog changes. Do not list models you cannot use.',
+      'Registers the models and tools this host can really use, so ticket capability profiles can be matched. Returns the catalog id to pass as hostCatalogId to start_run. Call it before start_run, and again with a new catalogRevision when the catalog changes. Do not list models you cannot use. A model may list the efforts (low, medium, high) it can run at in efforts; a claim at an effort the model does not list is refused, and a model that lists none accepts any effort.',
     kind: 'write',
     input: hostCatalog.shape,
     run: (api, input) => api.registerHost(input)
@@ -128,7 +136,7 @@ const SETUP_TOOLS = [
   defineTool({
     name: 'match_capabilities',
     description:
-      'Matches a ticket\'s capability profile against the host catalog of the run: eligible models with scores and reasons, rejected models with failures, host failures, and unknownRequirements. Hard constraints filter, preferences only rank. Never treat unknownRequirements as satisfied: ask or escalate.',
+      'Matches a ticket\'s capability profile against the host catalog of the run: eligible models best fit first, with scores and reasons (the model that fits the ticket leads; extra reasoning depth costs points, and on equal scores the cheaper cost tier comes first), rejected models with failures, host failures, and unknownRequirements. recommended is the model and effort to dispatch at, with reasons: the top fit at the ticket\'s effort (else low for micro and small tickets, medium for medium, high for large), or, after a rejected or failed attempt on the ticket in this run, the cheapest eligible model one tier above the last attempt\'s model (the same model at a higher effort when nothing sits above it). recommended is null when no model is eligible. Hard constraints filter, preferences only rank. Never treat unknownRequirements as satisfied: ask or escalate.',
     kind: 'read',
     input: { ticketId, runId },
     run: (api, input) => api.matchCapabilities(input)
@@ -163,7 +171,7 @@ const ATTEMPT_TOOLS = [
   defineTool({
     name: 'claim_ticket',
     description:
-      'Claims a ready ticket: creates an attempt with a lease and returns a claimToken plus a bounded execution packet (pinned ticket, acceptance criteria, predecessor outputs, epic branch, reporting contract). Record who does the work: worker label, modelId, hostId, catalogRevision, and a rationale. Keep the claimToken secret; give it only to the worker doing this ticket. Fails with `unmet_prerequisite`, `already_claimed`, `capacity_exceeded`, `retry_limit_reached`, `needs_reconciliation`, or `unsupported_capability`.',
+      'Claims a ready ticket: creates an attempt with a lease and returns a claimToken plus a bounded execution packet (pinned ticket, acceptance criteria, predecessor outputs, epic branch, reporting contract). Record who does the work: worker label, modelId, hostId, catalogRevision, a rationale, and the effort (low, medium, high) you dispatch the worker at; the effort is recorded on the attempt, returned in the execution packet, and kept in run history. Keep the claimToken secret; give it only to the worker doing this ticket. Fails with `unmet_prerequisite`, `already_claimed`, `capacity_exceeded`, `retry_limit_reached`, `needs_reconciliation`, or `unsupported_capability` (the model fails the hard requirements of the ticket, or does not declare the effort).',
     kind: 'write',
     input: CLAIM_TICKET_INPUT,
     run: (api, input) => api.claimTicket(input)

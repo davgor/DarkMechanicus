@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { CapabilityProfile } from '../../../shared/domain/bundle'
+import type { CapabilityProfile, TicketContent } from '../../../shared/domain/bundle'
 import { draftPlan, profileView } from '../epic/__mocks__/fixtures'
 import {
   CONFLICT_MESSAGE,
@@ -63,8 +63,13 @@ describe('ticket form from the draft bundle', () => {
       optional: false,
       sprintId: 'sp_2',
       prerequisites: ['tk_102', 'tk_103'],
+      size: '',
+      loadedSize: '',
       workType: 'implementation',
       reasoningLevel: 'multi_step',
+      reasoningEffort: '',
+      quality: '',
+      cost: '',
       rationale: 'transaction and outbox ordering',
       tools: ['repo_read', 'repo_write', 'shell', 'test_execution'],
       modalities: ['text'],
@@ -196,6 +201,8 @@ describe('ticket form named profiles', () => {
       modalities: ['text', 'images'],
       skills: 'security-review',
       tokens: '80000',
+      quality: 'high',
+      cost: 'low',
       profile: 'deep-review',
       baseCapability: profileView().capability
     })
@@ -464,6 +471,154 @@ describe('ticket editor state', () => {
     const synced = syncEditor(applied, BUNDLE, 'tk_202')
     expect([synced.form?.title, synced.touched, synced.awaitingSync]).toEqual(['Transactional bundle import', false, false])
     expect(rejectForm(renamed, 'Title is required.').message).toEqual({ tone: 'error', text: 'Title is required.' })
+  })
+})
+
+/** The latest draft after DM-202 is sized and given an effort, a quality and a cost (an inherited preference). */
+function intense(overrides: Partial<TicketContent> = {}): typeof BUNDLE {
+  const capability = {
+    ...DM_202_CAPABILITY,
+    reasoning: { ...DM_202_CAPABILITY.reasoning, effort: 'high' as const },
+    preferences: { ...DM_202_CAPABILITY.preferences, quality: 'high' as const, cost: 'low' as const }
+  }
+  const ticket = { size: 'small' as const, capability, ...overrides }
+  return { ...BUNDLE, tickets: BUNDLE.tickets.map((item) => (item.id === 'tk_202' ? { ...item, ...ticket } : item)) }
+}
+
+function intenseForm(): TicketForm {
+  const value = formFromBundle(intense(), 'tk_202')
+  if (!value) {
+    throw new Error('missing ticket')
+  }
+  return value
+}
+
+/** The latest draft after an agent changed DM-202's capability on top of the sized one. */
+function intenseThen(change: (capability: CapabilityProfile) => CapabilityProfile): typeof BUNDLE {
+  const latest = intense()
+  return { ...latest, tickets: latest.tickets.map((item) => (item.id === 'tk_202' ? { ...item, capability: change(item.capability) } : item)) }
+}
+
+describe('ticket form size, effort, quality and cost fields', () => {
+  it('shows the size, effort, quality and cost the ticket has, including an inherited quality', () => {
+    expect(intenseForm()).toMatchObject({ size: 'small', reasoningEffort: 'high', quality: 'high', cost: 'low' })
+  })
+
+  it('shows empty fields for a ticket without them', () => {
+    expect(form()).toMatchObject({ size: '', reasoningEffort: '', quality: '', cost: '' })
+  })
+
+  it('produces no operations for a form that was only loaded', () => {
+    expect(formToOps(intenseForm(), intense(), 'tk_202')).toEqual([])
+  })
+
+  it('sets a size and an effort on a ticket that has none', () => {
+    const edited: TicketForm = { ...form(), size: 'micro', reasoningEffort: 'low' }
+    expect(formToOps(edited, BUNDLE, 'tk_202')).toEqual([
+      {
+        op: 'update_ticket',
+        ticket: 'tk_202',
+        patch: { size: 'micro', capability: { reasoning: { level: 'multi_step', rationale: 'transaction and outbox ordering', effort: 'low' } } }
+      }
+    ])
+  })
+
+  it('sets a quality and a cost as one preferences group that keeps the other preferences', () => {
+    const edited: TicketForm = { ...form(), quality: 'standard', cost: 'normal' }
+    expect(formToOps(edited, BUNDLE, 'tk_202')).toEqual([
+      {
+        op: 'update_ticket',
+        ticket: 'tk_202',
+        patch: { capability: { preferences: { ...DM_202_CAPABILITY.preferences, quality: 'standard', cost: 'normal' } } }
+      }
+    ])
+  })
+})
+
+describe('ticket form clearing size, effort, quality and cost', () => {
+  it('clears the size with null, because an undefined size would be dropped from the patch', () => {
+    const [op] = formToOps({ ...intenseForm(), size: '' }, intense(), 'tk_202')
+    expect(op).toEqual({ op: 'update_ticket', ticket: 'tk_202', patch: { size: null } })
+    expect(JSON.parse(JSON.stringify(op))).toEqual(op)
+  })
+
+  it('clears the effort with null next to the reasoning level and rationale', () => {
+    const [op] = formToOps({ ...intenseForm(), reasoningEffort: '' }, intense(), 'tk_202')
+    expect(op).toEqual({
+      op: 'update_ticket',
+      ticket: 'tk_202',
+      patch: { capability: { reasoning: { level: 'multi_step', rationale: 'transaction and outbox ordering', effort: null } } }
+    })
+  })
+
+  it('clears the quality and the cost, sending the cleared preferences', () => {
+    const [op] = formToOps({ ...intenseForm(), quality: '', cost: '' }, intense(), 'tk_202')
+    expect(op).toEqual({
+      op: 'update_ticket',
+      ticket: 'tk_202',
+      patch: { capability: { preferences: { ...DM_202_CAPABILITY.preferences, quality: null, cost: null } } }
+    })
+  })
+
+  it('clears each of the four in one update_ticket patch', () => {
+    const cleared: TicketForm = { ...intenseForm(), size: '', reasoningEffort: '', quality: '', cost: '' }
+    const [op] = formToOps(cleared, intense(), 'tk_202')
+    expect(op).toMatchObject({
+      patch: {
+        size: null,
+        capability: { reasoning: { effort: null }, preferences: { quality: null, cost: null } }
+      }
+    })
+  })
+
+  it('sends nothing when the ticket has none of them and the form leaves them empty', () => {
+    expect(formToOps({ ...form(), size: '', reasoningEffort: '', quality: '', cost: '' }, BUNDLE, 'tk_202')).toEqual([])
+  })
+})
+
+describe('ticket form apply of size, effort, quality and cost after concurrent changes', () => {
+  it('keeps an effort and a quality set meanwhile when the person only edits the title', () => {
+    const edited = { ...form(), title: 'Renamed' }
+    expect(formToOps(edited, intense(), 'tk_202')).toEqual([{ op: 'update_ticket', ticket: 'tk_202', patch: { title: 'Renamed' } }])
+  })
+
+  it('keeps a model override set meanwhile when the person clears the quality', () => {
+    const latest = intenseThen((capability) => ({ ...capability, preferences: { ...capability.preferences, modelOverride: 'some-model' } }))
+    const [op] = formToOps({ ...intenseForm(), quality: '' }, latest, 'tk_202')
+    expect(op).toEqual({
+      op: 'update_ticket',
+      ticket: 'tk_202',
+      patch: { capability: { preferences: { ...DM_202_CAPABILITY.preferences, quality: null, cost: 'low', modelOverride: 'some-model' } } }
+    })
+  })
+
+  it('does not clear an effort again when it was already removed meanwhile', () => {
+    expect(formToOps({ ...intenseForm(), reasoningEffort: '' }, BUNDLE, 'tk_202')).toEqual([])
+  })
+
+  it('keeps an effort changed meanwhile when the person only changes the reasoning level', () => {
+    const latest = intenseThen((capability) => ({ ...capability, reasoning: { ...capability.reasoning, effort: 'low' } }))
+    const [op] = formToOps({ ...intenseForm(), reasoningLevel: 'deep' }, latest, 'tk_202')
+    expect(op).toMatchObject({
+      patch: { capability: { reasoning: { level: 'deep', rationale: 'transaction and outbox ordering', effort: 'low' } } }
+    })
+  })
+})
+
+describe('ticket form profiles and the effort, quality and cost fields', () => {
+  it('fills the effort, quality and cost from the profile, and clears them when it has none', () => {
+    const base = profileView().capability
+    const withEffort = profileView({ capability: { ...base, reasoning: { level: 'deep', rationale: 'Risky change', effort: 'medium' } } })
+    expect(applyProfile(intenseForm(), withEffort)).toMatchObject({ reasoningEffort: 'medium', quality: 'high', cost: 'low' })
+    const bare = profileView({ capability: { ...base, preferences: { ...base.preferences, quality: null, cost: null } } })
+    expect(applyProfile(intenseForm(), bare)).toMatchObject({ reasoningEffort: '', quality: '', cost: '' })
+  })
+
+  it('saves the quality, cost and effort the form describes into a profile, never a null effort', () => {
+    const capability = formCapability({ ...intenseForm(), quality: 'standard', cost: '', reasoningEffort: '' })
+    expect(capability.preferences).toMatchObject({ quality: 'standard', cost: null })
+    expect(Object.keys(capability.reasoning)).not.toContain('effort')
+    expect(formCapability(intenseForm())).toEqual(intense().tickets.find((item) => item.id === 'tk_202')?.capability)
   })
 })
 

@@ -2,8 +2,10 @@
 import type {
   CapabilityProfile,
   Modality,
+  ReasoningEffort,
   ReasoningLevel,
   TicketContent,
+  TicketSize,
   ToolCapability,
   WorkType
 } from '../../../shared/domain/bundle'
@@ -33,6 +35,23 @@ export const REASONING_LABELS: Record<ReasoningLevel, string> = {
   multi_step: 'Multi-step',
   deep: 'Deep'
 }
+
+export const SIZE_LABELS: Record<TicketSize, string> = {
+  micro: 'Micro',
+  small: 'Small',
+  medium: 'Medium',
+  large: 'Large'
+}
+
+export const EFFORT_LABELS: Record<ReasoningEffort, string> = {
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High'
+}
+
+export const QUALITY_LABELS = { standard: 'Standard', high: 'High' } as const
+
+export const COST_LABELS = { low: 'Low', normal: 'Normal' } as const
 
 export const TOOL_LABELS: Record<ToolCapability, string> = {
   repo_read: 'Repo read',
@@ -156,6 +175,24 @@ export function capabilityRows(profile: CapabilityProfile): CapabilityRow[] {
   ]
 }
 
+export function sizeAndEffortRows(ticket: TicketContent, profile: CapabilityProfile): CapabilityRow[] {
+  const rows: CapabilityRow[] = []
+  if (ticket.size !== undefined) {
+    rows.push({ label: 'Size', value: SIZE_LABELS[ticket.size], note: '' })
+  }
+  if (profile.reasoning.effort !== undefined) {
+    rows.push({ label: 'Effort', value: EFFORT_LABELS[profile.reasoning.effort], note: '' })
+  }
+  const { quality, cost } = profile.preferences
+  if (quality !== null) {
+    rows.push({ label: 'Quality', value: QUALITY_LABELS[quality], note: '' })
+  }
+  if (cost !== null) {
+    rows.push({ label: 'Cost', value: COST_LABELS[cost], note: '' })
+  }
+  return rows
+}
+
 export function statePill(detail: TicketDetailView): { label: string; tone: Tone } {
   const execution = detail.execution
   if (execution === null) {
@@ -205,7 +242,8 @@ function workerLine(item: AttemptView): string {
   const worker = item.worker
   const model = worker.modelId === null ? [] : [`model ${worker.modelId}`]
   const host = worker.hostId === null ? [] : [`host ${worker.hostId}`]
-  return [worker.label, ...model, ...host].join(' · ')
+  const effort = (worker.effort === undefined || worker.effort === null) ? [] : [`effort ${worker.effort}`]
+  return [worker.label, ...model, ...host, ...effort].join(' · ')
 }
 
 function decisionLine(item: AttemptView): string {

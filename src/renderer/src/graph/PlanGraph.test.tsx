@@ -196,3 +196,61 @@ describe('PlanGraph sprint labels', () => {
     expect(rendered).toEqual(reserved.map((height) => `${height}px`))
   })
 })
+
+/** The draft plan with DM-202 micro, DM-203 small, DM-301 large and a rejected edge between DM-301 and DM-203. */
+function sizedModel(): GraphModel {
+  const plan = draftPlan()
+  const sizes: Record<string, 'micro' | 'small' | 'large'> = { tk_202: 'micro', tk_203: 'small', tk_301: 'large' }
+  const tickets = plan.bundle.tickets.map((item) => (sizes[item.id] === undefined ? item : { ...item, size: sizes[item.id] }))
+  return buildGraphModel({
+    plan: { ...plan, bundle: { ...plan.bundle, tickets } },
+    mode: 'draft',
+    run: null,
+    statuses: new Map(),
+    outcome: null,
+    rejected: { from: 'tk_301', to: 'tk_203' },
+    draftNumber: 5
+  })
+}
+
+function badge(container: HTMLElement, ticketId: string): Element | null {
+  return container.querySelector(`[data-ticket="${ticketId}"] .pg-size`)
+}
+
+describe('PlanGraph size badges', () => {
+  it('shows the size on each sized card and nothing on an unsized one', () => {
+    const { container } = renderGraph('draft', sizedModel())
+    expect(badge(container, 'tk_203')?.textContent).toBe('small')
+    expect(badge(container, 'tk_301')?.textContent).toBe('large')
+    expect(badge(container, 'tk_201')).toBe(null)
+  })
+
+  it('calls a micro ticket out with its own badge class', () => {
+    const { container } = renderGraph('draft', sizedModel())
+    expect(badge(container, 'tk_202')?.className).toBe('pg-size is-micro')
+    expect(badge(container, 'tk_203')?.className).toBe('pg-size')
+    expect(badge(container, 'tk_301')?.className).toBe('pg-size')
+  })
+
+  it('names the size for assistive technology', () => {
+    const { container } = renderGraph('draft', sizedModel())
+    expect(badge(container, 'tk_202')?.getAttribute('title')).toBe('Size: micro')
+    expect(badge(container, 'tk_203')?.getAttribute('title')).toBe('Size: small')
+  })
+
+  it('keeps the rejection note of a sized ticket', () => {
+    const { container } = renderGraph('draft', sizedModel())
+    const rejected = container.querySelector('[data-ticket="tk_203"]')
+    expect(rejected?.querySelector('.pg-note')?.textContent).toBe('Rejected: would require DM-301')
+    expect(rejected?.querySelector('.pg-size')?.textContent).toBe('small')
+    expect(container.querySelector('[data-ticket="tk_301"] .pg-note')?.textContent).toBe('Rejected as prerequisite of DM-203')
+  })
+
+  it('keeps the badge out of the state label, so a long label is not cut for it', () => {
+    const { container } = renderGraph('draft', sizedModel())
+    const card = container.querySelector('[data-ticket="tk_202"]')
+    expect(badge(container, 'tk_202')?.parentElement).toBe(card)
+    expect(card?.querySelector('.pg-card-label')?.textContent).toMatch(/^DM-202 · /)
+    expect(card?.querySelector('.pg-card-label')?.querySelector('.pg-size') ?? null).toBe(null)
+  })
+})

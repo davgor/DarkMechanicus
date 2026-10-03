@@ -24,6 +24,7 @@ import { contentHash } from '../canonical'
 import { openDatabase } from '../db/database'
 import { DomainError } from '../errors'
 import { failAttempt, heartbeatAttempt, reconcileAttempt, submitAttempt } from './attempts'
+import { attemptView } from './execution'
 import { registerHost } from './hosts'
 import { pauseRun } from './runs'
 
@@ -249,7 +250,7 @@ describe('claimTicket — host capabilities', () => {
     const { runId } = startedRun(ctx)
     withCatalog(ctx)
     const { attempt } = claim(ctx, runId, 1, { worker: { label: 'w', modelId: 'big', rationale: 'deep work' } })
-    expect(attempt.worker).toEqual({ sessionId: ctx.session.id, label: 'w', modelId: 'big', hostId: 'host-a', catalogRevision: 'cat-1', rationale: 'deep work' })
+    expect(attempt.worker).toEqual({ sessionId: ctx.session.id, label: 'w', modelId: 'big', hostId: 'host-a', catalogRevision: 'cat-1', rationale: 'deep work', effort: null })
     const explicit = claim(ctx, runId, 2, { worker: { label: 'w', modelId: 'big', hostId: 'h2', catalogRevision: 'c2' } })
     expect([explicit.attempt.worker.hostId, explicit.attempt.worker.catalogRevision]).toEqual(['h2', 'c2'])
   })
@@ -275,6 +276,113 @@ describe('claimTicket — host capabilities', () => {
     expect(claim(ctx, runId, 1, { worker: { label: 'w', modelId: 'anything' } }).attempt.worker.hostId).toBeNull()
     withCatalog(ctx)
     expect(claim(ctx, runId, 2, { worker: { label: 'w' } }).attempt.state).toBe('claimed')
+  })
+})
+
+/** A run catalog with one model that declares efforts ('tiered') and one that declares none ('open'). */
+function withEffortCatalog(ctx: ReturnType<typeof createTestCtx>): void {
+  const catalog = registerHost(ctx, hostCatalog([hostModel('tiered', { efforts: ['low', 'medium'] }), hostModel('open')]))
+  ctx.db.run('UPDATE runs SET host_catalog_id = ?', catalog.id)
+}
+
+describe('claimTicket — recording the reasoning effort', () => {
+  it('records the effort on the attempt and hands it to the worker in the execution packet', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx)
+    withEffortCatalog(ctx)
+    const { attempt, packet } = claim(ctx, runId, 1, { worker: { label: 'w', modelId: 'tiered', effort: 'low' } })
+    expect(attempt.worker).toEqual({
+      sessionId: ctx.session.id,
+      label: 'w',
+      modelId: 'tiered',
+      hostId: 'host-a',
+      catalogRevision: 'cat-1',
+      rationale: null,
+      effort: 'low'
+    })
+    expect(packet.effort).toBe('low')
+    expect(attemptRow(ctx, attempt.id).worker_json).toContain('"effort":"low"')
+  })
+
+  it('records no effort when the claim names none', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx)
+    withEffortCatalog(ctx)
+    const { attempt, packet } = claim(ctx, runId, 1, { worker: { label: 'w', modelId: 'tiered' } })
+    expect(attempt.worker.effort).toBeNull()
+    expect(packet.effort).toBeNull()
+  })
+
+})
+
+describe('claimTicket — checking the reasoning effort against the model', () => {
+  it('refuses an effort the model does not declare, and claims nothing', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx)
+    withEffortCatalog(ctx)
+    const error = domainError(() => claim(ctx, runId, 1, { worker: { label: 'w', modelId: 'tiered', effort: 'high' } }))
+    expect(error.code).toBe('unsupported_capability')
+    expect(error.message).toBe('Model "tiered" does not run at "high" effort; it declares low, medium.')
+    expect(error.details).toEqual({ modelId: 'tiered', effort: 'high', declaredEfforts: ['low', 'medium'] })
+    expect(openAttemptIds(ctx, runId)).toEqual([])
+    expect(ticketStatus(ctx, tid(1))?.status).toBe('backlog')
+  })
+
+  it('accepts every effort for a model that declares none', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx, { bundle: makeBundle([[1, 2, 3]]) })
+    withEffortCatalog(ctx)
+    const efforts = (['low', 'medium', 'high'] as const).map(
+      (effort, index) => claim(ctx, runId, index + 1, { worker: { label: 'w', modelId: 'open', effort } }).attempt.worker.effort
+    )
+    expect(efforts).toEqual(['low', 'medium', 'high'])
+  })
+
+  it('does not check the effort without a model id or without a run catalog', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx, { bundle: makeBundle([[1, 2]]) })
+    registerHost(ctx, hostCatalog([hostModel('tiered', { efforts: ['low'] })]))
+    expect(claim(ctx, runId, 1, { worker: { label: 'w', modelId: 'tiered', effort: 'high' } }).attempt.worker.effort).toBe('high')
+    withEffortCatalog(ctx)
+    expect(claim(ctx, runId, 2, { worker: { label: 'w', effort: 'high' } }).attempt.worker.effort).toBe('high')
+  })
+
+})
+
+describe('claimTicket — reasoning effort edge cases', () => {
+  it('treats a null effort like an absent one', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx)
+    withEffortCatalog(ctx)
+    const { attempt, packet } = claim(ctx, runId, 1, { worker: { label: 'w', modelId: 'tiered', effort: null } })
+    expect([attempt.worker.effort, packet.effort]).toEqual([null, null])
+  })
+
+  it('replays the same claim for a repeated idempotency key, effort included', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx)
+    const first = claim(ctx, runId, 1, { worker: { label: 'w', effort: 'medium' }, idempotencyKey: 'k1' })
+    expect(claim(ctx, runId, 1, { worker: { label: 'w', effort: 'medium' }, idempotencyKey: 'k1' })).toEqual(first)
+    expect(errorCode(() => claim(ctx, runId, 1, { worker: { label: 'w', effort: 'high' }, idempotencyKey: 'k1' }))).toBe(
+      'idempotency_mismatch'
+    )
+  })
+
+  it('reads an attempt stored before efforts existed with a null effort', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx)
+    const { attempt } = claim(ctx, runId, 1, { worker: { label: 'old' } })
+    const legacy = JSON.stringify({ sessionId: null, label: 'old', modelId: 'm', hostId: null, catalogRevision: null, rationale: null })
+    ctx.db.run('UPDATE attempts SET worker_json = ? WHERE id = ?', legacy, attempt.id)
+    expect(attemptView(attemptRow(ctx, attempt.id)).worker).toEqual({
+      sessionId: null,
+      label: 'old',
+      modelId: 'm',
+      hostId: null,
+      catalogRevision: null,
+      rationale: null,
+      effort: null
+    })
   })
 })
 

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import type { DependencyEdge, PlanBundle, SprintDef } from '../../shared/domain/bundle'
+import {
+  defaultCapabilityProfile,
+  type DependencyEdge,
+  type PlanBundle,
+  type ReasoningLevel,
+  type SprintDef,
+  type TicketContent
+} from '../../shared/domain/bundle'
 import type { ValidationIssue } from '../../shared/domain/views'
 import { makeBundle, makeSprint, makeTicket, sid, tid } from '../../test/bundles'
 import {
@@ -716,5 +723,58 @@ describe('bundle index', () => {
     const index = indexBundle(makeBundle([[1]]))
     expect(ticketLabel(index, tid(1))).toBe('DM-1')
     expect(ticketLabel(index, 'tk_unknown')).toBe('tk_unknown')
+  })
+})
+
+describe('validatePlan ticket size warnings', () => {
+  const deepReasoning = { ...defaultCapabilityProfile(), reasoning: { level: 'deep' as const, rationale: '' } }
+
+  const planWith = (size: TicketContent['size'], level: ReasoningLevel = 'multi_step'): PlanBundle => {
+    const plan = cleanBundle()
+    const capability = { ...defaultCapabilityProfile(), reasoning: { level, rationale: '' } }
+    plan.tickets = [makeTicket(1, { size, capability }), makeTicket(2), makeTicket(3)]
+    return plan
+  }
+
+  it('warns, without erroring, about a large ticket and suggests splitting it', () => {
+    const report = validatePlan(planWith('large'))
+    expect(report.valid).toBe(true)
+    expect(report.errors).toEqual([])
+    expect(report.warnings).toEqual([
+      {
+        code: 'large_ticket',
+        message: 'DM-1 is sized large; consider splitting it into smaller tickets.',
+        ticketIds: [tid(1)]
+      }
+    ])
+  })
+
+  it('warns, without erroring, about a micro ticket that needs deep reasoning', () => {
+    const report = validatePlan(planWith('micro', 'deep'))
+    expect(report.valid).toBe(true)
+    expect(report.errors).toEqual([])
+    expect(report.warnings).toEqual([
+      {
+        code: 'micro_ticket_deep_reasoning',
+        message: 'DM-1 is sized micro but needs deep reasoning; check the size or the reasoning level.',
+        ticketIds: [tid(1)]
+      }
+    ])
+  })
+
+  it.each([
+    ['a ticket with no size at deep', undefined, 'deep'],
+    ['a micro ticket at routine', 'micro', 'routine'],
+    ['a micro ticket at multi_step', 'micro', 'multi_step'],
+    ['a small ticket at deep', 'small', 'deep'],
+    ['a medium ticket at deep', 'medium', 'deep']
+  ] as const)('does not warn about %s', (_label, size, level) => {
+    expect(warningsOf(planWith(size, level))).toEqual([])
+  })
+
+  it('warns about each offending ticket and none of the others', () => {
+    const plan = cleanBundle()
+    plan.tickets = [makeTicket(1, { size: 'large' }), makeTicket(2, { size: 'micro', capability: deepReasoning }), makeTicket(3, { size: 'small' })]
+    expect(codes(warningsOf(plan))).toEqual(['large_ticket', 'micro_ticket_deep_reasoning'])
   })
 })

@@ -10,17 +10,28 @@ import type { CriterionInput, DraftOp, TicketInput } from '../../../shared/domai
 import {
   MODALITIES,
   TOOL_CAPABILITIES,
+  type CapabilityPatch,
   type CapabilityProfile,
   type Criterion,
   type Modality,
   type PlanBundle,
+  type ReasoningEffort,
   type ReasoningLevel,
   type TicketContent,
   type TicketPriority,
+  type TicketSize,
   type ToolCapability,
   type WorkType
 } from '../../../shared/domain/bundle'
 import type { ProfileView } from '../../../shared/domain/views'
+
+/** The values of the quality and cost preferences, each of which the editor can also clear. */
+export const QUALITIES = ['standard', 'high'] as const
+export const COSTS = ['low', 'normal'] as const
+type Quality = (typeof QUALITIES)[number]
+type Cost = (typeof COSTS)[number]
+type Preferences = CapabilityProfile['preferences']
+type Reasoning = CapabilityProfile['reasoning']
 
 interface CriterionField {
   /** Stable React key: the criterion id, or `new-n` for unsaved rows. */
@@ -39,8 +50,16 @@ export interface TicketForm {
   optional: boolean
   sprintId: string
   prerequisites: string[]
+  size: TicketSize | ''
+  /** The ticket's size when the form was loaded: a size still equal to it is not the person's edit. */
+  loadedSize: TicketSize | ''
   workType: WorkType
   reasoningLevel: ReasoningLevel
+  reasoningEffort: ReasoningEffort | ''
+  /** The quality preference ('' = none); shown so one inherited from a profile is visible and can be cleared. */
+  quality: Quality | ''
+  /** The cost preference ('' = none). */
+  cost: Cost | ''
   rationale: string
   tools: ToolCapability[]
   modalities: Modality[]
@@ -59,7 +78,17 @@ export interface TicketForm {
 
 type CapabilityFields = Pick<
   TicketForm,
-  'workType' | 'reasoningLevel' | 'rationale' | 'tools' | 'modalities' | 'skills' | 'tokens' | 'baseCapability'
+  | 'workType'
+  | 'reasoningLevel'
+  | 'reasoningEffort'
+  | 'quality'
+  | 'cost'
+  | 'rationale'
+  | 'tools'
+  | 'modalities'
+  | 'skills'
+  | 'tokens'
+  | 'baseCapability'
 >
 
 interface Option {
@@ -81,9 +110,13 @@ function prerequisitesOf(bundle: PlanBundle, ticketId: string): string[] {
 
 function capabilityFields(capability: CapabilityProfile): CapabilityFields {
   const tokens = capability.context.estimatedInputTokens
+  const effort = capability.reasoning.effort ?? ''
   return {
     workType: capability.workType,
     reasoningLevel: capability.reasoning.level,
+    reasoningEffort: effort,
+    quality: capability.preferences.quality ?? '',
+    cost: capability.preferences.cost ?? '',
     rationale: capability.reasoning.rationale,
     tools: [...capability.tools],
     modalities: [...capability.modalities],
@@ -108,6 +141,8 @@ export function formFromBundle(bundle: PlanBundle, ticketId: string): TicketForm
     optional: ticket.optional,
     sprintId: sprintOf(bundle, ticketId),
     prerequisites: prerequisitesOf(bundle, ticketId),
+    size: ticket.size ?? '',
+    loadedSize: ticket.size ?? '',
     profile: '',
     ...capabilityFields(ticket.capability),
     loadedCapability: ticket.capability
@@ -200,15 +235,24 @@ function sameCriteria(inputs: CriterionInput[], existing: Criterion[]): boolean 
 /** The complete capability requirements the form describes, normalized the way Apply sends them. */
 export function formCapability(form: TicketForm): CapabilityProfile {
   const base = form.baseCapability
+  const reasoning: Reasoning = { level: form.reasoningLevel, rationale: form.rationale.trim() }
+  if (form.reasoningEffort !== '') {
+    reasoning.effort = form.reasoningEffort
+  }
+  const preferences: Preferences = {
+    ...base.preferences,
+    quality: form.quality === '' ? null : form.quality,
+    cost: form.cost === '' ? null : form.cost
+  }
   return {
     workType: form.workType,
-    reasoning: { level: form.reasoningLevel, rationale: form.rationale.trim() },
+    reasoning,
     skills: splitList(form.skills),
     modalities: MODALITIES.filter((item) => form.modalities.includes(item)),
     tools: TOOL_CAPABILITIES.filter((tool) => form.tools.includes(tool)),
     context: { estimatedInputTokens: parseTokens(form.tokens), requiredArtifacts: base.context.requiredArtifacts },
     constraints: base.constraints,
-    preferences: base.preferences
+    preferences
   }
 }
 
@@ -280,6 +324,33 @@ function appliedContext(mine: CapabilityContext, loaded: CapabilityContext, late
   }
 }
 
+/** Reads each field from the person's value when they changed it since loading, otherwise from the latest. */
+function fieldPicker<T extends object>(mine: T, loaded: T, latest: T): <K extends keyof T>(key: K) => T[K] {
+  return (key) => (sameValue(mine[key], loaded[key]) ? latest[key] : mine[key])
+}
+
+/** `reasoning` and `preferences` mix visible fields with ones the editor never shows, so each field is merged on its own. */
+function appliedReasoning(mine: Reasoning, loaded: Reasoning, latest: Reasoning): Reasoning {
+  const choose = fieldPicker(mine, loaded, latest)
+  const applied: Reasoning = { level: choose('level'), rationale: choose('rationale') }
+  const effort = choose('effort')
+  if (effort !== undefined) {
+    applied.effort = effort
+  }
+  return applied
+}
+
+function appliedPreferences(mine: Preferences, loaded: Preferences, latest: Preferences): Preferences {
+  const choose = fieldPicker(mine, loaded, latest)
+  return {
+    quality: choose('quality'),
+    latency: choose('latency'),
+    cost: choose('cost'),
+    autonomy: choose('autonomy'),
+    modelOverride: choose('modelOverride')
+  }
+}
+
 /**
  * The requirements Apply writes: each group the person changed since the form was loaded (through
  * a field or a profile) from the form, every other group from the latest ticket.
@@ -293,10 +364,20 @@ function appliedCapability(form: TicketForm, latest: CapabilityProfile): Capabil
       setGroup(applied, group, latest[group])
     }
   }
-  return { ...applied, context: appliedContext(mine.context, loaded.context, latest.context) }
+  return {
+    ...applied,
+    reasoning: appliedReasoning(mine.reasoning, loaded.reasoning, latest.reasoning),
+    preferences: appliedPreferences(mine.preferences, loaded.preferences, latest.preferences),
+    context: appliedContext(mine.context, loaded.context, latest.context)
+  }
 }
 
-function capabilityPatch(form: TicketForm, current: CapabilityProfile): Partial<CapabilityProfile> {
+/** A cleared effort goes out as `null`: leaving the key out of a patch would keep the ticket's effort. */
+function clearsEffort(next: CapabilityProfile, current: CapabilityProfile): boolean {
+  return next.reasoning.effort === undefined && current.reasoning.effort !== undefined
+}
+
+function capabilityPatch(form: TicketForm, current: CapabilityProfile): CapabilityPatch {
   const next = appliedCapability(form, current)
   const patch: Partial<CapabilityProfile> = {}
   for (const group of CAPABILITY_GROUPS) {
@@ -304,7 +385,11 @@ function capabilityPatch(form: TicketForm, current: CapabilityProfile): Partial<
       setGroup(patch, group, next[group])
     }
   }
-  return patch
+  const { reasoning, ...others } = patch
+  if (reasoning === undefined) {
+    return others
+  }
+  return { ...others, reasoning: clearsEffort(next, current) ? { ...reasoning, effort: null } : reasoning }
 }
 
 function contentPatch(form: TicketForm, ticket: TicketContent): Partial<TicketInput> {
@@ -327,9 +412,22 @@ function contentPatch(form: TicketForm, ticket: TicketContent): Partial<TicketIn
   return patch
 }
 
+/**
+ * The size to write: `undefined` leaves it be (the person did not touch it, or it already is what they
+ * chose), `null` clears a size the ticket has (an `undefined` entry would be dropped from the patch).
+ */
+function sizeChange(form: TicketForm, ticket: TicketContent): TicketSize | null | undefined {
+  const next = form.size === '' ? null : form.size
+  return form.size === form.loadedSize || next === (ticket.size ?? null) ? undefined : next
+}
+
 function ticketPatch(form: TicketForm, ticket: TicketContent): Partial<TicketInput> {
   const patch = contentPatch(form, ticket)
   const capability = capabilityPatch(form, ticket.capability)
+  const size = sizeChange(form, ticket)
+  if (size !== undefined) {
+    patch.size = size
+  }
   if (form.priority !== ticket.priority) {
     patch.priority = form.priority
   }

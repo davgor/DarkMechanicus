@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { REASONING_EFFORTS } from '../shared/domain/bundle'
 import {
   attemptEvidenceInput,
   attemptOutputsInput,
@@ -113,7 +114,8 @@ export const COMMAND_SCHEMAS = {
       modelId: z.string().max(LIMITS.label).nullable().optional(),
       hostId: z.string().max(LIMITS.label).nullable().optional(),
       catalogRevision: z.string().max(LIMITS.label).nullable().optional(),
-      rationale: note.nullable().optional()
+      rationale: note.nullable().optional(),
+      effort: z.enum(REASONING_EFFORTS).nullable().optional()
     }),
     leaseSeconds: leaseSeconds.optional(),
     idempotencyKey
