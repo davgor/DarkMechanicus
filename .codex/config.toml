@@ -1,0 +1,15 @@
+[mcp_servers.darkmechanicus]
+command = "/Applications/DarkMechanicus.app/Contents/MacOS/DarkMechanicus"
+args = [
+    "/Applications/DarkMechanicus.app/Contents/Resources/app.asar/out/main/mcp.js",
+    "--repo",
+    "/Users/davidgorden/src/DarkMechanicus",
+    "--role",
+    "planner",
+    "--allow-save",
+    "--label",
+    "Claude Code",
+]
+
+[mcp_servers.darkmechanicus.env]
+ELECTRON_RUN_AS_NODE = "1"
