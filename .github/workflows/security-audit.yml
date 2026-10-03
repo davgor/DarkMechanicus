@@ -32,22 +32,35 @@ jobs:
         run: |
           python3 - <<'PY'
           import json,sys
+
+          # Advisories with no patched release yet, accepted until one ships. Each reaches only
+          # dev tooling (`npm audit --omit=dev` is clean). Remove an entry once a fix is published.
+          ACCEPTED = {
+              'GHSA-vfj7-8cjw-p6xm': 'braces <= 3.0.3, via ts-prune (deadcode check only)',
+              'GHSA-ch52-4w7c-c8xp': 'http-cache-semantics <= 4.2.0, via electron-builder (packaging only)',
+          }
+
           data = json.load(open('audit.json'))
           vulns_obj = data.get('vulnerabilities') or {}
-          vulns = []
+          # Every flagged package traces back to advisory entries in some `via` list; judge those.
+          advisories = {}
           for name, info in vulns_obj.items():
-              severity = info.get('severity')
-              if severity in ('moderate', 'high', 'critical'):
-                  via = info.get('via', name)
-                  if isinstance(via, list) and via:
-                      via = via[0]
-                  if isinstance(via, dict):
-                      via = via.get('title', name)
-                  vulns.append((name, via, severity))
-          if vulns:
+              for via in info.get('via') or []:
+                  if isinstance(via, dict) and via.get('severity') in ('moderate', 'high', 'critical'):
+                      ghsa = (via.get('url') or '').rstrip('/').rsplit('/', 1)[-1] or via.get('title', name)
+                      advisories[ghsa] = (name, via.get('title', name), via.get('severity'))
+
+          for ghsa in sorted(set(advisories) & set(ACCEPTED)):
+              name, title, severity = advisories[ghsa]
+              print(f"::warning::Accepted {ghsa} ({severity}) in {name}: {title}. {ACCEPTED[ghsa]}")
+          for ghsa in sorted(set(ACCEPTED) - set(advisories)):
+              print(f"::notice::{ghsa} is no longer reported; remove it from ACCEPTED.")
+
+          blocking = {k: v for k, v in advisories.items() if k not in ACCEPTED}
+          if blocking:
               print('\nFound vulnerabilities (moderate+):')
-              for v in vulns:
-                  print(f"- {v[0]} | {v[1]} | severity={v[2]}")
+              for ghsa, (name, title, severity) in sorted(blocking.items()):
+                  print(f"- {name} | {title} | {ghsa} | severity={severity}")
               print('\nAction required: resolve or upgrade affected dependencies before merging.')
               sys.exit(1)
           print('No moderate+ vulnerabilities found')
