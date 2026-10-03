@@ -9,7 +9,7 @@
   "epicId": "ep_01m3xkn4ha934vpfpht42bh6bq",
   "format": "darkmechanicus.epic-state",
   "formatVersion": 1,
-  "generation": 1,
+  "generation": 2,
   "outcome": null,
   "provenance": null,
   "status": "backlog",
@@ -35,8 +35,11 @@
     "tk_01m3xkssg9hnt12ga00400z5sh": "backlog",
     "tk_01m3xkvqfe4q89556asf8he9ww": "backlog",
     "tk_01m3xkvqffkf7rknccekv9j6ff": "backlog",
-    "tk_01m3xkvqffw8brer50endtjh02": "backlog"
+    "tk_01m3xkvqffw8brer50endtjh02": "backlog",
+    "tk_01m41kr1gw9j1hmh8xgk7fq648": "backlog",
+    "tk_01m41kr1gy91wx2h6pq66q3kmp": "backlog",
+    "tk_01m41kr1gysfddnjgfrsvcj3w8": "backlog"
   },
   "title": "Scrum cadence: right-sized agents, a sprint acceptance round, one-commit increments, retro and redraft",
-  "updatedAt": "2026-10-02T06:12:17.604Z"
+  "updatedAt": "2026-10-03T19:27:11.956Z"
 }

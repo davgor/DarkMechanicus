@@ -1,0 +1,22 @@
+{
+  "activeSprintId": null,
+  "attempts": [],
+  "checkpoints": [],
+  "createdAt": "2026-10-03T18:43:29.140Z",
+  "endedAt": "2026-10-03T18:44:09.757Z",
+  "epicId": "ep_01m3w0krtb0p7kvamsz7peq1g5",
+  "format": "darkmechanicus.run",
+  "formatVersion": 1,
+  "host": null,
+  "hostCatalogId": null,
+  "number": 1,
+  "ownerMachineId": "mc_01m41707wstg1crxjbt3jw2ap5",
+  "pauseReason": null,
+  "reports": [],
+  "revisionId": "rv_01m3w0krthrfyay7ygbqez8pjf",
+  "runId": "rn_01m41h847mwazyg99hrfjxdxa5",
+  "skillVersion": null,
+  "startedAt": null,
+  "state": "canceled",
+  "updatedAt": "2026-10-03T18:44:09.757Z"
+}

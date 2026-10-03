@@ -1,0 +1,152 @@
+{
+  "baseRevisionId": "rv_01m3w0krthrfyay7ygbqez8pjf",
+  "bundle": {
+    "edges": [],
+    "epic": {
+      "intent": "Prove that the packaged app and its headless MCP entry work across operating systems.\n\nCarried over from the retired markdown board (`board/in-progress/014-cross-host-release.md`, milestone 6). Its first two parts are done: 014.1 packaged the MCP entry with the app, and 014.2 added the skill install wrapper. This epic holds 014.3 (DM-12).\n\nThe second-host sprint (014.4, formerly DM-13) was split out on 2026-10-03 into the epic \"Second-host MCP validation\" because it was not done when this epic closed.",
+      "ownerRole": null,
+      "successCriteria": [
+        {
+          "id": "s1",
+          "text": "Packaged Windows (NSIS and portable) and macOS (arm64 and x64) builds each start the desktop app and the MCP entry against one shared database."
+        }
+      ],
+      "title": "Cross-host validation and release"
+    },
+    "formatVersion": 1,
+    "policies": {
+      "leaseSeconds": 900,
+      "maxConcurrency": null,
+      "onTicketFailure": "continue_independent",
+      "retryLimit": 3
+    },
+    "rationale": "One sprint: verification work with no code expected. The second-host run (formerly DM-13) moved to \"Second-host MCP validation\".",
+    "relations": [],
+    "sprints": [
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": null,
+        "entryCriteria": [],
+        "exitCriteria": [
+          {
+            "id": "e1",
+            "text": "Evidence (logs or screenshots) from Windows and from macOS arm64 and x64 shows desktop and MCP sharing one database."
+          }
+        ],
+        "goal": "The packaged app and MCP entry are verified on Windows and macOS.",
+        "id": "sp_01m3w0krtbmrrwsbe1143eff08",
+        "ordinal": 1,
+        "ticketIds": [
+          "tk_01m3w0krtfqhgg026fxpk8adjh"
+        ]
+      }
+    ],
+    "tickets": [
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The packaged Windows NSIS and portable builds start the desktop app and the MCP entry with a shared database."
+          },
+          {
+            "id": "c2",
+            "text": "The packaged macOS arm64 and x64 builds do the same."
+          },
+          {
+            "id": "c3",
+            "text": "The installed-app `npm run smoke:mcp` passes on each platform, with output attached."
+          }
+        ],
+        "body": "Formerly board ticket 014.3. This needs real Windows and macOS machines or CI runners; a Linux container can't verify it.\n\nFor each packaged build (Windows NSIS installer, Windows portable, macOS `.dmg` arm64 and x64):\n1. Install, launch the desktop app, and track and initialize a scratch repository.\n2. Start the MCP entry with the app executable and `ELECTRON_RUN_AS_NODE=1` (see `docs/runbooks/mcp-setup.md`) against the same repository.\n3. Create an epic over MCP and confirm the desktop shows it. Then save a plan in the desktop and confirm `get_plan` over MCP returns it.\n\nThe installed-app smoke test (`MCP_SMOKE_COMMAND=... MCP_SMOKE_SERVER=... npm run smoke:mcp`) covers the MCP half on each machine.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [
+              "windows",
+              "macos"
+            ],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": 20000,
+            "requiredArtifacts": [
+              "docs/runbooks/mcp-setup.md"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": "high"
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": "Manual cross-platform verification with careful evidence gathering."
+          },
+          "skills": [
+            "release",
+            "electron",
+            "windows",
+            "macos"
+          ],
+          "tools": [
+            "repo_read",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m3w0krtfqhgg026fxpk8adjh",
+        "key": "DM-12",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/runbooks/mcp-setup.md",
+            "location": "docs/runbooks/mcp-setup.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "scripts/mcp-smoke.mjs",
+            "location": "scripts/mcp-smoke.mjs",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "commit",
+            "label": "Last commit with board/backlog/014.3-windows-macos-packaging.md",
+            "location": "52d6a0c",
+            "remoteOnly": false
+          }
+        ],
+        "tags": [
+          "release",
+          "packaging",
+          "cross-platform"
+        ],
+        "title": "Verify the Windows and macOS packaged builds share one database between desktop and MCP"
+      }
+    ]
+  },
+  "contentHash": "sha256:436000bf3b0840c0fa94369cf078153cfc8c2bf7400d94e3a1dcb58ee983a839",
+  "createdAt": "2026-10-03T18:47:12.501Z",
+  "epicId": "ep_01m3w0krtb0p7kvamsz7peq1g5",
+  "format": "darkmechanicus.plan-snapshot",
+  "formatVersion": 1,
+  "number": 2,
+  "revisionId": "rv_01m41heybnjnp992nkmbbqgzhf",
+  "savedAt": "2026-10-03T18:47:12.501Z"
+}

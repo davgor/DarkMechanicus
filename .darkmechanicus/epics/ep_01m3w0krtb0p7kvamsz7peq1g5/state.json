@@ -1,18 +1,33 @@
 {
-  "branch": null,
-  "completedAt": null,
+  "branch": {
+    "name": "main",
+    "repository": null,
+    "startCommit": "642c330fcb618043be6051ee721079902320ee9c"
+  },
+  "completedAt": "2026-10-03T18:48:03.236Z",
   "createdAt": "2026-10-01T15:16:32.715Z",
   "epicId": "ep_01m3w0krtb0p7kvamsz7peq1g5",
   "format": "darkmechanicus.epic-state",
   "formatVersion": 1,
-  "generation": 1,
-  "outcome": null,
+  "generation": 6,
+  "outcome": {
+    "recordedAt": "2026-10-03T18:48:03.236Z",
+    "runId": "rn_01m41hf19m76mmhf42amb24vdm",
+    "successCriteria": [
+      {
+        "criterionId": "s1",
+        "met": true,
+        "note": "User attestation for all four builds; Windows NSIS MCP half reproduced by the orchestrator."
+      }
+    ],
+    "summary": "Packaged builds verified across Windows and macOS (per user, with Windows NSIS reproduced). Second-host validation split into its own epic."
+  },
   "provenance": null,
-  "status": "backlog",
+  "status": "completed",
   "ticketStatuses": {
     "tk_01m3w0krtf2pcdb4x1c88jpwwe": "backlog",
-    "tk_01m3w0krtfqhgg026fxpk8adjh": "backlog"
+    "tk_01m3w0krtfqhgg026fxpk8adjh": "completed"
   },
   "title": "Cross-host validation and release",
-  "updatedAt": "2026-10-01T15:16:32.730Z"
+  "updatedAt": "2026-10-03T18:48:03.253Z"
 }

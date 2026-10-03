@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "planner"
+  },
+  "body": "Follow-up to the DM-28 comment, also on `main` before this run, outside any claim:\n\n- **Done:** the app's **Connect Claude Code** and onboarding now default to `--role orchestrator`. Tests were written first, in `ClaudeCodeConnect.test.tsx`, `shellActions.test.ts`, `OnboardingView.test.tsx`, `App.start.test.tsx` and `McpCard.test.tsx`.\n- **Decision (from the person):** inside an epic each ticket runs only targeted checks, and the full gate runs once at the end of the epic. This is now section 3 of delivery-standards (both copies). DM-37 (light tickets, row checks and the acceptance round) should build on it.\n\nAll of this goes into one PR together with the \"Delete epics and tickets\" epic's changes, which share the working tree.",
+  "createdAt": "2026-10-03T19:18:22.382Z",
+  "epicId": "ep_01m3xkn4ha934vpfpht42bh6bq",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m41k80devrw9dej595xdhskm",
+  "ticketId": null
+}
