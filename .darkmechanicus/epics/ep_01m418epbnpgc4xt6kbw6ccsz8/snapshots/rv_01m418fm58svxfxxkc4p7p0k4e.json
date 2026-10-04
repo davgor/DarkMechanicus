@@ -1,0 +1,1218 @@
+{
+  "baseRevisionId": null,
+  "bundle": {
+    "edges": [
+      {
+        "from": "tk_01m418f9r6hejk71gshty4my55",
+        "to": "tk_01m418f9r62r2gn50rzeh761as"
+      },
+      {
+        "from": "tk_01m418f9r62r2gn50rzeh761as",
+        "to": "tk_01m418f9r60s80mah30ar68srb"
+      },
+      {
+        "from": "tk_01m418f9r62r2gn50rzeh761as",
+        "to": "tk_01m418f9r69cbbn6m3p5z890sh"
+      },
+      {
+        "from": "tk_01m418f9r6hejk71gshty4my55",
+        "to": "tk_01m418f9r6babdb17bd9hveyyq"
+      },
+      {
+        "from": "tk_01m418f9r61tandknakfwj6afs",
+        "to": "tk_01m418f9r6m3fvhem1tc98ybv2"
+      },
+      {
+        "from": "tk_01m418f9r61tandknakfwj6afs",
+        "to": "tk_01m418f9r62eygfhkvwr4zdrfa"
+      },
+      {
+        "from": "tk_01m418f9r62eygfhkvwr4zdrfa",
+        "to": "tk_01m418f9r640y5eczvcaneen09"
+      },
+      {
+        "from": "tk_01m418f9r60s80mah30ar68srb",
+        "to": "tk_01m418f9r640y5eczvcaneen09"
+      },
+      {
+        "from": "tk_01m418f9r69cbbn6m3p5z890sh",
+        "to": "tk_01m418f9r640y5eczvcaneen09"
+      },
+      {
+        "from": "tk_01m418f9r62eygfhkvwr4zdrfa",
+        "to": "tk_01m418f9r62pcd5mvqrt31x2x0"
+      },
+      {
+        "from": "tk_01m418f9r640y5eczvcaneen09",
+        "to": "tk_01m418f9r7r6snwq3hkqhyd9s8"
+      },
+      {
+        "from": "tk_01m418f9r62pcd5mvqrt31x2x0",
+        "to": "tk_01m418f9r7r6snwq3hkqhyd9s8"
+      },
+      {
+        "from": "tk_01m418f9r6m3fvhem1tc98ybv2",
+        "to": "tk_01m418f9r7r6snwq3hkqhyd9s8"
+      },
+      {
+        "from": "tk_01m418f9r6babdb17bd9hveyyq",
+        "to": "tk_01m418f9r7r6snwq3hkqhyd9s8"
+      }
+    ],
+    "epic": {
+      "intent": "While an epic runs, a person cannot see what the agents are doing. The graph says RUNNING, and the attempts strip shows a lease countdown. This epic makes the work visible while it happens.\n\n**What changes**\n- **Hourglass on working tickets.** A ticket with an open attempt shows an hourglass on its graph node and list row. Clicking it opens a live activity panel for that attempt. For agents running in a Dark Mechanicus chat, the panel streams the worker's (and its subagents') messages and tool calls. For agents on external hosts, it shows the progress notes and run events they report.\n- **Orchestrator feed.** While a run is active, the epic graph shows an orchestrator entry. Clicking it opens a live feed of the orchestrator's movements: claims (model and rationale), heartbeats, reviews, pauses and sprint reports, plus its own stream when it runs in a Dark Mechanicus chat.\n- **In agent chats.** In a chat that orchestrates or works tickets, each subagent appears as a collapsible live thread under the call that spawned it. Dark Mechanicus actions show as markers that open the ticket or epic. Live panels link back to the chat.\n\n**Decisions (from the person, 2026-10-03)**\n- Agents started from Dark Mechanicus chats stream everything. Agents on external hosts report progress notes with `heartbeat_attempt`. Dark Mechanicus does not read vendor log files.\n- In chats: nested subagent threads, action markers, and links both ways.\n- This is its own epic. Sprint 1 needs nothing from the Agents epic. Sprint 2 builds on the Agents epic's chat runtime (chat contract, session manager, adapters) and its Start run orchestrator launch, and starts only after those are accepted.\n\n**Constraints**\n- Claim tokens never appear in an activity view, stored transcript or progress note.\n- Progress notes and activity stay in the local working database (`.darkmechanicus/local/`), not in the Git-tracked run history.\n- Plans, tickets and profiles stay provider-neutral.\n\n**Out of scope:** reading vendor session files; controlling agents from the live panels (pausing or messaging a worker); activity for runs that ended before this ships.",
+      "ownerRole": null,
+      "successCriteria": [
+        {
+          "id": "s1",
+          "text": "While a ticket has an open attempt, its graph node and list row show an hourglass; clicking it opens a live activity panel that updates without reloading."
+        },
+        {
+          "id": "s2",
+          "text": "While a run is active, the epic graph shows an orchestrator entry; clicking it opens a live feed of the orchestrator's claims (with model and rationale), heartbeats, reviews, pauses and sprint reports."
+        },
+        {
+          "id": "s3",
+          "text": "For an agent running in a Dark Mechanicus chat, the attempt panel streams the worker's or subagent's messages and tool calls live and links to the chat."
+        },
+        {
+          "id": "s4",
+          "text": "For an agent on an external host, the attempt panel shows the progress notes it sends with `heartbeat_attempt`, together with the run events."
+        },
+        {
+          "id": "s5",
+          "text": "In an orchestrator chat, each subagent appears as a collapsible live thread under the call that spawned it, and Dark Mechanicus actions show as markers that open the ticket or epic."
+        },
+        {
+          "id": "s6",
+          "text": "Claim tokens never appear in any activity view, stored transcript or progress note."
+        }
+      ],
+      "title": "Live agent activity: watch workers and the orchestrator as they run"
+    },
+    "formatVersion": 1,
+    "policies": {
+      "leaseSeconds": 900,
+      "maxConcurrency": null,
+      "onTicketFailure": "continue_independent",
+      "retryLimit": 3
+    },
+    "rationale": "**Sprint shape.** Sprint 1 works for any agent host and needs nothing from the Agents epic: progress notes, timelines, the hourglass, and the orchestrator feed. Sprint 2 layers the full chat streams on top once the Agents chat runtime has landed (see its entry criterion).\n\n**Assumptions made while planning (confirm or change)**\n- Progress notes are limited to 280 characters, with the last 200 kept per attempt, and stay in the local database.\n- A claim token inside a progress note is masked rather than failing the heartbeat, so a careless note cannot make a lease expire.\n- Where a CLI does not expose its subagents, the live view shows that agent's own stream.\n- No epic branch was named. Set one before starting a run.\n- Ticket sizes are written in each body because this server version has no size field yet.",
+    "relations": [],
+    "sprints": [
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": null,
+        "entryCriteria": [],
+        "exitCriteria": [
+          {
+            "id": "e1",
+            "text": "With an external agent host running an epic, working tickets show hourglasses, each opens a live panel with progress notes and events, and the orchestrator feed shows claims, reviews and reports, all updating without reload."
+          },
+          {
+            "id": "e2",
+            "text": "The worker and orchestrator skills tell agents to send progress notes."
+          }
+        ],
+        "goal": "Live activity from Dark Mechanicus records: hourglass, attempt panel and orchestrator feed, fed by run events and progress notes, for any agent host.",
+        "id": "sp_01m418epbny0qs540gn2zmh6g4",
+        "ordinal": 1,
+        "ticketIds": [
+          "tk_01m418f9r6hejk71gshty4my55",
+          "tk_01m418f9r62r2gn50rzeh761as",
+          "tk_01m418f9r60s80mah30ar68srb",
+          "tk_01m418f9r69cbbn6m3p5z890sh",
+          "tk_01m418f9r6babdb17bd9hveyyq"
+        ]
+      },
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": null,
+        "entryCriteria": [
+          {
+            "id": "n1",
+            "text": "The Agents epic's chat runtime sprint (chat contract, session manager, Claude, Codex and Cursor adapters) and its Start run orchestrator launch are accepted."
+          }
+        ],
+        "exitCriteria": [
+          {
+            "id": "e1",
+            "text": "With an orchestrator running in a Dark Mechanicus chat, a working ticket's hourglass opens the worker subagent's live stream, the orchestrator feed shows the chat's stream, and the chat shows each subagent inline with links both ways, on Windows and macOS."
+          }
+        ],
+        "goal": "Full streams from Agents chats: subagent threads linked to attempts and runs, shown in live panels and inline in chats.",
+        "id": "sp_01m418f9r6hg1y20w6d9fpj5n2",
+        "ordinal": 2,
+        "ticketIds": [
+          "tk_01m418f9r61tandknakfwj6afs",
+          "tk_01m418f9r6m3fvhem1tc98ybv2",
+          "tk_01m418f9r62eygfhkvwr4zdrfa",
+          "tk_01m418f9r640y5eczvcaneen09",
+          "tk_01m418f9r62pcd5mvqrt31x2x0",
+          "tk_01m418f9r7r6snwq3hkqhyd9s8"
+        ]
+      }
+    ],
+    "tickets": [
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A heartbeat with a progress note stores it with time, session and step and returns as before; a heartbeat without one behaves exactly as before."
+          },
+          {
+            "id": "c2",
+            "text": "A note over the length limit is refused by schema validation; a claim token inside a note is masked before it is stored (unit test with a real token shape)."
+          },
+          {
+            "id": "c3",
+            "text": "Only the last 200 notes per attempt are kept."
+          },
+          {
+            "id": "c4",
+            "text": "Run history exported after notes were recorded contains no notes, and an existing snapshot keeps its content hash."
+          },
+          {
+            "id": "c5",
+            "text": "Tests were written first and pass; `npm run smoke:mcp` passes."
+          }
+        ],
+        "body": "Size: **small**.\n\nExternal agents can only show their work through MCP. Let a heartbeat carry a short note.\n\n**In scope**\n- `heartbeat_attempt` gains optional `progress`: `{ note: string (at most 280 characters), step?: string (at most 64, for example \"testing\") }`. Store it as an attempt activity event in the local events table (`src/core/services/events.ts`) with the session that sent it. Keep the last 200 notes per attempt.\n- Mask any claim-token-shaped string (`<attempt id>.<secret>`) in a note before storing it, so a token can never be stored. The heartbeat itself still succeeds.\n- Notes are local working data. They are not exported to the portable run history, and existing exports keep their content hash.\n- Update the MCP tool schema and description (`src/mcp/tools/execution.ts`, `src/core/commandSchemas.ts`).\n\n**Out of scope:** UI (later tickets), skills text (separate ticket).",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": "high"
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": "Extends an MCP tool contract and storage without breaking portable history hashes."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing",
+            "database"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/services/attempts.ts",
+          "src/core/services/attempts.test.ts"
+        ],
+        "id": "tk_01m418f9r6hejk71gshty4my55",
+        "key": "DM-62",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/attempts.ts",
+            "location": "src/core/services/attempts.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/events.ts",
+            "location": "src/core/services/events.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/tools/execution.ts",
+            "location": "src/mcp/tools/execution.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/commandSchemas.ts",
+            "location": "src/core/commandSchemas.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/portable.ts",
+            "location": "src/core/repo/portable.ts",
+            "remoteOnly": false
+          }
+        ],
+        "tags": [
+          "activity",
+          "core",
+          "mcp"
+        ],
+        "title": "Accept progress notes on heartbeat_attempt"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "An attempt timeline lists claim, notes, comments, submission and decision in time order, with heartbeats collapsed (unit test on a seeded database)."
+          },
+          {
+            "id": "c2",
+            "text": "A run timeline lists the orchestrator's actions grouped by session."
+          },
+          {
+            "id": "c3",
+            "text": "Polling with the returned cursor returns only new entries."
+          },
+          {
+            "id": "c4",
+            "text": "Tests were written first and pass."
+          }
+        ],
+        "body": "Size: **medium**.\n\n**In scope**\n- A read model in core that merges what Dark Mechanicus knows about an attempt into a timeline: claim (worker label, model, host, rationale), heartbeats (collapsed into \"alive\" spans), progress notes, comments on the ticket during the attempt, submission, review decision, failure, lease expiry and reconciliation.\n- A run timeline for the orchestrator: run start, claims, reviews, pauses and resumes, sprint reports and checkpoint decisions, grouped by the session that did them.\n- Expose both to the desktop through the existing command path, with a cursor so the renderer polls for new entries only. Reuse the renderer's event poller (`src/renderer/src/app/eventPoller.ts`).\n- Include `isLive` (the attempt is open, or the run is active) so the UI knows when to keep polling.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": "high"
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": "A read model over several event sources with cursor-based polling."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing",
+            "database"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/services/activity.ts",
+          "src/core/services/activity.test.ts"
+        ],
+        "id": "tk_01m418f9r62r2gn50rzeh761as",
+        "key": "DM-63",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/events.ts",
+            "location": "src/core/services/events.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/runs.ts",
+            "location": "src/core/services/runs.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/comments.ts",
+            "location": "src/core/services/comments.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/app/eventPoller.ts",
+            "location": "src/renderer/src/app/eventPoller.ts",
+            "remoteOnly": false
+          }
+        ],
+        "tags": [
+          "activity",
+          "core"
+        ],
+        "title": "Build attempt and run activity timelines"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Only tickets with an open attempt show the hourglass, in both graph and list (component tests)."
+          },
+          {
+            "id": "c2",
+            "text": "Clicking the hourglass, or the attempt in the attempts strip, opens the Activity tab for that attempt (component test)."
+          },
+          {
+            "id": "c3",
+            "text": "New entries appear while the attempt is open without reloading, and polling stops when it closes (test with the manual scheduler)."
+          },
+          {
+            "id": "c4",
+            "text": "With reduced motion the hourglass does not animate."
+          },
+          {
+            "id": "c5",
+            "text": "Screenshots of a node with the hourglass and of the Activity tab during a run are attached to the submission."
+          }
+        ],
+        "body": "Size: **medium**.\n\n**In scope**\n- Graph (`src/renderer/src/graph/nodes.tsx`) and list view (`src/renderer/src/epic/ListView.tsx`): a ticket whose latest attempt is open (claimed or running) shows an animated hourglass next to its state pill, with an accessible label (\"DM-12 is being worked on\"). With reduced motion the icon is static.\n- Clicking the hourglass opens the ticket panel on a new **Activity** tab (`src/renderer/src/ticket/panelTabs.tsx`) showing the attempt timeline, newest at the bottom, auto-scrolling while live unless the person has scrolled up. When the attempt closes, the panel says how it ended.\n- Clicking an attempt in the attempts strip (`src/renderer/src/epic/AttemptsStrip.tsx`) opens the same tab.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": "high"
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": "Adds live state to graph nodes and a new panel tab with polling."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/ticket/ActivityTab.tsx"
+        ],
+        "id": "tk_01m418f9r60s80mah30ar68srb",
+        "key": "DM-64",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/graph/nodes.tsx",
+            "location": "src/renderer/src/graph/nodes.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/epic/ListView.tsx",
+            "location": "src/renderer/src/epic/ListView.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/ticket/panelTabs.tsx",
+            "location": "src/renderer/src/ticket/panelTabs.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/epic/AttemptsStrip.tsx",
+            "location": "src/renderer/src/epic/AttemptsStrip.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/__mocks__/manualScheduler.ts",
+            "location": "src/renderer/src/__mocks__/manualScheduler.ts",
+            "remoteOnly": false
+          }
+        ],
+        "tags": [
+          "activity",
+          "renderer",
+          "ui"
+        ],
+        "title": "Show an hourglass on working tickets and open the live attempt panel"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The orchestrator chip appears only while a run is active (component test)."
+          },
+          {
+            "id": "c2",
+            "text": "Clicking it opens the live run feed, and ticket entries open the ticket panel (component test)."
+          },
+          {
+            "id": "c3",
+            "text": "The feed updates without reload and stops polling when the run ends."
+          },
+          {
+            "id": "c4",
+            "text": "A screenshot of the feed during a run is attached to the submission."
+          }
+        ],
+        "body": "Size: **small**.\n\n**In scope**\n- While the epic has an active run, the run bar (`src/renderer/src/epic/RunBar.tsx`) shows an orchestrator chip with an hourglass and the orchestrator session's label. Clicking it opens a drawer with the live run timeline.\n- Entries about a ticket link to it (opening the ticket panel), and a claim shows the model and rationale.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": "high"
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": "A run-level chip and drawer reusing the activity timeline."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/epic/OrchestratorFeed.tsx"
+        ],
+        "id": "tk_01m418f9r69cbbn6m3p5z890sh",
+        "key": "DM-65",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/epic/RunBar.tsx",
+            "location": "src/renderer/src/epic/RunBar.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/epic/runBarView.ts",
+            "location": "src/renderer/src/epic/runBarView.ts",
+            "remoteOnly": false
+          }
+        ],
+        "tags": [
+          "activity",
+          "renderer",
+          "ui"
+        ],
+        "title": "Add the orchestrator entry to the epic graph and its live feed"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Both skills describe progress notes, their length limit and the no-secrets rule."
+          },
+          {
+            "id": "c2",
+            "text": "The MCP prompts served by the server include the updated text, and the existing prompt tests pass (updated where they pin text)."
+          },
+          {
+            "id": "c3",
+            "text": "The runbook documents the new field."
+          }
+        ],
+        "body": "Size: **small**.\n\n**In scope**\n- `skills/worker.md`: with each `heartbeat_attempt`, send a short `progress` note saying what you are doing now (for example \"running npm test\", \"editing src/main/agentProbe.ts\"). Never include the claim token or other secrets.\n- `skills/orchestrator.md`: when heartbeating for a worker that cannot, relay the worker's latest status as the note.\n- `docs/runbooks/mcp-setup.md`: document the new field.\n- Bump the skills version (`src/mcp/skills.ts`) so hosts pick up the change, and keep any mirrored copies of these guides consistent.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": "standard"
+          },
+          "reasoning": {
+            "level": "routine",
+            "rationale": "Small wording changes to shipped skills and a runbook."
+          },
+          "skills": [
+            "technical-writing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write"
+          ],
+          "workType": "documentation"
+        },
+        "expectedArtifacts": [
+          "skills/worker.md",
+          "skills/orchestrator.md",
+          "docs/runbooks/mcp-setup.md"
+        ],
+        "id": "tk_01m418f9r6babdb17bd9hveyyq",
+        "key": "DM-66",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/worker.md",
+            "location": "skills/worker.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/orchestrator.md",
+            "location": "skills/orchestrator.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/runbooks/mcp-setup.md",
+            "location": "docs/runbooks/mcp-setup.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/skills.ts",
+            "location": "src/mcp/skills.ts",
+            "remoteOnly": false
+          }
+        ],
+        "tags": [
+          "activity",
+          "skills",
+          "docs"
+        ],
+        "title": "Teach workers and orchestrators to send progress notes"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A recorded Claude session with two parallel subagents replays into two threads under their spawning calls, in order (unit test)."
+          },
+          {
+            "id": "c2",
+            "text": "An approval raised inside a subagent carries that thread's id and label."
+          },
+          {
+            "id": "c3",
+            "text": "Chats stored before this change still load."
+          },
+          {
+            "id": "c4",
+            "text": "Tests were written first and pass."
+          }
+        ],
+        "body": "Size: **medium**.\n\nBuilds on the Agents epic's chat contract (`src/shared/agents/chat.ts`) and Claude adapter.\n\n**In scope**\n- Use the contract's `threadId` for nested threads. A thread has a parent item (the tool call that spawned it), a label (the subagent's description) and a state (running, done, failed).\n- Claude adapter: map Agent SDK messages that carry a parent tool-use id to items in that subagent's thread; the spawning tool call becomes the thread's parent.\n- Store and replay threads with the rest of the chat. Chats stored before this change still load.\n- Approvals raised inside a subagent are labelled with its thread.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": "high"
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": "Extends a shared contract and a vendor adapter with nested streams while keeping stored data compatible."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/main/agents/adapters/claude.ts",
+          "src/main/agents/adapters/claude.test.ts"
+        ],
+        "id": "tk_01m418f9r61tandknakfwj6afs",
+        "key": "DM-67",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/agents/chat.ts",
+            "location": "src/shared/agents/chat.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/adapters/claude.ts",
+            "location": "src/main/agents/adapters/claude.ts",
+            "remoteOnly": false
+          }
+        ],
+        "tags": [
+          "activity",
+          "agents",
+          "main"
+        ],
+        "title": "Carry subagent threads in the chat contract and the Claude adapter"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "For each of Codex and Cursor, a recorded exchange with subagent activity replays into threads, or the runbook states that the CLI does not expose subagents and a test shows the adapter keeps one thread."
+          },
+          {
+            "id": "c2",
+            "text": "Tests were written first and pass."
+          }
+        ],
+        "body": "Size: **medium**.\n\n**In scope**\n- Find out what each CLI exposes about subagents at build time (Codex app-server items and any multi-agent events; Cursor ACP session updates). Map what exists to threads, as in the Claude ticket.\n- Where a CLI exposes no subagent structure, keep everything in the main thread, and record in `docs/runbooks/agents.md` what is and is not shown for that agent.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": "high"
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": "Investigates two vendor protocols and maps what they expose onto the shared contract."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution",
+            "network"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/main/agents/adapters/codex.ts",
+          "src/main/agents/adapters/cursor.ts",
+          "docs/runbooks/agents.md"
+        ],
+        "id": "tk_01m418f9r6m3fvhem1tc98ybv2",
+        "key": "DM-68",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/adapters/codex.ts",
+            "location": "src/main/agents/adapters/codex.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/adapters/cursor.ts",
+            "location": "src/main/agents/adapters/cursor.ts",
+            "remoteOnly": false
+          }
+        ],
+        "tags": [
+          "activity",
+          "agents",
+          "main"
+        ],
+        "title": "Carry subagent threads from the Codex and Cursor adapters"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A replayed orchestrator chat binds its main thread to the run and each worker subagent to its attempt (unit test on recorded items)."
+          },
+          {
+            "id": "c2",
+            "text": "Lookups by attempt id and by run id return the chat and thread."
+          },
+          {
+            "id": "c3",
+            "text": "No binding or stored item contains a claim token."
+          },
+          {
+            "id": "c4",
+            "text": "Tests were written first and pass."
+          }
+        ],
+        "body": "Size: **medium**.\n\n**In scope**\n- A chat launched by Start run already records its run id: bind its main thread to that run as orchestrator.\n- In the session manager, watch each thread's Dark Mechanicus tool calls. `start_run`, `takeover_run` and `claim_ticket` by a main thread bind it to the run as orchestrator. `heartbeat_attempt`, `submit_attempt` and `fail_attempt` with an attempt id bind that thread to the attempt. When an orchestrator spawns a subagent whose prompt carries an attempt id (the execution packet), bind that subagent thread to the attempt.\n- Store bindings app-wide next to the chat (chat id, thread id, attempt id or run id, folder), and expose lookups by attempt and by run.\n- Claim tokens are masked before storage, so match on the attempt id, never on the token.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": "high"
+          },
+          "reasoning": {
+            "level": "deep",
+            "rationale": "Correlates tool calls across nested threads with run state; mistakes show the wrong agent's work or leak tokens."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing",
+            "security-review"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/main/agents/activityBindings.ts",
+          "src/main/agents/activityBindings.test.ts"
+        ],
+        "id": "tk_01m418f9r62eygfhkvwr4zdrfa",
+        "key": "DM-69",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/sessionManager.ts",
+            "location": "src/main/agents/sessionManager.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/orchestrator.md",
+            "location": "skills/orchestrator.md",
+            "remoteOnly": false
+          }
+        ],
+        "tags": [
+          "activity",
+          "agents",
+          "main"
+        ],
+        "title": "Link chat threads to the attempts and runs they act on"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A bound attempt's Activity tab shows the thread's items live, ordered with the timeline entries (component test with a fake push channel)."
+          },
+          {
+            "id": "c2",
+            "text": "Open chat navigates to the chat with the thread expanded."
+          },
+          {
+            "id": "c3",
+            "text": "An unbound attempt still shows the plain timeline unchanged."
+          },
+          {
+            "id": "c4",
+            "text": "A pending approval in the thread can be answered from the panel."
+          },
+          {
+            "id": "c5",
+            "text": "A screenshot of a bound attempt's Activity tab during a run is attached to the submission."
+          }
+        ],
+        "body": "Size: **medium**.\n\n**In scope**\n- When an attempt is bound to a chat thread, the Activity tab shows that thread's live items (messages, tool calls, approvals) merged with the attempt timeline, and an **Open chat** link to the chat with the thread expanded.\n- When the run's orchestrator is a bound chat, the orchestrator feed shows the main thread's stream the same way.\n- An approval a bound thread is waiting on can be answered from the panel.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": "high"
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": "Merges live chat streams into existing activity views with cross-navigation."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/ticket/ActivityTab.tsx",
+          "src/renderer/src/epic/OrchestratorFeed.tsx"
+        ],
+        "id": "tk_01m418f9r640y5eczvcaneen09",
+        "key": "DM-70",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/ticket/ActivityTab.tsx",
+            "location": "src/renderer/src/ticket/ActivityTab.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/epic/OrchestratorFeed.tsx",
+            "location": "src/renderer/src/epic/OrchestratorFeed.tsx",
+            "remoteOnly": false
+          }
+        ],
+        "tags": [
+          "activity",
+          "renderer",
+          "ui"
+        ],
+        "title": "Stream linked chat threads in the attempt panel and orchestrator feed"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Threads render collapsed under their spawning call with label and state, and expand to their items (component test)."
+          },
+          {
+            "id": "c2",
+            "text": "Dark Mechanicus tool calls render as markers that open the ticket or epic (component test)."
+          },
+          {
+            "id": "c3",
+            "text": "A bound thread shows its ticket key and links to the ticket's Activity tab."
+          },
+          {
+            "id": "c4",
+            "text": "A screenshot of an orchestrator chat with subagent threads is attached to the submission."
+          }
+        ],
+        "body": "Size: **medium**.\n\n**In scope**\n- In the chat view (Agents epic), each thread renders as a collapsible block under its spawning tool call: label, state (running with an hourglass, done, failed), and its items when expanded. Running threads stream live.\n- Dark Mechanicus tool calls render as compact markers (claimed DM-12, accepted DM-12, rejected DM-12, sprint report filed) that open the ticket or epic.\n- A thread bound to an attempt shows the ticket key and links to its Activity tab.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": "high"
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": "Nested live threads and navigation markers in the chat transcript."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/agents/ThreadBlock.tsx",
+          "src/renderer/src/agents/ActionMarker.tsx"
+        ],
+        "id": "tk_01m418f9r62pcd5mvqrt31x2x0",
+        "key": "DM-71",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/agents/ChatView.tsx",
+            "location": "src/renderer/src/agents/ChatView.tsx",
+            "remoteOnly": false
+          }
+        ],
+        "tags": [
+          "activity",
+          "renderer",
+          "ui"
+        ],
+        "title": "Show subagent threads and Dark Mechanicus action markers inline in chats"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "`docs/reports/live-activity-e2e.md` records each step on Windows and macOS with pass or fail and screenshots."
+          },
+          {
+            "id": "c2",
+            "text": "Step 4 finds no claim token in chat storage, the local database's activity, or the exported history."
+          },
+          {
+            "id": "c3",
+            "text": "Every defect found is recorded as a comment on the matching ticket."
+          }
+        ],
+        "body": "Size: **medium**.\n\nIn the packaged app on each OS, run a small sample epic (two or three tickets, one sprint):\n1. **External host.** Leave the run pending and run it from an external Claude Code terminal session connected as orchestrator. Hourglasses appear on claimed tickets, Activity tabs show progress notes, and the orchestrator feed shows claims and reviews.\n2. **Chat orchestrator.** Start the run with an agent (Claude). The hourglass opens the worker subagent's live stream, the orchestrator feed shows the chat stream, the chat shows subagent threads and markers, and the links work both ways.\n3. Repeat step 2 with Codex and Cursor, and record what each shows.\n4. Search the stored chats, the local database's activity and the exported run history for the claim tokens issued during the runs: none may appear.\n\nRecord a report with screenshots, and each defect as a comment on the ticket it belongs to.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [
+              "windows",
+              "macos"
+            ],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": "high"
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": "Runs real orchestrations through three vendor CLIs and an external host on two operating systems."
+          },
+          "skills": [
+            "electron",
+            "manual-testing",
+            "windows",
+            "macos"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution",
+            "network"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [
+          "docs/reports/live-activity-e2e.md"
+        ],
+        "id": "tk_01m418f9r7r6snwq3hkqhyd9s8",
+        "key": "DM-72",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/runbooks/agents.md",
+            "location": "docs/runbooks/agents.md",
+            "remoteOnly": false
+          }
+        ],
+        "tags": [
+          "activity",
+          "e2e"
+        ],
+        "title": "Verify live activity end to end on Windows and macOS"
+      }
+    ]
+  },
+  "contentHash": "sha256:ec526c3b111bb52084bc18b0b06ca6e8733cf4ca00729406aa0d20cb659e0e30",
+  "createdAt": "2026-10-03T16:10:17.640Z",
+  "epicId": "ep_01m418epbnpgc4xt6kbw6ccsz8",
+  "format": "darkmechanicus.plan-snapshot",
+  "formatVersion": 1,
+  "number": 1,
+  "revisionId": "rv_01m418fm58svxfxxkc4p7p0k4e",
+  "savedAt": "2026-10-03T16:10:17.640Z"
+}
