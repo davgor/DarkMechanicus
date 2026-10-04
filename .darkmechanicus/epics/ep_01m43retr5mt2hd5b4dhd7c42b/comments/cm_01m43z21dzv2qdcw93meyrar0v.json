@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Codex Orchestrator",
+    "role": "orchestrator"
+  },
+  "body": "Full main suite now5020/5020pass. Fireguard's self-test runnerTimeout interpolates spaced process.execPath into its whitespace-split testCommand, causing Windows spawn of C:\\Program instead of the intended hanging child. Authorized portable test-fixture command `node -e while(true){}` while preserving800ms timeout and all timeout/process-tree assertions. No production parser, thresholds or application behavior changes.",
+  "createdAt": "2026-10-04T17:23:18.591Z",
+  "epicId": "ep_01m43retr5mt2hd5b4dhd7c42b",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m43z21dzv2qdcw93meyrar0v",
+  "ticketId": "tk_01m43retr5gt3g7v145xk6cbzh"
+}

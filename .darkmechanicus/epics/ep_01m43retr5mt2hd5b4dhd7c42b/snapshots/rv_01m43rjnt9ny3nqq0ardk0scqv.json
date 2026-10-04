@@ -1,0 +1,460 @@
+{
+  "baseRevisionId": null,
+  "bundle": {
+    "edges": [
+      {
+        "from": "tk_01m43rhy7yqtzym0nc0yq46fyd",
+        "to": "tk_01m43rhy82s7p840b1zzwwhf5b"
+      },
+      {
+        "from": "tk_01m43rhy826e34wx77dtm6mv8b",
+        "to": "tk_01m43rhy82s7p840b1zzwwhf5b"
+      },
+      {
+        "from": "tk_01m43rhy82s7p840b1zzwwhf5b",
+        "to": "tk_01m43rhy8259yq9shcftwvfk9m"
+      }
+    ],
+    "epic": {
+      "intent": "Give the existing Dark Mechanicus mascot a cute chaotic personality with authored sprites for idle fidgets, walking, running, jumping, ticket climbing and stumbling/recovery. The person explicitly requested sprites plus in-app behavior. Keep ticket interactions usable, honor reduced motion, provide a pause control and avoid changing ticket records through mascot activity.",
+      "ownerRole": null,
+      "successCriteria": [
+        {
+          "id": "s1",
+          "text": "The existing crimson-and-brass mascot has transparent, consistent animation frames for idle, walk, run, jump, climb and chaotic stumble/recovery, with documented playback metadata."
+        },
+        {
+          "id": "s2",
+          "text": "A visible mascot in the app walks, runs and jumps around the ticket board and climbs real ticket cards, including after board pan, zoom and layout changes."
+        },
+        {
+          "id": "s3",
+          "text": "Mascot animation can be paused, honors reduced motion, stops while hidden, and does not intercept ticket editing, dragging or selection."
+        },
+        {
+          "id": "s4",
+          "text": "The integrated sprint passes the project Definition of Done and has a visually inspected animation preview and board demonstration."
+        }
+      ],
+      "title": "Animate the chibi tech-priest mascot and let him explore the ticket board"
+    },
+    "formatVersion": 1,
+    "policies": {
+      "leaseSeconds": 1800,
+      "maxConcurrency": 2,
+      "onTicketFailure": "continue_independent",
+      "retryLimit": 3
+    },
+    "rationale": "The user confirmed sprites AND in-app behavior. One sprint: art and pure movement logic run independently; the UI integration consumes both; a dedicated Fireguard ticket grades changed tests; the acceptance node runs the remaining full gate and verifies live visuals. Preserve crimson robe, cream gear trim, brass goggles with green and warm-yellow lenses, respirator and chibi proportions. Sprite action names are idle, walk, run, jump, climb, stumble. The companion belongs in the ticket board, with restrained animated reuse on the existing welcome/onboarding mascot if practical. Pause and reduced-motion are included to keep long-running decorative motion controllable. No state writes from mascot antics, no changes to icons or branding master.",
+    "relations": [],
+    "sprints": [
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": 2,
+        "entryCriteria": [],
+        "exitCriteria": [
+          {
+            "id": "x1",
+            "text": "All six animation states are visibly distinct and retain the original mascot identity."
+          },
+          {
+            "id": "x2",
+            "text": "The companion traverses the board and climbs current ticket cards without breaking interactions."
+          },
+          {
+            "id": "x3",
+            "text": "The Definition of Done and visual checks pass."
+          }
+        ],
+        "goal": "Ship the full sprite pack and a playful, controllable ticket-board companion.",
+        "id": "sp_01m43retr5z51pe6xm5cm7zt64",
+        "ordinal": 1,
+        "ticketIds": [
+          "tk_01m43rhy7yqtzym0nc0yq46fyd",
+          "tk_01m43rhy826e34wx77dtm6mv8b",
+          "tk_01m43rhy82s7p840b1zzwwhf5b",
+          "tk_01m43rhy8259yq9shcftwvfk9m",
+          "tk_01m43retr5gt3g7v145xk6cbzh"
+        ]
+      }
+    ],
+    "tickets": [
+      {
+        "acceptanceCriteria": [
+          {
+            "covers": "tk_01m43rhy7yqtzym0nc0yq46fyd",
+            "id": "c1",
+            "text": "Inspect all six atlas cycles at runtime: no opaque sheet backgrounds, clipping, adjacent-frame leaks or identity drift, with recorded screenshots and metadata checks."
+          },
+          {
+            "covers": "tk_01m43rhy826e34wx77dtm6mv8b",
+            "id": "c2",
+            "text": "Verify the deterministic motion suite and observe the preview reach a ticket side, climb it and land on its top within board bounds."
+          },
+          {
+            "covers": "tk_01m43rhy82s7p840b1zzwwhf5b",
+            "id": "c3",
+            "text": "Observe the real board with several tickets, pan/zoom/resize and pause/reduced-motion states; confirm controls and ticket interactions still work without console/CSP errors."
+          },
+          {
+            "covers": "tk_01m43rhy8259yq9shcftwvfk9m",
+            "id": "c4",
+            "text": "Review the accepted Fireguard report for the integrated sprint and carry its exact grade/base/head into the Definition of Done evidence."
+          }
+        ],
+        "body": "Verify combined sprint using the complete project Definition of Done, reusing accepted Fireguard evidence. Read each covering criterion, inspect real animation output and board behavior, and collect screenshots/measurements. A worker runs the checks in the sprint integration worktree and returns evidence; the orchestrator reviews, squash-commits the increment onto codex/mascot-chaos, then submits and accepts. Never claim a visual or functional check without observing it. No new functionality in this ticket; report failures for repair.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "multi_step",
+            "rationale": "Several connected requirements need coordinated implementation and observable verification."
+          },
+          "skills": [
+            "typescript",
+            "testing",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution",
+            "browser",
+            "network"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [
+          "Full Definition of Done evidence",
+          "Visual preview evidence",
+          "Sprint increment"
+        ],
+        "id": "tk_01m43retr5gt3g7v145xk6cbzh",
+        "key": "DM-125",
+        "kind": "acceptance",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "size": "medium",
+        "tags": [],
+        "title": "Sprint 1 acceptance"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Six named actions each contain at least six usable sequential poses retaining the crimson hood, cream gear trim, brass mismatched goggles and respirator."
+          },
+          {
+            "id": "c2",
+            "text": "All frames have a transparent background, stable scale and usable cell/foot anchors; no clipped or neighboring sprites appear during playback."
+          },
+          {
+            "id": "c3",
+            "text": "Saved metadata documents every frame, timing and loop behavior, and provenance records the generation prompts and source image."
+          }
+        ],
+        "body": "Use the built-in image_gen tool and imagegen skill to create consistent transparent sprites from the existing master illustration. Inspect the master before generation. Own assets/mascot/ only, plus docs/mascot-sprites.md if needed for exact prompts and provenance. Preserve identity; six action names idle, walk, run, jump, climb, stumble. Deliver at least six distinct sequential frames per action, with aligned cell dimensions, padding and contact anchors. Prefer a regular sprite atlas with machine-readable JSON playback metadata (image path, frame cells/rects, FPS, loop behavior and foot anchor); integration worker will consume this contract. Whole-character translating/bobbing is insufficient: limbs, robe and pose must change through each action. Idle is curious fidgeting; run frantic; jump has crouch/takeoff/air/landing; climb alternates gripping hands/feet; stumble recovers with pride. Confirm real alpha and visibly inspect each frame boundary and cycle. Save every final asset in this worktree; no fallback SVG or static mock sprites. Do not change existing master or icons, and do not implement board logic. Run only relevant asset validation; no full gate or Fireguard. Commit owned work for integration.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Several connected requirements need coordinated implementation and observable verification."
+          },
+          "skills": [
+            "imagegen",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution",
+            "browser",
+            "network"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/assets/mascot/",
+          "docs/mascot-sprites.md"
+        ],
+        "id": "tk_01m43rhy7yqtzym0nc0yq46fyd",
+        "key": "DM-126",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Mascot identity reference",
+            "location": "build/mechanicus-cute-master.png",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Author the tech-priest sprite animation pack"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Targeted tests exercise floor walking/running, a jump arc and landing, and climbing a supplied ticket side with a coherent sequence of action states."
+          },
+          {
+            "id": "c2",
+            "text": "Empty or tiny bounds, removed/moved tickets and large elapsed times produce finite in-bounds positions and a safe next action."
+          },
+          {
+            "id": "c3",
+            "text": "Seeded inputs produce repeatable trajectories and time progression independent of render frame rate, with idle and stumble/recovery opportunities."
+          }
+        ],
+        "body": "Own src/renderer/src/mascot/motion.ts and motion.test.ts only. Implement renderer-independent pure TypeScript movement logic with deterministic random inputs/time injection. Shared action union: idle, walk, run, jump, climb, stumble. The UI will provide the current viewport rectangle and visible ticket rectangles in the SAME CSS coordinate system. Output position/facing/action and enough state for frame progression. Keep movement inside visible bounds; offer routes that walk/run on the floor or ticket tops, leap, climb reachable card sides and land; handle empty boards, tiny viewports, disappearing/moving surfaces and long time gaps without NaN or teleporting through cards. Avoid unbounded sampling loops. Use a natural small function-based API and send its proposed signature to the coordinator before implementation so the integrator can use it. TDD: observable assertions on trajectories, boundaries, surface revalidation and phases rather than snapshots of implementation constants. Only targeted tests and typecheck during ticket work; no Fireguard/full suite. Commit owned work.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Several connected requirements need coordinated implementation and observable verification."
+          },
+          "skills": [
+            "typescript",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/mascot/motion.ts",
+          "src/renderer/src/mascot/motion.test.ts"
+        ],
+        "id": "tk_01m43rhy826e34wx77dtm6mv8b",
+        "key": "DM-127",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "size": "medium",
+        "tags": [],
+        "title": "Implement deterministic mascot movement across ticket surfaces"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The real ticket board renders frame-changing idle/walk/run/jump/climb/stumble actions driven by accepted motion logic, and its current pan/zoom/layout determines reachable ticket surfaces."
+          },
+          {
+            "id": "c2",
+            "text": "Pause/resume is keyboard accessible; reduced motion shows a static pose; hidden/unmounted views stop animation work, with targeted tests proving these transitions."
+          },
+          {
+            "id": "c3",
+            "text": "Ticket selection, dragging and editing remain usable; decorative sprite ignores pointer input, does not change ticket data and does not generate CSP errors."
+          },
+          {
+            "id": "c4",
+            "text": "A deterministic preview demonstrates all six animation cycles and a board climb, and the screenshots/visual observations are recorded."
+          }
+        ],
+        "body": "Consume the accepted atlas and pure motion module. Integrate a visible decorative companion in graph/PlanGraph.tsx using current React Flow ticket positions and viewport (pan/zoom/resize included). Keep overlay pointer-events none; expose a clearly labelled keyboard-accessible pause/resume control outside drag surfaces. Honor prefers-reduced-motion (static safe pose), document visibility and unmount cleanup; do not use timers while motion is disabled. Ensure no mascot-driven record writes, no interception of node selection/drag/edge editing. Render actual frame sprites at a legible small chibi size (~64-88 CSS px) with local bundled assets and CSP-compatible styles. Existing Mascot may use idle frames if sensible, but retain decorative accessible semantics. Provide a local deterministic preview page or app preview fixture allowing inspection of all six cycles and a multi-ticket board demonstration; do not ship development controls in the real user flow. TDD behavior for pause/reduced-motion/hidden/cleanup and ticket geometry changes. Run targeted tests/typecheck/lint only; no Fireguard/full sweep. Commit owned work.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "multi_step",
+            "rationale": "Several connected requirements need coordinated implementation and observable verification."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution",
+            "browser",
+            "network"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/mascot/",
+          "src/renderer/src/graph/PlanGraph.tsx",
+          "animation preview and visual evidence"
+        ],
+        "id": "tk_01m43rhy82s7p840b1zzwwhf5b",
+        "key": "DM-128",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "size": "medium",
+        "tags": [],
+        "title": "Connect animated sprites and ticket-aware mascot behavior to the app"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Fireguard completes successfully with grade A-D using the sprint start commit as its base."
+          },
+          {
+            "id": "c2",
+            "text": "No lint/test/mutation thresholds or suppressions are relaxed; evidence identifies the exact graded base/head and report."
+          }
+        ],
+        "body": "Run npm run fireguard on the combined committed sprint work with FIREGUARD_BASE_REF=3f0e33a6ec21ec19641ff2df4a2b3cbc2f9f2211. This is the sprint's only Fireguard ticket. Preserve thresholds and rules. Repair weak or flaky tests if required; report uncovered production defects to the coordinator, do not disguise them with exclusions. Run only Fireguard plus targeted tests needed for repair. Record letter grade, mutation/flake results, exact base and head, and report artifact paths. Commit any needed test improvements.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "Run the specified existing grader and report its measured output."
+          },
+          "skills": [
+            "typescript",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [
+          "Fireguard result and report"
+        ],
+        "id": "tk_01m43rhy8259yq9shcftwvfk9m",
+        "key": "DM-129",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "size": "small",
+        "tags": [],
+        "title": "Grade mascot unit tests with Fireguard"
+      }
+    ]
+  },
+  "contentHash": "sha256:b5192e1619b345545d9ba200b6c64eb75da30a2d8c5e3b3a4ae7dd0cd352d29c",
+  "createdAt": "2026-10-04T15:30:03.721Z",
+  "epicId": "ep_01m43retr5mt2hd5b4dhd7c42b",
+  "format": "darkmechanicus.plan-snapshot",
+  "formatVersion": 1,
+  "number": 1,
+  "revisionId": "rv_01m43rjnt9ny3nqq0ardk0scqv",
+  "savedAt": "2026-10-04T15:30:03.721Z"
+}

@@ -1,0 +1,575 @@
+{
+  "baseRevisionId": null,
+  "bundle": {
+    "edges": [
+      {
+        "from": "tk_01m4434y76kpnbcemc3xzb686h",
+        "to": "tk_01m4434y7ar2vt71jvd91y8p26"
+      },
+      {
+        "from": "tk_01m4434y7a11x071k14rj5bn0m",
+        "to": "tk_01m4434y7ar2vt71jvd91y8p26"
+      },
+      {
+        "from": "tk_01m4434y7ar2vt71jvd91y8p26",
+        "to": "tk_01m4434y7ay36c6kpt69cchdts"
+      }
+    ],
+    "epic": {
+      "intent": "Extend the chibi mascot with visibly busier behavior around in-progress tickets, a small drill with animated sparks, and a playful stumble/fall to the board floor when the user wiggles the graph. Preserve normal graph editing, pause, reduced motion, and the existing mascot identity.",
+      "ownerRole": null,
+      "successCriteria": [
+        {
+          "id": "s1",
+          "text": "Reachable in-progress tickets attract the mascot more frequently than idle tickets, and he works on them with a visible drill and sparks."
+        },
+        {
+          "id": "s2",
+          "text": "Rapid back-and-forth user panning triggers a visible stumble and fall to the floor, followed by recovery; gentle pans, zoom, and programmatic fit do not count as shaking."
+        },
+        {
+          "id": "s3",
+          "text": "Task status changes, moved or removed cards, resizing, pause, hidden pages, and reduced motion remain safe and graph controls stay usable."
+        },
+        {
+          "id": "s4",
+          "text": "Targeted behavior tests, visual browser evidence, and the complete project verification gate pass."
+        }
+      ],
+      "title": "Let the mascot drill active tasks and tumble when the board is shaken"
+    },
+    "formatVersion": 1,
+    "policies": {
+      "leaseSeconds": 1800,
+      "maxConcurrency": 2,
+      "onTicketFailure": "continue_independent",
+      "retryLimit": 3
+    },
+    "rationale": "One follow-up sprint. Art and pure behavior run independently using optional working/inProgress/shakeId contracts. UI joins them, then Fireguard grades combined tests, then acceptance runs the full gate once and visual checks. Wiggle means rapid back-and-forth user panning; normal pan/zoom/fit remain ordinary navigation. No audio or destructive ticket effects requested.",
+    "relations": [],
+    "sprints": [
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": 2,
+        "entryCriteria": [],
+        "exitCriteria": [
+          {
+            "id": "x1",
+            "text": "Active tasks attract supported drilling with a clearly visible drill and sparks."
+          },
+          {
+            "id": "x2",
+            "text": "Rapid user graph wiggles trigger a stumble/fall and recovery without breaking normal graph gestures."
+          },
+          {
+            "id": "x3",
+            "text": "All project checks and browser acceptance pass."
+          }
+        ],
+        "goal": "Give the mascot a sparking drill, attraction to active work, and a playful shake-induced tumble.",
+        "id": "sp_01m44323c4dmedj6e5rmg8jqv2",
+        "ordinal": 1,
+        "ticketIds": [
+          "tk_01m4434y76kpnbcemc3xzb686h",
+          "tk_01m4434y7a11x071k14rj5bn0m",
+          "tk_01m4434y7ar2vt71jvd91y8p26",
+          "tk_01m4434y7ay36c6kpt69cchdts",
+          "tk_01m44323c440761dfqnhjdye1h"
+        ]
+      }
+    ],
+    "tickets": [
+      {
+        "acceptanceCriteria": [
+          {
+            "covers": "tk_01m4434y76kpnbcemc3xzb686h",
+            "id": "c1",
+            "text": "Production preview shows a clean drill animation with visible changing sparks, supported feet and correct contact on both facings."
+          },
+          {
+            "covers": "tk_01m4434y7a11x071k14rj5bn0m",
+            "id": "c2",
+            "text": "Behavior evidence shows active task preference, supported work, shake interruption and a continuous fall/recovery to the floor."
+          },
+          {
+            "covers": "tk_01m4434y7ar2vt71jvd91y8p26",
+            "id": "c3",
+            "text": "Real graph browser checks pass for wiggle vs gentle pan/zoom/fit, active status changes, pause/reduced motion, resize and normal controls."
+          },
+          {
+            "covers": "tk_01m4434y7ay36c6kpt69cchdts",
+            "id": "c4",
+            "text": "Accepted Fireguard report has a non-F grade, full captured evidence and exact graded base/head."
+          }
+        ],
+        "body": "Run complete project Definition of Done on combined sprint once, reuse accepted Fireguard result. Inspect drill contact/sparks in both facings, active attraction, actual rapid pans vs gentle pans/zoom/fit, fall to floor/recovery, task completion, controls and reduced motion. Commit all evidence; orchestrator lands squash increment.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "multi_step",
+            "rationale": "Extend tested mascot behavior across clear module boundaries."
+          },
+          "skills": [
+            "typescript",
+            "testing",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution",
+            "browser",
+            "network"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [
+          "Acceptance report",
+          "Full gate logs",
+          "Production visual evidence"
+        ],
+        "id": "tk_01m44323c440761dfqnhjdye1h",
+        "key": "DM-158",
+        "kind": "acceptance",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "size": "medium",
+        "tags": [],
+        "title": "Verify drill, sparks and graph-wiggle behavior"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Six clear transparent drill poses preserve mascot identity and include visible changing sparks; alpha bounds and anchors are documented."
+          },
+          {
+            "id": "c2",
+            "text": "Working motion renders drill poses with correct mirroring and foot placement; ordinary actions retain their behavior in targeted tests."
+          },
+          {
+            "id": "c3",
+            "text": "The action preview displays the drill loop and pauses completely with a fixed playback time."
+          }
+        ],
+        "body": "Create a transparent six-frame drill animation matching the existing red/brass chibi mascot. His feet stay supported on a ticket top, drill angled downward into that surface, with short warm sparks at contact, excited recoil and body jiggle. Preserve original six assets. Use built-in imagegen and inspect the reference first. Own atlas.json, drill.png, sprite.ts, MascotSprite.tsx, sprite tests, animation gallery and asset documentation only. Shared contract: MascotSprite accepts motion: MotionState & { working?: boolean }; true selects a separate drill clip, false preserves existing action. Sprite helpers may accept MotionAction | 'drill'; do not edit motion.ts. Asset fps/anchors and sparks must remain within cell bounds and mirror correctly. Time all visible animation with existing playback, no independent uncontrolled CSS animation. Run targeted sprite tests and lint; full gate belongs to acceptance.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Extend tested mascot behavior across clear module boundaries."
+          },
+          "skills": [
+            "ui",
+            "react",
+            "typescript",
+            "imagegen"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution",
+            "browser",
+            "network"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "drill.png and atlas metadata",
+          "Sprite rendering and targeted tests",
+          "Updated action gallery and sprite documentation"
+        ],
+        "id": "tk_01m4434y76kpnbcemc3xzb686h",
+        "key": "DM-159",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "build/mechanicus-cute-master.png",
+            "location": "build/mechanicus-cute-master.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/assets/mascot/atlas.json",
+            "location": "src/renderer/src/assets/mascot/atlas.json",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/mascot/MascotSprite.tsx",
+            "location": "src/renderer/src/mascot/MascotSprite.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/mascot/sprite.ts",
+            "location": "src/renderer/src/mascot/sprite.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "preview/mascot/mascot.tsx",
+            "location": "preview/mascot/mascot.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/mascot-sprites.md",
+            "location": "docs/mascot-sprites.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Animate the mascot using a little drill with sparks"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Seeded tests show substantially more visits to reachable in-progress tickets than identical inactive tickets and verify bounded supported work sessions."
+          },
+          {
+            "id": "c2",
+            "text": "A new shake event interrupts drilling or movement once, visibly falls to the floor, recovers, and remains inside finite viewport bounds."
+          },
+          {
+            "id": "c3",
+            "text": "Detector tests distinguish rapid reversals from gentle panning, zoom, fit/programmatic moves, isolated moves, and repeated shaking within cooldown."
+          },
+          {
+            "id": "c4",
+            "text": "Status changes and moved/removed/unreachable tickets end stale work safely; existing locomotion tests continue to pass."
+          }
+        ],
+        "body": "Extend pure motion and add a pure timestamped shake detector. Own motion.ts, its tests, new shake helper/tests only. Shared contract: MotionRect.inProgress?: boolean carries semantic active status. MotionState.working?: boolean marks a stationary drill session supported on an in-progress ticket; keep MotionAction's six existing values for compatibility with independent art. MotionSurfaces.shakeId?: number is a monotonically increasing event id consumed once; store consumption internally in MotionState. Prefer reachable active tickets strongly over ordinary tickets without suppressing all roaming, enter a bounded drill session after landing/climbing; promptly stop work if status changes or support disappears. Update supporting/target geometry appropriately for normal pans so gentle movement does not look like shake. On a new shake event interrupt work/locomotion, visibly stumble then fall to viewport floor, recover and resume, bounded and finite for resize/invalid geometry. Pure detector accepts user-pan samples and ignores programmatic moves and zoom, requires fast meaningful back-and-forth reversals, has cooldown; documented thresholds. TDD first; statistical/deterministic tests compare same seeds active vs inactive and test real short-plan reach, both sides, removal/status changes, fall continuity and cooldown. No DOM integration, no sprite files. Targeted tests plus lint only.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "multi_step",
+            "rationale": "Extend tested mascot behavior across clear module boundaries."
+          },
+          "skills": [
+            "typescript",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Motion engine and tests",
+          "Pure shake detector and tests"
+        ],
+        "id": "tk_01m4434y7a11x071k14rj5bn0m",
+        "key": "DM-160",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/mascot/motion.ts",
+            "location": "src/renderer/src/mascot/motion.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/mascot/motion.test.ts",
+            "location": "src/renderer/src/mascot/motion.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/mascot/graphReach.test.ts",
+            "location": "src/renderer/src/mascot/graphReach.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Prefer active work and recover from graph shaking"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Graph model and geometry tests verify true in-progress status independent of selection, labels, and tone; preview shows supported drilling with sparks on an active task."
+          },
+          {
+            "id": "c2",
+            "text": "Actual rapid user back-and-forth graph pans trigger one fall and recovery; gentle pans, zoom and fit do not; preview evidence records both cases."
+          },
+          {
+            "id": "c3",
+            "text": "Pause, reduced motion, hidden page and unmount stop all mascot/spark motion and discard stale gestures; status changes end drilling."
+          },
+          {
+            "id": "c4",
+            "text": "Targeted regression tests and browser checks preserve selection, drag/drop, pan, zoom, resize and viewport bounds."
+          }
+        ],
+        "body": "Integrate accepted art and motion contracts in the real PlanGraph. Own graph model/status propagation, geometry, GraphMascot, PlanGraph event plumbing, CSS if necessary, component tests, graph preview and behavior docs. Explicit semantic inProgress maps run ticket state running (not selected active) or lifecycle in_progress when no run; draft false. Feed only actual user panning into shake detector via React Flow move callbacks; programmatic fit and zoom do not trigger. Propagate shakeId once; no pending shake replay after pause/reduced-motion/hidden state. User graph controls remain unchanged and decorative pointer-events:none. Preserve RAF cleanup, persisted pause, reduced static idle, no new domain writes. Preview must show real active task state, observable drill and sparks, actual back-and-forth pan triggering fall, gentle pan not triggering fall, task completion stopping drill, existing selection/drag/pan/zoom. TDD tests first for logic and components. Run targeted tests/lint/typecheck; provide screenshots and browser observations. Full gate runs at acceptance.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "multi_step",
+            "rationale": "Extend tested mascot behavior across clear module boundaries."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "ui",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution",
+            "browser",
+            "network"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Graph integration and targeted tests",
+          "Updated live preview",
+          "Browser screenshots and observations"
+        ],
+        "id": "tk_01m4434y7ar2vt71jvd91y8p26",
+        "key": "DM-161",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/graph/graphModel.ts",
+            "location": "src/renderer/src/graph/graphModel.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/graph/PlanGraph.tsx",
+            "location": "src/renderer/src/graph/PlanGraph.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/mascot/geometry.ts",
+            "location": "src/renderer/src/mascot/geometry.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/mascot/GraphMascot.tsx",
+            "location": "src/renderer/src/mascot/GraphMascot.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "preview/mascot/graph.tsx",
+            "location": "preview/mascot/graph.tsx",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Connect active tasks and user graph shaking to the mascot"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Fireguard yields a passing non-F grade with all hard gates met on the committed sprint work."
+          },
+          {
+            "id": "c2",
+            "text": "Complete JSON and concise report preserve base/head, mutation and flake evidence; improvements are behavioral tests and no thresholds are weakened."
+          }
+        ],
+        "body": "Run Fireguard on committed combined sprint against sprint base 2cf6d6a4b6eca9f0e1b2cf0f4b1859fce7d2396f. Read prior DM-129 grading workflow for Windows equivalent direct local Node/Vitest runner. Capture complete JSON to a file before emitting summaries. Strengthen behavioral tests if grade F; never relax rules, thresholds, exclusions or alter production to appease grading. Run targeted lint/test on improved tests before grading. Record exact base and graded head and full report. Do not run full project gate.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Extend tested mascot behavior across clear module boundaries."
+          },
+          "skills": [
+            "typescript",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [
+          "Complete Fireguard JSON",
+          "Grade and provenance report"
+        ],
+        "id": "tk_01m4434y7ay36c6kpt69cchdts",
+        "key": "DM-162",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/verification/DM-129-fireguard.md",
+            "location": "docs/verification/DM-129-fireguard.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "fireguard/README.md",
+            "location": "fireguard/README.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Grade and strengthen the mascot drill and shake tests"
+      }
+    ]
+  },
+  "contentHash": "sha256:dfd384237b1d73f9279d89feee0350b15333cdf531012c33ce3312f059eaa4e4",
+  "createdAt": "2026-10-04T18:35:10.942Z",
+  "epicId": "ep_01m44323c45rx5grbfc058tf30",
+  "format": "darkmechanicus.plan-snapshot",
+  "formatVersion": 1,
+  "number": 1,
+  "revisionId": "rv_01m4435mpymc2kvg51m32jzmzp",
+  "savedAt": "2026-10-04T18:35:10.942Z"
+}

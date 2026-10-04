@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Codex Orchestrator",
+    "role": "orchestrator"
+  },
+  "body": "Acceptance is running in the combined integration worktree at 0f22e834. The coordinating branch has independently received main merges and is now ebe93104; these commits are preserved. Differences from the sprint base outside mascot work are portable records and the updater message. The existing uncommitted updater edit restores the same source text as the verified integration tree and will be preserved unstaged, as will .codex/config.toml. The sprint squash will land atop the current epic tip, and final product/test/config contents will be compared with the verified integration worktree. No worker commits will be merged into the epic branch.",
+  "createdAt": "2026-10-04T20:20:45.529Z",
+  "epicId": "ep_01m44323c45rx5grbfc058tf30",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m4496ytserbtw3wr365dvaq9",
+  "ticketId": "tk_01m44323c440761dfqnhjdye1h"
+}

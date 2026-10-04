@@ -1,0 +1,3006 @@
+{
+  "baseRevisionId": null,
+  "bundle": {
+    "edges": [
+      {
+        "from": "tk_01m43skwxknzfrzy1gqj7k9z68",
+        "to": "tk_01m43skwxxqew2pvvhzv0b82hm"
+      },
+      {
+        "from": "tk_01m43skwxxqew2pvvhzv0b82hm",
+        "to": "tk_01m43skwxxfpw337pp3fas0h8r"
+      },
+      {
+        "from": "tk_01m43skwxxqew2pvvhzv0b82hm",
+        "to": "tk_01m43skwxxyvy3m6h8vft46my3"
+      },
+      {
+        "from": "tk_01m43skwxxfpw337pp3fas0h8r",
+        "to": "tk_01m43skwxxn7km279j455etpmq"
+      },
+      {
+        "from": "tk_01m43skwxxyvy3m6h8vft46my3",
+        "to": "tk_01m43skwxxn7km279j455etpmq"
+      },
+      {
+        "from": "tk_01m43skwxxfpw337pp3fas0h8r",
+        "to": "tk_01m43skwxxpd41wg0f81er4p63"
+      },
+      {
+        "from": "tk_01m43skwxxn7km279j455etpmq",
+        "to": "tk_01m43skwxxmy25sddnbka8347s"
+      },
+      {
+        "from": "tk_01m43skwxxpd41wg0f81er4p63",
+        "to": "tk_01m43skwxxmy25sddnbka8347s"
+      },
+      {
+        "from": "tk_01m43skwxxn7km279j455etpmq",
+        "to": "tk_01m43skwxx674cg5m11m3xwmn1"
+      },
+      {
+        "from": "tk_01m43skwxknzfrzy1gqj7k9z68",
+        "to": "tk_01m43skwxxm1te8ryz4kx3jjz8"
+      },
+      {
+        "from": "tk_01m43skwxxqew2pvvhzv0b82hm",
+        "to": "tk_01m43skwxxm1te8ryz4kx3jjz8"
+      },
+      {
+        "from": "tk_01m43skwxxfpw337pp3fas0h8r",
+        "to": "tk_01m43skwxxm1te8ryz4kx3jjz8"
+      },
+      {
+        "from": "tk_01m43skwxxyvy3m6h8vft46my3",
+        "to": "tk_01m43skwxxm1te8ryz4kx3jjz8"
+      },
+      {
+        "from": "tk_01m43skwxxn7km279j455etpmq",
+        "to": "tk_01m43skwxxm1te8ryz4kx3jjz8"
+      },
+      {
+        "from": "tk_01m43skwxxpd41wg0f81er4p63",
+        "to": "tk_01m43skwxxm1te8ryz4kx3jjz8"
+      },
+      {
+        "from": "tk_01m43skwxxmy25sddnbka8347s",
+        "to": "tk_01m43skwxxm1te8ryz4kx3jjz8"
+      },
+      {
+        "from": "tk_01m43skwxx674cg5m11m3xwmn1",
+        "to": "tk_01m43skwxxm1te8ryz4kx3jjz8"
+      },
+      {
+        "from": "tk_01m43st80p3n2992va52fjx8h1",
+        "to": "tk_01m43st80paqp9q9mynnv0cz6g"
+      },
+      {
+        "from": "tk_01m43st80p3n2992va52fjx8h1",
+        "to": "tk_01m43st80phph8e257thvgm244"
+      },
+      {
+        "from": "tk_01m43st80paqp9q9mynnv0cz6g",
+        "to": "tk_01m43st80pqq25rhh231cnd0y4"
+      },
+      {
+        "from": "tk_01m43st80phph8e257thvgm244",
+        "to": "tk_01m43st80pqq25rhh231cnd0y4"
+      },
+      {
+        "from": "tk_01m43st80phph8e257thvgm244",
+        "to": "tk_01m43st80pde20wsy9hzs8s366"
+      },
+      {
+        "from": "tk_01m43st80pde20wsy9hzs8s366",
+        "to": "tk_01m43st80pyacpnw547zmdenfb"
+      },
+      {
+        "from": "tk_01m43st80pde20wsy9hzs8s366",
+        "to": "tk_01m43st80p3yhsk2s96zdhphk7"
+      },
+      {
+        "from": "tk_01m43st80p3n2992va52fjx8h1",
+        "to": "tk_01m43st80ptgtk20bwa6ssqs82"
+      },
+      {
+        "from": "tk_01m43st80paqp9q9mynnv0cz6g",
+        "to": "tk_01m43st80ptgtk20bwa6ssqs82"
+      },
+      {
+        "from": "tk_01m43st80phph8e257thvgm244",
+        "to": "tk_01m43st80ptgtk20bwa6ssqs82"
+      },
+      {
+        "from": "tk_01m43st80pqq25rhh231cnd0y4",
+        "to": "tk_01m43st80ptgtk20bwa6ssqs82"
+      },
+      {
+        "from": "tk_01m43st80pde20wsy9hzs8s366",
+        "to": "tk_01m43st80ptgtk20bwa6ssqs82"
+      },
+      {
+        "from": "tk_01m43st80pyacpnw547zmdenfb",
+        "to": "tk_01m43st80ptgtk20bwa6ssqs82"
+      },
+      {
+        "from": "tk_01m43st80p3yhsk2s96zdhphk7",
+        "to": "tk_01m43st80ptgtk20bwa6ssqs82"
+      },
+      {
+        "from": "tk_01m43szh81p623gexyzn5v1qzv",
+        "to": "tk_01m43szh82q4hrw4fkwweteqrb"
+      },
+      {
+        "from": "tk_01m43szh82swqnayakvhj5bf0v",
+        "to": "tk_01m43szh828hgjsz0chrt5qspz"
+      },
+      {
+        "from": "tk_01m43szh828jaqw5a0h83kbmkv",
+        "to": "tk_01m43szh82gkccz2rshznb6be6"
+      },
+      {
+        "from": "tk_01m43szh82q4hrw4fkwweteqrb",
+        "to": "tk_01m43szh82y865rfb7rg8yhcxr"
+      },
+      {
+        "from": "tk_01m43szh828hgjsz0chrt5qspz",
+        "to": "tk_01m43szh82y865rfb7rg8yhcxr"
+      },
+      {
+        "from": "tk_01m43szh82gkccz2rshznb6be6",
+        "to": "tk_01m43szh82y865rfb7rg8yhcxr"
+      },
+      {
+        "from": "tk_01m43szh81p623gexyzn5v1qzv",
+        "to": "tk_01m43szh825vb3x608ngrsxy4k"
+      },
+      {
+        "from": "tk_01m43szh82q4hrw4fkwweteqrb",
+        "to": "tk_01m43szh825vb3x608ngrsxy4k"
+      },
+      {
+        "from": "tk_01m43szh82swqnayakvhj5bf0v",
+        "to": "tk_01m43szh825vb3x608ngrsxy4k"
+      },
+      {
+        "from": "tk_01m43szh828hgjsz0chrt5qspz",
+        "to": "tk_01m43szh825vb3x608ngrsxy4k"
+      },
+      {
+        "from": "tk_01m43szh828jaqw5a0h83kbmkv",
+        "to": "tk_01m43szh825vb3x608ngrsxy4k"
+      },
+      {
+        "from": "tk_01m43szh82gkccz2rshznb6be6",
+        "to": "tk_01m43szh825vb3x608ngrsxy4k"
+      },
+      {
+        "from": "tk_01m43szh82y865rfb7rg8yhcxr",
+        "to": "tk_01m43szh825vb3x608ngrsxy4k"
+      }
+    ],
+    "epic": {
+      "intent": "Today, working in Dark Mechanicus means keeping GitHub Desktop or a terminal open beside it to see changes, commit, switch branches and push. This epic builds a simple GitHub Desktop clone into the app, so a person can do everyday Git work on any tracked folder without leaving it.\n\n## What changes\n\n- **Folder page with tabs.**\n  - Clicking a folder opens its page with two tabs, **Source control** and **Epics**.\n  - Source control opens first, and the app remembers the last tab used for each folder.\n  - Source control works on any Git folder, including folders not set up for Dark Mechanicus. For those folders, the Epics tab shows the setup screen.\n  - A folder that isn't a repository offers **Initialize repository**.\n- **Changes.**\n  - Every changed file is listed with its diff (unified, with line numbers).\n  - Checkboxes choose which files to commit; sprint 3 adds choosing single lines and hunks.\n  - A commit box takes a summary and a description.\n  - **Discard changes** moves the discarded content to the OS trash first.\n  - **Undo** reverts the last commit if it hasn't been pushed.\n- **History.** The branch's commits, each with its message, changed files and diffs.\n- **Branches.** A current-branch menu that can:\n  - switch branches, either leaving uncommitted changes stashed on the old branch or bringing them along;\n  - create, rename and delete branches (optionally deleting on the remote too);\n  - merge a branch into the current one;\n  - restore stashed changes.\n- **Sync.** One Fetch / Pull / Push / Publish button with ahead/behind counts, progress and cancel, plus a background fetch.\n- **Merge conflicts.** When a merge, pull or stash restore conflicts, the app shows:\n  - the conflicted files with their conflict-marker counts;\n  - Open in editor, Use mine / Use theirs, and Mark resolved for each file;\n  - Abort merge and Commit merge.\n- **GitHub sign-in.**\n  - **Sign in to GitHub** sits in the sidebar footer. As in GitHub Desktop, the app shows a one-time code and opens github.com in the browser.\n  - When signed in, git uses that account for HTTPS GitHub remotes.\n  - When signed out, git falls back to the machine's own credentials (Git Credential Manager, keychain, SSH).\n- **Clone.**\n  - The sidebar **+** offers **Clone repository…**, from the signed-in account's repositories or from a URL, into a chosen folder.\n  - Progress and cancel are shown, and the clone opens as a tracked folder.\n- **Pull requests (GitHub repositories).**\n  - The toolbar shows the current branch's pull request.\n  - **Create pull request** opens GitHub's compare page, as GitHub Desktop does.\n  - A list of open pull requests lets the person check one out, including pull requests from forks.\n\n## Decisions (from the person, 2026-10-04)\n\n- The folder page uses tabs, with Source control first and the last tab remembered per folder.\n- Sign-in to GitHub uses the OAuth device flow, and the OS encrypts the token.\n  - This needs a GitHub OAuth App with Device Flow enabled, which the person registers once.\n  - Its client ID is public and is stored in the app.\n- Beyond the baseline, this epic includes clone, pull requests, line-level commits and a merge conflict view.\n\n## Design assumptions (planner; confirm at the sprint 1 checkpoint)\n\n- **Where git runs.** Git runs in the Electron main process (`src/main/git`, `src/main/github`), reached through new `window.git` and `window.github` bridges.\n  - It is not part of core's `CommandApi` or MCP. Agents keep using git directly.\n  - Core's git adapter (`src/core/repo/git.ts`) stays read-only.\n- **Which git.** The app uses the system `git` on PATH and does not bundle one. Without it, Source control says so and links to git-scm.com.\n- **What counts as a change.** As in GitHub Desktop, the change set is the working tree compared with HEAD, and the index isn't shown. A commit resets the index to HEAD and then stages exactly what is checked.\n- **Pull.** Pull merges (`--no-rebase`), never rebases.\n- **Running repository programs.**\n  - Opening a folder runs only git reads, with `core.fsmonitor`, external diff and textconv disabled. Looking at a repository never runs a program that the repository's config names.\n  - Commits run the repository's hooks, as git does.\n- **The GitHub token.**\n  - It never reaches the renderer, logs, command lines or error text.\n  - Git gets it through an environment-based credential helper scoped to `https://github.com`, and other helpers are cleared for that call.\n- **Host.** Only GitHub.com is supported.\n\n## Out of scope\n\n- Git operations: rebase, force push, amend, cherry-pick, revert, tags, submodules and LFS.\n- GitHub: creating GitHub repositories, GitHub Enterprise, GitHub Actions status, and editing pull requests in the app.\n- Diff display: image diffs and a split diff view.",
+      "ownerRole": null,
+      "successCriteria": [
+        {
+          "id": "s1",
+          "text": "Clicking a tracked folder opens its page on the Source control tab. The last tab used is remembered per folder, and Source control works on Git folders that are not set up for Dark Mechanicus."
+        },
+        {
+          "id": "s2",
+          "text": "The Changes tab lists every changed file with its diff, and a commit with a summary and description contains exactly the checked files and selected lines. Discarded changes can be recovered from the OS trash, and the last unpushed commit can be undone."
+        },
+        {
+          "id": "s3",
+          "text": "The History tab lists the branch's commits, and each commit shows its message, changed files and diffs."
+        },
+        {
+          "id": "s4",
+          "text": "A person signs in to GitHub with a one-time code in the browser, sees the account in the app and can sign out. The token is stored only encrypted by the OS and never appears in the renderer, logs, command lines or error text."
+        },
+        {
+          "id": "s5",
+          "text": "Fetch, pull and push show ahead/behind counts and progress. They use the GitHub account for HTTPS GitHub remotes when signed in, and the machine's own Git credentials otherwise."
+        },
+        {
+          "id": "s6",
+          "text": "Branches can be created, switched (stashing or bringing changes), renamed, deleted and merged into the current branch. A conflicting merge, pull or stash restore can be resolved, aborted or committed from the app."
+        },
+        {
+          "id": "s7",
+          "text": "A repository can be cloned from the signed-in account's list or from a URL into a chosen folder, with progress and cancel, and then opens tracked in the sidebar."
+        },
+        {
+          "id": "s8",
+          "text": "For a GitHub repository, the current branch's pull request is shown, Create pull request opens GitHub's compare page, and open pull requests, including ones from forks, can be checked out."
+        }
+      ],
+      "title": "Source control: a GitHub Desktop-style Git view in every folder"
+    },
+    "formatVersion": 1,
+    "policies": {
+      "leaseSeconds": 900,
+      "maxConcurrency": null,
+      "onTicketFailure": "continue_independent",
+      "retryLimit": 3
+    },
+    "rationale": "## Why three sprints\n\nThe sprints are ordered by risk and dependency, and each ends with something the person can use.\n\n1. **Sprint 1: local work (DM-131 to DM-139, acceptance DM-130).** It needs no network and no credentials.\n   - It lays the foundation every later ticket uses: the git runner, the readers, the `window.git` bridge and `DiffView`.\n   - It already replaces most of GitHub Desktop's day-to-day use: see the changes, commit and browse history.\n2. **Sprint 2: GitHub sign-in, sync, branches and conflicts (DM-141 to DM-148, acceptance DM-140).**\n   - The credential work is the riskiest part, so it comes as early as its foundations allow.\n   - Branches and conflicts come in the same sprint, because pulls and merges produce the conflicts.\n3. **Sprint 3: the extras the person chose (DM-150 to DM-157, acceptance DM-149).** Clone, pull requests and line-level commits, plus the docs.\n\n## The graph\n\n**Sprint 1**\n- The critical path is DM-131 (runner) → DM-132 (readers) → DM-133 (bridge) → DM-135 (folder tabs) → DM-137 (changes panel) → DM-139 (Fireguard).\n- DM-134 (`DiffView`) runs beside DM-133, and DM-136 (commit operations) runs beside DM-135.\n- DM-137 joins DM-135 and DM-136, and DM-138 (history) needs DM-135.\n\n**Sprint 2**\n- DM-141 (sign-in) unblocks DM-142 (account UI) and DM-143 (sync operations).\n- DM-144 (sync button) joins DM-142 and DM-143.\n- DM-145 (branch operations) needs DM-143, because deleting a remote branch pushes with the same credentials. DM-146 (branch menu) and DM-147 (conflicts) both build on DM-145.\n\n**Sprint 3**\n- There are three independent pairs: clone (DM-150 → DM-151), pull requests (DM-152 → DM-153) and line commits (DM-154 → DM-155).\n- The docs ticket (DM-156) joins all three, so it documents what landed.\n\n**Every sprint**\n- Each sprint has its own Fireguard ticket, as delivery-standards requires: DM-139, DM-148 and DM-157. Each requires all of its sprint's work.\n- The acceptance nodes check each ticket end to end on scratch repositories, in a built app with an isolated profile. They never touch the person's own folders or settings.\n\n## Assumptions (planner, 2026-10-04)\n\n- **Where git runs.**\n  - Git runs in the main process (`src/main/git`, `src/main/github`), behind the new `window.git` and `window.github` bridges, outside core's `CommandApi` and MCP.\n  - Agents keep using git directly, and core's git adapter stays read-only.\n  - The precedent for main-only features is `boardRemovalFiles.ts`, `mcpJsonFile.ts` and `skillInstall.ts`.\n- **Which git.** The system `git` on PATH is used; the app bundles none.\n- **The change model is GitHub Desktop's.**\n  - The change set is the working tree compared with HEAD, and the index is not shown.\n  - A commit resets the index and stages exactly what is checked.\n  - Pull merges (`--no-rebase`).\n  - Discard moves content to the trash.\n- **Running repository programs.**\n  - Automatic reads disable `core.fsmonitor`, external diff and textconv, so a repository's config can't run programs just because it is viewed.\n  - Commits run hooks as git does. This keeps `docs/product-plan.md`'s rule that tracking a folder never executes its code.\n- **The GitHub token.**\n  - The OAuth device flow stores the token encrypted with `safeStorage`, in `userData`.\n  - Git receives the token through an environment-based credential helper scoped to `https://github.com`, with every other helper cleared for that call.\n  - The Agents epic's rule that the app stores no vendor credentials covers agent CLIs, not this GitHub account, which the person asked for.\n- **What acceptance can't do.** Completing a GitHub sign-in needs the person in their own browser. The acceptance nodes verify everything up to the real device code, and list the signed-in checks in the sprint report for the person to try at the checkpoint.\n\n## Before sprint 2\n\nThe person registers a GitHub OAuth App with Device Flow enabled and gives its client ID, which is recorded in an epic comment (sprint 2's entry criterion). DM-141 puts that ID in `src/main/github/config.ts`.\n\n## Overlap with other backlog epics\n\nThese epics touch the same renderer files: `chooseView.ts`, `selection.ts`, `App.tsx` and the sidebar.\n- DM-135 replaces the `home` and `onboarding` main views with a tabbed `folder` view.\n- The Conditionals epic (DM-111 adds a `conditional` selection) and the Agents epic (an Agents block per folder) were planned against the old views.\n\nWhichever of those epics runs after this one must adapt to the folder page.",
+    "relations": [],
+    "sprints": [
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": null,
+        "entryCriteria": [],
+        "exitCriteria": [
+          {
+            "id": "e1",
+            "text": "Clicking a tracked folder opens Source control first, the tab is remembered per folder, and it works on folders not set up for Dark Mechanicus."
+          },
+          {
+            "id": "e2",
+            "text": "On a real repository, changes show with their diffs, a commit contains only the chosen files, discard moves content to the trash, and undo works."
+          },
+          {
+            "id": "e3",
+            "text": "History lists commits with their changed files and diffs."
+          },
+          {
+            "id": "e4",
+            "text": "Opening a folder runs no repository-configured program (fsmonitor, external diff or textconv)."
+          },
+          {
+            "id": "e5",
+            "text": "Fireguard grades nothing F, and the Definition of Done passes on the combined sprint."
+          }
+        ],
+        "goal": "Clicking a folder opens Source control. A person can see every change with its diff, commit the files they choose, discard changes, undo the last commit and browse history. Everything is local, with no network.",
+        "id": "sp_01m43sbb2vvbtpw1dypy9ned55",
+        "ordinal": 1,
+        "ticketIds": [
+          "tk_01m43skwxknzfrzy1gqj7k9z68",
+          "tk_01m43skwxxqew2pvvhzv0b82hm",
+          "tk_01m43skwxxfpw337pp3fas0h8r",
+          "tk_01m43skwxxyvy3m6h8vft46my3",
+          "tk_01m43skwxxn7km279j455etpmq",
+          "tk_01m43skwxxpd41wg0f81er4p63",
+          "tk_01m43skwxxmy25sddnbka8347s",
+          "tk_01m43skwxx674cg5m11m3xwmn1",
+          "tk_01m43skwxxm1te8ryz4kx3jjz8",
+          "tk_01m43sbb2v8cvhsh54mhe8y5s6"
+        ]
+      },
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": null,
+        "entryCriteria": [
+          {
+            "id": "n1",
+            "text": "The client ID of the GitHub OAuth App, with Device Flow enabled, is recorded in a comment on this epic."
+          }
+        ],
+        "exitCriteria": [
+          {
+            "id": "e1",
+            "text": "Sign-in with a device code works against github.com. The token is stored encrypted and never reaches the renderer, logs or command lines."
+          },
+          {
+            "id": "e2",
+            "text": "Fetch, pull and push show ahead/behind counts and progress. They use the GitHub account when signed in and the machine's credentials otherwise."
+          },
+          {
+            "id": "e3",
+            "text": "Branches can be created, switched (stashing or bringing changes), renamed, deleted and merged, and stashed changes can be restored."
+          },
+          {
+            "id": "e4",
+            "text": "Merge conflicts from a merge, pull or stash restore can be resolved, aborted or committed from the app."
+          },
+          {
+            "id": "e5",
+            "text": "Fireguard grades nothing F, and the Definition of Done passes on the combined sprint."
+          }
+        ],
+        "goal": "Sign in to GitHub and work with remotes and branches: fetch, pull, push, branches, stashes and merge conflicts.",
+        "id": "sp_01m43st80ktpktzfr1x9t6bty4",
+        "ordinal": 2,
+        "ticketIds": [
+          "tk_01m43st80p3n2992va52fjx8h1",
+          "tk_01m43st80paqp9q9mynnv0cz6g",
+          "tk_01m43st80phph8e257thvgm244",
+          "tk_01m43st80pqq25rhh231cnd0y4",
+          "tk_01m43st80pde20wsy9hzs8s366",
+          "tk_01m43st80pyacpnw547zmdenfb",
+          "tk_01m43st80p3yhsk2s96zdhphk7",
+          "tk_01m43st80ptgtk20bwa6ssqs82",
+          "tk_01m43st80kzf65farkt084aemr"
+        ]
+      },
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": null,
+        "entryCriteria": [],
+        "exitCriteria": [
+          {
+            "id": "e1",
+            "text": "A repository can be cloned from the account's list or a URL, with progress and cancel, and the clone opens tracked."
+          },
+          {
+            "id": "e2",
+            "text": "The current branch's pull request shows, and Create pull request opens GitHub's compare page. Open pull requests can be checked out, including ones from forks."
+          },
+          {
+            "id": "e3",
+            "text": "Selected lines and hunks are committed exactly as chosen."
+          },
+          {
+            "id": "e4",
+            "text": "A decision record, the architecture doc, a runbook and the README describe the feature."
+          },
+          {
+            "id": "e5",
+            "text": "Fireguard grades nothing F, and the Definition of Done passes on the combined sprint."
+          }
+        ],
+        "goal": "Clone repositories, work with pull requests and commit selected lines, then document the feature.",
+        "id": "sp_01m43szh7yqbne13wtgk6sg7vm",
+        "ordinal": 3,
+        "ticketIds": [
+          "tk_01m43szh81p623gexyzn5v1qzv",
+          "tk_01m43szh82q4hrw4fkwweteqrb",
+          "tk_01m43szh82swqnayakvhj5bf0v",
+          "tk_01m43szh828hgjsz0chrt5qspz",
+          "tk_01m43szh828jaqw5a0h83kbmkv",
+          "tk_01m43szh82gkccz2rshznb6be6",
+          "tk_01m43szh82y865rfb7rg8yhcxr",
+          "tk_01m43szh825vb3x608ngrsxy4k",
+          "tk_01m43szh7y2zttwkt6jd42301q"
+        ]
+      }
+    ],
+    "tickets": [
+      {
+        "acceptanceCriteria": [
+          {
+            "covers": "tk_01m43skwxknzfrzy1gqj7k9z68",
+            "id": "c1",
+            "text": "With git removed from the app's PATH, the scratch folder's Source control tab shows Git isn't installed with the git-scm.com link. With PATH restored, it shows the repository."
+          },
+          {
+            "covers": "tk_01m43skwxxqew2pvvhzv0b82hm",
+            "id": "c2",
+            "text": "`scratch-a` stays open in Source control for 60 s while every changed file's diff and five commits' diffs are viewed. Afterwards none of the fsmonitor, external-diff or textconv marker files exist."
+          },
+          {
+            "covers": "tk_01m43skwxxfpw337pp3fas0h8r",
+            "id": "c3",
+            "text": "In the built app's devtools, `window.git.getState` returns `unauthorized` for a path that isn't tracked, and returns its status for `scratch-a`."
+          },
+          {
+            "covers": "tk_01m43skwxxyvy3m6h8vft46my3",
+            "id": "c4",
+            "text": "Screenshots show:\n- a two-hunk diff with line numbers, additions and deletions;\n- the no-newline marker;\n- a CRLF file without visible carriage returns;\n- the binary message;\n- the 5,000-line change showing 2,000 lines with Show more."
+          },
+          {
+            "covers": "tk_01m43skwxxn7km279j455etpmq",
+            "id": "c5",
+            "text": "Clicking `scratch-plain` opens Source control with Initialize repository, which makes the folder a repository. Switching `scratch-a` to Epics is remembered after restarting the app, and its Epics tab shows onboarding."
+          },
+          {
+            "covers": "tk_01m43skwxxpd41wg0f81er4p63",
+            "id": "c6",
+            "text": "After committing two of three changed files from the app, `git show --stat HEAD` lists exactly those two. A discarded file's content is in the Recycle Bin (Trash on macOS)."
+          },
+          {
+            "covers": "tk_01m43skwxxmy25sddnbka8347s",
+            "id": "c7",
+            "text": "A screenshot shows the Changes panel with one file excluded. After Commit, the excluded file is still listed, and Undo brings the commit's files back with the summary refilled."
+          },
+          {
+            "covers": "tk_01m43skwxx674cg5m11m3xwmn1",
+            "id": "c8",
+            "text": "In `scratch-a`, History loads past 100 commits on scroll, and the merge commit lists its first-parent changes. When the bare remote is one commit behind, the unpushed commit is marked. A screenshot is in the evidence."
+          },
+          {
+            "covers": "tk_01m43skwxxm1te8ryz4kx3jjz8",
+            "id": "c9",
+            "text": "The sprint 1 Fireguard ticket was accepted with no F grade."
+          },
+          {
+            "id": "c10",
+            "text": "The Definition of Done passes on the combined branch: lint, typecheck, test, coverage, deadcode and build."
+          },
+          {
+            "id": "c11",
+            "text": "Sprint 1 is one squashed commit on `source-control` whose message lists the sprint's tickets."
+          }
+        ],
+        "body": "This is the planned final round for sprint 1, run once on the combined work.\n\n1. **Combine** every accepted sprint 1 ticket on the sprint integration branch.\n2. **Build** the app (`npm run build`) and run it with an isolated profile (a temporary `--user-data-dir`), so the person's tracked folders and settings are untouched.\n3. **Prepare scratch repositories** in a temp folder; never use this repository's real state.\n   - `scratch-a` has 250 commits, a merge commit, a renamed file, a binary file, a CRLF file, a file without a final newline, and a 5,000-line change.\n   - `scratch-a` also sets `core.fsmonitor`, `diff.external` and a `textconv` driver to scripts that write marker files.\n   - A local bare repository is `scratch-a`'s `origin`, for the unpushed checks.\n   - `scratch-plain` is a folder that isn't a repository.\n4. **Verify each item** below in the built app, with screenshots.\n5. **Run the Definition of Done** on the combined branch.\n   - Take Fireguard's grade from the sprint 1 Fireguard ticket, which must be accepted first.\n   - Re-run Fireguard only if test files changed after that ticket.\n6. **Squash** the sprint into one commit on `source-control`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "End-to-end checks in the built app on scratch repositories, screenshots, the full Definition of Done and the squash."
+          },
+          "skills": [
+            "typescript",
+            "testing",
+            "git"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m43sbb2v8cvhsh54mhe8y5s6",
+        "key": "DM-130",
+        "kind": "acceptance",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "tags": [],
+        "title": "Sprint 1 acceptance: use Source control on scratch repositories, run the Definition of Done, land one commit"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "`createGitRunner().run` spawns git with an argument array and no shell. It strips an inherited `GIT_DIR`, `GIT_WORK_TREE` and `GIT_INDEX_FILE`, sets `GIT_TERMINAL_PROMPT=0`, disables fsmonitor, and adds `GIT_OPTIONAL_LOCKS=0` for reads. A test shows each."
+          },
+          {
+            "id": "c2",
+            "text": "Writes and network operations for one repository run one at a time in request order, and reads are not held behind them. A test with a fake spawn shows the order."
+          },
+          {
+            "id": "c3",
+            "text": "A timeout or abort kills the git process tree and rejects with `timeout` or `cancelled`. A missing git binary rejects with `git_not_found`, and output over the limit rejects with `output_too_large`."
+          },
+          {
+            "id": "c4",
+            "text": "`classifyGitFailure` maps each listed failure to its code, with the stderr tail in `detail`, and anything unknown becomes `git_failed`. A test covers each row."
+          },
+          {
+            "id": "c5",
+            "text": "`pathArgs` and `refArg` refuse NUL, a leading `-`, absolute paths and `..` escapes, and `checkBranchName` reports git's verdict. A test covers each."
+          },
+          {
+            "id": "c6",
+            "text": "The tests were written first, and the touched tests, lint and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. This is the first ticket of the Source control epic. Every later git operation goes through this runner, and nothing is visible to the person yet.\n\n**Context**\n- The only git code today is `src/core/repo/git.ts`. It is a read-only adapter for core: `execFile` with a 10 s timeout, `gitEnv()` at lines 110-116 and `safeArg()` at lines 136-141. Leave it unchanged.\n- Source control is different. The person starts it, it writes (commit, push, merge), it streams progress, and it can run for minutes.\n- It lives in a new `src/main/git/` folder in the main process, outside core's `CommandApi` and MCP. The precedent is `src/main/desktop/boardRemovalFiles.ts`.\n\n**Build `src/main/git/runner.ts`**\n- `createGitRunner(options?: { spawn?: SpawnFn; gitPath?: string; platform?: NodeJS.Platform }): GitRunner`, with `run(request: GitRunRequest): Promise<GitRunResult>`.\n- `GitRunRequest = { cwd: string; args: readonly string[]; kind: 'read' | 'write' | 'network'; stdin?: string; env?: Readonly<Record<string, string>>; timeoutMs?: number; maxOutputBytes?: number; signal?: AbortSignal; onProgress?(line: string): void; acceptExitCodes?: readonly number[] }`.\n- `GitRunResult = { code: number; stdout: string; stderr: string }`.\n- Spawning: run `git` (or `gitPath`) with `child_process.spawn`, an argument array, no shell and `windowsHide: true`. Always prepend `-c core.quotepath=false -c color.ui=never -c core.fsmonitor=false`.\n- Environment:\n  - Start from `process.env` and remove `GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE`, `GIT_OBJECT_DIRECTORY`, `GIT_ALTERNATE_OBJECT_DIRECTORIES` and `GIT_NAMESPACE`. This mirrors and extends core's `gitEnv()`.\n  - Set `GIT_TERMINAL_PROMPT=0`.\n  - Force English messages so error classification stays stable (for example `LC_ALL=C` and `LANGUAGE=en`), and prove non-ASCII paths still round-trip.\n  - `kind: 'read'` adds `GIT_OPTIONAL_LOCKS=0`.\n  - Merge `request.env` last. A later ticket passes credentials there, so it is never logged.\n- Output:\n  - Decode stdout and stderr as UTF-8.\n  - Stop at `maxOutputBytes` (default 64 MiB) and reject with `output_too_large`.\n  - `onProgress` receives stderr split on both `\\r` and `\\n`, because git redraws progress with `\\r`.\n- Timeouts: the default is 30 s for `read`, 120 s for `write` and none for `network`, which can only be cancelled.\n- On timeout or abort:\n  - kill the process tree: on Windows `taskkill /pid <pid> /T /F`; elsewhere `SIGTERM`, then `SIGKILL` after 2 s;\n  - reject with `timeout` or `cancelled`.\n- Queue: `write` and `network` requests for the same repository (canonical `cwd`) run one at a time, in request order. Reads are never queued.\n- Failures:\n  - a non-zero exit code that isn't in `acceptExitCodes` rejects with a classified `GitError`;\n  - a spawn `ENOENT` rejects with `git_not_found`.\n\n**Build `src/shared/git/errors.ts` and `src/main/git/errors.ts`**\n- Shared: a renderer-safe `GitErrorCode` union. Start with `git_not_found`, `not_repository`, `auth_required`, `auth_failed`, `rejected_non_fast_forward`, `merge_conflicts`, `local_changes_would_be_overwritten`, `nothing_to_commit`, `branch_exists`, `branch_not_fully_merged`, `remote_not_found`, `network_unreachable`, `index_locked`, `operation_in_progress`, `timeout`, `cancelled`, `output_too_large` and `git_failed`. Later tickets may add codes.\n- Main:\n  - `class GitError extends Error { code: GitErrorCode; detail: string }`;\n  - `classifyGitFailure(result: GitRunResult, args: readonly string[]): GitError`. `detail` is the last 2,000 characters of stderr.\n- Keep the stderr patterns in one table. Each row gets a test using output captured from real git in a temp repository, wherever it can be produced offline.\n\n**Build `src/main/git/args.ts`**\n- `pathArgs(paths)` returns `['--', ...paths]`. It refuses NUL, absolute paths, `..` segments that leave the repository, and empty strings.\n- `refArg(name)` refuses a leading `-`, NUL and whitespace.\n- `checkBranchName(runner, cwd, name)` runs `git check-ref-format --branch <name>` and returns `{ valid: boolean; normalized: string | null }`.\n\n**Out of scope**: IPC, UI and any git operation beyond what the tests need.\n\n**Verify** (write the tests first)\n- `src/main/git/runner.test.ts` uses real temp repositories (`src/test/gitRepo.ts`), and a fake `spawn` where timing matters. It covers:\n  - an inherited `GIT_DIR` does not leak;\n  - reads get `GIT_OPTIONAL_LOCKS=0`;\n  - progress is split on `\\r`;\n  - two writes to one repository run in order, and a read is not held behind them;\n  - timeout and abort kill the child (the fake records the kill);\n  - a bogus `gitPath` gives `git_not_found`;\n  - a non-ASCII file name round-trips;\n  - too much output gives `output_too_large`.\n- `errors.test.ts` and `args.test.ts` cover each row and each refusal.\n- Run the touched tests, lint and typecheck. The full gate runs at the checkpoint.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Process spawning, per-repository queuing, Windows process-tree kills and error classification need careful tests first."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "git",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/main/git/runner.ts",
+          "src/main/git/errors.ts",
+          "src/main/git/args.ts",
+          "src/shared/git/errors.ts"
+        ],
+        "id": "tk_01m43skwxknzfrzy1gqj7k9z68",
+        "key": "DM-131",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Core's read-only git adapter (env and safety patterns)",
+            "location": "src/core/repo/git.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Real temp repositories for tests",
+            "location": "src/test/gitRepo.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "source-control",
+          "main",
+          "git"
+        ],
+        "title": "Run git safely from the main process"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "`readRepoState` returns `not_repository` for a plain folder and `git_missing` when git is missing. For a repository it returns the root, the branch (name, head, upstream, ahead and behind), the files and any in-progress operation. Tests cover an unborn branch, a detached HEAD, a merge in progress and a subfolder."
+          },
+          {
+            "id": "c2",
+            "text": "Every file kind is reported with the right path and old path. A test covers each kind, including a non-ASCII file name."
+          },
+          {
+            "id": "c3",
+            "text": "`readWorkingDiff` returns:\n- text hunks with old and new line numbers for tracked and untracked files;\n- `binary` for binary files;\n- `too_large` above the limit;\n- `empty` for a mode-only change.\n\nTests cover each, plus a file without a final newline and a CRLF file whose lines keep their `\\r`."
+          },
+          {
+            "id": "c4",
+            "text": "Reading state and diffs never runs a repository-configured external diff, textconv driver or fsmonitor. A test with marker scripts shows this."
+          },
+          {
+            "id": "c5",
+            "text": "The tests were written first, and the touched tests, lint and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. This ticket reads what Source control shows: the repository state and one file's diff. It requires the runner (`src/main/git/runner.ts`).\n\n**Shared types** (`src/shared/git/status.ts`, `src/shared/git/diff.ts`; renderer-safe, with no Node imports)\n```ts\nexport type FileChangeKind = 'added' | 'modified' | 'deleted' | 'renamed' | 'copied' | 'typechange' | 'untracked' | 'conflicted'\nexport interface FileChange { path: string; oldPath: string | null; kind: FileChangeKind }\nexport interface BranchState { name: string | null /* null when detached */; headOid: string | null /* null on an unborn branch */; upstream: string | null; ahead: number; behind: number }\nexport type OperationInProgress = 'merge' | 'rebase' | 'cherry-pick' | 'revert' | null\nexport interface RepoStatus { root: string; branch: BranchState; files: FileChange[]; inProgress: OperationInProgress }\nexport type RepoState = { kind: 'repository'; status: RepoStatus } | { kind: 'not_repository' } | { kind: 'git_missing' }\n\nexport interface DiffLine { kind: 'context' | 'add' | 'delete'; text: string; oldNumber: number | null; newNumber: number | null; noNewlineAtEnd: boolean }\nexport interface DiffHunk { header: string; oldStart: number; oldLines: number; newStart: number; newLines: number; lines: DiffLine[] }\ninterface DiffBase { path: string; oldPath: string | null; oldMode: string | null; newMode: string | null; hash: string }\nexport type FileDiff =\n  | (DiffBase & { kind: 'text'; hunks: DiffHunk[] })\n  | (DiffBase & { kind: 'binary' })\n  | (DiffBase & { kind: 'too_large'; bytes: number })\n  | (DiffBase & { kind: 'empty' }) // a mode-only or rename-only change\n```\n- `DiffLine.text` is the line exactly as git printed it, without the leading marker and the newline. A trailing `\\r` stays so that sprint 3 can rebuild a byte-exact patch from it. The view hides it.\n- `hash` is the SHA-1 of the raw diff output (`node:crypto`). Sprint 3 uses it to check that a line selection still matches the file.\n\n**State** (`src/main/git/status.ts`)\n- `readRepoState(runner, folder): Promise<RepoState>`.\n- Finding the repository:\n  - `git rev-parse --show-toplevel` finds the root;\n  - a folder outside any repository is `not_repository`, and `git_not_found` becomes `git_missing`;\n  - a tracked folder may be a subfolder: report the repository root and run later commands there.\n- Reading status:\n  - run `git status --porcelain=v2 --branch -z --untracked-files=all --find-renames`;\n  - parse it with a pure `parseStatusV2(output)`;\n  - unmerged (`u`) entries become `conflicted`;\n  - sort files by path.\n- `inProgress`: check the paths that `git rev-parse --git-path <name>` gives for `MERGE_HEAD`, `rebase-merge`, `rebase-apply`, `CHERRY_PICK_HEAD` and `REVERT_HEAD`.\n- The index is deliberately not exposed. As in GitHub Desktop, the change set is the working tree compared with HEAD.\n\n**Diff** (`src/main/git/diffParser.ts`, `src/main/git/diff.ts`)\n- A pure `parseUnifiedDiff(raw: string): FileDiff` parses one file's diff. It handles:\n  - hunk headers and `\\ No newline at end of file`;\n  - `Binary files … differ`;\n  - rename and copy headers;\n  - `old mode`, `new mode`, `new file mode` and `deleted file mode`;\n  - CRLF content.\n- `readWorkingDiff(runner, root, change: FileChange, options?: { force?: boolean }): Promise<FileDiff>`:\n  - for untracked files, and every file on an unborn branch, it runs `git diff --no-index --no-ext-diff --no-textconv --no-color -- /dev/null <path>`. Exit code 1 means \"differences\", not failure;\n  - otherwise it runs `git diff --no-ext-diff --no-textconv --no-color --find-renames HEAD -- [<oldPath>] <path>`;\n  - output over 2 MiB (16 MiB with `force`) becomes `too_large`, with the limit as `bytes`. Use the runner's `maxOutputBytes`.\n\n**Out of scope**: IPC and UI.\n\n**Verify** (write the tests first)\n- Parser unit tests on fixture strings cover every header and line kind.\n- `status.test.ts` and `diff.test.ts` run on real temp repositories (`src/test/gitRepo.ts`) and cover:\n  - modified, added, deleted, untracked and binary (PNG bytes) files;\n  - a rename (`git mv` plus an edit);\n  - a typechange where the platform allows it (skip it with a note on Windows);\n  - a file without a final newline, and a CRLF file whose lines keep `\\r`;\n  - a non-ASCII file name;\n  - an unborn repository, a detached HEAD and a merge conflict between two branches;\n  - a subfolder of a repository and a plain folder;\n  - an upstream that is both ahead and behind (local bare remote).\n- External programs: set `diff.external` and a `textconv` driver to scripts that write a marker file, read diffs, and assert that no marker exists.\n- Run the touched tests, lint and typecheck.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Parsing porcelain v2 and unified diffs across many edge cases (renames, binary, CRLF, unborn repositories) needs a careful test table."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "git",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/shared/git/status.ts",
+          "src/shared/git/diff.ts",
+          "src/main/git/status.ts",
+          "src/main/git/diffParser.ts",
+          "src/main/git/diff.ts"
+        ],
+        "id": "tk_01m43skwxxqew2pvvhzv0b82hm",
+        "key": "DM-132",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Git runner",
+            "location": "src/main/git/runner.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "source-control",
+          "main",
+          "git"
+        ],
+        "title": "Read repository status and file diffs"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "`window.git.getState`, `getWorkingDiff` and `initRepository` exist in the renderer and reach main over `git:*` channels registered through the guarded registrar. The ipc guard test still passes."
+          },
+          {
+            "id": "c2",
+            "text": "A call naming an untracked folder returns `unauthorized`, malformed input returns `invalid_input`, and a git failure returns its classified code. Nothing throws across IPC, and tests cover each case."
+          },
+          {
+            "id": "c3",
+            "text": "`getWorkingDiff` refuses an absolute path, or one that leaves the repository, with `invalid_input`."
+          },
+          {
+            "id": "c4",
+            "text": "Progress events reach `window.git.onProgress` listeners, and unsubscribing stops them."
+          },
+          {
+            "id": "c5",
+            "text": "`FakeGit` implements the whole `GitApi`, and the devtools output of `getState` for this repository is in the evidence."
+          },
+          {
+            "id": "c6",
+            "text": "The tests were written first, and the touched tests, lint and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. This ticket opens the bridge that every later Source control ticket extends. It requires the state and diff readers.\n\n**Contract** (`src/shared/git/api.ts`)\n```ts\nexport type GitResult<T> = { ok: true; data: T } | { ok: false; error: { code: GitErrorCode | 'invalid_input' | 'unauthorized'; message: string; detail?: string } }\nexport interface GitProgressEvent { folder: string; operationId: string; operation: string; phase: string; percent: number | null }\nexport interface GitApi {\n  getState(folder: string): Promise<GitResult<RepoState>>\n  getWorkingDiff(folder: string, request: { path: string; oldPath: string | null; kind: FileChangeKind; force?: boolean }): Promise<GitResult<FileDiff>>\n  initRepository(folder: string): Promise<GitResult<RepoState>>\n  onProgress(listener: (event: GitProgressEvent) => void): () => void\n}\n```\n\n**Main** (`src/main/git/handlers.ts`, `src/main/git/ipc.ts`)\n- `createGitHandlers(deps: { registry: Pick<FolderRegistry, 'resolve'>; runner: GitRunner; onUnexpectedError(error: unknown): void })`.\n- Input checks:\n  - each handler takes `unknown` arguments and validates them with zod, following `parseInput` in `src/main/desktop/handlers.ts:36-45`;\n  - the folder must be tracked, resolved through the registry like `requireTracked` (`handlers.ts:90-97`); otherwise return `unauthorized`;\n  - paths must be repository-relative and pass `pathArgs` (`src/main/git/args.ts`), so the renderer can't point git at other files.\n- Errors:\n  - a `GitError` becomes `{ ok: false }` with its code;\n  - an unexpected error is logged through `onUnexpectedError` and returned as `git_failed`, without a stack;\n  - nothing throws across IPC.\n- `initRepository` runs `git init` in the tracked folder, refuses a folder that is already inside a repository, and returns the new state.\n- `registerGitIpc(ipc: Pick<IpcMain, 'handle'>, handlers)` registers `git:getState`, `git:getWorkingDiff` and `git:initRepository`.\n- `createProgressBroadcaster(send)` sends `GitProgressEvent`s to every window on `git:progress` (`webContents.send`). Later operations call it.\n- Wiring:\n  - wire all of this into `startDesktopBridge` in `src/main/desktop/bootstrap.ts`, with the same folder registry;\n  - don't import `ipcMain` anywhere new: `src/main/ipcGuard.test.ts:254-265` must stay green.\n\n**Preload and renderer**\n- `src/preload/index.ts`: call `contextBridge.exposeInMainWorld('git', git)`.\n  - Each method is one `ipcRenderer.invoke('git:<name>', …)`.\n  - `onProgress` follows `autoUpdate.onEvent` (lines 9-15).\n  - Add the typing to `src/renderer/src/window.d.ts`.\n- `src/renderer/src/api/git.ts`: `callGit(promise)` unwraps a `GitResult` and throws `GitCommandError { code, message, detail }`. Follow `src/renderer/src/api/dm.ts:19-29`.\n- `src/renderer/src/__mocks__/fakeGit.ts`: `FakeGit implements GitApi`. You can set its state and diffs per folder, and it lists the calls it received. Later UI tests assert on its state, not on `vi.fn`.\n\n**Out of scope**: UI. Later tickets add their own channels, preload methods and `FakeGit` methods in the same pattern.\n\n**Verify** (write the tests first)\n- `src/main/git/handlers.test.ts` uses a fake registry and real temp repositories. It covers:\n  - a tracked folder and an untracked folder;\n  - malformed input and a path with `..`;\n  - `initRepository` on a plain folder and inside a repository;\n  - error mapping.\n- `src/main/git/ipc.test.ts` uses the fake ipc from `src/main/desktop/ipc.test.ts` and checks that the channel names reach the handlers.\n- A broadcaster test checks that events reach listeners until they unsubscribe.\n- Run `npm run dev`, track this repository, and call `await window.git.getState('<path>')` in devtools. Put the output in the evidence.\n- Run the touched tests, lint and typecheck.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A new IPC surface across shared contracts, main handlers, the preload and the renderer, with input validation and folder authorization."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/shared/git/api.ts",
+          "src/main/git/handlers.ts",
+          "src/main/git/ipc.ts",
+          "src/renderer/src/api/git.ts",
+          "src/renderer/src/__mocks__/fakeGit.ts"
+        ],
+        "id": "tk_01m43skwxxfpw337pp3fas0h8r",
+        "key": "DM-133",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Desktop handlers (validation, requireTracked)",
+            "location": "src/main/desktop/handlers.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Desktop bridge composition",
+            "location": "src/main/desktop/bootstrap.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Preload bridges",
+            "location": "src/preload/index.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "IPC guard test",
+            "location": "src/main/ipcGuard.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "source-control",
+          "main",
+          "ipc",
+          "preload"
+        ],
+        "title": "Expose source control to the renderer through window.git"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A text diff renders each hunk header and every line, with its old and new line numbers and add, delete or context styling. A test checks the numbers of a two-hunk diff."
+          },
+          {
+            "id": "c2",
+            "text": "The no-file, loading, error, binary, too-large and empty states each render their message, and Show anyway calls `onShowLarge`. A test covers each."
+          },
+          {
+            "id": "c3",
+            "text": "Lines keep their whitespace and don't show a trailing carriage return, and a missing final newline is marked."
+          },
+          {
+            "id": "c4",
+            "text": "A diff over 2,000 lines renders the first 2,000 and a button that shows the rest."
+          },
+          {
+            "id": "c5",
+            "text": "The new diff colour tokens pass the theme contrast tests."
+          },
+          {
+            "id": "c6",
+            "text": "The tests were written first, and the touched tests, lint and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. This is a read-only diff viewer, used by Changes, by History and, in sprint 3, by line selection. It needs only the `FileDiff` type from `src/shared/git/diff.ts`.\n\n**Component** (`src/renderer/src/source/DiffView.tsx`)\n- Props: `{ diff: FileDiff | null; loading: boolean; error: string | null; onShowLarge?(): void }`.\n- Keep the line-number gutter in its own component (`DiffGutter`), because sprint 3 adds line checkboxes there.\n- A unified view, as in GitHub Desktop:\n  - old and new line-number columns;\n  - a `+`/`-` marker column;\n  - a hunk header row (`@@ -a,b +c,d @@ context`);\n  - add, delete and context tints.\n- Text: monospace (`--font-mono`) with `tab-size: 4`. Whitespace is preserved, a trailing `\\r` is not shown, and a missing final newline gets a \"No newline at end of file\" marker.\n- Long lines scroll horizontally inside the diff; the page never scrolls sideways.\n- States:\n  - no file selected (`diff === null`, not loading);\n  - loading;\n  - error;\n  - `binary`: \"Binary file changed\";\n  - `too_large`: \"This diff is large (N MB)\", with **Show anyway** calling `onShowLarge`;\n  - `empty`: \"No content changes: the file mode or name changed\".\n- Big diffs: render the first 2,000 lines and a **Show N more lines** button. Use no virtualization library.\n- Accessibility: a table with `aria-label=\"Diff of <path>\"`. Each changed line also has screen-reader text, such as \"added line 12\" or \"removed line 9\".\n\n**Styling**\n- Put styles in `src/renderer/src/source/source.css`, imported by the component. The CSP forbids inline `style` attributes.\n- Add new `:root` tokens in `src/renderer/src/styles.css`: `--diff-add-bg`, `--diff-add-ink`, `--diff-del-bg`, `--diff-del-ink`, `--diff-hunk-bg` and `--diff-gutter-ink`. Follow `docs/design/palette.md`, and add the tokens to the contrast tests (`theme.contrast.test.ts`).\n\n**Out of scope**: fetching diffs, selection, a split view and syntax highlighting.\n\n**Verify** (write the tests first)\n- `DiffView.test.tsx` (jsdom) covers:\n  - the line numbers of a two-hunk diff;\n  - every state;\n  - the no-newline marker and the hidden `\\r`;\n  - the 2,000-line cut and Show more.\n- Run the token contrast tests.\n- Run the touched tests, lint and typecheck. The acceptance ticket takes the screenshot once the view is mounted in the app.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A new visual component with theme tokens that must pass the contrast tests, and several display states."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/source/DiffView.tsx",
+          "src/renderer/src/source/source.css"
+        ],
+        "id": "tk_01m43skwxxyvy3m6h8vft46my3",
+        "key": "DM-134",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Palette guidance",
+            "location": "docs/design/palette.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Theme tokens",
+            "location": "src/renderer/src/styles.css",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "source-control",
+          "ui",
+          "diff"
+        ],
+        "title": "Render a file diff in a DiffView component"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Clicking a tracked folder opens its page on the Source control tab. A switch to Epics is remembered for that folder across reloads, and an unknown stored tab falls back to Source control."
+          },
+          {
+            "id": "c2",
+            "text": "The Epics tab shows the existing folder home for initialized folders and onboarding for the others. Opening an epic still shows the epic workspace."
+          },
+          {
+            "id": "c3",
+            "text": "Source control shows the loading, git-missing, not-a-repository and error states. Initialize repository runs `git init` and then shows the empty repository. Tests cover each state with `FakeGit`."
+          },
+          {
+            "id": "c4",
+            "text": "For a repository:\n- the toolbar shows the branch, or the detached or unborn state;\n- the Changes list shows each file with its status badge;\n- selecting a file shows its diff;\n- the list refreshes on window focus and every 5 s."
+          },
+          {
+            "id": "c5",
+            "text": "A screenshot of this repository's Source control tab with a changed file's diff open, from the built app with an isolated profile, is in the evidence."
+          },
+          {
+            "id": "c6",
+            "text": "The tests were written first, and the touched tests, lint and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. Clicking a folder opens a folder page with **Source control** and **Epics** tabs, and Source control shows the repository's changes with their diffs. This ticket requires the bridge (`window.git`) and `DiffView`.\n\n**Routing** (`src/renderer/src/app/`)\n- `chooseView.ts`: replace the `home` and `onboarding` kinds with `{ kind: 'folder'; folder: TrackedFolderView; tab: FolderTab }`, where `FolderTab = 'source' | 'epics'`. The `loading`, `welcome`, `unavailable` and `epic` kinds stay.\n- Tab memory:\n  - store a `dm.folderTabs` localStorage map, `{ [folderPath]: FolderTab }`, through `usePersistentState`, with a guard like `isSelection`;\n  - the default is `'source'`, and an unknown stored value falls back to it.\n- Clicking a folder row (`selectFolder`, `shellActions.ts:82-85`) opens the folder page on its remembered tab. Opening an epic still shows the epic workspace.\n- `App.tsx` (`MainPane` and `FolderPane`, about lines 70-117) renders a new `src/renderer/src/folder/FolderPage.tsx`, which has:\n  - the folder header (eyebrow FOLDER, name, display path), moved out of `home/FolderHome.tsx`;\n  - a tab strip with `role=\"tablist\"` and arrow-key navigation, reusing the `.tp-tabs` pattern (`ticket/TicketPanel.tsx:65-82`);\n  - the panel for the chosen tab: Source control; or, for Epics, the folder home body (with New epic) when the folder is initialized and `OnboardingView` when it isn't.\n- `ShellFooter`'s `folderReady` becomes \"a folder page or epic of an initialized folder\".\n- Update the existing tests that rely on `home` and `onboarding`: `chooseView.test.ts`, `MainViews.test.tsx`, `FolderHome.test.tsx` and the `App.*.test.tsx` files.\n\n**Source control panel** (`src/renderer/src/source/`)\n- `useRepoState(folder)` loads `window.git.getState` through `callGit` and drops stale responses (the `useResource` pattern). It refreshes:\n  - every 5 s while mounted and the window is focused (`useRefreshTick`);\n  - on the window `focus` event;\n  - on `refresh()`.\n- `SourceControlView.tsx` shows these states:\n  - loading;\n  - `git_missing`: \"Git isn't installed\", with a link to https://git-scm.com/downloads through `window.dm.openExternal`;\n  - `not_repository`: \"This folder isn't a Git repository\", with **Initialize repository** (`initRepository`), and then the empty repository;\n  - error, with Retry.\n- A repository shows:\n  - a toolbar with the branch name (or \"Detached HEAD at <short oid>\", or \"No commits yet\"), and the repository root when it differs from the folder;\n  - a 320 px left column titled **Changes (N)**. Each file row shows the directory dimmed, the file name bold, a status badge (A, M, D, R, U, ?, or ! for conflicted) and, for renames, the old path. A clean repository shows \"No local changes\";\n  - a right column with `DiffView` for the selected file, loaded with `getWorkingDiff`. Show anyway passes `force`. The selection survives refreshes while the file is still listed.\n\n**Out of scope**: checkboxes, commit and discard (the next ticket), and History.\n\n**Verify** (write the tests first)\n- Tests:\n  - `chooseView` and tab memory;\n  - `FolderPage` tabs and keyboard navigation;\n  - each `SourceControlView` state, with `FakeGit`;\n  - refresh on focus and on the timer, with `__mocks__/manualScheduler.ts`.\n- Take a screenshot of this repository's Source control tab with a changed file's diff open, from the built app with an isolated profile.\n- Run the touched tests (including the updated ones), lint and typecheck.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Changes the shell's view model and routing and updates existing tests, while adding a refreshing data hook and a new view."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/folder/FolderPage.tsx",
+          "src/renderer/src/source/SourceControlView.tsx",
+          "src/renderer/src/source/useRepoState.ts"
+        ],
+        "id": "tk_01m43skwxxn7km279j455etpmq",
+        "key": "DM-135",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Main view chooser",
+            "location": "src/renderer/src/app/chooseView.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Selection",
+            "location": "src/renderer/src/app/selection.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "App panes",
+            "location": "src/renderer/src/App.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Folder home",
+            "location": "src/renderer/src/home/FolderHome.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Tab pattern",
+            "location": "src/renderer/src/ticket/TicketPanel.tsx",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "source-control",
+          "ui",
+          "routing"
+        ],
+        "title": "Open folders on a page with Source control and Epics tabs"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A commit contains exactly the chosen files, even when other files were staged earlier. Its message is the summary and description, and the call returns the new commit id. This works on a repository with no commits, and tests cover each case."
+          },
+          {
+            "id": "c2",
+            "text": "An empty summary or file list is refused with `invalid_input`, and a commit during a merge with `operation_in_progress`. A failing commit hook returns `git_failed` with the hook output in `detail`."
+          },
+          {
+            "id": "c3",
+            "text": "Undo last commit puts the last unpushed commit's changes back in the working tree and returns its summary and description. It is refused for a pushed commit, a merge commit and an empty repository."
+          },
+          {
+            "id": "c4",
+            "text": "Discarding first moves the discarded content to the OS trash through the injected function. It then restores each chosen file to HEAD, or removes the file when it is new. Tests check the trashed content for modified, added, untracked and renamed files."
+          },
+          {
+            "id": "c5",
+            "text": "`commit`, `undoLastCommit` and `discardChanges` are on `window.git` and `FakeGit`, and untracked folders and paths outside the repository are refused."
+          },
+          {
+            "id": "c6",
+            "text": "The tests were written first, and the touched tests, lint and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. These are the main-process operations behind the Changes panel. This ticket requires the bridge.\n\n**API** (extend `GitApi` in `src/shared/git/api.ts`, the handlers, `src/main/git/ipc.ts`, the preload and `FakeGit`)\n- `commit(folder, { summary: string; description: string; files: Array<{ path: string; oldPath: string | null }> }): Promise<GitResult<{ oid: string }>>`\n- `undoLastCommit(folder): Promise<GitResult<{ summary: string; description: string }>>`\n- `discardChanges(folder, { files: FileChange[] }): Promise<GitResult<RepoState>>`\n\nEvery path goes through `pathArgs` and must appear in the current status.\n\n**Commit** (`src/main/git/commit.ts`)\n1. Refuse an empty summary or an empty file list with `invalid_input`. Refuse while `inProgress` is set, with `operation_in_progress`; sprint 2's conflict ticket adds merge commits.\n2. Reset the index to HEAD (`git reset -q --`; on an unborn branch, `git read-tree --empty`), so only the chosen files are committed, matching what the panel shows.\n3. Stage the chosen files with `git add -A -- <paths>`. A rename passes both its old and new path.\n4. Run `git commit -F -` with the message on stdin: the summary, then a blank line and the description when there is one, both trimmed. Hooks run as git runs them; a failing hook returns `git_failed` with the hook output in `detail`.\n5. Return the new HEAD oid. Files that weren't chosen stay changed and unstaged, as intended.\n\n**Undo last commit**\n- Undo is allowed only when HEAD exists, isn't a merge commit, and isn't on any remote branch (`git branch -r --contains HEAD` is empty). Otherwise return `invalid_input` with the reason: \"already pushed\", \"merge commit\" or \"no commits\".\n- Read the message (`git log -1 --format=%B`), then run `git reset --soft HEAD~1`. For the root commit, run `git update-ref -d HEAD`.\n- Return the summary (the first paragraph) and the description (the rest).\n\n**Discard** (`src/main/git/discard.ts`)\n- Inject `trashItem(path): Promise<void>`. In `bootstrap.ts` it is Electron's `shell.trashItem`.\n- What happens to each kind of change:\n  - modified or typechange: copy the working file into a new temp folder under its own name, move that copy to the trash, then run `git checkout HEAD -- <path>`;\n  - deleted: run `git checkout HEAD -- <path>` (there is nothing to save);\n  - untracked: move the file to the trash;\n  - added to the index but not in HEAD: run `git rm -q --cached -- <path>`, then move the file to the trash;\n  - renamed: move the new file to the trash, as for an added file, and restore the old path from HEAD.\n- Return the new state.\n\n**Verify** (write the tests first, on real temp repositories)\n- Commit:\n  - only the chosen files are committed, even when another file was staged earlier;\n  - a rename;\n  - the first commit of an unborn repository;\n  - summary-only and summary-plus-description messages;\n  - a failing `pre-commit` hook.\n- Undo restores the changes and returns the message. It is refused after a push to a local bare remote, for a merge commit and when there are no commits.\n- Discard each kind with a fake trash that records what it received, and check the trashed content.\n- Untracked folders and paths outside the repository are refused.\n- Run the touched tests, lint and typecheck.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Writes to the repository: index reset and staging, undo safety rules and recoverable discards need careful tests first."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "git",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/main/git/commit.ts",
+          "src/main/git/discard.ts"
+        ],
+        "id": "tk_01m43skwxxpd41wg0f81er4p63",
+        "key": "DM-136",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Git bridge contract",
+            "location": "src/shared/git/api.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "source-control",
+          "main",
+          "git"
+        ],
+        "title": "Commit chosen files, undo the last commit and discard changes in main"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Every changed file has a checkbox, and new files are included by default. The header checkbox shows all, some or none and toggles all, and inclusion survives a status refresh."
+          },
+          {
+            "id": "c2",
+            "text": "Commit to <branch> is enabled only with a summary and at least one included file. It commits exactly the included files with the summary and description, then clears the box and refreshes the list."
+          },
+          {
+            "id": "c3",
+            "text": "Discard changes, for one file or all, asks for confirmation naming the files and saying they go to the trash, then discards and refreshes."
+          },
+          {
+            "id": "c4",
+            "text": "After a commit, an Undo strip shows that commit's summary. Undo restores the changes and refills the summary and description."
+          },
+          {
+            "id": "c5",
+            "text": "A screenshot of the Changes panel with mixed inclusion and a filled commit box, from the built app with an isolated profile, is in the evidence."
+          },
+          {
+            "id": "c6",
+            "text": "The tests were written first, and the touched tests, lint and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. This ticket turns the Changes list into GitHub Desktop's changes panel. It requires the folder page and the commit operations.\n\n**Inclusion** (`src/renderer/src/source/ChangesPanel.tsx`, `useInclusion.ts`)\n- Each file has a checkbox. Every file starts included, new files too, as in GitHub Desktop.\n- A header checkbox, \"N changed files\", shows all, some (indeterminate) or none, and toggles all.\n- Inclusion lives in the renderer per folder, keyed by path. It survives status refreshes and drops files that disappear.\n- Keep the model ready for a third, partial state, which sprint 3 adds.\n\n**Commit box** (`src/renderer/src/source/CommitBox.tsx`, at the bottom of the left column)\n- It has a **Summary** input (required; it warns past 72 characters), a **Description** textarea, and a primary **Commit to <branch>** button.\n- The button:\n  - is enabled only with a summary and at least one included file;\n  - is busy while committing;\n  - can be triggered with Ctrl+Enter or Cmd+Enter.\n- Success clears the box, refreshes the state, and shows the toast \"Committed <short oid>\".\n- A failure shows inline under the button, with git's `detail` in a collapsible block.\n\n**Discard**\n- The file context menu (`components/Menu`) has **Discard changes…** and **Copy file path** (`window.dm.copyText`). The header menu has **Discard all changes…**.\n- Discarding opens a `Dialog` that lists the files and says \"These changes will be moved to the Recycle Bin\" (\"Trash\" on macOS, chosen by `navigator.platform`). It has Cancel and a danger **Discard changes** button.\n\n**Undo**\n- After a successful commit in this session, a strip above the commit box shows \"Committed just now: <summary>\" with **Undo**.\n- The strip stays until HEAD moves to another commit or the commit is pushed.\n- Undo calls `undoLastCommit`, refills the summary and description, and refreshes.\n\n**Verify** (write the tests first, asserting on `FakeGit` state)\n- Inclusion: the defaults and toggles, the header tri-state, and inclusion surviving a refresh.\n- Commit: only the included files and the message are sent; the disabled states; an error shown with its detail.\n- The discard dialog flow, and the undo strip and refill.\n- Take a screenshot, from the built app with an isolated profile, of the panel with two files included, one excluded and a summary filled in.\n- Run the touched tests, lint and typecheck.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Stateful UI (inclusion, commit box, dialogs, undo strip) over the new bridge, which must stay consistent across refreshes."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/source/ChangesPanel.tsx",
+          "src/renderer/src/source/CommitBox.tsx",
+          "src/renderer/src/source/useInclusion.ts"
+        ],
+        "id": "tk_01m43skwxxmy25sddnbka8347s",
+        "key": "DM-137",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Dialog",
+            "location": "src/renderer/src/components/Dialog.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Menu",
+            "location": "src/renderer/src/components/Menu.tsx",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "source-control",
+          "ui"
+        ],
+        "title": "Choose files, commit, discard and undo in the Changes panel"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "History lists the current branch's commits newest first, with summary, author, date and an unpushed marker. It loads 100 at a time and more on scroll, and an unborn branch shows No commits yet."
+          },
+          {
+            "id": "c2",
+            "text": "Selecting a commit shows its message, author, date, full SHA (copyable) and changed files. A merge commit lists its changes against its first parent, and the root commit lists its files."
+          },
+          {
+            "id": "c3",
+            "text": "Selecting a file shows that commit's diff for it in `DiffView`, renamed files included."
+          },
+          {
+            "id": "c4",
+            "text": "Invalid oids and untracked folders are refused, and the Changes or History choice is remembered per folder."
+          },
+          {
+            "id": "c5",
+            "text": "A screenshot of History with a commit and a file selected, from the built app with an isolated profile, is in the evidence."
+          },
+          {
+            "id": "c6",
+            "text": "The tests were written first, and the touched tests, lint and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. This ticket adds the History tab, from git log to the commit diff. It requires the folder page and `DiffView`.\n\n**Types** (`src/shared/git/history.ts`)\n```ts\nexport interface CommitSummary { oid: string; shortOid: string; parents: string[]; authorName: string; authorEmail: string; authoredAt: string /* ISO */; summary: string; body: string; unpushed: boolean }\nexport interface CommitFile { path: string; oldPath: string | null; kind: FileChangeKind }\n```\n\n**Main** (`src/main/git/history.ts`; extend `GitApi`, the handlers, ipc, the preload and `FakeGit`)\n- `getHistory(folder, { skip: number; limit: number })` returns `{ commits: CommitSummary[]; hasMore: boolean }`. `limit` is at most 200.\n  - Run `git log --max-count=<limit+1> --skip=<skip> --format=<fields separated by %x00, records by %x1e> HEAD`. An unborn branch returns no commits.\n  - A commit is `unpushed` when it is in `git rev-list HEAD --not --remotes`.\n- `getCommitFiles(folder, oid)` runs `git diff-tree -r --root -M -z --no-commit-id --name-status <oid>`. Merge commits use the first parent (`-m --first-parent`).\n- `getCommitDiff(folder, { oid, path, oldPath, force? })`:\n  - runs `git diff --no-ext-diff --no-textconv --no-color -M <oid>^1 <oid> -- [<oldPath>] <path>`;\n  - for a root commit, runs `git show --format= --no-ext-diff --no-textconv <oid> -- <path>` instead;\n  - parses the output with `parseUnifiedDiff`, with the same size limits as `readWorkingDiff`.\n- `oid` must be 4 to 64 hex characters.\n\n**UI** (`src/renderer/src/source/HistoryPanel.tsx`)\n- A **Changes | History** switcher sits at the top of the left column (a segmented toggle like `epic/WorkspaceHeader.tsx:10-21`). The choice is remembered per folder in `dm.sourceTab`.\n- The History list shows each commit's summary, author and relative date, with an up-arrow icon on unpushed commits. It loads 100 commits, and 100 more when scrolled near the end.\n- A selected commit shows in the right column:\n  - the summary, the body as plain text, the author and the date;\n  - the full SHA, with Copy;\n  - the changed files. Selecting a file shows its diff in `DiffView`.\n- The commit context menu has **Copy SHA**.\n- An unborn branch shows \"No commits yet\".\n\n**Verify** (write the tests first)\n- Main tests, on real temp repositories:\n  - paging past 100 commits;\n  - a merge commit's files against its first parent, and the root commit;\n  - unpushed marking, with a local bare remote;\n  - a rename;\n  - an invalid oid.\n- UI tests with `FakeGit`: the paging trigger, selection, the diff shown, and the remembered sub-tab.\n- Take a screenshot of History with a commit and a file selected, from the built app with an isolated profile.\n- Run the touched tests, lint and typecheck.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Log parsing with paging and first-parent rules in main, plus a paged list UI wired to the diff view."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "react",
+            "css",
+            "git",
+            "ui",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/shared/git/history.ts",
+          "src/main/git/history.ts",
+          "src/renderer/src/source/HistoryPanel.tsx"
+        ],
+        "id": "tk_01m43skwxx674cg5m11m3xwmn1",
+        "key": "DM-138",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Segmented toggle pattern",
+            "location": "src/renderer/src/epic/WorkspaceHeader.tsx",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "source-control",
+          "ui",
+          "main",
+          "git"
+        ],
+        "title": "Browse commits, their files and diffs in a History tab"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Fireguard ran on the combined sprint 1 branch with `FIREGUARD_BASE_REF` set to the sprint's start commit, and graded every unit test added or modified in sprint 1. The graded file list is in the evidence."
+          },
+          {
+            "id": "c2",
+            "text": "The final grade is not F. The letter grade and score are in the evidence."
+          },
+          {
+            "id": "c3",
+            "text": "Every test graded F was rewritten and re-graded with no production code changed. This ticket's diff touches only test files, or nothing if no test was graded F."
+          }
+        ],
+        "body": "Size: **small**. This is sprint 1's only Fireguard run. Fireguard is slow (100× flake isolation and mutation), so no other ticket in the sprint runs it, and workers run only their targeted tests. The sprint 1 acceptance ticket takes Fireguard's grade from this ticket.\n\n1. **Wait** until every other sprint 1 work ticket is accepted and combined on the sprint integration branch. That branch was made from `source-control` at the sprint's start.\n2. **Grade** with `npm run fireguard -- --json` on that branch:\n   - set `FIREGUARD_BASE_REF` to the sprint's start commit;\n   - Fireguard grades only committed changes;\n   - on Windows, set `FIREGUARD_TEST_COMMAND='node node_modules/vitest/vitest.mjs run'`, because of the npx spawn quirk.\n3. **Fix any F:** rewrite each test graded F and re-grade until nothing is F.\n   - Don't change production code to raise a grade.\n   - If a finding points at a real bug in production code, fail the attempt with the finding, so the orchestrator can send it back to the ticket that owns that code.\n4. **Record** the letter grade, the score, the graded files and each finding in the evidence.\n\nOut of scope: lint, typecheck, the full test suite, deadcode and build, because the acceptance ticket runs those once.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": "low",
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "multi_step",
+            "rationale": "Running fireguard is mechanical, but rewriting a test graded F takes judgement about what the test should assert."
+          },
+          "skills": [
+            "typescript",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [
+          "Fireguard report for sprint 1 (grade, score, graded files, findings) in the attempt evidence"
+        ],
+        "id": "tk_01m43skwxxm1te8ryz4kx3jjz8",
+        "key": "DM-139",
+        "optional": false,
+        "priority": "high",
+        "references": [],
+        "size": "small",
+        "tags": [
+          "fireguard",
+          "testing"
+        ],
+        "title": "Sprint 1 fireguard: grade the sprint's new unit tests and fix any F"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "covers": "tk_01m43st80p3n2992va52fjx8h1",
+            "id": "c1",
+            "text": "In the built app, Sign in to GitHub gets a real device code from github.com, which proves the client ID and the Device Flow setting, and opens github.com/login/device. Cancel ends the attempt."
+          },
+          {
+            "covers": "tk_01m43st80paqp9q9mynnv0cz6g",
+            "id": "c2",
+            "text": "Screenshots show the sign-in dialog with a real code and the signed-out footer."
+          },
+          {
+            "covers": "tk_01m43st80phph8e257thvgm244",
+            "id": "c3",
+            "text": "While signed out, Fetch origin in a clone of https://github.com/octocat/Hello-World completes with no prompt and no credential window. In `scratch-b`, pull and push against the local bare remote update the ahead and behind counts."
+          },
+          {
+            "covers": "tk_01m43st80pqq25rhh231cnd0y4",
+            "id": "c4",
+            "text": "Screenshots show Push origin ↑2 and a fetch in progress. A push rejected because `other` pushed first offers Pull, and Pull brings the commit in."
+          },
+          {
+            "covers": "tk_01m43st80pde20wsy9hzs8s366",
+            "id": "c5",
+            "text": "In `scratch-b`, the app:\n1. creates a branch from the default branch;\n2. switches away, leaving changes stashed;\n3. comes back and restores the changes;\n4. renames the branch;\n5. deletes it together with its remote branch.\n\nAfter each step, `git branch -a` and `git stash list` in a terminal match what the app shows."
+          },
+          {
+            "covers": "tk_01m43st80pyacpnw547zmdenfb",
+            "id": "c6",
+            "text": "Screenshots show the branch popover with a filter, the switch dialog and the Stashed changes row."
+          },
+          {
+            "covers": "tk_01m43st80p3yhsk2s96zdhphk7",
+            "id": "c7",
+            "text": "Merging the conflicting branch from the branch menu shows the conflict banner. One file is resolved with Use mine, and the other is edited in the editor and marked resolved; then Commit merge runs. `git log --graph -3` shows the merge commit, and a screenshot shows the banner with one file resolved."
+          },
+          {
+            "covers": "tk_01m43st80ptgtk20bwa6ssqs82",
+            "id": "c8",
+            "text": "The sprint 2 Fireguard ticket was accepted with no F grade."
+          },
+          {
+            "id": "c9",
+            "text": "The Definition of Done passes on the combined branch: lint, typecheck, test, coverage, deadcode and build."
+          },
+          {
+            "id": "c10",
+            "text": "Sprint 2 is one squashed commit on `source-control` whose message lists the sprint's tickets."
+          },
+          {
+            "id": "c11",
+            "text": "The sprint report lists the person's checks for the checkpoint: sign in, push a branch to a GitHub repository of their choice, see @login in the footer, and sign out."
+          }
+        ],
+        "body": "This is the planned final round for sprint 2, run once on the combined work.\n\n1. **Combine** every accepted sprint 2 ticket on the sprint integration branch.\n2. **Build** the app and run it with an isolated profile (a temporary `--user-data-dir`).\n3. **Prepare** the scratch repositories in a temp folder:\n   - `scratch-b`, cloned from a local bare repository `origin.git`;\n   - a second clone, `other`, which pushes to the same bare repository;\n   - two branches with a conflicting change.\n4. **Verify each item** below, with screenshots.\n5. **Hand the person their checks.** Completing a GitHub sign-in needs the person in their own browser. List these in the sprint report as checks for the checkpoint: sign in, push a branch to a GitHub repository of their choice, see the account in the footer, and sign out.\n6. **Run the Definition of Done** on the combined branch.\n   - Take Fireguard's grade from the sprint 2 Fireguard ticket, which must be accepted first.\n   - Re-run Fireguard only if test files changed after that ticket.\n7. **Squash** the sprint into one commit on `source-control`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "End-to-end checks of sync, branches and conflicts in the built app, screenshots, the full Definition of Done and the squash."
+          },
+          "skills": [
+            "typescript",
+            "testing",
+            "git"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution",
+            "network"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m43st80kzf65farkt084aemr",
+        "key": "DM-140",
+        "kind": "acceptance",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "tags": [],
+        "title": "Sprint 2 acceptance: sign in, sync, branch and resolve conflicts on scratch repositories, run the Definition of Done, land one commit"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Starting sign-in:\n- returns a user code and a verification URL, and opens that URL in the browser;\n- polls in a way that honours `authorization_pending` and `slow_down`;\n- on success, stores the account and broadcasts it.\n\nExpiry, denial, a misconfigured app and cancel each end the attempt with their own code. Tests use a fake fetch and clock."
+          },
+          {
+            "id": "c2",
+            "text": "The token is stored only as `safeStorage`-encrypted data in `userData/github-account.json`. Sign-in is refused when OS encryption is unavailable, and sign-out deletes the file."
+          },
+          {
+            "id": "c3",
+            "text": "No IPC result, broadcast, log line or error detail contains the token. Tests search them for the fake token string."
+          },
+          {
+            "id": "c4",
+            "text": "A 401 from the GitHub API signs the account out locally and returns `auth_required`."
+          },
+          {
+            "id": "c5",
+            "text": "`GITHUB_OAUTH_CLIENT_ID` holds the client ID from the epic comment, and the scopes are `repo read:user workflow`."
+          },
+          {
+            "id": "c6",
+            "text": "The tests were written first, and the touched tests, lint and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. Sign-in to GitHub through the OAuth device flow, as GitHub Desktop offers. Nothing in the renderer ever sees the token.\n\n**Before starting**: the GitHub OAuth App's client ID is in a comment on this epic (the sprint 2 entry criterion). It is public, because the device flow needs no client secret.\n\n**Config** (`src/main/github/config.ts`)\n- `GITHUB_OAUTH_CLIENT_ID` is the client ID from the epic comment.\n- `GITHUB_SCOPES = 'repo read:user workflow'`. `workflow` lets a push change `.github/workflows`, which GitHub Desktop also requests.\n\n**Device flow** (`src/main/github/deviceFlow.ts`; inject `fetch`, `sleep` and `now`)\n- `startDeviceFlow()` sends a POST to `https://github.com/login/device/code` (`Accept: application/json`, form body `client_id` and `scope`). It returns `{ deviceCode, userCode, verificationUri, expiresAt, intervalSeconds }`.\n- `pollForToken(deviceCode, intervalSeconds, signal)` sends a POST to `https://github.com/login/oauth/access_token` with `grant_type=urn:ietf:params:oauth:grant-type:device_code`, and handles each answer:\n  - `authorization_pending`: wait the interval and poll again;\n  - `slow_down`: add 5 s to the interval;\n  - `expired_token` or `access_denied`: end with `sign_in_expired` or `sign_in_denied`;\n  - `incorrect_client_credentials`, `device_flow_disabled` or `unsupported_grant_type`: end with `sign_in_misconfigured` (the OAuth App needs Device Flow enabled);\n  - an abort ends with `cancelled`, and a network failure with `network_unreachable`.\n\n**API client** (`src/main/github/client.ts`)\n- `createGithubClient({ fetch, getToken, appVersion })` provides `getUser()`, which calls `GET https://api.github.com/user` with these headers:\n  - `Authorization: Bearer <token>`;\n  - `Accept: application/vnd.github+json`;\n  - `X-GitHub-Api-Version: 2022-11-28`;\n  - `User-Agent: DarkMechanicus/<version>`.\n- Later tickets add calls to this client.\n- A 401 returns `auth_required` and signs the account out locally, because the token was revoked.\n- Keep the `X-OAuth-Scopes` header value with the account.\n\n**Account store** (`src/main/github/accountStore.ts`)\n- Inject `{ isAvailable, encrypt, decrypt }`. In bootstrap these are Electron's `safeStorage`.\n- The file is `userData/github-account.json`: `{ version: 1, login, name, scopes, token }`, where `token` is the base64 of `safeStorage.encryptString(token)`.\n- Write it atomically (a tmp file, then rename), like `src/main/desktop/folderRegistry.ts:107-120`.\n- Refuse to sign in when `isEncryptionAvailable()` is false, with `secure_storage_unavailable`. Never fall back to plain text.\n- `getToken()` is main-only, and `signOut()` deletes the file.\n\n**Bridge**\n- Files: `src/shared/github/api.ts`, `src/main/github/handlers.ts`, `src/main/github/ipc.ts`, the preload's `window.github`, `src/renderer/src/api/github.ts` and `src/renderer/src/__mocks__/fakeGithub.ts`.\n```ts\nexport interface GithubAccountView { login: string; name: string | null }\nexport interface GithubApi {\n  getAccount(): Promise<GitResult<GithubAccountView | null>>\n  startSignIn(): Promise<GitResult<{ userCode: string; verificationUri: string; expiresAt: string }>>\n  cancelSignIn(): Promise<GitResult<null>>\n  signOut(): Promise<GitResult<null>>\n  onAccountChanged(listener: (account: GithubAccountView | null) => void): () => void\n  onSignInFailed(listener: (error: { code: string; message: string }) => void): () => void\n}\n```\n- `startSignIn`:\n  - starts the flow, opens `verificationUri` in the browser (`shell.openExternal`), returns the code, and polls in the background;\n  - starting again cancels the previous attempt;\n  - success stores the account and broadcasts `github:accountChanged`, and failure broadcasts `github:signInFailed`.\n- Register the handlers through the guarded registrar in `bootstrap.ts`, like the git bridge.\n- Export a main-side `githubSession` (`getAccount`, `getToken`) for the later sync, clone and pull request tickets.\n\n**Token rules**: the token never crosses IPC and never appears in a log line, an error message or `detail`. It is decrypted only in main, only when needed.\n\n**Verify** (write the tests first)\n- The device flow, with a fake fetch and clock: pending then slow_down then success; expired; denied; misconfigured; cancel.\n- The store: a round trip with fake crypto, refusal when encryption is unavailable, sign-out deleting the file, and the file never holding the plain token.\n- Handlers and broadcasts: search every result and event payload for the fake token string and assert it is absent. A 401 signs the account out.\n- Run the touched tests, lint and typecheck.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "deep",
+            "rationale": "Handles a long-lived credential: a mistake in storage, IPC or logging leaks the person's GitHub token and is hard to spot."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "oauth",
+            "security-review",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/main/github/config.ts",
+          "src/main/github/deviceFlow.ts",
+          "src/main/github/client.ts",
+          "src/main/github/accountStore.ts",
+          "src/main/github/handlers.ts",
+          "src/shared/github/api.ts",
+          "src/renderer/src/__mocks__/fakeGithub.ts"
+        ],
+        "id": "tk_01m43st80p3n2992va52fjx8h1",
+        "key": "DM-141",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "url",
+            "label": "GitHub OAuth device flow",
+            "location": "https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps#device-flow",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "kind": "url",
+            "label": "Electron safeStorage",
+            "location": "https://www.electronjs.org/docs/latest/api/safe-storage",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Atomic write pattern",
+            "location": "src/main/desktop/folderRegistry.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "source-control",
+          "github",
+          "auth",
+          "security",
+          "main"
+        ],
+        "title": "Sign in to GitHub with a device code and keep the token encrypted"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Signed out, the sidebar footer shows Sign in to GitHub. Signed in, it shows @login with Sign out and Manage access on GitHub."
+          },
+          {
+            "id": "c2",
+            "text": "The dialog shows the code with Copy, the opened URL with Open again, a countdown and Cancel. Success closes it and shows the account, and each failure shows its reason with Try again."
+          },
+          {
+            "id": "c3",
+            "text": "`SignInPrompt` opens the same dialog, and an account change from main updates every mounted view without a reload."
+          },
+          {
+            "id": "c4",
+            "text": "The evidence includes screenshots of the dialog with a real code from github.com and of the signed-out footer, from the built app with an isolated profile."
+          },
+          {
+            "id": "c5",
+            "text": "The tests were written first, and the touched tests, lint and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. The account control and the sign-in dialog. This ticket requires the sign-in bridge (`window.github`).\n\n**Account hook**\n- `src/renderer/src/github/useGithubAccount.ts` loads `getAccount` and subscribes to `onAccountChanged`.\n- Provide it app-wide (a `GithubAccountProvider` context in `App.tsx`), so every view sees the same account.\n\n**Sidebar footer** (`src/renderer/src/sidebar/SidebarFooter.tsx`)\n- Add a new line with a GitHub mark icon. Add `github` to `ICON_PATHS` in `components/Icon.tsx`.\n- Signed out, it shows a small **Sign in to GitHub** button that opens the dialog.\n- Signed in, it shows `@login` (with the name as title) and a `Menu` with:\n  - **Sign out**;\n  - **Manage access on GitHub**, which opens https://github.com/settings/applications through `window.dm.openExternal`.\n\n**Sign-in dialog** (`src/renderer/src/github/SignInDialog.tsx`, using `components/Dialog`)\n- On open it calls `startSignIn`. It shows the user code large, in `--font-mono`, with **Copy** (`window.dm.copyText`).\n- It says \"We opened github.com/login/device in your browser. Enter this code there.\", with an **Open again** link.\n- It shows a waiting indicator and an expiry countdown. **Cancel** calls `cancelSignIn`.\n- Success closes the dialog and shows the toast \"Signed in as @login\".\n- On `onSignInFailed` it shows the reason (expired, denied, misconfigured, network or secure storage unavailable) with **Try again**.\n\n**Sign-in prompt** (`src/renderer/src/github/SignInPrompt.tsx`)\n- An inline card, \"Sign in to GitHub to <purpose>\", with a **Sign in** button that opens the same dialog.\n- Export it for the sync, clone and pull request tickets.\n\n**Verify** (write the tests first, asserting on `FakeGithub` state)\n- Tests:\n  - the footer in both states, and the menu actions;\n  - the dialog flow: code, copy, countdown, cancel, success, each failure, and Try again;\n  - the prompt opening the dialog;\n  - an account change event updating two mounted consumers.\n- Screenshots from the built app with an isolated profile:\n  - the dialog with a real code (press Sign in, which contacts github.com, then Cancel);\n  - the footer signed out.\n- Run the touched tests, lint and typecheck.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "An app-wide account context, a multi-state dialog driven by main events, and a reusable prompt."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution",
+            "network"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/github/useGithubAccount.ts",
+          "src/renderer/src/github/SignInDialog.tsx",
+          "src/renderer/src/github/SignInPrompt.tsx"
+        ],
+        "id": "tk_01m43st80paqp9q9mynnv0cz6g",
+        "key": "DM-142",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Sidebar footer",
+            "location": "src/renderer/src/sidebar/SidebarFooter.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Icons",
+            "location": "src/renderer/src/components/Icon.tsx",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "source-control",
+          "github",
+          "ui"
+        ],
+        "title": "Show the GitHub account in the sidebar and sign in from a dialog"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Fetch, pull (merge, never rebase), push and publish work against a remote and send progress events with percentages. Afterwards, the state shows the new ahead and behind counts and the last-fetched time. Tests use a local bare remote."
+          },
+          {
+            "id": "c2",
+            "text": "For an HTTPS github.com remote while signed in, git gets the account's login and token from an environment-based credential helper scoped to https://github.com, and every other configured helper is cleared. An offline `git credential fill` test proves both, and the token appears in no argument, log or error detail."
+          },
+          {
+            "id": "c3",
+            "text": "When signed out, and for SSH and non-GitHub remotes, git uses the machine's own credentials and never waits on a terminal prompt."
+          },
+          {
+            "id": "c4",
+            "text": "A non-fast-forward push, an auth failure, a conflicting pull and a network failure each return their own code. Cancel stops a running operation with `cancelled`."
+          },
+          {
+            "id": "c5",
+            "text": "`parseGithubRemote` handles https, scp-like and ssh URLs, with and without `.git`, and returns null for other hosts."
+          },
+          {
+            "id": "c6",
+            "text": "The tests were written first, and the touched tests, lint and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. Fetch, pull, push and publish, using the GitHub account's credentials when signed in. This ticket requires the sign-in ticket (`githubSession`).\n\n**Remotes** (`src/main/git/remotes.ts`)\n- `listRemotes(runner, root)` returns `[{ name, fetchUrl, pushUrl }]` from `git remote -v`.\n- A pure `parseGithubRemote(url)` returns `{ owner, repo } | null`:\n  - it accepts `https://github.com/o/r(.git)`, `git@github.com:o/r(.git)` and `ssh://git@github.com/o/r(.git)`;\n  - anything else is null;\n  - sprint 3 uses it for pull requests.\n- The sync remote is the upstream's remote, else `origin`. With neither, return `remote_not_found`.\n\n**Credentials** (`src/main/git/credentials.ts`)\n- `credentialArgs(remoteUrl, session)` returns extra args and env when the URL is `https://github.com/…` and an account is signed in:\n  - args: first `-c credential.helper=`, which clears every configured helper, Git Credential Manager included; then `-c credential.https://github.com.helper=!f() { echo username=\"$DM_GITHUB_LOGIN\"; echo password=\"$DM_GITHUB_TOKEN\"; }; f`;\n  - env: `DM_GITHUB_LOGIN` and `DM_GITHUB_TOKEN`, passed through `request.env` and never logged.\n- Otherwise (signed out, SSH or other hosts) it returns nothing, and git uses the machine's own credentials (GCM, keychain, SSH agent). `GIT_TERMINAL_PROMPT=0` stays, so nothing waits on a terminal.\n- The token never appears in an argument. As a second guard, scrub the token string from any stderr before it becomes a `detail`.\n\n**Progress** (`src/main/git/progress.ts`)\n- A pure `parseProgressLine(line)` returns `{ phase, percent }` for git's lines: `Counting objects`, `Compressing objects`, `Receiving objects:  45% (450/1000)`, `Resolving deltas`, `Writing objects` and `remote: …`.\n- Feed it from the runner's `onProgress`, and send `GitProgressEvent`s through the broadcaster.\n\n**Operations** (`src/main/git/sync.ts`; extend `GitApi` and the rest of the bridge)\n- Each operation takes `{ operationId: string }` from the renderer, so the renderer can cancel it. All use `kind: 'network'`.\n- `fetch(folder, { operationId })` runs `git fetch --prune --progress <remote>`.\n- `pull(folder, { operationId })` runs `git pull --no-rebase --no-edit --progress <remote> <branch>`: it merges, never rebases. Conflicts return `merge_conflicts`, and the state then shows `inProgress: 'merge'`.\n- `push(folder, { operationId })`:\n  - runs `git push --progress <remote> <branch>`;\n  - without an upstream, publishes with `--set-upstream`;\n  - a rejected push returns `rejected_non_fast_forward`;\n  - never force-pushes.\n- `cancelOperation(folder, operationId)` aborts the running operation through the runner's `signal`, which returns `cancelled`.\n- Auth failures: when signed in, return `auth_failed` (the token may be revoked, and the UI suggests signing in again). When signed out on an HTTPS GitHub remote, return `auth_required`.\n- `RepoStatus` gains `lastFetchedAt: string | null` (ISO), the modification time of the file `git rev-parse --git-path FETCH_HEAD` names. Update `readRepoState` and its tests.\n\n**Verify** (write the tests first)\n- Set up a local bare repository as `origin` (a file-path remote), and a second clone that pushes to it. Test:\n  - fetch updates `behind`;\n  - pull merges, and a pull with a conflicting change returns `merge_conflicts`;\n  - push, and publish setting the upstream;\n  - a non-fast-forward push is rejected;\n  - cancel during a slow fake spawn.\n- Credentials, offline:\n  - run `git credential fill` (stdin `protocol=https\\nhost=github.com\\n\\n`) with the same `-c` args and env, and assert the answer is the fake login and token;\n  - configure a helper that writes a marker file through `GIT_CONFIG_GLOBAL` (a temp file), and assert it never runs;\n  - assert the token is in no argument.\n- Fixtures for `parseGithubRemote` and `parseProgressLine`.\n- Run the touched tests, lint and typecheck.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "deep",
+            "rationale": "Hands the person's GitHub token to git: the helper must be scoped, must clear other helpers, and must keep the token out of arguments and output."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "git",
+            "security-review",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/main/git/remotes.ts",
+          "src/main/git/credentials.ts",
+          "src/main/git/progress.ts",
+          "src/main/git/sync.ts"
+        ],
+        "id": "tk_01m43st80phph8e257thvgm244",
+        "key": "DM-143",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "url",
+            "label": "git credential helpers",
+            "location": "https://git-scm.com/docs/gitcredentials",
+            "remoteOnly": true
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "source-control",
+          "git",
+          "github",
+          "auth",
+          "security",
+          "main"
+        ],
+        "title": "Fetch, pull and push with the GitHub account's credentials"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The button shows Publish branch, Pull origin ↓N, Push origin ↑N or Fetch origin, depending on the branch state, together with the last-fetched time. A menu offers Fetch, Pull and Push at any time."
+          },
+          {
+            "id": "c2",
+            "text": "A running operation shows its phase and percent and can be cancelled, and the state refreshes when it ends."
+          },
+          {
+            "id": "c3",
+            "text": "A rejected push offers Pull, an auth error shows the sign-in prompt, and other errors show the message with git's detail."
+          },
+          {
+            "id": "c4",
+            "text": "Background fetch runs every 10 minutes, only while signed in with an HTTPS GitHub remote, and its failures don't interrupt the person."
+          },
+          {
+            "id": "c5",
+            "text": "Screenshots of Push origin ↑2 and of a fetch in progress, from the built app with an isolated profile, are in the evidence."
+          },
+          {
+            "id": "c6",
+            "text": "The tests were written first, and the touched tests, lint and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. GitHub Desktop's single sync button, in the Source control toolbar. This ticket requires the sync operations and the account UI (`SignInPrompt`).\n\n**Button** (`src/renderer/src/source/SyncButton.tsx`)\n- It shows one primary action, chosen from the state:\n  - no remote: a disabled \"No remote\" with a tooltip (creating a GitHub repository is out of scope);\n  - no upstream: **Publish branch**;\n  - behind > 0: **Pull origin** with ↓N (and ↑M when also ahead);\n  - ahead > 0: **Push origin** with ↑N;\n  - otherwise: **Fetch origin**.\n- The secondary line shows \"Last fetched 5 minutes ago\" (from `lastFetchedAt`) or \"Never fetched\". The remote's name replaces `origin` when it differs.\n- A small menu beside the button offers **Fetch**, **Pull** and **Push** at any time.\n- While an operation runs:\n  - a progress bar shows the phase and percent from `onProgress`, matched by `operationId` (generated with `crypto.randomUUID()`);\n  - **Cancel** calls `cancelOperation`.\n- After any operation, refresh the repository state.\n\n**Errors**\n- `rejected_non_fast_forward`: \"The remote has commits you don't have. Pull first.\", with **Pull**.\n- `auth_required` or `auth_failed`: `SignInPrompt` (\"Sign in to GitHub to push and pull\"). `auth_failed` while signed in also says the sign-in may have been revoked.\n- `merge_conflicts`: refresh, so the conflict view (a later ticket) takes over. Until then, the conflicted files show in Changes.\n- `network_unreachable`, `remote_not_found` and others: the message, with git's detail in a collapsible block.\n\n**Background fetch**\n- It runs every 10 minutes while the Source control tab is open.\n- It runs only when signed in and the sync remote is HTTPS github.com, so no other credential helper can pop up.\n- Failures are quiet: a small warning icon on the button, with the error on hover.\n\n**Verify** (write the tests first, with `FakeGit`, `FakeGithub` and `__mocks__/manualScheduler.ts` for the timer)\n- Tests:\n  - each primary state and its label;\n  - the menu actions;\n  - progress and cancel;\n  - each error mapping;\n  - background fetch running only when signed in with a GitHub HTTPS remote.\n- Screenshots from the built app with an isolated profile: Push origin ↑2, and the progress bar during a fetch from a local bare remote.\n- Run the touched tests, lint and typecheck.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A state-driven control with progress events, cancellation, error mapping and a gated background timer."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/source/SyncButton.tsx"
+        ],
+        "id": "tk_01m43st80pqq25rhh231cnd0y4",
+        "key": "DM-144",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "size": "medium",
+        "tags": [
+          "source-control",
+          "ui",
+          "sync"
+        ],
+        "title": "Add the sync button with ahead/behind, progress and background fetch"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "`listBranches` returns local and remote branches with their upstream, ahead/behind counts and last commit time, plus the current and default branch."
+          },
+          {
+            "id": "c2",
+            "text": "Switching with changes either stashes them as `dm-stash:<branch>` or brings them along. When git refuses to bring them, nothing changes and `local_changes_would_be_overwritten` is returned. A remote-only branch is checked out as a tracking branch."
+          },
+          {
+            "id": "c3",
+            "text": "Create (from the current or the default branch), rename and delete work. Delete refuses the current branch, returns `branch_not_fully_merged` unless forced, and can delete the remote branch too."
+          },
+          {
+            "id": "c4",
+            "text": "Merging a branch into the current one either merges or returns `merge_conflicts`. A DM stash can be:\n- listed with its files;\n- restored, which returns `merge_conflicts` on a conflict and keeps the stash;\n- discarded."
+          },
+          {
+            "id": "c5",
+            "text": "Invalid branch names and refs are refused before git runs."
+          },
+          {
+            "id": "c6",
+            "text": "The tests were written first, and the touched tests, lint and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. The main-process branch and stash operations. This ticket requires the sync operations, because deleting a remote branch pushes with the same credentials.\n\n**Types** (`src/shared/git/branches.ts`)\n```ts\nexport interface BranchInfo { name: string; kind: 'local' | 'remote'; remote: string | null; upstream: string | null; ahead: number; behind: number; lastCommitAt: string; isCurrent: boolean }\nexport interface BranchList { current: string | null; defaultBranch: string | null; branches: BranchInfo[] }\nexport interface StashInfo { ref: string /* stash@{n} */; branch: string; createdAt: string; files: CommitFile[] }\n```\n\n**Operations** (`src/main/git/branches.ts`, `src/main/git/stash.ts`; extend `GitApi` and the rest of the bridge)\n- Every name goes through `refArg` and `checkBranchName`.\n- `listBranches(folder)`:\n  - runs `git for-each-ref --format=… refs/heads refs/remotes`, skipping `*/HEAD`;\n  - takes `defaultBranch` from `git symbolic-ref refs/remotes/<remote>/HEAD`, else `main` or `master` when it exists.\n- `checkBranchName(folder, name)` returns `{ valid, normalized }`, for live validation.\n- `createBranch(folder, { name, startPoint: 'current' | 'default' })` runs `git switch -c <name> [<default>]`. Uncommitted changes come along, and an existing name returns `branch_exists`.\n- `switchBranch(folder, { name, uncommitted: 'stash' | 'bring' })`:\n  - a remote-only branch is checked out as a local tracking branch (`git switch --track <remote>/<name>`);\n  - `stash` runs `git stash push --include-untracked -m \"dm-stash:<current branch>\"`, then switches;\n  - `bring` runs `git switch <name>`. If git refuses, return `local_changes_would_be_overwritten` and change nothing;\n  - switching never pops a stash by itself.\n- `renameBranch(folder, { from, to })` runs `git branch -m`.\n- `deleteBranch(folder, { name, deleteRemote: boolean, force: boolean })`:\n  - refuses the current branch;\n  - runs `git branch -d` (`-D` with `force`); an unmerged branch without `force` returns `branch_not_fully_merged`;\n  - with `deleteRemote`, then runs `git push <remote> --delete <name>` as a network operation with the sync credentials.\n- `mergeIntoCurrent(folder, { branch })` runs `git merge --no-edit <branch>`. Conflicts return `merge_conflicts`.\n- Stashes:\n  - `listStashes(folder)` returns only the `dm-stash:` stashes for the current branch, with their files (`git stash show --name-status -z --include-untracked <ref>`);\n  - `restoreStash(folder, ref)` runs `git stash pop <ref>`. Conflicts return `merge_conflicts`, and git keeps the stash;\n  - `discardStash(folder, ref)` runs `git stash drop <ref>`.\n\n**Verify** (write the tests first, on real temp repositories with a local bare remote)\n- Listing: local, remote, current and default branches, and ahead/behind.\n- Create from the current branch and from the default branch.\n- Switch with stash and with bring, including a refusal that changes nothing, and switch to a remote-only branch.\n- Rename.\n- Delete: merged, not merged, forced, and with the remote branch.\n- Merge: clean and conflicting.\n- Stashes: list, restore (clean and conflicting) and discard.\n- Run the touched tests, lint and typecheck.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Branch and stash operations with safety rules (no data loss on refused switches, remote deletion) across many git edge cases."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "git",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/shared/git/branches.ts",
+          "src/main/git/branches.ts",
+          "src/main/git/stash.ts"
+        ],
+        "id": "tk_01m43st80pde20wsy9hzs8s366",
+        "key": "DM-145",
+        "optional": false,
+        "priority": "high",
+        "references": [],
+        "size": "medium",
+        "tags": [
+          "source-control",
+          "git",
+          "main",
+          "branches"
+        ],
+        "title": "List, create, switch, rename, delete and merge branches, and keep stashes, in main"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The branch button opens a filterable popover with keyboard navigation. It lists the default, recent and other branches (remote-only ones under their remote) and offers New branch."
+          },
+          {
+            "id": "c2",
+            "text": "Switching with changes asks whether to leave them on the current branch or bring them. A refusal keeps the dialog open with the reason, and without changes the switch is immediate."
+          },
+          {
+            "id": "c3",
+            "text": "The New branch, Rename and Delete dialogs validate names live. Delete offers to delete the remote branch and asks again before forcing. Merge into current runs from the row menu and from the picker."
+          },
+          {
+            "id": "c4",
+            "text": "When the current branch has stashed changes, a Stashed changes row lists the files with Restore and Discard."
+          },
+          {
+            "id": "c5",
+            "text": "Screenshots of the popover with a filter and of the switch dialog, from the built app with an isolated profile, are in the evidence."
+          },
+          {
+            "id": "c6",
+            "text": "The tests were written first, and the touched tests, lint and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. The current-branch menu in the Source control toolbar. This ticket requires the branch operations.\n\n**Menu** (`src/renderer/src/source/BranchMenu.tsx`, which replaces the toolbar's branch label)\n- A toolbar button, \"Current branch / <name>\", opens a popover with:\n  - a filter input, focused on open;\n  - **Default branch**, **Recent branches** (up to 5, by last commit) and **Other branches**. Remote-only branches show under their remote's name;\n  - **New branch**.\n- Keyboard: arrow keys move, Enter switches, and Escape closes.\n- The row context menu has **Rename…**, **Delete…** and **Merge into <current>**.\n- The popover also offers **Choose a branch to merge into <current>…**, a picker with the same filter.\n\n**Dialogs** (`components/Dialog`)\n- Switching with uncommitted changes:\n  - the dialog says \"You have changes on <current>\" and offers **Leave my changes on <current>** (stash) and **Bring my changes to <target>**;\n  - `local_changes_would_be_overwritten` shows the reason and keeps the dialog open;\n  - without changes, switching is immediate.\n- **New branch**: a name field with live validation through `checkBranchName` (\"Will be created as <normalized>\"), and a base of **Current branch** or **Default branch**.\n- **Rename**: the same validation.\n- **Delete**: an \"Also delete <remote>/<name>\" checkbox when the branch has an upstream. `branch_not_fully_merged` asks a second time before forcing.\n- Merge: `merge_conflicts` refreshes the state, so the conflict view takes over.\n\n**Stashed changes** (in `ChangesPanel`)\n- When the current branch has a DM stash, a **Stashed changes** row sits under the file list.\n- Selecting it lists the stashed files, with **Restore** and **Discard…** (which asks for confirmation).\n\n**Verify** (write the tests first, with `FakeGit`)\n- Tests:\n  - filtering and grouping;\n  - keyboard navigation;\n  - each dialog and its error paths;\n  - the merge picker;\n  - the stashed changes row and its actions.\n- Screenshots from the built app with an isolated profile: the popover with a filter typed, and the switch dialog.\n- Run the touched tests, lint and typecheck.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A keyboard-driven popover, four dialogs with error paths and a stash row, all over new bridge methods."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/source/BranchMenu.tsx"
+        ],
+        "id": "tk_01m43st80pyacpnw547zmdenfb",
+        "key": "DM-146",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "size": "medium",
+        "tags": [
+          "source-control",
+          "ui",
+          "branches"
+        ],
+        "title": "Add the current-branch menu with switch, create, rename, delete, merge and stashed changes"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "During a merge, a banner names both sides and the number of conflicted files, and the conflicted files are listed first with their marker counts."
+          },
+          {
+            "id": "c2",
+            "text": "Use mine and Use theirs resolve a file, deleting it when that side deleted it. Open in editor opens the file in the default app, and Mark resolved is refused while conflict markers remain."
+          },
+          {
+            "id": "c3",
+            "text": "Commit merge is enabled only when nothing is unresolved, and it creates the merge commit. Abort merge, after confirmation, restores the state from before the merge."
+          },
+          {
+            "id": "c4",
+            "text": "A rebase, cherry-pick or revert in progress shows a banner with Abort. Conflicts from a pull, merge or stash restore land in this view."
+          },
+          {
+            "id": "c5",
+            "text": "A screenshot of a merge with two conflicted files, one resolved, from the built app with an isolated profile, is in the evidence."
+          },
+          {
+            "id": "c6",
+            "text": "The tests were written first, and the touched tests, lint and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. The merge conflict view, from the main-process operations to the UI. This ticket requires the branch operations: merges and stash restores create conflicts, and so do pulls.\n\n**Main** (`src/main/git/conflicts.ts`; extend `GitApi` and the rest of the bridge)\n- `getConflicts(folder)` returns `{ ourBranch: string | null; theirLabel: string | null /* from MERGE_MSG's first line */; files: Array<{ path: string; kind: 'both_modified' | 'both_added' | 'deleted_by_us' | 'deleted_by_them' | 'both_deleted' | 'added_by_us' | 'added_by_them'; markers: number }> }`. `markers` counts the lines starting with `<<<<<<< ` in the working file, and is 0 when the file is missing.\n- `resolveWith(folder, { path, side: 'ours' | 'theirs' })` runs `git checkout --ours|--theirs -- <path>`, then `git add -- <path>`. When the chosen side deleted the file, it runs `git rm -- <path>` instead.\n- `markResolved(folder, { path })` runs `git add -- <path>`. While `markers > 0`, it is refused with `conflict_markers_remain`.\n- `abortMerge(folder)` runs `git merge --abort`.\n- `commitMerge(folder, { summary?: string; description?: string })` is refused with `merge_conflicts` while unresolved files remain. Otherwise it runs `git commit --no-edit`, or `-F -` with the given message.\n- `abortOperation(folder)`, for a rebase, cherry-pick or revert started outside the app, runs `git rebase|cherry-pick|revert --abort`.\n- `openInEditor(folder, path)` calls `shell.openPath(<absolute path>)`, which is injected. The path must be in the repository.\n\n**UI** (`src/renderer/src/source/ConflictsPanel.tsx`)\n- When `inProgress === 'merge'`, a banner sits above the Changes list: \"Merging <their label> into <our branch>: N conflicted files\". It has **Abort merge** (which asks for confirmation) and **Commit merge** (enabled once nothing is unresolved).\n- Conflicted files are listed first. Each shows \"N conflicts\" or \"Resolved\", with:\n  - **Open in editor**;\n  - **Use mine (<our branch>)** and **Use theirs (<their label>)**;\n  - **Mark resolved**, disabled while markers remain. The count refreshes with the state.\n- While merging, Commit merge replaces the commit box, and the diff pane shows the working file's diff with the markers.\n- For a rebase, cherry-pick or revert in progress, a banner says \"A <operation> is in progress. Finish it in a terminal, or abort it here.\", with **Abort**.\n- A pull, merge or stash restore that returns `merge_conflicts` lands here after the refresh.\n\n**Verify** (write the tests first)\n- Main tests, on real temp repositories:\n  - a conflicting merge with both_modified, deleted_by_them and added files;\n  - marker counts;\n  - ours and theirs;\n  - Mark resolved refused while markers remain;\n  - abort;\n  - commit merge refused, then allowed;\n  - aborting a rebase started from the command line.\n- UI tests with `FakeGit`: the banner, the file actions, Commit merge replacing the commit box, and the abort confirmation.\n- Take a screenshot of a merge with two conflicted files, one of them resolved, from the built app with an isolated profile.\n- Run the touched tests, lint and typecheck.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Conflict kinds, marker detection and merge state transitions in main, plus the view that drives them."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "react",
+            "css",
+            "git",
+            "ui",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/main/git/conflicts.ts",
+          "src/renderer/src/source/ConflictsPanel.tsx"
+        ],
+        "id": "tk_01m43st80p3yhsk2s96zdhphk7",
+        "key": "DM-147",
+        "optional": false,
+        "priority": "high",
+        "references": [],
+        "size": "medium",
+        "tags": [
+          "source-control",
+          "git",
+          "ui",
+          "conflicts"
+        ],
+        "title": "Resolve, abort or commit merge conflicts from the app"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Fireguard ran on the combined sprint 2 branch with `FIREGUARD_BASE_REF` set to the sprint's start commit, and graded every unit test added or modified in sprint 2. The graded file list is in the evidence."
+          },
+          {
+            "id": "c2",
+            "text": "The final grade is not F. The letter grade and score are in the evidence."
+          },
+          {
+            "id": "c3",
+            "text": "Every test graded F was rewritten and re-graded with no production code changed. This ticket's diff touches only test files, or nothing if no test was graded F."
+          }
+        ],
+        "body": "Size: **small**. This is sprint 2's only Fireguard run. Fireguard is slow (100× flake isolation and mutation), so no other ticket in the sprint runs it, and workers run only their targeted tests. The sprint 2 acceptance ticket takes Fireguard's grade from this ticket.\n\n1. **Wait** until every other sprint 2 work ticket is accepted and combined on the sprint integration branch. That branch was made from `source-control` at the sprint's start.\n2. **Grade** with `npm run fireguard -- --json` on that branch:\n   - set `FIREGUARD_BASE_REF` to the sprint's start commit;\n   - Fireguard grades only committed changes;\n   - on Windows, set `FIREGUARD_TEST_COMMAND='node node_modules/vitest/vitest.mjs run'`, because of the npx spawn quirk.\n3. **Fix any F:** rewrite each test graded F and re-grade until nothing is F.\n   - Don't change production code to raise a grade.\n   - If a finding points at a real bug in production code, fail the attempt with the finding, so the orchestrator can send it back to the ticket that owns that code.\n4. **Record** the letter grade, the score, the graded files and each finding in the evidence.\n\nOut of scope: lint, typecheck, the full test suite, deadcode and build, because the acceptance ticket runs those once.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": "low",
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "multi_step",
+            "rationale": "Running fireguard is mechanical, but rewriting a test graded F takes judgement about what the test should assert."
+          },
+          "skills": [
+            "typescript",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [
+          "Fireguard report for sprint 2 (grade, score, graded files, findings) in the attempt evidence"
+        ],
+        "id": "tk_01m43st80ptgtk20bwa6ssqs82",
+        "key": "DM-148",
+        "optional": false,
+        "priority": "high",
+        "references": [],
+        "size": "small",
+        "tags": [
+          "fireguard",
+          "testing"
+        ],
+        "title": "Sprint 2 fireguard: grade the sprint's new unit tests and fix any F"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "covers": "tk_01m43szh81p623gexyzn5v1qzv",
+            "id": "c1",
+            "text": "Cloning `octocat/Hello-World` by its owner/repo shorthand into the scratch parent shows progress. Cancelling a larger clone part-way removes its half-made folder. A URL starting with `ext::` is refused before git runs."
+          },
+          {
+            "covers": "tk_01m43szh82q4hrw4fkwweteqrb",
+            "id": "c2",
+            "text": "From the sidebar + menu, a URL clone finishes with the new folder tracked, selected and open on Source control. Screenshots of the dialog are in the evidence."
+          },
+          {
+            "covers": "tk_01m43szh82swqnayakvhj5bf0v",
+            "id": "c3",
+            "text": "In `scratch-c`, checking out pull request 1 (through `window.git.checkoutPullRequest` in devtools) creates `pr/1` at the commit `refs/pull/1/head` points to. Signed out, `getPullRequests` for `scratch-gh` returns `auth_required`."
+          },
+          {
+            "covers": "tk_01m43szh828hgjsz0chrt5qspz",
+            "id": "c4",
+            "text": "Screenshots show Push and create pull request on `scratch-gh`'s unpublished branch, and the signed-out Pull requests view in the branch menu."
+          },
+          {
+            "covers": "tk_01m43szh828jaqw5a0h83kbmkv",
+            "id": "c5",
+            "text": "In a scratch repository, the app commits 3 of 5 changed lines spread over two hunks. `git show HEAD:<file>` then holds exactly those lines, and the working file is unchanged. The same check passes for a CRLF file."
+          },
+          {
+            "covers": "tk_01m43szh82gkccz2rshznb6be6",
+            "id": "c6",
+            "text": "A screenshot shows a diff with some lines unselected and the file checkbox indeterminate. Editing the file afterwards resets the selection, with the toast."
+          },
+          {
+            "covers": "tk_01m43szh82y865rfb7rg8yhcxr",
+            "id": "c7",
+            "text": "The decision record, architecture doc, runbook and README match the shipped code, and every path they name exists."
+          },
+          {
+            "covers": "tk_01m43szh825vb3x608ngrsxy4k",
+            "id": "c8",
+            "text": "The sprint 3 Fireguard ticket was accepted with no F grade."
+          },
+          {
+            "id": "c9",
+            "text": "The Definition of Done passes on the combined branch: lint, typecheck, test, coverage, deadcode and build."
+          },
+          {
+            "id": "c10",
+            "text": "Sprint 3 is one squashed commit on `source-control` whose message lists the sprint's tickets."
+          },
+          {
+            "id": "c11",
+            "text": "The sprint report lists the person's checks for the checkpoint: clone from the GitHub.com list while signed in, see the current branch's pull request, and check out an open pull request from a fork."
+          }
+        ],
+        "body": "This is the planned final round for sprint 3, run once on the combined work.\n\n1. **Combine** every accepted sprint 3 ticket on the sprint integration branch.\n2. **Build** the app and run it with an isolated profile (a temporary `--user-data-dir`).\n3. **Prepare** the scratch repositories in a temp folder:\n   - a scratch parent folder for clones;\n   - `scratch-c`, whose `origin` is a local bare repository holding a `refs/pull/1/head` ref;\n   - `scratch-gh`, whose `origin` URL is `https://github.com/octocat/Hello-World.git`, with a local unpublished branch.\n4. **Verify each item** below, with screenshots.\n5. **Hand the person their checks.** Signed-in GitHub features need the person's sign-in. List these in the sprint report as checks for the checkpoint:\n   - clone from the GitHub.com list while signed in;\n   - see the current branch's pull request;\n   - check out an open pull request from a fork.\n6. **Run the Definition of Done** on the combined branch.\n   - Take Fireguard's grade from the sprint 3 Fireguard ticket, which must be accepted first.\n   - Re-run Fireguard only if test files changed after that ticket.\n7. **Squash** the sprint into one commit on `source-control`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "End-to-end checks of cloning, pull request checkout and partial commits in the built app, screenshots, the full Definition of Done and the squash."
+          },
+          "skills": [
+            "typescript",
+            "testing",
+            "git"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution",
+            "network"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m43szh7y2zttwkt6jd42301q",
+        "key": "DM-149",
+        "kind": "acceptance",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "tags": [],
+        "title": "Sprint 3 acceptance: clone, pull requests and line commits on scratch repositories, run the Definition of Done, land one commit"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Clone accepts only the parent folder chosen through the native dialog and a valid folder name, and refuses an existing target that isn't empty."
+          },
+          {
+            "id": "c2",
+            "text": "https, ssh, scp-like and owner/repo URLs are accepted. `file:`, `ext::` and other transports are refused before git runs."
+          },
+          {
+            "id": "c3",
+            "text": "Cloning reports progress and uses the GitHub account for HTTPS GitHub URLs when signed in. On success it tracks the new folder and returns it."
+          },
+          {
+            "id": "c4",
+            "text": "A cancel or a failure removes the folder the clone created, and leaves a folder that existed before untouched."
+          },
+          {
+            "id": "c5",
+            "text": "`listRepositories` pages through the account's repositories (as owner, collaborator and organization member) and caches them for 5 minutes. Signed out, it returns `auth_required`."
+          },
+          {
+            "id": "c6",
+            "text": "The tests were written first, and the touched tests, lint and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. Main-process cloning and the account's repository list. Sprint 2's credentials and `githubSession` are in place.\n\n**Clone target** (`src/main/git/clone.ts`)\n- `chooseCloneParent()` shows the native folder dialog, like `pickDirectory` in `src/main/desktop/bootstrap.ts:37-43`. It stores the choice atomically in `userData/clone.json` (`{ version: 1, parent }`).\n- `getCloneParent()` returns the stored folder, or null.\n- `clone` accepts only the stored parent, so the renderer can't clone into an arbitrary folder.\n- `name` must:\n  - contain no path separators, and not be `.` or `..`;\n  - not be a Windows-reserved name (`CON`, `NUL`, `COM1`…) or end in a dot or space;\n  - be at most 255 characters.\n- The target `<parent>/<name>` must not exist, or must be an empty directory.\n\n**URL**\n- Accept `https://…`, `ssh://…` and scp-like `git@host:path`, plus the shorthand `owner/repo`, which becomes `https://github.com/owner/repo.git`.\n- Refuse `file:`, `ext::`, any other transport, a leading `-` and NUL, with `invalid_input`.\n- Run clone with `GIT_ALLOW_PROTOCOL=https:ssh`. Tests may pass an option that allows `file` for local bare repositories; it can't be reached over IPC.\n- Don't recurse into submodules; that is out of scope.\n\n**Clone** (extend `GitApi` and the rest of the bridge)\n- `clone({ operationId, url, name })` runs `git clone --progress -- <url> <target>` as a network operation, with `cwd` set to the parent.\n  - For HTTPS GitHub URLs while signed in, it adds sprint 2's `credentialArgs`.\n  - Progress goes through the broadcaster, and `cancelOperation` aborts the clone.\n- On cancel or failure, delete the target folder if this clone created it. Never delete a folder that existed before.\n- On success, track the folder (`registry.track(target)`) and return its `TrackedFolderView`.\n\n**Account repositories** (`src/main/github/client.ts`, `window.github`)\n- `listRepositories({ refresh?: boolean })` returns `Array<{ fullName, owner, name, private, fork, description, cloneUrl, pushedAt }>`.\n- It calls `GET https://api.github.com/user/repos?per_page=100&affiliation=owner,collaborator,organization_member&sort=pushed` and follows `Link: rel=\"next\"`, up to 1,000 repositories.\n- Results are cached for 5 minutes unless `refresh` is set. Signed out, it returns `auth_required`.\n\n**Verify** (write the tests first)\n- Tests:\n  - URL and name validation tables;\n  - the stored-parent rule;\n  - a clone from a local bare repository (using the test-only `file` allowance), with progress events;\n  - cancel with a slow fake spawn: the half-made folder is removed, and a pre-existing empty folder is left in place;\n  - tracking on success, with a fake registry;\n  - repository paging, with a fake fetch and `Link` headers;\n  - the cache.\n- Run the touched tests, lint and typecheck.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Writes outside tracked folders: target and URL validation, transport allowlist and safe cleanup on cancel need careful tests."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "git",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/main/git/clone.ts"
+        ],
+        "id": "tk_01m43szh81p623gexyzn5v1qzv",
+        "key": "DM-150",
+        "optional": false,
+        "priority": "high",
+        "references": [],
+        "size": "medium",
+        "tags": [
+          "source-control",
+          "git",
+          "github",
+          "main",
+          "clone"
+        ],
+        "title": "Clone repositories and list the account's repositories in main"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The sidebar + offers Add existing folder and Clone repository, and the welcome view offers Clone repository."
+          },
+          {
+            "id": "c2",
+            "text": "The GitHub.com tab lists the signed-in account's repositories with a filter and Refresh, and shows the sign-in prompt when signed out. The URL tab accepts a URL or owner/repo."
+          },
+          {
+            "id": "c3",
+            "text": "The dialog shows the full target path and clones with progress and Cancel. On success, the new folder is tracked, selected and open on Source control."
+          },
+          {
+            "id": "c4",
+            "text": "Auth errors show the sign-in prompt, and an existing target is named in the error."
+          },
+          {
+            "id": "c5",
+            "text": "Screenshots of the signed-out GitHub.com tab and of a URL clone in progress, from the built app with an isolated profile, are in the evidence."
+          },
+          {
+            "id": "c6",
+            "text": "The tests were written first, and the touched tests, lint and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. Cloning from the sidebar. This ticket requires the clone operations.\n\n**Entry points**\n- The sidebar **+** (`src/renderer/src/sidebar/Sidebar.tsx:57`) opens a `Menu` with **Add existing folder…** (today's track flow) and **Clone repository…**.\n- `WelcomeView` (`app/MainViews.tsx`) gets a **Clone repository** button beside Choose folder.\n\n**Dialog** (`src/renderer/src/clone/CloneDialog.tsx`)\n- It has two tabs:\n  - **GitHub.com**: signed out, it shows `SignInPrompt` (\"Sign in to GitHub to see your repositories\"). Signed in, it shows a filterable list of the account's repositories grouped by owner, with a lock icon for private ones, a fork label, and **Refresh**;\n  - **URL**: an input for a URL or `owner/repo`.\n- **Local path**:\n  - the parent folder comes from `getCloneParent`, and **Choose…** calls `chooseCloneParent`;\n  - a **Name** field defaults to the repository's name;\n  - the full target path is shown.\n- **Clone** runs `clone` with a new `operationId`. The dialog then shows a progress bar with the phase and percent, and **Cancel**.\n- Success closes the dialog, selects the new folder in the sidebar and opens its Source control tab.\n- Errors show inline:\n  - `auth_required` or `auth_failed`: `SignInPrompt`;\n  - a target that isn't empty: \"<path> already exists\";\n  - anything else: the message, with git's detail.\n\n**Verify** (write the tests first, with `FakeGit`, `FakeGithub` and `FakeDm`)\n- Tests:\n  - the + menu;\n  - both tabs, filtering and the signed-out prompt;\n  - the target path;\n  - progress and cancel;\n  - success selecting the folder on Source control;\n  - each error.\n- Screenshots from the built app with an isolated profile: the dialog's GitHub.com tab while signed out, and the URL tab during a clone of a public repository (for example https://github.com/octocat/Hello-World).\n- Run the touched tests, lint and typecheck.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A two-tab dialog with account data, path choice, progress, cancel and sidebar selection on success."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution",
+            "network"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/clone/CloneDialog.tsx"
+        ],
+        "id": "tk_01m43szh82q4hrw4fkwweteqrb",
+        "key": "DM-151",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "size": "medium",
+        "tags": [
+          "source-control",
+          "ui",
+          "clone"
+        ],
+        "title": "Clone a repository from the sidebar's + menu"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "`getPullRequests` returns the open pull requests of the repository's GitHub remote and identifies the current branch's pull request. A non-GitHub repository returns none, and signed out it returns `auth_required`."
+          },
+          {
+            "id": "c2",
+            "text": "Checking out a same-repository pull request switches to a local branch tracking its head. A fork pull request checks out as `pr/<n>` and fast-forwards on later checkouts. Uncommitted changes follow the stash-or-bring choice."
+          },
+          {
+            "id": "c3",
+            "text": "`getCompareUrl` builds GitHub's compare URL against the default branch, or returns `needs_push` for an unpublished or unpushed branch. `getCommitUrl` builds the commit URL."
+          },
+          {
+            "id": "c4",
+            "text": "Results are cached for 60 s per folder unless a refresh is asked, and a 401 returns `auth_required`."
+          },
+          {
+            "id": "c5",
+            "text": "The tests were written first, and the touched tests, lint and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. Main-process pull request data and checkout for GitHub repositories. Sprint 2's `parseGithubRemote`, `githubSession`, credentials and branch switching are in place.\n\n**Types** (`src/shared/github/pullRequests.ts`)\n```ts\nexport interface PullRequestSummary { number: number; title: string; author: string; isDraft: boolean; url: string; updatedAt: string; baseRef: string; headRef: string; headRepoFullName: string | null /* null when the fork was deleted */; fromFork: boolean }\nexport interface PullRequestInfo { repository: { owner: string; repo: string } | null; current: PullRequestSummary | null; open: PullRequestSummary[] }\n```\n\n**Operations** (`src/main/github/pullRequests.ts`; they take a folder, so extend `GitApi`)\n- The GitHub repository is the upstream's remote, else `origin`, parsed with `parseGithubRemote`. A non-GitHub repository returns `{ repository: null, current: null, open: [] }`.\n- `getPullRequests(folder)`:\n  - signed out, returns `auth_required`;\n  - calls `GET /repos/{owner}/{repo}/pulls?state=open&per_page=100`, up to 3 pages;\n  - `current` is the open pull request whose head is the current branch in this repository: `head.repo.full_name` equals `owner/repo`, and `head.ref` equals the branch name or the upstream's branch name;\n  - results are cached for 60 s per folder unless a refresh is asked.\n- `checkoutPullRequest(folder, { number, uncommitted: 'stash' | 'bring' })` reuses sprint 2's switch rules for uncommitted changes.\n  - Same repository: fetch the head branch, and switch to a local branch tracking it (created when missing).\n  - Fork: run `git fetch <remote> refs/pull/<n>/head`, then switch to `pr/<n>`, created at `FETCH_HEAD`. When `pr/<n>` exists, switch to it and run `git merge --ff-only FETCH_HEAD`; a non-fast-forward returns `rejected_non_fast_forward`.\n  - `pr/<n>` has no upstream; pushing it back to the fork is out of scope.\n- `getCompareUrl(folder)` returns `https://github.com/<owner>/<repo>/compare/<default branch>...<branch>?expand=1`, which is GitHub Desktop's Create pull request. It returns `needs_push` when the branch has no upstream or is ahead of it.\n- `getCommitUrl(folder, oid)` returns `https://github.com/<owner>/<repo>/commit/<oid>`, for History's View on GitHub.\n\n**Verify** (write the tests first)\n- With a fake fetch for the API: paging, current-branch detection for same-repository and fork heads, a 401 returning `auth_required`, and the cache.\n- With real temp repositories and a local bare remote, checkout:\n  - a same-repository branch;\n  - a fork pull request, made by creating `refs/pull/1/head` in the bare repository.\n- URL building, and a non-GitHub remote.\n- Run the touched tests, lint and typecheck.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Joins GitHub API data with local branch state, and checks out same-repository and fork pull requests safely."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "git",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/shared/github/pullRequests.ts",
+          "src/main/github/pullRequests.ts"
+        ],
+        "id": "tk_01m43szh82swqnayakvhj5bf0v",
+        "key": "DM-152",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "url",
+            "label": "GitHub REST: list pull requests",
+            "location": "https://docs.github.com/en/rest/pulls/pulls#list-pull-requests",
+            "remoteOnly": true
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "source-control",
+          "github",
+          "main",
+          "pull-requests"
+        ],
+        "title": "Read pull requests and check them out in main"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "On a branch with a pull request, the toolbar shows #N and its title, which opens it on GitHub. Otherwise Create pull request opens GitHub's compare page, pushing or publishing first when needed."
+          },
+          {
+            "id": "c2",
+            "text": "The branch menu's Pull requests view lists open pull requests with a filter and Refresh. Selecting one checks it out with the same uncommitted-changes choice as a branch switch."
+          },
+          {
+            "id": "c3",
+            "text": "Signed out, the pull request areas show the sign-in prompt. For non-GitHub repositories they are hidden."
+          },
+          {
+            "id": "c4",
+            "text": "For GitHub repositories, History's commit menu offers View on GitHub."
+          },
+          {
+            "id": "c5",
+            "text": "Screenshots of Create pull request and of the signed-out Pull requests view, from the built app with an isolated profile, are in the evidence."
+          },
+          {
+            "id": "c6",
+            "text": "The tests were written first, and the touched tests, lint and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. Pull requests in the Source control toolbar and the branch menu. This ticket requires the pull request operations.\n\n**Toolbar** (`src/renderer/src/source/PullRequestBadge.tsx`)\n- When the current branch has a pull request, a pill shows \"#12 Title\", with a draft badge when it is a draft. Clicking it opens the pull request on GitHub (`window.dm.openExternal`).\n- Otherwise, on a GitHub repository and a branch other than the default, a **Create pull request** button shows.\n  - When `getCompareUrl` returns `needs_push`, the button reads **Push and create pull request**.\n  - That button pushes (or publishes) with the sync API, showing progress, then opens the compare URL.\n- For non-GitHub repositories, nothing shows.\n- Signed out, the pill area shows a small \"Sign in to see pull requests\" link that opens the sign-in dialog.\n\n**Branch menu** (`src/renderer/src/source/BranchMenu.tsx`)\n- A **Branches | Pull requests** switch sits at the top of the popover.\n- The Pull requests view lists the open pull requests, filtered by the same input, with **Refresh**. Each shows its number, title, author, updated time, a draft badge and a fork label.\n- Selecting one checks it out with `checkoutPullRequest`, using the same uncommitted-changes dialog as switching branches.\n- Signed out, it shows `SignInPrompt` (\"Sign in to GitHub to see pull requests\").\n\n**History** (`src/renderer/src/source/HistoryPanel.tsx`)\n- For GitHub repositories, the commit context menu gains **View on GitHub** (`getCommitUrl`).\n\n**Verify** (write the tests first, with `FakeGit` and `FakeGithub`)\n- Tests:\n  - the pill, Create pull request, and Push and create pull request;\n  - nothing shown for non-GitHub repositories, and the signed-out link;\n  - the Pull requests view: list, filter, checkout with the changes dialog, and the signed-out prompt;\n  - View on GitHub.\n- Screenshots from the built app with an isolated profile:\n  - the Create pull request button;\n  - the Pull requests view's signed-out prompt.\n  A signed-in list is one of the person's checkpoint checks.\n- Run the touched tests, lint and typecheck.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Extends the toolbar, branch menu and history menu consistently, with a push-then-open flow."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/source/PullRequestBadge.tsx"
+        ],
+        "id": "tk_01m43szh828hgjsz0chrt5qspz",
+        "key": "DM-153",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "size": "medium",
+        "tags": [
+          "source-control",
+          "github",
+          "ui",
+          "pull-requests"
+        ],
+        "title": "Show, create and check out pull requests from Source control"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "`buildPartialPatch` keeps selected additions and deletions, drops unselected additions, turns unselected deletions into context and recomputes the hunk headers. Applied to the index, it gives exactly the selected content for every case in the test table."
+          },
+          {
+            "id": "c2",
+            "text": "Selecting every changed line commits the same tree as committing the whole file, and selecting none returns null."
+          },
+          {
+            "id": "c3",
+            "text": "New, deleted and renamed files, missing final newlines, CRLF lines and mode changes all survive a partial commit byte-exact, and the working tree is never changed."
+          },
+          {
+            "id": "c4",
+            "text": "A commit whose `diffHash` no longer matches the file returns `stale_selection` and commits nothing."
+          },
+          {
+            "id": "c5",
+            "text": "The tests were written first, and the touched tests, lint and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. Commit only some lines of a file, as GitHub Desktop does. This ticket is the main side only; the next ticket adds the UI. Its one hard part: the patch must be exact.\n\n**Patch builder** (`src/main/git/partialPatch.ts`, pure)\n- `buildPartialPatch(diff: Extract<FileDiff, { kind: 'text' }>, selected: ReadonlySet<number>): string | null`.\n- `selected` holds indices of the diff's changed lines: `add` and `delete` lines only, counted in order across hunks. Context lines have no index. Export this indexing as `changedLineIndices(diff)` from `src/shared/git/diff.ts`, so the renderer uses the same numbering.\n- For each hunk:\n  - a selected `add` line stays `+`, and an unselected `add` line is dropped;\n  - a selected `delete` line stays `-`, and an unselected `delete` line becomes context (` `);\n  - context stays context;\n  - recompute `oldLines` and `newLines`, and shift `newStart` by the running offset of earlier hunks;\n  - drop hunks with no selected change.\n- A `\\ No newline at end of file` marker follows the line it belongs to, including when that line becomes context.\n- Headers:\n  - `diff --git a/<old> b/<new>`;\n  - mode lines from `oldMode` and `newMode`;\n  - `rename from` and `rename to` for renames;\n  - `--- /dev/null` and `new file mode` for new files.\n- A partially selected deleted file becomes a modification that keeps the unselected lines. A partially selected new file is created with only the selected lines.\n- Write each line byte-exact from `DiffLine.text`, a trailing `\\r` included. With nothing selected, return `null`. Binary diffs are not accepted.\n\n**Commit with lines** (`src/main/git/commit.ts`, `GitApi.commit`)\n- `files` entries gain `lines?: number[]` and `diffHash?: string`.\n- For an entry with `lines`:\n  1. read the file's current working diff (`readWorkingDiff`). If its `hash` differs from `diffHash`, return `stale_selection` (add this code) and commit nothing;\n  2. after the index reset, apply `buildPartialPatch` with `git apply --cached --whitespace=nowarn -` (the patch on stdin), instead of `git add`.\n- Entries without `lines` are staged whole, as today. The working tree is never changed.\n\n**Verify** (write the tests first, on real temp repositories)\n- After each commit, assert `git show HEAD:<path>` and that the working file is unchanged.\n- Cases:\n  - selected adds only, and selected deletes only;\n  - mixed lines in one hunk;\n  - several hunks, where an earlier hunk's selection shifts the later ones;\n  - a new file partly selected, and a deleted file partly selected;\n  - no final newline on either side;\n  - a CRLF file;\n  - a renamed file with part of its edit;\n  - a mode change kept.\n- Selecting every line gives the same tree as committing the whole file. Selecting none returns `null`. A stale `diffHash` returns `stale_selection`.\n- Run the touched tests, lint and typecheck.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "multi_step",
+            "rationale": "Rebuilding exact patches with recomputed hunk headers has many edge cases (offsets, newline markers, CRLF, new and deleted files), where a mistake commits the wrong content."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "git",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/main/git/partialPatch.ts"
+        ],
+        "id": "tk_01m43szh828jaqw5a0h83kbmkv",
+        "key": "DM-154",
+        "optional": false,
+        "priority": "high",
+        "references": [],
+        "size": "medium",
+        "tags": [
+          "source-control",
+          "git",
+          "main",
+          "line-staging"
+        ],
+        "title": "Commit selected lines of a file through a partial patch"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "In the Changes diff, a changed line, a dragged range or a whole hunk can be included or excluded from its gutter or with Space, and excluded lines are dimmed. History diffs can't be selected."
+          },
+          {
+            "id": "c2",
+            "text": "A file with only some lines included shows an indeterminate checkbox, and that checkbox toggles all or none."
+          },
+          {
+            "id": "c3",
+            "text": "Committing sends the chosen lines with the diff hash. When a file changes, its selection resets with a toast, and `stale_selection` refreshes the diff with the same toast."
+          },
+          {
+            "id": "c4",
+            "text": "A screenshot of a diff with some lines unselected and the file checkbox indeterminate, from the built app with an isolated profile, is in the evidence."
+          },
+          {
+            "id": "c5",
+            "text": "The tests were written first, and the touched tests, lint and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. Choose lines and hunks to commit in the diff, as in GitHub Desktop. This ticket requires the partial commit in main.\n\n**DiffView** (`src/renderer/src/source/DiffView.tsx`, `DiffGutter`)\n- New optional prop: `selection?: { selected: ReadonlySet<number>; onToggle(indices: number[], include: boolean): void }`. It uses `changedLineIndices` from `src/shared/git/diff.ts`.\n- With `selection`:\n  - each changed line's gutter shows its checkbox state;\n  - clicking a gutter toggles the line;\n  - dragging across gutters sets the whole range to the toggled state of the first line;\n  - clicking a hunk header's gutter toggles the whole hunk;\n  - Space toggles the focused line.\n- Unselected changed lines are dimmed. History diffs pass no `selection` and stay read-only.\n\n**Inclusion** (`useInclusion.ts`, `ChangesPanel.tsx`)\n- Each file is `all`, `none` or `partial(set)`. The file checkbox is indeterminate for partial, and clicking it toggles all or none.\n- A partial selection is kept while the file's diff `hash` is unchanged. When the hash changes, the file resets to all, and a toast says \"<file> changed, so its line selection was reset\".\n- Commit sends `lines` and `diffHash` for partial files. `stale_selection` refreshes the diff and shows the same toast.\n- The header still reads \"N changed files\", and the commit button stays enabled while at least one file is partly included.\n\n**Verify** (write the tests first, with `FakeGit`)\n- Tests:\n  - line, range-drag, hunk and keyboard toggles, and the dimming;\n  - the tri-state file checkbox;\n  - the reset when the hash changes;\n  - the commit payload with lines and hash, and `stale_selection` handling;\n  - History diffs not selectable.\n- Take a screenshot of a diff with some lines unselected and the file checkbox indeterminate, from the built app with an isolated profile.\n- Run the touched tests, lint and typecheck.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Pointer and keyboard selection in the diff gutter, and a three-state inclusion model that must stay consistent with the diff hash."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/source/DiffView.tsx",
+          "src/renderer/src/source/useInclusion.ts"
+        ],
+        "id": "tk_01m43szh82gkccz2rshznb6be6",
+        "key": "DM-155",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "size": "medium",
+        "tags": [
+          "source-control",
+          "ui",
+          "line-staging"
+        ],
+        "title": "Choose lines and hunks to commit in the diff"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A decision record documents where git runs, the change model, pull, discard, which programs run, and the token and credential design."
+          },
+          {
+            "id": "c2",
+            "text": "`docs/architecture.md` and `docs/product-plan.md` describe the source control bridges and the person-initiated git writes, and no statement is left saying the app never writes to git."
+          },
+          {
+            "id": "c3",
+            "text": "`docs/runbooks/github-oauth-app.md` explains how to register the OAuth App with Device Flow, where the client ID lives and how to rotate it, and the README has a Source control section."
+          },
+          {
+            "id": "c4",
+            "text": "Every path, command and link in the new and changed docs resolves."
+          }
+        ],
+        "body": "Size: **small**. Documents what the epic built. It runs after the clone, pull request and line selection tickets, so it describes what landed. Read their accepted results and the code before writing.\n\n- **Decision record**: `docs/decisions/0002-source-control-in-main.md` (use the next free number if 0002 is taken), in the style of `0001-sqlite-driver.md`. Record:\n  - person-initiated git writes live in `src/main/git` and `src/main/github`, behind `window.git` and `window.github`, outside core and MCP, and core's adapter stays read-only;\n  - the change model: the working tree compared with HEAD;\n  - pull only merges;\n  - discard moves content to the trash;\n  - automatic reads disable fsmonitor, external diff and textconv, while commits run hooks;\n  - the device flow, the `safeStorage` token, and the environment-based credential helper scoped to `https://github.com`.\n- **`docs/architecture.md`**:\n  - add the two bridges and the `src/main/git` and `src/main/github` modules to the process chain and the module list;\n  - reword the read-only git note (around lines 111-115) to say that core never writes to git, while the desktop's Source control does on the person's request.\n- **`docs/product-plan.md:152`**: automatic commits and pushes stay out of scope; person-initiated ones through Source control are in.\n- **`docs/runbooks/github-oauth-app.md`**:\n  - how to register the GitHub OAuth App: github.com → Settings → Developer settings → OAuth Apps → New. Give a name and a homepage URL, any callback URL (the device flow doesn't use it), and tick **Enable Device Flow**;\n  - where the client ID lives (`src/main/github/config.ts`);\n  - how to rotate it.\n- **`README.md`**: a Source control section covering:\n  - what it does;\n  - that it needs git on PATH;\n  - signing in, and where the token is kept;\n  - that sign-out doesn't revoke the grant; Manage access on GitHub does.\n\n**Verify**\n- Every file path and command named in the docs exists; check with a search.\n- Links between docs resolve.\n- `npm run lint` is unaffected, because this ticket changes docs only.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": "low",
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "Writes docs from accepted tickets and code that the body lists file by file."
+          },
+          "skills": [
+            "documentation"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell"
+          ],
+          "workType": "documentation"
+        },
+        "expectedArtifacts": [
+          "docs/decisions/0002-source-control-in-main.md",
+          "docs/runbooks/github-oauth-app.md"
+        ],
+        "id": "tk_01m43szh82y865rfb7rg8yhcxr",
+        "key": "DM-156",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Decision record style",
+            "location": "docs/decisions/0001-sqlite-driver.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Architecture",
+            "location": "docs/architecture.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "source-control",
+          "docs"
+        ],
+        "title": "Document source control: decision record, architecture, runbook and README"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Fireguard ran on the combined sprint 3 branch with `FIREGUARD_BASE_REF` set to the sprint's start commit, and graded every unit test added or modified in sprint 3. The graded file list is in the evidence."
+          },
+          {
+            "id": "c2",
+            "text": "The final grade is not F. The letter grade and score are in the evidence."
+          },
+          {
+            "id": "c3",
+            "text": "Every test graded F was rewritten and re-graded with no production code changed. This ticket's diff touches only test files, or nothing if no test was graded F."
+          }
+        ],
+        "body": "Size: **small**. This is sprint 3's only Fireguard run. Fireguard is slow (100× flake isolation and mutation), so no other ticket in the sprint runs it, and workers run only their targeted tests. The sprint 3 acceptance ticket takes Fireguard's grade from this ticket.\n\n1. **Wait** until every other sprint 3 work ticket is accepted and combined on the sprint integration branch. That branch was made from `source-control` at the sprint's start.\n2. **Grade** with `npm run fireguard -- --json` on that branch:\n   - set `FIREGUARD_BASE_REF` to the sprint's start commit;\n   - Fireguard grades only committed changes;\n   - on Windows, set `FIREGUARD_TEST_COMMAND='node node_modules/vitest/vitest.mjs run'`, because of the npx spawn quirk.\n3. **Fix any F:** rewrite each test graded F and re-grade until nothing is F.\n   - Don't change production code to raise a grade.\n   - If a finding points at a real bug in production code, fail the attempt with the finding, so the orchestrator can send it back to the ticket that owns that code.\n4. **Record** the letter grade, the score, the graded files and each finding in the evidence.\n\nOut of scope: lint, typecheck, the full test suite, deadcode and build, because the acceptance ticket runs those once.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": "low",
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "multi_step",
+            "rationale": "Running fireguard is mechanical, but rewriting a test graded F takes judgement about what the test should assert."
+          },
+          "skills": [
+            "typescript",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [
+          "Fireguard report for sprint 3 (grade, score, graded files, findings) in the attempt evidence"
+        ],
+        "id": "tk_01m43szh825vb3x608ngrsxy4k",
+        "key": "DM-157",
+        "optional": false,
+        "priority": "high",
+        "references": [],
+        "size": "small",
+        "tags": [
+          "fireguard",
+          "testing"
+        ],
+        "title": "Sprint 3 fireguard: grade the sprint's new unit tests and fix any F"
+      }
+    ]
+  },
+  "contentHash": "sha256:4f52ab9bfd7e919e1214016d3f39d449e22f84a41ca546541a9caaa52181e48f",
+  "createdAt": "2026-10-04T18:32:13.523Z",
+  "epicId": "ep_01m43sbb2tbnxtr35fety5vzhs",
+  "format": "darkmechanicus.plan-snapshot",
+  "formatVersion": 1,
+  "number": 1,
+  "revisionId": "rv_01m44307ek9hs3t6za03fyeyd7",
+  "savedAt": "2026-10-04T18:32:13.523Z"
+}

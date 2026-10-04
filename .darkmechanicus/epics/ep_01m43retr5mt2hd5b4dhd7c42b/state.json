@@ -1,0 +1,54 @@
+{
+  "branch": {
+    "name": "codex/mascot-chaos",
+    "repository": null,
+    "startCommit": "3f0e33a6ec21ec19641ff2df4a2b3cbc2f9f2211"
+  },
+  "completedAt": "2026-10-04T18:32:07.225Z",
+  "createdAt": "2026-10-04T15:27:57.701Z",
+  "epicId": "ep_01m43retr5mt2hd5b4dhd7c42b",
+  "format": "darkmechanicus.epic-state",
+  "formatVersion": 1,
+  "generation": 13,
+  "outcome": {
+    "recordedAt": "2026-10-04T18:32:07.225Z",
+    "runId": "rn_01m43rk78bhnp2x2gqs68tm8vv",
+    "successCriteria": [
+      {
+        "criterionId": "s1",
+        "met": true,
+        "note": "Six transparent atlases, 36 frames, and documented per-frame anchors, rates, looping, facing, and render scale are committed."
+      },
+      {
+        "criterionId": "s2",
+        "met": true,
+        "note": "The real PlanGraph companion walks, runs, jumps, and climbs current ticket cards; pan, zoom, resize, model changes, and dragging were exercised."
+      },
+      {
+        "criterionId": "s3",
+        "met": true,
+        "note": "Pause, reduced-motion static rendering, visibility stopping, and cleanup are tested; the decorative layer ignores pointer input."
+      },
+      {
+        "criterionId": "s4",
+        "met": true,
+        "note": "The full project gate and inspected production preview passed; evidence is in docs/verification/DM-125-acceptance.md."
+      }
+    ],
+    "summary": "The requested sprites and in-app mascot behavior are implemented and verified on the epic branch."
+  },
+  "provenance": {
+    "note": "Extends the completed mascot branding work with sprite animation and board behavior.",
+    "sourceEpicId": "ep_01m3tyvx2t4scbd6g2fp1z7yxb"
+  },
+  "status": "completed",
+  "ticketStatuses": {
+    "tk_01m43retr5gt3g7v145xk6cbzh": "completed",
+    "tk_01m43rhy7yqtzym0nc0yq46fyd": "completed",
+    "tk_01m43rhy8259yq9shcftwvfk9m": "completed",
+    "tk_01m43rhy826e34wx77dtm6mv8b": "completed",
+    "tk_01m43rhy82s7p840b1zzwwhf5b": "completed"
+  },
+  "title": "Animate the chibi tech-priest mascot and let him explore the ticket board",
+  "updatedAt": "2026-10-04T18:32:07.247Z"
+}

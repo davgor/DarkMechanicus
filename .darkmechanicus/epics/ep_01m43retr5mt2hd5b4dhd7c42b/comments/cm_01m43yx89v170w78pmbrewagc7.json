@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Codex Orchestrator",
+    "role": "orchestrator"
+  },
+  "body": "Acceptance found baseline test drift: start commit3f0e33a changed formatUpdateReadyMessage from a verbose restart/silent-install sentence to `Version ${version} is ready.` but left old copy expectations. Root and independent reviewer verified both files unchanged by mascot work. Authorized narrow test expectation/name correction only; silent install argument and Restart now control tests remain. Also restoring already-declared missing @vitest/coverage-v8 dependency without dependency declaration changes. No production behavior change.",
+  "createdAt": "2026-10-04T17:20:41.787Z",
+  "epicId": "ep_01m43retr5mt2hd5b4dhd7c42b",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m43yx89v170w78pmbrewagc7",
+  "ticketId": "tk_01m43retr5gt3g7v145xk6cbzh"
+}

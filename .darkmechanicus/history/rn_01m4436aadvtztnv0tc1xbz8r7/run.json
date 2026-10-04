@@ -1,0 +1,1618 @@
+{
+  "activeSprintId": null,
+  "attempts": [
+    {
+      "createdAt": "2026-10-04T18:35:50.961Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": null,
+      "failure": {
+        "details": "No implementation started. Replacing the floor-only fall contract with highest-active-ticket routing, climbing breaks/slips, and first-platform landing. This is a planning interruption, not a worker quality failure.",
+        "reason": "User expanded scope before worker dispatch",
+        "retryable": true
+      },
+      "fencingToken": 1,
+      "id": "at_01m4436vsh4a5s2tx8ck4eqxz4",
+      "kind": "work",
+      "number": 1,
+      "outputs": null,
+      "reconciledAt": null,
+      "revisionId": "rv_01m4435mpymc2kvg51m32jzmzp",
+      "state": "failed",
+      "submittedAt": null,
+      "supersededAt": null,
+      "ticketContentHash": "sha256:2dfd32d3fdd0c50305252a1d55a989cebde26860c660b65e86919c97b62a5bb9",
+      "ticketId": "tk_01m4434y76kpnbcemc3xzb686h",
+      "updatedAt": "2026-10-04T18:36:30.199Z",
+      "worker": {
+        "catalogRevision": "mascot-drill-2026-10-04-1",
+        "effort": "medium",
+        "hostId": "codex-desktop-windows",
+        "label": "Codex drill art worker",
+        "modelId": "gpt-6-luna",
+        "rationale": "Recommended model and medium effort for bounded sprite authoring.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-04T18:35:51.007Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": null,
+      "failure": {
+        "details": "No implementation started. Replacing the floor-only fall contract with highest-active-ticket routing, climbing breaks/slips, and first-platform landing. This is a planning interruption, not a worker quality failure.",
+        "reason": "User expanded scope before worker dispatch",
+        "retryable": true
+      },
+      "fencingToken": 1,
+      "id": "at_01m4436vtz1sm9cp3cj3x0mx22",
+      "kind": "work",
+      "number": 1,
+      "outputs": null,
+      "reconciledAt": null,
+      "revisionId": "rv_01m4435mpymc2kvg51m32jzmzp",
+      "state": "failed",
+      "submittedAt": null,
+      "supersededAt": null,
+      "ticketContentHash": "sha256:2970dc976fd21f1e91d4156ce75bfaa24b4c137df5e118b7cb13a091dbc0289c",
+      "ticketId": "tk_01m4434y7a11x071k14rj5bn0m",
+      "updatedAt": "2026-10-04T18:36:30.222Z",
+      "worker": {
+        "catalogRevision": "mascot-drill-2026-10-04-1",
+        "effort": "high",
+        "hostId": "codex-desktop-windows",
+        "label": "Codex drill motion worker",
+        "modelId": "gpt-6-sol",
+        "rationale": "Override to Sol: the preceding mascot motion ticket required escalation from Luna for geometric attachment defects; this extension couples support tracking, preference and fall continuity.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-04T18:38:26.903Z",
+      "decidedAt": "2026-10-04T18:51:29.272Z",
+      "decision": {
+        "decidedBy": "Codex Orchestrator",
+        "notes": "Independently reviewed source, tests, metadata and live browser rendering.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "8 sprite/renderer tests passed.",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "Renderer TypeScript passed.",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Scoped strict lint passed.",
+            "name": "targeted lint",
+            "status": "passed"
+          },
+          {
+            "detail": "Root inspected live and fixed frame in browser at native scale.",
+            "name": "visual review",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Root inspected generated poses and live 5179 gallery: drill identity, contact sparks, and clean native-scale appearance verified. Per-cell opaque and low-alpha bounds disclosed in asset documentation."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Reviewed rendering diff and targeted tests: optional working override preserves original six actions; per-frame foot anchors mirror correctly."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Root browser observed changing drill contact/sparks and the fixed drill frame; playback uses only supplied clock."
+          }
+        ],
+        "notes": "Low-alpha generated halo is accurately documented; no visible rectangular backdrop in native preview. Existing six image assets unchanged."
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m443bm2qmfd28q6ftx9x39p0",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Drill atlas and metadata",
+            "location": "src/renderer/src/assets/mascot/drill.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Sprite provenance and bounds",
+            "location": "docs/mascot-sprites.md",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "codex/mascot-drill-art",
+        "changedFiles": [
+          "docs/mascot-sprites.md",
+          "preview/mascot/mascot.tsx",
+          "src/renderer/src/assets/mascot/atlas.json",
+          "src/renderer/src/assets/mascot/drill.png",
+          "src/renderer/src/mascot/MascotSprite.tsx",
+          "src/renderer/src/mascot/MascotSprite.test.tsx",
+          "src/renderer/src/mascot/sprite.ts",
+          "src/renderer/src/mascot/sprite.test.ts"
+        ],
+        "commits": [
+          "d40a43e490b702684600bca9157890589c59058f"
+        ],
+        "summary": "Added six drill poses and spark animation with working/resting sprite selection."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m443bb23xe2sz312tzgrtahp",
+      "state": "accepted",
+      "submittedAt": "2026-10-04T18:51:29.247Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:2dfd32d3fdd0c50305252a1d55a989cebde26860c660b65e86919c97b62a5bb9",
+      "ticketId": "tk_01m4434y76kpnbcemc3xzb686h",
+      "updatedAt": "2026-10-04T18:51:29.272Z",
+      "worker": {
+        "catalogRevision": "mascot-drill-2026-10-04-1",
+        "effort": "medium",
+        "hostId": "codex-desktop-windows",
+        "label": "Codex drill art worker",
+        "modelId": "gpt-6-luna",
+        "rationale": "Retain originally recommended Luna/medium: previous claim ended before dispatch solely for user scope correction, so no quality escalation is justified.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-04T18:38:26.930Z",
+      "decidedAt": "2026-10-04T18:59:58.694Z",
+      "decision": {
+        "decidedBy": "Codex Orchestrator",
+        "notes": "First unused attempt was scope-only interruption. This attempt is rejected for actual c1/c4 defects. Recheck all mascot targeted files, including graphReach, before resubmission.",
+        "outcome": "rejected",
+        "reasons": [
+          "Restore normal short-plan reach: existing graphReach.test.ts fails because sideJumpReach changed from viewport-adaptive to fixed120. Keep both realistic short-board access and multi-platform ascent; do not weaken this regression.",
+          "Fix supported edge positions on zoom-out: card{80,200,180,60},body52,support x106 or234, zoom0.8 -> card{64,160,144,48}. rebaseSupport scales x to84.8/187.2 outside valid90..182 and spuriously falls. Rebase/clamp fixed-body safe support and future travel endpoints consistently."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Worker reports34/34.",
+            "name": "motion tests",
+            "status": "passed"
+          },
+          {
+            "detail": "Worker reports npm run lint.",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "Worker reports npm run typecheck.",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Root ran graphReach.test.ts: normal single-sprint fitView cannot be climbed after side reach changed to fixed120.",
+            "name": "graph reach regression",
+            "status": "failed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": false,
+            "note": "Stacked fixture routes pass, but normal short board now unreachable."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Seeded rest/slip/success tests inspected."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Independent review of first-platform crossing and collision-time code passed."
+          },
+          {
+            "criterionId": "c4",
+            "met": false,
+            "note": "Independent review reproduced ordinary zoom-out falling from both support edges; normal graphReach regression fails."
+          }
+        ],
+        "notes": ""
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m443bm3jnqzss2jd8an3e04k",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [],
+        "branch": "codex/mascot-drill-motion",
+        "changedFiles": [
+          "src/renderer/src/mascot/motion.ts",
+          "src/renderer/src/mascot/motion.test.ts"
+        ],
+        "commits": [
+          "8092bce42ae98eef7feade0e85dfca9c0e4b63a7"
+        ],
+        "summary": "Added goal-directed climbing and platform falls; review found normal-board reach and supported zoom regressions."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m443bb23xe2sz312tzgrtahp",
+      "state": "rejected",
+      "submittedAt": "2026-10-04T18:59:58.670Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:d7f4aef1d13a9bcb917af776411b6d48f2d7590b435ab7634cef27e51b936c5a",
+      "ticketId": "tk_01m4434y7a11x071k14rj5bn0m",
+      "updatedAt": "2026-10-04T18:59:58.694Z",
+      "worker": {
+        "catalogRevision": "mascot-drill-2026-10-04-1",
+        "effort": "high",
+        "hostId": "codex-desktop-windows",
+        "label": "Codex climbing behavior worker",
+        "modelId": "gpt-6-sol",
+        "rationale": "Recommended Sol/high; previous unused claim ended for user scope correction, not implementation failure.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-04T18:51:36.551Z",
+      "decidedAt": "2026-10-04T18:55:44.698Z",
+      "decision": {
+        "decidedBy": "Codex Orchestrator",
+        "notes": "Implementation returned complete but c1/c2 fail independent targeted review; escalate one tier.",
+        "outcome": "rejected",
+        "reasons": [
+          "Accumulate directional leg travel across samples; current 24px per-event threshold misses a 48,-48,48px wiggle made of8px/16ms samples (root reproduced0 detections). Do not reset reversal count on subsequent samples continuing a leg.",
+          "Invalid/out-of-order timestamps must not replay detected:true. Root reproduced an existing pulse remaining true after NaN input. Add realistic sampled sequences and post-detection invalid-time checks."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Worker's four tests pass; they omit realistic multi-sample legs.",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "8px samples across 48,-48,48px within480ms produce zero detections. Invalid time after a detection returns detected:true again.",
+            "name": "review reproduction",
+            "status": "failed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": false,
+            "note": "Per-sample 24px threshold prevents ordinary high-frequency wiggle input from accumulating into a qualifying leg."
+          },
+          {
+            "criterionId": "c2",
+            "met": false,
+            "note": "Invalid/out-of-order timestamps replay a previous detected pulse."
+          }
+        ],
+        "notes": ""
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m4443q77z8d0xgd7ezqfz6ph",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": "codex/mascot-shake",
+        "changedFiles": [
+          "src/renderer/src/mascot/shake.ts",
+          "src/renderer/src/mascot/shake.test.ts"
+        ],
+        "commits": [
+          "fe2bd339b6b2a013eff56cce7bcc1188389e3f0e"
+        ],
+        "summary": "Implemented gesture detector; independent review found realistic sampling and stale-pulse defects."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m443bb23xe2sz312tzgrtahp",
+      "state": "rejected",
+      "submittedAt": "2026-10-04T18:55:44.673Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:29801e8acb6051f0e90887987a79f4a7254e469ebe54a82977815ae4a429fc83",
+      "ticketId": "tk_01m443any4xnw81mdpjehs2vh8",
+      "updatedAt": "2026-10-04T18:55:44.698Z",
+      "worker": {
+        "catalogRevision": "mascot-drill-2026-10-04-1",
+        "effort": "low",
+        "hostId": "codex-desktop-windows",
+        "label": "Codex graph wiggle worker",
+        "modelId": "gpt-6-luna",
+        "rationale": "Recommended Luna/low for a bounded pure gesture detector.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-04T18:55:44.730Z",
+      "decidedAt": "2026-10-04T19:00:51.106Z",
+      "decision": {
+        "decidedBy": "Codex Orchestrator",
+        "notes": "",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "9/9 detector tests pass.",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "Both files pass strict oxlint.",
+            "name": "targeted lint",
+            "status": "passed"
+          },
+          {
+            "detail": "tsconfig.web passes.",
+            "name": "renderer typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Dense wiggle one pulse, sparse wiggle pulse true, invalid replay false.",
+            "name": "independent reproduction",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Reviewed accumulated leg tracking and stable axis; root independently reran dense8px/16ms wiggle and obtained exactly one pulse, matching sparse input."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Nine targeted tests cover reset/cooldown/time filtering; root verified invalid time clears rather than replays the previous pulse."
+          }
+        ],
+        "notes": ""
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m444b9jte00f08bn791w1m06",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [],
+        "branch": "codex/mascot-shake",
+        "changedFiles": [
+          "src/renderer/src/mascot/shake.ts",
+          "src/renderer/src/mascot/shake.test.ts"
+        ],
+        "commits": [
+          "58c10348d490f983147a90b51eb3eec1a9c9522e"
+        ],
+        "summary": "Repaired realistic gesture detection with accumulated travel, stable axis and one-shot pulse handling."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m443bb23xe2sz312tzgrtahp",
+      "state": "accepted",
+      "submittedAt": "2026-10-04T19:00:51.067Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:29801e8acb6051f0e90887987a79f4a7254e469ebe54a82977815ae4a429fc83",
+      "ticketId": "tk_01m443any4xnw81mdpjehs2vh8",
+      "updatedAt": "2026-10-04T19:00:51.106Z",
+      "worker": {
+        "catalogRevision": "mascot-drill-2026-10-04-1",
+        "effort": "low",
+        "hostId": "codex-desktop-windows",
+        "label": "Codex graph wiggle repair worker",
+        "modelId": "gpt-6-sol",
+        "rationale": "Escalate one tier after independent realistic-event reproduction found missed wiggles and stale detection pulses.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-04T18:59:58.731Z",
+      "decidedAt": "2026-10-04T19:05:15.083Z",
+      "decision": {
+        "decidedBy": "Codex Orchestrator",
+        "notes": "Source and targeted evidence independently reviewed; both rejected geometry regressions repaired.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "All47mascot tests across5files passed, including graphReach.",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run lint passed; no rules relaxed.",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck passed.",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Reviewer reran normal board reach and both edge zoom/landing cases at60cb04b.",
+            "name": "independent review",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Inspected active-goal weighted route search; targeted stacked-board and active preference tests pass. Independent reviewer reran original fitView reach regression successfully."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Seeded tests cover rests, slips and successful routes across24seeds; working sessions are bounded."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Reviewed live first-platform crossings and hit timing; targeted tests cover reverse ordering, large delta, moved/removed catch and floor landing."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "All47mascot tests passed; reviewer reproduced safe left/right supported zoom and direct jump landing at both edges. Status change and resize regressions included."
+          }
+        ],
+        "notes": "Renderer must cap airborne tumble frames and freeze resting climb in UI integration; no full gate run here."
+      },
+      "failure": null,
+      "fencingToken": 3,
+      "id": "at_01m444k1mbsnbgsk0729n7d3ca",
+      "kind": "work",
+      "number": 3,
+      "outputs": {
+        "artifacts": [],
+        "branch": "codex/mascot-drill-motion",
+        "changedFiles": [
+          "src/renderer/src/mascot/motion.ts",
+          "src/renderer/src/mascot/motion.test.ts"
+        ],
+        "commits": [
+          "8092bce42ae98eef7feade0e85dfca9c0e4b63a7",
+          "60cb04b7e0341a69cc21790c8a39c10d5a59a58b"
+        ],
+        "summary": "Added highest-active-ticket climbing with rests, slips, platform falls and robust zoom/navigation support."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m443bb23xe2sz312tzgrtahp",
+      "state": "accepted",
+      "submittedAt": "2026-10-04T19:05:15.058Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:d7f4aef1d13a9bcb917af776411b6d48f2d7590b435ab7634cef27e51b936c5a",
+      "ticketId": "tk_01m4434y7a11x071k14rj5bn0m",
+      "updatedAt": "2026-10-04T19:05:15.083Z",
+      "worker": {
+        "catalogRevision": "mascot-drill-2026-10-04-1",
+        "effort": "high",
+        "hostId": "codex-desktop-windows",
+        "label": "Codex climbing behavior repair",
+        "modelId": "gpt-6-sol",
+        "rationale": "Recommended repeat at highest available effort after review isolated two geometry regressions; original unused attempt was a scope interruption.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-04T19:05:56.046Z",
+      "decidedAt": "2026-10-04T19:28:20.789Z",
+      "decision": {
+        "decidedBy": "Codex Orchestrator",
+        "notes": "Independently reviewed production diff and regression fixes. Live review corroborates highest-work drill, retargeting, wiggle fall and frozen sparks. Remaining production Fit View observation belongs to acceptance; no production code blocker found.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "127 tests across 7 files.",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "",
+            "name": "targeted lint",
+            "status": "passed"
+          },
+          {
+            "detail": "",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "",
+            "name": "diff check",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "graphModel/geometry regressions cover execution running, lifecycle in_progress, draft exclusion and running acceptance tasks independent of selection/tone. Live preview reached highest active task and showed clean drill/sparks."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "DM-161-ui.md records intermediate ascent, first lower-ticket catch at +450 ms, floor landing at +700 ms, spontaneous slip with unchanged shake ID, and four 100 ms samples of a stationary climbing grip break before continuing. Root independently saw ascent/drill and one deliberate wiggle→one tumble."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Lifecycle and pending-shake regression tests pass. Reviewer confirmed suspension acknowledges pending ID. Root observed identical drill frame/position/sparks while paused and retargeting to lower active work after top task completion."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "127 targeted tests pass. Worker observed selection/drop. Root verified actual zoom scale change with no shake, pan/wiggle behavior, and narrow board resize (481×679, body clamped to right boundary). Initial fit did not cause a shake; production acceptance will independently exercise the Fit View button because IAB button activation did not produce a conclusive final transform."
+          }
+        ],
+        "notes": "Independent read review fixed two pre-submission seams: pending-shake replay on resume and running acceptance-node status. Full production visual acceptance and full DoD remain DM-158; Fireguard remains DM-162. CUA screenshots were shown in tool history; report records measured observations."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m444xyjefn7fwydecq3vpyy6",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "UI verification and live observations",
+            "location": "docs/verification/DM-161-ui.md",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "codex/mascot-drill-ui",
+        "changedFiles": [
+          "docs/mascot-sprites.md",
+          "docs/verification/DM-161-ui.md",
+          "preview/mascot/graph.tsx",
+          "preview/mascot/preview.css",
+          "src/renderer/src/graph/PlanGraph.tsx",
+          "src/renderer/src/graph/graphModel.ts",
+          "src/renderer/src/graph/graphModel.test.ts",
+          "src/renderer/src/graph/graphPan.ts",
+          "src/renderer/src/graph/graphPan.test.ts",
+          "src/renderer/src/mascot/GraphMascot.tsx",
+          "src/renderer/src/mascot/GraphMascot.test.tsx",
+          "src/renderer/src/mascot/MascotSprite.tsx",
+          "src/renderer/src/mascot/MascotSprite.test.tsx",
+          "src/renderer/src/mascot/geometry.ts",
+          "src/renderer/src/mascot/geometry.test.ts"
+        ],
+        "commits": [
+          "f813fadf6d8060ed637cbafe47013193bc25f4ad",
+          "46fd7083d34f975edaeed9900186832e02a728ba"
+        ],
+        "summary": "Connected semantic active tasks and real graph pan gestures to goal-directed sparking drill behavior; preserved motion preferences, added stacked preview and live evidence."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m443bb23xe2sz312tzgrtahp",
+      "state": "accepted",
+      "submittedAt": "2026-10-04T19:28:20.767Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:ee89f4e9540d04ebe1568b23eee9a6efb3f8bfcc43935323a1343956e96be413",
+      "ticketId": "tk_01m4434y7ar2vt71jvd91y8p26",
+      "updatedAt": "2026-10-04T19:28:20.789Z",
+      "worker": {
+        "catalogRevision": "mascot-drill-2026-10-04-1",
+        "effort": "high",
+        "hostId": "codex-desktop-windows",
+        "label": "Codex drill board integration worker",
+        "modelId": "gpt-6-sol",
+        "rationale": "Use Sol/high for the expanded cross-module integration and visual review: real gesture origin, motion state transitions and semantic ticket status must agree. Earlier mascot integration also needed this tier.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-04T19:28:56.184Z",
+      "decidedAt": "2026-10-04T20:15:43.245Z",
+      "decision": {
+        "decidedBy": "Codex Orchestrator",
+        "notes": "Independent JSON/provenance and one-line test diff review passed. No rule changes or persisted production mutations. Reuse accepted grade at acceptance.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "A/90. All hard gates;100/100 flake;569/761 mutations killed;reported score75. Exact base/head in captured report.",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "",
+            "name": "targeted lint",
+            "status": "passed"
+          },
+          {
+            "detail": "142 tests pregrade;after explicit frame assertion, scoped sprite lint and5tests passed.",
+            "name": "targeted tests",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Independently parsed full JSON: Fireguard A/90, all hard gates pass, 500 assertions/0 mocks/0 tautologies/0 empty tests, 100/100 reliability runs, 569 killed/192 survived/761 total, reported mutation score75."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Complete 34,139-byte JSON and report preserve exact base2cf6d6a4b6eca9f0e1b2cf0f4b1859fce7d2396f and graded headbc946f1340407b7b70d6530d06a032f25e166714. Reviewed direct non-empty animation-frame assertion; grading rules/config and production unchanged; working tree restored clean."
+          }
+        ],
+        "notes": "Grading exercised multiple slow fault variants under normal configured timeout, with no settings changes. PlanGraph has2 surviving mutants/no graded unit imports; optional future unit coverage opportunity, while sprint production browser acceptance verifies real controls. No required leftover or known defect."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m44682brjke3yyfdt4dvygj6",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": "sha256:d3573176c23d2c3cd34aa05915fa951007fbb065ca17ba4729fda24f787b7f0b",
+            "label": "Complete Fireguard report",
+            "location": "docs/verification/DM-162-fireguard.json",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Grade/provenance summary",
+            "location": "docs/verification/DM-162-fireguard.md",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "codex/mascot-drill-fireguard",
+        "changedFiles": [
+          "src/renderer/src/mascot/sprite.test.ts",
+          "docs/verification/DM-162-fireguard.json",
+          "docs/verification/DM-162-fireguard.md"
+        ],
+        "commits": [
+          "bc946f1340407b7b70d6530d06a032f25e166714",
+          "0f22e8343e11688ec69840c7b661f31ecffd5727"
+        ],
+        "summary": "Graded combined committed sprint A/90 with all hard gates passed; made existing per-action frame test explicitly reject empty clips and captured complete evidence."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m443bb23xe2sz312tzgrtahp",
+      "state": "accepted",
+      "submittedAt": "2026-10-04T20:15:43.219Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:70ae71acb9f64e4e117ee5b434e0596f39f03f596866c4687775afd746283118",
+      "ticketId": "tk_01m4434y7ay36c6kpt69cchdts",
+      "updatedAt": "2026-10-04T20:15:43.245Z",
+      "worker": {
+        "catalogRevision": "mascot-drill-2026-10-04-1",
+        "effort": "medium",
+        "hostId": "codex-desktop-windows",
+        "label": "Codex mascot test-quality worker",
+        "modelId": "gpt-6-sol",
+        "rationale": "Override Luna/medium to Sol/medium based on prior mascot Fireguard ticket DM-129: behavioral mutation-test strengthening needed the higher tier. This expanded motion and graph change has analogous test-quality seams; keep medium effort.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-04T20:16:07.338Z",
+      "decidedAt": "2026-10-04T20:32:04.229Z",
+      "decision": {
+        "decidedBy": "Codex Orchestrator",
+        "notes": "Accepted after independent review of the source delta, full gate logs, 14 production browser contracts, native spark and landing screenshots, precise settled foot anchors, earlier accepted stochastic live evidence, and passing server-verified squash increment b53384c. Root working source matches verified integration; unrelated existing changes remain untouched.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npm run lint passed before and after unused type-export cleanup; DM-158-lint*.log.",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "All three strict TypeScript projects passed before and after cleanup; DM-158-typecheck*.log.",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npm test passed 5,060 application tests in 279 files and 105 Fireguard tests in 20 files. Nine shake tests passed after the type-only cleanup. Logs: DM-158-test.log and DM-158-shake-targeted.log.",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run coverage passed: 98% statements, 95.16% branches, 97.37% functions, 98.17% lines. Log: DM-158-coverage.log.",
+            "name": "coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "Reused accepted DM-162 grade A (90), all hard gates passed: 100/100 reliability runs and 569/761 mutants killed (reported score 75). Graded base 2cf6d6a4b6eca9f0e1b2cf0f4b1859fce7d2396f, head bc946f1340407b7b70d6530d06a032f25e166714. Later cleanup removes an unused type export and trailing test whitespace, with no runtime or test behavior change. Full JSON and hashes are recorded.",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "Initial gate found unused ShakeState export; removed export only, retained baseline; rerun passed. Both logs retained.",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run build passed after cleanup for main, preload, renderer; DM-158-build-rerun.log.",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Reviewed production native screenshots of contact/sparks on upper-left and lower-right drill frames; seven actions/six unique drill frames; foot anchors align with ticket tops. DM-158 metadata and top/bottom production PNGs."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Production highest active work and completion retarget verified. Sampled descent catches the first eligible platform, DM3: DM2 is outside the full body support interval. Three stable samples align with the platform top within 0.001 px; a second wiggle lands on the floor. Intermediate ascent, rest, slip, and success were observed in accepted DM-161 live evidence; seeded motion tests cover upward exploration without active tickets and collision/recovery."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "All 14 production browser contracts passed. Actual Zoom In and Fit View transforms changed without a shake; gentle pan, selection and dragging worked; pause froze the entire sprite including sparks; reduced motion remained idle; narrow layout had no overflow; no browser errors. Lifecycle tests cover hidden pages and unmount."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Accepted DM-162 A (90) report reused with full JSON, exact base/head and canonical Git blob SHA-256 d3573176c23d2c3cd34aa05915fa951007fbb065ca17ba4729fda24f787b7f0b. Windows CRLF byte hash is separately recorded; content is identical."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Actual back-and-forth canvas panning produced shake 0→1 and a continuous ticket fall; a second produced 1→2 and a floor fall. Gentle pan, actual zoom and Fit View left shake at 0. Metadata records the trajectory and stable landing."
+          }
+        ],
+        "notes": "Independent coordinator review inspected production screenshots, exact foot-anchor trajectory, all gate logs, final diff and unchanged accepted Fireguard report. Stochastic rest/slip/ascent observations are reused from accepted DM-161 live evidence, explicitly attributed in the acceptance report. Removed an unused type export and trailing test whitespace only after grading; no runtime/test behavior changed. Root retained independent main merges and pre-existing unstaged .codex/config.toml and updater changes. Current product/test/config/preview contents match the verified integration tree; the unrelated updater correction remains unstaged and is not included in this feature commit."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m448yf5adernppa78dfw48q3",
+      "increment": {
+        "base": {
+          "commit": "2cf6d6a4b6eca9f0e1b2cf0f4b1859fce7d2396f",
+          "kind": "epic_start"
+        },
+        "branch": "codex/mascot-drill",
+        "checks": [
+          {
+            "detail": "Names the epic branch codex/mascot-drill.",
+            "name": "Epic branch",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit b53384c exists.",
+            "name": "Commit exists",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit b53384c has one parent, ebe9310.",
+            "name": "One parent",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit b53384c is reachable from codex/mascot-drill.",
+            "name": "On the epic branch",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit b53384c comes after the epic's start commit 2cf6d6a.",
+            "name": "After the base commit",
+            "status": "passed"
+          },
+          {
+            "detail": "None of the 8 commits recorded by this sprint's accepted work is reachable from codex/mascot-drill.",
+            "name": "Squashed, not merged",
+            "status": "passed"
+          }
+        ],
+        "commit": "b53384ce4c21470ecc19a488fb15167fbb0a2e61",
+        "parent": "ebe93104eb101358bc774fd2e01264cf3a645899",
+        "passed": true,
+        "reasons": [],
+        "verifiedAt": "2026-10-04T20:31:52.910Z"
+      },
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Acceptance report and full gate logs",
+            "location": "docs/verification/DM-158-acceptance.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Production browser observations and landing trajectory",
+            "location": "docs/verification/DM-158-preview-metadata.json",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Reproducible production browser verification",
+            "location": "docs/verification/DM-158-preview-check.mjs",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Highest active ticket drilling with sparks",
+            "location": "docs/verification/DM-158-top-drill-production.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Opposite-facing drill after task completion",
+            "location": "docs/verification/DM-158-bottom-drill-production.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "First supporting platform landing",
+            "location": "docs/verification/DM-158-lower-catch-production.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Floor landing",
+            "location": "docs/verification/DM-158-floor-fall-production.png",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "codex/mascot-drill",
+        "changedFiles": [
+          "docs/mascot-sprites.md",
+          "docs/verification/DM-158-acceptance.md",
+          "docs/verification/DM-158-actions-production.png",
+          "docs/verification/DM-158-bottom-drill-production.png",
+          "docs/verification/DM-158-build-rerun.log",
+          "docs/verification/DM-158-coverage.log",
+          "docs/verification/DM-158-deadcode-rerun.log",
+          "docs/verification/DM-158-deadcode.log",
+          "docs/verification/DM-158-floor-fall-production.png",
+          "docs/verification/DM-158-lint-rerun.log",
+          "docs/verification/DM-158-lint.log",
+          "docs/verification/DM-158-lower-catch-production.png",
+          "docs/verification/DM-158-narrow-production.png",
+          "docs/verification/DM-158-paused-drill-production.png",
+          "docs/verification/DM-158-preview-check.mjs",
+          "docs/verification/DM-158-preview-metadata.json",
+          "docs/verification/DM-158-shake-targeted.log",
+          "docs/verification/DM-158-test.log",
+          "docs/verification/DM-158-top-drill-production.png",
+          "docs/verification/DM-158-top-tumble-production.png",
+          "docs/verification/DM-158-typecheck-rerun.log",
+          "docs/verification/DM-158-typecheck.log",
+          "docs/verification/DM-161-ui.md",
+          "docs/verification/DM-162-fireguard.json",
+          "docs/verification/DM-162-fireguard.md",
+          "preview/mascot/graph.tsx",
+          "preview/mascot/mascot.tsx",
+          "preview/mascot/preview.css",
+          "src/renderer/src/assets/mascot/atlas.json",
+          "src/renderer/src/assets/mascot/drill.png",
+          "src/renderer/src/graph/PlanGraph.tsx",
+          "src/renderer/src/graph/graphModel.test.ts",
+          "src/renderer/src/graph/graphModel.ts",
+          "src/renderer/src/graph/graphPan.test.ts",
+          "src/renderer/src/graph/graphPan.ts",
+          "src/renderer/src/mascot/GraphMascot.test.tsx",
+          "src/renderer/src/mascot/GraphMascot.tsx",
+          "src/renderer/src/mascot/MascotSprite.test.tsx",
+          "src/renderer/src/mascot/MascotSprite.tsx",
+          "src/renderer/src/mascot/geometry.test.ts",
+          "src/renderer/src/mascot/geometry.ts",
+          "src/renderer/src/mascot/motion.test.ts",
+          "src/renderer/src/mascot/motion.ts",
+          "src/renderer/src/mascot/shake.test.ts",
+          "src/renderer/src/mascot/shake.ts",
+          "src/renderer/src/mascot/sprite.test.ts",
+          "src/renderer/src/mascot/sprite.ts"
+        ],
+        "commits": [
+          "b6ffaf916d13bb01678fe495ee1c2e3a4d98b068",
+          "7481199bfa693080f0f355e32605266c538cbc5c",
+          "b53384ce4c21470ecc19a488fb15167fbb0a2e61"
+        ],
+        "summary": "Verified the combined mascot sprint with the full project gate and production browser evidence, then landed one squash commit on the epic branch."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m443bb23xe2sz312tzgrtahp",
+      "state": "accepted",
+      "submittedAt": "2026-10-04T20:31:53.167Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:be4055dc28eb512ea7d23af58de7c0dfad8f3fa7063ef0e2fdfff33f6e85da83",
+      "ticketId": "tk_01m44323c440761dfqnhjdye1h",
+      "updatedAt": "2026-10-04T20:32:04.229Z",
+      "worker": {
+        "catalogRevision": "mascot-drill-2026-10-04-1",
+        "effort": "high",
+        "hostId": "codex-desktop-windows",
+        "label": "Codex mascot final verifier",
+        "modelId": "gpt-6-sol",
+        "rationale": "Override Luna/high to Sol/high for production visual acceptance across five dependencies, asynchronous graph navigation, exact frame anchors and full gate evidence. Prior mascot acceptance succeeded at this tier and the expanded behavior has more interacting timing states.",
+        "sessionId": null
+      }
+    }
+  ],
+  "checkpoints": [
+    {
+      "decidedAt": "2026-10-04T21:48:21.207Z",
+      "decidedBy": "ss_01m43raj4hpx9b8pbnheh4ybf3",
+      "id": "ck_01m44e7baqmvjf396z7z4txk1r",
+      "outcome": "completed",
+      "policy": "human",
+      "reportId": "rp_01m449y71j3c178kxfwvjmzk03",
+      "sprintId": "sp_01m44323c4dmedj6e5rmg8jqv2"
+    }
+  ],
+  "createdAt": "2026-10-04T18:35:33.069Z",
+  "endedAt": "2026-10-04T21:48:21.207Z",
+  "epicId": "ep_01m44323c45rx5grbfc058tf30",
+  "format": "darkmechanicus.run",
+  "formatVersion": 1,
+  "host": {
+    "label": "Codex Orchestrator",
+    "type": "codex"
+  },
+  "hostCatalogId": "hc_01m4435n5jez7n8t00qpqs7tps",
+  "number": 1,
+  "ownerMachineId": "mc_01m41707wstg1crxjbt3jw2ap5",
+  "pauseReason": null,
+  "reports": [
+    {
+      "content": {
+        "accepted": [
+          "DM-159 — Added six transparent drill poses, contact sparks, anchored mirroring, and gallery playback.",
+          "DM-160 — Added highest-work routes, intermediate climbs, grip breaks, slips, first-platform falls, recovery, and geometry-aware support.",
+          "DM-163 — Added deliberate wiggle detection with accumulated movement, reversals, cooldown, and stale-input rejection.",
+          "DM-161 — Connected real task status and user graph panning; preserved interaction and motion accessibility.",
+          "DM-162 — Fireguard grade A (90), passing all hard gates, with complete grading provenance.",
+          "DM-158 — Full project and production browser acceptance, evidence artifacts, and verified squash increment."
+        ],
+        "blocked": [],
+        "changes": {
+          "commits": [
+            "b6ffaf916d13bb01678fe495ee1c2e3a4d98b068",
+            "7481199bfa693080f0f355e32605266c538cbc5c",
+            "b53384ce4c21470ecc19a488fb15167fbb0a2e61",
+            "bc946f1340407b7b70d6530d06a032f25e166714",
+            "0f22e8343e11688ec69840c7b661f31ecffd5727",
+            "f813fadf6d8060ed637cbafe47013193bc25f4ad",
+            "46fd7083d34f975edaeed9900186832e02a728ba",
+            "8092bce42ae98eef7feade0e85dfca9c0e4b63a7",
+            "60cb04b7e0341a69cc21790c8a39c10d5a59a58b",
+            "58c10348d490f983147a90b51eb3eec1a9c9522e",
+            "d40a43e490b702684600bca9157890589c59058f"
+          ],
+          "files": [
+            "docs/mascot-sprites.md",
+            "docs/verification/DM-158-acceptance.md",
+            "docs/verification/DM-158-actions-production.png",
+            "docs/verification/DM-158-bottom-drill-production.png",
+            "docs/verification/DM-158-build-rerun.log",
+            "docs/verification/DM-158-coverage.log",
+            "docs/verification/DM-158-deadcode-rerun.log",
+            "docs/verification/DM-158-deadcode.log",
+            "docs/verification/DM-158-floor-fall-production.png",
+            "docs/verification/DM-158-lint-rerun.log",
+            "docs/verification/DM-158-lint.log",
+            "docs/verification/DM-158-lower-catch-production.png",
+            "docs/verification/DM-158-narrow-production.png",
+            "docs/verification/DM-158-paused-drill-production.png",
+            "docs/verification/DM-158-preview-check.mjs",
+            "docs/verification/DM-158-preview-metadata.json",
+            "docs/verification/DM-158-shake-targeted.log",
+            "docs/verification/DM-158-test.log",
+            "docs/verification/DM-158-top-drill-production.png",
+            "docs/verification/DM-158-top-tumble-production.png",
+            "docs/verification/DM-158-typecheck-rerun.log",
+            "docs/verification/DM-158-typecheck.log",
+            "docs/verification/DM-161-ui.md",
+            "docs/verification/DM-162-fireguard.json",
+            "docs/verification/DM-162-fireguard.md",
+            "preview/mascot/graph.tsx",
+            "preview/mascot/mascot.tsx",
+            "preview/mascot/preview.css",
+            "src/renderer/src/assets/mascot/atlas.json",
+            "src/renderer/src/assets/mascot/drill.png",
+            "src/renderer/src/graph/PlanGraph.tsx",
+            "src/renderer/src/graph/graphModel.test.ts",
+            "src/renderer/src/graph/graphModel.ts",
+            "src/renderer/src/graph/graphPan.test.ts",
+            "src/renderer/src/graph/graphPan.ts",
+            "src/renderer/src/mascot/GraphMascot.test.tsx",
+            "src/renderer/src/mascot/GraphMascot.tsx",
+            "src/renderer/src/mascot/MascotSprite.test.tsx",
+            "src/renderer/src/mascot/MascotSprite.tsx",
+            "src/renderer/src/mascot/geometry.test.ts",
+            "src/renderer/src/mascot/geometry.ts",
+            "src/renderer/src/mascot/motion.test.ts",
+            "src/renderer/src/mascot/motion.ts",
+            "src/renderer/src/mascot/shake.test.ts",
+            "src/renderer/src/mascot/shake.ts",
+            "src/renderer/src/mascot/sprite.test.ts",
+            "src/renderer/src/mascot/sprite.ts"
+          ]
+        },
+        "checks": [
+          {
+            "detail": "npm run typecheck passed on integrated artwork, movement and gesture detector.",
+            "name": "Row 1: typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "All60tests across7mascot files passed on combined row.",
+            "name": "Row 1: mascot tests",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck passed on integrated UI.",
+            "name": "Row 2: typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "199 tests across 13 files passed.",
+            "name": "Row 2: mascot and graph tests",
+            "status": "passed"
+          },
+          {
+            "detail": "Full typecheck passed on combined sprint plus test-quality report.",
+            "name": "Row 3: typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "All5tests passed, including strengthened per-action frame contract.",
+            "name": "Row 3: sprite tests",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run lint passed before and after unused type-export cleanup; DM-158-lint*.log.",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "All three strict TypeScript projects passed before and after cleanup; DM-158-typecheck*.log.",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npm test passed 5,060 application tests in 279 files and 105 Fireguard tests in 20 files. Nine shake tests passed after the type-only cleanup. Logs: DM-158-test.log and DM-158-shake-targeted.log.",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run coverage passed: 98% statements, 95.16% branches, 97.37% functions, 98.17% lines. Log: DM-158-coverage.log.",
+            "name": "coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "Reused accepted DM-162 grade A (90), all hard gates passed: 100/100 reliability runs and 569/761 mutants killed (reported score 75). Graded base 2cf6d6a4b6eca9f0e1b2cf0f4b1859fce7d2396f, head bc946f1340407b7b70d6530d06a032f25e166714. Later cleanup removes an unused type export and trailing test whitespace, with no runtime or test behavior change. Full JSON and hashes are recorded.",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "Initial gate found unused ShakeState export; removed export only, retained baseline; rerun passed. Both logs retained.",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run build passed after cleanup for main, preload, renderer; DM-158-build-rerun.log.",
+            "name": "build",
+            "status": "passed"
+          },
+          {
+            "detail": "All 14 contracts passed in production Edge under restrictive CSP. Native screenshots and sampled stable platform/floor landings reviewed independently; no browser errors.",
+            "name": "production browser acceptance",
+            "status": "passed"
+          },
+          {
+            "detail": "Server verified b53384ce4c21470ecc19a488fb15167fbb0a2e61 on codex/mascot-drill with one parent; no accepted work commits are reachable from the epic branch.",
+            "name": "squash increment",
+            "status": "passed"
+          }
+        ],
+        "epicOutcome": {
+          "successCriteria": [
+            {
+              "criterionId": "s1",
+              "met": true,
+              "note": "Highest reachable active work via intermediate tickets, frequent guided visits, and six-frame contact sparks shown by motion tests, DM-161 live evidence, and DM-158 production screenshots."
+            },
+            {
+              "criterionId": "s2",
+              "met": true,
+              "note": "Seeded rest/slip/success tests plus live ascent observations; production gravity-like descent catches the first eligible ticket and the floor with stable measured support."
+            },
+            {
+              "criterionId": "s3",
+              "met": true,
+              "note": "Real user wiggles trigger once; gentle pan, Zoom In and Fit View do not. Task completion retargets; pause, reduced motion, hidden lifecycle, selection, dragging and resize are covered."
+            },
+            {
+              "criterionId": "s4",
+              "met": true,
+              "note": "All seven Definition of Done checks passed, all 14 production browser contracts passed, and source/artifact review passed."
+            }
+          ],
+          "summary": "All requested mascot behavior is implemented and verified on the epic branch; the remaining checkpoint action is human approval."
+        },
+        "exitCriteria": [
+          {
+            "criterionId": "x1",
+            "met": true,
+            "note": "DM-160 route tests and DM-161 live intermediate ascent; DM-158 production highest active drill screenshots and support measurements."
+          },
+          {
+            "criterionId": "x2",
+            "met": true,
+            "note": "DM-161 live rest/slip observations; DM-158 real wiggle trajectories and exact stable first-platform/floor landing, with unaffected navigation."
+          },
+          {
+            "criterionId": "x3",
+            "met": true,
+            "note": "DM-158 full Definition of Done and 14 production browser contracts passed; DM-162 accepted grade A reused."
+          }
+        ],
+        "failed": [],
+        "followUps": [
+          {
+            "body": "Optional coverage opportunity from DM-162: PlanGraph.tsx had no imports in the graded unit-test subset and two surviving mutants. Production browser acceptance covers real navigation and shake separation; this is not an unresolved product failure.",
+            "title": "Add direct PlanGraph unit coverage for viewport event wiring"
+          }
+        ],
+        "retro": {
+          "actions": [
+            "Include realistic fitted-board dimensions and dense pan event streams in motion/gesture briefs from the outset.",
+            "Check transient suspension boundaries for queued interaction effects before UI acceptance.",
+            "Derive browser landing expectations from actual card geometry and require stable support samples.",
+            "Keep direct assertion visibility in tests used by Fireguard and remove unused type exports during targeted review."
+          ],
+          "delivered": [
+            {
+              "demo": "Open /preview/mascot/actions.html for seven actions including the sparking drill.",
+              "evidence": "drill.png, atlas.json, sprite tests, and DM-158 top/bottom contact screenshots.",
+              "ticket": "tk_01m4434y76kpnbcemc3xzb686h"
+            },
+            {
+              "demo": "Open /preview/mascot/graph.html and watch the mascot climb toward the upper active ticket; complete it to retarget.",
+              "evidence": "motion.test.ts, graphReach.test.ts, DM-161-ui.md, and DM-158 measured support/landing metadata.",
+              "ticket": "tk_01m4434y7a11x071k14rj5bn0m"
+            },
+            {
+              "demo": "Wiggle the graph rapidly left-right-left; gentle pan and zoom keep him steady.",
+              "evidence": "shake.test.ts, dense-event regression tests, and DM-158 real gesture observations.",
+              "ticket": "tk_01m443any4xnw81mdpjehs2vh8"
+            },
+            {
+              "demo": "Pause, zoom, fit, select and drag tickets; complete the upper task to change his goal.",
+              "evidence": "GraphMascot lifecycle/model/geometry regressions and DM-158 production contracts.",
+              "ticket": "tk_01m4434y7ar2vt71jvd91y8p26"
+            },
+            {
+              "demo": "Read docs/verification/DM-162-fireguard.md and full JSON.",
+              "evidence": "A (90), 100/100 reliability runs, 569/761 mutation kills, exact graded base/head.",
+              "ticket": "tk_01m4434y7ay36c6kpt69cchdts"
+            },
+            {
+              "demo": "Read docs/verification/DM-158-acceptance.md and linked production screenshots.",
+              "evidence": "5,165 tests, passing coverage and complete gate logs, 14 browser contracts, verified squash b53384c.",
+              "ticket": "tk_01m44323c440761dfqnhjdye1h"
+            }
+          ],
+          "discoveries": [],
+          "leftovers": [],
+          "tierFit": [],
+          "wentPoorly": [
+            "The initial art and motion claims were interrupted before dispatch when the user expanded the behavior to highest-ticket climbing and platform-aware falls; the saved plan was revised before work resumed.",
+            "DM-160 needed a rejected attempt and repair for actual fitted-board reach and both-facing edge support during zoom.",
+            "DM-163 was rejected at Luna/low for per-event movement thresholds and stale invalid-time pulses; Sol/low repaired both.",
+            "DM-161 review found pending shake replay at suspension and running acceptance-node status omissions; both were corrected within the attempt.",
+            "DM-162 initial AST preflight flagged assertions hidden in a helper; a direct nonempty-frame assertion fixed the test. Some deliberately broken motion variants reached the normal mutation timeout, making grading slow.",
+            "Final deadcode found the unused ShakeState type export; acceptance removed the export without relaxing the baseline.",
+            "The first browser catch assertion incorrectly assumed DM2; actual geometry made DM3 the first supporting platform, so the harness was corrected to derive eligibility and verify a stable landing."
+          ],
+          "wentWell": [
+            "Independent art, motion and gesture tickets joined through explicit working/resting/shake contracts.",
+            "Review caught realistic geometry, dense event-stream and suspension edge cases before final acceptance.",
+            "The dedicated Fireguard ticket captured complete provenance once, and acceptance reused it as planned.",
+            "Final browser verification measured actual control transform changes and stable foot contact rather than relying only on action labels."
+          ]
+        },
+        "risks": [
+          "Stochastic grip-rest, slip, and intermediate ascent evidence comes from the accepted DM-161 live browser observations and seeded tests; the deterministic production harness verifies final work, controls, and measured falls.",
+          "Independent main merges and existing .codex/config.toml and updater edits were preserved. The current source/test/config/preview working contents match the verified integration tree. The unrelated updater correction remains unstaged and is excluded from this mascot commit."
+        ],
+        "summary": "The mascot now aims for the highest reachable in-progress ticket, climbs through intermediate tickets, and works with a six-frame sparking drill. Climbs include short grip breaks and occasional slips; deliberate graph wiggles cause continuous falls to the first supporting ticket or the floor, followed by recovery. With no active work, he explores upward, while ordinary graph navigation and motion preferences remain intact. All six tickets are accepted, all project checks passed, and production browser evidence passed; the sprint landed as squash commit b53384c and awaits human approval."
+      },
+      "contentHash": "sha256:f48cedd9aa89a26efbbb81d9751088f181d182da7352ed238251453ef2ed7ff7",
+      "createdAt": "2026-10-04T20:33:04.391Z",
+      "id": "rp_01m449xgc7vxktx4y6hzmp7rx7",
+      "reportRevision": 1,
+      "sprintId": "sp_01m44323c4dmedj6e5rmg8jqv2",
+      "submittedBy": "Codex Orchestrator"
+    },
+    {
+      "content": {
+        "accepted": [
+          "DM-159 — Added six transparent drill poses, contact sparks, anchored mirroring, and gallery playback.",
+          "DM-160 — Added highest-work routes, intermediate climbs, grip breaks, slips, first-platform falls, recovery, and geometry-aware support.",
+          "DM-163 — Added deliberate wiggle detection with accumulated movement, reversals, cooldown, and stale-input rejection.",
+          "DM-161 — Connected real task status and user graph panning; preserved interaction and motion accessibility.",
+          "DM-162 — Fireguard grade A (90), passing all hard gates, with complete grading provenance.",
+          "DM-158 — Full project and production browser acceptance, evidence artifacts, and verified squash increment."
+        ],
+        "blocked": [],
+        "changes": {
+          "commits": [
+            "b6ffaf916d13bb01678fe495ee1c2e3a4d98b068",
+            "7481199bfa693080f0f355e32605266c538cbc5c",
+            "b53384ce4c21470ecc19a488fb15167fbb0a2e61",
+            "bc946f1340407b7b70d6530d06a032f25e166714",
+            "0f22e8343e11688ec69840c7b661f31ecffd5727",
+            "f813fadf6d8060ed637cbafe47013193bc25f4ad",
+            "46fd7083d34f975edaeed9900186832e02a728ba",
+            "8092bce42ae98eef7feade0e85dfca9c0e4b63a7",
+            "60cb04b7e0341a69cc21790c8a39c10d5a59a58b",
+            "58c10348d490f983147a90b51eb3eec1a9c9522e",
+            "d40a43e490b702684600bca9157890589c59058f"
+          ],
+          "files": [
+            "docs/mascot-sprites.md",
+            "docs/verification/DM-158-acceptance.md",
+            "docs/verification/DM-158-actions-production.png",
+            "docs/verification/DM-158-bottom-drill-production.png",
+            "docs/verification/DM-158-build-rerun.log",
+            "docs/verification/DM-158-coverage.log",
+            "docs/verification/DM-158-deadcode-rerun.log",
+            "docs/verification/DM-158-deadcode.log",
+            "docs/verification/DM-158-floor-fall-production.png",
+            "docs/verification/DM-158-lint-rerun.log",
+            "docs/verification/DM-158-lint.log",
+            "docs/verification/DM-158-lower-catch-production.png",
+            "docs/verification/DM-158-narrow-production.png",
+            "docs/verification/DM-158-paused-drill-production.png",
+            "docs/verification/DM-158-preview-check.mjs",
+            "docs/verification/DM-158-preview-metadata.json",
+            "docs/verification/DM-158-shake-targeted.log",
+            "docs/verification/DM-158-test.log",
+            "docs/verification/DM-158-top-drill-production.png",
+            "docs/verification/DM-158-top-tumble-production.png",
+            "docs/verification/DM-158-typecheck-rerun.log",
+            "docs/verification/DM-158-typecheck.log",
+            "docs/verification/DM-161-ui.md",
+            "docs/verification/DM-162-fireguard.json",
+            "docs/verification/DM-162-fireguard.md",
+            "preview/mascot/graph.tsx",
+            "preview/mascot/mascot.tsx",
+            "preview/mascot/preview.css",
+            "src/renderer/src/assets/mascot/atlas.json",
+            "src/renderer/src/assets/mascot/drill.png",
+            "src/renderer/src/graph/PlanGraph.tsx",
+            "src/renderer/src/graph/graphModel.test.ts",
+            "src/renderer/src/graph/graphModel.ts",
+            "src/renderer/src/graph/graphPan.test.ts",
+            "src/renderer/src/graph/graphPan.ts",
+            "src/renderer/src/mascot/GraphMascot.test.tsx",
+            "src/renderer/src/mascot/GraphMascot.tsx",
+            "src/renderer/src/mascot/MascotSprite.test.tsx",
+            "src/renderer/src/mascot/MascotSprite.tsx",
+            "src/renderer/src/mascot/geometry.test.ts",
+            "src/renderer/src/mascot/geometry.ts",
+            "src/renderer/src/mascot/motion.test.ts",
+            "src/renderer/src/mascot/motion.ts",
+            "src/renderer/src/mascot/shake.test.ts",
+            "src/renderer/src/mascot/shake.ts",
+            "src/renderer/src/mascot/sprite.test.ts",
+            "src/renderer/src/mascot/sprite.ts"
+          ]
+        },
+        "checks": [
+          {
+            "detail": "npm run typecheck passed on integrated artwork, movement and gesture detector.",
+            "name": "Row 1: typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "All60tests across7mascot files passed on combined row.",
+            "name": "Row 1: mascot tests",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck passed on integrated UI.",
+            "name": "Row 2: typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "199 tests across 13 files passed.",
+            "name": "Row 2: mascot and graph tests",
+            "status": "passed"
+          },
+          {
+            "detail": "Full typecheck passed on combined sprint plus test-quality report.",
+            "name": "Row 3: typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "All5tests passed, including strengthened per-action frame contract.",
+            "name": "Row 3: sprite tests",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run lint passed before and after unused type-export cleanup; DM-158-lint*.log.",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "All three strict TypeScript projects passed before and after cleanup; DM-158-typecheck*.log.",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npm test passed 5,060 application tests in 279 files and 105 Fireguard tests in 20 files. Nine shake tests passed after the type-only cleanup. Logs: DM-158-test.log and DM-158-shake-targeted.log.",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run coverage passed: 98% statements, 95.16% branches, 97.37% functions, 98.17% lines. Log: DM-158-coverage.log.",
+            "name": "coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "Reused accepted DM-162 grade A (90), all hard gates passed: 100/100 reliability runs and 569/761 mutants killed (reported score 75). Graded base 2cf6d6a4b6eca9f0e1b2cf0f4b1859fce7d2396f, head bc946f1340407b7b70d6530d06a032f25e166714. Later cleanup removes an unused type export and trailing test whitespace, with no runtime or test behavior change. Full JSON and hashes are recorded.",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "Initial gate found unused ShakeState export; removed export only, retained baseline; rerun passed. Both logs retained.",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run build passed after cleanup for main, preload, renderer; DM-158-build-rerun.log.",
+            "name": "build",
+            "status": "passed"
+          },
+          {
+            "detail": "All 14 contracts passed in production Edge under restrictive CSP. Native screenshots and sampled stable platform/floor landings reviewed independently; no browser errors.",
+            "name": "production browser acceptance",
+            "status": "passed"
+          },
+          {
+            "detail": "Server verified b53384ce4c21470ecc19a488fb15167fbb0a2e61 on codex/mascot-drill with one parent; no accepted work commits are reachable from the epic branch.",
+            "name": "squash increment",
+            "status": "passed"
+          }
+        ],
+        "epicOutcome": {
+          "successCriteria": [
+            {
+              "criterionId": "s1",
+              "met": true,
+              "note": "Highest reachable active work via intermediate tickets, frequent guided visits, and six-frame contact sparks shown by motion tests, DM-161 live evidence, and DM-158 production screenshots."
+            },
+            {
+              "criterionId": "s2",
+              "met": true,
+              "note": "Seeded rest/slip/success tests plus live ascent observations; production gravity-like descent catches the first eligible ticket and the floor with stable measured support."
+            },
+            {
+              "criterionId": "s3",
+              "met": true,
+              "note": "Real user wiggles trigger once; gentle pan, Zoom In and Fit View do not. Task completion retargets; pause, reduced motion, hidden lifecycle, selection, dragging and resize are covered."
+            },
+            {
+              "criterionId": "s4",
+              "met": true,
+              "note": "All seven Definition of Done checks passed, all 14 production browser contracts passed, and source/artifact review passed."
+            }
+          ],
+          "summary": "All requested mascot behavior is implemented and verified on the epic branch; the remaining checkpoint action is human approval."
+        },
+        "exitCriteria": [
+          {
+            "criterionId": "x1",
+            "met": true,
+            "note": "DM-160 route tests and DM-161 live intermediate ascent; DM-158 production highest active drill screenshots and support measurements."
+          },
+          {
+            "criterionId": "x2",
+            "met": true,
+            "note": "DM-161 live rest/slip observations; DM-158 real wiggle trajectories and exact stable first-platform/floor landing, with unaffected navigation."
+          },
+          {
+            "criterionId": "x3",
+            "met": true,
+            "note": "DM-158 full Definition of Done and 14 production browser contracts passed; DM-162 accepted grade A reused."
+          }
+        ],
+        "failed": [],
+        "followUps": [
+          {
+            "body": "Optional coverage opportunity from DM-162: PlanGraph.tsx had no imports in the graded unit-test subset and two surviving mutants. Production browser acceptance covers real navigation and shake separation; this is not an unresolved product failure.",
+            "title": "Add direct PlanGraph unit coverage for viewport event wiring"
+          }
+        ],
+        "retro": {
+          "actions": [
+            "Include realistic fitted-board dimensions and dense pan event streams in motion/gesture briefs from the outset.",
+            "Check transient suspension boundaries for queued interaction effects before UI acceptance.",
+            "Derive browser landing expectations from actual card geometry and require stable support samples.",
+            "Keep direct assertion visibility in tests used by Fireguard and remove unused type exports during targeted review.",
+            "Route gesture detectors with timing and invalid-input edge cases to the successful Sol/low tier, or provide a denser event-stream fixture before assigning a smaller tier."
+          ],
+          "delivered": [
+            {
+              "demo": "Open /preview/mascot/actions.html for seven actions including the sparking drill.",
+              "evidence": "drill.png, atlas.json, sprite tests, and DM-158 top/bottom contact screenshots.",
+              "ticket": "tk_01m4434y76kpnbcemc3xzb686h"
+            },
+            {
+              "demo": "Open /preview/mascot/graph.html and watch the mascot climb toward the upper active ticket; complete it to retarget.",
+              "evidence": "motion.test.ts, graphReach.test.ts, DM-161-ui.md, and DM-158 measured support/landing metadata.",
+              "ticket": "tk_01m4434y7a11x071k14rj5bn0m"
+            },
+            {
+              "demo": "Wiggle the graph rapidly left-right-left; gentle pan and zoom keep him steady.",
+              "evidence": "shake.test.ts, dense-event regression tests, and DM-158 real gesture observations.",
+              "ticket": "tk_01m443any4xnw81mdpjehs2vh8"
+            },
+            {
+              "demo": "Pause, zoom, fit, select and drag tickets; complete the upper task to change his goal.",
+              "evidence": "GraphMascot lifecycle/model/geometry regressions and DM-158 production contracts.",
+              "ticket": "tk_01m4434y7ar2vt71jvd91y8p26"
+            },
+            {
+              "demo": "Read docs/verification/DM-162-fireguard.md and full JSON.",
+              "evidence": "A (90), 100/100 reliability runs, 569/761 mutation kills, exact graded base/head.",
+              "ticket": "tk_01m4434y7ay36c6kpt69cchdts"
+            },
+            {
+              "demo": "Read docs/verification/DM-158-acceptance.md and linked production screenshots.",
+              "evidence": "5,165 tests, passing coverage and complete gate logs, 14 browser contracts, verified squash b53384c.",
+              "ticket": "tk_01m44323c440761dfqnhjdye1h"
+            }
+          ],
+          "discoveries": [],
+          "leftovers": [],
+          "tierFit": [
+            {
+              "note": "Computed facts show acceptance at Luna/medium, the originally selected tier and planned medium effort, with no rejection or escalation. The earlier failed claim was a scope-change interruption before dispatch.",
+              "ticket": "tk_01m4434y76kpnbcemc3xzb686h",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Computed facts show one rejection at Luna/low, then acceptance at Sol/low; escalated=true. Review identified concrete dense-event and stale-pulse defects that motivated the model-tier escalation.",
+              "ticket": "tk_01m443any4xnw81mdpjehs2vh8",
+              "verdict": "undersized"
+            }
+          ],
+          "wentPoorly": [
+            "The initial art and motion claims were interrupted before dispatch when the user expanded the behavior to highest-ticket climbing and platform-aware falls; the saved plan was revised before work resumed.",
+            "DM-160 needed a rejected attempt and repair for actual fitted-board reach and both-facing edge support during zoom.",
+            "DM-163 was rejected at Luna/low for per-event movement thresholds and stale invalid-time pulses; Sol/low repaired both.",
+            "DM-161 review found pending shake replay at suspension and running acceptance-node status omissions; both were corrected within the attempt.",
+            "DM-162 initial AST preflight flagged assertions hidden in a helper; a direct nonempty-frame assertion fixed the test. Some deliberately broken motion variants reached the normal mutation timeout, making grading slow.",
+            "Final deadcode found the unused ShakeState type export; acceptance removed the export without relaxing the baseline.",
+            "The first browser catch assertion incorrectly assumed DM2; actual geometry made DM3 the first supporting platform, so the harness was corrected to derive eligibility and verify a stable landing."
+          ],
+          "wentWell": [
+            "Independent art, motion and gesture tickets joined through explicit working/resting/shake contracts.",
+            "Review caught realistic geometry, dense event-stream and suspension edge cases before final acceptance.",
+            "The dedicated Fireguard ticket captured complete provenance once, and acceptance reused it as planned.",
+            "Final browser verification measured actual control transform changes and stable foot contact rather than relying only on action labels."
+          ]
+        },
+        "risks": [
+          "Stochastic grip-rest, slip, and intermediate ascent evidence comes from the accepted DM-161 live browser observations and seeded tests; the deterministic production harness verifies final work, controls, and measured falls.",
+          "Independent main merges and existing .codex/config.toml and updater edits were preserved. The current source/test/config/preview working contents match the verified integration tree. The unrelated updater correction remains unstaged and is excluded from this mascot commit."
+        ],
+        "summary": "The mascot now aims for the highest reachable in-progress ticket, climbs through intermediate tickets, and works with a six-frame sparking drill. Climbs include short grip breaks and occasional slips; deliberate graph wiggles cause continuous falls to the first supporting ticket or the floor, followed by recovery. With no active work, he explores upward, while ordinary graph navigation and motion preferences remain intact. All six tickets are accepted, all project checks passed, and production browser evidence passed; the sprint landed as squash commit b53384c and awaits human approval."
+      },
+      "contentHash": "sha256:eabf3c5a3e91316b916d868142792204033368b039338acb827f01e48f381ceb",
+      "createdAt": "2026-10-04T20:33:27.603Z",
+      "id": "rp_01m449y71j3c178kxfwvjmzk03",
+      "reportRevision": 2,
+      "sprintId": "sp_01m44323c4dmedj6e5rmg8jqv2",
+      "submittedBy": "Codex Orchestrator"
+    }
+  ],
+  "revisionId": "rv_01m443bb23xe2sz312tzgrtahp",
+  "rowChecks": [
+    {
+      "checks": [
+        {
+          "detail": "npm run typecheck passed on integrated artwork, movement and gesture detector.",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "All60tests across7mascot files passed on combined row.",
+          "name": "mascot tests",
+          "status": "passed"
+        }
+      ],
+      "commit": "5bf2e8440fe37e5bebf3201c70f4fe019e3f9b5b",
+      "createdAt": "2026-10-04T19:05:55.723Z",
+      "id": "rk_01m444xy8a2h8xt8b29pyq0fne",
+      "number": 1,
+      "recordedBy": "Codex Orchestrator",
+      "row": 1,
+      "sprintId": "sp_01m44323c4dmedj6e5rmg8jqv2"
+    },
+    {
+      "checks": [
+        {
+          "detail": "npm run typecheck passed on integrated UI.",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "199 tests across 13 files passed.",
+          "name": "mascot and graph tests",
+          "status": "passed"
+        }
+      ],
+      "commit": "46fd7083d34f975edaeed9900186832e02a728ba",
+      "createdAt": "2026-10-04T19:28:56.150Z",
+      "id": "rk_01m44682apzhjd1cy5hdxhxg9x",
+      "number": 2,
+      "recordedBy": "Codex Orchestrator",
+      "row": 2,
+      "sprintId": "sp_01m44323c4dmedj6e5rmg8jqv2"
+    },
+    {
+      "checks": [
+        {
+          "detail": "Full typecheck passed on combined sprint plus test-quality report.",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "All5tests passed, including strengthened per-action frame contract.",
+          "name": "sprite tests",
+          "status": "passed"
+        }
+      ],
+      "commit": "0f22e8343e11688ec69840c7b661f31ecffd5727",
+      "createdAt": "2026-10-04T20:16:07.305Z",
+      "id": "rk_01m448yf49t793pc0kfamm1ena",
+      "number": 3,
+      "recordedBy": "Codex Orchestrator",
+      "row": 3,
+      "sprintId": "sp_01m44323c4dmedj6e5rmg8jqv2"
+    }
+  ],
+  "runId": "rn_01m4436aadvtztnv0tc1xbz8r7",
+  "skillVersion": "1.5.0",
+  "startedAt": "2026-10-04T18:35:33.069Z",
+  "state": "completed",
+  "updatedAt": "2026-10-04T21:48:21.207Z"
+}
