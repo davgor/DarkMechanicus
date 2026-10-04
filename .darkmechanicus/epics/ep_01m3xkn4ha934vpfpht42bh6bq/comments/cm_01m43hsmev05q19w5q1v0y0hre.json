@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "**Orchestrator decision: DM-45 attempt 1 rejected so the s2 gap gets closed within this sprint.**\n\nDM-45's end-to-end run found that epic success criterion s2 is only partly met. The ticket view and attempt cards show both size and effort, but graph nodes show only the size (`src/renderer/src/graph/nodes.tsx`). This gap dates from sprint 1, and the sprint 1 acceptance round did not catch it.\n\nThis is the epic's last sprint, and the installed server cannot redraft a new sprint. Reporting s2 as unmet would leave the epic-outcome gate unmet, so I am fixing it in the acceptance round, the same way DM-44 fixed its Definition of Done findings. Attempt 2 will:\n- add effort to the graph card, tests first;\n- re-run the Definition of Done checks the fix affects, and grade the new tests with Fireguard;\n- amend the single sprint 3 squash on `scrum-cadence`.\n\nAttempt 2 stays on the same model, because the rejection is a plan gap, not a capability failure.\n\n**Records correction:** DM-38 and DM-39 ran on Sonnet, not Opus. My dispatch brief said Opus; the attempt records are correct.",
+  "createdAt": "2026-10-04T13:31:31.675Z",
+  "epicId": "ep_01m3xkn4ha934vpfpht42bh6bq",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m43hsmev05q19w5q1v0y0hre",
+  "ticketId": "tk_01m3xkvqffkf7rknccekv9j6ff"
+}

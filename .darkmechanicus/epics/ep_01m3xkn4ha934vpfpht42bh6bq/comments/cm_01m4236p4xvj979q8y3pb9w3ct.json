@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "**Blocked at claim (orchestrator, 2026-10-03):** `claim_ticket` refuses every model with `unsupported_capability`: \"Host lacks required tool network\". The ticket needs `network` to `npm install @vitest/coverage-v8`, which isn't installed. This host does have network access. The catalog registered at run start (`hc_01m41qcahn2x6v12m1kc1w4kj1`) simply left `network` out, which was my mistake. A run's catalog is fixed by `start_run` and no tool rebinds it, so registering a corrected catalog doesn't help this run. I am not claiming without a `modelId` to skip the check, because that would hide which model does the work. Waiting on the person's decision. DM-29 gates DM-33 and everything after it.",
+  "createdAt": "2026-10-03T23:57:16.317Z",
+  "epicId": "ep_01m3xkn4ha934vpfpht42bh6bq",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m4236p4xvj979q8y3pb9w3ct",
+  "ticketId": "tk_01m3xkssg8mjy7wy7h12dgax0r"
+}

@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "**Orchestrator decision (2026-10-03):** the installed DM server this run talks to predates DM-24, so its `save_profile` rejects `capability.reasoning.effort` and can't store the micro-change profile's `effort: low`. DM-27 therefore lands as committed profile records on the sprint branch: `core-implementation.json` and `ui-implementation.json` with `preferences.quality: null`, and a new `micro-change.json` (routine, effort low, cost low), in the existing `darkmechanicus.profile` format and validated by a test that parses them with the branch's own profile schema. They ship in the sprint 1 commit and show in `list_profiles` once the epic is merged into main and the app is rebuilt from it. DM-43 verifies c4 against the branch's code rather than the live server.",
+  "createdAt": "2026-10-03T21:44:59.851Z",
+  "epicId": "ep_01m3xkn4ha934vpfpht42bh6bq",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m41vmfpbn0fa8nvf833jewyz",
+  "ticketId": "tk_01m3xkssg8pshcq4ht52weza13"
+}

@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "**Orchestrator decisions for DM-43 (2026-10-03):**\n- **c2 catalog:** the UI revamp run 1 host catalog (`hc_01m3xaa7tyhene9mnwjpsdpadv`, revision `2026-10-01.1`) was registered on another machine and isn't in this machine's database. c2 uses a reconstructed catalog shaped like it, from the epic intent: a deep model at high cost listing 10 skill tags, a multi_step model at normal cost, and a routine model at low cost listing 1 tag. The before/after table runs `matchProfile` at the sprint start (`9a02c64`) and on the combined sprint branch against the UI revamp snapshot's tickets.\n- **Live vs branch:** the installed DM server predates this sprint. Every check of the new behaviour (c1, c2, c4, c5) runs against the combined branch's code, not the live MCP server.\n- **Known local failure:** `fireguard/test/runnerTimeout.test.ts` fails on this Windows machine (node is under `C:\\Program Files`, and the command is split on spaces). If it also fails identically at `9a02c64`, it's recorded as pre-existing and environmental, with a follow-up. It isn't fixed in this ticket.",
+  "createdAt": "2026-10-03T22:49:00.711Z",
+  "epicId": "ep_01m3xkn4ha934vpfpht42bh6bq",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m41z9ph7qdb1v8zhwqxdaknq",
+  "ticketId": "tk_01m3xkvqfe4q89556asf8he9ww"
+}

@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "**Out-of-ticket change, at the person's request (2026-10-04):** \"mod the code so that in the event of a failure to assign the orchestrator collects it\", with no ticket.\n\n**What changed:** `claim_ticket` no longer refuses a claim whose named model can't take the ticket on the run's catalog. That covers a missing host tool, an unknown model, and a reasoning or modality gap. The orchestrator collects the ticket instead:\n- the attempt is recorded as \"Orchestrator (fallback)\" with `modelId: null`, and the reasons go in its rationale;\n- the packet and the `attempt.claimed` event carry `fallback { requestedModelId, reasons }`;\n- an effort the model doesn't declare is still refused.\n\n**Where it lives:**\n- Commits `aef75fc` and `32c4bb7` on branch `orchestrator-fallback`, merged into `scrum-cadence-s2` at `326e6c1`, so it ships in the sprint 2 increment.\n- `skills/orchestrator.md` and the `claim_ticket` description are updated. `SKILLS_VERSION` is left for DM-37 to bump.\n- Tests are in `src/core/services/attemptsFallback.test.ts`.\n\n**DM-29:** claimed under the same rule by hand on the installed server, with no model named, and done by a Haiku subagent.",
+  "createdAt": "2026-10-04T03:03:46.808Z",
+  "epicId": "ep_01m3xkn4ha934vpfpht42bh6bq",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m42dw6br8mte929jwbask7vk",
+  "ticketId": null
+}

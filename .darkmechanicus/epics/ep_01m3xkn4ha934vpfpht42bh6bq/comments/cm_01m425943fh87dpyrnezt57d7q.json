@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "**Combined check on the sprint 2 integration branch (orchestrator, 2026-10-04):** `scrum-cadence-s2` at `3e4c731` holds DM-30, DM-31 and DM-34. `npm run typecheck` passed, and `vitest` over core, integration, mcp, shared, main and renderer graph/checkpoint passed: 126 files, 3195 tests. Row 1 isn't fully accepted yet, because DM-29 is blocked at claim (see its comment). The installed server predates DM-34, so `record_row_check` isn't available to this run, and the check is recorded here instead.",
+  "createdAt": "2026-10-04T00:33:33.295Z",
+  "epicId": "ep_01m3xkn4ha934vpfpht42bh6bq",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m425943fh87dpyrnezt57d7q",
+  "ticketId": null
+}

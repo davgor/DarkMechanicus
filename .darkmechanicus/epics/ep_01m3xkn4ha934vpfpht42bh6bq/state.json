@@ -4,42 +4,83 @@
     "repository": null,
     "startCommit": null
   },
-  "completedAt": null,
+  "completedAt": "2026-10-04T14:07:04.207Z",
   "createdAt": "2026-10-02T06:08:34.858Z",
   "epicId": "ep_01m3xkn4ha934vpfpht42bh6bq",
   "format": "darkmechanicus.epic-state",
   "formatVersion": 1,
-  "generation": 2,
-  "outcome": null,
+  "generation": 50,
+  "outcome": {
+    "recordedAt": "2026-10-04T14:07:04.207Z",
+    "runId": "rn_01m41mra092q03q77nnk643ryx",
+    "successCriteria": [
+      {
+        "criterionId": "s1",
+        "met": true,
+        "note": "With no preference, match_capabilities recommends the cheapest eligible model whose reasoning range fits, with its reasons. After a rejection or failure it recommends one tier up, or one effort up at the top model. A deep ticket matches only deep-capable models. Evidence: DM-45 c6-main-epic-log.json and c5-matcher-log.json."
+      },
+      {
+        "criterionId": "s2",
+        "met": true,
+        "note": "Size and effort show in the ticket view and the ticket panel, and now on graph nodes (c4d8865, screenshots-s2fix). Every claim records the model and effort used: 13 claims in the scratch epic, each matching the recommendation. The installed server in this live run could not record effort."
+      },
+      {
+        "criterionId": "s3",
+        "met": true,
+        "note": "Each scratch sprint ended in an acceptance node that waited on every other required ticket. Its packet listed the 7-check Definition of Done, including coverage thresholds, and the checkpoint stayed gate_blocked until the node was accepted."
+      },
+      {
+        "criterionId": "s4",
+        "met": true,
+        "note": "Work-ticket packets carry no Definition of Done, and their evidence was targeted checks; the full sweep ran once, in each node. A real failing row check held its dependents until a passing check cleared them. Caveat: the rule that per-ticket review uses only the targeted evidence is a skill procedure; the server does not enforce it."
+      },
+      {
+        "criterionId": "s5",
+        "met": true,
+        "note": "In the scratch epic, each sprint landed as one real `git merge --squash` commit that the server verified (six increment checks), and the report and checkpoint show it. This epic's own branch also holds exactly one commit per sprint: f8de0e6, 7018f56, d04409b."
+      },
+      {
+        "criterionId": "s6",
+        "met": true,
+        "note": "Every scratch report carried a retro: delivered with how to see it, went well, went poorly, tier fit from tierFacts, discoveries and leftovers. The retro shows on the checkpoint screen and in the completed-epic overview (screenshots c4-1..c4-3). This sprint's own report carries one in the summary, because the installed server lacks the field."
+      },
+      {
+        "criterionId": "s7",
+        "met": true,
+        "note": "At a checkpoint, redraft_next_sprint moved the leftover, which got a fresh retry budget, and added the discovery. The person approved the retro and the redraft in one step, and the run continued on the redrafted plan into the next sprint. Caveat: with a required leftover in a sprint that has an acceptance node, the one-step stops at recompute and the documented route is used instead (follow-up 1)."
+      }
+    ],
+    "summary": "The Scrum cadence epic is delivered on the epic branch `scrum-cadence` as three squashed commits, one per sprint:\n- f8de0e6: right-sized developers (sizes, efforts, the matcher's recommendation and escalation, profiles).\n- 7018f56: light tickets and the planned acceptance round (coverage, the acceptance node, the Definition of Done, row checks, increment verification, graph and checkpoint views, skills).\n- d04409b: retro and redraft.\n\nDM-45 verified every epic success criterion on a build of the branch, in a two-sprint scratch epic run end to end. The installed app (0.14.0) predates the epic, so this run applied the cadence by convention. The person merges `scrum-cadence` into main and rebuilds the app; that step is out of scope for the epic. Nothing has been pushed."
+  },
   "provenance": null,
-  "status": "backlog",
+  "status": "completed",
   "ticketStatuses": {
     "tk_01m3xkssg74rcfze0f4v6yyyy3": "backlog",
-    "tk_01m3xkssg81bcem4w6y790jk76": "backlog",
+    "tk_01m3xkssg81bcem4w6y790jk76": "completed",
     "tk_01m3xkssg8461pbsa00qja18an": "backlog",
-    "tk_01m3xkssg851dfgr9qwg4d9krm": "backlog",
-    "tk_01m3xkssg861y65dmksj6zpcyk": "backlog",
-    "tk_01m3xkssg863c14y1ynxt0m2ee": "backlog",
-    "tk_01m3xkssg8aw6akbr0hz84590j": "backlog",
-    "tk_01m3xkssg8mjy7wy7h12dgax0r": "backlog",
-    "tk_01m3xkssg8nxb6fxkvp9sr7vga": "backlog",
-    "tk_01m3xkssg8pshcq4ht52weza13": "backlog",
-    "tk_01m3xkssg8renhvfwfrng6bsgg": "backlog",
-    "tk_01m3xkssg8xsjd6p831eawtvh5": "backlog",
-    "tk_01m3xkssg9041yvr7xwpx5m8f6": "backlog",
-    "tk_01m3xkssg938549253z15bs7fd": "backlog",
-    "tk_01m3xkssg9684ynqnxsh7ph5fq": "backlog",
-    "tk_01m3xkssg9fj9wa4xz7kdncv10": "backlog",
-    "tk_01m3xkssg9gtykgdqmpck1hzy8": "backlog",
-    "tk_01m3xkssg9h358d0h2g876437z": "backlog",
-    "tk_01m3xkssg9hnt12ga00400z5sh": "backlog",
-    "tk_01m3xkvqfe4q89556asf8he9ww": "backlog",
-    "tk_01m3xkvqffkf7rknccekv9j6ff": "backlog",
-    "tk_01m3xkvqffw8brer50endtjh02": "backlog",
-    "tk_01m41kr1gw9j1hmh8xgk7fq648": "backlog",
-    "tk_01m41kr1gy91wx2h6pq66q3kmp": "backlog",
-    "tk_01m41kr1gysfddnjgfrsvcj3w8": "backlog"
+    "tk_01m3xkssg851dfgr9qwg4d9krm": "completed",
+    "tk_01m3xkssg861y65dmksj6zpcyk": "completed",
+    "tk_01m3xkssg863c14y1ynxt0m2ee": "completed",
+    "tk_01m3xkssg8aw6akbr0hz84590j": "completed",
+    "tk_01m3xkssg8mjy7wy7h12dgax0r": "completed",
+    "tk_01m3xkssg8nxb6fxkvp9sr7vga": "completed",
+    "tk_01m3xkssg8pshcq4ht52weza13": "completed",
+    "tk_01m3xkssg8renhvfwfrng6bsgg": "completed",
+    "tk_01m3xkssg8xsjd6p831eawtvh5": "completed",
+    "tk_01m3xkssg9041yvr7xwpx5m8f6": "completed",
+    "tk_01m3xkssg938549253z15bs7fd": "completed",
+    "tk_01m3xkssg9684ynqnxsh7ph5fq": "completed",
+    "tk_01m3xkssg9fj9wa4xz7kdncv10": "completed",
+    "tk_01m3xkssg9gtykgdqmpck1hzy8": "completed",
+    "tk_01m3xkssg9h358d0h2g876437z": "completed",
+    "tk_01m3xkssg9hnt12ga00400z5sh": "completed",
+    "tk_01m3xkvqfe4q89556asf8he9ww": "completed",
+    "tk_01m3xkvqffkf7rknccekv9j6ff": "completed",
+    "tk_01m3xkvqffw8brer50endtjh02": "completed",
+    "tk_01m41kr1gw9j1hmh8xgk7fq648": "completed",
+    "tk_01m41kr1gy91wx2h6pq66q3kmp": "completed",
+    "tk_01m41kr1gysfddnjgfrsvcj3w8": "completed"
   },
   "title": "Scrum cadence: right-sized agents, a sprint acceptance round, one-commit increments, retro and redraft",
-  "updatedAt": "2026-10-03T19:27:11.956Z"
+  "updatedAt": "2026-10-04T14:07:04.235Z"
 }
