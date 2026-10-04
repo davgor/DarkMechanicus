@@ -114,6 +114,20 @@ describe('PlanGraph in the Saved view', () => {
     }
     expect(recorded.selected).toEqual(['tk_202'])
   })
+
+})
+
+describe('PlanGraph mascot overlay', () => {
+  it('keeps the decorative mascot controls out of ticket selection', () => {
+    const { recorded, container } = renderGraph('saved')
+    const button = screen.getByRole('button', { name: 'Pause mascot animation' })
+    fireEvent.click(button)
+    expect(screen.getByRole('button', { name: 'Resume mascot animation' })).toBeTruthy()
+    expect(container.querySelector('.pg-mascot-layer')).toBeTruthy()
+    expect(recorded.selected).toEqual([])
+    fireEvent.click(screen.getByText('Transactional bundle import'))
+    expect(recorded.selected).toEqual(['tk_202'])
+  })
 })
 
 describe('PlanGraph in the Draft view', () => {

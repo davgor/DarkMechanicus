@@ -52,7 +52,7 @@ describe('createVitestRunner timeout', () => {
   it('reports a run that exceeds testTimeoutMs as failed so a hanging mutant counts as killed', async () => {
     const run = createVitestRunner({
       cwd: process.cwd(),
-      config: { ...DEFAULT_CONFIG, testCommand: `${process.execPath} -e while(true){}`, testTimeoutMs: 800 },
+      config: { ...DEFAULT_CONFIG, testCommand: 'node -e while(true){}', testTimeoutMs: 800 },
     });
     const result = await run(['some.test.ts']);
     expect(result.ok).toBe(false);

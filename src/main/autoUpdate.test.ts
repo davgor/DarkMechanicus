@@ -213,11 +213,9 @@ describe('silent apply helpers', () => {
     expect(forceRunAfter).toBe(true)
   })
 
-  it('formats ready-state copy for silent restart apply', async () => {
+  it('formats the ready notification with the current version', async () => {
     const { formatUpdateReadyMessage } = await loadModule()
     const message = formatUpdateReadyMessage('2.0.0')
-    expect(message).toMatch(/restart/i)
-    expect(message).toMatch(/silent|no installer/i)
-    expect(message).toContain('2.0.0')
+    expect(message).toBe('Version 2.0.0 is ready.')
   })
 })

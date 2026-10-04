@@ -11,6 +11,40 @@
   background: var(--bg);
 }
 
+.pg-mascot-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.pg-mascot-sprite {
+  position: absolute;
+  background-repeat: no-repeat;
+  pointer-events: none;
+  will-change: left, top, background-position;
+}
+
+.pg-mascot-toggle {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 5;
+  padding: 5px 9px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink-2);
+  font: 11px var(--font-mono);
+  cursor: pointer;
+}
+
+.pg-mascot-toggle:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
 .pg .react-flow {
   --xy-background-color: var(--bg);
   --xy-background-pattern-color: var(--line);

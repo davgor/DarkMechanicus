@@ -1,0 +1,889 @@
+{
+  "build": {
+    "outputDir": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm-125-production-preview",
+    "entries": [
+      "actions.html",
+      "graph.html"
+    ],
+    "productionCsp": "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: file:; object-src 'none'; base-uri 'none'"
+  },
+  "pages": {
+    "actions": {
+      "status": 200,
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: file:; object-src 'none'; base-uri 'none'",
+      "atlasActions": [
+        {
+          "action": "idle",
+          "frame": "2",
+          "backgroundImage": "url(\"http://127.0.0.1:5180/assets/idle-wK3obREX.png\")",
+          "imageLoaded": true,
+          "paintedSpriteFitsTile": true
+        },
+        {
+          "action": "walk",
+          "frame": "1",
+          "backgroundImage": "url(\"http://127.0.0.1:5180/assets/walk-pnnFR30e.png\")",
+          "imageLoaded": true,
+          "paintedSpriteFitsTile": true
+        },
+        {
+          "action": "run",
+          "frame": "0",
+          "backgroundImage": "url(\"http://127.0.0.1:5180/assets/run-BkXYIl2R.png\")",
+          "imageLoaded": true,
+          "paintedSpriteFitsTile": true
+        },
+        {
+          "action": "jump",
+          "frame": "4",
+          "backgroundImage": "url(\"http://127.0.0.1:5180/assets/jump-DKSOxM4G.png\")",
+          "imageLoaded": true,
+          "paintedSpriteFitsTile": true
+        },
+        {
+          "action": "climb",
+          "frame": "4",
+          "backgroundImage": "url(\"http://127.0.0.1:5180/assets/climb-DxETvSpN.png\")",
+          "imageLoaded": true,
+          "paintedSpriteFitsTile": true
+        },
+        {
+          "action": "stumble",
+          "frame": "2",
+          "backgroundImage": "url(\"http://127.0.0.1:5180/assets/stumble-DmU91ADA.png\")",
+          "imageLoaded": true,
+          "paintedSpriteFitsTile": true
+        }
+      ],
+      "boardMotionSamples": [
+        "jump · jump · ticket-a",
+        "climb · climb · ticket-a",
+        "walk · walk · ticket-a"
+      ]
+    },
+    "graph": {
+      "status": 200,
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: file:; object-src 'none'; base-uri 'none'",
+      "nodeCount": 5,
+      "mascotPresent": 1,
+      "pauseLabel": "Pause mascot animation",
+      "desktopGraphRect": {
+        "x": 194,
+        "y": 178.75,
+        "width": 1052,
+        "height": 540
+      }
+    }
+  },
+  "checks": {
+    "atlasAlphaBounds": {
+      "idle": [
+        {
+          "name": "settled",
+          "visibleBounds": {
+            "minX": 92,
+            "minY": 76,
+            "maxX": 411,
+            "maxY": 456
+          },
+          "transparentPadding": {
+            "left": 92,
+            "top": 76,
+            "right": 100,
+            "bottom": 55
+          },
+          "hasClearCellPadding": true
+        },
+        {
+          "name": "hood-bob",
+          "visibleBounds": {
+            "minX": 97,
+            "minY": 83,
+            "maxX": 415,
+            "maxY": 455
+          },
+          "transparentPadding": {
+            "left": 97,
+            "top": 83,
+            "right": 96,
+            "bottom": 56
+          },
+          "hasClearCellPadding": true
+        },
+        {
+          "name": "curious-tilt",
+          "visibleBounds": {
+            "minX": 106,
+            "minY": 75,
+            "maxX": 418,
+            "maxY": 456
+          },
+          "transparentPadding": {
+            "left": 106,
+            "top": 75,
+            "right": 93,
+            "bottom": 55
+          },
+          "hasClearCellPadding": true
+        },
+        {
+          "name": "hand-fidget",
+          "visibleBounds": {
+            "minX": 95,
+            "minY": 63,
+            "maxX": 415,
+            "maxY": 438
+          },
+          "transparentPadding": {
+            "left": 95,
+            "top": 63,
+            "right": 96,
+            "bottom": 73
+          },
+          "hasClearCellPadding": true
+        },
+        {
+          "name": "robe-sway",
+          "visibleBounds": {
+            "minX": 96,
+            "minY": 63,
+            "maxX": 414,
+            "maxY": 438
+          },
+          "transparentPadding": {
+            "left": 96,
+            "top": 63,
+            "right": 97,
+            "bottom": 73
+          },
+          "hasClearCellPadding": true
+        },
+        {
+          "name": "settled-return",
+          "visibleBounds": {
+            "minX": 100,
+            "minY": 63,
+            "maxX": 418,
+            "maxY": 438
+          },
+          "transparentPadding": {
+            "left": 100,
+            "top": 63,
+            "right": 93,
+            "bottom": 73
+          },
+          "hasClearCellPadding": true
+        }
+      ],
+      "walk": [
+        {
+          "name": "left-foot-forward",
+          "visibleBounds": {
+            "minX": 113,
+            "minY": 79,
+            "maxX": 401,
+            "maxY": 429
+          },
+          "transparentPadding": {
+            "left": 113,
+            "top": 79,
+            "right": 110,
+            "bottom": 82
+          },
+          "hasClearCellPadding": true
+        },
+        {
+          "name": "passing-a",
+          "visibleBounds": {
+            "minX": 109,
+            "minY": 75,
+            "maxX": 395,
+            "maxY": 429
+          },
+          "transparentPadding": {
+            "left": 109,
+            "top": 75,
+            "right": 116,
+            "bottom": 82
+          },
+          "hasClearCellPadding": true
+        },
+        {
+          "name": "right-foot-forward",
+          "visibleBounds": {
+            "minX": 108,
+            "minY": 76,
+            "maxX": 398,
+            "maxY": 431
+          },
+          "transparentPadding": {
+            "left": 108,
+            "top": 76,
+            "right": 113,
+            "bottom": 80
+          },
+          "hasClearCellPadding": true
+        },
+        {
+          "name": "passing-b",
+          "visibleBounds": {
+            "minX": 114,
+            "minY": 57,
+            "maxX": 414,
+            "maxY": 424
+          },
+          "transparentPadding": {
+            "left": 114,
+            "top": 57,
+            "right": 97,
+            "bottom": 87
+          },
+          "hasClearCellPadding": true
+        },
+        {
+          "name": "left-foot-recovery",
+          "visibleBounds": {
+            "minX": 103,
+            "minY": 57,
+            "maxX": 406,
+            "maxY": 425
+          },
+          "transparentPadding": {
+            "left": 103,
+            "top": 57,
+            "right": 105,
+            "bottom": 86
+          },
+          "hasClearCellPadding": true
+        },
+        {
+          "name": "right-foot-recovery",
+          "visibleBounds": {
+            "minX": 105,
+            "minY": 56,
+            "maxX": 402,
+            "maxY": 423
+          },
+          "transparentPadding": {
+            "left": 105,
+            "top": 56,
+            "right": 109,
+            "bottom": 88
+          },
+          "hasClearCellPadding": true
+        }
+      ],
+      "run": [
+        {
+          "name": "push-off",
+          "visibleBounds": {
+            "minX": 68,
+            "minY": 91,
+            "maxX": 429,
+            "maxY": 432
+          },
+          "transparentPadding": {
+            "left": 68,
+            "top": 91,
+            "right": 82,
+            "bottom": 79
+          },
+          "hasClearCellPadding": true
+        },
+        {
+          "name": "left-knee-drive",
+          "visibleBounds": {
+            "minX": 111,
+            "minY": 80,
+            "maxX": 423,
+            "maxY": 429
+          },
+          "transparentPadding": {
+            "left": 111,
+            "top": 80,
+            "right": 88,
+            "bottom": 82
+          },
+          "hasClearCellPadding": true
+        },
+        {
+          "name": "airborne-stride-a",
+          "visibleBounds": {
+            "minX": 79,
+            "minY": 80,
+            "maxX": 435,
+            "maxY": 431
+          },
+          "transparentPadding": {
+            "left": 79,
+            "top": 80,
+            "right": 76,
+            "bottom": 80
+          },
+          "hasClearCellPadding": true
+        },
+        {
+          "name": "right-knee-drive",
+          "visibleBounds": {
+            "minX": 85,
+            "minY": 63,
+            "maxX": 435,
+            "maxY": 415
+          },
+          "transparentPadding": {
+            "left": 85,
+            "top": 63,
+            "right": 76,
+            "bottom": 96
+          },
+          "hasClearCellPadding": true
+        },
+        {
+          "name": "airborne-stride-b",
+          "visibleBounds": {
+            "minX": 82,
+            "minY": 63,
+            "maxX": 434,
+            "maxY": 417
+          },
+          "transparentPadding": {
+            "left": 82,
+            "top": 63,
+            "right": 77,
+            "bottom": 94
+          },
+          "hasClearCellPadding": true
+        },
+        {
+          "name": "skid-stop",
+          "visibleBounds": {
+            "minX": 81,
+            "minY": 71,
+            "maxX": 458,
+            "maxY": 417
+          },
+          "transparentPadding": {
+            "left": 81,
+            "top": 71,
+            "right": 53,
+            "bottom": 94
+          },
+          "hasClearCellPadding": true
+        }
+      ],
+      "jump": [
+        {
+          "name": "crouch",
+          "visibleBounds": {
+            "minX": 69,
+            "minY": 81,
+            "maxX": 451,
+            "maxY": 481
+          },
+          "transparentPadding": {
+            "left": 69,
+            "top": 81,
+            "right": 60,
+            "bottom": 30
+          },
+          "hasClearCellPadding": true
+        },
+        {
+          "name": "takeoff",
+          "visibleBounds": {
+            "minX": 60,
+            "minY": 23,
+            "maxX": 465,
+            "maxY": 480
+          },
+          "transparentPadding": {
+            "left": 60,
+            "top": 23,
+            "right": 46,
+            "bottom": 31
+          },
+          "hasClearCellPadding": true
+        },
+        {
+          "name": "rising-tuck",
+          "visibleBounds": {
+            "minX": 68,
+            "minY": 23,
+            "maxX": 431,
+            "maxY": 438
+          },
+          "transparentPadding": {
+            "left": 68,
+            "top": 23,
+            "right": 80,
+            "bottom": 73
+          },
+          "hasClearCellPadding": true
+        },
+        {
+          "name": "airborne-peak",
+          "visibleBounds": {
+            "minX": 29,
+            "minY": 8,
+            "maxX": 503,
+            "maxY": 428
+          },
+          "transparentPadding": {
+            "left": 29,
+            "top": 8,
+            "right": 8,
+            "bottom": 83
+          },
+          "hasClearCellPadding": true
+        },
+        {
+          "name": "descending-reach",
+          "visibleBounds": {
+            "minX": 47,
+            "minY": 6,
+            "maxX": 479,
+            "maxY": 467
+          },
+          "transparentPadding": {
+            "left": 47,
+            "top": 6,
+            "right": 32,
+            "bottom": 44
+          },
+          "hasClearCellPadding": true
+        },
+        {
+          "name": "soft-landing",
+          "visibleBounds": {
+            "minX": 58,
+            "minY": 79,
+            "maxX": 437,
+            "maxY": 470
+          },
+          "transparentPadding": {
+            "left": 58,
+            "top": 79,
+            "right": 74,
+            "bottom": 41
+          },
+          "hasClearCellPadding": true
+        }
+      ],
+      "climb": [
+        {
+          "name": "left-grip-right-foot",
+          "visibleBounds": {
+            "minX": 102,
+            "minY": 29,
+            "maxX": 445,
+            "maxY": 489
+          },
+          "transparentPadding": {
+            "left": 102,
+            "top": 29,
+            "right": 66,
+            "bottom": 22
+          },
+          "hasClearCellPadding": true
+        },
+        {
+          "name": "pull-up-a",
+          "visibleBounds": {
+            "minX": 106,
+            "minY": 24,
+            "maxX": 428,
+            "maxY": 493
+          },
+          "transparentPadding": {
+            "left": 106,
+            "top": 24,
+            "right": 83,
+            "bottom": 18
+          },
+          "hasClearCellPadding": true
+        },
+        {
+          "name": "right-grip-left-foot",
+          "visibleBounds": {
+            "minX": 69,
+            "minY": 20,
+            "maxX": 435,
+            "maxY": 491
+          },
+          "transparentPadding": {
+            "left": 69,
+            "top": 20,
+            "right": 76,
+            "bottom": 20
+          },
+          "hasClearCellPadding": true
+        },
+        {
+          "name": "pull-up-b",
+          "visibleBounds": {
+            "minX": 122,
+            "minY": 20,
+            "maxX": 437,
+            "maxY": 479
+          },
+          "transparentPadding": {
+            "left": 122,
+            "top": 20,
+            "right": 74,
+            "bottom": 32
+          },
+          "hasClearCellPadding": true
+        },
+        {
+          "name": "alternate-grip",
+          "visibleBounds": {
+            "minX": 89,
+            "minY": 19,
+            "maxX": 423,
+            "maxY": 477
+          },
+          "transparentPadding": {
+            "left": 89,
+            "top": 19,
+            "right": 88,
+            "bottom": 34
+          },
+          "hasClearCellPadding": true
+        },
+        {
+          "name": "new-foothold",
+          "visibleBounds": {
+            "minX": 84,
+            "minY": 35,
+            "maxX": 428,
+            "maxY": 481
+          },
+          "transparentPadding": {
+            "left": 84,
+            "top": 35,
+            "right": 83,
+            "bottom": 30
+          },
+          "hasClearCellPadding": true
+        }
+      ],
+      "stumble": [
+        {
+          "name": "trip-start",
+          "visibleBounds": {
+            "minX": 106,
+            "minY": 85,
+            "maxX": 446,
+            "maxY": 418
+          },
+          "transparentPadding": {
+            "left": 106,
+            "top": 85,
+            "right": 65,
+            "bottom": 93
+          },
+          "hasClearCellPadding": true
+        },
+        {
+          "name": "windmill-arms",
+          "visibleBounds": {
+            "minX": 89,
+            "minY": 70,
+            "maxX": 436,
+            "maxY": 429
+          },
+          "transparentPadding": {
+            "left": 89,
+            "top": 70,
+            "right": 75,
+            "bottom": 82
+          },
+          "hasClearCellPadding": true
+        },
+        {
+          "name": "off-balance",
+          "visibleBounds": {
+            "minX": 87,
+            "minY": 100,
+            "maxX": 407,
+            "maxY": 429
+          },
+          "transparentPadding": {
+            "left": 87,
+            "top": 100,
+            "right": 104,
+            "bottom": 82
+          },
+          "hasClearCellPadding": true
+        },
+        {
+          "name": "comic-pratfall",
+          "visibleBounds": {
+            "minX": 93,
+            "minY": 100,
+            "maxX": 452,
+            "maxY": 369
+          },
+          "transparentPadding": {
+            "left": 93,
+            "top": 100,
+            "right": 59,
+            "bottom": 142
+          },
+          "hasClearCellPadding": true
+        },
+        {
+          "name": "push-back-up",
+          "visibleBounds": {
+            "minX": 121,
+            "minY": 69,
+            "maxX": 426,
+            "maxY": 386
+          },
+          "transparentPadding": {
+            "left": 121,
+            "top": 69,
+            "right": 85,
+            "bottom": 125
+          },
+          "hasClearCellPadding": true
+        },
+        {
+          "name": "proud-recovery",
+          "visibleBounds": {
+            "minX": 130,
+            "minY": 59,
+            "maxX": 410,
+            "maxY": 391
+          },
+          "transparentPadding": {
+            "left": 130,
+            "top": 59,
+            "right": 101,
+            "bottom": 120
+          },
+          "hasClearCellPadding": true
+        }
+      ]
+    },
+    "fullRouteObserved": true,
+    "boardSpriteBounds": {
+      "rect": {
+        "left": 386.625,
+        "top": 563.578125,
+        "right": 486.625,
+        "bottom": 663.578125
+      },
+      "parent": {
+        "left": 194,
+        "top": 495.59375,
+        "right": 694,
+        "bottom": 815.59375
+      },
+      "fits": true
+    },
+    "selection": "Selected: tk_1 · Last drop: none",
+    "modelMovement": {
+      "beforeX": 377.01226806640625,
+      "afterX": 419.6194152832031,
+      "moved": true
+    },
+    "dragDrop": "Selected: tk_1 · Last drop: tk_1 at 171",
+    "pause": {
+      "labelAfterClick": "Resume mascot animation",
+      "before": {
+        "action": "run",
+        "frame": "3"
+      },
+      "immediatelyAfter": {
+        "action": "run",
+        "frame": "3"
+      },
+      "afterWait": {
+        "action": "run",
+        "frame": "3"
+      }
+    },
+    "reducedMotion": {
+      "preferenceMatches": true,
+      "action": "idle",
+      "frame": "0",
+      "animationActive": "false"
+    },
+    "zoomTransformChanged": true,
+    "panTransformChanged": true,
+    "resize": [
+      {
+        "viewport": {
+          "width": 1100,
+          "height": 760
+        },
+        "graphRect": {
+          "x": 24,
+          "y": 178.75,
+          "width": 1052,
+          "height": 540
+        },
+        "pageWidth": 1100,
+        "noHorizontalPageOverflow": true,
+        "nodeRects": [
+          {
+            "left": 275.947998046875,
+            "top": 344.1236572265625,
+            "right": 860.2327880859375,
+            "bottom": 429.11053466796875
+          },
+          {
+            "left": -117.11634826660156,
+            "top": 487.53900146484375,
+            "right": 68.79246520996094,
+            "bottom": 583.1492309570312
+          },
+          {
+            "left": 163.0747833251953,
+            "top": 482.2273254394531,
+            "right": 441.93800354003906,
+            "bottom": 577.8375854492188
+          },
+          {
+            "left": 428.6588134765625,
+            "top": 482.2273254394531,
+            "right": 707.52197265625,
+            "bottom": 577.8375854492188
+          },
+          {
+            "left": -127.73971557617188,
+            "top": 628.2985229492188,
+            "right": 1390.0729064941406,
+            "bottom": 665.4802856445312
+          }
+        ]
+      },
+      {
+        "viewport": {
+          "width": 760,
+          "height": 900
+        },
+        "graphRect": {
+          "x": 24,
+          "y": 178.75,
+          "width": 712,
+          "height": 540
+        },
+        "pageWidth": 760,
+        "noHorizontalPageOverflow": true,
+        "nodeRects": [
+          {
+            "left": 275.947998046875,
+            "top": 344.1236572265625,
+            "right": 860.2327880859375,
+            "bottom": 429.11053466796875
+          },
+          {
+            "left": -117.11634826660156,
+            "top": 487.53900146484375,
+            "right": 68.79246520996094,
+            "bottom": 583.1492309570312
+          },
+          {
+            "left": 163.0747833251953,
+            "top": 482.2273254394531,
+            "right": 441.93800354003906,
+            "bottom": 577.8375854492188
+          },
+          {
+            "left": 428.6588134765625,
+            "top": 482.2273254394531,
+            "right": 707.52197265625,
+            "bottom": 577.8375854492188
+          },
+          {
+            "left": -127.73971557617188,
+            "top": 628.2985229492188,
+            "right": 1390.0729064941406,
+            "bottom": 665.4802856445312
+          }
+        ]
+      },
+      {
+        "viewport": {
+          "width": 1440,
+          "height": 1000
+        },
+        "graphRect": {
+          "x": 194,
+          "y": 178.75,
+          "width": 1052,
+          "height": 540
+        },
+        "pageWidth": 1440,
+        "noHorizontalPageOverflow": true,
+        "nodeRects": [
+          {
+            "left": 445.947998046875,
+            "top": 344.1236572265625,
+            "right": 1030.2327880859375,
+            "bottom": 429.11053466796875
+          },
+          {
+            "left": 52.88365173339844,
+            "top": 487.53900146484375,
+            "right": 238.79246520996094,
+            "bottom": 583.1492309570312
+          },
+          {
+            "left": 333.07476806640625,
+            "top": 482.2273254394531,
+            "right": 611.93798828125,
+            "bottom": 577.8375854492188
+          },
+          {
+            "left": 598.6588134765625,
+            "top": 482.2273254394531,
+            "right": 877.52197265625,
+            "bottom": 577.8375854492188
+          },
+          {
+            "left": 42.260284423828125,
+            "top": 628.2985229492188,
+            "right": 1560.0729064941406,
+            "bottom": 665.4802856445312
+          }
+        ]
+      }
+    ],
+    "consoleAndCspErrors": [],
+    "noConsoleOrCspErrors": true,
+    "contracts": {
+      "allSixAtlasActionsRendered": true,
+      "allThirtySixAtlasFramesHaveTransparentPadding": true,
+      "deterministicJumpClimbWalkRouteObserved": true,
+      "boardSpriteWithinBounds": true,
+      "realPlanGraphRendered": true,
+      "ticketSelectionWorks": true,
+      "modelMovementWorks": true,
+      "ticketDragDropWorks": true,
+      "pauseFreezesFrame": true,
+      "reducedMotionShowsStaticIdlePose": true,
+      "graphZoomWorks": true,
+      "graphPanWorks": true,
+      "viewportResizeHasNoPageOverflow": true,
+      "noConsoleCspOrRequestErrors": true
+    },
+    "overallPassed": true
+  },
+  "artifacts": [
+    {
+      "path": "DM-125-actions-production.png",
+      "bytes": 90438
+    },
+    {
+      "path": "DM-125-graph-production.png",
+      "bytes": 77706
+    },
+    {
+      "path": "DM-125-graph-narrow-production.png",
+      "bytes": 65093
+    }
+  ]
+}
