@@ -1,0 +1,492 @@
+{
+  "schemaVersion": 1,
+  "cell": {
+    "width": 512,
+    "height": 512,
+    "padding": "transparent; characters remain inside each cell",
+    "origin": "top-left"
+  },
+  "frameOrder": "row-major, left-to-right then top-to-bottom",
+  "actions": {
+    "idle": {
+      "image": "idle.png",
+      "fps": 6,
+      "loop": true,
+      "playback": "loop",
+      "facing": "center",
+      "footAnchor": {
+        "x": 256,
+        "y": 457
+      },
+      "frames": [
+        {
+          "name": "settled",
+          "x": 0,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 456
+          }
+        },
+        {
+          "name": "hood-bob",
+          "x": 512,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 455
+          }
+        },
+        {
+          "name": "curious-tilt",
+          "x": 1024,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 456
+          }
+        },
+        {
+          "name": "hand-fidget",
+          "x": 0,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 438
+          }
+        },
+        {
+          "name": "robe-sway",
+          "x": 512,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 438
+          }
+        },
+        {
+          "name": "settled-return",
+          "x": 1024,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 438
+          }
+        }
+      ],
+      "renderScale": 1
+    },
+    "walk": {
+      "image": "walk.png",
+      "fps": 10,
+      "loop": true,
+      "playback": "loop",
+      "facing": "right; mirror horizontally for left-facing playback",
+      "footAnchor": {
+        "x": 256,
+        "y": 432
+      },
+      "frames": [
+        {
+          "name": "left-foot-forward",
+          "x": 0,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 429
+          }
+        },
+        {
+          "name": "passing-a",
+          "x": 512,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 429
+          }
+        },
+        {
+          "name": "right-foot-forward",
+          "x": 1024,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 431
+          }
+        },
+        {
+          "name": "passing-b",
+          "x": 0,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 424
+          }
+        },
+        {
+          "name": "left-foot-recovery",
+          "x": 512,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 425
+          }
+        },
+        {
+          "name": "right-foot-recovery",
+          "x": 1024,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 423
+          }
+        }
+      ],
+      "renderScale": 1
+    },
+    "run": {
+      "image": "run.png",
+      "fps": 14,
+      "loop": true,
+      "playback": "loop",
+      "facing": "right; mirror horizontally for left-facing playback",
+      "footAnchor": {
+        "x": 256,
+        "y": 432
+      },
+      "frames": [
+        {
+          "name": "push-off",
+          "x": 0,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 432
+          }
+        },
+        {
+          "name": "left-knee-drive",
+          "x": 512,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 429
+          }
+        },
+        {
+          "name": "airborne-stride-a",
+          "x": 1024,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 431
+          }
+        },
+        {
+          "name": "right-knee-drive",
+          "x": 0,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 415
+          }
+        },
+        {
+          "name": "airborne-stride-b",
+          "x": 512,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 417
+          }
+        },
+        {
+          "name": "skid-stop",
+          "x": 1024,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 417
+          }
+        }
+      ],
+      "renderScale": 1
+    },
+    "jump": {
+      "image": "jump.png",
+      "fps": 12,
+      "loop": false,
+      "playback": "once",
+      "facing": "center",
+      "footAnchor": {
+        "x": 256,
+        "y": 482
+      },
+      "frames": [
+        {
+          "name": "crouch",
+          "x": 0,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 481
+          }
+        },
+        {
+          "name": "takeoff",
+          "x": 512,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 480
+          }
+        },
+        {
+          "name": "rising-tuck",
+          "x": 1024,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 438
+          }
+        },
+        {
+          "name": "airborne-peak",
+          "x": 0,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 428
+          }
+        },
+        {
+          "name": "descending-reach",
+          "x": 512,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 467
+          }
+        },
+        {
+          "name": "soft-landing",
+          "x": 1024,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 470
+          }
+        }
+      ],
+      "renderScale": 0.78
+    },
+    "climb": {
+      "image": "climb.png",
+      "fps": 8,
+      "loop": true,
+      "playback": "loop",
+      "facing": "center",
+      "footAnchor": {
+        "x": 256,
+        "y": 494
+      },
+      "frames": [
+        {
+          "name": "left-grip-right-foot",
+          "x": 0,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 489
+          }
+        },
+        {
+          "name": "pull-up-a",
+          "x": 512,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 493
+          }
+        },
+        {
+          "name": "right-grip-left-foot",
+          "x": 1024,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 491
+          }
+        },
+        {
+          "name": "pull-up-b",
+          "x": 0,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 479
+          }
+        },
+        {
+          "name": "alternate-grip",
+          "x": 512,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 477
+          }
+        },
+        {
+          "name": "new-foothold",
+          "x": 1024,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 481
+          }
+        }
+      ],
+      "renderScale": 0.78
+    },
+    "stumble": {
+      "image": "stumble.png",
+      "fps": 8,
+      "loop": false,
+      "playback": "once",
+      "facing": "center",
+      "footAnchor": {
+        "x": 256,
+        "y": 430
+      },
+      "frames": [
+        {
+          "name": "trip-start",
+          "x": 0,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 418
+          }
+        },
+        {
+          "name": "windmill-arms",
+          "x": 512,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 429
+          }
+        },
+        {
+          "name": "off-balance",
+          "x": 1024,
+          "y": 0,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 429
+          }
+        },
+        {
+          "name": "comic-pratfall",
+          "x": 0,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 369
+          }
+        },
+        {
+          "name": "push-back-up",
+          "x": 512,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 386
+          }
+        },
+        {
+          "name": "proud-recovery",
+          "x": 1024,
+          "y": 512,
+          "width": 512,
+          "height": 512,
+          "footAnchor": {
+            "x": 256,
+            "y": 391
+          }
+        }
+      ],
+      "renderScale": 1
+    }
+  }
+}

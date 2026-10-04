@@ -1,0 +1,446 @@
+{
+  "grade": {
+    "letter": "A",
+    "score": 91,
+    "reasons": [
+      "all hard gates passed"
+    ]
+  },
+  "gates": {
+    "ast": {
+      "name": "ast",
+      "pass": true,
+      "assertionCount": 251,
+      "mockCount": 0,
+      "mockToAssertRatio": 0,
+      "tautologicalCount": 0,
+      "tautologicalRatio": 0,
+      "emptyTests": [],
+      "findings": []
+    },
+    "flake": {
+      "name": "flake",
+      "pass": true,
+      "runs": 100,
+      "configuredRuns": 100,
+      "failures": 0,
+      "flakeRate": 0,
+      "files": [
+        "src/renderer/src/graph/PlanGraph.test.tsx",
+        "src/renderer/src/mascot/GraphMascot.test.tsx",
+        "src/renderer/src/mascot/geometry.test.ts",
+        "src/renderer/src/mascot/graphReach.test.ts",
+        "src/renderer/src/mascot/motion.test.ts",
+        "src/renderer/src/mascot/sprite.test.ts"
+      ],
+      "failedRuns": [],
+      "failFast": true
+    },
+    "mutation": {
+      "name": "mutation",
+      "pass": true,
+      "killed": 238,
+      "survived": 72,
+      "total": 310,
+      "score": 77,
+      "survivors": [
+        {
+          "file": "src/renderer/src/mascot/GraphMascot.tsx",
+          "line": 70,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/renderer/src/mascot/GraphMascot.tsx",
+          "line": 97,
+          "description": "operator-swap: swap operator to *"
+        },
+        {
+          "file": "src/renderer/src/mascot/MascotSprite.tsx",
+          "line": 18,
+          "description": "operator-swap: swap operator to /"
+        },
+        {
+          "file": "src/renderer/src/mascot/MascotSprite.tsx",
+          "line": 18,
+          "description": "operator-swap: swap operator to /"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 46,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 46,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 46,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 53,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 53,
+          "description": "operator-swap: swap operator to /"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 54,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 66,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 66,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 66,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 69,
+          "description": "operator-swap: swap operator to /"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 69,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 111,
+          "description": "operator-swap: swap operator to *"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 127,
+          "description": "conditional-inversion: swap operator to >"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 127,
+          "description": "conditional-inversion: swap operator to <"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 156,
+          "description": "operator-swap: swap operator to /"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 158,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 158,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 159,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 160,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 160,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 160,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 162,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 164,
+          "description": "conditional-inversion: swap operator to <"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 164,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 164,
+          "description": "operator-swap: swap operator to /"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 165,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 175,
+          "description": "conditional-inversion: swap operator to >"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 176,
+          "description": "operator-swap: swap operator to /"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 176,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 176,
+          "description": "operator-swap: swap operator to /"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 177,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 179,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 179,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 180,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 188,
+          "description": "operator-swap: swap operator to /"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 195,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 195,
+          "description": "operator-swap: swap operator to *"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 195,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 198,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 198,
+          "description": "operator-swap: swap operator to /"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 198,
+          "description": "operator-swap: swap operator to >="
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 206,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 207,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 208,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 208,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 208,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 216,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 228,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 230,
+          "description": "operator-swap: swap operator to /"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 230,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 231,
+          "description": "operator-swap: swap operator to /"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 247,
+          "description": "conditional-inversion: swap operator to >"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 252,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 252,
+          "description": "operator-swap: swap operator to /"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 253,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 253,
+          "description": "operator-swap: swap operator to /"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 270,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 270,
+          "description": "operator-swap: swap operator to /"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 294,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 295,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 295,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 309,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 309,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 309,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 309,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 365,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/mascot/motion.ts",
+          "line": 410,
+          "description": "conditional-inversion: swap operator to <"
+        },
+        {
+          "file": "src/renderer/src/mascot/sprite.ts",
+          "line": 20,
+          "description": "operator-swap: swap operator to +"
+        }
+      ],
+      "modules": [
+        "src/renderer/src/graph/PlanGraph.tsx",
+        "src/renderer/src/mascot/GraphMascot.tsx",
+        "src/renderer/src/mascot/MascotSprite.tsx",
+        "src/renderer/src/mascot/geometry.ts",
+        "src/renderer/src/mascot/motion.ts",
+        "src/renderer/src/mascot/sprite.ts"
+      ],
+      "moduleTests": {
+        "src/renderer/src/graph/PlanGraph.tsx": 1,
+        "src/renderer/src/mascot/GraphMascot.tsx": 2,
+        "src/renderer/src/mascot/MascotSprite.tsx": 2,
+        "src/renderer/src/mascot/geometry.ts": 4,
+        "src/renderer/src/mascot/motion.ts": 6,
+        "src/renderer/src/mascot/sprite.ts": 3
+      }
+    }
+  },
+  "scope": {
+    "baseRef": "3f0e33a6ec21ec19641ff2df4a2b3cbc2f9f2211",
+    "gradedTestFiles": [
+      "src/renderer/src/graph/PlanGraph.test.tsx",
+      "src/renderer/src/mascot/GraphMascot.test.tsx",
+      "src/renderer/src/mascot/geometry.test.ts",
+      "src/renderer/src/mascot/graphReach.test.ts",
+      "src/renderer/src/mascot/motion.test.ts",
+      "src/renderer/src/mascot/sprite.test.ts"
+    ],
+    "changedModules": [
+      "src/renderer/src/graph/PlanGraph.tsx",
+      "src/renderer/src/mascot/GraphMascot.tsx",
+      "src/renderer/src/mascot/MascotSprite.tsx",
+      "src/renderer/src/mascot/geometry.ts",
+      "src/renderer/src/mascot/motion.ts",
+      "src/renderer/src/mascot/sprite.ts"
+    ]
+  },
+  "skipped": false
+}

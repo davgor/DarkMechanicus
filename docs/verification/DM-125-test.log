@@ -1,0 +1,21 @@
+
+> dark-mechanicus@0.15.0 test
+> vitest run && vitest run --config fireguard/vitest.config.ts
+
+
+ RUN  v4.1.11 C:/Users/davgo/.codex/worktrees/mascot-animation-sprint/DarkMechanicus
+
+
+ Test Files  276 passed (276)
+      Tests  5020 passed (5020)
+   Start at  12:23:28
+   Duration  25.03s (transform 40.36s, setup 0ms, import 92.67s, tests 147.79s, environment 61.23s)
+
+
+ RUN  v4.1.11 C:/Users/davgo/.codex/worktrees/mascot-animation-sprint/DarkMechanicus/fireguard
+
+
+ Test Files  20 passed (20)
+      Tests  105 passed (105)
+   Start at  12:23:53
+   Duration  3.10s (transform 1.71s, setup 0ms, import 4.09s, tests 3.09s, environment 2ms)

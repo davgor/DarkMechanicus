@@ -1,0 +1,12 @@
+.preview { max-width: 1100px; margin: 32px auto; padding: 0 24px; color: var(--ink); font-family: var(--font-sans); }
+.preview h1, .preview h2 { font-family: var(--font-serif); color: var(--ink-display); }
+.preview p { color: var(--ink-2); }
+.preview-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.preview-action { position: relative; height: 160px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); overflow: hidden; }
+.preview-action strong { position: absolute; top: 12px; left: 14px; color: var(--accent); text-transform: uppercase; font: 12px var(--font-mono); }
+.preview-board { position: relative; width: 500px; height: 320px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-canvas); overflow: hidden; }
+.preview-ticket { position: absolute; box-sizing: border-box; padding: 12px; border: 1px solid var(--ring); border-radius: 10px; background: var(--panel); color: var(--ink); font: 12px var(--font-mono); }
+.preview-state { position: absolute; top: 12px; right: 12px; color: var(--accent); font: 12px var(--font-mono); }
+.preview-graph { height: 540px; margin-top: 18px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.preview-fixture-button { padding: 7px 12px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--ink); cursor: pointer; }
+.preview-fixture-state { margin-left: 16px; color: var(--ink-2); font: 12px var(--font-mono); }

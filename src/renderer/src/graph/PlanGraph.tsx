@@ -10,13 +10,15 @@ import {
   ReactFlowProvider,
   useEdgesState,
   useNodesState,
+  useViewport,
   type Edge,
   type NodeMouseHandler,
   type OnBeforeDelete,
   type OnConnect,
   type OnNodeDrag
 } from '@xyflow/react'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { GraphMascot } from '../mascot/GraphMascot'
 import { toFlowEdges, toFlowNodes, type FlowNode } from './flowElements'
 import type { GraphModel } from './graphModel'
 import { legendEntries, type LegendKind } from './legend'
@@ -103,6 +105,8 @@ function useGraphHandlers(props: PlanGraphProps, reset: () => void) {
 }
 
 function GraphCanvas(props: PlanGraphProps): JSX.Element {
+  const board = useRef<HTMLDivElement>(null)
+  const viewport = useViewport()
   const { model, editable, selectedTicketId, onAddTicket, onAddAcceptance } = props
   const flowNodes = useMemo(
     () => toFlowNodes(model, { editable, selectedTicketId, onAddTicket, onAddAcceptance }),
@@ -116,7 +120,7 @@ function GraphCanvas(props: PlanGraphProps): JSX.Element {
   const reset = useCallback(() => setNodes(flowNodes), [flowNodes, setNodes])
   const handlers = useGraphHandlers(props, reset)
   return (
-    <div className={editable ? 'pg is-editable' : 'pg is-readonly'} aria-label="Plan graph">
+    <div ref={board} className={editable ? 'pg is-editable' : 'pg is-readonly'} aria-label="Plan graph">
       <ReactFlow<FlowNode, Edge>
         nodes={nodes}
         edges={edges}
@@ -140,6 +144,7 @@ function GraphCanvas(props: PlanGraphProps): JSX.Element {
           <GraphLegend kind={props.legend} draftNumber={props.draftNumber} />
         </Panel>
       </ReactFlow>
+      <GraphMascot board={board} nodes={nodes} viewport={viewport} />
     </div>
   )
 }

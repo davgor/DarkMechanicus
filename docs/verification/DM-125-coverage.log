@@ -1,0 +1,22 @@
+
+> dark-mechanicus@0.15.0 coverage
+> vitest run --coverage
+
+
+ RUN  v4.1.11 C:/Users/davgo/.codex/worktrees/mascot-animation-sprint/DarkMechanicus
+      Coverage enabled with v8
+
+
+ Test Files  276 passed (276)
+      Tests  5020 passed (5020)
+   Start at  12:24:05
+   Duration  29.25s (transform 46.06s, setup 0ms, import 104.64s, tests 173.68s, environment 63.00s)
+
+ % Coverage report from v8
+
+=============================== Coverage summary ===============================
+Statements   : 98.06% ( 9997/10194 )
+Branches     : 95.37% ( 5873/6158 )
+Functions    : 97.35% ( 3499/3594 )
+Lines        : 98.15% ( 9271/9445 )
+================================================================================
