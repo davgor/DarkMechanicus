@@ -1,0 +1,761 @@
+{
+  "production": {
+    "entries": [
+      "actions.html",
+      "graph.html"
+    ],
+    "csp": "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: file:; object-src 'none'; base-uri 'none'",
+    "browser": "headless Edge"
+  },
+  "checks": {
+    "drillArt": [
+      {
+        "name": "raise-drill",
+        "hash": "009bef834015ffa51e5512a7791b9c85df18eec23f62ca2f0e1dffe12413bc28",
+        "footAnchor": {
+          "x": 256,
+          "y": 447
+        }
+      },
+      {
+        "name": "lower-drill",
+        "hash": "ab12b7147713f8ef785cfde5bb9575f38f0085b1401d9c2d62efb0654e5e372f",
+        "footAnchor": {
+          "x": 256,
+          "y": 449
+        }
+      },
+      {
+        "name": "drill-contact",
+        "hash": "98c5573a782b6521f3b25da00b47a55a48ae9b85f6ae609ae26e1013e9334317",
+        "footAnchor": {
+          "x": 256,
+          "y": 448
+        }
+      },
+      {
+        "name": "enthusiastic-recoil",
+        "hash": "d9921f38886f525cd2754c5116cc326eaab2276d77acf85fe904a41b0afb70d6",
+        "footAnchor": {
+          "x": 256,
+          "y": 416
+        }
+      },
+      {
+        "name": "drill-again",
+        "hash": "a445eb170e2e6d6f129976ee438abf83451f213ade2507699c96a87768d0d7a3",
+        "footAnchor": {
+          "x": 256,
+          "y": 417
+        }
+      },
+      {
+        "name": "ready-again",
+        "hash": "905ee2cd1b769bb5d0a0f6a6ce41e5b960e780d76753a3fc8c8e8fdad2662a34",
+        "footAnchor": {
+          "x": 256,
+          "y": 416
+        }
+      }
+    ],
+    "actions": {
+      "status": 200,
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: file:; object-src 'none'; base-uri 'none'",
+      "names": [
+        "idle",
+        "walk",
+        "run",
+        "jump",
+        "climb",
+        "stumble",
+        "drill"
+      ],
+      "drillFrames": [
+        2,
+        3,
+        3,
+        4,
+        5,
+        0
+      ]
+    },
+    "graph": {
+      "status": 200,
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: file:; object-src 'none'; base-uri 'none'",
+      "nodeCount": 7,
+      "initialShake": "0",
+      "topDrill": {
+        "support": {
+          "pose": {
+            "action": "drill",
+            "frame": 5,
+            "style": "left: 221.487px; top: 100.103px; width: 100px; height: 100px; background-image: url(\"http://127.0.0.1:5180/assets/drill-DI9W0aL4.png\"); background-size: 300px 200px; background-position: -200px -100px; transform: scaleX(-1);",
+            "rect": {
+              "x": 416.484375,
+              "y": 299.84375,
+              "bottom": 399.84375
+            },
+            "shakeId": "0"
+          },
+          "foot": {
+            "x": 466.48699999999997,
+            "y": 381.103
+          },
+          "ticketId": "tk_1",
+          "card": {
+            "x": 377.01226806640625,
+            "y": 381.10345458984375,
+            "width": 178.95013427734375,
+            "height": 61.354339599609375
+          },
+          "onCard": true
+        },
+        "status": "Upper task: running · Selected: none · Last drop: none"
+      },
+      "topSpark": {
+        "pose": {
+          "action": "drill",
+          "frame": 2,
+          "style": "left: 221.487px; top: 93.8535px; width: 100px; height: 100px; background-image: url(\"http://127.0.0.1:5180/assets/drill-DI9W0aL4.png\"); background-size: 300px 200px; background-position: -200px 0px; transform: scaleX(-1);",
+          "rect": {
+            "x": 416.484375,
+            "y": 293.59375,
+            "bottom": 393.59375
+          },
+          "shakeId": "0"
+        },
+        "foot": {
+          "x": 466.48699999999997,
+          "y": 381.1035
+        },
+        "ticketId": "tk_1",
+        "card": {
+          "x": 377.01226806640625,
+          "y": 381.10345458984375,
+          "width": 178.95013427734375,
+          "height": 61.354339599609375
+        },
+        "onCard": true
+      }
+    },
+    "pause": {
+      "first": {
+        "action": "drill",
+        "frame": 2,
+        "style": "left: 221.487px; top: 93.8535px; width: 100px; height: 100px; background-image: url(\"http://127.0.0.1:5180/assets/drill-DI9W0aL4.png\"); background-size: 300px 200px; background-position: -200px 0px; transform: scaleX(-1);",
+        "rect": {
+          "x": 416.484375,
+          "y": 293.59375,
+          "bottom": 393.59375
+        },
+        "shakeId": "0"
+      },
+      "afterWait": {
+        "action": "drill",
+        "frame": 2,
+        "style": "left: 221.487px; top: 93.8535px; width: 100px; height: 100px; background-image: url(\"http://127.0.0.1:5180/assets/drill-DI9W0aL4.png\"); background-size: 300px 200px; background-position: -200px 0px; transform: scaleX(-1);",
+        "rect": {
+          "x": 416.484375,
+          "y": 293.59375,
+          "bottom": 393.59375
+        },
+        "shakeId": "0"
+      },
+      "active": "false"
+    },
+    "reduced": {
+      "pose": {
+        "action": "idle",
+        "frame": 0,
+        "style": "left: 475px; top: 588.938px; width: 100px; height: 100px; background-image: url(\"http://127.0.0.1:5180/assets/idle-wK3obREX.png\"); background-size: 300px 200px; background-position: 0px 0px;",
+        "rect": {
+          "x": 670,
+          "y": 788.6875,
+          "bottom": 888.6875
+        },
+        "shakeId": "0"
+      },
+      "active": "false"
+    },
+    "controls": {
+      "initial": "transform: translate(24.3657px, 72.2791px) scale(0.852143);",
+      "zoomed": "transform: translate(-75.7612px, 18.9349px) scale(1.02257);",
+      "fitted": "transform: translate(34.6177px, 77.2082px) scale(0.836395);",
+      "shakeBeforeControls": "0",
+      "shakeAfterControls": "0"
+    },
+    "gentlePan": {
+      "before": "transform: translate(34.6177px, 77.2082px) scale(0.836395);",
+      "after": "transform: translate(99.6177px, 87.2082px) scale(0.836395);",
+      "shakeBefore": "0",
+      "shakeAfter": "0"
+    },
+    "selection": "Upper task: running · Selected: tk_3 · Last drop: none",
+    "drag": "Upper task: running · Selected: tk_3 · Last drop: tk_3 at 399",
+    "preWiggleTop": {
+      "pose": {
+        "action": "drill",
+        "frame": 2,
+        "style": "left: 292.172px; top: 106.767px; width: 100px; height: 100px; background-image: url(\"http://127.0.0.1:5180/assets/drill-DI9W0aL4.png\"); background-size: 300px 200px; background-position: -200px 0px; transform: scaleX(-1);",
+        "rect": {
+          "x": 487.171875,
+          "y": 306.515625,
+          "bottom": 406.515625
+        },
+        "shakeId": "0"
+      },
+      "foot": {
+        "x": 537.172,
+        "y": 394.017
+      },
+      "ticketId": "tk_1",
+      "card": {
+        "x": 449.350830078125,
+        "y": 394.016845703125,
+        "width": 175.64306640625,
+        "height": 60.220458984375
+      },
+      "onCard": true
+    },
+    "topWiggle": {
+      "shakeImmediately": "1",
+      "pose": {
+        "action": "stumble",
+        "frame": 0,
+        "style": "left: 315.172px; top: 112.729px; width: 100px; height: 100px; background-image: url(\"http://127.0.0.1:5180/assets/stumble-DmU91ADA.png\"); background-size: 300px 200px; background-position: 0px 0px; transform: scaleX(-1);",
+        "rect": {
+          "x": 510.171875,
+          "y": 312.46875,
+          "bottom": 412.46875
+        },
+        "shakeId": "1"
+      },
+      "trajectory": [
+        {
+          "action": "stumble",
+          "frame": 0,
+          "foot": {
+            "x": 560.172,
+            "y": 396.90862500000003
+          },
+          "dy": {
+            "tk_2": -90.78449023437497,
+            "tk_3": -184.46075976562497,
+            "tk_4": -278.1370903320312
+          }
+        },
+        {
+          "action": "stumble",
+          "frame": 0,
+          "foot": {
+            "x": 560.172,
+            "y": 402.868625
+          },
+          "dy": {
+            "tk_2": -84.82449023437499,
+            "tk_3": -178.500759765625,
+            "tk_4": -272.17709033203124
+          }
+        },
+        {
+          "action": "stumble",
+          "frame": 1,
+          "foot": {
+            "x": 560.172,
+            "y": 411.1810625
+          },
+          "dy": {
+            "tk_2": -76.512052734375,
+            "tk_3": -170.188322265625,
+            "tk_4": -263.86465283203125
+          }
+        },
+        {
+          "action": "stumble",
+          "frame": 1,
+          "foot": {
+            "x": 560.172,
+            "y": 422.22006250000004
+          },
+          "dy": {
+            "tk_2": -65.47305273437496,
+            "tk_3": -159.14932226562496,
+            "tk_4": -252.8256528320312
+          }
+        },
+        {
+          "action": "stumble",
+          "frame": 1,
+          "foot": {
+            "x": 560.172,
+            "y": 436.01806250000004
+          },
+          "dy": {
+            "tk_2": -51.67505273437496,
+            "tk_3": -145.35132226562496,
+            "tk_4": -239.0276528320312
+          }
+        },
+        {
+          "action": "stumble",
+          "frame": 2,
+          "foot": {
+            "x": 560.172,
+            "y": 454.12706249999997
+          },
+          "dy": {
+            "tk_2": -33.566052734375035,
+            "tk_3": -127.24232226562503,
+            "tk_4": -220.91865283203128
+          }
+        },
+        {
+          "action": "stumble",
+          "frame": 2,
+          "foot": {
+            "x": 560.172,
+            "y": 473.6420625
+          },
+          "dy": {
+            "tk_2": -14.051052734374991,
+            "tk_3": -107.72732226562499,
+            "tk_4": -201.40365283203124
+          }
+        },
+        {
+          "action": "stumble",
+          "frame": 2,
+          "foot": {
+            "x": 560.172,
+            "y": 495.8440625
+          },
+          "dy": {
+            "tk_2": 8.150947265625007,
+            "tk_3": -85.525322265625,
+            "tk_4": -179.20165283203124
+          }
+        },
+        {
+          "action": "stumble",
+          "frame": 2,
+          "foot": {
+            "x": 560.172,
+            "y": 520.8310625
+          },
+          "dy": {
+            "tk_2": 33.13794726562503,
+            "tk_3": -60.53832226562497,
+            "tk_4": -154.21465283203122
+          }
+        },
+        {
+          "action": "stumble",
+          "frame": 2,
+          "foot": {
+            "x": 560.172,
+            "y": 548.4930625
+          },
+          "dy": {
+            "tk_2": 60.79994726562495,
+            "tk_3": -32.87632226562505,
+            "tk_4": -126.5526528320313
+          }
+        },
+        {
+          "action": "stumble",
+          "frame": 0,
+          "foot": {
+            "x": 560.172,
+            "y": 581.369625
+          },
+          "dy": {
+            "tk_2": 93.67650976562504,
+            "tk_3": 0.00024023437504183676,
+            "tk_4": -93.67609033203121
+          }
+        },
+        {
+          "action": "stumble",
+          "frame": 0,
+          "foot": {
+            "x": 560.172,
+            "y": 581.369625
+          },
+          "dy": {
+            "tk_2": 93.67650976562504,
+            "tk_3": 0.00024023437504183676,
+            "tk_4": -93.67609033203121
+          }
+        },
+        {
+          "action": "stumble",
+          "frame": 1,
+          "foot": {
+            "x": 560.172,
+            "y": 581.3690624999999
+          },
+          "dy": {
+            "tk_2": 93.67594726562493,
+            "tk_3": -0.0003222656250727596,
+            "tk_4": -93.67665283203132
+          }
+        }
+      ],
+      "candidates": [
+        {
+          "pose": {
+            "action": "stumble",
+            "frame": 0,
+            "style": "left: 315.172px; top: 114.529px; width: 100px; height: 100px; background-image: url(\"http://127.0.0.1:5180/assets/stumble-DmU91ADA.png\"); background-size: 300px 200px; background-position: 0px 0px; transform: scaleX(-1);",
+            "rect": {
+              "x": 510.171875,
+              "y": 314.265625,
+              "bottom": 414.265625
+            },
+            "shakeId": "1"
+          },
+          "foot": {
+            "x": 560.172,
+            "y": 395.919625
+          },
+          "ticketId": "tk_2",
+          "card": {
+            "x": 586.262451171875,
+            "y": 487.693115234375,
+            "width": 175.64306640625,
+            "height": 60.220458984375
+          },
+          "onCard": false
+        },
+        {
+          "pose": {
+            "action": "stumble",
+            "frame": 0,
+            "style": "left: 315.172px; top: 114.529px; width: 100px; height: 100px; background-image: url(\"http://127.0.0.1:5180/assets/stumble-DmU91ADA.png\"); background-size: 300px 200px; background-position: 0px 0px; transform: scaleX(-1);",
+            "rect": {
+              "x": 510.171875,
+              "y": 314.265625,
+              "bottom": 414.265625
+            },
+            "shakeId": "1"
+          },
+          "foot": {
+            "x": 560.172,
+            "y": 395.919625
+          },
+          "ticketId": "tk_3",
+          "card": {
+            "x": 519.350830078125,
+            "y": 581.369384765625,
+            "width": 175.64306640625,
+            "height": 60.220458984375
+          },
+          "onCard": false
+        },
+        {
+          "pose": {
+            "action": "stumble",
+            "frame": 0,
+            "style": "left: 315.172px; top: 114.529px; width: 100px; height: 100px; background-image: url(\"http://127.0.0.1:5180/assets/stumble-DmU91ADA.png\"); background-size: 300px 200px; background-position: 0px 0px; transform: scaleX(-1);",
+            "rect": {
+              "x": 510.171875,
+              "y": 314.265625,
+              "bottom": 414.265625
+            },
+            "shakeId": "1"
+          },
+          "foot": {
+            "x": 560.172,
+            "y": 395.919625
+          },
+          "ticketId": "tk_4",
+          "card": {
+            "x": 586.262451171875,
+            "y": 675.0457153320312,
+            "width": 175.64306640625,
+            "height": 60.220458984375
+          },
+          "onCard": false
+        }
+      ],
+      "expectedFirst": "tk_3",
+      "firstCatch": {
+        "pose": {
+          "action": "stumble",
+          "frame": 1,
+          "style": "left: 315.172px; top: 297.83px; width: 100px; height: 100px; background-image: url(\"http://127.0.0.1:5180/assets/stumble-DmU91ADA.png\"); background-size: 300px 200px; background-position: -100px 0px; transform: scaleX(-1);",
+          "rect": {
+            "x": 510.171875,
+            "y": 497.578125,
+            "bottom": 597.578125
+          },
+          "shakeId": "1"
+        },
+        "foot": {
+          "x": 560.172,
+          "y": 581.3690624999999
+        },
+        "ticketId": "tk_3",
+        "card": {
+          "x": 519.350830078125,
+          "y": 581.369384765625,
+          "width": 175.64306640625,
+          "height": 60.220458984375
+        },
+        "onCard": true,
+        "stableSamples": 3
+      }
+    },
+    "completion": {
+      "state": "Upper task: accepted · Selected: tk_3 · Last drop: tk_3 at 399",
+      "upper": "DM-1 · ACCEPTEDForge the upper actuator",
+      "bottomDrill": {
+        "pose": {
+          "action": "drill",
+          "frame": 3,
+          "style": "left: 475.994px; top: 394.046px; width: 100px; height: 100px; background-image: url(\"http://127.0.0.1:5180/assets/drill-DI9W0aL4.png\"); background-size: 300px 200px; background-position: 0px -100px;",
+          "rect": {
+            "x": 670.984375,
+            "y": 593.78125,
+            "bottom": 693.78125
+          },
+          "shakeId": "1"
+        },
+        "foot": {
+          "x": 720.994,
+          "y": 675.046
+        },
+        "ticketId": "tk_4",
+        "card": {
+          "x": 586.262451171875,
+          "y": 675.0457153320312,
+          "width": 175.64306640625,
+          "height": 60.220458984375
+        },
+        "onCard": true
+      },
+      "bottomSpark": {
+        "pose": {
+          "action": "drill",
+          "frame": 2,
+          "style": "left: 475.994px; top: 387.796px; width: 100px; height: 100px; background-image: url(\"http://127.0.0.1:5180/assets/drill-DI9W0aL4.png\"); background-size: 300px 200px; background-position: -200px 0px;",
+          "rect": {
+            "x": 670.984375,
+            "y": 587.53125,
+            "bottom": 687.53125
+          },
+          "shakeId": "1"
+        },
+        "foot": {
+          "x": 720.994,
+          "y": 675.046
+        },
+        "ticketId": "tk_4",
+        "card": {
+          "x": 586.262451171875,
+          "y": 675.0457153320312,
+          "width": 175.64306640625,
+          "height": 60.220458984375
+        },
+        "onCard": true
+      }
+    },
+    "bottomWiggle": {
+      "shakeImmediately": "2",
+      "trajectory": [
+        {
+          "action": "stumble",
+          "frame": 0,
+          "foot": {
+            "x": 743.994,
+            "y": 675.148625
+          },
+          "dyToFloor": -202.60137499999996
+        },
+        {
+          "action": "stumble",
+          "frame": 0,
+          "foot": {
+            "x": 743.994,
+            "y": 676.955625
+          },
+          "dyToFloor": -200.79437499999995
+        },
+        {
+          "action": "stumble",
+          "frame": 1,
+          "foot": {
+            "x": 743.994,
+            "y": 681.5590625
+          },
+          "dyToFloor": -196.19093750000002
+        },
+        {
+          "action": "stumble",
+          "frame": 1,
+          "foot": {
+            "x": 743.994,
+            "y": 689.7100625
+          },
+          "dyToFloor": -188.03993749999995
+        },
+        {
+          "action": "stumble",
+          "frame": 2,
+          "foot": {
+            "x": 743.994,
+            "y": 699.9910625
+          },
+          "dyToFloor": -177.7589375
+        },
+        {
+          "action": "stumble",
+          "frame": 2,
+          "foot": {
+            "x": 743.994,
+            "y": 714.3490625
+          },
+          "dyToFloor": -163.40093750000005
+        },
+        {
+          "action": "stumble",
+          "frame": 2,
+          "foot": {
+            "x": 743.994,
+            "y": 730.3530625000001
+          },
+          "dyToFloor": -147.39693749999992
+        },
+        {
+          "action": "stumble",
+          "frame": 2,
+          "foot": {
+            "x": 743.994,
+            "y": 749.0850625
+          },
+          "dyToFloor": -128.66493749999995
+        },
+        {
+          "action": "stumble",
+          "frame": 2,
+          "foot": {
+            "x": 743.994,
+            "y": 770.5930625
+          },
+          "dyToFloor": -107.15693750000003
+        },
+        {
+          "action": "stumble",
+          "frame": 2,
+          "foot": {
+            "x": 743.994,
+            "y": 797.1390625
+          },
+          "dyToFloor": -80.61093749999998
+        },
+        {
+          "action": "stumble",
+          "frame": 2,
+          "foot": {
+            "x": 743.994,
+            "y": 824.3070625
+          },
+          "dyToFloor": -53.44293749999997
+        },
+        {
+          "action": "stumble",
+          "frame": 2,
+          "foot": {
+            "x": 743.994,
+            "y": 854.2700625
+          },
+          "dyToFloor": -23.479937500000005
+        },
+        {
+          "action": "stumble",
+          "frame": 0,
+          "foot": {
+            "x": 743.994,
+            "y": 877.749625
+          },
+          "dyToFloor": -0.0003749999999627107
+        }
+      ],
+      "floorCatch": {
+        "pose": {
+          "action": "stumble",
+          "frame": 0,
+          "style": "left: 498.994px; top: 596.359px; width: 100px; height: 100px; background-image: url(\"http://127.0.0.1:5180/assets/stumble-DmU91ADA.png\"); background-size: 300px 200px; background-position: 0px 0px;",
+          "rect": {
+            "x": 693.984375,
+            "y": 796.109375,
+            "bottom": 896.109375
+          },
+          "shakeId": "2"
+        },
+        "foot": {
+          "x": 743.994,
+          "y": 877.749625
+        },
+        "ticketId": "tk_4",
+        "card": {
+          "x": 656.262451171875,
+          "y": 675.0457153320312,
+          "width": 175.64306640625,
+          "height": 60.220458984375
+        },
+        "onCard": false,
+        "dyToFloor": -0.0003749999999627107
+      }
+    },
+    "resize": {
+      "viewportWidth": 760,
+      "scrollWidth": 760,
+      "board": {
+        "x": 25,
+        "y": 219.75,
+        "width": 710,
+        "height": 678
+      },
+      "pose": {
+        "action": "stumble",
+        "frame": 5,
+        "style": "left: 498.994px; top: 601.633px; width: 100px; height: 100px; background-image: url(\"http://127.0.0.1:5180/assets/stumble-DmU91ADA.png\"); background-size: 300px 200px; background-position: -200px -100px;",
+        "rect": {
+          "x": 523.984375,
+          "y": 821.375,
+          "bottom": 921.375
+        },
+        "shakeId": "2"
+      }
+    },
+    "contracts": {
+      "productionLoadsUnderCsp": true,
+      "sevenActionsAndChangingDrill": true,
+      "highestActiveDrill": true,
+      "pauseFreezesWholeSprite": true,
+      "reducedStaticIdle": true,
+      "zoomAndFit": true,
+      "gentlePanAndCardActions": true,
+      "deliberateWiggle": true,
+      "lowerTicketCatchesFirst": true,
+      "semanticCompletion": true,
+      "floorWiggle": true,
+      "floorCatch": true,
+      "narrowNoOverflow": true,
+      "noBrowserErrors": true
+    },
+    "overallPassed": true
+  },
+  "screenshots": [
+    "DM-158-actions-production.png",
+    "DM-158-top-drill-production.png",
+    "DM-158-paused-drill-production.png",
+    "DM-158-top-tumble-production.png",
+    "DM-158-lower-catch-production.png",
+    "DM-158-bottom-drill-production.png",
+    "DM-158-floor-fall-production.png",
+    "DM-158-narrow-production.png"
+  ],
+  "errors": []
+}

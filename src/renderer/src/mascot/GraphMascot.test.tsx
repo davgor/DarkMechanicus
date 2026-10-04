@@ -2,7 +2,7 @@
 import { createRef } from 'react'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { GraphMascot } from './GraphMascot'
+import { GraphMascot, type PanSample } from './GraphMascot'
 
 const board = createRef<HTMLDivElement>()
 let reduced = false
@@ -24,6 +24,18 @@ function tick(time: number): void {
 
 function mount() {
   return render(<div ref={board}><GraphMascot board={board} nodes={[]} viewport={{ x: 0, y: 0, zoom: 1 }} /></div>)
+}
+
+function panSample(id: number, x: number): PanSample {
+  return { id, viewport: { x, y: 0, zoom: 1 }, timestamp: id * 100, userOrigin: true }
+}
+
+function mountWithPan() {
+  const props = (sample: PanSample | null) => <div ref={board}>
+    <GraphMascot board={board} nodes={[]} viewport={{ x: 0, y: 0, zoom: 1 }} panSample={sample} />
+  </div>
+  const view = render(props(null))
+  return { ...view, update: (sample: PanSample) => view.rerender(props(sample)) }
 }
 
 beforeEach(() => {
@@ -103,5 +115,58 @@ describe('graph mascot lifecycle', () => {
     expect(frames.size).toBe(0)
     act(() => { visible = true; document.dispatchEvent(new Event('visibilitychange')) })
     expect(frames.size).toBe(1)
+  })
+})
+
+describe('graph mascot shake lifecycle', () => {
+  it('triggers one fall from deliberate user pan reversals and discards stale samples through pause', () => {
+    const view = mountWithPan()
+    const layer = view.container.querySelector<HTMLElement>('.pg-mascot-layer')!
+    view.update(panSample(1, 0))
+    view.update(panSample(2, 30))
+    view.update(panSample(3, 0))
+    expect(layer.dataset.shakeId).toBe('0')
+    view.update(panSample(4, 30))
+    expect(layer.dataset.shakeId).toBe('1')
+    view.update(panSample(5, 0))
+    expect(layer.dataset.shakeId).toBe('1')
+    fireEvent.click(screen.getByRole('button', { name: 'Pause mascot animation' }))
+    view.update(panSample(6, 30))
+    fireEvent.click(screen.getByRole('button', { name: 'Resume mascot animation' }))
+    expect(layer.dataset.shakeId).toBe('1')
+    view.update(panSample(7, 0))
+    expect(layer.dataset.shakeId).toBe('1')
+  })
+
+  it('does not replay a detected but unrendered shake after resuming', () => {
+    const view = mountWithPan()
+    view.update(panSample(1, 0))
+    view.update(panSample(2, 30))
+    view.update(panSample(3, 0))
+    view.update(panSample(4, 30))
+    expect(view.container.querySelector('.pg-mascot-layer')?.getAttribute('data-shake-id')).toBe('1')
+    fireEvent.click(screen.getByRole('button', { name: 'Pause mascot animation' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Resume mascot animation' }))
+    tick(1000)
+    expect(view.container.querySelector('.pg-mascot-sprite')?.getAttribute('data-action')).toBe('idle')
+  })
+})
+
+describe('graph mascot motion preferences', () => {
+  it('discards unfinished gestures when motion is reduced or the page is hidden', () => {
+    const view = mountWithPan()
+    const layer = view.container.querySelector<HTMLElement>('.pg-mascot-layer')!
+    view.update(panSample(1, 0))
+    view.update(panSample(2, 30))
+    act(() => { reduced = true; mediaListeners.forEach((listener) => listener()) })
+    view.update(panSample(3, 0))
+    act(() => { reduced = false; mediaListeners.forEach((listener) => listener()) })
+    view.update(panSample(4, 30))
+    expect(layer.dataset.shakeId).toBe('0')
+    act(() => { visible = false; document.dispatchEvent(new Event('visibilitychange')) })
+    view.update(panSample(5, 0))
+    act(() => { visible = true; document.dispatchEvent(new Event('visibilitychange')) })
+    view.update(panSample(6, 30))
+    expect(layer.dataset.shakeId).toBe('0')
   })
 })

@@ -122,6 +122,8 @@ export interface TicketNodeModel extends Box {
   effort: ReasoningEffort | null
   /** A sprint's acceptance node, drawn apart from work tickets. */
   acceptance: boolean
+  /** Semantic work state for the mascot, independent of badge tone and selection. */
+  inProgress: boolean
 }
 
 /** The one bracket from a sprint's work rows to its acceptance node (instead of an edge per ticket). */
@@ -541,6 +543,10 @@ function ticketNode(context: Context, id: string, frame: Frame): TicketNodeModel
     size: content.size ?? null,
     effort: content.capability.reasoning.effort ?? null,
     acceptance: isAcceptanceTicket(content),
+    inProgress: context.input.mode === 'saved' &&
+      (context.execution === null
+        ? context.input.statuses.get(id) === 'in_progress'
+        : context.execution.get(id)?.state === 'running'),
     x: FIRST_COLUMN_X + placement.column * COLUMN_PITCH,
     y: frame.top + placement.row * ROW_PITCH,
     width: CARD_WIDTH,

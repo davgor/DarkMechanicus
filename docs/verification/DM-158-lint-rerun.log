@@ -1,0 +1,6 @@
+START lint 2026-10-04T15:22:28.8982465-05:00
+
+> dark-mechanicus@0.15.0 lint
+> oxlint src scripts
+
+EXIT lint 0 2026-10-04T15:22:29.2681950-05:00

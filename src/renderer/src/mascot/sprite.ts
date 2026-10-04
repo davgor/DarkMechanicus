@@ -1,5 +1,6 @@
 import atlas from '../assets/mascot/atlas.json'
 import climbImage from '../assets/mascot/climb.png'
+import drillImage from '../assets/mascot/drill.png'
 import idleImage from '../assets/mascot/idle.png'
 import jumpImage from '../assets/mascot/jump.png'
 import runImage from '../assets/mascot/run.png'
@@ -8,12 +9,12 @@ import walkImage from '../assets/mascot/walk.png'
 import type { MotionAction, MotionFacing } from './motion'
 
 const CELL_SIZE = 100
-const IMAGES: Record<MotionAction, string> = {
+const IMAGES: Record<MotionAction | 'drill', string> = {
   idle: idleImage, walk: walkImage, run: runImage,
-  jump: jumpImage, climb: climbImage, stumble: stumbleImage
+  jump: jumpImage, climb: climbImage, stumble: stumbleImage, drill: drillImage
 }
 
-export function frameForMotion(action: MotionAction, elapsed: number, progress: number) {
+export function frameForMotion(action: MotionAction | 'drill', elapsed: number, progress: number) {
   const clip = atlas.actions[action]
   const count = clip.frames.length
   const elapsedIndex = Math.floor(Math.max(0, elapsed) * clip.fps / 1000)
@@ -28,7 +29,7 @@ export function frameForMotion(action: MotionAction, elapsed: number, progress: 
 
 /** The placement makes the current frame's foot pixel equal the movement engine's (x,y). */
 interface SpritePose {
-  action: MotionAction
+  action: MotionAction | 'drill'
   elapsed: number
   progress: number
   facing: MotionFacing
