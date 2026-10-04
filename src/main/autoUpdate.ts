@@ -21,7 +21,7 @@ export function canStartUpdateCheck(phase: AutoUpdatePhase): boolean {
 }
 
 export function formatUpdateReadyMessage(version: string): string {
-  return `Version ${version} is ready.`
+  return `Version ${version} is ready. Restart to apply silently — no installer.`
 }
 
 function broadcastState(): void {
