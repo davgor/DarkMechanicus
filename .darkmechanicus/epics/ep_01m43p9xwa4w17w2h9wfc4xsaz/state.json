@@ -1,0 +1,37 @@
+{
+  "branch": {
+    "name": "conditionals",
+    "repository": null,
+    "startCommit": null
+  },
+  "completedAt": null,
+  "createdAt": "2026-10-04T14:50:19.914Z",
+  "epicId": "ep_01m43p9xwa4w17w2h9wfc4xsaz",
+  "format": "darkmechanicus.epic-state",
+  "formatVersion": 1,
+  "generation": 1,
+  "outcome": null,
+  "provenance": null,
+  "status": "backlog",
+  "ticketStatuses": {
+    "tk_01m43p9xwahk43a8ezw52183sy": "backlog",
+    "tk_01m43paf6vq6yawrk31c5a9gzj": "backlog",
+    "tk_01m43paznfdaq1kw5qfarr9et6": "backlog",
+    "tk_01m43pbh643hht81rs5nfxeh7h": "backlog",
+    "tk_01m43pc0gwq1zr78kwypes1ev3": "backlog",
+    "tk_01m43pcfj8sj0ns4qwc03y0vwr": "backlog",
+    "tk_01m43pcy32bgmws1x1229r0b2a": "backlog",
+    "tk_01m43pdb00bn5b3yjs5kh582w4": "backlog",
+    "tk_01m43pdmdf92pt7r0xk6bdq84v": "backlog",
+    "tk_01m43pedhpjb1twtmpzvjdz4jf": "backlog",
+    "tk_01m43perdzxhva7n9kyc45hm3w": "backlog",
+    "tk_01m43pf6k7q75qarqnr9mb608d": "backlog",
+    "tk_01m43pfq3nk0te40y99yjk01tt": "backlog",
+    "tk_01m43pg79e0sxcbmtpk6566x5c": "backlog",
+    "tk_01m43pgqpq2qcbdx8y4jgfxre5": "backlog",
+    "tk_01m43phcm5q1e7vx1kt3d7my34": "backlog",
+    "tk_01m43phcmw3yfrgccjyncb7vse": "backlog"
+  },
+  "title": "Conditionals: per-folder instructions and checked steps for ticket, epic and draft events",
+  "updatedAt": "2026-10-04T14:54:55.296Z"
+}

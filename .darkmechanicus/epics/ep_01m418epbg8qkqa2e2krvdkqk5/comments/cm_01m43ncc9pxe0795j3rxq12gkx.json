@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "**Merged with \"Live agent activity\" (2026-10-04, at the person's request).** Revision 2.\n\n- **Sprint 1, Agents:** the 16 tickets that were this epic's three sprints (DM-46 to DM-61), then the sprint 1 Fireguard ticket (DM-102) and the acceptance node (DM-104).\n- **Sprint 2, Live agent activity:** copies of the 11 Live activity tickets (old DM-62 to DM-72, now DM-91 to DM-101, in the same order), then the sprint 2 Fireguard ticket (DM-103) and the acceptance node (DM-90). The only text changes are two mentions of \"the Agents epic\", which now name sprint 1 tickets (DM-96, DM-100). The old sprint 2 entry criterion about the Agents epic was dropped. Its dependency is now these edges: DM-53→DM-96, DM-54/DM-55→DM-97, DM-59→DM-98.\n- **Checkpoints:** both are `auto`. They pass without a stop only if auto-continue is authorized for the run in the desktop app.\n- The size field is now set on every ticket, from the size written in its body.\n- The original \"Live agent activity\" epic (ep_01m418epbnpgc4xt6kbw6ccsz8) is superseded. MCP can't delete epics, so it stays in Backlog until it's deleted in the desktop app.",
+  "createdAt": "2026-10-04T14:34:11.638Z",
+  "epicId": "ep_01m418epbg8qkqa2e2krvdkqk5",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m43ncc9pxe0795j3rxq12gkx",
+  "ticketId": null
+}

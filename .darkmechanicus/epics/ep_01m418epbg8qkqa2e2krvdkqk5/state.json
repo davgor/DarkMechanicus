@@ -5,7 +5,7 @@
   "epicId": "ep_01m418epbg8qkqa2e2krvdkqk5",
   "format": "darkmechanicus.epic-state",
   "formatVersion": 1,
-  "generation": 1,
+  "generation": 6,
   "outcome": null,
   "provenance": null,
   "status": "backlog",
@@ -25,8 +25,26 @@
     "tk_01m418f9qzsy2amzyjpw76bdw7": "backlog",
     "tk_01m418f9qztwx9g9jxktmd8bfj": "backlog",
     "tk_01m418f9qzwg97pr35tjd795yv": "backlog",
-    "tk_01m418f9qzxbye0apw7mgs4zm3": "backlog"
+    "tk_01m418f9qzxbye0apw7mgs4zm3": "backlog",
+    "tk_01m43n1zbxj3b94t8mszhmy85h": "backlog",
+    "tk_01m43n57tyegdewb1zbyc1wer9": "backlog",
+    "tk_01m43n57v0xmjx16h34g9z64xa": "backlog",
+    "tk_01m43n57v0xnfq6rhmj0vfybj7": "backlog",
+    "tk_01m43n5y33rfxdp8p9ma62t71n": "backlog",
+    "tk_01m43n5y353tr2cz3ht07xb2df": "backlog",
+    "tk_01m43n5y35a3yj0n560ga5ghta": "backlog",
+    "tk_01m43n6mzvf8kzx2rcdxhayqe4": "backlog",
+    "tk_01m43n6mzwnjq91zegj4jvqyz6": "backlog",
+    "tk_01m43n6mzwswktqv5w8x3syb0g": "backlog",
+    "tk_01m43nb6nr8sna53rtyazeyefb": "backlog",
+    "tk_01m43nb6ns5k6bqf3kxws92ft0": "backlog",
+    "tk_01m43nb6nt09kmz9dy1tsgdsf0": "backlog",
+    "tk_01m43nb6ntj1s30wfw1est0axq": "backlog",
+    "tk_01m43nb6nwwn2va8cfbv5yykyt": "backlog",
+    "tk_01m43qtb126h0h60bvsvxvj3ap": "backlog",
+    "tk_01m43qtb15acpxp9stw2rnedr5": "backlog",
+    "tk_01m43qtb15k9m06k1jf6sz4czn": "backlog"
   },
-  "title": "Agents: connect Claude, Codex and Cursor and chat with them per folder",
-  "updatedAt": "2026-10-03T16:10:17.620Z"
+  "title": "Agents: connect Claude, Codex and Cursor, chat with them per folder, and watch them work live",
+  "updatedAt": "2026-10-04T15:17:21.288Z"
 }
