@@ -6,7 +6,7 @@ import './preview.css'
 import { MascotSprite } from '../../src/renderer/src/mascot/MascotSprite'
 import { createMotion, stepMotion, type MotionAction, type MotionState, type MotionSurfaces } from '../../src/renderer/src/mascot/motion'
 
-const actions: MotionAction[] = ['idle', 'walk', 'run', 'jump', 'climb', 'stumble']
+const actions: Array<MotionAction | 'drill'> = ['idle', 'walk', 'run', 'jump', 'climb', 'stumble', 'drill']
 const board: MotionSurfaces = {
   viewport: { width: 500, height: 320 }, mascotSize: { width: 52, height: 80 },
   tickets: [
@@ -43,16 +43,21 @@ function Preview(): JSX.Element {
   return <main className="preview">
     <h1>Mascot action preview</h1>
     <p>Live atlas playback at the same scale as the ticket board. The lower board starts with a side jump, climbs the center ticket, then roams.</p>
-    <section className="preview-actions" aria-label="Six sprite actions">
+    <section className="preview-actions" aria-label="Seven sprite actions">
       {actions.map((action) => {
         const cycle = action === 'jump' ? 800 : action === 'stumble' ? 900 : 1200
         const elapsed = time % cycle
         return <div className="preview-action" key={action}>
           <strong>{action}</strong>
-          <MascotSprite motion={{ ...createMotion(2, { x: 100, y: 140 }), action, elapsed, progress: elapsed / cycle }} playbackMs={time} />
+          <MascotSprite motion={{ ...createMotion(2, { x: 100, y: 140 }), action: action === 'drill' ? 'idle' : action, elapsed, progress: elapsed / cycle, working: action === 'drill' }} playbackMs={time} />
         </div>
       })}
     </section>
+    <h2>Resting drill pose</h2>
+    <div className="preview-action" aria-label="Paused drill frame">
+      <strong>fixed drill frame</strong>
+      <MascotSprite motion={{ ...createMotion(2, { x: 100, y: 140 }), action: 'idle', elapsed: 250, working: true, resting: true }} playbackMs={time} />
+    </div>
     <h2>Multi-ticket climb route</h2>
     <div className="preview-board">
       {board.tickets.map((ticket) => <div key={ticket.id} className="preview-ticket" style={{ left: ticket.x, top: ticket.y, width: ticket.width, height: ticket.height }}>{ticket.id}</div>)}

@@ -4,10 +4,18 @@ import { usePersistentState } from '../app/usePersistentState'
 import { ticketSurfaces } from './geometry'
 import { MascotSprite } from './MascotSprite'
 import { createMotion, stepMotion, type MotionState, type MotionSurfaces } from './motion'
+import { createShakeState, resetShake, stepShake, type ShakeViewport } from './shake'
 
 const SIZE = { width: 52, height: 80 }
 const PREFERENCE_KEY = 'mascotMotionPaused'
 const isBoolean = (value: unknown): value is boolean => typeof value === 'boolean'
+
+export interface PanSample {
+  id: number
+  viewport: ShakeViewport
+  timestamp: number
+  userOrigin: boolean
+}
 
 function useBoardSize(board: RefObject<HTMLElement>): { width: number; height: number } {
   const [size, setSize] = useState({ width: 0, height: 0 })
@@ -52,6 +60,10 @@ function useMascotMotion(surfaces: MotionSurfaces, active: boolean): { motion: M
   const initialized = useRef(false)
   const surfacesRef = useRef(surfaces)
   surfacesRef.current = surfaces
+
+  useEffect(() => {
+    if (!active) motionRef.current = { ...motionRef.current, lastShakeId: surfaces.shakeId }
+  }, [active, surfaces.shakeId])
   useEffect(() => {
     if (surfaces.viewport.width <= 0 || surfaces.viewport.height <= 0) return
     const next = initialized.current
@@ -80,23 +92,39 @@ function useMascotMotion(surfaces: MotionSurfaces, active: boolean): { motion: M
   return display
 }
 
-export function GraphMascot({ board, nodes, viewport }: {
+export function GraphMascot({ board, nodes, viewport, panSample = null }: {
   board: RefObject<HTMLElement>
   nodes: Node[]
   viewport: Viewport
+  panSample?: PanSample | null
 }): JSX.Element {
   const size = useBoardSize(board)
   const [paused, setPaused] = usePersistentState(PREFERENCE_KEY, false, isBoolean)
   const reduced = useMotionPreference()
   const visible = usePageVisible()
-  const surfaces: MotionSurfaces = useMemo(() => ({
-    viewport: size, mascotSize: SIZE, tickets: ticketSurfaces(nodes, viewport)
-  }), [size, nodes, viewport])
   const active = !paused && !reduced && visible
+  const [shakeId, setShakeId] = useState(0)
+  const shakeRef = useRef(createShakeState())
+  const lastPanId = useRef<number | null>(null)
+  useEffect(() => {
+    if (!active) {
+      shakeRef.current = resetShake()
+      lastPanId.current = panSample?.id ?? null
+      return
+    }
+    if (panSample === null || panSample.id === lastPanId.current) return
+    lastPanId.current = panSample.id
+    const next = stepShake(shakeRef.current, panSample.viewport, panSample.timestamp, panSample.userOrigin)
+    shakeRef.current = next
+    if (next.detected) setShakeId((id) => id + 1)
+  }, [active, panSample])
+  const surfaces: MotionSurfaces = useMemo(() => ({
+    viewport: size, mascotSize: SIZE, tickets: ticketSurfaces(nodes, viewport), shakeId
+  }), [size, nodes, viewport, shakeId])
   const { motion, playbackMs } = useMascotMotion(surfaces, active)
   const displayed = reduced ? createMotion(0x5eed, { x: size.width / 2, y: size.height }) : motion
   return <>
-    <div className="pg-mascot-layer" data-animated={active}>
+    <div className="pg-mascot-layer" data-animated={active} data-shake-id={shakeId}>
       {size.width > 0 && size.height > 0 && <MascotSprite motion={displayed} playbackMs={reduced ? 0 : playbackMs} />}
     </div>
     <button

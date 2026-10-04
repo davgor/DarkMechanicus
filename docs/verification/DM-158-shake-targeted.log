@@ -1,0 +1,8 @@
+
+ RUN  v4.1.11 C:/Users/davgo/.codex/worktrees/mascot-animation-sprint/DarkMechanicus
+
+
+ Test Files  1 passed (1)
+      Tests  9 passed (9)
+   Start at  15:22:51
+   Duration  139ms (transform 26ms, setup 0ms, import 36ms, tests 4ms, environment 0ms)

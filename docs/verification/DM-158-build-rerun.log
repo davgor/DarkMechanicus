@@ -1,0 +1,39 @@
+START build 2026-10-04T15:22:43.0134403-05:00
+
+> dark-mechanicus@0.15.0 build
+> electron-vite build
+
+vite v7.3.6 building ssr environment for production...
+transforming...
+✓ 132 modules transformed.
+rendering chunks...
+out/main/chunks/icon-CXv4lqOs.png      1,213.10 kB
+out/main/index.js                         44.41 kB
+out/main/mcp.js                           67.16 kB
+out/main/chunks/workspace-B8E1jp03.js    500.60 kB
+✓ built in 503ms
+vite v7.3.6 building ssr environment for production...
+transforming...
+✓ 1 modules transformed.
+rendering chunks...
+out/preload/index.js  1.79 kB
+✓ built in 11ms
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 346 modules transformed.
+rendering chunks...
+../../out/renderer/index.html                              0.60 kB
+../../out/renderer/assets/brand-icon-64-DA1cwM8c.png       8.39 kB
+../../out/renderer/assets/brand-icon-128-C3x7GA_t.png     27.43 kB
+../../out/renderer/assets/brand-icon-256-CKrajO64.png     93.60 kB
+../../out/renderer/assets/stumble-DmU91ADA.png         1,943.19 kB
+../../out/renderer/assets/walk-pnnFR30e.png            1,995.25 kB
+../../out/renderer/assets/drill-DI9W0aL4.png           1,997.58 kB
+../../out/renderer/assets/idle-wK3obREX.png            2,026.85 kB
+../../out/renderer/assets/run-BkXYIl2R.png             2,085.18 kB
+../../out/renderer/assets/climb-DxETvSpN.png           2,344.27 kB
+../../out/renderer/assets/jump-DKSOxM4G.png            2,412.21 kB
+../../out/renderer/assets/index-D2mJpYMB.css              97.38 kB
+../../out/renderer/assets/index-BcCFDfxC.js            1,012.53 kB
+✓ built in 4.62s
+EXIT build 0 2026-10-04T15:22:50.5878994-05:00

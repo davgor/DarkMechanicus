@@ -1,0 +1,6 @@
+START typecheck 2026-10-04T15:19:44.2698508-05:00
+
+> dark-mechanicus@0.15.0 typecheck
+> tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p fireguard/tsconfig.json
+
+EXIT typecheck 0 2026-10-04T15:19:51.3196868-05:00

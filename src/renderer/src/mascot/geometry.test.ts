@@ -7,7 +7,7 @@ describe('live ticket surfaces', () => {
       { id: 'ticket', type: 'ticket', position: { x: 100, y: 60 }, width: 200, height: 80 },
       { id: 'epic', type: 'epic', position: { x: 0, y: 0 }, width: 500, height: 100 }
     ], { x: -20, y: 15, zoom: 1.5 })
-    expect(surfaces).toEqual([{ id: 'ticket', x: 130, y: 105, width: 300, height: 120 }])
+    expect(surfaces).toEqual([{ id: 'ticket', x: 130, y: 105, width: 300, height: 120, inProgress: false }])
   })
 
   it('uses the dragged node position and measured size as soon as they change', () => {
@@ -26,8 +26,18 @@ describe('live ticket surfaces', () => {
       { id: 'unknown', type: 'ticket', position: { x: 0, y: 0 }, width: 100 }
     ], { x: 7, y: -9, zoom: 2 })
     expect(surfaces).toEqual([
-      { id: 'measured', x: 47, y: 51, width: 320, height: 140 },
-      { id: 'partial', x: -13, y: 1, width: 240, height: 60 }
+      { id: 'measured', x: 47, y: 51, width: 320, height: 140, inProgress: false },
+      { id: 'partial', x: -13, y: 1, width: 240, height: 60, inProgress: false }
     ])
+  })
+
+  it('copies semantic work state and ignores selected styling', () => {
+    const surfaces = ticketSurfaces([
+      { id: 'running', type: 'ticket', position: { x: 1, y: 2 }, width: 100, height: 40,
+        data: { model: { inProgress: true }, active: false } },
+      { id: 'selected', type: 'ticket', position: { x: 2, y: 3 }, width: 100, height: 40,
+        data: { model: { inProgress: false }, active: true } }
+    ], { x: 0, y: 0, zoom: 1 })
+    expect(surfaces.map((surface) => surface.inProgress)).toEqual([true, false])
   })
 })

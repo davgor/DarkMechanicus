@@ -1,0 +1,8 @@
+START deadcode 2026-10-04T15:20:37.2185670-05:00
+
+> dark-mechanicus@0.15.0 deadcode
+> node scripts/deadcode-check.mjs
+
+New dead exports detected:
+src/renderer/src/mascot/shake.ts:8 - ShakeState
+EXIT deadcode 1 2026-10-04T15:20:46.8493770-05:00

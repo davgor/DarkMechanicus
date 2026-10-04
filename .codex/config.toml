@@ -1,15 +1,31 @@
 [mcp_servers.darkmechanicus]
-command = "/Applications/DarkMechanicus.app/Contents/MacOS/DarkMechanicus"
+command = 'C:\Users\davgo\AppData\Local\Programs\dark-mechanicus\DarkMechanicus.exe'
 args = [
-    "/Applications/DarkMechanicus.app/Contents/Resources/app.asar/out/main/mcp.js",
+    'C:\Users\davgo\AppData\Local\Programs\dark-mechanicus\resources\app.asar\out\main\mcp.js',
     "--repo",
-    "/Users/davidgorden/src/DarkMechanicus",
+    'C:\Users\davgo\Documents\GitHub\DarkMechanicus',
+    "--role",
+    "orchestrator",
+    "--allow-save",
+    "--label",
+    "Codex Orchestrator",
+]
+
+[mcp_servers.darkmechanicus.env]
+ELECTRON_RUN_AS_NODE = "1"
+
+[mcp_servers.darkmechanicus-planner]
+command = 'C:\Users\davgo\AppData\Local\Programs\dark-mechanicus\DarkMechanicus.exe'
+args = [
+    'C:\Users\davgo\AppData\Local\Programs\dark-mechanicus\resources\app.asar\out\main\mcp.js',
+    "--repo",
+    'C:\Users\davgo\Documents\GitHub\DarkMechanicus',
     "--role",
     "planner",
     "--allow-save",
     "--label",
-    "Claude Code",
+    "Codex Planner",
 ]
 
-[mcp_servers.darkmechanicus.env]
+[mcp_servers.darkmechanicus-planner.env]
 ELECTRON_RUN_AS_NODE = "1"
