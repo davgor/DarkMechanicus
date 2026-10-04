@@ -10,6 +10,7 @@ const RUN = sampleId('run')
 const ATTEMPT = sampleId('attempt')
 const TICKET = sampleId('ticket', 3)
 const REVISION = sampleId('revision')
+const SPRINT = sampleId('sprint')
 const CATALOG = sampleId('hostCatalog')
 const MARKER = { marker: 'canned' }
 const BRANCH = { repository: null, name: 'epic/checkout', startCommit: 'abc1234' }
@@ -49,6 +50,14 @@ const EVIDENCE = {
   checks: [{ name: 'unit', status: 'passed', detail: '12 tests' }],
   criteria: [{ criterionId: 'c1', met: true, note: 'covered by unit tests' }],
   notes: 'ok'
+}
+
+const ROW_CHECK = {
+  runId: RUN,
+  sprintId: SPRINT,
+  row: 1,
+  commit: 'a1b2c3d4e5f6',
+  checks: [{ name: 'combined tests', status: 'passed' }]
 }
 
 interface Case {
@@ -100,6 +109,12 @@ const CASES: Case[] = [
     input: { attemptId: ATTEMPT, claimToken: 'at.secret', outputs: OUTPUTS, evidence: EVIDENCE, idempotencyKey: 's-1' }
   },
   {
+    tool: 'submit_attempt',
+    args: { attemptId: ATTEMPT, claimToken: 'at.secret', outputs: OUTPUTS, increment: { branch: 'epic/x', commit: 'a1b2c3d4e5f6' } },
+    method: 'submitAttempt',
+    input: { attemptId: ATTEMPT, claimToken: 'at.secret', outputs: OUTPUTS, increment: { branch: 'epic/x', commit: 'a1b2c3d4e5f6' } }
+  },
+  {
     tool: 'accept_attempt',
     args: { attemptId: ATTEMPT, notes: 'verified', criteria: EVIDENCE.criteria, idempotencyKey: 'a-1' },
     method: 'acceptAttempt',
@@ -134,6 +149,26 @@ const CASES: Case[] = [
     args: { runId: RUN, ticketId: TICKET, note: 'unchanged since run 1' },
     method: 'carryForwardTicket',
     input: { runId: RUN, ticketId: TICKET, note: 'unchanged since run 1' }
+  },
+  {
+    tool: 'record_row_check',
+    args: {
+      runId: RUN,
+      sprintId: SPRINT,
+      row: 2,
+      commit: 'a1b2c3d4e5f6',
+      checks: [{ name: 'combined tests', status: 'passed', detail: '42 passed' }],
+      idempotencyKey: 'row-1'
+    },
+    method: 'recordRowCheck',
+    input: {
+      runId: RUN,
+      sprintId: SPRINT,
+      row: 2,
+      commit: 'a1b2c3d4e5f6',
+      checks: [{ name: 'combined tests', status: 'passed', detail: '42 passed' }],
+      idempotencyKey: 'row-1'
+    }
   },
   { tool: 'pause_run', args: { runId: RUN, reason: 'lunch' }, method: 'pauseRun', input: { runId: RUN, reason: 'lunch' } },
   { tool: 'resume_run', args: { runId: RUN }, method: 'resumeRun', input: { runId: RUN } },
@@ -253,11 +288,19 @@ describe('execution input validation', () => {
     ['heartbeat_attempt with an empty claim token', 'heartbeat_attempt', { attemptId: ATTEMPT, claimToken: '' }],
     ['submit_attempt without a summary', 'submit_attempt', { attemptId: ATTEMPT, claimToken: 't', outputs: {} }],
     ['submit_attempt with an unknown check status', 'submit_attempt', { attemptId: ATTEMPT, claimToken: 't', outputs: { summary: 's' }, evidence: { checks: [{ name: 'x', status: 'maybe' }] } }],
+    ['submit_attempt with a ref name as the increment commit', 'submit_attempt', { attemptId: ATTEMPT, claimToken: 't', outputs: { summary: 's' }, increment: { branch: 'epic/x', commit: 'HEAD' } }],
+    ['submit_attempt with an increment that names no branch', 'submit_attempt', { attemptId: ATTEMPT, claimToken: 't', outputs: { summary: 's' }, increment: { commit: 'a1b2c3d' } }],
+    ['submit_attempt with an increment inside the outputs', 'submit_attempt', { attemptId: ATTEMPT, claimToken: 't', outputs: { summary: 's', increment: { branch: 'epic/x', commit: 'a1b2c3d' } } }],
     ['reject_attempt without reasons', 'reject_attempt', { attemptId: ATTEMPT, reasons: [] }],
     ['reject_attempt with an empty reason', 'reject_attempt', { attemptId: ATTEMPT, reasons: [''] }],
     ['fail_attempt without a reason', 'fail_attempt', { attemptId: ATTEMPT, failure: {} }],
     ['reconcile_attempt with an unknown resolution', 'reconcile_attempt', { attemptId: ATTEMPT, resolution: 'ignore' }],
     ['carry_forward_ticket without a note', 'carry_forward_ticket', { runId: RUN, ticketId: TICKET, note: '' }],
+    ['record_row_check without checks', 'record_row_check', { ...ROW_CHECK, checks: [] }],
+    ['record_row_check with a branch name as the commit', 'record_row_check', { ...ROW_CHECK, commit: 'main' }],
+    ['record_row_check with row 0', 'record_row_check', { ...ROW_CHECK, row: 0 }],
+    ['record_row_check with a malformed sprint id', 'record_row_check', { ...ROW_CHECK, sprintId: 'sprint-1' }],
+    ['record_row_check with an unknown check status', 'record_row_check', { ...ROW_CHECK, checks: [{ name: 'x', status: 'maybe' }] }],
     ['start_run with an invalid branch name', 'start_run', { epicId: EPIC, branch: { repository: null, name: 'a b', startCommit: null } }],
     ['adopt_revision with a malformed revision id', 'adopt_revision', { runId: RUN, revisionId: 'r1' }],
     ['register_host without models', 'register_host', { hostId: 'h', hostType: 't', catalogRevision: '1', tools: [], canSelectWorkerModel: false }],
@@ -332,6 +375,33 @@ describe('reasoning effort in host catalogs and claims', () => {
       expect(described['register_host']).toContain('efforts')
       expect(described['claim_ticket']).toContain('effort')
       expect(described['claim_ticket']).toContain('execution packet')
+    })
+  })
+})
+
+describe('acceptance node readiness in the tool descriptions', () => {
+  it('tells orchestrators the node waits for the rest of its sprint', async () => {
+    await inRig(createCannedApi({}), async (rig) => {
+      const { tools } = await rig.client.listTools()
+      const described = Object.fromEntries(tools.map((tool) => [tool.name, tool.description ?? '']))
+      expect(described['get_ready_tickets']).toMatch(/acceptance node.*every other required ticket/)
+      expect(described['get_run']).toContain('acceptance node')
+    })
+  })
+})
+
+describe('sprint increments in the tool descriptions', () => {
+  it('tells workers and orchestrators how an acceptance node names its increment and what is checked', async () => {
+    await inRig(createCannedApi({}), async (rig) => {
+      const { tools } = await rig.client.listTools()
+      const described = Object.fromEntries(tools.map((tool) => [tool.name, tool.description ?? '']))
+      expect(described['submit_attempt']).toMatch(/increment.*{ ?branch, commit ?}/)
+      expect(described['submit_attempt']).toContain('acceptance node')
+      expect(described['submit_attempt']).toMatch(/squashed/)
+      expect(described['submit_attempt']).toMatch(/stored|records/)
+      expect(described['get_run']).toContain('increments')
+      const submit = tools.find((tool) => tool.name === 'submit_attempt')?.inputSchema.properties?.['increment']
+      expect(submit).toMatchObject({ type: 'object', required: ['branch', 'commit'] })
     })
   })
 })

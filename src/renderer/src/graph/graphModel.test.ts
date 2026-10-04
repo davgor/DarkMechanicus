@@ -6,6 +6,8 @@ import {
   draftPlan,
   edge,
   execution,
+  rowCheck,
+  rowView,
   runView,
   savedPlan,
   sprint,
@@ -18,6 +20,8 @@ import {
   type GraphInput,
   type GraphModel,
   type GraphNode,
+  type JoinNodeModel,
+  type RowCheckNodeModel,
   type SprintNodeModel,
   type TicketNodeModel
 } from './graphModel'
@@ -67,6 +71,10 @@ function text(model: GraphModel, id: string): string {
       return `${found.label} (${found.tone})`
     case 'epic':
       return `${found.eyebrow} | ${found.title}`
+    case 'join':
+      return found.label
+    case 'rowcheck':
+      return `${found.label} | ${found.status}`
   }
 }
 
@@ -325,7 +333,8 @@ describe('graph draft view', () => {
   })
 
   it('widens the canvas for a fourth column', () => {
-    expect(box(model, 'tk_305')).toEqual([935, 592])
+    // Sprint 1 has no node, so its draft label also holds + Acceptance and its band grows by 12px.
+    expect(box(model, 'tk_305')).toEqual([935, 604])
     expect(node(model, 'epic')).toMatchObject({ x: 445 })
     expect(node(model, 'checkpoint:1')).toMatchObject({ width: 1393 })
   })
@@ -505,22 +514,23 @@ describe('sprint labels with short goals and details', () => {
     }
   })
 
-  it('keeps short goals in place in the Draft view, which also reserves the + Ticket button', () => {
+  it('reserves + Ticket and + Acceptance (no sprint here has a node) in the Draft view and keeps the dividers clear of the label', () => {
     const model = twoSprints('Two lines of goal text here', { mode: 'draft', run: null })
-    expect(sprintNode(model, 'sp_1')).toMatchObject({ y: 132, goalLines: 2, labelHeight: 18 + 36 + 18 + 30 })
-    expect(node(model, 'checkpoint:1').y).toBe(238)
-    expect(box(model, 'tk_2')).toEqual([185, 304])
-    expect(node(model, 'checks').y).toBe(414)
+    expect(sprintNode(model, 'sp_1')).toMatchObject({ y: 132, goalLines: 2, labelHeight: 18 + 36 + 18 + 60, hasAcceptance: false })
+    // The label hangs 30px lower than the card row, so the band grows to hold it: 4 + 132 - 34 = 102.
+    expect(node(model, 'checkpoint:1').y).toBe(128 + 102 + 52 - 14)
+    expect(box(model, 'tk_2')).toEqual([185, 128 + 102 + 104])
+    expect(node(model, 'checks').y).toBe(128 + 102 + 104 + 84 + 52 - 14)
   })
 
-  it('reserves the + Ticket button in the Draft view only', () => {
+  it('reserves the + Ticket and + Acceptance buttons in the Draft view only', () => {
     const goal = 'A goal that wraps to three lines of text and more'
     const savedModel = twoSprints(goal)
     const draftModel = twoSprints(goal, { mode: 'draft' })
     const saved = sprintNode(savedModel, 'sp_1')
     const draft = sprintNode(draftModel, 'sp_1')
     expect(saved.goalLines).toBe(3)
-    expect(draft.labelHeight - saved.labelHeight).toBe(30)
+    expect(draft.labelHeight - saved.labelHeight).toBe(60)
     expect(saved.y + saved.labelHeight).toBeLessThanOrEqual(node(savedModel, 'checkpoint:1').y)
     expect(draft.y + draft.labelHeight).toBeLessThanOrEqual(node(draftModel, 'checkpoint:1').y)
     expect(node(savedModel, 'checkpoint:1').y).toBe(238)
@@ -579,5 +589,289 @@ describe('size on ticket nodes', () => {
       size: 'large',
       note: 'Rejected as prerequisite of DM-203'
     })
+  })
+})
+
+const ACCEPTED_WORK = [ticket('DM-1', 'One'), ticket('DM-2', 'Two'), ticket('DM-3', 'Three'), ticket('DM-4', 'Four')]
+const NODE_ONE = ticket('DM-91', 'Sprint 1 acceptance', { kind: 'acceptance' })
+const NODE_TWO = ticket('DM-92', 'Sprint 2 acceptance', { kind: 'acceptance' })
+
+/** Two sprints: DM-1 and DM-2, then DM-3 (after DM-1), then Sprint 1's node; DM-4 and Sprint 2's node. */
+function acceptanceBundle(patch: Partial<PlanBundle> = {}): PlanBundle {
+  return bundle({
+    tickets: [...ACCEPTED_WORK, NODE_ONE, NODE_TWO],
+    sprints: [sprint(1, 'Build', ['tk_1', 'tk_2', 'tk_3', 'tk_91']), sprint(2, 'Ship', ['tk_4', 'tk_92'])],
+    edges: [edge(1, 3)],
+    ...patch
+  })
+}
+
+function acceptanceInput(patch: Partial<GraphInput> = {}): GraphInput {
+  return input({ run: null, plan: savedPlan({ bundle: acceptanceBundle() }), ...patch })
+}
+
+function acceptanceRun(states: Record<string, 'accepted' | 'running' | 'ready'>, rows: RunView['rows'] = []): RunView {
+  const keys = ['DM-1', 'DM-2', 'DM-3', 'DM-91', 'DM-4', 'DM-92']
+  const tickets = keys.map((key) =>
+    execution(key, key === 'DM-4' || key === 'DM-92' ? 'sp_2' : 'sp_1', states[key] ?? 'accepted', {
+      row: key.startsWith('DM-9') ? null : 1
+    })
+  )
+  return runView({ tickets, rows })
+}
+
+function joinOf(model: GraphModel, sprintId: string): JoinNodeModel {
+  const found = node(model, `join:${sprintId}`)
+  if (found.kind !== 'join') {
+    throw new Error(`${sprintId} has no join`)
+  }
+  return found
+}
+
+function chipOf(model: GraphModel, id: string): RowCheckNodeModel {
+  const found = node(model, id)
+  if (found.kind !== 'rowcheck') {
+    throw new Error(`${id} is not a row check`)
+  }
+  return found
+}
+
+function has(model: GraphModel, id: string): boolean {
+  return model.nodes.some((item) => item.id === id)
+}
+
+describe('acceptance nodes in the graph', () => {
+  const model = buildGraphModel(acceptanceInput())
+
+  it('places the node last in its sprint band, below every work row, in the first column', () => {
+    expect(box(model, 'tk_1')).toEqual([185, 128])
+    expect(box(model, 'tk_2')).toEqual([435, 128])
+    expect(box(model, 'tk_3')).toEqual([185, 240])
+    expect(box(model, 'tk_91')).toEqual([185, 352])
+    expect(box(model, 'tk_4')).toEqual([185, 528])
+    expect(box(model, 'tk_92')).toEqual([185, 640])
+  })
+
+  it('counts the node in no dependency row, however early the sprint lists it', () => {
+    const sprints = [sprint(1, 'Build', ['tk_91', 'tk_1', 'tk_2', 'tk_3']), sprint(2, 'Ship', ['tk_4', 'tk_92'])]
+    const first = buildGraphModel(acceptanceInput({ plan: savedPlan({ bundle: acceptanceBundle({ sprints }) }) }))
+    expect(box(first, 'tk_91')).toEqual([185, 352])
+    expect(box(first, 'tk_1')).toEqual([185, 128])
+    expect(box(first, 'tk_3')).toEqual([185, 240])
+  })
+
+  it('marks the node apart from work tickets and labels it like any ticket', () => {
+    expect(node(model, 'tk_91')).toMatchObject({ kind: 'ticket', acceptance: true, ticketKey: 'DM-91', label: 'DM-91 · BACKLOG', sprintId: 'sp_1' })
+    expect(node(model, 'tk_1')).toMatchObject({ acceptance: false })
+  })
+
+  it('grows each band by the node row and keeps the checkpoint dividers below it', () => {
+    expect(sprintNode(model, 'sp_1').height).toBe(3 * 112 - 40)
+    expect(node(model, 'checkpoint:1').y).toBe(128 + 3 * 112 - 40 + 52 - 14)
+    const cards = model.nodes.filter((item) => item.kind === 'ticket' && item.sprintId === 'sp_1')
+    const lowest = Math.max(...cards.map((item) => item.y + item.height))
+    expect(lowest).toBeLessThanOrEqual(node(model, 'checkpoint:1').y)
+    expect(node(model, 'tk_91').y).toBe(Math.max(...cards.map((item) => item.y)))
+  })
+
+})
+
+describe('acceptance node joins in the graph', () => {
+  const model = buildGraphModel(acceptanceInput())
+
+  it('draws one join from the band to the node, in the gutter between the sprint label and the cards', () => {
+    expect(joinOf(model, 'sp_1')).toMatchObject({ sprintId: 'sp_1', x: 185 - 14, y: 128 + 36, width: 14, height: 2 * 112, met: true })
+    expect(joinOf(model, 'sp_2')).toMatchObject({ y: 528 + 36, height: 112 })
+    expect(model.nodes.filter((item) => item.kind === 'join')).toHaveLength(2)
+    const label = sprintNode(model, 'sp_1')
+    expect(joinOf(model, 'sp_1').x).toBeGreaterThanOrEqual(label.x + label.width)
+    expect(joinOf(model, 'sp_1').label).toBe('DM-91 requires every required ticket of Sprint 1')
+  })
+
+  it('draws no edge for the tickets the node implicitly requires', () => {
+    expect(model.edges.map((item) => item.id)).toEqual(['tk_1->tk_3'])
+  })
+
+  it('still draws a stored edge from the node to a ticket of a later sprint', () => {
+    const edges = [edge(1, 3), edge(91, 4)]
+    const later = buildGraphModel(acceptanceInput({ plan: savedPlan({ bundle: acceptanceBundle({ edges }) }) }))
+    expect(later.edges.map((item) => item.id)).toEqual(['tk_1->tk_3', 'tk_91->tk_4'])
+  })
+
+})
+
+describe('acceptance nodes in unusual sprints', () => {
+  const model = buildGraphModel(acceptanceInput())
+
+  it('gives a sprint holding only its node a single row and no join', () => {
+    const sprints = [sprint(1, 'Empty', ['tk_91']), sprint(2, 'Ship', ['tk_4', 'tk_92'])]
+    const only = buildGraphModel(acceptanceInput({ plan: savedPlan({ bundle: acceptanceBundle({ sprints }) }) }))
+    expect(box(only, 'tk_91')).toEqual([185, 128])
+    expect(sprintNode(only, 'sp_1').height).toBe(72)
+    expect(has(only, 'join:sp_1')).toBe(false)
+    expect(has(only, 'join:sp_2')).toBe(true)
+  })
+
+  it('lines up the nodes of an invalid sprint that has more than one, in its last row', () => {
+    const second = ticket('DM-93', 'Second node', { kind: 'acceptance' })
+    const crowded = acceptanceBundle({
+      tickets: [...ACCEPTED_WORK, NODE_ONE, NODE_TWO, second],
+      sprints: [sprint(1, 'Build', ['tk_1', 'tk_91', 'tk_93']), sprint(2, 'Ship', ['tk_4', 'tk_92'])],
+      edges: []
+    })
+    const built = buildGraphModel(acceptanceInput({ plan: savedPlan({ bundle: crowded }) }))
+    expect(box(built, 'tk_91')).toEqual([185, 240])
+    expect(box(built, 'tk_93')).toEqual([435, 240])
+    expect(joinOf(built, 'sp_1')).toMatchObject({ height: 112 })
+  })
+
+  it('draws the join waiting until every required ticket of the sprint is accepted (Saved view with a run)', () => {
+    const waiting = buildGraphModel(acceptanceInput({ run: acceptanceRun({ 'DM-3': 'running' }) }))
+    expect(joinOf(waiting, 'sp_1').met).toBe(false)
+    expect(joinOf(waiting, 'sp_2').met).toBe(true)
+    const done = buildGraphModel(acceptanceInput({ run: acceptanceRun({}) }))
+    expect(joinOf(done, 'sp_1').met).toBe(true)
+  })
+
+  it('ignores an optional ticket when deciding whether the join is met', () => {
+    const tickets = [...ACCEPTED_WORK.map((item) => (item.id === 'tk_3' ? { ...item, optional: true } : item)), NODE_ONE, NODE_TWO]
+    const optional = buildGraphModel(
+      acceptanceInput({ plan: savedPlan({ bundle: acceptanceBundle({ tickets }) }), run: acceptanceRun({ 'DM-3': 'running' }) })
+    )
+    expect(joinOf(optional, 'sp_1').met).toBe(true)
+  })
+
+  it('reports on the sprint label whether the sprint has a node', () => {
+    expect(sprintNode(model, 'sp_1').hasAcceptance).toBe(true)
+    const bare = buildGraphModel(withSprints([sprint(1, 'Plain', ['tk_1'])], [], ACCEPTED_WORK))
+    expect(sprintNode(bare, 'sp_1').hasAcceptance).toBe(false)
+  })
+})
+
+function draftOf(planBundle: PlanBundle): GraphInput {
+  return input({ mode: 'draft', run: null, plan: draftPlan({ bundle: planBundle, changes: [] }) })
+}
+
+describe('the + Acceptance button on a sprint label', () => {
+  it('reserves room for a second button under the label of a draft sprint without a node', () => {
+    const bare = buildGraphModel(draftOf(bundle({ tickets: ACCEPTED_WORK, sprints: [sprint(1, 'Build', ['tk_1'])], edges: [] })))
+    const withNode = buildGraphModel(draftOf(acceptanceBundle()))
+    expect(sprintNode(bare, 'sp_1')).toMatchObject({ hasAcceptance: false, labelHeight: 18 + 18 + 18 + 30 + 30 })
+    expect(sprintNode(withNode, 'sp_1')).toMatchObject({ hasAcceptance: true, labelHeight: 18 + 18 + 18 + 30 })
+  })
+
+  it('reserves nothing for the buttons in the Saved view', () => {
+    const bare = buildGraphModel(withSprints([sprint(1, 'Build', ['tk_1'])], [], ACCEPTED_WORK))
+    expect(sprintNode(bare, 'sp_1').labelHeight).toBe(18 + 18 + 18)
+  })
+
+  it('keeps every label clear of the dividers around it and of the join, in both views', () => {
+    for (const view of [acceptanceInput(), draftOf(acceptanceBundle())]) {
+      const model = buildGraphModel(view)
+      const first = sprintNode(model, 'sp_1')
+      const second = sprintNode(model, 'sp_2')
+      expect(first.y + first.labelHeight).toBeLessThanOrEqual(node(model, 'checkpoint:1').y)
+      expect(node(model, 'checkpoint:1').y + node(model, 'checkpoint:1').height).toBeLessThanOrEqual(second.y)
+      expect(second.y + second.labelHeight).toBeLessThanOrEqual(node(model, 'checks').y)
+      expect(joinOf(model, 'sp_1').x).toBeGreaterThanOrEqual(first.x + first.width)
+      expect(joinOf(model, 'sp_2').x).toBeGreaterThanOrEqual(second.x + second.width)
+    }
+  })
+})
+
+const ROWS = [
+  rowView('sp_1', 1, ['DM-1', 'DM-2'], rowCheck('sp_1', 1, true)),
+  rowView('sp_1', 2, ['DM-3'], rowCheck('sp_1', 2, false, { number: 2 })),
+  rowView('sp_2', 1, ['DM-4'])
+]
+
+describe('row checks in the graph', () => {
+  const model = buildGraphModel(acceptanceInput({ run: acceptanceRun({}, ROWS) }))
+
+  it('shows each row latest check as passed, failed or none, at its row', () => {
+    expect(text(model, 'rowcheck:sp_1:1')).toBe('ROW 1 | PASSED')
+    expect(text(model, 'rowcheck:sp_1:2')).toBe('ROW 2 | FAILED')
+    expect(text(model, 'rowcheck:sp_2:1')).toBe('ROW 1 | NO CHECK')
+    expect(chipOf(model, 'rowcheck:sp_1:1')).toMatchObject({ state: 'passed', tone: 'accepted', sprintId: 'sp_1', row: 1 })
+    expect(chipOf(model, 'rowcheck:sp_1:2')).toMatchObject({ state: 'failed', tone: 'failed' })
+    expect(chipOf(model, 'rowcheck:sp_2:1')).toMatchObject({ state: 'none', tone: 'neutral' })
+  })
+
+})
+
+describe('where row checks sit', () => {
+  const model = buildGraphModel(acceptanceInput({ run: acceptanceRun({}, ROWS) }))
+
+  it('puts the chips of a sprint in one column right of its widest row, centered on the first visual row of each', () => {
+    // Sprint 1 uses two columns (DM-1, DM-2), so its chips sit right of column 1; Sprint 2 uses one.
+    expect(box(model, 'rowcheck:sp_1:1')).toEqual([185 + 2 * 250 - 40 + 16, 128 + 19])
+    expect(box(model, 'rowcheck:sp_1:2')).toEqual([185 + 2 * 250 - 40 + 16, 240 + 19])
+    expect(box(model, 'rowcheck:sp_2:1')).toEqual([185 + 210 + 16, 528 + 19])
+    expect(chipOf(model, 'rowcheck:sp_1:1')).toMatchObject({ width: 104, height: 34 })
+  })
+
+  it('explains the latest check: its number, its commit and every entry that did not pass', () => {
+    expect(chipOf(model, 'rowcheck:sp_1:2').detail).toBe('Row 2 check 2 at a1b2c3d did not pass: Unit tests (failed)')
+    expect(chipOf(model, 'rowcheck:sp_1:1').detail).toBe('Row 1 check 1 passed at a1b2c3d')
+    expect(chipOf(model, 'rowcheck:sp_2:1').detail).toBe('Row 1 has no check yet')
+  })
+
+  it('counts a skipped entry as a check that did not pass', () => {
+    const checks = [{ name: 'Lint', status: 'skipped' as const, detail: '' }]
+    const skipped = rowView('sp_1', 1, ['DM-1', 'DM-2'], rowCheck('sp_1', 1, false, { checks }))
+    const built = buildGraphModel(acceptanceInput({ run: acceptanceRun({}, [skipped]) }))
+    expect(chipOf(built, 'rowcheck:sp_1:1')).toMatchObject({ state: 'failed', detail: 'Row 1 check 1 at a1b2c3d did not pass: Lint (skipped)' })
+  })
+
+})
+
+describe('row checks and the rest of the canvas', () => {
+  const model = buildGraphModel(acceptanceInput({ run: acceptanceRun({}, ROWS) }))
+
+  it('leaves the divider lane alone while every chip sits inside the canvas', () => {
+    expect(node(model, 'checkpoint:1').width).toBe(1143)
+    const bare = buildGraphModel(acceptanceInput({ run: acceptanceRun({}) }))
+    expect(node(bare, 'checkpoint:1').width).toBe(1143)
+    expect(bare.nodes.some((item) => item.kind === 'rowcheck')).toBe(false)
+  })
+
+  it('widens the divider lane by what a chip of a full-width row reaches past the canvas, so it clears the legend', () => {
+    const six = Array.from({ length: 6 }, (_, index) => ticket(`DM-${index + 1}`, `T${index + 1}`))
+    const full = [rowView('sp_1', 1, six.map((item) => item.key), rowCheck('sp_1', 1, true))]
+    const planBundle = bundle({ tickets: six, sprints: [sprint(1, 'Wide', six.map((item) => item.id))], edges: [] })
+    const plan = savedPlan({ bundle: planBundle })
+    const withChip = buildGraphModel(input({ plan, run: runView({ tickets: [], rows: full }) }))
+    const withoutChip = buildGraphModel(input({ plan, run: runView({ tickets: [], rows: [] }) }))
+    // The chip's right edge is 16 + 104 right of the six columns; the canvas keeps 24 of that as its margin.
+    expect(box(withChip, 'rowcheck:sp_1:1')[0]).toBe(185 + 6 * 250 - 40 + 16)
+    expect(node(withChip, 'checks').width - node(withoutChip, 'checks').width).toBe(16 + 104 - 24)
+  })
+
+  it('draws no chip in the Draft view or without a run', () => {
+    expect(buildGraphModel(draftOf(acceptanceBundle())).nodes.some((item) => item.kind === 'rowcheck')).toBe(false)
+    expect(buildGraphModel(acceptanceInput()).nodes.some((item) => item.kind === 'rowcheck')).toBe(false)
+  })
+
+  it('skips a run row that is not a row of the plan', () => {
+    const extra = [...ROWS, rowView('sp_1', 9, ['DM-1']), rowView('sp_404', 1, ['DM-1'])]
+    const stray = buildGraphModel(acceptanceInput({ run: acceptanceRun({}, extra) }))
+    expect(stray.nodes.filter((item) => item.kind === 'rowcheck').map((item) => item.id)).toEqual([
+      'rowcheck:sp_1:1',
+      'rowcheck:sp_1:2',
+      'rowcheck:sp_2:1'
+    ])
+  })
+
+  it('shows a dependency row that wraps onto two visual rows once, at its first visual row', () => {
+    const many = Array.from({ length: 8 }, (_, index) => ticket(`DM-${index + 1}`, `T${index + 1}`))
+    const wideRows = [rowView('sp_1', 1, many.map((item) => item.key), rowCheck('sp_1', 1, true))]
+    const wide = buildGraphModel(
+      input({
+        plan: savedPlan({ bundle: bundle({ tickets: many, sprints: [sprint(1, 'Wide', many.map((item) => item.id))], edges: [] }) }),
+        run: runView({ tickets: [], rows: wideRows })
+      })
+    )
+    expect(wide.nodes.filter((item) => item.kind === 'rowcheck')).toHaveLength(1)
+    expect(box(wide, 'rowcheck:sp_1:1')[1]).toBe(128 + 19)
   })
 })

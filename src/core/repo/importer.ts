@@ -493,7 +493,8 @@ function epicClash(db: Db, files: EpicFiles): string | null {
 const RUN_CHILD_TABLES = [
   { table: 'attempts', what: 'Attempt', ids: (record: RunHistoryRecord) => record.attempts.map((item) => item.id) },
   { table: 'sprint_reports', what: 'Report', ids: (record: RunHistoryRecord) => record.reports.map((item) => item.id) },
-  { table: 'checkpoints', what: 'Checkpoint', ids: (record: RunHistoryRecord) => record.checkpoints.map((item) => item.id) }
+  { table: 'checkpoints', what: 'Checkpoint', ids: (record: RunHistoryRecord) => record.checkpoints.map((item) => item.id) },
+  { table: 'row_checks', what: 'Row check', ids: (record: RunHistoryRecord) => (record.rowChecks ?? []).map((item) => item.id) }
 ] as const
 
 function foreignChild(db: Db, record: RunHistoryRecord): string | null {
@@ -758,14 +759,15 @@ function upsertAttempt(db: Db, runId: string, attempt: AttemptRecord): void {
   db.run(
     `INSERT INTO attempts (id, run_id, ticket_id, number, kind, state, fencing_token, claim_secret, worker_json,
        revision_id, ticket_content_hash, lease_expires_at, heartbeat_at, outputs_json, evidence_json, failure_json,
-       decision_json, created_at, updated_at, submitted_at, decided_at, reconciled_at, superseded_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       decision_json, increment_json, created_at, updated_at, submitted_at, decided_at, reconciled_at, superseded_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET ticket_id = excluded.ticket_id, number = excluded.number, kind = excluded.kind,
        state = excluded.state, fencing_token = excluded.fencing_token, claim_secret = NULL,
        worker_json = excluded.worker_json, revision_id = excluded.revision_id,
        ticket_content_hash = excluded.ticket_content_hash, lease_expires_at = NULL, heartbeat_at = NULL,
        outputs_json = excluded.outputs_json, evidence_json = excluded.evidence_json,
-       failure_json = excluded.failure_json, decision_json = excluded.decision_json, updated_at = excluded.updated_at,
+       failure_json = excluded.failure_json, decision_json = excluded.decision_json,
+       increment_json = excluded.increment_json, updated_at = excluded.updated_at,
        submitted_at = excluded.submitted_at, decided_at = excluded.decided_at, reconciled_at = excluded.reconciled_at,
        superseded_at = excluded.superseded_at`,
     attempt.id,
@@ -782,6 +784,7 @@ function upsertAttempt(db: Db, runId: string, attempt: AttemptRecord): void {
     nullableJson(attempt.evidence),
     nullableJson(attempt.failure),
     nullableJson(attempt.decision),
+    attempt.increment === undefined ? null : toJson(attempt.increment),
     attempt.createdAt,
     attempt.updatedAt,
     attempt.submittedAt,
@@ -824,6 +827,26 @@ function upsertReportsAndCheckpoints(db: Db, record: RunHistoryRecord): void {
       checkpoint.policy,
       checkpoint.decidedBy,
       checkpoint.decidedAt
+    )
+  }
+}
+
+function upsertRowChecks(db: Db, record: RunHistoryRecord): void {
+  for (const check of record.rowChecks ?? []) {
+    db.run(
+      `INSERT INTO row_checks (id, run_id, number, sprint_id, row_no, commit_ref, checks_json, recorded_by, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET number = excluded.number, sprint_id = excluded.sprint_id, row_no = excluded.row_no,
+         commit_ref = excluded.commit_ref, checks_json = excluded.checks_json, recorded_by = excluded.recorded_by`,
+      check.id,
+      record.runId,
+      check.number,
+      check.sprintId,
+      check.row,
+      check.commit,
+      toJson(check.checks),
+      check.recordedBy,
+      check.createdAt
     )
   }
 }
@@ -881,6 +904,7 @@ function applyRun(db: Db, run: RunFiles, now: string): void {
     upsertAttempt(db, record.runId, attempt)
   }
   upsertReportsAndCheckpoints(db, record)
+  upsertRowChecks(db, record)
   markSynced(db, { kind: 'run', entityId: run.runId, hash: run.trackedHash, generation: null, now })
   indexRun(db, record)
 }

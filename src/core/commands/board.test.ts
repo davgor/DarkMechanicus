@@ -163,14 +163,16 @@ describe('importBoard creates draft epics', () => {
       status: 'backlog',
       currentRevisionId: null,
       hasDraft: true,
-      ticketCount: 2,
+      // The two open tickets plus the acceptance node a new epic starts with.
+      ticketCount: 3,
       sprintCount: 1
     })
     expect(epic.successCriteria.map((criterion) => criterion.text)).toEqual(['All sub-tickets 014.1–014.4 are done'])
     const tickets = await workspace.listTickets({ epicId, view: 'draft' })
     expect(tickets.map((ticket) => ticket.title)).toEqual([
       'Windows and macOS packaging verification',
-      'Second agent host validation'
+      'Second agent host validation',
+      'Sprint 1 acceptance'
     ])
     expect(await workspace.listRevisions({ epicId })).toEqual([])
   })
@@ -208,9 +210,11 @@ describe('importBoard records the source', () => {
     const plan = await workspace.getPlan({ epicId, view: 'draft' })
     expect(plan.bundle.sprints[0]?.goal).toBe('Cross-host validation and release (milestone 6)')
     expect(plan.bundle.tickets.map((ticket) => ticket.references.map((reference) => reference.location))).toEqual([
+      [],
       ['board/backlog/014.3-windows-macos-packaging.md'],
       ['board/backlog/014.4-second-host-validation.md']
     ])
+    expect(plan.bundle.tickets[0]).toMatchObject({ kind: 'acceptance', title: 'Sprint 1 acceptance' })
   })
 })
 

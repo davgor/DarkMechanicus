@@ -10,8 +10,15 @@ import {
   type RunState,
   type TicketExecutionState
 } from '../../shared/domain/status'
-import type { Blocker, PrerequisiteOutcome, TicketExecutionView } from '../../shared/domain/views'
-import { sortedSprints } from './graph'
+import type {
+  Blocker,
+  PrerequisiteOutcome,
+  RowCheckView,
+  RowView,
+  TicketExecutionView
+} from '../../shared/domain/views'
+import { acceptanceNodesOf, implicitPrerequisitesOf, isAcceptanceTicket } from './acceptance'
+import { planRows, sortedSprints, type SprintRow } from './graph'
 
 export interface AttemptSnapshot {
   id: string
@@ -29,11 +36,15 @@ export interface ReadinessInput {
   runState: RunState
   attempts: AttemptSnapshot[]
   retryGrants: Record<string, number>
+  /** The run's row checks, in any order; omitted when there are none. */
+  rowChecks?: RowCheckView[]
 }
 
 export interface ExecutionSnapshot {
   tickets: TicketExecutionView[]
   capacity: { limit: number | null; inUse: number }
+  /** Every row of every sprint, in sprint order, with its tickets and latest check. */
+  rows: RowView[]
 }
 
 interface TicketAttempts {
@@ -56,6 +67,19 @@ interface Readiness {
   activeOrdinal: number
   attempts: Map<string, TicketAttempts>
   memo: Map<string, Evaluation>
+  /** Every row of the plan. */
+  rows: SprintRow[]
+  /** Each ticket's sprint and row; a ticket in no row has no entry. */
+  rowOf: Map<string, RowPlace>
+  /** The latest check of each row, by `rowKey`. */
+  latestChecks: Map<string, RowCheckView>
+  /** The sprint each acceptance node closes. */
+  nodeSprint: Map<string, string>
+}
+
+interface RowPlace {
+  sprintId: string
+  row: number
 }
 
 /** Latest-attempt states that decide the ticket outright. */
@@ -112,6 +136,21 @@ function requirementsOf(bundle: PlanBundle, tickets: Map<string, TicketContent>)
   return requires
 }
 
+/**
+ * An acceptance node runs last in its sprint: it also requires every required work ticket of that
+ * sprint, with no stored edge. Added after the stored edges and never twice for the same ticket.
+ */
+function withAcceptancePrerequisites(bundle: PlanBundle, requires: Map<string, string[]>): Map<string, string[]> {
+  for (const node of bundle.tickets.filter(isAcceptanceTicket)) {
+    const stored = requires.get(node.id) ?? []
+    const implicit = implicitPrerequisitesOf(bundle, node.id).filter((id) => !stored.includes(id))
+    if (implicit.length > 0) {
+      requires.set(node.id, [...stored, ...implicit])
+    }
+  }
+  return requires
+}
+
 function latestEvaluation(latest: AttemptSnapshot): Evaluation | null {
   const decided = LATEST_STATE[latest.state]
   if (decided !== undefined) {
@@ -142,6 +181,69 @@ function attemptEvaluation(model: Readiness, ticketId: string): Evaluation | nul
   return null
 }
 
+/** The sprint each acceptance node closes: the first sprint that lists it. */
+function nodeSprintsOf(bundle: PlanBundle): Map<string, string> {
+  const sprints = new Map<string, string>()
+  for (const sprint of sortedSprints(bundle)) {
+    for (const node of acceptanceNodesOf(bundle, sprint.id)) {
+      if (!sprints.has(node.id)) {
+        sprints.set(node.id, sprint.id)
+      }
+    }
+  }
+  return sprints
+}
+
+function rowKey(sprintId: string, row: number): string {
+  return `${sprintId}#${row}`
+}
+
+/** The latest check of each row: the one with the highest number, whatever order the checks arrive in. */
+function latestChecksOf(checks: RowCheckView[]): Map<string, RowCheckView> {
+  const latest = new Map<string, RowCheckView>()
+  for (const check of checks) {
+    const key = rowKey(check.sprintId, check.row)
+    if (check.number > (latest.get(key)?.number ?? 0)) {
+      latest.set(key, check)
+    }
+  }
+  return latest
+}
+
+/**
+ * The rows of the sprint an acceptance node closes. A failed latest check on any of them holds the
+ * node, whether or not it requires a ticket of that row. Empty for every other ticket.
+ */
+function acceptanceSprintRows(model: Readiness, ticketId: string): RowPlace[] {
+  const sprintId = model.nodeSprint.get(ticketId)
+  return model.rows.filter((item) => item.sprintId === sprintId).map((item) => ({ sprintId: item.sprintId, row: item.row }))
+}
+
+/** The rows whose latest check can hold the ticket: those of its prerequisites, and a node's whole sprint. */
+function rowsHolding(model: Readiness, ticketId: string): RowPlace[] {
+  const ofPrerequisites = (model.requires.get(ticketId) ?? []).flatMap((id) => model.rowOf.get(id) ?? [])
+  return [...ofPrerequisites, ...acceptanceSprintRows(model, ticketId)]
+}
+
+/**
+ * One `row_check_failed` blocker for each row that can hold the ticket and whose latest check did not
+ * pass. No other ticket is ever held by a row.
+ */
+function rowCheckBlockers(model: Readiness, ticketId: string): Blocker[] {
+  const failed = new Map<string, Blocker>()
+  for (const place of rowsHolding(model, ticketId)) {
+    const check = model.latestChecks.get(rowKey(place.sprintId, place.row))
+    if (check !== undefined && !check.passed) {
+      failed.set(rowKey(place.sprintId, place.row), { kind: 'row_check_failed', sprintId: place.sprintId, row: place.row, checkId: check.id })
+    }
+  }
+  return [...failed.values()]
+}
+
+/**
+ * Pending until every prerequisite is accepted and no prerequisite's row has a failed latest check
+ * (`waiting`), or `blocked` when a prerequisite cannot progress without intervention.
+ */
 function prerequisiteEvaluation(model: Readiness, ticketId: string): Evaluation {
   const blockers: Blocker[] = []
   let blocked = false
@@ -152,6 +254,7 @@ function prerequisiteEvaluation(model: Readiness, ticketId: string): Evaluation 
       blocked = blocked || BLOCKING_PREREQUISITE.has(state)
     }
   }
+  blockers.push(...rowCheckBlockers(model, ticketId))
   if (blocked) {
     return { state: 'blocked', blockers }
   }
@@ -240,6 +343,7 @@ function ticketView(
     ticketId: ticket.id,
     key: ticket.key,
     sprintId: sprint.id,
+    row: model.rowOf.get(ticket.id)?.row ?? null,
     state: evaluation.state,
     attemptCount: summary?.workCount ?? 0,
     latestAttemptId: summary?.latest.id ?? null,
@@ -248,22 +352,38 @@ function ticketView(
   }
 }
 
+function rowViews(model: Readiness, rows: SprintRow[]): RowView[] {
+  return rows.map((item) => ({
+    sprintId: item.sprintId,
+    row: item.row,
+    tickets: item.ticketIds.map((ticketId) => ({ ticketId, key: keyOf(model, ticketId) })),
+    latestCheck: model.latestChecks.get(rowKey(item.sprintId, item.row)) ?? null
+  }))
+}
+
 /**
  * Computes every ticket's execution state for the run's active sprint. A queued run (no active
  * sprint yet) is evaluated as if sprint 1 were active, with a `run_state` blocker on pending work.
+ * Also reports every row of the plan with its latest check; a failed latest check holds the
+ * dependents of that row's tickets (see `rowCheckBlockers`), and nothing else.
  */
 export function computeExecution(input: ReadinessInput): ExecutionSnapshot {
   const sprints = sortedSprints(input.bundle)
   const activeSprint = sprints.find((sprint) => sprint.id === input.activeSprintId) ?? sprints[0]
   const tickets = new Map(input.bundle.tickets.map((ticket) => [ticket.id, ticket]))
+  const rows = planRows(input.bundle)
   const model: Readiness = {
     input,
     tickets,
     sprintOrdinal: new Map(sprints.flatMap((sprint) => sprint.ticketIds.map((id) => [id, sprint.ordinal] as const))),
-    requires: requirementsOf(input.bundle, tickets),
+    requires: withAcceptancePrerequisites(input.bundle, requirementsOf(input.bundle, tickets)),
     activeOrdinal: activeSprint?.ordinal ?? 1,
     attempts: summarizeAttempts(input.attempts),
-    memo: new Map()
+    memo: new Map(),
+    rows,
+    rowOf: new Map(rows.flatMap((item) => item.ticketIds.map((id) => [id, { sprintId: item.sprintId, row: item.row }] as const))),
+    latestChecks: latestChecksOf(input.rowChecks ?? []),
+    nodeSprint: nodeSprintsOf(input.bundle)
   }
   const capacity = capacityOf(model, activeSprint)
   const views = sprints.flatMap((sprint) =>
@@ -272,5 +392,5 @@ export function computeExecution(input: ReadinessInput): ExecutionSnapshot {
       return ticket ? [ticketView(model, ticket, sprint, capacity)] : []
     })
   )
-  return { tickets: views, capacity }
+  return { tickets: views, capacity, rows: rowViews(model, rows) }
 }

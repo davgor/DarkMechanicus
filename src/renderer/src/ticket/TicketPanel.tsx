@@ -85,7 +85,7 @@ function TabBody(props: { tab: TabId; detail: TicketDetailView; panel: TicketPan
   const { detail, panel } = props
   switch (props.tab) {
     case 'overview':
-      return <OverviewTab detail={detail} onSelect={panel.onSelectTicket} />
+      return <OverviewTab detail={detail} bundle={panel.plan.bundle} runner={panel.runner} onSelect={panel.onSelectTicket} />
     case 'attempts':
       return <AttemptList attempts={detail.attempts} now={panel.now} onReview={panel.onReview} />
     case 'evidence':

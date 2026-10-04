@@ -15,7 +15,8 @@ You turn the state of the active sprint into an honest report that a person can 
 1. `get_run` for the run: ticket execution states, attempts, counts, and the active sprint.
 2. `get_checkpoint`: the gate conditions and which are unmet. Read each condition's `detail`.
 3. For detail, use `get_ticket` (saved view) for criteria and attempts, and `get_run_events` for what happened and when.
-4. Make sure no leases are open. Expired leases must be reconciled with `reconcile_attempt` first.
+4. Read the sprint's rows and their latest row checks (in `get_run`), and, when the sprint has an acceptance node, its accepted attempt and the increment it named (`get_run` lists it under `increments`, and `get_sprint_report` carries it).
+5. Make sure no leases are open. Expired leases must be reconciled with `reconcile_attempt` first. When the sprint has an acceptance node, make sure it is accepted before you submit: a run waiting at the checkpoint takes no claims.
 
 ## 2. Compose the report
 
@@ -25,8 +26,8 @@ Fill every field from evidence:
 - `accepted`: one line per accepted ticket (key, title, the result in a phrase).
 - `failed`: one line per failed ticket with the reason and how many attempts were used.
 - `blocked`: one line per blocked ticket with the cause (a failed prerequisite, a missing decision, lost access).
-- `changes`: the `files` and `commits` from accepted attempts.
-- `checks`: the real checks and their results (`name`, `passed` / `failed` / `skipped`, `detail`).
+- `changes`: the `files` and `commits` from accepted attempts, and the commit of the sprint's increment.
+- `checks`: the real checks and their results (`name`, `passed` / `failed` / `skipped`, `detail`): the row checks, and each Definition of Done check as the acceptance node reported it.
 - `risks`: unresolved risks, open decisions, and shortcuts taken.
 - `followUps`: proposals (`title`, `body`) for new tickets or replanning. They are proposals only; nothing is created from them.
 - `exitCriteria`: one entry per sprint exit criterion (`criterionId`, `met`, `note`). An unmet exit criterion blocks advancing. Report it as unmet with the reason instead of marking it met.
@@ -36,7 +37,12 @@ Fill every field from evidence:
 
 1. Call `submit_sprint_report` with the run id, the active sprint id, and the report. The run now waits at the checkpoint and takes no new claims.
 2. Tell the person plainly: what was done, what failed or is blocked, which decisions are needed, and that approval happens in the desktop app.
-3. Poll `get_checkpoint` at a sensible interval. The conditions are `report_submitted`, `no_active_leases`, `required_accepted`, `exit_criteria`, `epic_outcome` (final sprint), and `approval`. Explain any unmet condition to the person.
+3. Poll `get_checkpoint` at a sensible interval. The conditions are `report_submitted`, `no_active_leases`, `required_accepted`, `acceptance_accepted`, `increment_merged`, `definition_of_done`, `exit_criteria`, `epic_outcome` (final sprint), and `approval`, in that order. `acceptance_accepted` and `increment_merged` apply to a sprint with an acceptance node, and `definition_of_done` also needs the project to have a Definition of Done:
+   - `acceptance_accepted`: the node has an accepted attempt.
+   - `increment_merged`: that node's submission named an increment (a branch and a commit) that passed verification as one squashed commit on the epic branch.
+   - `definition_of_done`: the node's accepted attempt reports every Definition of Done check as `passed` in its evidence.
+
+   Explain any unmet condition to the person.
 4. If facts change (for example a reconciled attempt), submit a new report revision. A new revision invalidates any earlier approval. Tell the person when you do.
 
 ## 4. Advance only under the gate

@@ -2,7 +2,7 @@ import { fail } from '../errors'
 import type { Db } from './database'
 
 /** Highest schema version this build understands. Newer databases are refused, never downgraded. */
-export const SCHEMA_VERSION = 4
+export const SCHEMA_VERSION = 6
 
 interface Migration {
   version: number
@@ -319,11 +319,45 @@ CREATE TABLE profiles (
 );
 `
 
+/**
+ * v5 adds row checks: the orchestrator's record that one dependency row of a sprint (`row_no`, counted
+ * from 1) combined cleanly at `commit_ref`. `number` counts the checks of a run in the order they were
+ * recorded, so the latest check of a row is its highest number. A check passed when every entry in
+ * `checks_json` passed; that is derived on read, never stored. Exported with the run history.
+ */
+const V5 = `
+CREATE TABLE row_checks (
+  id TEXT PRIMARY KEY,
+  run_id TEXT NOT NULL REFERENCES runs(id),
+  number INTEGER NOT NULL CHECK (number >= 1),
+  sprint_id TEXT NOT NULL,
+  row_no INTEGER NOT NULL CHECK (row_no >= 1),
+  commit_ref TEXT NOT NULL,
+  checks_json TEXT NOT NULL,
+  recorded_by TEXT,
+  created_at TEXT NOT NULL,
+  UNIQUE (run_id, number)
+);
+CREATE INDEX row_checks_run ON row_checks(run_id, sprint_id, row_no);
+`
+
+/**
+ * v6 stores the server's verdict on a sprint increment with the acceptance-node attempt that named it:
+ * `increment_json` is NULL for every attempt that named none (all attempts before this version, and
+ * every work ticket's), and otherwise the `SprintIncrement` written when the submission arrived. The
+ * `increment_merged` gate reads it, so the verdict never has to be recomputed. Exported with the run history.
+ */
+const V6 = `
+ALTER TABLE attempts ADD COLUMN increment_json TEXT;
+`
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, sql: V1 },
   { version: 2, sql: V2 },
   { version: 3, sql: V3 },
-  { version: 4, sql: V4 }
+  { version: 4, sql: V4 },
+  { version: 5, sql: V5 },
+  { version: 6, sql: V6 }
 ]
 
 export function readSchemaVersion(db: Db): number {

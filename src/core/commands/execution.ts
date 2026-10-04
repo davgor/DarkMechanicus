@@ -1,4 +1,5 @@
-import type { ReadinessView, RunView } from '../../shared/domain/views'
+import type { IncrementRef, SubmitAttemptInput } from '../../shared/domain/api'
+import type { ReadinessView, RunView, SprintIncrement } from '../../shared/domain/views'
 import { requireCapability } from '../authz'
 import { COMMAND_SCHEMAS } from '../commandSchemas'
 import type { Ctx } from '../context'
@@ -17,6 +18,9 @@ import {
 import { getCheckpoint } from '../services/checkpoints'
 import { expireLeases, loadRunContext, runExecution } from '../services/execution'
 import { matchCapabilities, registerHost } from '../services/hosts'
+import { incrementContextOf } from '../services/increments'
+import { verifyIncrement } from '../services/incrementVerify'
+import { recordRowCheck } from '../services/rowChecks'
 import {
   cancelRun,
   getRun,
@@ -26,7 +30,7 @@ import {
   startRun,
   takeoverRun
 } from '../services/runs'
-import type { CommandTable } from './types'
+import type { CommandTable, WorkspaceCore } from './types'
 
 /** Adds the checkpoint gate view to runs that are executing or waiting at a checkpoint. */
 function withCheckpoint(ctx: Ctx, run: RunView | null): RunView | null {
@@ -65,8 +69,23 @@ function readiness(ctx: Ctx, runId: string): ReadinessView {
         ticket.state !== 'submitted'
     ),
     inFlight: active.filter((ticket) => ticket.state === 'running' || ticket.state === 'submitted'),
+    rows: snapshot.rows.filter((item) => item.sprintId === run.active_sprint_id),
     capacity: snapshot.capacity
   }
+}
+
+/**
+ * The server's verdict on the increment a submission names, asked of git before the submission is stored
+ * (the store is synchronous, git is not). Undefined when the attempt is not on an acceptance node, which the
+ * submission then refuses. Read-only: nothing in the repository changes.
+ */
+async function verifiedIncrement(
+  core: WorkspaceCore,
+  input: SubmitAttemptInput & { increment: IncrementRef }
+): Promise<SprintIncrement | undefined> {
+  requireCapability(core.ctx().session, 'attempt.submit')
+  const context = incrementContextOf(core.ctx(), input.attemptId)
+  return context === null ? undefined : verifyIncrement(core.git, context, input.increment, core.clock.nowIso())
 }
 
 const executionCommands = {
@@ -119,7 +138,10 @@ const executionCommands = {
   submitAttempt: {
     schema: COMMAND_SCHEMAS.submitAttempt,
     mutates: true,
-    run: (core, input) => submitAttempt(core.ctx(), input)
+    run: async (core, input) => {
+      const verdict = input.increment === undefined ? undefined : await verifiedIncrement(core, { ...input, increment: input.increment })
+      return submitAttempt(core.ctx(), input, verdict)
+    }
   },
   acceptAttempt: {
     schema: COMMAND_SCHEMAS.acceptAttempt,
@@ -145,6 +167,11 @@ const executionCommands = {
     schema: COMMAND_SCHEMAS.carryForwardTicket,
     mutates: true,
     run: (core, input) => carryForwardTicket(core.ctx(), input)
+  },
+  recordRowCheck: {
+    schema: COMMAND_SCHEMAS.recordRowCheck,
+    mutates: true,
+    run: (core, input) => recordRowCheck(core.ctx(), input)
   },
   pauseRun: {
     schema: COMMAND_SCHEMAS.pauseRun,

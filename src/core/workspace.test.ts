@@ -3,6 +3,7 @@ import { join, sep } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { defaultCapabilityProfile } from '../shared/domain/bundle'
 import type { SessionView } from '../shared/domain/views'
+import { dropAcceptanceNodes } from '../test/acceptanceNodes'
 import { createHarness, type Harness } from '../test/workspaceHarness'
 import { nodeFs } from './repo/nodeFs'
 import type { FsAdapter } from './repo/types'
@@ -20,6 +21,7 @@ async function codeOf(promise: Promise<unknown>): Promise<string> {
 async function savedEpic(agent: Workspace): Promise<string> {
   await agent.initializeRepository({ name: 'branch-repo' })
   const epic = await agent.createEpic({ title: 'Branch epic' })
+  await dropAcceptanceNodes(agent, epic.id)
   const draft = await agent.updatePlanDraft({
     epicId: epic.id,
     ops: [{ op: 'add_ticket', sprint: '1', ticket: { title: 'Only ticket' } }]

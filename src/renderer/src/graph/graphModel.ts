@@ -1,12 +1,18 @@
 /**
  * Pure plan-graph model: derives node positions and labels from a plan bundle (layout is never
  * stored), overlaying run execution state in the Saved view or draft change state in the Draft
- * view. Sprints stack top to bottom; inside a sprint, rows follow same-sprint dependency depth
- * and columns follow the barycenter of each ticket's prerequisites to reduce crossings.
+ * view. Sprints stack top to bottom; inside a sprint, rows are the dependency rows of
+ * `core/plan/graph` (a row wider than six columns wraps onto more than one visual row) and columns
+ * follow the barycenter of each ticket's prerequisites to reduce crossings. A sprint's acceptance
+ * node is no dependency row: it closes the band in a row of its own, joined to the band by one
+ * bracket in the gutter left of the cards instead of an edge per ticket. In the Saved view of a
+ * run, each dependency row carries its latest row check right of its cards.
  */
-import type { ChangeKind, CriterionResult, PlanView, RunView, TicketExecutionView } from '../../../shared/domain/views'
+import type { ChangeKind, CriterionResult, PlanView, RowView, RunView, TicketExecutionView } from '../../../shared/domain/views'
 import type { DependencyEdge, PlanBundle, SprintDef, TicketContent, TicketSize } from '../../../shared/domain/bundle'
 import { isActiveRunState, type WorkStatus } from '../../../shared/domain/status'
+import { implicitPrerequisitesOf, isAcceptanceTicket } from '../../../core/plan/acceptance'
+import { groupIntoRows } from '../../../core/plan/graph'
 import { sprintLabelSize, type SprintLabelSize } from './sprintLabel'
 import { DASHED_EXECUTION, EXECUTION_LABELS, EXECUTION_TONES, STATUS_LABELS, STATUS_TONES, type Tone } from './ticketStates'
 
@@ -28,6 +34,15 @@ const BAND_GAP = 52
 const LABEL_OFFSET_Y = 4
 /** Breathing room kept between the bottom of a sprint label and the checkpoint pill under it. */
 const LABEL_CLEARANCE = 4
+/**
+ * The join from a band to its acceptance node lives in the gutter between the sprint label
+ * (LABEL_X + LABEL_WIDTH = 164) and the first column, so it never touches the label.
+ */
+const JOIN_WIDTH = 14
+/** A row check chip: `.pg-rowcheck` fills the node; it sits this far right of its sprint's widest row. */
+const ROW_CHECK_WIDTH = 104
+const ROW_CHECK_HEIGHT = 34
+const ROW_CHECK_GAP = 16
 const DIVIDER_X = 16
 const DIVIDER_HEIGHT = 28
 const RIGHT_MARGIN = 24
@@ -77,8 +92,10 @@ export interface SprintNodeModel extends Box {
   active: boolean
   /** Lines the goal is clamped to (the rest is cut with an ellipsis); the layout reserves exactly these. */
   goalLines: number
-  /** Height the layout reserved for the label, heading to detail (and the + Ticket button while editing). */
+  /** Height the layout reserved for the label, heading to detail (and the + Ticket / + Acceptance buttons while editing). */
   labelHeight: number
+  /** The sprint lists an acceptance node; without one the draft view offers + Acceptance. */
+  hasAcceptance: boolean
 }
 
 export interface DividerNodeModel extends Box {
@@ -101,9 +118,46 @@ export interface TicketNodeModel extends Box {
   note: string | null
   /** The ticket's size for the card badge; null when the ticket has none. */
   size: TicketSize | null
+  /** A sprint's acceptance node, drawn apart from work tickets. */
+  acceptance: boolean
 }
 
-export type GraphNode = EpicNodeModel | SprintNodeModel | DividerNodeModel | TicketNodeModel
+/** The one bracket from a sprint's work rows to its acceptance node (instead of an edge per ticket). */
+export interface JoinNodeModel extends Box {
+  kind: 'join'
+  id: string
+  sprintId: string
+  /** Solid when every ticket the node requires is accepted (or there is no execution overlay), dashed while waiting. */
+  met: boolean
+  /** Accessible name: what the node requires. */
+  label: string
+}
+
+export type RowCheckState = 'passed' | 'failed' | 'none'
+
+/** A dependency row's latest check (Saved view of a run), at the row. */
+export interface RowCheckNodeModel extends Box {
+  kind: 'rowcheck'
+  id: string
+  sprintId: string
+  /** The row's number within its sprint, counted from 1. */
+  row: number
+  state: RowCheckState
+  label: string
+  /** The words that go with the color: PASSED, FAILED (any entry failed or was skipped) or NO CHECK. */
+  status: string
+  tone: Tone
+  /** The tooltip: the check's number, commit and the entries that did not pass. */
+  detail: string
+}
+
+export type GraphNode =
+  | EpicNodeModel
+  | SprintNodeModel
+  | DividerNodeModel
+  | TicketNodeModel
+  | JoinNodeModel
+  | RowCheckNodeModel
 
 interface GraphEdge {
   id: string
@@ -149,8 +203,15 @@ interface Placement {
 
 interface SprintPlan {
   sprint: SprintDef
+  /** Visual rows, the acceptance node's included. */
   rows: number
+  /** Visual rows before the acceptance node's row. */
+  workRows: number
   placements: Map<string, Placement>
+  /** The acceptance nodes placed, in sprint order (a valid plan has one). */
+  acceptance: string[]
+  /** Each dependency row (counted from 1) and the visual row it starts on. */
+  depRows: { row: number; visual: number }[]
 }
 
 interface Frame {
@@ -164,6 +225,8 @@ interface LayoutContext {
   edges: DependencyEdge[]
   prerequisites: Map<string, string[]>
   columnOf: Map<string, number>
+  /** Ids of the acceptance nodes of the plan; they close their sprint instead of joining a dependency row. */
+  acceptance: ReadonlySet<string>
 }
 
 function createContext(input: GraphInput): Context {
@@ -255,40 +318,6 @@ function prerequisiteMap(edges: DependencyEdge[]): Map<string, string[]> {
   return map
 }
 
-/** Longest-path depth over same-sprint prerequisites; cycle members go after the acyclic rows. */
-function sprintDepths(ids: string[], edges: DependencyEdge[]): Map<string, number> {
-  const members = new Set(ids)
-  const inner = edges.filter((item) => item.from !== item.to && members.has(item.from) && members.has(item.to))
-  const pending = new Map(ids.map((id) => [id, 0]))
-  inner.forEach((item) => pending.set(item.to, (pending.get(item.to) ?? 0) + 1))
-  const depth = new Map<string, number>()
-  const queue = ids.filter((id) => pending.get(id) === 0)
-  queue.forEach((id) => depth.set(id, 0))
-  for (let index = 0; index < queue.length; index += 1) {
-    const id = queue[index] ?? ''
-    for (const item of inner.filter((candidate) => candidate.from === id)) {
-      depth.set(item.to, Math.max(depth.get(item.to) ?? 0, (depth.get(id) ?? 0) + 1))
-      const left = (pending.get(item.to) ?? 0) - 1
-      pending.set(item.to, left)
-      if (left === 0) {
-        queue.push(item.to)
-      }
-    }
-  }
-  const after = Math.max(-1, ...depth.values()) + 1
-  ids.filter((id) => !depth.has(id)).forEach((id) => depth.set(id, after))
-  return depth
-}
-
-function groupByDepth(ids: string[], depth: Map<string, number>): string[][] {
-  const levels = new Map<number, string[]>()
-  for (const id of ids) {
-    const level = depth.get(id) ?? 0
-    levels.set(level, [...(levels.get(level) ?? []), id])
-  }
-  return [...levels.entries()].sort((a, b) => a[0] - b[0]).map((entry) => entry[1])
-}
-
 function barycenter(id: string, layout: LayoutContext): number | null {
   const columns = (layout.prerequisites.get(id) ?? [])
     .map((prerequisite) => layout.columnOf.get(prerequisite))
@@ -326,27 +355,53 @@ function assignColumns(chunk: string[], layout: LayoutContext): Map<string, numb
   return columns
 }
 
+/** Places one dependency row from `row` on (wrapping after six columns); returns the next free visual row. */
+function placeLevel(level: string[], row: number, placements: Map<string, Placement>, layout: LayoutContext): number {
+  let next = row
+  for (const chunk of chunks(orderByBarycenter(level, layout), MAX_COLUMNS)) {
+    const assigned = assignColumns(chunk, layout)
+    const current = next
+    assigned.forEach((column, id) => {
+      placements.set(id, { column, row: current })
+      layout.columnOf.set(id, column)
+    })
+    next += 1
+  }
+  return next
+}
+
 function placeSprint(sprint: SprintDef, ids: string[], layout: LayoutContext): SprintPlan {
   const placements = new Map<string, Placement>()
+  const acceptance = ids.filter((id) => layout.acceptance.has(id))
+  const depRows: SprintPlan['depRows'] = []
   let row = 0
-  for (const level of groupByDepth(ids, sprintDepths(ids, layout.edges))) {
-    for (const chunk of chunks(orderByBarycenter(level, layout), MAX_COLUMNS)) {
-      const assigned = assignColumns(chunk, layout)
-      const currentRow = row
-      assigned.forEach((column, id) => {
-        placements.set(id, { column, row: currentRow })
-        layout.columnOf.set(id, column)
-      })
-      row += 1
-    }
+  groupIntoRows(
+    ids.filter((id) => !layout.acceptance.has(id)),
+    layout.edges
+  ).forEach((level, index) => {
+    depRows.push({ row: index + 1, visual: row })
+    row = placeLevel(level, row, placements, layout)
+  })
+  const workRows = row
+  for (const chunk of chunks(acceptance, MAX_COLUMNS)) {
+    chunk.forEach((id, column) => {
+      placements.set(id, { column, row })
+      layout.columnOf.set(id, column)
+    })
+    row += 1
   }
-  return { sprint, rows: Math.max(1, row), placements }
+  return { sprint, rows: Math.max(1, row), workRows, placements, acceptance, depRows }
 }
 
 function layoutSprints(bundle: PlanBundle): SprintPlan[] {
   const known = new Set(bundle.tickets.map((item) => item.id))
   const seen = new Set<string>()
-  const layout: LayoutContext = { edges: bundle.edges, prerequisites: prerequisiteMap(bundle.edges), columnOf: new Map() }
+  const layout: LayoutContext = {
+    edges: bundle.edges,
+    prerequisites: prerequisiteMap(bundle.edges),
+    columnOf: new Map(),
+    acceptance: new Set(bundle.tickets.filter(isAcceptanceTicket).map((item) => item.id))
+  }
   return sortedSprints(bundle).map((sprint) => {
     const ids = sprint.ticketIds.filter((id) => known.has(id) && !seen.has(id))
     ids.forEach((id) => seen.add(id))
@@ -365,7 +420,7 @@ function bandHeight(plan: SprintPlan, label: SprintLabelSize): number {
 function toFrames(plans: SprintPlan[], context: Context): Frame[] {
   let top = FIRST_BAND_TOP
   return plans.map((plan) => {
-    const label = labelSize(plan.sprint, context)
+    const label = labelSize(plan, context)
     const bottom = top + bandHeight(plan, label)
     const frame = { plan, label, top, bottom }
     top = bottom + BAND_GAP + BAND_GAP
@@ -422,9 +477,10 @@ function sprintGoal(sprint: SprintDef): string {
   return sprint.goal.trim() === '' ? 'No goal yet' : sprint.goal
 }
 
-/** The draft canvas also shows a + Ticket button under the label, so it reserves room for it. */
-function labelSize(sprint: SprintDef, context: Context): SprintLabelSize {
-  return sprintLabelSize(sprintGoal(sprint), sprintDetail(sprint, context), context.input.mode === 'draft')
+/** The draft canvas also shows + Ticket, and + Acceptance while the sprint has no node, under the label, so it reserves room for them. */
+function labelSize(plan: SprintPlan, context: Context): SprintLabelSize {
+  const buttons = context.input.mode === 'draft' ? (plan.acceptance.length > 0 ? 1 : 2) : 0
+  return sprintLabelSize(sprintGoal(plan.sprint), sprintDetail(plan.sprint, context), buttons)
 }
 
 const POLICY_LABELS = { human: 'HUMAN APPROVAL', auto: 'AUTO CONTINUE' } as const
@@ -481,6 +537,7 @@ function ticketNode(context: Context, id: string, frame: Frame): TicketNodeModel
     dashed: badge.dashed,
     note: noteFor(context, id),
     size: content.size ?? null,
+    acceptance: isAcceptanceTicket(content),
     x: FIRST_COLUMN_X + placement.column * COLUMN_PITCH,
     y: frame.top + placement.row * ROW_PITCH,
     width: CARD_WIDTH,
@@ -501,6 +558,7 @@ function sprintNode(context: Context, frame: Frame): SprintNodeModel {
     active: run !== null && isActiveRunState(run.state) && activeOrdinal(context) === sprint.ordinal,
     goalLines: frame.label.goalLines,
     labelHeight: frame.label.height,
+    hasAcceptance: frame.plan.acceptance.length > 0,
     x: LABEL_X,
     y: frame.top + LABEL_OFFSET_Y,
     width: LABEL_WIDTH,
@@ -512,6 +570,100 @@ function dividerNode(id: string, lineY: number, width: number, text: { label: st
   return { kind: 'divider', id, label: text.label, tone: text.tone, x: DIVIDER_X, y: lineY - DIVIDER_HEIGHT / 2, width, height: DIVIDER_HEIGHT }
 }
 
+/** Waiting until every ticket the acceptance node requires is accepted; always met without an execution overlay. */
+function joinMet(context: Context, nodeId: string): boolean {
+  const execution = context.execution
+  return execution === null || implicitPrerequisitesOf(context.bundle, nodeId).every((id) => execution.get(id)?.state === 'accepted')
+}
+
+/** One bracket from the first work row down to the acceptance node; none when the sprint has no work above it. */
+function joinNode(context: Context, frame: Frame): JoinNodeModel[] {
+  const plan = frame.plan
+  const [first] = plan.acceptance
+  if (first === undefined || plan.workRows === 0) {
+    return []
+  }
+  return [
+    {
+      kind: 'join',
+      id: `join:${plan.sprint.id}`,
+      sprintId: plan.sprint.id,
+      met: joinMet(context, first),
+      label: `${keyOf(context, first)} requires every required ticket of Sprint ${plan.sprint.ordinal}`,
+      x: FIRST_COLUMN_X - JOIN_WIDTH,
+      y: frame.top + CARD_HEIGHT / 2,
+      width: JOIN_WIDTH,
+      height: plan.workRows * ROW_PITCH
+    }
+  ]
+}
+
+const CHECK_STATUS_LABELS: Record<RowCheckState, string> = { passed: 'PASSED', failed: 'FAILED', none: 'NO CHECK' }
+const CHECK_TONES: Record<RowCheckState, Tone> = { passed: 'accepted', failed: 'failed', none: 'neutral' }
+
+function rowCheckState(view: RowView): RowCheckState {
+  const check = view.latestCheck
+  if (check === null) {
+    return 'none'
+  }
+  return check.passed ? 'passed' : 'failed'
+}
+
+function rowCheckDetail(view: RowView): string {
+  const check = view.latestCheck
+  const row = `Row ${view.row}`
+  if (check === null) {
+    return `${row} has no check yet`
+  }
+  const commit = check.commit.slice(0, 7)
+  if (check.passed) {
+    return `${row} check ${check.number} passed at ${commit}`
+  }
+  const unmet = check.checks.filter((item) => item.status !== 'passed').map((item) => `${item.name} (${item.status})`)
+  return `${row} check ${check.number} at ${commit} did not pass${unmet.length === 0 ? '' : `: ${unmet.join(', ')}`}`
+}
+
+function rowCheckNode(view: RowView, x: number, y: number): RowCheckNodeModel {
+  const state = rowCheckState(view)
+  return {
+    kind: 'rowcheck',
+    id: `rowcheck:${view.sprintId}:${view.row}`,
+    sprintId: view.sprintId,
+    row: view.row,
+    state,
+    label: `ROW ${view.row}`,
+    status: CHECK_STATUS_LABELS[state],
+    tone: CHECK_TONES[state],
+    detail: rowCheckDetail(view),
+    x,
+    y,
+    width: ROW_CHECK_WIDTH,
+    height: ROW_CHECK_HEIGHT
+  }
+}
+
+/** The chips of a sprint share one column, right of the widest of its work rows (the acceptance node is no row). */
+function rowCheckX(frame: Frame): number {
+  const widest = Math.max(
+    0,
+    ...[...frame.plan.placements].filter(([id]) => !frame.plan.acceptance.includes(id)).map(([, placement]) => placement.column + 1)
+  )
+  return FIRST_COLUMN_X + widest * COLUMN_PITCH - COLUMN_GAP + ROW_CHECK_GAP
+}
+
+/** A chip for each dependency row the run knows, at the first visual row of that row; none outside the Saved view of a run. */
+function rowCheckNodes(context: Context, frame: Frame): RowCheckNodeModel[] {
+  const run = context.run
+  if (run === null) {
+    return []
+  }
+  const x = rowCheckX(frame)
+  return frame.plan.depRows.flatMap(({ row, visual }) => {
+    const view = run.rows.find((item) => item.sprintId === frame.plan.sprint.id && item.row === row)
+    return view === undefined ? [] : [rowCheckNode(view, x, frame.top + visual * ROW_PITCH + (CARD_HEIGHT - ROW_CHECK_HEIGHT) / 2)]
+  })
+}
+
 function frameNodes(context: Context, frame: Frame, dividerWidth: number, last: boolean): GraphNode[] {
   const tickets = [...frame.plan.placements.keys()]
     .map((id) => ticketNode(context, id, frame))
@@ -520,7 +672,7 @@ function frameNodes(context: Context, frame: Frame, dividerWidth: number, last: 
   const divider = last
     ? []
     : [dividerNode(`checkpoint:${sprint.ordinal}`, frame.bottom + BAND_GAP, dividerWidth, checkpointLabel(sprint, context))]
-  return [sprintNode(context, frame), ...divider, ...tickets]
+  return [sprintNode(context, frame), ...divider, ...joinNode(context, frame), ...tickets]
 }
 
 function epicNode(context: Context, width: number): EpicNodeModel {
@@ -565,12 +717,16 @@ export function buildGraphModel(input: GraphInput): GraphModel {
   const plans = layoutSprints(context.bundle)
   const frames = toFrames(plans, context)
   const width = contentWidth(plans)
-  const dividerWidth = FIRST_COLUMN_X + width + RIGHT_MARGIN + LEGEND_LANE - DIVIDER_X
+  const chips = frames.flatMap((frame) => rowCheckNodes(context, frame))
+  // A chip right of a full-width row reaches past the canvas margin, so the lane left of the legend grows by that much.
+  const chipReach = Math.max(0, ...chips.map((chip) => chip.x + chip.width - (FIRST_COLUMN_X + width + RIGHT_MARGIN)))
+  const dividerWidth = FIRST_COLUMN_X + width + RIGHT_MARGIN + chipReach + LEGEND_LANE - DIVIDER_X
   const lastBottom = frames[frames.length - 1]?.bottom ?? FIRST_BAND_TOP
   const nodes: GraphNode[] = [
     epicNode(context, width),
     ...frames.flatMap((frame, index) => frameNodes(context, frame, dividerWidth, index === frames.length - 1)),
-    dividerNode('checks', lastBottom + BAND_GAP, dividerWidth, checksLabel(context))
+    dividerNode('checks', lastBottom + BAND_GAP, dividerWidth, checksLabel(context)),
+    ...chips
   ]
   const placed = new Set(plans.flatMap((plan) => [...plan.placements.keys()]))
   return { nodes, edges: buildEdges(context, placed), bands: bandsOf(frames) }

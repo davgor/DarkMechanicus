@@ -1,8 +1,10 @@
-import type { DraftOp } from '../../shared/domain/api'
+import type { DraftOp, TicketInput } from '../../shared/domain/api'
 import type { PlanBundle, SprintDef, TicketContent } from '../../shared/domain/bundle'
 import { DomainError } from '../errors'
+import { acceptanceNodesOf, acceptanceTitle, isAcceptanceTicket } from './acceptance'
 import { checkEdgeAddition, indexBundle, ticketLabel, validatePlan } from './graph'
 import {
+  buildAcceptanceTicket,
   buildSprint,
   buildTicket,
   cloneBundle,
@@ -63,8 +65,26 @@ function declareRef(state: OpState, ref: string | undefined, id: string): void {
   state.refMap.set(ref, id)
 }
 
+/**
+ * Renumbers the sprints to follow `ordered`. An acceptance node that still has its automatic title
+ * (`Sprint N acceptance`) follows its sprint to the new ordinal; a title the planner changed stays.
+ */
 function renumberSprints(bundle: PlanBundle, ordered: SprintDef[]): void {
+  const retitled = new Map<string, string>()
+  ordered.forEach((sprint, position) => {
+    for (const node of acceptanceNodesOf(bundle, sprint.id)) {
+      if (sprint.ordinal !== position + 1 && node.title === acceptanceTitle(sprint.ordinal)) {
+        retitled.set(node.id, acceptanceTitle(position + 1))
+      }
+    }
+  })
   bundle.sprints = ordered.map((sprint, position) => ({ ...sprint, ordinal: position + 1 }))
+  if (retitled.size > 0) {
+    bundle.tickets = bundle.tickets.map((ticket) => {
+      const title = retitled.get(ticket.id)
+      return title === undefined ? ticket : { ...ticket, title }
+    })
+  }
 }
 
 function orderedSprints(bundle: PlanBundle): SprintDef[] {
@@ -74,6 +94,35 @@ function orderedSprints(bundle: PlanBundle): SprintDef[] {
 function insertAt<T>(items: T[], item: T, position: number | undefined): T[] {
   const index = position === undefined ? items.length : Math.max(0, Math.min(items.length, position))
   return [...items.slice(0, index), item, ...items.slice(index)]
+}
+
+/**
+ * Where a ticket goes in a sprint when no position is asked for: the end, but ahead of the sprint's
+ * acceptance node, which stays last. An acceptance node itself goes to the end.
+ */
+function defaultPosition(bundle: PlanBundle, sprint: SprintDef, ticket: TicketContent): number | undefined {
+  if (isAcceptanceTicket(ticket)) {
+    return undefined
+  }
+  const nodes = new Set(acceptanceNodesOf(bundle, sprint.id).map((node) => node.id))
+  const first = sprint.ticketIds.findIndex((id) => nodes.has(id))
+  return first === -1 ? undefined : first
+}
+
+/**
+ * Resolves the tickets that criteria cover (stable id, key, or client ref) to stable ids, because a
+ * saved criterion stores the id. A covers of null passes through; it clears the covers.
+ */
+function resolveCovers<T extends Partial<TicketInput>>(state: OpState, input: T): T {
+  if (input.acceptanceCriteria === undefined) {
+    return input
+  }
+  const acceptanceCriteria = input.acceptanceCriteria.map((item) =>
+    typeof item === 'string' || typeof item.covers !== 'string'
+      ? item
+      : { ...item, covers: resolveTicket(state, item.covers).id }
+  )
+  return { ...input, acceptanceCriteria }
 }
 
 const setEpic: Handler<'set_epic'> = (state, op) => {
@@ -98,6 +147,17 @@ const addSprint: Handler<'add_sprint'> = (state, op) => {
   const sprint = buildSprint(op.sprint, { id, ordinal: 0 })
   const position = op.position === undefined ? undefined : op.position - 1
   renumberSprints(state.bundle, insertAt(orderedSprints(state.bundle), sprint, position))
+  addAcceptanceNode(state, id)
+}
+
+/** Gives a sprint its acceptance node, titled for the ordinal the sprint has now. */
+function addAcceptanceNode(state: OpState, sprintId: string): void {
+  const sprint = state.bundle.sprints.find((item) => item.id === sprintId)
+  if (sprint) {
+    const node = buildAcceptanceTicket(sprint, { id: state.deps.newId('ticket'), key: state.deps.nextKey() })
+    state.bundle.tickets.push(node)
+    sprint.ticketIds.push(node.id)
+  }
 }
 
 const updateSprint: Handler<'update_sprint'> = (state, op) => {
@@ -109,11 +169,17 @@ const updateSprint: Handler<'update_sprint'> = (state, op) => {
 
 const removeSprint: Handler<'remove_sprint'> = (state, op) => {
   const sprint = resolveSprint(state, op.sprint)
-  if (sprint.ticketIds.length > 0) {
-    reject(`Sprint ${sprint.ordinal} still has ${sprint.ticketIds.length} ticket(s). Move or remove them first.`)
+  const nodes = acceptanceNodesOf(state.bundle, sprint.id)
+  const remaining = sprint.ticketIds.length - nodes.length
+  if (remaining > 0) {
+    reject(`Sprint ${sprint.ordinal} still has ${remaining} ticket(s). Move or remove them first.`)
   }
   if (state.bundle.sprints.length === 1) {
     reject('A plan keeps at least one sprint.')
+  }
+  // A sprint with nothing but its acceptance node is empty: the node goes with it.
+  for (const node of nodes) {
+    dropTicket(state.bundle, node.id)
   }
   renumberSprints(state.bundle, orderedSprints(state.bundle).filter((item) => item.id !== sprint.id))
 }
@@ -125,8 +191,9 @@ const addTicket: Handler<'add_ticket'> = (state, op) => {
   }
   const id = state.deps.newId('ticket')
   declareRef(state, op.ref, id)
-  state.bundle.tickets.push(buildTicket(op.ticket, { id, key: state.deps.nextKey() }))
-  sprint.ticketIds.push(id)
+  const ticket = buildTicket(resolveCovers(state, op.ticket), { id, key: state.deps.nextKey() })
+  sprint.ticketIds = insertAt(sprint.ticketIds, id, defaultPosition(state.bundle, sprint, ticket))
+  state.bundle.tickets.push(ticket)
 }
 
 const updateTicket: Handler<'update_ticket'> = (state, op) => {
@@ -134,20 +201,40 @@ const updateTicket: Handler<'update_ticket'> = (state, op) => {
   if (op.patch.title !== undefined && op.patch.title.trim() === '') {
     reject(`${ticket.key} needs a title.`)
   }
-  state.bundle.tickets = state.bundle.tickets.map((item) =>
-    item.id === ticket.id ? patchTicket(item, op.patch) : item
-  )
+  const patch = resolveCovers(state, op.patch)
+  state.bundle.tickets = state.bundle.tickets.map((item) => (item.id === ticket.id ? patchTicket(item, patch) : item))
+}
+
+/** The criterion without its covers: the key is removed, never set to undefined. */
+function uncovered(criterion: TicketContent['acceptanceCriteria'][number]): TicketContent['acceptanceCriteria'][number] {
+  const next = { ...criterion }
+  delete next.covers
+  return next
+}
+
+/** Removes a ticket, its edges and relations, and the covers of any criterion that named it. */
+function dropTicket(bundle: PlanBundle, ticketId: string): void {
+  bundle.tickets = bundle.tickets
+    .filter((item) => item.id !== ticketId)
+    .map((item) =>
+      item.acceptanceCriteria.some((criterion) => criterion.covers === ticketId)
+        ? {
+            ...item,
+            acceptanceCriteria: item.acceptanceCriteria.map((criterion) =>
+              criterion.covers === ticketId ? uncovered(criterion) : criterion
+            )
+          }
+        : item
+    )
+  for (const sprint of bundle.sprints) {
+    sprint.ticketIds = sprint.ticketIds.filter((id) => id !== ticketId)
+  }
+  bundle.edges = bundle.edges.filter((edge) => edge.from !== ticketId && edge.to !== ticketId)
+  bundle.relations = bundle.relations.filter((rel) => rel.from !== ticketId && rel.to !== ticketId)
 }
 
 const removeTicket: Handler<'remove_ticket'> = (state, op) => {
-  const ticket = resolveTicket(state, op.ticket)
-  const bundle = state.bundle
-  bundle.tickets = bundle.tickets.filter((item) => item.id !== ticket.id)
-  for (const sprint of bundle.sprints) {
-    sprint.ticketIds = sprint.ticketIds.filter((id) => id !== ticket.id)
-  }
-  bundle.edges = bundle.edges.filter((edge) => edge.from !== ticket.id && edge.to !== ticket.id)
-  bundle.relations = bundle.relations.filter((rel) => rel.from !== ticket.id && rel.to !== ticket.id)
+  dropTicket(state.bundle, resolveTicket(state, op.ticket).id)
 }
 
 function moveViolation(bundle: PlanBundle, ticketId: string): string | null {
@@ -165,10 +252,17 @@ function moveViolation(bundle: PlanBundle, ticketId: string): string | null {
 const moveTicket: Handler<'move_ticket'> = (state, op) => {
   const ticket = resolveTicket(state, op.ticket)
   const target = resolveSprint(state, op.toSprint)
+  const current = state.bundle.sprints.find((sprint) => sprint.ticketIds.includes(ticket.id))
+  if (isAcceptanceTicket(ticket) && current && current.id !== target.id) {
+    reject(
+      `${ticket.key} is the acceptance node of Sprint ${current.ordinal} and can't move to another sprint.`,
+      'invalid_graph'
+    )
+  }
   for (const sprint of state.bundle.sprints) {
     sprint.ticketIds = sprint.ticketIds.filter((id) => id !== ticket.id)
   }
-  target.ticketIds = insertAt(target.ticketIds, ticket.id, op.position)
+  target.ticketIds = insertAt(target.ticketIds, ticket.id, op.position ?? defaultPosition(state.bundle, target, ticket))
   const violation = moveViolation(state.bundle, ticket.id)
   if (violation) {
     reject(`Move rejected. ${violation}`, 'invalid_graph')

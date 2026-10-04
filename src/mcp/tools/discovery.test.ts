@@ -20,6 +20,18 @@ const CASES: Case[] = [
   { tool: 'get_capabilities', args: {}, method: 'getCapabilities', input: undefined },
   { tool: 'get_project', args: {}, method: 'getProject', input: undefined },
   {
+    tool: 'set_definition_of_done',
+    args: { checks: [{ name: 'lint', command: 'npm run lint', description: 'oxlint' }, { name: 'build', command: 'npm run build' }] },
+    method: 'setDefinitionOfDone',
+    input: {
+      checks: [
+        { name: 'lint', command: 'npm run lint', description: 'oxlint' },
+        { name: 'build', command: 'npm run build', description: '' }
+      ]
+    }
+  },
+  { tool: 'set_definition_of_done', args: { checks: [] }, method: 'setDefinitionOfDone', input: { checks: [] } },
+  {
     tool: 'initialize_repository',
     args: { name: 'Demo', keyPrefix: 'DM' },
     method: 'initializeRepository',
@@ -59,7 +71,8 @@ describe('list_projects', () => {
       name: 'Demo',
       keyPrefix: 'DM',
       repoRoot: '/repo',
-      createdAt: '2026-01-01T00:00:00.000Z'
+      createdAt: '2026-01-01T00:00:00.000Z',
+      definitionOfDone: [{ name: 'lint', command: 'npm run lint', description: 'oxlint' }]
     }
     const api = createCannedApi({ getProject: project })
     await withRig(areaServer(registerDiscoveryTools), api, async (rig) => {
@@ -100,12 +113,21 @@ const INVALID: InvalidCase[] = [
   { label: 'search limit above 100', tool: 'search_history', args: { query: 'x', limit: 101 } },
   { label: 'fractional search limit', tool: 'search_history', args: { query: 'x', limit: 1.5 } },
   { label: 'malformed epic id', tool: 'search_history', args: { query: 'x', epicId: 'nope' } },
-  { label: 'missing query', tool: 'search_history', args: {} }
+  { label: 'missing query', tool: 'search_history', args: {} },
+  { label: 'no checks member', tool: 'set_definition_of_done', args: {} },
+  { label: 'a blank check name', tool: 'set_definition_of_done', args: { checks: [{ name: ' ', command: 'npm test' }] } },
+  { label: 'a check without a command', tool: 'set_definition_of_done', args: { checks: [{ name: 'test' }] } },
+  {
+    label: 'two checks whose names differ only in case',
+    tool: 'set_definition_of_done',
+    args: { checks: [{ name: 'test', command: 'npm test' }, { name: 'TEST', command: 'npm run test' }] }
+  },
+  { label: 'more than 50 checks', tool: 'set_definition_of_done', args: { checks: Array.from({ length: 51 }, (_unused, index) => ({ name: `c${index}`, command: 'x' })) } }
 ]
 
 describe('discovery input validation', () => {
   it.each(INVALID)('rejects $label without calling the command', async ({ tool, args }) => {
-    const api = createCannedApi({ initializeRepository: MARKER, searchHistory: MARKER })
+    const api = createCannedApi({ initializeRepository: MARKER, searchHistory: MARKER, setDefinitionOfDone: MARKER })
     await withRig(areaServer(registerDiscoveryTools), api, async (rig) => {
       const outcome = await callTool(rig, tool, args)
       expect(outcome.isError).toBe(true)

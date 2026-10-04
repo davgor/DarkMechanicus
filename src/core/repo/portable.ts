@@ -16,11 +16,14 @@ import {
   capabilityProfile,
   checkResult,
   commentBody,
+  commitHash,
   criterionResult,
+  definitionOfDoneChecks,
   epicBranch,
   LIMITS,
   planBundle,
   profileName,
+  rowCheckEntries,
   workStatus
 } from '../schemas'
 import { assertContained, displayPath } from './paths'
@@ -38,6 +41,7 @@ const MERGE_MARKER_PATTERN = /(?:^|\n)(?:<{7} |>{7} |\|{7} |={7}\r?(?:\n|$))/
 const MAX_ATTEMPTS = 10_000
 const MAX_REPORTS = 5_000
 const MAX_CHECKPOINTS = 1_000
+const MAX_ROW_CHECKS = 5_000
 
 const idOf = (kind: IdKind) => z.string().refine((value) => isStableId(value, kind), { message: `Expected a ${kind} id` })
 const anyStableId = z.string().regex(STABLE_ID_PATTERN)
@@ -57,7 +61,9 @@ export const projectRecord = z.strictObject({
   projectId: idOf('project'),
   name: z.string().min(1).max(200),
   keyPrefix: z.string().regex(KEY_PREFIX_PATTERN),
-  createdAt: isoTime
+  createdAt: isoTime,
+  // No default: a project record written before the Definition of Done existed must parse and re-serialize unchanged.
+  definitionOfDone: definitionOfDoneChecks.optional()
 })
 export type ProjectRecord = z.infer<typeof projectRecord>
 
@@ -159,6 +165,18 @@ const attemptDecision = z.strictObject({
   criteria: criterionResults.optional()
 })
 
+/** The server's verdict on the increment an acceptance node named; written once, with the submission. */
+const sprintIncrementRecord = z.strictObject({
+  branch: epicBranch.shape.name,
+  commit: commitHash,
+  parent: commitHash.nullable(),
+  base: z.strictObject({ kind: z.enum(['previous_increment', 'epic_start', 'none']), commit: commitHash.nullable() }),
+  passed: z.boolean(),
+  reasons: textList,
+  checks: z.array(checkResult).max(LIMITS.listItems),
+  verifiedAt: isoTime
+})
+
 const attemptRecord = z.strictObject({
   id: idOf('attempt'),
   ticketId: idOf('ticket'),
@@ -173,6 +191,8 @@ const attemptRecord = z.strictObject({
   evidence: attemptEvidence.nullable(),
   failure: attemptFailure.nullable(),
   decision: attemptDecision.nullable(),
+  // No default: run history written before increments existed must parse and re-export byte for byte.
+  increment: sprintIncrementRecord.optional(),
   createdAt: isoTime,
   updatedAt: isoTime,
   submittedAt: isoTime.nullable(),
@@ -219,6 +239,18 @@ const checkpointRecord = z.strictObject({
   decidedAt: isoTime
 })
 
+/** The orchestrator's check of one dependency row of a sprint; `number` orders a run's checks as recorded. */
+const rowCheckRecord = z.strictObject({
+  id: idOf('rowCheck'),
+  number: positiveInt,
+  sprintId: idOf('sprint'),
+  row: positiveInt,
+  commit: commitHash,
+  checks: rowCheckEntries,
+  recordedBy: label.nullable(),
+  createdAt: isoTime
+})
+
 const runHistoryShape = z.strictObject({
   format: z.literal('darkmechanicus.run'),
   formatVersion: z.literal(1),
@@ -239,7 +271,9 @@ const runHistoryShape = z.strictObject({
   endedAt: isoTime.nullable(),
   attempts: z.array(attemptRecord).max(MAX_ATTEMPTS),
   reports: z.array(reportRecord).max(MAX_REPORTS),
-  checkpoints: z.array(checkpointRecord).max(MAX_CHECKPOINTS)
+  checkpoints: z.array(checkpointRecord).max(MAX_CHECKPOINTS),
+  // No default: run history written before row checks existed must parse and re-export byte for byte.
+  rowChecks: z.array(rowCheckRecord).max(MAX_ROW_CHECKS).optional()
 })
 type RunHistoryShape = z.infer<typeof runHistoryShape>
 
@@ -274,7 +308,9 @@ const RUN_UNIQUENESS: { what: string; path: string; keys: (record: RunHistorySha
     path: 'reports',
     keys: (record) => record.reports.map((item) => `${item.sprintId}#${item.reportRevision}`)
   },
-  { what: 'checkpoint id', path: 'checkpoints', keys: (record) => record.checkpoints.map((item) => item.id) }
+  { what: 'checkpoint id', path: 'checkpoints', keys: (record) => record.checkpoints.map((item) => item.id) },
+  { what: 'row check id', path: 'rowChecks', keys: (record) => (record.rowChecks ?? []).map((item) => item.id) },
+  { what: 'row check number', path: 'rowChecks', keys: (record) => (record.rowChecks ?? []).map((item) => String(item.number)) }
 ]
 
 const SESSION_ROLES = ['desktop', 'planner', 'orchestrator', 'worker', 'reviewer'] as const satisfies readonly SessionRole[]
@@ -541,6 +577,7 @@ interface AttemptRow {
   evidence_json: string | null
   failure_json: string | null
   decision_json: string | null
+  increment_json: string | null
   created_at: string
   updated_at: string
   submitted_at: string | null
@@ -567,6 +604,17 @@ interface CheckpointRow {
   policy: string
   decided_by: string | null
   decided_at: string
+}
+
+interface RowCheckRow {
+  id: string
+  number: number
+  sprint_id: string
+  row_no: number
+  commit_ref: string
+  checks_json: string
+  recorded_by: string | null
+  created_at: string
 }
 
 function runFields(run: RunRow): Record<string, unknown> {
@@ -608,6 +656,8 @@ function attemptEntry(row: AttemptRow): Record<string, unknown> {
     evidence: parseJson<unknown>(row.evidence_json, null),
     failure: parseJson<unknown>(row.failure_json, null),
     decision: parseJson<unknown>(row.decision_json, null),
+    // Left out when the attempt named no increment, so a record without one keeps its bytes.
+    ...(row.increment_json === null ? {} : { increment: parseJson<unknown>(row.increment_json, null) }),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     submittedAt: row.submitted_at,
@@ -642,16 +692,32 @@ function checkpointEntry(row: CheckpointRow): Record<string, unknown> {
   }
 }
 
+/** Row checks in the order they were recorded; the record leaves the key out when a run has none. */
+function rowCheckEntry(row: RowCheckRow): Record<string, unknown> {
+  return {
+    id: row.id,
+    number: row.number,
+    sprintId: row.sprint_id,
+    row: row.row_no,
+    commit: row.commit_ref,
+    checks: parseJson<unknown>(row.checks_json, null),
+    recordedBy: row.recorded_by,
+    createdAt: row.created_at
+  }
+}
+
 export function buildRunHistoryRecord(db: Db, runId: string): RunHistoryRecord {
   const run = db.get<RunRow>('SELECT * FROM runs WHERE id = ?', runId)
   if (run === undefined) {
     fail('not_found', `Run ${runId} does not exist.`)
   }
+  const rowChecks = db.all<RowCheckRow>('SELECT * FROM row_checks WHERE run_id = ? ORDER BY number', runId).map(rowCheckEntry)
   const record = {
     ...runFields(run),
     attempts: db.all<AttemptRow>('SELECT * FROM attempts WHERE run_id = ? ORDER BY id', runId).map(attemptEntry),
     reports: db.all<ReportRow>('SELECT * FROM sprint_reports WHERE run_id = ? ORDER BY id', runId).map(reportEntry),
-    checkpoints: db.all<CheckpointRow>('SELECT * FROM checkpoints WHERE run_id = ? ORDER BY id', runId).map(checkpointEntry)
+    checkpoints: db.all<CheckpointRow>('SELECT * FROM checkpoints WHERE run_id = ? ORDER BY id', runId).map(checkpointEntry),
+    ...(rowChecks.length > 0 ? { rowChecks } : {})
   }
   return exportable(runHistoryRecord, record, `run history ${runId}`)
 }

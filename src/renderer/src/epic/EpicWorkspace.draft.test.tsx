@@ -133,6 +133,22 @@ describe('rejected graph edits', () => {
   })
 })
 
+describe('+ Acceptance on a sprint without a node', () => {
+  it('adds the sprint node from its label, as a draft op for that sprint', async () => {
+    const h = await openDraftView()
+    expect(screen.getAllByRole('button', { name: '+ Acceptance' })).toHaveLength(3)
+    fireEvent.click(screen.getAllByRole('button', { name: '+ Acceptance' })[1] as HTMLElement)
+    await screen.findByLabelText('Draft validation')
+    expect(h.backend.inputs('updatePlanDraft')).toEqual([
+      {
+        epicId: 'ep_1',
+        ops: [{ op: 'add_ticket', ref: 'new', sprint: 'sp_2', ticket: { kind: 'acceptance', title: 'Sprint 2 acceptance' } }],
+        expectedDraftRevision: 7
+      }
+    ])
+  })
+})
+
 describe('draft bar details', () => {
   it('warns about a stale draft and links back to the run revision', async () => {
     const stale = new FakeBackend(scenario({ epic: epicDetail({ hasDraft: true }), draft: draftPlan({ stale: true }) }))

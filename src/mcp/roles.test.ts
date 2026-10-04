@@ -37,7 +37,8 @@ const READ_TOOLS = [
 /** Every role may comment. */
 const COMMENT_TOOLS = ['add_comment']
 
-const PLANNER_TOOLS = [
+/** Tools a planner and an orchestrator both hold. */
+const PLANNER_SHARED_TOOLS = [
   ...READ_TOOLS,
   ...COMMENT_TOOLS,
   'initialize_repository',
@@ -53,8 +54,13 @@ const PLANNER_TOOLS = [
   'save_profile'
 ]
 
+/** Only a planner (and the desktop) sets the Definition of Done: the orchestrator accepts work against it. */
+const PLANNER_ONLY_TOOLS = ['set_definition_of_done']
+
+const PLANNER_TOOLS = [...PLANNER_SHARED_TOOLS, ...PLANNER_ONLY_TOOLS]
+
 const ORCHESTRATOR_TOOLS = [
-  ...PLANNER_TOOLS,
+  ...PLANNER_SHARED_TOOLS,
   'set_epic_status',
   'set_epic_branch',
   'set_ticket_status',
@@ -73,6 +79,7 @@ const ORCHESTRATOR_TOOLS = [
   'fail_attempt',
   'reconcile_attempt',
   'carry_forward_ticket',
+  'record_row_check',
   'submit_sprint_report',
   'advance_sprint'
 ]
@@ -118,6 +125,37 @@ describe('tools/list per role', () => {
       const { tools } = await rig.client.listTools()
       const readOnly = tools.filter((tool) => tool.annotations?.readOnlyHint === true).map((tool) => tool.name)
       expect(readOnly.sort()).toEqual([...READ_TOOLS].sort())
+    })
+  })
+})
+
+describe('set_definition_of_done', () => {
+  it.each(['orchestrator', 'worker', 'reviewer'] as const)(
+    'answers a call from a %s with unauthorized and runs nothing',
+    async (role) => {
+      const api = createStubApi()
+      await withRig(serverFor(role, true), api, async (rig) => {
+        const outcome = await callTool(rig, 'set_definition_of_done', { checks: [{ name: 'lint', command: 'npm run lint' }] })
+        expect(outcome.isError).toBe(true)
+        expect(outcome.payload).toEqual({
+          ok: false,
+          error: {
+            code: 'unauthorized',
+            message: `This ${role} session is not permitted to perform "project.definition_of_done".`,
+            details: { role, capability: 'project.definition_of_done', tool: 'set_definition_of_done' }
+          }
+        })
+        expect(api.calls).toEqual([])
+      })
+    }
+  )
+
+  it('runs for a planner', async () => {
+    const api = createCannedApi({ setDefinitionOfDone: { marker: 'set' } })
+    await withRig(serverFor('planner', false), api, async (rig) => {
+      const outcome = await callTool(rig, 'set_definition_of_done', { checks: [{ name: 'lint', command: 'npm run lint' }] })
+      expect(outcome.payload).toEqual({ ok: true, data: { marker: 'set' } })
+      expect(api.calls.map((call) => call.name)).toEqual(['setDefinitionOfDone'])
     })
   })
 })

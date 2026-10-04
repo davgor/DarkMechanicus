@@ -21,6 +21,7 @@ const DELETE_STATEMENTS = [
   `DELETE FROM retry_grants WHERE run_id IN (${RUNS})`,
   `DELETE FROM checkpoints WHERE run_id IN (${RUNS})`,
   `DELETE FROM sprint_reports WHERE run_id IN (${RUNS})`,
+  `DELETE FROM row_checks WHERE run_id IN (${RUNS})`,
   'DELETE FROM approvals WHERE epic_id = ?',
   `DELETE FROM sync_state WHERE (kind = 'epic' AND entity_id = ?) OR (kind = 'run' AND entity_id IN (${RUNS}))
      OR (kind = 'comment' AND entity_id IN (${COMMENTS}))`,

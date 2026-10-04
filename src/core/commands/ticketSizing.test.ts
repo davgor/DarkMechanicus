@@ -61,7 +61,9 @@ describe('ticket size and reasoning effort through the planning commands', () =>
     const rows = await agent.listTickets({ epicId: plan.epicId, view: 'saved' })
     expect(rows.map((row) => [row.title, row.size, row.effort])).toEqual([
       ['Rename the flag', 'micro', 'low'],
-      ['Rewrite the planner', 'large', undefined]
+      ['Rewrite the planner', 'large', undefined],
+      // The sprint acceptance node a new epic starts with stays last in its sprint.
+      ['Sprint 1 acceptance', undefined, undefined]
     ])
   })
 
@@ -86,7 +88,7 @@ describe('ticket size and reasoning effort through the planning commands', () =>
     expect(report.warnings.filter((warning) => warning.code === 'large_ticket')).toEqual([
       {
         code: 'large_ticket',
-        message: 'DM-2 is sized large; consider splitting it into smaller tickets.',
+        message: 'DM-3 is sized large; consider splitting it into smaller tickets.',
         ticketIds: [plan.ticket('big')]
       }
     ])

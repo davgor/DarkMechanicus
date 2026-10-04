@@ -12,6 +12,7 @@ const BRANCH_REF_PATTERN = /^refs\/heads\/[^\s~^:?*[\\]+$/
 const MAX_GIT_FILE_BYTES = 1024 * 1024
 const MAX_PACKED_REFS_BYTES = 16 * 1024 * 1024
 const GIT_TIMEOUT_MS = 10_000
+const GIT_FAILED = 128
 const GIT_MAX_BUFFER = 16 * 1024 * 1024
 /** Variables that would point git at another repository than the one we pass with -C. */
 const REDIRECTING_ENV = [
@@ -114,6 +115,11 @@ function gitEnv(): NodeJS.ProcessEnv {
   return env
 }
 
+/** Git's exit status, or 128 (its "fatal" status) when the process could not run or was stopped. */
+function exitCodeOf(error: { code?: unknown }): number {
+  return typeof error.code === 'number' ? error.code : GIT_FAILED
+}
+
 function defaultRunGit(root: string): RunGit {
   return (args) =>
     new Promise((settle) => {
@@ -121,7 +127,7 @@ function defaultRunGit(root: string): RunGit {
         'git',
         ['-C', root, ...args],
         { encoding: 'utf8', timeout: GIT_TIMEOUT_MS, maxBuffer: GIT_MAX_BUFFER, env: gitEnv(), windowsHide: true },
-        (error, stdout) => settle({ code: error ? 1 : 0, stdout })
+        (error, stdout) => settle({ code: error ? exitCodeOf(error) : 0, stdout })
       )
     })
 }
@@ -136,6 +142,14 @@ function safeArg(value: string): string {
 
 function lines(text: string): string[] {
   return text.split(/\r?\n/).filter((line) => line !== '')
+}
+
+/** `<commit> <parent>...` as `rev-list --parents` prints one commit; null for anything else. */
+function parseCommitLine(text: string): { commit: string; parents: string[] } | null {
+  const rows = lines(text)
+  const [commit, ...parents] = rows[0]?.split(' ') ?? []
+  const valid = rows.length === 1 && commit !== undefined && [commit, ...parents].every((id) => SHA_PATTERN.test(id))
+  return valid ? { commit, parents } : null
 }
 
 /**
@@ -158,6 +172,17 @@ export function createGitAdapter(root: string, options: { fs?: FsAdapter; runGit
     listLocalBranches: async () => lines((await output(['for-each-ref', '--format=%(refname:short)', 'refs/heads'])) ?? ''),
     listFiles: async (ref, pathspec) =>
       lines((await output(['ls-tree', '-r', '--name-only', safeArg(ref), '--', safeArg(pathspec)])) ?? ''),
-    showFile: async (ref, path) => output(['show', `${safeArg(ref)}:./${safeArg(path)}`])
+    showFile: async (ref, path) => output(['show', `${safeArg(ref)}:./${safeArg(path)}`]),
+    isAncestor: async (ancestor, descendant) => {
+      const result = await run(['merge-base', '--is-ancestor', safeArg(ancestor), safeArg(descendant)])
+      // Exit status 1 is a clean "no"; any other failure means git could not look the commits up.
+      return result.code === 0 ? true : result.code === 1 ? false : null
+    },
+    commitParents: async (ref) => {
+      // `--verify` accepts exactly one revision, so a range or a name that expands to several is refused.
+      const resolved = (await output(['rev-parse', '--verify', '--quiet', `${safeArg(ref)}^{commit}`]))?.trim() ?? ''
+      const text = SHA_PATTERN.test(resolved) ? await output(['rev-list', '--parents', '-n', '1', resolved, '--']) : null
+      return text === null ? null : parseCommitLine(text)
+    }
   }
 }

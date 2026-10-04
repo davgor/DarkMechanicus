@@ -1,5 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
+import { definitionOfDoneChecks } from '../../core/schemas'
 import type { CommandApi } from '../../shared/domain/api'
 import { defineArglessTool, defineTool, registerTools } from './define'
 import { epicId } from './params'
@@ -15,9 +16,21 @@ const DISCOVERY_TOOLS = [
   defineArglessTool({
     name: 'get_project',
     description:
-      'Returns the project record (id, name, ticket key prefix, repository root). Fails with `not_initialized` until initialize_repository has run.',
+      'Returns the project record (id, name, ticket key prefix, repository root) and its Definition of Done: the ordered checks (name, command, description) that the acceptance node of every sprint must report as passed, empty when the project has none. Fails with `not_initialized` until initialize_repository has run.',
     kind: 'read',
     run: (api) => api.getProject()
+  }),
+  defineTool({
+    name: 'set_definition_of_done',
+    description:
+      'Planner and desktop only. Replaces the Definition of Done of the project, stored in .darkmechanicus/project.json so it travels with the repository (never committed for you), and returns the project as get_project shows it. Each check has a name, the command that runs it, and a description of what passing shows. Names must be unique ignoring case and surrounding spaces: the acceptance node of a sprint proves each check by reporting it under that name as passed in its evidence, and the definition_of_done gate of the checkpoint stays unmet until it has. Dark Mechanicus does not run the commands. An empty list removes the Definition of Done, and sprints then get no such gate. Safe to repeat.',
+    kind: 'idempotent',
+    input: {
+      checks: definitionOfDoneChecks.describe(
+        'Every check, in order. Replaces the whole list: omit none you want to keep (call get_project first).'
+      )
+    },
+    run: (api, input) => api.setDefinitionOfDone(input)
   }),
   defineArglessTool({
     name: 'list_projects',

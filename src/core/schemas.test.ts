@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { z } from 'zod'
-import { defaultCapabilityProfile, type PlanBundle, REASONING_EFFORTS, TICKET_SIZES } from '../shared/domain/bundle'
+import { defaultCapabilityProfile, type PlanBundle, REASONING_EFFORTS, TICKET_KINDS, TICKET_SIZES } from '../shared/domain/bundle'
 import { makeBundle, makeSprint, makeTicket, sid, tid } from '../test/bundles'
 import { idOf } from '../test/repoFixtures'
 import { thrownBy } from '../test/thrownBy'
@@ -24,6 +24,7 @@ import {
   epicBranch,
   hostCatalog,
   idempotencyKey,
+  incrementRef,
   LIMITS,
   parseInput,
   planBundle,
@@ -70,7 +71,8 @@ describe('LIMITS', () => {
       models: 200,
       comment: 20_000,
       commentsPerEpic: 10_000,
-      profileDescription: 500
+      profileDescription: 500,
+      definitionOfDone: 50
     })
   })
 })
@@ -1232,5 +1234,139 @@ describe('claim_ticket worker effort', () => {
 
   it.each([['an unknown effort', 'extreme'], ['an empty effort', ''], ['a number', 1]])('rejects %s', (_label, effort) => {
     expect(accepts(COMMAND_SCHEMAS.claimTicket, claim({ label: 'w', effort }))).toBe(false)
+  })
+})
+
+describe('ticket kind', () => {
+  it('lists work and acceptance', () => {
+    expect([...TICKET_KINDS]).toEqual(['work', 'acceptance'])
+  })
+
+  it.each(TICKET_KINDS)('accepts the kind %s on a ticket input, a patch and saved ticket content', (kind) => {
+    expect(accepts(ticketInput, { title: 'T', kind })).toBe(true)
+    expect(accepts(draftOp, { op: 'update_ticket', ticket: 'DM-1', patch: { kind } })).toBe(true)
+    expect(accepts(draftOp, { op: 'add_ticket', sprint: '1', ticket: { title: 'T', kind } })).toBe(true)
+    expect(accepts(ticketContent, makeTicket(1, { kind }))).toBe(true)
+  })
+
+  it.each([
+    ['an unknown kind', 'epic'],
+    ['an empty kind', ''],
+    ['null', null],
+    ['a number', 1]
+  ])('rejects %s', (_label, kind) => {
+    expect(accepts(ticketInput, { title: 'T', kind })).toBe(false)
+    expect(accepts(ticketContent, { ...makeTicket(1), kind })).toBe(false)
+  })
+
+  it('never defaults a kind: a ticket without one parses without one', () => {
+    expect(Object.keys(ticketInput.parse({ title: 'T' }))).not.toContain('kind')
+    expect(Object.keys(ticketContent.parse(makeTicket(1)))).not.toContain('kind')
+  })
+})
+
+describe('criteria that cover tickets', () => {
+  const covering = (covers: unknown): Record<string, unknown> => ({ id: 'c1', text: 'Verified', covers })
+
+  it('accepts a stable ticket id as covers on saved ticket content, and keeps it', () => {
+    const ticket = makeTicket(1, { kind: 'acceptance', acceptanceCriteria: [{ id: 'c1', text: 'Verified', covers: tid(2) }] })
+    expect(ticketContent.parse(ticket).acceptanceCriteria).toEqual([{ id: 'c1', text: 'Verified', covers: tid(2) }])
+  })
+
+  it.each([
+    ['a key', 'DM-2'],
+    ['an empty string', ''],
+    ['null', null],
+    ['a number', 2]
+  ])('rejects %s as covers on saved ticket content', (_label, covers) => {
+    expect(accepts(ticketContent, { ...makeTicket(1), acceptanceCriteria: [covering(covers)] })).toBe(false)
+  })
+
+  it('accepts a reference or null as covers in a ticket input, and a plain criterion beside it', () => {
+    const acceptanceCriteria = [covering('DM-2'), covering(null), covering('new'), { text: 'Plain' }, 'Text only']
+    expect(accepts(ticketInput, { title: 'T', acceptanceCriteria })).toBe(true)
+    expect(accepts(draftOp, { op: 'update_ticket', ticket: 'DM-1', patch: { acceptanceCriteria } })).toBe(true)
+  })
+
+  it.each([
+    ['an empty reference', ''],
+    ['a reference with spaces', 'DM 2'],
+    ['a number', 2],
+    ['an over-long reference', text(65)]
+  ])('rejects %s as covers in a ticket input', (_label, covers) => {
+    expect(accepts(ticketInput, { title: 'T', acceptanceCriteria: [covering(covers)] })).toBe(false)
+  })
+
+  it('never defaults covers: a criterion without it parses without it', () => {
+    const parsed = ticketContent.parse(makeTicket(1))
+    expect(Object.keys(parsed.acceptanceCriteria[0])).not.toContain('covers')
+  })
+
+  it('does not let an epic or sprint criterion carry covers', () => {
+    expect(accepts(criterion, { id: 'c1', text: 'x', covers: tid(1) })).toBe(false)
+    expect(accepts(criterionInput, { text: 'x', covers: 'DM-1' })).toBe(false)
+    expect(accepts(sprintInput, { goal: 'g', exitCriteria: [{ text: 'x', covers: 'DM-1' }] })).toBe(false)
+  })
+})
+
+describe('plans saved before ticket kinds and covers existed', () => {
+  it('parse back unchanged and keep their content hash', () => {
+    const bundle = makeBundle([[1, 2], [3]], [[1, 3]])
+    const parsed = parseInput(planBundle, bundle, 'plan')
+    expect(contentHash(parsed)).toBe(contentHash(bundle))
+    for (const ticket of parsed.tickets) {
+      expect(Object.keys(ticket)).not.toContain('kind')
+      for (const item of ticket.acceptanceCriteria) {
+        expect(Object.keys(item)).not.toContain('covers')
+      }
+    }
+  })
+
+  it('hash differently once a kind or covers is set, and parse back with them', () => {
+    const plain = makeBundle([[1, 2]])
+    const marked = bundleWith((bundle) => {
+      bundle.tickets = [
+        makeTicket(1),
+        makeTicket(2, { kind: 'acceptance', acceptanceCriteria: [{ id: 'c1', text: 'DM-1 verified', covers: tid(1) }] })
+      ]
+    })
+    const parsed = parseInput(planBundle, marked, 'plan')
+    expect(parsed.tickets[1]).toMatchObject({ kind: 'acceptance', acceptanceCriteria: [{ covers: tid(1) }] })
+    expect(contentHash(parsed)).toBe(contentHash(marked))
+    expect(contentHash(marked)).not.toBe(contentHash(plain))
+  })
+})
+
+describe('incrementRef', () => {
+  const COMMIT = 'abc1234'
+
+  it.each([
+    ['a short commit', { branch: 'epic/x', commit: COMMIT }],
+    ['a full SHA-1 commit', { branch: 'main', commit: 'a'.repeat(40) }],
+    ['a full SHA-256 commit', { branch: 'feature/a-b', commit: 'F'.repeat(64) }]
+  ])('accepts %s', (_label, value) => {
+    expect(accepts(incrementRef, value)).toBe(true)
+  })
+
+  it.each([
+    ['a missing branch', { commit: COMMIT }],
+    ['a missing commit', { branch: 'epic/x' }],
+    ['a branch with a range in it', { branch: 'a..b', commit: COMMIT }],
+    ['a branch that starts with a dash', { branch: '-x', commit: COMMIT }],
+    ['a commit that is too short', { branch: 'epic/x', commit: 'abc123' }],
+    ['a commit that is too long', { branch: 'epic/x', commit: 'a'.repeat(65) }],
+    ['a commit that is not hex', { branch: 'epic/x', commit: 'xyz1234' }],
+    ['a ref name for the commit', { branch: 'epic/x', commit: 'HEAD~1' }],
+    ['an unknown key', { branch: 'epic/x', commit: COMMIT, parent: COMMIT }]
+  ])('rejects %s', (_label, value) => {
+    expect(accepts(incrementRef, value)).toBe(false)
+  })
+
+  it('is optional on a submission and only there', () => {
+    const submission = { attemptId: idOf('attempt', 1), claimToken: 'at.secret', outputs: { summary: 's' } }
+    expect(accepts(COMMAND_SCHEMAS.submitAttempt, submission)).toBe(true)
+    expect(accepts(COMMAND_SCHEMAS.submitAttempt, { ...submission, increment: { branch: 'epic/x', commit: COMMIT } })).toBe(true)
+    expect(accepts(COMMAND_SCHEMAS.submitAttempt, { ...submission, increment: { branch: 'epic/x' } })).toBe(false)
+    expect(accepts(COMMAND_SCHEMAS.submitAttempt, { ...submission, outputs: { summary: 's', increment: { branch: 'b', commit: COMMIT } } })).toBe(false)
   })
 })

@@ -1,5 +1,6 @@
 import type { CommandApi, CommandName } from '../shared/domain/api'
 import type {
+  DefinitionOfDoneCheck,
   FlushResultView,
   InitializeResultView,
   ReconcileResultView,
@@ -187,9 +188,15 @@ class RepositoryWorkspace implements WorkspaceCore {
       machineId,
       projectId: project.projectId,
       assertBranch: () => this.assertBranch(),
-      checkout: () => this.checkout()
+      checkout: () => this.checkout(),
+      definitionOfDone: () => this.definitionOfDone()
     }
     return { db, project, ctx }
+  }
+
+  /** The checks `project.json` holds now: read from the file each time, never from the copy read at open. */
+  definitionOfDone(): DefinitionOfDoneCheck[] {
+    return readProject(this.layout, this.fs)?.definitionOfDone ?? []
   }
 
   checkout(): { branch: string | null; commit: string | null } {

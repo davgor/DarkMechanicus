@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { PlanBundle } from '../../shared/domain/bundle'
-import { sid } from '../../test/bundles'
+import { sid, tid } from '../../test/bundles'
 import { COMMAND_SCHEMAS } from '../commandSchemas'
 import { applyDraftOps } from '../plan/draftOps'
 import { createInitialBundle } from '../plan/normalize'
@@ -19,12 +19,20 @@ function fixtureEpic(boardId: string): BoardEpic {
   return epic
 }
 
-/** The draft a new epic starts with (one empty sprint), after the import ops, through the real op logic. */
+/** The tickets of a draft that came from the board: everything but the acceptance node a new epic starts with. */
+function importedTickets(draft: PlanBundle): PlanBundle['tickets'] {
+  return draft.tickets.filter((ticket) => ticket.kind !== 'acceptance')
+}
+
+/**
+ * The draft a new epic starts with (one sprint holding its acceptance node), after the import ops,
+ * through the real op logic.
+ */
 function draftAfterImport(epic: BoardEpic): PlanBundle {
   const { createEpic, ops } = boardEpicImport(epic)
   const initial = createInitialBundle(
     { title: createEpic.title, intent: createEpic.intent ?? '', successCriteria: [], ownerRole: null },
-    sid(1)
+    { sprintId: sid(1), ticketId: tid(1), ticketKey: 'DM-1' }
   )
   let created = 0
   const deps = {
@@ -102,13 +110,15 @@ describe('boardEpicImport update_plan_draft ops', () => {
       'Package the MCP entry and connection snippet',
       'Host skill install wrapper',
       'Windows and macOS packaging verification',
-      'Second agent host validation'
+      'Second agent host validation',
+      // The sprint's acceptance node stays last.
+      'Sprint 1 acceptance'
     ])
     expect(draft.edges).toEqual([])
   })
 
   it('carries only unchecked criteria, the Markdown body and a reference to the source file', () => {
-    const [packageEntry, , packaging] = draftAfterImport(fixtureEpic('014')).tickets
+    const [packageEntry, , packaging] = importedTickets(draftAfterImport(fixtureEpic('014')))
     expect(packageEntry?.acceptanceCriteria).toEqual([])
     expect(packaging?.acceptanceCriteria.map((criterion) => criterion.text)).toEqual([
       'Packaged Windows (NSIS + portable) build starts the desktop and the MCP entry with a shared database',
@@ -127,7 +137,7 @@ describe('boardEpicImport update_plan_draft ops', () => {
   })
 
   it('references the collapsed epic file for a folded-in sub-ticket', () => {
-    const [reports] = draftAfterImport(fixtureEpic('013')).tickets
+    const [reports] = importedTickets(draftAfterImport(fixtureEpic('013')))
     expect(reports?.references.map((reference) => [reference.label, reference.location])).toEqual([
       ['Board ticket 013.1', 'board/done/013-checkpoints-and-recovery.md']
     ])

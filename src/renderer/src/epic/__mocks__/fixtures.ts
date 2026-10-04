@@ -23,7 +23,11 @@ import type {
   GateCondition,
   PlanView,
   ProfileView,
+  ProjectView,
+  RowCheckView,
+  RowView,
   RunView,
+  SprintIncrementView,
   SprintReportView,
   TicketDetailView,
   TicketExecutionView,
@@ -244,6 +248,7 @@ export function execution(
     ticketId: `tk_${key.slice(3)}`,
     key,
     sprintId,
+    row: 1,
     state,
     attemptCount: state === 'later_sprint' || state === 'ready' ? 0 : 1,
     latestAttemptId: null,
@@ -370,8 +375,79 @@ export function runView(patch: Partial<RunView> = {}): RunView {
       execution('DM-302', 'sp_3', 'later_sprint'),
       execution('DM-304', 'sp_3', 'later_sprint')
     ],
+    rows: [],
+    increments: [],
     attempts: SAMPLE_ATTEMPTS,
     checkpoint: null,
+    ...patch
+  }
+}
+
+/** One recorded check of a dependency row: passed, or failed on its first entry. */
+export function rowCheck(sprintId: string, row: number, passed: boolean, patch: Partial<RowCheckView> = {}): RowCheckView {
+  return {
+    id: `rc_${sprintId}_${row}`,
+    runId: 'rn_2',
+    sprintId,
+    row,
+    number: 1,
+    commit: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678',
+    checks: passed
+      ? [{ name: 'Unit tests', status: 'passed', detail: '12 passed' }]
+      : [
+          { name: 'Unit tests', status: 'failed', detail: '2 failed' },
+          { name: 'Typecheck', status: 'passed', detail: '0 errors' }
+        ],
+    passed,
+    recordedBy: 'orchestrator',
+    createdAt: iso(-10 * MINUTE),
+    ...patch
+  }
+}
+
+/** A dependency row (counted from 1) with the keys of its tickets and its latest check, if any. */
+export function rowView(sprintId: string, row: number, keys: string[], latestCheck: RowCheckView | null = null): RowView {
+  return { sprintId, row, tickets: keys.map((key) => ({ ticketId: `tk_${key.slice(3)}`, key })), latestCheck }
+}
+
+/** The verified increment of a sprint's acceptance node: one squashed commit on the epic branch. */
+export function incrementView(patch: Partial<SprintIncrementView> = {}): SprintIncrementView {
+  return {
+    sprintId: 'sp_2',
+    sprintOrdinal: 2,
+    ticketId: 'tk_290',
+    key: 'DM-290',
+    attemptId: 'at_290_1',
+    attemptState: 'accepted',
+    increment: {
+      branch: 'epic/planning',
+      commit: '5d3e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e',
+      parent: '9f8e7d6c5b4a39281706f5e4d3c2b1a098765432',
+      base: { kind: 'previous_increment', commit: '9f8e7d6c5b4a39281706f5e4d3c2b1a098765432' },
+      passed: true,
+      reasons: [],
+      checks: [
+        { name: 'One commit on the epic branch', status: 'passed', detail: 'epic/planning is at 5d3e1f0' },
+        { name: 'Parent is the previous increment', status: 'passed', detail: '9f8e7d6' }
+      ],
+      verifiedAt: iso(-6 * MINUTE)
+    },
+    ...patch
+  }
+}
+
+/** The project a repository tracks, with the two checks of its Definition of Done by default. */
+export function projectView(patch: Partial<ProjectView> = {}): ProjectView {
+  return {
+    projectId: 'pj_1',
+    name: 'DarkMechanicus',
+    keyPrefix: 'DM',
+    repoRoot: '/repo',
+    createdAt: iso(-48 * 60 * MINUTE),
+    definitionOfDone: [
+      { name: 'Unit tests', command: 'npm test', description: 'Every unit test passes.' },
+      { name: 'Typecheck', command: 'npm run typecheck', description: 'No type errors in any project.' }
+    ],
     ...patch
   }
 }
@@ -381,6 +457,9 @@ export function condition(id: GateCondition['id'], met: boolean, detail = ''): G
     report_submitted: 'Sprint report submitted',
     no_active_leases: 'No worker still holds a lease',
     required_accepted: 'Every required ticket accepted',
+    acceptance_accepted: 'Sprint acceptance accepted',
+    increment_merged: 'Sprint increment merged',
+    definition_of_done: 'Definition of Done passed',
     exit_criteria: 'Exit criteria: driver loads on both platforms',
     epic_outcome: 'Epic outcome recorded',
     approval: 'Approval'

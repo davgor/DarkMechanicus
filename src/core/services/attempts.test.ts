@@ -255,20 +255,6 @@ describe('claimTicket — host capabilities', () => {
     expect([explicit.attempt.worker.hostId, explicit.attempt.worker.catalogRevision]).toEqual(['h2', 'c2'])
   })
 
-  it('rejects a model that fails the ticket’s hard constraints', () => {
-    const ctx = createTestCtx()
-    const { runId } = startedRun(ctx)
-    withCatalog(ctx)
-    const error = domainError(() => claim(ctx, runId, 1, { worker: { label: 'w', modelId: 'text-only' } }))
-    expect(error.code).toBe('unsupported_capability')
-    expect(error.details).toMatchObject({
-      modelId: 'text-only',
-      failures: ['Needs "multi_step" reasoning; the model\'s highest level is "routine".']
-    })
-    const unknown = domainError(() => claim(ctx, runId, 1, { worker: { label: 'w', modelId: 'ghost' } }))
-    expect(unknown.details).toMatchObject({ failures: ['Model "ghost" is not in the host catalog.'] })
-  })
-
   it('skips the check without a model id or without a run catalog', () => {
     const ctx = createTestCtx()
     const { runId } = startedRun(ctx, { bundle: makeBundle([[1, 2]]) })

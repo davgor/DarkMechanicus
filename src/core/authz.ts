@@ -14,6 +14,7 @@ export const CAPABILITIES = [
   'draft.edit',
   'plan.save',
   'profile.write',
+  'project.definition_of_done',
   'ticket.status',
   'ticket.retry_grant',
   'ticket.delete',
@@ -24,6 +25,7 @@ export const CAPABILITIES = [
   'run.takeover',
   'run.adopt',
   'run.authorize_auto',
+  'run.row_check',
   'attempt.claim',
   'attempt.heartbeat',
   'attempt.submit',
@@ -49,7 +51,8 @@ export const HUMAN_ONLY_CAPABILITIES: readonly Capability[] = [
   'ticket.delete'
 ]
 
-const PLANNER: Capability[] = [
+/** What a planner and an orchestrator both hold. */
+const PLANNER_SHARED: Capability[] = [
   'read',
   'repo.init',
   'repo.flush',
@@ -60,8 +63,17 @@ const PLANNER: Capability[] = [
   'profile.write'
 ]
 
+/**
+ * What a planner holds that an orchestrator does not. The Definition of Done is the standard the orchestrator's
+ * reviews hold work to, so the session that accepts work cannot also redefine what done means: a planner or the
+ * person at the desktop does. An orchestrator still reads it (getProject, and the acceptance node's packet).
+ */
+const PLANNER_ONLY: Capability[] = ['project.definition_of_done']
+
+const PLANNER: Capability[] = [...PLANNER_SHARED, ...PLANNER_ONLY]
+
 const ORCHESTRATOR: Capability[] = [
-  ...PLANNER,
+  ...PLANNER_SHARED,
   'repo.backup',
   'epic.status',
   'epic.branch',
@@ -71,6 +83,7 @@ const ORCHESTRATOR: Capability[] = [
   'run.control',
   'run.takeover',
   'run.adopt',
+  'run.row_check',
   'attempt.claim',
   'attempt.heartbeat',
   'attempt.submit',
@@ -91,6 +104,7 @@ const DESKTOP: Capability[] = CAPABILITIES.filter(
     capability !== 'attempt.carry_forward' &&
     capability !== 'report.submit' &&
     capability !== 'run.start' &&
+    capability !== 'run.row_check' &&
     capability !== 'host.register'
 )
 

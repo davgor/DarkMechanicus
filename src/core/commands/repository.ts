@@ -1,14 +1,15 @@
 import { join } from 'node:path'
 import { API_VERSION } from '../../shared/domain/api'
-import type { CapabilitiesView } from '../../shared/domain/views'
+import type { CapabilitiesView, ProjectView } from '../../shared/domain/views'
 import { requireCapability } from '../authz'
 import { SCHEMA_VERSION } from '../db/migrations'
 import { fail } from '../errors'
 import { backupDatabase } from '../repo/backup'
 import { listBranchEpics } from '../repo/branchEpics'
+import { writeDefinitionOfDone } from '../repo/projectConfig'
 import { getStorageStatus } from '../repo/storage'
 import { COMMAND_SCHEMAS } from '../commandSchemas'
-import { listEvents } from '../services/events'
+import { appendEvent, listEvents } from '../services/events'
 import { searchHistory } from '../services/history'
 import { listSessions } from '../services/sessions'
 import { SKILLS_VERSION } from '../version'
@@ -34,6 +35,28 @@ function requireRoleCapability(core: WorkspaceCore, capability: 'repo.init'): vo
   }
 }
 
+function projectView(core: WorkspaceCore): ProjectView {
+  const project = core.project()
+  return {
+    projectId: project.projectId,
+    name: project.name,
+    keyPrefix: project.keyPrefix,
+    repoRoot: core.repoRoot,
+    createdAt: project.createdAt,
+    definitionOfDone: core.ctx().definitionOfDone()
+  }
+}
+
+/** Writes the checks to project.json, then records the change in the event log. Nothing is committed. */
+function setDefinitionOfDone(core: WorkspaceCore, input: { checks: Parameters<typeof writeDefinitionOfDone>[1] }): ProjectView {
+  const ctx = core.ctx()
+  requireCapability(ctx.session, 'project.definition_of_done')
+  const written = writeDefinitionOfDone(core, input.checks)
+  const names = (written.definitionOfDone ?? []).map((check) => check.name)
+  ctx.db.tx(() => appendEvent(ctx, { kind: 'project.definition_of_done_set', payload: { names } }))
+  return projectView(core)
+}
+
 const repositoryCommands = {
   getCapabilities: {
     mutates: false,
@@ -42,16 +65,12 @@ const repositoryCommands = {
   },
   getProject: {
     mutates: false,
-    run: (core) => {
-      const project = core.project()
-      return {
-        projectId: project.projectId,
-        name: project.name,
-        keyPrefix: project.keyPrefix,
-        repoRoot: core.repoRoot,
-        createdAt: project.createdAt
-      }
-    }
+    run: (core) => projectView(core)
+  },
+  setDefinitionOfDone: {
+    schema: COMMAND_SCHEMAS.setDefinitionOfDone,
+    mutates: true,
+    run: setDefinitionOfDone
   },
   initializeRepository: {
     schema: COMMAND_SCHEMAS.initializeRepository,

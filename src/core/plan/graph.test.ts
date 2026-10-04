@@ -34,8 +34,22 @@ function errorsOf(bundle: PlanBundle): ValidationIssue[] {
   return validatePlan(bundle).errors
 }
 
+/**
+ * Warnings other than `missing_acceptance_node`. The plans in most of these tests hold only work
+ * tickets, like plans saved before acceptance nodes, so each sprint would add that warning; the
+ * acceptance rules have their own describe blocks below.
+ */
 function warningsOf(bundle: PlanBundle): ValidationIssue[] {
-  return validatePlan(bundle).warnings
+  return validatePlan(bundle).warnings.filter((warning) => warning.code !== 'missing_acceptance_node')
+}
+
+/** The warning a sprint of work tickets without an acceptance node gets. */
+function missingNode(ordinal: number): ValidationIssue {
+  return {
+    code: 'missing_acceptance_node',
+    message: `Sprint ${ordinal} has work tickets but no acceptance node.`,
+    sprintIds: [sid(ordinal)]
+  }
 }
 
 function codes(issues: ValidationIssue[]): string[] {
@@ -120,13 +134,13 @@ describe('findCycle cyclic graphs', () => {
 })
 
 describe('validatePlan valid plans', () => {
-  it('accepts a clean plan without errors or warnings', () => {
-    expect(validatePlan(cleanBundle())).toEqual({ valid: true, errors: [], warnings: [] })
+  it('accepts a clean plan of work tickets, warning only that its sprints lack acceptance nodes', () => {
+    expect(validatePlan(cleanBundle())).toEqual({ valid: true, errors: [], warnings: [missingNode(1), missingNode(2)] })
   })
 
   it('accepts a fork/join plan', () => {
     const fork = makeBundle([[1, 2, 3, 4]], [[1, 2], [1, 3], [2, 4], [3, 4]])
-    expect(validatePlan(fork)).toEqual({ valid: true, errors: [], warnings: [] })
+    expect(validatePlan(fork)).toEqual({ valid: true, errors: [], warnings: [missingNode(1)] })
   })
 
   it('accepts a fork across sprints and a join back', () => {
@@ -148,7 +162,7 @@ describe('validatePlan valid plans', () => {
   it('stays valid when there are only warnings', () => {
     const report = validatePlan(makeBundle([[1], []]))
     expect(report.errors).toEqual([])
-    expect(codes(report.warnings)).toEqual(['empty_sprint'])
+    expect(codes(report.warnings)).toEqual(['empty_sprint', 'missing_acceptance_node'])
     expect(report.valid).toBe(true)
   })
 })
@@ -582,7 +596,13 @@ describe('validatePlan optional ticket warnings', () => {
     const report = validatePlan(plan)
     expect(report.errors).toEqual([])
     expect(new Set(codes(report.warnings))).toEqual(
-      new Set(['isolated_ticket', 'missing_success_criteria', 'empty_sprint', 'missing_acceptance_criteria'])
+      new Set([
+        'isolated_ticket',
+        'missing_success_criteria',
+        'empty_sprint',
+        'missing_acceptance_criteria',
+        'missing_acceptance_node'
+      ])
     )
   })
 })
@@ -740,7 +760,7 @@ describe('validatePlan ticket size warnings', () => {
     const report = validatePlan(planWith('large'))
     expect(report.valid).toBe(true)
     expect(report.errors).toEqual([])
-    expect(report.warnings).toEqual([
+    expect(warningsOf(planWith('large'))).toEqual([
       {
         code: 'large_ticket',
         message: 'DM-1 is sized large; consider splitting it into smaller tickets.',
@@ -753,7 +773,7 @@ describe('validatePlan ticket size warnings', () => {
     const report = validatePlan(planWith('micro', 'deep'))
     expect(report.valid).toBe(true)
     expect(report.errors).toEqual([])
-    expect(report.warnings).toEqual([
+    expect(warningsOf(planWith('micro', 'deep'))).toEqual([
       {
         code: 'micro_ticket_deep_reasoning',
         message: 'DM-1 is sized micro but needs deep reasoning; check the size or the reasoning level.',

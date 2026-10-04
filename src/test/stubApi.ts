@@ -20,6 +20,7 @@ type AnyMethod = (input: never) => Promise<unknown>
 const COMMAND_FLAGS: Record<CommandName, true> = {
   getCapabilities: true,
   getProject: true,
+  setDefinitionOfDone: true,
   initializeRepository: true,
   getStorageStatus: true,
   flushPortableState: true,
@@ -66,6 +67,7 @@ const COMMAND_FLAGS: Record<CommandName, true> = {
   failAttempt: true,
   reconcileAttempt: true,
   carryForwardTicket: true,
+  recordRowCheck: true,
   pauseRun: true,
   resumeRun: true,
   cancelRun: true,

@@ -10,6 +10,7 @@ import type {
   PlanBundle,
   ReasoningEffort,
   TicketContent,
+  TicketKind,
   TicketSize
 } from './bundle'
 import type {
@@ -34,12 +35,25 @@ export interface CapabilitiesView {
   initialized: boolean
 }
 
+/**
+ * One check of a project's Definition of Done: `name` is what a sprint acceptance node's evidence must be
+ * named to report it (matched ignoring case and surrounding spaces), `command` is what the worker runs, and
+ * `description` says what passing it shows.
+ */
+export interface DefinitionOfDoneCheck {
+  name: string
+  command: string
+  description: string
+}
+
 export interface ProjectView {
   projectId: string
   name: string
   keyPrefix: string
   repoRoot: string
   createdAt: string
+  /** The project's Definition of Done, in order; empty when the project has none. */
+  definitionOfDone: DefinitionOfDoneCheck[]
 }
 
 export interface RunSummaryView {
@@ -162,6 +176,8 @@ export interface TicketSummaryView {
   sprintId: string | null
   sprintOrdinal: number | null
   priority: TicketContent['priority']
+  /** Present only on an acceptance node; a work ticket has no kind. */
+  kind?: TicketKind
   /** Present only once a planner has sized the ticket. */
   size?: TicketSize
   /** The ticket's `capability.reasoning.effort`; present only when one is set. */
@@ -192,6 +208,8 @@ export type Blocker =
   | { kind: 'retry_limit'; attempts: number; limit: number }
   | { kind: 'lease_expired'; attemptId: string }
   | { kind: 'run_state'; state: RunState }
+  /** A prerequisite sits in a row of `sprintId` whose latest row check (`checkId`) did not pass. */
+  | { kind: 'row_check_failed'; sprintId: string; row: number; checkId: string }
 
 export interface PrerequisiteOutcome {
   ticketId: string
@@ -200,10 +218,40 @@ export interface PrerequisiteOutcome {
   acceptedAttemptId: string | null
 }
 
+/**
+ * The orchestrator's check that one dependency row combined cleanly. A row is the set of a sprint's
+ * tickets at the same same-sprint dependency depth, counted from 1.
+ */
+export interface RowCheckView {
+  id: string
+  runId: string
+  sprintId: string
+  row: number
+  /** Counts the checks of the run in the order they were recorded; the highest number of a row is its latest. */
+  number: number
+  /** The commit the row's combined work was checked at. */
+  commit: string
+  checks: CheckResult[]
+  /** True only when every entry of `checks` passed (a skipped or failed entry means the check did not pass). */
+  passed: boolean
+  recordedBy: string | null
+  createdAt: string
+}
+
+/** One dependency row of a sprint: its tickets and its latest check (null until one is recorded). */
+export interface RowView {
+  sprintId: string
+  row: number
+  tickets: { ticketId: string; key: string }[]
+  latestCheck: RowCheckView | null
+}
+
 export interface TicketExecutionView {
   ticketId: string
   key: string
   sprintId: string
+  /** The ticket's row within its sprint, counted from 1; null for a sprint's acceptance node, which is in no row. */
+  row: number | null
   state: TicketExecutionState
   attemptCount: number
   latestAttemptId: string | null
@@ -242,7 +290,7 @@ export interface AttemptOutputs {
 
 export type CheckStatus = 'passed' | 'failed' | 'skipped'
 
-interface CheckResult {
+export interface CheckResult {
   name: string
   status: CheckStatus
   detail: string
@@ -273,6 +321,43 @@ export interface AttemptDecision {
   decidedBy: string
 }
 
+/** What a sprint increment was measured against: the previous sprint's verified increment, or the epic's start commit. */
+type IncrementBaseKind = 'previous_increment' | 'epic_start' | 'none'
+
+/**
+ * The server's verdict on the increment a sprint's acceptance node named: whether it is one squashed
+ * commit on the epic branch. Written when the node's submission arrives; the `increment_merged` gate
+ * reads it, and it is never edited afterwards.
+ */
+export interface SprintIncrement {
+  /** The branch the submission named; it must be the epic's integration branch. */
+  branch: string
+  /** The full commit id when git resolved it, otherwise exactly as named. */
+  commit: string
+  /** The commit's only parent; null when the commit is unknown or does not have exactly one parent. */
+  parent: string | null
+  /** What `commit` had to come after. `none`: the epic has no start commit and no earlier sprint has an increment. */
+  base: { kind: IncrementBaseKind; commit: string | null }
+  passed: boolean
+  /** Why it did not pass (one entry per failed check); empty when it passed. */
+  reasons: string[]
+  /** Every check made, in order; a skipped check could not be made and did not count against the increment. */
+  checks: CheckResult[]
+  verifiedAt: string
+}
+
+/** A sprint's increment with the acceptance-node attempt that named it. */
+export interface SprintIncrementView {
+  sprintId: string
+  sprintOrdinal: number
+  /** The sprint's acceptance node. */
+  ticketId: string
+  key: string
+  attemptId: string
+  attemptState: AttemptState
+  increment: SprintIncrement
+}
+
 export interface AttemptView {
   id: string
   runId: string
@@ -290,6 +375,8 @@ export interface AttemptView {
   evidence: AttemptEvidence | null
   failure: AttemptFailure | null
   decision: AttemptDecision | null
+  /** Present only on a submission that named a sprint increment (an acceptance node), with the server's verdict. */
+  increment?: SprintIncrement
   createdAt: string
   updatedAt: string
   submittedAt: string | null
@@ -370,6 +457,12 @@ export interface SprintReportView {
   reportRevision: number
   contentHash: string
   report: SprintReportContent
+  /**
+   * The sprint's increment as verified when its acceptance node was submitted; read when the report is
+   * read, so it is not part of `report` and does not change `contentHash`. Absent when the sprint's
+   * acceptance node named no increment.
+   */
+  increment?: SprintIncrementView
   submittedBy: string | null
   createdAt: string
 }
@@ -378,6 +471,9 @@ export type GateConditionId =
   | 'report_submitted'
   | 'no_active_leases'
   | 'required_accepted'
+  | 'acceptance_accepted'
+  | 'increment_merged'
+  | 'definition_of_done'
   | 'exit_criteria'
   | 'epic_outcome'
   | 'approval'
@@ -440,6 +536,10 @@ export interface RunView {
   endedAt: string | null
   counts: RunCounts
   tickets: TicketExecutionView[]
+  /** Every row of every sprint, each with its tickets and latest row check. */
+  rows: RowView[]
+  /** The increment each sprint with an acceptance node named, in sprint order; sprints that named none are left out. */
+  increments: SprintIncrementView[]
   attempts: AttemptView[]
   checkpoint: CheckpointView | null
 }
@@ -450,7 +550,15 @@ export interface ReadinessView {
   ready: TicketExecutionView[]
   blocked: TicketExecutionView[]
   inFlight: TicketExecutionView[]
+  /** The rows of the active sprint, each with its tickets and latest row check. */
+  rows: RowView[]
   capacity: { limit: number | null; inUse: number }
+}
+
+/** Why a claim went to the orchestrator: the model it named cannot take the ticket on the run's catalog. */
+export interface AssignmentFallback {
+  requestedModelId: string
+  reasons: string[]
 }
 
 export interface ExecutionPacket {
@@ -467,6 +575,13 @@ export interface ExecutionPacket {
   ticketContentHash: string
   /** The reasoning effort this claim was dispatched at, or null when the claim named none. */
   effort: ReasoningEffort | null
+  /** Present when the named model could not take the ticket and the orchestrator collected it instead. */
+  fallback?: AssignmentFallback
+  /**
+   * The project's Definition of Done, only on a sprint acceptance node and only when the project has one:
+   * the checks its worker must run and report, each by name, as `passed` in the evidence.
+   */
+  definitionOfDone?: DefinitionOfDoneCheck[]
   predecessors: {
     ticketId: string
     key: string

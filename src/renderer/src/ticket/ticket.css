@@ -122,6 +122,63 @@
   accent-color: var(--st-accepted);
 }
 
+/* An acceptance node's criteria, grouped under the ticket each one covers. */
+.tp-cover {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.tp-cover:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.tp-cover-head {
+  align-self: flex-start;
+}
+
+.tp-cover-none {
+  margin: 0;
+  font-size: 12.5px;
+}
+
+/* The project's Definition of Done: each check with its command, and how the latest evidence reports it. */
+.tp-dod {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tp-dod-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 10px;
+  align-items: baseline;
+  font-size: 13px;
+}
+
+.tp-dod-name {
+  font-weight: 600;
+}
+
+.tp-dod-command {
+  grid-column: 1 / span 2;
+  font-size: 12px;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.tp-dod-description {
+  grid-column: 1 / span 2;
+  font-size: 12.5px;
+}
+
 .tp-profile {
   margin: 0;
   display: flex;

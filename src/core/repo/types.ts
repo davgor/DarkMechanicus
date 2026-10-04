@@ -44,6 +44,17 @@ export interface GitAdapter {
   listFiles(ref: string, pathspec: string): Promise<string[]>
   /** File contents at `ref`, or null when absent. */
   showFile(ref: string, path: string): Promise<string | null>
+  /**
+   * Whether `ancestor` is reachable from `descendant` (`git merge-base --is-ancestor`; a commit is its own
+   * ancestor). Null when git cannot say: either name is unknown to the repository, or git is unavailable.
+   * Read-only.
+   */
+  isAncestor(ancestor: string, descendant: string): Promise<boolean | null>
+  /**
+   * The full id of the commit `ref` names and its parents, first parent first (none for a root commit).
+   * Null when `ref` names no commit. Read-only.
+   */
+  commitParents(ref: string): Promise<{ commit: string; parents: string[] } | null>
 }
 
 export interface RepoLayout {

@@ -11,7 +11,10 @@ import {
 } from './authz'
 import { DomainError } from './errors'
 
-const PLANNER: Capability[] = [
+/** What a planner holds that an orchestrator does not: the session that accepts work never redefines "done". */
+const PLANNER_ONLY: Capability[] = ['project.definition_of_done']
+
+const PLANNER_SHARED: Capability[] = [
   'read',
   'repo.init',
   'repo.flush',
@@ -22,8 +25,10 @@ const PLANNER: Capability[] = [
   'profile.write'
 ]
 
+const PLANNER: Capability[] = [...PLANNER_SHARED, ...PLANNER_ONLY]
+
 const ORCHESTRATOR: Capability[] = [
-  ...PLANNER,
+  ...PLANNER_SHARED,
   'repo.backup',
   'epic.status',
   'epic.branch',
@@ -33,6 +38,7 @@ const ORCHESTRATOR: Capability[] = [
   'run.control',
   'run.takeover',
   'run.adopt',
+  'run.row_check',
   'attempt.claim',
   'attempt.heartbeat',
   'attempt.submit',
@@ -60,6 +66,7 @@ const DESKTOP: Capability[] = [
   'draft.edit',
   'plan.save',
   'profile.write',
+  'project.definition_of_done',
   'ticket.status',
   'ticket.retry_grant',
   'ticket.delete',
@@ -84,6 +91,7 @@ const AGENT_ONLY = [
   'attempt.carry_forward',
   'report.submit',
   'run.start',
+  'run.row_check',
   'host.register'
 ] as const
 
@@ -100,8 +108,8 @@ function sessionWith(role: SessionRole, capabilities: Capability[]): SessionCont
 
 describe('capability vocabulary', () => {
   it('lists every capability exactly once', () => {
-    expect(CAPABILITIES).toHaveLength(33)
-    expect(new Set(CAPABILITIES).size).toBe(33)
+    expect(CAPABILITIES).toHaveLength(35)
+    expect(new Set(CAPABILITIES).size).toBe(35)
     expect(sorted(CAPABILITIES)).toEqual(sorted([...DESKTOP, ...AGENT_ONLY]))
   })
 
@@ -133,9 +141,9 @@ describe('capabilitiesForRole exact sets', () => {
     expect(capabilitiesForRole(role).filter((capability) => capability === 'comment.write')).toEqual(['comment.write'])
   })
 
-  it('lets the orchestrator do everything the planner can', () => {
+  it('lets the orchestrator do everything the planner can, except what is reserved to the planner', () => {
     const orchestrator = capabilitiesForRole('orchestrator')
-    expect(capabilitiesForRole('planner').filter((capability) => !orchestrator.includes(capability))).toEqual([])
+    expect(capabilitiesForRole('planner').filter((capability) => !orchestrator.includes(capability))).toEqual(PLANNER_ONLY)
   })
 
   it('returns a fresh array on every call', () => {
@@ -167,6 +175,23 @@ describe('named profile authoring', () => {
     const holders = ALL_ROLES.filter((role) => capabilitiesForRole(role).includes('profile.write'))
     expect(holders).toEqual(['desktop', 'planner', 'orchestrator'])
     expect(HUMAN_ONLY_CAPABILITIES).not.toContain('profile.write')
+  })
+})
+
+describe('the project Definition of Done', () => {
+  it('may be set by the desktop and the planner, and by no other role', () => {
+    const holders = ALL_ROLES.filter((role) => capabilitiesForRole(role).includes('project.definition_of_done'))
+    expect(holders).toEqual(['desktop', 'planner'])
+  })
+
+  it('stays out of the orchestrator and the workers it dispatches, with or without allowSave', () => {
+    for (const role of ['orchestrator', 'worker', 'reviewer'] as const) {
+      expect(capabilitiesForRole(role, { allowSave: true })).not.toContain('project.definition_of_done')
+    }
+  })
+
+  it('is not a human-only capability: an agent planner may set it', () => {
+    expect(HUMAN_ONLY_CAPABILITIES).not.toContain('project.definition_of_done')
   })
 })
 

@@ -8,6 +8,18 @@ export default defineConfig({
   test: {
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'scripts/**/*.test.mjs'],
     environment: 'node',
-    testTimeout: 15_000
+    testTimeout: 15_000,
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['**/*.test.ts', '**/*.test.tsx', '**/__mocks__/**', 'out/**', 'src/test/**'],
+      reporter: ['text-summary', 'json-summary'],
+      thresholds: {
+        lines: 97,
+        branches: 95,
+        functions: 96,
+        statements: 97
+      }
+    }
   }
 })

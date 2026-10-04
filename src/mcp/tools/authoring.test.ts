@@ -320,3 +320,67 @@ describe('ticket size and reasoning effort tool validation', () => {
     })
   })
 })
+
+describe('ticket kind and covers tools', () => {
+  const NODE = {
+    title: 'Sprint 1 acceptance',
+    kind: 'acceptance',
+    acceptanceCriteria: [{ text: 'DM-1 verified', covers: 'DM-1' }, { text: 'Nothing else broke', covers: null }, 'Docs are current']
+  }
+
+  it('create_ticket sends the kind and the covers of each criterion in the add_ticket op', async () => {
+    const api = createCannedApi({ updatePlanDraft: DRAFT_RESULT })
+    await inRig(api, async (rig) => {
+      const outcome = await callTool(rig, 'create_ticket', { epicId: EPIC, ticket: NODE })
+      expect(outcome.isError).toBe(false)
+      expect(opsSent(api)).toEqual([{ op: 'add_ticket', ref: 'new', sprint: '1', ticket: NODE }])
+    })
+  })
+
+  it('update_ticket sends a kind patch and criteria with covers', async () => {
+    const api = createCannedApi({ updatePlanDraft: DRAFT_RESULT })
+    await inRig(api, async (rig) => {
+      await callTool(rig, 'update_ticket', { epicId: EPIC, ticket: TICKET, patch: { kind: 'work' } })
+      await callTool(rig, 'update_ticket', {
+        epicId: EPIC,
+        ticket: TICKET,
+        patch: { acceptanceCriteria: [{ id: 'c1', text: 'DM-2 verified', covers: 'DM-2' }] }
+      })
+      expect(api.calls.map((call) => (call.input as { ops: DraftOp[] }).ops)).toEqual([
+        [{ op: 'update_ticket', ticket: TICKET, patch: { kind: 'work' } }],
+        [{ op: 'update_ticket', ticket: TICKET, patch: { acceptanceCriteria: [{ id: 'c1', text: 'DM-2 verified', covers: 'DM-2' }] } }]
+      ])
+    })
+  })
+
+})
+
+describe('ticket kind and covers tool validation', () => {
+  it.each([
+    ['create_ticket with an unknown kind', 'create_ticket', { epicId: EPIC, ticket: { title: 'T', kind: 'epic' } }],
+    ['create_ticket with an empty covers', 'create_ticket', { epicId: EPIC, ticket: { title: 'T', acceptanceCriteria: [{ text: 'x', covers: '' }] } }],
+    ['update_ticket with an unknown kind', 'update_ticket', { epicId: EPIC, ticket: TICKET, patch: { kind: 'review' } }],
+    ['update_ticket with a covers that is not text', 'update_ticket', { epicId: EPIC, ticket: TICKET, patch: { acceptanceCriteria: [{ text: 'x', covers: 3 }] } }],
+    ['create_epic with covers on a success criterion', 'create_epic', { title: 'E', successCriteria: [{ text: 'x', covers: 'DM-1' }] }]
+  ])('rejects %s without touching the draft', async (_label, tool, args) => {
+    const api = createCannedApi({ updatePlanDraft: DRAFT_RESULT, createEpic: MARKER })
+    await inRig(api, async (rig) => {
+      const outcome = await callTool(rig, tool, args)
+      expect(outcome.isError).toBe(true)
+      expect(api.calls).toEqual([])
+    })
+  })
+
+  it('tells planners about the acceptance node in the tool descriptions', async () => {
+    await inRig(createCannedApi({}), async (rig) => {
+      const { tools } = await rig.client.listTools()
+      const described = Object.fromEntries(tools.map((tool) => [tool.name, tool.description ?? '']))
+      for (const name of ['create_ticket', 'update_ticket']) {
+        expect(described[name]).toContain('acceptance')
+        expect(described[name]).toContain('covers')
+      }
+      expect(described['create_epic']).toContain('acceptance node')
+      expect(described['list_tickets']).toContain('kind')
+    })
+  })
+})

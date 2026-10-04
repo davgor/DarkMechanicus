@@ -167,8 +167,8 @@ Roles are fixed at launch. Nothing a tool call says can change them.
 
 | Role | Can do |
 |------|--------|
-| `planner` | Read, create epics, edit drafts, comment, save named capability profiles (`save_profile`). `save_plan` only with `--allow-save`. |
-| `orchestrator` (default) | Everything a planner can, plus register hosts, start and control runs, claim tickets, review attempts, submit sprint reports, and advance sprints. Never approves. |
+| `planner` | Read, create epics, edit drafts, comment, save named capability profiles (`save_profile`), set the project's Definition of Done (`set_definition_of_done`). `save_plan` only with `--allow-save`. |
+| `orchestrator` (default) | Everything a planner can except set the Definition of Done (it reads it with `get_project`, and holds work to it when it accepts), plus register hosts, start and control runs, claim tickets, review attempts, submit sprint reports, and advance sprints. Never approves. |
 | `worker` | Heartbeat, submit, and fail for the claim it holds; comment. |
 | `reviewer` | Accept or reject submitted attempts; comment. |
 
@@ -185,11 +185,11 @@ The agent session you talk to is the orchestrator. It plans epics, and when you 
 It never does a ticket itself. For each ready ticket it:
 
 1. Claims the ticket and picks the worker's model and effort (the `recommended` result of `match_capabilities`, then `claim_ticket`).
-2. Spins up a subagent as the worker at that model and effort, with the ticket's content and the worker guide ([`skills/worker.md`](../../skills/worker.md)). In Claude Code, [Dispatch a worker in Claude Code](claude-code-host.md) has the model catalog and the agent definitions.
+2. Spins up a subagent as the worker at that model and effort, with the ticket's content and the worker guide ([`skills/worker.md`](../../skills/worker.md)). The worker runs only targeted checks, in its own worktree branched from the sprint integration branch. In Claude Code, [Dispatch a worker in Claude Code](claude-code-host.md) has the model catalog and the agent definitions.
 3. Keeps the claim token and heartbeats while the subagent works, unless the subagent can make the reporting calls itself. Then it submits the subagent's outputs and evidence.
-4. Reviews the result against every acceptance criterion and accepts or rejects it.
+4. Reviews the result against the ticket's own criteria and the worker's targeted evidence, with no full sweep, and accepts or rejects it. It merges accepted work into a separate worktree on the sprint integration branch, so the coordinating checkout stays on the epic branch, and records a row check (`record_row_check`) when a row is fully accepted.
 
-At the end of each sprint it files the sprint report and waits until you approve the checkpoint in the desktop app. The full loop is in [`skills/orchestrator.md`](../../skills/orchestrator.md).
+When the sprint's acceptance node is ready, it runs the project's Definition of Done on the combined work, verifies each item the node's criteria cover, squashes the sprint into one commit on the epic branch, and submits that commit as the node's increment. Then it files the sprint report and waits until you approve the checkpoint in the desktop app (the rules behind this are under [the sprint cadence](../architecture.md#runs-readiness-and-attempts)). The full loop is in [`skills/orchestrator.md`](../../skills/orchestrator.md).
 
 A session's role is fixed when it starts. If its `get_capabilities` says `planner`, change the entry to `--role orchestrator` and start a new session. A running session doesn't pick up the change.
 
@@ -202,15 +202,17 @@ A session lists only the tools its role may call. Each tool adapts one command, 
 | Read-only (24): `get_capabilities`, `get_project`, `list_projects`, `get_storage_status`, `search_history`, `list_branch_epics`, `list_sessions`, `list_epics`, `get_epic`, `list_tickets`, `get_ticket`, `get_plan`, `validate_plan`, `list_revisions`, `match_capabilities`, `get_run`, `get_ready_tickets`, `get_sprint_report`, `get_checkpoint`, `get_run_events`, `list_comments`, `list_profiles`, `get_profile`, `preview_board_import` | yes | yes | yes | yes |
 | Comments: `add_comment` | yes | yes | yes | yes |
 | Profiles: `save_profile` | yes | yes | | |
+| Definition of Done: `set_definition_of_done` | yes | | | |
 | Repository and drafts: `initialize_repository`, `flush_portable_state`, `reconcile_repository`, `create_epic`, `import_board`, `create_ticket`, `update_ticket`, `open_plan_draft`, `update_plan_draft`, `discard_plan_draft` | yes | yes | | |
 | `save_plan` | with `--allow-save` | with `--allow-save` | | |
 | Epic and ticket status: `set_epic_status`, `set_epic_branch`, `set_ticket_status` | | yes | | |
 | Runs: `register_host`, `start_run`, `pause_run`, `resume_run`, `cancel_run`, `takeover_run`, `adopt_revision` | | yes | | |
 | Claims and reporting: `claim_ticket`, `reconcile_attempt`, `carry_forward_ticket` | | yes | | |
+| Row checks: `record_row_check` | | yes | | |
 | `heartbeat_attempt`, `submit_attempt`, `fail_attempt` | | yes | yes | |
 | `accept_attempt`, `reject_attempt` | | yes | | yes |
 | Checkpoints: `submit_sprint_report`, `advance_sprint` | | yes | | |
-| **Total** | 36 (37 with `--allow-save`) | 56 (57 with `--allow-save`) | 28 | 27 |
+| **Total** | 36 (37 with `--allow-save`) | 57 (58 with `--allow-save`) | 28 | 27 |
 
 `--allow-save` has no effect for `worker` and `reviewer`. No role lists a tool for the desktop-only actions.
 

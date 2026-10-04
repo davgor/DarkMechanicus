@@ -4,7 +4,16 @@ import { useState } from 'react'
 import type { PlanBundle } from '../../../shared/domain/bundle'
 import type { CheckpointView, FollowUpProposal, RunView } from '../../../shared/domain/views'
 import { Markdown } from '../markdown/Markdown'
-import { gateView, reportView, type CriterionLine, type GateView, type ReportRow, type ReportSections } from './gateView'
+import {
+  gateView,
+  reportView,
+  type CriterionLine,
+  type GateView,
+  type IncrementSection,
+  type ReportCheck,
+  type ReportRow,
+  type ReportSections
+} from './gateView'
 
 export interface CheckpointScreenProps {
   checkpoint: CheckpointView
@@ -61,6 +70,25 @@ function Rows(props: { title: string; rows: ReportRow[]; failed: boolean; onSele
   )
 }
 
+function CriteriaList({ lines }: { lines: CriterionLine[] }): JSX.Element | null {
+  if (lines.length === 0) {
+    return null
+  }
+  return (
+    <ul className="cp-checks">
+      {lines.map((line) => (
+        <li key={line.text} className={line.met ? 'is-passed' : 'is-failed'}>
+          <span className="cp-icon" aria-label={line.met ? 'met' : 'not met'}>
+            {line.met ? '✓' : '✗'}
+          </span>
+          <span className="cp-check-name">{line.text}</span>
+          <span className="ew-muted">{line.note}</span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 function Criteria(props: { title: string; lines: CriterionLine[] }): JSX.Element | null {
   if (props.lines.length === 0) {
     return null
@@ -68,18 +96,39 @@ function Criteria(props: { title: string; lines: CriterionLine[] }): JSX.Element
   return (
     <section className="cp-section" aria-label={props.title}>
       <h3 className="ew-eyebrow">{props.title}</h3>
-      <ul className="cp-checks">
-        {props.lines.map((line) => (
-          <li key={line.text} className={line.met ? 'is-passed' : 'is-failed'}>
-            <span className="cp-icon" aria-label={line.met ? 'met' : 'not met'}>
-              {line.met ? '✓' : '✗'}
-            </span>
-            <span className="cp-check-name">{line.text}</span>
-            <span className="ew-muted">{line.note}</span>
-          </li>
-        ))}
-      </ul>
+      <CriteriaList lines={props.lines} />
     </section>
+  )
+}
+
+/** The epic outcome a final-sprint report proposes: its summary above the success criteria it reached. */
+function EpicOutcome({ outcome }: { outcome: ReportSections['outcome'] }): JSX.Element | null {
+  if (outcome === null || (outcome.summary.trim() === '' && outcome.criteria.length === 0)) {
+    return null
+  }
+  return (
+    <section className="cp-section" aria-label="EPIC OUTCOME">
+      <h3 className="ew-eyebrow">EPIC OUTCOME</h3>
+      {outcome.summary.trim() === '' ? null : <Markdown source={outcome.summary} className="cp-summary" />}
+      <CriteriaList lines={outcome.criteria} />
+    </section>
+  )
+}
+
+function CheckList(props: { label?: string; checks: ReportCheck[] }): JSX.Element {
+  return (
+    <ul className="cp-checks" aria-label={props.label}>
+      {props.checks.map((check, index) => (
+        // Two checks can share a name, so the position identifies the entry.
+        <li key={`${index}:${check.name}`} className={`is-${check.status}`}>
+          <span className="cp-icon" aria-label={check.status}>
+            {check.icon}
+          </span>
+          <span className="cp-check-name">{check.name}</span>
+          <span className="ew-mono ew-muted">{check.detail}</span>
+        </li>
+      ))}
+    </ul>
   )
 }
 
@@ -90,17 +139,62 @@ function Checks({ report }: { report: ReportSections }): JSX.Element | null {
   return (
     <section className="cp-section" aria-label="Checks">
       <h3 className="ew-eyebrow">CHECKS</h3>
-      <ul className="cp-checks">
-        {report.checks.map((check) => (
-          <li key={check.name} className={`is-${check.status}`}>
-            <span className="cp-icon" aria-label={check.status}>
-              {check.icon}
-            </span>
-            <span className="cp-check-name">{check.name}</span>
-            <span className="ew-mono ew-muted">{check.detail}</span>
-          </li>
-        ))}
+      <CheckList checks={report.checks} />
+    </section>
+  )
+}
+
+/** Why an increment did not pass, one failed line per reason. */
+function IncrementReasons({ reasons }: { reasons: string[] }): JSX.Element | null {
+  if (reasons.length === 0) {
+    return null
+  }
+  return (
+    <ul className="cp-checks" aria-label="Increment problems">
+      {reasons.map((reason, index) => (
+        <li key={`${index}:${reason}`} className="is-failed">
+          <span className="cp-icon" aria-label="not met">
+            ✗
+          </span>
+          <span className="cp-check-name">{reason}</span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+/**
+ * The commit that landed the sprint on the epic branch and what the server checked about it: the same rows as the
+ * changes below, then the checks and, if it did not pass, the reasons.
+ */
+function Increment({ increment }: { increment: IncrementSection | null }): JSX.Element | null {
+  if (increment === null) {
+    return null
+  }
+  return (
+    <section className="cp-section" aria-label="INCREMENT">
+      <h3 className="ew-eyebrow">{increment.heading}</h3>
+      <ul className="cp-rows">
+        <li className={increment.passed ? 'cp-row' : 'cp-row is-failed'}>
+          <span className="ew-mono cp-key">commit</span>
+          <span className="ew-mono cp-row-title" title={increment.fullCommit}>
+            {increment.commit}
+          </span>
+          <span className="ew-mono cp-row-detail">
+            {increment.passed ? '✓' : '✗'} {increment.verdict}
+          </span>
+        </li>
+        <li className="cp-row">
+          <span className="ew-mono cp-key">branch</span>
+          <span className="ew-mono cp-row-title">{increment.branch}</span>
+        </li>
+        <li className="cp-row">
+          <span className="ew-mono cp-key">after</span>
+          <span className="ew-mono cp-row-title">{increment.base}</span>
+        </li>
       </ul>
+      <IncrementReasons reasons={increment.reasons} />
+      {increment.checks.length === 0 ? null : <CheckList label="Increment checks" checks={increment.checks} />}
     </section>
   )
 }
@@ -173,6 +267,30 @@ interface SprintReportProps {
   onSelectTicket(ticketId: string): void
 }
 
+/** The files and commits the sprint changed, one row each in the same layout as the ticket rows. */
+function Changes(props: { changes: ReportSections['changes'] }): JSX.Element | null {
+  const rows = [
+    ...props.changes.files.map((text) => ({ kind: 'file', text })),
+    ...props.changes.commits.map((text) => ({ kind: 'commit', text }))
+  ]
+  if (rows.length === 0) {
+    return null
+  }
+  return (
+    <section className="cp-section" aria-label="Changes">
+      <h3 className="ew-eyebrow">CHANGES</h3>
+      <ul className="cp-rows">
+        {rows.map((row, index) => (
+          <li key={`${index}:${row.kind}`} className="cp-row">
+            <span className="ew-mono cp-key">{row.kind}</span>
+            <span className="ew-mono cp-row-title">{row.text}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
 /** One sprint report, shared by the checkpoint review and the completed epic's overview. */
 export function SprintReport(props: SprintReportProps): JSX.Element {
   const { report } = props
@@ -182,9 +300,12 @@ export function SprintReport(props: SprintReportProps): JSX.Element {
       <Markdown source={report.summary} className="cp-summary" />
       <Rows title="ACCEPTED" rows={report.accepted} failed={false} onSelect={props.onSelectTicket} />
       <Rows title="FAILED" rows={report.failed} failed onSelect={props.onSelectTicket} />
+      <Rows title="BLOCKED" rows={report.blocked} failed={false} onSelect={props.onSelectTicket} />
+      <Increment increment={report.increment} />
+      <Changes changes={report.changes} />
       <Checks report={report} />
       <Criteria title="EXIT CRITERIA" lines={report.exitCriteria} />
-      <Criteria title="EPIC OUTCOME" lines={report.outcome?.criteria ?? []} />
+      <EpicOutcome outcome={report.outcome} />
       <FollowUps proposals={report.followUps} adder={props.followUps} />
       <Risks risks={report.risks} />
     </article>

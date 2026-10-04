@@ -141,3 +141,26 @@ describe('checkpoint input validation', () => {
     })
   })
 })
+
+describe('checkpoint tool descriptions', () => {
+  it('lists the increment gate right after the acceptance gate and says what it needs', async () => {
+    await inRig(createCannedApi({}), async (rig) => {
+      const { tools } = await rig.client.listTools()
+      const description = tools.find((tool) => tool.name === 'get_checkpoint')?.description ?? ''
+      expect(description).toContain('acceptance_accepted, increment_merged')
+      expect(description).toMatch(/increment_merged.*squashed/)
+      expect(description).toMatch(/submit_attempt/)
+    })
+  })
+
+  it('lists the acceptance gate among the get_checkpoint conditions', async () => {
+    await inRig(createCannedApi({}), async (rig) => {
+      const { tools } = await rig.client.listTools()
+      const description = tools.find((tool) => tool.name === 'get_checkpoint')?.description ?? ''
+      expect(description).toContain('acceptance_accepted')
+      expect(description).toContain('required_accepted, acceptance_accepted')
+      expect(description).toMatch(/acceptance node/)
+      expect(description).toMatch(/older plans|no acceptance node/)
+    })
+  })
+})

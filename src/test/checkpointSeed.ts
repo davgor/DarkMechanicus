@@ -3,8 +3,9 @@
  * attempts written straight into the schema (no dependency on the run/attempt services). Not shipped.
  */
 import { contentHash } from '../core/canonical'
-import type { PlanBundle } from '../shared/domain/bundle'
+import type { EpicBranch, PlanBundle } from '../shared/domain/bundle'
 import type { AttemptKind, AttemptState, RunState, WorkStatus } from '../shared/domain/status'
+import type { CheckResult, SprintIncrement } from '../shared/domain/views'
 import { makeBundle, tid } from './bundles'
 import type { TestCtx } from './testContext'
 
@@ -23,6 +24,8 @@ export interface SeedRunOptions {
   activeSprint?: number | null
   ownerMachineId?: string
   autoContinue?: boolean
+  /** The epic's integration branch (default: none). */
+  branch?: EpicBranch
 }
 
 export function seedEpic(ctx: TestCtx, title = 'Test epic'): string {
@@ -89,6 +92,9 @@ function sprintIdAt(bundle: PlanBundle, ordinal: number | null): string | null {
 export function seedRun(ctx: TestCtx, options: SeedRunOptions = {}): SeededRun {
   const bundle = options.bundle ?? makeBundle([[1, 2], [3]])
   const epicId = seedEpic(ctx)
+  if (options.branch !== undefined) {
+    ctx.db.run('UPDATE epics SET branch_json = ? WHERE id = ?', JSON.stringify(options.branch), epicId)
+  }
   const revisionId = seedRevision(ctx, epicId, bundle)
   const runId = ctx.ids.next('run')
   const now = ctx.clock.nowIso()
@@ -118,6 +124,39 @@ interface SeedAttemptOptions {
   superseded?: boolean
   /** Sets reconciled_at (an expired lease that was abandoned, or a resubmission). */
   reconciled?: boolean
+  /** Commits recorded in the attempt's outputs. */
+  commits?: string[]
+  /** The increment verdict stored with the attempt: a passing verdict with these fields changed. */
+  increment?: Partial<SprintIncrement>
+  /** The checks the attempt's evidence reports (default: no evidence at all). */
+  checks?: CheckResult[]
+}
+
+/** A passing increment verdict, the shape the server stores when a submission names a good increment. */
+export function incrementVerdict(patch: Partial<SprintIncrement> = {}): SprintIncrement {
+  return {
+    branch: 'epic/x',
+    commit: 'c'.repeat(40),
+    parent: 'b'.repeat(40),
+    base: { kind: 'epic_start', commit: 'a'.repeat(40) },
+    passed: true,
+    reasons: [],
+    checks: [{ name: 'Squashed, not merged', status: 'passed', detail: 'ok' }],
+    verifiedAt: '2026-01-01T00:00:00.000Z',
+    ...patch
+  }
+}
+
+/** The evidence JSON of an attempt that reported `checks`; null when it reported none. */
+function recordedEvidence(checks: CheckResult[] | undefined): string | null {
+  return checks === undefined ? null : JSON.stringify({ checks, criteria: [], notes: '' })
+}
+
+/** The outputs JSON of an attempt that recorded `commits`; null when the attempt has no outputs. */
+function recordedOutputs(commits: string[] | undefined): string | null {
+  return commits === undefined
+    ? null
+    : JSON.stringify({ summary: '', artifacts: [], commits, changedFiles: [], branch: null })
 }
 
 function ticketIdOf(ticket: number | string): string {
@@ -139,8 +178,9 @@ export function seedAttempt(ctx: TestCtx, run: SeededRun, options: SeedAttemptOp
   const ticket = run.bundle.tickets.find((candidate) => candidate.id === ticketId)
   ctx.db.run(
     `INSERT INTO attempts (id, run_id, ticket_id, number, kind, state, fencing_token, worker_json, revision_id,
-       ticket_content_hash, created_at, updated_at, reconciled_at, superseded_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       ticket_content_hash, created_at, updated_at, reconciled_at, superseded_at, outputs_json, increment_json,
+       evidence_json)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     run.runId,
     ticketId,
@@ -154,7 +194,10 @@ export function seedAttempt(ctx: TestCtx, run: SeededRun, options: SeedAttemptOp
     now,
     now,
     options.reconciled === true ? now : null,
-    options.superseded === true ? now : null
+    options.superseded === true ? now : null,
+    recordedOutputs(options.commits),
+    options.increment === undefined ? null : JSON.stringify(incrementVerdict(options.increment)),
+    recordedEvidence(options.checks)
   )
   return id
 }
@@ -163,10 +206,15 @@ function markTicketStatus(ctx: TestCtx, ticket: number | string, status: WorkSta
   ctx.db.run('UPDATE ticket_status SET status = ? WHERE ticket_id = ?', status, ticketIdOf(ticket))
 }
 
-/** Accepted attempts for `tickets`, with their ticket status completed (what acceptance records). */
+/**
+ * Accepted attempts for `tickets`, with their ticket status completed (what acceptance records). An
+ * acceptance node's attempt also carries a passing increment verdict, as an accepted node's does when its
+ * increment verified; seed the node with `seedAttempt` to leave the increment out or make it fail.
+ */
 export function acceptTickets(ctx: TestCtx, run: SeededRun, tickets: number[]): void {
   for (const ticket of tickets) {
-    seedAttempt(ctx, run, { ticket, state: 'accepted' })
+    const node = run.bundle.tickets.find((item) => item.id === ticketIdOf(ticket))?.kind === 'acceptance'
+    seedAttempt(ctx, run, { ticket, state: 'accepted', ...(node ? { increment: {} } : {}) })
     markTicketStatus(ctx, ticket, 'completed')
   }
 }

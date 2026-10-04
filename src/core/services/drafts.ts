@@ -4,41 +4,14 @@ import type { DraftUpdateResultView, PlanView } from '../../shared/domain/views'
 import { requireCapability } from '../authz'
 import type { Ctx } from '../context'
 import { toJson } from '../db/database'
-import { getMeta, META_KEYS } from '../meta'
-import type { DraftDeps } from '../plan/draftOps'
 import { applyDraftOps } from '../plan/draftOps'
 import { validatePlan } from '../plan/graph'
-import { createInitialBundle, maxKeyNumber } from '../plan/normalize'
+import { createInitialBundle } from '../plan/normalize'
+import { draftDeps, initialPlanIds } from './draftDeps'
 import { assertEpicOpen, type EpicRow, loadEpicRow } from './epics'
 import { appendEvent } from './events'
 import { requestWithoutKey, withIdempotency } from './idempotency'
 import { assertDraftRevision, currentSavedBundle, type DraftRow, getPlan, loadDraftRow } from './plans'
-
-const DEFAULT_KEY_PREFIX = 'DM'
-
-/** Every ticket key in every revision and draft of the project; keys never repeat within it. */
-function allTicketKeys(ctx: Ctx): string[] {
-  return ctx.db
-    .all<{ key: string | null }>(
-      `SELECT json_extract(t.value, '$.key') AS key FROM plan_revisions p, json_each(p.bundle_json, '$.tickets') t
-       UNION ALL
-       SELECT json_extract(t.value, '$.key') AS key FROM drafts d, json_each(d.bundle_json, '$.tickets') t`
-    )
-    .map((row) => row.key ?? '')
-}
-
-function draftDeps(ctx: Ctx): DraftDeps {
-  const prefix = getMeta(ctx.db, META_KEYS.keyPrefix) ?? DEFAULT_KEY_PREFIX
-  let next: number | null = null
-  return {
-    newId: (kind) => ctx.ids.next(kind),
-    nextKey: () => {
-      const number = next ?? maxKeyNumber(allTicketKeys(ctx)) + 1
-      next = number + 1
-      return `${prefix}-${number}`
-    }
-  }
-}
 
 function insertDraft(ctx: Ctx, draft: { epicId: string; baseRevisionId: string | null; bundle: PlanBundle }): DraftRow {
   const now = ctx.clock.nowIso()
@@ -75,7 +48,7 @@ function ensureDraft(ctx: Ctx, epic: EpicRow): DraftRow {
   const current = currentSavedBundle(ctx, epic.id)
   const bundle =
     current?.bundle ??
-    createInitialBundle({ title: epic.title, intent: '', successCriteria: [], ownerRole: null }, ctx.ids.next('sprint'))
+    createInitialBundle({ title: epic.title, intent: '', successCriteria: [], ownerRole: null }, initialPlanIds(ctx))
   return insertDraft(ctx, { epicId: epic.id, baseRevisionId: current?.revisionId ?? null, bundle })
 }
 
@@ -122,7 +95,7 @@ export function updatePlanDraft(
 /** A never-saved epic keeps its content (title, intent, criteria, owner) on a fresh one-sprint plan. */
 function resetDraft(ctx: Ctx, draft: DraftRow): void {
   const epic = (JSON.parse(draft.bundle_json) as PlanBundle).epic
-  const bundle = createInitialBundle(epic, ctx.ids.next('sprint'))
+  const bundle = createInitialBundle(epic, initialPlanIds(ctx))
   ctx.db.run(
     `UPDATE drafts SET bundle_json = ?, base_revision_id = NULL, draft_revision = ?, updated_at = ?, updated_by = ?
      WHERE epic_id = ?`,

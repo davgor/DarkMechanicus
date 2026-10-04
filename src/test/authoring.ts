@@ -3,7 +3,7 @@ import type { Ctx } from '../core/context'
 import { DomainError } from '../core/errors'
 import { updatePlanDraft } from '../core/services/drafts'
 import { createEpic } from '../core/services/epics'
-import { completeSavedRevision, requestSave } from '../core/services/plans'
+import { completeSavedRevision, getPlan, requestSave } from '../core/services/plans'
 import type { DraftOp } from '../shared/domain/api'
 import type { AttemptState, RunState } from '../shared/domain/status'
 
@@ -51,12 +51,25 @@ interface SavedEpic {
   refMap: Record<string, string>
 }
 
-export function createSavedEpic(ctx: Ctx, options: { title?: string; ops?: DraftOp[] } = {}): SavedEpic {
+/**
+ * Creates an epic, applies `ops` to its draft, and saves it. A new epic starts with its first sprint's
+ * acceptance node; unless `acceptanceNode` is true that node is removed first, so the saved plan is
+ * made of the work tickets the ops add, like a plan saved before acceptance nodes. Tests about
+ * ticket flow (listing, runs, claims) rely on that shape; tests about the node itself ask for it.
+ */
+export function createSavedEpic(
+  ctx: Ctx,
+  options: { title?: string; ops?: DraftOp[]; acceptanceNode?: boolean } = {}
+): SavedEpic {
   const epic = createEpic(ctx, {
     title: options.title ?? 'Checkout',
     intent: 'Ship it',
     successCriteria: ['Customers can pay']
   })
+  if (options.acceptanceNode !== true) {
+    const [node] = getPlan(ctx, { epicId: epic.id, view: 'draft' }).bundle.tickets
+    updatePlanDraft(ctx, { epicId: epic.id, ops: [{ op: 'remove_ticket', ticket: node.id }] })
+  }
   const update = updatePlanDraft(ctx, { epicId: epic.id, ops: options.ops ?? TWO_TICKETS })
   return { epicId: epic.id, revisionId: saveNow(ctx, epic.id), refMap: update.refMap }
 }

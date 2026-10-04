@@ -37,8 +37,8 @@ afterEach(() => {
 })
 
 describe('migrate on a fresh database', () => {
-  it('starts at schema version 0 and targets SCHEMA_VERSION 4', () => {
-    expect(SCHEMA_VERSION).toBe(4)
+  it('starts at schema version 0 and targets SCHEMA_VERSION 6', () => {
+    expect(SCHEMA_VERSION).toBe(6)
     expect(readSchemaVersion(freshDb())).toBe(0)
   })
 
@@ -46,9 +46,11 @@ describe('migrate on a fresh database', () => {
     const db = freshDb()
     expect(migrate(db)).toEqual({ from: 0, to: SCHEMA_VERSION })
     expect(readSchemaVersion(db)).toBe(SCHEMA_VERSION)
-    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(4)
+    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(6)
   })
+})
 
+describe('the schema a fresh database ends up with', () => {
   it('creates every table of the schema', () => {
     expect(objectNames(migratedDb(), 'table')).toEqual([
       'approvals',
@@ -65,6 +67,7 @@ describe('migrate on a fresh database', () => {
       'plan_revisions',
       'profiles',
       'retry_grants',
+      'row_checks',
       'runs',
       'search_index',
       'sessions',
@@ -83,6 +86,7 @@ describe('migrate on a fresh database', () => {
       'events_run',
       'outbox_state',
       'plan_revisions_epic',
+      'row_checks_run',
       'runs_one_active_per_epic',
       'ticket_status_epic'
     ])
@@ -92,8 +96,8 @@ describe('migrate on a fresh database', () => {
 describe('migrate when already current', () => {
   it('is a no-op the second time', () => {
     const db = migratedDb()
-    expect(migrate(db)).toEqual({ from: 4, to: 4 })
-    expect(readSchemaVersion(db)).toBe(4)
+    expect(migrate(db)).toEqual({ from: 6, to: 6 })
+    expect(readSchemaVersion(db)).toBe(6)
   })
 
   it('keeps existing data', () => {
@@ -112,10 +116,10 @@ describe('migrate refuses newer databases', () => {
     expect(error).toBeInstanceOf(DomainError)
     expect((error as DomainError).code).toBe('incompatible_schema')
     expect((error as DomainError).message).toBe(
-      'Database schema v5 is newer than this build supports (v4). Update Dark Mechanicus.'
+      'Database schema v7 is newer than this build supports (v6). Update Dark Mechanicus.'
     )
-    expect((error as DomainError).details).toEqual({ found: 5, supported: 4 })
-    expect(readSchemaVersion(db)).toBe(5)
+    expect((error as DomainError).details).toEqual({ found: 7, supported: 6 })
+    expect(readSchemaVersion(db)).toBe(7)
     expect(objectNames(db, 'table')).toEqual([])
   })
 
@@ -124,7 +128,7 @@ describe('migrate refuses newer databases', () => {
     db.exec('PRAGMA user_version = 7')
     const error = thrownBy(() => migrate(db))
     expect((error as DomainError).code).toBe('incompatible_schema')
-    expect((error as DomainError).details).toEqual({ found: 7, supported: 4 })
+    expect((error as DomainError).details).toEqual({ found: 7, supported: 6 })
     expect(objectNames(db, 'table')).toContain('epics')
   })
 
@@ -151,7 +155,7 @@ describe('migrate a v1 database to v2', () => {
       `INSERT INTO outbox (kind, epic_id, run_id, revision_id, state, attempts, last_error, created_at)
        VALUES ('snapshot', 'ep1', NULL, 'rv1', 'done', 1, NULL, 't'), ('run_history', 'ep1', 'rn1', NULL, 'failed', 3, 'disk full', 't')`
     )
-    expect(migrate(db)).toEqual({ from: 1, to: 4 })
+    expect(migrate(db)).toEqual({ from: 1, to: 6 })
     expect(outboxRows(db)).toEqual([
       { id: 1, kind: 'snapshot', epic_id: 'ep1', run_id: null, revision_id: 'rv1', entity_id: null, state: 'done', attempts: 1, last_error: null },
       { id: 2, kind: 'run_history', epic_id: 'ep1', run_id: 'rn1', revision_id: null, entity_id: null, state: 'failed', attempts: 3, last_error: 'disk full' }
@@ -275,10 +279,10 @@ function insertProfile(db: Db, name: string): void {
 }
 
 describe('schema v4 named profiles', () => {
-  it('upgrades a v2 database to v4, keeping its rows and adding an empty profiles table', () => {
+  it('upgrades a v2 database to the latest version, keeping its rows and adding an empty profiles table', () => {
     const db = v2Db()
     db.run("INSERT INTO outbox (kind, entity_id, state, created_at) VALUES ('profile', 'deep-review', 'pending', 't')")
-    expect(migrate(db)).toEqual({ from: 2, to: 4 })
+    expect(migrate(db)).toEqual({ from: 2, to: 6 })
     expect(db.all('SELECT kind, entity_id, state FROM outbox')).toEqual([{ kind: 'profile', entity_id: 'deep-review', state: 'pending' }])
     expect(db.all('SELECT * FROM profiles')).toEqual([])
   })
@@ -373,7 +377,7 @@ describe('migrate failure handling', () => {
     const db = freshDb()
     thrownBy(() => migrate(db, [{ version: 1, sql: 'NOT SQL' }]))
     expect(db.inTransaction()).toBe(false)
-    expect(migrate(db)).toEqual({ from: 0, to: 4 })
+    expect(migrate(db)).toEqual({ from: 0, to: 6 })
   })
 })
 
@@ -625,5 +629,90 @@ describe('schema constraints on other vocabularies', () => {
       ).changes
     expect(() => insert(state)).not.toThrow()
     expect(() => insert('draft')).toThrow(/CHECK constraint failed/)
+  })
+})
+
+function insertRowCheckRow(db: Db, spec: { id: string; number?: number; runId?: string; row?: number }): void {
+  db.run(
+    `INSERT INTO row_checks (id, run_id, number, sprint_id, row_no, commit_ref, checks_json, recorded_by, created_at)
+     VALUES (?, ?, ?, 'sp1', ?, 'abcdef1', '[]', NULL, 't')`,
+    spec.id,
+    spec.runId ?? 'rn1',
+    spec.number ?? 1,
+    spec.row ?? 1
+  )
+}
+
+describe('schema v5 row checks', () => {
+  it('upgrades a v4 database, keeping its runs and adding an empty row_checks table', () => {
+    const db = freshDb()
+    migrate(db, MIGRATIONS.filter((migration) => migration.version <= 4))
+    insertEpic(db, 'ep1')
+    insertRevision(db, 'rv1', 'ep1')
+    insertRun(db, { id: 'rn1', state: 'running' })
+    expect(migrate(db)).toEqual({ from: 4, to: 6 })
+    expect(db.all('SELECT id FROM runs')).toEqual([{ id: 'rn1' }])
+    expect(db.all('SELECT * FROM row_checks')).toEqual([])
+  })
+
+  it('keeps a check with its run, sprint, row, number, commit, entries, author and time', () => {
+    const db = attemptsDb()
+    insertRowCheckRow(db, { id: 'rk1', row: 2 })
+    expect(db.get('SELECT id, run_id, sprint_id, row_no, number, commit_ref, checks_json, recorded_by, created_at FROM row_checks')).toEqual({
+      id: 'rk1',
+      run_id: 'rn1',
+      sprint_id: 'sp1',
+      row_no: 2,
+      number: 1,
+      commit_ref: 'abcdef1',
+      checks_json: '[]',
+      recorded_by: null,
+      created_at: 't'
+    })
+  })
+
+  it('rejects a second check with the same id or the same number in a run, and a missing run', () => {
+    const db = attemptsDb()
+    insertRowCheckRow(db, { id: 'rk1' })
+    expect(() => insertRowCheckRow(db, { id: 'rk1', number: 2 })).toThrow(/UNIQUE constraint failed: row_checks.id/)
+    expect(() => insertRowCheckRow(db, { id: 'rk2' })).toThrow(/UNIQUE constraint failed: row_checks.run_id, row_checks.number/)
+    expect(() => insertRowCheckRow(db, { id: 'rk3', runId: 'rn_missing' })).toThrow(/FOREIGN KEY constraint failed/)
+    expect(() => insertRowCheckRow(db, { id: 'rk4', runId: 'rn2' })).not.toThrow()
+  })
+
+  it('rejects rows and numbers below 1', () => {
+    const db = attemptsDb()
+    expect(() => insertRowCheckRow(db, { id: 'rk1', row: 0 })).toThrow(/CHECK constraint failed/)
+    expect(() => insertRowCheckRow(db, { id: 'rk2', number: 0 })).toThrow(/CHECK constraint failed/)
+  })
+
+  it('looks up a run\'s checks through the (run, sprint, row) index', () => {
+    const db = attemptsDb()
+    const plan = db.all<{ detail: string }>("EXPLAIN QUERY PLAN SELECT id FROM row_checks WHERE run_id = 'rn1' AND sprint_id = 'sp1' AND row_no = 1")
+    expect(plan.map((row) => row.detail).join(' ')).toContain('USING INDEX row_checks_run')
+  })
+})
+
+describe('schema v6 sprint increments', () => {
+  it('upgrades a v5 database, keeping its attempts and leaving their increment empty', () => {
+    const db = freshDb()
+    migrate(db, MIGRATIONS.filter((migration) => migration.version <= 5))
+    insertEpic(db, 'ep1')
+    insertRevision(db, 'rv1', 'ep1')
+    insertRun(db, { id: 'rn1', state: 'running' })
+    insertAttempt(db, { id: 'at1', state: 'accepted', number: 1 })
+    expect(migrate(db)).toEqual({ from: 5, to: 6 })
+    expect(db.all('SELECT id, state, increment_json FROM attempts')).toEqual([{ id: 'at1', state: 'accepted', increment_json: null }])
+  })
+
+  it('keeps the verdict of an attempt as the JSON it was stored with', () => {
+    const db = attemptsDb()
+    insertAttempt(db, { id: 'at1', state: 'submitted', number: 1 })
+    db.run("UPDATE attempts SET increment_json = '{\"passed\":true}' WHERE id = 'at1'")
+    expect(db.get('SELECT increment_json FROM attempts WHERE id = ?', 'at1')).toEqual({ increment_json: '{"passed":true}' })
+  })
+
+  it('adds no table', () => {
+    expect(objectNames(migratedDb(), 'table')).not.toContain('sprint_increments')
   })
 })

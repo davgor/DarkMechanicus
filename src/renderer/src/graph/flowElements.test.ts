@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bundle, runView, savedPlan, sprint } from '../epic/__mocks__/fixtures'
+import { bundle, edge, execution, rowCheck, rowView, runView, savedPlan, sprint, ticket } from '../epic/__mocks__/fixtures'
 import { toFlowEdges, toFlowNodes } from './flowElements'
 import { buildGraphModel, type GraphModel } from './graphModel'
 
@@ -14,7 +14,13 @@ const MODEL: GraphModel = buildGraphModel({
 })
 
 const added: string[] = []
-const OPTIONS = { editable: true, selectedTicketId: 'tk_202', onAddTicket: (id: string) => added.push(id) }
+const addedNodes: string[] = []
+const OPTIONS = {
+  editable: true,
+  selectedTicketId: 'tk_202',
+  onAddTicket: (id: string) => added.push(id),
+  onAddAcceptance: (id: string) => addedNodes.push(id)
+}
 
 describe('flow nodes', () => {
   it('maps ticket cards to draggable, connectable nodes with fixed size and handles', () => {
@@ -59,6 +65,76 @@ describe('flow nodes', () => {
       sprintNode.data.onAddTicket('sp_1')
     }
     expect(added).toEqual(['sp_1'])
+  })
+})
+
+/** DM-1, then DM-2 after it, then Sprint 1's node DM-91; the run has a failed check on row 1 and none on row 2. */
+const ACCEPTANCE_MODEL = ((): GraphModel => {
+  const work = [ticket('DM-1', 'One'), ticket('DM-2', 'Two')]
+  const node = ticket('DM-91', 'Sprint 1 acceptance', { kind: 'acceptance' })
+  const planBundle = bundle({ tickets: [...work, node], sprints: [sprint(1, 'Build', ['tk_1', 'tk_2', 'tk_91'])], edges: [edge(1, 2)] })
+  const rows = [rowView('sp_1', 1, ['DM-1'], rowCheck('sp_1', 1, false)), rowView('sp_1', 2, ['DM-2'])]
+  return buildGraphModel({
+    plan: savedPlan({ bundle: planBundle }),
+    mode: 'saved',
+    run: runView({ tickets: [execution('DM-1', 'sp_1', 'accepted'), execution('DM-2', 'sp_1', 'ready')], rows }),
+    statuses: new Map(),
+    outcome: null,
+    rejected: null,
+    draftNumber: 5
+  })
+})()
+const ACCEPTANCE_NODES = toFlowNodes(ACCEPTANCE_MODEL, OPTIONS)
+
+describe('flow nodes for acceptance nodes', () => {
+  const nodes = ACCEPTANCE_NODES
+
+  it('selects and connects an acceptance node like a ticket but never drags it out of its sprint', () => {
+    expect(nodes.find((item) => item.id === 'tk_91')).toMatchObject({
+      type: 'ticket',
+      draggable: false,
+      connectable: true,
+      selectable: true,
+      focusable: true,
+      zIndex: 2
+    })
+    expect(nodes.find((item) => item.id === 'tk_2')).toMatchObject({ draggable: true })
+    expect(nodes.find((item) => item.id === 'tk_91')?.data).toMatchObject({ editable: true })
+  })
+})
+
+describe('flow nodes for joins and row checks', () => {
+  const nodes = ACCEPTANCE_NODES
+
+  it('keeps the join and the row checks fixed, the join under the cards and the chips able to show a tooltip', () => {
+    const join = nodes.find((item) => item.id === 'join:sp_1')
+    expect(join).toMatchObject({
+      type: 'join',
+      draggable: false,
+      selectable: false,
+      connectable: false,
+      focusable: false,
+      zIndex: 0,
+      width: 14
+    })
+    const chips = nodes.filter((item) => item.type === 'rowcheck')
+    expect(chips.map((item) => [item.id, item.draggable, item.selectable, item.focusable, item.zIndex])).toEqual([
+      ['rowcheck:sp_1:1', false, false, false, 1],
+      ['rowcheck:sp_1:2', false, false, false, 1]
+    ])
+    expect(chips.map((item) => item.style)).toEqual([{ pointerEvents: 'all' }, { pointerEvents: 'all' }])
+    expect(chips[0]?.data).toMatchObject({ model: { state: 'failed', status: 'FAILED' } })
+  })
+})
+
+describe('flow nodes of a sprint label', () => {
+  it('hands the sprint label both add handlers', () => {
+    const label = ACCEPTANCE_NODES.find((item) => item.type === 'sprint')
+    if (label?.type === 'sprint') {
+      label.data.onAddAcceptance('sp_1')
+      expect(label.data.model.hasAcceptance).toBe(true)
+    }
+    expect(addedNodes).toEqual(['sp_1'])
   })
 })
 

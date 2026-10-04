@@ -4,6 +4,7 @@
  * (`onChanged`), always reloads (so conflicts pick up the latest draft), and reports the outcome
  * through reducer actions: a toast on success, the canvas banner or an inline notice on failure.
  */
+import { acceptanceTitle } from '../../../core/plan/acceptance'
 import type { DraftOp } from '../../../shared/domain/api'
 import type { DraftUpdateResultView, FollowUpProposal, PlanView, RunView } from '../../../shared/domain/views'
 import { followUpOp } from '../checkpoint/gateView'
@@ -45,6 +46,8 @@ export interface WorkspaceActions {
   /** A dragged card dropped at `top`: moves the ticket only when it lands in another sprint. */
   dropTicket(model: GraphModel, ticketId: string, top: number): Promise<void>
   addTicket(sprintId: string): Promise<void>
+  /** Gives a draft sprint without one its acceptance node and selects it. */
+  addAcceptance(sprintId: string): Promise<void>
   addSprint(): Promise<void>
   approve(reportId: string): Promise<void>
   retry(ticketId: string): Promise<void>
@@ -181,7 +184,7 @@ function runActions(deps: ActionDeps): Pick<WorkspaceActions, 'startRun' | 'runC
 function graphActions(
   deps: ActionDeps,
   applyOps: WorkspaceActions['applyOps']
-): Pick<WorkspaceActions, 'connect' | 'move' | 'disconnect' | 'dropTicket' | 'addTicket' | 'addSprint'> {
+): Pick<WorkspaceActions, 'connect' | 'move' | 'disconnect' | 'dropTicket' | 'addTicket' | 'addAcceptance' | 'addSprint'> {
   const edit = async (ops: DraftOp[]): Promise<void> => {
     const result = await applyOps(ops)
     deps.dispatch({ type: 'banner', text: result.ok ? null : result.failure.message })
@@ -203,6 +206,17 @@ function graphActions(
     },
     async addTicket(sprintId) {
       const result = await applyOps([{ op: 'add_ticket', ref: 'new', sprint: sprintId, ticket: { title: 'New ticket' } }])
+      deps.dispatch(
+        result.ok
+          ? { type: 'select_ticket', ticketId: result.value.refMap.new ?? null }
+          : { type: 'banner', text: result.failure.message }
+      )
+    },
+    async addAcceptance(sprintId) {
+      const ordinal = deps.getState().data?.draft?.bundle.sprints.find((item) => item.id === sprintId)?.ordinal
+      const title = ordinal === undefined ? 'Acceptance' : acceptanceTitle(ordinal)
+      const ticket = { kind: 'acceptance' as const, title }
+      const result = await applyOps([{ op: 'add_ticket', ref: 'new', sprint: sprintId, ticket }])
       deps.dispatch(
         result.ok
           ? { type: 'select_ticket', ticketId: result.value.refMap.new ?? null }

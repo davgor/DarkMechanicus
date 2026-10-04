@@ -2,8 +2,8 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DmApi } from '../../../shared/desktop/api'
-import type { FollowUpProposal } from '../../../shared/domain/views'
-import { NOW, bundle, checkpointView, condition, execution, reportView, runView } from '../epic/__mocks__/fixtures'
+import type { FollowUpProposal, SprintReportView } from '../../../shared/domain/views'
+import { NOW, bundle, checkpointView, condition, execution, incrementView, reportView, runView } from '../epic/__mocks__/fixtures'
 import { allowSlowRendering } from '../epic/__mocks__/testTiming'
 import { CheckpointScreen, type CheckpointScreenProps } from './CheckpointScreen'
 
@@ -104,9 +104,130 @@ describe('checkpoint report', () => {
   })
 })
 
-describe('checkpoint report entries', () => {
-  const cells = (row: HTMLElement, selector: string): string[] => [...row.querySelectorAll(selector)].map((item) => item.textContent ?? '')
+const cells = (row: HTMLElement, selector: string): string[] => [...row.querySelectorAll(selector)].map((item) => item.textContent ?? '')
 
+/** The checkpoint screen for a report that is the fixture's, with these fields replaced. */
+function withReport(patch: Partial<SprintReportView['report']>): Recorded {
+  return renderScreen({ checkpoint: checkpointView({ report: reportView({ report: { ...reportView().report, ...patch } }) }) })
+}
+
+describe('checkpoint report blocked and changes', () => {
+  it('shows blocked entries as keyed rows that link to their ticket', () => {
+    const recorded = withReport({ blocked: ['DM-201 Waiting on signing key', 'Infrastructure unavailable'] })
+    const blocked = screen.getByLabelText('BLOCKED')
+    expect(within(blocked).getByText('BLOCKED · 2').textContent).toBe('BLOCKED · 2')
+    const rows = within(blocked).getAllByRole('listitem')
+    expect(rows.map((row) => [cells(row, '.cp-key'), cells(row, '.cp-row-title')])).toEqual([
+      [['DM-201'], ['Waiting on signing key']],
+      [[], ['Infrastructure unavailable']]
+    ])
+    fireEvent.click(within(rows[0] as HTMLElement).getByRole('button', { name: 'DM-201' }))
+    expect(recorded.selected).toEqual(['tk_201'])
+  })
+
+  it('shows the changed files and the commits as short hashes in rows like the other sections', () => {
+    withReport({ changes: { files: ['src/mcp/tools.ts', 'src/core/plans.ts'], commits: ['a1b2c3d4e5f6a7b8c9d0', 'f8de0e6dd12345 (squash of 2)'] } })
+    const rows = within(screen.getByLabelText('Changes')).getAllByRole('listitem')
+    expect(rows.map((row) => row.className)).toEqual(['cp-row', 'cp-row', 'cp-row', 'cp-row'])
+    expect(rows.map((row) => [cells(row, '.cp-key'), cells(row, '.cp-row-title')])).toEqual([
+      [['file'], ['src/mcp/tools.ts']],
+      [['file'], ['src/core/plans.ts']],
+      [['commit'], ['a1b2c3d']],
+      [['commit'], ['f8de0e6 (squash of 2)']]
+    ])
+    expect(screen.queryByText(/a1b2c3d4e5f6a7b8c9d0/)).toBeNull()
+  })
+
+  it('shows only the kind of change the report has', () => {
+    withReport({ changes: { files: [], commits: ['a1b2c3d'] } })
+    expect(within(screen.getByLabelText('Changes')).getAllByRole('listitem').map((row) => row.textContent)).toEqual(['commita1b2c3d'])
+  })
+})
+
+describe('checkpoint report epic outcome', () => {
+  it('shows the epic outcome summary, rendered as Markdown, with its criteria in the EPIC OUTCOME section', () => {
+    withReport({
+      epicOutcome: { summary: 'MCP authoring is **ready** for users.', successCriteria: [{ criterionId: 's1', met: true, note: 'verified' }] }
+    })
+    const outcome = screen.getByLabelText('EPIC OUTCOME')
+    expect(within(outcome).getByText('ready').tagName).toBe('STRONG')
+    expect(within(outcome).getByText(/^MCP authoring is/).textContent).toBe('MCP authoring is ready for users.')
+    expect(within(outcome).getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      '✓An agent saves a plan through MCPverified'
+    ])
+  })
+
+  it('shows an outcome that has a summary but no criteria, and one that has criteria but no summary', () => {
+    withReport({ epicOutcome: { summary: 'Shipped.', successCriteria: [] } })
+    expect(within(screen.getByLabelText('EPIC OUTCOME')).getByText('Shipped.')).toBeTruthy()
+    expect(within(screen.getByLabelText('EPIC OUTCOME')).queryAllByRole('listitem')).toEqual([])
+    cleanup()
+    withReport({ epicOutcome: { summary: '', successCriteria: [{ criterionId: 's1', met: false, note: 'open' }] } })
+    expect(within(screen.getByLabelText('EPIC OUTCOME')).getAllByRole('listitem').length).toBe(1)
+    expect(screen.getByLabelText('EPIC OUTCOME').querySelector('.md')).toBeNull()
+  })
+
+})
+
+/** The checkpoint screen for a report whose sprint increment is the fixture's, with these fields replaced. */
+function withIncrement(patch: Parameters<typeof incrementView>[0] = {}): Recorded {
+  return renderScreen({ checkpoint: checkpointView({ report: reportView({ increment: incrementView(patch) }) }) })
+}
+
+describe('checkpoint report increment', () => {
+  it("shows the sprint's increment commit with its branch and what it follows, in rows like the other sections", () => {
+    withIncrement()
+    const section = screen.getByLabelText('INCREMENT')
+    expect(within(section).getByText('INCREMENT · SPRINT 2').textContent).toBe('INCREMENT · SPRINT 2')
+    const rows = within(section).getAllByRole('listitem').filter((row) => row.className.startsWith('cp-row'))
+    expect(rows.map((row) => [cells(row, '.cp-key'), cells(row, '.cp-row-title'), cells(row, '.cp-row-detail')])).toEqual([
+      [['commit'], ['5d3e1f0'], ['✓ VERIFIED']],
+      [['branch'], ['epic/planning'], []],
+      [['after'], ["9f8e7d6 · previous sprint's increment"], []]
+    ])
+    expect(screen.getByText('5d3e1f0').getAttribute('title')).toBe('5d3e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e')
+  })
+
+  it('lists the checks the server made on the increment', () => {
+    withIncrement()
+    expect(within(screen.getByLabelText('Increment checks')).getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      '✓One commit on the epic branchepic/planning is at 5d3e1f0',
+      '✓Parent is the previous increment9f8e7d6'
+    ])
+  })
+
+  it('marks an increment that did not pass, and gives the reasons', () => {
+    const base = incrementView().increment
+    withIncrement({
+      increment: {
+        ...base,
+        passed: false,
+        reasons: ['The commit has 2 parents; a sprint lands as one squashed commit.'],
+        checks: [{ name: 'Single parent', status: 'failed', detail: '2 parents' }]
+      }
+    })
+    const section = screen.getByLabelText('INCREMENT')
+    expect(within(section).getByText('✗ NOT VERIFIED')).toBeTruthy()
+    expect(within(section).getByText('The commit has 2 parents; a sprint lands as one squashed commit.')).toBeTruthy()
+    expect(within(screen.getByLabelText('Increment checks')).getAllByRole('listitem').map((item) => item.className)).toEqual(['is-failed'])
+  })
+
+  it('shows no increment section for a sprint that named none', () => {
+    renderScreen()
+    expect(screen.queryByLabelText('INCREMENT')).toBeNull()
+  })
+})
+
+describe('checkpoint report empty sections', () => {
+  it('omits the blocked, changes and epic outcome sections when the report has none', () => {
+    withReport({ blocked: [], changes: { files: [], commits: [] }, epicOutcome: null })
+    expect(screen.queryByLabelText('BLOCKED')).toBeNull()
+    expect(screen.queryByLabelText('Changes')).toBeNull()
+    expect(screen.queryByLabelText('EPIC OUTCOME')).toBeNull()
+  })
+})
+
+describe('checkpoint report entries', () => {
   it('keeps free-text report entries out of the key column', () => {
     const entries = ['DM-203 Folder picker works: verified by hand', 'Verified list_epics against the installed app', 'DM-998 Never started']
     const report = reportView({ report: { ...reportView().report, accepted: entries.slice(0, 2), failed: entries.slice(2) } })

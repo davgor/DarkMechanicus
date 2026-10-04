@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { sprintLabelSize } from './sprintLabel'
 
 function goalLines(goal: string): number {
-  return sprintLabelSize(goal, 'detail', false).goalLines
+  return sprintLabelSize(goal, 'detail', 0).goalLines
 }
 
 describe('sprint label goal lines', () => {
@@ -43,22 +43,24 @@ describe('sprint label goal lines', () => {
 
 describe('sprint label height', () => {
   it('stacks the heading, the goal and the detail on 18px lines', () => {
-    expect(sprintLabelSize('Storage foundation', '3 tickets', false)).toEqual({ goalLines: 1, height: 54 })
-    expect(sprintLabelSize('x'.repeat(41), '3 tickets', false)).toEqual({ goalLines: 3, height: 90 })
+    expect(sprintLabelSize('Storage foundation', '3 tickets', 0)).toEqual({ goalLines: 1, height: 54 })
+    expect(sprintLabelSize('x'.repeat(41), '3 tickets', 0)).toEqual({ goalLines: 3, height: 90 })
   })
 
   it('counts a detail that wraps onto a second line', () => {
-    expect(sprintLabelSize('Goal', 'Active · 1 of 4 accepted', false)).toEqual({ goalLines: 1, height: 72 })
-    expect(sprintLabelSize('Goal', 'Waiting on checkpoint 2', false).height).toBe(72)
-    expect(sprintLabelSize('Goal', 'Awaiting checkpoint', false).height).toBe(54)
+    expect(sprintLabelSize('Goal', 'Active · 1 of 4 accepted', 0)).toEqual({ goalLines: 1, height: 72 })
+    expect(sprintLabelSize('Goal', 'Waiting on checkpoint 2', 0).height).toBe(72)
+    expect(sprintLabelSize('Goal', 'Awaiting checkpoint', 0).height).toBe(54)
   })
 
-  it('adds the + Ticket button (a 6px gap and a 24px control) only when asked', () => {
-    expect(sprintLabelSize('Goal', '3 tickets', true).height - sprintLabelSize('Goal', '3 tickets', false).height).toBe(30)
+  it('adds a 6px gap and a 24px control for each button under the label (+ Ticket, + Acceptance)', () => {
+    const bare = sprintLabelSize('Goal', '3 tickets', 0).height
+    expect(sprintLabelSize('Goal', '3 tickets', 1).height - bare).toBe(30)
+    expect(sprintLabelSize('Goal', '3 tickets', 2).height - bare).toBe(60)
   })
 
   it('tops out at the heading, six goal lines and the detail', () => {
-    expect(sprintLabelSize('x'.repeat(2000), '3 tickets', false).height).toBe(18 + 6 * 18 + 18)
-    expect(sprintLabelSize('x'.repeat(2000), '3 tickets', true).height).toBe(18 + 6 * 18 + 18 + 30)
+    expect(sprintLabelSize('x'.repeat(2000), '3 tickets', 0).height).toBe(18 + 6 * 18 + 18)
+    expect(sprintLabelSize('x'.repeat(2000), '3 tickets', 1).height).toBe(18 + 6 * 18 + 18 + 30)
   })
 })

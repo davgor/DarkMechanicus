@@ -73,6 +73,11 @@ describe('SKILLS', () => {
     const [major = 0, minor = 0] = SKILLS_VERSION.split('.').map(Number)
     expect(major > 1 || (major === 1 && minor >= 3)).toBe(true)
   })
+
+  it('moved past 1.3.0 when the light-ticket, row-check and acceptance-round cadence was added', () => {
+    const [major = 0, minor = 0] = SKILLS_VERSION.split('.').map(Number)
+    expect(major > 1 || (major === 1 && minor >= 4)).toBe(true)
+  })
 })
 
 /** Phrases each skill must keep; a guard against accidentally dropping a rule during edits. */
@@ -113,7 +118,15 @@ const REQUIRED: [string, string[]][] = [
       'later sprint',
       'exitCriteria',
       'validate_plan',
-      'Explain the graph'
+      'Explain the graph',
+      '## The acceptance node',
+      'implicitly requires every required work ticket',
+      'one `covers` criterion per ticket',
+      'the specific screenshot, measurement or end-to-end check',
+      'only for work that must combine mid-sprint',
+      '`set_definition_of_done`',
+      'its own ticket',
+      'row'
     ]
   ],
   [
@@ -147,7 +160,36 @@ const REQUIRED: [string, string[]][] = [
       'one effort step',
       'Never jump straight to the most capable worker',
       'the reason in the claim `rationale`',
-      'profile proposal'
+      'profile proposal',
+      'Orchestrator (fallback)',
+      'Register every tool the host really has',
+      '`network` and `browser`',
+      "the run's catalog is fixed at start",
+      "against its own criteria and the worker's targeted evidence",
+      'Do not run the full sweep',
+      'no per-ticket merge commit on the epic branch',
+      '## 3. Integration and the acceptance round',
+      'sprint integration branch',
+      'separate worktree',
+      'Keep the coordinating checkout on the epic branch',
+      '`branch_changed`',
+      '`git -C <worktree>`',
+      'Never put a destructive git command after a `cd`',
+      'Merge each accepted ticket',
+      'When a row is fully accepted',
+      "typecheck plus the tests that touch that row's files",
+      '`record_row_check`',
+      '`row_check_failed`',
+      '`get_project`',
+      "from that ticket's accepted result",
+      'each item the acceptance criteria cover',
+      'one squashed commit',
+      'increment { branch, commit }',
+      'Never accept an acceptance node whose increment failed',
+      'named no increment',
+      'Claim the acceptance node before you submit the sprint report',
+      '`pause_run`',
+      '`resume_run`'
     ]
   ],
   [
@@ -161,10 +203,33 @@ const REQUIRED: [string, string[]][] = [
       'commits',
       'changedFiles',
       'checks',
-      'Never edit the plan'
+      'Never edit the plan',
+      'worktree',
+      'sprint integration branch',
+      '`git -C <worktree>`',
+      'Run only targeted checks',
+      'tests for the files you touched',
+      'typecheck when you changed types',
+      'a screenshot only when a criterion needs one',
+      'Never run the full sweep',
+      "the sprint's acceptance node"
     ]
   ],
-  ['reviewer', ['independently', '`accept_attempt`', '`reject_attempt`', 'actionable', 'every acceptance criterion']],
+  [
+    'reviewer',
+    [
+      'independently',
+      '`accept_attempt`',
+      '`reject_attempt`',
+      'actionable',
+      'every acceptance criterion',
+      "against its own criteria and the worker's targeted evidence",
+      'Do not run the full sweep',
+      'no per-ticket merge commit on the epic branch',
+      'increment',
+      'Never accept an acceptance node whose increment failed'
+    ]
+  ],
   [
     'sprint-reporter',
     [
@@ -179,7 +244,10 @@ const REQUIRED: [string, string[]][] = [
       '`epicOutcome`',
       '`get_checkpoint`',
       '`advance_sprint`',
-      'cannot approve'
+      'cannot approve',
+      '`report_submitted`, `no_active_leases`, `required_accepted`, `acceptance_accepted`, `increment_merged`, `definition_of_done`, `exit_criteria`, `epic_outcome` (final sprint), and `approval`',
+      'Definition of Done',
+      'increment'
     ]
   ]
 ]

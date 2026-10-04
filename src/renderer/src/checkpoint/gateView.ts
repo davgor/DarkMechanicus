@@ -11,6 +11,7 @@ import type {
   FollowUpProposal,
   GateCondition,
   RunView,
+  SprintIncrement,
   SprintReportView
 } from '../../../shared/domain/views'
 import { formatAgo } from '../epic/time'
@@ -50,12 +51,42 @@ export interface CriterionLine {
   note: string
 }
 
+/** One check made on a report (a sprint check or an increment check), with the glyph that goes beside its words. */
+export interface ReportCheck {
+  name: string
+  status: CheckStatus
+  detail: string
+  icon: string
+}
+
+/** The commit that landed a sprint on the epic branch, as the server verified it when the acceptance node was submitted. */
+export interface IncrementSection {
+  heading: string
+  /** The acceptance node that named it. */
+  key: string
+  /** The commit as 7 characters of its hash (exactly as named when git did not resolve it). */
+  commit: string
+  fullCommit: string
+  branch: string
+  passed: boolean
+  verdict: string
+  /** What the commit had to follow, as text for the "after" row. */
+  base: string
+  /** Why it did not pass; empty when it did. */
+  reasons: string[]
+  checks: ReportCheck[]
+}
+
 export interface ReportSections {
   header: string
   summary: string
   accepted: ReportRow[]
   failed: ReportRow[]
-  checks: { name: string; status: CheckStatus; detail: string; icon: string }[]
+  blocked: ReportRow[]
+  changes: { files: string[]; commits: string[] }
+  /** The sprint's increment; null when its acceptance node named none. */
+  increment: IncrementSection | null
+  checks: ReportCheck[]
   risks: string[]
   exitCriteria: CriterionLine[]
   followUps: FollowUpProposal[]
@@ -156,6 +187,46 @@ function attemptsOf(run: RunView, ticketId: string | null): AttemptView[] {
   return run.attempts.filter((item) => item.ticketId === ticketId && !item.superseded).sort((a, b) => b.number - a.number)
 }
 
+/** A leading 7 to 40 character commit hash, only when it ends the entry or is followed by whitespace. */
+const LEADING_HASH = /^([0-9a-f]{7})[0-9a-f]{0,33}(?=\s|$)/
+
+/** The commit as 7 characters of its hash, keeping any text after it, e.g. "abc1234 (squash of 3)". */
+function shortHash(commit: string): string {
+  return commit.replace(LEADING_HASH, '$1')
+}
+
+function baseText(base: SprintIncrement['base']): string {
+  const commit = base.commit === null ? '' : shortHash(base.commit)
+  switch (base.kind) {
+    case 'previous_increment':
+      return commit === '' ? "the previous sprint's increment" : `${commit} · previous sprint's increment`
+    case 'epic_start':
+      return commit === '' ? 'the epic start commit' : `${commit} · epic start commit`
+    case 'none':
+      return 'no earlier increment or epic start commit to follow'
+  }
+}
+
+function incrementSection(report: SprintReportView): IncrementSection | null {
+  const view = report.increment
+  if (view === undefined) {
+    return null
+  }
+  const { increment } = view
+  return {
+    heading: `INCREMENT · SPRINT ${view.sprintOrdinal}`,
+    key: view.key,
+    commit: shortHash(increment.commit),
+    fullCommit: increment.commit,
+    branch: increment.branch,
+    passed: increment.passed,
+    verdict: increment.passed ? 'VERIFIED' : 'NOT VERIFIED',
+    base: baseText(increment.base),
+    reasons: increment.reasons,
+    checks: increment.checks.map((check) => ({ ...check, icon: CHECK_ICONS[check.status] }))
+  }
+}
+
 function acceptedCommit(run: RunView, ticketId: string | null): string {
   const accepted = attemptsOf(run, ticketId).find((item) => item.state === 'accepted')
   return (accepted?.outputs?.commits[0] ?? '').slice(0, 7)
@@ -218,6 +289,12 @@ export function reportView(report: SprintReportView, context: ReportContext): Re
       const row = resolveRow(entry, bundle)
       return { ...row, detail: failedDetail(context, row.ticketId) }
     }),
+    blocked: content.blocked.map((entry) => resolveRow(entry, bundle)),
+    changes: {
+      files: content.changes.files,
+      commits: content.changes.commits.map(shortHash)
+    },
+    increment: incrementSection(report),
     checks: content.checks.map((check) => ({ ...check, icon: CHECK_ICONS[check.status] })),
     risks: content.risks,
     exitCriteria: criterionLines(content.exitCriteria, exit),

@@ -10,6 +10,7 @@ import type {
   PlanPolicies,
   ReasoningEffort,
   RelationKind,
+  TicketKind,
   TicketPriority,
   TicketReference,
   TicketSize
@@ -44,6 +45,7 @@ import type {
   ReadinessView,
   ReconcileResultView,
   RevisionSummaryView,
+  RowCheckView,
   RunView,
   SaveResultView,
   SearchResultView,
@@ -64,10 +66,21 @@ export interface CriterionInput {
   text: string
 }
 
+/**
+ * A ticket criterion input. `covers` names the ticket an acceptance node's criterion verifies, by
+ * stable id, display key or client ref; it is stored as the stable id. A patch that repeats a
+ * criterion without `covers` keeps the one it had, and `null` clears it.
+ */
+export interface TicketCriterionInput extends CriterionInput {
+  covers?: string | null
+}
+
 export interface TicketInput {
   title: string
+  /** `work` (the default) or `acceptance`. `work` is never stored: it clears the kind. */
+  kind?: TicketKind
   body?: string
-  acceptanceCriteria?: (CriterionInput | string)[]
+  acceptanceCriteria?: (TicketCriterionInput | string)[]
   tags?: string[]
   priority?: TicketPriority
   /** `null` in a patch clears the size (the ticket then has no `size` key). */
@@ -137,11 +150,26 @@ export interface ClaimTicketInput {
   idempotencyKey?: string
 }
 
+/**
+ * The increment a sprint's acceptance node names: the commit that landed the sprint on the epic branch,
+ * and the branch it landed on (which must be the epic's integration branch). `commit` is a hash of 7 to 64
+ * hex digits.
+ */
+export interface IncrementRef {
+  branch: string
+  commit: string
+}
+
 export interface SubmitAttemptInput {
   attemptId: string
   claimToken: string
   outputs: Partial<AttemptOutputs> & { summary: string }
   evidence?: Partial<AttemptEvidence>
+  /**
+   * Acceptance nodes only. The server verifies the increment when the submission arrives and stores
+   * the verdict, whether it passed or not; a work ticket that names one is refused.
+   */
+  increment?: IncrementRef
   idempotencyKey?: string
 }
 
@@ -157,6 +185,20 @@ export interface StartRunInput {
 
 export type SprintReportInput = Partial<SprintReportContent> & { summary: string }
 
+/**
+ * An orchestrator's check of one row of a sprint. `row` counts from 1; `commit` is the commit hash the
+ * row's combined work was checked at; `checks` lists at least one entry. The check passes only when
+ * every entry passed, so a failed or skipped entry holds the row's dependents back.
+ */
+export interface RecordRowCheckInput {
+  runId: string
+  sprintId: string
+  row: number
+  commit: string
+  checks: { name: string; status: 'passed' | 'failed' | 'skipped'; detail?: string }[]
+  idempotencyKey?: string
+}
+
 export interface AddCommentInput {
   epicId: string
   /** A ticket of the epic's saved plan or draft; omit for a comment on the epic itself. */
@@ -170,6 +212,13 @@ export interface CommandApi {
   // Discovery and repository lifecycle
   getCapabilities(): Promise<CapabilitiesView>
   getProject(): Promise<ProjectView>
+  /**
+   * Replaces the project's Definition of Done in `.darkmechanicus/project.json` (an empty list removes it)
+   * and answers with the project as getProject shows it. Planner and desktop only; never commits.
+   */
+  setDefinitionOfDone(input: {
+    checks: { name: string; command: string; description?: string }[]
+  }): Promise<ProjectView>
   initializeRepository(input: { name?: string; keyPrefix?: string }): Promise<InitializeResultView>
   getStorageStatus(): Promise<StorageStatusView>
   flushPortableState(): Promise<FlushResultView>
@@ -309,6 +358,7 @@ export interface CommandApi {
     notes?: string
   }): Promise<AttemptView>
   carryForwardTicket(input: { runId: string; ticketId: string; note: string }): Promise<AttemptView>
+  recordRowCheck(input: RecordRowCheckInput): Promise<RowCheckView>
   pauseRun(input: { runId: string; reason?: string }): Promise<RunView>
   resumeRun(input: { runId: string }): Promise<RunView>
   cancelRun(input: { runId: string; reason?: string }): Promise<RunView>

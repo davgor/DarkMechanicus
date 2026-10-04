@@ -1,6 +1,5 @@
 import type {
   CapabilityProfile,
-  Criterion,
   DependencyEdge,
   EpicContent,
   PlanBundle,
@@ -8,7 +7,8 @@ import type {
   Relation,
   RelationKind,
   SprintDef,
-  TicketContent
+  TicketContent,
+  TicketCriterion
 } from '../../shared/domain/bundle'
 import type { ChangeKind, PlanChange } from '../../shared/domain/views'
 import { canonicalJson } from '../canonical'
@@ -39,15 +39,20 @@ function lines(count: number): string {
   return `${count} line${count === 1 ? '' : 's'}`
 }
 
-/** Criteria whose text changed or that were added, plus criteria that were removed. */
-function changedCriteria(before: Criterion[], after: Criterion[]): number {
-  const previous = new Map(before.map((item) => [item.id, item.text]))
+/** What makes a criterion differ from its earlier self: its text and the ticket it covers. */
+function criterionFingerprint(item: TicketCriterion): string {
+  return canonicalJson([item.text, item.covers ?? null])
+}
+
+/** Criteria whose text or covered ticket changed or that were added, plus criteria that were removed. */
+function changedCriteria(before: TicketCriterion[], after: TicketCriterion[]): number {
+  const previous = new Map(before.map((item) => [item.id, criterionFingerprint(item)]))
   const kept = new Set(after.map((item) => item.id))
-  const touched = after.filter((item) => previous.get(item.id) !== item.text).length
+  const touched = after.filter((item) => previous.get(item.id) !== criterionFingerprint(item)).length
   return touched + before.filter((item) => !kept.has(item.id)).length
 }
 
-function criteriaPhrase(label: string, before: Criterion[], after: Criterion[]): Phrase {
+function criteriaPhrase(label: string, before: TicketCriterion[], after: TicketCriterion[]): Phrase {
   if (canonicalJson(before) === canonicalJson(after)) {
     return null
   }
@@ -180,6 +185,7 @@ function ticketPhrases(before: TicketContent, after: TicketContent): Phrase[] {
   return [
     arrow('key', before.key, after.key),
     before.title === after.title ? null : `title changed from "${before.title}"`,
+    arrow('kind', before.kind ?? 'work', after.kind ?? 'work'),
     changed(before.body, after.body, 'body edited'),
     criteriaPhrase('acceptance criteria', before.acceptanceCriteria, after.acceptanceCriteria),
     changed(before.tags, after.tags, 'tags changed'),

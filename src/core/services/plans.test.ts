@@ -237,7 +237,9 @@ describe('completeSavedRevision', () => {
       updatedAt: saved,
       hasDraft: false
     })
+    // Alpha, Beta and the sprint acceptance node.
     expect(ctx.db.all('SELECT status, revision, updated_at FROM ticket_status WHERE epic_id = ?', epicId)).toEqual([
+      { status: 'backlog', revision: 1, updated_at: saved },
       { status: 'backlog', revision: 1, updated_at: saved },
       { status: 'backlog', revision: 1, updated_at: saved }
     ])
@@ -301,7 +303,7 @@ describe('completeSavedRevision with later edits', () => {
     ctx.db.tx(() => completeSavedRevision(ctx, revisionId))
     const draft = getPlan(ctx, { epicId, view: 'draft' })
     expect(draft).toMatchObject({ baseRevisionId: revisionId, baseRevisionNumber: 1, draftRevision: 3, stale: false })
-    expect(draft.changes.map((change) => change.detail)).toEqual(['DM-3 Gamma added to Sprint 1'])
+    expect(draft.changes.map((change) => change.detail)).toEqual(['DM-4 Gamma added to Sprint 1'])
   })
 
   it('keeps existing ticket statuses and leaves a draft with an unrelated base untouched', () => {
@@ -464,7 +466,11 @@ describe('validatePlanView', () => {
       "UPDATE drafts SET bundle_json = json_set(bundle_json, '$.sprints[0].ticketIds', json('[]')) WHERE epic_id = ?",
       saved.epicId
     )
-    expect(validatePlanView(ctx, { epicId: saved.epicId, view: 'saved' })).toEqual({ valid: true, errors: [], warnings: [] })
+    // A plan of work tickets alone, like one saved before acceptance nodes, saves with a warning only.
+    const savedReport = validatePlanView(ctx, { epicId: saved.epicId, view: 'saved' })
+    expect(savedReport.valid).toBe(true)
+    expect(savedReport.errors).toEqual([])
+    expect(savedReport.warnings.map((issue) => issue.code)).toEqual(['missing_acceptance_node'])
     const draft = validatePlanView(ctx, { epicId: saved.epicId, view: 'draft' })
     expect(draft.valid).toBe(false)
     expect(draft.errors.map((issue) => issue.code)).toEqual(['ticket_not_in_sprint', 'ticket_not_in_sprint'])

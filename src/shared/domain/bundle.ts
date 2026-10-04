@@ -12,6 +12,12 @@ export interface Criterion {
   text: string
 }
 
+/** A ticket's criterion. On an acceptance node it may name the ticket it verifies. */
+export interface TicketCriterion extends Criterion {
+  /** Stable id of the ticket this criterion verifies; set only on the criteria of an acceptance node. */
+  covers?: string
+}
+
 export const WORK_TYPES = [
   'implementation',
   'architecture',
@@ -41,6 +47,14 @@ export type ReasoningEffort = (typeof REASONING_EFFORTS)[number]
  */
 export const TICKET_SIZES = ['micro', 'small', 'medium', 'large'] as const
 export type TicketSize = (typeof TICKET_SIZES)[number]
+
+/**
+ * What a ticket is for. `work` is an ordinary ticket and is never stored: the key is simply absent, so
+ * plans saved before kinds existed keep their content hash. An `acceptance` node verifies its sprint:
+ * it implicitly requires every other required ticket in the sprint, so it runs last.
+ */
+export const TICKET_KINDS = ['work', 'acceptance'] as const
+export type TicketKind = (typeof TICKET_KINDS)[number]
 
 export const MODALITIES = ['text', 'images'] as const
 export type Modality = (typeof MODALITIES)[number]
@@ -116,10 +130,12 @@ export interface TicketContent {
   id: string
   /** Display key such as `DM-12`. Display only — identity is `id`. */
   key: string
+  /** Absent means `work`; never defaulted or stored as `work`, so older plans keep their content hash. */
+  kind?: TicketKind
   title: string
   /** Unrestricted Markdown narrative. */
   body: string
-  acceptanceCriteria: Criterion[]
+  acceptanceCriteria: TicketCriterion[]
   tags: string[]
   priority: TicketPriority
   /** Absent until a planner sizes the ticket; never defaulted, so older plans keep their content hash. */

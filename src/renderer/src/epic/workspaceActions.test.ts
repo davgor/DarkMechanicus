@@ -227,6 +227,32 @@ describe('graph edit actions (2)', () => {
   })
 })
 
+describe('adding an acceptance node', () => {
+  it('adds the node, titled for the sprint, and selects it', async () => {
+    const h = harness()
+    await h.actions.addAcceptance('sp_2')
+    expect(h.backend.inputs('updatePlanDraft').map((input) => (input as { ops: unknown[] }).ops)).toEqual([
+      [{ op: 'add_ticket', ref: 'new', sprint: 'sp_2', ticket: { kind: 'acceptance', title: 'Sprint 2 acceptance' } }]
+    ])
+    expect(h.state().selectedTicketId).toBe('tk_new')
+    expect(h.state().banner).toBe(null)
+  })
+
+  it('shows the concrete reason when the server refuses it', async () => {
+    const h = harness()
+    h.backend.fail('updatePlanDraft', 'invalid_graph', 'Sprint 2 already has an acceptance node.')
+    await h.actions.addAcceptance('sp_2')
+    expect(h.state().banner).toBe('Sprint 2 already has an acceptance node.')
+    expect(h.state().selectedTicketId).toBe(null)
+  })
+
+  it('falls back to a plain title for a sprint the draft does not show', async () => {
+    const h = harness()
+    await h.actions.addAcceptance('sp_404')
+    expect(h.backend.inputs('updatePlanDraft')).toMatchObject([{ ops: [{ ticket: { kind: 'acceptance', title: 'Acceptance' } }] }])
+  })
+})
+
 describe('checkpoint actions', () => {
   it('approves and advances, closing the checkpoint view unless the approval completed the epic', async () => {
     const h = harness()

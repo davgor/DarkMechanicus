@@ -11,6 +11,8 @@ import type {
   AttemptOutputs,
   AttemptView,
   HostCatalog,
+  RowCheckView,
+  SprintIncrement,
   WorkerInfo
 } from '../../shared/domain/views'
 import { contentHash } from '../canonical'
@@ -41,6 +43,8 @@ export interface AttemptRow {
   evidence_json: string | null
   failure_json: string | null
   decision_json: string | null
+  /** The `SprintIncrement` verdict of a submission that named an increment; null for every other attempt. */
+  increment_json: string | null
   created_at: string
   updated_at: string
   submitted_at: string | null
@@ -71,12 +75,27 @@ export interface RunRow {
   ended_at: string | null
 }
 
+/** One row of the `row_checks` table. */
+export interface RowCheckRow {
+  id: string
+  run_id: string
+  number: number
+  sprint_id: string
+  row_no: number
+  commit_ref: string
+  checks_json: string
+  recorded_by: string | null
+  created_at: string
+}
+
 export interface RunContext {
   run: RunRow
   bundle: PlanBundle
   /** Every attempt of the run, in creation order. */
   attempts: AttemptRow[]
   retryGrants: Record<string, number>
+  /** Every row check of the run, in the order they were recorded. */
+  rowChecks: RowCheckView[]
 }
 
 /** Columns reported by SQLite when `attempts_one_open_per_ticket` rejects a second open attempt. */
@@ -93,6 +112,7 @@ const EMPTY_WORKER: WorkerInfo = {
 }
 
 export function attemptView(row: AttemptRow): AttemptView {
+  const increment = parseJson<SprintIncrement | null>(row.increment_json, null)
   return {
     id: row.id,
     runId: row.run_id,
@@ -111,6 +131,7 @@ export function attemptView(row: AttemptRow): AttemptView {
     evidence: parseJson<AttemptEvidence | null>(row.evidence_json, null),
     failure: parseJson<AttemptFailure | null>(row.failure_json, null),
     decision: parseJson<AttemptDecision | null>(row.decision_json, null),
+    ...(increment === null ? {} : { increment }),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     submittedAt: row.submitted_at,
@@ -118,6 +139,30 @@ export function attemptView(row: AttemptRow): AttemptView {
     reconciledAt: row.reconciled_at,
     superseded: row.superseded_at !== null
   }
+}
+
+/**
+ * A row check passed when every entry of its `checks` passed. A failed or skipped entry means the
+ * row was not verified, and a check without entries verified nothing.
+ */
+export function rowCheckView(row: RowCheckRow): RowCheckView {
+  const checks = parseJson<RowCheckView['checks']>(row.checks_json, [])
+  return {
+    id: row.id,
+    runId: row.run_id,
+    sprintId: row.sprint_id,
+    row: row.row_no,
+    number: row.number,
+    commit: row.commit_ref,
+    checks,
+    passed: checks.length > 0 && checks.every((check) => check.status === 'passed'),
+    recordedBy: row.recorded_by,
+    createdAt: row.created_at
+  }
+}
+
+function loadRowChecks(ctx: Ctx, runId: string): RowCheckView[] {
+  return ctx.db.all<RowCheckRow>('SELECT * FROM row_checks WHERE run_id = ? ORDER BY number', runId).map(rowCheckView)
 }
 
 export function requireRun(ctx: Ctx, runId: string): RunRow {
@@ -156,7 +201,8 @@ export function loadRunContext(ctx: Ctx, runId: string): RunContext {
     run,
     bundle: loadBundle(ctx, run.revision_id),
     attempts: ctx.db.all<AttemptRow>('SELECT * FROM attempts WHERE run_id = ? ORDER BY rowid', runId),
-    retryGrants: Object.fromEntries(grants.map((grant) => [grant.ticket_id, grant.extra]))
+    retryGrants: Object.fromEntries(grants.map((grant) => [grant.ticket_id, grant.extra])),
+    rowChecks: loadRowChecks(ctx, runId)
   }
 }
 
@@ -179,7 +225,8 @@ export function executionOf(context: RunContext): ExecutionSnapshot {
     activeSprintId: context.run.active_sprint_id,
     runState: context.run.state,
     attempts: context.attempts.map(snapshotOf),
-    retryGrants: context.retryGrants
+    retryGrants: context.retryGrants,
+    rowChecks: context.rowChecks
   })
 }
 

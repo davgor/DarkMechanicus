@@ -26,6 +26,7 @@ const TOKEN = `${ATTEMPT}.secret`
 const PROBES: Record<CommandName, unknown> = {
   getCapabilities: undefined,
   getProject: undefined,
+  setDefinitionOfDone: { checks: [] },
   initializeRepository: {},
   getStorageStatus: undefined,
   flushPortableState: undefined,
@@ -74,6 +75,13 @@ const PROBES: Record<CommandName, unknown> = {
   failAttempt: { attemptId: ATTEMPT, claimToken: TOKEN, failure: { reason: 'probe' } },
   reconcileAttempt: { attemptId: ATTEMPT, resolution: 'abandon' },
   carryForwardTicket: { runId: RUN, ticketId: TICKET, note: 'probe' },
+  recordRowCheck: {
+    runId: RUN,
+    sprintId: probeId('sprint'),
+    row: 1,
+    commit: 'abcdef1',
+    checks: [{ name: 'probe', status: 'passed' }]
+  },
   pauseRun: { runId: RUN },
   resumeRun: { runId: RUN },
   cancelRun: { runId: RUN },

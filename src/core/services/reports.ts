@@ -9,6 +9,7 @@ import { toJson } from '../db/database'
 import { fail } from '../errors'
 import { appendEvent } from './events'
 import { requestWithoutKey, withIdempotency } from './idempotency'
+import { sprintIncrementOf } from './increments'
 import { enqueueOutbox } from './outbox'
 import { indexDocument } from './searchIndex'
 
@@ -72,7 +73,9 @@ export function setRunState(ctx: Ctx, runId: string, state: RunState): void {
   )
 }
 
-function reportView(row: ReportRow): SprintReportView {
+/** A report as read: its stored content, plus the increment its sprint's acceptance node named (not part of the content hash). */
+function reportView(ctx: Ctx, row: ReportRow): SprintReportView {
+  const increment = sprintIncrementOf(ctx, row.run_id, row.sprint_id)
   return {
     id: row.id,
     runId: row.run_id,
@@ -80,6 +83,7 @@ function reportView(row: ReportRow): SprintReportView {
     reportRevision: row.report_revision,
     contentHash: row.content_hash,
     report: JSON.parse(row.content_json) as SprintReportContent,
+    ...(increment === undefined ? {} : { increment }),
     submittedBy: row.submitted_by,
     createdAt: row.created_at
   }
@@ -93,7 +97,7 @@ export function latestReport(ctx: Ctx, runId: string, sprintId: string): SprintR
     runId,
     sprintId
   )
-  return row ? reportView(row) : null
+  return row ? reportView(ctx, row) : null
 }
 
 function listOr<T>(items: T[] | undefined): T[] {
@@ -169,7 +173,7 @@ function insertReport(ctx: Ctx, run: RunRow, sprintId: string, content: SprintRe
     row.submitted_by,
     row.created_at
   )
-  return reportView(row)
+  return reportView(ctx, row)
 }
 
 function searchBody(report: SprintReportContent): string {

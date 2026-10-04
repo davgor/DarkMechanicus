@@ -8,6 +8,7 @@ import {
   condition,
   draftPlan,
   execution,
+  incrementView,
   reportView as reportFixture,
   runView,
   sprint
@@ -225,6 +226,129 @@ describe('report entries written as free text', () => {
         detail: 'attempt 2 of 2 · codesign: no identity found · retry limit reached'
       }
     ])
+  })
+})
+
+const NO_RUN_CONTEXT = { run: runView({ tickets: [], attempts: [] }), bundle: bundle(), now: NOW }
+
+describe('report blocked entries and outcome summary', () => {
+  it('lists blocked entries like accepted ones: a plan ticket key links, other text stays unlinked', () => {
+    const report = reportFixture({
+      report: { ...reportFixture().report, blocked: ['DM-201 Waiting on signing key', 'Infrastructure unavailable'] }
+    })
+    expect(reportView(report, NO_RUN_CONTEXT).blocked).toEqual([
+      { ticketId: 'tk_201', key: 'DM-201', title: 'Waiting on signing key', detail: '' },
+      { ticketId: null, key: '', title: 'Infrastructure unavailable', detail: '' }
+    ])
+  })
+
+  it('has no blocked rows when the report blocks nothing', () => {
+    expect(reportView(reportFixture(), NO_RUN_CONTEXT).blocked).toEqual([])
+  })
+
+  it('includes the epic outcome summary next to its criteria', () => {
+    const report = reportFixture({
+      report: {
+        ...reportFixture().report,
+        epicOutcome: {
+          summary: 'MCP authoring is ready for users.',
+          successCriteria: [{ criterionId: 's1', met: true, note: 'verified' }]
+        }
+      }
+    })
+    const view = reportView(report, NO_RUN_CONTEXT)
+    expect(view.outcome?.summary).toBe('MCP authoring is ready for users.')
+    expect(view.outcome?.criteria).toEqual([{ text: 'An agent saves a plan through MCP', met: true, note: 'verified' }])
+  })
+})
+
+describe('report changes', () => {
+  const changesOf = (files: string[], commits: string[]): ReturnType<typeof reportView>['changes'] =>
+    reportView(reportFixture({ report: { ...reportFixture().report, changes: { files, commits } } }), NO_RUN_CONTEXT).changes
+
+  it('keeps the changed files as written', () => {
+    expect(changesOf(['src/mcp/tools.ts', 'src/core/services/plans.ts'], []).files).toEqual(['src/mcp/tools.ts', 'src/core/services/plans.ts'])
+  })
+
+  it('shortens a full 40-character commit hash to 7 characters', () => {
+    expect(changesOf([], ['f8de0e6dd12345ef0123456789abcdef01234567', 'a1b2c3d4e5f6a7b8']).commits).toEqual(['f8de0e6', 'a1b2c3d'])
+  })
+
+  it('shortens the hash and keeps the text that follows it', () => {
+    expect(
+      changesOf([], ['f8de0e6dd12345ef0123456789abcdef01234567 (squash of 3)', 'a1b2c3d4e5f6 fix the importer']).commits
+    ).toEqual(['f8de0e6 (squash of 3)', 'a1b2c3d fix the importer'])
+  })
+
+  it('leaves anything that is not a leading hash as written', () => {
+    const notHashes = ['deadbeefcafe-notes', 'Merge branch main', 'a1b2c3', 'a'.repeat(64), 'see f8de0e6dd12345']
+    expect(changesOf([], notHashes).commits).toEqual(notHashes)
+  })
+})
+
+describe('sprint report increment', () => {
+  const withIncrement = (patch: Parameters<typeof incrementView>[0] = {}): ReturnType<typeof reportView> =>
+    reportView(reportFixture({ increment: incrementView(patch) }), NO_RUN_CONTEXT)
+
+  it('is absent when the sprint named no increment', () => {
+    expect(reportView(reportFixture(), NO_RUN_CONTEXT).increment).toBe(null)
+  })
+
+  it('shows the commit as 7 characters with its branch, the commit it follows and the checks made', () => {
+    expect(withIncrement().increment).toEqual({
+      heading: 'INCREMENT · SPRINT 2',
+      key: 'DM-290',
+      commit: '5d3e1f0',
+      fullCommit: '5d3e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e',
+      branch: 'epic/planning',
+      passed: true,
+      verdict: 'VERIFIED',
+      base: "9f8e7d6 · previous sprint's increment",
+      reasons: [],
+      checks: [
+        { name: 'One commit on the epic branch', status: 'passed', detail: 'epic/planning is at 5d3e1f0', icon: '✓' },
+        { name: 'Parent is the previous increment', status: 'passed', detail: '9f8e7d6', icon: '✓' }
+      ]
+    })
+  })
+
+  it('says why an increment did not pass', () => {
+    const base = incrementView().increment
+    const view = withIncrement({
+      increment: {
+        ...base,
+        passed: false,
+        reasons: ['The commit has 2 parents; a sprint lands as one squashed commit.'],
+        checks: [{ name: 'Single parent', status: 'failed', detail: '2 parents' }]
+      }
+    })
+    expect(view.increment).toMatchObject({
+      passed: false,
+      verdict: 'NOT VERIFIED',
+      reasons: ['The commit has 2 parents; a sprint lands as one squashed commit.'],
+      checks: [{ name: 'Single parent', status: 'failed', detail: '2 parents', icon: '✗' }]
+    })
+  })
+
+})
+
+describe('sprint report increment base', () => {
+  const withIncrement = (patch: Parameters<typeof incrementView>[0] = {}): ReturnType<typeof reportView> =>
+    reportView(reportFixture({ increment: incrementView(patch) }), NO_RUN_CONTEXT)
+
+  it('names what the commit had to follow: the previous increment, the epic start, or nothing yet', () => {
+    const base = incrementView().increment
+    const after = (kind: 'previous_increment' | 'epic_start' | 'none', commit: string | null): string | undefined =>
+      withIncrement({ increment: { ...base, base: { kind, commit } } }).increment?.base
+    expect(after('epic_start', '1234567890abcdef')).toBe('1234567 · epic start commit')
+    expect(after('previous_increment', null)).toBe("the previous sprint's increment")
+    expect(after('none', null)).toBe('no earlier increment or epic start commit to follow')
+  })
+
+  it('keeps a commit that git did not resolve exactly as the submission named it', () => {
+    const base = incrementView().increment
+    const view = withIncrement({ increment: { ...base, commit: 'not-a-commit', parent: null } })
+    expect(view.increment).toMatchObject({ commit: 'not-a-commit', fullCommit: 'not-a-commit' })
   })
 })
 

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { dropAcceptanceNodes } from '../../test/acceptanceNodes'
 import { createHarness, type Harness } from '../../test/workspaceHarness'
 
 describe('checkpoint commands sweep expired leases first', () => {
@@ -16,6 +17,7 @@ describe('checkpoint commands sweep expired leases first', () => {
     const agent = harness.open('orchestrator')
     await agent.initializeRepository({ name: 'lease-repo' })
     const epic = await agent.createEpic({ title: 'Lease epic' })
+    await dropAcceptanceNodes(agent, epic.id)
     const draft = await agent.updatePlanDraft({
       epicId: epic.id,
       ops: [{ op: 'add_ticket', ref: 'only', sprint: '1', ticket: { title: 'Only ticket' } }]

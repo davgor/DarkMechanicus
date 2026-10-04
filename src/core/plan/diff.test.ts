@@ -347,3 +347,71 @@ describe('computeChanges for ticket size and reasoning effort', () => {
     ])
   })
 })
+
+/** Sprint 1: work 1 and 2, and an acceptance node 3 whose first criterion covers DM-1. */
+function acceptanceNode(): PlanBundle {
+  const base = makeBundle([[1, 2, 3]])
+  base.tickets[2] = makeTicket(3, {
+    kind: 'acceptance',
+    acceptanceCriteria: [
+      { id: 'c1', text: 'DM-1 verified', covers: tid(1) },
+      { id: 'c2', text: 'DM-2 verified' }
+    ]
+  })
+  return base
+}
+
+describe('computeChanges for ticket kind and covered tickets', () => {
+  it('shows a work ticket made an acceptance node, and the other way round', () => {
+    const base = makeBundle([[1]])
+    const made = edited(base, (copy) => {
+      copy.tickets[0].kind = 'acceptance'
+    })
+    expect(details(base, made)).toEqual(['edited ticket: kind work → acceptance'])
+    expect(details(made, base)).toEqual(['edited ticket: kind acceptance → work'])
+  })
+
+  it('does not report a ticket whose kind stays the same', () => {
+    expect(details(acceptanceNode(), structuredClone(acceptanceNode()))).toEqual([])
+  })
+
+})
+
+describe('computeChanges for covered tickets', () => {
+  it('reports a covers set on a criterion as an edited line, not as a reordering', () => {
+    const base = acceptanceNode()
+    const next = edited(base, (copy) => {
+      copy.tickets[2].acceptanceCriteria[1].covers = tid(2)
+    })
+    expect(details(base, next)).toEqual(['edited ticket: acceptance criteria edited (1 line)'])
+  })
+
+  it('reports a covers changed to another ticket, and a covers cleared', () => {
+    const base = acceptanceNode()
+    const moved = edited(base, (copy) => {
+      copy.tickets[2].acceptanceCriteria[0].covers = tid(2)
+    })
+    expect(details(base, moved)).toEqual(['edited ticket: acceptance criteria edited (1 line)'])
+    const cleared = edited(base, (copy) => {
+      delete copy.tickets[2].acceptanceCriteria[0].covers
+    })
+    expect(details(base, cleared)).toEqual(['edited ticket: acceptance criteria edited (1 line)'])
+  })
+
+  it('still calls a pure reordering of covering criteria a reordering', () => {
+    const base = acceptanceNode()
+    const next = edited(base, (copy) => {
+      copy.tickets[2].acceptanceCriteria.reverse()
+    })
+    expect(details(base, next)).toEqual(['edited ticket: acceptance criteria reordered'])
+  })
+
+  it('reports a kind change and a covers change in the same ticket together', () => {
+    const base = acceptanceNode()
+    const next = edited(base, (copy) => {
+      delete copy.tickets[2].kind
+      copy.tickets[2].acceptanceCriteria[0].covers = tid(2)
+    })
+    expect(details(base, next)).toEqual(['edited ticket: kind acceptance → work; acceptance criteria edited (1 line)'])
+  })
+})

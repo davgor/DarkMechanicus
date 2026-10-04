@@ -209,6 +209,8 @@ interface AttemptRowInput {
   evidence?: unknown
   failure?: unknown
   decision?: unknown
+  /** The `SprintIncrement` verdict stored with the attempt. */
+  increment?: unknown
   claimSecret?: string | null
   leaseExpiresAt?: string | null
 }
@@ -217,8 +219,8 @@ export function insertAttempt(db: Db, input: AttemptRowInput): void {
   db.run(
     `INSERT INTO attempts (id, run_id, ticket_id, number, kind, state, fencing_token, claim_secret, worker_json,
        revision_id, ticket_content_hash, lease_expires_at, heartbeat_at, outputs_json, evidence_json, failure_json,
-       decision_json, created_at, updated_at, submitted_at, decided_at, reconciled_at, superseded_at)
-     VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL)`,
+       decision_json, increment_json, created_at, updated_at, submitted_at, decided_at, reconciled_at, superseded_at)
+     VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL)`,
     input.id,
     input.runId,
     input.ticketId,
@@ -235,6 +237,7 @@ export function insertAttempt(db: Db, input: AttemptRowInput): void {
     jsonOrNull(input.evidence),
     jsonOrNull(input.failure),
     jsonOrNull(input.decision),
+    jsonOrNull(input.increment),
     T0,
     T0
   )
@@ -271,6 +274,35 @@ export function insertCheckpoint(db: Db, input: { id: string; runId: string; spr
     input.sprintId,
     input.reportId,
     T0
+  )
+}
+
+interface RowCheckRowInput {
+  id: string
+  runId: string
+  sprintId: string
+  number?: number
+  row?: number
+  commit?: string
+  checks?: unknown
+  recordedBy?: string | null
+  createdAt?: string
+}
+
+/** A row check as `recordRowCheck` stores it (default: row 1 of the sprint, one passing entry). */
+export function insertRowCheck(db: Db, input: RowCheckRowInput): void {
+  db.run(
+    `INSERT INTO row_checks (id, run_id, number, sprint_id, row_no, commit_ref, checks_json, recorded_by, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    input.id,
+    input.runId,
+    input.number ?? 1,
+    input.sprintId,
+    input.row ?? 1,
+    input.commit ?? 'abcdef0123456789abcdef0123456789abcdef01',
+    JSON.stringify(input.checks ?? [{ name: 'combined tests', status: 'passed', detail: '' }]),
+    input.recordedBy === undefined ? 'orchestrator' : input.recordedBy,
+    input.createdAt ?? T0
   )
 }
 

@@ -89,6 +89,7 @@ export interface DmApi {
 const DESKTOP_COMMANDS = [
   'getCapabilities',
   'getProject',
+  'setDefinitionOfDone',
   'initializeRepository',
   'getStorageStatus',
   'flushPortableState',

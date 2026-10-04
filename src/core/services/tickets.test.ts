@@ -46,11 +46,12 @@ describe('listTickets', () => {
       ]
     })
     ctx.db.run("UPDATE ticket_status SET status = 'in_progress' WHERE ticket_id = ?", saved.refMap.second)
-    const sprint1 = sprintIdAt(ctx, saved.epicId, 1)
+    // add_sprint gave Sprint 2 its acceptance node (DM-1), which stays last in that sprint.
     expect(listTickets(ctx, { epicId: saved.epicId, view: 'saved' })).toEqual([
-      { id: saved.refMap.first, key: 'DM-3', title: 'First', status: 'backlog', sprintId: sprint1, sprintOrdinal: 1, priority: 'normal', tags: [], optional: false },
-      { id: saved.refMap.second, key: 'DM-2', title: 'Second', status: 'in_progress', sprintId: sprint1, sprintOrdinal: 1, priority: 'normal', tags: [], optional: false },
-      { id: saved.refMap.late, key: 'DM-1', title: 'Late', status: 'backlog', sprintId: saved.refMap.s2, sprintOrdinal: 2, priority: 'high', tags: ['ui'], optional: true }
+      { id: saved.refMap.first, key: 'DM-4', title: 'First', status: 'backlog', sprintId: sprintIdAt(ctx, saved.epicId, 1), sprintOrdinal: 1, priority: 'normal', tags: [], optional: false },
+      { id: saved.refMap.second, key: 'DM-3', title: 'Second', status: 'in_progress', sprintId: sprintIdAt(ctx, saved.epicId, 1), sprintOrdinal: 1, priority: 'normal', tags: [], optional: false },
+      { id: saved.refMap.late, key: 'DM-2', title: 'Late', status: 'backlog', sprintId: saved.refMap.s2, sprintOrdinal: 2, priority: 'high', tags: ['ui'], optional: true },
+      { id: expect.any(String), key: 'DM-1', title: 'Sprint 2 acceptance', status: 'backlog', sprintId: saved.refMap.s2, sprintOrdinal: 2, priority: 'normal', kind: 'acceptance', tags: [], optional: false }
     ])
   })
 

@@ -25,6 +25,7 @@ import type {
   EventView,
   PlanView,
   ProfileView,
+  ProjectView,
   RunView,
   SprintReportView,
   TicketDetailView,
@@ -38,6 +39,7 @@ import {
   epicDetail,
   event,
   iso,
+  projectView,
   runView,
   savedPlan,
   summaries,
@@ -59,6 +61,8 @@ interface Scenario {
   comments: CommentView[]
   /** Named capability profiles, kept sorted by name like the real listProfiles. */
   profiles: ProfileView[]
+  /** The tracked repository's project, with its Definition of Done. */
+  project: ProjectView
 }
 
 interface RecordedCall {
@@ -81,6 +85,7 @@ export function scenario(patch: Partial<Scenario> = {}): Scenario {
     events: [event(1, 'attempt.claimed'), event(2, 'attempt.failed', { payload: { reason: '2 tests failed' } })],
     comments: [],
     profiles: [],
+    project: projectView(),
     ...patch
   }
 }
@@ -335,6 +340,7 @@ function defaultHandlers(state: Scenario): Partial<Record<CommandName, Handler>>
     listComments: (input: { ticketId?: string }) =>
       state.comments.filter((item) => input.ticketId === undefined || item.ticketId === input.ticketId),
     addComment: (input: { epicId: string; ticketId?: string; body: string }) => addComment(state, input),
+    getProject: () => state.project,
     listProfiles: () => state.profiles,
     saveProfile: (input: SaveProfileRequest) => saveProfile(state, input),
     ...runHandlers(state)

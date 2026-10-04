@@ -7,6 +7,7 @@ import {
   bundle,
   epicDetail,
   execution,
+  incrementView,
   mcpTestEpic,
   mcpTestPlan,
   mcpTestReport,
@@ -82,6 +83,59 @@ describe('completed epic overview', () => {
     ])
     fireEvent.click(within(rows[1] as HTMLElement).getByRole('button', { name: 'DM-2' }))
     expect(selected).toEqual(['tk_01m3txy30tvtfbzj1ecax0dvb0'])
+  })
+})
+
+describe('completed epic overview report sections', () => {
+  const report = mcpTestReport()
+  const blockedAndChanged = {
+    ...report,
+    report: {
+      ...report.report,
+      blocked: ['DM-2 Waiting on signing key', 'Infrastructure unavailable'],
+      changes: { files: ['src/mcp/tools.ts', 'src/core/plans.ts'], commits: ['a1b2c3d4e5f6a7b8c9d0'] }
+    }
+  }
+
+  function renderOverview(reports: (typeof report)[], epic = mcpTestEpic()): void {
+    render(<EpicOverview epic={epic} run={mcpTestRun()} overview={{ bundle: mcpTestPlan().bundle, reports }} now={NOW} onSelectTicket={() => undefined} />)
+  }
+
+  it('shows the increment a sprint landed on the epic branch, in the report of a completed epic', () => {
+    renderOverview([{ ...report, increment: incrementView({ sprintOrdinal: 1 }) }])
+    const section = within(screen.getByLabelText('Sprint 1 report')).getByLabelText('INCREMENT')
+    expect(within(section).getByText('INCREMENT · SPRINT 1')).toBeTruthy()
+    expect(within(section).getByText('5d3e1f0')).toBeTruthy()
+    expect(within(section).getByText('epic/planning')).toBeTruthy()
+  })
+
+  it('shows the blocked entries and the changes (files and short commit hashes) of each sprint report', () => {
+    renderOverview([blockedAndChanged])
+    const sprint = screen.getByLabelText('Sprint 1 report')
+    const blocked = within(sprint).getByLabelText('BLOCKED')
+    expect(within(blocked).getByText('BLOCKED · 2')).toBeTruthy()
+    expect(within(blocked).getByRole('button', { name: 'DM-2' })).toBeTruthy()
+    expect(within(blocked).getByText('Infrastructure unavailable')).toBeTruthy()
+    expect(within(within(sprint).getByLabelText('Changes')).getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      'filesrc/mcp/tools.ts',
+      'filesrc/core/plans.ts',
+      'commita1b2c3d'
+    ])
+  })
+
+  it('shows the epic outcome summary once, beside the reports, and not again inside a report', () => {
+    renderOverview([blockedAndChanged])
+    const summary = /^The MCP authoring and execution path works end to end/
+    expect(screen.getAllByText(summary).length).toBe(1)
+    expect(within(screen.getByLabelText('Epic outcome')).getByText(summary)).toBeTruthy()
+    expect(within(screen.getByLabelText('Sprint 1 report')).queryByLabelText('EPIC OUTCOME')).toBe(null)
+  })
+
+  it('omits the blocked and changes sections of a report that has none', () => {
+    renderOverview([report])
+    const sprint = screen.getByLabelText('Sprint 1 report')
+    expect(within(sprint).queryByLabelText('BLOCKED')).toBe(null)
+    expect(within(sprint).queryByLabelText('Changes')).toBe(null)
   })
 })
 

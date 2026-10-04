@@ -1,5 +1,42 @@
 {
   "createdAt": "2026-10-01T05:07:52.325Z",
+  "definitionOfDone": [
+    {
+      "command": "npm run lint",
+      "description": "oxlint over src and scripts, strict, with no rule relaxed and no lint-disable comment added.",
+      "name": "lint"
+    },
+    {
+      "command": "npm run typecheck",
+      "description": "TypeScript strict type check of the main and preload, renderer and Fireguard projects, with no any used to dodge a type.",
+      "name": "typecheck"
+    },
+    {
+      "command": "npm test",
+      "description": "The whole unit suite: Vitest over src and scripts, then the Fireguard suite.",
+      "name": "test"
+    },
+    {
+      "command": "npm run coverage",
+      "description": "The unit suite with v8 coverage; it fails when coverage falls below the thresholds set in vitest.config.ts.",
+      "name": "coverage"
+    },
+    {
+      "command": "npm run fireguard",
+      "description": "Unit-test quality grade (A to F; F fails) on the sprint's combined, committed work. The base is the sprint's start commit: run it with FIREGUARD_BASE_REF set to that commit. The acceptance node does not run it: it reports this check from the accepted result of the sprint's Fireguard ticket.",
+      "name": "fireguard"
+    },
+    {
+      "command": "npm run deadcode",
+      "description": "ts-prune reports no unused export beyond the .tsprune-ignore baseline.",
+      "name": "deadcode"
+    },
+    {
+      "command": "npm run build",
+      "description": "The electron-vite production build of main, preload and renderer.",
+      "name": "build"
+    }
+  ],
   "format": "darkmechanicus.project",
   "formatVersion": 1,
   "keyPrefix": "DM",

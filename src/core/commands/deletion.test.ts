@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { DraftOp } from '../../shared/domain/api'
+import { dropAcceptanceNodes } from '../../test/acceptanceNodes'
 import { createHarness, type Harness } from '../../test/workspaceHarness'
 import { openDatabase } from '../db/database'
 import { encodeBase32, ID_PREFIXES } from '../ids'
@@ -24,8 +25,10 @@ interface Planned {
 
 async function savedEpic(agent: Workspace, title: string, ops: DraftOp[]): Promise<Planned> {
   const epic = await agent.createEpic({ title, idempotencyKey: `create-${title}` })
+  await dropAcceptanceNodes(agent, epic.id)
   const draft = await agent.updatePlanDraft({ epicId: epic.id, ops })
-  await agent.savePlan({ epicId: epic.id, expectedDraftRevision: draft.draftRevision })
+  const revision = await dropAcceptanceNodes(agent, epic.id)
+  await agent.savePlan({ epicId: epic.id, expectedDraftRevision: revision })
   return { epicId: epic.id, ticket: (ref) => draft.refMap[ref] ?? '' }
 }
 

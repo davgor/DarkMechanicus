@@ -5,25 +5,43 @@ import type {
   EpicNodeModel,
   GraphModel,
   GraphNode,
+  JoinNodeModel,
+  RowCheckNodeModel,
   SprintNodeModel,
   TicketNodeModel
 } from './graphModel'
 
 type TicketNodeData = { model: TicketNodeModel; active: boolean; editable: boolean }
-type SprintNodeData = { model: SprintNodeModel; editable: boolean; onAddTicket: (sprintId: string) => void }
+type SprintNodeData = {
+  model: SprintNodeModel
+  editable: boolean
+  onAddTicket: (sprintId: string) => void
+  onAddAcceptance: (sprintId: string) => void
+}
 type DividerNodeData = { model: DividerNodeModel }
 type EpicNodeData = { model: EpicNodeModel }
+type JoinNodeData = { model: JoinNodeModel }
+type RowCheckNodeData = { model: RowCheckNodeModel }
 
 export type TicketFlowNode = Node<TicketNodeData, 'ticket'>
 export type SprintFlowNode = Node<SprintNodeData, 'sprint'>
 export type DividerFlowNode = Node<DividerNodeData, 'divider'>
 export type EpicFlowNode = Node<EpicNodeData, 'epic'>
-export type FlowNode = TicketFlowNode | SprintFlowNode | DividerFlowNode | EpicFlowNode
+export type JoinFlowNode = Node<JoinNodeData, 'join'>
+export type RowCheckFlowNode = Node<RowCheckNodeData, 'rowcheck'>
+export type FlowNode =
+  | TicketFlowNode
+  | SprintFlowNode
+  | DividerFlowNode
+  | EpicFlowNode
+  | JoinFlowNode
+  | RowCheckFlowNode
 
 interface FlowOptions {
   editable: boolean
   selectedTicketId: string | null
   onAddTicket(sprintId: string): void
+  onAddAcceptance(sprintId: string): void
 }
 
 /**
@@ -46,7 +64,8 @@ function ticketNode(item: TicketNodeModel, options: FlowOptions): TicketFlowNode
     ...placement(item),
     type: 'ticket',
     data: { model: item, active: item.id === options.selectedTicketId, editable: options.editable },
-    draggable: options.editable,
+    // An acceptance node closes its own sprint, so it is never dragged to another one.
+    draggable: options.editable && !item.acceptance,
     connectable: options.editable,
     selectable: true,
     focusable: true,
@@ -70,12 +89,22 @@ function toFlowNode(item: GraphNode, options: FlowOptions): FlowNode {
         ...FIXED,
         type: 'sprint',
         zIndex: 1,
-        data: { model: item, editable: options.editable, onAddTicket: options.onAddTicket }
+        data: {
+          model: item,
+          editable: options.editable,
+          onAddTicket: options.onAddTicket,
+          onAddAcceptance: options.onAddAcceptance
+        }
       }
     case 'divider':
       return { ...placement(item), ...FIXED, type: 'divider', zIndex: 0, data: { model: item } }
     case 'epic':
       return { ...placement(item), ...FIXED, type: 'epic', zIndex: 1, data: { model: item } }
+    case 'join':
+      return { ...placement(item), ...FIXED, type: 'join', zIndex: 0, data: { model: item } }
+    case 'rowcheck':
+      // A chip is not interactive, but its tooltip (the check's detail) needs pointer events.
+      return { ...placement(item), ...FIXED, type: 'rowcheck', zIndex: 1, style: { pointerEvents: 'all' }, data: { model: item } }
   }
 }
 

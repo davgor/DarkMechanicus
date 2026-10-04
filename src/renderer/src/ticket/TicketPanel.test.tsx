@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, describe, expect, it } from 'vitest'
 import { deferred } from '../__mocks__/deferred'
 import { FakeBackend, scenario } from '../epic/__mocks__/fakeBackend'
-import { NOW, attempt, comment, savedPlan, ticketDetail } from '../epic/__mocks__/fixtures'
+import { NOW, attempt, bundle, comment, projectView, savedPlan, sprint, ticket, ticketDetail } from '../epic/__mocks__/fixtures'
 import { allowSlowRendering } from '../epic/__mocks__/testTiming'
 import type { ReviewInput } from '../epic/workspaceActions'
 import { TicketPanel, type TicketPanelProps } from './TicketPanel'
@@ -434,3 +434,137 @@ describe('ticket panel size, effort, quality and cost', () => {
     )
   })
 })
+
+/** Sprint 1: DM-1, DM-2, a required DM-4 nothing covers, and the node DM-91 whose criteria cover DM-1 and DM-2. */
+function nodePlan() {
+  const node = ticket('DM-91', 'Sprint 1 acceptance', {
+    kind: 'acceptance',
+    acceptanceCriteria: [
+      { id: 'c1', text: 'Row 1 check passes', covers: 'tk_1' },
+      { id: 'c2', text: 'No regression in row checks', covers: 'tk_1' },
+      { id: 'c3', text: 'Increment is one commit', covers: 'tk_2' },
+      { id: 'c4', text: 'Demo works end to end' }
+    ]
+  })
+  return savedPlan({
+    bundle: bundle({
+      tickets: [ticket('DM-1', 'Row checks'), ticket('DM-2', 'Increments'), ticket('DM-4', 'Docs'), node],
+      sprints: [sprint(1, 'Build', ['tk_1', 'tk_2', 'tk_4', 'tk_91'])],
+      edges: []
+    })
+  })
+}
+
+function nodeBackend(patch: Partial<Parameters<typeof scenario>[0]> = {}, attempts: ReturnType<typeof attempt>[] = []): FakeBackend {
+  const plan = nodePlan()
+  const content = plan.bundle.tickets.find((item) => item.id === 'tk_91')
+  return new FakeBackend(
+    scenario({
+      saved: plan,
+      ticket: ticketDetail({
+        ticket: content,
+        sprintId: 'sp_1',
+        sprintOrdinal: 1,
+        prerequisites: [],
+        dependents: [],
+        execution: null,
+        attempts
+      }),
+      ...patch
+    })
+  )
+}
+
+function renderNode(backend: FakeBackend): Recorded {
+  return renderPanel(backend, { ticketId: 'tk_91', plan: nodePlan() })
+}
+
+describe('ticket panel of an acceptance node', () => {
+  it('groups its criteria by the ticket each one covers, each group headed by a link to that ticket', async () => {
+    const recorded = renderNode(nodeBackend())
+    const criteria = await screen.findByLabelText('Acceptance criteria')
+    const groups = within(criteria).getAllByRole('group')
+    expect(groups.map((group) => group.getAttribute('aria-label'))).toEqual([
+      'Covers DM-1 Row checks',
+      'Covers DM-2 Increments',
+      'Covers DM-4 Docs',
+      'The sprint as a whole'
+    ])
+    expect(within(groups[0] as HTMLElement).getAllByRole('checkbox').map((box) => box.getAttribute('aria-label'))).toEqual([
+      'Row 1 check passes',
+      'No regression in row checks'
+    ])
+    expect(within(groups[1] as HTMLElement).getAllByRole('checkbox')).toHaveLength(1)
+    expect(within(groups[3] as HTMLElement).getByRole('checkbox').getAttribute('aria-label')).toBe('Demo works end to end')
+    fireEvent.click(within(groups[0] as HTMLElement).getByRole('button', { name: /DM-1/ }))
+    expect(recorded.selected).toEqual(['tk_1'])
+  })
+
+  it('says so when a required ticket of the sprint is covered by no criterion', async () => {
+    renderNode(nodeBackend())
+    const group = await screen.findByLabelText('Covers DM-4 Docs')
+    expect(group.textContent).toContain('No criterion covers this ticket yet.')
+  })
+
+  it('shows how many criteria the latest evidence verifies', async () => {
+    const evidence = attempt('DM-91', 1, 'submitted', {
+      evidence: { checks: [], criteria: [{ criterionId: 'c1', met: true, note: 'row test' }], notes: '' }
+    })
+    renderNode(nodeBackend({}, [evidence]))
+    const criteria = await screen.findByLabelText('Acceptance criteria')
+    expect(within(criteria).getByText('ACCEPTANCE CRITERIA · 1 OF 4 VERIFIED')).toBeTruthy()
+    const boxes = within(criteria).getAllByRole('checkbox') as HTMLInputElement[]
+    expect(boxes.map((box) => box.checked)).toEqual([true, false, false, false])
+  })
+
+})
+
+describe('ticket panel of an acceptance node: Definition of Done', () => {
+
+  it('lists the project Definition of Done: each check with its command and description', async () => {
+    const backend = nodeBackend()
+    renderNode(backend)
+    const dod = await screen.findByLabelText('Definition of Done')
+    expect(within(dod).getByText('DEFINITION OF DONE · 2 CHECKS')).toBeTruthy()
+    const rows = within(dod).getAllByRole('listitem')
+    expect(rows.map((row) => row.textContent)).toEqual([
+      'Unit testsnpm testEvery unit test passes.',
+      'Typechecknpm run typecheckNo type errors in any project.'
+    ])
+    expect(backend.names().filter((name) => name === 'getProject')).toHaveLength(1)
+  })
+
+  it('shows how the latest evidence reports each check of the Definition of Done', async () => {
+    const evidence = attempt('DM-91', 1, 'submitted', {
+      evidence: { checks: [{ name: 'unit tests', status: 'passed', detail: '' }], criteria: [], notes: '' }
+    })
+    renderNode(nodeBackend({}, [evidence]))
+    const dod = await screen.findByLabelText('Definition of Done')
+    const states = within(dod).getAllByRole('listitem').map((row) => row.querySelector('.tp-dod-state')?.textContent)
+    expect(states).toEqual(['PASSED', 'NOT REPORTED'])
+  })
+
+  it('says so when the project has no Definition of Done', async () => {
+    renderNode(nodeBackend({ project: projectView({ definitionOfDone: [] }) }))
+    const dod = await screen.findByLabelText('Definition of Done')
+    expect(dod.textContent).toContain('This project has no Definition of Done.')
+    expect(within(dod).queryAllByRole('listitem')).toHaveLength(0)
+  })
+
+  it('keeps the criteria when the project cannot be read, and says why', async () => {
+    const backend = nodeBackend()
+    backend.fail('getProject', 'not_found', 'No project here.')
+    renderNode(backend)
+    expect((await screen.findByRole('alert')).textContent).toBe('Could not load the Definition of Done. No project here.')
+    expect(screen.getByLabelText('Acceptance criteria')).toBeTruthy()
+  })
+
+  it('leaves a work ticket as it was: a flat checklist, no Definition of Done, no project read', async () => {
+    const backend = new FakeBackend()
+    renderPanel(backend)
+    const criteria = await screen.findByLabelText('Acceptance criteria')
+    expect(within(criteria).queryAllByRole('group')).toHaveLength(0)
+    expect(screen.queryByLabelText('Definition of Done')).toBe(null)
+    expect(backend.names()).not.toContain('getProject')
+  })
+});

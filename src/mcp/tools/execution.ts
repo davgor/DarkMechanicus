@@ -4,10 +4,13 @@ import { DomainError } from '../../core/errors'
 import {
   attemptEvidenceInput,
   attemptOutputsInput,
+  commitHash,
   criterionResult,
   epicBranch,
   hostCatalog,
+  incrementRef,
   LIMITS,
+  rowCheckEntries,
   stableId
 } from '../../core/schemas'
 import { SKILLS_VERSION } from '../../core/version'
@@ -24,6 +27,7 @@ import {
   note,
   revisionId,
   runId,
+  sprintId,
   ticketId
 } from './params'
 
@@ -152,7 +156,7 @@ const SETUP_TOOLS = [
   defineTool({
     name: 'get_run',
     description:
-      'Returns a run by runId, or the active (else latest) run of an epicId, with per-ticket execution states, attempts, counts, and checkpoint status. Data is null when the epic has never run. Give runId or epicId.',
+      'Returns a run by runId, or the active (else latest) run of an epicId, with per-ticket execution states (each with its row), the rows of every sprint with their tickets and latest row check, the increment the acceptance node of each sprint named (increments: commit, parent, whether it passed verification and why not), attempts, counts, and checkpoint status. The acceptance node of a sprint is listed with every other required ticket of that sprint as its prerequisites. Data is null when the epic has never run. Give runId or epicId.',
     kind: 'read',
     input: GET_RUN_INPUT,
     run: getRun
@@ -160,7 +164,7 @@ const SETUP_TOOLS = [
   defineTool({
     name: 'get_ready_tickets',
     description:
-      'Server-computed readiness for the active sprint: ready, blocked (blockers: prerequisite, concurrency, retry_limit, lease_expired, run_state) and in-flight tickets, plus capacity. Only ready tickets can be claimed; readiness cannot be bypassed.',
+      'Server-computed readiness for the active sprint: ready, blocked (blockers: prerequisite, row_check_failed, concurrency, retry_limit, lease_expired, run_state) and in-flight tickets, each with its row, plus the sprint\'s rows with their tickets and latest row check, and capacity. The acceptance node of a sprint is blocked until every other required ticket of that sprint is accepted, and lists them as its prerequisites. Only ready tickets can be claimed; readiness cannot be bypassed.',
     kind: 'read',
     input: { runId },
     run: (api, input) => api.getReadyTickets(input)
@@ -171,7 +175,7 @@ const ATTEMPT_TOOLS = [
   defineTool({
     name: 'claim_ticket',
     description:
-      'Claims a ready ticket: creates an attempt with a lease and returns a claimToken plus a bounded execution packet (pinned ticket, acceptance criteria, predecessor outputs, epic branch, reporting contract). Record who does the work: worker label, modelId, hostId, catalogRevision, a rationale, and the effort (low, medium, high) you dispatch the worker at; the effort is recorded on the attempt, returned in the execution packet, and kept in run history. Keep the claimToken secret; give it only to the worker doing this ticket. Fails with `unmet_prerequisite`, `already_claimed`, `capacity_exceeded`, `retry_limit_reached`, `needs_reconciliation`, or `unsupported_capability` (the model fails the hard requirements of the ticket, or does not declare the effort).',
+      'Claims a ready ticket: creates an attempt with a lease and returns a claimToken plus a bounded execution packet (pinned ticket, acceptance criteria, predecessor outputs, epic branch, reporting contract). Record who does the work: worker label, modelId, hostId, catalogRevision, a rationale, and the effort (low, medium, high) you dispatch the worker at; the effort is recorded on the attempt, returned in the execution packet, and kept in run history. Keep the claimToken secret; give it only to the worker doing this ticket. If the named model cannot take the ticket on the run\'s catalog (it fails a hard requirement, the host lacks a required tool, or the model is unknown), the claim still succeeds: the orchestrator collects the ticket, the attempt is recorded as "Orchestrator (fallback)" with no model and the reasons in its rationale, and the packet carries `fallback` { requestedModelId, reasons }. Fails with `unmet_prerequisite`, `already_claimed`, `capacity_exceeded`, `retry_limit_reached`, `needs_reconciliation`, or `unsupported_capability` (the model does not declare the effort).',
     kind: 'write',
     input: CLAIM_TICKET_INPUT,
     run: (api, input) => api.claimTicket(input)
@@ -187,13 +191,16 @@ const ATTEMPT_TOOLS = [
   defineTool({
     name: 'submit_attempt',
     description:
-      'Submits the result of a claimed attempt: outputs (summary, artifacts, commits, changedFiles, branch) and evidence (checks with results, per-criterion met or not met with notes). Submission does not complete the ticket or unlock dependents; it waits for accept_attempt or reject_attempt.',
+      'Submits the result of a claimed attempt: outputs (summary, artifacts, commits, changedFiles, branch) and evidence (checks with results, per-criterion met or not met with notes). Submission does not complete the ticket or unlock dependents; it waits for accept_attempt or reject_attempt. The acceptance node of a sprint also names the sprint increment, increment { branch, commit }: the commit that landed the sprint on the epic branch. It must be one squashed commit (exactly one parent) reachable from the epic branch, not part of the previous sprint\'s increment (for sprint 1: after the epic start commit), and none of the commits recorded by the sprint\'s accepted work may be reachable from the epic branch, which proves the sprint was squashed and not merged. The server verifies that against the repository when the submission arrives and records the verdict on the attempt (increment: passed, reasons, checks), whether it passed or not. A failed verdict does not reject the submission, but the checkpoint\'s increment_merged gate stays unmet until a submission whose increment passed is accepted, so reject a failed one with its reasons and resubmit. A work ticket that names an increment is refused with `invalid_input`, and an acceptance node that names none leaves the gate unmet.',
     kind: 'write',
     input: {
       attemptId,
       claimToken,
       outputs: attemptOutputsInput,
       evidence: attemptEvidenceInput.optional(),
+      increment: incrementRef
+        .optional()
+        .describe('Acceptance nodes only. The epic branch and the commit (7 to 64 hex digits) that landed the sprint on it as one squashed commit.'),
       idempotencyKey
     },
     run: (api, input) => api.submitAttempt(input)
@@ -262,6 +269,21 @@ const ATTEMPT_TOOLS = [
     kind: 'write',
     input: { runId, ticketId, note: z.string().min(1).max(LIMITS.shortText) },
     run: (api, input) => api.carryForwardTicket(input)
+  }),
+  defineTool({
+    name: 'record_row_check',
+    description:
+      'Records your check that one row of a sprint combined cleanly. A row is the tickets of a sprint at the same same-sprint dependency depth: row 1 has no same-sprint prerequisites, and get_run and get_ready_tickets list every ticket\'s row and each row\'s tickets and latest check. Integrate the row\'s accepted work, run the checks on the combined result, then record them with the commit they ran at. The check passes only when every entry in checks has status passed; a failed or skipped entry fails it. While a row\'s latest check has not passed, every ticket that requires a ticket of that row is held back (state waiting, blocker row_check_failed), and a later passing check clears the hold. Other tickets stay claimable: there is no barrier between rows. Fails with `not_found` (the sprint is not in the run\'s plan), `invalid_input` (the sprint has no such row), `run_not_owned`, or `run_not_active`.',
+    kind: 'write',
+    input: {
+      runId,
+      sprintId,
+      row: z.number().int().min(1).max(LIMITS.tickets).describe('Row number within the sprint, counted from 1.'),
+      commit: commitHash.describe('Commit hash (7 to 64 hex digits) the row\'s combined work was checked at.'),
+      checks: rowCheckEntries.describe('What you ran on the combined work: name, status (passed, failed or skipped) and detail. At least one entry.'),
+      idempotencyKey
+    },
+    run: (api, input) => api.recordRowCheck(input)
   })
 ]
 

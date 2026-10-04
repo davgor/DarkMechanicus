@@ -1,9 +1,11 @@
-import type { CheckpointMode, Criterion, PlanBundle, SprintDef } from '../../shared/domain/bundle'
+import type { CheckpointMode, Criterion, PlanBundle, SprintDef, TicketContent } from '../../shared/domain/bundle'
 import { isActiveRunState, isOpenAttemptState, type AttemptState } from '../../shared/domain/status'
 import type {
   ApprovalView,
+  AttemptEvidence,
   CheckpointView,
   CriterionResult,
+  DefinitionOfDoneCheck,
   EpicOutcome,
   GateCondition,
   GateConditionId,
@@ -11,11 +13,14 @@ import type {
 } from '../../shared/domain/views'
 import { requireCapability } from '../authz'
 import type { Ctx } from '../context'
-import { bool, toJson } from '../db/database'
+import { bool, parseJson, toJson } from '../db/database'
+import { unmetChecks } from '../definitionOfDone'
 import { fail } from '../errors'
+import { acceptanceNodeOf } from '../plan/acceptance'
 import { indexBundle, sortedSprints, ticketLabel, type BundleIndex } from '../plan/graph'
 import { appendEvent } from './events'
 import { requestWithoutKey, withIdempotency } from './idempotency'
+import { incrementOf, standingAttempt } from './increments'
 import { enqueueOutbox } from './outbox'
 import { latestReport, loadBundle, loadRun, requireOwnedRun, setRunState, type RunRow } from './reports'
 
@@ -24,10 +29,13 @@ const ADVANCE_ACTION = 'advance_sprint'
 const HUMAN_REQUIRED = 'A person must approve this checkpoint in the desktop app'
 
 interface AttemptRow {
+  id: string
   ticket_id: string
   state: AttemptState
   reconciled_at: string | null
   superseded_at: string | null
+  increment_json: string | null
+  evidence_json: string | null
 }
 
 interface GrantRow {
@@ -55,6 +63,8 @@ interface GateInput {
   sprint: SprintDef
   report: SprintReportView | null
   attempts: AttemptRow[]
+  /** The project's Definition of Done as of this evaluation; empty when it has none. */
+  definition: DefinitionOfDoneCheck[]
 }
 
 function attemptCount(count: number): string {
@@ -104,14 +114,18 @@ function pendingReason(key: string, attempts: AttemptRow[]): string {
   return latest === undefined ? `${key} not started` : `${key} ${attemptPhrase(latest, attempts.length)}`
 }
 
-/** On the final sprint `ticketIds` spans the whole plan: an epic completes only with every required ticket accepted. */
-function requiredGate(input: GateInput, ticketIds: string[]): GateCondition {
-  const required = ticketIds.filter((id) => input.index.tickets.get(id)?.optional !== true)
-  const accepted = new Set(
-    input.attempts
+function acceptedTicketIds(attempts: AttemptRow[]): Set<string> {
+  return new Set(
+    attempts
       .filter((attempt) => attempt.state === 'accepted' && attempt.superseded_at === null)
       .map((attempt) => attempt.ticket_id)
   )
+}
+
+/** On the final sprint `ticketIds` spans the whole plan: an epic completes only with every required ticket accepted. */
+function requiredGate(input: GateInput, ticketIds: string[]): GateCondition {
+  const required = ticketIds.filter((id) => input.index.tickets.get(id)?.optional !== true)
+  const accepted = acceptedTicketIds(input.attempts)
   const problems = required
     .filter((id) => !accepted.has(id))
     .map((id) => {
@@ -121,6 +135,72 @@ function requiredGate(input: GateInput, ticketIds: string[]): GateCondition {
   const total = required.length
   const metDetail = `${total} of ${total} required tickets accepted`
   return condition('required_accepted', 'Every required ticket accepted', problems, metDetail)
+}
+
+/** The sprint's acceptance node needs its own accepted, non-superseded attempt, even when the node is optional. */
+function acceptanceGate(input: GateInput, node: TicketContent): GateCondition {
+  const problems = acceptedTicketIds(input.attempts).has(node.id)
+    ? []
+    : [
+        pendingReason(
+          ticketLabel(input.index, node.id),
+          input.attempts.filter((attempt) => attempt.ticket_id === node.id)
+        )
+      ]
+  return condition('acceptance_accepted', 'Sprint acceptance accepted', problems, `${node.key} accepted`)
+}
+
+const INCREMENT_LABEL = 'Sprint increment merged'
+
+/**
+ * The sprint's increment was verified as one squashed commit on the epic branch. It reads the verdict stored
+ * with the acceptance node's standing submission (the accepted attempt, else the one awaiting review), which
+ * the server wrote when the submission arrived, so nothing is recomputed here.
+ */
+function incrementGate(input: GateInput, node: TicketContent): GateCondition {
+  const verdict = incrementOf(standingAttempt(input.attempts, node.id))
+  if (verdict === null) {
+    const named = `No sprint increment named yet: submit ${node.key} with increment { branch, commit }`
+    return condition('increment_merged', INCREMENT_LABEL, [named], '')
+  }
+  const commit = verdict.commit.slice(0, 7)
+  const problems = verdict.passed ? [] : [`Increment ${commit} failed verification: ${verdict.reasons.join(' ')}`]
+  const metDetail = `Increment ${commit} on ${verdict.branch} is one squashed commit on the epic branch`
+  return condition('increment_merged', INCREMENT_LABEL, problems, metDetail)
+}
+
+const DEFINITION_LABEL = 'Definition of Done passed'
+
+function checkCount(count: number): string {
+  return count === 1 ? '1 Definition of Done check' : `${count} Definition of Done checks`
+}
+
+/**
+ * The acceptance node's accepted attempt reports every check of the project's Definition of Done as passed in
+ * its evidence, by name. Dark Mechanicus runs none of the commands: it reads what the worker reported and the
+ * reviewer accepted, so only an accepted, current attempt counts (not one awaiting review, rejected, or
+ * superseded). A project without a Definition of Done gets no such gate.
+ */
+function definitionGate(input: GateInput, node: TicketContent): GateCondition {
+  const standing = standingAttempt(input.attempts, node.id)
+  const accepted = standing?.state === 'accepted' ? standing : undefined
+  if (accepted === undefined) {
+    const names = input.definition.map((check) => check.name).join(', ')
+    const detail = `${node.key} has no accepted attempt yet; it must report these checks as passed: ${names}`
+    return condition('definition_of_done', DEFINITION_LABEL, [detail], '')
+  }
+  const evidence = parseJson<AttemptEvidence | null>(accepted.evidence_json, null)
+  const unmet = unmetChecks(input.definition, evidence?.checks ?? [])
+  const named = unmet.map((item) => `${item.name} (${item.reason})`).join(', ')
+  const problems = unmet.length === 0 ? [] : [`${node.key}'s accepted attempt does not report these checks as passed: ${named}`]
+  const metDetail = `${node.key} reports all ${checkCount(input.definition.length)} as passed`
+  return condition('definition_of_done', DEFINITION_LABEL, problems, metDetail)
+}
+
+/** The gates only a sprint with an acceptance node has; the Definition of Done's only when the project has one. */
+function nodeGates(input: GateInput, node: TicketContent): GateCondition[] {
+  const gates = [acceptanceGate(input, node), incrementGate(input, node)]
+  return input.definition.length === 0 ? gates : [...gates, definitionGate(input, node)]
 }
 
 function noteSuffix(note: string): string {
@@ -161,12 +241,22 @@ function outcomeGate(bundle: PlanBundle, report: SprintReportView | null): GateC
   return condition('epic_outcome', 'Epic success criteria met', problems, metDetail)
 }
 
-function evaluateGates(input: GateInput, isFinal: boolean): GateCondition[] {
+/**
+ * The tickets `required_accepted` covers. The sprint's own acceptance node is left to
+ * `acceptance_accepted`, so a missing node is reported once, by the gate that names it.
+ */
+function requiredScope(input: GateInput, isFinal: boolean, node: TicketContent | undefined): string[] {
   const scope = isFinal ? input.bundle.tickets.map((ticket) => ticket.id) : input.sprint.ticketIds
+  return scope.filter((id) => id !== node?.id)
+}
+
+function evaluateGates(input: GateInput, isFinal: boolean): GateCondition[] {
+  const node = acceptanceNodeOf(input.bundle, input.sprint.id)
   const gates = [
     reportGate(input.sprint, input.report),
     leaseGate(input),
-    requiredGate(input, scope),
+    requiredGate(input, requiredScope(input, isFinal, node)),
+    ...(node === undefined ? [] : nodeGates(input, node)),
     exitGate(input.sprint, input.report)
   ]
   return isFinal ? [...gates, outcomeGate(input.bundle, input.report)] : gates
@@ -207,10 +297,13 @@ function evaluate(ctx: Ctx, run: RunRow): Evaluation {
   const next = sprints[index + 1] ?? null
   const report = latestReport(ctx, run.id, sprint.id)
   const attempts = ctx.db.all<AttemptRow>(
-    'SELECT ticket_id, state, reconciled_at, superseded_at FROM attempts WHERE run_id = ? ORDER BY ticket_id, number',
+    `SELECT id, ticket_id, state, reconciled_at, superseded_at, increment_json, evidence_json FROM attempts
+     WHERE run_id = ? ORDER BY ticket_id, number`,
     run.id
   )
-  const gates = evaluateGates({ index: indexBundle(bundle), bundle, sprint, report, attempts }, next === null)
+  // Only a sprint with an acceptance node has a use for it, so a plan without nodes never reads project.json here.
+  const definition = acceptanceNodeOf(bundle, sprint.id) === undefined ? [] : ctx.definitionOfDone()
+  const gates = evaluateGates({ index: indexBundle(bundle), bundle, sprint, report, attempts, definition }, next === null)
   const grant = report === null ? null : findGrant(ctx, run, sprint, report)
   return { run, sprint, next, sprintCount: sprints.length, report, gates, grant }
 }

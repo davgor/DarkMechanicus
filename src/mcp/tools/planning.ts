@@ -25,7 +25,7 @@ const PLANNING_TOOLS = [
   defineTool({
     name: 'update_plan_draft',
     description:
-      'Applies edit operations to the epic DRAFT atomically: every op succeeds or none does, and a rejected op returns a concrete reason. Ops: set_epic, add_sprint, update_sprint, remove_sprint, add_ticket, update_ticket, remove_ticket, move_ticket, add_dependency, remove_dependency, add_relation, remove_relation, set_policies, set_rationale. Give add_ticket or add_sprint a client ref to refer to it later in the same call; refMap in the result maps refs to stable ids. A dependency {from, to} means `to` requires the accepted result of `from`; a prerequisite must be in the same or an earlier sprint. Pass expectedDraftRevision to detect concurrent edits. add_ticket and update_ticket also take an optional size (micro, small, medium, large) and capability.reasoning.effort (low, medium, high). The saved plan changes only on save_plan.',
+      'Applies edit operations to the epic DRAFT atomically: every op succeeds or none does, and a rejected op returns a concrete reason. Ops: set_epic, add_sprint, update_sprint, remove_sprint, add_ticket, update_ticket, remove_ticket, move_ticket, add_dependency, remove_dependency, add_relation, remove_relation, set_policies, set_rationale. Give add_ticket or add_sprint a client ref to refer to it later in the same call; refMap in the result maps refs to stable ids. A dependency {from, to} means `to` requires the accepted result of `from`; a prerequisite must be in the same or an earlier sprint. Pass expectedDraftRevision to detect concurrent edits. add_ticket and update_ticket also take an optional size (micro, small, medium, large) and capability.reasoning.effort (low, medium, high), and a kind (work, acceptance). add_sprint also creates the acceptance node of the new sprint ("Sprint N acceptance"), which stays last in its sprint; remove_sprint removes a sprint that holds only its node together with it. An acceptance node implicitly requires every other required ticket of its sprint: it cannot move to another sprint, and a ticket of its own sprint cannot require it. A criterion of an acceptance node may carry covers, the ticket it verifies. The saved plan changes only on save_plan.',
     kind: 'write',
     input: { epicId, ops: draftOps, expectedDraftRevision: draftRevision.optional(), idempotencyKey },
     run: (api, input) => api.updatePlanDraft(input)
@@ -33,7 +33,7 @@ const PLANNING_TOOLS = [
   defineTool({
     name: 'validate_plan',
     description:
-      'Validates the whole plan graph and content. Errors block save_plan (duplicate ids, cycles, a prerequisite in a later sprint, unknown references, invalid policies). Warnings do not (isolated tickets, empty sprints, missing acceptance or success criteria, a large ticket that should be split, a micro ticket that needs deep reasoning). view is required: validate "draft" before saving.',
+      'Validates the whole plan graph and content. Errors block save_plan (duplicate ids, cycles, a prerequisite in a later sprint, unknown references, invalid policies, a second acceptance node in a sprint, a ticket of its own sprint required by the acceptance node, a criterion covering an unknown ticket). Warnings do not (isolated tickets, empty sprints, missing acceptance or success criteria, a large ticket that should be split, a micro ticket that needs deep reasoning, a sprint with work tickets but no acceptance node, a required work ticket that no acceptance criterion covers, a redundant dependency into an acceptance node). view is required: validate "draft" before saving.',
     kind: 'read',
     input: { epicId, view },
     run: (api, input) => api.validatePlan(input)
@@ -49,7 +49,7 @@ const PLANNING_TOOLS = [
   defineTool({
     name: 'discard_plan_draft',
     description:
-      'Discards the epic\'s unsaved draft and restores the last saved plan (a never-saved epic resets to its initial empty plan). Saved revisions are never affected.',
+      'Discards the epic\'s unsaved draft and restores the last saved plan (a never-saved epic resets to its initial plan: one sprint holding only its acceptance node). Saved revisions are never affected.',
     kind: 'idempotent',
     input: { epicId, expectedDraftRevision: draftRevision.optional() },
     run: (api, input) => api.discardPlanDraft(input)

@@ -9,6 +9,7 @@ import {
 } from '../../shared/domain/bundle'
 import { makeBundle, makeSprint, makeTicket, tid } from '../../test/bundles'
 import {
+  buildAcceptanceTicket,
   buildSprint,
   buildTicket,
   cloneBundle,
@@ -465,17 +466,19 @@ describe('patchSprint', () => {
 describe('createInitialBundle', () => {
   const epic = { title: 'Epic', intent: 'Intent', successCriteria: [criterion('s1', 'done')], ownerRole: null }
 
-  it('creates an empty plan with one empty sprint', () => {
-    expect(createInitialBundle(epic, 'sp_first')).toEqual({
+  const initial = (sprintId: string) => ({ sprintId, ticketId: 'tk_first', ticketKey: 'DM-1' })
+
+  it('creates a plan with one sprint that holds only its acceptance node', () => {
+    expect(createInitialBundle(epic, initial('sp_first'))).toEqual({
       formatVersion: PLAN_FORMAT_VERSION,
       epic,
-      tickets: [],
+      tickets: [expect.objectContaining({ id: 'tk_first', key: 'DM-1', kind: 'acceptance' })],
       sprints: [
         {
           id: 'sp_first',
           ordinal: 1,
           goal: '',
-          ticketIds: [],
+          ticketIds: ['tk_first'],
           entryCriteria: [],
           exitCriteria: [],
           concurrencyCap: null,
@@ -489,12 +492,127 @@ describe('createInitialBundle', () => {
     })
   })
 
+  it('names the node for the first sprint and leaves its criteria to fill in', () => {
+    const [node] = createInitialBundle(epic, initial('sp_first')).tickets
+    expect(node).toMatchObject({
+      id: 'tk_first',
+      key: 'DM-1',
+      title: 'Sprint 1 acceptance',
+      kind: 'acceptance',
+      acceptanceCriteria: [],
+      optional: false,
+      capability: { workType: 'testing' }
+    })
+  })
+
   it('copies the default policies instead of sharing them', () => {
-    const bundle = createInitialBundle(epic, 'sp_first')
+    const bundle = createInitialBundle(epic, initial('sp_first'))
     expect(bundle.policies).not.toBe(DEFAULT_POLICIES)
     bundle.policies.retryLimit = 99
     expect(DEFAULT_POLICIES.retryLimit).toBe(3)
-    expect(createInitialBundle(epic, 'sp_second').policies.retryLimit).toBe(3)
+    expect(createInitialBundle(epic, initial('sp_second')).policies.retryLimit).toBe(3)
+  })
+})
+
+describe('buildAcceptanceTicket', () => {
+  const sprint = makeSprint(4, [])
+
+  it('builds a required acceptance ticket titled for the sprint, for testing, with no criteria yet', () => {
+    const node = buildAcceptanceTicket(sprint, { id: 'tk_node', key: 'DM-9' })
+    expect(node).toEqual({
+      id: 'tk_node',
+      key: 'DM-9',
+      kind: 'acceptance',
+      title: 'Sprint 4 acceptance',
+      body: '',
+      acceptanceCriteria: [],
+      tags: [],
+      priority: 'normal',
+      capability: { ...defaultCapabilityProfile(), workType: 'testing' },
+      references: [],
+      expectedArtifacts: [],
+      optional: false
+    })
+  })
+})
+
+describe('ticket kind', () => {
+  it('builds an acceptance ticket with a testing work type unless the input names one', () => {
+    const node = buildTicket({ title: 'Verify', kind: 'acceptance' }, IDENTITY)
+    expect(node.kind).toBe('acceptance')
+    expect(node.capability).toEqual({ ...defaultCapabilityProfile(), workType: 'testing' })
+    expect(buildTicket({ title: 'Verify', kind: 'acceptance', capability: { workType: 'review' } }, IDENTITY).capability.workType).toBe('review')
+  })
+
+  it('stores no kind for work: the key is absent whether the input omits it or says work', () => {
+    expect(Object.keys(buildTicket({ title: 'Plain' }, IDENTITY))).not.toContain('kind')
+    expect(Object.keys(buildTicket({ title: 'Plain', kind: 'work' }, IDENTITY))).not.toContain('kind')
+  })
+
+  it('sets and clears the kind through a patch, never storing work', () => {
+    const made = patchTicket(makeTicket(1), { kind: 'acceptance' })
+    expect(made.kind).toBe('acceptance')
+    const back = patchTicket(made, { kind: 'work' })
+    expect(Object.keys(back)).not.toContain('kind')
+    expect(back).toEqual(makeTicket(1))
+  })
+
+  it('leaves the kind and the capability alone when a patch does not name a kind', () => {
+    const node = buildTicket({ title: 'Verify', kind: 'acceptance' }, IDENTITY)
+    expect(patchTicket(node, { title: 'Renamed' }).kind).toBe('acceptance')
+  })
+
+  it('does not change a work type when a ticket becomes an acceptance node through a patch', () => {
+    expect(patchTicket(makeTicket(1), { kind: 'acceptance' }).capability.workType).toBe('implementation')
+  })
+})
+
+describe('criteria that cover tickets', () => {
+  const covering = (): TicketContent =>
+    makeTicket(1, {
+      kind: 'acceptance',
+      acceptanceCriteria: [
+        { id: 'c1', text: 'one', covers: tid(2) },
+        { id: 'c2', text: 'two' }
+      ]
+    })
+
+  it('builds criteria that keep their covers and leave other criteria without the key', () => {
+    const ticket = buildTicket(
+      { title: 'Verify', kind: 'acceptance', acceptanceCriteria: [{ text: 'one', covers: tid(2) }, 'two', { text: 'three', covers: null }] },
+      IDENTITY
+    )
+    expect(ticket.acceptanceCriteria).toEqual([{ id: 'c1', text: 'one', covers: tid(2) }, { id: 'c2', text: 'two' }, { id: 'c3', text: 'three' }])
+    expect(Object.keys(ticket.acceptanceCriteria[1])).not.toContain('covers')
+    expect(Object.keys(ticket.acceptanceCriteria[2])).not.toContain('covers')
+  })
+
+  it('keeps the covers of a criterion a patch repeats by id', () => {
+    const patched = patchTicket(covering(), { acceptanceCriteria: [{ id: 'c1', text: 'one reworded' }, { id: 'c2', text: 'two' }] })
+    expect(patched.acceptanceCriteria[0]).toEqual({ id: 'c1', text: 'one reworded', covers: tid(2) })
+  })
+
+  it('keeps the covers of a criterion a patch repeats as plain text', () => {
+    const patched = patchTicket(covering(), { acceptanceCriteria: ['two', 'one'] })
+    expect(patched.acceptanceCriteria).toEqual([{ id: 'c2', text: 'two' }, { id: 'c1', text: 'one', covers: tid(2) }])
+  })
+
+  it('replaces covers when a patch names another ticket, and clears them with null', () => {
+    const replaced = patchTicket(covering(), { acceptanceCriteria: [{ id: 'c1', text: 'one', covers: tid(3) }, 'two'] })
+    expect(replaced.acceptanceCriteria[0].covers).toBe(tid(3))
+    const cleared = patchTicket(covering(), { acceptanceCriteria: [{ id: 'c1', text: 'one', covers: null }, 'two'] })
+    expect(Object.keys(cleared.acceptanceCriteria[0])).not.toContain('covers')
+  })
+
+  it('gives a brand-new criterion no covers it did not ask for', () => {
+    const patched = patchTicket(covering(), { acceptanceCriteria: ['one', 'two', 'three'] })
+    expect(Object.keys(patched.acceptanceCriteria[2])).not.toContain('covers')
+  })
+
+  it('does not modify the ticket it patches', () => {
+    const original = covering()
+    patchTicket(original, { acceptanceCriteria: [{ id: 'c1', text: 'one', covers: null }] })
+    expect(original).toEqual(covering())
   })
 })
 

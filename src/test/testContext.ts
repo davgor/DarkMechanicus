@@ -5,7 +5,7 @@ import type { Ctx } from '../core/context'
 import { openDatabase, type Db } from '../core/db/database'
 import { migrate } from '../core/db/migrations'
 import { encodeBase32, ID_PREFIXES, type IdGenerator } from '../core/ids'
-import type { SessionRole } from '../shared/domain/views'
+import type { DefinitionOfDoneCheck, SessionRole } from '../shared/domain/views'
 
 export interface TestClock extends Clock {
   advanceSeconds(seconds: number): void
@@ -60,6 +60,8 @@ interface TestCtxOptions {
   sessionId?: string
   assertBranch?: () => void
   checkout?: { branch: string | null; commit: string | null }
+  /** The project's Definition of Done (default: none). */
+  definitionOfDone?: DefinitionOfDoneCheck[]
 }
 
 export interface TestCtx extends Ctx {
@@ -88,7 +90,8 @@ export function createTestCtx(options: TestCtxOptions = {}): TestCtx {
     machineId: options.machineId ?? 'mc_00000000000000000000000001',
     projectId: options.projectId ?? 'pj_00000000000000000000000001',
     assertBranch: options.assertBranch ?? (() => undefined),
-    checkout: () => options.checkout ?? { branch: 'main', commit: '0123456789abcdef0123456789abcdef01234567' }
+    checkout: () => options.checkout ?? { branch: 'main', commit: '0123456789abcdef0123456789abcdef01234567' },
+    definitionOfDone: () => options.definitionOfDone ?? []
   }
 }
 

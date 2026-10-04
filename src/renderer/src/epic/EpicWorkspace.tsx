@@ -45,6 +45,7 @@ function GraphStage({ ws, input }: { ws: WorkspaceHandle; input: GraphInput }): 
   const drop = useCallback((ticketId: string, top: number) => void actions.dropTicket(model, ticketId, top), [actions, model])
   const disconnect = useCallback((from: string, to: string) => void actions.disconnect(from, to), [actions])
   const addTicket = useCallback((sprintId: string) => void actions.addTicket(sprintId), [actions])
+  const addAcceptance = useCallback((sprintId: string) => void actions.addAcceptance(sprintId), [actions])
   return (
     <PlanGraph
       key={input.mode}
@@ -58,6 +59,7 @@ function GraphStage({ ws, input }: { ws: WorkspaceHandle; input: GraphInput }): 
       onDropTicket={drop}
       onRemoveDependency={disconnect}
       onAddTicket={addTicket}
+      onAddAcceptance={addAcceptance}
     />
   )
 }

@@ -5,15 +5,19 @@ import {
   attemptOutputsInput,
   capabilityProfile,
   commentBody,
+  commitHash,
   criterionInput,
   criterionResult,
+  definitionOfDoneChecks,
   draftOps,
   entityRef,
   epicBranch,
   hostCatalog,
   idempotencyKey,
+  incrementRef,
   LIMITS,
   profileName,
+  rowCheckEntries,
   sprintReportInput,
   stableId,
   workStatus
@@ -32,6 +36,7 @@ const epicRef = z.strictObject({ epicId: stableId })
 const runRef = z.strictObject({ runId: stableId })
 
 export const COMMAND_SCHEMAS = {
+  setDefinitionOfDone: z.strictObject({ checks: definitionOfDoneChecks }),
   initializeRepository: z.strictObject({
     name: z.string().min(1).max(200).optional(),
     keyPrefix: z.string().regex(/^[A-Z][A-Z0-9]{0,11}$/).optional()
@@ -126,6 +131,7 @@ export const COMMAND_SCHEMAS = {
     claimToken,
     outputs: attemptOutputsInput,
     evidence: attemptEvidenceInput.optional(),
+    increment: incrementRef.optional(),
     idempotencyKey
   }),
   acceptAttempt: z.strictObject({
@@ -158,6 +164,14 @@ export const COMMAND_SCHEMAS = {
     notes: z.string().max(LIMITS.markdown).optional()
   }),
   carryForwardTicket: z.strictObject({ runId: stableId, ticketId: stableId, note: z.string().min(1).max(LIMITS.shortText) }),
+  recordRowCheck: z.strictObject({
+    runId: stableId,
+    sprintId: stableId,
+    row: z.number().int().min(1).max(LIMITS.tickets),
+    commit: commitHash,
+    checks: rowCheckEntries,
+    idempotencyKey
+  }),
   pauseRun: z.strictObject({ runId: stableId, reason: note.optional() }),
   resumeRun: runRef,
   cancelRun: z.strictObject({ runId: stableId, reason: note.optional() }),

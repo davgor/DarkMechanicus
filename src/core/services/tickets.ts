@@ -43,6 +43,7 @@ function summarize(ticket: TicketContent, index: BundleIndex, status: WorkStatus
     sprintId: sprint?.id ?? null,
     sprintOrdinal: sprint?.ordinal ?? null,
     priority: ticket.priority,
+    ...(ticket.kind === undefined ? {} : { kind: ticket.kind }),
     ...(ticket.size === undefined ? {} : { size: ticket.size }),
     ...(ticket.capability.reasoning.effort === undefined ? {} : { effort: ticket.capability.reasoning.effort }),
     tags: ticket.tags,

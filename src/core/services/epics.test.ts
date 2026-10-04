@@ -40,7 +40,7 @@ describe('createEpic', () => {
       hasDraft: true,
       draftRevision: 1,
       draftChanged: true,
-      ticketCount: 0,
+      ticketCount: 1,
       sprintCount: 1,
       run: null,
       branch: null,
@@ -73,7 +73,10 @@ describe('createEpic initial draft', () => {
     expect(draft?.draft_revision).toBe(1)
     expect(draft?.updated_by).toBe(ctx.session.id)
     expect(bundle).toEqual(
-      createInitialBundle({ title: 'Checkout', intent: '', successCriteria: [], ownerRole: 'planner' }, bundle.sprints[0].id)
+      createInitialBundle(
+        { title: 'Checkout', intent: '', successCriteria: [], ownerRole: 'planner' },
+        { sprintId: bundle.sprints[0].id, ticketId: bundle.tickets[0].id, ticketKey: 'DM-1' }
+      )
     )
     expect(bundle.sprints[0].id).toMatch(/^sp_/)
   })
@@ -86,6 +89,34 @@ describe('createEpic initial draft', () => {
       details: undefined
     })
     expect(epicCount(ctx)).toBe(0)
+  })
+})
+
+describe('createEpic acceptance node', () => {
+  it('puts the first sprint acceptance node in the draft, ready for its criteria', () => {
+    const ctx = createTestCtx()
+    const epic = createEpic(ctx, { title: 'Checkout' })
+    const draft = ctx.db.get<{ bundle_json: string }>('SELECT bundle_json FROM drafts WHERE epic_id = ?', epic.id)
+    const bundle = JSON.parse(draft?.bundle_json ?? '{}') as PlanBundle
+    expect(bundle.tickets).toHaveLength(1)
+    expect(bundle.tickets[0]).toMatchObject({
+      id: expect.stringMatching(/^tk_/),
+      key: 'DM-1',
+      title: 'Sprint 1 acceptance',
+      kind: 'acceptance',
+      acceptanceCriteria: [],
+      capability: { workType: 'testing' }
+    })
+    expect(bundle.sprints[0].ticketIds).toEqual([bundle.tickets[0].id])
+    expect(epic.ticketCount).toBe(1)
+  })
+
+  it('numbers the node of each new epic after the keys the project already uses', () => {
+    const ctx = createTestCtx()
+    createEpic(ctx, { title: 'First' })
+    const second = createEpic(ctx, { title: 'Second' })
+    const draft = ctx.db.get<{ bundle_json: string }>('SELECT bundle_json FROM drafts WHERE epic_id = ?', second.id)
+    expect((JSON.parse(draft?.bundle_json ?? '{}') as PlanBundle).tickets.map((ticket) => ticket.key)).toEqual(['DM-2'])
   })
 })
 
@@ -186,7 +217,8 @@ describe('listEpics summaries of saved and unsaved epics', () => {
         { op: 'add_ticket', sprint: '2', ticket: { title: 'Solo' } }
       ]
     })
-    expect(listEpics(ctx)[0]).toMatchObject({ ticketCount: 1, sprintCount: 2, pendingSave: false, hasDraft: true })
+    // Solo plus the acceptance node of each of the two sprints.
+    expect(listEpics(ctx)[0]).toMatchObject({ ticketCount: 3, sprintCount: 2, pendingSave: false, hasDraft: true })
     requestSave(ctx, { epicId: epic.id, expectedDraftRevision: 2 })
     expect(listEpics(ctx)[0]).toMatchObject({ pendingSave: true, currentRevisionId: null, currentRevisionNumber: null })
   })

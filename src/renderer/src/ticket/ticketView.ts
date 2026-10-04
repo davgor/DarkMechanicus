@@ -67,7 +67,7 @@ export const MODALITY_LABELS: Record<Modality, string> = { text: 'Text', images:
 const CHECK_ICONS: Record<CheckStatus, string> = { passed: '✓', failed: '✗', skipped: '–' }
 const MAX_FILES = 12
 
-interface CriterionItem {
+export interface CriterionItem {
   id: string
   text: string
   verified: boolean

@@ -13,6 +13,7 @@ import type { Capability } from '../authz'
 export const COMMAND_CAPABILITIES: Readonly<Record<CommandName, Capability>> = {
   getCapabilities: 'read',
   getProject: 'read',
+  setDefinitionOfDone: 'project.definition_of_done',
   initializeRepository: 'repo.init',
   getStorageStatus: 'read',
   flushPortableState: 'repo.flush',
@@ -55,6 +56,7 @@ export const COMMAND_CAPABILITIES: Readonly<Record<CommandName, Capability>> = {
   failAttempt: 'attempt.fail',
   reconcileAttempt: 'attempt.reconcile',
   carryForwardTicket: 'attempt.carry_forward',
+  recordRowCheck: 'run.row_check',
   pauseRun: 'run.control',
   resumeRun: 'run.control',
   cancelRun: 'run.control',

@@ -1,6 +1,6 @@
 import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { makeBundle, sid, tid } from '../../test/bundles'
+import { makeBundle, makeTicket, sid, tid } from '../../test/bundles'
 import { createMemoryFs } from '../../test/memoryFs'
 import {
   domainErrorOf,
@@ -12,6 +12,7 @@ import {
   insertProfile,
   insertReport,
   insertRevision,
+  insertRowCheck,
   insertRun,
   insertTicketStatus,
   T0
@@ -699,5 +700,194 @@ describe('run history worker efforts', () => {
     expect(domainErrorOf(() => buildRunHistoryRecord(runWith({ label: 'w', effort: 'extreme' }), RUN)).code).toBe('internal')
     const text = prettyJson(runRecord([{ ...(attempt(1, 1, 'accepted') as object), worker: { label: 'w', effort: 'extreme' } }]))
     expect(domainErrorOf(() => parseRecord(runHistoryRecord, text, 'run.json')).code).toBe('import_rejected')
+  })
+})
+
+const RK1 = idOf('rowCheck', 1)
+const RK2 = idOf('rowCheck', 2)
+const ROW_COMMIT = 'abcdef0123456789abcdef0123456789abcdef01'
+
+function rowCheckEntry(id: string, number: number, overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    id,
+    number,
+    sprintId: sid(1),
+    row: 1,
+    commit: ROW_COMMIT,
+    checks: [{ name: 'combined tests', status: 'failed', detail: '2 failed' }],
+    recordedBy: 'orchestrator',
+    createdAt: T0,
+    ...overrides
+  }
+}
+
+function withRowChecks(entries: unknown[]): unknown {
+  return { ...(runRecord([]) as object), rowChecks: entries }
+}
+
+function runWithChecks(): Db {
+  const db = seededDb()
+  insertRun(db, { id: RUN, epicId: EPIC, revisionId: REV })
+  insertRowCheck(db, { id: RK2, runId: RUN, sprintId: sid(1), number: 2, row: 2, checks: [{ name: 'tests', status: 'passed', detail: '' }] })
+  insertRowCheck(db, { id: RK1, runId: RUN, sprintId: sid(1), number: 1, checks: [{ name: 'combined tests', status: 'failed', detail: '2 failed' }] })
+  return db
+}
+
+describe('run history row checks', () => {
+  it("exports a run's row checks in the order they were recorded and parses them back", () => {
+    const record = buildRunHistoryRecord(runWithChecks(), RUN)
+    expect(record.rowChecks).toEqual([
+      rowCheckEntry(RK1, 1),
+      rowCheckEntry(RK2, 2, { row: 2, checks: [{ name: 'tests', status: 'passed', detail: '' }] })
+    ])
+    expect(parseRecord(runHistoryRecord, prettyJson(record), 'run.json')).toEqual(record)
+  })
+
+  it('leaves the key out for a run without row checks, so a run recorded before them keeps its bytes', () => {
+    const db = seededDb()
+    insertRun(db, { id: RUN, epicId: EPIC, revisionId: REV })
+    const record = buildRunHistoryRecord(db, RUN)
+    expect(Object.keys(record)).not.toContain('rowChecks')
+    expect(prettyJson(record)).not.toContain('rowChecks')
+  })
+
+  it('accepts a run history that has none, and one that lists them', () => {
+    expect(firstIssue(runRecord([]))).toBe('ok')
+    expect(firstIssue(withRowChecks([rowCheckEntry(RK1, 1), rowCheckEntry(RK2, 2)]))).toBe('ok')
+  })
+})
+
+describe('run history row check validation', () => {
+  it.each([
+    ['a commit that is not a hash', { commit: 'main' }],
+    ['a commit that is too short', { commit: 'abc12' }],
+    ['no check entries', { checks: [] }],
+    ['an entry with an unknown status', { checks: [{ name: 'x', status: 'maybe', detail: '' }] }],
+    ['row 0', { row: 0 }],
+    ['number 0', { number: 0 }],
+    ['an id of another kind', { id: idOf('attempt', 1) }],
+    ['an unknown key', { passed: true }]
+  ])('refuses to import a row check with %s', (_label, overrides) => {
+    const text = prettyJson(withRowChecks([rowCheckEntry(RK1, 1, overrides)]))
+    expect(domainErrorOf(() => parseRecord(runHistoryRecord, text, 'run.json')).code).toBe('import_rejected')
+  })
+
+  it('rejects a repeated row check id or number', () => {
+    expect(firstIssue(withRowChecks([rowCheckEntry(RK1, 1), rowCheckEntry(RK1, 2)]))).toBe(`Duplicate row check id: ${RK1}`)
+    expect(firstIssue(withRowChecks([rowCheckEntry(RK1, 1), rowCheckEntry(RK2, 1)]))).toBe('Duplicate row check number: 1')
+  })
+})
+
+const INCREMENT_COMMIT = 'c'.repeat(40)
+
+const INCREMENT = {
+  branch: 'epic/seeded',
+  commit: INCREMENT_COMMIT,
+  parent: 'b'.repeat(40),
+  base: { kind: 'epic_start', commit: 'a'.repeat(40) },
+  passed: false,
+  reasons: ['Commit ccccccc has 2 parents (a merge commit).'],
+  checks: [
+    { name: 'One parent', status: 'failed', detail: 'Commit ccccccc has 2 parents (a merge commit).' },
+    { name: 'After the base commit', status: 'skipped', detail: 'no start commit' }
+  ],
+  verifiedAt: T0
+}
+
+function runWithIncrement(increment?: unknown): Db {
+  const db = seededDb()
+  insertRun(db, { id: RUN, epicId: EPIC, revisionId: REV })
+  insertAttempt(db, { id: idOf('attempt', 1), runId: RUN, ticketId: tid(1), revisionId: REV, state: 'submitted', increment })
+  insertAttempt(db, { id: idOf('attempt', 2), runId: RUN, ticketId: tid(2), revisionId: REV, state: 'accepted' })
+  return db
+}
+
+function withIncrement(overrides: Record<string, unknown>): unknown {
+  return runRecord([{ ...(attempt(1, 1, 'submitted') as object), increment: { ...INCREMENT, ...overrides } }])
+}
+
+describe('run history sprint increments', () => {
+  it('exports the verdict on the attempt that named the increment and parses it back', () => {
+    const record = buildRunHistoryRecord(runWithIncrement(INCREMENT), RUN)
+    expect(record.attempts.find((item) => item.id === idOf('attempt', 1))?.increment).toEqual(INCREMENT)
+    expect(parseRecord(runHistoryRecord, prettyJson(record), 'run.json')).toEqual(record)
+  })
+
+  it('leaves the key out of every attempt that named none, so history recorded before increments keeps its bytes', () => {
+    const record = buildRunHistoryRecord(runWithIncrement(), RUN)
+    for (const item of record.attempts) {
+      expect(Object.keys(item)).not.toContain('increment')
+    }
+    expect(prettyJson(record)).not.toContain('increment')
+  })
+
+  it('accepts a verdict that passed, one without a parent, and one measured against nothing', () => {
+    const passed = { passed: true, reasons: [], checks: [{ name: 'Squashed, not merged', status: 'passed', detail: '' }] }
+    expect(firstIssue(withIncrement(passed))).toBe('ok')
+    expect(firstIssue(withIncrement({ parent: null, base: { kind: 'none', commit: null } }))).toBe('ok')
+    expect(firstIssue(withIncrement({ base: { kind: 'previous_increment', commit: 'd'.repeat(40) } }))).toBe('ok')
+  })
+
+  it.each([
+    ['a commit that is not a hash', { commit: 'main' }],
+    ['a parent that is not a hash', { parent: 'HEAD~1' }],
+    ['an unknown base kind', { base: { kind: 'tag', commit: null } }],
+    ['a base commit that is not a hash', { base: { kind: 'epic_start', commit: 'start' } }],
+    ['no verdict', { passed: undefined }],
+    ['a verdict that is not a boolean', { passed: 'yes' }],
+    ['reasons that are not a list', { reasons: 'because' }],
+    ['a check with an unknown status', { checks: [{ name: 'x', status: 'maybe', detail: '' }] }],
+    ['a verification time that is not a date', { verifiedAt: 'yesterday' }],
+    ['an unknown key', { merged: true }]
+  ])('refuses to import a verdict with %s', (_label, overrides) => {
+    const text = prettyJson(withIncrement(overrides))
+    expect(domainErrorOf(() => parseRecord(runHistoryRecord, text, 'run.json')).code).toBe('import_rejected')
+  })
+
+  it('refuses to export a stored verdict that the record format would not import', () => {
+    expect(domainErrorOf(() => buildRunHistoryRecord(runWithIncrement({ ...INCREMENT, commit: 'main' }), RUN)).code).toBe('internal')
+  })
+})
+
+describe('plan snapshots with acceptance nodes', () => {
+  function acceptanceBundle(): ReturnType<typeof makeBundle> {
+    const bundle = makeBundle([[1, 2]])
+    bundle.tickets[1] = makeTicket(2, {
+      kind: 'acceptance',
+      title: 'Sprint 1 acceptance',
+      acceptanceCriteria: [{ id: 'c1', text: 'DM-1 verified', covers: tid(1) }]
+    })
+    return bundle
+  }
+
+  function dbWith(bundle: ReturnType<typeof makeBundle>): Db {
+    const db = createTestDb()
+    insertEpic(db, { id: EPIC, title: 'Seeded epic', status: 'in_progress', currentRevisionId: REV })
+    insertRevision(db, { id: REV, epicId: EPIC, number: 1, bundle })
+    return db
+  }
+
+  it('exports the kind and the covered ticket, and parses them back to the same bytes', () => {
+    const record = buildSnapshotRecord(dbWith(acceptanceBundle()), REV)
+    expect(record.bundle.tickets[1]).toMatchObject({
+      kind: 'acceptance',
+      acceptanceCriteria: [{ id: 'c1', text: 'DM-1 verified', covers: tid(1) }]
+    })
+    const text = prettyJson(record)
+    expect(prettyJson(parseRecord(snapshotRecord, text, 'snapshot.json'))).toBe(text)
+    expect(record.contentHash).toBe(contentHash(acceptanceBundle()))
+  })
+
+  it('leaves a snapshot of work tickets without a kind or covers key', () => {
+    const text = prettyJson(buildSnapshotRecord(dbWith(makeBundle([[1, 2]])), REV))
+    expect(text).not.toContain('"kind"')
+    expect(text).not.toContain('"covers"')
+  })
+
+  it('refuses to import a snapshot whose covers is not a stable ticket id', () => {
+    const record = buildSnapshotRecord(dbWith(acceptanceBundle()), REV)
+    const text = prettyJson(record).replace(`"covers": "${tid(1)}"`, '"covers": "DM-1"')
+    expect(text).toContain('"covers": "DM-1"')
+    expect(domainErrorOf(() => parseRecord(snapshotRecord, text, 'snapshot.json')).code).toBe('import_rejected')
   })
 })

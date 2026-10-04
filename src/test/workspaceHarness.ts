@@ -21,7 +21,9 @@ export function createFakeGit(initial: GitHead | null): FakeGit {
     countUncommitted: async () => 0,
     listLocalBranches: async () => [],
     listFiles: async () => [],
-    showFile: async () => null
+    showFile: async () => null,
+    isAncestor: async () => null,
+    commitParents: async () => null
   }
 }
 
@@ -30,14 +32,16 @@ export interface Harness {
   clock: TestClock
   git: FakeGit
   open(role: SessionRole, options?: OpenOptions): Workspace
-  /** Copies tracked records (without local/) into a fresh directory, like a clone. */
-  cloneTracked(): string
+  /** Copies tracked records (without local/) into a fresh directory, like a clone; `from` defaults to the harness root. */
+  cloneTracked(from?: string): string
   cleanup(): void
 }
 
 interface OpenOptions {
   allowSave?: boolean
   root?: string
+  /** Replaces the harness's fake Git, e.g. with `createGitAdapter` on a real temporary repository. */
+  git?: GitAdapter
   fs?: FsAdapter
   /** Defaults to in-process; stdio sessions search upward for the repository root. */
   transport?: OpenWorkspaceOptions['transport']
@@ -64,7 +68,7 @@ export function createHarness(): Harness {
         allowSave: options.allowSave ?? true,
         clock,
         ids,
-        git,
+        git: options.git ?? git,
         ...(options.fs ? { fs: options.fs } : {}),
         ...(options.autoReconcile === undefined ? {} : { autoReconcile: options.autoReconcile }),
         serverInfo: { name: 'darkmechanicus-test', version: '0.0.0-test' }
@@ -72,10 +76,10 @@ export function createHarness(): Harness {
       workspaces.push(workspace)
       return workspace
     },
-    cloneTracked() {
+    cloneTracked(from = root) {
       const target = mkdtempSync(join(tmpdir(), 'dm-clone-'))
       dirs.push(target)
-      cpSync(join(root, '.darkmechanicus'), join(target, '.darkmechanicus'), {
+      cpSync(join(from, '.darkmechanicus'), join(target, '.darkmechanicus'), {
         recursive: true,
         filter: (source) => !source.includes(`${join('.darkmechanicus', 'local')}`)
       })

@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { DraftOp } from '../shared/domain/api'
 import type { RunView } from '../shared/domain/views'
+import { dropAcceptanceNodes } from '../test/acceptanceNodes'
 import { createHarness, type Harness } from '../test/workspaceHarness'
 import type { Workspace } from '../core/workspace'
 
@@ -45,9 +46,11 @@ function refId(refs: Record<string, string>, ref: string): string {
 async function planForkJoin(agent: Workspace): Promise<Planned> {
   await agent.initializeRepository({ name: 'demo-repo' })
   const epic = await agent.createEpic({ title: 'Fork and join', intent: 'Prove parallel work and a join.' })
-  const update = await agent.updatePlanDraft({ epicId: epic.id, ops: FORK_JOIN, expectedDraftRevision: 1 })
+  const planned = await dropAcceptanceNodes(agent, epic.id)
+  const update = await agent.updatePlanDraft({ epicId: epic.id, ops: FORK_JOIN, expectedDraftRevision: planned })
   expect(update.validation.errors).toEqual([])
-  const saved = await agent.savePlan({ epicId: epic.id, expectedDraftRevision: update.draftRevision })
+  const revision = await dropAcceptanceNodes(agent, epic.id)
+  const saved = await agent.savePlan({ epicId: epic.id, expectedDraftRevision: revision })
   expect(saved.status).toBe('saved')
   const [a, b, c, d] = ['a', 'b', 'c', 'd'].map((ref) => refId(update.refMap, ref))
   return { epicId: epic.id, ids: { a: a ?? '', b: b ?? '', c: c ?? '', d: d ?? '' } }
@@ -231,5 +234,47 @@ describe('repository lifecycle: execution and checkpoints', () => {
     expect(history?.ownedByThisMachine).toBe(false)
     const found = await reopened.searchHistory({ query: 'Schema' })
     expect(found.some((result) => result.epicId === epicId)).toBe(true)
+  })
+})
+
+describe('repository lifecycle: acceptance nodes', () => {
+  let harness: Harness
+
+  beforeEach(() => {
+    harness = createHarness()
+  })
+
+  afterEach(() => {
+    harness.cleanup()
+  })
+
+  it('saves the sprint acceptance node with its covers and brings both back in a clone', async () => {
+    const agent = harness.open('orchestrator')
+    await agent.initializeRepository({ name: 'demo-repo' })
+    const epic = await agent.createEpic({ title: 'Covered', successCriteria: ['It works'] })
+    const [node] = (await agent.getPlan({ epicId: epic.id, view: 'draft' })).bundle.tickets
+    expect([node?.kind, node?.title]).toEqual(['acceptance', 'Sprint 1 acceptance'])
+    const update = await agent.updatePlanDraft({
+      epicId: epic.id,
+      ops: [
+        { op: 'add_ticket', ref: 'build', sprint: '1', ticket: { title: 'Build it', acceptanceCriteria: ['It builds'] } },
+        { op: 'update_ticket', ticket: node?.id ?? '', patch: { acceptanceCriteria: [{ text: 'Build it works end to end', covers: 'build' }] } }
+      ]
+    })
+    expect(update.validation).toEqual({ valid: true, errors: [], warnings: [] })
+    const saved = await agent.savePlan({ epicId: epic.id, expectedDraftRevision: update.draftRevision })
+    expect(saved.status).toBe('saved')
+
+    const reopened = harness.open('orchestrator', { root: harness.cloneTracked() })
+    const original = await agent.getPlan({ epicId: epic.id, view: 'saved' })
+    const cloned = await reopened.getPlan({ epicId: epic.id, view: 'saved' })
+    expect(cloned.contentHash).toBe(original.contentHash)
+    const clonedNode = cloned.bundle.tickets.find((ticket) => ticket.kind === 'acceptance')
+    expect(clonedNode?.acceptanceCriteria).toEqual([{ id: 'c1', text: 'Build it works end to end', covers: update.refMap.build }])
+    expect((await reopened.listTickets({ epicId: epic.id, view: 'saved' })).map((row) => [row.title, row.kind])).toEqual([
+      ['Build it', undefined],
+      ['Sprint 1 acceptance', 'acceptance']
+    ])
+    expect(await reopened.validatePlan({ epicId: epic.id, view: 'saved' })).toEqual({ valid: true, errors: [], warnings: [] })
   })
 })

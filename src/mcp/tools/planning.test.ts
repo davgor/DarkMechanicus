@@ -218,3 +218,50 @@ describe('update_plan_draft with ticket size and reasoning effort', () => {
     })
   })
 })
+
+describe('update_plan_draft with ticket kind and covers', () => {
+  const OPS_WITH_KIND = [
+    { op: 'add_ticket', ref: 'node', sprint: '1', ticket: { title: 'Verify', kind: 'acceptance' } },
+    {
+      op: 'update_ticket',
+      ticket: 'node',
+      patch: { acceptanceCriteria: [{ text: 'DM-2 verified', covers: 'DM-2' }, { id: 'c2', text: 'Cleared', covers: null }] }
+    },
+    { op: 'update_ticket', ticket: 'DM-3', patch: { kind: 'work' } }
+  ]
+
+  it('forwards the kind and the covers of added and updated tickets', async () => {
+    const api = createCannedApi({ updatePlanDraft: MARKER })
+    await inRig(api, async (rig) => {
+      const outcome = await callTool(rig, 'update_plan_draft', { epicId: EPIC, ops: OPS_WITH_KIND })
+      expect(outcome.isError).toBe(false)
+      expect(api.calls).toEqual([{ name: 'updatePlanDraft', input: { epicId: EPIC, ops: OPS_WITH_KIND } }])
+    })
+  })
+
+  it.each([
+    ['an unknown kind', { op: 'add_ticket', sprint: '1', ticket: { title: 'T', kind: 'epic' } }],
+    ['covers that is not a reference', { op: 'update_ticket', ticket: 'DM-2', patch: { acceptanceCriteria: [{ text: 'x', covers: 'no spaces allowed' }] } }],
+    ['covers on a sprint criterion', { op: 'add_sprint', sprint: { goal: 'g', exitCriteria: [{ text: 'x', covers: 'DM-2' }] } }]
+  ])('rejects %s without calling the command', async (_label, op) => {
+    const api = createCannedApi({ updatePlanDraft: MARKER })
+    await inRig(api, async (rig) => {
+      const outcome = await callTool(rig, 'update_plan_draft', { epicId: EPIC, ops: [op] })
+      expect(outcome.isError).toBe(true)
+      expect(api.calls).toEqual([])
+    })
+  })
+
+  it('explains the acceptance node in update_plan_draft and its rules in validate_plan', async () => {
+    await inRig(createCannedApi({}), async (rig) => {
+      const { tools } = await rig.client.listTools()
+      const update = tools.find((tool) => tool.name === 'update_plan_draft')
+      expect(update?.description).toContain('add_sprint also creates the acceptance node')
+      expect(update?.description).toContain('cannot move to another sprint')
+      const validate = tools.find((tool) => tool.name === 'validate_plan')
+      expect(validate?.description).toContain('a second acceptance node in a sprint')
+      expect(validate?.description).toContain('a sprint with work tickets but no acceptance node')
+      expect(validate?.description).toContain('no acceptance criterion covers')
+    })
+  })
+})

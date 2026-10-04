@@ -164,7 +164,8 @@ describe('applyDraftOps client refs', () => {
       { op: 'add_ticket', ref: 'task.a', sprint: 'hardening', ticket: { title: 'A' } },
       { op: 'add_ticket', sprint: '1', ticket: { title: 'no ref' } }
     )
-    expect(refMap).toEqual({ hardening: 'sp_new1', 'task.a': 'tk_new1' })
+    // tk_new1 went to the acceptance node that add_sprint created for the new sprint.
+    expect(refMap).toEqual({ hardening: 'sp_new1', 'task.a': 'tk_new2' })
   })
 
   it('rejects a ref declared twice in one request, even across sprints and tickets', () => {
@@ -330,7 +331,7 @@ describe('add_sprint', () => {
       id: 'sp_new1',
       ordinal: 3,
       goal: 'Polish',
-      ticketIds: [],
+      ticketIds: ['tk_new1'],
       entryCriteria: [],
       exitCriteria: [],
       concurrencyCap: null,
@@ -625,7 +626,8 @@ describe('move_ticket placement', () => {
     )
     expect(ticketIdsOf(bundle, 1)).toEqual([tid(1)])
     expect(ticketIdsOf(bundle, 2)).toEqual([tid(2)])
-    expect(ticketIdsOf(bundle, 3)).toEqual([tid(3)])
+    // The new sprint keeps its acceptance node (tk_new1) last, so the moved ticket goes ahead of it.
+    expect(ticketIdsOf(bundle, 3)).toEqual([tid(3), 'tk_new1'])
   })
 
   it('reports unknown tickets and sprints', () => {

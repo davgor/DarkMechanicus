@@ -2,7 +2,7 @@ import { cpSync, existsSync, mkdirSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { makeBundle, sid, tid } from '../../test/bundles'
-import { domainErrorOf, idOf, insertAttempt, insertCheckpoint, insertComment, insertOutbox, insertReport, insertRun, T0 } from '../../test/repoFixtures'
+import { domainErrorOf, idOf, insertAttempt, insertCheckpoint, insertComment, insertOutbox, insertReport, insertRowCheck, insertRun, T0 } from '../../test/repoFixtures'
 import {
   copyTracked,
   createRepoEnv,
@@ -619,5 +619,120 @@ describe('reconcileRepository worker efforts', () => {
       .all<{ id: string; worker_json: string }>('SELECT id, worker_json FROM attempts ORDER BY id')
       .map((row) => [row.id, (JSON.parse(row.worker_json) as { effort?: string }).effort])
     expect(efforts).toEqual([[A1, 'medium'], [A2, undefined]])
+  })
+})
+
+describe('reconcileRepository row checks', () => {
+  const RK1 = idOf('rowCheck', 1)
+  const RK2 = idOf('rowCheck', 2)
+  const ROW_CHECK_COLUMNS = 'SELECT id, run_id, number, sprint_id, row_no, commit_ref, checks_json, recorded_by, created_at FROM row_checks ORDER BY number'
+
+  function exportRowChecks(source: RepoEnv): void {
+    insertOutbox(source.db, { kind: 'run_history', epicId: EPIC, runId: RUN })
+    expect(flush(source).failed).toBe(0)
+  }
+
+  it('imports the row checks of a run exactly as they were recorded', () => {
+    const source = buildSource()
+    insertRowCheck(source.db, { id: RK1, runId: RUN, sprintId: sid(1), number: 1, checks: [{ name: 'tests', status: 'failed', detail: '2 failed' }] })
+    insertRowCheck(source.db, { id: RK2, runId: RUN, sprintId: sid(1), number: 2, row: 2, recordedBy: null })
+    exportRowChecks(source)
+    const target = cloneOf(source)
+    const result = reconcileRepository(importerDeps(target, createStubGit('main')))
+    expect(result).toMatchObject({ imported: [EPIC, RUN], rejected: [], conflicts: [] })
+    expect(target.db.all(ROW_CHECK_COLUMNS)).toEqual(source.db.all(ROW_CHECK_COLUMNS))
+    expect(target.db.all(ROW_CHECK_COLUMNS)).toHaveLength(2)
+  })
+
+  it('brings in a check recorded after the first import and keeps the earlier ones', () => {
+    const source = buildSource()
+    insertRowCheck(source.db, { id: RK1, runId: RUN, sprintId: sid(1), number: 1 })
+    exportRowChecks(source)
+    const target = cloneOf(source)
+    const deps = importerDeps(target, createStubGit('main'))
+    reconcileRepository(deps)
+    insertRowCheck(source.db, { id: RK2, runId: RUN, sprintId: sid(1), number: 2, checks: [{ name: 'tests', status: 'failed', detail: '' }] })
+    exportRowChecks(source)
+    copyTracked(source, target)
+    expect(reconcileRepository(deps)).toMatchObject({ imported: [RUN], rejected: [] })
+    expect(target.db.all<{ id: string }>(ROW_CHECK_COLUMNS).map((row) => row.id)).toEqual([RK1, RK2])
+  })
+
+  it('rejects a run that lists a row check another run already owns, and changes nothing', () => {
+    const source = buildSource()
+    const target = cloneOf(source)
+    const deps = importerDeps(target, createStubGit('main'))
+    reconcileRepository(deps)
+    const other = idOf('run', 2)
+    insertRun(target.db, { id: other, epicId: EPIC, revisionId: R2, state: 'completed' })
+    insertRowCheck(target.db, { id: RK1, runId: other, sprintId: sid(1), number: 1 })
+    insertRowCheck(source.db, { id: RK1, runId: RUN, sprintId: sid(1), number: 1 })
+    exportRowChecks(source)
+    copyTracked(source, target)
+    const before = dumpDomain(target.db)
+    const result = reconcileRepository(deps)
+    expect(result.rejected).toEqual([{ path: `.darkmechanicus/history/${RUN}/run.json`, message: `Row check ${RK1} already belongs to another run.` }])
+    expect(dumpDomain(target.db)).toEqual(before)
+  })
+})
+
+const FAILED_VERDICT = {
+  branch: 'epic/demo',
+  commit: 'c'.repeat(40),
+  parent: null,
+  base: { kind: 'epic_start', commit: 'abcdef1' },
+  passed: false,
+  reasons: ['Commit ccccccc has 2 parents (a merge commit).'],
+  checks: [{ name: 'One parent', status: 'failed', detail: 'Commit ccccccc has 2 parents (a merge commit).' }],
+  verifiedAt: T0
+}
+const PASSED_VERDICT = { ...FAILED_VERDICT, commit: 'd'.repeat(40), parent: 'e'.repeat(40), passed: true, reasons: [], checks: [] }
+
+/** Stores `verdict` on attempt A1 of the source and exports the run history. */
+function exportVerdict(source: RepoEnv, verdict: unknown): void {
+  source.db.run('UPDATE attempts SET increment_json = ? WHERE id = ?', JSON.stringify(verdict), A1)
+  insertOutbox(source.db, { kind: 'run_history', epicId: EPIC, runId: RUN })
+  expect(flush(source).failed).toBe(0)
+}
+
+describe('reconcileRepository sprint increments', () => {
+  const COLUMNS = 'SELECT id, increment_json FROM attempts ORDER BY id'
+
+  it('imports the verdict of the attempt that named an increment, and leaves the others empty', () => {
+    const source = buildSource()
+    exportVerdict(source, FAILED_VERDICT)
+    const target = cloneOf(source)
+    expect(reconcileRepository(importerDeps(target, createStubGit('main')))).toMatchObject({ imported: [EPIC, RUN], rejected: [], conflicts: [] })
+    expect(target.db.all(COLUMNS)).toEqual([
+      { id: A1, increment_json: expect.any(String) },
+      { id: A2, increment_json: null }
+    ])
+    expect(JSON.parse(target.db.get<{ increment_json: string }>('SELECT increment_json FROM attempts WHERE id = ?', A1)?.increment_json ?? 'null')).toEqual(FAILED_VERDICT)
+  })
+
+  it('brings in a verdict that changed after the first import', () => {
+    const source = buildSource()
+    exportVerdict(source, FAILED_VERDICT)
+    const target = cloneOf(source)
+    const deps = importerDeps(target, createStubGit('main'))
+    reconcileRepository(deps)
+    exportVerdict(source, PASSED_VERDICT)
+    copyTracked(source, target)
+    expect(reconcileRepository(deps)).toMatchObject({ imported: [RUN], rejected: [] })
+    expect(JSON.parse(target.db.get<{ increment_json: string }>('SELECT increment_json FROM attempts WHERE id = ?', A1)?.increment_json ?? 'null')).toEqual(PASSED_VERDICT)
+  })
+
+  it('exports the imported verdict back unchanged', () => {
+    const source = buildSource()
+    exportVerdict(source, PASSED_VERDICT)
+    const target = cloneOf(source)
+    reconcileRepository(importerDeps(target, createStubGit('main')))
+    insertOutbox(target.db, { kind: 'run_history', epicId: EPIC, runId: RUN })
+    expect(flush(target).failed).toBe(0)
+    const written = JSON.parse(target.fs.get(ownedPaths(target.layout).runHistoryFile(RUN)) ?? '{}') as {
+      attempts: { id: string; increment?: unknown }[]
+    }
+    expect(written.attempts.find((item) => item.id === A1)?.increment).toEqual(PASSED_VERDICT)
+    expect(written.attempts.find((item) => item.id === A2)).not.toHaveProperty('increment')
   })
 })

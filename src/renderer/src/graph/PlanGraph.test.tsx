@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { installDomShims } from '../epic/__mocks__/domShims'
-import { bundle, draftPlan, runView, savedPlan, sprint } from '../epic/__mocks__/fixtures'
+import { bundle, draftPlan, edge, execution, rowCheck, rowView, runView, savedPlan, sprint, ticket } from '../epic/__mocks__/fixtures'
 import { allowSlowRendering } from '../epic/__mocks__/testTiming'
 import { buildGraphModel, type GraphModel } from './graphModel'
 import { PlanGraph, type PlanGraphProps } from './PlanGraph'
@@ -35,13 +35,14 @@ interface Recorded {
   dropped: string[]
   removed: string[]
   added: string[]
+  addedAcceptance: string[]
 }
 
 function renderGraph(
   mode: 'saved' | 'draft',
   graphModel: GraphModel = model(mode)
 ): { recorded: Recorded; container: HTMLElement } {
-  const recorded: Recorded = { selected: [], connected: [], dropped: [], removed: [], added: [] }
+  const recorded: Recorded = { selected: [], connected: [], dropped: [], removed: [], added: [], addedAcceptance: [] }
   const props: PlanGraphProps = {
     model: graphModel,
     editable: mode === 'draft',
@@ -52,7 +53,8 @@ function renderGraph(
     onConnect: (from, to) => recorded.connected.push(`${from}->${to}`),
     onDropTicket: (id, top) => recorded.dropped.push(`${id}@${top}`),
     onRemoveDependency: (from, to) => recorded.removed.push(`${from}->${to}`),
-    onAddTicket: (id) => recorded.added.push(id)
+    onAddTicket: (id) => recorded.added.push(id),
+    onAddAcceptance: (id) => recorded.addedAcceptance.push(id)
   }
   const { container } = render(<PlanGraph {...props} />)
   return { recorded, container }
@@ -132,6 +134,107 @@ describe('PlanGraph in the Draft view', () => {
     fireEvent.click(source as Element)
     fireEvent.click(target as Element)
     expect(recorded.connected).toEqual(['tk_101->tk_204'])
+  })
+})
+
+/** Sprint 1 (DM-1, DM-2, then DM-3 after DM-1, then its node DM-91) and Sprint 2 (DM-4, no node). */
+function acceptanceModel(mode: 'saved' | 'draft'): GraphModel {
+  const work = [ticket('DM-1', 'One'), ticket('DM-2', 'Two'), ticket('DM-3', 'Three'), ticket('DM-4', 'Four')]
+  const node = ticket('DM-91', 'Sprint 1 acceptance', { kind: 'acceptance' })
+  const planBundle = bundle({
+    tickets: [...work, node],
+    sprints: [sprint(1, 'Build', ['tk_1', 'tk_2', 'tk_3', 'tk_91']), sprint(2, 'Ship', ['tk_4'])],
+    edges: [edge(1, 3)]
+  })
+  const rows = [
+    rowView('sp_1', 1, ['DM-1', 'DM-2'], rowCheck('sp_1', 1, true)),
+    rowView('sp_1', 2, ['DM-3'], rowCheck('sp_1', 2, false, { number: 2 })),
+    rowView('sp_2', 1, ['DM-4'])
+  ]
+  const states = ['DM-1', 'DM-2', 'DM-3', 'DM-91'].map((key) => execution(key, 'sp_1', key === 'DM-3' ? 'failed' : 'accepted'))
+  return buildGraphModel({
+    plan: mode === 'draft' ? draftPlan({ bundle: planBundle, changes: [] }) : savedPlan({ bundle: planBundle }),
+    mode,
+    run: mode === 'draft' ? null : runView({ tickets: [...states, execution('DM-4', 'sp_2', 'later_sprint')], rows }),
+    statuses: new Map(),
+    outcome: null,
+    rejected: null,
+    draftNumber: 5
+  })
+}
+
+describe('PlanGraph acceptance nodes', () => {
+  it('draws the node as a distinct card tagged ACCEPTANCE, and work cards as before', () => {
+    const { container } = renderGraph('saved', acceptanceModel('saved'))
+    const card = container.querySelector('[data-ticket="tk_91"]')
+    expect(card?.classList.contains('is-acceptance')).toBe(true)
+    expect(card?.querySelector('.pg-kind')?.textContent).toBe('ACCEPTANCE')
+    expect(card?.querySelector('.pg-card-title')?.textContent).toBe('Sprint 1 acceptance')
+    const work = container.querySelector('[data-ticket="tk_2"]')
+    expect(work?.classList.contains('is-acceptance')).toBe(false)
+    expect(work?.querySelector('.pg-kind') ?? null).toBe(null)
+    expect(container.querySelectorAll('.pg-kind')).toHaveLength(1)
+  })
+
+  it('selects the node on click like any ticket', () => {
+    const { recorded } = renderGraph('saved', acceptanceModel('saved'))
+    fireEvent.click(screen.getByText('Sprint 1 acceptance'))
+    expect(recorded.selected).toEqual(['tk_91'])
+  })
+
+  it('draws one join per sprint band, waiting while a required ticket is not accepted, and no edge per ticket', () => {
+    const { container } = renderGraph('saved', acceptanceModel('saved'))
+    const joins = [...container.querySelectorAll('.pg-join')]
+    expect(joins).toHaveLength(1)
+    expect(joins[0]?.classList.contains('is-waiting')).toBe(true)
+    expect(joins[0]?.getAttribute('aria-label')).toBe('DM-91 requires every required ticket of Sprint 1')
+    expect(container.querySelectorAll('.react-flow__edge')).toHaveLength(1)
+  })
+
+  it('draws the join solid once the sprint work is accepted', () => {
+    const { container } = renderGraph('draft', acceptanceModel('draft'))
+    expect(container.querySelector('.pg-join')?.classList.contains('is-met')).toBe(true)
+  })
+})
+
+describe('PlanGraph row checks', () => {
+  it('shows each row latest check with words beside the color, a failed one included', () => {
+    const { container } = renderGraph('saved', acceptanceModel('saved'))
+    const chips = [...container.querySelectorAll<HTMLElement>('.pg-rowcheck')]
+    expect(chips.map((chip) => chip.textContent)).toEqual(['ROW 1✓ PASSED', 'ROW 2✗ FAILED', 'ROW 1– NO CHECK'])
+    expect(chips.map((chip) => chip.className)).toEqual([
+      'pg-rowcheck ew-tone-accepted',
+      'pg-rowcheck ew-tone-failed',
+      'pg-rowcheck ew-tone-neutral'
+    ])
+    expect(chips[1]?.getAttribute('title')).toBe('Row 2 check 2 at a1b2c3d did not pass: Unit tests (failed)')
+  })
+
+  it('shows no row check in the Draft view', () => {
+    const { container } = renderGraph('draft', acceptanceModel('draft'))
+    expect(container.querySelectorAll('.pg-rowcheck')).toHaveLength(0)
+  })
+})
+
+describe('PlanGraph + Acceptance', () => {
+  it('offers + Acceptance on a draft sprint without a node only, and adds one for that sprint', () => {
+    const { recorded } = renderGraph('draft', acceptanceModel('draft'))
+    const buttons = screen.getAllByText('+ Acceptance')
+    expect(buttons).toHaveLength(1)
+    fireEvent.click(buttons[0] as HTMLElement)
+    expect(recorded.addedAcceptance).toEqual(['sp_2'])
+    expect(recorded.added).toEqual([])
+    expect(screen.getAllByText('+ Ticket')).toHaveLength(2)
+  })
+
+  it('offers + Acceptance on every sprint of a draft plan that has no nodes', () => {
+    renderGraph('draft')
+    expect(screen.getAllByText('+ Acceptance')).toHaveLength(3)
+  })
+
+  it('offers no + Acceptance in the read-only Saved view', () => {
+    renderGraph('saved', acceptanceModel('saved'))
+    expect(screen.queryAllByText('+ Acceptance')).toHaveLength(0)
   })
 })
 

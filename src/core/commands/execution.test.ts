@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { ReadinessView, TicketExecutionView } from '../../shared/domain/views'
+import { dropAcceptanceNodes } from '../../test/acceptanceNodes'
 import { createHarness, type Harness } from '../../test/workspaceHarness'
 import { encodeBase32, ID_PREFIXES } from '../ids'
 import type { Workspace } from '../workspace'
@@ -13,6 +14,7 @@ interface Planned {
 async function plannedEpic(agent: Workspace): Promise<Planned> {
   await agent.initializeRepository({ name: 'exec-repo' })
   const epic = await agent.createEpic({ title: 'Execution epic' })
+  await dropAcceptanceNodes(agent, epic.id)
   const draft = await agent.updatePlanDraft({
     epicId: epic.id,
     ops: [

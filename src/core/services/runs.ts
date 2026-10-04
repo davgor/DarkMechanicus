@@ -32,6 +32,7 @@ import {
   type RunRow
 } from './execution'
 import { requestWithoutKey, withIdempotency } from './idempotency'
+import { sprintIncrementViews } from './increments'
 import { enqueueOutbox } from './outbox'
 
 interface EpicRow {
@@ -188,6 +189,8 @@ function buildRunView(ctx: Ctx, runId: string): RunView {
     endedAt: run.ended_at,
     counts: countTickets(execution.tickets),
     tickets: execution.tickets,
+    rows: execution.rows,
+    increments: sprintIncrementViews(bundle, context.attempts),
     attempts: recentAttempts(context.attempts),
     checkpoint: null
   }

@@ -9,9 +9,12 @@ import {
   type PlanBundle,
   type SprintDef,
   type TicketContent,
+  type TicketCriterion,
+  type TicketKind,
   type TicketSize
 } from '../../shared/domain/bundle'
-import type { CriterionInput, SprintInput, TicketInput } from '../../shared/domain/api'
+import type { CriterionInput, SprintInput, TicketCriterionInput, TicketInput } from '../../shared/domain/api'
+import { acceptanceTitle } from './acceptance'
 
 export const CRITERION_ID_PATTERN = /^[a-z][0-9]{1,4}$/
 
@@ -47,6 +50,24 @@ export function normalizeCriteria(
     out.push({ id, text })
   }
   return out
+}
+
+/**
+ * Normalizes a ticket's criteria like `normalizeCriteria` (prefix `c`) and carries `covers`: a
+ * criterion keeps the covers it had under the same id unless the input names another ticket, and
+ * `covers: null` clears it. Covers are expected to be stable ids by now (draft ops resolve refs).
+ */
+function normalizeTicketCriteria(
+  inputs: (TicketCriterionInput | string)[],
+  existing: TicketCriterion[]
+): TicketCriterion[] {
+  return normalizeCriteria(inputs, existing, 'c').map((criterion, position) => {
+    const input = inputs[position]
+    const requested = typeof input === 'string' ? undefined : input.covers
+    const covers =
+      requested === undefined ? existing.find((item) => item.id === criterion.id)?.covers : (requested ?? undefined)
+    return covers === undefined ? criterion : { ...criterion, covers }
+  })
 }
 
 export function normalizeTags(tags: string[]): string[] {
@@ -101,17 +122,29 @@ export function mergeCapability(
   }
 }
 
+/** The `kind` key of a new ticket: present only for an acceptance node, since `work` is never stored. */
+function kindKey(kind: TicketKind | undefined): { kind?: 'acceptance' } {
+  return kind === 'acceptance' ? { kind } : {}
+}
+
+/** An acceptance node verifies by testing, so it starts from a testing profile (a patch may still change it). */
+function startingCapability(input: TicketInput): CapabilityProfile {
+  const base = defaultCapabilityProfile()
+  return mergeCapability(input.kind === 'acceptance' ? { ...base, workType: 'testing' } : base, input.capability)
+}
+
 export function buildTicket(input: TicketInput, identity: { id: string; key: string }): TicketContent {
   return {
     id: identity.id,
     key: identity.key,
+    ...kindKey(input.kind),
     title: input.title.trim(),
     body: input.body ?? '',
-    acceptanceCriteria: normalizeCriteria(input.acceptanceCriteria ?? [], [], 'c'),
+    acceptanceCriteria: normalizeTicketCriteria(input.acceptanceCriteria ?? [], []),
     tags: normalizeTags(input.tags ?? []),
     priority: input.priority ?? 'normal',
     ...(input.size === undefined || input.size === null ? {} : { size: input.size }),
-    capability: mergeCapability(defaultCapabilityProfile(), input.capability),
+    capability: startingCapability(input),
     references: input.references ?? [],
     expectedArtifacts: input.expectedArtifacts ?? [],
     optional: input.optional ?? false
@@ -129,7 +162,24 @@ function resized(ticket: TicketContent, size: TicketSize | null | undefined): Ti
   return next
 }
 
-/** Applies a patch to a ticket; a null `size` or `capability.reasoning.effort` removes that key. */
+/** Sets the kind of a copy of the ticket: `work` removes the key (it is never stored), undefined keeps it. */
+function withKind(ticket: TicketContent, kind: TicketKind | undefined): TicketContent {
+  if (kind === undefined) {
+    return ticket
+  }
+  const next = { ...ticket }
+  if (kind === 'acceptance') {
+    next.kind = 'acceptance'
+  } else {
+    delete next.kind
+  }
+  return next
+}
+
+/**
+ * Applies a patch to a ticket; a null `size` or `capability.reasoning.effort` removes that key, and
+ * a `kind` of `work` removes the kind.
+ */
 export function patchTicket(ticket: TicketContent, patch: Partial<TicketInput>): TicketContent {
   const patched: TicketContent = {
     ...ticket,
@@ -138,7 +188,7 @@ export function patchTicket(ticket: TicketContent, patch: Partial<TicketInput>):
     acceptanceCriteria:
       patch.acceptanceCriteria === undefined
         ? ticket.acceptanceCriteria
-        : normalizeCriteria(patch.acceptanceCriteria, ticket.acceptanceCriteria, 'c'),
+        : normalizeTicketCriteria(patch.acceptanceCriteria, ticket.acceptanceCriteria),
     tags: patch.tags === undefined ? ticket.tags : normalizeTags(patch.tags),
     priority: patch.priority ?? ticket.priority,
     capability: mergeCapability(ticket.capability, patch.capability),
@@ -146,7 +196,15 @@ export function patchTicket(ticket: TicketContent, patch: Partial<TicketInput>):
     expectedArtifacts: patch.expectedArtifacts ?? ticket.expectedArtifacts,
     optional: patch.optional ?? ticket.optional
   }
-  return resized(patched, patch.size)
+  return withKind(resized(patched, patch.size), patch.kind)
+}
+
+/** The acceptance node of a sprint: required, for testing, and with criteria still to fill in. */
+export function buildAcceptanceTicket(
+  sprint: Pick<SprintDef, 'ordinal'>,
+  identity: { id: string; key: string }
+): TicketContent {
+  return buildTicket({ title: acceptanceTitle(sprint.ordinal), kind: 'acceptance' }, identity)
 }
 
 export function buildSprint(input: SprintInput, identity: { id: string; ordinal: number }): SprintDef {
@@ -179,12 +237,22 @@ export function patchSprint(sprint: SprintDef, patch: Partial<SprintInput>): Spr
   }
 }
 
-export function createInitialBundle(epic: EpicContent, firstSprintId: string): PlanBundle {
+/** Identities for the first sprint of a new plan and the acceptance node it starts with. */
+export interface InitialPlanIds {
+  sprintId: string
+  ticketId: string
+  ticketKey: string
+}
+
+/** A new plan: one sprint holding only its acceptance node, which waits for criteria. */
+export function createInitialBundle(epic: EpicContent, ids: InitialPlanIds): PlanBundle {
+  const sprint = buildSprint({ goal: '' }, { id: ids.sprintId, ordinal: 1 })
+  const node = buildAcceptanceTicket(sprint, { id: ids.ticketId, key: ids.ticketKey })
   return {
     formatVersion: PLAN_FORMAT_VERSION,
     epic,
-    tickets: [],
-    sprints: [buildSprint({ goal: '' }, { id: firstSprintId, ordinal: 1 })],
+    tickets: [node],
+    sprints: [{ ...sprint, ticketIds: [node.id] }],
     edges: [],
     relations: [],
     policies: { ...DEFAULT_POLICIES },

@@ -35,6 +35,8 @@ export interface PlanGraphProps {
   onDropTicket(ticketId: string, top: number): void
   onRemoveDependency(from: string, to: string): void
   onAddTicket(sprintId: string): void
+  /** Adds the sprint's acceptance node; offered only on a draft sprint that has none. */
+  onAddAcceptance(sprintId: string): void
 }
 
 const DELETE_KEYS = ['Backspace', 'Delete']
@@ -101,10 +103,10 @@ function useGraphHandlers(props: PlanGraphProps, reset: () => void) {
 }
 
 function GraphCanvas(props: PlanGraphProps): JSX.Element {
-  const { model, editable, selectedTicketId, onAddTicket } = props
+  const { model, editable, selectedTicketId, onAddTicket, onAddAcceptance } = props
   const flowNodes = useMemo(
-    () => toFlowNodes(model, { editable, selectedTicketId, onAddTicket }),
-    [model, editable, selectedTicketId, onAddTicket]
+    () => toFlowNodes(model, { editable, selectedTicketId, onAddTicket, onAddAcceptance }),
+    [model, editable, selectedTicketId, onAddTicket, onAddAcceptance]
   )
   const flowEdges = useMemo(() => toFlowEdges(model, editable), [model, editable])
   const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>(flowNodes)

@@ -8,6 +8,7 @@ import type { Ctx } from '../context'
 import { parseJson, toJson } from '../db/database'
 import { fail } from '../errors'
 import { createInitialBundle, normalizeCriteria } from '../plan/normalize'
+import { initialPlanIds } from './draftDeps'
 import { appendEvent } from './events'
 import { requestWithoutKey, withIdempotency } from './idempotency'
 import { enqueueOutbox } from './outbox'
@@ -270,7 +271,7 @@ function insertEpic(ctx: Ctx, input: CreateEpicInput, title: string): string {
     now,
     now
   )
-  const bundle = createInitialBundle(initialContent(input, title), ctx.ids.next('sprint'))
+  const bundle = createInitialBundle(initialContent(input, title), initialPlanIds(ctx))
   ctx.db.run(
     `INSERT INTO drafts (epic_id, base_revision_id, draft_revision, bundle_json, created_at, updated_at, updated_by)
      VALUES (?, NULL, 1, ?, ?, ?, ?)`,

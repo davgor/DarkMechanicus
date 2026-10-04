@@ -21,6 +21,7 @@ type Kind = 'read' | 'idempotent' | 'write' | 'destructive'
 const TOOLS: Record<string, { method: CommandName; kind: Kind }> = {
   get_capabilities: { method: 'getCapabilities', kind: 'read' },
   get_project: { method: 'getProject', kind: 'read' },
+  set_definition_of_done: { method: 'setDefinitionOfDone', kind: 'idempotent' },
   list_projects: { method: 'getProject', kind: 'read' },
   initialize_repository: { method: 'initializeRepository', kind: 'idempotent' },
   get_storage_status: { method: 'getStorageStatus', kind: 'read' },
@@ -66,6 +67,7 @@ const TOOLS: Record<string, { method: CommandName; kind: Kind }> = {
   fail_attempt: { method: 'failAttempt', kind: 'write' },
   reconcile_attempt: { method: 'reconcileAttempt', kind: 'write' },
   carry_forward_ticket: { method: 'carryForwardTicket', kind: 'write' },
+  record_row_check: { method: 'recordRowCheck', kind: 'write' },
   pause_run: { method: 'pauseRun', kind: 'idempotent' },
   resume_run: { method: 'resumeRun', kind: 'idempotent' },
   cancel_run: { method: 'cancelRun', kind: 'destructive' },
@@ -77,6 +79,12 @@ const TOOLS: Record<string, { method: CommandName; kind: Kind }> = {
   advance_sprint: { method: 'advanceSprint', kind: 'write' },
   get_run_events: { method: 'listEvents', kind: 'read' }
 }
+
+/** Tools only a planner (or the desktop) holds the capability for: an orchestrator session does not list them. */
+const PLANNER_ONLY = ['set_definition_of_done']
+
+/** What an orchestrator allowed to save lists: every tool except the planner-only ones. */
+const ORCHESTRATOR_TOOLS = Object.fromEntries(Object.entries(TOOLS).filter(([name]) => !PLANNER_ONLY.includes(name)))
 
 /** Commands only a person can perform in the desktop app; no tool may adapt them. */
 const HUMAN_ONLY: CommandName[] = [
@@ -105,10 +113,11 @@ const PROJECT: ProjectView = {
   name: 'Demo',
   keyPrefix: 'DM',
   repoRoot: '/repo',
-  createdAt: '2026-01-01T00:00:00.000Z'
+  createdAt: '2026-01-01T00:00:00.000Z',
+  definitionOfDone: [{ name: 'lint', command: 'npm run lint', description: 'oxlint' }]
 }
 
-/** An orchestrator allowed to save holds every capability an MCP tool needs, so it lists them all. */
+/** An orchestrator allowed to save holds every capability an MCP tool needs except the planner-only ones. */
 const build = (api: Parameters<typeof createMcpServer>[0]) =>
   createMcpServer(api, INFO, { role: 'orchestrator', allowSave: true })
 
@@ -116,10 +125,11 @@ describe('tool inventory', () => {
   it('exposes exactly the expected tools', async () => {
     await withRig(build, createStubApi(), async (rig) => {
       const { tools } = await rig.client.listTools()
-      expect(tools.map((tool) => tool.name).sort()).toEqual(Object.keys(TOOLS).sort())
-      expect(tools).toHaveLength(57)
+      expect(tools.map((tool) => tool.name).sort()).toEqual(Object.keys(ORCHESTRATOR_TOOLS).sort())
+      expect(tools).toHaveLength(58)
     })
   })
+
 
   it('never exposes the human-only actions', async () => {
     await withRig(build, createStubApi(), async (rig) => {
@@ -144,7 +154,7 @@ describe('tool inventory', () => {
     await withRig(build, createStubApi(), async (rig) => {
       const { tools } = await rig.client.listTools()
       const kinds = Object.fromEntries(tools.map((tool) => [tool.name, kindOf(tool.annotations)]))
-      expect(kinds).toEqual(Object.fromEntries(Object.entries(TOOLS).map(([name, tool]) => [name, tool.kind])))
+      expect(kinds).toEqual(Object.fromEntries(Object.entries(ORCHESTRATOR_TOOLS).map(([name, tool]) => [name, tool.kind])))
       expect(tools.filter((tool) => tool.annotations?.destructiveHint === true).map((tool) => tool.name)).toEqual(['cancel_run'])
     })
   })
@@ -156,6 +166,19 @@ describe('tool inventory', () => {
         expect(tool.description?.length ?? 0).toBeGreaterThan(50)
         expect(tool.inputSchema.type).toBe('object')
       }
+    })
+  })
+})
+
+describe('the planner-only tools', () => {
+  it('lists set_definition_of_done to a planner, annotated as an idempotent write that requires its checks', async () => {
+    const planner = (api: Parameters<typeof createMcpServer>[0]) => createMcpServer(api, INFO, { role: 'planner', allowSave: true })
+    await withRig(planner, createStubApi(), async (rig) => {
+      const { tools } = await rig.client.listTools()
+      const tool = tools.find((item) => item.name === 'set_definition_of_done')
+      expect(tool).toBeDefined()
+      expect(kindOf(tool?.annotations)).toBe('idempotent')
+      expect(tool?.inputSchema.required).toEqual(['checks'])
     })
   })
 })
@@ -269,8 +292,17 @@ describe('skills as prompts', () => {
 })
 
 /** Words in backticks that are not tools but are real vocabulary of the contract. */
-const GATE_CONDITIONS = ['report_submitted', 'no_active_leases', 'required_accepted', 'exit_criteria', 'epic_outcome']
-const BLOCKER_KINDS = ['retry_limit', 'run_state']
+const GATE_CONDITIONS = [
+  'report_submitted',
+  'no_active_leases',
+  'required_accepted',
+  'acceptance_accepted',
+  'increment_merged',
+  'definition_of_done',
+  'exit_criteria',
+  'epic_outcome'
+]
+const BLOCKER_KINDS = ['retry_limit', 'run_state', 'row_check_failed']
 const DRAFT_OPS: string[] = draftOp.options.map((option) => option.shape.op.value)
 
 const VOCABULARY = new Set<string>([

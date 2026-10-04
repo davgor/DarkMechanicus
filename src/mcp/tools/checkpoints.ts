@@ -17,7 +17,7 @@ const CHECKPOINT_TOOLS = [
   defineTool({
     name: 'get_sprint_report',
     description:
-      'Returns the latest submitted report for the run\'s active sprint, or for sprintId when given. Data is null if none was submitted.',
+      'Returns the latest submitted report for the run\'s active sprint, or for sprintId when given, with the increment that sprint\'s acceptance node named (increment: the commit, its parent, and whether verification passed; absent when none was named). Data is null if none was submitted.',
     kind: 'read',
     input: { runId, sprintId: sprintId.optional() },
     run: (api, input) => api.getSprintReport(input)
@@ -25,7 +25,7 @@ const CHECKPOINT_TOOLS = [
   defineTool({
     name: 'get_checkpoint',
     description:
-      'Returns the gate for the active sprint: conditions (report_submitted, no_active_leases, required_accepted, exit_criteria, epic_outcome on the final sprint, approval), gatesMet, canAdvance, and the approval state. Poll this to wait for a person\'s approval. You cannot approve.',
+      'Returns the gate for the active sprint: conditions (report_submitted, no_active_leases, required_accepted, acceptance_accepted, increment_merged, exit_criteria, epic_outcome on the final sprint, approval), gatesMet, canAdvance, and the approval state. acceptance_accepted needs an accepted attempt on the acceptance node of the sprint and says what is missing. increment_merged needs that node\'s accepted (or awaiting-review) submission to have named an increment that the server verified as one squashed commit on the epic branch, and says why not; submit_attempt records the verdict. A sprint with no acceptance node (a plan saved before they existed) has neither condition. Poll this to wait for a person\'s approval. You cannot approve.',
     kind: 'read',
     input: { runId },
     run: (api, input) => api.getCheckpoint(input)

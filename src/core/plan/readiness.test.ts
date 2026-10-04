@@ -63,6 +63,7 @@ describe('computeExecution — independent work', () => {
       ticketId: tid(1),
       key: 'DM-1',
       sprintId: sid(1),
+      row: 1,
       state: 'ready',
       attemptCount: 0,
       latestAttemptId: null,

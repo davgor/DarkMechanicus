@@ -8,6 +8,7 @@ import {
   REFERENCE_KINDS,
   RELATION_KINDS,
   TICKET_FAILURE_POLICIES,
+  TICKET_KINDS,
   TICKET_PRIORITIES,
   TICKET_SIZES,
   TOOL_CAPABILITIES,
@@ -17,6 +18,7 @@ import { WORK_STATUSES } from '../shared/domain/status'
 import { DomainError } from './errors'
 import { STABLE_ID_PATTERN } from './ids'
 import { CRITERION_ID_PATTERN } from './plan/normalize'
+import { checkNameKey } from './definitionOfDone'
 import { isProfileName, PROFILE_NAME_RULE } from './profileNames'
 
 /** Size limits applied to every untrusted input: tool calls, IPC payloads, and imported records. */
@@ -40,7 +42,9 @@ export const LIMITS = {
   comment: 20_000,
   /** Comments one epic may hold (the importer reads at most this many per epic). */
   commentsPerEpic: 10_000,
-  profileDescription: 500
+  profileDescription: 500,
+  /** Checks in a project's Definition of Done. */
+  definitionOfDone: 50
 } as const
 
 export const stableId = z.string().regex(STABLE_ID_PATTERN, 'Expected a stable id such as tk_…')
@@ -71,6 +75,24 @@ export const criterionInput = z.union([
   z.strictObject({ id: z.string().regex(CRITERION_ID_PATTERN).optional(), text: shortText })
 ])
 const criterionInputs = z.array(criterionInput).max(LIMITS.criteria)
+
+/**
+ * A ticket's criterion. Only a ticket carries `covers` (the ticket an acceptance node's criterion
+ * verifies), so epic and sprint criteria stay strict. No default: criteria saved before it existed
+ * parse unchanged and keep their hash.
+ */
+const ticketCriterion = criterion.extend({ covers: stableId.optional() })
+
+/** `covers` is a reference (id, key or client ref) resolved when the draft op is applied; null clears it. */
+const ticketCriterionInput = z.union([
+  shortText,
+  z.strictObject({
+    id: z.string().regex(CRITERION_ID_PATTERN).optional(),
+    text: shortText,
+    covers: entityRef.nullable().optional()
+  })
+])
+const ticketCriterionInputs = z.array(ticketCriterionInput).max(LIMITS.criteria)
 
 const tags = z.array(z.string().max(LIMITS.tag)).max(LIMITS.tags)
 
@@ -129,8 +151,10 @@ export const ticketReference = z.strictObject({
 
 export const ticketInput = z.strictObject({
   title: title.min(1),
+  // `work` is the default and is never stored; see ticketContent.
+  kind: z.enum(TICKET_KINDS).optional(),
   body: markdown.optional(),
-  acceptanceCriteria: criterionInputs.optional(),
+  acceptanceCriteria: ticketCriterionInputs.optional(),
   tags: tags.optional(),
   priority: z.enum(TICKET_PRIORITIES).optional(),
   // `null` in a patch clears the size; saved ticket content never holds null (see ticketContent).
@@ -191,9 +215,11 @@ export const ticketKey = z.string().min(1).max(40).regex(/^[A-Za-z0-9]{1,12}-\d{
 export const ticketContent = z.strictObject({
   id: stableId,
   key: ticketKey,
+  // No default, like `size`: a ticket without a kind is a work ticket and keeps its saved shape and hash.
+  kind: z.enum(TICKET_KINDS).optional(),
   title: title.min(1),
   body: markdown,
-  acceptanceCriteria: z.array(criterion).max(LIMITS.criteria),
+  acceptanceCriteria: z.array(ticketCriterion).max(LIMITS.criteria),
   tags,
   priority: z.enum(TICKET_PRIORITIES),
   // No default, like `capability.reasoning.effort`: an unsized ticket keeps its saved shape and hash.
@@ -266,6 +292,49 @@ export const checkResult = z.strictObject({
   status: z.enum(['passed', 'failed', 'skipped']),
   detail: shortText.default('')
 })
+
+/**
+ * One check of a project's Definition of Done. Names and commands are trimmed; the description may be left
+ * out. Evidence is matched to a check by name, so `definitionOfDoneChecks` keeps names unique.
+ */
+const definitionOfDoneCheck = z.strictObject({
+  name: z.string().trim().min(1).max(LIMITS.label),
+  command: z.string().trim().min(1).max(LIMITS.shortText),
+  description: shortText.default('')
+})
+
+/** A project's Definition of Done: ordered checks whose names are unique ignoring case and surrounding spaces. */
+export const definitionOfDoneChecks = z
+  .array(definitionOfDoneCheck)
+  .max(LIMITS.definitionOfDone)
+  .superRefine((checks, context) => {
+    const seen = new Map<string, string>()
+    for (const [index, item] of checks.entries()) {
+      const key = checkNameKey(item.name)
+      const earlier = seen.get(key)
+      if (earlier === undefined) {
+        seen.set(key, item.name)
+      } else {
+        context.addIssue({
+          code: 'custom',
+          path: [index, 'name'],
+          message: `Definition of Done check names must be unique, ignoring case: "${item.name}" repeats "${earlier}"`
+        })
+      }
+    }
+  })
+
+/** The commit a row check was made at: a hash of 7 to 64 hex digits (an abbreviation or a full SHA-1 or SHA-256 id). */
+export const commitHash = z.string().regex(/^[0-9a-fA-F]{7,64}$/, 'Expected a commit hash of 7 to 64 hex digits')
+
+/** A row check's entries: at least one, because a check that lists nothing verified nothing. */
+export const rowCheckEntries = z.array(checkResult).min(1).max(LIMITS.listItems)
+
+/**
+ * The increment a sprint's acceptance node names: the epic branch and the commit that landed the sprint on
+ * it. The branch follows the same naming rules as an epic's; the server compares it with the epic's own.
+ */
+export const incrementRef = z.strictObject({ branch: epicBranch.shape.name, commit: commitHash })
 
 export const artifactRef = z.strictObject({
   label: z.string().max(LIMITS.label),

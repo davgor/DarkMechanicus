@@ -27,7 +27,9 @@ function fakeGit(current: string | null, branches: Record<string, Tree>): FakeGi
       listed.push(ref)
       return Object.keys(branches[ref] ?? {}).filter((path) => path.startsWith(`${pathspec}/`))
     },
-    showFile: async (ref, path) => branches[ref]?.[path] ?? null
+    showFile: async (ref, path) => branches[ref]?.[path] ?? null,
+    isAncestor: async () => null,
+    commitParents: async () => null
   }
 }
 

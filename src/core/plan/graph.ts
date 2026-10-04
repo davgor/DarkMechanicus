@@ -1,5 +1,6 @@
 import type { DependencyEdge, PlanBundle, SprintDef, TicketContent } from '../../shared/domain/bundle'
 import type { ValidationIssue, ValidationReport } from '../../shared/domain/views'
+import { acceptanceNodesOf, implicitPrerequisitesOf, isAcceptanceTicket, workTicketsOf } from './acceptance'
 
 export interface BundleIndex {
   tickets: Map<string, TicketContent>
@@ -124,6 +125,10 @@ export function checkEdgeAddition(bundle: PlanBundle, edge: DependencyEdge): Val
   const later = laterSprintIssue(index, edge)
   if (later) {
     return later
+  }
+  const outOfNode = acceptanceEdgeIssue(index, edge)
+  if (outOfNode) {
+    return outOfNode
   }
   const cycle = findCycle(
     bundle.tickets.map((ticket) => ticket.id),
@@ -287,6 +292,10 @@ function isolationWarnings(bundle: PlanBundle): ValidationIssue[] {
     return []
   }
   const linked = new Set(bundle.edges.flatMap((edge) => [edge.from, edge.to]))
+  for (const node of bundle.tickets.filter(isAcceptanceTicket)) {
+    linked.add(node.id)
+    implicitPrerequisitesOf(bundle, node.id).forEach((id) => linked.add(id))
+  }
   return bundle.tickets
     .filter((ticket) => !linked.has(ticket.id))
     .map((ticket) => ({
@@ -301,7 +310,7 @@ function contentWarnings(bundle: PlanBundle, index: BundleIndex): ValidationIssu
   if (bundle.epic.successCriteria.length === 0) {
     warnings.push({ code: 'missing_success_criteria', message: 'The epic has no success criteria; completion needs them.' })
   }
-  for (const sprint of bundle.sprints.filter((item) => item.ticketIds.length === 0)) {
+  for (const sprint of bundle.sprints.filter((item) => holdsNoWork(item, index))) {
     warnings.push({ code: 'empty_sprint', message: `Sprint ${sprint.ordinal} has no tickets.`, sprintIds: [sprint.id] })
   }
   for (const ticket of bundle.tickets.filter((item) => item.acceptanceCriteria.length === 0)) {
@@ -342,6 +351,154 @@ function sizeWarnings(bundle: PlanBundle): ValidationIssue[] {
   return warnings
 }
 
+/** True when a sprint lists nothing but acceptance nodes (or nothing at all). An unknown entry counts as work. */
+function holdsNoWork(sprint: SprintDef, index: BundleIndex): boolean {
+  return sprint.ticketIds.every((id) => {
+    const ticket = index.tickets.get(id)
+    return ticket !== undefined && isAcceptanceTicket(ticket)
+  })
+}
+
+/** An acceptance node runs after every other required ticket of its sprint, so none of them can require it. */
+function acceptanceEdgeIssue(index: BundleIndex, edge: DependencyEdge): ValidationIssue | null {
+  const from = index.tickets.get(edge.from)
+  const to = index.tickets.get(edge.to)
+  const sprint = index.sprintOf.get(edge.from)
+  if (!from || !to || !sprint || edge.from === edge.to || !isAcceptanceTicket(from)) {
+    return null
+  }
+  if (index.sprintOf.get(edge.to)?.id !== sprint.id) {
+    return null
+  }
+  return {
+    code: 'acceptance_runs_last',
+    message: `${to.key} can't require ${from.key}: ${from.key} is the acceptance node of Sprint ${sprint.ordinal} and runs after every other required ticket in it.`,
+    ticketIds: [edge.to, edge.from],
+    edge: { ...edge }
+  }
+}
+
+/** One acceptance node per sprint, none required by its own sprint, and criteria that cover real tickets. */
+function acceptanceErrors(bundle: PlanBundle, index: BundleIndex): ValidationIssue[] {
+  const issues: ValidationIssue[] = []
+  for (const sprint of bundle.sprints) {
+    const nodes = acceptanceNodesOf(bundle, sprint.id)
+    if (nodes.length > 1) {
+      issues.push({
+        code: 'duplicate_acceptance',
+        message: `Sprint ${sprint.ordinal} has more than one acceptance node (${nodes.map((node) => node.key).join(', ')}); a sprint has one.`,
+        sprintIds: [sprint.id],
+        ticketIds: nodes.map((node) => node.id)
+      })
+    }
+  }
+  for (const edge of bundle.edges.filter((item) => edgeShapeIssue(index, item) === null)) {
+    const issue = acceptanceEdgeIssue(index, edge)
+    if (issue) {
+      issues.push(issue)
+    }
+  }
+  for (const ticket of bundle.tickets) {
+    for (const item of ticket.acceptanceCriteria) {
+      if (item.covers !== undefined && !index.tickets.has(item.covers)) {
+        issues.push({
+          code: 'unknown_covered_ticket',
+          message: `${ticket.key} criterion ${item.id} covers unknown ticket ${item.covers}.`,
+          ticketIds: [ticket.id]
+        })
+      }
+    }
+  }
+  return issues
+}
+
+/** What a sprint's acceptance node owes: it exists, and its criteria cover each required work ticket. */
+function sprintAcceptanceWarnings(bundle: PlanBundle, sprint: SprintDef, index: BundleIndex): ValidationIssue[] {
+  const work = workTicketsOf(bundle, sprint.id)
+  const nodes = acceptanceNodesOf(bundle, sprint.id)
+  const [first] = nodes
+  if (!first) {
+    return work.length === 0
+      ? []
+      : [
+          {
+            code: 'missing_acceptance_node',
+            message: `Sprint ${sprint.ordinal} has work tickets but no acceptance node.`,
+            sprintIds: [sprint.id]
+          }
+        ]
+  }
+  const warnings: ValidationIssue[] = []
+  const covered = new Set(nodes.flatMap((node) => node.acceptanceCriteria.flatMap((item) => item.covers ?? [])))
+  for (const ticket of work.filter((item) => !item.optional && !covered.has(item.id))) {
+    warnings.push({
+      code: 'ticket_not_covered',
+      message: `${ticket.key} isn't covered by any criterion of acceptance node ${first.key}.`,
+      sprintIds: [sprint.id],
+      ticketIds: [ticket.id, first.id]
+    })
+  }
+  const inSprint = new Set(work.map((ticket) => ticket.id))
+  for (const node of nodes) {
+    for (const item of node.acceptanceCriteria) {
+      const target = item.covers === undefined ? undefined : index.tickets.get(item.covers)
+      if (target && !inSprint.has(target.id)) {
+        warnings.push({
+          code: 'covers_outside_sprint',
+          message: `${node.key} criterion ${item.id} covers ${target.key}, which is not a work ticket of Sprint ${sprint.ordinal}.`,
+          sprintIds: [sprint.id],
+          ticketIds: [node.id, target.id]
+        })
+      }
+    }
+  }
+  return warnings
+}
+
+/** An acceptance node already requires each required work ticket of its sprint, so an explicit edge adds nothing. */
+function redundantEdgeIssue(index: BundleIndex, edge: DependencyEdge): ValidationIssue | null {
+  const from = index.tickets.get(edge.from)
+  const to = index.tickets.get(edge.to)
+  const sprint = index.sprintOf.get(edge.to)
+  const sameSprint = sprint !== undefined && sprint.id === index.sprintOf.get(edge.from)?.id
+  if (!from || !to || !isAcceptanceTicket(to) || isAcceptanceTicket(from) || from.optional || !sameSprint) {
+    return null
+  }
+  return {
+    code: 'redundant_acceptance_edge',
+    message: `${to.key} is an acceptance node and already requires ${from.key}; the explicit dependency is redundant.`,
+    ticketIds: [to.id, from.id],
+    edge: { ...edge }
+  }
+}
+
+/** Only an acceptance node's criteria cover tickets; on a work ticket the covers is ignored. */
+function ignoredCoversWarnings(bundle: PlanBundle): ValidationIssue[] {
+  return bundle.tickets
+    .filter((ticket) => !isAcceptanceTicket(ticket))
+    .flatMap((ticket) =>
+      ticket.acceptanceCriteria
+        .filter((item) => item.covers !== undefined)
+        .map((item) => ({
+          code: 'covers_on_work_ticket',
+          message: `${ticket.key} criterion ${item.id} names a covered ticket, but only an acceptance node's criteria cover tickets.`,
+          ticketIds: [ticket.id]
+        }))
+    )
+}
+
+/** Warnings about acceptance nodes: a missing node, uncovered tickets, redundant edges and misplaced covers. */
+function acceptanceWarnings(bundle: PlanBundle, index: BundleIndex): ValidationIssue[] {
+  const redundant = bundle.edges
+    .filter((edge) => edgeShapeIssue(index, edge) === null)
+    .flatMap((edge) => redundantEdgeIssue(index, edge) ?? [])
+  return [
+    ...bundle.sprints.flatMap((sprint) => sprintAcceptanceWarnings(bundle, sprint, index)),
+    ...redundant,
+    ...ignoredCoversWarnings(bundle)
+  ]
+}
+
 /** Validates the whole plan as a DAG with sprint ordering; errors block Save, warnings do not. */
 export function validatePlan(bundle: PlanBundle): ValidationReport {
   const index = indexBundle(bundle)
@@ -352,9 +509,15 @@ export function validatePlan(bundle: PlanBundle): ValidationReport {
     ...edgeIssues(bundle, index),
     ...relationIssues(bundle, index),
     ...criterionIssues(bundle),
-    ...policyIssues(bundle)
+    ...policyIssues(bundle),
+    ...acceptanceErrors(bundle, index)
   ]
-  const warnings = [...isolationWarnings(bundle), ...contentWarnings(bundle, index), ...sizeWarnings(bundle)]
+  const warnings = [
+    ...isolationWarnings(bundle),
+    ...contentWarnings(bundle, index),
+    ...sizeWarnings(bundle),
+    ...acceptanceWarnings(bundle, index)
+  ]
   return { valid: errors.length === 0, errors, warnings }
 }
 
@@ -368,4 +531,74 @@ export function dependentsOf(bundle: PlanBundle, ticketId: string): string[] {
 
 export function sortedSprints(bundle: PlanBundle): SprintDef[] {
   return [...bundle.sprints].sort((a, b) => a.ordinal - b.ordinal)
+}
+
+// ---------------------------------------------------------------------------------------------
+// Dependency rows
+
+/** Longest-path depth (from 0) over same-sprint prerequisites; cycle members go after the acyclic rows. */
+function sprintDepths(ids: string[], edges: DependencyEdge[]): Map<string, number> {
+  const members = new Set(ids)
+  const inner = edges.filter((item) => item.from !== item.to && members.has(item.from) && members.has(item.to))
+  const pending = new Map(ids.map((id) => [id, 0]))
+  inner.forEach((item) => pending.set(item.to, (pending.get(item.to) ?? 0) + 1))
+  const depth = new Map<string, number>()
+  const queue = ids.filter((id) => pending.get(id) === 0)
+  queue.forEach((id) => depth.set(id, 0))
+  for (let index = 0; index < queue.length; index += 1) {
+    const id = queue[index] ?? ''
+    for (const item of inner.filter((candidate) => candidate.from === id)) {
+      depth.set(item.to, Math.max(depth.get(item.to) ?? 0, (depth.get(id) ?? 0) + 1))
+      const left = (pending.get(item.to) ?? 0) - 1
+      pending.set(item.to, left)
+      if (left === 0) {
+        queue.push(item.to)
+      }
+    }
+  }
+  const after = Math.max(-1, ...depth.values()) + 1
+  ids.filter((id) => !depth.has(id)).forEach((id) => depth.set(id, after))
+  return depth
+}
+
+function groupByDepth(ids: string[], depth: Map<string, number>): string[][] {
+  const levels = new Map<number, string[]>()
+  for (const id of ids) {
+    const level = depth.get(id) ?? 0
+    levels.set(level, [...(levels.get(level) ?? []), id])
+  }
+  return [...levels.entries()].sort((a, b) => a[0] - b[0]).map((entry) => entry[1])
+}
+
+/**
+ * Groups one sprint's tickets into rows, first row first. A ticket's row is one below its deepest
+ * same-sprint prerequisite, so row 1 holds the tickets with no same-sprint prerequisites. Prerequisites
+ * in other sprints do not count, and members of a dependency cycle (an invalid plan) share the row
+ * after the rows that can be ordered. Tickets keep the order of `ids` inside a row.
+ */
+export function groupIntoRows(ids: string[], edges: DependencyEdge[]): string[][] {
+  return groupByDepth(ids, sprintDepths(ids, edges))
+}
+
+/** One dependency row of a sprint; `row` counts from 1. */
+export interface SprintRow {
+  sprintId: string
+  row: number
+  ticketIds: string[]
+}
+
+/**
+ * Every row of the plan, sprint by sprint in ordinal order. A ticket is listed once, in the first sprint
+ * that lists it; ids that are not tickets of the bundle are skipped; a sprint without tickets has no rows.
+ * An acceptance node is in no row: it closes its sprint rather than sitting in one.
+ */
+export function planRows(bundle: PlanBundle): SprintRow[] {
+  const byId = new Map(bundle.tickets.map((ticket) => [ticket.id, ticket]))
+  const seen = new Set<string>()
+  return sortedSprints(bundle).flatMap((sprint) => {
+    const ids = sprint.ticketIds.filter((id) => byId.has(id) && !seen.has(id))
+    ids.forEach((id) => seen.add(id))
+    const work = ids.filter((id) => !isAcceptanceTicket(byId.get(id) ?? {}))
+    return groupIntoRows(work, bundle.edges).map((ticketIds, index) => ({ sprintId: sprint.id, row: index + 1, ticketIds }))
+  })
 }

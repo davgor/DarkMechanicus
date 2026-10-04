@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
+import { isAcceptanceTicket } from '../../../core/plan/acceptance'
+import type { PlanBundle } from '../../../shared/domain/bundle'
 import type { EventView, TicketDetailView } from '../../../shared/domain/views'
 import { errorMessage } from '../api/dm'
 import type { Runner } from '../epic/runner'
 import { StateLabel } from '../epic/StatePill'
 import { Markdown } from '../markdown/Markdown'
+import { CoverageCriteria, CriteriaItems, DefinitionOfDone } from './AcceptanceSections'
 import { loadHistory } from './ticketData'
 import { capabilityRows, criteriaChecklist, evidenceView, historyItems, linkRows, sizeAndEffortRows, type LinkRow } from './ticketView'
 
@@ -34,14 +37,7 @@ function CriteriaChecklist({ detail }: { detail: TicketDetailView }): JSX.Elemen
   return (
     <section className="tp-section" aria-label="Acceptance criteria">
       <h3 className="ew-eyebrow">{checklist.heading}</h3>
-      <ul className="tp-criteria">
-        {checklist.items.map((item) => (
-          <li key={item.id} className={item.verified ? 'is-verified' : undefined}>
-            <input type="checkbox" checked={item.verified} readOnly disabled aria-label={item.text} />
-            <span>{item.text}</span>
-          </li>
-        ))}
-      </ul>
+      <CriteriaItems items={checklist.items} />
     </section>
   )
 }
@@ -75,12 +71,33 @@ function CapabilityProfile({ detail }: { detail: TicketDetailView }): JSX.Elemen
   )
 }
 
-export function OverviewTab(props: { detail: TicketDetailView; onSelect(ticketId: string): void }): JSX.Element {
+interface OverviewTabProps {
+  detail: TicketDetailView
+  /** The plan the ticket is read from: an acceptance node names the tickets it covers by id. */
+  bundle: PlanBundle
+  runner: Runner
+  onSelect(ticketId: string): void
+}
+
+/** A sprint's acceptance node shows its criteria by covered ticket, then the project's Definition of Done. */
+function Criteria({ detail, bundle, runner, onSelect }: OverviewTabProps): JSX.Element {
+  if (!isAcceptanceTicket(detail.ticket)) {
+    return <CriteriaChecklist detail={detail} />
+  }
+  return (
+    <>
+      <CoverageCriteria detail={detail} bundle={bundle} onSelect={onSelect} />
+      <DefinitionOfDone runner={runner} detail={detail} />
+    </>
+  )
+}
+
+export function OverviewTab(props: OverviewTabProps): JSX.Element {
   const detail = props.detail
   return (
     <>
       {detail.ticket.body.trim() === '' ? <p className="ew-muted">No description.</p> : <Markdown source={detail.ticket.body} />}
-      <CriteriaChecklist detail={detail} />
+      <Criteria {...props} />
       <CapabilityProfile detail={detail} />
       <LinkList title="REQUIRES" rows={linkRows(detail.prerequisites)} onSelect={props.onSelect} />
       <LinkList title="UNLOCKS" rows={linkRows(detail.dependents)} onSelect={props.onSelect} />
