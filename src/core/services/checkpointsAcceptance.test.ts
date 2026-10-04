@@ -10,6 +10,7 @@ import {
   type SeededRun,
   type SeedRunOptions
 } from '../../test/checkpointSeed'
+import { SIMPLE_RETRO } from '../../test/retro'
 import { createTestCtx, withRole, type TestCtx } from '../../test/testContext'
 import { advanceSprint, approveCheckpoint, getCheckpoint } from './checkpoints'
 import { submitSprintReport } from './reports'
@@ -31,7 +32,7 @@ function setup(options: SeedRunOptions = {}): { ctx: TestCtx; run: SeededRun } {
 }
 
 function report(ctx: TestCtx, run: SeededRun, sprint = 1) {
-  return submitSprintReport(ctx, { runId: run.runId, sprintId: sid(sprint), report: { summary: 'Sprint finished.' } })
+  return submitSprintReport(ctx, { runId: run.runId, sprintId: sid(sprint), report: { summary: 'Sprint finished.', retro: SIMPLE_RETRO } })
 }
 
 function acceptanceGate(ctx: TestCtx, run: SeededRun): GateCondition | undefined {
@@ -91,7 +92,9 @@ describe('acceptance_accepted gate: what it says', () => {
       'required_accepted',
       'acceptance_accepted',
       'increment_merged',
+      'retro',
       'exit_criteria',
+      'plan_current',
       'approval'
     ])
   })
@@ -135,6 +138,7 @@ describe('acceptance_accepted gate on other plans', () => {
       'no_active_leases',
       'required_accepted',
       'exit_criteria',
+      'plan_current',
       'approval'
     ])
     expect(view.gatesMet).toBe(true)
@@ -171,8 +175,10 @@ describe('acceptance_accepted gate on the final sprint', () => {
       'required_accepted',
       'acceptance_accepted',
       'increment_merged',
+      'retro',
       'exit_criteria',
       'epic_outcome',
+      'plan_current',
       'approval'
     ])
     expect(acceptanceGate(ctx, run)).toMatchObject({ met: false, detail: 'DM-5 not started' })

@@ -133,11 +133,13 @@ const DESKTOP_COMMANDS = [
   'cancelRun',
   'takeoverRun',
   'adoptRevision',
+  'redraftNextSprint',
   'getSprintReport',
   'getCheckpoint',
   'approveCheckpoint',
   'advanceSprint',
   'approveAndAdvance',
+  'approveWithRedraft',
   'authorizeAutoContinue',
   'grantRetry',
   'listEvents'

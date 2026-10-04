@@ -5,6 +5,7 @@
  */
 import { z } from 'zod'
 import { REASONING_EFFORTS } from '../../shared/domain/bundle'
+import { TIER_VERDICTS } from '../../shared/domain/retro'
 import { ATTEMPT_STATES, OPEN_ATTEMPT_STATES, RUN_STATES } from '../../shared/domain/status'
 import type { SessionRole } from '../../shared/domain/views'
 import { contentHash } from '../canonical'
@@ -201,6 +202,23 @@ const attemptRecord = z.strictObject({
   supersededAt: isoTime.nullable()
 })
 
+/** A sprint report's retro as stored: every list present, every ticket a stable id. */
+const retroContent = z.strictObject({
+  delivered: z
+    .array(z.strictObject({ ticket: idOf('ticket'), demo: markdown, evidence: markdown }))
+    .max(LIMITS.listItems),
+  wentWell: textList,
+  wentPoorly: textList,
+  actions: textList,
+  discoveries: z
+    .array(z.strictObject({ title: z.string().min(1).max(LIMITS.title), body: markdown, ticket: idOf('ticket').nullable() }))
+    .max(LIMITS.listItems),
+  leftovers: z.array(z.strictObject({ ticket: idOf('ticket'), reason: markdown })).max(LIMITS.listItems),
+  tierFit: z
+    .array(z.strictObject({ ticket: idOf('ticket'), verdict: z.enum(TIER_VERDICTS), note: markdown }))
+    .max(LIMITS.listItems)
+})
+
 const reportContent = z.strictObject({
   summary: markdown,
   accepted: textList.default([]),
@@ -216,7 +234,10 @@ const reportContent = z.strictObject({
     .max(LIMITS.listItems)
     .default([]),
   exitCriteria: criterionResults.default([]),
-  epicOutcome: z.strictObject({ summary: markdown, successCriteria: criterionResults }).nullable().default(null)
+  epicOutcome: z.strictObject({ summary: markdown, successCriteria: criterionResults }).nullable().default(null),
+  // No default: a report saved before retros existed must parse and re-export byte for byte (a default of null
+  // would add the key to it and change the run history's tracked hash). The service reads an absent retro as null.
+  retro: retroContent.nullable().optional()
 })
 
 const reportRecord = z.strictObject({

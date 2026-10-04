@@ -130,6 +130,7 @@ async function finalReport(agent: Workspace, run: RunView, epicId: string) {
     sprintId: run.activeSprintId ?? '',
     report: {
       summary: 'Sprint verified.',
+      retro: { wentWell: ['The sprint squashed cleanly'] },
       epicOutcome: { summary: 'Delivered.', successCriteria: [{ criterionId: criterion?.id ?? '', met: true, note: 'squashed' }] }
     }
   })
@@ -343,7 +344,7 @@ describe('two sprints, each squashed onto the epic branch', () => {
     const nodeOne = await submitNode(scene(), { runId: run.id, nodeId: planned.nodes[0] }, first)
     expect(nodeOne.increment).toMatchObject({ passed: true, base: { kind: 'epic_start' } })
     await orchestrator.acceptAttempt({ attemptId: nodeOne.id })
-    const report = await orchestrator.submitSprintReport({ runId: run.id, sprintId: run.activeSprintId ?? '', report: { summary: 'Sprint 1 verified.' } })
+    const report = await orchestrator.submitSprintReport({ runId: run.id, sprintId: run.activeSprintId ?? '', report: { summary: 'Sprint 1 verified.', retro: { wentWell: ['The sprint squashed cleanly'] } } })
     expect((await desktop.approveAndAdvance({ runId: run.id, reportId: report.id })).activeSprintId).not.toBe(run.activeSprintId)
 
     await deliverWork(scene(), run.id, planned.work[1], 'dm-2')

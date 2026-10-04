@@ -59,6 +59,12 @@ const CASES: Case[] = [
     method: 'advanceSprint',
     input: { runId: RUN, idempotencyKey: 'adv-1' }
   },
+  {
+    tool: 'redraft_next_sprint',
+    args: { runId: RUN },
+    method: 'redraftNextSprint',
+    input: { runId: RUN }
+  },
   { tool: 'get_run_events', args: {}, method: 'listEvents', input: {} },
   {
     tool: 'get_run_events',
@@ -110,11 +116,48 @@ describe('submit_sprint_report defaults', () => {
   })
 })
 
+describe('submit_sprint_report retro', () => {
+  const RETRO = {
+    delivered: [{ ticket: 'DM-1', demo: 'Open the board', evidence: 'commit 3f9a0d1' }],
+    wentWell: ['Pairing'],
+    wentPoorly: ['A flaky pipeline'],
+    actions: ['Pin the runner'],
+    discoveries: [{ title: 'Cache it', body: 'Reloaded on every claim', ticket: 'DM-2' }],
+    leftovers: [{ ticket: 'DM-2', reason: 'Blocked' }],
+    tierFit: [{ ticket: 'DM-1', verdict: 'oversized', note: 'A small model would do' }]
+  }
+
+  it('passes a retro with every section on to the command as given', async () => {
+    const api = createCannedApi({ submitSprintReport: MARKER })
+    await inRig(api, async (rig) => {
+      const args = { runId: RUN, sprintId: SPRINT, report: { summary: 'ok', retro: RETRO } }
+      const outcome = await callTool(rig, 'submit_sprint_report', args)
+      expect(outcome.isError).toBe(false)
+      expect(api.calls).toEqual([{ name: 'submitSprintReport', input: args }])
+    })
+  })
+
+  it('fills a discovery body and a tier-fit note with empty text', async () => {
+    const api = createCannedApi({ submitSprintReport: MARKER })
+    await inRig(api, async (rig) => {
+      const retro = { discoveries: [{ title: 'Later' }], tierFit: [{ ticket: 'DM-1', verdict: 'right_sized' }] }
+      await callTool(rig, 'submit_sprint_report', { runId: RUN, sprintId: SPRINT, report: { summary: 'ok', retro } })
+      const sent = api.calls[0]?.input as { report: { retro: unknown } }
+      expect(sent.report.retro).toEqual({
+        discoveries: [{ title: 'Later', body: '' }],
+        tierFit: [{ ticket: 'DM-1', verdict: 'right_sized', note: '' }]
+      })
+    })
+  })
+})
+
 describe('checkpoint input validation', () => {
   it.each([
     ['a report without a summary', 'submit_sprint_report', { runId: RUN, sprintId: SPRINT, report: {} }],
     ['a report with an unknown field', 'submit_sprint_report', { runId: RUN, sprintId: SPRINT, report: { summary: 's', mood: 'good' } }],
     ['a report with an invalid check status', 'submit_sprint_report', { runId: RUN, sprintId: SPRINT, report: { summary: 's', checks: [{ name: 'x', status: 'meh' }] } }],
+    ['a retro with an unknown verdict', 'submit_sprint_report', { runId: RUN, sprintId: SPRINT, report: { summary: 's', retro: { tierFit: [{ ticket: 'DM-1', verdict: 'huge' }] } } }],
+    ['a retro with an unknown field', 'submit_sprint_report', { runId: RUN, sprintId: SPRINT, report: { summary: 's', retro: { mood: 'good' } } }],
     ['a report for a malformed sprint id', 'submit_sprint_report', { runId: RUN, sprintId: 's1', report: { summary: 's' } }],
     ['a report without a run id', 'submit_sprint_report', { sprintId: SPRINT, report: { summary: 's' } }],
     ['advance_sprint without a run id', 'advance_sprint', {}],
@@ -143,6 +186,36 @@ describe('checkpoint input validation', () => {
 })
 
 describe('checkpoint tool descriptions', () => {
+  it('tells the reporter about the retro and what it holds', async () => {
+    await inRig(createCannedApi({}), async (rig) => {
+      const { tools } = await rig.client.listTools()
+      const description = tools.find((tool) => tool.name === 'submit_sprint_report')?.description ?? ''
+      expect(description).toContain('retro')
+      for (const part of ['delivered', 'wentWell', 'wentPoorly', 'actions', 'discoveries', 'leftovers', 'tierFit']) {
+        expect(description).toContain(part)
+      }
+      expect(description).toMatch(/display key/)
+    })
+  })
+
+  it('lists the retro gate in the get_checkpoint conditions and says which sprints have it', async () => {
+    await inRig(createCannedApi({}), async (rig) => {
+      const { tools } = await rig.client.listTools()
+      const description = tools.find((tool) => tool.name === 'get_checkpoint')?.description ?? ''
+      expect(description).toContain('increment_merged, retro, exit_criteria')
+      expect(description).toMatch(/retro needs the sprint report to include a retro/)
+    })
+  })
+
+  it('says get_sprint_report adds tier facts computed from the attempts', async () => {
+    await inRig(createCannedApi({}), async (rig) => {
+      const { tools } = await rig.client.listTools()
+      const description = tools.find((tool) => tool.name === 'get_sprint_report')?.description ?? ''
+      expect(description).toContain('tierFacts')
+      expect(description).toMatch(/escalated/)
+    })
+  })
+
   it('lists the increment gate right after the acceptance gate and says what it needs', async () => {
     await inRig(createCannedApi({}), async (rig) => {
       const { tools } = await rig.client.listTools()

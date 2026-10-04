@@ -9,7 +9,7 @@
  * run, each dependency row carries its latest row check right of its cards.
  */
 import type { ChangeKind, CriterionResult, PlanView, RowView, RunView, TicketExecutionView } from '../../../shared/domain/views'
-import type { DependencyEdge, PlanBundle, SprintDef, TicketContent, TicketSize } from '../../../shared/domain/bundle'
+import type { DependencyEdge, PlanBundle, ReasoningEffort, SprintDef, TicketContent, TicketSize } from '../../../shared/domain/bundle'
 import { isActiveRunState, type WorkStatus } from '../../../shared/domain/status'
 import { implicitPrerequisitesOf, isAcceptanceTicket } from '../../../core/plan/acceptance'
 import { groupIntoRows } from '../../../core/plan/graph'
@@ -118,6 +118,8 @@ export interface TicketNodeModel extends Box {
   note: string | null
   /** The ticket's size for the card badge; null when the ticket has none. */
   size: TicketSize | null
+  /** The ticket's own reasoning effort, for the card badge beside the size; null when the ticket sets none. */
+  effort: ReasoningEffort | null
   /** A sprint's acceptance node, drawn apart from work tickets. */
   acceptance: boolean
 }
@@ -537,6 +539,7 @@ function ticketNode(context: Context, id: string, frame: Frame): TicketNodeModel
     dashed: badge.dashed,
     note: noteFor(context, id),
     size: content.size ?? null,
+    effort: content.capability.reasoning.effort ?? null,
     acceptance: isAcceptanceTicket(content),
     x: FIRST_COLUMN_X + placement.column * COLUMN_PITCH,
     y: frame.top + placement.row * ROW_PITCH,

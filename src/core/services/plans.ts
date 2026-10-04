@@ -12,6 +12,7 @@ import { assertEpicOpen, type EpicRow, loadEpicRow } from './epics'
 import { appendEvent } from './events'
 import { requestWithoutKey, withIdempotency } from './idempotency'
 import { enqueueOutbox } from './outbox'
+import { withRunWarnings } from './runWarnings'
 import { indexDocument } from './searchIndex'
 
 type RevisionState = 'pending' | 'saved' | 'failed'
@@ -92,6 +93,24 @@ export function loadDraftRow(ctx: Ctx, epicId: string): DraftRow | null {
   return ctx.db.get<DraftRow>('SELECT * FROM drafts WHERE epic_id = ?', epicId) ?? null
 }
 
+/**
+ * The revision of the epic's draft when it holds changes the current saved plan lacks; null when there is no
+ * draft or it equals the saved plan (Edit draft copies it, which is no change). Equal means what saving
+ * compares: the content hash, so a save of such a draft would be `unchanged`.
+ */
+export function changedDraftRevision(ctx: Ctx, epicId: string): number | null {
+  const row = ctx.db.get<{ draft_revision: number; bundle_json: string; saved_hash: string | null }>(
+    `SELECT d.draft_revision, d.bundle_json, p.content_hash AS saved_hash
+     FROM drafts d JOIN epics e ON e.id = d.epic_id LEFT JOIN plan_revisions p ON p.id = e.current_revision_id
+     WHERE d.epic_id = ?`,
+    epicId
+  )
+  if (row === undefined) {
+    return null
+  }
+  return contentHash(parseBundle(row.bundle_json)) === row.saved_hash ? null : row.draft_revision
+}
+
 /** Optimistic concurrency for drafts: a stale `expected` revision is a `conflict`. */
 export function assertDraftRevision(draft: DraftRow, expected: number | undefined): void {
   if (expected !== undefined && expected !== draft.draft_revision) {
@@ -101,7 +120,8 @@ export function assertDraftRevision(draft: DraftRow, expected: number | undefine
   }
 }
 
-function revisionNumberOf(ctx: Ctx, revisionId: string | null): number | null {
+/** The number of a revision, or null when there is no such revision. */
+export function revisionNumberOf(ctx: Ctx, revisionId: string | null): number | null {
   const row = ctx.db.get<{ number: number }>('SELECT number FROM plan_revisions WHERE id = ?', revisionId)
   return row?.number ?? null
 }
@@ -196,9 +216,12 @@ export function getPlan(
   return input.view === 'saved' ? savedView(ctx, epic, input.revisionId) : draftView(ctx, epic)
 }
 
+/** The plan's validation report; while a run executes the epic it also carries the run-aware warnings. */
 export function validatePlanView(ctx: Ctx, input: { epicId: string; view: 'saved' | 'draft' }): ValidationReport {
   requireCapability(ctx.session, 'read')
-  return validatePlan(readPlanBundle(ctx, loadEpicRow(ctx, input.epicId), input.view).bundle)
+  const epic = loadEpicRow(ctx, input.epicId)
+  const { bundle } = readPlanBundle(ctx, epic, input.view)
+  return withRunWarnings(ctx, epic.id, bundle, validatePlan(bundle))
 }
 
 function savableBundle(epic: EpicRow, draft: DraftRow): PlanBundle {

@@ -2,7 +2,7 @@ import { fail } from '../errors'
 import type { Db } from './database'
 
 /** Highest schema version this build understands. Newer databases are refused, never downgraded. */
-export const SCHEMA_VERSION = 6
+export const SCHEMA_VERSION = 7
 
 interface Migration {
   version: number
@@ -351,13 +351,25 @@ const V6 = `
 ALTER TABLE attempts ADD COLUMN increment_json TEXT;
 `
 
+/**
+ * v7 records, with each sprint report, the plan revision the run executed when it was submitted. A run that
+ * later adopts a revision changing the sprint beyond removing the retro's leftovers needs a new report revision
+ * before approval, and this is what that is measured against. It is a local fact like the approval grants, not
+ * exported: NULL for every report before this version and for reports imported from tracked records, and such a
+ * report is taken as current.
+ */
+const V7 = `
+ALTER TABLE sprint_reports ADD COLUMN revision_id TEXT;
+`
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, sql: V1 },
   { version: 2, sql: V2 },
   { version: 3, sql: V3 },
   { version: 4, sql: V4 },
   { version: 5, sql: V5 },
-  { version: 6, sql: V6 }
+  { version: 6, sql: V6 },
+  { version: 7, sql: V7 }
 ]
 
 export function readSchemaVersion(db: Db): number {

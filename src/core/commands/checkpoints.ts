@@ -1,5 +1,6 @@
 import { COMMAND_SCHEMAS } from '../commandSchemas'
 import type { Ctx } from '../context'
+import { approveWithRedraft } from '../services/approveRedraft'
 import {
   advanceSprint,
   approveAndAdvance,
@@ -9,6 +10,7 @@ import {
   grantRetry
 } from '../services/checkpoints'
 import { expireLeases } from '../services/execution'
+import { redraftNextSprint } from '../services/redraft'
 import { getSprintReport, submitSprintReport } from '../services/reports'
 import { requireRunView } from './execution'
 import type { CommandTable } from './types'
@@ -20,6 +22,11 @@ function swept(ctx: Ctx, runId: string): Ctx {
 }
 
 const checkpointCommands = {
+  redraftNextSprint: {
+    schema: COMMAND_SCHEMAS.redraftNextSprint,
+    mutates: true,
+    run: (core, input) => redraftNextSprint(core.ctx(), input)
+  },
   submitSprintReport: {
     schema: COMMAND_SCHEMAS.submitSprintReport,
     mutates: true,
@@ -54,6 +61,15 @@ const checkpointCommands = {
     run: (core, input) => {
       approveAndAdvance(swept(core.ctx(), input.runId), input)
       return requireRunView(core.ctx(), input.runId)
+    }
+  },
+  approveWithRedraft: {
+    schema: COMMAND_SCHEMAS.approveWithRedraft,
+    mutates: true,
+    run: (core, input) => {
+      // The flush completes the save (snapshot written, revision made current) before adoption reads it.
+      const outcome = approveWithRedraft(core.ctx(), input, () => core.safeFlush())
+      return { ...outcome, run: requireRunView(core.ctx(), input.runId) }
     }
   },
   authorizeAutoContinue: {

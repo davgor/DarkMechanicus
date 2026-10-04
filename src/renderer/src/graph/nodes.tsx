@@ -1,7 +1,7 @@
 import { Handle, Position, type NodeProps, type NodeTypes } from '@xyflow/react'
 import type { CSSProperties } from 'react'
 import type { DividerFlowNode, EpicFlowNode, JoinFlowNode, RowCheckFlowNode, SprintFlowNode, TicketFlowNode } from './flowElements'
-import type { RowCheckState } from './graphModel'
+import type { RowCheckState, TicketNodeModel } from './graphModel'
 import type { Tone } from './ticketStates'
 
 const DIVIDER_TONES: Record<'passed' | 'locked' | 'awaiting' | 'neutral', Tone> = {
@@ -34,13 +34,30 @@ function TicketNode({ data }: NodeProps<TicketFlowNode>): JSX.Element {
       <span className="pg-card-label">{card.label}</span>
       <span className="pg-card-title">{card.title}</span>
       {card.acceptance ? <span className="pg-kind">ACCEPTANCE</span> : null}
-      {card.size === null ? null : (
-        <span className={card.size === 'micro' ? 'pg-size is-micro' : 'pg-size'} title={`Size: ${card.size}`}>
-          {card.size}
-        </span>
-      )}
+      <TicketTags size={card.size} effort={card.effort} />
       <Handle type="source" position={Position.Bottom} isConnectable={data.editable} />
     </div>
+  )
+}
+
+/** The effort and size badges on a card's bottom edge: the effort beside the size, either one alone, none for neither. */
+function TicketTags({ size, effort }: Pick<TicketNodeModel, 'size' | 'effort'>): JSX.Element | null {
+  if (size === null && effort === null) {
+    return null
+  }
+  return (
+    <span className="pg-tags">
+      {effort === null ? null : (
+        <span className="pg-effort" title={`Effort: ${effort}`}>
+          {`${effort} effort`}
+        </span>
+      )}
+      {size === null ? null : (
+        <span className={size === 'micro' ? 'pg-size is-micro' : 'pg-size'} title={`Size: ${size}`}>
+          {size}
+        </span>
+      )}
+    </span>
   )
 }
 

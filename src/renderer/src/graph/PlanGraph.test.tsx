@@ -4,6 +4,7 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { installDomShims } from '../epic/__mocks__/domShims'
 import { bundle, draftPlan, edge, execution, rowCheck, rowView, runView, savedPlan, sprint, ticket } from '../epic/__mocks__/fixtures'
 import { allowSlowRendering } from '../epic/__mocks__/testTiming'
+import type { ReasoningEffort } from '../../../shared/domain/bundle'
 import { buildGraphModel, type GraphModel } from './graphModel'
 import { PlanGraph, type PlanGraphProps } from './PlanGraph'
 
@@ -352,8 +353,86 @@ describe('PlanGraph size badges', () => {
   it('keeps the badge out of the state label, so a long label is not cut for it', () => {
     const { container } = renderGraph('draft', sizedModel())
     const card = container.querySelector('[data-ticket="tk_202"]')
-    expect(badge(container, 'tk_202')?.parentElement).toBe(card)
+    expect(badge(container, 'tk_202')?.parentElement?.className).toBe('pg-tags')
+    expect(badge(container, 'tk_202')?.parentElement?.parentElement).toBe(card)
     expect(card?.querySelector('.pg-card-label')?.textContent).toMatch(/^DM-202 · /)
     expect(card?.querySelector('.pg-card-label')?.querySelector('.pg-size') ?? null).toBe(null)
+  })
+})
+
+/** The draft plan with sizes and efforts: DM-202 micro and low, DM-203 small and medium, DM-301 large with no effort, DM-201 an effort only. */
+function effortModel(): GraphModel {
+  const plan = draftPlan()
+  const sizes: Record<string, 'micro' | 'small' | 'large'> = { tk_202: 'micro', tk_203: 'small', tk_301: 'large' }
+  const efforts: Record<string, ReasoningEffort> = { tk_202: 'low', tk_203: 'medium', tk_201: 'high' }
+  const tickets = plan.bundle.tickets.map((item) => {
+    const effort = efforts[item.id]
+    const reasoning = effort === undefined ? item.capability.reasoning : { ...item.capability.reasoning, effort }
+    return { ...item, ...(sizes[item.id] === undefined ? {} : { size: sizes[item.id] }), capability: { ...item.capability, reasoning } }
+  })
+  return buildGraphModel({
+    plan: { ...plan, bundle: { ...plan.bundle, tickets } },
+    mode: 'draft',
+    run: null,
+    statuses: new Map(),
+    outcome: null,
+    rejected: { from: 'tk_301', to: 'tk_203' },
+    draftNumber: 5
+  })
+}
+
+function effortBadge(container: HTMLElement, ticketId: string): Element | null {
+  return container.querySelector(`[data-ticket="${ticketId}"] .pg-effort`)
+}
+
+describe('PlanGraph effort badges', () => {
+  it('shows the effort on each card that sets one and nothing on a card that sets none', () => {
+    const { container } = renderGraph('draft', effortModel())
+    expect(effortBadge(container, 'tk_202')?.textContent).toBe('low effort')
+    expect(effortBadge(container, 'tk_203')?.textContent).toBe('medium effort')
+    expect(effortBadge(container, 'tk_301')).toBe(null)
+    expect(badge(container, 'tk_301')?.textContent).toBe('large')
+  })
+
+  it('sits right beside the size badge, before it, in the one tag group on the card edge', () => {
+    const { container } = renderGraph('draft', effortModel())
+    const effort = effortBadge(container, 'tk_203')
+    const size = badge(container, 'tk_203')
+    expect(effort?.parentElement).toBe(size?.parentElement)
+    expect(effort?.parentElement?.className).toBe('pg-tags')
+    expect(effort?.nextElementSibling).toBe(size)
+    expect(effort?.parentElement?.parentElement).toBe(container.querySelector('[data-ticket="tk_203"]'))
+  })
+
+  it('names the effort for assistive technology the way the size is named', () => {
+    const { container } = renderGraph('draft', effortModel())
+    expect(effortBadge(container, 'tk_202')?.getAttribute('title')).toBe('Effort: low')
+    expect(effortBadge(container, 'tk_203')?.getAttribute('title')).toBe('Effort: medium')
+    expect(badge(container, 'tk_203')?.getAttribute('title')).toBe('Size: small')
+  })
+
+  it('leaves the micro badge filled and keeps the effort badge quiet', () => {
+    const { container } = renderGraph('draft', effortModel())
+    expect(badge(container, 'tk_202')?.className).toBe('pg-size is-micro')
+    expect(effortBadge(container, 'tk_202')?.className).toBe('pg-effort')
+  })
+
+  it('shows an effort on a ticket that has no size, and no size badge with it', () => {
+    const { container } = renderGraph('draft', effortModel())
+    expect(effortBadge(container, 'tk_201')?.textContent).toBe('high effort')
+    expect(badge(container, 'tk_201')).toBe(null)
+  })
+
+  it('draws no tag group for a ticket with neither a size nor an effort', () => {
+    const { container } = renderGraph('draft', effortModel())
+    expect(container.querySelector('[data-ticket="tk_204"] .pg-tags')).toBe(null)
+  })
+
+  it('keeps the rejection note and the badges together, and the badges out of the state label', () => {
+    const { container } = renderGraph('draft', effortModel())
+    const card = container.querySelector('[data-ticket="tk_203"]')
+    expect(card?.querySelector('.pg-note')?.textContent).toBe('Rejected: would require DM-301')
+    expect(card?.querySelector('.pg-effort')?.textContent).toBe('medium effort')
+    expect(card?.querySelector('.pg-card-label')?.querySelector('.pg-effort, .pg-tags') ?? null).toBe(null)
   })
 })

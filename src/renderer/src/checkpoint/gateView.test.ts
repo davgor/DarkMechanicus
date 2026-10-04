@@ -357,7 +357,8 @@ describe('follow-up proposals', () => {
     const proposal = { title: 'Provide a signing identity', body: 'Needs a person.' }
     expect(followUpOp(proposal, draftPlan().bundle, 2)).toEqual({
       sprintOrdinal: 3,
-      op: { op: 'add_ticket', sprint: 'sp_3', ticket: { title: 'Provide a signing identity', body: 'Needs a person.' } }
+      moved: [],
+      ops: [{ op: 'add_ticket', sprint: 'sp_3', ticket: { title: 'Provide a signing identity', body: 'Needs a person.' } }]
     })
     expect(followUpOp(proposal, draftPlan().bundle, 3)?.sprintOrdinal).toBe(3)
     const reversed = { ...draftPlan().bundle, sprints: [...draftPlan().bundle.sprints].reverse() }

@@ -88,7 +88,7 @@ function InlineView({ node }: { node: Inline }): JSX.Element {
   }
 }
 
-function SafeLink(props: { href: string; children: ReactNode }): JSX.Element {
+export function SafeLink(props: { href: string; children: ReactNode }): JSX.Element {
   const open = (event: MouseEvent<HTMLAnchorElement>): void => {
     event.preventDefault()
     void window.dm.openExternal(props.href)

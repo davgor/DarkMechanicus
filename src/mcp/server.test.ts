@@ -6,6 +6,7 @@ import { DOMAIN_ERROR_CODES } from '../shared/domain/errors'
 import type { CommandName } from '../shared/domain/api'
 import { ATTEMPT_STATES, RUN_STATES, TICKET_EXECUTION_STATES, WORK_STATUSES } from '../shared/domain/status'
 import { REASONING_LEVELS, RELATION_KINDS, TICKET_FAILURE_POLICIES, TOOL_CAPABILITIES, WORK_TYPES } from '../shared/domain/bundle'
+import { TIER_VERDICTS } from '../shared/domain/retro'
 import type { ProjectView } from '../shared/domain/views'
 import { callTool, sampleId, withRig } from '../test/mcpHarness'
 import { COMMAND_NAMES, createCannedApi, createStubApi } from '../test/stubApi'
@@ -74,6 +75,7 @@ const TOOLS: Record<string, { method: CommandName; kind: Kind }> = {
   takeover_run: { method: 'takeoverRun', kind: 'idempotent' },
   adopt_revision: { method: 'adoptRevision', kind: 'write' },
   submit_sprint_report: { method: 'submitSprintReport', kind: 'write' },
+  redraft_next_sprint: { method: 'redraftNextSprint', kind: 'idempotent' },
   get_sprint_report: { method: 'getSprintReport', kind: 'read' },
   get_checkpoint: { method: 'getCheckpoint', kind: 'read' },
   advance_sprint: { method: 'advanceSprint', kind: 'write' },
@@ -91,6 +93,7 @@ const HUMAN_ONLY: CommandName[] = [
   'queueRun',
   'approveCheckpoint',
   'approveAndAdvance',
+  'approveWithRedraft',
   'authorizeAutoContinue',
   'grantRetry',
   'backupDatabase',
@@ -126,7 +129,7 @@ describe('tool inventory', () => {
     await withRig(build, createStubApi(), async (rig) => {
       const { tools } = await rig.client.listTools()
       expect(tools.map((tool) => tool.name).sort()).toEqual(Object.keys(ORCHESTRATOR_TOOLS).sort())
-      expect(tools).toHaveLength(58)
+      expect(tools).toHaveLength(59)
     })
   })
 
@@ -299,8 +302,10 @@ const GATE_CONDITIONS = [
   'acceptance_accepted',
   'increment_merged',
   'definition_of_done',
+  'retro',
   'exit_criteria',
-  'epic_outcome'
+  'epic_outcome',
+  'plan_current'
 ]
 const BLOCKER_KINDS = ['retry_limit', 'run_state', 'row_check_failed']
 const DRAFT_OPS: string[] = draftOp.options.map((option) => option.shape.op.value)
@@ -316,6 +321,7 @@ const VOCABULARY = new Set<string>([
   ...WORK_TYPES,
   ...RELATION_KINDS,
   ...TICKET_FAILURE_POLICIES,
+  ...TIER_VERDICTS,
   ...GATE_CONDITIONS,
   ...BLOCKER_KINDS,
   ...DRAFT_OPS

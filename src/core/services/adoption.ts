@@ -14,6 +14,8 @@ interface AdoptionResult {
   kept: string[]
   /** Tickets whose accepted attempt was superseded: they need new work in this run. */
   superseded: string[]
+  /** Tickets that moved to a later sprint and started it with a fresh retry budget (their spent attempts were superseded). */
+  freshBudget: string[]
   activeSprintId: string
 }
 
@@ -106,6 +108,49 @@ function reconcileAcceptances(ctx: Ctx, input: Reconciliation): { kept: string[]
 }
 
 /**
+ * Attempts that used up a try without delivering: failed, rejected, or abandoned after an expired lease. An accepted
+ * attempt delivered, and a canceled one never counted, so neither is spent.
+ */
+const SPENT_ATTEMPT_SQL = "(state IN ('failed', 'rejected') OR (state = 'lease_expired' AND reconciled_at IS NOT NULL))"
+
+/**
+ * The tickets that sit in a later sprint of `target` than the sprint `current` had them in. A sprint is the same
+ * sprint under the same id, whatever its ordinal becomes, so renumbering moves nothing; a ticket whose old sprint
+ * is gone, or that is new, did not move.
+ */
+function ticketsMovedLater(current: PlanBundle, target: PlanBundle): string[] {
+  const before = indexBundle(current)
+  const after = indexBundle(target)
+  return target.tickets
+    .map((ticket) => ticket.id)
+    .filter((id) => {
+      const origin = after.sprints.get(before.sprintOf.get(id)?.id ?? '')
+      const now = after.sprintOf.get(id)
+      return origin !== undefined && now !== undefined && now.id !== origin.id && now.ordinal > origin.ordinal
+    })
+}
+
+/**
+ * A ticket that moved to a later sprint starts it with a fresh retry budget, so a leftover does not arrive at its
+ * limit: its failed, rejected and abandoned attempts are superseded, which keeps them in history but stops them
+ * counting. Accepted attempts are never touched here.
+ */
+function grantFreshBudgets(ctx: Ctx, input: Reconciliation): string[] {
+  const now = ctx.clock.nowIso()
+  return ticketsMovedLater(input.current, input.target).filter(
+    (ticketId) =>
+      ctx.db.run(
+        `UPDATE attempts SET superseded_at = ?, updated_at = ?
+         WHERE run_id = ? AND ticket_id = ? AND superseded_at IS NULL AND ${SPENT_ATTEMPT_SQL}`,
+        now,
+        now,
+        input.run.id,
+        ticketId
+      ).changes > 0
+  )
+}
+
+/**
  * Earlier sprints are closed for this run, so a changed ticket there could never be redone: refuse
  * unless the orchestrator explicitly carries its old acceptance forward.
  */
@@ -166,6 +211,7 @@ export function adoptRevision(
     const activeSprintId = chooseActiveSprint(run.active_sprint_id, current, target)
     assertNoClosedSprintRework(ctx, { run, current, target, carryForward, activeSprintId })
     const { kept, superseded } = reconcileAcceptances(ctx, { run, current, target, carryForward })
+    const freshBudget = grantFreshBudgets(ctx, { run, current, target, carryForward })
     ctx.db.run(
       'UPDATE runs SET revision_id = ?, active_sprint_id = ?, updated_at = ?, revision = revision + 1 WHERE id = ?',
       input.revisionId,
@@ -177,12 +223,12 @@ export function adoptRevision(
       kind: 'run.revision_adopted',
       epicId: run.epic_id,
       runId: run.id,
-      payload: { from: run.revision_id, to: input.revisionId, kept, superseded }
+      payload: { from: run.revision_id, to: input.revisionId, kept, superseded, freshBudget }
     })
     enqueueOutbox(ctx, { kind: 'run_history', epicId: run.epic_id, runId: run.id })
     if (superseded.length > 0) {
       enqueueOutbox(ctx, { kind: 'epic_state', epicId: run.epic_id })
     }
-    return { runId: run.id, kept, superseded, activeSprintId }
+    return { runId: run.id, kept, superseded, freshBudget, activeSprintId }
   })
 }

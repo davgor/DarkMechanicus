@@ -38,6 +38,7 @@ const ORCHESTRATOR: Capability[] = [
   'run.control',
   'run.takeover',
   'run.adopt',
+  'run.redraft',
   'run.row_check',
   'attempt.claim',
   'attempt.heartbeat',
@@ -74,6 +75,7 @@ const DESKTOP: Capability[] = [
   'run.control',
   'run.takeover',
   'run.adopt',
+  'run.redraft',
   'run.authorize_auto',
   'attempt.review',
   'attempt.reconcile',
@@ -108,8 +110,8 @@ function sessionWith(role: SessionRole, capabilities: Capability[]): SessionCont
 
 describe('capability vocabulary', () => {
   it('lists every capability exactly once', () => {
-    expect(CAPABILITIES).toHaveLength(35)
-    expect(new Set(CAPABILITIES).size).toBe(35)
+    expect(CAPABILITIES).toHaveLength(36)
+    expect(new Set(CAPABILITIES).size).toBe(36)
     expect(sorted(CAPABILITIES)).toEqual(sorted([...DESKTOP, ...AGENT_ONLY]))
   })
 
@@ -167,6 +169,14 @@ describe('desktop and human-only capabilities', () => {
 
   it.each(AGENT_ONLY)('keeps %s away from the desktop', (capability) => {
     expect(capabilitiesForRole('desktop')).not.toContain(capability)
+  })
+})
+
+describe('redrafting the next sprint from a retro', () => {
+  it('is held by the desktop and the orchestrator, and by no planner, worker or reviewer', () => {
+    const holders = ALL_ROLES.filter((role) => capabilitiesForRole(role, { allowSave: true }).includes('run.redraft'))
+    expect(holders).toEqual(['desktop', 'orchestrator'])
+    expect(HUMAN_ONLY_CAPABILITIES).not.toContain('run.redraft')
   })
 })
 

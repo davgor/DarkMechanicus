@@ -1,15 +1,19 @@
 import type { SprintReportInput } from '../../shared/domain/api'
 import type { PlanBundle, SprintDef } from '../../shared/domain/bundle'
 import type { RunState } from '../../shared/domain/status'
-import type { SprintReportContent, SprintReportView } from '../../shared/domain/views'
+import type { SprintReportContent, SprintReportView, WorkerInfo } from '../../shared/domain/views'
 import { requireCapability } from '../authz'
 import { contentHash } from '../canonical'
 import type { Ctx } from '../context'
-import { toJson } from '../db/database'
+import { parseJson, toJson } from '../db/database'
 import { fail } from '../errors'
+import { indexBundle, ticketLabel } from '../plan/graph'
+import { normalizeRetro, retroSearchParts } from '../plan/retro'
+import { computeTierFacts, type TierFactsAttempt } from '../plan/tierFacts'
+import { type AttemptRow, loadHostCatalog, requireRun } from './execution'
 import { appendEvent } from './events'
 import { requestWithoutKey, withIdempotency } from './idempotency'
-import { sprintIncrementOf } from './increments'
+import { sprintIncrementViews } from './increments'
 import { enqueueOutbox } from './outbox'
 import { indexDocument } from './searchIndex'
 
@@ -73,17 +77,47 @@ export function setRunState(ctx: Ctx, runId: string, state: RunState): void {
   )
 }
 
-/** A report as read: its stored content, plus the increment its sprint's acceptance node named (not part of the content hash). */
+/** What the content of a stored report may lack: a report saved before retros has no `retro` key. */
+type StoredReportContent = Omit<SprintReportContent, 'retro'> & { retro?: SprintReportContent['retro'] }
+
+/** The attempt columns tier facts read; a worker saved before efforts existed has no `effort`. */
+function factAttempt(row: AttemptRow): TierFactsAttempt {
+  const worker = parseJson<Partial<WorkerInfo>>(row.worker_json, {})
+  return {
+    id: row.id,
+    ticketId: row.ticket_id,
+    number: row.number,
+    kind: row.kind,
+    state: row.state,
+    worker: { label: worker.label ?? '', modelId: worker.modelId ?? null, effort: worker.effort ?? null }
+  }
+}
+
+/**
+ * A report as read: its stored content (a report saved before retros reads with `retro: null`), plus what is
+ * computed from the run each time it is read and is not part of the content hash: the increment its sprint's
+ * acceptance node named, and the tier facts of the sprint's tickets.
+ */
 function reportView(ctx: Ctx, row: ReportRow): SprintReportView {
-  const increment = sprintIncrementOf(ctx, row.run_id, row.sprint_id)
+  const run = requireRun(ctx, row.run_id)
+  const bundle = loadBundle(ctx, run.revision_id)
+  const attempts = ctx.db.all<AttemptRow>('SELECT * FROM attempts WHERE run_id = ? ORDER BY rowid', run.id)
+  const increment = sprintIncrementViews(bundle, attempts).find((view) => view.sprintId === row.sprint_id)
+  const stored = JSON.parse(row.content_json) as StoredReportContent
   return {
     id: row.id,
     runId: row.run_id,
     sprintId: row.sprint_id,
     reportRevision: row.report_revision,
     contentHash: row.content_hash,
-    report: JSON.parse(row.content_json) as SprintReportContent,
+    report: { ...stored, retro: stored.retro ?? null },
     ...(increment === undefined ? {} : { increment }),
+    tierFacts: computeTierFacts({
+      bundle,
+      sprintId: row.sprint_id,
+      attempts: attempts.map(factAttempt),
+      catalog: loadHostCatalog(ctx, run.host_catalog_id)?.catalog ?? null
+    }),
     submittedBy: row.submitted_by,
     createdAt: row.created_at
   }
@@ -104,7 +138,7 @@ function listOr<T>(items: T[] | undefined): T[] {
   return items ?? []
 }
 
-function normalizeReport(input: SprintReportInput): SprintReportContent {
+function normalizeReport(input: SprintReportInput, bundle: PlanBundle): SprintReportContent {
   return {
     summary: input.summary,
     accepted: listOr(input.accepted),
@@ -115,7 +149,8 @@ function normalizeReport(input: SprintReportInput): SprintReportContent {
     risks: listOr(input.risks),
     followUps: listOr(input.followUps),
     exitCriteria: listOr(input.exitCriteria),
-    epicOutcome: input.epicOutcome ?? null
+    epicOutcome: input.epicOutcome ?? null,
+    retro: input.retro == null ? null : normalizeRetro(input.retro, bundle)
   }
 }
 
@@ -162,8 +197,8 @@ function insertReport(ctx: Ctx, run: RunRow, sprintId: string, content: SprintRe
   }
   ctx.db.run(
     `INSERT INTO sprint_reports
-       (id, run_id, sprint_id, report_revision, content_json, content_hash, submitted_by, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, run_id, sprint_id, report_revision, content_json, content_hash, submitted_by, created_at, revision_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     row.id,
     row.run_id,
     row.sprint_id,
@@ -171,25 +206,45 @@ function insertReport(ctx: Ctx, run: RunRow, sprintId: string, content: SprintRe
     row.content_json,
     row.content_hash,
     row.submitted_by,
-    row.created_at
+    row.created_at,
+    run.revision_id
   )
   return reportView(ctx, row)
 }
 
-function searchBody(report: SprintReportContent): string {
+/**
+ * The plan revision the run executed when the report was submitted; null for a report stored before reports
+ * recorded it, or imported from tracked records (the column is local, like approval grants).
+ */
+export function reportPlanRevision(ctx: Ctx, reportId: string): string | null {
+  const row = ctx.db.get<{ revision_id: string | null }>('SELECT revision_id FROM sprint_reports WHERE id = ?', reportId)
+  return row?.revision_id ?? null
+}
+
+function searchBody(report: SprintReportContent, keyOf: (ticketId: string) => string): string {
   return [
     report.summary,
     ...report.risks,
     ...report.followUps.flatMap((followUp) => [followUp.title, followUp.body]),
     ...report.checks.flatMap((check) => [check.name, check.detail]),
-    report.epicOutcome?.summary ?? ''
+    report.epicOutcome?.summary ?? '',
+    ...(report.retro === null ? [] : retroSearchParts(report.retro, keyOf))
   ]
     .filter((part) => part !== '')
     .join('\n')
 }
 
+interface IndexedReport {
+  run: RunRow
+  sprint: SprintDef
+  bundle: PlanBundle
+  view: SprintReportView
+}
+
 /** One search document per sprint report: earlier revisions of the same sprint are replaced. */
-function indexReport(ctx: Ctx, run: RunRow, sprint: SprintDef, view: SprintReportView): void {
+function indexReport(ctx: Ctx, indexed: IndexedReport): void {
+  const { run, sprint, view } = indexed
+  const index = indexBundle(indexed.bundle)
   ctx.db.run(
     `DELETE FROM search_index WHERE doc_type = 'report'
      AND doc_id IN (SELECT id FROM sprint_reports WHERE run_id = ? AND sprint_id = ?)`,
@@ -203,7 +258,7 @@ function indexReport(ctx: Ctx, run: RunRow, sprint: SprintDef, view: SprintRepor
     runId: run.id,
     ticketId: null,
     title: `Sprint ${sprint.ordinal} report`,
-    body: searchBody(view.report)
+    body: searchBody(view.report, (ticketId) => ticketLabel(index, ticketId))
   })
 }
 
@@ -225,8 +280,9 @@ export function submitSprintReport(ctx: Ctx, input: SubmitSprintReportInput): Sp
     const run = loadRun(ctx, input.runId)
     requireOwnedRun(ctx, run)
     requireReportable(run)
-    const sprint = requireActiveSprint(run, loadBundle(ctx, run.revision_id), input.sprintId)
-    const view = insertReport(ctx, run, sprint.id, normalizeReport(input.report))
+    const bundle = loadBundle(ctx, run.revision_id)
+    const sprint = requireActiveSprint(run, bundle, input.sprintId)
+    const view = insertReport(ctx, run, sprint.id, normalizeReport(input.report, bundle))
     if (run.state === 'running') {
       setRunState(ctx, run.id, 'awaiting_checkpoint')
     }
@@ -237,7 +293,7 @@ export function submitSprintReport(ctx: Ctx, input: SubmitSprintReportInput): Sp
       payload: { sprintId: sprint.id, reportRevision: view.reportRevision }
     })
     enqueueOutbox(ctx, { kind: 'run_history', epicId: run.epic_id, runId: run.id })
-    indexReport(ctx, run, sprint, view)
+    indexReport(ctx, { run, sprint, bundle, view })
     return view
   })
 }

@@ -11,6 +11,16 @@ describe('failureOf', () => {
     expect(failureOf(new Error('boom'))).toEqual({ code: null, message: 'boom' })
     expect(failureOf('plain')).toEqual({ code: null, message: 'plain' })
   })
+
+  it('keeps the details a command error carries, and has none when it carries none', () => {
+    const details = { step: 'adopt', stepNumber: 2, adoptionNeeded: true }
+    expect(failureOf(new CommandError({ code: 'conflict', message: 'Stopped.', details }))).toEqual({
+      code: 'conflict',
+      message: 'Stopped.',
+      details
+    })
+    expect(failureOf(new CommandError({ code: 'conflict', message: 'Stopped.' }))).not.toHaveProperty('details')
+  })
 })
 
 describe('splitLead', () => {

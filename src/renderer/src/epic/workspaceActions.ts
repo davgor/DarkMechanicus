@@ -6,8 +6,11 @@
  */
 import { acceptanceTitle } from '../../../core/plan/acceptance'
 import type { DraftOp } from '../../../shared/domain/api'
-import type { DraftUpdateResultView, FollowUpProposal, PlanView, RunView } from '../../../shared/domain/views'
-import { followUpOp } from '../checkpoint/gateView'
+import type { PlanBundle } from '../../../shared/domain/bundle'
+import type { ApproveWithRedraftResultView, DraftUpdateResultView, PlanView, RunView } from '../../../shared/domain/views'
+import { followUpOp, type NextSprintItem } from '../checkpoint/gateView'
+import type { NextSprintPlan } from '../checkpoint/nextSprint'
+import { redraftRefusal, type RedraftRefusal } from '../checkpoint/redraftView'
 import { dropTarget, type GraphModel } from '../graph/graphModel'
 import { failureOf, type Failure, type Runner } from './runner'
 import { saveOutcome } from './validationView'
@@ -50,9 +53,15 @@ export interface WorkspaceActions {
   addAcceptance(sprintId: string): Promise<void>
   addSprint(): Promise<void>
   approve(reportId: string): Promise<void>
+  /**
+   * Saves the draft, adopts it into the run and approves the report in one step. Resolves with what refused it
+   * (the step it stopped at and whether adoption is still needed), or null once it went through.
+   */
+  approveWithRedraft(reportId: string, expectedDraftRevision: number): Promise<RedraftRefusal | null>
   retry(ticketId: string): Promise<void>
   setAutoContinue(enabled: boolean): Promise<void>
-  addFollowUp(proposal: FollowUpProposal, checkpointOrdinal: number): Promise<boolean>
+  /** Puts a report follow-up, a retro discovery or a retro leftover into the draft's next sprint; resolves with whether that worked. */
+  addFollowUp(item: NextSprintItem, checkpointOrdinal: number): Promise<boolean>
   review(input: ReviewInput): Promise<string | null>
 }
 
@@ -114,6 +123,15 @@ function approvalToast(run: RunView): string {
   return run.state === 'completed'
     ? 'Checkpoint approved — the epic is complete.'
     : `Checkpoint approved — Sprint ${run.activeSprintOrdinal ?? ''} started.`
+}
+
+/** "Retro and redraft approved — rev 5 adopted, Sprint 3 started." */
+function redraftToast(result: ApproveWithRedraftResultView): string {
+  if (result.advance.outcome === 'completed') {
+    return 'Retro and redraft approved — the epic is complete.'
+  }
+  const adopted = result.adoption === null ? '' : ` rev ${result.save.revisionNumber} adopted,`
+  return `Retro and redraft approved —${adopted} Sprint ${result.run.activeSprintOrdinal ?? ''} started.`
 }
 
 function draftActions(deps: ActionDeps): Pick<WorkspaceActions, 'editDraft' | 'discardDraft' | 'saveDraft'> {
@@ -227,7 +245,29 @@ function graphActions(
   }
 }
 
-function checkpointActions(deps: ActionDeps): Pick<WorkspaceActions, 'approve' | 'retry' | 'setAutoContinue'> {
+/** The approval of the retro and the redraft; resolves with what refused it, or null once it went through. */
+async function approveWithRedraft(deps: ActionDeps, reportId: string, expectedDraftRevision: number): Promise<RedraftRefusal | null> {
+  const run = currentRun(deps)
+  if (run === null) {
+    return null
+  }
+  const input = { runId: run.id, expectedDraftRevision, reportId }
+  const result = await perform(deps, () => deps.runner('approveWithRedraft', input))
+  if (!result.ok) {
+    // The screen shows the refusal beside the approval, with its step, so it is not also a banner.
+    return redraftRefusal(result.failure)
+  }
+  // As with a plain approval, the final one keeps the view open: it shows the completed epic's overview.
+  if (result.value.advance.outcome !== 'completed') {
+    deps.dispatch({ type: 'close_checkpoint' })
+  }
+  deps.dispatch({ type: 'toast', text: redraftToast(result.value) })
+  return null
+}
+
+function checkpointActions(
+  deps: ActionDeps
+): Pick<WorkspaceActions, 'approve' | 'approveWithRedraft' | 'retry' | 'setAutoContinue'> {
   return {
     async approve(reportId) {
       const run = currentRun(deps)
@@ -241,6 +281,7 @@ function checkpointActions(deps: ActionDeps): Pick<WorkspaceActions, 'approve' |
       }
       feedback(deps, result, result.ok ? approvalToast(result.value) : '')
     },
+    approveWithRedraft: (reportId, expectedDraftRevision) => approveWithRedraft(deps, reportId, expectedDraftRevision),
     async retry(ticketId) {
       const run = currentRun(deps)
       if (run === null) {
@@ -273,17 +314,51 @@ async function ensureDraft(deps: ActionDeps): Promise<PlanView | null> {
   return result.value
 }
 
-async function addFollowUp(deps: ActionDeps, proposal: FollowUpProposal, checkpointOrdinal: number): Promise<boolean> {
+const NOT_PLACED = 'Could not place that in the draft: the ticket or the sprint it goes to is not in the draft.'
+
+/** "DM-203, DM-204 and DM-205". */
+function listed(keys: string[]): string {
+  const last = keys.at(-1) ?? ''
+  return keys.length < 2 ? last : `${keys.slice(0, -1).join(', ')} and ${last}`
+}
+
+/** What a checkpoint item did to the draft, or that the draft already had it. */
+function nextSprintToast(item: NextSprintItem, plan: NextSprintPlan, draft: PlanBundle): string {
+  const where = `Sprint ${plan.sprintOrdinal} of the draft`
+  if (item.kind === 'leftover') {
+    const key = draft.tickets.find((entry) => entry.id === item.ticketId)?.key ?? item.ticketId
+    const [first = key, ...along] = plan.moved
+    return plan.ops.length === 0
+      ? `${key} is already in ${where}.`
+      : `Moved ${first}${along.length === 0 ? '' : ` with ${listed(along)}`} to ${where}.`
+  }
+  if (plan.ops.length === 0) {
+    return `"${item.title}" is already in ${where}.`
+  }
+  const added = plan.ops.some((op) => op.op === 'add_sprint') ? ' (a sprint added for it)' : ''
+  return `Added "${item.title}" to ${where}${added}.`
+}
+
+async function addFollowUp(deps: ActionDeps, item: NextSprintItem, checkpointOrdinal: number): Promise<boolean> {
   const draft = await ensureDraft(deps)
-  const planned = draft === null ? null : followUpOp(proposal, draft.bundle, checkpointOrdinal)
-  if (draft === null || planned === null) {
+  if (draft === null) {
     return false
+  }
+  const planned = followUpOp(item, draft.bundle, checkpointOrdinal)
+  if (planned === null) {
+    deps.dispatch({ type: 'banner', text: NOT_PLACED })
+    return false
+  }
+  const toast = nextSprintToast(item, planned, draft.bundle)
+  if (planned.ops.length === 0) {
+    deps.dispatch({ type: 'toast', text: toast })
+    return true
   }
   const expected = draft.draftRevision ?? undefined
   const result = await perform(deps, () =>
-    deps.runner('updatePlanDraft', { epicId: deps.epicId, ops: [planned.op], expectedDraftRevision: expected })
+    deps.runner('updatePlanDraft', { epicId: deps.epicId, ops: planned.ops, expectedDraftRevision: expected })
   )
-  feedback(deps, result, `Added "${proposal.title}" to Sprint ${planned.sprintOrdinal} of the draft.`)
+  feedback(deps, result, toast)
   return result.ok
 }
 

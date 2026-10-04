@@ -10,6 +10,7 @@ import {
   isActiveRunState,
   isLeasedAttemptState,
   OPEN_ATTEMPT_STATES,
+  ORCHESTRATOR_FALLBACK_LABEL,
   type TicketExecutionState
 } from '../../shared/domain/status'
 import type {
@@ -192,8 +193,6 @@ function runCatalog(ctx: Ctx, run: RunRow): HostCatalog | null {
   return run.host_catalog_id === null ? null : (loadHostCatalog(ctx, run.host_catalog_id)?.catalog ?? null)
 }
 
-const FALLBACK_LABEL = 'Orchestrator (fallback)'
-
 /**
  * Why the model named on a claim cannot take the ticket on the run's host catalog, or null when it
  * can (or when there is no model or catalog to check against). A claim is never refused for this:
@@ -217,7 +216,7 @@ function fallbackWorker(ctx: Ctx, input: ClaimTicketInput['worker'], catalog: Ho
   const rationale = `${input.label} on "${why.fallback.requestedModelId}" could not take ${why.ticketKey}: ${why.fallback.reasons.join(' ')} The orchestrator collected it.${requested}`
   return {
     sessionId: ctx.session.id,
-    label: FALLBACK_LABEL,
+    label: ORCHESTRATOR_FALLBACK_LABEL,
     modelId: null,
     hostId: input.hostId ?? catalog?.hostId ?? null,
     catalogRevision: input.catalogRevision ?? catalog?.catalogRevision ?? null,

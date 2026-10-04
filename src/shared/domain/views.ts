@@ -13,6 +13,7 @@ import type {
   TicketKind,
   TicketSize
 } from './bundle'
+import type { SprintRetro, TicketTierFacts } from './retro'
 import type {
   AttemptKind,
   AttemptState,
@@ -448,6 +449,8 @@ export interface SprintReportContent {
   followUps: FollowUpProposal[]
   exitCriteria: CriterionResult[]
   epicOutcome: { summary: string; successCriteria: CriterionResult[] } | null
+  /** The sprint review and retrospective; null for a report written without one, and for every report saved before retros existed. */
+  retro: SprintRetro | null
 }
 
 export interface SprintReportView {
@@ -463,6 +466,11 @@ export interface SprintReportView {
    * acceptance node named no increment.
    */
   increment?: SprintIncrementView
+  /**
+   * What each ticket of the sprint was planned at and what it took, computed from the run's attempts when
+   * the report is read (not written by the reporter, not part of `report` or `contentHash`).
+   */
+  tierFacts: TicketTierFacts[]
   submittedBy: string | null
   createdAt: string
 }
@@ -474,8 +482,10 @@ export type GateConditionId =
   | 'acceptance_accepted'
   | 'increment_merged'
   | 'definition_of_done'
+  | 'retro'
   | 'exit_criteria'
   | 'epic_outcome'
+  | 'plan_current'
   | 'approval'
 
 export interface GateCondition {
@@ -607,6 +617,24 @@ export interface ApprovalView {
   sprintId: string
   reportId: string
   issuedAt: string
+}
+
+/**
+ * The steps of approving the retro and the redraft together, in order. A refusal names its step in the error's
+ * `details.step` (with `stepNumber`, `savedRevisionId`, `savedRevisionNumber` and `adoptionNeeded`).
+ */
+export type ApproveWithRedraftStep = 'save' | 'adopt' | 'recompute' | 'approve' | 'advance'
+
+/** What approving the retro and the redraft in one step did, step by step, and the run it left. */
+export interface ApproveWithRedraftResultView {
+  /** `unchanged` when the draft matched the saved plan, so no new revision was written. */
+  save: { status: 'saved' | 'unchanged'; revisionId: string; revisionNumber: number }
+  /** Null when the run already executed the saved plan, so there was nothing to adopt. */
+  adoption: { revisionId: string; kept: string[]; superseded: string[]; freshBudget: string[] } | null
+  /** The grant, bound to the adopted revision and the approved report, and consumed by the advance. */
+  approval: ApprovalView
+  advance: { outcome: 'advanced' | 'completed'; activeSprintId: string | null }
+  run: RunView
 }
 
 export interface EventView {
@@ -806,6 +834,85 @@ export interface DraftUpdateResultView {
   epicId: string
   draftRevision: number
   refMap: Record<string, string>
+  validation: ValidationReport
+}
+
+/** A retro leftover the redraft moved to the next sprint. The reason is the retro's. */
+export interface RedraftMovedView {
+  ticketId: string
+  key: string
+  title: string
+  reason: string
+}
+
+/** A ticket that moved along with a leftover because it requires it. `requires` is the display key of the moved ticket it needs. */
+export interface RedraftDependentView {
+  ticketId: string
+  key: string
+  title: string
+  requires: string
+}
+
+/** A retro discovery the redraft added to the next sprint, unsized. `source` is the display key of the ticket it came up on, or null. */
+export interface RedraftAddedView {
+  ticketId: string
+  key: string
+  title: string
+  source: string | null
+}
+
+/** Why a retro entry was left alone: see `RedraftSkippedView`. */
+export type RedraftSkipCode =
+  | 'acceptance_node'
+  | 'not_in_active_sprint'
+  | 'already_in_next_sprint'
+  | 'not_in_draft'
+  | 'already_accepted'
+  | 'already_drafted'
+  | 'blank_title'
+
+/**
+ * A retro entry the redraft left alone, and why. `label` is the ticket's display key (its id when no plan knows
+ * a key) for a leftover, and the title for a discovery.
+ */
+export interface RedraftSkippedView {
+  kind: 'leftover' | 'discovery'
+  ticketId: string | null
+  label: string
+  code: RedraftSkipCode
+  message: string
+}
+
+/** What a redraft did to the draft, or would have done: the same shape for a first pass and a repeat. */
+export interface RedraftChangesView {
+  /** The retro's sprint, which the leftovers leave: the run's active sprint, with its ordinal in the draft. */
+  sprintId: string
+  sprintOrdinal: number
+  /** The sprint after it in the draft, which now holds what moved and what was added; null when there is none and nothing needed one. */
+  nextSprintId: string | null
+  nextSprintOrdinal: number | null
+  /** True when the redraft added that sprint, because the active sprint was the last one. */
+  sprintAdded: boolean
+  /** Leftovers moved, in the retro's order. */
+  moved: RedraftMovedView[]
+  /** Tickets that moved along with a leftover, in the order of the sprint they left. */
+  dependentsMoved: RedraftDependentView[]
+  /** Discoveries added as tickets, in the retro's order. */
+  added: RedraftAddedView[]
+  skipped: RedraftSkippedView[]
+  /** Dependencies the move removed, in the shape of plan edges (`to` requires `from`): a moved ticket the active sprint's acceptance node required explicitly. */
+  droppedDependencies: { from: string; to: string }[]
+}
+
+export interface RedraftResultView extends RedraftChangesView {
+  epicId: string
+  runId: string
+  /** The report whose retro drove the redraft: the latest revision for the active sprint. */
+  reportId: string
+  reportRevision: number
+  /** False when the draft was left as it was: a repeat, or a retro with nothing to move or add. */
+  changed: boolean
+  draftRevision: number
   validation: ValidationReport
 }
 

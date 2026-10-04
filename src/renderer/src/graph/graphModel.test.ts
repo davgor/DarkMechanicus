@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { PlanBundle } from '../../../shared/domain/bundle'
+import { defaultCapabilityProfile, type PlanBundle, type ReasoningEffort, type TicketContent } from '../../../shared/domain/bundle'
 import type { RunView } from '../../../shared/domain/views'
 import {
   bundle,
@@ -589,6 +589,57 @@ describe('size on ticket nodes', () => {
       size: 'large',
       note: 'Rejected as prerequisite of DM-203'
     })
+  })
+})
+
+/** A ticket whose capability profile sets (or, with null, leaves out) its reasoning effort. */
+function withEffort(key: string, title: string, effort: ReasoningEffort | null, patch: Partial<TicketContent> = {}): TicketContent {
+  const base = defaultCapabilityProfile()
+  const reasoning = effort === null ? base.reasoning : { ...base.reasoning, effort }
+  return ticket(key, title, { capability: { ...base, reasoning }, ...patch })
+}
+
+describe('effort on ticket nodes', () => {
+  const efforts = (): GraphModel => {
+    const tickets = [
+      withEffort('DM-1', 'quick', 'low', { size: 'small' }),
+      withEffort('DM-2', 'careful', 'high', { size: 'large' }),
+      withEffort('DM-3', 'effort only', 'medium'),
+      ticket('DM-4', 'size only', { size: 'micro' }),
+      ticket('DM-5', 'plain')
+    ]
+    return buildGraphModel(withSprints([sprint(1, 'Test', ['tk_1', 'tk_2', 'tk_3', 'tk_4', 'tk_5'])], [], tickets))
+  }
+
+  it('carries the ticket reasoning effort in its own field, beside the size and apart from the note', () => {
+    const model = efforts()
+    expect(ticketNodeOf(model, 'tk_1')).toMatchObject({ effort: 'low', size: 'small', note: null })
+    expect(ticketNodeOf(model, 'tk_2')).toMatchObject({ effort: 'high', size: 'large', note: null })
+  })
+
+  it('carries an effort for a ticket that has no size, and a size for one that has no effort', () => {
+    const model = efforts()
+    expect(ticketNodeOf(model, 'tk_3')).toMatchObject({ effort: 'medium', size: null })
+    expect(ticketNodeOf(model, 'tk_4')).toMatchObject({ effort: null, size: 'micro' })
+  })
+
+  it('carries a null effort for a ticket that sets none', () => {
+    expect(ticketNodeOf(efforts(), 'tk_5')).toMatchObject({ effort: null, size: null, note: null })
+    expect(ticketNodeOf(buildGraphModel(input()), 'tk_101').effort).toBe(null)
+  })
+
+  it('keeps the rejection notes of tickets with an effort beside their efforts', () => {
+    const plan = draftPlan()
+    const efforts: Record<string, ReasoningEffort> = { tk_203: 'low', tk_301: 'high' }
+    const tickets = plan.bundle.tickets.map((item) => {
+      const effort = efforts[item.id]
+      return effort === undefined ? item : { ...item, capability: { ...item.capability, reasoning: { ...item.capability.reasoning, effort } } }
+    })
+    const rejected = buildGraphModel(
+      input({ mode: 'draft', plan: { ...plan, bundle: { ...plan.bundle, tickets } }, rejected: { from: 'tk_301', to: 'tk_203' } })
+    )
+    expect(ticketNodeOf(rejected, 'tk_203')).toMatchObject({ effort: 'low', note: 'Rejected: would require DM-301' })
+    expect(ticketNodeOf(rejected, 'tk_301')).toMatchObject({ effort: 'high', note: 'Rejected as prerequisite of DM-203' })
   })
 })
 

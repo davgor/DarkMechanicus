@@ -457,6 +457,46 @@ describe('run history consistency', () => {
   })
 })
 
+describe('a report in run history: its retro', () => {
+  const RETRO = {
+    delivered: [{ ticket: tid(1), demo: 'Open the board', evidence: 'shots/board.png' }],
+    wentWell: ['Pairing'],
+    wentPoorly: ['A flaky pipeline'],
+    actions: ['Pin the runner'],
+    discoveries: [{ title: 'Cache it', body: 'Reloaded on every claim', ticket: tid(2) }, { title: 'No ticket', body: '', ticket: null }],
+    leftovers: [{ ticket: tid(3), reason: 'Blocked' }],
+    tierFit: [{ ticket: tid(1), verdict: 'undersized', note: 'Rejected twice' }]
+  }
+
+  function contentOf(content: unknown): Record<string, unknown> | undefined {
+    const record = { ...(report(1, 1) as object), content }
+    const result = runHistoryRecord.safeParse(runRecord([], [record]))
+    return result.success ? (result.data.reports[0]?.content as Record<string, unknown>) : undefined
+  }
+
+  it('keeps a retro, or a null one, exactly as it was written', () => {
+    expect(contentOf({ summary: 's', retro: RETRO })?.['retro']).toEqual(RETRO)
+    expect(contentOf({ summary: 's', retro: null })?.['retro']).toBeNull()
+  })
+
+  it('adds no retro to a report written without one, so such a record re-serializes unchanged', () => {
+    const content = contentOf({ summary: 's' })
+    expect(content).toBeDefined()
+    expect(Object.keys(content ?? {})).not.toContain('retro')
+    expect(prettyJson(content)).not.toContain('retro')
+  })
+
+  it.each([
+    ['an unknown verdict', { ...RETRO, tierFit: [{ ticket: tid(1), verdict: 'huge', note: '' }] }],
+    ['a ticket that is not a ticket id', { ...RETRO, leftovers: [{ ticket: 'DM-3', reason: '' }] }],
+    ['a missing list', { ...RETRO, actions: undefined }],
+    ['an extra key', { ...RETRO, mood: 'good' }],
+    ['an extra key in a discovery', { ...RETRO, discoveries: [{ title: 't', body: '', ticket: null, extra: 1 }] }]
+  ])('rejects a retro with %s', (_label, retro) => {
+    expect(contentOf({ summary: 's', retro })).toBeUndefined()
+  })
+})
+
 describe('tracked hashes', () => {
   it('hash the exact texts, ignoring only CRLF line endings', () => {
     const pointer = '{\n  "a": 1\n}\n'

@@ -942,6 +942,63 @@ describe('sprintReportInput', () => {
   })
 })
 
+const FULL_RETRO = {
+  delivered: [{ ticket: 'DM-1', demo: 'Open the board', evidence: 'shots/board.png' }],
+  wentWell: ['Pairing'],
+  wentPoorly: ['A flaky pipeline'],
+  actions: ['Pin the runner'],
+  discoveries: [{ title: 'Cache it', body: 'Reloaded on every claim', ticket: 'DM-2' }],
+  leftovers: [{ ticket: 'tk_00000000000000000000000001', reason: 'Blocked' }],
+  tierFit: [{ ticket: 'DM-1', verdict: 'oversized', note: 'A small model would do' }]
+}
+
+describe('sprintReportInput: retro', () => {
+  it('leaves the retro absent unless it is given, and accepts a null one', () => {
+    expect(Object.keys(sprintReportInput.parse({ summary: 's' }))).not.toContain('retro')
+    expect(sprintReportInput.parse({ summary: 's', retro: null }).retro).toBeNull()
+  })
+
+  it('accepts a retro with every section, ticket references by key or id, and keeps it as written', () => {
+    expect(sprintReportInput.parse({ summary: 's', retro: FULL_RETRO }).retro).toEqual(FULL_RETRO)
+  })
+
+  it('accepts a retro with only some sections, and an empty one', () => {
+    expect(sprintReportInput.parse({ summary: 's', retro: { wentWell: ['Fine'] } }).retro).toEqual({ wentWell: ['Fine'] })
+    expect(sprintReportInput.parse({ summary: 's', retro: {} }).retro).toEqual({})
+  })
+
+  it('defaults a discovery body and a tier-fit note to an empty string, and a discovery needs no ticket', () => {
+    const retro = sprintReportInput.parse({
+      summary: 's',
+      retro: { discoveries: [{ title: 't' }], tierFit: [{ ticket: 'DM-1', verdict: 'right_sized' }] }
+    }).retro
+    expect(retro?.discoveries).toEqual([{ title: 't', body: '' }])
+    expect(retro?.tierFit).toEqual([{ ticket: 'DM-1', verdict: 'right_sized', note: '' }])
+  })
+
+  it.each([['right_sized'], ['oversized'], ['undersized']])('accepts the tier-fit verdict %s', (verdict) => {
+    expect(accepts(sprintReportInput, { summary: 's', retro: { tierFit: [{ ticket: 'DM-1', verdict, note: '' }] } })).toBe(true)
+  })
+
+  it.each([
+    ['an unknown verdict', { tierFit: [{ ticket: 'DM-1', verdict: 'huge', note: '' }] }],
+    ['a delivered entry without a ticket', { delivered: [{ demo: 'd', evidence: 'e' }] }],
+    ['a delivered entry without a demo', { delivered: [{ ticket: 'DM-1', evidence: 'e' }] }],
+    ['a delivered entry without evidence', { delivered: [{ ticket: 'DM-1', demo: 'd' }] }],
+    ['a leftover without a reason', { leftovers: [{ ticket: 'DM-1' }] }],
+    ['a tier-fit entry without a verdict', { tierFit: [{ ticket: 'DM-1', note: '' }] }],
+    ['a blank discovery title', { discoveries: [{ title: '', body: 'b' }] }],
+    ['a ticket reference that is not an id or a key', { leftovers: [{ ticket: 'DM 1', reason: 'r' }] }],
+    ['a blank ticket reference', { leftovers: [{ ticket: '', reason: 'r' }] }],
+    ['501 went-well entries', { wentWell: Array.from({ length: 501 }, () => 'a') }],
+    ['a 2001 character action', { actions: [text(2001)] }],
+    ['an extra key in the retro', { mood: 'good' }],
+    ['an extra key in a leftover', { leftovers: [{ ticket: 'DM-1', reason: 'r', extra: 1 }] }]
+  ])('rejects %s', (_label, retro) => {
+    expect(accepts(sprintReportInput, { summary: 's', retro })).toBe(false)
+  })
+})
+
 const CATALOG = { hostId: 'host', hostType: 'cli', catalogRevision: '1', tools: [], canSelectWorkerModel: false, models: [] }
 const MODEL = { id: 'm1', reasoningLevels: [], modalities: [] }
 

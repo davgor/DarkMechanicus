@@ -79,4 +79,13 @@ For each ticket provide:
    - Otherwise do not try. Tell the person the draft is ready and ask them to review it in the desktop app and press Save.
 4. Read the save result. `saved` is durable. `pending` means the records are still being written (see `get_storage_status`, retry with `flush_portable_state`). `unchanged` means the draft equals the saved plan. Committing to Git is the person's job.
 
+## 7. Replan while a run is executing
+
+When an epic already has a run (`get_run` with its `epicId` shows the active sprint), the run executes one saved revision and goes on to the sprints after its active one. Changes to that plan follow these rules:
+
+- Edit only future sprints: the sprints after the run's active sprint. Put new work in one of them, or in a new sprint after the active one.
+- Never edit a sprint the run has passed. A run does not redo a sprint it has passed. Validation warns about a change there, and about a new sprint placed before the active one, which the run would never reach. Adopting a revision refuses a changed accepted ticket in a passed sprint unless the orchestrator carries it forward. Read each run warning that `validate_plan` adds and fix the draft instead of explaining it away.
+- After a sprint's retro, the orchestrator redrafts the next sprint of the draft: it moves the sprint's leftovers there and adds its discoveries as tickets, then sizes the new tickets and writes the next acceptance node's `covers` criteria. When you pick up such a draft, keep what the redraft moved and added, finish its sizing and criteria, and leave the passed sprints as they are.
+- Saving never changes a running plan. The run takes a saved revision only when it is adopted, at a checkpoint or while paused.
+
 Start no runs and claim no tickets. Execution belongs to the orchestrator.

@@ -111,8 +111,10 @@ export class FakeBackend implements DmApi {
     throw new CommandError(result.error)
   }
 
-  fail(name: CommandName, code: DomainErrorShape['code'], message: string): void {
-    this.failures[name] = [...(this.failures[name] ?? []), { code, message }]
+  /** Queues one failure for the command; `details` is what the core's error carries beside its message. */
+  fail(name: CommandName, code: DomainErrorShape['code'], message: string, details?: Record<string, unknown>): void {
+    const shape: DomainErrorShape = details === undefined ? { code, message } : { code, message, details }
+    this.failures[name] = [...(this.failures[name] ?? []), shape]
   }
 
   names(): string[] {
@@ -282,8 +284,24 @@ function updateRun(state: Scenario, patch: Partial<RunView>): RunView {
   return state.run
 }
 
+/** Saves the draft as the next revision, adopts it into the run and advances it to Sprint 3, like the real five steps. */
+function approveWithRedraft(state: Scenario): unknown {
+  const number = (state.epic.currentRevisionNumber ?? 0) + 1
+  const revisionId = `rv_${number}`
+  save(state)
+  const run = updateRun(state, { state: 'running', activeSprintId: 'sp_3', activeSprintOrdinal: 3, revisionId, revisionNumber: number })
+  return {
+    save: { status: 'saved', revisionId, revisionNumber: number },
+    adoption: { revisionId, kept: [], superseded: [], freshBudget: [] },
+    approval: { id: 'ap_1', runId: run.id, sprintId: 'sp_2', reportId: 'sr_1', issuedAt: iso(0) },
+    advance: { outcome: 'advanced', activeSprintId: 'sp_3' },
+    run
+  }
+}
+
 function runHandlers(state: Scenario): Partial<Record<CommandName, Handler>> {
   return {
+    approveWithRedraft: () => approveWithRedraft(state),
     getRun: () => state.run,
     getCheckpoint: () => state.checkpoint ?? notFound('No checkpoint'),
     getSprintReport: (input: { runId: string; sprintId?: string }) =>

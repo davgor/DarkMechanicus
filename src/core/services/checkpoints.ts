@@ -18,11 +18,22 @@ import { unmetChecks } from '../definitionOfDone'
 import { fail } from '../errors'
 import { acceptanceNodeOf } from '../plan/acceptance'
 import { indexBundle, sortedSprints, ticketLabel, type BundleIndex } from '../plan/graph'
+import { retroIsEmpty } from '../plan/retro'
+import { sprintScopeChanges } from '../plan/sprintScope'
 import { appendEvent } from './events'
 import { requestWithoutKey, withIdempotency } from './idempotency'
 import { incrementOf, standingAttempt } from './increments'
 import { enqueueOutbox } from './outbox'
-import { latestReport, loadBundle, loadRun, requireOwnedRun, setRunState, type RunRow } from './reports'
+import { changedDraftRevision, revisionNumberOf } from './plans'
+import {
+  latestReport,
+  loadBundle,
+  loadRun,
+  reportPlanRevision,
+  requireOwnedRun,
+  setRunState,
+  type RunRow
+} from './reports'
 
 /** The only action an approval grant can authorize. */
 const ADVANCE_ACTION = 'advance_sprint'
@@ -57,11 +68,25 @@ interface Evaluation {
   grant: GrantRow | null
 }
 
+/** Where the run's plan stands against the epic's saved plan and draft. */
+interface PlanState {
+  /** Number of the revision the run executes. */
+  runNumber: number
+  /** The epic's current saved revision. */
+  current: { id: string; number: number } | null
+  /** Revision of the epic's draft when it holds unsaved changes; null when it has none. */
+  changedDraft: number | null
+}
+
 interface GateInput {
   index: BundleIndex
   bundle: PlanBundle
   sprint: SprintDef
   report: SprintReportView | null
+  /** Why the report no longer describes the sprint the run executes; null while it does. */
+  stale: string | null
+  plan: PlanState
+  run: RunRow
   attempts: AttemptRow[]
   /** The project's Definition of Done as of this evaluation; empty when it has none. */
   definition: DefinitionOfDoneCheck[]
@@ -89,9 +114,34 @@ function condition(id: GateConditionId, label: string, problems: string[], metDe
     : { id, label, met: false, detail: problems.join('; ') }
 }
 
-function reportGate(sprint: SprintDef, report: SprintReportView | null): GateCondition {
-  const problems = report === null ? [`No report for Sprint ${sprint.ordinal} yet`] : []
+/** A report that no longer describes the sprint (see `reportStaleness`) counts as no report: a new revision is due. */
+function reportGate(input: GateInput): GateCondition {
+  const missing = input.report === null ? [`No report for Sprint ${input.sprint.ordinal} yet`] : []
+  const problems = input.stale === null ? missing : [input.stale]
   return condition('report_submitted', 'Sprint report submitted', problems, 'Required by checkpoint policy')
+}
+
+/** The number of the epic's saved revision when it is newer than the one the run executes, else null. */
+function unadoptedRevision(input: GateInput): number | null {
+  const { current, runNumber } = input.plan
+  return current !== null && current.id !== input.run.revision_id && current.number > runNumber ? current.number : null
+}
+
+/**
+ * The run executes the epic's saved plan and the draft holds nothing unsaved, so what the person approves is
+ * what the next sprint runs. A draft opened without changes does not count.
+ */
+function planGate(input: GateInput): GateCondition {
+  const { changedDraft, runNumber } = input.plan
+  const newer = unadoptedRevision(input)
+  const problems = [
+    ...(changedDraft === null
+      ? []
+      : [`The draft (revision ${changedDraft}) has changes the saved plan lacks: save it and adopt the new revision, or discard the draft`]),
+    ...(newer === null ? [] : [`Saved revision ${newer} is newer than revision ${runNumber}, which the run executes: adopt it`])
+  ]
+  const metDetail = `The run executes revision ${runNumber}, the saved plan, and no draft holds unsaved changes`
+  return condition('plan_current', 'Run executes the current plan', problems, metDetail)
 }
 
 function leaseGate(input: GateInput): GateCondition {
@@ -197,10 +247,35 @@ function definitionGate(input: GateInput, node: TicketContent): GateCondition {
   return condition('definition_of_done', DEFINITION_LABEL, problems, metDetail)
 }
 
-/** The gates only a sprint with an acceptance node has; the Definition of Done's only when the project has one. */
+const RETRO_LABEL = 'Sprint retro included'
+
+/**
+ * The sprint's latest report includes a retro with something in it. Only the latest revision counts, so a
+ * revision that leaves the retro out puts the gate back to unmet.
+ */
+function retroGate(sprint: SprintDef, report: SprintReportView | null): GateCondition {
+  const name = `Sprint ${sprint.ordinal}`
+  const retro = report === null ? null : report.report.retro
+  const problems: string[] = []
+  if (report === null) {
+    problems.push(`No ${name} report yet, so no retro`)
+  } else if (retro === null) {
+    const fields = 'delivered, wentWell, wentPoorly, actions, discoveries, leftovers, tierFit'
+    problems.push(`The ${name} report has no retro; resubmit it with retro { ${fields} }`)
+  } else if (retroIsEmpty(retro)) {
+    problems.push(`The ${name} report's retro is empty`)
+  }
+  return condition('retro', RETRO_LABEL, problems, `The ${name} report includes a retro`)
+}
+
+/**
+ * The gates only a sprint with an acceptance node has: the node accepted, its increment merged, the
+ * Definition of Done passed (only when the project has one), and the sprint's retro written.
+ */
 function nodeGates(input: GateInput, node: TicketContent): GateCondition[] {
   const gates = [acceptanceGate(input, node), incrementGate(input, node)]
-  return input.definition.length === 0 ? gates : [...gates, definitionGate(input, node)]
+  const checked = input.definition.length === 0 ? gates : [...gates, definitionGate(input, node)]
+  return [...checked, retroGate(input.sprint, input.report)]
 }
 
 function noteSuffix(note: string): string {
@@ -253,13 +328,13 @@ function requiredScope(input: GateInput, isFinal: boolean, node: TicketContent |
 function evaluateGates(input: GateInput, isFinal: boolean): GateCondition[] {
   const node = acceptanceNodeOf(input.bundle, input.sprint.id)
   const gates = [
-    reportGate(input.sprint, input.report),
+    reportGate(input),
     leaseGate(input),
     requiredGate(input, requiredScope(input, isFinal, node)),
     ...(node === undefined ? [] : nodeGates(input, node)),
     exitGate(input.sprint, input.report)
   ]
-  return isFinal ? [...gates, outcomeGate(input.bundle, input.report)] : gates
+  return [...(isFinal ? [...gates, outcomeGate(input.bundle, input.report)] : gates), planGate(input)]
 }
 
 function activeSprintIndex(run: RunRow, sprints: SprintDef[]): number {
@@ -289,6 +364,44 @@ function findGrant(ctx: Ctx, run: RunRow, sprint: SprintDef, report: SprintRepor
   return grant ?? null
 }
 
+function planState(ctx: Ctx, run: RunRow): PlanState {
+  const current = ctx.db.get<{ id: string; number: number }>(
+    'SELECT p.id, p.number FROM epics e JOIN plan_revisions p ON p.id = e.current_revision_id WHERE e.id = ?',
+    run.epic_id
+  )
+  return {
+    runNumber: revisionNumberOf(ctx, run.revision_id) ?? 0,
+    current: current ?? null,
+    changedDraft: changedDraftRevision(ctx, run.epic_id)
+  }
+}
+
+/**
+ * Why the report no longer describes the sprint: it was written while the run executed an earlier revision, and
+ * the revision adopted since changed the sprint's exit criteria or required tickets beyond removing the retro's
+ * leftovers (and the tickets that require them). Null while it still describes it, and for a report that did
+ * not record its revision.
+ */
+function reportStaleness(
+  ctx: Ctx,
+  input: { run: RunRow; bundle: PlanBundle; sprint: SprintDef; report: SprintReportView | null }
+): string | null {
+  const { run, report } = input
+  const written = report === null ? null : reportPlanRevision(ctx, report.id)
+  if (report === null || written === null || written === run.revision_id) {
+    return null
+  }
+  const leftovers = report.report.retro?.leftovers.map((item) => item.ticket) ?? []
+  const before = loadBundle(ctx, written)
+  const changes = sprintScopeChanges({ before, after: input.bundle, sprintId: input.sprint.id, leftovers })
+  if (changes.length === 0) {
+    return null
+  }
+  const name = `The Sprint ${input.sprint.ordinal} report (revision ${report.reportRevision})`
+  const revisions = `plan revision ${revisionNumberOf(ctx, written)}, and revision ${revisionNumberOf(ctx, run.revision_id)}`
+  return `${name} was written for ${revisions} changed the sprint beyond removing leftovers (${changes.join('; ')}): submit a new report revision`
+}
+
 function evaluate(ctx: Ctx, run: RunRow): Evaluation {
   const bundle = loadBundle(ctx, run.revision_id)
   const sprints = sortedSprints(bundle)
@@ -303,7 +416,9 @@ function evaluate(ctx: Ctx, run: RunRow): Evaluation {
   )
   // Only a sprint with an acceptance node has a use for it, so a plan without nodes never reads project.json here.
   const definition = acceptanceNodeOf(bundle, sprint.id) === undefined ? [] : ctx.definitionOfDone()
-  const gates = evaluateGates({ index: indexBundle(bundle), bundle, sprint, report, attempts, definition }, next === null)
+  const stale = reportStaleness(ctx, { run, bundle, sprint, report })
+  const input = { index: indexBundle(bundle), bundle, sprint, report, stale, plan: planState(ctx, run), run, attempts, definition }
+  const gates = evaluateGates(input, next === null)
   const grant = report === null ? null : findGrant(ctx, run, sprint, report)
   return { run, sprint, next, sprintCount: sprints.length, report, gates, grant }
 }
@@ -364,6 +479,15 @@ function requireGatesMet(evaluation: Evaluation): SprintReportView {
     )
   }
   return evaluation.report
+}
+
+/**
+ * Evaluates the gates of the run's active sprint on the revision the run executes now, so right after an adoption
+ * the sprint's tickets are the adopted revision's (leftovers moved out no longer count), and refuses with
+ * `gate_blocked` unless all are met. Returns the report they would approve.
+ */
+export function requireCheckpointGates(ctx: Ctx, runId: string): SprintReportView {
+  return requireGatesMet(evaluate(ctx, loadRun(ctx, runId)))
 }
 
 function issueGrant(ctx: Ctx, evaluation: Evaluation, report: SprintReportView): ApprovalView {

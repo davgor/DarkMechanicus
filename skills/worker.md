@@ -24,7 +24,7 @@ If something needed is missing or contradictory, do not guess: report it (see Bl
 ## Do the work
 
 - Work in a worktree of your own, on a working branch that starts from the sprint integration branch the orchestrator names (the epic feature branch from the packet when it names none). Run every git command with `git -C <worktree>` so none can act on another checkout, and never switch branches in the coordinating checkout: that pauses the run with `branch_changed`. Commit on your working branch and integrate only as the orchestrator instructs, which means it merges your accepted work. Never push to the default branch.
-- Stay in scope. Do not refactor unrelated code, fix unrelated bugs, or do other tickets' work. If you notice something worth doing, put it in your notes as a suggested follow-up.
+- Stay in scope. Do not refactor unrelated code, fix unrelated bugs, or do other tickets' work. If you notice something worth doing, record it as a discovery (see Discoveries) instead of doing it.
 - Keep changes reviewable: small commits with clear messages, and only the files the ticket needs.
 - If you hold the claim token and the reporting tools, call `heartbeat_attempt` every `heartbeatIntervalSeconds` (well inside the lease) until you submit. Otherwise the orchestrator does this.
 
@@ -35,12 +35,28 @@ If something needed is missing or contradictory, do not guess: report it (see Bl
 - A sprint acceptance node is the one ticket that does run the sweep. Its packet lists the project's `definitionOfDone`. Run each check in the integration worktree you are handed and report it in `evidence.checks` under its exact name. Then verify each item the node's criteria cover. A check you take from another ticket's accepted result goes under its name too, with that ticket in the detail. Never report a check `passed` that you neither ran nor took from an accepted result. Return the evidence to the orchestrator, which lands the sprint as one squashed commit and submits the node with that increment.
 - For every acceptance criterion, decide honestly whether it is met and where that is shown (a test, a command output, a file). Do not mark a criterion met that you did not verify.
 
+## Discoveries
+
+Record discoveries as structured notes the reporter can lift into the sprint retro. A discovery is work outside your ticket that someone should do: a defect you did not cause, missing coverage, a design problem, a risk to a later ticket. Each one needs a title and a reason, because the retro turns it into a ticket in the next sprint and a ticket with no reason cannot be planned. Put them at the end of `evidence.notes`, under a `Discoveries:` line, one item per discovery:
+
+```
+Discoveries:
+- title: Short name for the work, as a ticket title would read it
+  reason: Why it matters and what you saw (the file, the failing input, the check that showed it)
+  ticket: DM-12
+```
+
+- `ticket` is the ticket the discovery came up on: yours, unless it came from another.
+- Record what you observed and nothing you did not check. Do not do the work, create tickets, or edit the plan: you stay in scope, and the reporter and the orchestrator decide what becomes a ticket.
+- Write the reason even when the title seems obvious. Keep each note to a few sentences.
+- Write nothing when you found nothing. Do not pad the list.
+
 ## Report
 
 Call `submit_attempt` (or hand the same content to the orchestrator):
 
 - `outputs`: `summary` (what you did and anything a reviewer must know), `artifacts` (label, `location` as a repository-relative path or URL, `hash` if known, `remoteOnly: true` when it is not in the repository), `commits` (full hashes), `changedFiles`, and `branch`.
-- `evidence`: `checks` as above, `criteria` with one entry per acceptance criterion (`criterionId`, `met`, and a `note` saying where it is shown), and `notes` (limits, risks, suggested follow-ups).
+- `evidence`: `checks` as above, `criteria` with one entry per acceptance criterion (`criterionId`, `met`, and a `note` saying where it is shown), and `notes` (limits, risks, and your discoveries, written as described under Discoveries).
 
 Report unmet criteria as `met: false` with the reason. Do not submit unfinished work as finished.
 

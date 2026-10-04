@@ -4,6 +4,7 @@ import type { PlanBundle } from '../../shared/domain/bundle'
 import type { CheckResult, DefinitionOfDoneCheck, GateCondition } from '../../shared/domain/views'
 import { makeBundle, sid, tid } from '../../test/bundles'
 import { acceptTickets, errorOf, seedAttempt, seedRun, type SeededRun } from '../../test/checkpointSeed'
+import { SIMPLE_RETRO } from '../../test/retro'
 import { createTestCtx, type TestCtx } from '../../test/testContext'
 import { advanceSprint, getCheckpoint } from './checkpoints'
 import { submitSprintReport } from './reports'
@@ -46,7 +47,7 @@ describe('definition_of_done gate: which sprints get it', () => {
     const { ctx, run } = setup([])
     acceptNodeWith(ctx, run, [])
     const ids = getCheckpoint(ctx, { runId: run.runId }).conditions.map((item) => item.id)
-    expect(ids).toEqual(['report_submitted', 'no_active_leases', 'required_accepted', 'acceptance_accepted', 'increment_merged', 'exit_criteria', 'approval'])
+    expect(ids).toEqual(['report_submitted', 'no_active_leases', 'required_accepted', 'acceptance_accepted', 'increment_merged', 'retro', 'exit_criteria', 'plan_current', 'approval'])
   })
 
   it('is left out for a sprint without an acceptance node, even when the project has a Definition of Done', () => {
@@ -75,7 +76,9 @@ describe('definition_of_done gate: which sprints get it', () => {
       'acceptance_accepted',
       'increment_merged',
       'definition_of_done',
+      'retro',
       'exit_criteria',
+      'plan_current',
       'approval'
     ])
     const last = seedRun(ctx, { bundle: plan(), activeSprint: 2 })
@@ -146,7 +149,7 @@ describe('definition_of_done gate: unmet by an accepted attempt that falls short
   it('blocks the checkpoint, and the block names the missing checks', () => {
     const { ctx, run } = setup()
     acceptNodeWith(ctx, run, passed('lint', 'test'))
-    submitSprintReport(ctx, { runId: run.runId, sprintId: sid(1), report: { summary: 'Done.' } })
+    submitSprintReport(ctx, { runId: run.runId, sprintId: sid(1), report: { summary: 'Done.', retro: SIMPLE_RETRO } })
     const view = getCheckpoint(ctx, { runId: run.runId })
     expect(view.conditions.filter((item) => !item.met).map((item) => item.id)).toEqual(['definition_of_done', 'approval'])
     expect([view.gatesMet, view.canAdvance]).toEqual([false, false])
@@ -191,7 +194,7 @@ describe('definition_of_done gate: met', () => {
   it('lets a sprint through once the other gates are met too', () => {
     const { ctx, run } = setup()
     acceptNodeWith(ctx, run, passed('lint', 'typecheck', 'test'))
-    submitSprintReport(ctx, { runId: run.runId, sprintId: sid(1), report: { summary: 'Done.' } })
+    submitSprintReport(ctx, { runId: run.runId, sprintId: sid(1), report: { summary: 'Done.', retro: SIMPLE_RETRO } })
     const view = getCheckpoint(ctx, { runId: run.runId })
     expect(view.gatesMet).toBe(true)
   })

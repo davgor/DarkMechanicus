@@ -5,7 +5,7 @@
 import { contentHash } from '../core/canonical'
 import type { EpicBranch, PlanBundle } from '../shared/domain/bundle'
 import type { AttemptKind, AttemptState, RunState, WorkStatus } from '../shared/domain/status'
-import type { CheckResult, SprintIncrement } from '../shared/domain/views'
+import type { CheckResult, SprintIncrement, WorkerInfo } from '../shared/domain/views'
 import { makeBundle, tid } from './bundles'
 import type { TestCtx } from './testContext'
 
@@ -130,6 +130,8 @@ interface SeedAttemptOptions {
   increment?: Partial<SprintIncrement>
   /** The checks the attempt's evidence reports (default: no evidence at all). */
   checks?: CheckResult[]
+  /** What the attempt's worker recorded, over a worker labelled "test worker" with no model or effort. */
+  worker?: Partial<WorkerInfo>
 }
 
 /** A passing increment verdict, the shape the server stores when a submission names a good increment. */
@@ -188,7 +190,7 @@ export function seedAttempt(ctx: TestCtx, run: SeededRun, options: SeedAttemptOp
     options.kind ?? 'work',
     options.state,
     number,
-    JSON.stringify({ label: 'test worker' }),
+    JSON.stringify({ label: 'test worker', ...options.worker }),
     pinned?.revision_id ?? run.revisionId,
     contentHash(ticket ?? null),
     now,

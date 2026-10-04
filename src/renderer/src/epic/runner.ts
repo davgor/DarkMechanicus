@@ -13,10 +13,16 @@ export function bindRunner(folder: string): Runner {
 export interface Failure {
   code: DomainErrorCode | null
   message: string
+  /** What the core's error carried beside its message; absent when it carried nothing. */
+  details?: Record<string, unknown>
 }
 
 export function failureOf(error: unknown): Failure {
-  return error instanceof CommandError ? { code: error.code, message: error.message } : { code: null, message: errorMessage(error) }
+  if (!(error instanceof CommandError)) {
+    return { code: null, message: errorMessage(error) }
+  }
+  const failure: Failure = { code: error.code, message: error.message }
+  return error.details === undefined ? failure : { ...failure, details: error.details }
 }
 
 /** Splits "Dependency not added. DM-203 is in…" into a bold lead sentence and the rest. */

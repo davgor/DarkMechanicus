@@ -1,7 +1,7 @@
 # Baseline ignore for ts-prune (one pattern per line)
 # Generated from tsconfig.node.json + tsconfig.web.json
 # Refresh after export moves/deletes: npm run deadcode:refresh
-# Refreshed 2026-10-04 (62 entries)
+# Refreshed 2026-10-04 (73 entries)
 
 electron.vite.config.ts:37 - default
 src/core/definitionOfDone.ts:12 - checkNameKey
@@ -20,20 +20,20 @@ src/core/plan/graph.ts:595 - planRows
 src/preload/index.ts:24 - AutoUpdateApi
 src/preload/index.ts:25 - AppInfoApi
 src/shared/autoUpdate/types.ts:17 - AUTO_UPDATE_EVENT_CHANNEL
-src/shared/desktop/api.ts:146 - DesktopCommandName
-src/shared/desktop/api.ts:148 - DESKTOP_COMMANDS
+src/shared/desktop/api.ts:148 - DesktopCommandName
+src/shared/desktop/api.ts:150 - DESKTOP_COMMANDS
 src/shared/desktop/api.ts:22 - CommandInput
 src/shared/desktop/api.ts:26 - CommandOutput
-src/shared/domain/api.ts:137 - ClaimTicketInput
-src/shared/domain/api.ts:158 - IncrementRef
-src/shared/domain/api.ts:163 - SubmitAttemptInput
-src/shared/domain/api.ts:176 - StartRunInput
-src/shared/domain/api.ts:186 - SprintReportInput
-src/shared/domain/api.ts:193 - RecordRowCheckInput
-src/shared/domain/api.ts:202 - AddCommentInput
-src/shared/domain/api.ts:61 - API_VERSION
-src/shared/domain/api.ts:74 - TicketCriterionInput
-src/shared/domain/api.ts:94 - SprintInput
+src/shared/domain/api.ts:140 - ClaimTicketInput
+src/shared/domain/api.ts:161 - IncrementRef
+src/shared/domain/api.ts:166 - SubmitAttemptInput
+src/shared/domain/api.ts:179 - StartRunInput
+src/shared/domain/api.ts:190 - SprintReportInput
+src/shared/domain/api.ts:197 - RecordRowCheckInput
+src/shared/domain/api.ts:206 - AddCommentInput
+src/shared/domain/api.ts:64 - API_VERSION
+src/shared/domain/api.ts:77 - TicketCriterionInput
+src/shared/domain/api.ts:97 - SprintInput
 src/shared/domain/bundle.ts:117 - REFERENCE_KINDS
 src/shared/domain/bundle.ts:150 - CHECKPOINT_MODES
 src/shared/domain/bundle.ts:16 - TicketCriterion
@@ -46,22 +46,33 @@ src/shared/domain/bundle.ts:56 - TICKET_KINDS
 src/shared/domain/bundle.ts:60 - Modality
 src/shared/domain/bundle.ts:70 - ToolCapability
 src/shared/domain/errors.ts:5 - DOMAIN_ERROR_CODES
+src/shared/domain/retro.ts:17 - TIER_VERDICTS
+src/shared/domain/retro.ts:21 - RetroDelivered
+src/shared/domain/retro.ts:28 - RetroDiscovery
+src/shared/domain/retro.ts:35 - RetroLeftover
 src/shared/domain/status.ts:21 - ACTIVE_RUN_STATES
 src/shared/domain/status.ts:28 - ATTEMPT_STATES
 src/shared/domain/status.ts:41 - OPEN_ATTEMPT_STATES
 src/shared/domain/status.ts:44 - LEASED_ATTEMPT_STATES
-src/shared/domain/status.ts:49 - TICKET_EXECUTION_STATES
+src/shared/domain/status.ts:49 - ORCHESTRATOR_FALLBACK_LABEL
+src/shared/domain/status.ts:52 - TICKET_EXECUTION_STATES
 src/shared/domain/status.ts:6 - WORK_STATUSES
-src/shared/domain/status.ts:70 - isLeasedAttemptState
-src/shared/domain/status.ts:74 - WORK_STATUS_LABELS
+src/shared/domain/status.ts:73 - isLeasedAttemptState
+src/shared/domain/status.ts:77 - WORK_STATUS_LABELS
 src/shared/domain/status.ts:9 - RUN_STATES
-src/shared/domain/views.ts:214 - PrerequisiteOutcome
-src/shared/domain/views.ts:262 - WorkerInfo
-src/shared/domain/views.ts:317 - AttemptDecision
-src/shared/domain/views.ts:388 - HostModel
-src/shared/domain/views.ts:417 - CapabilityRecommendation
-src/shared/domain/views.ts:435 - FollowUpProposal
-src/shared/domain/views.ts:470 - GateConditionId
-src/shared/domain/views.ts:559 - AssignmentFallback
-src/shared/domain/views.ts:564 - ExecutionPacket
-src/shared/domain/views.ts:94 - EpicOutcome
+src/shared/domain/views.ts:215 - PrerequisiteOutcome
+src/shared/domain/views.ts:263 - WorkerInfo
+src/shared/domain/views.ts:318 - AttemptDecision
+src/shared/domain/views.ts:389 - HostModel
+src/shared/domain/views.ts:418 - CapabilityRecommendation
+src/shared/domain/views.ts:436 - FollowUpProposal
+src/shared/domain/views.ts:478 - GateConditionId
+src/shared/domain/views.ts:569 - AssignmentFallback
+src/shared/domain/views.ts:574 - ExecutionPacket
+src/shared/domain/views.ts:841 - RedraftMovedView
+src/shared/domain/views.ts:849 - RedraftDependentView
+src/shared/domain/views.ts:857 - RedraftAddedView
+src/shared/domain/views.ts:865 - RedraftSkipCode
+src/shared/domain/views.ts:878 - RedraftSkippedView
+src/shared/domain/views.ts:887 - RedraftChangesView
+src/shared/domain/views.ts:95 - EpicOutcome

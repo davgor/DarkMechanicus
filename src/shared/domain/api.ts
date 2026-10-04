@@ -15,9 +15,11 @@ import type {
   TicketReference,
   TicketSize
 } from './bundle'
+import type { SprintRetroInput } from './retro'
 import type { WorkStatus } from './status'
 import type {
   ApprovalView,
+  ApproveWithRedraftResultView,
   AttemptEvidence,
   AttemptFailure,
   AttemptOutputs,
@@ -43,6 +45,7 @@ import type {
   ProfileView,
   ProjectView,
   ReadinessView,
+  RedraftResultView,
   ReconcileResultView,
   RevisionSummaryView,
   RowCheckView,
@@ -183,7 +186,8 @@ export interface StartRunInput {
   idempotencyKey?: string
 }
 
-export type SprintReportInput = Partial<SprintReportContent> & { summary: string }
+/** A sprint report as submitted. Its retro names tickets by id or display key; the server stores the ids. */
+export type SprintReportInput = Omit<Partial<SprintReportContent>, 'retro'> & { summary: string; retro?: SprintRetroInput | null }
 
 /**
  * An orchestrator's check of one row of a sprint. `row` counts from 1; `commit` is the commit hash the
@@ -370,6 +374,13 @@ export interface CommandApi {
   }): Promise<RunView>
 
   // Checkpoints
+  /**
+   * At a checkpoint (the run is awaiting it), rewrites the epic's draft from the retro of the run's latest report
+   * for the active sprint: each retro leftover moves to the next sprint (a sprint is added after a final one),
+   * together with the tickets that require it, and each discovery becomes an unsized ticket there. Only the draft
+   * changes: save it and adopt the revision to put it into the run. A second call over the same retro adds nothing.
+   */
+  redraftNextSprint(input: { runId: string }): Promise<RedraftResultView>
   submitSprintReport(input: {
     runId: string
     sprintId: string
@@ -385,6 +396,18 @@ export interface CommandApi {
     reportId: string
     idempotencyKey?: string
   }): Promise<RunView>
+  /**
+   * Desktop only: the person approves the sprint's retro and the redraft of the next sprint in one step. In order
+   * it saves the epic's draft, adopts the saved revision into the run, recomputes the gates on it, approves the
+   * current report (`reportId`, when given, must still be the latest) and advances. A refusal stops the steps after
+   * it and names the step in `details.step`; the save commits on its own, the rest is all or nothing, so a refusal
+   * after the save leaves the saved revision in place with adoption still needed.
+   */
+  approveWithRedraft(input: {
+    runId: string
+    expectedDraftRevision: number
+    reportId?: string
+  }): Promise<ApproveWithRedraftResultView>
   authorizeAutoContinue(input: { runId: string; enabled: boolean }): Promise<RunView>
   grantRetry(input: { runId: string; ticketId: string }): Promise<RunView>
 

@@ -130,13 +130,30 @@
 }
 
 /*
- * Size badge: a tag on the bottom edge of the card, so the state label and the title keep their whole width.
- * Quiet outlined pill for most sizes; micro is a filled brass pill, so the smallest tickets stand out at a glance.
+ * Tag group: the effort and size badges share one row on the bottom edge of the card, the size anchored at the right
+ * and the effort right beside it, so the state label and the title keep their whole width. On an acceptance card the
+ * ACCEPTANCE tag holds the left edge, so the group gives way to it instead of running over it.
  */
-.pg-size {
+.pg-tags {
   position: absolute;
   right: 12px;
   bottom: -8px;
+  max-width: calc(100% - 24px);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pg-card.is-acceptance .pg-tags {
+  max-width: calc(100% - 118px);
+}
+
+/*
+ * Size badge: quiet outlined pill for most sizes; micro is a filled brass pill, so the smallest tickets stand out at a
+ * glance.
+ */
+.pg-size {
+  flex: none;
   box-sizing: border-box;
   height: 15px;
   padding: 0 6px;
@@ -148,6 +165,26 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--ink-soft);
+  background: var(--panel-3);
+}
+
+/* Effort badge: the same pill as the size, only quieter (the card's own line and a softer ink), so size stays the headline. */
+.pg-effort {
+  min-width: 0;
+  box-sizing: border-box;
+  height: 15px;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  line-height: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ink-2);
   background: var(--panel-3);
 }
 

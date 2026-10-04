@@ -71,12 +71,14 @@ function CheckpointStage(props: { ws: WorkspaceHandle; checkpoint: CheckpointVie
       checkpoint={checkpoint}
       run={props.run}
       bundle={ws.data.saved?.bundle ?? null}
+      draft={ws.data.draft}
       now={ws.now}
       busy={ws.state.busy}
       onApprove={(reportId) => void ws.actions.approve(reportId)}
+      onApproveWithRedraft={(reportId, revision) => ws.actions.approveWithRedraft(reportId, revision)}
       onRetry={(ticketId) => void ws.actions.retry(ticketId)}
       onAutoContinue={(enabled) => void ws.actions.setAutoContinue(enabled)}
-      onAddFollowUp={(proposal) => ws.actions.addFollowUp(proposal, checkpoint.sprintOrdinal)}
+      onAddFollowUp={(item) => ws.actions.addFollowUp(item, checkpoint.sprintOrdinal)}
       onEditDraft={() => void ws.actions.editDraft()}
       onSelectTicket={(ticketId) => ws.dispatch({ type: 'select_ticket', ticketId })}
     />

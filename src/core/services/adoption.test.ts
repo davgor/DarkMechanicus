@@ -50,7 +50,13 @@ describe('adoptRevision reconciliation', () => {
     ctx.clock.advanceSeconds(60)
     const now = '2026-01-01T00:01:00.000Z'
     const result = adoptRevision(ctx, { runId: run.runId, revisionId })
-    expect(result).toEqual({ runId: run.runId, kept: [tid(1)], superseded: [tid(2)], activeSprintId: sid(1) })
+    expect(result).toEqual({
+      runId: run.runId,
+      kept: [tid(1)],
+      superseded: [tid(2)],
+      freshBudget: [],
+      activeSprintId: sid(1)
+    })
     expect([supersededAt(ctx, 1), supersededAt(ctx, 2)]).toEqual([[null], [now]])
     expect(runRow(ctx, run.runId)).toMatchObject({ revision_id: revisionId, active_sprint_id: sid(1), revision: 2, updated_at: now })
     expect([ticketStatusOf(ctx, 1), ticketStatusOf(ctx, 2)]).toEqual(['completed', 'in_progress'])
@@ -60,7 +66,7 @@ describe('adoptRevision reconciliation', () => {
         epicId: run.epicId,
         runId: run.runId,
         ticketId: null,
-        payload: { from: run.revisionId, to: revisionId, kept: [tid(1)], superseded: [tid(2)] }
+        payload: { from: run.revisionId, to: revisionId, kept: [tid(1)], superseded: [tid(2)], freshBudget: [] }
       }
     ])
     expect(outboxEntries(ctx).map((entry) => [entry.kind, entry.epic_id])).toEqual([

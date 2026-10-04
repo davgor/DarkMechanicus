@@ -12,6 +12,7 @@ import {
   type SeededRun,
   type SeedRunOptions
 } from '../../test/checkpointSeed'
+import { SIMPLE_RETRO } from '../../test/retro'
 import { createTestCtx, withRole, type TestCtx } from '../../test/testContext'
 import { advanceSprint, approveCheckpoint, getCheckpoint } from './checkpoints'
 import { submitSprintReport } from './reports'
@@ -35,7 +36,7 @@ function incrementGate(ctx: TestCtx, run: SeededRun): GateCondition | undefined 
 }
 
 function report(ctx: TestCtx, run: SeededRun) {
-  return submitSprintReport(ctx, { runId: run.runId, sprintId: sid(1), report: { summary: 'Sprint finished.' } })
+  return submitSprintReport(ctx, { runId: run.runId, sprintId: sid(1), report: { summary: 'Sprint finished.', retro: SIMPLE_RETRO } })
 }
 
 describe('increment_merged gate: when the acceptance node has no verified increment', () => {
@@ -134,7 +135,9 @@ describe('increment_merged gate: where it sits and which sprints have it', () =>
       'required_accepted',
       'acceptance_accepted',
       'increment_merged',
+      'retro',
       'exit_criteria',
+      'plan_current',
       'approval'
     ])
   })

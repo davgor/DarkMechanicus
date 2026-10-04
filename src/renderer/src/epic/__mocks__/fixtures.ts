@@ -13,6 +13,7 @@ import {
   type SprintDef,
   type TicketContent
 } from '../../../../shared/domain/bundle'
+import type { SprintRetro, TicketTierFacts } from '../../../../shared/domain/retro'
 import type { AttemptState, TicketExecutionState } from '../../../../shared/domain/status'
 import type {
   AttemptView,
@@ -460,8 +461,10 @@ export function condition(id: GateCondition['id'], met: boolean, detail = ''): G
     acceptance_accepted: 'Sprint acceptance accepted',
     increment_merged: 'Sprint increment merged',
     definition_of_done: 'Definition of Done passed',
+    retro: 'Sprint retro included',
     exit_criteria: 'Exit criteria: driver loads on both platforms',
     epic_outcome: 'Epic outcome recorded',
+    plan_current: 'Run executes the current plan',
     approval: 'Approval'
   }
   return { id, label: labels[id], met, detail }
@@ -491,12 +494,96 @@ export function reportView(patch: Partial<SprintReportView> = {}): SprintReportV
         { title: 'Re-run driver load test', body: 'Separates signing from loading' }
       ],
       exitCriteria: [{ criterionId: 'x1', met: false, note: 'macOS unverified' }],
-      epicOutcome: null
+      epicOutcome: null,
+      retro: null
     },
+    tierFacts: [],
     submittedBy: 'sprint reporter',
     createdAt: iso(-12 * MINUTE),
     ...patch
   }
+}
+
+/**
+ * The retro of the sample sprint 2 report: DM-203 and DM-201 delivered, DM-202 left over, a discovery on
+ * DM-203 and one on no ticket, and a verdict for DM-202 and DM-203.
+ */
+export function retroView(patch: Partial<SprintRetro> = {}): SprintRetro {
+  return {
+    delivered: [
+      { ticket: 'tk_203', demo: 'Open **Settings** and pick a folder.', evidence: 'shots/dm-203/picker.png https://example.test/pull/12' },
+      { ticket: 'tk_201', demo: 'Run `create_epic` from the MCP console.', evidence: 'src/mcp/tools.ts' }
+    ],
+    wentWell: ['Row checks caught a bad merge early'],
+    wentPoorly: ['DM-202 needed a second attempt'],
+    actions: ['Run the replay test before submitting'],
+    discoveries: [
+      { title: 'Cache the folder registry', body: 'Reads hit the disk on every poll.', ticket: 'tk_203' },
+      { title: 'Document the idempotency key', body: '', ticket: null }
+    ],
+    leftovers: [{ ticket: 'tk_202', reason: 'The replay test is still flaky after 2 attempts' }],
+    tierFit: [
+      { ticket: 'tk_202', verdict: 'undersized', note: 'Needed the larger model on attempt 2' },
+      { ticket: 'tk_203', verdict: 'right_sized', note: '' }
+    ],
+    ...patch
+  }
+}
+
+const TIER_FACTS: Record<'DM-201' | 'DM-202' | 'DM-203', TicketTierFacts> = {
+  'DM-201': {
+    ticketId: 'tk_201',
+    key: 'DM-201',
+    size: null,
+    plannedLevel: 'multi_step',
+    plannedEffort: 'low',
+    attempts: [
+      { attemptId: 'at_201_1', number: 1, state: 'accepted', modelId: null, effort: null, label: 'Orchestrator (fallback)', fallback: true }
+    ],
+    attemptCount: 1,
+    rejectionCount: 0,
+    escalated: false
+  },
+  'DM-202': {
+    ticketId: 'tk_202',
+    key: 'DM-202',
+    size: 'medium',
+    plannedLevel: 'multi_step',
+    plannedEffort: 'medium',
+    attempts: [
+      { attemptId: 'at_202_1', number: 1, state: 'rejected', modelId: 'model-small', effort: 'low', label: 'worker-a', fallback: false },
+      { attemptId: 'at_202_2', number: 2, state: 'failed', modelId: 'model-large', effort: 'high', label: 'worker-b', fallback: false }
+    ],
+    attemptCount: 2,
+    rejectionCount: 1,
+    escalated: true
+  },
+  'DM-203': {
+    ticketId: 'tk_203',
+    key: 'DM-203',
+    size: 'small',
+    plannedLevel: 'routine',
+    plannedEffort: null,
+    attempts: [{ attemptId: 'at_203_1', number: 1, state: 'accepted', modelId: 'model-small', effort: null, label: 'worker-a', fallback: false }],
+    attemptCount: 1,
+    rejectionCount: 0,
+    escalated: false
+  }
+}
+
+/** What a sample ticket took: DM-202 two attempts escalated to the large model, DM-203 one cheap attempt, DM-201 an orchestrator fallback. */
+export function tierFacts(key: keyof typeof TIER_FACTS, patch: Partial<TicketTierFacts> = {}): TicketTierFacts {
+  return { ...TIER_FACTS[key], ...patch }
+}
+
+/** The sample sprint 2 report with its retro and the tier facts of DM-201, DM-202 and DM-203. */
+export function reportWithRetro(retro: SprintRetro = retroView(), patch: Partial<SprintReportView> = {}): SprintReportView {
+  const base = reportView()
+  return reportView({
+    report: { ...base.report, retro },
+    tierFacts: [tierFacts('DM-201'), tierFacts('DM-202'), tierFacts('DM-203')],
+    ...patch
+  })
 }
 
 export function checkpointView(patch: Partial<CheckpointView> = {}): CheckpointView {
@@ -652,7 +739,8 @@ export function mcpTestReport(): SprintReportView {
         { title: 'Use a separate reviewer session for real epics', body: 'Review independent of the worker.' }
       ],
       exitCriteria: [],
-      epicOutcome: MCP_TEST_OUTCOME
+      epicOutcome: MCP_TEST_OUTCOME,
+      retro: null
     }
   })
 }

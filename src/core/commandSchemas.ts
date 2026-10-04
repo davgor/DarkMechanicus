@@ -181,6 +181,7 @@ export const COMMAND_SCHEMAS = {
     revisionId: stableId,
     carryForward: z.array(stableId).max(LIMITS.tickets).optional()
   }),
+  redraftNextSprint: runRef,
   submitSprintReport: z.strictObject({
     runId: stableId,
     sprintId: stableId,
@@ -192,6 +193,11 @@ export const COMMAND_SCHEMAS = {
   approveCheckpoint: z.strictObject({ runId: stableId, reportId: stableId }),
   advanceSprint: z.strictObject({ runId: stableId, idempotencyKey }),
   approveAndAdvance: z.strictObject({ runId: stableId, reportId: stableId, idempotencyKey }),
+  approveWithRedraft: z.strictObject({
+    runId: stableId,
+    expectedDraftRevision: revision,
+    reportId: stableId.optional()
+  }),
   authorizeAutoContinue: z.strictObject({ runId: stableId, enabled: z.boolean() }),
   grantRetry: z.strictObject({ runId: stableId, ticketId: stableId }),
   listEvents: z.strictObject({

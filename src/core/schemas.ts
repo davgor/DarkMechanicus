@@ -14,6 +14,7 @@ import {
   TOOL_CAPABILITIES,
   WORK_TYPES
 } from '../shared/domain/bundle'
+import { TIER_VERDICTS } from '../shared/domain/retro'
 import { WORK_STATUSES } from '../shared/domain/status'
 import { DomainError } from './errors'
 import { STABLE_ID_PATTERN } from './ids'
@@ -357,6 +358,29 @@ export const attemptEvidenceInput = z.strictObject({
   notes: markdown.optional()
 })
 
+/**
+ * The retro of a sprint report as a reporter writes it. A `ticket` is a stable id or a display key; the server
+ * resolves it against the run's plan and refuses one the plan does not have. Every list is optional.
+ */
+const sprintRetroInput = z.strictObject({
+  delivered: z
+    .array(z.strictObject({ ticket: entityRef, demo: markdown, evidence: markdown }))
+    .max(LIMITS.listItems)
+    .optional(),
+  wentWell: textList.optional(),
+  wentPoorly: textList.optional(),
+  actions: textList.optional(),
+  discoveries: z
+    .array(z.strictObject({ title: title.min(1), body: markdown.default(''), ticket: entityRef.nullable().optional() }))
+    .max(LIMITS.listItems)
+    .optional(),
+  leftovers: z.array(z.strictObject({ ticket: entityRef, reason: markdown })).max(LIMITS.listItems).optional(),
+  tierFit: z
+    .array(z.strictObject({ ticket: entityRef, verdict: z.enum(TIER_VERDICTS), note: markdown.default('') }))
+    .max(LIMITS.listItems)
+    .optional()
+})
+
 export const sprintReportInput = z.strictObject({
   summary: markdown,
   accepted: textList.optional(),
@@ -375,7 +399,8 @@ export const sprintReportInput = z.strictObject({
   epicOutcome: z
     .strictObject({ summary: markdown, successCriteria: z.array(criterionResult).max(LIMITS.criteria) })
     .nullable()
-    .optional()
+    .optional(),
+  retro: sprintRetroInput.nullable().optional()
 })
 
 export const hostCatalog = z.strictObject({

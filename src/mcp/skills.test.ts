@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import architecture from '../../docs/architecture.md?raw'
 import { SKILLS_VERSION } from '../core/version'
 import { SKILLS, splitSkillSource } from './skills'
 
@@ -64,7 +65,9 @@ describe('SKILLS', () => {
       expect(item.body).not.toContain('\r')
     }
   })
+})
 
+describe('SKILLS_VERSION', () => {
   it('uses a semantic skills version', () => {
     expect(SKILLS_VERSION).toMatch(/^\d+\.\d+\.\d+$/)
   })
@@ -77,6 +80,11 @@ describe('SKILLS', () => {
   it('moved past 1.3.0 when the light-ticket, row-check and acceptance-round cadence was added', () => {
     const [major = 0, minor = 0] = SKILLS_VERSION.split('.').map(Number)
     expect(major > 1 || (major === 1 && minor >= 4)).toBe(true)
+  })
+
+  it('moved past 1.4.0 when the retro and the redraft loop was added', () => {
+    const [major = 0, minor = 0] = SKILLS_VERSION.split('.').map(Number)
+    expect(major > 1 || (major === 1 && minor >= 5)).toBe(true)
   })
 })
 
@@ -105,7 +113,13 @@ const REQUIRED: [string, string[]][] = [
       'Call out micro tasks',
       '`reasoning.effort`',
       'Leave `quality` unset unless the person asked',
-      'Precise ticket bodies'
+      'Precise ticket bodies',
+      '## 7. Replan while a run is executing',
+      'Edit only future sprints',
+      'Never edit a sprint the run has passed',
+      'A run does not redo a sprint it has passed',
+      '`get_run`',
+      'redraft'
     ]
   ],
   [
@@ -189,7 +203,24 @@ const REQUIRED: [string, string[]][] = [
       'named no increment',
       'Claim the acceptance node before you submit the sprint report',
       '`pause_run`',
-      '`resume_run`'
+      '`resume_run`',
+      '### The retro and the redraft',
+      '`get_sprint_report`',
+      '`redraft_next_sprint`',
+      'Size every new ticket',
+      "the `covers` criteria of the next sprint's acceptance node",
+      '`validate_plan`',
+      'the retro and the redraft are ready to approve in one step',
+      'Approve retro & redraft',
+      'Never edit a sprint the run has passed',
+      'Do not add tickets to a running plan yourself, except in the redraft loop',
+      '### When the sprint has a required leftover',
+      'can never be accepted',
+      'rolls the adoption back',
+      'Adoption is allowed at a checkpoint with no open attempts',
+      'Run the acceptance node over what remains',
+      'submit a new report revision',
+      '`plan_current`'
     ]
   ],
   [
@@ -212,7 +243,12 @@ const REQUIRED: [string, string[]][] = [
       'typecheck when you changed types',
       'a screenshot only when a criterion needs one',
       'Never run the full sweep',
-      "the sprint's acceptance node"
+      "the sprint's acceptance node",
+      '## Discoveries',
+      'structured notes',
+      'a title and a reason',
+      'the reporter can lift',
+      'Discoveries:'
     ]
   ],
   [
@@ -245,9 +281,31 @@ const REQUIRED: [string, string[]][] = [
       '`get_checkpoint`',
       '`advance_sprint`',
       'cannot approve',
-      '`report_submitted`, `no_active_leases`, `required_accepted`, `acceptance_accepted`, `increment_merged`, `definition_of_done`, `exit_criteria`, `epic_outcome` (final sprint), and `approval`',
+      '`report_submitted`, `no_active_leases`, `required_accepted`, `acceptance_accepted`, `increment_merged`, `definition_of_done`, `retro`, `exit_criteria`, `epic_outcome` (final sprint), `plan_current`, and `approval`, in that order',
       'Definition of Done',
-      'increment'
+      'increment',
+      '### The retro',
+      '`get_sprint_report`',
+      '`tierFacts`',
+      '`delivered`',
+      '`wentWell`',
+      '`wentPoorly`',
+      '`tierFit`',
+      '`discoveries`',
+      '`leftovers`',
+      '`actions`',
+      'what to look at',
+      'Tier-fit verdicts come from the computed facts',
+      '`right_sized`',
+      '`oversized`',
+      '`undersized`',
+      '`rejectionCount`',
+      '`escalated`',
+      'fallback',
+      'a title and a reason',
+      'the acceptance node never moves',
+      '`plan_current`',
+      'submit a new report revision'
     ]
   ]
 ]
@@ -256,6 +314,30 @@ describe('skill content requirements', () => {
   it.each(REQUIRED)('%s keeps its required rules', (name, phrases) => {
     const body = skill(name).body
     const missing = phrases.filter((phrase) => !body.includes(phrase))
+    expect(missing).toEqual([])
+  })
+})
+
+/** Phrases the architecture doc must keep about the retro and the redraft loop. */
+const ARCHITECTURE_PHRASES = [
+  '### The retro and the redraft loop',
+  '`redraft_next_sprint`',
+  '`plan_current`',
+  'computed `tierFacts`',
+  'the one place the orchestrator changes a plan that a run is executing',
+  '`approveWithRedraft`',
+  'agents can never approve',
+  'Approve retro & redraft',
+  'rolls all four back',
+  '**The acceptance-node limitation.**',
+  '`pause_run`',
+  'A report goes stale after an adoption'
+]
+
+describe('architecture doc', () => {
+  it('documents the retro and the redraft loop', () => {
+    const text = architecture.replace(/\r\n/g, '\n')
+    const missing = ARCHITECTURE_PHRASES.filter((phrase) => !text.includes(phrase))
     expect(missing).toEqual([])
   })
 })

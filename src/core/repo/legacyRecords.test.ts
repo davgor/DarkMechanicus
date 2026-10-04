@@ -8,11 +8,13 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { createRepoEnv, createStubGit, importerDeps, initProject, type RepoEnv } from '../../test/repoEnv'
+import { createTestCtx } from '../../test/testContext'
 import { contentHash, prettyJson } from '../canonical'
 import { validatePlan } from '../plan/graph'
 import { reconcileRepository } from './importer'
 import { readProject } from './initialize'
 import { attemptView, type AttemptRow } from '../services/execution'
+import { getSprintReport } from '../services/reports'
 import { ownedPaths } from './paths'
 import {
   buildRunHistoryRecord,
@@ -182,5 +184,59 @@ describe('a run history saved before sprint increments', () => {
     for (const row of rows) {
       expect(Object.keys(attemptView(row))).not.toContain('increment')
     }
+  })
+})
+
+describe('a run history saved before sprint retros', () => {
+  it('parses a report without a retro key and re-serializes it to the same bytes', () => {
+    const record = parseRecord(runHistoryRecord, RUN_TEXT, 'legacy run')
+    expect(record.reports.length).toBeGreaterThan(0)
+    for (const report of record.reports) {
+      expect(Object.keys(report.content)).not.toContain('retro')
+    }
+    expect(RUN_TEXT).not.toContain('retro')
+    expect(prettyJson(record)).toBe(RUN_TEXT)
+    expect(trackedRunHash(prettyJson(record))).toBe(trackedRunHash(RUN_TEXT))
+  })
+
+  it('imports its report and exports it back without the key, byte for byte', () => {
+    const env = legacyClone()
+    reconcileRepository(importerDeps(env, createStubGit('main')))
+    const exported = prettyJson(buildRunHistoryRecord(env.db, RUN))
+    expect(exported).not.toContain('retro')
+    expect(exported).toBe(RUN_TEXT)
+    expect(trackedRunHash(exported)).toBe(trackedRunHash(RUN_TEXT))
+  })
+
+  it('reads the imported report with retro: null and the content hash it was saved with', () => {
+    const env = legacyClone()
+    reconcileRepository(importerDeps(env, createStubGit('main')))
+    const saved = parseRecord(runHistoryRecord, RUN_TEXT, 'legacy run').reports[0]
+    const view = getSprintReport(createTestCtx({ db: env.db }), { runId: RUN, sprintId: saved?.sprintId ?? '' })
+    expect(view?.report.retro).toBeNull()
+    expect(view?.report.summary).toBe(saved?.content.summary)
+    expect(view?.contentHash).toBe(saved?.contentHash)
+  })
+
+  it('shows its sprint tickets with the attempts that were recorded, none escalated and no efforts', () => {
+    const env = legacyClone()
+    reconcileRepository(importerDeps(env, createStubGit('main')))
+    const saved = parseRecord(runHistoryRecord, RUN_TEXT, 'legacy run').reports[0]
+    const facts = getSprintReport(createTestCtx({ db: env.db }), { runId: RUN, sprintId: saved?.sprintId ?? '' })?.tierFacts ?? []
+    expect(facts.length).toBeGreaterThan(0)
+    expect(facts.flatMap((item) => item.attempts).length).toBeGreaterThan(0)
+    for (const item of facts) {
+      expect(item.escalated).toBe(false)
+      for (const entry of item.attempts) {
+        expect(entry.effort).toBeNull()
+      }
+    }
+  })
+
+  it('still finds the imported report in search by its text', () => {
+    const env = legacyClone()
+    reconcileRepository(importerDeps(env, createStubGit('main')))
+    const found = env.db.all<{ doc_id: string }>(`SELECT doc_id FROM search_index WHERE doc_type = 'report' AND search_index MATCH ?`, 'connectivity')
+    expect(found.map((row) => row.doc_id)).toEqual([parseRecord(runHistoryRecord, RUN_TEXT, 'legacy run').reports[0]?.id])
   })
 })

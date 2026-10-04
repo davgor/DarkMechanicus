@@ -359,6 +359,18 @@ describe('command authorization', () => {
     expect(world.unexpected).toEqual([])
   })
 
+  it('lets the person approve the retro and the redraft in one step', async () => {
+    const world = createWorld({ tracked: ['/repos/a'] })
+    const handlers = createDesktopHandlers(world.deps)
+    const input = { runId: 'rn_x', expectedDraftRevision: 2 }
+
+    expect(DESKTOP_COMMANDS).toContain('approveWithRedraft')
+    expect(await handlers.command('/repos/a', 'approveWithRedraft', input)).toEqual({
+      ok: true,
+      data: { name: 'approveWithRedraft', input, repoRoot: '/repos/a' }
+    })
+  })
+
   it('refuses names that are not commands, including workspace internals', async () => {
     const world = createWorld({ tracked: ['/repos/a'] })
     const handlers = createDesktopHandlers(world.deps)

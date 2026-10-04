@@ -19,6 +19,7 @@ import { type Db, parseJson, toJson } from '../db/database'
 import { fail } from '../errors'
 import { getMeta, META_KEYS, setMeta } from '../meta'
 import { validatePlan } from '../plan/graph'
+import { retroSearchParts } from '../plan/retro'
 import { LIMITS } from '../schemas'
 import { indexComment, indexDocument } from '../services/searchIndex'
 import { type FileHashCache, readUnlessSynced } from './fileHashes'
@@ -884,13 +885,14 @@ function indexRun(db: Db, record: RunHistoryRecord): void {
   for (const report of record.reports) {
     const { content } = report
     const followUps = content.followUps.map((item) => `${item.title}\n${item.body}`)
+    const retro = content.retro == null ? [] : retroSearchParts(content.retro, (ticketId) => keys.get(ticketId) ?? ticketId)
     indexDocument(db, {
       docType: 'report',
       docId: report.id,
       epicId: record.epicId,
       runId: record.runId,
       title: `Sprint report ${report.reportRevision}`,
-      body: [content.summary, ...content.risks, ...followUps].join('\n')
+      body: [content.summary, ...content.risks, ...followUps, ...retro].join('\n')
     })
   }
 }

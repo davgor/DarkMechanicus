@@ -168,7 +168,7 @@ Roles are fixed at launch. Nothing a tool call says can change them.
 | Role | Can do |
 |------|--------|
 | `planner` | Read, create epics, edit drafts, comment, save named capability profiles (`save_profile`), set the project's Definition of Done (`set_definition_of_done`). `save_plan` only with `--allow-save`. |
-| `orchestrator` (default) | Everything a planner can except set the Definition of Done (it reads it with `get_project`, and holds work to it when it accepts), plus register hosts, start and control runs, claim tickets, review attempts, submit sprint reports, and advance sprints. Never approves. |
+| `orchestrator` (default) | Everything a planner can except set the Definition of Done (it reads it with `get_project`, and holds work to it when it accepts), plus register hosts, start and control runs, claim tickets, review attempts, submit sprint reports, redraft the next sprint from a retro (`redraft_next_sprint`), and advance sprints. Never approves. |
 | `worker` | Heartbeat, submit, and fail for the claim it holds; comment. |
 | `reviewer` | Accept or reject submitted attempts; comment. |
 
@@ -211,8 +211,8 @@ A session lists only the tools its role may call. Each tool adapts one command, 
 | Row checks: `record_row_check` | | yes | | |
 | `heartbeat_attempt`, `submit_attempt`, `fail_attempt` | | yes | yes | |
 | `accept_attempt`, `reject_attempt` | | yes | | yes |
-| Checkpoints: `submit_sprint_report`, `advance_sprint` | | yes | | |
-| **Total** | 36 (37 with `--allow-save`) | 57 (58 with `--allow-save`) | 28 | 27 |
+| Checkpoints: `submit_sprint_report`, `redraft_next_sprint`, `advance_sprint` | | yes | | |
+| **Total** | 36 (37 with `--allow-save`) | 58 (59 with `--allow-save`) | 28 | 27 |
 
 `--allow-save` has no effect for `worker` and `reviewer`. No role lists a tool for the desktop-only actions.
 

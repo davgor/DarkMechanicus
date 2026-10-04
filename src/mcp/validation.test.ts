@@ -239,7 +239,7 @@ const SCHEMA_FINGERPRINTS: Record<string, string> = {
   cancel_run: 'be49650976f9ddba',
   takeover_run: 'd481e0f29f2ca1c1',
   adopt_revision: '18e63e4a9fe69b58',
-  submit_sprint_report: '1bdc412486359786',
+  submit_sprint_report: '41258d19ae84bc18',
   get_sprint_report: '3fe78b4c15e34139',
   get_checkpoint: 'd481e0f29f2ca1c1',
   advance_sprint: 'faf1d60dc4eb197e',

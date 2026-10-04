@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { SprintReportInput } from '../../shared/domain/api'
 import type { SprintReportContent } from '../../shared/domain/views'
-import { sid } from '../../test/bundles'
+import { sid, tid } from '../../test/bundles'
 import {
   errorOf,
   eventLog,
@@ -34,8 +34,22 @@ const MINIMAL: SprintReportContent = {
   risks: [],
   followUps: [],
   exitCriteria: [],
-  epicOutcome: null
+  epicOutcome: null,
+  retro: null
 }
+
+/** The facts of a seeded ticket nobody has worked on yet: no size, the default level and no effort. */
+const TIER_FACTS = (n: number) => ({
+  ticketId: tid(n),
+  key: `DM-${n}`,
+  size: null,
+  plannedLevel: 'multi_step',
+  plannedEffort: null,
+  attempts: [],
+  attemptCount: 0,
+  rejectionCount: 0,
+  escalated: false
+})
 
 const FULL: SprintReportContent = {
   summary: 'Driver selection finished; macOS signing is unproven.',
@@ -50,7 +64,8 @@ const FULL: SprintReportContent = {
   risks: ['Keychain access on CI runners'],
   followUps: [{ title: 'Provide a signing identity', body: 'Certificate access needs a person' }],
   exitCriteria: [{ criterionId: 'x1', met: false, note: 'macOS unverified' }],
-  epicOutcome: { summary: 'Partially delivered', successCriteria: [{ criterionId: 's1', met: false, note: '' }] }
+  epicOutcome: { summary: 'Partially delivered', successCriteria: [{ criterionId: 's1', met: false, note: '' }] },
+  retro: null
 }
 
 describe('submitSprintReport storage', () => {
@@ -64,6 +79,7 @@ describe('submitSprintReport storage', () => {
       reportRevision: 1,
       contentHash: contentHash(MINIMAL),
       report: MINIMAL,
+      tierFacts: [TIER_FACTS(1), TIER_FACTS(2)],
       submittedBy: ctx.session.label,
       createdAt: '2026-01-01T00:00:00.000Z'
     })

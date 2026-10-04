@@ -81,6 +81,7 @@ const ORCHESTRATOR_TOOLS = [
   'carry_forward_ticket',
   'record_row_check',
   'submit_sprint_report',
+  'redraft_next_sprint',
   'advance_sprint'
 ]
 

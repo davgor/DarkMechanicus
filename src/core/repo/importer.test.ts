@@ -43,6 +43,17 @@ const BUNDLE_2 = makeBundle([[1, 2, 3]], [[1, 2]])
 const BUNDLE_3 = makeBundle([[1, 2, 3, 4]], [[1, 2]])
 const BRANCH = { repository: null, name: 'epic/demo', startCommit: 'abcdef1' }
 
+/** The retro of the seeded report, as stored: tickets by id. None of its words appear in the other searched documents. */
+const RETRO = {
+  delivered: [{ ticket: tid(1), demo: 'Open the retrospective board', evidence: 'Screenshots of the board' }],
+  wentWell: ['Pairing helped'],
+  wentPoorly: ['Slow reviews'],
+  actions: ['Review within a day'],
+  discoveries: [{ title: 'Cache the catalog', body: 'Reloaded on every claim', ticket: tid(2) }],
+  leftovers: [{ ticket: tid(3), reason: 'Waiting on a certificate' }],
+  tierFit: [{ ticket: tid(1), verdict: 'oversized', note: 'A small model would do' }]
+}
+
 function seedRunHistory(source: RepoEnv): void {
   insertRun(source.db, { id: RUN, epicId: EPIC, revisionId: R2, ownerMachineId: SOURCE_MACHINE, activeSprintId: sid(1), autoContinue: true })
   insertAttempt(source.db, {
@@ -54,7 +65,7 @@ function seedRunHistory(source: RepoEnv): void {
     decision: { outcome: 'accepted', notes: 'Verified by reviewer', reasons: [], decidedBy: 'desktop' }
   })
   insertAttempt(source.db, { id: A2, runId: RUN, ticketId: tid(2), revisionId: R2, state: 'running', claimSecret: 'secret', leaseExpiresAt: T0 })
-  insertReport(source.db, { id: REPORT, runId: RUN, sprintId: sid(1), content: { summary: 'Sprint went well', risks: ['Flaky pipeline'] } })
+  insertReport(source.db, { id: REPORT, runId: RUN, sprintId: sid(1), content: { summary: 'Sprint went well', risks: ['Flaky pipeline'], retro: RETRO } })
   insertCheckpoint(source.db, { id: idOf('checkpoint', 1), runId: RUN, sprintId: sid(1), reportId: REPORT })
   insertOutbox(source.db, { kind: 'run_history', epicId: EPIC, runId: RUN })
 }
@@ -156,6 +167,21 @@ describe('reconcileRepository bookkeeping', () => {
     expect(find('prove')).toEqual([EPIC])
     expect(target.db.get('SELECT title FROM search_index WHERE doc_id = ?', tid(1))).toEqual({ title: 'DM-1 Ticket 1' })
     expect(target.db.get('SELECT title FROM search_index WHERE doc_id = ?', A1)).toEqual({ title: 'DM-1 attempt 1' })
+  })
+
+  it('indexes the retro text of a report, with the ticket keys', () => {
+    const target = cloneOf(buildSource())
+    reconcileRepository(importerDeps(target, createStubGit('main')))
+    const find = (query: string): string[] =>
+      target.db.all<{ doc_id: string }>('SELECT doc_id FROM search_index WHERE search_index MATCH ? ORDER BY doc_id', query).map((row) => row.doc_id)
+    for (const word of ['retrospective', 'screenshots', 'pairing', 'slow', 'catalog', 'certificate', 'oversized']) {
+      expect(find(word)).toEqual([REPORT])
+    }
+    const body = target.db.get<{ body: string }>('SELECT body FROM search_index WHERE doc_id = ?', REPORT)?.body ?? ''
+    expect(body).toContain('DM-1')
+    expect(body).toContain('DM-3')
+    expect(body).not.toContain(tid(1))
+    expect(target.db.get('SELECT content_json FROM sprint_reports WHERE id = ?', REPORT)).toMatchObject({ content_json: expect.stringContaining(tid(2)) })
   })
 })
 

@@ -56,6 +56,12 @@ describe('getCheckpoint view', () => {
         { id: 'no_active_leases', label: 'No worker still holds a lease', met: true, detail: 'All claims released or expired' },
         { id: 'required_accepted', label: 'Every required ticket accepted', met: true, detail: '2 of 2 required tickets accepted' },
         { id: 'exit_criteria', label: 'Exit criteria reported met', met: true, detail: 'This sprint has no exit criteria' },
+        {
+          id: 'plan_current',
+          label: 'Run executes the current plan',
+          met: true,
+          detail: 'The run executes revision 1, the saved plan, and no draft holds unsaved changes'
+        },
         { id: 'approval', label: 'Advance authorized', met: false, detail: 'A person must approve this checkpoint in the desktop app' }
       ],
       gatesMet: true,
@@ -92,6 +98,7 @@ describe('getCheckpoint without a report or on the final sprint', () => {
       'required_accepted',
       'exit_criteria',
       'epic_outcome',
+      'plan_current',
       'approval'
     ])
   })

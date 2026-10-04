@@ -40,7 +40,9 @@ function renderScreen(patch: Partial<CheckpointScreenProps> = {}, followUpResult
       bundle={bundle()}
       now={NOW}
       busy={false}
+      draft={null}
       onApprove={(id) => recorded.approved.push(id)}
+      onApproveWithRedraft={() => Promise.resolve(null)}
       onRetry={(id) => recorded.retried.push(id)}
       onAutoContinue={(enabled) => recorded.auto.push(enabled)}
       onAddFollowUp={(proposal: FollowUpProposal) => {

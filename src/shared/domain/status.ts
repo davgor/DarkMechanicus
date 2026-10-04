@@ -45,6 +45,9 @@ export const LEASED_ATTEMPT_STATES: readonly AttemptState[] = ['claimed', 'runni
 
 export type AttemptKind = 'work' | 'carry_forward'
 
+/** The label of the worker recorded on an attempt the orchestrator collected because the model named for it could not take the ticket. */
+export const ORCHESTRATOR_FALLBACK_LABEL = 'Orchestrator (fallback)'
+
 /** Derived, per-run execution state of a ticket (never stored as a ticket status). */
 export const TICKET_EXECUTION_STATES = [
   'accepted',

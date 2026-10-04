@@ -1,5 +1,4 @@
 /** Pure view model for the sprint checkpoint: report sections, gate conditions and actions. */
-import type { DraftOp } from '../../../shared/domain/api'
 import type { Criterion, PlanBundle } from '../../../shared/domain/bundle'
 import { isActiveRunState } from '../../../shared/domain/status'
 import type {
@@ -15,12 +14,17 @@ import type {
   SprintReportView
 } from '../../../shared/domain/views'
 import { formatAgo } from '../epic/time'
+import { nextSprintPlan, type DiscoveryItem, type LeftoverItem, type NextSprintPlan } from './nextSprint'
+import type { RedraftPanel } from './redraftView'
+import { retroSections, type RetroLookup, type RetroSections, type TicketRef } from './retroView'
 
 interface GateInput {
   checkpoint: CheckpointView
   run: RunView
   /** The plan the run executes (for keys, goals and optional flags); null when unavailable. */
   bundle: PlanBundle | null
+  /** The draft's redraft, when it holds changes: approving then saves and adopts it first. */
+  redraft?: RedraftPanel | null
 }
 
 interface RetryAction {
@@ -28,9 +32,12 @@ interface RetryAction {
   label: string
 }
 
+/** A gate condition, flagged when the approval itself is what meets it (the plan gate while a redraft waits). */
+export type GateRow = GateCondition & { resolvedByApproval?: true }
+
 export interface GateView {
   title: string
-  conditions: GateCondition[]
+  conditions: GateRow[]
   approveLabel: string
   approveEnabled: boolean
   blockedNote: string | null
@@ -91,18 +98,52 @@ export interface ReportSections {
   exitCriteria: CriterionLine[]
   followUps: FollowUpProposal[]
   outcome: { summary: string; criteria: CriterionLine[] } | null
+  /** The sprint demo and retro; null for a report written without one. */
+  retro: RetroSections | null
 }
 
 const AUTO_NOTE =
   'Sprints whose checkpoint policy is "auto" advance on their own once every gate is met. Human-gated sprints still wait for you. Applies to this run only; imported runs never carry it.'
 const CHECK_ICONS: Record<CheckStatus, string> = { passed: '✓', failed: '✗', skipped: '–' }
 
-function gateTitle(checkpoint: CheckpointView): string {
+function gateTitle(checkpoint: CheckpointView, ready: boolean, redraft: RedraftPanel | null): string {
   const next = checkpoint.sprintOrdinal + 1
-  if (checkpoint.isFinalSprint) {
-    return checkpoint.gatesMet ? 'Ready to complete the epic' : "The epic can't complete yet"
+  if (redraft !== null && ready) {
+    return 'Ready to approve the retro and the redraft'
   }
-  return checkpoint.gatesMet ? `Ready to advance to Sprint ${next}` : `Sprint ${next} can't start yet`
+  if (checkpoint.isFinalSprint) {
+    return ready ? 'Ready to complete the epic' : "The epic can't complete yet"
+  }
+  return ready ? `Ready to advance to Sprint ${next}` : `Sprint ${next} can't start yet`
+}
+
+function approveLabel(checkpoint: CheckpointView, redraft: RedraftPanel | null): string {
+  if (redraft !== null) {
+    return 'Approve retro & redraft'
+  }
+  return checkpoint.isFinalSprint ? 'Approve & complete epic' : `Approve & advance to Sprint ${checkpoint.sprintOrdinal + 1}`
+}
+
+/** What a waiting redraft does about an unmet gate: it meets the plan gate and, by moving the leftovers on, the required-tickets gate. */
+function resolution(item: GateCondition, redraft: RedraftPanel): string | null {
+  if (item.met) {
+    return null
+  }
+  if (item.id === 'plan_current') {
+    return redraft.gateDetail
+  }
+  return item.id === 'required_accepted' && redraft.clearsRequired ? `Moved to the next sprint by the redraft: ${item.detail}` : null
+}
+
+/** While a redraft waits, the approval itself meets those gates: it saves the draft, adopts it into the run and checks again. */
+function gateRows(conditions: GateCondition[], redraft: RedraftPanel | null): GateRow[] {
+  if (redraft === null) {
+    return conditions
+  }
+  return conditions.map((item) => {
+    const detail = resolution(item, redraft)
+    return detail === null ? item : { ...item, detail, resolvedByApproval: true as const }
+  })
 }
 
 function retryActions(input: GateInput): RetryAction[] {
@@ -127,16 +168,16 @@ function blockedNote(unmet: number, retries: RetryAction[]): string | null {
 
 export function gateView(input: GateInput): GateView {
   const { checkpoint, run } = input
-  const conditions = checkpoint.conditions.filter((item) => item.id !== 'approval')
+  const redraft = input.redraft ?? null
+  const conditions = gateRows(checkpoint.conditions.filter((item) => item.id !== 'approval'), redraft)
   const retries = retryActions(input)
-  const unmet = conditions.filter((item) => !item.met).length
+  const unmet = conditions.filter((item) => !item.met && item.resolvedByApproval !== true).length
+  const ready = redraft === null ? checkpoint.gatesMet : unmet === 0 && redraft.blocked === null
   return {
-    title: gateTitle(checkpoint),
+    title: gateTitle(checkpoint, ready, redraft),
     conditions,
-    approveLabel: checkpoint.isFinalSprint
-      ? 'Approve & complete epic'
-      : `Approve & advance to Sprint ${checkpoint.sprintOrdinal + 1}`,
-    approveEnabled: checkpoint.gatesMet && checkpoint.report !== null,
+    approveLabel: approveLabel(checkpoint, redraft),
+    approveEnabled: ready && checkpoint.report !== null,
     blockedNote: blockedNote(unmet, retries),
     retries,
     autoContinue: {
@@ -265,6 +306,17 @@ export function criterionLines(results: CriterionResult[], criteria: Criterion[]
   return results.map((result) => ({ text: texts.get(result.criterionId) ?? result.criterionId, met: result.met, note: result.note }))
 }
 
+/** How the retro names a ticket (as a report entry does, linked when the plan has it) and which leftovers the run has since accepted. */
+function retroLookup(context: ReportContext): RetroLookup {
+  return {
+    ref: (ticketId): TicketRef => {
+      const { ticketId: id, key, title } = resolveRow(ticketId, context.bundle)
+      return { ticketId: id, key, title }
+    },
+    accepted: (ticketId) => attemptsOf(context.run, ticketId).some((item) => item.state === 'accepted')
+  }
+}
+
 function reportHeader(report: SprintReportView, context: ReportContext): string {
   const sprintDef = context.bundle?.sprints.find((item) => item.id === report.sprintId)
   const goal = sprintDef === undefined || sprintDef.goal.trim() === '' ? '' : ` · ${sprintDef.goal.toUpperCase()}`
@@ -302,23 +354,31 @@ export function reportView(report: SprintReportView, context: ReportContext): Re
     outcome:
       outcome === null
         ? null
-        : { summary: outcome.summary, criteria: criterionLines(outcome.successCriteria, bundle?.epic.successCriteria ?? []) }
+        : { summary: outcome.summary, criteria: criterionLines(outcome.successCriteria, bundle?.epic.successCriteria ?? []) },
+    retro: retroSections(report, retroLookup(context))
   }
 }
 
-/** "+ Add to draft": a new ticket in the sprint after this checkpoint (or the last sprint). */
-export function followUpOp(
-  proposal: FollowUpProposal,
-  draft: PlanBundle,
-  checkpointOrdinal: number
-): { op: DraftOp; sprintOrdinal: number } | null {
+/** What a checkpoint item does to the draft: a report follow-up, a retro discovery or a retro leftover. */
+export type NextSprintItem = (FollowUpProposal & { kind?: 'follow_up' }) | DiscoveryItem | LeftoverItem
+
+/**
+ * The draft ops behind "+ Add to draft" (a new ticket in the sprint after this checkpoint, or the last
+ * sprint), "+ Add to next sprint" (a discovery) and "Move to next sprint" (a leftover). The last two go to a
+ * sprint added for them when the checkpoint's is the last.
+ */
+export function followUpOp(item: NextSprintItem, draft: PlanBundle, checkpointOrdinal: number): NextSprintPlan | null {
+  if (item.kind === 'discovery' || item.kind === 'leftover') {
+    return nextSprintPlan(item, draft, checkpointOrdinal)
+  }
   const sprints = [...draft.sprints].sort((a, b) => a.ordinal - b.ordinal)
-  const target = sprints.find((item) => item.ordinal === checkpointOrdinal + 1) ?? sprints[sprints.length - 1]
+  const target = sprints.find((entry) => entry.ordinal === checkpointOrdinal + 1) ?? sprints[sprints.length - 1]
   if (!target) {
     return null
   }
   return {
     sprintOrdinal: target.ordinal,
-    op: { op: 'add_ticket', sprint: target.id, ticket: { title: proposal.title, body: proposal.body } }
+    moved: [],
+    ops: [{ op: 'add_ticket', sprint: target.id, ticket: { title: item.title, body: item.body } }]
   }
 }

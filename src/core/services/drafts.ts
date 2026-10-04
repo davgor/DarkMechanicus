@@ -12,6 +12,7 @@ import { assertEpicOpen, type EpicRow, loadEpicRow } from './epics'
 import { appendEvent } from './events'
 import { requestWithoutKey, withIdempotency } from './idempotency'
 import { assertDraftRevision, currentSavedBundle, type DraftRow, getPlan, loadDraftRow } from './plans'
+import { withRunWarnings } from './runWarnings'
 
 function insertDraft(ctx: Ctx, draft: { epicId: string; baseRevisionId: string | null; bundle: PlanBundle }): DraftRow {
   const now = ctx.clock.nowIso()
@@ -40,7 +41,7 @@ function insertDraft(ctx: Ctx, draft: { epicId: string; baseRevisionId: string |
 }
 
 /** Returns the epic's draft, creating it from the current saved bundle when there is none. */
-function ensureDraft(ctx: Ctx, epic: EpicRow): DraftRow {
+export function ensureDraft(ctx: Ctx, epic: EpicRow): DraftRow {
   const existing = loadDraftRow(ctx, epic.id)
   if (existing) {
     return existing
@@ -50,6 +51,20 @@ function ensureDraft(ctx: Ctx, epic: EpicRow): DraftRow {
     current?.bundle ??
     createInitialBundle({ title: epic.title, intent: '', successCriteria: [], ownerRole: null }, initialPlanIds(ctx))
   return insertDraft(ctx, { epicId: epic.id, baseRevisionId: current?.revisionId ?? null, bundle })
+}
+
+/** Replaces the draft's bundle and advances its revision by one; returns the new draft revision. */
+export function writeDraft(ctx: Ctx, draft: DraftRow, bundle: PlanBundle): number {
+  const draftRevision = draft.draft_revision + 1
+  ctx.db.run(
+    'UPDATE drafts SET bundle_json = ?, draft_revision = ?, updated_at = ?, updated_by = ? WHERE epic_id = ?',
+    toJson(bundle),
+    draftRevision,
+    ctx.clock.nowIso(),
+    ctx.session.id,
+    draft.epic_id
+  )
+  return draftRevision
 }
 
 export function openDraft(ctx: Ctx, input: { epicId: string }): PlanView {
@@ -78,17 +93,10 @@ export function updatePlanDraft(
     const draft = ensureDraft(ctx, epic)
     assertDraftRevision(draft, input.expectedDraftRevision)
     const result = applyDraftOps(JSON.parse(draft.bundle_json) as PlanBundle, input.ops, draftDeps(ctx))
-    const draftRevision = draft.draft_revision + 1
-    ctx.db.run(
-      'UPDATE drafts SET bundle_json = ?, draft_revision = ?, updated_at = ?, updated_by = ? WHERE epic_id = ?',
-      toJson(result.bundle),
-      draftRevision,
-      ctx.clock.nowIso(),
-      ctx.session.id,
-      epic.id
-    )
+    const draftRevision = writeDraft(ctx, draft, result.bundle)
     appendEvent(ctx, { kind: 'draft.updated', epicId: epic.id, payload: { draftRevision, ops: input.ops.length } })
-    return { epicId: epic.id, draftRevision, refMap: result.refMap, validation: validatePlan(result.bundle) }
+    const validation = withRunWarnings(ctx, epic.id, result.bundle, validatePlan(result.bundle))
+    return { epicId: epic.id, draftRevision, refMap: result.refMap, validation }
   })
 }
 

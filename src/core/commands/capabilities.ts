@@ -8,7 +8,8 @@ import type { Capability } from '../authz'
  * A command added to `CommandApi` without an entry here is a compile error.
  *
  * `approveAndAdvance` also requires `checkpoint.advance`, which every holder of
- * `checkpoint.approve` (the desktop) has.
+ * `checkpoint.approve` (the desktop) has. `approveWithRedraft` also requires `plan.save`, `run.adopt` and
+ * `checkpoint.advance`, which the desktop holds too.
  */
 export const COMMAND_CAPABILITIES: Readonly<Record<CommandName, Capability>> = {
   getCapabilities: 'read',
@@ -62,12 +63,14 @@ export const COMMAND_CAPABILITIES: Readonly<Record<CommandName, Capability>> = {
   cancelRun: 'run.control',
   takeoverRun: 'run.takeover',
   adoptRevision: 'run.adopt',
+  redraftNextSprint: 'run.redraft',
   submitSprintReport: 'report.submit',
   getSprintReport: 'read',
   getCheckpoint: 'read',
   approveCheckpoint: 'checkpoint.approve',
   advanceSprint: 'checkpoint.advance',
   approveAndAdvance: 'checkpoint.approve',
+  approveWithRedraft: 'checkpoint.approve',
   authorizeAutoContinue: 'run.authorize_auto',
   grantRetry: 'ticket.retry_grant',
   addComment: 'comment.write',

@@ -223,3 +223,169 @@
   font-size: 12px;
   line-height: 17px;
 }
+
+/* Sprint demo and retro: delivered items, retro notes, the tier-fit table, and the work for the next sprint. */
+.cp-delivered,
+.cp-notes,
+.cp-items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cp-delivered li {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line-soft);
+  font-size: 13.5px;
+}
+
+.cp-ticket-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.cp-ticket-head .cp-key {
+  flex-shrink: 0;
+  min-width: 56px;
+}
+
+.md.cp-demo {
+  font-size: 13.5px;
+  line-height: 20px;
+  color: var(--ink-2);
+}
+
+.cp-evidence {
+  font-size: 11.5px;
+  line-height: 17px;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.cp-notes li {
+  margin-left: 18px;
+  list-style: disc;
+  font-size: 13.5px;
+  line-height: 20px;
+}
+
+.cp-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cp-items .cp-followup-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.cp-tier-scroll {
+  overflow-x: auto;
+}
+
+.cp-tier {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.cp-tier th {
+  padding: 6px 12px 6px 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.cp-tier td {
+  padding: 10px 12px 10px 0;
+  border-top: 1px solid var(--line-soft);
+  vertical-align: top;
+}
+
+.cp-tier-ticket .cp-key,
+.cp-tier-title {
+  display: block;
+}
+
+.cp-tier-title {
+  color: var(--ink-2);
+  font-size: 12.5px;
+}
+
+.cp-tier-used {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+
+.cp-tier-verdict {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  font-size: 12px;
+}
+
+/* The redraft panel and a refused approval, in the gate card. */
+.cp-redraft {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.cp-redraft p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 18px;
+}
+
+.cp-redraft-blocked {
+  color: var(--st-failed);
+}
+
+.cp-refusal {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 34px 10px 12px;
+  border: 1px solid var(--st-failed);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--st-failed) 10%, var(--panel));
+}
+
+.cp-refusal p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 18px;
+}
+
+.cp-refusal-dismiss {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+}
+
+.is-pending > .cp-icon {
+  color: var(--accent);
+}

@@ -122,10 +122,3 @@ export function sprintIncrementViews(bundle: PlanBundle, attempts: AttemptRow[])
     ]
   })
 }
-
-/** One sprint's increment as the views show it, read from the run's own plan and attempts. */
-export function sprintIncrementOf(ctx: Ctx, runId: string, sprintId: string): SprintIncrementView | undefined {
-  const run = requireRun(ctx, runId)
-  const attempts = ctx.db.all<AttemptRow>('SELECT * FROM attempts WHERE run_id = ? ORDER BY rowid', runId)
-  return sprintIncrementViews(loadBundle(ctx, run.revision_id), attempts).find((view) => view.sprintId === sprintId)
-}
