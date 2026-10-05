@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "**Integration fix on agents-s1 (orchestrator, 6db853d).** `src/main/autoUpdate.test.ts` already fails on main b1720ff. Commit 3f0e33a (\"ticket time\") shortened `formatUpdateReadyMessage` to \"Version X is ready.\", the auto-revert put the long message back, and the mascot merge (2cf6d6a) kept the test that expects the short one. I applied the person's intended short message on agents-s1 so the sprint's full `npm test` can pass. This is a one-line source change, and the existing test covers it. `main` itself still has the failure until this epic merges.",
+  "createdAt": "2026-10-05T00:25:36.303Z",
+  "epicId": "ep_01m418epbg8qkqa2e2krvdkqk5",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m44q799fg5vv70t570fpppcn",
+  "ticketId": null
+}

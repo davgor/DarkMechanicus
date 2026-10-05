@@ -7,6 +7,7 @@ import { startDesktopBridge } from './desktop/bootstrap'
 import { hardenWebContents, resolveAppUrl } from './desktop/navigation'
 import { guardIpc } from './ipcGuard'
 import { logger, setupGlobalErrorLogging } from './logger'
+import { disposeBeforeQuit } from './quitDisposal'
 import { loadRendererContent, onActivateCreateWindow, onLastWindowClosed } from './windowPolicy'
 
 setupGlobalErrorLogging()
@@ -16,6 +17,8 @@ const rendererUrl = process.env['ELECTRON_RENDERER_URL']
 const rendererFile = join(__dirname, '../renderer/index.html')
 /** The one page this app trusts: the window may only navigate within it, and IPC answers only it. */
 const appUrl = resolveAppUrl(rendererUrl, rendererFile)
+/** The longest quitting waits for agent processes to be disposed. */
+const QUIT_DISPOSE_TIMEOUT_MS = 5_000
 
 function openLinkInBrowser(url: string): void {
   shell.openExternal(url).catch((error: unknown) => {
@@ -79,7 +82,16 @@ app.whenReady().then(() => {
   registerAppVersionHandler(ipc)
   registerAutoUpdateHandlers(ipc)
   initAutoUpdate()
-  startDesktopBridge(SKILLS, ipc)
+  const bridge = startDesktopBridge(SKILLS, ipc)
+  // Agent chat processes are children of this app: dispose every one before it exits.
+  disposeBeforeQuit(app, {
+    busy: () => bridge.chats.liveCount() > 0,
+    dispose: () => bridge.chats.disposeAll(),
+    timeoutMs: QUIT_DISPOSE_TIMEOUT_MS,
+    onError: (error) => {
+      logger.error('Could not dispose agent chats on quit:', error)
+    }
+  })
   createMainWindow()
 
   app.on('activate', () => {

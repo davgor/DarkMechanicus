@@ -2,7 +2,7 @@ import { fail } from '../errors'
 import type { Db } from './database'
 
 /** Highest schema version this build understands. Newer databases are refused, never downgraded. */
-export const SCHEMA_VERSION = 7
+export const SCHEMA_VERSION = 8
 
 interface Migration {
   version: number
@@ -362,6 +362,16 @@ const V7 = `
 ALTER TABLE sprint_reports ADD COLUMN revision_id TEXT;
 `
 
+/**
+ * v8 records when a run was paused (`paused_at`, set by every pause and cleared by resume). A run paused for
+ * sign-in keeps its open leases, and resume extends each by the time the run spent paused, which is measured
+ * from this. It is a local fact like leases and heartbeats, not exported: NULL for every run before this version,
+ * for every run that is not paused, and for runs imported from tracked records, and such a pause extends nothing.
+ */
+const V8 = `
+ALTER TABLE runs ADD COLUMN paused_at TEXT;
+`
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, sql: V1 },
   { version: 2, sql: V2 },
@@ -369,7 +379,8 @@ export const MIGRATIONS: Migration[] = [
   { version: 4, sql: V4 },
   { version: 5, sql: V5 },
   { version: 6, sql: V6 },
-  { version: 7, sql: V7 }
+  { version: 7, sql: V7 },
+  { version: 8, sql: V8 }
 ]
 
 export function readSchemaVersion(db: Db): number {

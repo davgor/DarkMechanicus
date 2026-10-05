@@ -26,6 +26,8 @@ export const CAPABILITIES = [
   'run.adopt',
   'run.redraft',
   'run.authorize_auto',
+  'run.pause_signed_out',
+  'run.resume_signed_out',
   'run.row_check',
   'attempt.claim',
   'attempt.heartbeat',
@@ -46,6 +48,8 @@ export type Capability = (typeof CAPABILITIES)[number]
 export const HUMAN_ONLY_CAPABILITIES: readonly Capability[] = [
   'checkpoint.approve',
   'run.authorize_auto',
+  'run.pause_signed_out',
+  'run.resume_signed_out',
   'ticket.retry_grant',
   'run.queue',
   'epic.delete',
@@ -139,11 +143,12 @@ export interface SessionContext {
   capabilities: ReadonlySet<Capability>
 }
 
-export function requireCapability(session: SessionContext, capability: Capability): void {
+/** Throws `unauthorized` unless the session holds the capability; `message` replaces the default sentence when the caller can say more. */
+export function requireCapability(session: SessionContext, capability: Capability, message?: string): void {
   if (!session.capabilities.has(capability)) {
     fail(
       'unauthorized',
-      `This ${session.role} session is not permitted to perform "${capability}".`,
+      message ?? `This ${session.role} session is not permitted to perform "${capability}".`,
       { role: session.role, capability }
     )
   }

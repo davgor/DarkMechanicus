@@ -1,3 +1,4 @@
+import { activityCommands } from './activity'
 import { authoringCommands } from './authoring'
 import { boardCommands } from './board'
 import { checkpointCommands } from './checkpoints'
@@ -17,5 +18,6 @@ export const COMMANDS: CommandTable = {
   ...executionCommands,
   ...checkpointCommands,
   ...commentCommands,
+  ...activityCommands,
   ...deletionCommands
 }

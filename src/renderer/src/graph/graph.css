@@ -148,6 +148,25 @@
     0 0 20px 5px color-mix(in srgb, var(--st-running) 34%, transparent);
 }
 
+/* The state label and, while the ticket is being worked on, its hourglass share one row. */
+.pg-card-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.pg-card-head .pg-card-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.pg-card-head .ew-hourglass {
+  width: 18px;
+  height: 18px;
+  margin: -2px 0;
+}
+
 .pg-card-label {
   font-family: var(--font-mono);
   font-size: 10px;

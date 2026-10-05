@@ -41,6 +41,8 @@ export interface PlanGraphProps {
   onAddTicket(sprintId: string): void
   /** Adds the sprint's acceptance node; offered only on a draft sprint that has none. */
   onAddAcceptance(sprintId: string): void
+  /** The hourglass of a ticket being worked on was clicked: open the live activity of its open attempt. */
+  onOpenActivity(ticketId: string, attemptId: string): void
 }
 
 const DELETE_KEYS = ['Backspace', 'Delete']
@@ -120,10 +122,10 @@ function GraphCanvas(props: PlanGraphProps): JSX.Element {
   const board = useRef<HTMLDivElement>(null)
   const viewport = useViewport()
   const { panSample, onMove } = usePanSample()
-  const { model, editable, selectedTicketId, onAddTicket, onAddAcceptance } = props
+  const { model, editable, selectedTicketId, onAddTicket, onAddAcceptance, onOpenActivity } = props
   const flowNodes = useMemo(
-    () => toFlowNodes(model, { editable, selectedTicketId, onAddTicket, onAddAcceptance }),
-    [model, editable, selectedTicketId, onAddTicket, onAddAcceptance]
+    () => toFlowNodes(model, { editable, selectedTicketId, onAddTicket, onAddAcceptance, onOpenActivity }),
+    [model, editable, selectedTicketId, onAddTicket, onAddAcceptance, onOpenActivity]
   )
   const flowEdges = useMemo(() => toFlowEdges(model, editable), [model, editable])
   const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>(flowNodes)

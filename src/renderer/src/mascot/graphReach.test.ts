@@ -15,7 +15,8 @@ it('reaches and climbs a ticket in a normal single-sprint fitView board', () => 
     plan, mode: 'saved', run: null, statuses: new Map(), outcome: null, rejected: null, draftNumber: 1
   })
   const nodes = toFlowNodes(model, {
-    editable: false, selectedTicketId: null, onAddTicket: () => undefined, onAddAcceptance: () => undefined
+    editable: false, selectedTicketId: null, onAddTicket: () => undefined, onAddAcceptance: () => undefined,
+    onOpenActivity: () => undefined
   })
   const bounds = getNodesBounds(nodes)
   const viewport = getViewportForBounds(bounds, 800, 500, 0.2, 1.5, 0.08)

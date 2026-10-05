@@ -1,0 +1,255 @@
+# Agents: connect, sign in, chat, run
+
+The desktop app can host three agent CLIs: **Claude Code**, **Codex** and **Cursor**. You connect each one (Find it, or Download it), sign in with its own login, chat with it in a tracked folder, answer its approval requests, and start a run with it as the orchestrator. Windows and macOS are supported; there is no Linux install recipe.
+
+This is separate from [connecting an external agent host over MCP](mcp-setup.md), which still works with the desktop closed. How the hosted agents are built is in [`architecture.md`](../architecture.md#hosted-agents).
+
+Dark Mechanicus runs the vendor's own CLI under your own sign-in. It never asks for, shows or stores a password, key or token, and it calls no model API itself.
+
+## Where things are kept
+
+All live in the app's `userData` folder, outside every repository. None is a portable record: they do not travel with a pull, and untracking a folder does not touch them.
+
+| What | Where |
+|------|-------|
+| Connected agents | `userData/agents.json`: one entry per agent (path, version, found or downloaded, timestamps). Remove deletes only the entry. A corrupt file reads as no agents connected |
+| Chats | `userData/agents/chats/<folder key>/index.jsonl` (one line per change of a chat; the last line for an id wins) and `userData/agents/chats/<folder key>/<chatId>.jsonl` (the transcript, one item per line) |
+| Activity bindings | `userData/agents/activity-bindings.jsonl`: which chat threads act on which runs and attempts, one line per binding (ids only, never a claim token). Delete chat removes the chat's lines |
+| Credentials | Not kept by Dark Mechanicus. The CLI keeps its own login |
+
+The folder key is the first 24 hex characters of the SHA-256 of the folder's canonical path, so every spelling of a folder finds the same chats. Claim tokens (`at_...`) are masked before anything is written to a transcript or shown, including two tokens run together and a token cut short at the end of a text; text that is shortened is masked before it is cut. Delete chat removes the transcript and every stored version of the chat's record; nothing is moved to a trash.
+
+`userData` is `%APPDATA%\<app name>` on Windows and `~/Library/Application Support/<app name>` on macOS. A development run on this Windows machine uses `%APPDATA%\dark-mechanicus`; an installed build is expected to use `DarkMechanicus` (the product name), which has not been checked on an installed build.
+
+## Connect an agent
+
+Press **+** next to **AGENTS** in the sidebar. The **Add an agent** pane has one card per agent with **Find** and **Download**. Once an agent is connected its card shows **Connected · v<version>** and its sign-in state, and **Download** becomes **Update**. Selecting the agent in the sidebar opens its page: the executable, version, how it was connected, its sign-in, and **Find again**, **Update** and **Remove**.
+
+### Find
+
+Use Find when the CLI is already installed. It opens a native file dialog; pick the executable. Dark Mechanicus runs it once with `--version` (no shell, 8 seconds) and connects it only if the output identifies that CLI. Anything else is refused and nothing is stored (see [Find refusals](#find-refusals)).
+
+| Agent | Looks for (Windows) | Looks for (macOS) | `--version` must say |
+|-------|---------------------|-------------------|----------------------|
+| Claude Code | `claude.exe` or `claude.cmd` | `claude` | a line with "Claude Code", for example `2.1.281 (Claude Code)` |
+| Codex | `codex.exe` or `codex.cmd` | `codex` | a line starting with `codex` or `codex-cli`, for example `codex-cli 0.46.0` |
+| Cursor | `agent.exe`, `agent.cmd`, `cursor-agent.exe` or `cursor-agent.cmd` | `agent` or `cursor-agent` | a build such as `2025.09.18-7ae6800`, or a line naming Cursor |
+
+On macOS the executables have no extension, so the dialog shows all files and shows hidden folders such as `~/.local/bin`. On Windows the dialog lists `.exe` and `.cmd` first. A `.cmd` shim is what npm installs on Windows; see [Windows `.cmd` shims](#windows-cmd-shims).
+
+### Download
+
+Download runs the vendor's own installer. It starts with a native confirmation that shows the source address, the exact command, the folders it installs to, how the download is checked, and the vendor's documentation. **Cancel is the default.** Nothing is downloaded, written or run until you choose **Download and install**, and a dialog in the app's main process is the only thing that can answer it.
+
+Then the installer script is downloaded to a temporary folder, checked where the vendor publishes a checksum, and run. After that the app looks for the CLI where the vendor puts it, runs the same check as Find, and stores it. A failure at any step stores nothing and says why, with the installer's last output lines. The installer is limited to ten minutes. On an agent that is already connected the button is **Update**: the vendor installer runs again and the new version is stored.
+
+| Agent | Installer script | How it is checked | Installs the CLI to |
+|-------|------------------|-------------------|---------------------|
+| Claude Code | Windows `https://claude.ai/install.ps1`; macOS `https://claude.ai/install.sh` | Anthropic publishes no checksum for the script. Its installer checks each binary against the SHA-256 in its release manifest. It keeps Claude Code up to date in the background | Windows `%USERPROFILE%\.local\bin\claude.exe`; macOS `~/.local/bin/claude` (also `~/.local/share/claude`) |
+| Codex | Windows `install.ps1` and macOS `install.sh`, from `https://github.com/openai/codex/releases/latest/download/` | The script is checked against the SHA-256 GitHub publishes for that release asset; the Codex package is checked against the release checksums. If GitHub publishes none, nothing is downloaded (`checksum_unavailable`) | Windows `%LOCALAPPDATA%\Programs\OpenAI\Codex\bin\codex.exe`; macOS `~/.local/bin/codex`. Codex keeps its files in `.codex` in your home folder |
+| Cursor | Windows `https://cursor.com/install?win32=true`; macOS `https://cursor.com/install` | Cursor publishes no checksum for the script and the confirmation says it cannot be verified before it runs | Windows `%LOCALAPPDATA%\cursor-agent` (`agent` and `cursor-agent`); macOS `~/.local/bin/agent` and `~/.local/bin/cursor-agent`, linked into `~/.local/share/cursor-agent` |
+
+On Windows the script runs in the system PowerShell as `-NoProfile -NonInteractive -ExecutionPolicy Bypass -File <script>`; the bypass applies to that one process. On macOS it runs as `/bin/bash <script>` (Claude Code, Cursor) or `/bin/sh <script>` (Codex). The Codex and Cursor installers say they add their folder to your `PATH` (Cursor's on macOS "may", in your shell profile); Dark Mechanicus runs the CLI by its full path, so it does not depend on that. Windows and macOS on x64 and arm64 have a recipe; any other system or a 32-bit processor does not (`unsupported_platform`).
+
+### Remove
+
+**Remove** on an agent's page asks first. It only forgets the connection: the CLI stays installed, nothing is uninstalled or deleted, and you can connect it again.
+
+## Sign in
+
+Sign-in is the CLI's own. **Sign in** opens a terminal window that runs `claude auth login`, `codex login` or `agent login`; the vendor's page opens in your browser from there, and anything it asks for (a pasted code, for example) is asked in that window. Dark Mechanicus only learns that the window started. On Windows it is a `cmd.exe` window that stays open after the CLI ends. On macOS it is Terminal, started through `osascript`; macOS may ask whether Dark Mechanicus may control Terminal, which has not been exercised on a Mac here.
+
+After Sign in starts, the prompt asks the app for the agent's status every three seconds and says **Signed in to <agent>** when the CLI does. **Dismiss** stops the waiting. Each agent's state comes from the CLI's own status command (`claude auth status`, `codex login status`, `agent status`, 10 seconds):
+
+| State | Meaning | What to do |
+|-------|---------|------------|
+| Checking sign-in... | The status command is still running | Wait |
+| Signed in | The CLI says it is signed in | Nothing |
+| Signed out | The CLI says it is not signed in, or a chat found its login gone | **Sign in** |
+| Sign-in unknown | The status could not be told: it did not answer in time, did not start, answered in a way the app does not recognise, or reported an error. The reason is shown | **Check again**; if it keeps failing, see [Sign-in problems](#sign-in-problems) |
+
+### Where the app prompts for it
+
+The app asks each connected agent's CLI for its sign-in state when the agent list loads or an agent is connected or updated, whenever the window regains focus (which is where a sign-in finished in a terminal window shows up), and whenever a chat reports a change. The prompt then appears wherever an agent is needed, so you learn about it before a chat fails:
+
+- **Sidebar, AGENTS:** each connected agent's row shows its state, with **Sign in** when it is signed out and **Check again** when the state is unknown.
+- **Add an agent pane:** a connected agent's card shows **Signed out. Sign in to use <agent>.** with **Sign in**, or its unknown reason with **Check again**.
+- **Agent page:** the Sign-in row always offers **Sign in**, which is also how you switch accounts.
+- **New chat and Start run dialogs:** only connected, signed-in agents can be chosen. Under **Not available**, a signed-out agent has **Sign in** right in the list and joins the choice once it is signed in, without leaving the dialog. An agent that is not connected has an **Add <agent>** button that opens the add-agent pane.
+- **A chat:** the **Signed out** card, below.
+- **The run bar of a paused run:** below.
+
+## Chats
+
+In a tracked, initialized folder, press **+** on the folder's **Agents** group (**New chat in <folder>**). Choose:
+
+1. **Agent.** Only connected, signed-in agents.
+2. **Model.** The models that agent offers (Claude Code from its own model list, with a built-in list when that fails; Codex from `model/list`; Cursor from `agent models`). If the list cannot be read the chat uses the agent's default model.
+3. **Role**, and for a planner or orchestrator **Allow save** (see [Roles and Allow save](#roles-and-allow-save)).
+
+The chat opens as soon as it is created. The agent runs in that folder with its own Dark Mechanicus MCP server at the chat's role, labelled `<Agent> · <chat title>`. Nothing is written to the agent's own configuration. Claude Code chats do read your own Claude Code settings (user, project and local), so your permission rules in them still apply.
+
+The app does not list a chat's role and label anywhere (see [`agents-e2e.md`](../reports/agents-e2e.md), defect 2). They show in these places:
+
+- **The footer, and the MCP card on the folder page,** say only how many: **N agent sessions · stdio**.
+- **MCP `list_sessions`** gives each session's role, label and activity.
+- **The run bar** names the run's host (**host <label>**). Run events name the session that acted, and each attempt names its worker (label, model and host).
+
+- **Send** with Enter; Shift+Enter adds a line. **Stop** interrupts the running turn and keeps the chat. Once the turn has ended the transcript says "You stopped this turn before the agent finished.", after whatever the agent had written by then, and a tool call the turn left running shows **Cancelled**. A turn that failed also cancels the calls it left running. (Sprint 1's e2e report, defect 5, found that Stop left no trace; that is what this fixes.)
+- The chat list is the same in every window: a chat created, renamed or deleted in one window shows up in the others. While a stored chat waits for its folder's chat list the main area says **Loading chat…**; the tracked folders and an agent's page say **Loading folders…** and **Loading agents…**.
+- **Claude Code's own memory is off in hosted chats, and a write into its memory folder asks like any other file.** Every Claude Code process the app starts is given `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`, so the CLI does not write its own notes under `~/.claude/projects/<project>/memory/` unasked. Without it that write was allowed without a request (see [`agents-e2e.md`](../reports/agents-e2e.md), defect 1). That switch alone left two ways in: the CLI also let a write the agent was *asked* to make into that folder through with no card ([`agents-fixes-e2e.md`](../reports/agents-fixes-e2e.md), defect 1), and so a shell redirect such as `echo hi >> <memory file>` (found while closing the first). Now both reach the approval card, through two things in the process the app starts:
+  - **A hook** asks before a Write, Edit, MultiEdit or NotebookEdit whose target is in a memory folder, however the path is spelled: absolute, with `~`, relative to the chat folder, with either slash, in other letter case, through `..` or a link. The memory folders are `~/.claude/projects/*/memory/`, and also the same folders under `CLAUDE_CONFIG_DIR` when that is set. A call the hook cannot read asks too. The card is the ordinary file-edit card: it names the file and shows the lines, and does not say why it asks, so check the path.
+  - **A setting** moves the CLI's own memory folder to one the app owns and nobody reads (`dark-mechanicus-unused-memory` in the temp folder). The CLI exempts only that folder from asking, so it asks by its own rules about a command that writes into any real memory folder. A folder you moved yourself with `autoMemoryDirectory` is covered the same way, because the app's setting outranks yours in that process (Claude Code's settings precedence puts a command-line setting above your user, project and local ones; not checked against a real setting of yours).
+
+  Both go in the process the app starts, as an SDK option and an inline `--settings`: the app writes and changes none of your Claude Code settings files (the CLI still reads them, as above), and your own terminal sessions are not affected. **Allow for this chat** on file edits covers a memory write too, as it covers any write by that tool. How it works and what was checked live: [`architecture.md`](../architecture.md) (Adapters).
+- Change the **Model** from the chat header; it applies from the next turn and is recorded in the transcript.
+- Rename and delete a chat from its row in the sidebar. Delete asks first.
+- A chat's agent process starts on its first message (Codex starts when the chat is opened). A process with nothing running and nothing waiting for ten minutes is stopped; your next message starts a new one that resumes the same vendor session. When a session cannot be resumed (it was deleted, or the CLI was reinstalled) the transcript says the context was reset and the chat carries on in a new session.
+- Quitting the app stops every agent process and what each one started, and waits for them to be gone before it exits (at most 5 seconds, so a stuck one cannot keep the app open). Any stop of a process (on quit, the idle stop, a deleted chat, or a Find check or install that times out) ends its whole process tree, not just the process the app started.
+
+### Panels that follow a chat thread
+
+A ticket's **Activity** tab and a run's **Orchestrator feed** show the work of the chat thread bound to that attempt or run (the bindings in [Where things are kept](#where-things-are-kept)). They read the chat with `chats:read`, which starts no agent and writes nothing, so looking at an old attempt starts nothing and changes nothing. The thread is read once and then follows the chat's updates as they are pushed; nothing is polled. A thread can serve more than one attempt of a ticket (a retry in the same chat): an attempt's tab shows only the rows from that attempt's claim to its end, or to now while it is open. A request waiting in such a panel is answered through the chat it was raised in, and is only waiting while an agent is running. A stored request that nobody is waiting on shows as **Cancelled**, and with no agent running a call still marked running shows **Cancelled** and a thread **failed**, as opening the chat would store them.
+
+## Approvals
+
+Reads and searches inside the folder never ask. File edits, commands and anything else become an **approval request** in the chat, showing what the agent wants to do (the exact command and where it runs, or the files and a short preview of the changed lines) with three answers:
+
+| Answer | Effect |
+|--------|--------|
+| **Allow once** | This request only |
+| **Allow for this chat** | This request, and later requests of the same category and the same tool in the same chat, until the app quits. On a tool of the chat's own `darkmechanicus` server it covers every tool of that server in the chat, and the card says "Allow for this chat covers all Dark Mechanicus tools in this chat." (the server still limits each tool by the chat's role); other MCP servers, commands and file edits stay per tool. Each automatic answer is recorded in the transcript as automatic |
+| **Deny** | The agent is told no |
+
+The categories are file edits, commands and other (for example a read or search that reaches outside the folder, or, in Codex, a call to an MCP tool). A request waits in the app, not in the window: closing the window or opening another chat loses nothing. **Stop**, quitting the app and a failure to store the request cancel it (recorded as cancelled, the card says **Cancelled**; the agent is told no), and the calls running in the thread the request was raised in are cancelled with it. A request a crash left unanswered is recorded as cancelled the next time you open the chat. Opening a chat that has no agent running also settles what its transcript still says is running: tool calls become **Cancelled** and subagent threads **failed**. A chat with an agent running keeps its work as it is. A chat with a request waiting has a waiting badge in the sidebar.
+
+Each vendor enforces this its own way. Claude Code runs in its default permission mode and asks the app before edits, commands and other tools. A write into its own memory folder asks like any other, which takes a hook and a setting of the app's (see [Chats](#chats)). Codex runs with approval policy `untrusted` and the `workspace-write` sandbox, so it asks before every file change and before any command it does not know is a safe read; how much of the sandbox applies on Windows is up to Codex. Cursor's permission requests come through the Agent Client Protocol; **Allow for this chat** sends Cursor's own "allow always" option when it offers one.
+
+## Subagents in a chat
+
+When an agent starts a subagent, the chat shows the subagent's work as a **nested thread** under the tool call that started it, with a state (running, done or failed). What the subagent writes, the tools it calls and the approval requests it raises appear inside the thread, and a request names the thread it came from. A subagent that starts one of its own opens a thread inside its thread. How much of this an agent shows depends on what its CLI tells the app:
+
+| Agent | Subagent threads | What the chat shows |
+|-------|------------------|---------------------|
+| Claude Code | Yes | The `Agent` tool call, and a thread with the subagent's messages, tool calls and approval requests. A subagent started in the background ends when its notification arrives |
+| Codex | Yes, from the Codex source; not run against a real Codex | The `spawn_agent` call, and a thread with the subagent's messages, tool calls and approval requests. Details below |
+| Cursor | No | One thread. The subagent task is shown as the tool call it is; what the subagent does is not shown. Details below |
+
+**Codex.** `codex app-server` runs a subagent as a thread of its own and sends that thread's notifications and requests on the chat's connection with the subagent's thread id. The app reads both ways Codex announces a subagent: the `spawn_agent` tool of multi-agent v1 (a `collabAgentToolCall` item, which names the new thread when it completes) and the `subAgentActivity` item of multi-agent v2 (kind `started`). Both open a thread, named by the first line of the task (v1) or by the last part of the agent path (v2), or just "Subagent".
+
+- A thread is running until the subagent's turn ends: done when the turn completed, failed when it failed or was interrupted, and running again if the subagent is given another turn. The status Codex reports for a subagent when the agent uses `wait`, `close_agent` or the like, and a v2 `completed` or `interrupted` activity, end a running thread the same way. A thread still running when the Codex process ends is marked failed.
+- The agent's other subagent tools (`wait`, `send_input`, `close_agent`, ...) show as ordinary tool calls in the thread of the agent that used them.
+- A subagent the app never saw announced (one from before the Codex process started) is not shown, and its notifications are dropped, until the agent resumes it with the resume tool, which opens a thread for it named "Subagent". An approval request from a thread the app does not know is raised in the chat itself, without a thread name, so that Codex is never left waiting.
+- Source: openai/codex at tag `rust-v0.160.0` (commit `a956835d020762cb2b570053af06f643a11c0ecc`), read 2026-10-05: `codex-rs/app-server-protocol/schema/typescript/v2/ThreadItem.ts` and the `Collab*` types next to it, `codex-rs/core/src/tools/handlers/multi_agents/spawn.rs` and `multi_agents_v2/spawn.rs`, and `codex-rs/app-server/src/lib.rs` (every new thread is attached to every initialized connection). The test exchanges (`src/main/agents/__mocks__/codexSubagents.ts`) are built from that source and say so; none was captured from a running Codex. Not checked against a real Codex: that these items arrive as the source says, that a subagent's first output never comes before its announcement (such an item would be dropped), and which of the two multi-agent versions a given Codex release uses.
+
+**Cursor.** Cursor's ACP page (https://cursor.com/docs/cli/acp, read 2026-10-05) documents one subagent message, `cursor/task`: the task's tool call id, description, prompt and subagent type, and optionally the model, an agent id and a duration. It names no session of the subagent and says nothing about the subagent's own messages or tool calls reaching the client, and the Agent Client Protocol itself (https://agentclientprotocol.com/protocol) has no subagent concept. The chat therefore keeps one thread:
+
+- The task shows as the tool call that started it (its title and input, and the report when the call completes). The app answers `cursor/task` as `completed`, or says nothing when Cursor sends it as a notification, and writes no thread item, since a thread would hold nothing.
+- If Cursor streams anything from the subagent as ordinary updates, it appears in the chat's own thread with everything else, and the app cannot tell it from the agent's own work.
+- Not checked against a real Cursor: whether the CLI sends a subagent's work at all. The Agent Client Protocol has an unstable draft for subagent sessions (`subagent_update`, `docs/rfds/subagents.mdx` in agentclientprotocol/agent-client-protocol, commit `d2631c6f092cb2105a235c9cf295b5a3b51fa0e5`, 2026-09-30) that an agent may send only to a client that advertises a `subagents` capability. The app does not advertise it, and nothing read from Cursor says it sends those updates, so nothing was built on it.
+
+## Roles and Allow save
+
+A chat's role is one of the four Dark Mechanicus roles and is fixed when the chat starts; to change it, start a new chat.
+
+| Role | For |
+|------|-----|
+| Planner | Drafts epics, plans and tickets |
+| Orchestrator | Runs an epic: claims tickets, starts workers and reviews what they hand back |
+| Worker | Does one ticket and reports back |
+| Reviewer | Checks finished work against its criteria |
+
+**Allow save** exists only for the planner and the orchestrator. It starts on, and while it is on the chat's MCP server is launched with `--allow-save`, so the agent can call `save_plan`. With it off, or for a worker or reviewer (which never get it, whatever a request says), the agent edits drafts and you press **Save** in the app. The role and the flag are the same ones [`mcp-setup.md`](mcp-setup.md#roles-and---allow-save) describes for an external host; agents can never approve a checkpoint, authorize auto-continue or grant a retry.
+
+## Start a run with an agent, or leave it pending
+
+On a saved epic, **Start run** opens a dialog with two choices.
+
+**Run with an agent** (button **Run with agent**). Pick a connected, signed-in agent and a model: Claude Code, Codex or Cursor, the same on Windows and macOS. Dark Mechanicus then, in this order:
+
+1. Queues a run pinned to the epic's current saved revision (the same command **Leave pending** runs).
+2. Creates a chat in that folder as an **orchestrator** titled **Orchestrator · <epic title>**, with **Allow save off**. A run-launched orchestrator never gets Allow save, and the dialog has no way to turn it on: it can plan and redraft, but you save plans and you approve every sprint checkpoint.
+3. Sends it the first message, which you can read in the transcript: the epic, its branch, the run id, and the steps to follow (check `get_capabilities`, call `start_run`, run the epic itself and start a subagent for each ticket). A chat has no way to open an MCP prompt or a skill, so the message carries the orchestrator and worker guidance itself, in two marked sections after the steps (**Orchestrator guidance (for you)** and **Worker guidance**, the same text as the `darkmechanicus-orchestrator` and `darkmechanicus-worker` prompts). A step says how a worker is started: each worker subagent is given its whole execution packet (the attempt id and claim token `claim_ticket` returned, with the ticket) and the worker guidance. It runs in the orchestrator's session, so it heartbeats and submits for itself; the orchestrator reviews, accepts or rejects and does not submit on its behalf. The claim token goes only to the worker doing that ticket. The message itself holds no claim token. (Sprint 1's e2e report, defect 3, found that the earlier step "load the orchestrator prompt" could not be followed in a chat; the guidance is in the message now.)
+
+The run bar then says **Orchestrated by <agent> in** and links the chat, and a toast says the run is queued. Follow the chat as it works; its approval requests arrive there.
+
+If something fails the run is still queued and the epic's banner says why: no agent is running it and it waits for an orchestrator, as if you had left it pending. An epic that cannot be read, a plan that is not saved, or an epic that already has an active run fail before anything is queued or created, and nothing exists afterwards. If the chat could not be created there is none; if its agent could not start (not connected, signed out, crashed), the chat is removed again so none is left claiming a run nobody is running. To recover, fix the cause (connect the agent, sign in) and either cancel the queued run with **Cancel run** and press **Start run** again, or start an orchestrator chat yourself and ask it to run the epic; it picks up the queued run with `start_run`.
+
+**Leave pending** (**Leave pending**). Queues the run and waits: "Run queued. It starts when an orchestrator picks it up." The run bar says **Waiting for an orchestrator**. An external orchestrator, such as Claude Code connected over MCP as in [`mcp-setup.md`](mcp-setup.md#working-model-your-session-is-the-orchestrator), picks it up with `start_run`. This works with no agent connected.
+
+Without a usable agent the first choice says **No agent is connected and signed in.** and links to the add-agent pane; **Leave pending** still works.
+
+## When a login expires
+
+A CLI's login can expire or be revoked while the app runs. The chat that finds out ends its turn cleanly and the following happens:
+
+- **The chat shows a Signed out card** (a "Sign-in" card titled **Signed out of <agent>**, pill **Needs sign-in**) with the CLI's own words and **Sign in**. The message you sent that was cut short is kept; nothing resends it on its own. The message box is closed with "Signed out of <agent>. Sign in above to keep chatting." Every other chat of that agent is told too, and a new message in any of them is stored, answered with the same card and starts nothing until you sign in.
+- **Sign in** works as above, and so does signing in from a terminal of your own. The card shows **Checking** while it asks, then the pill becomes **Signed in**. If a turn was cut short, the card says "Signed in again. The message that was cut short has not been sent yet." with **Retry**.
+- **Retry shows only when a turn was cut short**: a message that was sent when the login failed, or one sent while the agent was signed out. A login found gone while no turn was running leaves a card with no Retry. Sending a new message in the chat also ends the wait to retry the old one. **Retry** sends that message once, the card shows **Retried** and "Turn retried. <agent> is answering your message again." Retry is refused while the agent is still signed out, or when there is nothing to retry. Older cards in a chat are marked **Earlier**.
+- **The sidebar flags the chat** with the waiting badge, for sign-in as well as for approval.
+- **The agent's status says Signed out everywhere** until a status check says signed in. The CLI's own status command only reads what is stored locally and may still say "signed in" for a login that no longer works, so the app keeps what the chats found. The flag clears at the next status check that says signed in, whoever signed in: the app's **Sign in**, or your own terminal. The check runs when the window regains focus, so a sign-in finished elsewhere shows up when you come back to the app. If the CLI says signed in while the login is still bad, the flag clears and the next turn that fails sets it again. The flag is held in memory and ends when the app quits.
+
+### Account problems are not a lost sign-in
+
+Claude Code can also say that the account itself cannot be used, and signing in again does not change that. The chat shows a notice instead of the Signed out card, with the CLI's own words (or a sentence of the app's when it gave none) and advice:
+
+| Notice | Meaning |
+|--------|---------|
+| **Organization not allowed** | The organization behind the account does not allow this agent |
+| **Account on hold** | The account is on hold; sort it out with the provider |
+| **Verification required** | The account has to be verified with the provider first |
+
+There is no **Sign in** or **Retry** on these. They flag nothing, pause no run, and do not refuse messages in other chats. Only the Claude Code adapter maps these states; the Codex and Cursor adapters have no such mapping, and none was run against a real account problem.
+
+### A run paused for sign-in
+
+If the chat is the orchestrator of a run that is **running**, the app also pauses the run, with the reason `signed_out`. Only the desktop app can give that reason; an agent calling `pause_run` with it over MCP is refused. A run that is queued or waiting at a checkpoint is left as it is. A run that is already paused for another reason is switched to `signed_out` (see the lease note below).
+
+- **The run bar says "Paused: <agent> signed out"**, links the orchestrator chat, and offers **Sign in** (or **Check again** for an unknown state) right there. **Resume run** stays off, with the tip "Sign in to <agent> first", until the agent's status says signed in. The app never resumes the run itself: you press **Resume run**, and no agent can: `resume_run` over MCP on a run paused for `signed_out` fails with `unauthorized` and says the person resumes it in the desktop app. ([`agents-e2e.md`](../reports/agents-e2e.md), defect 4, saw an orchestrator chat resume such a run over MCP; that was sprint 1, and the desktop-only `run.resume_signed_out` capability now stops it.)
+- **The run keeps its open leases while paused.** A run paused for `signed_out` does not expire the leases of its open tickets, whatever their lease time, and workers' heartbeats still work, so a worker loses nothing while you sign in. On **Resume run**, each open lease is extended by the time the run spent paused, and the run records a `run.leases_extended` event with each attempt's old and new lease end. A run that was already paused for another reason (a ticket failure, your own pause) when its agent was signed out is switched to `signed_out`, so its open leases are kept from that moment. Runs paused for any other reason, and a run taken over from another machine, expire leases as usual.
+
+## Troubleshooting
+
+### Find refusals
+
+| Code | You see | Likely cause and fix |
+|------|---------|----------------------|
+| `not_a_file` | "That is not a file." | The path is a folder, is missing, or is not absolute. Pick the executable itself |
+| `not_executable` | "That file is not executable." or "...not a program Windows can run (.exe or .cmd)." | On macOS, the file lacks the execute permission. On Windows, pick the `.exe` or `.cmd`, not a script or other file |
+| `unsafe_path` | "The path has a character (a quote, "%", or a control character) that cannot be launched safely." | A Windows `.cmd` path containing `"`, `%` or a control character is refused, never escaped. Move the shim somewhere else, or connect the `.exe` |
+| `did_not_start` | "It did not start (<OS code>)." | The file exists but the system could not start it (a missing runtime behind a shim, for example). Run it in a terminal to see why |
+| `timed_out` | "It timed out." | `--version` took longer than 8 seconds, as a cold start behind antivirus scanning can. Try again |
+| `failed` | "It exited with an error (code N) when asked for its version." | The program is broken or is not that CLI's command. Run `<path> --version` in a terminal |
+| `wrong_program` | "This is not the <agent> CLI." | The output did not name that CLI. Pick the right agent's executable |
+
+### Windows `.cmd` shims
+
+npm installs agents on Windows as `.cmd` shims, and Node cannot start those without a shell. So a shim is run through exactly one `cmd.exe /d /v:off /s /c` parse with its path inside one pair of quotes: `&`, `^`, `(` and spaces in the path are literal, `!` expansion is off and AutoRun is skipped. Every argument after the path is a constant, and stopping a chat stops what the shim started. The cost is that a path with `"`, `%` or a control character cannot be run safely, and is refused rather than escaped. This applies to Find, to the sign-in window and to Codex and Cursor chats.
+
+Claude Code chats work differently. Its SDK needs a real program, not a shim, so Dark Mechanicus follows an npm shim to the script or program it runs (the quoted path under `%dp0%`, next to the shim). Find may accept a Claude `.cmd` and the chat still fail with "Dark Mechanicus cannot launch Claude Code through that .cmd shim. Connect claude.exe instead (the native installer puts it in %USERPROFILE%\.local\bin)." when the shim cannot be read or followed. Connect `claude.exe` as the message says (Download installs it there).
+
+### Download failures
+
+Nothing is stored on any failure. The codes: `busy` (a download of that agent is already running), `unsupported_platform` (no recipe for this system or processor), `download_failed` (the installer could not be fetched, or is not at an official address), `checksum_mismatch` (the script does not match the published checksum, so it was not run), `checksum_unavailable` (Codex only: GitHub published no checksum for the script, so nothing was downloaded), `installer_failed` (the installer exited with an error or ran over ten minutes; its last output lines are shown), `executable_not_found` (the installer finished but the CLI is not where the vendor puts it; use **Find**), `verify_failed` (what was installed did not pass the Find check) and `unexpected`. Declining the confirmation is not a failure; nothing is fetched or run.
+
+### Sign-in problems
+
+- **Could not start sign-in.** The agent is not connected, the file is not a program the system can run, the path is unsafe for `cmd.exe` (see above), or no terminal window could be opened.
+- **The window opens but the state never changes.** Finish the login in the browser and in that window, and then **Check again**. **Dismiss** the prompt to stop the three-second checks.
+- **Sign-in unknown.** The reason line says what happened. **Check again** asks once more. "Did not answer in time" means the status command took over ten seconds.
+- **A chat says signed out but the agent page says signed in.** A status check that says signed in clears what the chats found and tells every chat opened since the app started, so this should not last. Opening the chat asks again, and **Sign in** on its card checks until the CLI says signed in.
+- **A chat starts but the Dark Mechanicus tools are missing in Cursor.** The adapter hands the server to Cursor in the ACP session; a Cursor that still gates such servers behind its own approval would leave the tools out, and the adapter cannot see that.
+
+## What was and was not verified
+
+Verified on a Windows machine: Claude Code's `--version` and `auth status` output formats and its signed-out transcript were taken from a real Claude Code install, and the Windows `cmd.exe` launch rules are covered by tests that run against Node itself.
+
+Not verified, and not claimed:
+
+- **macOS.** Nothing here was run on a Mac: the macOS install recipes and folders, the Terminal sign-in through `osascript` (and whether macOS asks for permission), the `~/.local/bin` locations, and the Find dialog on macOS.
+- **Codex and Cursor** were not installed on that machine. Their sign-in detection comes from the vendors' source, documentation and forum posts, not from a real signed-out session. Cursor's `agent status` wording is not documented (the app matches "not logged in" and "logged in" style messages and otherwise says Sign-in unknown), neither is the output of `agent models`, and whether an older Cursor gates the Dark Mechanicus server is unchecked.
+- **Subagent threads for Codex and Cursor.** The Codex mapping is read from the Codex source (tag `rust-v0.160.0`) and the Cursor outcome (one thread) from Cursor's ACP page and the Agent Client Protocol; no real Codex or Cursor ran, and the test exchanges are built from those documents, not recorded. See [Subagents in a chat](#subagents-in-a-chat).
+- **Download against the live vendor endpoints.** The installer flow is tested with fake downloads and fake processes. This runbook does not record a real install on either platform.
+- **Where `userData` is** on an installed build, as noted above.
+- **Sprint 3's changes:** on Windows, against a real Claude Code, [`agents-fixes-e2e.md`](../reports/agents-fixes-e2e.md) ran these live: the memory switch (its gap is closed by the memory-folder check below), the stopped-turn marker, the cancelled approval and tool row after a quit and reopen, the process tree gone after a quit, one Allow for this chat covering the Dark Mechanicus tools, the kickoff hand-off that binds worker threads, and a retried attempt's Activity tab. Not verified live: the signed-out flag clearing, the account notices, Retry, the chat list in two windows, and anything with Codex, Cursor or a Mac. The account notices in particular come from the Agent SDK's error names, not from a real account in that state.
+- **The memory-folder check:** on Windows, with Claude Code 2.1.281 and Agent SDK 0.3.289, the app's own Claude adapter was driven against the real CLI (Haiku, scratch folders, a throwaway harness that is not shipped). Each of these raised an approval card, and on Deny the memory folder's listing (names, sizes, hashes, times) did not change: a Write by absolute path, by `~`, by relative path (`..` six times up to `.claude\projects\<project>\memory`), with forward slashes, in upper case, and through a junction in the chat folder (relative and absolute); an Edit of an existing memory file; and shell redirects (`>>`, `1>>`, `>`, a relative target, through the junction). Without the hook and the setting the same Write by `~` and by relative path, and `echo hi >> <memory file>`, ran with no card and wrote the file. On Allow the memory write happened; an ordinary Write in the chat folder still asked, and wrote on Allow. A `CLAUDE_CONFIG_DIR` set to the default folder (with forward slashes) changed nothing. A Write into the unused folder itself asked too, but only because of the hook (the CLI exempts that folder); a shell redirect into it is not asked about and fails, because the folder does not exist. The sprint 4 acceptance round then ran the main cases in the running app, through its chat view ([`agents-fixes-e2e.md`](../reports/agents-fixes-e2e.md), Sprint 4): in a Haiku chat a Write by absolute path and by `~` raised a file-edit card and a shell redirect (`echo hi >> <memory file>`) raised a command card; each was denied with the project's `memory\` folder unchanged (names, sizes, hashes); the absolute path asked again and, on Allow once, was written. A plain "Remember that my code word is PINEAPPLE." wrote nothing and raised no card, and an ordinary `ordinary.txt` in the chat folder asked as before. The process the app started carried `--settings` with `autoMemoryDirectory` set to the temp folder's `dark-mechanicus-unused-memory`, which did not exist afterwards. **Not verified live:** MultiEdit and NotebookEdit (tests only), the PowerShell tool, macOS and Linux, a `CLAUDE_CONFIG_DIR` that points somewhere else (the login lives in the default folder), and a real `autoMemoryDirectory` of yours (a managed, organization-level value would outrank the app's).

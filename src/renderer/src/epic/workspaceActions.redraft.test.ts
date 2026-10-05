@@ -35,10 +35,12 @@ function harness(patch: Partial<WorkspaceData> = {}, backend = new FakeBackend(s
   const actions = createWorkspaceActions({
     runner: backend.runner,
     epicId: 'ep_1',
+    startOrchestrator: () => Promise.reject(new Error('Starting an orchestrator is not part of this test.')),
     getState: () => current,
     dispatch,
     reload: () => undefined,
-    onChanged: () => undefined
+    onChanged: () => undefined,
+    onChatsChanged: () => undefined
   })
   return { actions, backend, dispatched, dispatch, state: () => current }
 }

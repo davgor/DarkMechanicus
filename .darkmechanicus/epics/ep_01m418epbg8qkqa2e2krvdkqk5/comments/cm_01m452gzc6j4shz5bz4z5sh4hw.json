@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "**Scope cull, revision 7 (the person, 2026-10-04).** The person asked to verify live with Claude Code only, call the rest good, and cull macOS (\"I'll test it when I get time outside of this epic\"). I saved revision 7 and the run adopted it while paused, with no open attempts. All 18 accepted tickets kept their acceptance.\n\nWhat changed:\n- **Sprint 1 goal and exit criteria:** e1 and e5 now say Windows with Claude Code; Codex and Cursor are covered by unit tests.\n- **DM-61:** Windows and Claude Code only, with one sign-out/sign-in cycle that covers both the Signed out card and the run pause.\n- **DM-104:** c9 and c10 now check the Codex and Cursor replay tests, not live chats. c3 now stops at the Download confirmation and a decline, because a live install would change the person's machine. c16 is limited to Claude on Windows. The orphaned Fireguard criterion c17 is fixed: the node runs Fireguard itself.\n- **Sprint 2:** e3 is Windows only. In DM-90, c11 is Windows only and the orphaned Fireguard criterion c12 is fixed the same way.\n- **Epic success criterion s2:** Windows only.\n\nThe person plans a follow-up epic for any fixes the culled checks turn up.",
+  "createdAt": "2026-10-05T03:43:08.166Z",
+  "epicId": "ep_01m418epbg8qkqa2e2krvdkqk5",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m452gzc6j4shz5bz4z5sh4hw",
+  "ticketId": null
+}

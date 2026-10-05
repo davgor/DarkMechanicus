@@ -1,32 +1,155 @@
 {
-  "branch": null,
-  "completedAt": null,
+  "branch": {
+    "name": "agents",
+    "repository": "C:\\Users\\davgo\\Documents\\GitHub\\DarkMechanicus",
+    "startCommit": "b1720ff03f193fb7d15499145ac49a3b8df1f602"
+  },
+  "completedAt": "2026-10-05T22:51:05.354Z",
   "createdAt": "2026-10-03T16:09:47.120Z",
   "epicId": "ep_01m418epbg8qkqa2e2krvdkqk5",
   "format": "darkmechanicus.epic-state",
   "formatVersion": 1,
-  "generation": 1,
-  "outcome": null,
-  "provenance": null,
-  "status": "backlog",
-  "ticketStatuses": {
-    "tk_01m418f9qyh7npd4jqpw0858bm": "backlog",
-    "tk_01m418f9qz48hfwrycgarbfqnt": "backlog",
-    "tk_01m418f9qz6sr8zxfz7h2313rx": "backlog",
-    "tk_01m418f9qz9qjx6hqkp89nj0h2": "backlog",
-    "tk_01m418f9qzb42ha3r1m9wwrmx9": "backlog",
-    "tk_01m418f9qzbw5agbhvm3krbkgm": "backlog",
-    "tk_01m418f9qzc2dggmvvph8jnyp0": "backlog",
-    "tk_01m418f9qzds56gdmqsyat5hyv": "backlog",
-    "tk_01m418f9qzhmvcd2n10ktpmefc": "backlog",
-    "tk_01m418f9qznrfb3hfjryft06qz": "backlog",
-    "tk_01m418f9qzp36fs7s95p2dwq8v": "backlog",
-    "tk_01m418f9qzrc1wnmfm7hnwp3n4": "backlog",
-    "tk_01m418f9qzsy2amzyjpw76bdw7": "backlog",
-    "tk_01m418f9qztwx9g9jxktmd8bfj": "backlog",
-    "tk_01m418f9qzwg97pr35tjd795yv": "backlog",
-    "tk_01m418f9qzxbye0apw7mgs4zm3": "backlog"
+  "generation": 106,
+  "outcome": {
+    "recordedAt": "2026-10-05T22:51:05.354Z",
+    "runId": "rn_01m44m0qnd0nn90p29a12041js",
+    "successCriteria": [
+      {
+        "criterionId": "s1",
+        "met": true,
+        "note": "AGENTS section above FOLDERS; + opens the add-agent pane with three cards, each with Find and Download (DM-50, DM-61)."
+      },
+      {
+        "criterionId": "s2",
+        "met": true,
+        "note": "Find runs and identifies the executable before connecting; live with Claude Code 2.1.281 (DM-47, DM-61). Download installs after a native confirmation and shows the version; it is checked with fake downloads only (DM-48), as the criterion now says after the person's cull on 2026-10-05."
+      },
+      {
+        "criterionId": "s3",
+        "met": true,
+        "note": "Agents block per folder; the new chat asks for agent, model and role, and runs in that folder (DM-56; DM-61, DM-199 and DM-212 live)."
+      },
+      {
+        "criterionId": "s4",
+        "met": true,
+        "note": "Transcript and context survive a restart (DM-61 step 6); the model switches between turns and the agent is fixed."
+      },
+      {
+        "criterionId": "s5",
+        "met": true,
+        "note": "Edits and commands ask first and Deny is reported back: live for Claude (DM-61; DM-212 including memory-folder writes, closed by DM-213), replay tests for Codex and Cursor (live culled)."
+      },
+      {
+        "criterionId": "s6",
+        "met": true,
+        "note": "The chat's agent calls this folder's Dark Mechanicus tools with its role (live orchestrators in DM-90 and DM-199); the chat registers as a session (footer count, list_sessions)."
+      },
+      {
+        "criterionId": "s7",
+        "met": true,
+        "note": "No credential field or storage. Sign-in runs each CLI's own login (DM-49), and no agent ever ran a login."
+      },
+      {
+        "criterionId": "s8",
+        "met": true,
+        "note": "Start run offers Run with agent or Leave pending (DM-59); run live in DM-61, DM-90 and DM-199."
+      },
+      {
+        "criterionId": "s9",
+        "met": true,
+        "note": "Hourglass on working tickets in the graph and list, opening a live Activity tab (DM-93; DM-90)."
+      },
+      {
+        "criterionId": "s10",
+        "met": true,
+        "note": "Orchestrator chip and live feed of claims (model, rationale), heartbeats, reviews, pauses and reports (DM-94; DM-90)."
+      },
+      {
+        "criterionId": "s11",
+        "met": true,
+        "note": "The bound worker thread streams in the Activity tab with Open chat (DM-99; DM-90). It binds without a nudge since DM-203, and reads without starting an agent since DM-211 (DM-199)."
+      },
+      {
+        "criterionId": "s12",
+        "met": true,
+        "note": "An external host's progress notes and run events show in the attempt panel (DM-91, DM-92; DM-90 part A)."
+      },
+      {
+        "criterionId": "s13",
+        "met": true,
+        "note": "Collapsible subagent threads and action markers that open the ticket or epic (DM-100; DM-90, DM-199)."
+      },
+      {
+        "criterionId": "s14",
+        "met": true,
+        "note": "Tokens are masked in stored and streamed text, including glued and cut-short ones (DM-51, DM-91, DM-201); searches in DM-90 and DM-199 found none, with a positive control."
+      },
+      {
+        "criterionId": "s15",
+        "met": true,
+        "note": "Sign in is prompted after Find or Download, in the new-chat flow and in Start run (DM-124); the flag clears on any signed-in check (DM-206). Live for Claude, tests for Codex and Cursor."
+      },
+      {
+        "criterionId": "s16",
+        "met": true,
+        "note": "Live in DM-61: Signed out card, Sign in, then Retry; the orchestrator chat's run paused with its leases kept. DM-206 shows Retry only when cut short; DM-202 leaves the resume to the person."
+      }
+    ],
+    "summary": "The Agents epic is delivered in four sprints on `agents`, each a squashed commit:\n- 417a154: connect Claude Code, Codex and Cursor; chat per folder with approvals; sign-in; Start run with an agent.\n- 5043f7c: live activity: progress notes, timelines, the hourglass, the orchestrator feed, subagent threads and bindings.\n- 4518afd: fixes from the live checks.\n- d3441e7: memory-folder writes ask.\n\nEvery sprint passed the full Definition of Done. Fireguard graded A 97, A 92, A 95 and A 100.\n\nVerified live on Windows with the person's Claude Code in four acceptance walkthroughs (docs/reports/agents-e2e.md, live-activity-e2e.md and agents-fixes-e2e.md with its Sprint 4 section).\n\nNot run live: Codex, Cursor, macOS and a live Download. The person culled these on 2026-10-04 and 2026-10-05; they are covered by replay, unit and fake-download tests.\n\nAll 16 success criteria are met as worded in revision 11."
   },
-  "title": "Agents: connect Claude, Codex and Cursor and chat with them per folder",
-  "updatedAt": "2026-10-03T16:10:17.620Z"
+  "provenance": null,
+  "status": "completed",
+  "ticketStatuses": {
+    "tk_01m418f9qyh7npd4jqpw0858bm": "completed",
+    "tk_01m418f9qz48hfwrycgarbfqnt": "completed",
+    "tk_01m418f9qz6sr8zxfz7h2313rx": "completed",
+    "tk_01m418f9qz9qjx6hqkp89nj0h2": "completed",
+    "tk_01m418f9qzb42ha3r1m9wwrmx9": "completed",
+    "tk_01m418f9qzbw5agbhvm3krbkgm": "completed",
+    "tk_01m418f9qzc2dggmvvph8jnyp0": "completed",
+    "tk_01m418f9qzds56gdmqsyat5hyv": "completed",
+    "tk_01m418f9qzhmvcd2n10ktpmefc": "completed",
+    "tk_01m418f9qznrfb3hfjryft06qz": "completed",
+    "tk_01m418f9qzp36fs7s95p2dwq8v": "completed",
+    "tk_01m418f9qzrc1wnmfm7hnwp3n4": "completed",
+    "tk_01m418f9qzsy2amzyjpw76bdw7": "completed",
+    "tk_01m418f9qztwx9g9jxktmd8bfj": "completed",
+    "tk_01m418f9qzwg97pr35tjd795yv": "completed",
+    "tk_01m418f9qzxbye0apw7mgs4zm3": "completed",
+    "tk_01m43n1zbxj3b94t8mszhmy85h": "completed",
+    "tk_01m43n57tyegdewb1zbyc1wer9": "completed",
+    "tk_01m43n57v0xmjx16h34g9z64xa": "completed",
+    "tk_01m43n57v0xnfq6rhmj0vfybj7": "completed",
+    "tk_01m43n5y33rfxdp8p9ma62t71n": "completed",
+    "tk_01m43n5y353tr2cz3ht07xb2df": "completed",
+    "tk_01m43n5y35a3yj0n560ga5ghta": "completed",
+    "tk_01m43n6mzvf8kzx2rcdxhayqe4": "completed",
+    "tk_01m43n6mzwnjq91zegj4jvqyz6": "completed",
+    "tk_01m43n6mzwswktqv5w8x3syb0g": "completed",
+    "tk_01m43nb6nr8sna53rtyazeyefb": "completed",
+    "tk_01m43nb6ns5k6bqf3kxws92ft0": "backlog",
+    "tk_01m43nb6nt09kmz9dy1tsgdsf0": "backlog",
+    "tk_01m43nb6ntj1s30wfw1est0axq": "backlog",
+    "tk_01m43nb6nwwn2va8cfbv5yykyt": "completed",
+    "tk_01m43qtb126h0h60bvsvxvj3ap": "completed",
+    "tk_01m43qtb15acpxp9stw2rnedr5": "completed",
+    "tk_01m43qtb15k9m06k1jf6sz4czn": "completed",
+    "tk_01m464q30nne95ejaqkb54k7r5": "completed",
+    "tk_01m464q30sce788fpmjcxdpnhd": "completed",
+    "tk_01m464q30scyq58eyg1mkedt2e": "completed",
+    "tk_01m464q30sf11ghg1wf7xamz4j": "completed",
+    "tk_01m464q30sffrazx3zwdsyksnb": "completed",
+    "tk_01m464q30svqdmcn5bw2dh76tf": "completed",
+    "tk_01m464q30sy03s3821171fvq3c": "completed",
+    "tk_01m464q30t5pgqh4a8ry76xczn": "completed",
+    "tk_01m464q30tmdqhvs8strr3c088": "completed",
+    "tk_01m464q30tnkpn1ahes4shgzk5": "completed",
+    "tk_01m464q30tv0essjtradjr7xw3": "completed",
+    "tk_01m464q30tzygdqryf1v711nmx": "completed",
+    "tk_01m46c0xxagkznp0623n2ab9z2": "completed",
+    "tk_01m46t84ss21hse0xjkpp9sxwq": "completed",
+    "tk_01m46t84syq2wsz3bw89yg1xj4": "completed"
+  },
+  "title": "Agents: connect Claude, Codex and Cursor, chat with them per folder, and watch them work live",
+  "updatedAt": "2026-10-05T22:51:05.384Z"
 }

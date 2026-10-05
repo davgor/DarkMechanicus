@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "**Run 2 starts on revision 6 (orchestrator, 2026-10-04).**\n\nThe queued run 1 was pinned to revision 1, the 16-ticket plan from before the merge. The auto-revert workflow had reverted commit 3f0e33a (\"ticket time\") over its `src/main/autoUpdate.ts` change, and the revert also rolled back this epic's records (`current.json` went back to rev 1, snapshots for rev 2 to 6 were removed, and the deleted Live epic was restored).\n\nAt the person's request, I restored `.darkmechanicus/epics` from 3f0e33a (records only, not `autoUpdate.ts`) and ran `reconcile_repository`. Revision 6 is current again, and the reconcile canceled run 1. Run 2 started on revision 6. The restored record files are uncommitted on `main`.\n\nSetup: the epic branch is `agents`, from b1720ff. Sprint 1 integrates on `agents-s1`. Worktrees are under `../dm-wt/`.",
+  "createdAt": "2026-10-04T23:31:06.591Z",
+  "epicId": "ep_01m418epbg8qkqa2e2krvdkqk5",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m44m3g6za1a3s8mjkpbsfz5x",
+  "ticketId": null
+}

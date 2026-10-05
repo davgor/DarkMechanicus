@@ -77,6 +77,8 @@ const DESKTOP: Capability[] = [
   'run.adopt',
   'run.redraft',
   'run.authorize_auto',
+  'run.pause_signed_out',
+  'run.resume_signed_out',
   'attempt.review',
   'attempt.reconcile',
   'checkpoint.approve',
@@ -110,14 +112,23 @@ function sessionWith(role: SessionRole, capabilities: Capability[]): SessionCont
 
 describe('capability vocabulary', () => {
   it('lists every capability exactly once', () => {
-    expect(CAPABILITIES).toHaveLength(36)
-    expect(new Set(CAPABILITIES).size).toBe(36)
+    expect(CAPABILITIES).toHaveLength(38)
+    expect(new Set(CAPABILITIES).size).toBe(38)
     expect(sorted(CAPABILITIES)).toEqual(sorted([...DESKTOP, ...AGENT_ONLY]))
   })
 
-  it('marks approval, auto-continue, retry grants, run queueing and deletion as human-only', () => {
+  it('marks approval, auto-continue, retry grants, run queueing, deletion and the sign-in pause and resume as human-only', () => {
     expect(sorted(HUMAN_ONLY_CAPABILITIES)).toEqual(
-      sorted(['checkpoint.approve', 'run.authorize_auto', 'ticket.retry_grant', 'run.queue', 'epic.delete', 'ticket.delete'])
+      sorted([
+        'checkpoint.approve',
+        'run.authorize_auto',
+        'run.pause_signed_out',
+        'run.resume_signed_out',
+        'ticket.retry_grant',
+        'run.queue',
+        'epic.delete',
+        'ticket.delete'
+      ])
     )
   })
 })
@@ -241,6 +252,15 @@ describe('requireCapability', () => {
     expect((error as DomainError).code).toBe('unauthorized')
     expect((error as DomainError).message).toBe('This worker session is not permitted to perform "plan.save".')
     expect((error as DomainError).details).toEqual({ role: 'worker', capability: 'plan.save' })
+  })
+
+  it('says what the caller gave instead of the default sentence, with the same code and details', () => {
+    const session = sessionWith('orchestrator', ['read'])
+    const error = thrownBy(() => requireCapability(session, 'run.resume_signed_out', 'Only the desktop app can do that.'))
+    expect(error).toBeInstanceOf(DomainError)
+    expect((error as DomainError).code).toBe('unauthorized')
+    expect((error as DomainError).message).toBe('Only the desktop app can do that.')
+    expect((error as DomainError).details).toEqual({ role: 'orchestrator', capability: 'run.resume_signed_out' })
   })
 
   it('checks the session capability set rather than the role name', () => {

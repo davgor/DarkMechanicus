@@ -58,6 +58,7 @@ describe('workspace loading', () => {
       chosenView: null,
       layout: 'graph',
       selectedTicketId: null,
+      activity: null,
       checkpointOpen: false,
       banner: null,
       rejected: null,
@@ -65,6 +66,7 @@ describe('workspace loading', () => {
       saveNotice: null,
       busy: false,
       confirm: null,
+      startRunOpen: false,
       validation: null
     })
   })
@@ -206,6 +208,12 @@ describe('workspace feedback', () => {
     expect(state.validation).toBe(report)
   })
 
+  it('opens and closes the Start run dialog', () => {
+    const open = workspaceReducer(loaded(), { type: 'start_run_dialog', open: true })
+    expect(open.startRunOpen).toBe(true)
+    expect(workspaceReducer(open, { type: 'start_run_dialog', open: false }).startRunOpen).toBe(false)
+  })
+
   it('selects tickets without leaving the checkpoint view', () => {
     const open = workspaceReducer(loaded(), { type: 'open_checkpoint' })
     const selected = workspaceReducer(open, { type: 'select_ticket', ticketId: 'tk_101' })
@@ -260,3 +268,28 @@ describe('graph input for the shown view', () => {
 function summaryRow(id: string): TicketSummaryView {
   return { id, key: id, title: id, status: 'backlog', sprintId: null, sprintOrdinal: null, priority: 'normal', tags: [], optional: false }
 }
+
+describe('opening the live activity of an attempt', () => {
+  it('selects the ticket and asks its panel for the attempt', () => {
+    const state = workspaceReducer(loaded(), { type: 'open_activity', ticketId: 'tk_202', attemptId: 'at_202_2' })
+    expect(state).toMatchObject({ selectedTicketId: 'tk_202', activity: { attemptId: 'at_202_2' } })
+  })
+
+  it('makes a fresh request every time, so asking again brings the tab back', () => {
+    const open = (state: WorkspaceState): WorkspaceState =>
+      workspaceReducer(state, { type: 'open_activity', ticketId: 'tk_202', attemptId: 'at_202_2' })
+    const first = open(loaded())
+    expect(open(first).activity).not.toBe(first.activity)
+  })
+
+  it('is forgotten when any ticket is selected the ordinary way', () => {
+    const open = workspaceReducer(loaded(), { type: 'open_activity', ticketId: 'tk_202', attemptId: 'at_202_2' })
+    const selected = workspaceReducer(open, { type: 'select_ticket', ticketId: 'tk_201' })
+    expect(selected).toMatchObject({ selectedTicketId: 'tk_201', activity: null })
+  })
+
+  it('survives a reload while the ticket stays selected', () => {
+    const open = workspaceReducer(loaded(), { type: 'open_activity', ticketId: 'tk_202', attemptId: 'at_202_2' })
+    expect(loaded({}, open).activity).toBe(open.activity)
+  })
+})

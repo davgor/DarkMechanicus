@@ -19,6 +19,8 @@ import {
   type McpConfigView,
   type TrackedFolderView
 } from '../../shared/desktop/api'
+import { createAgentAuthHandlers, type AgentAuthHandlers, type AgentAuthHooks } from './agentAuth'
+import { createAgentHandlers, type AgentHandlerDeps, type AgentHandlers } from './agentHandlers'
 import type { FolderRegistry } from './folderRegistry'
 import { normalizeExternalUrl } from './navigation'
 import type { WorkspacePool } from './workspacePool'
@@ -44,7 +46,7 @@ const claudeCodeRequestSchema = z.strictObject({
   replace: z.boolean()
 })
 
-export interface DesktopHandlerDeps {
+export interface DesktopHandlerDeps extends AgentHandlerDeps, AgentAuthHooks {
   registry: Pick<FolderRegistry, 'list' | 'track' | 'untrack' | 'resolve'>
   pool: Pick<WorkspacePool, 'get' | 'close'>
   /** Native folder picker; null when the person cancels. */
@@ -64,7 +66,7 @@ export interface DesktopHandlerDeps {
 }
 
 /** Arguments are `unknown` because they come straight from IPC. */
-export interface DesktopHandlers {
+export interface DesktopHandlers extends AgentHandlers, AgentAuthHandlers {
   listFolders(): Promise<TrackedFolderView[]>
   pickFolder(): Promise<FolderPickResult>
   untrackFolder(path: unknown): Promise<TrackedFolderView[]>
@@ -185,6 +187,8 @@ export function firstPickedDirectory(result: { canceled: boolean; filePaths: rea
 
 export function createDesktopHandlers(deps: DesktopHandlerDeps): DesktopHandlers {
   return {
+    ...createAgentHandlers(deps),
+    ...createAgentAuthHandlers(deps.agents, deps),
     listFolders: async () => deps.registry.list(),
     pickFolder: () => pickFolder(deps),
     untrackFolder: (path) => untrackFolder(deps, path),

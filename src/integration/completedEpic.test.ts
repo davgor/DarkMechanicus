@@ -12,6 +12,7 @@ import type { CommandResult } from '../shared/desktop/api'
 import type { EpicDetailView, PlanView, RunView, SprintReportView } from '../shared/domain/views'
 import { createSequentialIds, createTestClock } from '../test/testContext'
 import { createFakeGit } from '../test/workspaceHarness'
+import { idleAgentDeps } from '../test/idleAgents'
 
 /** The completed "MCP connection test" epic committed in this repository's portable state. */
 const TRACKED = fileURLToPath(new URL('../../.darkmechanicus', import.meta.url))
@@ -53,7 +54,8 @@ function createDesktop(repo: string, config: string): Desktop {
     installSkills: () => ({ written: [] }),
     connectClaudeCode: () => ({ outcome: 'unchanged' }),
     previewBoardRemoval: () => ({ remove: [], kept: [], editByHand: [] }),
-    removeBoardFiles: () => ({ removed: [], removedFolders: [], kept: [], editByHand: [] })
+    removeBoardFiles: () => ({ removed: [], removedFolders: [], kept: [], editByHand: [] }),
+    ...idleAgentDeps()
   })
   return { handlers, repo, cleanup: () => pool.closeAll() }
 }

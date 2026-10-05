@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "**Correction to the sprint 1 report (rp_01m45j3wtyq8nbqrmpycpx3trw):** streamed assistant text *is* masked.\n\nThe report's risk line and its follow-up \"Mask claim tokens in streamed assistant deltas\" came from DM-51's discovery, but sprint 1 had already closed that gap. The session manager runs every assistant_delta stream through `createStreamMasker`, and sessionManager.test.ts covers a token split across deltas.\n\nThe one gap left is two tokens glued together with no separator (DM-52 discovery). The plan draft narrows sprint 3's DM-201 to that case. It will be saved and adopted at the sprint 2 checkpoint.",
+  "createdAt": "2026-10-05T14:02:20.390Z",
+  "epicId": "ep_01m418epbg8qkqa2e2krvdkqk5",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m465yrv6t3yrnxcgvvp0b2yn",
+  "ticketId": null
+}

@@ -2,11 +2,19 @@ import type { TrackedFolderView } from '../../../shared/desktop/api'
 import { Button } from '../components/Button'
 import { EmptyState } from '../components/EmptyState'
 import { Mascot } from '../components/Mascot'
+import type { LoadingWhat } from './chooseView'
 
-export function LoadingView(): JSX.Element {
+const LOADING_WORDS: Record<LoadingWhat, string> = {
+  folders: 'Loading folders…',
+  chat: 'Loading chat…',
+  agents: 'Loading agents…'
+}
+
+/** Says what the main area is waiting for. */
+export function LoadingView({ what }: { what: LoadingWhat }): JSX.Element {
   return (
     <div className="main-loading" role="status" aria-busy="true">
-      Loading folders…
+      {LOADING_WORDS[what]}
     </div>
   )
 }

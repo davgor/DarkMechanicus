@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "**Minor defect from the DM-61 end-to-end run.** Stop leaves no trace in the transcript. After Stop, the user's message stays with no reply and no \"stopped\" marker, and the stored items have no stop kind. Expected: a small \"Stopped\" notice, so a reopened chat explains the missing reply. Evidence: `16-turn-stopped.png`.",
+  "createdAt": "2026-10-05T04:28:37.303Z",
+  "epicId": "ep_01m418epbg8qkqa2e2krvdkqk5",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m45548hp2cgy9qz8cn600cvj",
+  "ticketId": "tk_01m418f9qzrc1wnmfm7hnwp3n4"
+}

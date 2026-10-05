@@ -1,10 +1,16 @@
 import { useState } from 'react'
+import type { ChatRecord } from '../../../shared/agents/chat'
 import type { TrackedFolderView } from '../../../shared/desktop/api'
+import { waitingCount, waitingReason } from '../agents/chatList'
+import type { AgentStatuses } from '../agents/useAgents'
+import type { ChatListState } from '../agents/useChats'
+import { plural } from '../app/plural'
 import type { Selection } from '../app/selection'
 import type { EpicListState } from '../app/useEpicLists'
 import { classNames } from '../components/classNames'
 import { Icon } from '../components/Icon'
 import { Menu } from '../components/Menu'
+import { AgentsBlock } from './AgentsBlock'
 import { BucketGroup } from './BucketGroup'
 import { groupEpics } from './buckets'
 import type { Expansion } from './useExpansion'
@@ -14,9 +20,18 @@ interface FolderRowProps {
   list: EpicListState
   selection: Selection
   expansion: Expansion
+  /** The folder's chats, listed in its Agents block. */
+  chats: ChatListState
+  /** The connected agents' sign-in states: a chat whose agent is signed out and whose turn it cut short waits on a sign-in. */
+  statuses: AgentStatuses
   onSelectFolder(path: string): void
   onSelectEpic(path: string, epicId: string): void
   onStopTracking(folder: TrackedFolderView): void
+  /** Starts the new-chat flow for the folder. */
+  onNewChat(path: string): void
+  onOpenChat(path: string, chatId: string): void
+  onRenameChat(chat: ChatRecord, title: string): Promise<boolean>
+  onDeleteChat(chat: ChatRecord): Promise<boolean>
 }
 
 /** A folder can hold epics only when it is reachable and initialized. */
@@ -26,13 +41,17 @@ interface HeaderProps {
   folder: TrackedFolderView
   expanded: boolean
   highlighted: boolean
+  /** Chats of the folder waiting for an approval or a sign-in; shown while the folder is collapsed, so a waiting agent is seen from anywhere. */
+  waiting: number
+  /** What they wait for, in words. */
+  waitingFor: string
   onToggle(): void
   onSelect(): void
   onStopTracking(): void
 }
 
 function FolderHeader(props: HeaderProps): JSX.Element {
-  const { folder, expanded, highlighted } = props
+  const { folder, expanded, highlighted, waiting, waitingFor } = props
   const [menuOpen, setMenuOpen] = useState(false)
   return (
     <div
@@ -66,6 +85,11 @@ function FolderHeader(props: HeaderProps): JSX.Element {
             {folder.displayPath}
           </span>
         </span>
+        {waiting > 0 && !expanded ? (
+          <span className="waiting-badge" title={`${plural(waiting, 'chat')} waiting for your ${waitingFor}`}>
+            {waiting} waiting
+          </span>
+        ) : null}
       </button>
       <Menu
         label={`Actions for ${folder.name}`}
@@ -121,6 +145,25 @@ function Buckets(props: FolderRowProps): JSX.Element {
   )
 }
 
+/** The Agents block, under the epic buckets of a folder that is initialized. */
+function Agents(props: FolderRowProps): JSX.Element {
+  const { folder, selection, expansion } = props
+  return (
+    <AgentsBlock
+      folder={folder}
+      list={props.chats}
+      statuses={props.statuses}
+      expanded={expansion.isAgentsExpanded(folder.path)}
+      selectedChatId={selection.folderPath === folder.path ? (selection.chatId ?? null) : null}
+      onToggle={() => expansion.toggleAgents(folder.path)}
+      onNewChat={() => props.onNewChat(folder.path)}
+      onOpenChat={(chatId) => props.onOpenChat(folder.path, chatId)}
+      onRenameChat={props.onRenameChat}
+      onDeleteChat={props.onDeleteChat}
+    />
+  )
+}
+
 function FolderBody(props: FolderRowProps & { folderSelected: boolean }): JSX.Element {
   const { folder, folderSelected } = props
   if (!folder.available) {
@@ -141,20 +184,28 @@ function FolderBody(props: FolderRowProps & { folderSelected: boolean }): JSX.El
       />
     )
   }
-  return <Buckets {...props} />
+  return (
+    <>
+      <Buckets {...props} />
+      <Agents {...props} />
+    </>
+  )
 }
 
 /** A tracked folder: header (chevron, select, actions) and, when expanded, its body. */
 export function FolderRow(props: FolderRowProps): JSX.Element {
   const { folder, selection, expansion } = props
   const expanded = expansion.isFolderExpanded(folder.path)
-  const folderSelected = selection.folderPath === folder.path && selection.epicId === null
+  const folderSelected =
+    selection.folderPath === folder.path && selection.epicId === null && selection.chatId === undefined
   return (
     <div className="folder">
       <FolderHeader
         folder={folder}
         expanded={expanded}
         highlighted={folderSelected && canHoldEpics(folder)}
+        waiting={waitingCount(props.chats.chats, props.statuses)}
+        waitingFor={waitingReason(props.chats.chats, props.statuses)}
         onToggle={() => expansion.toggleFolder(folder.path)}
         onSelect={() => props.onSelectFolder(folder.path)}
         onStopTracking={() => props.onStopTracking(folder)}

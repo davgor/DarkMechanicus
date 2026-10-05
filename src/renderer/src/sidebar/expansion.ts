@@ -20,6 +20,13 @@ export function bucketKey(path: string, bucket: WorkStatus): string {
   return `bucket:${path}:${bucket}`
 }
 
+/** The Agents block under a folder is open by default, so a folder's chats are in view. */
+export const AGENTS_DEFAULT = true
+
+export function agentsKey(path: string): string {
+  return `agents:${path}`
+}
+
 export function lookupExpanded(map: ExpansionMap, key: string, fallback: boolean): boolean {
   return map[key] ?? fallback
 }

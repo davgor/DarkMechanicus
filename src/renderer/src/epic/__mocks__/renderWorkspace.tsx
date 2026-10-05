@@ -8,6 +8,7 @@ import { ClockContext } from '../clock'
 import { EpicWorkspace, type EpicWorkspaceProps } from '../EpicWorkspace'
 import { ViewMemoryContext, createViewMemory } from '../viewMemory'
 import type { FakeBackend } from './fakeBackend'
+import { fakeOrchestration } from './fakeOrchestration'
 import { NOW, folder } from './fixtures'
 
 const FIXED_CLOCK: Clock = {
@@ -32,6 +33,7 @@ export function renderWorkspace(backend: FakeBackend, patch: Partial<EpicWorkspa
   const deleted = { count: 0 }
   const opened: string[] = []
   const memory = createViewMemory()
+  const host = fakeOrchestration()
   let shown = { refreshToken: patch.refreshToken ?? 0, epicId: patch.epicId ?? 'ep_1' }
   const element = (): JSX.Element => (
     <ClockContext.Provider value={FIXED_CLOCK}>
@@ -45,6 +47,7 @@ export function renderWorkspace(backend: FakeBackend, patch: Partial<EpicWorkspa
           onDeleted={() => {
             deleted.count += 1
           }}
+          orchestration={host}
           {...patch}
           {...shown}
         />

@@ -45,7 +45,11 @@ export const LIMITS = {
   commentsPerEpic: 10_000,
   profileDescription: 500,
   /** Checks in a project's Definition of Done. */
-  definitionOfDone: 50
+  definitionOfDone: 50,
+  /** Characters in one heartbeat progress note. */
+  progressNote: 280,
+  /** Characters in the step label of a heartbeat progress note. */
+  progressStep: 64
 } as const
 
 export const stableId = z.string().regex(STABLE_ID_PATTERN, 'Expected a stable id such as tk_…')
@@ -350,6 +354,12 @@ export const attemptOutputsInput = z.strictObject({
   commits: z.array(z.string().max(200)).max(LIMITS.listItems).optional(),
   changedFiles: z.array(z.string().max(LIMITS.shortText)).max(5_000).optional(),
   branch: z.string().max(255).nullable().optional()
+})
+
+/** A short note a worker attaches to a heartbeat; local working data, never exported with the run history. */
+export const heartbeatProgress = z.strictObject({
+  note: z.string().max(LIMITS.progressNote),
+  step: z.string().max(LIMITS.progressStep).optional()
 })
 
 export const attemptEvidenceInput = z.strictObject({

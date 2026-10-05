@@ -1,0 +1,205 @@
+/*
+ * The orchestrator chip in the run bar and its live feed drawer. Tokens only (docs/design/palette.md):
+ * brass for the chip, bone for the title, the state tones for rows, gunmetal surfaces and lines.
+ */
+
+/* The drawer hangs under the run bar and sits above the ticket panel (z-index 6). */
+.ew-runbar {
+  position: relative;
+  z-index: 7;
+}
+
+.of-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  max-width: 260px;
+  padding: 0 10px 0 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.of-chip > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.of-chip:hover,
+.of-chip[aria-expanded='true'] {
+  border-color: var(--accent);
+}
+
+.of-chip:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* The drawer takes focus when it opens so Escape works at once; it is a container, not a control, so no ring. */
+.of-drawer:focus {
+  outline: none;
+}
+
+/* The hourglass turns over every few seconds; it holds still when motion is reduced. */
+.of-hourglass {
+  flex-shrink: 0;
+  animation: of-turn 3.2s ease-in-out infinite;
+}
+
+.of-chip[data-motion='still'] .of-hourglass {
+  animation: none;
+}
+
+@keyframes of-turn {
+  0%,
+  45% {
+    transform: rotate(0deg);
+  }
+  65%,
+  100% {
+    transform: rotate(180deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .of-hourglass {
+    animation: none;
+  }
+}
+
+.of-drawer {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  box-sizing: border-box;
+  width: 440px;
+  max-width: 92%;
+  max-height: min(560px, 70vh);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-top: 0;
+  border-radius: 0 0 var(--radius) var(--radius);
+  box-shadow: -8px 16px 40px rgba(0, 0, 0, 0.45);
+  color: var(--ink);
+}
+
+.of-head {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 12px 10px 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.of-title {
+  margin: 0;
+  color: var(--ink-display);
+  font-family: var(--font-serif);
+  font-size: 15px;
+  line-height: 20px;
+}
+
+.of-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--tone, var(--muted));
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+
+.of-close {
+  margin-left: auto;
+}
+
+/* The link to the chat that orchestrates the run takes the place of the push to the right; Close follows it. */
+.of-open {
+  margin-left: auto;
+  font-size: 12px;
+}
+
+.of-open + .of-close {
+  margin-left: 0;
+}
+
+.of-error {
+  margin: 0;
+  padding: 8px 16px;
+  color: var(--st-failed);
+  font-size: 12.5px;
+}
+
+.of-empty {
+  margin: 0;
+  padding: 16px;
+}
+
+.of-rows {
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+}
+
+.of-row {
+  display: flex;
+  gap: 10px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.of-row .ew-dot {
+  margin-top: 7px;
+}
+
+.of-row-body {
+  min-width: 0;
+}
+
+.of-row-body p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.of-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 6px;
+}
+
+.of-label {
+  color: var(--tone, var(--ink));
+  font-weight: 500;
+}
+
+.of-detail {
+  display: flex;
+  gap: 8px;
+  color: var(--ink-2);
+  font-size: 12.5px;
+}
+
+.of-detail-name {
+  flex-shrink: 0;
+  min-width: 44px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.of-meta {
+  color: var(--muted);
+  font-size: 12px;
+}

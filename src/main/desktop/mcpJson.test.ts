@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { buildMcpConfig } from './mcpConfig'
-import { claudeCodeServer, mergeMcpServer, type McpServerEntry } from './mcpJson'
+import { claudeCodeServer, darkMechanicusServer, mergeMcpServer, type McpServerEntry } from './mcpJson'
 
 const SERVER: McpServerEntry = {
   command: '/Apps/DM',
@@ -259,5 +259,24 @@ describe('the entry for a packaged macOS app', () => {
 
   it('finds the hand-written file already up to date', () => {
     expect(mergeMcpServer(HAND_WRITTEN, server, { replace: false })).toEqual({ outcome: 'unchanged' })
+  })
+})
+
+describe('darkMechanicusServer', () => {
+  const dev = { command: 'node', args: ['/work/dm/out/main/mcp.js', '--repo', '/repos/site'], env: {} }
+
+  it('names the session with the given label, kept as one argument', () => {
+    const server = darkMechanicusServer(dev, { role: 'orchestrator', allowSave: true, label: 'Codex · Fix the build' })
+
+    expect(server).toEqual({
+      command: 'node',
+      args: ['/work/dm/out/main/mcp.js', '--repo', '/repos/site', '--role', 'orchestrator', '--allow-save', '--label', 'Codex · Fix the build']
+    })
+  })
+
+  it('is what claudeCodeServer builds with the Claude Code label', () => {
+    expect(darkMechanicusServer(dev, { role: 'planner', allowSave: false, label: 'Claude Code' })).toEqual(
+      claudeCodeServer(dev, { role: 'planner', allowSave: false })
+    )
   })
 })

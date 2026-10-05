@@ -57,6 +57,7 @@ function Preview(): JSX.Element {
         onRemoveDependency={() => undefined}
         onAddTicket={() => undefined}
         onAddAcceptance={() => undefined}
+        onOpenActivity={() => undefined}
       />
     </div>
   </main>

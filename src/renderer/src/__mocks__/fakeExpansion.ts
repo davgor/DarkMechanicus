@@ -7,6 +7,8 @@ interface Overrides {
   collapsedFolders?: string[]
   /** `${path}:${bucket}` entries, true = expanded, false = collapsed. */
   buckets?: Record<string, boolean>
+  /** Folder paths whose Agents block is collapsed. */
+  collapsedAgents?: string[]
 }
 
 /** Hand-written Expansion that records what the UI asked to toggle or reveal. */
@@ -22,6 +24,18 @@ export class FakeExpansion implements Expansion {
 
   isBucketExpanded(path: string, bucket: WorkStatus): boolean {
     return this.overrides.buckets?.[`${path}:${bucket}`] ?? BUCKET_DEFAULTS[bucket]
+  }
+
+  isAgentsExpanded(path: string): boolean {
+    return !(this.overrides.collapsedAgents ?? []).includes(path)
+  }
+
+  toggleAgents(path: string): void {
+    this.toggled.push(`agents:${path}`)
+  }
+
+  revealAgents(path: string): void {
+    this.revealed.push(`${path}:agents`)
   }
 
   toggleFolder(path: string): void {

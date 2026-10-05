@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "**Defects from the DM-61 end-to-end run.**\n1. The runbook says file edits and \"anything else\" always ask. Claude Code's own auto-memory writes don't ask (see the DM-53 comment). Fix the adapter, or state the exception in the runbook.\n2. The runbook says a chat appears \"in the app's session list\". The app has no session list: the footer and folder page show only a count (\"1 agent session · stdio\"). Role and label are visible only through MCP `list_sessions` and on run records. Evidence: `17-mcp-connection-one-agent-session.png`.",
+  "createdAt": "2026-10-05T04:28:37.224Z",
+  "epicId": "ep_01m418epbg8qkqa2e2krvdkqk5",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m45548f87b3wvmrpewe1zxby",
+  "ticketId": "tk_01m418f9qzds56gdmqsyat5hyv"
+}

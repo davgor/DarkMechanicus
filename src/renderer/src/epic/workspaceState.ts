@@ -50,6 +50,11 @@ export interface WorkspaceState {
   chosenView: PlanViewKind | null
   layout: 'graph' | 'list'
   selectedTicketId: string | null
+  /**
+   * Set when the person opened the live activity of an attempt (the hourglass, the attempts strip): the ticket panel
+   * shows its Activity tab for that attempt. A new object per request, so asking again brings the tab back.
+   */
+  activity: { attemptId: string } | null
   /** The checkpoint review, or a completed epic's overview, is shown instead of the plan. */
   checkpointOpen: boolean
   /** Rejected edit or failed action, shown over the canvas. */
@@ -60,6 +65,8 @@ export interface WorkspaceState {
   saveNotice: Notice | null
   busy: boolean
   confirm: 'discard' | 'cancel_run' | null
+  /** The Start run dialog is open. */
+  startRunOpen: boolean
   validation: ValidationReport | null
 }
 
@@ -67,12 +74,14 @@ export type WorkspaceAction =
   | { type: 'load_started' }
   | { type: 'load_succeeded'; data: WorkspaceData; at: number }
   | { type: 'load_failed'; message: string }
-  /** The person picked a view: show it and remember the choice. */
-  | { type: 'show_view'; view: PlanViewKind }
+  /** The person picked a view: show it and remember the choice (unless `remember` is false, as when a link needs a view). */
+  | { type: 'show_view'; view: PlanViewKind; remember?: boolean }
   /** Save or Discard ended the draft: show Saved and forget the choice, so the next draft opens by default. */
   | { type: 'draft_closed' }
   | { type: 'show_layout'; layout: 'graph' | 'list' }
   | { type: 'select_ticket'; ticketId: string | null }
+  /** Select the ticket and show the live activity of one of its attempts in its panel. */
+  | { type: 'open_activity'; ticketId: string; attemptId: string }
   | { type: 'open_checkpoint' }
   | { type: 'close_checkpoint' }
   | { type: 'busy'; value: boolean }
@@ -80,6 +89,7 @@ export type WorkspaceAction =
   | { type: 'toast'; text: string | null }
   | { type: 'save_notice'; notice: Notice | null }
   | { type: 'confirm'; kind: 'discard' | 'cancel_run' | null }
+  | { type: 'start_run_dialog'; open: boolean }
   | { type: 'validation'; report: ValidationReport | null }
 
 export function initialWorkspaceState(chosenView: PlanViewKind | null = null): WorkspaceState {
@@ -92,6 +102,7 @@ export function initialWorkspaceState(chosenView: PlanViewKind | null = null): W
     chosenView,
     layout: 'graph',
     selectedTicketId: null,
+    activity: null,
     checkpointOpen: false,
     banner: null,
     rejected: null,
@@ -99,6 +110,7 @@ export function initialWorkspaceState(chosenView: PlanViewKind | null = null): W
     saveNotice: null,
     busy: false,
     confirm: null,
+    startRunOpen: false,
     validation: null
   }
 }
@@ -160,10 +172,11 @@ const HANDLERS: Handlers = {
   load_started: (state) => ({ ...state, loading: true }),
   load_succeeded: (state, action) => loadSucceeded(state, action.data, action.at),
   load_failed: (state, action) => ({ ...state, loading: false, loadError: action.message }),
-  show_view: (state, action) => showView(state, action.view, action.view),
+  show_view: (state, action) => showView(state, action.view, action.remember === false ? state.chosenView : action.view),
   draft_closed: (state) => showView(state, 'saved', null),
   show_layout: (state, action) => ({ ...state, layout: action.layout }),
-  select_ticket: (state, action) => ({ ...state, selectedTicketId: action.ticketId }),
+  select_ticket: (state, action) => ({ ...state, selectedTicketId: action.ticketId, activity: null }),
+  open_activity: (state, action) => ({ ...state, selectedTicketId: action.ticketId, activity: { attemptId: action.attemptId } }),
   open_checkpoint: (state) => ({ ...state, checkpointOpen: true }),
   close_checkpoint: (state) => ({ ...state, checkpointOpen: false }),
   busy: (state, action) => ({ ...state, busy: action.value }),
@@ -171,6 +184,7 @@ const HANDLERS: Handlers = {
   toast: (state, action) => ({ ...state, toast: action.text }),
   save_notice: (state, action) => ({ ...state, saveNotice: action.notice }),
   confirm: (state, action) => ({ ...state, confirm: action.kind }),
+  start_run_dialog: (state, action) => ({ ...state, startRunOpen: action.open }),
   validation: (state, action) => ({ ...state, validation: action.report })
 }
 

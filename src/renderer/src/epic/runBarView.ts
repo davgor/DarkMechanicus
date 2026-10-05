@@ -1,6 +1,10 @@
 /** Pure view model for the run bar: state pill, summary line, counts and available actions. */
-import { isActiveRunState } from '../../../shared/domain/status'
+import type { ChatRecord } from '../../../shared/agents/chat'
+import type { AgentAuthStatus, AgentKind } from '../../../shared/desktop/api'
+import { SIGNED_OUT_PAUSE_REASON, isActiveRunState } from '../../../shared/domain/status'
 import type { EpicDetailView, RunCounts, RunView } from '../../../shared/domain/views'
+import { agentName } from '../agents/agentText'
+import type { AgentStatuses } from '../agents/useAgents'
 import { RUN_STATE_LABELS, RUN_STATE_TONES, type Tone } from '../graph/ticketStates'
 import { formatAgo } from './time'
 
@@ -68,7 +72,8 @@ function phaseParts(run: RunView, now: number, reportAt: string | null): string[
         'no work is dispatched until you decide'
       ]
     case 'paused':
-      return [sprintPart(run), run.pauseReason ? `paused: ${run.pauseReason}` : 'paused']
+      // A pause for a lost sign-in is explained by its own line under the bar, in the agent's words.
+      return [sprintPart(run), run.pauseReason && run.pauseReason !== SIGNED_OUT_PAUSE_REASON ? `paused: ${run.pauseReason}` : 'paused']
     default:
       return [`${run.state} ${formatAgo(run.endedAt ?? run.updatedAt, now)}`]
   }
@@ -124,4 +129,53 @@ export function adoptNotice(run: RunView, epic: EpicDetailView): AdoptNotice | n
     enabled: run.ownedByThisMachine && atCheckpoint,
     revisionId: current
   }
+}
+
+/** A run paused because the agent orchestrating it was signed out: what to say, which chat to open, and whether it is signed in again. */
+export interface SignedOutNote {
+  text: string
+  /** The orchestrating agent; null when the chat that orchestrates the run is not known. */
+  agent: AgentKind | null
+  /** The agent's sign-in state as the app knows it; undefined while it is still being asked. */
+  status: AgentAuthStatus | undefined
+  chat: { id: string; title: string } | null
+  /** The agent's status says signed in: the run can resume. */
+  signedIn: boolean
+}
+
+export function signedOutNote(run: RunView, chat: ChatRecord | null, statuses: AgentStatuses): SignedOutNote | null {
+  if (run.state !== 'paused' || run.pauseReason !== SIGNED_OUT_PAUSE_REASON) {
+    return null
+  }
+  if (chat === null) {
+    return { text: 'Paused: the orchestrator’s agent signed out', agent: null, status: undefined, chat: null, signedIn: false }
+  }
+  const status = statuses[chat.agent]
+  return {
+    text: `Paused: ${agentName(chat.agent)} signed out`,
+    agent: chat.agent,
+    status,
+    chat: { id: chat.id, title: chat.title },
+    signedIn: status?.state === 'signed_in'
+  }
+}
+
+/** Resume waits until the agent is signed in again; with no agent to name there is nothing to wait for. */
+export const resumeBlocked = (note: SignedOutNote | null): boolean => note !== null && note.agent !== null && !note.signedIn
+
+/** Who runs an active run: the chat Dark Mechanicus started for it (with a link), or a queued run still waiting for an orchestrator. */
+export type OrchestratorNote =
+  | { kind: 'chat'; chatId: string; text: string; link: string }
+  | { kind: 'waiting'; text: string }
+
+export function orchestratorNote(run: RunView, chat: ChatRecord | null): OrchestratorNote | null {
+  if (!isActiveRunState(run.state)) {
+    return null
+  }
+  if (chat !== null) {
+    return { kind: 'chat', chatId: chat.id, text: `Orchestrated by ${agentName(chat.agent)} in`, link: chat.title }
+  }
+  return run.state === 'queued'
+    ? { kind: 'waiting', text: 'Waiting for an orchestrator. An agent picks this run up with start_run.' }
+    : null
 }

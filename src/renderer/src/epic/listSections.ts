@@ -2,6 +2,7 @@
 import type { TicketContent, TicketPriority } from '../../../shared/domain/bundle'
 import { WORK_STATUS_LABELS } from '../../../shared/domain/status'
 import { badgeResolver, type GraphInput, type TicketBadge } from '../graph/graphModel'
+import { workingAttempts } from '../graph/workingAttempts'
 
 export interface ListRow {
   id: string
@@ -13,6 +14,8 @@ export interface ListRow {
   priority: string
   tags: string[]
   optional: boolean
+  /** The attempt being worked on (claimed or running) in the Saved view of a run; null for any other ticket. */
+  working: string | null
 }
 
 export interface ListSection {
@@ -31,6 +34,7 @@ const PRIORITY_LABELS: Record<TicketPriority, string> = {
 
 export function listSections(input: GraphInput): ListSection[] {
   const badge = badgeResolver(input)
+  const working = input.mode === 'saved' ? workingAttempts(input.run) : new Map<string, string>()
   const tickets = new Map(input.plan.bundle.tickets.map((item) => [item.id, item]))
   const rowOf = (item: TicketContent): ListRow => {
     const status = input.statuses.get(item.id)
@@ -42,7 +46,8 @@ export function listSections(input: GraphInput): ListSection[] {
       badge: badge(item.id),
       priority: PRIORITY_LABELS[item.priority],
       tags: item.tags,
-      optional: item.optional
+      optional: item.optional,
+      working: working.get(item.id) ?? null
     }
   }
   return [...input.plan.bundle.sprints]

@@ -1,6 +1,6 @@
 # Dark Mechanicus — initial product and architecture plan
 
-Status: working specification, updated with user decisions on 2026-09-29. Confirmed product decisions are distinguished from proposed implementation details. This document does not implement the product.
+Status: working specification, updated with user decisions on 2026-09-29 and with the hosted-agents change on 2026-10-04 (see [Agents hosted in the desktop app](#agents-hosted-in-the-desktop-app)). Confirmed product decisions are distinguished from proposed implementation details. This document does not implement the product.
 
 ## Product definition
 
@@ -14,10 +14,29 @@ The supplied sketch establishes the intended hierarchy and branching execution s
 
 - Local, single-user application; multiple agent sessions and the desktop may access it concurrently.
 - Each repository owns its database, plans, tickets, and execution history. The desktop's optional project registry only remembers which repositories to open.
-- Confirmed: the existing agent app runs the orchestrator and its own subagents. Dark Mechanicus stores plans and execution order, and supplies data to help the app execute them.
+- Confirmed: the existing agent app runs the orchestrator and its own subagents. Dark Mechanicus stores plans and execution order, and supplies data to help the app execute them. That app can be an external host that connects over MCP, or, since 2026-10-04, one of the agent CLIs the desktop app hosts itself.
 - One host/provider environment per run; no cross-provider agent dispatch in the first version.
 - Headless MCP operation must work with the desktop closed.
-- No cloud synchronization, team permissions, agent billing, or built-in model inference in the first version.
+- No cloud synchronization, team permissions, agent billing, or built-in model inference in the first version. The hosted agents are the vendors' own CLIs under the person's own sign-in: Dark Mechanicus calls no model API and holds no credentials.
+
+## Agents hosted in the desktop app
+
+Changed 2026-10-04. The first version assumed that agents live in an external app and reach Dark Mechanicus only over MCP. The desktop app now also hosts three agent CLIs: **Claude Code**, **Codex** and **Cursor**, on Windows and macOS. The MCP path is unchanged and still works with the desktop closed. The desktop adds a second way to get an agent working on a plan, and it can start an agent as the orchestrator of a run. How it is built is in [`architecture.md`](architecture.md#hosted-agents); how a person uses it is in [`runbooks/agents.md`](runbooks/agents.md).
+
+What a person can do:
+
+- **Connect an agent.** Find a CLI already installed on the computer, or download it from its vendor's official installer after a confirmation. Sign in is the CLI's own login, run in a terminal window.
+- **Chat with it** in a tracked folder, as a planner, orchestrator, worker or reviewer. The chat's agent gets the same Dark Mechanicus MCP server, at that role, so the authorization rules below apply to it like to any other session. Edits and commands wait for the person's approval inside the chat.
+- **Start a run with an agent.** Start run offers *Run with an agent*, which queues the run and starts the chosen agent as its orchestrator in a chat the person can follow, or *Leave pending*, which queues the run for an orchestrator started elsewhere. A run started this way cannot save plans.
+
+Rules this change keeps or adds:
+
+- **Vendor specifics stay in adapters.** Everything that differs between the three CLIs sits in one of two places: its chat adapter (how it is launched, its protocol, its approvals, how it says the login is gone) and its per-kind connection data (its install recipe, how its version output and sign-in status are read). The session manager, the chat store, the registry, the MCP server and every stored plan record do not branch on a vendor and speak one provider-neutral chat contract, so supporting another vendor means writing an adapter and its connection data, not changing them.
+- **Plans, tickets and profiles stay provider-neutral.** No ticket, plan revision, named profile, run history or exported record names an agent product, and none depends on which one wrote or runs it. The agent kind and model appear only on a chat, in the app's machine-local store, and, as before, as the model identity an orchestrator records on an attempt. Capability requirements keep describing the work, never a vendor, and the exact-model preference stays the only place a model is named.
+- **No credentials in Dark Mechanicus.** The app never shows a password or key field and never reads or stores a credential. The CLI's own login does that, and the app asks the CLI whether it is signed in.
+- **Machine-local state.** The list of connected agents and every chat transcript live in the app's user-data folder, outside the repository. They are not portable records and never travel with a pull.
+- **Humans keep their authority.** A chat's role is fixed when it starts and its agent cannot raise it. Approving a checkpoint, authorizing auto-continue, granting a retry and the `signed_out` pause stay with the desktop session.
+- **One host per run still holds.** A run has one orchestrator, a single agent, which picks its subagents in its own environment. The desktop does not dispatch work across agents.
 
 ## Domain model
 

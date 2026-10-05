@@ -1,6 +1,7 @@
 /**
- * Registers the narrow `dm:*` IPC surface. Each channel forwards its payload arguments to one
- * handler; the handlers validate them (they arrive from the renderer and are untrusted).
+ * Registers the narrow `dm:*` and `agents:*` IPC surface. Each channel forwards its payload arguments
+ * to one handler; the handlers validate them (they arrive from the renderer and are untrusted).
+ * The `agents:*` channels take an agent kind and nothing else: never a path to execute and never a credential.
  */
 import type { IpcMain } from 'electron'
 import type { DesktopHandlers } from './handlers'
@@ -23,4 +24,10 @@ export function registerDesktopIpc(ipcMain: Pick<IpcMain, 'handle'>, handlers: D
   )
   ipcMain.handle('dm:copyText', (_event, text: unknown) => handlers.copyText(text))
   ipcMain.handle('dm:openExternal', (_event, url: unknown) => handlers.openExternal(url))
+  ipcMain.handle('agents:list', () => handlers.listAgents())
+  ipcMain.handle('agents:find', (_event, kind: unknown) => handlers.findAgent(kind))
+  ipcMain.handle('agents:remove', (_event, kind: unknown) => handlers.removeAgent(kind))
+  ipcMain.handle('agents:download', (_event, kind: unknown) => handlers.downloadAgent(kind))
+  ipcMain.handle('agents:status', (_event, kind: unknown) => handlers.agentStatus(kind))
+  ipcMain.handle('agents:signIn', (_event, kind: unknown) => handlers.signInAgent(kind))
 }

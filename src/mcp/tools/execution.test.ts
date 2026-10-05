@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import { DomainError } from '../../core/errors'
 import { SKILLS_VERSION } from '../../core/version'
 import type { CommandName } from '../../shared/domain/api'
 import { areaServer, callTool, type McpRig, sampleId, withRig } from '../../test/mcpHarness'
-import { createCannedApi, type StubApi } from '../../test/stubApi'
+import { createCannedApi, createStubApi, type StubApi } from '../../test/stubApi'
 import { registerExecutionTools } from './execution'
 
 const EPIC = sampleId('epic')
@@ -101,6 +102,12 @@ const CASES: Case[] = [
     args: { attemptId: ATTEMPT, claimToken: 'at.secret', leaseSeconds: 300 },
     method: 'heartbeatAttempt',
     input: { attemptId: ATTEMPT, claimToken: 'at.secret', leaseSeconds: 300 }
+  },
+  {
+    tool: 'heartbeat_attempt',
+    args: { attemptId: ATTEMPT, claimToken: 'at.secret', progress: { note: 'schema is in', step: 'testing' } },
+    method: 'heartbeatAttempt',
+    input: { attemptId: ATTEMPT, claimToken: 'at.secret', progress: { note: 'schema is in', step: 'testing' } }
   },
   {
     tool: 'submit_attempt',
@@ -286,6 +293,9 @@ describe('execution input validation', () => {
     ['claim_ticket with a ticket key instead of an id', 'claim_ticket', { runId: RUN, ticketId: 'DM-1', worker: WORKER }],
     ['heartbeat_attempt without a claim token', 'heartbeat_attempt', { attemptId: ATTEMPT }],
     ['heartbeat_attempt with an empty claim token', 'heartbeat_attempt', { attemptId: ATTEMPT, claimToken: '' }],
+    ['heartbeat_attempt with a progress note over 280 characters', 'heartbeat_attempt', { attemptId: ATTEMPT, claimToken: 't', progress: { note: 'x'.repeat(281) } }],
+    ['heartbeat_attempt with a progress step over 64 characters', 'heartbeat_attempt', { attemptId: ATTEMPT, claimToken: 't', progress: { note: 'n', step: 'x'.repeat(65) } }],
+    ['heartbeat_attempt with a progress step but no note', 'heartbeat_attempt', { attemptId: ATTEMPT, claimToken: 't', progress: { step: 'testing' } }],
     ['submit_attempt without a summary', 'submit_attempt', { attemptId: ATTEMPT, claimToken: 't', outputs: {} }],
     ['submit_attempt with an unknown check status', 'submit_attempt', { attemptId: ATTEMPT, claimToken: 't', outputs: { summary: 's' }, evidence: { checks: [{ name: 'x', status: 'maybe' }] } }],
     ['submit_attempt with a ref name as the increment commit', 'submit_attempt', { attemptId: ATTEMPT, claimToken: 't', outputs: { summary: 's' }, increment: { branch: 'epic/x', commit: 'HEAD' } }],
@@ -402,6 +412,36 @@ describe('sprint increments in the tool descriptions', () => {
       expect(described['get_run']).toContain('increments')
       const submit = tools.find((tool) => tool.name === 'submit_attempt')?.inputSchema.properties?.['increment']
       expect(submit).toMatchObject({ type: 'object', required: ['branch', 'commit'] })
+    })
+  })
+})
+
+describe('resume_run', () => {
+  it('tells an agent that the person resumes a run paused for sign-in in the desktop app', async () => {
+    await inRig(createCannedApi({}), async (rig) => {
+      const { tools } = await rig.client.listTools()
+      const description = tools.find((tool) => tool.name === 'resume_run')?.description ?? ''
+      expect(description).toContain('"signed_out"')
+      expect(description).toContain('person resumes it in the desktop app')
+      expect(description).toContain('unauthorized')
+    })
+  })
+
+  it('returns the command layer’s unauthorized failure for a signed-out run as it is', async () => {
+    const message = 'This run is paused because its agent was signed out. The person resumes it in the desktop app, with Resume run.'
+    const api = createStubApi({
+      resumeRun: async () => {
+        throw new DomainError('unauthorized', message, { role: 'orchestrator', capability: 'run.resume_signed_out' })
+      }
+    })
+    await inRig(api, async (rig) => {
+      const outcome = await callTool(rig, 'resume_run', { runId: RUN })
+      expect(outcome.isError).toBe(true)
+      expect(outcome.payload).toEqual({
+        ok: false,
+        error: { code: 'unauthorized', message, details: { role: 'orchestrator', capability: 'run.resume_signed_out' } }
+      })
+      expect(api.calls).toEqual([{ name: 'resumeRun', input: { runId: RUN } }])
     })
   })
 })

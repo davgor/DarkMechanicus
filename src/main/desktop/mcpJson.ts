@@ -4,6 +4,7 @@
  * `darkmechanicus` entry is added or, when the caller asks, replaced.
  */
 import { canonicalJson } from '../../core/canonical'
+import type { ChatRole } from '../../shared/agents/chat'
 import type { ClaudeCodeRole, McpConfigView } from '../../shared/desktop/api'
 
 /** The `mcpServers` key Dark Mechanicus owns. */
@@ -32,17 +33,24 @@ type McpMergeResult =
 
 type JsonObject = Record<string, unknown>
 
-/** The server entry for Claude Code: the app's launch command plus role, save permission and label. */
-export function claudeCodeServer(
-  config: Pick<McpConfigView, 'command' | 'args' | 'env'>,
-  launch: ClaudeCodeLaunch
+type LaunchConfig = Pick<McpConfigView, 'command' | 'args' | 'env'>
+
+/** The app's launch command plus role, save permission and the session label the app shows. */
+export function darkMechanicusServer(
+  config: LaunchConfig,
+  launch: { role: ChatRole; allowSave: boolean; label: string }
 ): McpServerEntry {
   const saving = launch.allowSave ? ['--allow-save'] : []
-  const args = [...config.args, '--role', launch.role, ...saving, '--label', SESSION_LABEL]
+  const args = [...config.args, '--role', launch.role, ...saving, '--label', launch.label]
   if (Object.keys(config.env).length === 0) {
     return { command: config.command, args }
   }
   return { command: config.command, args, env: { ...config.env } }
+}
+
+/** The server entry for Claude Code: the app's launch command plus role, save permission and label. */
+export function claudeCodeServer(config: LaunchConfig, launch: ClaudeCodeLaunch): McpServerEntry {
+  return darkMechanicusServer(config, { ...launch, label: SESSION_LABEL })
 }
 
 function isObject(value: unknown): value is JsonObject {

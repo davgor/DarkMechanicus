@@ -1,3 +1,4 @@
+import { WorkingHourglass } from '../graph/WorkingHourglass'
 import type { ListRow, ListSection } from './listSections'
 import { StateLabel } from './StatePill'
 
@@ -5,10 +6,20 @@ interface ListViewProps {
   sections: ListSection[]
   selectedTicketId: string | null
   onSelect(ticketId: string): void
+  /** The hourglass of a ticket being worked on was clicked: open the live activity of that attempt. */
+  onOpenActivity(ticketId: string, attemptId: string): void
 }
 
-function Row(props: { row: ListRow; selected: boolean; onSelect(ticketId: string): void }): JSX.Element {
-  const row = props.row
+interface RowProps {
+  row: ListRow
+  selected: boolean
+  onSelect(ticketId: string): void
+  onOpenActivity(ticketId: string, attemptId: string): void
+}
+
+function Row(props: RowProps): JSX.Element {
+  const { row, onOpenActivity } = props
+  const attemptId = row.working
   return (
     <tr className={props.selected ? 'is-selected' : undefined}>
       <td className="ew-mono">
@@ -22,7 +33,10 @@ function Row(props: { row: ListRow; selected: boolean; onSelect(ticketId: string
       </td>
       <td>{row.status}</td>
       <td>
-        <StateLabel tone={row.badge.tone} label={row.badge.label} />
+        <span className="ew-list-state">
+          <StateLabel tone={row.badge.tone} label={row.badge.label} />
+          {attemptId === null ? null : <WorkingHourglass ticketKey={row.key} onOpen={() => onOpenActivity(row.id, attemptId)} />}
+        </span>
       </td>
       <td>{row.priority}</td>
       <td>
@@ -59,7 +73,13 @@ export function ListView(props: ListViewProps): JSX.Element {
             </thead>
             <tbody>
               {section.rows.map((row) => (
-                <Row key={row.id} row={row} selected={row.id === props.selectedTicketId} onSelect={props.onSelect} />
+                <Row
+                  key={row.id}
+                  row={row}
+                  selected={row.id === props.selectedTicketId}
+                  onSelect={props.onSelect}
+                  onOpenActivity={props.onOpenActivity}
+                />
               ))}
             </tbody>
           </table>

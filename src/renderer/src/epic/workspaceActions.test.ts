@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import type { StartOrchestratorResult } from '../../../shared/agents/chatApi'
+import { chatRecord } from '../__mocks__/fixtures'
 import { FakeBackend, scenario } from './__mocks__/fakeBackend'
 import { checkpointView, draftPlan, epicDetail, runView, savedPlan, validation } from './__mocks__/fixtures'
+import { CommandError } from '../api/dm'
 import { buildGraphModel } from '../graph/graphModel'
 import { createWorkspaceActions } from './workspaceActions'
 import {
@@ -26,9 +29,13 @@ function data(patch: Partial<WorkspaceData> = {}): WorkspaceData {
   }
 }
 
+/** What main answers by default: a queued run and the chat started for it. */
+let orchestrator = (): StartOrchestratorResult => ({ run: runView({ state: 'queued' }), chat: chatRecord({ runId: 'rn_2' }), problem: null })
+
 function harness(patch: Partial<WorkspaceData> = {}, backend = new FakeBackend(scenario({ draft: draftPlan() }))) {
   const dispatched: WorkspaceAction[] = []
-  const counts = { reloads: 0, changes: 0 }
+  const counts = { reloads: 0, changes: 0, chats: 0 }
+  const orchestrated: unknown[] = []
   let current: WorkspaceState = workspaceReducer(initialWorkspaceState(), { type: 'load_succeeded', data: data(patch), at: 0 })
   const dispatch = (action: WorkspaceAction): void => {
     dispatched.push(action)
@@ -37,6 +44,13 @@ function harness(patch: Partial<WorkspaceData> = {}, backend = new FakeBackend(s
   const actions = createWorkspaceActions({
     runner: backend.runner,
     epicId: 'ep_1',
+    startOrchestrator: async (choice) => {
+      orchestrated.push(choice)
+      return orchestrator()
+    },
+    onChatsChanged: () => {
+      counts.chats += 1
+    },
     getState: () => current,
     dispatch,
     reload: () => {
@@ -46,8 +60,9 @@ function harness(patch: Partial<WorkspaceData> = {}, backend = new FakeBackend(s
       counts.changes += 1
     }
   })
-  return { actions, backend, dispatched, dispatch, counts, state: () => current }
+  return { actions, backend, dispatched, dispatch, counts, orchestrated, state: () => current }
 }
+
 
 describe('perform', () => {
   it('marks the workspace busy, reports the change and reloads on success', async () => {
@@ -58,7 +73,7 @@ describe('perform', () => {
       { type: 'busy', value: true },
       { type: 'busy', value: false }
     ])
-    expect(h.counts).toEqual({ reloads: 1, changes: 1 })
+    expect(h.counts).toEqual({ reloads: 1, changes: 1, chats: 0 })
   })
 
   it('reloads without reporting a change when the command fails', async () => {
@@ -66,7 +81,7 @@ describe('perform', () => {
     h.backend.fail('queueRun', 'conflict', 'The draft changed.')
     const result = await h.actions.perform(() => h.backend.runner('queueRun', { epicId: 'ep_1' }))
     expect(result).toEqual({ ok: false, failure: { code: 'conflict', message: 'The draft changed.' } })
-    expect(h.counts).toEqual({ reloads: 1, changes: 0 })
+    expect(h.counts).toEqual({ reloads: 1, changes: 0, chats: 0 })
     expect(h.state().busy).toBe(false)
   })
 })
@@ -128,10 +143,52 @@ describe('draft lifecycle actions (2)', () => {
   })
 })
 
+describe('start a run with an agent', () => {
+  it('starts the chosen agent as the orchestrator, says so, and closes the dialog', async () => {
+    orchestrator = () => ({ run: runView({ state: 'queued' }), chat: chatRecord({ runId: 'rn_2' }), problem: null })
+    const h = harness({ run: null })
+    h.dispatch({ type: 'start_run_dialog', open: true })
+
+    await h.actions.startRunWithAgent({ agent: 'codex', model: 'gpt-5' })
+
+    expect(h.orchestrated).toEqual([{ agent: 'codex', model: 'gpt-5' }])
+    expect(h.state().toast).toBe('Run queued. Codex is orchestrating it.')
+    expect([h.state().startRunOpen, h.state().banner]).toEqual([false, null])
+    expect(h.counts).toEqual({ reloads: 1, changes: 1, chats: 1 })
+    expect(h.backend.names()).toEqual([])
+  })
+
+  it('keeps the run queued and shows why when no agent could be started for it', async () => {
+    orchestrator = () => ({ run: runView({ state: 'queued' }), chat: null, problem: 'Run #2 is queued, but Codex could not be started: it exited. It is waiting for an orchestrator.' })
+    const h = harness({ run: null })
+
+    await h.actions.startRunWithAgent({ agent: 'codex', model: null })
+
+    expect(h.state().banner).toBe('Run #2 is queued, but Codex could not be started: it exited. It is waiting for an orchestrator.')
+    expect([h.state().toast, h.state().startRunOpen]).toEqual([null, false])
+    expect(h.counts).toEqual({ reloads: 1, changes: 1, chats: 0 })
+  })
+
+  it('shows the refusal when nothing was queued', async () => {
+    orchestrator = () => {
+      throw new CommandError({ code: 'active_run_exists', message: 'This epic already has an active run.' })
+    }
+    const h = harness({ run: null })
+
+    await h.actions.startRunWithAgent({ agent: 'claude', model: null })
+
+    expect(h.state().banner).toBe('This epic already has an active run.')
+    expect(h.counts).toEqual({ reloads: 1, changes: 0, chats: 0 })
+    expect(h.state().startRunOpen).toBe(false)
+  })
+})
+
 describe('run actions', () => {
   it('queues a run and reports failures in the banner', async () => {
     const h = harness({ run: null })
+    h.dispatch({ type: 'start_run_dialog', open: true })
     await h.actions.startRun()
+    expect(h.state().startRunOpen).toBe(false)
     expect([h.backend.inputs('queueRun'), h.state().toast]).toEqual([[{ epicId: 'ep_1' }], 'Run queued. It starts when an orchestrator picks it up.'])
     const failing = harness({ run: null })
     failing.backend.fail('queueRun', 'active_run_exists', 'This epic already has an active run.')

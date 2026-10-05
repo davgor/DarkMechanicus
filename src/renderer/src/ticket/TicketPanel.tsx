@@ -3,9 +3,11 @@ import './ticket.css'
 import { useEffect, useState } from 'react'
 import type { PlanView, TicketDetailView } from '../../../shared/domain/views'
 import { errorMessage } from '../api/dm'
+import type { Scheduler } from '../app/scheduler'
 import type { Runner } from '../epic/runner'
 import { StatePill } from '../epic/StatePill'
 import type { ReviewInput } from '../epic/workspaceActions'
+import { ActivityTab } from './ActivityTab'
 import { AttemptList } from './AttemptList'
 import { CommentsTab } from './CommentsTab'
 import { DeleteTicketConfirm } from './DeleteTicket'
@@ -14,6 +16,12 @@ import { metaLine, statePill } from './ticketView'
 
 export interface TicketPanelProps {
   runner: Runner
+  /** The tracked folder the ticket belongs to; the Activity tab follows its attempts there. */
+  folderPath: string
+  /** Set when the person asked for the live activity of an attempt: the panel shows its Activity tab for it. */
+  activity: { attemptId: string } | null
+  /** Paces the Activity tab's polling of an open attempt. */
+  scheduler: Scheduler
   epicId: string
   ticketId: string
   plan: PlanView
@@ -28,9 +36,11 @@ export interface TicketPanelProps {
   onClose(): void
   onSelectTicket(ticketId: string): void
   onReview(input: ReviewInput): Promise<string | null>
+  /** Opens a chat; with a thread the chat opens with that thread expanded. The Activity tab links to the chat an attempt runs in. */
+  onOpenChat(chatId: string, threadId?: string): void
 }
 
-type TabId = 'overview' | 'attempts' | 'evidence' | 'comments' | 'history'
+type TabId = 'overview' | 'attempts' | 'activity' | 'evidence' | 'comments' | 'history'
 
 interface DetailState {
   detail: TicketDetailView | null
@@ -66,6 +76,7 @@ function Tabs(props: { tab: TabId; attempts: number; onTab(tab: TabId): void }):
   const tabs: [TabId, string][] = [
     ['overview', 'Overview'],
     ['attempts', `Attempts (${props.attempts})`],
+    ['activity', 'Activity'],
     ['evidence', 'Evidence'],
     ['comments', 'Comments'],
     ['history', 'History']
@@ -81,13 +92,51 @@ function Tabs(props: { tab: TabId; attempts: number; onTab(tab: TabId): void }):
   )
 }
 
-function TabBody(props: { tab: TabId; detail: TicketDetailView; panel: TicketPanelProps }): JSX.Element {
+/** Which tab is open, and which attempt the Activity tab follows (null: the ticket's latest). */
+interface PanelFocus {
+  tab: TabId
+  attemptId: string | null
+}
+
+/** Opens on the Activity tab when asked to, and comes back to it every time the request is made again. */
+function usePanelFocus(activity: TicketPanelProps['activity']): [PanelFocus, (focus: Partial<PanelFocus>) => void] {
+  const [focus, setFocus] = useState<PanelFocus>(() => ({
+    tab: activity === null ? 'overview' : 'activity',
+    attemptId: activity?.attemptId ?? null
+  }))
+  useEffect(() => {
+    if (activity !== null) {
+      setFocus({ tab: 'activity', attemptId: activity.attemptId })
+    }
+  }, [activity])
+  return [focus, (change) => setFocus((held) => ({ ...held, ...change }))]
+}
+
+interface TabBodyProps {
+  focus: PanelFocus
+  detail: TicketDetailView
+  panel: TicketPanelProps
+  onChooseAttempt(attemptId: string): void
+}
+
+function TabBody(props: TabBodyProps): JSX.Element {
   const { detail, panel } = props
-  switch (props.tab) {
+  switch (props.focus.tab) {
     case 'overview':
       return <OverviewTab detail={detail} bundle={panel.plan.bundle} runner={panel.runner} onSelect={panel.onSelectTicket} />
     case 'attempts':
       return <AttemptList attempts={detail.attempts} now={panel.now} onReview={panel.onReview} />
+    case 'activity':
+      return (
+        <ActivityTab
+          folderPath={panel.folderPath}
+          attempts={detail.attempts}
+          attemptId={props.focus.attemptId}
+          onChoose={props.onChooseAttempt}
+          onOpenChat={panel.onOpenChat}
+          scheduler={panel.scheduler}
+        />
+      )
     case 'evidence':
       return <EvidenceTab detail={detail} />
     case 'comments':
@@ -147,7 +196,7 @@ function PanelHead(props: { panel: TicketPanelProps; detail: TicketDetailView; t
 /** Read view of one ticket: Markdown, criteria, capability profile, links, attempts, evidence, comments, history. */
 export function TicketPanel(props: TicketPanelProps): JSX.Element {
   const { detail, error } = useTicketDetail(props)
-  const [tab, setTab] = useState<TabId>('overview')
+  const [focus, setFocus] = usePanelFocus(props.activity)
   const key = props.plan.bundle.tickets.find((item) => item.id === props.ticketId)?.key ?? props.ticketId
   if (detail === null) {
     return (
@@ -164,9 +213,9 @@ export function TicketPanel(props: TicketPanelProps): JSX.Element {
   }
   return (
     <aside className="tp" aria-label={`Ticket ${key}`}>
-      <PanelHead panel={props} detail={detail} tab={tab} onTab={setTab} />
+      <PanelHead panel={props} detail={detail} tab={focus.tab} onTab={(tab) => setFocus({ tab })} />
       <div className="tp-body" role="tabpanel">
-        <TabBody tab={tab} detail={detail} panel={props} />
+        <TabBody focus={focus} detail={detail} panel={props} onChooseAttempt={(attemptId) => setFocus({ attemptId })} />
       </div>
     </aside>
   )

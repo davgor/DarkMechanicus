@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "**Environment fault during attempt 1 (orchestrator).** The main checkout's `node_modules` had been partly wiped before this run started (last modified 16:58 local). It was missing `.bin`, `@jridgewell` and more, so vitest, tsc and oxlint could not start from any worktree. The worktrees link it through a junction. A likely cause is a worktree deleted without unlinking its junction first. `npm ci` failed with EPERM, because a vite preview server for `preview/mascot` (port 5178) left running from the mascot work holds rollup's and esbuild's binaries. I repaired it with `npm install` instead: no tracked files changed, and `npm ls` is clean. Attempt 1 was rejected for real defects (typecheck and lint errors in the test, missing per-kind display and executable names), and attempt 2 escalates to Sonnet as recommended.",
+  "createdAt": "2026-10-04T23:38:16.826Z",
+  "epicId": "ep_01m418epbg8qkqa2e2krvdkqk5",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m44mgmbt4h4jw0qdkw1fs3qh",
+  "ticketId": "tk_01m418f9qyh7npd4jqpw0858bm"
+}

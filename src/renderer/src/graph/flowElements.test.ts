@@ -19,7 +19,8 @@ const OPTIONS = {
   editable: true,
   selectedTicketId: 'tk_202',
   onAddTicket: (id: string) => added.push(id),
-  onAddAcceptance: (id: string) => addedNodes.push(id)
+  onAddAcceptance: (id: string) => addedNodes.push(id),
+  onOpenActivity: () => undefined
 }
 
 describe('flow nodes', () => {

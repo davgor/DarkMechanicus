@@ -98,6 +98,8 @@ const PROBES: Record<CommandName, unknown> = {
   authorizeAutoContinue: { runId: RUN, enabled: true },
   grantRetry: { runId: RUN, ticketId: TICKET },
   listEvents: {},
+  getAttemptTimeline: { attemptId: ATTEMPT },
+  getRunTimeline: { runId: RUN },
   addComment: { epicId: EPIC, body: 'probe' },
   listComments: { epicId: EPIC },
   listProfiles: undefined,

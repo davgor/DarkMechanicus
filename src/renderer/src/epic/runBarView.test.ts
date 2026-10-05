@@ -1,6 +1,19 @@
 import { describe, expect, it } from 'vitest'
+import { chatRecord } from '../__mocks__/fixtures'
 import { MINUTE, NOW, epicDetail, iso, runView } from './__mocks__/fixtures'
-import { adoptNotice, runActions, runBarCounts, runCounts, runLabel, runPill, runSummary } from './runBarView'
+import { SIGNED_OUT_PAUSE_REASON } from '../../../shared/domain/status'
+import {
+  adoptNotice,
+  orchestratorNote,
+  resumeBlocked,
+  runActions,
+  runBarCounts,
+  runCounts,
+  runLabel,
+  runPill,
+  runSummary,
+  signedOutNote
+} from './runBarView'
 
 describe('run bar summary', () => {
   it('describes a running run with its pinned revision, sprint, age and host', () => {
@@ -32,6 +45,8 @@ describe('run bar summary', () => {
     expect(runSummary(paused, NOW, null)).toBe('Run #2 · pinned to rev 4 · Sprint 2 of 3 · paused: branch changed')
     const pausedPlain = runView({ state: 'paused', host: null })
     expect(runSummary(pausedPlain, NOW, null)).toBe('Run #2 · pinned to rev 4 · Sprint 2 of 3 · paused')
+    const signedOut = runView({ state: 'paused', pauseReason: SIGNED_OUT_PAUSE_REASON, host: null })
+    expect(runSummary(signedOut, NOW, null)).toBe('Run #2 · pinned to rev 4 · Sprint 2 of 3 · paused')
     const done = runView({ state: 'completed', endedAt: iso(-3 * MINUTE), host: null })
     expect(runSummary(done, NOW, null)).toBe('Run #2 · pinned to rev 4 · completed 3m ago')
     const canceled = runView({ state: 'canceled', endedAt: null, host: null })
@@ -142,5 +157,83 @@ describe('run bar counts', () => {
   it('hides counts while the run waits at a checkpoint', () => {
     expect(runBarCounts(runView({ state: 'awaiting_checkpoint' }))).toEqual([])
     expect(runBarCounts(runView()).length).toBe(5)
+  })
+})
+
+describe('signed-out note', () => {
+  const chat = chatRecord({ id: 'chat_9', agent: 'claude', title: 'Orchestrator · Agent chats', runId: 'rn_2' })
+  const paused = runView({ state: 'paused', pauseReason: SIGNED_OUT_PAUSE_REASON })
+  const SIGNED_OUT = { claude: { state: 'signed_out', reason: 'Not signed in.' } } as const
+  const SIGNED_IN = { claude: { state: 'signed_in', reason: 'Signed in.' } } as const
+
+  it('says the agent signed out, links the orchestrating chat, and keeps the agent’s state for the prompt', () => {
+    expect(signedOutNote(paused, chat, SIGNED_OUT)).toEqual({
+      text: 'Paused: Claude Code signed out',
+      agent: 'claude',
+      status: SIGNED_OUT.claude,
+      chat: { id: 'chat_9', title: 'Orchestrator · Agent chats' },
+      signedIn: false
+    })
+  })
+
+  it('knows the agent is signed in again once its status says so', () => {
+    expect(signedOutNote(paused, chat, SIGNED_IN)?.signedIn).toBe(true)
+  })
+
+  it('does not know yet while the agent’s status is still being asked, or cannot be told', () => {
+    expect(signedOutNote(paused, chat, {})?.signedIn).toBe(false)
+    expect(signedOutNote(paused, chat, { claude: { state: 'unknown', reason: '?' } })?.signedIn).toBe(false)
+  })
+
+  it('stays general when the chat orchestrating the run is not known', () => {
+    expect(signedOutNote(paused, null, SIGNED_OUT)).toEqual({
+      text: 'Paused: the orchestrator’s agent signed out',
+      agent: null,
+      status: undefined,
+      chat: null,
+      signedIn: false
+    })
+  })
+
+  it('belongs to a run paused for a lost sign-in and to no other', () => {
+    expect(signedOutNote(runView({ state: 'paused', pauseReason: 'branch changed' }), chat, SIGNED_OUT)).toBe(null)
+    expect(signedOutNote(runView({ state: 'paused' }), chat, SIGNED_OUT)).toBe(null)
+    expect(signedOutNote(runView({ state: 'running', pauseReason: SIGNED_OUT_PAUSE_REASON }), chat, SIGNED_OUT)).toBe(null)
+  })
+
+  it('holds Resume back until the agent is signed in, and never for a run it does not describe or an agent it cannot name', () => {
+    expect(resumeBlocked(signedOutNote(paused, chat, SIGNED_OUT))).toBe(true)
+    expect(resumeBlocked(signedOutNote(paused, chat, {}))).toBe(true)
+    expect(resumeBlocked(signedOutNote(paused, chat, SIGNED_IN))).toBe(false)
+    expect(resumeBlocked(signedOutNote(paused, null, SIGNED_OUT))).toBe(false)
+    expect(resumeBlocked(null)).toBe(false)
+  })
+})
+
+describe('orchestrator note', () => {
+  const chat = chatRecord({ id: 'chat_9', agent: 'codex', title: 'Orchestrator · Agent chats', runId: 'rn_2' })
+
+  it('links the chat orchestrating an active run, whatever state the run is in', () => {
+    for (const state of ['queued', 'running', 'paused', 'awaiting_checkpoint'] as const) {
+      expect(orchestratorNote(runView({ state }), chat)).toEqual({
+        kind: 'chat',
+        chatId: 'chat_9',
+        text: 'Orchestrated by Codex in',
+        link: 'Orchestrator · Agent chats'
+      })
+    }
+  })
+
+  it('says a queued run with no chat is waiting for an orchestrator', () => {
+    expect(orchestratorNote(runView({ state: 'queued' }), null)).toEqual({
+      kind: 'waiting',
+      text: 'Waiting for an orchestrator. An agent picks this run up with start_run.'
+    })
+  })
+
+  it('has nothing to say about a run an external agent is already running, or one that has ended', () => {
+    expect(orchestratorNote(runView({ state: 'running' }), null)).toBe(null)
+    expect(orchestratorNote(runView({ state: 'completed' }), chat)).toBe(null)
+    expect(orchestratorNote(runView({ state: 'canceled' }), null)).toBe(null)
   })
 })

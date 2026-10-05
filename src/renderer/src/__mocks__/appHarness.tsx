@@ -52,6 +52,13 @@ export class AppHarness {
         <button type="button" onClick={props.onDeleted}>
           stub deleted
         </button>
+        <p data-testid="epic-landing">{JSON.stringify(props.landing ?? null)}</p>
+        <button type="button" onClick={() => props.onLanded?.()}>
+          stub landed
+        </button>
+        <button type="button" onClick={() => props.orchestration.onOpenChat('chat_a', 'th1')}>
+          stub open thread
+        </button>
       </section>
     )
   }

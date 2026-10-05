@@ -3,7 +3,7 @@
  * review decisions, failures with the plan's failure policy, reconciliation of expired leases, and
  * carry-forward of work completed earlier.
  */
-import type { ClaimTicketInput, SubmitAttemptInput } from '../../shared/domain/api'
+import type { ClaimTicketInput, HeartbeatAttemptInput, SubmitAttemptInput } from '../../shared/domain/api'
 import type { EpicBranch, ReasoningEffort, TicketContent } from '../../shared/domain/bundle'
 import type { DomainErrorCode } from '../../shared/domain/errors'
 import {
@@ -30,6 +30,7 @@ import type {
   WorkerInfo
 } from '../../shared/domain/views'
 import { requireCapability } from '../authz'
+import { CLAIM_TOKEN_MASK, maskClaimTokens } from '../claimTokenMask'
 import { addSeconds } from '../clock'
 import type { Ctx } from '../context'
 import { parseJson, toJson } from '../db/database'
@@ -38,7 +39,7 @@ import { isAcceptanceTicket } from '../plan/acceptance'
 import { matchProfile } from '../plan/capabilities'
 import { LIMITS } from '../schemas'
 import type { ExecutionSnapshot } from '../plan/readiness'
-import { appendEvent } from './events'
+import { appendEvent, appendProgressNote } from './events'
 import {
   advanceTicketStatus,
   type AttemptRow,
@@ -417,10 +418,31 @@ function settleLeases(ctx: Ctx, attemptId: string): void {
   }
 }
 
-export function heartbeatAttempt(
+/**
+ * A progress note is free text, so whatever the worker pasted into it is masked before it is stored: the claim
+ * token this heartbeat proved (any shape), and anything else shaped like one.
+ */
+function maskNote(text: string, claimToken: string): string {
+  return maskClaimTokens(text.split(claimToken).join(CLAIM_TOKEN_MASK))
+}
+
+function recordProgress(
   ctx: Ctx,
-  input: { attemptId: string; claimToken: string; leaseSeconds?: number }
-): AttemptView {
+  row: AttemptRow,
+  claimToken: string,
+  progress: NonNullable<HeartbeatAttemptInput['progress']>
+): void {
+  appendProgressNote(ctx, {
+    attemptId: row.id,
+    epicId: requireRun(ctx, row.run_id).epic_id,
+    runId: row.run_id,
+    ticketId: row.ticket_id,
+    note: maskNote(progress.note, claimToken),
+    step: progress.step === undefined ? undefined : maskNote(progress.step, claimToken)
+  })
+}
+
+export function heartbeatAttempt(ctx: Ctx, input: HeartbeatAttemptInput): AttemptView {
   requireCapability(ctx.session, 'attempt.heartbeat')
   settleLeases(ctx, input.attemptId)
   return ctx.db.tx(() => {
@@ -437,6 +459,9 @@ export function heartbeatAttempt(
     )
     if (row.state === 'claimed') {
       recordAttempt(ctx, row, requireRun(ctx, row.run_id).epic_id, { kind: 'attempt.running' })
+    }
+    if (input.progress !== undefined) {
+      recordProgress(ctx, row, input.claimToken, input.progress)
     }
     return attemptView(loadAttempt(ctx, row.id))
   })

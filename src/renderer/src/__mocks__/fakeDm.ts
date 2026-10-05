@@ -1,9 +1,17 @@
 import type { CommandName } from '../../../shared/domain/api'
 import { deferred } from './deferred'
+import { FakeChats } from './fakeChats'
 import type { Deferred } from './deferred'
 import type { DomainErrorShape } from '../../../shared/domain/errors'
 import type { BoardRemovalResultView, BoardRemovalView } from '../../../shared/domain/views'
 import type {
+  AgentAuthStatus,
+  AgentDownloadProgress,
+  AgentDownloadResult,
+  AgentFindResult,
+  AgentKind,
+  AgentSignInResult,
+  AgentView,
   ClaudeCodeConnectRequest,
   ClaudeCodeConnectResult,
   CommandInput,
@@ -38,6 +46,7 @@ export const MCP_JSON = '{\n  "mcpServers": {\n    "darkmechanicus": { "command"
  * canned `responses` (or a `handlers` function), so tests assert on recorded state, not mocks.
  */
 export class FakeDm implements DmApi {
+  chats = new FakeChats()
   folders: TrackedFolderView[] = []
   pickQueue: FolderPickResult[] = []
   responses: Partial<Record<CommandName, unknown>> = {
@@ -124,6 +133,86 @@ export class FakeDm implements DmApi {
 
   openExternal(): Promise<boolean> {
     return Promise.resolve(true)
+  }
+
+  /** Connected agents, as listAgents answers them. */
+  agents: AgentView[] = []
+  /** Answers to findAgent, in order; once used up the file dialog is closed without a pick. */
+  findOutcomes: AgentFindResult[] = []
+  /** Answers to downloadAgent, in order; once used up the confirmation is declined. */
+  downloadOutcomes: AgentDownloadResult[] = []
+  /** What agentStatus answers per kind; an agent with no entry is `unknown`. */
+  agentStatuses: Partial<Record<AgentKind, AgentAuthStatus>> = {}
+  /** Answers to signInAgent, in order; once used up the sign-in starts. */
+  signInOutcomes: AgentSignInResult[] = []
+  /** Every agent API call with exactly the arguments it was given, oldest first. */
+  agentCalls: { method: string; args: unknown[] }[] = []
+  private agentHolds: Partial<Record<string, Deferred[]>> = {}
+  private progressListeners = new Set<(progress: AgentDownloadProgress) => void>()
+
+  /** Makes the next call of an agent method (e.g. `downloadAgent`) wait until the returned deferred is resolved. */
+  holdAgent(method: string): Deferred {
+    const hold = deferred()
+    this.agentHolds[method] = [...(this.agentHolds[method] ?? []), hold]
+    return hold
+  }
+
+  /** Pushes a download progress event to every subscriber, as the main process does mid-download. */
+  emitProgress(progress: AgentDownloadProgress): void {
+    for (const listener of this.progressListeners) {
+      listener(progress)
+    }
+  }
+
+  get progressSubscribers(): number {
+    return this.progressListeners.size
+  }
+
+  listAgents(): Promise<AgentView[]> {
+    return this.agentCall('listAgents', [], () => [...this.agents])
+  }
+
+  findAgent(kind: AgentKind): Promise<AgentFindResult> {
+    return this.agentCall('findAgent', [kind], () => this.findOutcomes.shift() ?? { outcome: 'cancelled' })
+  }
+
+  removeAgent(kind: AgentKind): Promise<AgentView[]> {
+    return this.agentCall('removeAgent', [kind], () => {
+      this.agents = this.agents.filter((agent) => agent.kind !== kind)
+      return [...this.agents]
+    })
+  }
+
+  downloadAgent(kind: AgentKind): Promise<AgentDownloadResult> {
+    return this.agentCall('downloadAgent', [kind], () => this.downloadOutcomes.shift() ?? { outcome: 'cancelled' })
+  }
+
+  onAgentDownloadProgress(listener: (progress: AgentDownloadProgress) => void): () => void {
+    this.progressListeners.add(listener)
+    return () => this.progressListeners.delete(listener)
+  }
+
+  agentStatus(kind: AgentKind): Promise<AgentAuthStatus> {
+    return this.agentCall(
+      'agentStatus',
+      [kind],
+      () => this.agentStatuses[kind] ?? { state: 'unknown', reason: 'Not connected yet.' }
+    )
+  }
+
+  signInAgent(kind: AgentKind): Promise<AgentSignInResult> {
+    return this.agentCall('signInAgent', [kind], () => this.signInOutcomes.shift() ?? { outcome: 'started' })
+  }
+
+  /** Calls recorded for one agent method. */
+  agentCallsOf(method: string): unknown[][] {
+    return this.agentCalls.filter((call) => call.method === method).map((call) => call.args)
+  }
+
+  private async agentCall<T>(method: string, args: unknown[], produce: () => T): Promise<T> {
+    this.agentCalls.push({ method, args })
+    await this.agentHolds[method]?.shift()?.promise
+    return produce()
   }
 
   async command<K extends CommandName>(

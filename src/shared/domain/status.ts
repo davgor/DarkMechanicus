@@ -25,6 +25,12 @@ export const ACTIVE_RUN_STATES: readonly RunState[] = [
   'paused'
 ]
 
+/**
+ * The pause reason of a run whose orchestrator chat lost its CLI login. Only the desktop app's own session may
+ * pause with it (exact match); while a run is paused so, its open leases stay open and resume extends them.
+ */
+export const SIGNED_OUT_PAUSE_REASON = 'signed_out'
+
 export const ATTEMPT_STATES = [
   'claimed',
   'running',
