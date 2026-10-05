@@ -1,5 +1,5 @@
 {
-  "activeSprintId": "sp_01m464q30nz932eaxbac5c4twh",
+  "activeSprintId": "sp_01m46t84ss32fyjpn5mn4nk2p3",
   "attempts": [
     {
       "createdAt": "2026-10-04T23:30:15.937Z",
@@ -5489,6 +5489,1574 @@
         "rationale": "Matcher's top fit is Sonnet. I raised the effort to high because this one node runs the whole Definition of Done (Fireguard included) and a live Windows walkthrough with a Claude Code orchestrator chat. Sprint 1 needed two attempts on its acceptance node.",
         "sessionId": null
       }
+    },
+    {
+      "createdAt": "2026-10-05T17:47:13.631Z",
+      "decidedAt": "2026-10-05T18:02:30.861Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "It merges cleanly with DM-200's claude.ts change.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Before the implementation: core 15 failed (the second glued secret left raw); Claude 10, Codex 17 and Cursor 11 masking tests failed.",
+            "name": "red first",
+            "status": "passed"
+          },
+          {
+            "detail": "claimTokenMask, attempts, src/main/agents, actionMarkers and activity: 39 files, 952 passed (orchestrator re-run).",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "claimTokenMask.ts 100% (16 of 16 branches); every added branch in the adapters is covered.",
+            "name": "coverage of changed files",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint exit 0 (orchestrator re-run).",
+            "name": "lint (changed files)",
+            "status": "passed"
+          },
+          {
+            "detail": "Exit 0 (orchestrator re-run).",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Row check and checkpoint.",
+            "name": "full gate",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Read the new regex: TOKEN_START lookahead bounds each secret; the stream tail is built on it."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "clipMasked is used at every shortening site across the three adapters (diff checked)."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Existing masking suites green."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Lint, typecheck and 952 tests re-run."
+          }
+        ],
+        "notes": "Over-masking: a string that ends in `at_<id>.json` is masked at the very end (accepted per the ticket). Discovery: stderr buffers in claudeProcess, acpProcess and codexProcess are cut from the front as chunks arrive, so a token cut at the front can't be recognised. Low risk, because tokens don't normally reach stderr; it's a follow-up."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m46jthtzcat7whv8v7dj1wy1",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": "dm-201",
+        "changedFiles": [
+          "src/core/claimTokenMask.ts",
+          "src/core/claimTokenMask.test.ts",
+          "src/main/agents/claimTokenMask.ts",
+          "src/main/agents/adapters/claudeTranscript.ts",
+          "src/main/agents/adapters/claudeApprovals.ts",
+          "src/main/agents/adapters/claude.ts",
+          "src/main/agents/adapters/codexItems.ts",
+          "src/main/agents/adapters/codexThreads.ts",
+          "src/main/agents/adapters/cursorProtocol.ts",
+          "src/main/agents/__mocks__/claimTokenFixture.ts",
+          "src/main/agents/adapters/claudeMasking.test.ts",
+          "src/main/agents/adapters/codexMasking.test.ts",
+          "src/main/agents/adapters/cursorMasking.test.ts",
+          "docs/architecture.md"
+        ],
+        "commits": [
+          "06a110c14d307ed04c413d0b35f23fa19e3bb6ff",
+          "823b8d0be5e3b9f2601977c8d96d988bfd5cc51b",
+          "d45989189c05ce7cd6686dc2dc24d68df28e814f",
+          "eaf7cf0ec1a450b79e4895c388d38fa252c5a50d",
+          "3ccd8719a3dc5eb00179bbe83f25769fd8653bba"
+        ],
+        "summary": "maskClaimTokens stops a secret at the next `at_<id>.` (a secret never holds a dot), so glued pairs and triples are each masked whole, including a short first secret. It also masks `at_<id>.` plus 0 to 15 secret characters at the very end of a text (a cut-short token). The stream masker uses the same regex, and flush() masks. The new clipMasked(text, limit) masks before cutting. It is used everywhere text is shortened: Claude plainInput, resultText, the thread label, the approval command and the stderr tail; Codex clip and lineOf; Cursor clip. The old exports are unchanged."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m46gtaq0a7hyqfqsxt3ttdrd",
+      "state": "accepted",
+      "submittedAt": "2026-10-05T18:02:30.824Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:6c2f5637c3ba4bf73bf8eeba8de65af34a6cd803d6bb5bd0d7e4dd126b10411e",
+      "ticketId": "tk_01m464q30sce788fpmjcxdpnhd",
+      "updatedAt": "2026-10-05T18:02:30.861Z",
+      "worker": {
+        "catalogRevision": "2026-10-04-agents",
+        "effort": "medium",
+        "hostId": "claude-code-desktop-davgo",
+        "label": "Claude Code subagent (DM-201)",
+        "modelId": "claude-sonnet-5-5",
+        "rationale": "Sonnet at medium effort, as planned: regex and stream hold-back for secrets, plus masking before truncation across adapters.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-05T17:47:13.680Z",
+      "decidedAt": "2026-10-05T17:59:53.175Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "It merges cleanly with DM-204's session manager changes.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Before the implementation: authz and runs 13 failed, integration mcp 2 failed (with the implementation stashed), execution 1 failed, sessionManager 2 failed.",
+            "name": "red first",
+            "status": "passed"
+          },
+          {
+            "detail": "Worker: src/core, src/mcp, src/integration and the agent hooks, 141 files, 3616 tests. Orchestrator re-run of runs, authz, src/mcp, integration/mcp, sessionManager and signInHooks: 22 files, 645 passed.",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "authz.ts and execution.ts full coverage; runs.ts branches 97.95% (the one uncovered line was there before). Every added branch is hit.",
+            "name": "coverage of changed files",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint exit 0 (orchestrator re-run).",
+            "name": "lint (changed files)",
+            "status": "passed"
+          },
+          {
+            "detail": "Exit 0 (orchestrator re-run).",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "After the build: 59 tools, 6 prompts.",
+            "name": "smoke:mcp",
+            "status": "passed"
+          },
+          {
+            "detail": "Row check and checkpoint.",
+            "name": "full gate",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Re-ran the core and MCP integration tests green."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Exact-match reason; other pauses unchanged."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Paused-to-signed_out switch keeps leases; idempotent for an already signed-out run."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Lint, typecheck and 645 tests re-run."
+          }
+        ],
+        "notes": "Re-pausing replaces a taken_over reason with signed_out (previousReason kept in the event). Such a run has no open leases. Acceptable; noted for the runbook."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m46jthwgsta44sz1hts4qy3e",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": "dm-202",
+        "changedFiles": [
+          "src/core/authz.ts",
+          "src/core/authz.test.ts",
+          "src/core/services/runs.ts",
+          "src/core/services/runs.test.ts",
+          "src/mcp/tools/execution.ts",
+          "src/mcp/tools/execution.test.ts",
+          "src/integration/mcp.test.ts",
+          "src/main/agents/sessionManager.ts",
+          "src/main/agents/sessionManager.test.ts",
+          "docs/architecture.md",
+          "docs/runbooks/agents.md"
+        ],
+        "commits": [
+          "4bef2fe6eb0b35211e85b105562944a00bc8197c",
+          "4883c7083c0fe86f73b3518d61d8a88d3f5f72ee",
+          "873a3a8433bb608835dbb021d38d7ccd21f7d45a",
+          "e63602c857f3dfac937ca912f0d5d2fc5580996e"
+        ],
+        "summary": "There is a new desktop-only capability, run.resume_signed_out (in CAPABILITIES and HUMAN_ONLY_CAPABILITIES). resumeRun requires it for a run paused for signed_out, after the state check. Over MCP the call fails unauthorized with 'This run is paused because its agent was signed out. The person resumes it in the desktop app, with Resume run.', using a new optional message parameter on requireCapability. Other pause reasons resume as before.\n\npauseRun with signed_out on an already-paused run switches the reason (markPausedRunSignedOut): overdue leases lapse first, paused_at becomes now, open leases are kept, and a run.paused event records previousReason. A run already signed-out is left untouched, and other reasons on a paused run still give run_not_active. The session manager's pauseRunOf now also acts on paused runs.\n\nThe resume_run description and the docs (architecture, agents runbook) are updated."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m46gtaq0a7hyqfqsxt3ttdrd",
+      "state": "accepted",
+      "submittedAt": "2026-10-05T17:59:53.142Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:b5eb92235384cc205ea092f035ddea88b641274caa1498c759a5fcc12a5a4b36",
+      "ticketId": "tk_01m464q30svqdmcn5bw2dh76tf",
+      "updatedAt": "2026-10-05T17:59:53.175Z",
+      "worker": {
+        "catalogRevision": "2026-10-04-agents",
+        "effort": "medium",
+        "hostId": "claude-code-desktop-davgo",
+        "label": "Claude Code subagent (DM-202)",
+        "modelId": "claude-sonnet-5-5",
+        "rationale": "Sonnet at medium effort, as planned: run-control authorization and pause state in core.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-05T17:47:13.724Z",
+      "decidedAt": "2026-10-05T17:55:11.497Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "The behaviour change gets its live check in DM-199 c4 (an unprompted orchestrator passes packets).",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Before the implementation: 11 failed (9 new kickoff tests, 2 skillBody tests).",
+            "name": "red first",
+            "status": "passed"
+          },
+          {
+            "detail": "orchestratorKickoff, orchestratorStart and src/mcp: 19 files, 441 passed (orchestrator re-run).",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "orchestratorKickoff.ts and skills.ts at 100% (8 of 8 branches).",
+            "name": "coverage of changed files",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint exit 0 (orchestrator re-run).",
+            "name": "lint (changed files)",
+            "status": "passed"
+          },
+          {
+            "detail": "Exit 0 (orchestrator re-run).",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run build: the main bundle resolves the skills ?raw import.",
+            "name": "build",
+            "status": "passed"
+          },
+          {
+            "detail": "Row check and checkpoint.",
+            "name": "full gate",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "skillBody shares the SKILLS source; the test compares against the served prompt."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Read the handoff paragraph: it covers the packet with the token, the worker guidance, self-report, and no proxy submit. The live proof comes in DM-199 c4."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Existing and new tests pass."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Re-ran lint, typecheck and 441 tests."
+          }
+        ],
+        "notes": "Discoveries:\n- The first message (about 32 KB) shows as one plain paragraph; a collapsible long user message would read better.\n- The orchestrator guidance still names the reviewer and sprint-reporter skills, which the kickoff doesn't include."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m46jthxw6szbq6q5ntnr5rp9",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": "dm-203",
+        "changedFiles": [
+          "src/main/agents/orchestratorKickoff.ts",
+          "src/main/agents/orchestratorKickoff.test.ts",
+          "src/mcp/skills.ts",
+          "src/mcp/skills.test.ts"
+        ],
+        "commits": [
+          "d8c693ac5116a391c7bd37e7dab5c4f35649a168",
+          "ed021115281221f3cb1d488235d578e2787e304e"
+        ],
+        "summary": "src/mcp/skills.ts adds skillBody(name), which returns exactly the body each MCP prompt serves and throws on an unknown name. The kickoff (orchestratorKickoff.ts) drops the 'load the prompt' step. It carries the orchestrator and worker guidance verbatim from that one source, in '=== ... ===' sections after the run lines. Step 4 is an explicit worker handoff: each worker subagent gets its whole packet (attempt id and claim token) and the worker guidance, heartbeats with progress notes and submits itself; the orchestrator reviews and doesn't submit for it, keeps the token secret, and falls back to reporting for a worker that can't call the tools. The message is about 32 KB (under half of LIMITS.markdown), still masked, and holds no token. The skills files and version are unchanged."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m46gtaq0a7hyqfqsxt3ttdrd",
+      "state": "accepted",
+      "submittedAt": "2026-10-05T17:55:11.463Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:aab186f30f2dd135f33ab8ca00a02025e23b555174a2170045443d3493463a39",
+      "ticketId": "tk_01m464q30sy03s3821171fvq3c",
+      "updatedAt": "2026-10-05T17:55:11.497Z",
+      "worker": {
+        "catalogRevision": "2026-10-04-agents",
+        "effort": "medium",
+        "hostId": "claude-code-desktop-davgo",
+        "label": "Claude Code subagent (DM-203)",
+        "modelId": "claude-sonnet-5-5",
+        "rationale": "Matcher's top fit: Sonnet at medium effort. The kickoff steers a live orchestrator and must stay in sync with the served skills.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-05T17:47:13.775Z",
+      "decidedAt": "2026-10-05T17:58:50.774Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "It merges cleanly onto agents-s3. Settling is kept off any shared read path, ready for DM-211.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Before the implementation: chat.test 4 failed, sessionManager.settle 13 of 17 failed (the other 4 are 'must not change' guards), renderer tests 5 failed.",
+            "name": "red first",
+            "status": "passed"
+          },
+          {
+            "detail": "src/shared/agents, src/main/agents and src/renderer/src/agents: 60 files, 1196 passed (orchestrator re-run).",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "sessionManager branches 96.51% (up from 95.36%); chat.ts and threadStream.ts 100%. Every added branch is covered; the uncovered lines were there before.",
+            "name": "coverage of changed files",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint exit 0 (orchestrator re-run).",
+            "name": "lint (changed files)",
+            "status": "passed"
+          },
+          {
+            "detail": "Exit 0 (orchestrator re-run).",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Row check and checkpoint.",
+            "name": "full gate",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Re-ran green."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Scope-based cancellation is sound because Stop, quit and idle end the whole turn or process."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Idempotent settling only on openChat with no live session."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Threads failed on open, with nesting kept."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Lint, typecheck and 1196 tests re-run."
+          }
+        ],
+        "notes": "There is no id link from an approval to its tool call, so cancellation is by scope (same thread). An optional toolCallId on approval_request would be an exact follow-up."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m46jthzf7jrktx9tw770qmhg",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": "dm-204",
+        "changedFiles": [
+          "src/shared/agents/chat.ts",
+          "src/shared/agents/chat.test.ts",
+          "src/main/agents/sessionManager.ts",
+          "src/main/agents/sessionManager.settle.test.ts",
+          "src/renderer/src/agents/ChatTranscript.tsx",
+          "src/renderer/src/agents/chatViewModel.ts",
+          "src/renderer/src/agents/chatViewModel.test.ts",
+          "src/renderer/src/agents/actionMarkers.ts",
+          "src/renderer/src/agents/actionMarkers.test.ts",
+          "src/renderer/src/agents/threadStream.ts",
+          "src/renderer/src/agents/threadStream.test.ts",
+          "src/renderer/src/agents/chatThreads.css",
+          "src/renderer/src/agents/ChatView.items.test.tsx"
+        ],
+        "commits": [
+          "7cde01de173798eda6bcab14ad7086a2825d63de",
+          "18f3bf322ce123a178402cc53b59dbfd645d1888",
+          "451816cad127c903ac09056ac947528d1e0e6850"
+        ],
+        "summary": "Contract: tool_call status gains `cancelled`, and there is a new `turn_stopped` item (with optional threadId); old chats load unchanged.\n\nSession manager:\n- stop() flags the session, and endTurn stores turn_stopped after the agent's output, before the turn:false push. A stopped or failed turn cancels its running calls in the chat's own thread.\n- cancelWaiting (Stop, quit, idle) cancels the running calls in each cancelled request's thread.\n- openChat with no live session settles the stored transcript: running calls become cancelled and running threads become failed, rewritten by id. Live agents are untouched. This is in openChat only (settleEnded, wrapped in safely), so DM-211's read stays write-free.\n\nRenderer: a 'You stopped this turn...' notice, Cancelled pills on tool rows, marker wording 'claiming DM-12 (cancelled)', and a neutral tone in threadStream."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m46gtaq0a7hyqfqsxt3ttdrd",
+      "state": "accepted",
+      "submittedAt": "2026-10-05T17:58:50.742Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:2aa043cab1d54f3d7ca1c77704c05b82b4d3d78b5a75e3852381542a622ef64e",
+      "ticketId": "tk_01m464q30sffrazx3zwdsyksnb",
+      "updatedAt": "2026-10-05T17:58:50.774Z",
+      "worker": {
+        "catalogRevision": "2026-10-04-agents",
+        "effort": "medium",
+        "hostId": "claude-code-desktop-davgo",
+        "label": "Claude Code subagent (DM-204)",
+        "modelId": "claude-sonnet-5-5",
+        "rationale": "Sonnet at medium effort, as planned: a chat contract item, session-manager writes, rendering, and settling stale rows and threads on open.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-05T17:47:13.821Z",
+      "decidedAt": "2026-10-05T18:13:31.595Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "A security-sensitive review: the launcher keeps DM-49's single-parse rule and folds the sign-in plan into the same code, so there's one quoting implementation.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Before the implementation: processTree and shimLaunch modules missing; claudeProcess 4, acpProcessSpawn 3, codexProcessSpawn 3, agentRunnersTimeout 4, plus claude, acpClient and cursor dispose tests failed. A few characterising tests were added after.",
+            "name": "red first",
+            "status": "passed"
+          },
+          {
+            "detail": "src/main/agents, src/main/desktop and quitDisposal: 56 files, 1386 passed, 1 skipped (orchestrator re-run).",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "Worker: 5 runs each of processTreeReal, shimLaunch, claudeProcess, codexProcess, quitDisposal, agentProbeNode and agentInstallerNode, all green, plus 12 more runs of processTreeReal. Orchestrator: processTreeReal and shimLaunch 3 runs, 53 of 53 each time.",
+            "name": "real-process repeats",
+            "status": "passed"
+          },
+          {
+            "detail": "processTree.ts and shimLaunch.ts 100% (22 of 22 and 18 of 18 branches); claudeProcess and cursorLaunch 100%; the remaining gaps are in lines the ticket didn't touch.",
+            "name": "coverage of changed files",
+            "status": "passed"
+          },
+          {
+            "detail": "Only processTree.ts spawns taskkill and only shimLaunch.ts builds a cmd line; every other hit is a comment or comspec plumbing.",
+            "name": "c2 grep",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint exit 0 (orchestrator re-run).",
+            "name": "lint (changed files)",
+            "status": "passed"
+          },
+          {
+            "detail": "Exit 0 (orchestrator re-run).",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Row check and checkpoint.",
+            "name": "full gate",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Real-process test re-run 3 times green."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Grep evidence reviewed."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Read shimLaunch.ts: one parse, the path in its own quotes, refusal of what can't be literal (quote, %, controls) and of a final backslash; the real injection test passes."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "quitDisposal tests pass."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Lint, typecheck and 1386 tests re-run."
+          }
+        ],
+        "notes": "The POSIX group kill is verified only through seams; the platform-agnostic real tests will exercise it on a Mac. Discovery: a quit while the Claude SDK is still loading can leave a Claude process briefly, because launch's own killAll isn't awaited by dispose. That needs a pending-start gate (follow-up)."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m46jtj0xjp4c0vcxgcz96mr1",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": "dm-205",
+        "changedFiles": [
+          "src/main/agents/processTree.ts",
+          "src/main/agents/processTree.test.ts",
+          "src/main/agents/processTreeReal.test.ts",
+          "src/main/agents/shimLaunch.ts",
+          "src/main/agents/shimLaunch.test.ts",
+          "src/main/desktop/agentRunnersTimeout.test.ts",
+          "src/main/agents/adapters/claudeProcess.ts",
+          "src/main/agents/adapters/claude.ts",
+          "src/main/agents/adapters/acpProcess.ts",
+          "src/main/agents/adapters/acpClient.ts",
+          "src/main/agents/adapters/cursorSession.ts",
+          "src/main/agents/adapters/cursor.ts",
+          "src/main/agents/adapters/cursorLaunch.ts",
+          "src/main/agents/adapters/codexProcess.ts",
+          "src/main/desktop/agentProbe.ts",
+          "src/main/desktop/agentAuth.ts",
+          "src/main/desktop/agentProbeNode.ts",
+          "src/main/desktop/agentInstallerNode.ts",
+          "src/main/quitDisposal.ts",
+          "docs/architecture.md"
+        ],
+        "commits": [
+          "6162b83bd6db60590129184d04294f1ee97f4613",
+          "9e8fac0ab36233c5c3aa645c0a9b54e9440dc8ce",
+          "aae0a9661115d28f90361558ae49cb55af896842",
+          "c3f08fbcc6f680399ac0fa43f0ea6c2d391054f1",
+          "aed2ceb772aeec59fabd3c4deb79ae6552a37f11"
+        ],
+        "summary": "processTree.ts killProcessTree(child) resolves once the tree is gone (5 s bound):\n- Windows: awaited taskkill /pid /t /f by its full System32 path, then the child's exit.\n- POSIX: SIGKILL to the process group, then polling until it is empty.\n- Concurrent calls share one kill.\n\nshimLaunch.ts planShimLaunch builds `cmd.exe /d /v:off /s /c|/k \"\"<path>\" args\"` with one parse, no start, no nested cmd and no shell. The path stays in its own quotes, so `& ^ ( ! |` and spaces are literal. Non-plain arguments are quoted. A quote, %, a control character (including DEL) or a final backslash is refused.\n\nMoved over: the Claude killAll/dispose (awaited), the Cursor transport, connection and session kill and dispose (awaited), the Codex kill, the probe and installer runners (detached where there are groups), and the sign-in plan (agentAuth, keepOpen). claudeProcess shim resolution is unchanged. Quit now waits through each awaited dispose. Architecture launch rules are updated."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m46gtaq0a7hyqfqsxt3ttdrd",
+      "state": "accepted",
+      "submittedAt": "2026-10-05T18:13:31.557Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:7dc8cdeaa2511838c4107735fd84ea06d65b0004c672d0563801c2e85cfbae72",
+      "ticketId": "tk_01m464q30sf11ghg1wf7xamz4j",
+      "updatedAt": "2026-10-05T18:13:31.595Z",
+      "worker": {
+        "catalogRevision": "2026-10-04-agents",
+        "effort": "high",
+        "hostId": "claude-code-desktop-davgo",
+        "label": "Claude Code subagent (DM-205)",
+        "modelId": "claude-sonnet-5-5",
+        "rationale": "Matcher's top fit: Sonnet at the ticket's high effort for process lifecycle and cmd quoting, where mistakes leak processes or reopen DM-49's injection.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-05T17:55:12.775Z",
+      "decidedAt": "2026-10-05T18:01:18.717Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Before the implementation, 2 of the 3 new tests failed (options.env undefined).",
+            "name": "red first",
+            "status": "passed"
+          },
+          {
+            "detail": "claude.test and claudeProcess.test: 174 passed (orchestrator re-run).",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "claude.ts branches 98.31%; the added lines are covered.",
+            "name": "coverage of changed files",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint exit 0 (orchestrator re-run).",
+            "name": "lint (changed files)",
+            "status": "passed"
+          },
+          {
+            "detail": "Exit 0 (orchestrator re-run).",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "A control run without the switch wrote memory files unasked; the switched run wrote nothing (4 Haiku turns, scratch projects only).",
+            "name": "live check",
+            "status": "passed"
+          },
+          {
+            "detail": "Row check and checkpoint.",
+            "name": "full gate",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Read the diff: the env is copied and the switch applied on every launch; the live control and switched runs prove the effect."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "No settings writes; test guard."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Lint, typecheck and 174 tests re-run."
+          }
+        ],
+        "notes": "Scratch residue left under ~/.claude/projects/*DM-200-scratch-control and *scratch-live (memory notes and session transcripts for the scratch projects only)."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m46k95r78zbc6jetk3h7xv0w",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "live check script and logs",
+            "location": "C:\\Users\\davgo\\Documents\\GitHub\\dm-wt\\evidence\\DM-200\\scratch",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "dm-200",
+        "changedFiles": [
+          "src/main/agents/adapters/claude.ts",
+          "src/main/agents/adapters/claude.test.ts"
+        ],
+        "commits": [
+          "3b54465168e8941e68d26bf5f33e1a66024016d3"
+        ],
+        "summary": "Every process the Claude adapter starts gets CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 through the query options' env (a copy of process.env plus the switch), so hosted chats ask before any write, including memory. Source: https://code.claude.com/docs/en/memory#enable-or-disable-auto-memory. The env var was chosen over the SDK's autoMemoryEnabled setting because it wins over every settings layer and over the person's own environment. No settings file is read or written, and no settings option is passed. Live check against the installed CLI 2.1.281 (Haiku, scratch folders): without the switch, a 'save it to memory' prompt wrote code_word.md and MEMORY.md with canUseTool never asked, reproducing DM-61; with the switch, nothing was written and the memory folder wasn't even created."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m46gtaq0a7hyqfqsxt3ttdrd",
+      "state": "accepted",
+      "submittedAt": "2026-10-05T18:01:18.681Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:9e3ff49eb0b5cd2ffe955b0317128a6229c1a4f22d5cca4f8450584ebf71523f",
+      "ticketId": "tk_01m464q30scyq58eyg1mkedt2e",
+      "updatedAt": "2026-10-05T18:01:18.717Z",
+      "worker": {
+        "catalogRevision": "2026-10-04-agents",
+        "effort": "medium",
+        "hostId": "claude-code-desktop-davgo",
+        "label": "Claude Code subagent (DM-200)",
+        "modelId": "claude-sonnet-5-5",
+        "rationale": "Sonnet at medium effort, as planned: find Claude Code's auto-memory switch and wire it through the SDK options without touching the person's settings.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-05T17:58:51.815Z",
+      "decidedAt": "2026-10-05T18:06:44.678Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Before the implementation: ownServerTools couldn't import, sessionManager.ownServer had 9 failures, renderer 7 failures.",
+            "name": "red first",
+            "status": "passed"
+          },
+          {
+            "detail": "src/main/agents, src/renderer/src/agents and src/shared: 63 files, 1286 passed (orchestrator re-run).",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "ownServerTools.ts 100%; every new branch is hit; the changed files total 95.46% branches (the uncovered lines were there before).",
+            "name": "coverage of changed files",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint exit 0 (orchestrator re-run).",
+            "name": "lint (changed files)",
+            "status": "passed"
+          },
+          {
+            "detail": "Exit 0 (orchestrator re-run).",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Row check and checkpoint.",
+            "name": "full gate",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Read ownServerTools.ts: anchored per-vendor regex, category 'other' only."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "The card note is tested."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "New chat starts empty (test)."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Lint, typecheck and 1286 tests re-run."
+          }
+        ],
+        "notes": "The Cursor spelling is verified against the fixture only (no live Cursor). An unexpected identifier falls back safely to per-tool."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m46kfvn75knqq0kk9rvdz1t9",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": "dm-207",
+        "changedFiles": [
+          "src/main/agents/sessionManager.ts",
+          "src/main/agents/ownServerTools.ts",
+          "src/main/agents/ownServerTools.test.ts",
+          "src/main/agents/sessionManager.ownServer.test.ts",
+          "src/shared/agents/chat.ts",
+          "src/renderer/src/agents/approvalModel.ts",
+          "src/renderer/src/agents/approvalModel.test.ts",
+          "src/renderer/src/agents/ApprovalCard.tsx",
+          "src/renderer/src/agents/ApprovalCard.test.tsx",
+          "src/renderer/src/agents/chatView.css",
+          "docs/architecture.md",
+          "docs/runbooks/agents.md"
+        ],
+        "commits": [
+          "a4de3d9bc17335d8c4fcbd4ee33a72d5009f18d4",
+          "1fb1ed17ec644f09523c2065d69d22a70f131d01",
+          "b9e923d4a16f6023e6a8abe0e38f6294b8a9e496"
+        ],
+        "summary": "Allow for this chat on a call to the chat's own darkmechanicus server now allows every tool of that server for the rest of the chat (one shared scope, server\\0darkmechanicus). Every other request keeps the per-category, per-tool rule; nothing is pre-allowed; allowances are per chat id in memory. ownServerTools.ts isOwnServerCall(agent, request) matches anchored, vendor-specific spellings:\n- Claude ^mcp__darkmechanicus__<snake_tool>$\n- Codex ^mcp:darkmechanicus$ (Codex never names the tool)\n- Cursor ^darkmechanicus:<tool>$\nIt only matches category 'other', so lookalike servers, commands and file edits still ask. Waiting calls of the server are settled on the click. Main marks the stored request ownServer:true, and the card shows 'Allow for this chat covers all Dark Mechanicus tools in this chat.' linked with aria-describedby. Docs got one sentence each."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m46gtaq0a7hyqfqsxt3ttdrd",
+      "state": "accepted",
+      "submittedAt": "2026-10-05T18:06:44.639Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:d8ccebdbe179b7bb669c8f87628b4fe38e972725e1d3ce6783a2058936bf6629",
+      "ticketId": "tk_01m464q30tnkpn1ahes4shgzk5",
+      "updatedAt": "2026-10-05T18:06:44.678Z",
+      "worker": {
+        "catalogRevision": "2026-10-04-agents",
+        "effort": "medium",
+        "hostId": "claude-code-desktop-davgo",
+        "label": "Claude Code subagent (DM-207)",
+        "modelId": "claude-sonnet-5-5",
+        "rationale": "Sonnet at medium effort, as planned: widening an approval scope that must stay limited to the chat's own server.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-05T17:59:54.255Z",
+      "decidedAt": "2026-10-05T18:19:28.948Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "The expired-token flip-flop risk is recorded for the sprint report.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Before the implementation: signInFlags 3, signInHooks and sessionManager 12 (with the old flags stashed), chat 2, claudeAccount 15, ChatView.account 6, threadStream 1, cutShort 3, chatViewModel 1 and ChatView.signIn 1 failed.",
+            "name": "red first",
+            "status": "passed"
+          },
+          {
+            "detail": "Worker after the merge: 111 files, 1996 tests. Orchestrator re-run of src/main/agents, src/shared/agents and src/renderer/src on the merged branch: 221 files, 3256 passed.",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "98.89% statements and 97.16% branches overall; every added line is covered.",
+            "name": "coverage of changed files",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint exit 0 (orchestrator re-run).",
+            "name": "lint (changed files)",
+            "status": "passed"
+          },
+          {
+            "detail": "Exit 0 (orchestrator re-run).",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Row check and checkpoint.",
+            "name": "full gate",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Re-ran green on the merged branch."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Error names checked against the SDK types; notice without Sign in."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Retry gated on cutShort."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Lint, typecheck and 3256 tests re-run."
+          }
+        ],
+        "notes": "Trade-off: the CLI's local status can't see an expired token, so after a lost login a later status check (for example on window focus) can clear the flag while the login is still dead. Retry then fails once and re-flags. That is accepted per the ticket wording. The account-error shapes reuse the recorded signed-out turn shape with the SDK's documented names."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m46khrmfb5wdcnd0680tvan1",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": "dm-206",
+        "changedFiles": [
+          "src/main/agents/adapters/claudeAccountProblems.ts",
+          "src/main/agents/adapters/claudeAccount.test.ts",
+          "src/main/agents/adapters/claudeTranscript.ts",
+          "src/main/agents/sessionManager.ts",
+          "src/main/agents/sessionManager.account.test.ts",
+          "src/main/agents/sessionManager.cutShort.test.ts",
+          "src/main/agents/signInFlags.ts",
+          "src/main/agents/signInHooks.ts",
+          "src/shared/agents/chat.ts",
+          "src/renderer/src/agents/ChatTranscript.tsx",
+          "src/renderer/src/agents/chatViewModel.ts",
+          "src/renderer/src/agents/threadStream.ts",
+          "src/renderer/src/agents/ChatView.account.test.tsx"
+        ],
+        "commits": [
+          "1b02b7292eb7a696a8ee2d007077b300ffda2910",
+          "48912ddcba0cfd7eeef9cf182b75412595f851e7",
+          "6ad5a8bfae7d553e8892c93c4b0e3654f161fba1",
+          "0d6439f1269bf84f973bd9745c193676bab5e122"
+        ],
+        "summary": "1. The signed-out flag clears whenever a status check reports signed_in; signInStarted was removed end to end. Chats get agent_auth signed_in, and the run bar stops prompting.\n2. Account problems: Claude's assistant-message errors oauth_org_not_allowed, account_on_hold and verification_required (verified in the SDK 0.3.289 sdk.d.ts SDKAssistantMessageError, line 3693) map through claudeAccountProblems.ts to an error item with an optional problem field (organization_not_allowed, account_on_hold, verification_required). The turn ends cleanly, the process stays alive, nothing is flagged and no run is paused. The chat shows a titled notice with the masked CLI words and no Sign in.\n3. Retry: auth_required carries an optional cutShort set from the chat's cutShortMessageId, and the Signed out card offers Retry only when it is true.\nagents-s3 was merged in at 0d6439f; the one import conflict in claudeTranscript.ts is resolved."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m46gtaq0a7hyqfqsxt3ttdrd",
+      "state": "accepted",
+      "submittedAt": "2026-10-05T18:19:28.907Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:0f3090aad349373e98d23b068e8ebe4abfa225798cca5fe617b4135d87c3fcf1",
+      "ticketId": "tk_01m464q30tzygdqryf1v711nmx",
+      "updatedAt": "2026-10-05T18:19:28.948Z",
+      "worker": {
+        "catalogRevision": "2026-10-04-agents",
+        "effort": "medium",
+        "hostId": "claude-code-desktop-davgo",
+        "label": "Claude Code subagent (DM-206)",
+        "modelId": "claude-sonnet-5-5",
+        "rationale": "Sonnet at medium effort, as planned: three small changes across main and renderer around sign-in state.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-05T18:01:26.838Z",
+      "decidedAt": "2026-10-05T18:08:16.663Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Before the implementation: push, IPC and two-window useChats tests failed 6, and the loading wording tests failed 6.",
+            "name": "red first",
+            "status": "passed"
+          },
+          {
+            "detail": "src/main/agents, ipcGuard and src/renderer/src: 208 files, 2962 passed (orchestrator re-run).",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "chatHandlers, chatIpc, chooseView, MainViews and chatApi at 100%; the uncovered useChats lines were there before.",
+            "name": "coverage of changed files",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint exit 0 (orchestrator re-run).",
+            "name": "lint (changed files)",
+            "status": "passed"
+          },
+          {
+            "detail": "Exit 0 (orchestrator re-run).",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Row check and checkpoint.",
+            "name": "full gate",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Re-ran the renderer suite (2962) green."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "The wording is tested."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Lint and typecheck re-run."
+          }
+        ],
+        "notes": ""
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m46kmk1p9gkkxdm3bsbpkqbn",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": "dm-208",
+        "changedFiles": [
+          "src/shared/agents/chatApi.ts",
+          "src/main/agents/chatHandlers.ts",
+          "src/main/agents/chatHandlers.test.ts",
+          "src/main/agents/chatIpc.test.ts",
+          "src/main/agents/sessionManager.test.ts",
+          "src/main/desktop/bootstrap.ts",
+          "src/renderer/src/agents/useChats.ts",
+          "src/renderer/src/agents/useChats.test.tsx",
+          "src/renderer/src/agents/chatViewModel.ts",
+          "src/renderer/src/__mocks__/fakeChats.ts",
+          "src/renderer/src/app/chooseView.ts",
+          "src/renderer/src/app/chooseView.test.ts",
+          "src/renderer/src/app/MainViews.tsx",
+          "src/renderer/src/app/MainViews.test.tsx",
+          "src/renderer/src/App.tsx",
+          "src/renderer/src/App.chats.test.tsx"
+        ],
+        "commits": [
+          "e32c59497f9731941c6c4fd86d94f2cdfe47989d",
+          "6ba0a632be34ae8ea804a07660c8c67b9079584d",
+          "1cd4b8ff20598fb224ba4881ef6cd3284363345f"
+        ],
+        "summary": "Main pushes a new chats_changed event ({folder, chatId}) on the existing chats:event channel after a chat is created, renamed or deleted (and after startOrchestrator when the chat survives). It goes to every window through createChatPush, wired in bootstrap, from chatHandlers behind an optional push dependency. useChats reloads a folder it is listing when it hears chats_changed. The loading view carries what's loading: 'Loading folders…', 'Loading chat…' or 'Loading agents…'. No new IPC channel."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m46gtaq0a7hyqfqsxt3ttdrd",
+      "state": "accepted",
+      "submittedAt": "2026-10-05T18:08:16.622Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:bbf5acaad78f36af02e1488ad9d44fa33bf48586a1785a3e67ff666a4f85043f",
+      "ticketId": "tk_01m464q30tv0essjtradjr7xw3",
+      "updatedAt": "2026-10-05T18:08:16.663Z",
+      "worker": {
+        "catalogRevision": "2026-10-04-agents",
+        "effort": "low",
+        "hostId": "claude-code-desktop-davgo",
+        "label": "Claude Code subagent (DM-208)",
+        "modelId": "claude-sonnet-5-5",
+        "rationale": "The matcher recommends Haiku for a routine ticket. I overrode it to Sonnet (low) per sprint 2's retro action: Haiku missed acceptance criteria twice (DM-46, DM-95), and this ticket adds an IPC push plus tests.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-05T18:02:31.937Z",
+      "decidedAt": "2026-10-05T18:14:46.444Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Before the implementation: sessionManager.read 10 failed, chatHandlers 4, chatIpc 6 (stashed), panel tests 4, clipRows/attemptWindow and the two-attempts tests 3.",
+            "name": "red first",
+            "status": "passed"
+          },
+          {
+            "detail": "src/main/agents, ipcGuard, src/shared/agents and src/renderer/src: 213 files, 3047 passed (orchestrator re-run).",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "Every added branch is covered; changed files at 97.1% branches (the uncovered lines were there before).",
+            "name": "coverage of changed files",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint exit 0 (orchestrator re-run).",
+            "name": "lint (changed files)",
+            "status": "passed"
+          },
+          {
+            "detail": "Exit 0 (orchestrator re-run).",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Row check and checkpoint.",
+            "name": "full gate",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Read path is side-effect free (byte-identical store test)."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Live session pending and answer work through read."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "The two-attempt clipping test passes."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Lint, typecheck and 3047 tests re-run."
+          }
+        ],
+        "notes": "Edge cases: a row stored a moment before the claim entry falls outside the window, and a message sent between attempts belongs to neither. Both are minor."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m46kpjm1cefmdje6gs485kq3",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": "dm-211",
+        "changedFiles": [
+          "src/main/agents/sessionManager.ts",
+          "src/main/agents/chatHandlers.ts",
+          "src/main/agents/chatIpc.ts",
+          "src/shared/agents/chatApi.ts",
+          "src/preload/index.ts",
+          "docs/architecture.md",
+          "src/renderer/src/agents/useChatSession.ts",
+          "src/renderer/src/agents/useThreadStream.ts",
+          "src/renderer/src/agents/threadStream.ts",
+          "src/renderer/src/ticket/ActivityTab.tsx",
+          "src/renderer/src/ticket/activityView.ts",
+          "src/renderer/src/__mocks__/fakeChats.ts",
+          "src/renderer/src/__mocks__/idleChats.ts",
+          "src/main/agents/sessionManager.read.test.ts"
+        ],
+        "commits": [
+          "dccaf5567ca31c330671627e45477368685f4e08",
+          "4f10f3d694ccbffa1b116c9a54160c793347d301",
+          "78410b1ad81d1085ce62f734155f9cf1e0da91c1"
+        ],
+        "summary": "The new chats:read channel returns the same view as open, but starts no agent and writes, pushes or binds nothing. It skips see, cancelOrphans, settleEnded, startOnOpen and binding. The path is SessionManager.readChat, then the chatHandlers.read handler, the IPC channel, ChatsApi.read and the preload.\n\nWith no live session, pending is empty. The returned items (not stored) show a derived approval_decision of cancelled for unheld requests, running calls as cancelled and running threads as failed, so the panels match what open would settle. A live session's work and pending approvals are returned as they are.\n\nuseOpenedChat takes load 'open'|'read'; useThreadStream uses read, and the chat view keeps open. Attempt window: attemptWindow(view) runs from the claim to the end (or open), and clipRows clips a bound thread's rows in the Activity tab. The orchestrator feed is not clipped."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m46gtaq0a7hyqfqsxt3ttdrd",
+      "state": "accepted",
+      "submittedAt": "2026-10-05T18:14:46.402Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:fba92c51c8a5c0d0d6edd0234b326140997522c1ac4030e6d8902ddfcd46ef53",
+      "ticketId": "tk_01m46c0xxagkznp0623n2ab9z2",
+      "updatedAt": "2026-10-05T18:14:46.444Z",
+      "worker": {
+        "catalogRevision": "2026-10-04-agents",
+        "effort": "medium",
+        "hostId": "claude-code-desktop-davgo",
+        "label": "Claude Code subagent (DM-211)",
+        "modelId": "claude-sonnet-5-5",
+        "rationale": "Sonnet at medium effort, as planned: a side-effect-free read path across IPC plus clipping thread rows to the attempt window.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-05T18:13:32.678Z",
+      "decidedAt": "2026-10-05T18:25:51.320Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Removing retry: 2 is the right call: retries hid flakes.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Baseline 20/20 and after 20/20 (197 passed, 1 skipped each). Stress: 8 parallel loops of 8 plus a full src/main run gave 64/64 before and after.",
+            "name": "loop (13 real-process and helper test files)",
+            "status": "passed"
+          },
+          {
+            "detail": "src/main and src/test: 68 files, 1576 passed, 1 skipped (orchestrator re-run).",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint exit 0 (orchestrator re-run).",
+            "name": "lint (changed files)",
+            "status": "passed"
+          },
+          {
+            "detail": "Exit 0 (orchestrator re-run).",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Row check and checkpoint.",
+            "name": "full gate",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Derived count, verified by the probe-channel check."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "I read after.summary: PASSING RUNS: 20/20."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Lint, typecheck and 1576 tests re-run."
+          }
+        ],
+        "notes": "The baseline never flaked either (20 runs plus 112 stress runs), so this shows the tests are event-based and stable; it doesn't prove a specific sprint 1 flake is gone."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m46maqw66qnvmap4wtcqmcf6",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "20-run loop logs",
+            "location": "C:\\Users\\davgo\\AppData\\Local\\Temp\\claude\\C--Users-davgo-Documents-GitHub-DarkMechanicus\\baa2d2c3-89a8-426d-a75d-6ba8f987147d\\scratchpad\\dm209",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "dm-209",
+        "changedFiles": [
+          "src/main/ipcGuard.test.ts",
+          "src/main/agents/adapters/acpProcess.test.ts",
+          "src/main/agents/adapters/codexProcess.test.ts",
+          "src/main/agents/adapters/claudeProcess.test.ts",
+          "src/main/desktop/agentAuthNode.test.ts",
+          "src/main/desktop/agentInstallerNode.test.ts",
+          "src/main/desktop/agentProbeNode.test.ts",
+          "src/test/eventLog.ts",
+          "src/test/eventLog.test.ts"
+        ],
+        "commits": [
+          "22d13b9d669389c3ebe83d8f8cd941511a4d4c85"
+        ],
+        "summary": "ipcGuard.test.ts derives the channel list and count from the registered handlers (it still passes when a channel is added). A new src/test/eventLog.ts (createEventLog/reached(n)) replaces polls. Changes by file:\n- acpProcess tests: they wait on lines and close instead of vi.waitFor, the chunking test sends its second half after the first is heard, and the tree kill awaits handle.kill().\n- codexProcess: the 25 ms poll is replaced by EventLog.\n- agentAuthNode: launchTerminal no longer asserts wall-clock time; its child runs until the test removes its folder, with a 1-hour self-exit.\n- probe, installer and auth tests remove scratch folders with removeScratch.\n- retry: 2 is removed from the acp, codex and claude process tests, so flakes aren't masked.\nTwo timeout-behaviour tests keep their deliberate bounds."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m46gtaq0a7hyqfqsxt3ttdrd",
+      "state": "accepted",
+      "submittedAt": "2026-10-05T18:25:51.281Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:a81fceaa5ca59540ec429f6387d9deabd43f1a207e47b57fc133f46b1c0099c1",
+      "ticketId": "tk_01m464q30t5pgqh4a8ry76xczn",
+      "updatedAt": "2026-10-05T18:25:51.320Z",
+      "worker": {
+        "catalogRevision": "2026-10-04-agents",
+        "effort": "medium",
+        "hostId": "claude-code-desktop-davgo",
+        "label": "Claude Code subagent (DM-209)",
+        "modelId": "claude-sonnet-5-5",
+        "rationale": "Sonnet at medium effort, as planned: removing timing assumptions from Windows real-process tests, now on DM-205's shared helpers.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-05T18:19:30.025Z",
+      "decidedAt": "2026-10-05T18:27:21.406Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Each item was checked against its source: footerStatus, McpCard, discovery list_sessions, runBarView, claude.ts AUTO_MEMORY_OFF, runs.ts and authz, orchestratorKickoff, sessionManager settle/cancel/read, approvalModel, signInFlags/Hooks, claudeAccountProblems, quitDisposal and processTree, chatApi and chatHandlers, useThreadStream and attemptWindow, claimTokenMask.",
+            "name": "statement cross-check",
+            "status": "passed"
+          },
+          {
+            "detail": "Docs only, no code change.",
+            "name": "tests",
+            "status": "skipped"
+          },
+          {
+            "detail": "Row check and checkpoint.",
+            "name": "full gate",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "grep: no 'session list' in the runbook."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Spot-checked the memory, panels, Allow and signed_out resume sections against the merged code."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Defect cross-references are present."
+          }
+        ],
+        "notes": "Out of scope: docs/runbooks/mcp-setup.md line 22 still says --label is the 'Name shown for the session in the desktop app' (the app shows only a count). Follow-up."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m46mnmv937rhzxvp3zjdy1nn",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": "dm-210",
+        "changedFiles": [
+          "docs/runbooks/agents.md",
+          "docs/architecture.md"
+        ],
+        "commits": [
+          "468ff97b88cb6b4a15e5c37b2d4e8a40482c5a2c"
+        ],
+        "summary": "docs/runbooks/agents.md and docs/architecture.md now match the app after sprint 3:\n- There is no session list; role and label show in the footer count, MCP list_sessions, the run bar host and attempt records.\n- DM-200: CLAUDE_CODE_DISABLE_AUTO_MEMORY.\n- DM-202: run.resume_signed_out, and switching an already-paused run to signed_out.\n- DM-203: the kickoff carries the guidance and the worker handoff.\n- DM-204: turn_stopped and cancelled calls, settled on open.\n- DM-205: quit waits for process trees.\n- DM-206: the flag clears on a signed_in check, account notices, Retry only when cut short.\n- DM-207: the card wording.\n- DM-208: chats_changed and the loading wording.\n- DM-211: panels follow threads through chats:read, clipped to the attempt.\n- DM-201: masking of glued and cut-short tokens.\nEach change that sprint 1's e2e report saw differently names the report's defect number, and a 'not verified live' line covers sprint 3. Every statement was checked against the named code files."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m46gtaq0a7hyqfqsxt3ttdrd",
+      "state": "accepted",
+      "submittedAt": "2026-10-05T18:27:21.364Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:4468d8b50001cce212e14dd9104b434e698999894744dc18e08a9a7193d80a43",
+      "ticketId": "tk_01m464q30tmdqhvs8strr3c088",
+      "updatedAt": "2026-10-05T18:27:21.406Z",
+      "worker": {
+        "catalogRevision": "2026-10-04-agents",
+        "effort": "low",
+        "hostId": "claude-code-desktop-davgo",
+        "label": "Claude Code subagent (DM-210)",
+        "modelId": "claude-sonnet-5-5",
+        "rationale": "Sonnet at low effort per sprint 2's retro action (Sonnet floor for docs after Haiku missed criteria twice): bring the agents runbook in line with sprint 3's merged changes.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-05T18:28:24.909Z",
+      "decidedAt": "2026-10-05T19:47:43.169Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "I checked the evidence myself:\n- the commit diffs (only docs/reports in e940b96 and a219981; 9b239f0 docs only, reviewed line by line);\n- the final DoD status file and coverage log;\n- fireguard.out (A 95);\n- the 20-run summary;\n- the token search output and its bindings;\n- the SDK memory-write file.\n\nagents-s3 at 9b239f0 is squashed onto agents as 4518afd, with an identical tree, and the server verified the increment.\n\nFollow-ups go to the final sprint report:\n- the memory-folder write gap;\n- the integration-worktree location and plain-text questions in orchestrator chats.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npm run lint exit 0 on 1c585b9 and e940b96; again after the docs-only 9b239f0.",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "Node, web and Fireguard projects exit 0.",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "393 files, 7405 passed, 1 skipped (POSIX-only execute-permission test); Fireguard suite 20 files, 105 tests.",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "Statements 97.88, branches 95.66, functions 96.61, lines 97.97 (thresholds 97/95/96/97).",
+            "name": "coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "Grade A (95), base 5043f7c, isolated clone, --bail=1: AST passed (2532 assertions), flake 100/100, mutation 87 (958/1107 killed); 60 graded test files, 52 mutated modules.",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports.",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run build exit 0.",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "As worded: a 'remember' request wrote nothing, with no card (I checked the folder listing evidence). I reproduced the explicit-path gap: scratch-sdk-live/memory/MEMORY.md exists after an SDK run whose canUseTool denied everything. Recorded as a follow-up, and the docs are corrected."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Test output reviewed."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Integration test output reviewed."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "I read searchTokens.out: 4 worker threads, each bound role=worker to its own attempt, plus the main thread to both runs. No typed nudge. Run 1's stall is a follow-up."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Screenshots c5a, c5b and c5c committed."
+          },
+          {
+            "criterionId": "c6",
+            "met": true,
+            "note": "proc-*.txt before and after; kill-helper tests passed."
+          },
+          {
+            "criterionId": "c7",
+            "met": true,
+            "note": "Test evidence only, as the criterion asks."
+          },
+          {
+            "criterionId": "c8",
+            "met": true,
+            "note": "The card text and the ledger (28 of 29 automatic) are live; the other-server case is tests."
+          },
+          {
+            "criterionId": "c9",
+            "met": true,
+            "note": "Two-window tests passed."
+          },
+          {
+            "criterionId": "c10",
+            "met": true,
+            "note": "I read c10/summary.txt: 20/20, exit 0 each."
+          },
+          {
+            "criterionId": "c11",
+            "met": true,
+            "note": "Mismatches listed and corrected in 9b239f0, which I reviewed."
+          },
+          {
+            "criterionId": "c12",
+            "met": true,
+            "note": "Report committed with the culled line."
+          },
+          {
+            "criterionId": "c13",
+            "met": true,
+            "note": "I read fireguard.out: letter A, score 95, baseRef 5043f7c."
+          },
+          {
+            "criterionId": "c14",
+            "met": true,
+            "note": "Tests plus live c14a and c14b."
+          }
+        ],
+        "notes": "The evaluator never typed into an orchestrator chat. It answered approval cards by hand, allowing in-scratch actions only, after its automatic allow-list edit was refused. No token appears in any file or commit."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m46n5z6dqjmqj89q4brcdgpt",
+      "increment": {
+        "base": {
+          "commit": "5043f7cda2c70922513ba73e4071f9e22b163b62",
+          "kind": "previous_increment"
+        },
+        "branch": "agents",
+        "checks": [
+          {
+            "detail": "Names the epic branch agents.",
+            "name": "Epic branch",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 4518afd exists.",
+            "name": "Commit exists",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 4518afd has one parent, 5043f7c.",
+            "name": "One parent",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 4518afd is reachable from agents.",
+            "name": "On the epic branch",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 4518afd is not part of the previous sprint's increment 5043f7c.",
+            "name": "After the base commit",
+            "status": "passed"
+          },
+          {
+            "detail": "None of the 35 commits recorded by this sprint's accepted work is reachable from agents.",
+            "name": "Squashed, not merged",
+            "status": "passed"
+          }
+        ],
+        "commit": "4518afd312d29af96667cefa173396707be3f8ba",
+        "parent": "5043f7cda2c70922513ba73e4071f9e22b163b62",
+        "passed": true,
+        "reasons": [],
+        "verifiedAt": "2026-10-05T19:47:31.588Z"
+      },
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Live walkthrough report",
+            "location": "docs/reports/agents-fixes-e2e.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Evidence folder (DoD logs, Fireguard output, c10 loop, process lists, token search, bindings, chat JSONLs)",
+            "location": "C:\\Users\\davgo\\Documents\\GitHub\\dm-wt\\evidence\\DM-199",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "agents-s3",
+        "changedFiles": [
+          "docs/reports/agents-fixes-e2e.md",
+          "docs/reports/agents-fixes-e2e/ (12 JPEG screenshots)",
+          "docs/runbooks/agents.md",
+          "docs/architecture.md"
+        ],
+        "commits": [
+          "e940b96a8eb59324005f6e73a5bce7baa887165b",
+          "a2199816be786679686f8b104e70a5fa375cfee3",
+          "9b239f05b861c03a19403d9242eafc154eb67102",
+          "4518afd312d29af96667cefa173396707be3f8ba"
+        ],
+        "summary": "Sprint 3 acceptance round. No gate failed, so there were no fix commits. The whole Definition of Done passed on 1c585b9, and everything except Fireguard was re-run on e940b96 with the same results: lint, typecheck, test (7405 passed, 1 skipped by design on Windows), coverage (97.88/95.66/96.61/97.97), deadcode and build. Fireguard graded A (95) against 5043f7c in an isolated clone: AST passed, flake 100/100, mutation 87 (958/1107).\n\nThe live Windows walkthrough with the person's signed-in Claude Code is in docs/reports/agents-fixes-e2e.md (12 screenshots). It covered:\n- memory: a plain 'remember' writes nothing and raises no card;\n- the stopped-turn marker;\n- the cancelled approval and tool row after a mid-turn quit and reopen;\n- 0 agent processes left after quit;\n- Run with agent: no prompt or skill loaded, a worker subagent per ticket given its packet by the kickoff's handoff, and each worker thread bound to its attempt;\n- one Allow for this chat covering every later Dark Mechanicus call (29 requests, 1 answered);\n- a retried attempt's Activity tab showing only its own rows;\n- the claim-token search: none found in the bindings, the chat JSONLs or the whole userData, with a positive control.\nc10's loop passed 20 of 20.\n\nDefect 1 (DM-200): an explicit request to write into Claude Code's memory folder still runs with no approval card. The CLI allows that folder before canUseTool, in the app and in the bare Agent SDK. The runbook and architecture doc claimed such a write asks. A docs-only commit (9b239f0) corrects them and names the gap.\n\nThe orchestrator squashed agents-s3 at 9b239f0 onto agents as 4518afd (parent 5043f7c, tree identical)."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m46gtaq0a7hyqfqsxt3ttdrd",
+      "state": "accepted",
+      "submittedAt": "2026-10-05T19:47:32.110Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:3430e4e5928d57ff3e135836bb471984f63054e399bf600cd07e87c6b0a8cd47",
+      "ticketId": "tk_01m464q30nne95ejaqkb54k7r5",
+      "updatedAt": "2026-10-05T19:47:43.169Z",
+      "worker": {
+        "catalogRevision": "2026-10-04-agents",
+        "effort": "high",
+        "hostId": "claude-code-desktop-davgo",
+        "label": "Claude Code subagent (DM-199 acceptance round)",
+        "modelId": "claude-sonnet-5-5",
+        "rationale": "Matcher's top fit is Sonnet. Raised to high effort, as on DM-90: this node runs the whole Definition of Done (Fireguard included) plus live Windows checks with a Claude Code orchestrator chat, including the unprompted packet handoff.",
+        "sessionId": null
+      }
     }
   ],
   "checkpoints": [
@@ -5509,6 +7077,15 @@
       "policy": "human",
       "reportId": "rp_01m46gx3gda0bxhp0qa4gvr9mr",
       "sprintId": "sp_01m43n1zbxyvf21sa7yxf3wz5p"
+    },
+    {
+      "decidedAt": "2026-10-05T21:07:29.508Z",
+      "decidedBy": "ss_01m452dqwnhp6va47bcf9b53qv",
+      "id": "ck_01m46y98344yjbht29gyt1htqv",
+      "outcome": "advanced",
+      "policy": "human",
+      "reportId": "rp_01m46tb1qqe2h6h7x6tcm11b3x",
+      "sprintId": "sp_01m464q30nz932eaxbac5c4twh"
     }
   ],
   "createdAt": "2026-10-04T23:29:35.917Z",
@@ -6631,9 +8208,979 @@
       "reportRevision": 1,
       "sprintId": "sp_01m43n1zbxyvf21sa7yxf3wz5p",
       "submittedBy": "Claude Code"
+    },
+    {
+      "content": {
+        "accepted": [
+          "DM-200 Keep Claude Code's own memory writes behind an approval (unprompted writes stop; explicit-path writes remain a gap)",
+          "DM-201 Mask claim tokens that are glued together or cut short, in stored and streamed text",
+          "DM-202 Leave resuming a signed-out run to the person, and let a paused run be marked signed out",
+          "DM-203 Make the orchestrator kickoff carry the orchestrator guidance and the worker handoff",
+          "DM-204 Show stopped turns, cancelled approvals and ended threads in the transcript",
+          "DM-205 One shared helper to kill an agent's process tree and launch its shim safely",
+          "DM-206 Handle sign-in edge cases: outside sign-in, account problems and Retry",
+          "DM-207 Make Allow for this chat cover all of the chat's Dark Mechanicus tools",
+          "DM-208 Keep chat lists in sync across windows and fix the loading wording",
+          "DM-209 Make the agent tests stable on Windows",
+          "DM-210 Bring the agents runbook in line with the app",
+          "DM-211 Follow a chat thread from a panel without starting the agent, and only for the attempt's own window",
+          "DM-199 Sprint 3 acceptance"
+        ],
+        "blocked": [],
+        "changes": {
+          "commits": [
+            "4518afd312d29af96667cefa173396707be3f8ba (sprint 3 increment on agents, squashed from agents-s3 at 9b239f0)",
+            "agents-s3 integration commits: fbd7e0f (dead-export baseline refresh after row 1), e940b96 and a219981 (acceptance report and screenshots), 9b239f0 (docs-only correction of the memory claims)"
+          ],
+          "files": [
+            ".tsprune-ignore",
+            "docs/architecture.md",
+            "docs/reports/agents-fixes-e2e.md",
+            "docs/runbooks/agents.md",
+            "src/core/authz.test.ts",
+            "src/core/authz.ts",
+            "src/core/claimTokenMask.test.ts",
+            "src/core/claimTokenMask.ts",
+            "src/core/services/runs.test.ts",
+            "src/core/services/runs.ts",
+            "src/integration/mcp.test.ts",
+            "src/main/agents/__mocks__/claimTokenFixture.ts",
+            "src/main/agents/__mocks__/replayAcpAgent.ts",
+            "src/main/agents/adapters/__mocks__/fakeClaudeSdk.ts",
+            "src/main/agents/adapters/acpClient.test.ts",
+            "src/main/agents/adapters/acpClient.ts",
+            "src/main/agents/adapters/acpProcess.test.ts",
+            "src/main/agents/adapters/acpProcess.ts",
+            "src/main/agents/adapters/acpProcessSpawn.test.ts",
+            "src/main/agents/adapters/claude.test.ts",
+            "src/main/agents/adapters/claude.ts",
+            "src/main/agents/adapters/claudeAccount.test.ts",
+            "src/main/agents/adapters/claudeAccountProblems.ts",
+            "src/main/agents/adapters/claudeApprovals.ts",
+            "src/main/agents/adapters/claudeMasking.test.ts",
+            "src/main/agents/adapters/claudeProcess.test.ts",
+            "src/main/agents/adapters/claudeProcess.ts",
+            "src/main/agents/adapters/claudeTranscript.ts",
+            "src/main/agents/adapters/codexItems.ts",
+            "src/main/agents/adapters/codexMasking.test.ts",
+            "src/main/agents/adapters/codexProcess.test.ts",
+            "src/main/agents/adapters/codexProcess.ts",
+            "src/main/agents/adapters/codexProcessSpawn.test.ts",
+            "src/main/agents/adapters/codexThreads.ts",
+            "src/main/agents/adapters/cursor.test.ts",
+            "src/main/agents/adapters/cursor.ts",
+            "src/main/agents/adapters/cursorLaunch.test.ts",
+            "src/main/agents/adapters/cursorLaunch.ts",
+            "src/main/agents/adapters/cursorMasking.test.ts",
+            "src/main/agents/adapters/cursorProtocol.ts",
+            "src/main/agents/adapters/cursorSession.ts",
+            "src/main/agents/chatHandlers.test.ts",
+            "src/main/agents/chatHandlers.ts",
+            "src/main/agents/chatIpc.test.ts",
+            "src/main/agents/chatIpc.ts",
+            "src/main/agents/claimTokenMask.ts",
+            "src/main/agents/orchestratorKickoff.test.ts",
+            "src/main/agents/orchestratorKickoff.ts",
+            "src/main/agents/ownServerTools.test.ts",
+            "src/main/agents/ownServerTools.ts",
+            "src/main/agents/processTree.test.ts",
+            "src/main/agents/processTree.ts",
+            "src/main/agents/processTreeReal.test.ts",
+            "src/main/agents/sessionManager.account.test.ts",
+            "src/main/agents/sessionManager.cutShort.test.ts",
+            "src/main/agents/sessionManager.ownServer.test.ts",
+            "src/main/agents/sessionManager.read.test.ts",
+            "src/main/agents/sessionManager.settle.test.ts",
+            "src/main/agents/sessionManager.test.ts",
+            "src/main/agents/sessionManager.ts",
+            "src/main/agents/shimLaunch.test.ts",
+            "src/main/agents/shimLaunch.ts",
+            "src/main/agents/signInFlags.test.ts",
+            "src/main/agents/signInFlags.ts",
+            "src/main/agents/signInHooks.test.ts",
+            "src/main/agents/signInHooks.ts",
+            "src/main/desktop/agentAuth.ts",
+            "src/main/desktop/agentAuthNode.test.ts",
+            "src/main/desktop/agentInstallerNode.test.ts",
+            "src/main/desktop/agentInstallerNode.ts",
+            "src/main/desktop/agentProbe.test.ts",
+            "src/main/desktop/agentProbe.ts",
+            "src/main/desktop/agentProbeNode.test.ts",
+            "src/main/desktop/agentProbeNode.ts",
+            "src/main/desktop/agentRunnersTimeout.test.ts",
+            "src/main/desktop/bootstrap.ts",
+            "src/main/ipcGuard.test.ts",
+            "src/main/quitDisposal.test.ts",
+            "src/main/quitDisposal.ts",
+            "src/mcp/skills.test.ts",
+            "src/mcp/skills.ts",
+            "src/mcp/tools/execution.test.ts",
+            "src/mcp/tools/execution.ts",
+            "src/preload/index.ts",
+            "src/renderer/src/App.chatView.test.tsx",
+            "src/renderer/src/App.chats.test.tsx",
+            "src/renderer/src/App.tsx",
+            "src/renderer/src/__mocks__/fakeChats.ts",
+            "src/renderer/src/__mocks__/idleChats.ts",
+            "src/renderer/src/agents/ApprovalCard.test.tsx",
+            "src/renderer/src/agents/ApprovalCard.tsx",
+            "src/renderer/src/agents/ChatTranscript.tsx",
+            "src/renderer/src/agents/ChatView.account.test.tsx",
+            "src/renderer/src/agents/ChatView.items.test.tsx",
+            "src/renderer/src/agents/ChatView.signIn.test.tsx",
+            "src/renderer/src/agents/actionMarkers.test.ts",
+            "src/renderer/src/agents/actionMarkers.ts",
+            "src/renderer/src/agents/approvalModel.test.ts",
+            "src/renderer/src/agents/approvalModel.ts",
+            "src/renderer/src/agents/chatThreads.css",
+            "src/renderer/src/agents/chatView.css",
+            "src/renderer/src/agents/chatViewModel.test.ts",
+            "src/renderer/src/agents/chatViewModel.ts",
+            "src/renderer/src/agents/threadStream.test.ts",
+            "src/renderer/src/agents/threadStream.ts",
+            "src/renderer/src/agents/useChatSession.ts",
+            "src/renderer/src/agents/useChats.test.tsx",
+            "src/renderer/src/agents/useChats.ts",
+            "src/renderer/src/agents/useThreadStream.ts",
+            "src/renderer/src/app/MainViews.test.tsx",
+            "src/renderer/src/app/MainViews.tsx",
+            "src/renderer/src/app/chooseView.test.ts",
+            "src/renderer/src/app/chooseView.ts",
+            "src/renderer/src/epic/EpicWorkspace.signedOut.test.tsx",
+            "src/renderer/src/epic/OrchestratorFeed.thread.test.tsx",
+            "src/renderer/src/ticket/ActivityTab.thread.test.tsx",
+            "src/renderer/src/ticket/ActivityTab.tsx",
+            "src/renderer/src/ticket/activityView.test.ts",
+            "src/renderer/src/ticket/activityView.ts",
+            "src/shared/agents/chat.test.ts",
+            "src/shared/agents/chat.ts",
+            "src/shared/agents/chatApi.ts",
+            "src/test/eventLog.test.ts",
+            "src/test/eventLog.ts",
+            "docs/reports/agents-fixes-e2e/ (12 JPEG screenshots)"
+          ]
+        },
+        "checks": [
+          {
+            "detail": "npm run lint exit 0 on 1c585b9, e940b96 and 9b239f0.",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "Node, web and Fireguard projects exit 0.",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "393 files, 7405 passed, 1 skipped (POSIX-only); Fireguard suite 20 files, 105 tests.",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "Statements 97.88, branches 95.66, functions 96.61, lines 97.97 (thresholds 97/95/96/97).",
+            "name": "coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "Grade A (95) against 5043f7c: AST passed, flake 100/100, mutation 87 (958/1107 killed). About 61 minutes in an isolated clone.",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports.",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run build exit 0.",
+            "name": "build",
+            "status": "passed"
+          },
+          {
+            "detail": "Row 1 at fbd7e0f and row 2 at 1c585b9 passed lint, typecheck, deadcode and coverage. Row 1 needed a line-keyed baseline refresh.",
+            "name": "row checks",
+            "status": "passed"
+          },
+          {
+            "detail": "4518afd verified: one parent 5043f7c, on agents, none of the sprint's 35 worker commits reachable.",
+            "name": "increment",
+            "status": "passed"
+          },
+          {
+            "detail": "The 7 real-process and probe test files passed 20 of 20 runs on Windows.",
+            "name": "real-process test loop",
+            "status": "passed"
+          }
+        ],
+        "epicOutcome": {
+          "successCriteria": [
+            {
+              "criterionId": "s1",
+              "met": true,
+              "note": "AGENTS section above FOLDERS; + opens the add-agent pane with three cards, each with Find and Download (DM-50, DM-61)."
+            },
+            {
+              "criterionId": "s2",
+              "met": false,
+              "note": "Find runs the picked executable, identifies it and refuses a wrong program; verified live with Claude Code 2.1.281 (DM-47, DM-61). Download is implemented with a native confirmation and Codex's SHA-256 check, but it is tested only with fake downloads. It was never run against a real vendor endpoint on Windows, so it is not verified."
+            },
+            {
+              "criterionId": "s3",
+              "met": true,
+              "note": "Agents block per folder; the new chat asks for agent, then model, then role, and runs in that folder (DM-56, DM-61 step 3)."
+            },
+            {
+              "criterionId": "s4",
+              "met": true,
+              "note": "The transcript and context persist across a restart (DM-61 step 6 recalled the code word). The model switches between turns; the agent is fixed."
+            },
+            {
+              "criterionId": "s5",
+              "met": false,
+              "note": "Edits and commands ask first, and Deny is reported back: live for Claude (DM-61), and replay tests for Codex and Cursor (live checks culled). Gap: a Claude Code chat asked to write into its own memory folder does it without a card (DM-199 defect 1). Unprompted memory writes are off since DM-200."
+            },
+            {
+              "criterionId": "s6",
+              "met": true,
+              "note": "The chat's agent calls this folder's Dark Mechanicus tools with the chosen role (live orchestrator runs in DM-90 and DM-199). The chat registers as a session: the footer count and MCP list_sessions (the app has no session list; see the runbook)."
+            },
+            {
+              "criterionId": "s7",
+              "met": true,
+              "note": "No credential field or storage anywhere. Sign-in runs each CLI's own login in a terminal (DM-49). Agents in this epic never ran a login."
+            },
+            {
+              "criterionId": "s8",
+              "met": true,
+              "note": "The Start run dialog offers Run with agent, which starts an orchestrator chat, or Leave pending (DM-59). It was run live in DM-61, DM-90 and DM-199."
+            },
+            {
+              "criterionId": "s9",
+              "met": true,
+              "note": "An hourglass on working tickets in the graph and the list opens a live Activity tab (DM-93; DM-90 a2–a4)."
+            },
+            {
+              "criterionId": "s10",
+              "met": true,
+              "note": "Orchestrator chip and live feed with claims (model, rationale), heartbeats, reviews, pauses and reports (DM-94; DM-90 a1, a5–a7)."
+            },
+            {
+              "criterionId": "s11",
+              "met": true,
+              "note": "The Activity tab streams the bound worker thread live, with Open chat (DM-99; DM-90 b7). Since DM-203, worker threads bind without a nudge (DM-199 c4). Since DM-211, the panels read without starting an agent, clipped to the attempt (DM-199 c14)."
+            },
+            {
+              "criterionId": "s12",
+              "met": true,
+              "note": "An external host's progress notes and run events show in the attempt panel (DM-91, DM-92; DM-90 part A)."
+            },
+            {
+              "criterionId": "s13",
+              "met": true,
+              "note": "Collapsible subagent threads under their spawning calls, and action markers that open the ticket or epic (DM-100; DM-90 b1–b3; DM-199 c4c)."
+            },
+            {
+              "criterionId": "s14",
+              "met": true,
+              "note": "Tokens are masked in stored and streamed text, including glued and cut-short tokens (DM-51, DM-91, DM-201). Searches in DM-90 and DM-199 found none, with a positive control in DM-199."
+            },
+            {
+              "criterionId": "s15",
+              "met": true,
+              "note": "Sign in is prompted after Find or Download, in the new-chat flow and in Start run (DM-124), and the flag clears on any signed-in check (DM-206). Live for Claude; tests for Codex and Cursor."
+            },
+            {
+              "criterionId": "s16",
+              "met": true,
+              "note": "Live in DM-61: the Signed out card, Sign in, then Retry completed the turn, and the orchestrator chat's run paused as signed_out with its leases kept. DM-206 shows Retry only when a turn was cut short (tests), and DM-202 leaves the resume to the person."
+            }
+          ],
+          "summary": "The Agents epic delivered its three sprints on `agents`: 417a154 (connect agents, chat per folder, approvals, sign-in, Start run with an agent), 5043f7c (live activity: progress notes, timelines, hourglass, orchestrator feed, subagent threads, bindings) and 4518afd (fixes from the live checks).\n\nWhat was verified live: everything was checked on Windows with the person's Claude Code, in three acceptance walkthroughs (docs/reports/agents-e2e.md, live-activity-e2e.md and agents-fixes-e2e.md).\n\nWhat was not run live: Codex, Cursor and macOS were culled by the person on 2026-10-04 and are covered by replay and unit tests only. Download was never run against the vendors' real endpoints.\n\nTwo criteria are reported not met:\n- s2: Download is unverified live.\n- s5: a Claude Code chat can still write into its own memory folder without an approval card when asked to."
+        },
+        "exitCriteria": [
+          {
+            "criterionId": "e1",
+            "met": false,
+            "note": "Second half met: one Allow for this chat covered 28 of 29 later Dark Mechanicus calls live (DM-199 c8). First half not fully met: unprompted memory writes stop, but an explicit write into the memory folder runs with no card (DM-199 defect 1). Docs corrected; follow-up raised."
+          },
+          {
+            "criterionId": "e2",
+            "met": true,
+            "note": "DM-201 masking tests (79 passed). DM-199's search of the bindings, the chat JSONLs and the whole userData found no token, with a positive control."
+          },
+          {
+            "criterionId": "e3",
+            "met": true,
+            "note": "DM-202: resume_run over MCP on a signed_out pause fails as unauthorized and names the desktop app, and the desktop resumes it. markPausedRunSignedOut switches an already-paused run."
+          },
+          {
+            "criterionId": "e4",
+            "met": true,
+            "note": "DM-203 and DM-204, live in DM-199: the kickoff ran with no prompt or skill loaded (c4a); the stopped-turn marker (c5a); the cancelled approval and tool row after quit and reopen (c5b, c5c)."
+          },
+          {
+            "criterionId": "e5",
+            "met": true,
+            "note": "DM-205: killProcessTree awaits the whole tree. Live quit: 8 PIDs to 0 and 16 to 0 (DM-199 c6). Tests passed."
+          },
+          {
+            "criterionId": "e6",
+            "met": true,
+            "note": "DM-206, by tests: the flag clears on a signed_in check, account notices show, and Retry shows only when cut short. Not run live (no login was touched)."
+          },
+          {
+            "criterionId": "e7",
+            "met": true,
+            "note": "DM-208 two-window tests; DM-209 loop 20/20; DM-210 runbook, cross-checked in DM-199. Its memory sentences were corrected in 9b239f0."
+          }
+        ],
+        "failed": [],
+        "followUps": [
+          {
+            "body": "DM-199 defect 1 (DM-200). With CLAUDE_CODE_DISABLE_AUTO_MEMORY=1, an explicit Write to ~/.claude/projects/<project>/memory/MEMORY.md still runs with no approval card, in the app and in the bare Agent SDK with a canUseTool that denies everything. The CLI allows the folder before asking. Options: a PreToolUse hook or a deny rule for that path passed by the adapter, or a documented exception. Evidence: docs/reports/agents-fixes-e2e/c1b-explicit-memory-path-write-ran-with-no-card.jpg and dm-wt/evidence/DM-199/sdk-memory-check.mjs.",
+            "title": "Make a Claude Code chat ask before a write into its own memory folder"
+          },
+          {
+            "body": "DM-199 run 1 (DM-203). skills/orchestrator.md has the orchestrator create the integration worktree 'outside the coordinating checkout'. A chat chose a path under %TEMP%; that was denied, so it asked the person in plain text and the run stalled. Say in the guidance or the kickoff to use a folder inside the repository (for example a git-ignored .worktrees/). When an action is denied, it should record a comment and carry on, or pause, rather than wait on a typed answer.",
+            "title": "Tell orchestrator chats where an integration worktree goes, and not to ask questions in plain text"
+          },
+          {
+            "body": "In DM-199 run 2 there were about 23 minutes between the kickoff and the first claim: two model turns of about 8 and 14 minutes with no output, while a one-word call took 4 s. The cause is unknown and was not the app. Check whether the 32 KB kickoff or extended thinking explains it.",
+            "title": "Look into long silent orchestrator turns"
+          },
+          {
+            "body": "Carried from sprint 1, and culled from this epic by the person. Check the --version matchers, status wording, login commands, adapters, subagent threads and Download against real installs and vendor endpoints. Also verify live: the signed-out flag clearing, the account notices, Retry, and the chat list in two windows.",
+            "title": "Verify Codex, Cursor, macOS and Download live"
+          },
+          {
+            "body": "- Synthesize timeline entries for imported or taken-over attempts (DM-92).\n- Share the reduced-motion hook and one hourglass keyframe (DM-93).\n- Advertise the ACP subagents capability once Cursor sends subagent_update (DM-97).\n- Key the dead-export baseline on file and symbol, not line. It churned at a row again in sprint 3.\n- Decide whether the run timeline should list notes.",
+            "title": "Still open from sprint 2"
+          },
+          {
+            "body": "Carried from sprint 1 (DM-60). Per-vendor data also lives in agentInstallRecipes.ts, agentProbe.ts, agentAuth.ts, approvalModel.ts and now ownServerTools.ts.",
+            "title": "Decide whether vendor specifics must be confined to the adapters"
+          }
+        ],
+        "retro": {
+          "actions": [
+            "For a fix to a security boundary (approvals, masking, auth), the ticket's live check must try to break the fix with variant inputs, not only repeat the original repro.",
+            "Documentation tickets mark each statement as verified live or from code only. A docs ticket that runs before the live check must not describe behaviour as working when it hasn't been checked.",
+            "Acceptance workers dry-run their approval helper's allow-list against the commands they expect before the live run starts.",
+            "Raise the follow-ups listed in this report with the person: a sprint 4 or a follow-up epic is their decision."
+          ],
+          "delivered": [
+            {
+              "demo": "Claude Code processes started by the app carry CLAUDE_CODE_DISABLE_AUTO_MEMORY=1, so a 'remember this' request writes nothing.",
+              "evidence": "claude.test.ts; agents-fixes-e2e c1a. Gap: c1b (an explicit-path write).",
+              "ticket": "tk_01m464q30scyq58eyg1mkedt2e"
+            },
+            {
+              "demo": "Glued and cut-short claim tokens are masked in stored and streamed text, and clipMasked masks before cutting.",
+              "evidence": "claimTokenMask and the three adapter masking test files; DM-199 token search.",
+              "ticket": "tk_01m464q30sce788fpmjcxdpnhd"
+            },
+            {
+              "demo": "resume_run over MCP on a signed_out pause is refused and names the desktop app; a paused run can be switched to signed_out.",
+              "evidence": "mcp.test.ts, runs.test.ts.",
+              "ticket": "tk_01m464q30svqdmcn5bw2dh76tf"
+            },
+            {
+              "demo": "The kickoff carries the orchestrator and worker guidance and an explicit worker handoff. A live orchestrator handed each worker its packet unprompted.",
+              "evidence": "orchestratorKickoff.test.ts; agents-fixes-e2e c4a, c4c, bindings-final.jsonl.",
+              "ticket": "tk_01m464q30sy03s3821171fvq3c"
+            },
+            {
+              "demo": "'You stopped this turn' marker; cancelled approvals and tool rows; threads settled to failed when reopened.",
+              "evidence": "sessionManager.settle.test.ts; agents-fixes-e2e c5a, c5b, c5c.",
+              "ticket": "tk_01m464q30sffrazx3zwdsyksnb"
+            },
+            {
+              "demo": "killProcessTree awaits the whole tree; planShimLaunch makes a single cmd parse and refuses unsafe characters.",
+              "evidence": "processTree, processTreeReal and shimLaunch tests; DM-199 proc-*.txt (0 left after quit).",
+              "ticket": "tk_01m464q30sf11ghg1wf7xamz4j"
+            },
+            {
+              "demo": "The signed-out flag clears on any signed-in check; account-problem notices; Retry only when cut short.",
+              "evidence": "signInFlags, sessionManager.account, sessionManager.cutShort and ChatView.account tests.",
+              "ticket": "tk_01m464q30tzygdqryf1v711nmx"
+            },
+            {
+              "demo": "One Allow for this chat covers every Dark Mechanicus tool of the chat's own server; other servers still ask.",
+              "evidence": "ownServerTools and sessionManager.ownServer tests; agents-fixes-e2e c8a, c8b.",
+              "ticket": "tk_01m464q30tnkpn1ahes4shgzk5"
+            },
+            {
+              "demo": "Chat create, rename and delete reach every window; the loading view names what is loading.",
+              "evidence": "useChats 'with two windows' tests, chatHandlers and chatIpc tests.",
+              "ticket": "tk_01m464q30tv0essjtradjr7xw3"
+            },
+            {
+              "demo": "Real-process adapter tests wait on events, not time; no retries mask flakes.",
+              "evidence": "src/test/eventLog.ts; DM-199 c10 loop 20/20.",
+              "ticket": "tk_01m464q30t5pgqh4a8ry76xczn"
+            },
+            {
+              "demo": "The agents runbook and architecture doc match sprint 3, with the memory claims corrected after the live check.",
+              "evidence": "docs/runbooks/agents.md, docs/architecture.md, 9b239f0.",
+              "ticket": "tk_01m464q30tmdqhvs8strr3c088"
+            },
+            {
+              "demo": "chats:read gives panels the thread without starting an agent or writing anything; a retried attempt's tab shows only its own rows.",
+              "evidence": "sessionManager.read.test.ts, ActivityTab.thread tests; agents-fixes-e2e c14a, c14b.",
+              "ticket": "tk_01m46c0xxagkznp0623n2ab9z2"
+            },
+            {
+              "demo": "Full Definition of Done (Fireguard A 95), the live Windows walkthrough and the 20-run loop.",
+              "evidence": "docs/reports/agents-fixes-e2e.md; dm-wt/evidence/DM-199.",
+              "ticket": "tk_01m464q30nne95ejaqkb54k7r5"
+            }
+          ],
+          "discoveries": [],
+          "leftovers": [],
+          "tierFit": [
+            {
+              "note": "Sonnet, medium. It did what its criteria asked; the gap was in the criteria's scope and its live check, not in the tier.",
+              "ticket": "tk_01m464q30scyq58eyg1mkedt2e",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Sonnet, medium.",
+              "ticket": "tk_01m464q30sce788fpmjcxdpnhd",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Sonnet, medium.",
+              "ticket": "tk_01m464q30svqdmcn5bw2dh76tf",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Sonnet, medium; proven live.",
+              "ticket": "tk_01m464q30sy03s3821171fvq3c",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Sonnet, medium.",
+              "ticket": "tk_01m464q30sffrazx3zwdsyksnb",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Sonnet, high, for the process and shell-quoting work (sprint 1 retro: no Haiku or low effort on these).",
+              "ticket": "tk_01m464q30sf11ghg1wf7xamz4j",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Sonnet, medium; needed one merge of agents-s3.",
+              "ticket": "tk_01m464q30tzygdqryf1v711nmx",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Sonnet, medium.",
+              "ticket": "tk_01m464q30tnkpn1ahes4shgzk5",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Sonnet, low.",
+              "ticket": "tk_01m464q30tv0essjtradjr7xw3",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Sonnet, medium.",
+              "ticket": "tk_01m464q30t5pgqh4a8ry76xczn",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Sonnet, low. It did what it was asked; the unverified memory sentence came from DM-200's claim.",
+              "ticket": "tk_01m464q30tmdqhvs8strr3c088",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Sonnet, medium.",
+              "ticket": "tk_01m46c0xxagkznp0623n2ab9z2",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Sonnet, high: full DoD plus a live walkthrough, accepted first time.",
+              "ticket": "tk_01m464q30nne95ejaqkb54k7r5",
+              "verdict": "right_sized"
+            }
+          ],
+          "wentPoorly": [
+            "DM-200's own live check only repeated sprint 1's 'remember' prompt, so the explicit-path bypass was found only at acceptance.",
+            "DM-210 described sprint 3 from the code and tests, and stated that the memory write 'asks' without anyone having checked it live. The docs had to be corrected after acceptance.",
+            "The acceptance worker's approval helper denied 9 harmless in-scratch commands, failing attempt 1 of both sample tickets. When it tried to widen its own allow-list mid-run, the edit was refused, so it answered later cards by hand.",
+            "Live run 1 stalled: the orchestrator chose a worktree outside the repository, was denied, then asked in plain text and waited.",
+            "The orchestrator's first claim came about 23 minutes after the kickoff, which made the live check slow and costly on the person's subscription.",
+            "The line-keyed dead-export baseline needed a refresh again at row 1."
+          ],
+          "wentWell": [
+            "All 13 tickets were accepted on the first attempt, the best of the three sprints (sprint 1 had 3 rejections, sprint 2 had 1).",
+            "Running the full row checks at every row kept the acceptance round clean: no gate fixes, against five in sprint 1.",
+            "Waves by shared surface (DM-201 to DM-205, then DM-200, DM-206, DM-207, DM-208 and DM-211, then DM-209 and DM-210) avoided competing designs. The one merge conflict (DM-206) was resolved by resuming its worker.",
+            "The DM-203 fix worked live. With no nudge, the orchestrator handed workers their packets, workers bound and reported themselves, and the orchestrator retried two failed attempts and accepted them.",
+            "Fireguard rose from A 92 to A 95, and the stabilised real-process tests passed 20 of 20.",
+            "The live check tried variants of the fix, not just the original repro, and found the memory-folder gap. A positive control proved the token search could find a token where one exists."
+          ]
+        },
+        "risks": [
+          "A hosted Claude Code chat writes into ~/.claude/projects/<project>/memory/ with no approval when asked to, so a prompt (or text the agent reads) can plant memory the person never approved. Unprompted memory writes are off. The docs now say so.",
+          "Codex, Cursor and macOS were never run live in this epic (the person's cull). Download was never run against the real vendor endpoints on any platform.",
+          "The bundled @anthropic-ai/claude-agent-sdk is proprietary. Dark Mechanicus is a proof of concept, not for sale; check this before any distribution.",
+          "Branch coverage margin is thin (95.66% vs 95%).",
+          "Fireguard takes about an hour on Windows in an isolated clone, which lengthens each acceptance round.",
+          "In the live run, an orchestrator chat that hits a denied action asks the person in plain text and waits, because the app denies AskUserQuestion in chats. A run left alone can stall that way."
+        ],
+        "summary": "Sprint 3 (fixes from the live checks and reviews) delivered. This is the epic's final sprint. All 12 work tickets (DM-200 to DM-211) and the acceptance node DM-199 were accepted, each on its first attempt. The increment is 4518afd on `agents`: one squashed commit, parent 5043f7c, 136 files, +6,104/−798. The server verified it.\n\nWhat the person can now do:\n- Claude Code chats run with auto-memory off, so the agent no longer saves memories on its own.\n- Claim tokens that are glued together or cut short are masked in stored and streamed text.\n- Only the person resumes a run paused for signed_out, and an already-paused run can be marked signed out.\n- Run with agent: the orchestrator chat starts the run without loading a prompt, and hands each worker subagent its packet, so worker threads bind to their attempts.\n- Transcripts show stopped turns, cancelled approvals and cancelled tool rows.\n- Quitting kills and awaits each agent's whole process tree.\n- Sign-in edge cases are handled: the flag clears on any signed-in check, account problems get a notice, and Retry shows only for a cut-short turn.\n- One Allow for this chat covers all of the chat's Dark Mechanicus tools.\n- Chat lists sync across windows.\n- Panels follow a thread read-only, clipped to the attempt.\n- The agent tests are stable on Windows.\n\nChecks: both row checks passed. DM-199 passed the whole Definition of Done with no gate fixes, and Fireguard graded A (95). Its live Windows walkthrough with the person's Claude Code is in docs/reports/agents-fixes-e2e.md. The claim-token search found none, with a positive control.\n\n**One gap remains (DM-200):** a Claude Code chat that is asked to write a file into its own memory folder (~/.claude/projects/<project>/memory/) does it with no approval card. The CLI lets that folder through before canUseTool; this was reproduced in the bare Agent SDK. The runbook and architecture doc claimed such a write asks. They were corrected before the squash to name the gap. Exit criterion e1, and epic criterion s5, are reported not met because of it."
+      },
+      "contentHash": "sha256:d86a3e3e0db6d1d0e34f09b13ef62d8354479fea44fdc13604938d3ea7b3f195",
+      "createdAt": "2026-10-05T19:50:13.306Z",
+      "id": "rp_01m46svrht5v2esjyk3rdeeh8m",
+      "reportRevision": 1,
+      "sprintId": "sp_01m464q30nz932eaxbac5c4twh",
+      "submittedBy": "Claude Code"
+    },
+    {
+      "content": {
+        "accepted": [
+          "DM-200 Keep Claude Code's own memory writes behind an approval (unprompted writes stop; explicit-path writes move to DM-213)",
+          "DM-201 Mask claim tokens that are glued together or cut short, in stored and streamed text",
+          "DM-202 Leave resuming a signed-out run to the person, and let a paused run be marked signed out",
+          "DM-203 Make the orchestrator kickoff carry the orchestrator guidance and the worker handoff",
+          "DM-204 Show stopped turns, cancelled approvals and ended threads in the transcript",
+          "DM-205 One shared helper to kill an agent's process tree and launch its shim safely",
+          "DM-206 Handle sign-in edge cases: outside sign-in, account problems and Retry",
+          "DM-207 Make Allow for this chat cover all of the chat's Dark Mechanicus tools",
+          "DM-208 Keep chat lists in sync across windows and fix the loading wording",
+          "DM-209 Make the agent tests stable on Windows",
+          "DM-210 Bring the agents runbook in line with the app",
+          "DM-211 Follow a chat thread from a panel without starting the agent, and only for the attempt's own window",
+          "DM-199 Sprint 3 acceptance"
+        ],
+        "blocked": [],
+        "changes": {
+          "commits": [
+            "4518afd312d29af96667cefa173396707be3f8ba (sprint 3 increment on agents, squashed from agents-s3 at 9b239f0)",
+            "agents-s3 integration commits: fbd7e0f (dead-export baseline refresh after row 1), e940b96 and a219981 (acceptance report and screenshots), 9b239f0 (docs-only correction of the memory claims)"
+          ],
+          "files": [
+            ".tsprune-ignore",
+            "docs/architecture.md",
+            "docs/reports/agents-fixes-e2e.md",
+            "docs/runbooks/agents.md",
+            "src/core/authz.test.ts",
+            "src/core/authz.ts",
+            "src/core/claimTokenMask.test.ts",
+            "src/core/claimTokenMask.ts",
+            "src/core/services/runs.test.ts",
+            "src/core/services/runs.ts",
+            "src/integration/mcp.test.ts",
+            "src/main/agents/__mocks__/claimTokenFixture.ts",
+            "src/main/agents/__mocks__/replayAcpAgent.ts",
+            "src/main/agents/adapters/__mocks__/fakeClaudeSdk.ts",
+            "src/main/agents/adapters/acpClient.test.ts",
+            "src/main/agents/adapters/acpClient.ts",
+            "src/main/agents/adapters/acpProcess.test.ts",
+            "src/main/agents/adapters/acpProcess.ts",
+            "src/main/agents/adapters/acpProcessSpawn.test.ts",
+            "src/main/agents/adapters/claude.test.ts",
+            "src/main/agents/adapters/claude.ts",
+            "src/main/agents/adapters/claudeAccount.test.ts",
+            "src/main/agents/adapters/claudeAccountProblems.ts",
+            "src/main/agents/adapters/claudeApprovals.ts",
+            "src/main/agents/adapters/claudeMasking.test.ts",
+            "src/main/agents/adapters/claudeProcess.test.ts",
+            "src/main/agents/adapters/claudeProcess.ts",
+            "src/main/agents/adapters/claudeTranscript.ts",
+            "src/main/agents/adapters/codexItems.ts",
+            "src/main/agents/adapters/codexMasking.test.ts",
+            "src/main/agents/adapters/codexProcess.test.ts",
+            "src/main/agents/adapters/codexProcess.ts",
+            "src/main/agents/adapters/codexProcessSpawn.test.ts",
+            "src/main/agents/adapters/codexThreads.ts",
+            "src/main/agents/adapters/cursor.test.ts",
+            "src/main/agents/adapters/cursor.ts",
+            "src/main/agents/adapters/cursorLaunch.test.ts",
+            "src/main/agents/adapters/cursorLaunch.ts",
+            "src/main/agents/adapters/cursorMasking.test.ts",
+            "src/main/agents/adapters/cursorProtocol.ts",
+            "src/main/agents/adapters/cursorSession.ts",
+            "src/main/agents/chatHandlers.test.ts",
+            "src/main/agents/chatHandlers.ts",
+            "src/main/agents/chatIpc.test.ts",
+            "src/main/agents/chatIpc.ts",
+            "src/main/agents/claimTokenMask.ts",
+            "src/main/agents/orchestratorKickoff.test.ts",
+            "src/main/agents/orchestratorKickoff.ts",
+            "src/main/agents/ownServerTools.test.ts",
+            "src/main/agents/ownServerTools.ts",
+            "src/main/agents/processTree.test.ts",
+            "src/main/agents/processTree.ts",
+            "src/main/agents/processTreeReal.test.ts",
+            "src/main/agents/sessionManager.account.test.ts",
+            "src/main/agents/sessionManager.cutShort.test.ts",
+            "src/main/agents/sessionManager.ownServer.test.ts",
+            "src/main/agents/sessionManager.read.test.ts",
+            "src/main/agents/sessionManager.settle.test.ts",
+            "src/main/agents/sessionManager.test.ts",
+            "src/main/agents/sessionManager.ts",
+            "src/main/agents/shimLaunch.test.ts",
+            "src/main/agents/shimLaunch.ts",
+            "src/main/agents/signInFlags.test.ts",
+            "src/main/agents/signInFlags.ts",
+            "src/main/agents/signInHooks.test.ts",
+            "src/main/agents/signInHooks.ts",
+            "src/main/desktop/agentAuth.ts",
+            "src/main/desktop/agentAuthNode.test.ts",
+            "src/main/desktop/agentInstallerNode.test.ts",
+            "src/main/desktop/agentInstallerNode.ts",
+            "src/main/desktop/agentProbe.test.ts",
+            "src/main/desktop/agentProbe.ts",
+            "src/main/desktop/agentProbeNode.test.ts",
+            "src/main/desktop/agentProbeNode.ts",
+            "src/main/desktop/agentRunnersTimeout.test.ts",
+            "src/main/desktop/bootstrap.ts",
+            "src/main/ipcGuard.test.ts",
+            "src/main/quitDisposal.test.ts",
+            "src/main/quitDisposal.ts",
+            "src/mcp/skills.test.ts",
+            "src/mcp/skills.ts",
+            "src/mcp/tools/execution.test.ts",
+            "src/mcp/tools/execution.ts",
+            "src/preload/index.ts",
+            "src/renderer/src/App.chatView.test.tsx",
+            "src/renderer/src/App.chats.test.tsx",
+            "src/renderer/src/App.tsx",
+            "src/renderer/src/__mocks__/fakeChats.ts",
+            "src/renderer/src/__mocks__/idleChats.ts",
+            "src/renderer/src/agents/ApprovalCard.test.tsx",
+            "src/renderer/src/agents/ApprovalCard.tsx",
+            "src/renderer/src/agents/ChatTranscript.tsx",
+            "src/renderer/src/agents/ChatView.account.test.tsx",
+            "src/renderer/src/agents/ChatView.items.test.tsx",
+            "src/renderer/src/agents/ChatView.signIn.test.tsx",
+            "src/renderer/src/agents/actionMarkers.test.ts",
+            "src/renderer/src/agents/actionMarkers.ts",
+            "src/renderer/src/agents/approvalModel.test.ts",
+            "src/renderer/src/agents/approvalModel.ts",
+            "src/renderer/src/agents/chatThreads.css",
+            "src/renderer/src/agents/chatView.css",
+            "src/renderer/src/agents/chatViewModel.test.ts",
+            "src/renderer/src/agents/chatViewModel.ts",
+            "src/renderer/src/agents/threadStream.test.ts",
+            "src/renderer/src/agents/threadStream.ts",
+            "src/renderer/src/agents/useChatSession.ts",
+            "src/renderer/src/agents/useChats.test.tsx",
+            "src/renderer/src/agents/useChats.ts",
+            "src/renderer/src/agents/useThreadStream.ts",
+            "src/renderer/src/app/MainViews.test.tsx",
+            "src/renderer/src/app/MainViews.tsx",
+            "src/renderer/src/app/chooseView.test.ts",
+            "src/renderer/src/app/chooseView.ts",
+            "src/renderer/src/epic/EpicWorkspace.signedOut.test.tsx",
+            "src/renderer/src/epic/OrchestratorFeed.thread.test.tsx",
+            "src/renderer/src/ticket/ActivityTab.thread.test.tsx",
+            "src/renderer/src/ticket/ActivityTab.tsx",
+            "src/renderer/src/ticket/activityView.test.ts",
+            "src/renderer/src/ticket/activityView.ts",
+            "src/shared/agents/chat.test.ts",
+            "src/shared/agents/chat.ts",
+            "src/shared/agents/chatApi.ts",
+            "src/test/eventLog.test.ts",
+            "src/test/eventLog.ts",
+            "docs/reports/agents-fixes-e2e/ (12 JPEG screenshots)"
+          ]
+        },
+        "checks": [
+          {
+            "detail": "npm run lint exit 0 on 1c585b9, e940b96 and 9b239f0.",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "Node, web and Fireguard projects exit 0.",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "393 files, 7405 passed, 1 skipped (POSIX-only); Fireguard suite 20 files, 105 tests.",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "Statements 97.88, branches 95.66, functions 96.61, lines 97.97 (thresholds 97/95/96/97).",
+            "name": "coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "Grade A (95) against 5043f7c: AST passed, flake 100/100, mutation 87 (958/1107 killed). About 61 minutes in an isolated clone.",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports.",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run build exit 0.",
+            "name": "build",
+            "status": "passed"
+          },
+          {
+            "detail": "Row 1 at fbd7e0f and row 2 at 1c585b9 passed lint, typecheck, deadcode and coverage. Row 1 needed a line-keyed baseline refresh.",
+            "name": "row checks",
+            "status": "passed"
+          },
+          {
+            "detail": "4518afd verified: one parent 5043f7c, on agents, none of the sprint's 35 worker commits reachable.",
+            "name": "increment",
+            "status": "passed"
+          },
+          {
+            "detail": "The 7 real-process and probe test files passed 20 of 20 runs on Windows.",
+            "name": "real-process test loop",
+            "status": "passed"
+          }
+        ],
+        "epicOutcome": null,
+        "exitCriteria": [
+          {
+            "criterionId": "e1",
+            "met": true,
+            "note": "Two parts, both shown live in DM-199:\n- No memory saved on its own: a 'remember' request on Haiku and on Sonnet wrote nothing and raised no card (c1a).\n- One Allow for this chat covered 28 of 29 later Dark Mechanicus calls (c8a, c8b).\nAn explicit-path write into the memory folder is now sprint 4's e1 (DM-213)."
+          },
+          {
+            "criterionId": "e2",
+            "met": true,
+            "note": "DM-201 masking tests (79 passed). DM-199's search of the bindings, the chat JSONLs and the whole userData found no token, with a positive control."
+          },
+          {
+            "criterionId": "e3",
+            "met": true,
+            "note": "DM-202: resume_run over MCP on a signed_out pause fails as unauthorized and names the desktop app, and the desktop resumes it. markPausedRunSignedOut switches an already-paused run."
+          },
+          {
+            "criterionId": "e4",
+            "met": true,
+            "note": "DM-203 and DM-204, live in DM-199: the kickoff ran with no prompt or skill loaded (c4a); the stopped-turn marker (c5a); the cancelled approval and tool row after quit and reopen (c5b, c5c)."
+          },
+          {
+            "criterionId": "e5",
+            "met": true,
+            "note": "DM-205: killProcessTree awaits the whole tree. Live quit: 8 PIDs to 0 and 16 to 0 (DM-199 c6). Tests passed."
+          },
+          {
+            "criterionId": "e6",
+            "met": true,
+            "note": "DM-206, by tests: the flag clears on a signed_in check, account notices show, and Retry shows only when cut short. Not run live (no login was touched)."
+          },
+          {
+            "criterionId": "e7",
+            "met": true,
+            "note": "DM-208 two-window tests; DM-209 loop 20/20; DM-210 runbook, cross-checked in DM-199. Its memory sentences were corrected in 9b239f0."
+          }
+        ],
+        "failed": [],
+        "followUps": [
+          {
+            "body": "DM-199 run 1 (DM-203). skills/orchestrator.md has the orchestrator create the integration worktree 'outside the coordinating checkout'. A chat chose a path under %TEMP%; that was denied, so it asked the person in plain text and the run stalled. Say in the guidance or the kickoff to use a folder inside the repository (for example a git-ignored .worktrees/). When an action is denied, it should record a comment and carry on, or pause, rather than wait on a typed answer.",
+            "title": "Tell orchestrator chats where an integration worktree goes, and not to ask questions in plain text"
+          },
+          {
+            "body": "In DM-199 run 2 there were about 23 minutes between the kickoff and the first claim: two model turns of about 8 and 14 minutes with no output, while a one-word call took 4 s. The cause is unknown and was not the app. Check whether the 32 KB kickoff or extended thinking explains it.",
+            "title": "Look into long silent orchestrator turns"
+          },
+          {
+            "body": "Culled from this epic by the person. Check the --version matchers, status wording, login commands, adapters, subagent threads and Download against real installs and vendor endpoints. Also verify live: the signed-out flag clearing, the account notices, Retry, and the chat list in two windows.",
+            "title": "Verify Codex, Cursor, macOS and Download live"
+          },
+          {
+            "body": "- Synthesize timeline entries for imported or taken-over attempts (DM-92).\n- Share the reduced-motion hook and one hourglass keyframe (DM-93).\n- Advertise the ACP subagents capability once Cursor sends subagent_update (DM-97).\n- Key the dead-export baseline on file and symbol, not line. It churned at a row again in sprint 3.\n- Decide whether the run timeline should list notes.",
+            "title": "Still open from sprint 2"
+          },
+          {
+            "body": "Carried from sprint 1 (DM-60). Per-vendor data also lives in agentInstallRecipes.ts, agentProbe.ts, agentAuth.ts, approvalModel.ts and now ownServerTools.ts.",
+            "title": "Decide whether vendor specifics must be confined to the adapters"
+          }
+        ],
+        "retro": {
+          "actions": [
+            "For a fix to a security boundary (approvals, masking, auth), the ticket's live check must try to break the fix with variant inputs, not only repeat the original repro. DM-213's body asks for exactly that.",
+            "Documentation tickets mark each statement as verified live or from code only. A docs ticket that runs before the live check must not describe behaviour as working when it hasn't been checked.",
+            "Acceptance workers dry-run their approval helper's allow-list against the commands they expect before the live run starts.",
+            "Sprint 4 (DM-213, DM-212) closes the memory-folder gap; the other follow-ups wait for a follow-up epic."
+          ],
+          "delivered": [
+            {
+              "demo": "Claude Code processes started by the app carry CLAUDE_CODE_DISABLE_AUTO_MEMORY=1, so a 'remember this' request writes nothing.",
+              "evidence": "claude.test.ts; agents-fixes-e2e c1a. Gap: c1b (an explicit-path write), now DM-213.",
+              "ticket": "tk_01m464q30scyq58eyg1mkedt2e"
+            },
+            {
+              "demo": "Glued and cut-short claim tokens are masked in stored and streamed text, and clipMasked masks before cutting.",
+              "evidence": "claimTokenMask and the three adapter masking test files; DM-199 token search.",
+              "ticket": "tk_01m464q30sce788fpmjcxdpnhd"
+            },
+            {
+              "demo": "resume_run over MCP on a signed_out pause is refused and names the desktop app; a paused run can be switched to signed_out.",
+              "evidence": "mcp.test.ts, runs.test.ts.",
+              "ticket": "tk_01m464q30svqdmcn5bw2dh76tf"
+            },
+            {
+              "demo": "The kickoff carries the orchestrator and worker guidance and an explicit worker handoff. A live orchestrator handed each worker its packet unprompted.",
+              "evidence": "orchestratorKickoff.test.ts; agents-fixes-e2e c4a, c4c, bindings-final.jsonl.",
+              "ticket": "tk_01m464q30sy03s3821171fvq3c"
+            },
+            {
+              "demo": "'You stopped this turn' marker; cancelled approvals and tool rows; threads settled to failed when reopened.",
+              "evidence": "sessionManager.settle.test.ts; agents-fixes-e2e c5a, c5b, c5c.",
+              "ticket": "tk_01m464q30sffrazx3zwdsyksnb"
+            },
+            {
+              "demo": "killProcessTree awaits the whole tree; planShimLaunch makes a single cmd parse and refuses unsafe characters.",
+              "evidence": "processTree, processTreeReal and shimLaunch tests; DM-199 proc-*.txt (0 left after quit).",
+              "ticket": "tk_01m464q30sf11ghg1wf7xamz4j"
+            },
+            {
+              "demo": "The signed-out flag clears on any signed-in check; account-problem notices; Retry only when cut short.",
+              "evidence": "signInFlags, sessionManager.account, sessionManager.cutShort and ChatView.account tests.",
+              "ticket": "tk_01m464q30tzygdqryf1v711nmx"
+            },
+            {
+              "demo": "One Allow for this chat covers every Dark Mechanicus tool of the chat's own server; other servers still ask.",
+              "evidence": "ownServerTools and sessionManager.ownServer tests; agents-fixes-e2e c8a, c8b.",
+              "ticket": "tk_01m464q30tnkpn1ahes4shgzk5"
+            },
+            {
+              "demo": "Chat create, rename and delete reach every window; the loading view names what is loading.",
+              "evidence": "useChats 'with two windows' tests, chatHandlers and chatIpc tests.",
+              "ticket": "tk_01m464q30tv0essjtradjr7xw3"
+            },
+            {
+              "demo": "Real-process adapter tests wait on events, not time; no retries mask flakes.",
+              "evidence": "src/test/eventLog.ts; DM-199 c10 loop 20/20.",
+              "ticket": "tk_01m464q30t5pgqh4a8ry76xczn"
+            },
+            {
+              "demo": "The agents runbook and architecture doc match sprint 3, with the memory claims corrected after the live check.",
+              "evidence": "docs/runbooks/agents.md, docs/architecture.md, 9b239f0.",
+              "ticket": "tk_01m464q30tmdqhvs8strr3c088"
+            },
+            {
+              "demo": "chats:read gives panels the thread without starting an agent or writing anything; a retried attempt's tab shows only its own rows.",
+              "evidence": "sessionManager.read.test.ts, ActivityTab.thread tests; agents-fixes-e2e c14a, c14b.",
+              "ticket": "tk_01m46c0xxagkznp0623n2ab9z2"
+            },
+            {
+              "demo": "Full Definition of Done (Fireguard A 95), the live Windows walkthrough and the 20-run loop.",
+              "evidence": "docs/reports/agents-fixes-e2e.md; dm-wt/evidence/DM-199.",
+              "ticket": "tk_01m464q30nne95ejaqkb54k7r5"
+            }
+          ],
+          "discoveries": [],
+          "leftovers": [],
+          "tierFit": [
+            {
+              "note": "Sonnet, medium. It did what its criteria asked; the gap was in the criteria's scope and its live check, not in the tier.",
+              "ticket": "tk_01m464q30scyq58eyg1mkedt2e",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Sonnet, medium.",
+              "ticket": "tk_01m464q30sce788fpmjcxdpnhd",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Sonnet, medium.",
+              "ticket": "tk_01m464q30svqdmcn5bw2dh76tf",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Sonnet, medium; proven live.",
+              "ticket": "tk_01m464q30sy03s3821171fvq3c",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Sonnet, medium.",
+              "ticket": "tk_01m464q30sffrazx3zwdsyksnb",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Sonnet, high, for the process and shell-quoting work (sprint 1 retro: no Haiku or low effort on these).",
+              "ticket": "tk_01m464q30sf11ghg1wf7xamz4j",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Sonnet, medium; needed one merge of agents-s3.",
+              "ticket": "tk_01m464q30tzygdqryf1v711nmx",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Sonnet, medium.",
+              "ticket": "tk_01m464q30tnkpn1ahes4shgzk5",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Sonnet, low.",
+              "ticket": "tk_01m464q30tv0essjtradjr7xw3",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Sonnet, medium.",
+              "ticket": "tk_01m464q30t5pgqh4a8ry76xczn",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Sonnet, low. It did what it was asked; the unverified memory sentence came from DM-200's claim.",
+              "ticket": "tk_01m464q30tmdqhvs8strr3c088",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Sonnet, medium.",
+              "ticket": "tk_01m46c0xxagkznp0623n2ab9z2",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Sonnet, high: full DoD plus a live walkthrough, accepted first time.",
+              "ticket": "tk_01m464q30nne95ejaqkb54k7r5",
+              "verdict": "right_sized"
+            }
+          ],
+          "wentPoorly": [
+            "DM-200's own live check only repeated sprint 1's 'remember' prompt, so the explicit-path bypass was found only at acceptance.",
+            "DM-210 described sprint 3 from the code and tests, and stated that the memory write 'asks' without anyone having checked it live. The docs had to be corrected after acceptance.",
+            "The acceptance worker's approval helper denied 9 harmless in-scratch commands, failing attempt 1 of both sample tickets. When it tried to widen its own allow-list mid-run, the edit was refused, so it answered later cards by hand.",
+            "Live run 1 stalled: the orchestrator chose a worktree outside the repository, was denied, then asked in plain text and waited.",
+            "The orchestrator's first claim came about 23 minutes after the kickoff, which made the live check slow and costly on the person's subscription.",
+            "The line-keyed dead-export baseline needed a refresh again at row 1."
+          ],
+          "wentWell": [
+            "All 13 tickets were accepted on the first attempt, the best of the three sprints (sprint 1 had 3 rejections, sprint 2 had 1).",
+            "Running the full row checks at every row kept the acceptance round clean: no gate fixes, against five in sprint 1.",
+            "Waves by shared surface (DM-201 to DM-205, then DM-200, DM-206, DM-207, DM-208 and DM-211, then DM-209 and DM-210) avoided competing designs. The one merge conflict (DM-206) was resolved by resuming its worker.",
+            "The DM-203 fix worked live. With no nudge, the orchestrator handed workers their packets, workers bound and reported themselves, and the orchestrator retried two failed attempts and accepted them.",
+            "Fireguard rose from A 92 to A 95, and the stabilised real-process tests passed 20 of 20.",
+            "The live check tried variants of the fix, not just the original repro, and found the memory-folder gap. A positive control proved the token search could find a token where one exists."
+          ]
+        },
+        "risks": [
+          "Until DM-213 ships, a hosted Claude Code chat writes into ~/.claude/projects/<project>/memory/ with no approval when asked to. Unprompted memory writes are off, and the docs name the gap.",
+          "Codex, Cursor, macOS and a live Download were never run in this epic (the person's culls on 2026-10-04 and 2026-10-05).",
+          "The bundled @anthropic-ai/claude-agent-sdk is proprietary. Dark Mechanicus is a proof of concept, not for sale; check this before any distribution.",
+          "Branch coverage margin is thin (95.66% vs 95%).",
+          "Fireguard takes about an hour on Windows in an isolated clone, which lengthens each acceptance round.",
+          "In the live run, an orchestrator chat that hits a denied action asks the person in plain text and waits, because the app denies AskUserQuestion in chats. A run left alone can stall that way."
+        ],
+        "summary": "Sprint 3 (fixes from the live checks and reviews) delivered. All 12 work tickets (DM-200 to DM-211) and the acceptance node DM-199 were accepted, each on its first attempt. The increment is 4518afd on `agents`: one squashed commit, parent 5043f7c, 136 files, +6,104/−798. The server verified it.\n\nWhat the person can now do:\n- Claude Code chats run with auto-memory off, so the agent no longer saves memories on its own.\n- Claim tokens that are glued together or cut short are masked in stored and streamed text.\n- Only the person resumes a run paused for signed_out, and an already-paused run can be marked signed out.\n- Run with agent: the orchestrator chat starts the run without loading a prompt, and hands each worker subagent its packet, so worker threads bind to their attempts.\n- Transcripts show stopped turns, cancelled approvals and cancelled tool rows.\n- Quitting kills and awaits each agent's whole process tree.\n- Sign-in edge cases are handled: the flag clears on any signed-in check, account problems get a notice, and Retry shows only for a cut-short turn.\n- One Allow for this chat covers all of the chat's Dark Mechanicus tools.\n- Chat lists sync across windows.\n- Panels follow a thread read-only, clipped to the attempt.\n- The agent tests are stable on Windows.\n\nChecks: both row checks passed. DM-199 passed the whole Definition of Done with no gate fixes, and Fireguard graded A (95). Its live Windows walkthrough with the person's Claude Code is in docs/reports/agents-fixes-e2e.md. The claim-token search found none, with a positive control.\n\n**Moved to sprint 4 (revision 11, the person's decision on 2026-10-05):** DM-199 found that a Claude Code chat asked to write a file into its own memory folder does it with no approval card. The CLI lets that folder through before canUseTool. The fix is DM-213, with acceptance DM-212. Sprint 3's e1 now covers what it delivered: no memory saved on its own. The docs were corrected before the squash to name the gap.\n\nThe person also culled a live Download check from the epic, and epic criterion s2 now says so."
+      },
+      "contentHash": "sha256:9e9dc7d5c1e205d206034b4a06a2e19aed6b244d9c4db73b5db5f8fa064beb2c",
+      "createdAt": "2026-10-05T19:58:34.232Z",
+      "id": "rp_01m46tb1qqe2h6h7x6tcm11b3x",
+      "reportRevision": 2,
+      "sprintId": "sp_01m464q30nz932eaxbac5c4twh",
+      "submittedBy": "Claude Code"
     }
   ],
-  "revisionId": "rv_01m46gtaq0a7hyqfqsxt3ttdrd",
+  "revisionId": "rv_01m46t8n5w6xa088m1ay79g9hv",
   "rowChecks": [
     {
       "checks": [
@@ -6989,11 +9536,73 @@
       "recordedBy": "Claude Code",
       "row": 4,
       "sprintId": "sp_01m43n1zbxyvf21sa7yxf3wz5p"
+    },
+    {
+      "checks": [
+        {
+          "detail": "npm run lint exit 0 on agents-s3 with DM-200 to DM-208 and DM-211 merged (ed48f07).",
+          "name": "lint",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run typecheck exit 0.",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "392 files, 7402 passed, 1 skipped. Statements 97.88, branches 95.66, functions 96.61, lines 97.97.",
+          "name": "coverage",
+          "status": "passed"
+        },
+        {
+          "detail": "No new dead exports at fbd7e0f after a baseline refresh. Only clipMasked is new: a cross-project export the main process uses (claudeApprovals, claudeTranscript) and the web project also loads. The rest are line shifts of baselined contract exports.",
+          "name": "deadcode",
+          "status": "passed"
+        }
+      ],
+      "commit": "fbd7e0f",
+      "createdAt": "2026-10-05T18:21:23.503Z",
+      "id": "rk_01m46ms3nfffv3mhw73hybnn7t",
+      "number": 16,
+      "recordedBy": "Claude Code",
+      "row": 1,
+      "sprintId": "sp_01m464q30nz932eaxbac5c4twh"
+    },
+    {
+      "checks": [
+        {
+          "detail": "npm run lint exit 0 on agents-s3 with DM-209 and DM-210 merged.",
+          "name": "lint",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run typecheck exit 0.",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "393 files, 7405 passed, 1 skipped. Statements 97.88, branches 95.66, functions 96.61, lines 97.97.",
+          "name": "coverage",
+          "status": "passed"
+        },
+        {
+          "detail": "No new dead exports.",
+          "name": "deadcode",
+          "status": "passed"
+        }
+      ],
+      "commit": "1c585b9",
+      "createdAt": "2026-10-05T18:28:13.384Z",
+      "id": "rk_01m46n5ky8qfg18wrdrw8tyzrc",
+      "number": 17,
+      "recordedBy": "Claude Code",
+      "row": 2,
+      "sprintId": "sp_01m464q30nz932eaxbac5c4twh"
     }
   ],
   "runId": "rn_01m44m0qnd0nn90p29a12041js",
   "skillVersion": "1.5.0",
   "startedAt": "2026-10-04T23:29:35.918Z",
   "state": "running",
-  "updatedAt": "2026-10-05T17:45:27.749Z"
+  "updatedAt": "2026-10-05T21:07:29.508Z"
 }
