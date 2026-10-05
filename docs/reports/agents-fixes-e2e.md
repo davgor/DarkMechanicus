@@ -1,4 +1,4 @@
-# Agents fixes end-to-end check: Claude Code on Windows (sprint 3 acceptance)
+# Agents fixes end-to-end check: Claude Code on Windows (sprint 3 and sprint 4 acceptance)
 
 Run on 2026-10-05 (timestamps below are UTC; local time was UTC-5) against the sprint 3 integration branch `agents-s3` of the Agents epic at commit `1c585b9` (app version 0.15.0), which holds the 12 accepted sprint 3 tickets (DM-200 to DM-211). The build was `npm run build` of that worktree, launched unpackaged (`electron <worktree>`) with the person's own signed-in Claude Code CLI `2.1.281` at `C:\Users\davgo\.local\bin\claude.exe` (`claude auth status`: logged in; no login or logout was run).
 
@@ -128,7 +128,7 @@ Sections that sprint 3 changed (`git diff 5043f7c HEAD -- docs/runbooks/agents.m
 
 `docs/architecture.md` (Adapters paragraph) repeats the memory claim ("such a write is then an ordinary request") and is wrong in the same way.
 
-**Corrected.** The mismatches in this table (the two memory sentences in the runbook, the last "What was and was not verified" bullet, and the `docs/architecture.md` sentence) were corrected in a later docs-only commit on `agents-s3`. The table above describes the text as it was at `1c585b9`; the memory gap now stands in the runbook as a known gap.
+**Corrected.** The mismatches in this table (the two memory sentences in the runbook, the last "What was and was not verified" bullet, and the `docs/architecture.md` sentence) were corrected in a later docs-only commit on `agents-s3`. The table above describes the text as it was at `1c585b9`; the memory gap then stood in the runbook as a known gap. Sprint 4 closed it: see the last section, "Sprint 4: memory-folder writes".
 
 ## Definition of Done
 
@@ -146,7 +146,7 @@ Run in the worktree at `1c585b9`, in the order lint, typecheck, test, coverage, 
 
 ## Things the run showed beyond the criteria
 
-1. **Defect 1 (DM-200): a write to Claude's own memory folder is still not asked when it is requested by path.** The fix removes the agent's own unprompted memory writes, which is what the sprint 1 report found, and a plain "remember this" wrote nothing on Haiku or Sonnet. But `Write` to `~/.claude/projects/<project>/memory/MEMORY.md` ran with no card (screenshot `c1b-...`; there is no `approval_request` in the stored chat), and the same happens through the Agent SDK outside the app with `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` and a `canUseTool` that denies everything (`sdk-memory-check.mjs`: "canUseTool asked: []", the file was written). The runbook (Chats, Approvals) and `docs/architecture.md` say it asks.
+1. **Defect 1 (DM-200): a write to Claude's own memory folder is still not asked when it is requested by path.** The fix removes the agent's own unprompted memory writes, which is what the sprint 1 report found, and a plain "remember this" wrote nothing on Haiku or Sonnet. But `Write` to `~/.claude/projects/<project>/memory/MEMORY.md` ran with no card (screenshot `c1b-...`; there is no `approval_request` in the stored chat), and the same happens through the Agent SDK outside the app with `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` and a `canUseTool` that denies everything (`sdk-memory-check.mjs`: "canUseTool asked: []", the file was written). The runbook (Chats, Approvals) and `docs/architecture.md` say it asks. **Closed in sprint 4** (DM-213): see the last section, "Sprint 4: memory-folder writes".
 2. **The orchestrator guidance makes a chat create its integration worktree outside the repository** (`skills/orchestrator.md`, "outside the coordinating checkout"). In run 1 the chat chose a path under the Claude scratchpad in `%TEMP%`. A person who allows the card gets a worktree there; a policy of "inside the repo only" stops the run, because a chat cannot ask a question with answer buttons (the app answers `AskUserQuestion` with "Questions with answer buttons are not supported in this chat. Ask the question in plain text instead.") and the run then waits for a typed answer. In run 2 the chat picked `.worktrees\...` inside the repo, after a command that listed the parent folder (to choose a location) was denied.
 3. **Long turns.** Between the kickoff and the first claim in run 2 there were about 23 minutes. Most of it was two single model turns of about 8 and 14 minutes with no output (the CLI held open connections to the API and its CPU time grew slowly; a one-word Sonnet call from my shell returned in 4 s at the same time). I did not find the cause, and it was not the app (no pending card, no hung tool call).
 4. **Workers sent no heartbeat or note.** Their attempts lasted 1 to 2 minutes and the run holds no `attempt.heartbeat` event; the Activity tab therefore shows their tool calls and the submit but no notes.
@@ -218,3 +218,138 @@ Run in the worktree at `1c585b9`, in the order lint, typecheck, test, coverage, 
 - The checkpoint approval: the runs were cancelled before they reached one.
 - Whether the orchestrator would take the acceptance ticket (OR-1) the same way: not run.
 - Whether the first approval card of run 2 was clicked in the UI: it was answered by my helper through the call the button makes; the click in the UI is the first card of run 1 (`c8a-...`).
+
+## Sprint 4: memory-folder writes
+
+Run on 2026-10-05 (timestamps UTC unless marked; local time was UTC-5) against the sprint 4 integration branch `agents-s4` of the Agents epic at `303fe61` (DM-213 merged; app version 0.15.0), with the docs-only fix commit `449992b` on top. Sprint 4 had one ticket, DM-213: a hosted Claude Code chat must ask before any write into Claude Code's own memory folder. The build was `npm run build` of that worktree, launched unpackaged (`electron <worktree>`) with the person's signed-in Claude Code CLI `2.1.281` at `C:\Users\davgo\.local\bin\claude.exe` (`claude auth status`: logged in; no login or logout was run) and Agent SDK 0.3.289.
+
+**Scope.** Live Codex, Cursor, macOS and Download checks were culled from this epic by the person's decisions on 2026-10-04 and 2026-10-05. This section covers Claude Code on Windows only.
+
+### How it was run
+
+- Same as sprint 3: a **throwaway** `--user-data-dir`, a `--remote-debugging-port` and `DISABLE_AUTO_UPDATE=1`; the person's own Dark Mechanicus app and `%APPDATA%\dark-mechanicus` were not touched. The app was driven over CDP (clicks on its own buttons) and the native file dialogs with Windows UI Automation messages. Scripts, listings and process lists are in `dm-wt\evidence\DM-212\` (outside the repository, not committed).
+- Two scratch git repositories, seeded through the app's own core and tracked through the app's **Track a folder** dialog: `scratch-chat` (for c1) and `scratch-chat2` (for c2, so that its memory folder was untouched by c1's Allow). Their Claude projects are `~\.claude\projects\C--Users-davgo-Documents-GitHub-dm-wt-evidence-DM-212-scratch-chat` and `...-scratch-chat2`; nothing was written to any other project's memory folder. Before the app started I put one file, `existing.md` (9 bytes), in each scratch project's `memory\` so the listings have something to hash; the app did not write it.
+- Both chats are plain chats of Claude Code on **Haiku** with the Worker role (the dialog's default role is Orchestrator with Allow save, which I did not want; there is no run or epic). Few and short turns: 4 in the first chat, 3 in the second.
+- **Every card was answered by hand** after reading it (no helper script): Deny for the three c1 writes, Allow once for the one repeated absolute-path write into the scratch project's memory folder and for `ordinary.txt` in the scratch folder. Nothing outside the scratch folders was allowed.
+- The listings below are `memlist.mjs` (names, sizes, MD5, mtimes) of the scratch project's `memory\` folder; the CLI's own session log sits next to it in the project folder, not inside it.
+
+### Live steps on Windows
+
+| # | Step | Result | Evidence |
+|---|------|--------|----------|
+| S1 | Connect Claude Code: Add an agent, **Find**, pick `claude.exe` | **Pass.** "Connected · v2.1.281", Signed in | |
+| S2 | Track `scratch-chat` and `scratch-chat2` | **Pass** | |
+| S3 | New chat in `scratch-chat`: Claude Code, Haiku, Worker | **Pass** | |
+| S4 | **c1, absolute path.** "Use the Write tool to create the file `C:\Users\davgo\.claude\projects\<scratch project>\memory\abs.md` containing the single line hi." | **Pass.** An **approval card** ("Edit a file", the file, "Writes 1 line", "+ hi", Allow once / Allow for this chat / Deny) waited and nothing was written. **Deny**: the tool row says DENIED, the agent says the write "was declined in Dark Mechanicus", and the listing is unchanged (below) | `s4-c1a-...`, `s4-c1b-...` |
+| S5 | **c1, `~` path.** The same with `~/.claude/projects/<scratch project>/memory/tilde.md` "with the ~ as written" | **Pass.** A file-edit card waited. The tool row keeps the `~` as the agent wrote it; the card shows the file as the CLI expanded it (`C:\Users\davgo\.claude\projects\...\tilde.md`). **Deny**: unchanged | `s4-c1c-...`, `s4-c1d-...` |
+| S6 | **c1, shell redirect.** "Use the Bash tool to run exactly this command: `echo hi >> "C:/Users/davgo/.claude/projects/<scratch project>/memory/redirect.md"`" | **Pass.** A **command card** ("Run a command", the command, "Working directory ...\scratch-chat") waited and nothing was written. **Deny**: "The command was declined in Dark Mechanicus", unchanged | `s4-c1e-...`, `s4-c1f-...` |
+| S7 | **c1, Allow once.** The absolute-path write of S4 again | **Pass.** A file-edit card waited; I answered **Allow once**; the tool row says DONE and the card ALLOWED ONCE. `abs.md` now exists: 2 bytes, `hi`, MD5 `49f68a5c8493ec2c0bf489821c21fc3b` | `s4-c1g-...` |
+| S8 | **c2, plain remember.** Fresh chat in `scratch-chat2`: "Remember that my code word is PINEAPPLE." Then, to push harder: "Please save that to your memory." | **Pass.** No card either time, and `memory\` is unchanged after each turn. Haiku answered "I'm ready" to the first, and to the second "I don't have a memory tool available in this session." It never tried a write (no tool row), so this shows that nothing writes memory unasked (DM-200's switch), not that a write was refused | `s4-c2a-...` |
+| S9 | **c2, ordinary file.** "Create a file named ordinary.txt in the current folder containing the single line hi." | **Pass.** A file-edit card waited (`...\scratch-chat2\ordinary.txt`, "Writes 1 line", "+ hi"), exactly as before; **Allow once**; `ordinary.txt` exists (2 bytes, `hi`) | `s4-c2b-...`, `s4-c2c-...` |
+| S10 | **What the process was started with.** The chat's `claude.exe` command line, read while it ran | **Pass.** It carries `--settings "{\"autoMemoryDirectory\":\"C:\\Users\\davgo\\AppData\\Local\\Temp\\dark-mechanicus-unused-memory\"}"` and `--setting-sources=user,project,local` (the CLI still reads the person's settings; the app passed its own inline). The folder `...\Temp\dark-mechanicus-unused-memory` did not exist after the run | `proc-before-quit.txt` |
+| S11 | End: quit the app the normal way (`window.close()` over CDP) | **Pass.** 12 PIDs recorded before (the app, its 3 helper processes, and for each of the two chats a `claude.exe` with its `node` MCP server and two `conhost`s); 0 still running about 6 s later, no new process parented to them | `proc-after-quit.txt` |
+
+**Memory folder listings** (names, sizes, MD5; the scratch project's `memory\`):
+
+```
+scratch-chat, before S4:                 existing.md 9 bytes md5=de40e3d15c5140d4a77c3ad0d782d57b
+after S4 (absolute path, Deny):          existing.md 9 bytes md5=de40e3d15c5140d4a77c3ad0d782d57b   mtime unchanged
+after S5 (~ path, Deny):                 existing.md 9 bytes md5=de40e3d15c5140d4a77c3ad0d782d57b   mtime unchanged
+after S6 (shell redirect, Deny):         existing.md 9 bytes md5=de40e3d15c5140d4a77c3ad0d782d57b   mtime unchanged
+after S7 (absolute path, Allow once):    abs.md      2 bytes md5=49f68a5c8493ec2c0bf489821c21fc3b   (new)
+                                         existing.md 9 bytes md5=de40e3d15c5140d4a77c3ad0d782d57b   mtime unchanged
+
+scratch-chat2, before S8:                existing.md 9 bytes md5=de40e3d15c5140d4a77c3ad0d782d57b
+after "Remember ... PINEAPPLE":          unchanged
+after "Please save that to your memory": unchanged
+after S9 (ordinary.txt, Allow once):     unchanged (ordinary.txt is in the scratch folder: 2 bytes, `hi`)
+```
+
+The mtime of `existing.md` was `2026-10-05T21:50:55Z` in every listing.
+
+**The card text.** For a memory-folder write it is the ordinary card: `APPROVAL`, `Edit a file`, `File <path>`, `Writes 1 line`, `+ hi`, then Allow once, Allow for this chat and Deny; for the redirect `Run a command`, the command and its working directory. **The UI does not show the hook's reason** ("This writes into Claude Code's own memory folder, which the CLI would allow without asking. Dark Mechanicus asks first."), and the stored `approval_request` item carries no reason either (tool, category, summary and input only). The person sees the path and has to notice that it is under `.claude\projects\...\memory`. That is as the ticket specified (an ordinary file-edit approval); the runbook now says so.
+
+### What this live run did not show
+
+- The variants beyond the three asked for (relative path, forward slashes, upper case, a junction, an edit of an existing memory file, other redirect forms, the pinned folder) were run by DM-213's worker through a harness against the real adapter, not here. Their logs (`dm-wt\evidence\DM-213\final-*.log`) show a card each and, on Deny, an unchanged listing (12 of 12 deny logs compared by script); I did not run them again.
+- The shell redirect was only denied here, not allowed. **Allow for this chat** on a memory write was not run live (the code keys the allowance by category and tool, so an Allow for this chat on any file edit also covers a later memory write in that chat; the runbook says so; `sessionManager.ts` `scopeOf`, and the adapter test "allows it on Allow for this chat, as it does for any edit").
+- MultiEdit, NotebookEdit, the PowerShell tool, a `CLAUDE_CONFIG_DIR` that points elsewhere, a real `autoMemoryDirectory` of the person's own, macOS and Linux: not run live.
+- A Haiku turn is not deterministic: each step above is one request that Haiku obeyed on the first try.
+
+### c3: the docs against the combined code and this run
+
+Sections changed since the sprint start (`git diff 4518afd 303fe61 -- docs/`: 2 files, 4 hunks), and what each says against the code and this run. Three sentences were corrected, and one result added, in the docs-only commit `449992b`.
+
+| Section | Matches? | Checked in |
+|---------|----------|------------|
+| `docs/architecture.md`, Adapters: the auto-memory switch, then the `PreToolUse` hook (`memoryWriteMatcher`) on Write, Edit, MultiEdit and NotebookEdit, and the inline `autoMemoryDirectory` (`pinnedMemoryFolder`, `dark-mechanicus-unused-memory` in the temp folder), what the hook resolves, the "not checked live" list | **Yes.** One sentence added: the acceptance round repeated the absolute, `~` and redirect cases in the running app | `adapters/claude.ts` (`AUTO_MEMORY_OFF`, `queryOptions`: `env`, `settings`, `hooks`, `settingSources: ['user','project','local']`), `adapters/claudeMemoryFolder.ts` (`ASK`, `decide`, `configFolders`, `formsOf` and `realPathOf`, `pinnedMemoryFolder`), `@anthropic-ai/claude-agent-sdk` 0.3.289 `sdk.d.ts` (`Settings.autoMemoryDirectory`, `permissionDecision?: 'allow' \| 'deny' \| 'ask'`, `HookCallbackMatcher`); live S4 to S7, S10 |
+| `docs/runbooks/agents.md`, Chats: the memory bullet, "a write into its memory folder asks like any other file", with its hook and setting sub-bullets | **Mostly, with 3 corrections.** (1) "The memory folders are `~/.claude/projects/*/memory/`, or under `CLAUDE_CONFIG_DIR`" read as "instead": the code checks the default folder always and `CLAUDE_CONFIG_DIR` as well (`configFolders`); now "and also". (2) Nothing said how the card looks; now: the ordinary file-edit card, which does not say why it asks (S4). (3) "your Claude Code settings files are not read, written or changed" contradicted the Chats text above it and the process (`--setting-sources=user,project,local`: the CLI reads them); now "the app writes and changes none of your Claude Code settings files (the CLI still reads them)" | the files above; live S4 to S7, S10 |
+| `docs/runbooks/agents.md`, Chats: a call the hook cannot read asks; "Allow for this chat on file edits covers a memory write too" | **Yes** (code and tests only for Allow for this chat; not run live) | `claudeMemoryFolder.ts` (`files === null` and the `catch` answer ASK), `sessionManager.ts` (`scopeOf`: category and tool), `claudeMemoryWrites.test.ts` "allows it on Allow for this chat, as it does for any edit" |
+| `docs/runbooks/agents.md`, Approvals: "A write into its own memory folder asks like any other, which takes a hook and a setting of the app's" | **Yes** | live S4 to S7 |
+| `docs/runbooks/agents.md`, What was and was not verified: the Sprint 3 bullet ("its gap is closed by the memory-folder check below") | **Yes** | this section |
+| `docs/runbooks/agents.md`, What was and was not verified: the "memory-folder check" bullet (harness run, groups of variants, "Not verified live") | **Yes, as a harness result.** I compared the before and after listings of its 14 `final-*.log` files by script (the 12 Deny logs unchanged, the Allow log changed, the ordinary-write log unchanged because that write is in the chat folder) and read 5 of them in full. One result added: the running app's own run (S4 to S10) | `dm-wt\evidence\DM-213\final-*.log`; this section |
+
+**No known-gap note for memory-folder writes is left.** A search of `docs/`, `README.md`, `AGENTS.md`, `CLAUDE.md` and `skills/` for "known gap", "still let", "bypass" and similar finds no current statement that a memory-folder write goes unasked. The only places that still describe the gap are this report's sprint 3 sections, which give the state at `1c585b9` and now say it was closed in sprint 4.
+
+### Definition of Done (c5)
+
+Run in the worktree at `303fe61` in the order lint, typecheck, test, coverage, deadcode, build, with Fireguard started at the same time in an isolated clone (its mutation stage rewrites source files). No gate failed, so no fix commit was needed. The set (without Fireguard) was run again on the branch's final tree (`449992b` plus this report: the code is that of `303fe61`, only `docs/` differs): the same results, to the digit. Fireguard was not run again: no test or production file changed after `303fe61`, and it grades only those.
+
+| Check | Result |
+|-------|--------|
+| `lint` | **Passed** (`oxlint src scripts`, exit 0) |
+| `typecheck` | **Passed** (node, web and Fireguard projects) |
+| `test` | **Passed**: 395 files, 7478 tests passed and 1 skipped (7479); Fireguard's own suite 20 files, 105 tests |
+| `coverage` | **Passed**: statements 97.89 (15316/15646), branches 95.68 (9299/9718), functions 96.63 (5254/5437), lines 97.97 (14247/14541); thresholds 97, 95, 96, 97 |
+| `fireguard` | **Grade A (100)**, "all hard gates passed". Base `4518afd312d29af96667cefa173396707be3f8ba` (the sprint start), 3 graded test files (`claude.test.ts`, `claudeMemoryFolder.test.ts`, `claudeMemoryWrites.test.ts`), 2 changed production modules mutated (`claude.ts`, `claudeMemoryFolder.ts`). AST gate passed (341 assertions, 2 mocks, 2 tautological, no empty test). Flake gate passed (100 of 100 runs, 0 failures). Mutation gate passed: 96 of 97 mutants killed, score 99 (minimum 75). The one survivor is on `claudeMemoryFolder.ts:148`, `operator-swap: swap operator to -` in `return target.length >= at + 3 && ... target[at + 2] === 'memory'`; Fireguard names the line, not the column, and I did not confirm which `+` it was, but swapping the one in the length guard changes nothing (the last comparison needs that length anyway). Run in an isolated clone at `303fe61` with `FIREGUARD_BASE_REF` set and `FIREGUARD_TEST_COMMAND="node node_modules/vitest/vitest.mjs run --bail=1"`; it took about 13 minutes, and the clone's tree was clean afterwards |
+| `deadcode` | **Passed** ("No new dead exports found") |
+| `build` | **Passed** |
+
+### Criteria
+
+| | Met | Where |
+|---|-----|-------|
+| c1 | Yes | S4 (absolute path), S5 (`~`), S6 (shell redirect): a card each, Deny left the listing unchanged; S7: Allow once wrote the file; the listings and `s4-c1a-...` to `s4-c1g-...` |
+| c2 | Yes (the plain request never tried a write, so this shows DM-200's switch is unchanged, not a refusal) | S8 (`s4-c2a-...`), S9 (`s4-c2b-...`, `s4-c2c-...`) |
+| c3 | Yes: cross-check done, 3 corrections in `449992b`, no known-gap note left | the c3 table above |
+| c4 | Yes | this section |
+| c5 | Yes: grade A (100) | the Definition of Done table |
+
+### Screenshots
+
+Each is a CDP capture of the app resized to 1100 px; the ones kept are in `docs/reports/agents-fixes-e2e/` with the prefix `s4-`.
+
+**S4.** The absolute-path write into the scratch project's memory folder waits on a file-edit card; nothing was written.
+![Absolute path card](agents-fixes-e2e/s4-c1a-absolute-path-write-raises-a-file-edit-card.jpg)
+
+**S4.** After Deny: the tool row says DENIED, the card DENIED, the folder is unchanged.
+![Absolute path denied](agents-fixes-e2e/s4-c1b-absolute-path-denied-folder-unchanged.jpg)
+
+**S5.** The `~` write: the tool row keeps the `~`, the card shows the expanded path.
+![Tilde card](agents-fixes-e2e/s4-c1c-tilde-path-write-raises-a-file-edit-card.jpg)
+
+**S5.** After Deny.
+![Tilde denied](agents-fixes-e2e/s4-c1d-tilde-path-denied-folder-unchanged.jpg)
+
+**S6.** The shell redirect `echo hi >> <memory file>` waits on a command card.
+![Redirect card](agents-fixes-e2e/s4-c1e-shell-redirect-raises-a-command-card.jpg)
+
+**S6.** After Deny.
+![Redirect denied](agents-fixes-e2e/s4-c1f-shell-redirect-denied-folder-unchanged.jpg)
+
+**S7.** The absolute-path write again, answered Allow once: DONE, ALLOWED ONCE, and the agent reports the file created.
+![Absolute path allowed once](agents-fixes-e2e/s4-c1g-absolute-path-allowed-once-file-written.jpg)
+
+**S8.** "Remember that my code word is PINEAPPLE." and "Please save that to your memory.": no card, no tool call.
+![Remember, no card](agents-fixes-e2e/s4-c2a-remember-and-save-to-memory-no-card.jpg)
+
+**S9.** An ordinary file in the chat's folder still asks.
+![Ordinary file card](agents-fixes-e2e/s4-c2b-ordinary-file-still-asks.jpg)
+
+**S9.** After Allow once: the file is written.
+![Ordinary file written](agents-fixes-e2e/s4-c2c-ordinary-file-allowed-and-written.jpg)
+
+### Not verified (sprint 4)
+
+- Live Codex, Cursor, macOS and Download checks were culled by the person's decisions on 2026-10-04 and 2026-10-05; nothing here says anything about them.
+- Allow for this chat on a memory write, the shell redirect on Allow, MultiEdit, NotebookEdit, the PowerShell tool, a `CLAUDE_CONFIG_DIR` pointing elsewhere, and a real `autoMemoryDirectory` of the person's own: see "What this live run did not show".

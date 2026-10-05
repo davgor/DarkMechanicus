@@ -3,7 +3,7 @@
  * sequences, builders for the messages the SDK sends, and a rig that starts an adapter on them. Not shipped.
  */
 import { resolve } from 'node:path'
-import type { CanUseTool, ModelInfo, Options, PermissionResult, SDKMessage, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
+import type { CanUseTool, HookInput, ModelInfo, Options, PermissionResult, SDKMessage, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
 import { expect, vi } from 'vitest'
 import type {
   ApprovalDecision,
@@ -312,3 +312,17 @@ export const pendingApproval = async (rig: Rig, count = 1): Promise<Approval> =>
 }
 
 export const replay = (...messages: SDKMessage[]): Plan => ({ script: ({ emit }) => emit(...messages) })
+
+/** What the CLI's `PreToolUse` hooks answer for one tool call: the first answer that decides anything, or `{}` when none does. */
+export async function preToolUse(options: Options, tool: string, toolInput: unknown, cwd: string = FOLDER): Promise<unknown> {
+  const input = { hook_event_name: 'PreToolUse', tool_name: tool, tool_input: toolInput, tool_use_id: 'toolu_hook', session_id: SESSION, transcript_path: '', cwd }
+  for (const matcher of options.hooks?.PreToolUse ?? []) {
+    for (const hook of new RegExp(matcher.matcher ?? '').test(tool) ? matcher.hooks : []) {
+      const answer = await hook(input as unknown as HookInput, 'toolu_hook', { signal: new AbortController().signal })
+      if (Object.keys(answer).length > 0) {
+        return answer
+      }
+    }
+  }
+  return {}
+}

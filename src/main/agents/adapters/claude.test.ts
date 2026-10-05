@@ -1024,13 +1024,14 @@ describe('Claude adapter: memory writes ask first', () => {
     expect(given[AUTO_MEMORY]).toBe('0')
   })
 
-  it("hands the CLI no settings file or object, so none of the person's Claude Code settings is written or changed", async () => {
+  it("hands the CLI no settings file, and as an inline setting only where its memory goes, so none of the person's Claude Code settings is written or changed", async () => {
     const rig = await startRig({ plans: [replay(init(), success('ok'))] })
 
     await rig.adapter.send('hi')
 
     const options = rig.sdk.launches[0]?.options
-    expect(options).not.toHaveProperty('settings')
+    expect(typeof options?.settings).toBe('object')
+    expect(Object.keys(options?.settings as object)).toEqual(['autoMemoryDirectory'])
     expect(options).toMatchObject({ settingSources: ['user', 'project', 'local'], permissionMode: 'default' })
   })
 })

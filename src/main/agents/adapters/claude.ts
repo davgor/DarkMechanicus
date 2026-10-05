@@ -16,9 +16,14 @@
  *
  * Memory. The CLI's own auto-memory writes notes under `~/.claude/projects/<project>/memory/` and
  * allows those writes without asking, so `canUseTool` never sees them. Every process the adapter
- * starts is given `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`, so a hosted chat asks before it writes any
- * file. The switch travels in the process environment, per session: none of the person's Claude Code
- * settings is read for it, written or changed.
+ * starts is given `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`, so Claude Code saves no note of its own
+ * unasked. The switch travels in the process environment, per session: none of the person's Claude
+ * Code settings is read for it, written or changed. The CLI allows a write the agent is asked to make
+ * into that folder just as quietly, a shell redirect included, so each process also gets two things in
+ * the query options (see `claudeMemoryFolder`): its `autoMemoryDirectory` is set to a folder of the
+ * app's that nothing reads, so the CLI's own rules ask about every other memory folder, and a
+ * `PreToolUse` hook answers `ask` for a Write, Edit, MultiEdit or NotebookEdit whose target resolves
+ * into a memory folder, so `canUseTool` raises an ordinary file-edit request. No settings file is written.
  *
  * Subagents. What a subagent does is a nested thread of the chat (see `claudeTranscript`), and the
  * CLI is asked to forward its text as well as its tool calls. A request raised inside a subagent goes
@@ -42,7 +47,7 @@
  * Process tree. The SDK starts the CLI through `claudeProcess`, which kills the whole tree on
  * `dispose` (before the query is closed) and resolves once it is gone, so quitting waits for it.
  */
-import { homedir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { randomUUID } from 'node:crypto'
 import type { CanUseTool, ModelInfo, Options, PermissionResult, SDKMessage, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
 import type {
@@ -58,6 +63,7 @@ import type {
 import type { ChatAdapterDefinition } from '../adapterRegistry'
 import { maskClaimTokens } from '../claimTokenMask'
 import { classifyTool } from './claudeApprovals'
+import { memoryWriteMatcher, pinnedMemoryFolder } from './claudeMemoryFolder'
 import {
   createClaudeProcesses,
   createInputQueue,
@@ -89,6 +95,10 @@ export interface ClaudeAdapterDeps {
   /** Milliseconds, for how long a model list is remembered. */
   clock: () => number
   platform: string
+  /** The person's home folder, which a `~` path and the default memory folder start from. */
+  homeDir: () => string
+  /** The temp folder, where the folder the CLI is told to keep its memory in lies. */
+  tempDir: () => string
   /** The environment the CLI inherits; the adapter adds its own switches on top. */
   env: () => NodeJS.ProcessEnv
   readFile: (path: string) => string
@@ -130,6 +140,8 @@ function withDefaults(overrides: Partial<ClaudeAdapterDeps>): ClaudeAdapterDeps 
     newId: () => randomUUID(),
     clock: () => Date.now(),
     platform: process.platform,
+    homeDir: homedir,
+    tempDir: tmpdir,
     env: () => process.env,
     readFile: readShimFile,
     createProcesses: () => createClaudeProcesses(),
@@ -394,14 +406,20 @@ class ClaudeChatAdapter implements ChatAdapter {
   private queryOptions(resume: string | null): Options {
     const options = this.options as ChatAdapterStartOptions
     const model = sdkModel(this.model)
+    // A copy: the inherited environment is the process's own and stays as it was.
+    const env = { ...this.deps.env(), ...AUTO_MEMORY_OFF }
+    const memory = { env, home: this.deps.homeDir(), tmp: this.deps.tempDir(), platform: this.deps.platform }
     return {
       cwd: options.folder,
       pathToClaudeCodeExecutable: this.launchPath,
       spawnClaudeCodeProcess: this.processes.spawn,
       permissionMode: 'default',
-      // A copy: the inherited environment is the process's own and stays as it was.
-      env: { ...this.deps.env(), ...AUTO_MEMORY_OFF },
+      env,
+      // Inline, for this process only: the CLI's memory-folder carve-out moves to a folder nothing reads.
+      settings: { autoMemoryDirectory: pinnedMemoryFolder(memory) },
       canUseTool: this.canUseTool,
+      // Runs before the CLI's own permission check, which lets a memory-folder write through unasked.
+      hooks: { PreToolUse: [memoryWriteMatcher(memory, options.folder)] },
       includePartialMessages: true,
       // Without this the CLI sends only a subagent's tool calls; with it, its text too, so a thread holds its whole conversation.
       forwardSubagentText: true,
