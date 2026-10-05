@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "**From DM-122 (orchestrator note for this ticket's worker).** DM-122 added `SIGNED_OUT_PAUSE_REASON = 'signed_out'` in `src/shared/domain/status.ts` and the human-only capability `run.pause_signed_out`, which only the desktop role holds. `pauseRun` with that exact reason keeps the run's open leases, and `resumeRun` extends each lease by the time the run spent paused (recorded as the event `run.leases_extended`). DM-122 also took schema v8 (`runs.paused_at`).\n\nGap found in DM-122: `pause_run` only accepts runs that are `queued`, `running` or `awaiting_checkpoint`. A run already paused for another reason, such as the ticket-failure policy, can't be re-paused as `signed_out`, so its leases keep expiring. Handle that case when detecting an expired login, or record why it's out of scope.",
+  "createdAt": "2026-10-04T23:44:11.597Z",
+  "epicId": "ep_01m418epbg8qkqa2e2krvdkqk5",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m44mvetds8n4yr2yac6fgy41",
+  "ticketId": "tk_01m43qtb15acpxp9stw2rnedr5"
+}

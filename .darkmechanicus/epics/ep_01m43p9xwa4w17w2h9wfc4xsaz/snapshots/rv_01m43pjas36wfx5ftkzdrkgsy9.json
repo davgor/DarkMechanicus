@@ -1,0 +1,1933 @@
+{
+  "baseRevisionId": null,
+  "bundle": {
+    "edges": [
+      {
+        "from": "tk_01m43paznfdaq1kw5qfarr9et6",
+        "to": "tk_01m43pbh643hht81rs5nfxeh7h"
+      },
+      {
+        "from": "tk_01m43pbh643hht81rs5nfxeh7h",
+        "to": "tk_01m43pc0gwq1zr78kwypes1ev3"
+      },
+      {
+        "from": "tk_01m43paznfdaq1kw5qfarr9et6",
+        "to": "tk_01m43pcfj8sj0ns4qwc03y0vwr"
+      },
+      {
+        "from": "tk_01m43pc0gwq1zr78kwypes1ev3",
+        "to": "tk_01m43pcy32bgmws1x1229r0b2a"
+      },
+      {
+        "from": "tk_01m43pc0gwq1zr78kwypes1ev3",
+        "to": "tk_01m43pdb00bn5b3yjs5kh582w4"
+      },
+      {
+        "from": "tk_01m43pcfj8sj0ns4qwc03y0vwr",
+        "to": "tk_01m43pdb00bn5b3yjs5kh582w4"
+      },
+      {
+        "from": "tk_01m43pcy32bgmws1x1229r0b2a",
+        "to": "tk_01m43pdb00bn5b3yjs5kh582w4"
+      },
+      {
+        "from": "tk_01m43paznfdaq1kw5qfarr9et6",
+        "to": "tk_01m43pdmdf92pt7r0xk6bdq84v"
+      },
+      {
+        "from": "tk_01m43pbh643hht81rs5nfxeh7h",
+        "to": "tk_01m43pdmdf92pt7r0xk6bdq84v"
+      },
+      {
+        "from": "tk_01m43pc0gwq1zr78kwypes1ev3",
+        "to": "tk_01m43pdmdf92pt7r0xk6bdq84v"
+      },
+      {
+        "from": "tk_01m43pcfj8sj0ns4qwc03y0vwr",
+        "to": "tk_01m43pdmdf92pt7r0xk6bdq84v"
+      },
+      {
+        "from": "tk_01m43pcy32bgmws1x1229r0b2a",
+        "to": "tk_01m43pdmdf92pt7r0xk6bdq84v"
+      },
+      {
+        "from": "tk_01m43pdb00bn5b3yjs5kh582w4",
+        "to": "tk_01m43pdmdf92pt7r0xk6bdq84v"
+      },
+      {
+        "from": "tk_01m43pc0gwq1zr78kwypes1ev3",
+        "to": "tk_01m43pedhpjb1twtmpzvjdz4jf"
+      },
+      {
+        "from": "tk_01m43pedhpjb1twtmpzvjdz4jf",
+        "to": "tk_01m43perdzxhva7n9kyc45hm3w"
+      },
+      {
+        "from": "tk_01m43pedhpjb1twtmpzvjdz4jf",
+        "to": "tk_01m43pf6k7q75qarqnr9mb608d"
+      },
+      {
+        "from": "tk_01m43pf6k7q75qarqnr9mb608d",
+        "to": "tk_01m43pfq3nk0te40y99yjk01tt"
+      },
+      {
+        "from": "tk_01m43pc0gwq1zr78kwypes1ev3",
+        "to": "tk_01m43pg79e0sxcbmtpk6566x5c"
+      },
+      {
+        "from": "tk_01m43perdzxhva7n9kyc45hm3w",
+        "to": "tk_01m43pgqpq2qcbdx8y4jgfxre5"
+      },
+      {
+        "from": "tk_01m43pf6k7q75qarqnr9mb608d",
+        "to": "tk_01m43pgqpq2qcbdx8y4jgfxre5"
+      },
+      {
+        "from": "tk_01m43pfq3nk0te40y99yjk01tt",
+        "to": "tk_01m43pgqpq2qcbdx8y4jgfxre5"
+      },
+      {
+        "from": "tk_01m43pg79e0sxcbmtpk6566x5c",
+        "to": "tk_01m43pgqpq2qcbdx8y4jgfxre5"
+      },
+      {
+        "from": "tk_01m43perdzxhva7n9kyc45hm3w",
+        "to": "tk_01m43phcm5q1e7vx1kt3d7my34"
+      },
+      {
+        "from": "tk_01m43pf6k7q75qarqnr9mb608d",
+        "to": "tk_01m43phcm5q1e7vx1kt3d7my34"
+      },
+      {
+        "from": "tk_01m43pfq3nk0te40y99yjk01tt",
+        "to": "tk_01m43phcm5q1e7vx1kt3d7my34"
+      },
+      {
+        "from": "tk_01m43pedhpjb1twtmpzvjdz4jf",
+        "to": "tk_01m43phcmw3yfrgccjyncb7vse"
+      },
+      {
+        "from": "tk_01m43perdzxhva7n9kyc45hm3w",
+        "to": "tk_01m43phcmw3yfrgccjyncb7vse"
+      },
+      {
+        "from": "tk_01m43pf6k7q75qarqnr9mb608d",
+        "to": "tk_01m43phcmw3yfrgccjyncb7vse"
+      },
+      {
+        "from": "tk_01m43pfq3nk0te40y99yjk01tt",
+        "to": "tk_01m43phcmw3yfrgccjyncb7vse"
+      },
+      {
+        "from": "tk_01m43pg79e0sxcbmtpk6566x5c",
+        "to": "tk_01m43phcmw3yfrgccjyncb7vse"
+      },
+      {
+        "from": "tk_01m43pgqpq2qcbdx8y4jgfxre5",
+        "to": "tk_01m43phcmw3yfrgccjyncb7vse"
+      },
+      {
+        "from": "tk_01m43phcm5q1e7vx1kt3d7my34",
+        "to": "tk_01m43phcmw3yfrgccjyncb7vse"
+      }
+    ],
+    "epic": {
+      "intent": "Today an agent is told only what the shipped skills say and what each ticket body holds. Repository-specific rules live in hand-written files such as CLAUDE.md, where an agent may or may not read them, and nothing checks that they were followed. Examples: create a worktree before a ticket, run the targeted checks before submitting, tag a release after an epic, give every sprint a Fireguard ticket.\n\n**Conditionals** give each tracked folder five graphs, one per event:\n- **Pre-ticket:** what the agent doing a ticket is told, or does, before it starts work.\n- **Post-ticket:** what the agent doing a ticket is told, or does, before it submits.\n- **Pre-epic:** what the orchestrator is told, or does, when an epic's run starts, before the first ticket is claimed.\n- **Post-epic:** what the orchestrator is told, or does, at the final checkpoint, before the epic completes.\n- **Draft:** what a planner is told, or does, while drafting a plan (planning mode), before it saves.\n\nEach graph looks and edits like an epic's plan graph. Items are nodes, and an edge orders two items (A before B). There is a side-panel editor and a Save button.\n\nEach item is either an **instruction** (the agent is told it) or a **step** (the agent does it). Steps are checked: the agent reports each step in its evidence, and the server holds the next action until the step is reported passed, as it does for the Definition of Done today.\n\n**Decisions the person made**\n- Conditionals belong to each folder. They are stored in that repository's `.darkmechanicus/conditionals/`, tracked in Git, and apply to every epic in that folder.\n- Steps are checked, not advisory.\n\n**Out of scope**\n- App-wide conditionals.\n- The app running commands itself (it still only records evidence).\n- Per-epic overrides.\n- Events beyond these five, such as pre-sprint or the checkpoint.\n- Workers, reviewers or orchestrators editing conditionals.",
+      "ownerRole": null,
+      "successCriteria": [
+        {
+          "id": "s1",
+          "text": "Every tracked, initialized folder shows a Conditionals group with five graphs: Pre-ticket, Post-ticket, Pre-epic, Post-epic and Draft. Each opens a graph view that looks and edits like an epic's plan graph, with item nodes, ordering edges, a side-panel editor and Save."
+        },
+        {
+          "id": "s2",
+          "text": "Conditionals are stored per folder as Git-tracked records under .darkmechanicus/conditionals/. They come back through reconcile on another machine, and a folder without them behaves exactly as today."
+        },
+        {
+          "id": "s3",
+          "text": "Every item is an instruction or a step, and each item reaches its agent at its event, in graph order: Pre-ticket and Post-ticket items in every execution packet, Pre-epic items when a run starts, Post-epic items at the final checkpoint, and Draft items whenever a plan draft is opened or read."
+        },
+        {
+          "id": "s4",
+          "text": "Checked steps hold the next action until they are reported passed: a ticket cannot be accepted without its Pre-ticket and Post-ticket steps, no ticket can be claimed before the Pre-epic steps, the epic cannot complete without the Post-epic steps, and a plan cannot be saved without the Draft steps."
+        },
+        {
+          "id": "s5",
+          "text": "Editing a conditional never changes work in flight. An attempt keeps the steps it was claimed with, and a run keeps the Pre-epic and Post-epic items it started with."
+        },
+        {
+          "id": "s6",
+          "text": "Only a person (in the desktop app) and a planner can change conditionals; every role can read them. The skills tell each role how to receive, follow and report them."
+        }
+      ],
+      "title": "Conditionals: per-folder instructions and checked steps for ticket, epic and draft events"
+    },
+    "formatVersion": 1,
+    "policies": {
+      "leaseSeconds": 900,
+      "maxConcurrency": null,
+      "onTicketFailure": "continue_independent",
+      "retryLimit": 3
+    },
+    "rationale": "**Decisions from the person (2026-10-04)**\n- Conditionals are per folder: they live in `.darkmechanicus/conditionals/`, are tracked in Git, and apply to every epic in that folder.\n- Steps are checked: the server holds the next action until each step is reported passed, the same pattern as the Definition of Done.\n\n**Planner assumptions** (open to change at review)\n- **Each event has one fixed audience:**\n  - Pre-ticket and Post-ticket go to the agent doing the ticket (the worker), on every ticket including acceptance nodes.\n  - Pre-epic and Post-epic go to the orchestrator.\n  - Draft goes to the planner.\n  - Per-ticket chores for the orchestrator (for example, creating a worktree) go in Pre-epic as instructions (\"for every ticket you claim, ...\").\n- **A step is reported under one check name:** `<Event label>: <item title>`, for example `Post-ticket: Run the targeted tests`. Titles are unique within a graph, ignoring case.\n- **Where each step is reported:**\n  - Ticket steps go in the attempt's `evidence.checks`.\n  - Pre-epic steps go through a new `report_conditional_steps` tool before the first claim.\n  - Post-epic steps go in the final sprint report's `checks`, behind a new `post_epic_steps` gate.\n  - Draft steps are reported to `save_plan`. In the desktop, the person ticks them before Save.\n- **Pinning:**\n  - An attempt captures its ticket steps at claim time.\n  - A run captures its Pre-epic and Post-epic items when it starts.\n  - Draft steps use the graph as it is at save time.\n- **Order:** an edge A -> B means A comes before B. Agents receive items in a stable topological order.\n- **Conditional item text is instructions from the repository owner.** It never overrides a role's permissions or the server's rules.\n- **Sidebar order follows the person's list:** Pre-ticket, Post-ticket, Pre-epic, Post-epic, Draft.\n\n**Graph shape**\n- **Sprint 1 (stored, edited, shown):** DM-107 (model) leads to DM-108 (storage), then DM-109 (commands and MCP), then DM-111 (sidebar). DM-110 (graph canvas) runs in parallel with DM-108 and DM-109. DM-112 (editor) joins DM-109, DM-110 and DM-111. DM-113 (Fireguard) requires all of them, and the acceptance node is DM-105.\n- **Sprint 2 (delivered and checked):** DM-114 (packet) leads to DM-115 (accept hold) and to DM-116 (Pre-epic). DM-116 leads to DM-117 (Post-epic gate). DM-118 (Draft) runs in parallel from DM-109. DM-119 (skills) joins DM-115, DM-116, DM-117 and DM-118. DM-120 (UI) joins DM-115, DM-116 and DM-117. DM-121 (Fireguard) requires all of them, and the acceptance node is DM-106.\n\n**Migrations:** DM-108 adds v8. In sprint 2, DM-114 and DM-116 each add one, in that order; the chain DM-114 -> DM-116 keeps the version numbers from colliding.\n\n**Related work**\n- The backlog epic \"Keep every tracked repository's agent instructions in sync with the app\" (DM-81 to DM-89) syncs fixed, app-versioned text into CLAUDE.md, AGENTS.md and `.claude/skills`. Conditionals are per-repository content that people write, delivered at events. Both epics bump `SKILLS_VERSION` by one minor version and add records under `.darkmechanicus/`; whichever lands second takes the next minor version and must keep the other's record out of reconcile.\n- The Agents epic (DM-56) adds an Agents block at the same spot in `FolderRow.tsx`, so the Conditionals group is kept as its own component (DM-111).",
+    "relations": [],
+    "sprints": [
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": null,
+        "entryCriteria": [],
+        "exitCriteria": [
+          {
+            "id": "e1",
+            "text": "Every initialized folder shows a Conditionals group after its epic buckets, listing the five graphs with their item counts."
+          },
+          {
+            "id": "e2",
+            "text": "A person can add instructions and steps, order them, edit them and save them. The record lands in .darkmechanicus/conditionals/<event>.json and comes back after a reconcile."
+          },
+          {
+            "id": "e3",
+            "text": "A planner can read and save conditionals over MCP; workers, reviewers and orchestrators can read them but not save."
+          }
+        ],
+        "goal": "Conditionals exist: each folder shows five conditional graphs that a person builds and saves like a plan graph, stored as Git-tracked records that agents can read and planners can save.",
+        "id": "sp_01m43p9xwa1jjxtcvzcfphhgkr",
+        "ordinal": 1,
+        "ticketIds": [
+          "tk_01m43paznfdaq1kw5qfarr9et6",
+          "tk_01m43pbh643hht81rs5nfxeh7h",
+          "tk_01m43pc0gwq1zr78kwypes1ev3",
+          "tk_01m43pcfj8sj0ns4qwc03y0vwr",
+          "tk_01m43pcy32bgmws1x1229r0b2a",
+          "tk_01m43pdb00bn5b3yjs5kh582w4",
+          "tk_01m43pdmdf92pt7r0xk6bdq84v",
+          "tk_01m43p9xwahk43a8ezw52183sy"
+        ]
+      },
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": null,
+        "entryCriteria": [],
+        "exitCriteria": [
+          {
+            "id": "e1",
+            "text": "Every execution packet carries the Pre-ticket and Post-ticket items in order, and a ticket cannot be accepted until its steps are reported passed."
+          },
+          {
+            "id": "e2",
+            "text": "No ticket can be claimed until the run's Pre-epic steps are reported, and the epic cannot complete until the Post-epic steps are reported in the final report."
+          },
+          {
+            "id": "e3",
+            "text": "Draft items reach the planner with the draft, and a plan cannot be saved until the Draft steps are reported (MCP) or ticked (desktop)."
+          },
+          {
+            "id": "e4",
+            "text": "The ticket panel, run bar and final checkpoint show which steps were asked for and reported, and the skills teach each role what to do."
+          }
+        ],
+        "goal": "Conditionals reach the right agent at each event, and checked steps hold the next action until they are reported passed.",
+        "id": "sp_01m43paf6vda4b4vv0ws7pmtj1",
+        "ordinal": 2,
+        "ticketIds": [
+          "tk_01m43pedhpjb1twtmpzvjdz4jf",
+          "tk_01m43perdzxhva7n9kyc45hm3w",
+          "tk_01m43pf6k7q75qarqnr9mb608d",
+          "tk_01m43pfq3nk0te40y99yjk01tt",
+          "tk_01m43pg79e0sxcbmtpk6566x5c",
+          "tk_01m43pgqpq2qcbdx8y4jgfxre5",
+          "tk_01m43phcm5q1e7vx1kt3d7my34",
+          "tk_01m43phcmw3yfrgccjyncb7vse",
+          "tk_01m43paf6vq6yawrk31c5a9gzj"
+        ]
+      }
+    ],
+    "tickets": [
+      {
+        "acceptanceCriteria": [
+          {
+            "covers": "tk_01m43paznfdaq1kw5qfarr9et6",
+            "id": "c1",
+            "text": "Over MCP in the scratch folder, saving a graph that has a cycle, a duplicate title (differing only in case) or 51 items is refused, and each problem is named."
+          },
+          {
+            "covers": "tk_01m43pbh643hht81rs5nfxeh7h",
+            "id": "c2",
+            "text": "A graph saved in the scratch folder appears as .darkmechanicus/conditionals/<event>.json. After deleting the scratch database and reconciling, the same items and order reload, and an unchanged re-export leaves the file byte-identical."
+          },
+          {
+            "covers": "tk_01m43pc0gwq1zr78kwypes1ev3",
+            "id": "c3",
+            "text": "In the scratch folder, a planner-role MCP session saves a Draft graph, while orchestrator-role and worker-role sessions are refused with unauthorized and can still read it."
+          },
+          {
+            "covers": "tk_01m43pcfj8sj0ns4qwc03y0vwr",
+            "id": "c4",
+            "text": "A screenshot of a graph with a header, instruction and step cards (each with its kind badge), and order edges laid out by depth."
+          },
+          {
+            "covers": "tk_01m43pcy32bgmws1x1229r0b2a",
+            "id": "c5",
+            "text": "A screenshot of the sidebar's Conditionals group under the scratch folder, with five graphs and counts that update after an MCP save without a reload."
+          },
+          {
+            "covers": "tk_01m43pdb00bn5b3yjs5kh582w4",
+            "id": "c6",
+            "text": "A Pre-ticket graph with three items and an order edge is built through the UI and saved, and its saved file matches what the screen shows."
+          },
+          {
+            "covers": "tk_01m43pdmdf92pt7r0xk6bdq84v",
+            "id": "c7",
+            "text": "The sprint 1 Fireguard ticket was accepted with no F grade."
+          },
+          {
+            "id": "c8",
+            "text": "The Definition of Done passes on the combined branch: lint, typecheck, test, coverage, deadcode and build."
+          },
+          {
+            "id": "c9",
+            "text": "Sprint 1 is one squashed commit on conditionals whose message lists DM-107 to DM-113."
+          }
+        ],
+        "body": "This is the planned final round for sprint 1, run once on the combined work.\n\n1. **Combine** every accepted sprint 1 ticket on the sprint integration branch.\n2. **Verify each item end to end** in a scratch repository (a temporary copy initialized with this branch's build), so the real `.darkmechanicus` is never touched:\n   - Build graphs in the desktop app and over MCP.\n   - Inspect the files under `.darkmechanicus/conditionals/`.\n   - Delete the scratch database and reconcile.\n   - Take the screenshots from the built app with an isolated profile.\n3. **Run the Definition of Done** on the combined branch. Take Fireguard's grade from DM-113, which must be accepted first; re-run it only if test files changed after that ticket.\n4. **Squash** the sprint into one commit on `conditionals`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "End-to-end verification in a scratch folder, screenshots, the full Definition of Done and the squash."
+          },
+          "skills": [
+            "typescript",
+            "testing",
+            "git"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m43p9xwahk43a8ezw52183sy",
+        "key": "DM-105",
+        "kind": "acceptance",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "tags": [],
+        "title": "Sprint 1 acceptance: build conditionals in a scratch folder, run the Definition of Done, land one commit"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "covers": "tk_01m43pedhpjb1twtmpzvjdz4jf",
+            "id": "c1",
+            "text": "In the scratch run, every claimed ticket's packet, the acceptance node's included, lists the Pre-ticket and Post-ticket items in graph order with their check names. Editing a graph mid-ticket does not change that attempt's required steps."
+          },
+          {
+            "covers": "tk_01m43perdzxhva7n9kyc45hm3w",
+            "id": "c2",
+            "text": "accept_attempt is refused with steps_unreported, naming the step, until the attempt reports it passed, and is then accepted."
+          },
+          {
+            "covers": "tk_01m43pf6k7q75qarqnr9mb608d",
+            "id": "c3",
+            "text": "After start_run, claim_ticket is refused with pre_epic_steps_unreported and get_ready_tickets shows the blocker; after report_conditional_steps, claims work."
+          },
+          {
+            "covers": "tk_01m43pfq3nk0te40y99yjk01tt",
+            "id": "c4",
+            "text": "At the final checkpoint, post_epic_steps blocks approval until the final report lists the Post-epic step passed, and the epic then completes."
+          },
+          {
+            "covers": "tk_01m43pg79e0sxcbmtpk6566x5c",
+            "id": "c5",
+            "text": "save_plan is refused with draft_steps_unreported until the Draft step is reported, and the desktop's Save stays disabled until it is ticked (screenshot)."
+          },
+          {
+            "covers": "tk_01m43pgqpq2qcbdx8y4jgfxre5",
+            "id": "c6",
+            "text": "The skills and docs match the behaviour verified above, and the built MCP server serves the skills unchanged."
+          },
+          {
+            "covers": "tk_01m43phcm5q1e7vx1kt3d7my34",
+            "id": "c7",
+            "text": "Screenshots from the scratch run show an attempt card's required steps, the run bar's Pre-epic chip and the final checkpoint's Post-epic section."
+          },
+          {
+            "covers": "tk_01m43phcmw3yfrgccjyncb7vse",
+            "id": "c8",
+            "text": "The sprint 2 Fireguard ticket was accepted with no F grade."
+          },
+          {
+            "id": "c9",
+            "text": "End to end: the scratch epic ran from drafting to completion with all five conditionals populated, and each epic success criterion (s1 to s6) is checked with a note."
+          },
+          {
+            "id": "c10",
+            "text": "The Definition of Done passes on the combined branch: lint, typecheck, test, coverage, deadcode and build."
+          },
+          {
+            "id": "c11",
+            "text": "Sprint 2 is one squashed commit on conditionals whose message lists DM-114 to DM-121."
+          }
+        ],
+        "body": "The final round for the epic.\n\n1. **Combine** every accepted sprint 2 ticket on the sprint integration branch.\n2. **Run a two-sprint scratch epic end to end** in a temporary copy of the repository, on a build of this branch, so the real `.darkmechanicus` is never touched.\n   - Before the scratch epic is drafted, populate all five graphs, each with at least one instruction and one step.\n   - Drive the epic from drafting, through both sprints and their checkpoints, to completion.\n   - At each event, confirm that the items arrive and that each step holds the next action until it is reported.\n3. **Verify each item** (one criterion per ticket below).\n4. **Check every epic success criterion** (s1 to s6), each with a note.\n5. **Run the Definition of Done** on the combined branch. Take Fireguard's grade from DM-121, which must be accepted first; re-run it only if test files changed after that ticket.\n6. **Squash** the sprint into one commit on `conditionals`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "End-to-end verification of every event across a two-sprint scratch epic, screenshots, the full Definition of Done and the squash."
+          },
+          "skills": [
+            "typescript",
+            "testing",
+            "git"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m43paf6vq6yawrk31c5a9gzj",
+        "key": "DM-106",
+        "kind": "acceptance",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "tags": [],
+        "title": "Sprint 2 acceptance: run a scratch epic through every conditional end to end, run the Definition of Done, land one commit"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "src/shared/domain/conditionals.ts exports the five events with their labels, audiences and descriptions, the two item kinds, and conditionalCheckName."
+          },
+          {
+            "id": "c2",
+            "text": "The edit ops apply all or nothing and report the failing op's index; remove_item also removes the item's edges."
+          },
+          {
+            "id": "c3",
+            "text": "validateConditional reports duplicate titles (ignoring case), unknown endpoints, self-edges, duplicate edges, cycles with their path, and limits exceeded."
+          },
+          {
+            "id": "c4",
+            "text": "orderedItems returns a stable topological order, breaking ties by item order."
+          },
+          {
+            "id": "c5",
+            "text": "The tests were written first; the touched tests, lint and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. Pure domain code with no storage and no UI. Every other ticket builds on these types.\n\n**Shared types**: add `src/shared/domain/conditionals.ts`.\n- `CONDITIONAL_EVENTS = ['pre_ticket', 'post_ticket', 'pre_epic', 'post_epic', 'draft'] as const` and the `ConditionalEvent` type.\n- For each event, a label, its audience, and a one-line description of when it fires:\n  - `pre_ticket`: Pre-ticket, worker, before starting each ticket.\n  - `post_ticket`: Post-ticket, worker, before submitting each ticket.\n  - `pre_epic`: Pre-epic, orchestrator, when a run starts, before the first claim.\n  - `post_epic`: Post-epic, orchestrator, at the final checkpoint, before the epic completes.\n  - `draft`: Draft, planner, while drafting a plan, before saving.\n- `ConditionalItemKind = 'instruction' | 'step'`.\n- `ConditionalItem { id, title, kind, body }`. `id` is a stable id with a new `ci` prefix registered in `src/core/ids.ts`; `body` is Markdown.\n- `ConditionalGraph { event, items, edges: { from, to }[] }`, where an edge means `from` comes before `to`.\n- `ConditionalView { event, graph, revision, updatedAt }`.\n- `conditionalCheckName(event, item)` returns `\"<Label>: <title>\"`, for example `Post-ticket: Run the targeted tests`. It is the exact name an agent reports a step under, so the packet, the gates and the skills agree on it. Match names with the same normalisation as `checkNameKey` in `src/core/definitionOfDone.ts:12`.\n\n**Schemas**: add zod schemas in `src/core/schemas.ts` as strict objects. Add limits to `LIMITS`: at most 50 items per graph, titles up to 200 characters, bodies up to 20,000 characters.\n\n**Edit ops**: add pure core in `src/core/conditionals/ops.ts`.\n- The ops are `add_item`, `update_item`, `remove_item` (which also drops the item's edges), `add_order` and `remove_order`.\n- They apply all or nothing on a clone and report `opIndex` on failure, like `applyDraftOps` (`src/core/plan/draftOps.ts:359-372`).\n- Ids are injected the way `DraftDeps` does it, so tests are deterministic.\n\n**Validation**: `validateConditional(graph)` returns errors for:\n- duplicate item ids;\n- unknown edge endpoints;\n- self-edges and duplicate edges;\n- cycles, reported as a path (reuse the cycle detection in `src/core/plan/graph.ts` if it fits);\n- titles duplicated ignoring case and surrounding spaces (step titles become check names, so they must be unique);\n- going over a limit.\n\n**Order**: `orderedItems(graph)` returns a stable topological order, breaking ties by position in `items`.\n\n**Out of scope**: storage, commands, MCP and UI.\n\n**Verify**: write the unit tests first, covering each op, each validation error, ordering with ties, and check names.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A new domain model with an op algebra, validation and a stable topological order that later tickets depend on."
+          },
+          "skills": [
+            "typescript",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/shared/domain/conditionals.ts",
+          "src/core/conditionals/ops.ts",
+          "src/core/conditionals/ops.test.ts"
+        ],
+        "id": "tk_01m43paznfdaq1kw5qfarr9et6",
+        "key": "DM-107",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Draft ops pattern",
+            "location": "src/core/plan/draftOps.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Plan graph validation and cycles",
+            "location": "src/core/plan/graph.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Check-name normalisation",
+            "location": "src/core/definitionOfDone.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "core",
+          "conditionals",
+          "domain"
+        ],
+        "title": "Define the conditional graph model, its edits and its validation"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Migration v8 adds the conditionals table and the conditional kind to outbox and sync_state, and a migration test from a v7 database keeps every existing row."
+          },
+          {
+            "id": "c2",
+            "text": "Saving a graph writes .darkmechanicus/conditionals/<event>.json through the outbox, and re-exporting an unchanged graph leaves the file byte-identical."
+          },
+          {
+            "id": "c3",
+            "text": "Reconcile imports conditionals changed in Git; when the local copy has unexported edits, the file is reported as a conflict and the local copy is kept."
+          },
+          {
+            "id": "c4",
+            "text": "A repository without a conditionals folder reads five empty graphs at revision 0, and initialize creates the folder."
+          },
+          {
+            "id": "c5",
+            "text": "The tests were written first; the touched tests, lint and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**, with **deep** reasoning, because it rebuilds two tables' CHECK constraints in a migration and adds import conflict handling. Profiles are the closest analog end to end: follow `src/core/services/profiles.ts`, `src/core/repo/profileImport.ts` and the profile handler in `src/core/repo/finalizer.ts:262-267`. Use the types and `validateConditional` from DM-107.\n\n**Migration v8** in `src/core/db/migrations.ts` (`SCHEMA_VERSION` goes from 7 to 8):\n- Add the table `conditionals(event TEXT PRIMARY KEY CHECK (event IN ('pre_ticket','post_ticket','pre_epic','post_epic','draft')), graph_json TEXT NOT NULL, revision INTEGER NOT NULL, created_at, updated_at)`.\n- Add `'conditional'` to the kind CHECK lists of `outbox` (around lines 252-270) and `sync_state` (around lines 273-286). Changing a CHECK means rebuilding the table, as V2 did; keep every existing row.\n\n**Portable record** in `src/core/repo/portable.ts`:\n- `conditionalRecord` is a strict object: `{ format: 'darkmechanicus.conditional', formatVersion: 1, event, items, edges }`.\n- Its schema is DM-107's schema, and it must also pass `validateConditional`.\n- Add `buildConditionalRecord` (validated through `exportable`, as at lines 469-475) and a tracked hash for change detection.\n\n**Files**:\n- One file per event: `.darkmechanicus/conditionals/pre-ticket.json`, `post-ticket.json`, `pre-epic.json`, `post-epic.json` and `draft.json`.\n- Add them to `ownedPaths` (`src/core/repo/paths.ts:47-66`) and to `resolveLayout` (`src/core/repo/layout.ts`).\n- `createLayout` (`src/core/repo/initialize.ts:87-97`) creates `conditionals/`.\n- Once a graph has been saved, its file stays, even when the graph is emptied, so Git keeps its history.\n\n**Writing**:\n- Add the outbox kind `conditional` (`src/core/services/outbox.ts`) and a finalizer handler that writes through `writeFileSafely`.\n- Re-exporting an unchanged graph leaves the file byte-identical.\n\n**Import** (beside `scanProfiles` and `applyProfiles`):\n- `scanConditionals` and `applyConditionals` read at most 5 files of up to 256 KiB each.\n- If a tracked file changed while the local copy has unexported changes, that is a conflict: keep the local copy and report it in `get_storage_status`, as profiles do.\n- Ignore any file name in the folder that is not one of the five.\n\n**Missing folder**: a repository with no `conditionals/` folder reads every event as an empty graph at revision 0 and otherwise behaves exactly as today.\n\n**Docs**: document the new folder in the storage tree in `docs/architecture.md`.\n\n**Out of scope**: the service, commands and MCP tools that read and save conditionals (DM-109), and all UI.\n\n**Verify**: write these tests first:\n- a migration test from a v7 database with rows in `outbox` and `sync_state`;\n- a record round trip (export, then import, byte-identical);\n- the import conflict case;\n- a missing folder;\n- initialize creating the folder.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "deep",
+            "rationale": "A data migration that rebuilds CHECK-constrained tables, plus import conflict rules; a wrong call loses tracked records."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "sqlite",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/db/migrations.ts (v8)",
+          "src/core/repo/conditionalImport.ts",
+          ".darkmechanicus/conditionals/ layout"
+        ],
+        "id": "tk_01m43pbh643hht81rs5nfxeh7h",
+        "key": "DM-108",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Profiles service (analog)",
+            "location": "src/core/services/profiles.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Profile import (analog)",
+            "location": "src/core/repo/profileImport.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Portable records",
+            "location": "src/core/repo/portable.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Finalizer and outbox handlers",
+            "location": "src/core/repo/finalizer.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Migrations",
+            "location": "src/core/db/migrations.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "core",
+          "conditionals",
+          "storage",
+          "migration"
+        ],
+        "title": "Store conditionals per folder as Git-tracked records"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "list_conditionals returns all five events in order, each with its revision and its item and step counts, empty graphs included."
+          },
+          {
+            "id": "c2",
+            "text": "save_conditional with a stale expectedRevision fails with conflict and changes nothing; an invalid graph fails with invalid_input naming the problem; both graph and ops input save the same result."
+          },
+          {
+            "id": "c3",
+            "text": "Only the planner role and the desktop can save; worker, reviewer and orchestrator sessions get unauthorized, and every role can read."
+          },
+          {
+            "id": "c4",
+            "text": "Each save records a conditional.saved event and queues the record for writing."
+          },
+          {
+            "id": "c5",
+            "text": "The tests were written first; the touched tests, lint and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. It follows the profile pattern across the service, command, desktop and MCP layers, using DM-107's model and DM-108's storage.\n\n**Service** (`src/core/services/conditionals.ts`):\n- `listConditionals()` needs `read`. It returns all five `ConditionalView`s in event order, empty graphs included, each with its revision and its item and step counts.\n- `getConditional({ event })` needs `read`.\n- `saveConditional({ event, graph, expectedRevision })`:\n  - Requires `conditionals.write` and calls `ctx.assertBranch()`.\n  - Uses an optimistic revision like `writeProfile` (`src/core/services/profiles.ts:104-129`): a missing graph counts as revision 0, a create expects 0, and a stale revision fails with `conflict` and changes nothing.\n  - Validates with `validateConditional`; an invalid graph fails with `invalid_input` listing the issues.\n  - Records the event `conditional.saved { event, revision }` (with `epicId: null`, so the folder's event feed refreshes), enqueues the outbox entry, and supports an `idempotencyKey`.\n- `editConditional({ event, ops, expectedRevision })` applies DM-107's ops to the current graph, then saves the result the same way. The desktop editor and agents send ops.\n\n**Authorization** (`src/core/authz.ts`):\n- Add the capability `conditionals.write`, held only by the **planner** role and the **desktop**.\n- Every role can read; workers, reviewers and orchestrators cannot write.\n\n**Wiring**:\n- Command handlers.\n- `COMMAND_CAPABILITIES` (`src/core/commands/capabilities.ts`; a missing entry is a compile error).\n- `src/core/commandSchemas.ts`.\n- `DESKTOP_COMMANDS` (`src/shared/desktop/api.ts:89-146`).\n- The `CommandApi` types and `src/test/stubApi.ts`.\n\n**MCP** (`src/mcp/tools/conditionals.ts`):\n- `list_conditionals`, `get_conditional`, and `save_conditional`, which takes either `graph` or `ops`, plus `expectedRevision`.\n- Write the descriptions in plain words: what each event is, who receives it, and that a step is reported under `<Label>: <title>`.\n- Update `src/mcp/server.test.ts` (the tool list and role access) and the schema fingerprints in `src/mcp/validation.test.ts`.\n\n**Out of scope**: delivering conditionals to agents (sprint 2) and all UI.\n\n**Verify**: write the tests first:\n- service tests for create, replace, ops, a stale revision, an invalid graph, an unauthorized role, and the event;\n- MCP tests for each tool and each role's access.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Follows the profile pattern but spans service, authorization, desktop allow-list and MCP layers that must agree."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/services/conditionals.ts",
+          "src/mcp/tools/conditionals.ts"
+        ],
+        "id": "tk_01m43pc0gwq1zr78kwypes1ev3",
+        "key": "DM-109",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Profiles service (pattern)",
+            "location": "src/core/services/profiles.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Profile MCP tools (pattern)",
+            "location": "src/mcp/tools/profiles.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Role capabilities",
+            "location": "src/core/authz.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Desktop command allow-list",
+            "location": "src/shared/desktop/api.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "core",
+          "conditionals",
+          "mcp",
+          "authz"
+        ],
+        "title": "Read and save conditionals through commands and MCP tools"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "buildConditionalGraphModel places items in rows by order depth, draws one edge per order, and shows a header with the event, its audience, and the counts of items and steps."
+          },
+          {
+            "id": "c2",
+            "text": "Instruction and step cards are told apart by a kind badge, styled with theme tokens only."
+          },
+          {
+            "id": "c3",
+            "text": "An empty graph renders an empty state that invites adding the first item."
+          },
+          {
+            "id": "c4",
+            "text": "PlanGraph renders an item graph with click, connect and delete-edge callbacks, and the existing epic graph tests pass unchanged."
+          },
+          {
+            "id": "c5",
+            "text": "The tests were written first; the touched tests, lint and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. A conditional graph should look like an epic's plan graph. The epic graph model needs sprints, though: `layoutSprints` (`src/renderer/src/graph/graphModel.ts:398-412`) places only ticket ids listed in a sprint, so a ticket outside any sprint is not drawn. The task here is to draw a graph that has no sprints, without changing the epic graph.\n\n**Pure model**: add `src/renderer/src/conditionals/conditionalGraphModel.ts` with `buildConditionalGraphModel(graph)`. It returns a `GraphModel` (`graphModel.ts:179-183`) that `PlanGraph` can render:\n- **Header node** in place of the epic node: the event label (for example \"PRE-TICKET\"), who receives it and when (DM-107's descriptions), and `N items · M steps`.\n- **One band with no sprint label.** Items sit in rows by order depth: an item with no predecessor is in row 1, and every other item is one row below its deepest predecessor. Within a row, items keep their order in `items`.\n- **One edge per order**, from `from` to `to`.\n- **An empty graph** shows an empty state that invites adding the first item.\n\n**Item card**: reuse the ticket card's look (`src/renderer/src/graph/nodes.tsx`, `TicketNode`).\n- Show the title and a kind badge: INSTRUCTION or STEP.\n- Make steps visually distinct with theme tokens only, for example a brass edge. Use no raw colours.\n- Either add an `item` node type to `NODE_TYPES` (`nodes.tsx:140-147`) or extend the ticket node with a kind. Whichever you choose, the epic graph's output must not change.\n\n**Interactions**: the existing `PlanGraph` handlers (`src/renderer/src/graph/PlanGraph.tsx:77-103`) must work on items: click to select, connect, and delete an edge. Wiring those callbacks to edits is DM-112.\n\n**Out of scope**: storage, the sidebar (DM-111) and the editor panel (DM-112).\n\n**Verify**:\n- Write model tests first: rows by depth with ties, edges, header counts, and the empty state.\n- Add a `PlanGraph` component test with an item graph.\n- Every existing graph test passes unchanged.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Generalises a sprint-bound graph layout to a sprintless one without changing the epic graph's output."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/conditionals/conditionalGraphModel.ts",
+          "src/renderer/src/conditionals/conditionalGraphModel.test.ts"
+        ],
+        "id": "tk_01m43pcfj8sj0ns4qwc03y0vwr",
+        "key": "DM-110",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Epic graph model",
+            "location": "src/renderer/src/graph/graphModel.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Graph canvas",
+            "location": "src/renderer/src/graph/PlanGraph.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Graph nodes",
+            "location": "src/renderer/src/graph/nodes.tsx",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "ui",
+          "graph",
+          "conditionals"
+        ],
+        "title": "Draw a conditional graph on the plan graph canvas"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Every initialized, available folder shows a Conditionals group after its epic buckets, with the five graphs in order (Pre-ticket, Post-ticket, Pre-epic, Post-epic, Draft) and their item counts."
+          },
+          {
+            "id": "c2",
+            "text": "Selecting a graph opens its view, and the selection survives a reload; a stored selection for an unknown event falls back to the folder home."
+          },
+          {
+            "id": "c3",
+            "text": "Counts refresh after a save made over MCP, without a manual reload."
+          },
+          {
+            "id": "c4",
+            "text": "A screenshot shows the sidebar with the group expanded."
+          },
+          {
+            "id": "c5",
+            "text": "The tests were written first; the touched tests, lint and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. It adds the Conditionals group to the sidebar and makes a graph selectable. The graph view itself is DM-112; until it lands, the main pane shows a placeholder for the selected graph.\n\n**Group**:\n- In `src/renderer/src/sidebar/FolderRow.tsx` `Buckets()` (lines 101-122), after the epic buckets, add a collapsible **Conditionals** group that looks like `BucketGroup` (`BucketGroup.tsx`).\n- It holds five rows in this order: **Pre-ticket, Post-ticket, Pre-epic, Post-epic, Draft**. Each row shows its item count; a step count is optional.\n- Only initialized, available folders show it; `FolderBody` (lines 124-145) already limits that spot.\n- Build it as its own component (for example `ConditionalsGroup.tsx`). The backlog Agents epic (DM-56) adds an Agents block at the same insertion point, and both must fit.\n\n**Expansion**:\n- `bucketKey` and `Expansion` are typed on `WorkStatus` (`expansion.ts:19`, `useExpansion.ts:15-24`). Widen them, or add a key function, so the group's collapsed state persists in `dm.sidebar.expanded`.\n- The group starts collapsed.\n\n**Selection and view**:\n- `Selection` (`src/renderer/src/app/selection.ts:4-21`) gains a conditional variant `{ folderPath, conditional: ConditionalEvent }`. Update `isSelection` and `resolveSelection` (line 34).\n- `MainView` and `chooseView` (`src/renderer/src/app/chooseView.ts:4-34`) gain `conditional`. `App.tsx` `MainPane`/`FolderPane` (lines 70-117) render the placeholder for now.\n- The selection persists in `dm.selection`. A stored selection with an unknown event, or for a folder that is not initialized, falls back to the folder home.\n\n**Data**:\n- Add a `useConditionalLists` hook like `useEpicLists` (`src/renderer/src/app/useEpicLists.ts:53-89`). It calls `listConditionals` (DM-109) for active folders and refetches when the folder's event token changes. A `conditional.saved` event bumps that token, so a save from MCP shows up without a reload.\n\n**Out of scope**: the graph view and editor (DM-112).\n\n**Verify**:\n- Write the component and view tests first: the group with its counts, selecting a row, persistence and fallback, and a refresh after a save event.\n- Take a screenshot of the sidebar with the group expanded, from the built app with an isolated profile.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Extends the sidebar, expansion, selection and main-view types consistently and wires a refreshing list hook."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/sidebar/ConditionalsGroup.tsx",
+          "src/renderer/src/app/useConditionalLists.ts"
+        ],
+        "id": "tk_01m43pcy32bgmws1x1229r0b2a",
+        "key": "DM-111",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Folder row and buckets",
+            "location": "src/renderer/src/sidebar/FolderRow.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Selection",
+            "location": "src/renderer/src/app/selection.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Main view chooser",
+            "location": "src/renderer/src/app/chooseView.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Epic list hook (pattern)",
+            "location": "src/renderer/src/app/useEpicLists.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "ui",
+          "sidebar",
+          "conditionals"
+        ],
+        "title": "Add a Conditionals group under each folder in the sidebar"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A person can add instructions and steps, order them by connecting, edit and remove them, and see validation problems before saving; Save is disabled while there are errors."
+          },
+          {
+            "id": "c2",
+            "text": "Save writes the graph at the next revision; a stale revision shows a conflict message, keeps the unsaved changes and offers Reload."
+          },
+          {
+            "id": "c3",
+            "text": "The side panel shows a step's exact check name."
+          },
+          {
+            "id": "c4",
+            "text": "Screenshots show a Pre-ticket graph with at least three items and an order edge, and the item editor."
+          },
+          {
+            "id": "c5",
+            "text": "The tests were written first; the touched tests, lint and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. It replaces DM-111's placeholder with the real view, so a person can build a conditional graph the way they edit an epic's plan.\n\n**`ConditionalWorkspace`** (`src/renderer/src/conditionals/`), the main pane for `{ folderPath, conditional }`:\n- **Header**:\n  - the event label;\n  - who receives the graph and when (DM-107's descriptions);\n  - the revision;\n  - a dirty marker while there are unsaved changes.\n- **Buttons**: `+ Instruction`, `+ Step`, `Discard changes` and `Save rev N`.\n- **Canvas**: DM-110's `buildConditionalGraphModel` rendered through `PlanGraph`, editable:\n  - connecting two items adds an order (`add_order`);\n  - deleting an edge removes it (`remove_order`);\n  - clicking an item opens the side panel.\n- **Side panel**:\n  - fields: title, kind (instruction or step) and body (Markdown, with a preview like the ticket panel's);\n  - a Remove button;\n  - for a step, the exact check name the agent will report (`conditionalCheckName`).\n- **Editing model**: edits gather locally as DM-107 ops on top of the loaded graph.\n  - `validateConditional` runs live, and problems show the way `ValidationPanel` shows them (`src/renderer/src/epic/ValidationPanel.tsx`). Save is disabled while there are errors.\n  - Save sends `editConditional` (DM-109) with `expectedRevision`.\n  - On `conflict`, say that someone else saved this graph, keep the unsaved changes, and offer Reload.\n  - Discard drops the local ops.\n- **Styling**: theme tokens only, consistent with `EpicWorkspace`.\n\n**Out of scope**: delivering conditionals to agents (sprint 2).\n\n**Verify**:\n- Write the component tests first: add an instruction and a step, connect, edit, remove, a validation error that blocks Save, Save, and a conflict.\n- Take screenshots from the built app with an isolated profile:\n  - a Pre-ticket graph with at least three items and an order edge;\n  - the item editor.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A new editable workspace combining a graph canvas, a side-panel editor, live validation and optimistic saves."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/conditionals/ConditionalWorkspace.tsx"
+        ],
+        "id": "tk_01m43pdb00bn5b3yjs5kh582w4",
+        "key": "DM-112",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Epic workspace (pattern)",
+            "location": "src/renderer/src/epic/EpicWorkspace.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Workspace actions (pattern)",
+            "location": "src/renderer/src/epic/workspaceActions.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Validation panel (pattern)",
+            "location": "src/renderer/src/epic/ValidationPanel.tsx",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "ui",
+          "conditionals",
+          "editor"
+        ],
+        "title": "Build and save a conditional graph in its own view"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Fireguard ran on the combined sprint 1 branch with FIREGUARD_BASE_REF set to the sprint's start commit, and graded every unit test added or modified in sprint 1; the graded file list is in the evidence."
+          },
+          {
+            "id": "c2",
+            "text": "The final grade is not F, and the letter grade and score are in the evidence."
+          },
+          {
+            "id": "c3",
+            "text": "Every test graded F was rewritten and re-graded with no production code changed; this ticket's diff touches only test files, or nothing if no test was graded F."
+          }
+        ],
+        "body": "Size: **small**. This is sprint 1's only Fireguard run. Fireguard is slow (100x flake isolation plus mutation), so no other ticket in the sprint runs it. The sprint's acceptance node takes Fireguard's grade from this ticket.\n\n1. **Wait** until every other sprint 1 work ticket (DM-107 to DM-112) is accepted and merged onto the sprint integration branch. That branch was cut from `conditionals` when the sprint started.\n2. **Grade** with `npm run fireguard -- --json` on that branch, with `FIREGUARD_BASE_REF` set to the sprint's start commit.\n   - Fireguard grades only committed changes, so run it on the combined, committed work.\n   - On Windows, also set `FIREGUARD_TEST_COMMAND=\"node node_modules/vitest/vitest.mjs run\"`.\n   - Use `--json` so one run lists every mutation survivor.\n   - Heartbeat every 5-10 minutes while it runs.\n3. **Fix any F**: rewrite each test graded F and re-grade until nothing is F.\n   - Never change production code to raise a grade.\n   - If a finding points at a real bug in production code, fail the attempt with the finding, so the orchestrator can send it back to the ticket that owns that code.\n4. **Record** in the evidence: the letter grade, the score, the list of graded files (it must match the sprint's changed test files), and each finding.\n\n**Out of scope**: lint, typecheck, the full test suite, deadcode and build. The acceptance node runs those once.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": "low",
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "multi_step",
+            "rationale": "Running fireguard is mechanical, but rewriting a test graded F takes judgement about what it should assert."
+          },
+          "skills": [
+            "typescript",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [
+          "Fireguard report for sprint 1 (grade, score, graded files, findings) in the attempt evidence"
+        ],
+        "id": "tk_01m43pdmdf92pt7r0xk6bdq84v",
+        "key": "DM-113",
+        "optional": false,
+        "priority": "high",
+        "references": [],
+        "size": "small",
+        "tags": [
+          "fireguard",
+          "testing"
+        ],
+        "title": "Sprint 1 fireguard: grade the sprint's new unit tests and fix any F"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Every claim's packet lists the Pre-ticket and Post-ticket items in graph order, each with its kind, body and check name; empty graphs give empty lists."
+          },
+          {
+            "id": "c2",
+            "text": "When there is at least one item, reporting.instructions tells the worker when to do the steps and how to report them."
+          },
+          {
+            "id": "c3",
+            "text": "The attempt keeps the step names it was claimed with; saving the graph afterwards does not change them, and carry-forward attempts capture none."
+          },
+          {
+            "id": "c4",
+            "text": "An acceptance node's packet carries both the Definition of Done and the conditionals."
+          },
+          {
+            "id": "c5",
+            "text": "The tests were written first; the touched tests, lint and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. The packet is where the agent doing a ticket hears about the repository's Pre-ticket and Post-ticket conditionals. Read them through DM-109's service.\n\n**Packet** (`executionPacket`, `src/core/services/attempts.ts:294-320`):\n- Add `conditionals: { preTicket: PacketConditionalItem[], postTicket: PacketConditionalItem[] }` for every ticket kind, acceptance nodes included. Each item is `{ title, kind, body, checkName }`, in `orderedItems` order.\n- Empty graphs give empty lists.\n- Add the type to `ExecutionPacket` (`src/shared/domain/views.ts:574-607`).\n\n**Reporting text**:\n- Append to `reporting.instructions` the way `definitionOfDonePart` does it (`attempts.ts:283-292`).\n- Say: do the Pre-ticket steps before starting work; do the Post-ticket steps before submitting; follow the instructions throughout; report each step in `evidence.checks` under its exact `checkName`, as passed, failed or skipped.\n- Only add the text when there is at least one item.\n- Conditional text comes from the repository's owner, but it never overrides a role's permissions or the server's rules. Keep the packet's existing wording that ticket content is task data.\n\n**Capture at claim time**:\n- A later edit to a graph must not change what an attempt in flight has to report.\n- Add a migration (the next schema version after v8, from DM-108) with an `attempts.conditional_steps_json` column. It stores the step check names of both graphs, plus the content hash of each graph as claimed.\n- Expose it on `AttemptView` as `requiredSteps: { checkName, event }[]`.\n- Attempts claimed before this feature have none.\n- A carry-forward attempt captures nothing, because it runs no worker.\n\n**Out of scope**: holding acceptance (DM-115) and UI (DM-120).\n\n**Verify**: write the tests first:\n- packets with an empty graph, an instructions-only graph, and a graph with steps;\n- ordering;\n- an acceptance node's packet carrying the Definition of Done and the conditionals together;\n- capture surviving a later save;\n- a migration test from v8 with existing attempts.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Changes the claim packet and attempt records, with a migration and capture semantics that later gates rely on."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "sqlite",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m43pedhpjb1twtmpzvjdz4jf",
+        "key": "DM-114",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Packet builder",
+            "location": "src/core/services/attempts.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "ExecutionPacket type",
+            "location": "src/shared/domain/views.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "core",
+          "conditionals",
+          "packet",
+          "migration"
+        ],
+        "title": "Give the worker the Pre-ticket and Post-ticket items in every execution packet"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "accept_attempt and the desktop accept refuse with steps_unreported while any captured step is missing, failed or skipped, and each such step is named with its reason."
+          },
+          {
+            "id": "c2",
+            "text": "Once every captured step is reported passed, acceptance works as before."
+          },
+          {
+            "id": "c3",
+            "text": "Attempts with no captured steps (old attempts and carry-forwards) accept as before, and reject and fail are unaffected."
+          },
+          {
+            "id": "c4",
+            "text": "The tests were written first; the touched tests, lint and typecheck pass."
+          }
+        ],
+        "body": "Size: **small**: one coherent change in the attempt service, with one hard part, its interaction with existing review paths.\n\n**The rule**:\n- `acceptAttempt` (`src/core/services/attempts.ts:533-555`) refuses with a new error code `steps_unreported` unless every step captured on the attempt (DM-114's `requiredSteps`) is reported `passed` in the attempt's submitted `evidence.checks`.\n- Names match with the Definition of Done's normalisation: `checkNameKey` and `unmetChecks` in `src/core/definitionOfDone.ts`.\n- The error's `details.steps` lists each missing or failed step with its reason: `not reported`, `failed` or `skipped`.\n\n**Scope of the rule**:\n- It applies the same way to MCP `accept_attempt` and the desktop accept.\n- `reject_attempt`, `fail_attempt` and reconcile are unaffected.\n- An attempt with no captured steps (claimed before this feature, or from a carry-forward) accepts as before.\n\n**Wiring**: add the code to the domain error codes and to the MCP error mapping, so `server.test.ts`'s vocabulary knows it. Update the `accept_attempt` tool description in one sentence.\n\n**Out of scope**: showing the steps in the ticket panel (DM-120).\n\n**Verify**: write the tests first:\n- an attempt is accepted when every step passed;\n- it is refused when one step is missing, failed or skipped, naming that step;\n- carry-forward attempts and attempts without captured steps are unaffected;\n- the MCP accept_attempt error carries the details.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Small change, but it gates acceptance, so its interaction with carry-forward, old attempts and both review paths must be exact."
+          },
+          "skills": [
+            "typescript",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m43perdzxhva7n9kyc45hm3w",
+        "key": "DM-115",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Attempt review",
+            "location": "src/core/services/attempts.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Check-name matching",
+            "location": "src/core/definitionOfDone.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "core",
+          "conditionals",
+          "review"
+        ],
+        "title": "Hold acceptance until a ticket's steps are reported passed"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "start_run and get_run show the run's Pre-epic and Post-epic items, captured when the run started; later edits do not change them."
+          },
+          {
+            "id": "c2",
+            "text": "While a Pre-epic step is unreported, claim_ticket fails with pre_epic_steps_unreported naming it, and get_ready_tickets shows the pre_epic_steps blocker."
+          },
+          {
+            "id": "c3",
+            "text": "report_conditional_steps records the steps, and once every one is passed, claims work."
+          },
+          {
+            "id": "c4",
+            "text": "A run without Pre-epic steps, and a run started before this feature, behave exactly as today."
+          },
+          {
+            "id": "c5",
+            "text": "The tests were written first; the touched tests, lint and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. It requires DM-114 so the two migrations land in order: this ticket adds the version after DM-114's.\n\n**Capture when a run starts**:\n- In `startRun` (`src/core/services/runs.ts:295-314`, at `activateRun`), capture the current Pre-epic and Post-epic graphs onto the run.\n- Store them in a new `runs.conditionals_json` column: the items in order and each graph's content hash.\n- Edits after the start never change a run.\n- A run started before this feature has nothing captured and behaves as today.\n- A queued run picked up by `start_run` captures at pickup.\n\n**Show them**:\n- `RunView` (`src/shared/domain/views.ts:526-555`) gains `conditionals: { preEpic: items, postEpic: items, preEpicSteps: { checkName, status }[] }`.\n- `start_run` and `get_run` return it, so the orchestrator reads its Pre-epic instructions and steps at the start.\n\n**Report the steps**:\n- New command and MCP tool `report_conditional_steps { runId, event: 'pre_epic', checks: [{ name, status, detail }] }` for the orchestrator (capability `run.control`).\n- It stores the latest result per step on the run, records the event `run.conditional_steps_reported`, and may be called again to update.\n- Allow only `pre_epic` here. Post-epic steps are reported in the final sprint report (DM-117).\n\n**Hold claims**:\n- `claimTicket` (`src/core/services/attempts.ts:363-376`) refuses with a new code `pre_epic_steps_unreported` while any captured Pre-epic step is not reported `passed`, naming each one.\n- `get_ready_tickets` (`src/core/plan/readiness.ts` and the readiness service) shows a blocker `pre_epic_steps` on every ready ticket until then.\n- With no Pre-epic steps, nothing changes.\n\n**Wiring**: command capabilities, schemas, the MCP tool and its description, `server.test.ts` (tool list and vocabulary) and `validation.test.ts` fingerprints. The desktop needs no new command.\n\n**Out of scope**: the Post-epic gate (DM-117) and UI (DM-120).\n\n**Verify**: write the tests first:\n- capture at start and at pickup;\n- later edits do not change the run;\n- a claim is refused, then allowed after the report;\n- readiness shows the blocker;\n- a run with no steps, and an old run, behave as today;\n- a migration test.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Adds run capture with a migration, a new reporting tool, and a claim gate that readiness must mirror."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "sqlite",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m43pf6k7q75qarqnr9mb608d",
+        "key": "DM-116",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Runs service",
+            "location": "src/core/services/runs.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Readiness",
+            "location": "src/core/plan/readiness.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Execution MCP tools",
+            "location": "src/mcp/tools/execution.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "core",
+          "conditionals",
+          "runs",
+          "migration"
+        ],
+        "title": "Give the orchestrator the Pre-epic items when a run starts, and hold claims until its steps are reported"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "On the final sprint, post_epic_steps is unmet until the latest report lists every captured Post-epic step as passed, and its detail names the missing ones."
+          },
+          {
+            "id": "c2",
+            "text": "Approval and advancing are blocked while it is unmet, and the epic completes once it is met."
+          },
+          {
+            "id": "c3",
+            "text": "Non-final sprints and runs without Post-epic steps show no such gate; get_checkpoint on the final sprint lists the Post-epic items."
+          },
+          {
+            "id": "c4",
+            "text": "The tests were written first; the touched tests, lint and typecheck pass."
+          }
+        ],
+        "body": "Size: **small**: one new gate condition in the checkpoint service. It reads the Post-epic items that DM-116 captured on the run.\n\n**The gate**:\n- Add `post_epic_steps` to `GateConditionId` and to `evaluate` in `src/core/services/checkpoints.ts` (around lines 405-425).\n- It exists only on the final sprint and only when the run captured at least one Post-epic step. It sits after `epic_outcome` and before `plan_current`.\n- It is met when the latest report revision for the final sprint lists every captured Post-epic step as `passed` in its `checks`, under the step's check name (`Post-epic: <title>`), using the same name matching as the Definition of Done.\n- Its detail names each missing or failed step.\n- Because it is a gate, approval, `advance_sprint` under the auto policy, and `approveWithRedraft`'s recompute step all respect it.\n- A redraft that adds a sprint after the final one moves the gate to the new final sprint, because the gate always follows whichever sprint is final.\n\n**Show the items**: `get_checkpoint` on the final sprint lists the captured Post-epic items (instructions and steps) under a `conditionals.postEpic` field. The orchestrator then sees them before it writes the final report.\n\n**Wiring**:\n- Update `server.test.ts`'s `GATE_CONDITIONS`.\n- Add a gate label in the renderer gate view (`src/renderer/src/checkpoint/gateView.ts`), so the gate list reads well. Further UI is DM-120.\n- Update the `get_checkpoint` description.\n\n**Out of scope**: Pre-epic (DM-116) and UI beyond the label.\n\n**Verify**: write the tests first:\n- the gate is absent on non-final sprints and when there are no Post-epic steps;\n- it is unmet with no report, with the step missing, and with the step failed;\n- it is met when reported passed;\n- approval is blocked while it is unmet;\n- `get_checkpoint` lists the items.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "multi_step",
+            "rationale": "One gate condition following the Definition of Done gate's pattern, plus its listing on the final checkpoint."
+          },
+          "skills": [
+            "typescript",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m43pfq3nk0te40y99yjk01tt",
+        "key": "DM-117",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Checkpoint gates",
+            "location": "src/core/services/checkpoints.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Definition of Done gate (pattern)",
+            "location": "src/core/definitionOfDone.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "core",
+          "conditionals",
+          "checkpoint"
+        ],
+        "title": "Hold the epic's completion until the Post-epic steps are reported"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "create_epic, open_plan_draft and get_plan with view draft return the Draft items in graph order, and draft edits report which Draft steps are still pending."
+          },
+          {
+            "id": "c2",
+            "text": "save_plan fails with draft_steps_unreported, naming each step, until every current Draft step is reported passed, and then saves."
+          },
+          {
+            "id": "c3",
+            "text": "In the desktop, Save and Approve retro & redraft stay disabled until each Draft step is ticked (screenshot)."
+          },
+          {
+            "id": "c4",
+            "text": "A repository with no Draft steps saves exactly as today."
+          },
+          {
+            "id": "c5",
+            "text": "The tests were written first; the touched tests, lint and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. Draft conditionals are the repository's planning-mode rules. A planner must see them while drafting, and a plan cannot be saved until the Draft steps are reported. Read them through DM-109's service.\n\n**Deliver**:\n- These results carry `conditionals.draft`, the current Draft items in `orderedItems` order, each with its check name:\n  - `create_epic`;\n  - `open_plan_draft`;\n  - `get_plan` with `view: \"draft\"` (`src/core/services/plans.ts:184-217`; add an optional field to the draft `PlanView`);\n  - `create_ticket` and `update_plan_draft`. Return a short `draftStepsPending` list rather than the full items, so a planner knows before Save what remains.\n- With no Draft items, the fields are empty, and the results otherwise stay as they are.\n\n**Hold Save over MCP**:\n- `save_plan` takes `steps: [{ name, status, detail }]`.\n- `requestSave` (`plans.ts:303-313`) refuses with a new code `draft_steps_unreported` unless every current Draft step is reported `passed`, naming each missing or failed one. It uses the Draft graph as it is at save time.\n- The reported steps go in the `plan.save_requested` / `plan.saved` event payload.\n\n**Hold Save in the desktop**:\n- The person attests, by ticking each Draft step before saving.\n- Show the Draft items in the draft view (`ValidationPanel`, `src/renderer/src/epic/ValidationPanel.tsx`, or the draft header): instructions as a list, and steps as checkboxes labelled with their check names.\n- \"Save rev N\" and the header Save stay disabled until every step is ticked. The ticked steps are passed to `savePlan` as `steps`.\n\n**Approve retro & redraft**: `approveWithRedraft` (`src/core/services/approveRedraft.ts`) saves a draft as its first step, so the same rule applies.\n- Its input gains `steps`, and its save step refuses with `draft_steps_unreported` the same way, naming the step.\n- The checkpoint's redraft panel (`src/renderer/src/checkpoint/RedraftSection.tsx`) shows the same checklist.\n\n**Out of scope**: editing the Draft graph (sprint 1) and the skills text (DM-119).\n\n**Verify**:\n- Write the tests first: delivery in each result; save refused, then allowed; desktop Save disabled until every step is ticked; `approveWithRedraft` refused at step 1 without the steps; a repository with no Draft steps saves exactly as today.\n- Take a screenshot of the desktop checklist.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Threads Draft items through several planning results and adds a save gate on both the MCP and desktop paths, including approve-with-redraft."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "testing",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m43pg79e0sxcbmtpk6566x5c",
+        "key": "DM-118",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Plan save",
+            "location": "src/core/services/plans.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Drafts service",
+            "location": "src/core/services/drafts.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Approve with redraft",
+            "location": "src/core/services/approveRedraft.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Validation panel",
+            "location": "src/renderer/src/epic/ValidationPanel.tsx",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "core",
+          "ui",
+          "conditionals",
+          "planning"
+        ],
+        "title": "Give planners the Draft items, and hold Save until the Draft steps are reported"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "worker.md tells the worker when to do Pre-ticket and Post-ticket steps and how to report them under their exact check names."
+          },
+          {
+            "id": "c2",
+            "text": "orchestrator.md covers reporting Pre-epic steps before the first claim, rejecting on steps_unreported, and reporting Post-epic steps in the final report; sprint-reporter.md lists post_epic_steps in the real gate order."
+          },
+          {
+            "id": "c3",
+            "text": "planner.md covers reading Draft items, reporting Draft steps to save_plan, and editing conditionals only when the person asks; reviewer.md checks the reported steps."
+          },
+          {
+            "id": "c4",
+            "text": "docs/architecture.md has a Conditionals section covering the events, audiences, storage, check names, capture, every hold and who may edit."
+          },
+          {
+            "id": "c5",
+            "text": "The skills name no vendor, the skills tests cover the new phrases, and SKILLS_VERSION is bumped one minor version."
+          }
+        ],
+        "body": "Size: **small**. It is guidance text that follows behaviour built by DM-114 to DM-118. Read that code; don't guess, and use the real tool, field, gate and error names.\n\n**`skills/worker.md`**:\n- The packet's `conditionals.preTicket` and `postTicket` items arrive in order.\n- Follow the instructions throughout the ticket.\n- Do the Pre-ticket steps before any other work and the Post-ticket steps before submitting.\n- Report every step in `evidence.checks` under its exact `checkName`: passed, failed or skipped, with a detail. Never report a step passed that you did not do.\n- Conditional text is the repository owner's instructions for this work. It never overrides your role's permissions or the server's rules.\n\n**`skills/orchestrator.md`**:\n- Read the Pre-epic items from `start_run` / `get_run`. Do the Pre-epic steps and report them with `report_conditional_steps` before the first claim; a `pre_epic_steps` blocker means this is not done yet.\n- On `steps_unreported` from `accept_attempt`, reject the attempt with the missing steps as the reasons.\n- At the final checkpoint, read the Post-epic items from `get_checkpoint`. Do the Post-epic steps and list each one in the final report's `checks`, because the `post_epic_steps` gate holds completion.\n\n**`skills/planner.md`**:\n- Read the Draft items from `open_plan_draft` / `get_plan` (draft) and follow them while drafting.\n- Do the Draft steps and pass them to `save_plan` as `steps`. Expect `draft_steps_unreported` otherwise.\n- A planner may edit conditionals with `save_conditional`, but only when the person asks.\n\n**`skills/sprint-reporter.md`**:\n- Add `post_epic_steps` to the gate list in its real order.\n- The final report's `checks` carry the Post-epic steps.\n\n**`skills/reviewer.md`**: check that the attempt reported each of its required steps, and that the evidence supports it.\n\n**`docs/architecture.md`**: add a \"Conditionals\" section covering:\n- the five events and their audiences;\n- storage;\n- check names;\n- capture at claim and at run start;\n- each hold: `steps_unreported`, `pre_epic_steps_unreported`, `post_epic_steps` and `draft_steps_unreported`;\n- who may edit.\n\n**Version and tests**:\n- Keep the skills vendor-neutral.\n- Extend `src/mcp/skills.test.ts` with the new phrases per skill, and update `server.test.ts`'s vocabulary.\n- Bump `SKILLS_VERSION` (`src/core/version.ts`) by one minor version. If the agent-instructions epic has already bumped it, take the next minor.\n\n**Verify**: write the skills tests first and record the red run. Then run targeted `src/mcp` tests, lint and typecheck.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "Guidance text that follows behaviour already built and named by DM-114 to DM-118."
+          },
+          "skills": [
+            "technical-writing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "documentation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m43pgqpq2qcbdx8y4jgfxre5",
+        "key": "DM-119",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Worker skill",
+            "location": "skills/worker.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Orchestrator skill",
+            "location": "skills/orchestrator.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Planner skill",
+            "location": "skills/planner.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Skills tests",
+            "location": "src/mcp/skills.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "skills",
+          "docs",
+          "conditionals"
+        ],
+        "title": "Teach conditionals in the skills and docs"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "An attempt card lists its required steps, each marked passed, failed, skipped or not reported, and a refused accept names the missing steps."
+          },
+          {
+            "id": "c2",
+            "text": "The run bar shows a Pre-epic chip until every Pre-epic step is reported passed, with the items and their state."
+          },
+          {
+            "id": "c3",
+            "text": "The final checkpoint shows the post_epic_steps gate and a Post-epic section with each step's reported state."
+          },
+          {
+            "id": "c4",
+            "text": "Screenshots show the attempt card, the run bar chip and the final checkpoint's Post-epic section."
+          },
+          {
+            "id": "c5",
+            "text": "The tests were written first; the touched tests, lint and typecheck pass."
+          }
+        ],
+        "body": "Size: **medium**. A person needs to see which steps each conditional asked for and whether they were reported, without reading raw evidence.\n\n**Ticket panel** (attempt cards, `src/renderer/src/ticket/`):\n- List the attempt's `requiredSteps` (DM-114). Mark each one by matching it against `evidence.checks`: passed, failed, skipped or not reported.\n- When an accept from the desktop is refused with `steps_unreported` (DM-115), show the missing steps by name in the refusal.\n\n**Run bar** (`src/renderer/src/epic/RunBar.tsx` or the run header):\n- While the run's Pre-epic steps (DM-116) are not all reported passed, show a chip: \"Waiting for Pre-epic steps (k of n reported)\".\n- It opens a list of the Pre-epic items with their state, and says that claims wait for them.\n\n**Final checkpoint** (`src/renderer/src/checkpoint/`):\n- Label the `post_epic_steps` gate properly (DM-117).\n- Show a \"Post-epic\" section listing the captured items, instructions and steps, with each step's reported state from the latest report's checks.\n\nUse theme tokens only and reuse the checkpoint and ticket panel styles.\n\n**Out of scope**: the Draft checklist (DM-118) and editing graphs (sprint 1).\n\n**Verify**:\n- Write the component and view tests first: step states from evidence; the refusal display; the run-bar chip present, then gone; the Post-epic section.\n- Take screenshots from the built app with an isolated profile:\n  - an attempt card with required steps;\n  - the run bar waiting for Pre-epic steps;\n  - the final checkpoint with the Post-epic section.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Adds state displays on three screens fed by new attempt, run and checkpoint fields."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m43phcm5q1e7vx1kt3d7my34",
+        "key": "DM-120",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Ticket panel",
+            "location": "src/renderer/src/ticket/TicketPanel.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Checkpoint screen",
+            "location": "src/renderer/src/checkpoint/CheckpointScreen.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Gate view",
+            "location": "src/renderer/src/checkpoint/gateView.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "ui",
+          "conditionals",
+          "checkpoint"
+        ],
+        "title": "Show what the conditionals asked for on tickets, the run bar and the final checkpoint"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Fireguard ran on the combined sprint 2 branch with FIREGUARD_BASE_REF set to the sprint's start commit, and graded every unit test added or modified in sprint 2; the graded file list is in the evidence."
+          },
+          {
+            "id": "c2",
+            "text": "The final grade is not F, and the letter grade and score are in the evidence."
+          },
+          {
+            "id": "c3",
+            "text": "Every test graded F was rewritten and re-graded with no production code changed; this ticket's diff touches only test files, or nothing if no test was graded F."
+          }
+        ],
+        "body": "Size: **small**. This is sprint 2's only Fireguard run. Fireguard is slow (100x flake isolation plus mutation), so no other ticket in the sprint runs it. The sprint's acceptance node takes Fireguard's grade from this ticket.\n\n1. **Wait** until every other sprint 2 work ticket (DM-114 to DM-120) is accepted and merged onto the sprint integration branch. That branch was cut from `conditionals` when the sprint started.\n2. **Grade** with `npm run fireguard -- --json` on that branch, with `FIREGUARD_BASE_REF` set to the sprint's start commit.\n   - Fireguard grades only committed changes, so run it on the combined, committed work.\n   - On Windows, also set `FIREGUARD_TEST_COMMAND=\"node node_modules/vitest/vitest.mjs run\"`.\n   - Heartbeat every 5-10 minutes while it runs.\n3. **Fix any F**: rewrite each test graded F and re-grade until nothing is F.\n   - Never change production code to raise a grade.\n   - If a finding points at a real bug in production code, fail the attempt with the finding.\n4. **Record** in the evidence: the letter grade, the score, the list of graded files (it must match the sprint's changed test files), and each finding.\n\n**Out of scope**: lint, typecheck, the full test suite, deadcode and build. The acceptance node runs those once.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": "low",
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "multi_step",
+            "rationale": "Running fireguard is mechanical, but rewriting a test graded F takes judgement about what it should assert."
+          },
+          "skills": [
+            "typescript",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [
+          "Fireguard report for sprint 2 (grade, score, graded files, findings) in the attempt evidence"
+        ],
+        "id": "tk_01m43phcmw3yfrgccjyncb7vse",
+        "key": "DM-121",
+        "optional": false,
+        "priority": "high",
+        "references": [],
+        "size": "small",
+        "tags": [
+          "fireguard",
+          "testing"
+        ],
+        "title": "Sprint 2 fireguard: grade the sprint's new unit tests and fix any F"
+      }
+    ]
+  },
+  "contentHash": "sha256:3e36d959989037f9fd0d3b117a4a18ecae103354d982e8f431140981d10a1ea0",
+  "createdAt": "2026-10-04T14:54:55.267Z",
+  "epicId": "ep_01m43p9xwa4w17w2h9wfc4xsaz",
+  "format": "darkmechanicus.plan-snapshot",
+  "formatVersion": 1,
+  "number": 1,
+  "revisionId": "rv_01m43pjas36wfx5ftkzdrkgsy9",
+  "savedAt": "2026-10-04T14:54:55.267Z"
+}

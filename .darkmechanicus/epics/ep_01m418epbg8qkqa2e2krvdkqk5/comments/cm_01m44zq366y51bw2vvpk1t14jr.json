@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "**Blocker forecast (orchestrator, 2026-10-04).** On this Windows host, this ticket and the DM-104 criteria that depend on live agents (c3, c8, c9, c10, c16, c19) need things only the person can provide:\n- **Signed-in CLIs.** Claude Code is installed but signed out. Agents may not run a real login, because that means entering credentials.\n- **Codex and Cursor installed.** Neither is present. Download would install vendor software on the person's machine, which needs their explicit go-ahead.\n- **A macOS machine.** The macOS half of every step needs one.\n\nPlan: run DM-60 next. Then dispatch DM-61 to do every step that's possible on Windows without credentials, and report the rest as blocked with exact reasons. The DM-104 round would treat those as leftovers unless the person signs in and installs the CLIs first.",
+  "createdAt": "2026-10-05T02:54:02.950Z",
+  "epicId": "ep_01m418epbg8qkqa2e2krvdkqk5",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m44zq366y51bw2vvpk1t14jr",
+  "ticketId": "tk_01m418f9qztwx9g9jxktmd8bfj"
+}
