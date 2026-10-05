@@ -33,3 +33,23 @@ describe('tickets being worked on in the graph', () => {
     expect(workingOf({ mode: 'draft', plan: draftPlan() }).every(([, attemptId]) => attemptId === null)).toBe(true)
   })
 })
+
+describe('hourglass attempt and mascot work state on the same ticket node', () => {
+  function flags(patch: Partial<GraphInput> = {}): Map<string, Pick<TicketNodeModel, 'working' | 'inProgress'>> {
+    const tickets = buildGraphModel(input(patch)).nodes.filter((item): item is TicketNodeModel => item.kind === 'ticket')
+    return new Map(tickets.map((item) => [item.ticketKey, { working: item.working, inProgress: item.inProgress }]))
+  }
+
+  it('gives a running ticket both its open attempt and the mascot work flag', () => {
+    expect(flags().get('DM-202')).toEqual({ working: 'at_202_2', inProgress: true })
+  })
+
+  it('keeps the two apart: a claimed attempt shows the hourglass, but the mascot waits for it to run', () => {
+    const run = runView({ attempts: [attempt('DM-204', 1, 'claimed')] })
+    expect(flags({ run }).get('DM-204')).toEqual({ working: 'at_204_1', inProgress: false })
+  })
+
+  it('marks neither on a ticket with no open attempt that is not running', () => {
+    expect(flags().get('DM-201')).toEqual({ working: null, inProgress: false })
+  })
+})

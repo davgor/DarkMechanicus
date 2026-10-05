@@ -1,0 +1,55 @@
+{
+  "branch": {
+    "name": "codex/mascot-drill",
+    "repository": "C:\\Users\\davgo\\Documents\\GitHub\\DarkMechanicus",
+    "startCommit": "2cf6d6a4b6eca9f0e1b2cf0f4b1859fce7d2396f"
+  },
+  "completedAt": "2026-10-04T21:48:21.207Z",
+  "createdAt": "2026-10-04T18:33:14.884Z",
+  "epicId": "ep_01m44323c45rx5grbfc058tf30",
+  "format": "darkmechanicus.epic-state",
+  "formatVersion": 1,
+  "generation": 16,
+  "outcome": {
+    "recordedAt": "2026-10-04T21:48:21.207Z",
+    "runId": "rn_01m4436aadvtztnv0tc1xbz8r7",
+    "successCriteria": [
+      {
+        "criterionId": "s1",
+        "met": true,
+        "note": "Highest reachable active work via intermediate tickets, frequent guided visits, and six-frame contact sparks shown by motion tests, DM-161 live evidence, and DM-158 production screenshots."
+      },
+      {
+        "criterionId": "s2",
+        "met": true,
+        "note": "Seeded rest/slip/success tests plus live ascent observations; production gravity-like descent catches the first eligible ticket and the floor with stable measured support."
+      },
+      {
+        "criterionId": "s3",
+        "met": true,
+        "note": "Real user wiggles trigger once; gentle pan, Zoom In and Fit View do not. Task completion retargets; pause, reduced motion, hidden lifecycle, selection, dragging and resize are covered."
+      },
+      {
+        "criterionId": "s4",
+        "met": true,
+        "note": "All seven Definition of Done checks passed, all 14 production browser contracts passed, and source/artifact review passed."
+      }
+    ],
+    "summary": "All requested mascot behavior is implemented and verified on the epic branch; the remaining checkpoint action is human approval."
+  },
+  "provenance": {
+    "note": "User-requested follow-up after the original mascot sprint was approved and completed.",
+    "sourceEpicId": "ep_01m43retr5mt2hd5b4dhd7c42b"
+  },
+  "status": "completed",
+  "ticketStatuses": {
+    "tk_01m44323c440761dfqnhjdye1h": "completed",
+    "tk_01m4434y76kpnbcemc3xzb686h": "completed",
+    "tk_01m4434y7a11x071k14rj5bn0m": "completed",
+    "tk_01m4434y7ar2vt71jvd91y8p26": "completed",
+    "tk_01m4434y7ay36c6kpt69cchdts": "completed",
+    "tk_01m443any4xnw81mdpjehs2vh8": "completed"
+  },
+  "title": "Give the mascot a sparking drill and a chaotic climb toward the highest task",
+  "updatedAt": "2026-10-04T21:48:21.224Z"
+}

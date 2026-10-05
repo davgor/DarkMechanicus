@@ -39,6 +39,41 @@ function input(patch: Partial<GraphInput> = {}): GraphInput {
   }
 }
 
+describe('mascot work semantics', () => {
+  const plan = savedPlan({ bundle: bundle({
+    tickets: [ticket('DM-1', 'Work')],
+    sprints: [sprint(1, 'Work', ['tk_1'])], edges: []
+  }) })
+
+  it('uses running execution state independent of selection, tone and label', () => {
+    const graph = buildGraphModel(input({ plan, run: runView({ tickets: [execution('DM-1', 'sp_1', 'running')] }),
+      rejected: { from: 'tk_1', to: 'other' } }))
+    const work = graph.nodes.find((item) => item.id === 'tk_1')
+    expect(work).toMatchObject({ kind: 'ticket', inProgress: true, tone: 'rejected' })
+  })
+
+  it('uses lifecycle status only without a run and never marks a draft as work', () => {
+    const active = buildGraphModel(input({ plan, run: null, statuses: new Map([['tk_1', 'in_progress']]) }))
+    const waiting = buildGraphModel(input({ plan, run: runView({ tickets: [execution('DM-1', 'sp_1', 'ready')] }),
+      statuses: new Map([['tk_1', 'in_progress']]) }))
+    const draft = buildGraphModel(input({ plan, mode: 'draft', run: null,
+      statuses: new Map([['tk_1', 'in_progress']]) }))
+    expect(active.nodes.find((item) => item.id === 'tk_1')).toMatchObject({ inProgress: true })
+    expect(waiting.nodes.find((item) => item.id === 'tk_1')).toMatchObject({ inProgress: false })
+    expect(draft.nodes.find((item) => item.id === 'tk_1')).toMatchObject({ inProgress: false })
+  })
+
+  it('lets a running acceptance ticket serve as an active platform', () => {
+    const acceptance = savedPlan({ bundle: bundle({
+      tickets: [ticket('DM-1', 'Sprint acceptance', { kind: 'acceptance' })],
+      sprints: [sprint(1, 'Accept', ['tk_1'])], edges: []
+    }) })
+    const graph = buildGraphModel(input({ plan: acceptance,
+      run: runView({ tickets: [execution('DM-1', 'sp_1', 'running')] }) }))
+    expect(graph.nodes.find((item) => item.id === 'tk_1')).toMatchObject({ acceptance: true, inProgress: true })
+  })
+})
+
 function node(model: GraphModel, id: string): GraphNode {
   const found = model.nodes.find((item) => item.id === id)
   if (!found) {

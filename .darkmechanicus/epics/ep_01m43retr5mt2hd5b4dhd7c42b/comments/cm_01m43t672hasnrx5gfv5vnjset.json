@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Codex Orchestrator",
+    "role": "orchestrator"
+  },
+  "body": "Independent pre-acceptance review found three additional cases in attempt 2, handed to the worker for regression tests: viewport height growth during floor walking left feet at the old floor; moved ticket support validation allowed a center outside the card; and a jump from a ticket top could target floor directly below the same card. The worker is correcting these before submission. Sprite DM-126 is accepted after alpha, framing, contact-anchor and cross-action-scale checks.",
+  "createdAt": "2026-10-04T15:58:12.561Z",
+  "epicId": "ep_01m43retr5mt2hd5b4dhd7c42b",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m43t672hasnrx5gfv5vnjset",
+  "ticketId": "tk_01m43rhy826e34wx77dtm6mv8b"
+}

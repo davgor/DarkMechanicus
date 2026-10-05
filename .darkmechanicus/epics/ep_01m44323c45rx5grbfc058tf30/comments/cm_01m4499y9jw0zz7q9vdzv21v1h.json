@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Codex Orchestrator",
+    "role": "orchestrator"
+  },
+  "body": "Full acceptance has passed lint, typecheck, 5,060 application tests plus 105 Fireguard tests, and coverage (98% statements, 95.16% branches). Deadcode found the newly exported ShakeState type has no external consumer. The acceptance worker is removing only that unused type export as integration cleanup, without altering the type/runtime implementation or the ignore baseline, then rerunning affected checks. The accepted Fireguard result remains evidence for unchanged behavioral tests; its exact graded head and the later type-only cleanup will be recorded distinctly.",
+  "createdAt": "2026-10-04T20:22:23.282Z",
+  "epicId": "ep_01m44323c45rx5grbfc058tf30",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m4499y9jw0zz7q9vdzv21v1h",
+  "ticketId": "tk_01m44323c440761dfqnhjdye1h"
+}

@@ -15,14 +15,16 @@ import {
   type NodeMouseHandler,
   type OnBeforeDelete,
   type OnConnect,
-  type OnNodeDrag
+  type OnNodeDrag,
+  type OnMove
 } from '@xyflow/react'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
-import { GraphMascot } from '../mascot/GraphMascot'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { GraphMascot, type PanSample } from '../mascot/GraphMascot'
 import { toFlowEdges, toFlowNodes, type FlowNode } from './flowElements'
 import type { GraphModel } from './graphModel'
 import { legendEntries, type LegendKind } from './legend'
 import { NODE_TYPES } from './nodes'
+import { isUserPanEvent } from './graphPan'
 
 export interface PlanGraphProps {
   model: GraphModel
@@ -106,9 +108,20 @@ function useGraphHandlers(props: PlanGraphProps, reset: () => void) {
   return { onNodeClick, onConnect: connect, onNodeDragStop, onBeforeDelete }
 }
 
+function usePanSample(): { panSample: PanSample | null; onMove: OnMove } {
+  const [panSample, setPanSample] = useState<PanSample | null>(null)
+  const panSampleId = useRef(0)
+  const onMove: OnMove = useCallback((event, moved) => {
+    setPanSample({ id: ++panSampleId.current, viewport: moved,
+      timestamp: performance.now(), userOrigin: isUserPanEvent(event) })
+  }, [])
+  return { panSample, onMove }
+}
+
 function GraphCanvas(props: PlanGraphProps): JSX.Element {
   const board = useRef<HTMLDivElement>(null)
   const viewport = useViewport()
+  const { panSample, onMove } = usePanSample()
   const { model, editable, selectedTicketId, onAddTicket, onAddAcceptance, onOpenActivity } = props
   const flowNodes = useMemo(
     () => toFlowNodes(model, { editable, selectedTicketId, onAddTicket, onAddAcceptance, onOpenActivity }),
@@ -129,6 +142,7 @@ function GraphCanvas(props: PlanGraphProps): JSX.Element {
         nodeTypes={NODE_TYPES}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
+        onMove={onMove}
         {...handlers}
         nodesDraggable={editable}
         nodesConnectable={editable}
@@ -146,7 +160,7 @@ function GraphCanvas(props: PlanGraphProps): JSX.Element {
           <GraphLegend kind={props.legend} draftNumber={props.draftNumber} />
         </Panel>
       </ReactFlow>
-      <GraphMascot board={board} nodes={nodes} viewport={viewport} />
+      <GraphMascot board={board} nodes={nodes} viewport={viewport} panSample={panSample} />
     </div>
   )
 }

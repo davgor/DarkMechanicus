@@ -1,0 +1,1321 @@
+{
+  "activeSprintId": null,
+  "attempts": [
+    {
+      "createdAt": "2026-10-04T15:30:49.191Z",
+      "decidedAt": "2026-10-04T15:51:38.222Z",
+      "decision": {
+        "decidedBy": "Codex Orchestrator",
+        "notes": "",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Six 1536x1024 RGBA PNGs, 36 512x512 cells. Orchestrator independently measured no alpha>128 touching a cell border and transparent outer backgrounds. JSON parses and provides per-frame feet anchors plus action renderScale.",
+            "name": "asset validation",
+            "status": "passed"
+          },
+          {
+            "detail": "Orchestrator inspected all36 poses in Edge against neutral background. Corrected framing, per-frame contacts and jump/climb renderScale normalization.",
+            "name": "visual review",
+            "status": "passed"
+          },
+          {
+            "detail": "git diff --check passed.",
+            "name": "diff check",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Viewed all36 poses in browser and compared to source reference."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Independently checked RGBA dimensions/bounds; verified foot-anchor and scale corrections."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Read JSON/provenance and confirmed metadata matches saved assets."
+          }
+        ],
+        "notes": ""
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m43rm277q3xbdq0aecgx1yzg",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Sprite manifest",
+            "location": "src/renderer/src/assets/mascot/atlas.json",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Independent browser pose review",
+            "location": "C:/Users/davgo/.codex/visualizations/2026/10/04/01a1077a-a00f-7571-8f67-c53d06e7077d/mascot-final-poses.png",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "codex/mascot-sprite-art",
+        "changedFiles": [
+          "docs/mascot-sprites.md",
+          "src/renderer/src/assets/mascot/atlas.json",
+          "src/renderer/src/assets/mascot/idle.png",
+          "src/renderer/src/assets/mascot/walk.png",
+          "src/renderer/src/assets/mascot/run.png",
+          "src/renderer/src/assets/mascot/jump.png",
+          "src/renderer/src/assets/mascot/climb.png",
+          "src/renderer/src/assets/mascot/stumble.png"
+        ],
+        "commits": [
+          "54a59f21ed82f4226c643dffd4b176099d055c5a",
+          "f529241c9d27236250a6c27ab2f0a3d907580f7d"
+        ],
+        "summary": "Authored six transparent six-frame chibi action atlases, explicit playback/anchor/scale metadata and generation provenance."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m43rjnt9ny3nqq0ardk0scqv",
+      "state": "accepted",
+      "submittedAt": "2026-10-04T15:51:38.181Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:485a3009ca2f5a98956aa99b6e58cbfc73fdc0fbee787d1582338dc1f0e21c15",
+      "ticketId": "tk_01m43rhy7yqtzym0nc0yq46fyd",
+      "updatedAt": "2026-10-04T15:51:38.222Z",
+      "worker": {
+        "catalogRevision": "mascot-2026-10-04-1",
+        "effort": "medium",
+        "hostId": "codex-desktop-windows",
+        "label": "Codex art worker",
+        "modelId": "gpt-6-luna",
+        "rationale": "Recommended by match_capabilities for this medium multi-step ticket.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-04T15:30:49.234Z",
+      "decidedAt": "2026-10-04T15:43:53.328Z",
+      "decision": {
+        "decidedBy": "Codex Orchestrator",
+        "notes": "Targeted tests pass, but source review found visible behavior gaps in c1. Escalate one tier per workflow.",
+        "outcome": "rejected",
+        "reasons": [
+          "Climb starts directly from the viewport floor regardless of the target card bottom or reach. nextAction and the approach-complete transition create climb from state.y=floor to ticket.y, with no jump-to-side phase. A floating card far above the floor therefore makes the mascot climb through empty air, contrary to the ticket's reachable-card-side requirement.",
+          "Climb preserves the preceding horizontal travel facing. When approaching the left side from the right (or right side from the left), the sprite faces away from the card. Set facing toward the attachment side and prove it in trajectory tests.",
+          "Strengthen climb tests to assert the body/hand reach overlaps a real card side for the full climb phase, and verify approach/jump-to-side/climb/pull-onto-top continuity on a card well above floor. Existing tests endorse floor-to-top climbing without checking actual attachment."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Worker ran motion.test.ts: 8 tests passed.",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "Worker ran tsc --noEmit -p tsconfig.web.json.",
+            "name": "renderer typecheck",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Worker reports seeded walk/run/jump/climb sequence tests."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Worker reports empty/tiny/removed surface tests."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Worker reports seeded repeatability/frame delta checks."
+          }
+        ],
+        "notes": "Orchestrator review pending; worker's met claims are not acceptance."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m43rm28j87hfnmxhsbwvbf58",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": "codex/mascot-motion",
+        "changedFiles": [
+          "src/renderer/src/mascot/motion.ts",
+          "src/renderer/src/mascot/motion.test.ts"
+        ],
+        "commits": [
+          "5a874bb6e2f1fbb933a56c5f73ac404056bb9d78"
+        ],
+        "summary": "Implemented seeded motion state machine with supporting-ticket and target tracking."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m43rjnt9ny3nqq0ardk0scqv",
+      "state": "rejected",
+      "submittedAt": "2026-10-04T15:43:53.283Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:57d749e57c47076bcea91c7ccfad7b70ecd5015b2219fcf5a26fb716f3da8873",
+      "ticketId": "tk_01m43rhy826e34wx77dtm6mv8b",
+      "updatedAt": "2026-10-04T15:43:53.328Z",
+      "worker": {
+        "catalogRevision": "mascot-2026-10-04-1",
+        "effort": "medium",
+        "hostId": "codex-desktop-windows",
+        "label": "Codex motion worker",
+        "modelId": "gpt-6-luna",
+        "rationale": "Recommended by match_capabilities for this medium multi-step ticket.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-04T15:43:53.371Z",
+      "decidedAt": "2026-10-04T16:02:52.964Z",
+      "decision": {
+        "decidedBy": "Codex Orchestrator",
+        "notes": "",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Worker ran motion.test.ts:14/14 pass including reviewer regressions.",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "tsc --noEmit -p tsconfig.web.json passed.",
+            "name": "renderer typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint both motion source/test passed without rule changes.",
+            "name": "targeted lint",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Independent reviewer reran14tests and verified both climb facings, side acquisition, continuous pull/top transition and779 platform-exit samples."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Exact viewport-resize and moved-support reproductions fixed; edge cases covered in targeted tests."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Targeted deterministic seed/time tests pass; reviewer sampled frame equivalence."
+          }
+        ],
+        "notes": "Independent final review in progress after earlier provisional findings."
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m43sc00ve7yxxvs1sser4yar",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [],
+        "branch": "codex/mascot-motion",
+        "changedFiles": [
+          "src/renderer/src/mascot/motion.ts",
+          "src/renderer/src/mascot/motion.test.ts"
+        ],
+        "commits": [
+          "5a874bb6e2f1fbb933a56c5f73ac404056bb9d78",
+          "d5f92722a0c3e531664c02c8b9bcb2d870b0a306"
+        ],
+        "summary": "Repaired the mascot movement engine with reachable side jumps, attached climbing, pull-up, supported movement and deterministic timing."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m43rjnt9ny3nqq0ardk0scqv",
+      "state": "accepted",
+      "submittedAt": "2026-10-04T16:01:59.124Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:57d749e57c47076bcea91c7ccfad7b70ecd5015b2219fcf5a26fb716f3da8873",
+      "ticketId": "tk_01m43rhy826e34wx77dtm6mv8b",
+      "updatedAt": "2026-10-04T16:02:52.964Z",
+      "worker": {
+        "catalogRevision": "mascot-2026-10-04-1",
+        "effort": "medium",
+        "hostId": "codex-desktop-windows",
+        "label": "Codex motion repair worker",
+        "modelId": "gpt-6-sol",
+        "rationale": "Attempt 1 rejected on floating-card climb and facing; escalating one tier as recommended.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-04T16:03:29.714Z",
+      "decidedAt": "2026-10-04T16:29:10.815Z",
+      "decision": {
+        "decidedBy": "Codex Orchestrator",
+        "notes": "",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "57tests/6suites passed; independently repeated by reviewer.",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck passed.",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Changed UI, motion, tests and preview lint passed.",
+            "name": "targeted lint",
+            "status": "passed"
+          },
+          {
+            "detail": "Root and worker verified six clips, real graph interactions, lifecycle controls and strict-CSP sprite updates.",
+            "name": "browser review",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Independent reviewer verified real single-sprint layouts at800x500,1000x600,1100x650 plus continuous side jump/attached climb/top support; all57targeted tests passed."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Lifecycle tests pass; root browser verified Space-operated pause freezes pose and reduced-motion remains static."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Root browser verified selection,72x45px mid-drag movement/drop callback, pan and zoom; pointer-events none. Dynamic sprite updates under production-equivalent strict CSP produced zero violations. Full packaged render remains acceptance gate."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Viewed action and real PlanGraph fixtures; worker observed frames0-5 for all6actions and committed screenshots/JSON observations."
+          }
+        ],
+        "notes": "Full sprint gate remains for acceptance. Reach scaled to55%viewport height after actual single-sprint geometry revealed fixed120px reach could never climb."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m43tfwsjmyfrkc81m7veeegw",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Browser observations and screenshots",
+            "location": "evidence/mascot/",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Action preview",
+            "location": "preview/mascot/actions.html",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Live graph preview",
+            "location": "preview/mascot/graph.html",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "codex/mascot-ui",
+        "changedFiles": [
+          "src/renderer/src/graph/PlanGraph.tsx",
+          "src/renderer/src/graph/PlanGraph.test.tsx",
+          "src/renderer/src/graph/graph.css",
+          "src/renderer/src/mascot/GraphMascot.tsx",
+          "src/renderer/src/mascot/GraphMascot.test.tsx",
+          "src/renderer/src/mascot/MascotSprite.tsx",
+          "src/renderer/src/mascot/geometry.ts",
+          "src/renderer/src/mascot/geometry.test.ts",
+          "src/renderer/src/mascot/graphReach.test.ts",
+          "src/renderer/src/mascot/sprite.ts",
+          "src/renderer/src/mascot/sprite.test.ts",
+          "src/renderer/src/mascot/motion.ts",
+          "docs/mascot-sprites.md"
+        ],
+        "commits": [
+          "323c9ca9fa02fb68fa2664617feba11a81f137c3"
+        ],
+        "summary": "Integrated six sprite actions with live ticket-aware movement, accessible pause and reduced-motion behavior, plus action and real-graph previews."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m43rjnt9ny3nqq0ardk0scqv",
+      "state": "accepted",
+      "submittedAt": "2026-10-04T16:29:10.767Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:d6716398f0760aeeb24bb4dded0c964084631e54c7c91ad7a71ea2aa3e36156d",
+      "ticketId": "tk_01m43rhy82s7p840b1zzwwhf5b",
+      "updatedAt": "2026-10-04T16:29:10.815Z",
+      "worker": {
+        "catalogRevision": "mascot-2026-10-04-1",
+        "effort": "high",
+        "hostId": "codex-desktop-windows",
+        "label": "Codex mascot UI worker",
+        "modelId": "gpt-6-sol",
+        "rationale": "Override Luna recommendation by one tier: earlier multi-step motion required escalation; this integration combines live React Flow geometry, CSP-safe rendering and tested animation lifecycle with browser evidence. Sol at ticket's high effort is justified for cross-module integration.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-04T16:30:03.186Z",
+      "decidedAt": "2026-10-04T16:50:30.973Z",
+      "decision": {
+        "decidedBy": "Codex Orchestrator",
+        "notes": "Escalate one tier for test-strengthening; prior source/UI visual criteria passed and no production defect was reported.",
+        "outcome": "rejected",
+        "reasons": [
+          "Mutation score66% is below required75%: improve behavioral tests for actual motion, geometry, playback and lifecycle gaps without weakening gates.",
+          "Persist the next complete JSON report to a file before printing a summary; the first survivor list was truncated and no complete artifact exists."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "GradeF; AST206 assertions/no mocks/no tautologies;100/100flake runs/zero failures;206killed/104survived/310total=66%. Base3f0e33a6ec21ec19641ff2df4a2b3cbc2f9f2211,head323c9ca9fa02fb68fa2664617feba11a81f137c3.",
+            "name": "fireguard",
+            "status": "failed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": false,
+            "note": "Mutation score below75%."
+          },
+          {
+            "criterionId": "c2",
+            "met": false,
+            "note": "Thresholds unchanged, but fullJSON report was not persisted and survivor list truncated in tool output."
+          }
+        ],
+        "notes": "Windows npx spawn ENOENT resolved with equivalent FIREGUARD_TEST_COMMAND=node node_modules/vitest/vitest.mjs run. No gate changes. Complete report must be captured on next run."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m43w0gxj2phwjsbkvdwyyz0h",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": "codex/mascot-fireguard",
+        "changedFiles": [],
+        "commits": [],
+        "summary": "Fireguard failed mutation quality:66% versus required75%. No code/test changes; worktree restored clean."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m43rjnt9ny3nqq0ardk0scqv",
+      "state": "rejected",
+      "submittedAt": "2026-10-04T16:50:30.927Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:0222db1af2acbd21d0790bff758cfa7b3373451b0867e470c8646c6cf42e0fde",
+      "ticketId": "tk_01m43rhy8259yq9shcftwvfk9m",
+      "updatedAt": "2026-10-04T16:50:30.973Z",
+      "worker": {
+        "catalogRevision": "mascot-2026-10-04-1",
+        "effort": "low",
+        "hostId": "codex-desktop-windows",
+        "label": "Codex Fireguard worker",
+        "modelId": "gpt-6-luna",
+        "rationale": "Recommended model and effort for routine test-quality grading.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-04T16:50:46.403Z",
+      "decidedAt": "2026-10-04T17:14:46.729Z",
+      "decision": {
+        "decidedBy": "Codex Orchestrator",
+        "notes": "",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "28focused tests in4changedfiles passed.",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "GradeA91. AST251assertions/0mocks/0tautologies.100/100flake runs0failures.238killed/72survived/310total=77%, min75. Base3f0e33a6ec21ec19641ff2df4a2b3cbc2f9f2211/headf39080c7819fd7a9c6165c72857a3094283bb71b. Complete report committed.",
+            "name": "fireguard",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Root parsed complete saved JSON: gradeA91, all hard gates passed,100/100flake runs0failures,238/310mutants killed77%."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Independent review verified only4testfiles changed and no rules/thresholds/exclusions/code changed. Complete JSON+summary identify base3f0e33a6 and gradedheadf39080c."
+          }
+        ],
+        "notes": "Only tests and report changed. Equivalent direct local Vitest runner used for Windows npx spawn compatibility."
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m43x6f03d0nnsx3atyzt039c",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Full Fireguard report",
+            "location": "docs/verification/DM-129-fireguard.json",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Grade/base/head summary",
+            "location": "docs/verification/DM-129-fireguard.md",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "codex/mascot-fireguard",
+        "changedFiles": [
+          "src/renderer/src/mascot/GraphMascot.test.tsx",
+          "src/renderer/src/mascot/geometry.test.ts",
+          "src/renderer/src/mascot/motion.test.ts",
+          "src/renderer/src/mascot/sprite.test.ts",
+          "docs/verification/DM-129-fireguard.json",
+          "docs/verification/DM-129-fireguard.md"
+        ],
+        "commits": [
+          "f39080c7819fd7a9c6165c72857a3094283bb71b",
+          "7226169a377949eb2e2ff8f90e356e033a0bae93"
+        ],
+        "summary": "Strengthened behavioral tests and achieved Fireguard gradeA with unchanged gates."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m43rjnt9ny3nqq0ardk0scqv",
+      "state": "accepted",
+      "submittedAt": "2026-10-04T17:14:46.682Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:0222db1af2acbd21d0790bff758cfa7b3373451b0867e470c8646c6cf42e0fde",
+      "ticketId": "tk_01m43rhy8259yq9shcftwvfk9m",
+      "updatedAt": "2026-10-04T17:14:46.729Z",
+      "worker": {
+        "catalogRevision": "mascot-2026-10-04-1",
+        "effort": "low",
+        "hostId": "codex-desktop-windows",
+        "label": "Codex Fireguard repair worker",
+        "modelId": "gpt-6-sol",
+        "rationale": "Attempt1 gradeF at66%mutation and missing complete report; escalating one tier as recommended to improve behavioral coverage and capture evidence.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-04T17:15:26.909Z",
+      "decidedAt": "2026-10-04T17:37:20.247Z",
+      "decision": {
+        "decidedBy": "Codex Orchestrator",
+        "notes": "All seven Definition of Done checks passed. Independently reviewed the evidence and verified the single-parent squash increment on codex/mascot-chaos.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npm run lint; strict rules unchanged. docs/verification/DM-125-lint.log.",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck; main/preload,renderer,Fireguard TypeScript projects passed.",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npm test:5020main tests/276files plus105Fireguard self-tests/20files allpassed. Baseline stale-copy and Windows fixture issues repaired in tests only.",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run coverage:lines98.15%,statements98.06%,functions97.35%,branches95.37%; allthresholds unchanged and passed.",
+            "name": "coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "Reused accepted DM-129 gradeA91:238/310killed77%,100/100flake runs0failures. Base3f0e33a6ec21ec19641ff2df4a2b3cbc2f9f2211; gradedheadf39080c7819fd7a9c6165c72857a3094283bb71b; fullreport docs/verification/DM-129-fireguard.json. Subsequent test-only gate repairs disclosed in DM-125 report; no claim finaltipwasgraded.",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run deadcode: no new unused exports beyond existing baseline.",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run build: Electron main,preload andrenderer productionbundles passed.",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Inspected all six production animation cycles and measured alpha bounds for all 36 frames. Transparent cell padding, identity, and clean cropping are shown in the committed screenshots and metadata."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "The production preview records a jump to ticket-a, attached climb, and walk on top. Deterministic motion and placement tests pass."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "The production PlanGraph passes selection, model movement, dragging, pan, zoom, stable pause, reduced-motion idle, and three viewport sizes under the exact app CSP, with no console, request, or CSP errors."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Reviewed the complete accepted DM-129 report: grade A (91), 100 successful repeat runs, 238/310 mutations killed (77%), and the recorded base and graded commit."
+          }
+        ],
+        "notes": "Root reviewed final diffs, screenshots, metadata, logs and complete Fireguard result. Equivalent test helper extraction and two baseline test-fixture corrections only followed the graded commit; no production behavior changed. Graded-head provenance is explicit. Source tree matches sprint tip; increment has one parent at sprint start. Machine-local MCP config and generated tracking records remain outside feature commit."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m43ykmsx8s0wfmbz6tph7pvk",
+      "increment": {
+        "base": {
+          "commit": "3f0e33a6ec21ec19641ff2df4a2b3cbc2f9f2211",
+          "kind": "epic_start"
+        },
+        "branch": "codex/mascot-chaos",
+        "checks": [
+          {
+            "detail": "Names the epic branch codex/mascot-chaos.",
+            "name": "Epic branch",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 2cf6d6a exists.",
+            "name": "Commit exists",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 2cf6d6a has one parent, 3f0e33a.",
+            "name": "One parent",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 2cf6d6a is reachable from codex/mascot-chaos.",
+            "name": "On the epic branch",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 2cf6d6a comes after the epic's start commit 3f0e33a.",
+            "name": "After the base commit",
+            "status": "passed"
+          },
+          {
+            "detail": "None of the 7 commits recorded by this sprint's accepted work is reachable from codex/mascot-chaos.",
+            "name": "Squashed, not merged",
+            "status": "passed"
+          }
+        ],
+        "commit": "2cf6d6a4b6eca9f0e1b2cf0f4b1859fce7d2396f",
+        "parent": "3f0e33a6ec21ec19641ff2df4a2b3cbc2f9f2211",
+        "passed": true,
+        "reasons": [],
+        "verifiedAt": "2026-10-04T17:36:47.530Z"
+      },
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Acceptance report and gate logs",
+            "location": "docs/verification/DM-125-acceptance.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Production preview contract evidence",
+            "location": "docs/verification/DM-125-preview-metadata.json",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Production action screenshot",
+            "location": "docs/verification/DM-125-actions-production.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Production graph screenshot",
+            "location": "docs/verification/DM-125-graph-production.png",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "codex/mascot-sprint-1",
+        "changedFiles": [
+          "docs/mascot-sprites.md",
+          "docs/verification/DM-125-acceptance.md",
+          "docs/verification/DM-125-actions-production.png",
+          "docs/verification/DM-125-build.log",
+          "docs/verification/DM-125-coverage.log",
+          "docs/verification/DM-125-deadcode.log",
+          "docs/verification/DM-125-graph-narrow-production.png",
+          "docs/verification/DM-125-graph-production.png",
+          "docs/verification/DM-125-lint.log",
+          "docs/verification/DM-125-preview-check.mjs",
+          "docs/verification/DM-125-preview-metadata.json",
+          "docs/verification/DM-125-test.log",
+          "docs/verification/DM-125-typecheck.log",
+          "docs/verification/DM-129-fireguard.json",
+          "docs/verification/DM-129-fireguard.md",
+          "evidence/mascot/browser-observations.json",
+          "evidence/mascot/graph-live.png",
+          "evidence/mascot/graph-observations.json",
+          "evidence/mascot/preview-climb.png",
+          "evidence/mascot/preview-jump.png",
+          "fireguard/test/runnerTimeout.test.ts",
+          "preview/mascot/actions.html",
+          "preview/mascot/graph.html",
+          "preview/mascot/graph.tsx",
+          "preview/mascot/mascot.tsx",
+          "preview/mascot/preview.css",
+          "preview/mascot/vite.config.ts",
+          "src/main/autoUpdate.test.ts",
+          "src/renderer/src/assets/mascot/atlas.json",
+          "src/renderer/src/assets/mascot/climb.png",
+          "src/renderer/src/assets/mascot/idle.png",
+          "src/renderer/src/assets/mascot/jump.png",
+          "src/renderer/src/assets/mascot/run.png",
+          "src/renderer/src/assets/mascot/stumble.png",
+          "src/renderer/src/assets/mascot/walk.png",
+          "src/renderer/src/graph/PlanGraph.test.tsx",
+          "src/renderer/src/graph/PlanGraph.tsx",
+          "src/renderer/src/graph/graph.css",
+          "src/renderer/src/mascot/GraphMascot.test.tsx",
+          "src/renderer/src/mascot/GraphMascot.tsx",
+          "src/renderer/src/mascot/MascotSprite.tsx",
+          "src/renderer/src/mascot/geometry.test.ts",
+          "src/renderer/src/mascot/geometry.ts",
+          "src/renderer/src/mascot/graphReach.test.ts",
+          "src/renderer/src/mascot/motion.test.ts",
+          "src/renderer/src/mascot/motion.ts",
+          "src/renderer/src/mascot/sprite.test.ts",
+          "src/renderer/src/mascot/sprite.ts"
+        ],
+        "commits": [
+          "23140a48b5e0b51bea52e8299c1bdfa4f91b4095",
+          "1245d1f1dc53364a8bd800bf49dfc0cd32010672",
+          "2cf6d6a4b6eca9f0e1b2cf0f4b1859fce7d2396f"
+        ],
+        "summary": "All seven project checks and four visual/runtime criteria passed; sprint landed as one squash commit on the epic branch."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m43rjnt9ny3nqq0ardk0scqv",
+      "state": "accepted",
+      "submittedAt": "2026-10-04T17:36:47.835Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:54a2504b970053c5670bc05484c204c1b5361032b5b2c0bec42b444addfcf71c",
+      "ticketId": "tk_01m43retr5gt3g7v145xk6cbzh",
+      "updatedAt": "2026-10-04T17:37:20.247Z",
+      "worker": {
+        "catalogRevision": "mascot-2026-10-04-1",
+        "effort": "high",
+        "hostId": "codex-desktop-windows",
+        "label": "Codex sprint acceptance worker",
+        "modelId": "gpt-6-luna",
+        "rationale": "Recommended model and high effort for combined verification and visual acceptance; implementation and independent reviews already accepted.",
+        "sessionId": null
+      }
+    }
+  ],
+  "checkpoints": [
+    {
+      "decidedAt": "2026-10-04T18:32:07.224Z",
+      "decidedBy": "ss_01m43raj4hpx9b8pbnheh4ybf3",
+      "id": "ck_01m443019rk3xjj7e2ts6513j5",
+      "outcome": "completed",
+      "policy": "human",
+      "reportId": "rp_01m4405jddnpzg0jaebx3hmwr6",
+      "sprintId": "sp_01m43retr5z51pe6xm5cm7zt64"
+    }
+  ],
+  "createdAt": "2026-10-04T15:30:21.579Z",
+  "endedAt": "2026-10-04T18:32:07.224Z",
+  "epicId": "ep_01m43retr5mt2hd5b4dhd7c42b",
+  "format": "darkmechanicus.run",
+  "formatVersion": 1,
+  "host": {
+    "label": "Codex Orchestrator",
+    "type": "codex"
+  },
+  "hostCatalogId": "hc_01m43rjnf7xnwwydx9htqgz108",
+  "number": 1,
+  "ownerMachineId": "mc_01m41707wstg1crxjbt3jw2ap5",
+  "pauseReason": null,
+  "reports": [
+    {
+      "content": {
+        "accepted": [
+          "DM-126 — Authored and validated the six sprite atlases and playback metadata.",
+          "DM-127 — Implemented and reviewed deterministic movement, attached climbing, support, and recovery.",
+          "DM-128 — Integrated the companion with the real ticket board and accessible motion controls.",
+          "DM-129 — Strengthened tests and achieved Fireguard grade A with unchanged thresholds.",
+          "DM-125 — Passed the full project gate and production visual checks; verified the squash increment."
+        ],
+        "blocked": [],
+        "changes": {
+          "commits": [
+            "2cf6d6a4b6eca9f0e1b2cf0f4b1859fce7d2396f"
+          ],
+          "files": [
+            "docs/mascot-sprites.md",
+            "docs/verification/DM-125-acceptance.md",
+            "docs/verification/DM-125-actions-production.png",
+            "docs/verification/DM-125-build.log",
+            "docs/verification/DM-125-coverage.log",
+            "docs/verification/DM-125-deadcode.log",
+            "docs/verification/DM-125-graph-narrow-production.png",
+            "docs/verification/DM-125-graph-production.png",
+            "docs/verification/DM-125-lint.log",
+            "docs/verification/DM-125-preview-check.mjs",
+            "docs/verification/DM-125-preview-metadata.json",
+            "docs/verification/DM-125-test.log",
+            "docs/verification/DM-125-typecheck.log",
+            "docs/verification/DM-129-fireguard.json",
+            "docs/verification/DM-129-fireguard.md",
+            "evidence/mascot/browser-observations.json",
+            "evidence/mascot/graph-live.png",
+            "evidence/mascot/graph-observations.json",
+            "evidence/mascot/preview-climb.png",
+            "evidence/mascot/preview-jump.png",
+            "fireguard/test/runnerTimeout.test.ts",
+            "preview/mascot/actions.html",
+            "preview/mascot/graph.html",
+            "preview/mascot/graph.tsx",
+            "preview/mascot/mascot.tsx",
+            "preview/mascot/preview.css",
+            "preview/mascot/vite.config.ts",
+            "src/main/autoUpdate.test.ts",
+            "src/renderer/src/assets/mascot/atlas.json",
+            "src/renderer/src/assets/mascot/climb.png",
+            "src/renderer/src/assets/mascot/idle.png",
+            "src/renderer/src/assets/mascot/jump.png",
+            "src/renderer/src/assets/mascot/run.png",
+            "src/renderer/src/assets/mascot/stumble.png",
+            "src/renderer/src/assets/mascot/walk.png",
+            "src/renderer/src/graph/PlanGraph.test.tsx",
+            "src/renderer/src/graph/PlanGraph.tsx",
+            "src/renderer/src/graph/graph.css",
+            "src/renderer/src/mascot/GraphMascot.test.tsx",
+            "src/renderer/src/mascot/GraphMascot.tsx",
+            "src/renderer/src/mascot/MascotSprite.tsx",
+            "src/renderer/src/mascot/geometry.test.ts",
+            "src/renderer/src/mascot/geometry.ts",
+            "src/renderer/src/mascot/graphReach.test.ts",
+            "src/renderer/src/mascot/motion.test.ts",
+            "src/renderer/src/mascot/motion.ts",
+            "src/renderer/src/mascot/sprite.test.ts",
+            "src/renderer/src/mascot/sprite.ts"
+          ]
+        },
+        "checks": [
+          {
+            "detail": "Strict lint passed; no rules were relaxed.",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "Main/preload, renderer, and Fireguard type checks passed.",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "5,020 main tests and 105 Fireguard self-tests passed. Two pre-existing test fixture issues were corrected without changing production behavior.",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "98.15% lines, 98.06% statements, 97.35% functions, and 95.37% branches; all configured thresholds passed.",
+            "name": "coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "Accepted DM-129 grade A (91): 100/100 repeat runs passed; 238/310 mutations killed (77%). Base 3f0e33a6ec21ec19641ff2df4a2b3cbc2f9f2211; graded commit f39080c7819fd7a9c6165c72857a3094283bb71b. Later test-only gate repairs are disclosed in the acceptance report.",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "No new unused exports beyond the existing baseline.",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "Electron main, preload, and renderer production bundles built successfully.",
+            "name": "build",
+            "status": "passed"
+          },
+          {
+            "detail": "All three dependency rows passed type checking and their combined targeted tests.",
+            "name": "row checks",
+            "status": "passed"
+          },
+          {
+            "detail": "All 14 preview contracts passed under the app's production CSP, including six actions, 36 padded frames, ticket climbing, graph interactions, pause, reduced motion, and resize.",
+            "name": "production visual checks",
+            "status": "passed"
+          }
+        ],
+        "epicOutcome": {
+          "successCriteria": [
+            {
+              "criterionId": "s1",
+              "met": true,
+              "note": "Six transparent atlases, 36 frames, and documented per-frame anchors, rates, looping, facing, and render scale are committed."
+            },
+            {
+              "criterionId": "s2",
+              "met": true,
+              "note": "The real PlanGraph companion walks, runs, jumps, and climbs current ticket cards; pan, zoom, resize, model changes, and dragging were exercised."
+            },
+            {
+              "criterionId": "s3",
+              "met": true,
+              "note": "Pause, reduced-motion static rendering, visibility stopping, and cleanup are tested; the decorative layer ignores pointer input."
+            },
+            {
+              "criterionId": "s4",
+              "met": true,
+              "note": "The full project gate and inspected production preview passed; evidence is in docs/verification/DM-125-acceptance.md."
+            }
+          ],
+          "summary": "The requested sprites and in-app mascot behavior are implemented and verified on the epic branch."
+        },
+        "exitCriteria": [
+          {
+            "criterionId": "x1",
+            "met": true,
+            "note": "Six visibly distinct actions preserve the original mascot identity; all 36 cells were inspected and measured."
+          },
+          {
+            "criterionId": "x2",
+            "met": true,
+            "note": "Live graph previews verify movement and ticket climbing while selection, dragging, editing callbacks, pan, and zoom remain usable."
+          },
+          {
+            "criterionId": "x3",
+            "met": true,
+            "note": "All seven Definition of Done checks and the production visual contracts passed."
+          }
+        ],
+        "failed": [],
+        "followUps": [
+          {
+            "body": "The existing command splitter cannot represent an executable path containing spaces, and the Windows npx shim cannot be spawned directly with shell:false. This sprint used the equivalent local Node/Vitest command and repaired only the timeout test fixture. A separate maintenance change could support executable/argument parsing and spawn errors explicitly.",
+            "title": "Improve Fireguard command portability on Windows"
+          }
+        ],
+        "retro": {
+          "actions": [
+            "Include normal short-plan geometry and both attachment sides in the initial movement tests.",
+            "Capture complete grader output to files before printing summaries.",
+            "Run targeted lint on strengthened tests before launching expensive grading.",
+            "Use explicit assertions for visual-check state changes, including settled reduced-motion rendering."
+          ],
+          "delivered": [
+            {
+              "demo": "Open preview/mascot/actions.html through the documented preview server.",
+              "evidence": "src/renderer/src/assets/mascot/atlas.json; all 36 alpha bounds and production screenshots in DM-125 evidence.",
+              "ticket": "tk_01m43rhy7yqtzym0nc0yq46fyd"
+            },
+            {
+              "demo": "Watch the deterministic board route jump to a card side, climb, and walk on top.",
+              "evidence": "motion.test.ts, graphReach.test.ts, and the production preview route trace.",
+              "ticket": "tk_01m43rhy826e34wx77dtm6mv8b"
+            },
+            {
+              "demo": "Open preview/mascot/graph.html and use selection, dragging, pan, zoom, and the mascot pause button.",
+              "evidence": "GraphMascot tests and DM-125-preview-metadata.json, including reduced-motion and resize checks.",
+              "ticket": "tk_01m43rhy82s7p840b1zzwwhf5b"
+            },
+            {
+              "demo": "Read docs/verification/DM-129-fireguard.md and its complete JSON report.",
+              "evidence": "Grade A (91), 100/100 repeat runs, and 77% mutation score on the recorded base and commit.",
+              "ticket": "tk_01m43rhy8259yq9shcftwvfk9m"
+            },
+            {
+              "demo": "Read docs/verification/DM-125-acceptance.md and review commit 2cf6d6a4b6eca9f0e1b2cf0f4b1859fce7d2396f.",
+              "evidence": "Seven passing checks, 5,125 passing tests, coverage above all thresholds, and 14 passing visual contracts.",
+              "ticket": "tk_01m43retr5gt3g7v145xk6cbzh"
+            }
+          ],
+          "discoveries": [],
+          "leftovers": [],
+          "tierFit": [],
+          "wentPoorly": [
+            "DM-127's first attempt was rejected for climbing through empty space and incorrect facing, then escalated one tier.",
+            "DM-129's first attempt failed at 66% mutation detection, and its complete report was lost because output was not redirected before tool truncation.",
+            "The full gate exposed two test lint limits, a stale baseline update-copy assertion, a Windows timeout fixture issue, and a missing declared coverage provider; each was corrected without production behavior changes."
+          ],
+          "wentWell": [
+            "Independent trajectory and visual reviews caught reachability and attachment issues before acceptance.",
+            "A real short-plan fixture exposed the fixed jump-reach assumption; the corrected integration passes at three board sizes.",
+            "Stronger behavioral assertions raised mutation detection from 66% to 77% without changing production code or thresholds."
+          ]
+        },
+        "risks": [],
+        "summary": "The mascot now has 36 transparent frames across idle, walk, run, jump, climb, and stumble/recovery animations. The real ticket board renders the companion using current ticket geometry, with pause, reduced motion, visibility handling, and cleanup. All required checks passed, and the sprint landed as one squashed commit on codex/mascot-chaos. Desktop checkpoint approval remains with the user."
+      },
+      "contentHash": "sha256:1a43a831dbf688d1332ab514cb6b570e3093c7389a72893076cf694fb8c3f03f",
+      "createdAt": "2026-10-04T17:39:41.696Z",
+      "id": "rp_01m44001g0pma2vvd6rj50bdsh",
+      "reportRevision": 1,
+      "sprintId": "sp_01m43retr5z51pe6xm5cm7zt64",
+      "submittedBy": "Codex Orchestrator"
+    },
+    {
+      "content": {
+        "accepted": [
+          "DM-126 — Authored and validated the six sprite atlases and playback metadata.",
+          "DM-127 — Implemented and reviewed deterministic movement, attached climbing, support, and recovery.",
+          "DM-128 — Integrated the companion with the real ticket board and accessible motion controls.",
+          "DM-129 — Strengthened tests and achieved Fireguard grade A with unchanged thresholds.",
+          "DM-125 — Passed the full project gate and production visual checks; verified the squash increment."
+        ],
+        "blocked": [],
+        "changes": {
+          "commits": [
+            "2cf6d6a4b6eca9f0e1b2cf0f4b1859fce7d2396f"
+          ],
+          "files": [
+            "docs/mascot-sprites.md",
+            "docs/verification/DM-125-acceptance.md",
+            "docs/verification/DM-125-actions-production.png",
+            "docs/verification/DM-125-build.log",
+            "docs/verification/DM-125-coverage.log",
+            "docs/verification/DM-125-deadcode.log",
+            "docs/verification/DM-125-graph-narrow-production.png",
+            "docs/verification/DM-125-graph-production.png",
+            "docs/verification/DM-125-lint.log",
+            "docs/verification/DM-125-preview-check.mjs",
+            "docs/verification/DM-125-preview-metadata.json",
+            "docs/verification/DM-125-test.log",
+            "docs/verification/DM-125-typecheck.log",
+            "docs/verification/DM-129-fireguard.json",
+            "docs/verification/DM-129-fireguard.md",
+            "evidence/mascot/browser-observations.json",
+            "evidence/mascot/graph-live.png",
+            "evidence/mascot/graph-observations.json",
+            "evidence/mascot/preview-climb.png",
+            "evidence/mascot/preview-jump.png",
+            "fireguard/test/runnerTimeout.test.ts",
+            "preview/mascot/actions.html",
+            "preview/mascot/graph.html",
+            "preview/mascot/graph.tsx",
+            "preview/mascot/mascot.tsx",
+            "preview/mascot/preview.css",
+            "preview/mascot/vite.config.ts",
+            "src/main/autoUpdate.test.ts",
+            "src/renderer/src/assets/mascot/atlas.json",
+            "src/renderer/src/assets/mascot/climb.png",
+            "src/renderer/src/assets/mascot/idle.png",
+            "src/renderer/src/assets/mascot/jump.png",
+            "src/renderer/src/assets/mascot/run.png",
+            "src/renderer/src/assets/mascot/stumble.png",
+            "src/renderer/src/assets/mascot/walk.png",
+            "src/renderer/src/graph/PlanGraph.test.tsx",
+            "src/renderer/src/graph/PlanGraph.tsx",
+            "src/renderer/src/graph/graph.css",
+            "src/renderer/src/mascot/GraphMascot.test.tsx",
+            "src/renderer/src/mascot/GraphMascot.tsx",
+            "src/renderer/src/mascot/MascotSprite.tsx",
+            "src/renderer/src/mascot/geometry.test.ts",
+            "src/renderer/src/mascot/geometry.ts",
+            "src/renderer/src/mascot/graphReach.test.ts",
+            "src/renderer/src/mascot/motion.test.ts",
+            "src/renderer/src/mascot/motion.ts",
+            "src/renderer/src/mascot/sprite.test.ts",
+            "src/renderer/src/mascot/sprite.ts"
+          ]
+        },
+        "checks": [
+          {
+            "detail": "Strict lint passed; no rules were relaxed.",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "Main/preload, renderer, and Fireguard type checks passed.",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "5,020 main tests and 105 Fireguard self-tests passed. Two pre-existing test fixture issues were corrected without changing production behavior.",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "98.15% lines, 98.06% statements, 97.35% functions, and 95.37% branches; all configured thresholds passed.",
+            "name": "coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "Accepted DM-129 grade A (91): 100/100 repeat runs passed; 238/310 mutations killed (77%). Base 3f0e33a6ec21ec19641ff2df4a2b3cbc2f9f2211; graded commit f39080c7819fd7a9c6165c72857a3094283bb71b. Later test-only gate repairs are disclosed in the acceptance report.",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "No new unused exports beyond the existing baseline.",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "Electron main, preload, and renderer production bundles built successfully.",
+            "name": "build",
+            "status": "passed"
+          },
+          {
+            "detail": "All three dependency rows passed type checking and their combined targeted tests.",
+            "name": "row checks",
+            "status": "passed"
+          },
+          {
+            "detail": "All 14 preview contracts passed under the app's production CSP, including six actions, 36 padded frames, ticket climbing, graph interactions, pause, reduced motion, and resize.",
+            "name": "production visual checks",
+            "status": "passed"
+          }
+        ],
+        "epicOutcome": {
+          "successCriteria": [
+            {
+              "criterionId": "s1",
+              "met": true,
+              "note": "Six transparent atlases, 36 frames, and documented per-frame anchors, rates, looping, facing, and render scale are committed."
+            },
+            {
+              "criterionId": "s2",
+              "met": true,
+              "note": "The real PlanGraph companion walks, runs, jumps, and climbs current ticket cards; pan, zoom, resize, model changes, and dragging were exercised."
+            },
+            {
+              "criterionId": "s3",
+              "met": true,
+              "note": "Pause, reduced-motion static rendering, visibility stopping, and cleanup are tested; the decorative layer ignores pointer input."
+            },
+            {
+              "criterionId": "s4",
+              "met": true,
+              "note": "The full project gate and inspected production preview passed; evidence is in docs/verification/DM-125-acceptance.md."
+            }
+          ],
+          "summary": "The requested sprites and in-app mascot behavior are implemented and verified on the epic branch."
+        },
+        "exitCriteria": [
+          {
+            "criterionId": "x1",
+            "met": true,
+            "note": "Six visibly distinct actions preserve the original mascot identity; all 36 cells were inspected and measured."
+          },
+          {
+            "criterionId": "x2",
+            "met": true,
+            "note": "Live graph previews verify movement and ticket climbing while selection, dragging, editing callbacks, pan, and zoom remain usable."
+          },
+          {
+            "criterionId": "x3",
+            "met": true,
+            "note": "All seven Definition of Done checks and the production visual contracts passed."
+          }
+        ],
+        "failed": [],
+        "followUps": [
+          {
+            "body": "The existing command splitter cannot represent an executable path containing spaces, and the Windows npx shim cannot be spawned directly with shell:false. This sprint used the equivalent local Node/Vitest command and repaired only the timeout test fixture. A separate maintenance change could support executable/argument parsing and spawn errors explicitly.",
+            "title": "Improve Fireguard command portability on Windows"
+          }
+        ],
+        "retro": {
+          "actions": [
+            "Include normal short-plan geometry and both attachment sides in the initial movement tests.",
+            "Capture complete grader output to files before printing summaries.",
+            "Run targeted lint on strengthened tests before launching expensive grading.",
+            "Use explicit assertions for visual-check state changes, including settled reduced-motion rendering."
+          ],
+          "delivered": [
+            {
+              "demo": "Open preview/mascot/actions.html through the documented preview server.",
+              "evidence": "src/renderer/src/assets/mascot/atlas.json; all 36 alpha bounds and production screenshots in DM-125 evidence.",
+              "ticket": "tk_01m43rhy7yqtzym0nc0yq46fyd"
+            },
+            {
+              "demo": "Watch the deterministic board route jump to a card side, climb, and walk on top.",
+              "evidence": "motion.test.ts, graphReach.test.ts, and the production preview route trace.",
+              "ticket": "tk_01m43rhy826e34wx77dtm6mv8b"
+            },
+            {
+              "demo": "Open preview/mascot/graph.html and use selection, dragging, pan, zoom, and the mascot pause button.",
+              "evidence": "GraphMascot tests and DM-125-preview-metadata.json, including reduced-motion and resize checks.",
+              "ticket": "tk_01m43rhy82s7p840b1zzwwhf5b"
+            },
+            {
+              "demo": "Read docs/verification/DM-129-fireguard.md and its complete JSON report.",
+              "evidence": "Grade A (91), 100/100 repeat runs, and 77% mutation score on the recorded base and commit.",
+              "ticket": "tk_01m43rhy8259yq9shcftwvfk9m"
+            },
+            {
+              "demo": "Read docs/verification/DM-125-acceptance.md and review commit 2cf6d6a4b6eca9f0e1b2cf0f4b1859fce7d2396f.",
+              "evidence": "Seven passing checks, 5,125 passing tests, coverage above all thresholds, and 14 passing visual contracts.",
+              "ticket": "tk_01m43retr5gt3g7v145xk6cbzh"
+            }
+          ],
+          "discoveries": [],
+          "leftovers": [],
+          "tierFit": [
+            {
+              "note": "The recommended Luna worker at medium effort produced an accepted first attempt.",
+              "ticket": "tk_01m43rhy7yqtzym0nc0yq46fyd",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "The Luna attempt was rejected for movement defects; escalation to Sol at medium effort produced the accepted repair.",
+              "ticket": "tk_01m43rhy826e34wx77dtm6mv8b",
+              "verdict": "undersized"
+            },
+            {
+              "note": "The routine Luna attempt failed the mutation gate. Strengthening behavioral assertions required a Sol repair attempt at low effort.",
+              "ticket": "tk_01m43rhy8259yq9shcftwvfk9m",
+              "verdict": "undersized"
+            },
+            {
+              "note": "Luna at the planned high effort completed the full acceptance gate in one accepted attempt.",
+              "ticket": "tk_01m43retr5gt3g7v145xk6cbzh",
+              "verdict": "right_sized"
+            }
+          ],
+          "wentPoorly": [
+            "DM-127's first attempt was rejected for climbing through empty space and incorrect facing, then escalated one tier.",
+            "DM-129's first attempt failed at 66% mutation detection, and its complete report was lost because output was not redirected before tool truncation.",
+            "The full gate exposed two test lint limits, a stale baseline update-copy assertion, a Windows timeout fixture issue, and a missing declared coverage provider; each was corrected without production behavior changes."
+          ],
+          "wentWell": [
+            "Independent trajectory and visual reviews caught reachability and attachment issues before acceptance.",
+            "A real short-plan fixture exposed the fixed jump-reach assumption; the corrected integration passes at three board sizes.",
+            "Stronger behavioral assertions raised mutation detection from 66% to 77% without changing production code or thresholds."
+          ]
+        },
+        "risks": [],
+        "summary": "The mascot now has 36 transparent frames across idle, walk, run, jump, climb, and stumble/recovery animations. The real ticket board renders the companion using current ticket geometry, with pause, reduced motion, visibility handling, and cleanup. All required checks passed, and the sprint landed as one squashed commit on codex/mascot-chaos. Desktop checkpoint approval remains with the user."
+      },
+      "contentHash": "sha256:2265cb5202634dd23213bd86a6dd3afde801a56d822a34c5a64c5e7da0ee06c9",
+      "createdAt": "2026-10-04T17:42:42.861Z",
+      "id": "rp_01m4405jddnpzg0jaebx3hmwr6",
+      "reportRevision": 2,
+      "sprintId": "sp_01m43retr5z51pe6xm5cm7zt64",
+      "submittedBy": "Codex Orchestrator"
+    }
+  ],
+  "revisionId": "rv_01m43rjnt9ny3nqq0ardk0scqv",
+  "rowChecks": [
+    {
+      "checks": [
+        {
+          "detail": "npm run typecheck on integrated art and motion.",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "14/14 passed in247ms; asset validation from accepted DM-126.",
+          "name": "motion tests",
+          "status": "passed"
+        }
+      ],
+      "commit": "9eba6452222b68d8bcf034a9fa5b3c5d5a0ef5cd",
+      "createdAt": "2026-10-04T16:03:29.030Z",
+      "id": "rk_01m43tfw46rzmj6s32ykvaym37",
+      "number": 1,
+      "recordedBy": "Codex Orchestrator",
+      "row": 1,
+      "sprintId": "sp_01m43retr5z51pe6xm5cm7zt64"
+    },
+    {
+      "checks": [
+        {
+          "detail": "npm run typecheck passed on integrated sprint.",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "All57mascot/PlanGraph tests across6files passed.",
+          "name": "targeted tests",
+          "status": "passed"
+        }
+      ],
+      "commit": "323c9ca9fa02fb68fa2664617feba11a81f137c3",
+      "createdAt": "2026-10-04T16:29:48.940Z",
+      "id": "rk_01m43w030cna6fgtcjb4744has",
+      "number": 2,
+      "recordedBy": "Codex Orchestrator",
+      "row": 2,
+      "sprintId": "sp_01m43retr5z51pe6xm5cm7zt64"
+    },
+    {
+      "checks": [
+        {
+          "detail": "npm run typecheck passed on integrated sprint.",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "63mascot/PlanGraph tests in6files passed after test-strengthening integration.",
+          "name": "targeted tests",
+          "status": "passed"
+        }
+      ],
+      "commit": "7226169a377949eb2e2ff8f90e356e033a0bae93",
+      "createdAt": "2026-10-04T17:15:15.801Z",
+      "id": "rk_01m43yk9ys0m6qqdsw789egyr9",
+      "number": 3,
+      "recordedBy": "Codex Orchestrator",
+      "row": 3,
+      "sprintId": "sp_01m43retr5z51pe6xm5cm7zt64"
+    }
+  ],
+  "runId": "rn_01m43rk78bhnp2x2gqs68tm8vv",
+  "skillVersion": "1.5.0",
+  "startedAt": "2026-10-04T15:30:21.579Z",
+  "state": "completed",
+  "updatedAt": "2026-10-04T18:32:07.224Z"
+}

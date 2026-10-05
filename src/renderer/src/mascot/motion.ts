@@ -7,12 +7,14 @@ export interface MotionRect {
   y: number
   width: number
   height: number
+  inProgress?: boolean
 }
 
 export interface MotionSurfaces {
   viewport: { width: number; height: number }
   mascotSize: { width: number; height: number }
   tickets: MotionRect[]
+  shakeId?: number
 }
 
 /** `x` is the sprite center and `y` is the feet line, both in CSS pixels. */
@@ -34,6 +36,16 @@ export interface MotionState {
   targetId: string | null
   /** Ticket whose top currently supports the feet; null means the viewport floor. */
   supportId: string | null
+  working?: boolean
+  resting?: boolean
+  falling?: boolean
+  lastShakeId?: number
+  supportRect?: MotionRect
+  targetRect?: MotionRect
+  restAt?: number
+  restRemaining?: number
+  slipAt?: number
+  descending?: boolean
 }
 
 const finite = (value: number, fallback = 0): number => Number.isFinite(value) ? value : fallback
@@ -55,10 +67,10 @@ function canClimb(ticket: MotionRect, metrics: ReturnType<typeof dimensions>): b
 }
 
 function sideJump(state: MotionState, ticket: MotionRect): MotionState {
-  return action({ ...state, supportId: null }, {
+  return ascentVariation(action({ ...state, supportId: null }, {
     kind: 'jump', x: state.x, y: ticket.y + ticket.height,
     duration: 520, targetId: ticket.id, jumpHeight: 36
-  })
+  }))
 }
 
 function climb(state: MotionState, ticket: MotionRect, half: number): MotionState {
@@ -68,7 +80,7 @@ function climb(state: MotionState, ticket: MotionRect, half: number): MotionStat
     kind: 'climb', x: landingX, y: ticket.y,
     duration: Math.max(450, (state.y - ticket.y) / 95 * 1000), targetId: ticket.id
   })
-  return { ...next, facing: facing ?? state.facing }
+  return ascentVariation({ ...next, facing: facing ?? state.facing })
 }
 
 function random(state: MotionState): [number, number] {
@@ -83,6 +95,15 @@ function random(state: MotionState): [number, number] {
 function nextRandom(state: MotionState): MotionState {
   const [, randomState] = random(state)
   return { ...state, randomState }
+}
+
+function ascentVariation(state: MotionState): MotionState {
+  const [restDraw, seed1] = random(state)
+  const [slipDraw, seed2] = random({ ...state, randomState: seed1 })
+  const [timing, seed3] = random({ ...state, randomState: seed2 })
+  return { ...state, randomState: seed3,
+    restAt: state.action === 'climb' && restDraw < 0.28 ? 0.22 + timing * 0.34 : undefined,
+    slipAt: slipDraw < 0.14 ? 0.52 + timing * 0.23 : undefined }
 }
 
 function dimensions(surfaces: MotionSurfaces) {
@@ -137,7 +158,9 @@ function action(state: MotionState, spec: ActionSpec): MotionState {
     targetId: spec.targetId ?? null,
     jumpHeight: Math.max(0, finite(spec.jumpHeight ?? 0)),
     facing: face,
-    progress: 0
+    progress: 0,
+    working: false, resting: false, falling: false, descending: false,
+    restAt: undefined, restRemaining: undefined, slipAt: undefined
   }
 }
 
@@ -259,17 +282,185 @@ function chooseAction(state: MotionState, choice: number, context: RoamContext):
   return roam(s, chosenKind(choice), context)
 }
 
+function routeEdge(from: MotionRect | undefined, to: MotionRect, surfaces: MotionSurfaces): boolean {
+  const { floor, half, width } = dimensions(surfaces)
+  if (to.width < half * 2 + 4) return false
+  const target = landingInterval(to, half, width)
+  if (!target) return false
+  const sourceY = from?.y ?? floor
+  const rise = sourceY - to.y
+  if (rise <= 8) return false
+  if (!from) return rise <= TOP_JUMP_REACH || floorClimbRoute(to, surfaces)
+  if (rise > TOP_JUMP_REACH) return false
+  const source = landingInterval(from, half, width)
+  return source ? intervalsReach(source, target) : false
+}
+
+function intervalsReach(source: { min: number; max: number }, target: { min: number; max: number }): boolean {
+  return target.min - source.max <= 180 && source.min - target.max <= 180
+}
+
+function landingInterval(ticket: MotionRect, half: number, width: number): { min: number; max: number } | null {
+  const min = Math.max(half, ticket.x + half)
+  const max = Math.min(width - half, ticket.x + ticket.width - half)
+  return min <= max ? { min, max } : null
+}
+
+function floorClimbRoute(ticket: MotionRect, surfaces: MotionSurfaces): boolean {
+  const { half, width } = dimensions(surfaces)
+  return canClimb(ticket, dimensions(surfaces)) &&
+    (ticket.x - half >= half || ticket.x + ticket.width + half <= width - half)
+}
+
+interface Route { support: MotionRect | undefined; path: MotionRect[]; cost: number }
+
+function candidateRoute(current: Route, ticket: MotionRect, best: Map<string, Route>,
+  surfaces: MotionSurfaces): Route | null {
+  if (!routeEdge(current.support, ticket, surfaces)) return null
+  const cost = current.cost + routeCost(current.support, ticket, surfaces)
+  if (cost >= (best.get(ticket.id)?.cost ?? Number.POSITIVE_INFINITY)) return null
+  return { support: ticket, path: [...current.path, ticket], cost }
+}
+
+function staleRoute(route: Route, best: Map<string, Route>): boolean {
+  return Boolean(route.support && best.get(route.support.id) !== route)
+}
+
+function routeCost(from: MotionRect | undefined, to: MotionRect, surfaces: MotionSurfaces): number {
+  const rise = (from?.y ?? dimensions(surfaces).floor) - to.y
+  return !from && rise > TOP_JUMP_REACH ? 1 + (rise - TOP_JUMP_REACH) / 80 : 1
+}
+
+function reachableRoutes(state: MotionState, tickets: MotionRect[], surfaces: MotionSurfaces): Route[] {
+  const start = state.supportId ? tickets.find((ticket) => ticket.id === state.supportId) : undefined
+  const queue: Route[] = [{ support: start, path: [], cost: 0 }]
+  const best = new Map<string, Route>()
+  if (start) best.set(start.id, queue[0]!)
+  while (queue.length > 0) {
+    queue.sort((a, b) => a.cost - b.cost)
+    const current = queue.shift()!
+    if (staleRoute(current, best)) continue
+    for (const ticket of tickets) {
+      const route = candidateRoute(current, ticket, best, surfaces)
+      if (!route) continue
+      best.set(ticket.id, route)
+      queue.push(route)
+    }
+  }
+  if (start) best.delete(start.id)
+  return [...best.values()]
+}
+
+function routeToGoal(state: MotionState, tickets: MotionRect[], surfaces: MotionSurfaces): MotionRect[] {
+  const routes = reachableRoutes(state, tickets, surfaces)
+  const active = routes.filter((route) => route.support?.inProgress)
+  const candidates = active.length > 0 ? active : routes
+  candidates.sort((a, b) => a.support!.y - b.support!.y || a.cost - b.cost ||
+    a.support!.id.localeCompare(b.support!.id))
+  return candidates[0]?.path ?? []
+}
+
+function groundClimbAction(state: MotionState, ticket: MotionRect, surfaces: MotionSurfaces): MotionState | null {
+  const { half, width, floor } = dimensions(surfaces)
+  const sides = [ticket.x - half, ticket.x + ticket.width + half]
+    .filter((x) => x >= half && x <= width - half)
+    .sort((a, b) => Math.abs(a - state.x) - Math.abs(b - state.x))
+  const sideX = sides[0]
+  if (sideX === undefined) return null
+  if (Math.abs(state.x - sideX) <= 1) return sideJump(state, ticket)
+  return action(state, { kind: Math.abs(state.x - sideX) > width * 0.55 ? 'run' : 'walk',
+    x: sideX, y: floor, duration: Math.max(280, Math.abs(state.x - sideX) / 110 * 1000),
+    targetId: ticket.id })
+}
+
+function jumpLandingX(ticket: MotionRect, source: MotionRect | undefined, half: number, width: number): number {
+  const targetInterval = landingInterval(ticket, half, width)!
+  const sourceInterval = source ? landingInterval(source, half, width) : null
+  return clamp(ticket.x + ticket.width / 2,
+    Math.max(targetInterval.min, (sourceInterval?.min ?? half) - 180),
+    Math.min(targetInterval.max, (sourceInterval?.max ?? width - half) + 180))
+}
+
+function topJumpAction(state: MotionState, ticket: MotionRect, support: MotionRect | undefined,
+  surfaces: MotionSurfaces): MotionState {
+  const { half, width, floor } = dimensions(surfaces)
+  const sourceY = support?.y ?? floor
+  const targetX = jumpLandingX(ticket, support, half, width)
+  const launchX = support
+    ? clamp(targetX, landingInterval(support, half, width)!.min, landingInterval(support, half, width)!.max)
+    : clamp(targetX, state.x - 180, state.x + 180)
+  if (Math.abs(state.x - launchX) > 2) {
+    return action(state, { kind: Math.abs(state.x - launchX) > 150 ? 'run' : 'walk',
+      x: launchX, y: sourceY, duration: Math.max(280, Math.abs(state.x - launchX) / 120 * 1000),
+      targetId: null })
+  }
+  return ascentVariation(action({ ...state, supportId: null }, { kind: 'jump', x: targetX, y: ticket.y,
+    duration: 640, targetId: ticket.id, jumpHeight: Math.max(56, sourceY - ticket.y) }))
+}
+
+function descentAction(state: MotionState, support: MotionRect, goal: MotionRect,
+  surfaces: MotionSurfaces): MotionState | null {
+  const { width, half } = dimensions(surfaces)
+  const exits = [support.x - half, support.x + support.width + half]
+    .filter((x) => x >= half && x <= width - half)
+    .sort((a, b) => Math.abs(a - (goal.x + goal.width / 2)) -
+      Math.abs(b - (goal.x + goal.width / 2)))
+  const exitX = exits[0]
+  if (exitX === undefined) return null
+  return { ...action({ ...state, supportId: null }, {
+    kind: 'jump', x: exitX, y: state.y, duration: 420,
+    jumpHeight: 24
+  }), descending: true }
+}
+
+function guidedAction(state: MotionState, support: MotionRect | undefined, tickets: MotionRect[],
+  surfaces: MotionSurfaces): MotionState | null {
+  const path = routeToGoal(state, tickets, surfaces)
+  const descentGoal = support ? goalBelow(state, { support, path, tickets, surfaces }) : undefined
+  if (support && descentGoal) return descentAction(state, support, descentGoal, surfaces)
+  if (support?.inProgress && !higherActive(path, support)) {
+    const [draw, seed] = random(state)
+    return { ...action({ ...state, randomState: seed }, {
+      kind: 'idle', x: state.x, y: state.y, duration: 1300 + draw * 1600
+    }), working: true, supportId: support.id }
+  }
+  const ticket = path[0]
+  if (!ticket) return null
+  if (!support && dimensions(surfaces).floor - ticket.y > TOP_JUMP_REACH) {
+    return groundClimbAction(state, ticket, surfaces)
+  }
+  return topJumpAction(state, ticket, support, surfaces)
+}
+
+function higherActive(path: MotionRect[], support: MotionRect): boolean {
+  const goal = path.at(-1)
+  return Boolean(goal?.inProgress && goal.y < support.y)
+}
+
+function goalBelow(state: MotionState, context: { support: MotionRect; path: MotionRect[];
+  tickets: MotionRect[]; surfaces: MotionSurfaces }): MotionRect | undefined {
+  const globalGoal = routeToGoal({ ...state, supportId: null }, context.tickets, context.surfaces).at(-1)
+  const localGoal = context.path.at(-1)
+  if (!globalGoal?.inProgress || globalGoal.id === context.support.id) return undefined
+  return !localGoal?.inProgress || globalGoal.y < localGoal.y ? globalGoal : undefined
+}
+
 function nextAction(state: MotionState, surfaces: MotionSurfaces): MotionState {
-  const { width, height, half, floor } = dimensions(surfaces)
+  const { width, height, half } = dimensions(surfaces)
   const tickets = visibleTickets(surfaces)
   const s = nextRandom(state)
   const support = state.supportId ? tickets.find((ticket) => ticket.id === state.supportId) : undefined
-  if (state.supportId && !support) return action({ ...s, supportId: null }, { kind: 'stumble', x: s.x, y: floor, duration: 520 })
+  if (state.supportId && !support) return startFall(s, surfaces)
   const [choice, seed] = random(s)
   const ready = { ...s, randomState: seed }
   if (width <= 0 || height <= 0 || tickets.length === 0 && width <= half * 2) {
     const point = safePoint(ready.x, height, surfaces)
     return action({ ...ready, ...point }, { kind: 'idle', ...point, duration: 700 })
+  }
+  const [guideDraw, guideSeed] = random(ready)
+  if (guideDraw < 0.88) {
+    const guided = guidedAction({ ...ready, randomState: guideSeed }, support, tickets, surfaces)
+    if (guided) return guided
   }
   return chooseAction(ready, choice, { support, tickets, surfaces })
 }
@@ -296,18 +487,16 @@ function supported(state: MotionState, surfaces: MotionSurfaces): boolean {
 }
 
 function sideJumpValid(state: MotionState, ticket: MotionRect, surfaces: MotionSurfaces): boolean {
-  const metrics = dimensions(surfaces)
-  const { half, floor } = metrics
+  const { half } = dimensions(surfaces)
   return sideOf(ticket, state.toX, half) !== null &&
     Math.abs(ticket.y + ticket.height - state.toY) < 1 &&
-    Math.abs(state.fromY - floor) < 1 && canClimb(ticket, metrics)
+    ticket.width >= half * 2 + 4
 }
 
 function topJumpValid(state: MotionState, ticket: MotionRect, surfaces: MotionSurfaces): boolean {
   const { half } = dimensions(surfaces)
   return Math.abs(ticket.y - state.toY) < 1 &&
-    state.toX >= ticket.x + half - 1 && state.toX <= ticket.x + ticket.width - half + 1 &&
-    state.fromY - ticket.y <= TOP_JUMP_REACH
+    state.toX >= ticket.x + half - 1 && state.toX <= ticket.x + ticket.width - half + 1
 }
 
 function targetValid(state: MotionState, surfaces: MotionSurfaces): boolean {
@@ -320,21 +509,48 @@ function targetValid(state: MotionState, surfaces: MotionSurfaces): boolean {
 }
 
 function climbTargetValid(state: MotionState, ticket: MotionRect, surfaces: MotionSurfaces): boolean {
-  const metrics = dimensions(surfaces)
-  const { half } = metrics
+  const { half } = dimensions(surfaces)
   return sideOf(ticket, state.fromX, half) !== null &&
-    canClimb(ticket, metrics) && Math.abs(ticket.y - state.toY) < 1 &&
+    ticket.width >= half * 2 + 4 && Math.abs(ticket.y - state.toY) < 1 &&
     Math.abs(state.fromY - (ticket.y + ticket.height)) < 1
 }
 
 function approachTargetValid(state: MotionState, ticket: MotionRect, surfaces: MotionSurfaces): boolean {
-  const metrics = dimensions(surfaces)
-  const { half, floor } = metrics
+  const { half, floor } = dimensions(surfaces)
   return sideOf(ticket, state.toX, half) !== null &&
-    canClimb(ticket, metrics) && Math.abs(state.toY - floor) < 1
+    ticket.width >= half * 2 + 4 && Math.abs(state.toY - floor) < 1
 }
 
 function smoothstep(t: number): number { return t * t * (3 - 2 * t) }
+
+const FALL_ACCELERATION = 1300
+
+function startFall(state: MotionState, surfaces: MotionSurfaces): MotionState {
+  const floor = dimensions(surfaces).floor
+  if (floor - state.y <= 1) return action({ ...state, supportId: null, targetId: null }, {
+    kind: 'stumble', x: state.x, y: floor, duration: 480
+  })
+  const distance = Math.max(1, floor - state.y)
+  return { ...action({ ...state, supportId: null, targetId: null }, {
+    kind: 'stumble', x: state.x, y: floor,
+    duration: Math.sqrt(2 * distance / FALL_ACCELERATION) * 1000
+  }), falling: true }
+}
+
+function landingBetween(state: MotionState, nextY: number, surfaces: MotionSurfaces): MotionRect | undefined {
+  const half = dimensions(surfaces).half
+  return visibleTickets(surfaces)
+    .filter((ticket) => ticket.y > state.y + 0.01 && ticket.y <= nextY + 0.01 &&
+      state.x >= ticket.x + half && state.x <= ticket.x + ticket.width - half)
+    .sort((a, b) => a.y - b.y || a.id.localeCompare(b.id))[0]
+}
+
+function land(state: MotionState, ticket: MotionRect | undefined, surfaces: MotionSurfaces): MotionState {
+  const y = ticket?.y ?? dimensions(surfaces).floor
+  const grounded = { ...state, y, supportId: ticket?.id ?? null, falling: false }
+  return { ...action(grounded, { kind: 'stumble', x: grounded.x, y, duration: 480 }),
+    supportId: grounded.supportId }
+}
 
 function motionPoint(state: MotionState, t: number, surfaces: MotionSurfaces): { x: number; y: number } {
   let x = state.fromX + (state.toX - state.fromX) * smoothstep(t)
@@ -353,34 +569,179 @@ function motionPoint(state: MotionState, t: number, surfaces: MotionSurfaces): {
   return safePoint(x, y, surfaces)
 }
 
-function completedAction(state: MotionState, surfaces: MotionSurfaces): MotionState {
-  const ticket = state.targetId ? cleanTickets(surfaces).find((item) => item.id === state.targetId) : undefined
-  if (ticket && state.action === 'climb') {
+function completedTicketAction(state: MotionState, ticket: MotionRect, surfaces: MotionSurfaces): MotionState {
+  if (state.action === 'climb') {
     return nextAction({ ...state, y: ticket.y, targetId: null, supportId: ticket.id }, surfaces)
   }
-  if (ticket && state.action === 'jump') {
+  if (state.action === 'jump') {
     if (sideOf(ticket, state.toX, dimensions(surfaces).half)) return climb(state, ticket, dimensions(surfaces).half)
     return nextAction({ ...state, targetId: null, supportId: ticket.id }, surfaces)
   }
-  if (ticket && (state.action === 'walk' || state.action === 'run')) return sideJump(state, ticket)
+  if (state.action === 'walk' || state.action === 'run') return sideJump(state, ticket)
   return nextAction(state, surfaces)
+}
+
+function completedAction(state: MotionState, surfaces: MotionSurfaces): MotionState {
+  if (state.falling) return land(state, undefined, surfaces)
+  if (state.descending) return startFall(state, surfaces)
+  if (state.working) return action(state, { kind: 'idle', x: state.x, y: state.y, duration: 480 })
+  const ticket = state.targetId ? cleanTickets(surfaces).find((item) => item.id === state.targetId) : undefined
+  return ticket ? completedTicketAction(state, ticket, surfaces) : nextAction(state, surfaces)
+}
+
+function rebaseOnRect(state: MotionState, oldRect: MotionRect, rect: MotionRect,
+  surfaces: MotionSurfaces): MotionState {
+  const scale = rect.width / oldRect.width
+  if (!Number.isFinite(scale) || scale <= 0) return state
+  const mapX = (value: number): number => rect.x + (value - oldRect.x) * scale
+  const mapY = (value: number): number => rect.y + (value - oldRect.y) * scale
+  const point = safePoint(mapX(state.x), mapY(state.y), surfaces)
+  return { ...state, ...point, fromX: mapX(state.fromX), fromY: mapY(state.fromY),
+    toX: mapX(state.toX), toY: mapY(state.toY) }
+}
+
+function sidePosition(ticket: MotionRect, side: MotionFacing, half: number): number {
+  return side === 'right' ? ticket.x - half : ticket.x + ticket.width + half
+}
+
+function rebaseSideFlight(state: MotionState, oldRect: MotionRect, rect: MotionRect,
+  surfaces: MotionSurfaces): MotionState | null {
+  const half = dimensions(surfaces).half
+  const side = sideOf(oldRect, state.action === 'climb' ? state.fromX : state.toX, half)
+  if (!side) return null
+  const oldSide = sidePosition(oldRect, side, half)
+  const newSide = sidePosition(rect, side, half)
+  const vertical = rebaseOnRect(state, oldRect, rect, surfaces)
+  if (state.action === 'jump') {
+    const dx = newSide - oldSide
+    return { ...vertical, x: safePoint(state.x + dx, vertical.y, surfaces).x,
+      fromX: state.fromX + dx, toX: state.toX + dx }
+  }
+  const newToX = side === 'right' ? rect.x + half + 2 : rect.x + rect.width - half - 2
+  const fraction = (state.x - state.fromX) / (state.toX - state.fromX)
+  return { ...vertical,
+    x: safePoint(newSide + fraction * (newToX - newSide), vertical.y, surfaces).x,
+    fromX: newSide, toX: newToX }
+}
+
+function rebaseSupport(state: MotionState, surfaces: MotionSurfaces): MotionState {
+  const currentSupport = state.supportId ? cleanTickets(surfaces).find((item) => item.id === state.supportId) : undefined
+  if (!currentSupport || !state.supportRect) return state
+  const rebased = rebaseOnRect(state, state.supportRect, currentSupport, surfaces)
+  const interval = landingInterval(currentSupport, dimensions(surfaces).half, dimensions(surfaces).width)
+  if (!interval) return rebased
+  return { ...rebased, x: clamp(rebased.x, interval.min, interval.max),
+    fromX: clamp(rebased.fromX, interval.min, interval.max),
+    toX: clamp(rebased.toX, interval.min, interval.max) }
+}
+
+function rebaseTarget(state: MotionState, surfaces: MotionSurfaces): MotionState {
+  if (!state.targetId || !state.targetRect || state.supportId) return state
+  const target = cleanTickets(surfaces).find((item) => item.id === state.targetId)
+  if (!target) return state
+  if (state.action === 'climb' || state.action === 'jump') {
+    return rebaseFlightTarget(state, target, surfaces)
+  }
+  if (state.action === 'walk' || state.action === 'run') {
+    return rebaseApproach(state, target, surfaces)
+  }
+  return state
+}
+
+function rebaseFlightTarget(state: MotionState, target: MotionRect, surfaces: MotionSurfaces): MotionState {
+  const side = rebaseSideFlight(state, state.targetRect!, target, surfaces)
+  if (side) return side
+  const rebased = rebaseOnRect(state, state.targetRect!, target, surfaces)
+  const interval = landingInterval(target, dimensions(surfaces).half, dimensions(surfaces).width)
+  return state.action === 'jump' && interval
+    ? { ...rebased, toX: clamp(rebased.toX, interval.min, interval.max) } : rebased
+}
+
+function rebaseApproach(state: MotionState, target: MotionRect, surfaces: MotionSurfaces): MotionState {
+  const old = state.targetRect!
+  const half = dimensions(surfaces).half
+  const side = sideOf(old, state.toX, half)
+  const toX = side ? sidePosition(target, side, half) : state.toX + target.x - old.x
+  return { ...state, toX }
 }
 
 function prepareState(previous: MotionState, surfaces: MotionSurfaces): MotionState {
   const safe = safePoint(previous.x, previous.y, surfaces)
-  const state: MotionState = {
-    ...previous,
-    ...safe,
+  const sanitized: MotionState = {
+    ...previous, ...safe,
     elapsed: Math.max(0, finite(previous.elapsed)),
     duration: Math.max(1, finite(previous.duration, 1)),
     randomState: previous.randomState | 0,
     progress: clamp(finite(previous.progress), 0, 1)
   }
+  const state = rebaseTarget(rebaseSupport(sanitized, surfaces), surfaces)
   if (!state.supportId && (state.action === 'idle' || state.action === 'walk' || state.action === 'run')) {
     const floor = dimensions(surfaces).floor
-    return { ...state, y: floor, fromY: floor, toY: floor }
+    const targetId = previous.fromY !== floor && state.action !== 'idle' ? null : state.targetId
+    return { ...state, y: floor, fromY: floor, toY: floor, targetId }
   }
   return state
+}
+
+interface AdvanceResult { state: MotionState; consumed: number; transitioned: boolean }
+
+function advanceFall(state: MotionState, remaining: number, surfaces: MotionSurfaces): AdvanceResult {
+  const consumed = Math.min(Math.max(0, state.duration - state.elapsed), remaining)
+  const elapsed = state.elapsed + consumed
+  const nextY = Math.min(dimensions(surfaces).floor,
+    state.fromY + 0.5 * FALL_ACCELERATION * (elapsed / 1000) ** 2)
+  const ticket = landingBetween(state, nextY, surfaces)
+  if (ticket) {
+    const hitTime = Math.sqrt(2 * (ticket.y - state.fromY) / FALL_ACCELERATION) * 1000
+    return { state: land(state, ticket, surfaces), consumed: Math.max(0, hitTime - state.elapsed), transitioned: true }
+  }
+  const next = { ...state, y: nextY, elapsed, progress: clamp(elapsed / state.duration, 0, 1) }
+  return next.progress >= 1
+    ? { state: land(next, undefined, surfaces), consumed, transitioned: true }
+    : { state: next, consumed, transitioned: false }
+}
+
+function workNeedsRetarget(state: MotionState, surfaces: MotionSurfaces): boolean {
+  if (!state.working) return false
+  const tickets = visibleTickets(surfaces)
+  const support = tickets.find((ticket) => ticket.id === state.supportId)
+  if (!support?.inProgress) return true
+  const destination = routeToGoal(state, tickets, surfaces).at(-1)
+  return Boolean(destination?.inProgress && destination.y < support.y)
+}
+
+function advanceRest(state: MotionState, remaining: number): AdvanceResult {
+  const consumed = Math.min(remaining, state.restRemaining ?? 0)
+  const restRemaining = Math.max(0, (state.restRemaining ?? 0) - consumed)
+  return { state: { ...state, restRemaining: restRemaining || undefined,
+    resting: restRemaining > 0 }, consumed, transitioned: false }
+}
+
+function nextPoseEvent(state: MotionState): number {
+  const events = [state.restAt, state.slipAt]
+    .filter((event): event is number => event !== undefined && event * state.duration > state.elapsed + 0.001)
+  return events.length > 0 ? Math.min(...events) * state.duration - state.elapsed : state.duration - state.elapsed
+}
+
+function advancePose(state: MotionState, remaining: number, surfaces: MotionSurfaces): AdvanceResult {
+  const consumed = Math.min(Math.max(0, state.duration - state.elapsed), remaining, nextPoseEvent(state))
+  const elapsed = state.elapsed + consumed
+  const t = clamp(elapsed / state.duration, 0, 1)
+  const next = { ...state, elapsed, ...motionPoint(state, t, surfaces), progress: t }
+  if (next.restAt !== undefined && t >= next.restAt - 0.000001) {
+    return { state: { ...next, resting: true, restRemaining: 250 + next.restAt * 600,
+      restAt: undefined }, consumed, transitioned: false }
+  }
+  if (next.slipAt !== undefined && t >= next.slipAt - 0.000001) {
+    return { state: startFall(next, surfaces), consumed, transitioned: true }
+  }
+  return t >= 1
+    ? { state: completedAction(next, surfaces), consumed, transitioned: true }
+    : { state: next, consumed, transitioned: false }
+}
+
+function needsFall(state: MotionState, surfaces: MotionSurfaces): boolean {
+  return !state.falling && (!supported(state, surfaces) || !targetValid(state, surfaces))
 }
 
 function advanceSequence(initial: MotionState, deltaMs: number, surfaces: MotionSurfaces): MotionState {
@@ -388,23 +749,21 @@ function advanceSequence(initial: MotionState, deltaMs: number, surfaces: Motion
   let remaining = clamp(finite(deltaMs), 0, 120_000)
   let transitions = 0
   while (remaining > 0 && transitions < 1024) {
-    if (!supported(state, surfaces) || !targetValid(state, surfaces)) {
-      state = action({ ...state, targetId: null, supportId: null }, {
-        kind: 'stumble', x: state.x, y: dimensions(surfaces).floor, duration: 520
-      })
+    if (needsFall(state, surfaces)) {
+      state = startFall(state, surfaces)
       transitions += 1
       continue
     }
-    const left = Math.max(0, state.duration - state.elapsed)
-    const consumed = Math.min(left, remaining)
-    state = { ...state, elapsed: state.elapsed + consumed }
-    remaining -= consumed
-    const t = clamp(state.elapsed / state.duration, 0, 1)
-    state = { ...state, ...motionPoint(state, t, surfaces), progress: t }
-    if (t >= 1) {
-      state = completedAction(state, surfaces)
+    if (workNeedsRetarget(state, surfaces)) {
+      state = nextAction({ ...state, working: false }, surfaces)
       transitions += 1
+      continue
     }
+    const result = state.falling ? advanceFall(state, remaining, surfaces)
+      : state.resting ? advanceRest(state, remaining) : advancePose(state, remaining, surfaces)
+    state = result.state
+    remaining -= result.consumed
+    if (result.transitioned) transitions += 1
   }
   const point = safePoint(state.x, state.y, surfaces)
   if (remaining > 0) state = action({ ...state, ...point }, { kind: 'idle', ...point, duration: 650 })
@@ -413,10 +772,23 @@ function advanceSequence(initial: MotionState, deltaMs: number, surfaces: Motion
 
 /** Advances seeded motion in CSS pixels. The mascot's full body stays within the viewport. */
 export function stepMotion(previous: MotionState, deltaMs: number, surfaces: MotionSurfaces): MotionState {
-  const state = prepareState(previous, surfaces)
+  let state = prepareState(previous, surfaces)
+  const newShake = surfaces.shakeId !== undefined && surfaces.shakeId !== state.lastShakeId &&
+    (state.lastShakeId !== undefined || surfaces.shakeId !== 0)
+  if (newShake) {
+    state = { ...(state.falling ? state : startFall(state, surfaces)), lastShakeId: surfaces.shakeId }
+  } else if (surfaces.shakeId !== undefined && state.lastShakeId === undefined) {
+    state = { ...state, lastShakeId: surfaces.shakeId }
+  }
   if (surfaces.viewport.width <= 0 || surfaces.viewport.height <= 0) {
     const point = safePoint(state.x, state.y, surfaces)
     return { ...action(state, { kind: 'idle', ...point, duration: 650 }), progress: 0, targetId: null }
   }
-  return advanceSequence(state, deltaMs, surfaces)
+  const next = advanceSequence(state, deltaMs, surfaces)
+  const tickets = cleanTickets(surfaces)
+  return {
+    ...next,
+    supportRect: tickets.find((item) => item.id === next.supportId),
+    targetRect: tickets.find((item) => item.id === next.targetId)
+  }
 }

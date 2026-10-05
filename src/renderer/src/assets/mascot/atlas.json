@@ -487,6 +487,23 @@
         }
       ],
       "renderScale": 1
+    },
+    "drill": {
+      "image": "drill.png",
+      "fps": 4,
+      "loop": true,
+      "playback": "loop",
+      "facing": "right; mirror horizontally for left-facing playback",
+      "footAnchor": { "x": 256, "y": 447 },
+      "frames": [
+        { "name": "raise-drill", "x": 0, "y": 0, "width": 512, "height": 512, "footAnchor": { "x": 256, "y": 447 } },
+        { "name": "lower-drill", "x": 512, "y": 0, "width": 512, "height": 512, "footAnchor": { "x": 256, "y": 449 } },
+        { "name": "drill-contact", "x": 1024, "y": 0, "width": 512, "height": 512, "footAnchor": { "x": 256, "y": 448 } },
+        { "name": "enthusiastic-recoil", "x": 0, "y": 512, "width": 512, "height": 512, "footAnchor": { "x": 256, "y": 416 } },
+        { "name": "drill-again", "x": 512, "y": 512, "width": 512, "height": 512, "footAnchor": { "x": 256, "y": 417 } },
+        { "name": "ready-again", "x": 1024, "y": 512, "width": 512, "height": 512, "footAnchor": { "x": 256, "y": 416 } }
+      ],
+      "renderScale": 1
     }
   }
 }

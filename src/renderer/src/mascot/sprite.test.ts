@@ -33,6 +33,9 @@ describe('mascot sprite playback', () => {
     expect(frameForMotion('walk', 1810, 0).index).toBe(0)
     expect(frameForMotion('run', 150, 0).index).toBe(2)
     expect(frameForMotion('climb', 375, 0).index).toBe(3)
+    expect(frameForMotion('drill', 0, 0).index).toBe(0)
+    expect(frameForMotion('drill', 250, 0).index).toBe(1)
+    expect(frameForMotion('drill', 1500, 0).index).toBe(0)
   })
 
   it('reserves jump crouch, flight and landing and lets stumble recover once', () => {
@@ -58,7 +61,26 @@ describe('mascot sprite playback', () => {
 
   it('keeps every action frame aligned to its foot and its atlas cell in both directions', () => {
     for (const action of ['idle', 'walk', 'run', 'jump', 'climb', 'stumble'] as const) {
+      expect(atlas.actions[action].frames.length).toBeGreaterThan(0)
       expectAlignedFrames(action)
+    }
+  })
+
+})
+
+describe('drill sprite placement', () => {
+  it('anchors every drill frame to the planted feet and mirrors the drill with the mascot', () => {
+    const clip = atlas.actions.drill
+    for (let index = 0; index < clip.frames.length; index += 1) {
+      const right = spritePlacement({ action: 'drill', elapsed: index * 250, progress: 0, facing: 'right', x: 173, y: 281 })
+      const left = spritePlacement({ action: 'drill', elapsed: index * 250, progress: 0, facing: 'left', x: 173, y: 281 })
+      const frame = clip.frames[index]!
+      const anchor = frame.footAnchor ?? clip.footAnchor
+      expect(right.frame).toEqual(frame)
+      expect(right.top + anchor.y * right.scale).toBeCloseTo(281)
+      expect(right.left + anchor.x * right.scale).toBeCloseTo(173)
+      expect(left.left + (frame.width - anchor.x) * left.scale).toBeCloseTo(173)
+      expect(left.mirrored).toBe(true)
     }
   })
 })
