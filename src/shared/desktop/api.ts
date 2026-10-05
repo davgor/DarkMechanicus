@@ -272,7 +272,9 @@ const DESKTOP_COMMANDS = [
   'approveWithRedraft',
   'authorizeAutoContinue',
   'grantRetry',
-  'listEvents'
+  'listEvents',
+  'getAttemptTimeline',
+  'getRunTimeline'
 ] as const satisfies readonly CommandName[]
 
 export type DesktopCommandName = (typeof DESKTOP_COMMANDS)[number]

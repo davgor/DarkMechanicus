@@ -20,6 +20,18 @@
  * forum and the ACP specification, not from a real CLI). A refusal while the chat is being started is
  * held until the first message, which starts a new process and tries again.
  *
+ * Subagents. Everything stays in the chat's own thread. Cursor's ACP page (https://cursor.com/docs/cli/acp,
+ * read 2026-10-05) tells the client only that a subagent task exists: the `cursor/task` extension carries
+ * the task's `toolCallId`, description, prompt, subagent type and (once known) agent id and duration, and
+ * nothing in it, in the stable Agent Client Protocol (https://agentclientprotocol.com/protocol) or on
+ * Cursor's page names a session of the subagent or relates its messages and tool calls to the task that
+ * started it. So the task shows as the tool call it is, the `cursor/task` message is answered (see
+ * `CursorSession`) and no `thread` item is written: a thread would hold nothing. The ACP draft for
+ * subagent sessions (`subagent_update`, agentclientprotocol/agent-client-protocol `docs/rfds/subagents.mdx`,
+ * 2026-09-30) is sent only to a client that advertises the `subagents` capability, which this one does
+ * not, and nothing read from Cursor says it sends them. Not verified against a real CLI (none is
+ * installed here); `__mocks__/cursorSubagents.ts` is built from the documents, not recorded.
+ *
  * Stop. `session/cancel`; if the agent has not ended the turn within a grace period the process is
  * killed (the next message resumes the session in a new one). `dispose` kills the whole tree.
  *

@@ -14,7 +14,9 @@ const ITEMS: ChatItem[] = [
   { ...BASE, kind: 'model_change', from: null, to: 'opus' },
   { ...BASE, kind: 'error', message: 'agent exited' },
   { ...BASE, kind: 'context_reset', reason: 'model_change' },
-  { ...BASE, kind: 'auth_required', agent: 'claude', message: 'Not logged in · Please run /login' }
+  { ...BASE, kind: 'auth_required', agent: 'claude', message: 'Not logged in · Please run /login' },
+  { ...BASE, kind: 'thread', parentItemId: 'it_0', label: 'Summarize a.txt', state: 'running' },
+  { ...BASE, kind: 'approval_request', requestId: 'req_2', category: 'file_edit', tool: 'Write', summary: 'Write a.txt', threadId: 'th_1', threadLabel: 'Summarize a.txt' }
 ]
 
 describe('chatItemSchema', () => {
@@ -56,6 +58,35 @@ describe('chatItemSchema', () => {
     expect(chatItemSchema.parse(base)).not.toHaveProperty('threadId')
     expect(chatItemSchema.parse({ ...base, threadId: 'th_1' })).toHaveProperty('threadId', 'th_1')
     expect(chatItemSchema.safeParse({ ...base, threadId: '' }).success).toBe(false)
+  })
+})
+
+describe('chatItemSchema: nested threads', () => {
+  const thread = { ...BASE, id: 'th_1', kind: 'thread', parentItemId: 'call_1', label: 'Summarize a.txt', state: 'running' }
+
+  it('says which item spawned a thread, what it is called and how it is going', () => {
+    expect(chatItemSchema.parse(thread)).toEqual(thread)
+    for (const state of ['running', 'done', 'failed']) {
+      expect(chatItemSchema.safeParse({ ...thread, state }).success).toBe(true)
+    }
+    expect(chatItemSchema.safeParse({ ...thread, state: 'paused' }).success).toBe(false)
+    expect(chatItemSchema.safeParse({ ...thread, parentItemId: undefined }).success).toBe(false)
+    expect(chatItemSchema.safeParse({ ...thread, parentItemId: '' }).success).toBe(false)
+    expect(chatItemSchema.safeParse({ ...thread, label: undefined }).success).toBe(false)
+    expect(chatItemSchema.safeParse({ ...thread, label: '' }).success).toBe(false)
+  })
+
+  it('lets a thread sit inside another thread, so a subagent can start one of its own', () => {
+    expect(chatItemSchema.parse({ ...thread, threadId: 'th_0' })).toHaveProperty('threadId', 'th_0')
+  })
+
+  it('lets an approval request name the thread it was raised in, and reads one that names none', () => {
+    const request = { ...BASE, kind: 'approval_request', requestId: 'r', category: 'command', tool: 'Bash', summary: 'Run ls' }
+    const plain = chatItemSchema.parse(request)
+    expect(plain).not.toHaveProperty('threadId')
+    expect(plain).not.toHaveProperty('threadLabel')
+    expect(chatItemSchema.parse({ ...request, threadId: 'th_1', threadLabel: 'Summarize a.txt' })).toMatchObject({ threadId: 'th_1', threadLabel: 'Summarize a.txt' })
+    expect(chatItemSchema.safeParse({ ...request, threadLabel: '' }).success).toBe(false)
   })
 })
 

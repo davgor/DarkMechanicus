@@ -6,6 +6,7 @@ import type { ChatRecord } from '../../../shared/agents/chat'
 import type { CreateChatRequest } from '../../../shared/agents/chatApi'
 import type { FolderPickResult } from '../../../shared/desktop/api'
 import type { WorkStatus } from '../../../shared/domain/status'
+import type { Landing } from './landing'
 import type { Selection } from './selection'
 import { createShellActions } from './shellActions'
 import type { BusyKey, ShellActions } from './shellActions'
@@ -28,6 +29,8 @@ class Recorder {
   untrackError: string | null = null
   buckets: Record<string, WorkStatus> = {}
   agentsRevealed: string[] = []
+  /** Every request a link asked the opened screen to take, in order; null is one being forgotten. */
+  landings: (Landing | null)[] = []
   chatRequests: CreateChatRequest[] = []
   /** What creating a chat answers; null stands for a failure that was already reported. */
   createdChat: ChatRecord | null = chatRecord({ id: 'chat_new_1', folder: '/a' })
@@ -53,6 +56,7 @@ class Recorder {
       reveal: (path, bucket) => this.revealed.push(bucket === null ? path : `${path}:${bucket}`),
       bucketOf: (path, epicId) => this.buckets[`${path}:${epicId}`] ?? null,
       revealAgents: (path) => this.agentsRevealed.push(path),
+      land: (landing) => this.landings.push(landing),
       chats: {
         create: (request) => {
           this.chatRequests.push(request)
@@ -407,5 +411,44 @@ describe('chat actions', () => {
     const created = await recorder.actions().createChat(alpha, { agent: 'claude', model: null, role: 'planner', allowSave: true })
     expect(created).toBeNull()
     expect(recorder.selections).toEqual([])
+  })
+})
+
+describe('links from other screens', () => {
+  it('opens a ticket in its epic: selects the epic, reveals its bucket and asks the workspace for the ticket and attempt', () => {
+    recorder.buckets['/a:ep_1'] = 'in_progress'
+    recorder.actions().openTicket('/a', { epicId: 'ep_1', ticketId: 'tk_1', attemptId: 'at_1' })
+    expect(recorder.selections).toEqual([{ folderPath: '/a', epicId: 'ep_1' }])
+    expect(recorder.revealed).toEqual(['/a:in_progress'])
+    expect(recorder.landings).toEqual([{ kind: 'ticket', epicId: 'ep_1', ticketId: 'tk_1', attemptId: 'at_1' }])
+  })
+
+  it('opens a ticket with no attempt, and asks for a new request each time', () => {
+    const actions = recorder.actions()
+    actions.openTicket('/a', { epicId: 'ep_1', ticketId: 'tk_1', attemptId: null })
+    actions.openTicket('/a', { epicId: 'ep_1', ticketId: 'tk_1', attemptId: null })
+    expect(recorder.landings).toEqual([
+      { kind: 'ticket', epicId: 'ep_1', ticketId: 'tk_1', attemptId: null },
+      { kind: 'ticket', epicId: 'ep_1', ticketId: 'tk_1', attemptId: null }
+    ])
+    expect(recorder.landings[0]).not.toBe(recorder.landings[1])
+  })
+
+  it('opens a chat at a thread: selects the chat, reveals the folder\'s Agents block and asks the chat for the thread', () => {
+    recorder.actions().openThread('/a', 'chat_1', 'claude_thread_toolu_1')
+    expect(recorder.selections).toEqual([{ folderPath: '/a', epicId: null, chatId: 'chat_1' }])
+    expect(recorder.agentsRevealed).toEqual(['/a'])
+    expect(recorder.landings).toEqual([{ kind: 'thread', chatId: 'chat_1', threadId: 'claude_thread_toolu_1' }])
+  })
+
+  it('forgets the request once a view took it, and when the person goes somewhere else', () => {
+    const actions = recorder.actions()
+    actions.landed()
+    actions.selectFolder('/a')
+    actions.selectEpic('/a', 'ep_1')
+    actions.selectChat('/a', 'chat_1')
+    actions.openAddAgent()
+    actions.openAgent('claude')
+    expect(recorder.landings).toEqual([null, null, null, null, null, null])
   })
 })

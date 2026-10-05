@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { GraphInput } from '../graph/graphModel'
-import { draftPlan, runView, savedPlan, sprint, bundle } from './__mocks__/fixtures'
+import { attempt, draftPlan, runView, savedPlan, sprint, bundle } from './__mocks__/fixtures'
 import { listSections } from './listSections'
 
 function input(patch: Partial<GraphInput> = {}): GraphInput {
@@ -36,11 +36,27 @@ describe('list view', () => {
       badge: { label: 'ACCEPTED', tone: 'accepted', dashed: false },
       priority: 'Normal',
       tags: [],
-      optional: false
+      optional: false,
+      working: null
     })
     const importRow = sections[1]?.rows.find((row) => row.id === 'tk_202')
     expect(importRow).toMatchObject({ status: 'In progress', priority: 'High', tags: ['storage'] })
     expect(sections[1]?.rows.find((row) => row.id === 'tk_204')?.status).toBe('—')
+  })
+
+})
+
+describe('list view and the attempt being worked on', () => {
+  it('names the open attempt of a ticket being worked on, and no other', () => {
+    const rows = listSections(input())[1]?.rows ?? []
+    expect(rows.map((row) => [row.key, row.working])).toEqual([
+      ['DM-201', null],
+      ['DM-202', 'at_202_2'],
+      ['DM-203', null],
+      ['DM-204', null]
+    ])
+    const closed = runView({ attempts: [attempt('DM-202', 1, 'running'), attempt('DM-202', 2, 'failed')] })
+    expect(listSections(input({ run: closed }))[1]?.rows.map((row) => row.working)).toEqual([null, null, null, null])
   })
 
   it('shows draft change states in the Draft view', () => {

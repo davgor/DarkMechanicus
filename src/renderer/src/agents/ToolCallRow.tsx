@@ -1,7 +1,9 @@
-import { Fragment, memo, useState } from 'react'
+import { Fragment, memo, useMemo, useState } from 'react'
 import type { ChatItem } from '../../../shared/agents/chat'
 import { Icon } from '../components/Icon'
 import { StatePill } from '../components/StatePill'
+import { ActionMarker } from './ActionMarker'
+import { actionMarker, failureDetail } from './actionMarkers'
 import { callStatus, callSummary, inputFields, resultText } from './chatViewModel'
 
 type ToolCallItem = Extract<ChatItem, { kind: 'tool_call' }>
@@ -26,8 +28,7 @@ function CallDetails({ call }: { call: ToolCallItem }): JSX.Element {
   )
 }
 
-/** A tool call as one compact row (name, summary, status) that opens to its input and result. */
-export const ToolCallRow = memo(function ToolCallRow({ call }: { call: ToolCallItem }): JSX.Element {
+function PlainCall({ call }: { call: ToolCallItem }): JSX.Element {
   const [open, setOpen] = useState(false)
   const status = callStatus(call.status)
   return (
@@ -41,4 +42,14 @@ export const ToolCallRow = memo(function ToolCallRow({ call }: { call: ToolCallI
       {open ? <CallDetails call={call} /> : null}
     </li>
   )
+}
+
+/**
+ * A tool call as one compact row (name, summary, status) that opens to its input and result; a call of the
+ * Dark Mechanicus server is an action marker instead ("claimed DM-12"), which says what happened and opens
+ * the ticket or epic it is about.
+ */
+export const ToolCallRow = memo(function ToolCallRow({ call }: { call: ToolCallItem }): JSX.Element {
+  const marker = useMemo(() => actionMarker(call), [call])
+  return marker === null ? <PlainCall call={call} /> : <ActionMarker marker={marker} detail={failureDetail(call)} />
 })

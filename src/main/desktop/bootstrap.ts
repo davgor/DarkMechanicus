@@ -17,11 +17,14 @@ import { join } from 'node:path'
 import { DomainError } from '../../core/errors'
 import { openWorkspace, type Workspace } from '../../core/workspace'
 import type { AgentDownloadProgress, AgentKind, McpConfigView } from '../../shared/desktop/api'
+import { createActivityBindings, type ActivityBindings } from '../agents/activityBindings'
 import { CHAT_ADAPTERS } from '../agents/adapterRegistry'
 import { createChatHandlers } from '../agents/chatHandlers'
 import { createChatPush, registerChatIpc } from '../agents/chatIpc'
 import { createChatStore } from '../agents/chatStore'
 import { createSessionManager, type SessionManager } from '../agents/sessionManager'
+import { listBoundThreads } from '../agents/boundThreads'
+import { listThreadBindings, type BindingReads } from '../agents/threadBindings'
 import { trackChatSignIn } from '../agents/signInHooks'
 import { logger } from '../logger'
 import { getAgentAuthStatus, signInAgent } from './agentAuth'
@@ -157,17 +160,20 @@ function desktopWorkspace(folders: Pick<FolderRegistry, 'resolve'>, workspaces: 
 }
 
 /**
- * Runs agent chats (`userData/agents/chats`) with the connected agents. When a chat's agent turns out to
- * be signed out, the run it orchestrates is paused with the reason `signed_out` through the folder's own
- * desktop workspace: the only session that may give that reason.
+ * Runs agent chats (`userData/agents/chats`) with the connected agents, binding their threads to the runs
+ * and attempts they act on (`activity`). When a chat's agent turns out to be signed out, the run it
+ * orchestrates is paused with the reason `signed_out` through the folder's own desktop workspace: the
+ * only session that may give that reason.
  */
 function createSessions(
   folders: Pick<FolderRegistry, 'resolve'>,
   agents: Pick<AgentRegistry, 'list'>,
-  workspaces: Pick<WorkspacePool, 'get'>
+  workspaces: Pick<WorkspacePool, 'get'>,
+  activity: ActivityBindings
 ): SessionManager {
   return createSessionManager({
     store: createChatStore({ root: join(app.getPath('userData'), 'agents', 'chats') }),
+    activity,
     adapters: CHAT_ADAPTERS,
     executablePath: (kind) => agents.list().find((agent) => agent.kind === kind)?.executablePath ?? null,
     mcpConfig: mcpConfigFor,
@@ -182,16 +188,36 @@ function createSessions(
   })
 }
 
-/** Serves the `chats:*` channels over the chat sessions. */
-function startChats(
-  ipc: Pick<IpcMain, 'handle'>,
-  folders: Pick<FolderRegistry, 'resolve'>,
-  sessions: SessionManager,
+/** What the desktop's own workspace can say about a run and an attempt, for resolving the tickets chat threads are bound to. */
+function bindingReads(workspaces: Pick<WorkspacePool, 'get'>): BindingReads {
+  return {
+    attempt: async (folder, attemptId) => {
+      const { runId, ticketId } = await workspaces.get(folder).getAttemptTimeline({ attemptId, limit: 1 })
+      return { runId, ticketId }
+    },
+    run: async (folder, runId) => {
+      const run = await workspaces.get(folder).getRun({ runId })
+      return run === null ? null : { epicId: run.epicId, tickets: run.tickets.map((ticket) => ({ ticketId: ticket.ticketId, key: ticket.key })) }
+    }
+  }
+}
+
+/** What the `chats:*` channels run over: the tracked folders, the chat sessions, the workspaces and the thread bindings. */
+interface ChatServices {
+  folders: Pick<FolderRegistry, 'resolve'>
+  sessions: SessionManager
   workspaces: Pick<WorkspacePool, 'get'>
-): void {
+  activity: ActivityBindings
+}
+
+/** Serves the `chats:*` channels over the chat sessions. */
+function startChats(ipc: Pick<IpcMain, 'handle'>, services: ChatServices): void {
+  const { folders, sessions, workspaces, activity } = services
   const handlers = createChatHandlers({
     registry: folders,
     sessions,
+    threadBindings: (chat) => listThreadBindings({ activity, reads: bindingReads(workspaces) }, chat),
+    boundThreads: (folder, target) => listBoundThreads(activity, folder, target),
     // The same desktop commands the Start run button runs, through the folder's own workspace.
     runs: {
       getEpic: (folder, epicId) => workspaces.get(folder).getEpic({ epicId }),
@@ -218,7 +244,9 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   const pool = createWorkspacePool(openDesktopWorkspace, (path, error) => {
     logger.error(`Workspace error for ${path}:`, error)
   })
-  const sessions = createSessions(registry, agents, pool)
+  // Which chat threads act on which runs and attempts, next to the chats; main code looks them up here.
+  const activity = createActivityBindings({ file: join(app.getPath('userData'), 'agents', 'activity-bindings.jsonl') })
+  const sessions = createSessions(registry, agents, pool, activity)
   // The status the app shows is the CLI's own, corrected by what chats found out (an expired login).
   const authHooks = trackChatSignIn(
     {
@@ -252,6 +280,6 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   registerDesktopIpc(ipc, handlers)
   setInterval(() => pool.heartbeatAll(), HEARTBEAT_INTERVAL_MS)
   app.on('before-quit', () => pool.closeAll())
-  startChats(ipc, registry, sessions, pool)
+  startChats(ipc, { folders: registry, sessions, workspaces: pool, activity })
   return { chats: sessions }
 }

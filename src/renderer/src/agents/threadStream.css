@@ -1,0 +1,65 @@
+/*
+ * The rows of a followed chat thread in the attempt's Activity tab and the orchestrator feed. Tokens only
+ * (docs/design/palette.md); the row's dot and spacing come from the list it sits in, so these only style what
+ * is inside a row: who spoke, the call line, the plain texts.
+ */
+
+.ts-body {
+  min-width: 0;
+}
+
+.ts-who {
+  margin: 0 0 2px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.ts-user,
+.ts-error {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ts-error {
+  color: var(--st-failed);
+}
+
+/* Markdown inside a row sits tight against the row's own rhythm. */
+.ts-body .md > :first-child {
+  margin-top: 0;
+}
+
+.ts-body .md > :last-child {
+  margin-bottom: 0;
+}
+
+.ts-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+  margin: 0;
+  min-width: 0;
+}
+
+.ts-name {
+  flex-shrink: 0;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+
+.ts-summary {
+  min-width: 0;
+  flex: 1 1 140px;
+  overflow: hidden;
+  color: var(--ink-soft);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

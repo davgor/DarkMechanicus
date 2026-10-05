@@ -72,7 +72,9 @@ describe('LIMITS', () => {
       comment: 20_000,
       commentsPerEpic: 10_000,
       profileDescription: 500,
-      definitionOfDone: 50
+      definitionOfDone: 50,
+      progressNote: 280,
+      progressStep: 64
     })
   })
 })
@@ -1425,5 +1427,29 @@ describe('incrementRef', () => {
     expect(accepts(COMMAND_SCHEMAS.submitAttempt, { ...submission, increment: { branch: 'epic/x', commit: COMMIT } })).toBe(true)
     expect(accepts(COMMAND_SCHEMAS.submitAttempt, { ...submission, increment: { branch: 'epic/x' } })).toBe(false)
     expect(accepts(COMMAND_SCHEMAS.submitAttempt, { ...submission, outputs: { summary: 's', increment: { branch: 'b', commit: COMMIT } } })).toBe(false)
+  })
+})
+
+describe('heartbeat progress note', () => {
+  const heartbeat = { attemptId: idOf('attempt', 1), claimToken: 'at.secret' }
+
+  it('is optional, and takes a note with or without a step', () => {
+    expect(accepts(COMMAND_SCHEMAS.heartbeatAttempt, heartbeat)).toBe(true)
+    expect(accepts(COMMAND_SCHEMAS.heartbeatAttempt, { ...heartbeat, progress: { note: 'wiring the service' } })).toBe(true)
+    expect(accepts(COMMAND_SCHEMAS.heartbeatAttempt, { ...heartbeat, progress: { note: 'n', step: 'testing' } })).toBe(true)
+  })
+
+  it('takes a note of exactly 280 characters and a step of exactly 64', () => {
+    expect(accepts(COMMAND_SCHEMAS.heartbeatAttempt, { ...heartbeat, progress: { note: text(280), step: text(64) } })).toBe(true)
+  })
+
+  it.each([
+    ['a note of 281 characters', { note: text(281) }],
+    ['a step of 65 characters', { note: 'n', step: text(65) }],
+    ['a step without a note', { step: 'testing' }],
+    ['a note that is not text', { note: 7 }],
+    ['an unknown key', { note: 'n', detail: 'x' }]
+  ])('rejects %s', (_label, progress) => {
+    expect(accepts(COMMAND_SCHEMAS.heartbeatAttempt, { ...heartbeat, progress })).toBe(false)
   })
 })

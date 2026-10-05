@@ -4,8 +4,9 @@ import { join, resolve, sep } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { DomainError } from '../../core/errors'
 import { createIdGenerator } from '../../core/ids'
-import type { ChatItem } from '../../shared/agents/chat'
+import { chatItemSchema, type ChatItem } from '../../shared/agents/chat'
 import { createFolderRegistry, type RegistryFs } from '../desktop/folderRegistry'
+import { CHAT_BEFORE_THREADS, CHAT_BEFORE_THREADS_LINES } from './__mocks__/chatBeforeThreads'
 import { CLAIM_TOKEN_MASK } from './claimTokenMask'
 import { createChatStore, type ChatStore, type ChatStoreFs, type NewChat } from './chatStore'
 
@@ -202,6 +203,113 @@ describe('chat store item replacement', () => {
     const items = openStore(fs).readTranscript(chat)?.items ?? []
     expect(items.map((item) => item.kind)).toEqual(['tool_call', 'user_message'])
     expect(items[0]).toMatchObject({ status: 'completed', resultSummary: '2 files' })
+  })
+})
+
+describe('chat store nested threads', () => {
+  const thread = { id: 'claude_thread_t1', at: AT, kind: 'thread', parentItemId: 'claude_tool_t1', label: 'Summarize a.txt' } as const
+  const call = { id: 'claude_tool_t1', at: AT, kind: 'tool_call', name: 'Agent', input: {} } as const
+  const inner = { id: 'claude_tool_r1', at: AT, kind: 'tool_call', name: 'Read', input: {}, threadId: thread.id } as const
+
+  it('stores a thread with its items and replays them, the thread keeping its place while its state changes', () => {
+    const fs = memoryFs()
+    const store = openStore(fs)
+    const chat = store.createChat(NEW_CHAT)
+    store.appendItem(chat, { ...call, status: 'running', resultSummary: null })
+    store.appendItem(chat, { ...thread, state: 'running' })
+    store.appendItem(chat, { ...inner, status: 'running', resultSummary: null })
+    store.appendItem(chat, { ...inner, status: 'completed', resultSummary: 'ok' })
+    store.appendItem(chat, { ...call, status: 'completed', resultSummary: 'done' })
+    store.appendItem(chat, { ...thread, state: 'done' })
+
+    const transcript = openStore(fs).readTranscript(chat)
+
+    expect(transcript?.skipped).toBe(0)
+    expect(transcript?.items.map((item) => [item.id, item.kind, item.threadId])).toEqual([
+      ['claude_tool_t1', 'tool_call', undefined],
+      ['claude_thread_t1', 'thread', undefined],
+      ['claude_tool_r1', 'tool_call', 'claude_thread_t1']
+    ])
+    expect(transcript?.items[1]).toMatchObject({ parentItemId: 'claude_tool_t1', label: 'Summarize a.txt', state: 'done' })
+    expect(transcript?.items[2]).toMatchObject({ status: 'completed', resultSummary: 'ok' })
+  })
+
+  it('stores the thread an approval request was raised in, masking claim tokens in the label like everywhere else', () => {
+    const store = openStore(memoryFs())
+    const chat = store.createChat(NEW_CHAT)
+    const token = `at_${'a'.repeat(26)}.${'s'.repeat(32)}`
+
+    const stored = store.appendItem(chat, {
+      id: 'req_item',
+      at: AT,
+      kind: 'approval_request',
+      requestId: 'req_1',
+      category: 'file_edit',
+      tool: 'Write',
+      summary: 'Write a.txt',
+      threadId: thread.id,
+      threadLabel: `Work on ${token}`
+    })
+
+    expect(stored).toMatchObject({ threadId: thread.id, threadLabel: `Work on ${CLAIM_TOKEN_MASK}` })
+    expect(JSON.stringify(store.readTranscript(chat)?.items)).not.toContain(token)
+  })
+
+  it('does not bump the chat on each thread update, like the tool calls around them', () => {
+    const store = openStore(memoryFs())
+    const chat = store.createChat(NEW_CHAT)
+    const before = store.getChat(chat)?.updatedAt
+
+    store.appendItem(chat, { ...thread, state: 'running' })
+
+    expect(store.getChat(chat)?.updatedAt).toBe(before)
+  })
+})
+
+describe('chat store reads chats stored before threads existed', () => {
+  function storedBeforeThreads(): { fs: MemoryFs; chat: { folder: string; id: string } } {
+    const fs = memoryFs()
+    const chat = openStore(fs).createChat(NEW_CHAT)
+    fs.files.set(indexPath(fs).replace('index.jsonl', `${chat.id}.jsonl`), CHAT_BEFORE_THREADS)
+    return { fs, chat }
+  }
+
+  it('loads every item of a transcript in the old shape, without threads', () => {
+    const { fs, chat } = storedBeforeThreads()
+
+    const transcript = openStore(fs).readTranscript(chat)
+
+    expect(transcript?.skipped).toBe(0)
+    expect(transcript?.items.map((item) => [item.id, item.kind])).toEqual([
+      ['it_1', 'user_message'],
+      ['claude_tool_toolu_old1', 'tool_call'],
+      ['claude_tool_toolu_old2', 'tool_call'],
+      ['claude_approval_toolu_oldw', 'approval_request'],
+      ['item_dec_1', 'approval_decision'],
+      ['claude_msg_old_0', 'assistant_text']
+    ])
+    expect(transcript?.items.some((item) => item.threadId !== undefined || item.kind === 'thread')).toBe(false)
+    expect(transcript?.items[1]).toMatchObject({ name: 'Agent', status: 'completed', resultSummary: 'Alpha lists three fruits.' })
+    expect(transcript?.items[3]).not.toHaveProperty('threadLabel')
+  })
+
+  it('accepts every stored line against the current contract as it is', () => {
+    expect(CHAT_BEFORE_THREADS_LINES.map((line) => chatItemSchema.safeParse(JSON.parse(line)).success)).toEqual(CHAT_BEFORE_THREADS_LINES.map(() => true))
+  })
+
+  it('goes on appending to such a chat, threads included', () => {
+    const { fs, chat } = storedBeforeThreads()
+    const store = openStore(fs)
+
+    store.appendItem(chat, { id: 'claude_thread_toolu_new', at: AT, kind: 'thread', parentItemId: 'claude_tool_toolu_new', label: 'Later work', state: 'running' })
+    store.appendItem(chat, { id: 'later', at: AT, kind: 'assistant_text', text: 'inside', threadId: 'claude_thread_toolu_new' })
+
+    const items = openStore(fs).readTranscript(chat)?.items ?? []
+    expect(items).toHaveLength(8)
+    expect(items.slice(-2).map((item) => [item.kind, item.threadId])).toEqual([
+      ['thread', undefined],
+      ['assistant_text', 'claude_thread_toolu_new']
+    ])
   })
 })
 

@@ -9,11 +9,12 @@ import { z } from 'zod'
 import { DomainError, toErrorShape } from '../../core/errors'
 import { LIMITS, parseInput, stableId } from '../../core/schemas'
 import { APPROVAL_DECISIONS, CHAT_ROLES, chatIdSchema, type ChatItem, type ChatRecord, type ModelOption } from '../../shared/agents/chat'
-import type { ChatOpenView, ChatSummary, StartOrchestratorResult } from '../../shared/agents/chatApi'
+import type { BoundThread, ChatOpenView, ChatSummary, StartOrchestratorResult, ThreadBinding } from '../../shared/agents/chatApi'
 import { AGENT_KINDS } from '../../shared/desktop/agentKinds'
 import type { CommandResult } from '../../shared/desktop/api'
 import { agentKindSchema } from '../desktop/agentHandlers'
 import type { FolderRegistry } from '../desktop/folderRegistry'
+import type { BoundTarget } from './boundThreads'
 import type { ChatRef } from './chatStore'
 import { startOrchestratorRun, type OrchestratorRuns } from './orchestratorStart'
 import type { SessionManager } from './sessionManager'
@@ -43,6 +44,11 @@ const startOrchestratorSchema = z.strictObject({
   model: modelSchema.nullable().optional()
 })
 const refSchema = z.strictObject(refShape)
+/** A whole id of the kind: a claim token (`<attempt id>.<secret>`) or any other text is not one. */
+const attemptIdSchema = stableId.regex(/^at_/)
+const runIdSchema = stableId.regex(/^rn_/)
+/** An attempt or a run, never both and never anything else. */
+const boundThreadsSchema = z.union([z.strictObject({ folder: folderSchema, attemptId: attemptIdSchema }), z.strictObject({ folder: folderSchema, runId: runIdSchema })])
 const sendSchema = z.strictObject({ ...refShape, text: z.string().min(1).max(LIMITS.markdown) })
 const setModelSchema = z.strictObject({ ...refShape, model: modelSchema })
 const renameSchema = z.strictObject({ ...refShape, title: z.string().trim().min(1).max(LIMITS.title) })
@@ -57,6 +63,10 @@ interface ChatHandlerDeps {
   sessions: SessionManager
   /** The desktop's run commands, for starting an orchestrator. */
   runs: OrchestratorRuns
+  /** The bindings of a chat's threads to runs and attempts, resolved as far as the folder's store allows; without it a chat has none. */
+  threadBindings?: (chat: ChatRef) => Promise<ThreadBinding[]>
+  /** The threads bound to an attempt or a run among the chats of a (canonical) folder; without it nothing is bound. */
+  boundThreads?: (folder: string, target: BoundTarget) => BoundThread[]
   /** Told about failures that are not DomainErrors (bugs, I/O), so main can log the stack. */
   onUnexpectedError?: (error: unknown) => void
 }
@@ -69,6 +79,8 @@ export interface ChatHandlers {
   open(request: unknown): Promise<CommandResult<ChatOpenView>>
   send(request: unknown): Promise<CommandResult<ChatItem>>
   stop(request: unknown): Promise<CommandResult<null>>
+  threadBindings(request: unknown): Promise<CommandResult<ThreadBinding[]>>
+  boundThreads(request: unknown): Promise<CommandResult<BoundThread[]>>
   retryTurn(request: unknown): Promise<CommandResult<ChatItem>>
   setModel(request: unknown): Promise<CommandResult<ChatRecord>>
   rename(request: unknown): Promise<CommandResult<ChatRecord>>
@@ -98,6 +110,20 @@ function startOrchestrator(deps: ChatHandlerDeps, input: unknown): Promise<Start
   const folder = trackedFolder(deps, request.folder)
   const { runs, sessions, onUnexpectedError } = deps
   return startOrchestratorRun({ runs, sessions, ...(onUnexpectedError === undefined ? {} : { onError: onUnexpectedError }) }, { ...request, folder })
+}
+
+/** The chat's thread bindings; the request is validated even when the app wired none. */
+async function threadBindings(deps: ChatHandlerDeps, input: unknown): Promise<ThreadBinding[]> {
+  const { ref } = chatRequest(deps, refSchema, input)
+  return (await deps.threadBindings?.(ref)) ?? []
+}
+
+/** The threads bound to the attempt or run the request names; the request and the folder are validated even when the app wired no lookup. */
+function boundThreads(deps: ChatHandlerDeps, input: unknown): BoundThread[] {
+  const request = parseInput(boundThreadsSchema, input, 'bound threads request')
+  const folder = trackedFolder(deps, request.folder)
+  const target: BoundTarget = 'attemptId' in request ? { attemptId: request.attemptId } : { runId: request.runId }
+  return deps.boundThreads?.(folder, target) ?? []
 }
 
 async function answer<T>(deps: ChatHandlerDeps, action: () => T | Promise<T>): Promise<CommandResult<T>> {
@@ -132,6 +158,8 @@ export function createChatHandlers(deps: ChatHandlerDeps): ChatHandlers {
         await sessions.stop(chatRequest(deps, refSchema, input).ref)
         return null
       }),
+    threadBindings: (input) => answer(deps, () => threadBindings(deps, input)),
+    boundThreads: (input) => answer(deps, () => boundThreads(deps, input)),
     retryTurn: (input) => answer(deps, () => sessions.retryTurn(chatRequest(deps, refSchema, input).ref)),
     setModel: (input) =>
       answer(deps, () => {

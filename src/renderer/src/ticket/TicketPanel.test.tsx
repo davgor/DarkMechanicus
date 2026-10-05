@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { deferred } from '../__mocks__/deferred'
+import { ManualScheduler } from '../__mocks__/manualScheduler'
 import { FakeBackend, scenario } from '../epic/__mocks__/fakeBackend'
 import { NOW, attempt, bundle, comment, projectView, savedPlan, sprint, ticket, ticketDetail } from '../epic/__mocks__/fixtures'
 import { allowSlowRendering } from '../epic/__mocks__/testTiming'
@@ -28,6 +29,9 @@ function renderPanel(backend: FakeBackend, patch: Partial<TicketPanelProps> = {}
   render(
     <TicketPanel
       runner={backend.runner}
+      folderPath="/repo"
+      activity={null}
+      scheduler={new ManualScheduler()}
       epicId="ep_1"
       ticketId="tk_202"
       plan={savedPlan()}
@@ -45,6 +49,7 @@ function renderPanel(backend: FakeBackend, patch: Partial<TicketPanelProps> = {}
         recorded.reviews.push(input)
         return Promise.resolve(reviewError)
       }}
+      onOpenChat={() => undefined}
       onDelete={() => {
         recorded.deletes += 1
         return Promise.resolve(null)

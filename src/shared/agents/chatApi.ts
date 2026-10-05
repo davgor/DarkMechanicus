@@ -79,6 +79,32 @@ export interface ChatOpenView {
   running: boolean
 }
 
+/**
+ * A thread of a chat bound to what it acts on: its main thread (`threadId` null) or a subagent thread (a
+ * `thread` item's id), as that run's `orchestrator` or an attempt's `worker`. The main process resolves
+ * what it can read: the epic of a run, and the run, epic and ticket (id and display key) of an attempt;
+ * what it could not read is null, and a binding whose ticket is unknown still names its attempt.
+ */
+export type ThreadBinding = { threadId: string | null; role: 'orchestrator' | 'worker' } & (
+  | { kind: 'run'; runId: string; epicId: string | null }
+  | { kind: 'attempt'; attemptId: string; runId: string | null; epicId: string | null; ticketId: string | null; ticketKey: string | null }
+)
+
+/** What to look bound threads up by: an attempt (a worker's thread) or a run (its orchestrator), in a tracked folder. */
+export type BoundThreadsRequest = { folder: string; attemptId: string } | { folder: string; runId: string }
+
+/**
+ * A chat thread bound to an attempt or a run, as the main process knows it: the chat (`folder`, `chatId`) and
+ * the thread in it (a `thread` item's id, or null for the chat's main thread) with what it is to the target.
+ * Enough to `open` the chat and follow its pushed events; the stored items are already masked.
+ */
+export interface BoundThread {
+  folder: string
+  chatId: string
+  threadId: string | null
+  role: 'orchestrator' | 'worker'
+}
+
 export type ChatPushEvent =
   /** A stored transcript item (masked), in the order it was stored; approval requests arrive this way. */
   | { type: 'item'; chatId: string; item: ChatItem }
@@ -107,6 +133,17 @@ export interface ChatsApi {
   open(request: ChatRequestRef): Promise<CommandResult<ChatOpenView>>
   /** Stores the message and starts a turn (and the agent, on the first message); returns the stored message. */
   send(request: SendChatRequest): Promise<CommandResult<ChatItem>>
+  /**
+   * Every thread of the chat that is bound to a run or an attempt, in the order bound; none for a chat
+   * that never acted on one. Read it again when the transcript shows a new thread or a call that binds.
+   */
+  threadBindings(request: ChatRequestRef): Promise<CommandResult<ThreadBinding[]>>
+  /**
+   * The threads bound to one attempt or run, in the order bound, from the chats of that folder: a worker's
+   * thread, or the chat that orchestrates. None while nothing is bound (an attempt a host works on outside
+   * a chat). Asking again later may find more, since threads bind as the chat stores their calls.
+   */
+  boundThreads(request: BoundThreadsRequest): Promise<CommandResult<BoundThread[]>>
   /** Ends the running turn; pending approvals are cancelled. */
   stop(request: ChatRequestRef): Promise<CommandResult<null>>
   /**

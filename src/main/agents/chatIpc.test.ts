@@ -3,12 +3,16 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import type { ApprovalDecision, ChatItem, ChatRecord } from '../../shared/agents/chat'
-import { CHAT_EVENT_CHANNEL, type ChatOpenView, type ChatPushEvent, type StartOrchestratorResult } from '../../shared/agents/chatApi'
+import { CHAT_EVENT_CHANNEL, type BoundThread, type ChatOpenView, type ChatPushEvent, type StartOrchestratorResult, type ThreadBinding } from '../../shared/agents/chatApi'
 import type { CommandResult } from '../../shared/desktop/api'
 import type { EpicDetailView, RunView } from '../../shared/domain/views'
-import { AT, fakeAdapters, memoryChatStore, MODELS, REPO, type FakeAdapters } from './__mocks__/fakeChatAdapter'
+import { AT, fakeAdapters, memoryChatFs, memoryChatStore, MODELS, REPO, type FakeAdapters } from './__mocks__/fakeChatAdapter'
+import { ATTEMPT_A, ATTEMPT_B, RUN_ID, THREAD_A } from './__mocks__/orchestratorChat'
+import { createActivityBindings } from './activityBindings'
 import { createChatHandlers } from './chatHandlers'
 import { createChatPush, registerChatIpc, type ChatWindow } from './chatIpc'
+import { listBoundThreads } from './boundThreads'
+import { listThreadBindings } from './threadBindings'
 import type { ChatStore } from './chatStore'
 import { guardIpc } from '../ipcGuard'
 import type { OrchestratorRuns } from './orchestratorStart'
@@ -20,6 +24,7 @@ const EVENT = {} as IpcMainInvokeEvent
 
 const CHAT_CHANNELS = [
   'chats:answerApproval',
+  'chats:boundThreads',
   'chats:create',
   'chats:delete',
   'chats:list',
@@ -30,7 +35,8 @@ const CHAT_CHANNELS = [
   'chats:send',
   'chats:setModel',
   'chats:startOrchestrator',
-  'chats:stop'
+  'chats:stop',
+  'chats:threadBindings'
 ]
 
 const EPIC_ID = 'ep_01m418epbg8qkqa2e2krvdkqk5'
@@ -63,13 +69,16 @@ interface IpcRig {
 }
 
 /** The real handlers and session manager behind fake IPC, with fake adapters, an in-memory store and a fake run queue. */
-function ipcRig(): IpcRig {
+function ipcRig(options: { bindings?: boolean } = {}): IpcRig {
   const ipc = createFakeIpcMain()
   const fakes = fakeAdapters()
-  const store = memoryChatStore()
+  const fs = memoryChatFs()
+  const store = memoryChatStore(fs)
+  const activity = options.bindings === true ? createActivityBindings({ file: '/state/agents/activity-bindings.jsonl', fs }) : undefined
   const events: ChatPushEvent[] = []
   const sessions = createSessionManager({
     store,
+    ...(activity === undefined ? {} : { activity }),
     adapters: fakes.definitions,
     executablePath: (kind) => `/bin/${kind}`,
     mcpConfig: (folder) => ({ command: 'node', args: ['mcp.js', '--repo', folder], env: {} }),
@@ -80,7 +89,22 @@ function ipcRig(): IpcRig {
     getEpic: () => Promise.resolve(EPIC),
     queueRun: (_folder, epicId) => (queued.push(epicId), Promise.resolve(RUN))
   }
-  registerChatIpc(ipc, createChatHandlers({ registry: { resolve: (path) => (path === REPO ? REPO : null) }, sessions, runs }))
+  const threadBindings =
+    activity === undefined
+      ? undefined
+      : (chat: Parameters<typeof listThreadBindings>[1]) =>
+          listThreadBindings({ activity, reads: { attempt: async () => ({ runId: RUN_ID, ticketId: 'tk_1' }), run: async () => ({ epicId: EPIC_ID, tickets: [{ ticketId: 'tk_1', key: 'DM-12' }] }) } }, chat)
+  const boundThreads = activity === undefined ? undefined : (folder: string, target: Parameters<typeof listBoundThreads>[2]) => listBoundThreads(activity, folder, target)
+  registerChatIpc(
+    ipc,
+    createChatHandlers({
+      registry: { resolve: (path) => (path === REPO ? REPO : null) },
+      sessions,
+      runs,
+      ...(threadBindings === undefined ? {} : { threadBindings }),
+      ...(boundThreads === undefined ? {} : { boundThreads })
+    })
+  )
   return {
     invoke: async <T>(channel: string, ...args: unknown[]) => (await ipc.invoke(channel, ...args)) as T,
     sessions,
@@ -346,5 +370,66 @@ describe('chat preload bridge', () => {
   it('listens for pushed chat events on the shared channel name', () => {
     expect(preload).toMatch(/ipcRenderer\.on\(CHAT_EVENT_CHANNEL, /)
     expect(preload).toMatch(/ipcRenderer\.removeListener\(CHAT_EVENT_CHANNEL, /)
+  })
+})
+
+describe('chat IPC: thread bindings end to end', () => {
+  const BASE = { at: AT, kind: 'tool_call', status: 'completed', resultSummary: null } as const
+
+  it('answers the bindings of the calls and subagent threads a chat stored, with the ticket key resolved', async () => {
+    const state = ipcRig({ bindings: true })
+    state.fakes.prepare = (adapter) => {
+      adapter.turn = async (self) => {
+        self.emit({ type: 'item', item: { ...BASE, id: 'take', name: 'mcp__darkmechanicus__takeover_run', input: { runId: RUN_ID } } })
+        self.emit({ type: 'item', item: { ...BASE, id: 'beat', threadId: THREAD_A, name: 'mcp__darkmechanicus__heartbeat_attempt', input: { attemptId: ATTEMPT_A } } })
+      }
+    }
+    const chat = await createdChat(state)
+    const ref = { folder: REPO, chatId: chat.id }
+    await state.invoke('chats:send', { ...ref, text: 'Go' })
+    await settle()
+
+    const bindings = data(await state.invoke<CommandResult<ThreadBinding[]>>('chats:threadBindings', ref))
+
+    expect(bindings).toEqual([
+      { threadId: null, role: 'orchestrator', kind: 'run', runId: RUN_ID, epicId: EPIC_ID },
+      { threadId: THREAD_A, role: 'worker', kind: 'attempt', attemptId: ATTEMPT_A, runId: RUN_ID, epicId: EPIC_ID, ticketId: 'tk_1', ticketKey: 'DM-12' }
+    ])
+    expect(await state.invoke('chats:threadBindings', { ...ref, chatId: 'chat_unknown' })).toEqual({ ok: true, data: [] })
+  })
+})
+
+describe('chat IPC: bound threads end to end', () => {
+  const BASE = { at: AT, kind: 'tool_call', status: 'completed', resultSummary: null } as const
+
+  it('answers which chat and thread are bound to an attempt and to a run, once the chat stored the calls that bind them', async () => {
+    const state = ipcRig({ bindings: true })
+    state.fakes.prepare = (adapter) => {
+      adapter.turn = async (self) => {
+        self.emit({ type: 'item', item: { ...BASE, id: 'take', name: 'mcp__darkmechanicus__takeover_run', input: { runId: RUN_ID } } })
+        self.emit({ type: 'item', item: { ...BASE, id: 'beat', threadId: THREAD_A, name: 'mcp__darkmechanicus__heartbeat_attempt', input: { attemptId: ATTEMPT_A } } })
+      }
+    }
+    const chat = await createdChat(state)
+    await state.invoke('chats:send', { folder: REPO, chatId: chat.id, text: 'Go' })
+    await settle()
+
+    const ofAttempt = data(await state.invoke<CommandResult<BoundThread[]>>('chats:boundThreads', { folder: REPO, attemptId: ATTEMPT_A }))
+    const ofRun = data(await state.invoke<CommandResult<BoundThread[]>>('chats:boundThreads', { folder: REPO, runId: RUN_ID }))
+
+    expect(ofAttempt).toEqual([{ folder: REPO, chatId: chat.id, threadId: THREAD_A, role: 'worker' }])
+    expect(ofRun).toEqual([{ folder: REPO, chatId: chat.id, threadId: null, role: 'orchestrator' }])
+    expect(await state.invoke('chats:boundThreads', { folder: REPO, attemptId: ATTEMPT_B })).toEqual({ ok: true, data: [] })
+  })
+
+  it('refuses a folder that is not tracked and a request that names neither an attempt nor a run', async () => {
+    const state = ipcRig({ bindings: true })
+
+    const answers = [
+      await state.invoke<CommandResult<unknown>>('chats:boundThreads', { folder: '/elsewhere', attemptId: ATTEMPT_A }),
+      await state.invoke<CommandResult<unknown>>('chats:boundThreads', { folder: REPO })
+    ]
+
+    expect(answers.map((answer) => (answer.ok ? 'ok' : answer.error.code))).toEqual(['unauthorized', 'invalid_input'])
   })
 })

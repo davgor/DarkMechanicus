@@ -5,8 +5,14 @@
  *
  * Stored transcripts are append-only JSON lines of `ChatItem`. A later line with the same item `id`
  * replaces the earlier one (a tool call going from `running` to `completed`). Items carry an
- * optional `threadId`; absent means the chat's own thread, so subagent threads can be added later
- * without migrating stored chats.
+ * optional `threadId`; absent means the chat's own thread, so chats stored before nested threads
+ * existed need no migration.
+ *
+ * Nested threads. The work a subagent does is a thread: a `thread` item (in the thread of whoever
+ * started it, the chat's own or another subagent's) names the tool call that spawned it
+ * (`parentItemId`), a `label` and a `state`, and every item of the subagent carries that thread
+ * item's `id` as its `threadId`. The thread item is written again, by the same id, when its state
+ * changes. An approval request raised inside a thread carries its `threadId` and `threadLabel`.
  */
 import { z } from 'zod'
 import { AGENT_KINDS } from '../desktop/agentKinds'
@@ -79,6 +85,9 @@ const APPROVAL_OUTCOMES = [...APPROVAL_DECISIONS, 'cancelled'] as const
 
 const CONTEXT_RESET_REASONS = ['model_change', 'compact', 'clear', 'session_lost'] as const
 
+/** How a nested thread is going: its subagent is working, finished, or ended without finishing. */
+const THREAD_STATES = ['running', 'done', 'failed'] as const
+
 export const chatItemSchema = z.discriminatedUnion('kind', [
   z.object({ ...itemBase, kind: z.literal('user_message'), text: z.string() }),
   /** Streamed as deltas while the agent writes; stored once, whole. */
@@ -100,7 +109,9 @@ export const chatItemSchema = z.discriminatedUnion('kind', [
     tool: z.string().min(1),
     summary: z.string(),
     /** The raw detail the vendor sent (the command, the edit), as the adapter passes it on. */
-    input: toolInputSchema.optional()
+    input: toolInputSchema.optional(),
+    /** The label of the thread (`threadId`) the request was raised in; absent in the chat's own thread. */
+    threadLabel: z.string().min(1).optional()
   }),
   z.object({
     ...itemBase,
@@ -123,7 +134,20 @@ export const chatItemSchema = z.discriminatedUnion('kind', [
    * is the CLI's own words, with claim tokens masked when stored; `at` is when it said so. The message
    * that was cut short is recorded on the chat (`cutShortMessageId`).
    */
-  z.object({ ...itemBase, kind: z.literal('auth_required'), agent: z.enum(AGENT_KINDS), message: z.string() })
+  z.object({ ...itemBase, kind: z.literal('auth_required'), agent: z.enum(AGENT_KINDS), message: z.string() }),
+  /**
+   * A nested thread: the work of a subagent. The items inside carry this item's `id` as their
+   * `threadId`; this item is rewritten, by the same id, as `state` changes.
+   */
+  z.object({
+    ...itemBase,
+    kind: z.literal('thread'),
+    /** The item (a tool call) that spawned the thread. */
+    parentItemId: z.string().min(1),
+    /** What the subagent was asked to do, in a few words. */
+    label: z.string().min(1),
+    state: z.enum(THREAD_STATES)
+  })
 ])
 
 export type ChatItem = z.infer<typeof chatItemSchema>

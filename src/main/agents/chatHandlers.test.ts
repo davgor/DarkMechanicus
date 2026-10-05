@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { DomainError } from '../../core/errors'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { EpicDetailView, RunView } from '../../shared/domain/views'
+import type { ThreadBinding } from '../../shared/agents/chatApi'
+import type { CommandResult } from '../../shared/desktop/api'
 import { AT, MODELS, REPO } from './__mocks__/fakeChatAdapter'
 import { createChatHandlers, type ChatHandlers } from './chatHandlers'
 import type { OrchestratorRuns } from './orchestratorStart'
@@ -261,5 +263,145 @@ describe('chat handlers: rename, delete and failures', () => {
     expect(await handlers.retryTurn(REF)).toEqual({ ok: false, error: { code: 'conflict', message: 'Claude Code is still signed out. Sign in first.' } })
     expect(await handlers.models('claude')).toEqual({ ok: false, error: { code: 'internal', message: 'boom' } })
     expect(errors).toEqual([expect.objectContaining({ message: 'boom' })])
+  })
+})
+
+const BINDINGS: ThreadBinding[] = [
+  { threadId: null, role: 'orchestrator', kind: 'run', runId: 'rn_01k8zq3v7c2m5n9p4r6t8w0xyb', epicId: EPIC_ID },
+  { threadId: 'thread_a', role: 'worker', kind: 'attempt', attemptId: 'at_01k8zq4a1b2c3d4e5f6g7h8j9k', runId: null, epicId: null, ticketId: null, ticketKey: null }
+]
+
+/** Handlers whose thread bindings are `BINDINGS`, recording the chats they were asked about. */
+function handlersWithBindings(asked: unknown[]): ChatHandlers {
+  return createChatHandlers({
+    registry: { resolve: (path) => (path === REPO || path === SPELLING ? REPO : null) },
+    sessions: recordingSessions().sessions,
+    runs: recordingRuns(),
+    threadBindings: async (chat) => {
+      asked.push(chat)
+      return BINDINGS
+    }
+  })
+}
+
+describe('chat handlers: thread bindings', () => {
+  it('answers the bindings of the chat, asked for by its canonical folder and id', async () => {
+    const asked: unknown[] = []
+
+    expect(await handlersWithBindings(asked).threadBindings(REF)).toEqual({ ok: true, data: BINDINGS })
+    expect(asked).toEqual([CANONICAL])
+  })
+
+  it('answers none when the app wired no bindings', async () => {
+    expect(await handlersOver(recordingSessions().sessions).threadBindings(REF)).toEqual({ ok: true, data: [] })
+  })
+
+  it('refuses an untracked folder and malformed requests without asking for bindings', async () => {
+    const asked: unknown[] = []
+    const handlers = handlersWithBindings(asked)
+
+    const results = [
+      await handlers.threadBindings({ folder: join(REPO, '..', 'elsewhere'), chatId: 'chat_1' }),
+      await handlers.threadBindings({ ...REF, attemptId: 'at_01k8zq4a1b2c3d4e5f6g7h8j9k' }),
+      await handlers.threadBindings({ folder: REPO }),
+      await handlers.threadBindings({ folder: REPO, chatId: '../index' }),
+      await handlers.threadBindings({ folder: '', chatId: 'chat_1' }),
+      await handlers.threadBindings('chat_1'),
+      await handlers.threadBindings(undefined)
+    ]
+
+    expect(results.map((result) => (result.ok ? 'ok' : result.error.code))).toEqual(['unauthorized', ...Array(results.length - 1).fill('invalid_input')])
+    expect(asked).toEqual([])
+  })
+
+  it('reports a failure that is not a domain error and does not throw', async () => {
+    const errors: unknown[] = []
+    const failing = createChatHandlers({
+      registry: { resolve: () => REPO },
+      sessions: recordingSessions().sessions,
+      runs: recordingRuns(),
+      threadBindings: () => Promise.reject(new Error('disk')),
+      onUnexpectedError: (error) => errors.push(error)
+    })
+
+    expect(await failing.threadBindings(REF)).toMatchObject({ ok: false })
+    expect(errors).toHaveLength(1)
+  })
+})
+
+const BOUND_ATTEMPT = 'at_01k8zq4a1b2c3d4e5f6g7h8j9k'
+const BOUND_RUN = 'rn_01k8zq3v7c2m5n9p4r6t8w0xyb'
+const FOUND = [{ folder: REPO, chatId: 'chat_1', threadId: 'thread_a', role: 'worker' as const }]
+
+/** Handlers whose bound threads are `FOUND`, recording the folder and target they were asked about. */
+function handlersWithBound(asked: unknown[][]): ChatHandlers {
+  return createChatHandlers({
+    registry: { resolve: (path) => (path === REPO || path === SPELLING ? REPO : null) },
+    sessions: recordingSessions().sessions,
+    runs: recordingRuns(),
+    boundThreads: (folder, target) => {
+      asked.push([folder, target])
+      return FOUND
+    }
+  })
+}
+
+/** Requests the handler must refuse: the first for its folder, the rest for what they say. */
+function badBoundRequests(handlers: ChatHandlers): Promise<CommandResult<unknown>>[] {
+  return [
+    handlers.boundThreads({ folder: join(REPO, '..', 'elsewhere'), attemptId: BOUND_ATTEMPT }),
+    handlers.boundThreads({ folder: REPO }),
+    handlers.boundThreads({ folder: REPO, attemptId: BOUND_ATTEMPT, runId: BOUND_RUN }),
+    handlers.boundThreads({ folder: REPO, attemptId: BOUND_RUN }),
+    handlers.boundThreads({ folder: REPO, runId: BOUND_ATTEMPT }),
+    handlers.boundThreads({ folder: REPO, attemptId: `${BOUND_ATTEMPT}.secret` }),
+    handlers.boundThreads({ folder: REPO, attemptId: 'chat_1' }),
+    handlers.boundThreads({ folder: REPO, attemptId: BOUND_ATTEMPT, chatId: 'chat_1' }),
+    handlers.boundThreads({ folder: '', attemptId: BOUND_ATTEMPT }),
+    handlers.boundThreads(BOUND_ATTEMPT),
+    handlers.boundThreads(undefined)
+  ]
+}
+
+describe('chat handlers: bound threads', () => {
+  it('answers the threads bound to an attempt or a run, asked for by the canonical folder', async () => {
+    const asked: unknown[][] = []
+    const handlers = handlersWithBound(asked)
+
+    expect(await handlers.boundThreads({ folder: SPELLING, attemptId: BOUND_ATTEMPT })).toEqual({ ok: true, data: FOUND })
+    expect(await handlers.boundThreads({ folder: REPO, runId: BOUND_RUN })).toEqual({ ok: true, data: FOUND })
+    expect(asked).toEqual([
+      [REPO, { attemptId: BOUND_ATTEMPT }],
+      [REPO, { runId: BOUND_RUN }]
+    ])
+  })
+
+  it('answers none when the app wired no lookup', async () => {
+    expect(await handlersOver(recordingSessions().sessions).boundThreads({ folder: REPO, attemptId: BOUND_ATTEMPT })).toEqual({ ok: true, data: [] })
+  })
+
+  it('refuses an untracked folder and malformed requests without looking anything up', async () => {
+    const asked: unknown[][] = []
+
+    const results = await Promise.all(badBoundRequests(handlersWithBound(asked)))
+
+    expect(results.map((result) => (result.ok ? 'ok' : result.error.code))).toEqual(['unauthorized', ...Array(results.length - 1).fill('invalid_input')])
+    expect(asked).toEqual([])
+  })
+
+  it('reports a failure that is not a domain error and does not throw', async () => {
+    const errors: unknown[] = []
+    const failing = createChatHandlers({
+      registry: { resolve: () => REPO },
+      sessions: recordingSessions().sessions,
+      runs: recordingRuns(),
+      boundThreads: () => {
+        throw new Error('disk')
+      },
+      onUnexpectedError: (error) => errors.push(error)
+    })
+
+    expect(await failing.boundThreads({ folder: REPO, attemptId: BOUND_ATTEMPT })).toMatchObject({ ok: false })
+    expect(errors).toHaveLength(1)
   })
 })

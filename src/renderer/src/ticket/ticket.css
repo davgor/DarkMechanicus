@@ -60,12 +60,14 @@
 
 .tp-tabs {
   display: flex;
-  gap: 22px;
+  flex-wrap: wrap;
+  column-gap: 14px;
 }
 
 .tp-tabs button {
   height: 40px;
   padding: 0 2px;
+  white-space: nowrap;
   border: 0;
   background: transparent;
   color: var(--ink-2);
@@ -337,6 +339,105 @@
   font-size: 12.5px;
 }
 
+/* Activity: an attempt's timeline in a log that follows its newest row (plain text only). */
+.tp-activity {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tp-activity-logbox {
+  position: relative;
+  flex: 1;
+  min-height: 160px;
+  display: flex;
+  flex-direction: column;
+}
+
+.tp-activity-log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+}
+
+.tp-activity-log:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.tp-activity-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tp-activity-item {
+  display: grid;
+  grid-template-columns: 7px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  font-size: 13px;
+}
+
+.tp-activity-item .ew-dot {
+  margin-top: 6px;
+}
+
+.tp-activity-title,
+.tp-activity-detail {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.tp-activity-detail {
+  margin-top: 2px;
+  color: var(--ink-2);
+  font-size: 12.5px;
+}
+
+.tp-activity-live {
+  margin-left: auto;
+  font-size: 12px;
+}
+
+/* The link to the chat an attempt runs in: at the end of the heading, after the live note when there is one. */
+.tp-activity-open {
+  margin-left: auto;
+  font-size: 12px;
+}
+
+.tp-activity-live + .tp-activity-open {
+  margin-left: 10px;
+}
+
+.tp-activity-when {
+  padding-top: 2px;
+  font-size: 11px;
+}
+
+.tp-activity-jump {
+  position: absolute;
+  right: 14px;
+  bottom: 12px;
+  background: var(--panel-2);
+}
+
+.tp-activity-ended {
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--tone, var(--muted)) 55%, var(--line));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--tone, var(--muted)) 10%, var(--panel));
+}
+
 /* Comments */
 .tp-comments {
   margin: 0 0 16px;
@@ -427,6 +528,7 @@
 
 .tp-input,
 .tp-form select,
+.tp-activity select,
 .tp-reject textarea,
 .tp-comment-form textarea {
   box-sizing: border-box;

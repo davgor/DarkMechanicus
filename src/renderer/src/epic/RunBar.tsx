@@ -3,6 +3,7 @@ import type { RunView } from '../../../shared/domain/views'
 import { agentName } from '../agents/agentText'
 import { SignInOffer } from '../agents/SignInPrompt'
 import { orchestratingChat } from './orchestration'
+import { OrchestratorEntry } from './OrchestratorFeed'
 import {
   adoptNotice,
   orchestratorNote,
@@ -150,6 +151,7 @@ export function RunBar({ ws }: { ws: WorkspaceHandle }): JSX.Element | null {
       <div className="ew-bar-row">
         <StatePill tone={pill.tone} label={pill.label} />
         <span className="ew-bar-text">{runSummary(run, ws.now, reportAt)}</span>
+        <OrchestratorEntry ws={ws} run={run} />
         <ul className="ew-counts" aria-label="Ticket counts">
           {runBarCounts(run).map((item) => (
             <li key={item.key} className={`ew-count ew-tone-${item.tone}`}>

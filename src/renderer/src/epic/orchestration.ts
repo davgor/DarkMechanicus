@@ -31,7 +31,8 @@ export interface OrchestrationHost {
   onAddAgent(): void
   /** A sign-in prompt asked an agent's state itself: the shell shows what it found. */
   onAgentStatus(kind: AgentKind, status: AgentAuthStatus): void
-  onOpenChat(chatId: string): void
+  /** Opens a chat; with a thread (a `thread` item's id) the chat opens with that thread expanded and scrolled into view. */
+  onOpenChat(chatId: string, threadId?: string): void
 }
 
 /** The chat Dark Mechanicus started to orchestrate the run, if there is one. */

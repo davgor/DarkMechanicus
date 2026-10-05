@@ -1,6 +1,8 @@
 /** Shared setup for the chat view's component tests: one chat, its stored items and a mounted view over a fake `window.dm`. */
 import { render, screen, within } from '@testing-library/react'
 import type { ChatItem, ChatRecord } from '../../../shared/agents/chat'
+import type { ThreadBinding } from '../../../shared/agents/chatApi'
+import type { ThreadLanding, TicketLink } from '../agents/ChatContext'
 import { ChatView } from '../agents/ChatView'
 import type { AgentAuthStatus, AgentKind } from '../../../shared/desktop/api'
 import type { DomainErrorShape } from '../../../shared/domain/errors'
@@ -45,6 +47,12 @@ interface MountOptions {
   agentStatus?: AgentAuthStatus
   /** Makes the agent's status wait: the returned `statusGate` lets it answer. */
   holdAgentStatus?: boolean
+  /** The thread bindings the main process answers for the chat. */
+  bindings?: ThreadBinding[]
+  /** A thread to open and scroll to, as the shell asks when another screen links to it. */
+  landing?: ThreadLanding
+  /** Leaves the chat's links unwired, as in a view that has nowhere to go. */
+  noNavigation?: boolean
 }
 
 export interface Mounted {
@@ -55,13 +63,12 @@ export interface Mounted {
   statusGate: Deferred | null
   /** The statuses the chat's sign-in prompt reported to the shell, oldest first. */
   reported: [AgentKind, AgentAuthStatus][]
+  /** What the chat's links asked the shell to open, oldest first. */
+  links: { tickets: TicketLink[]; epics: string[]; landed: number }
 }
 
-/** Mounts the chat view over a fake desktop that has `chat` with `items` stored, and lets its first requests finish. */
-export async function mountChatView(items: ChatItem[] = [], options: MountOptions = {}): Promise<Mounted> {
-  const chat = options.chat ?? CHAT
-  const dm = new FakeDm()
-  window.dm = dm
+/** Fills the fake desktop with the chat, its stored items and what the options say the main process answers. */
+function seedDesktop(dm: FakeDm, chat: ChatRecord, items: ChatItem[], options: MountOptions): void {
   dm.chats.chats = [chat]
   dm.chats.transcripts[chat.id] = items
   if (options.running === true) {
@@ -82,12 +89,33 @@ export async function mountChatView(items: ChatItem[] = [], options: MountOption
   if (options.openFails !== undefined) {
     dm.chats.failures.open = options.openFails
   }
+  if (options.bindings !== undefined) {
+    dm.chats.bindings[chat.id] = options.bindings
+  }
+}
+
+/** Mounts the chat view over a fake desktop that has `chat` with `items` stored, and lets its first requests finish. */
+export async function mountChatView(items: ChatItem[] = [], options: MountOptions = {}): Promise<Mounted> {
+  const chat = options.chat ?? CHAT
+  const dm = new FakeDm()
+  window.dm = dm
+  seedDesktop(dm, chat, items, options)
   const gate = options.holdOpen === true ? dm.chats.hold('open') : null
   const statusGate = options.holdAgentStatus === true ? dm.holdAgent('agentStatus') : null
   const reported: [AgentKind, AgentAuthStatus][] = []
-  render(<ChatView chat={chat} onAgentStatus={(kind, status) => reported.push([kind, status])} />)
+  const links: Mounted['links'] = { tickets: [], epics: [], landed: 0 }
+  const navigation = options.noNavigation === true ? undefined : { openTicket: (link: TicketLink) => links.tickets.push(link), openEpic: (epicId: string) => links.epics.push(epicId) }
+  render(
+    <ChatView
+      chat={chat}
+      onAgentStatus={(kind, status) => reported.push([kind, status])}
+      {...(navigation === undefined ? {} : { navigation })}
+      landing={options.landing ?? null}
+      onLanded={() => (links.landed += 1)}
+    />
+  )
   await settle()
-  return { dm, gate, statusGate, reported }
+  return { dm, gate, statusGate, reported, links }
 }
 
 export const transcript = (): ReturnType<typeof within> => within(screen.getByRole('log', { name: 'Transcript' }))

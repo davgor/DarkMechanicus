@@ -30,6 +30,12 @@
  * adapter emitted them. Assistant deltas are not stored; each text stream goes through a stream
  * masker so a claim token split across deltas never reaches the renderer, and whatever it holds
  * back is released when the turn ends (or dropped once the whole text arrives as an item).
+ *
+ * Activity. With `activity`, every chat's threads are bound to the runs and attempts they act on (see
+ * `activityBindings`): a chat Start run launched as soon as it is created, each item once it is stored,
+ * and the whole transcript again when the chat is opened (which binds chats stored before bindings
+ * existed, and adds nothing twice). A binding that fails is reported, never thrown, so it cannot cost an
+ * item. Deleting a chat forgets its bindings before the chat itself is removed.
  */
 import { randomUUID } from 'node:crypto'
 import { DomainError } from '../../core/errors'
@@ -51,6 +57,7 @@ import type { AgentAuthStatus, AgentKind, McpConfigView } from '../../shared/des
 import { SIGNED_OUT_PAUSE_REASON } from '../../shared/domain/status'
 import type { RunView } from '../../shared/domain/views'
 import { darkMechanicusServer } from '../desktop/mcpJson'
+import type { ActivityBindings } from './activityBindings'
 import type { ChatAdapterDefinition, ChatAdapterDefinitions } from './adapterRegistry'
 import type { ChatRef, ChatStore } from './chatStore'
 import { createStreamMasker, type StreamMasker } from './claimTokenMask'
@@ -83,6 +90,8 @@ export interface SessionManagerDeps {
   push: (event: ChatPushEvent) => void
   /** Lets a signed-out orchestrator chat pause its run; without it no run is touched. */
   runs?: SignedOutRuns
+  /** Where chat threads are bound to the runs and attempts they act on; without it nothing is bound. */
+  activity?: ActivityBindings
   /** Ids for the items the manager writes itself. */
   newId?: () => string
   now?: () => string
@@ -107,7 +116,7 @@ export interface SessionManager {
   createChat(request: NewChatRequest): ChatRecord
   /** Changes the chat's title; a running agent keeps going, and its next session is named after the new title. */
   renameChat(ref: ChatRef, title: string): ChatRecord
-  /** Ends the chat's agent, then removes the chat and its transcript from the store; throws `not_found` for an unknown chat. */
+  /** Ends the chat's agent, then removes its activity bindings, the chat and its transcript; throws `not_found` for an unknown chat. */
   deleteChat(ref: ChatRef): Promise<void>
   /** The transcript, waiting approvals and turn state; starts the process for start-on-open vendors. */
   openChat(ref: ChatRef): Promise<ChatOpenView>
@@ -167,8 +176,9 @@ interface Session {
 
 type AuthRequiredItem = Extract<ChatItem, { kind: 'auth_required' }>
 
-interface Manager extends Required<Omit<SessionManagerDeps, 'runs'>> {
+interface Manager extends Required<Omit<SessionManagerDeps, 'runs' | 'activity'>> {
   runs: SignedOutRuns | undefined
+  activity: ActivityBindings | undefined
   /** Which agents a chat found signed out. */
   flags: SignInFlags
   /** Chats opened or written to since the app started, with their agent: the ones to tell when a sign-in changes. */
@@ -197,6 +207,19 @@ function record(manager: Manager, chat: ChatRef, item: ChatItem): ChatItem {
   const stored = manager.store.appendItem(chat, item)
   manager.push({ type: 'item', chatId: chat.id, item: stored })
   return stored
+}
+
+/** Binds a chat's threads to what they act on; a failure is reported, never thrown, so it cannot cost an item. */
+function bindActivity(manager: Manager, bind: (activity: ActivityBindings) => unknown): void {
+  const { activity } = manager
+  if (activity === undefined) {
+    return
+  }
+  try {
+    bind(activity)
+  } catch (error) {
+    manager.onError(error)
+  }
 }
 
 function stamp(manager: Manager): { id: string; at: string } {
@@ -359,6 +382,8 @@ function onItem(manager: Manager, session: Session, item: ChatItem): void {
     return
   }
   record(manager, session.chat, item)
+  // The item as the adapter gave it: a spawn prompt's claim token still names its attempt; only ids are kept.
+  bindActivity(manager, (activity) => activity.observe(session.chat, item))
 }
 
 // ---- Signed-out agents ----
@@ -706,6 +731,7 @@ async function openChat(manager: Manager, ref: ChatRef): Promise<ChatOpenView> {
   }
   const session = manager.sessions.get(chat.id)
   const transcript = manager.store.readTranscript(chat)
+  bindActivity(manager, (activity) => activity.observeChat(transcript?.chat ?? chat, transcript?.items ?? []))
   return {
     chat: transcript?.chat ?? chat,
     items: transcript?.items ?? [],
@@ -736,7 +762,7 @@ function listChats(manager: Manager, folder: string): ChatSummary[] {
 }
 
 function createChat(manager: Manager, request: NewChatRequest): ChatRecord {
-  return manager.store.createChat({
+  const chat = manager.store.createChat({
     folder: request.folder,
     agent: request.agent,
     role: request.role,
@@ -745,13 +771,18 @@ function createChat(manager: Manager, request: NewChatRequest): ChatRecord {
     ...(request.title === undefined ? {} : { title: request.title }),
     ...(request.runId === undefined ? {} : { runId: request.runId })
   })
+  bindActivity(manager, (activity) => activity.observeChat(chat, []))
+  return chat
 }
 
 function renameChat(manager: Manager, ref: ChatRef, title: string): ChatRecord {
   return manager.store.updateChat(requireChat(manager, ref), { title })
 }
 
-/** Disposes the agent before the store forgets the chat, so what it wrote while stopping still has a chat to go to. */
+/**
+ * Disposes the agent before the store forgets the chat, so what it wrote while stopping still has a chat to go to.
+ * Its activity bindings go first: a chat whose removal failed is bound again when it is opened.
+ */
 async function deleteChat(manager: Manager, ref: ChatRef): Promise<void> {
   const chat = requireChat(manager, ref)
   const session = manager.sessions.get(chat.id)
@@ -760,6 +791,7 @@ async function deleteChat(manager: Manager, ref: ChatRef): Promise<void> {
   }
   manager.allowances.delete(chat.id)
   manager.seen.delete(chat.id)
+  manager.activity?.forgetChat(chat)
   manager.store.deleteChat(chat)
 }
 
@@ -784,6 +816,7 @@ export function createSessionManager(deps: SessionManagerDeps): SessionManager {
     onError: () => {},
     ...deps,
     runs: deps.runs,
+    activity: deps.activity,
     flags: createSignInFlags(),
     seen: new Map(),
     sessions: new Map(),

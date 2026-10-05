@@ -4,8 +4,11 @@
  * that are still being written; both are updated without touching the entries around them, so a
  * row of the list renders again only when its own entry changed.
  *
- * Only the chat's own thread is shown. Items and deltas of a nested thread (`threadId` set) belong
- * to a subagent view that does not exist yet, and no adapter produces them today.
+ * The list holds every thread's entries, in the order they were stored: the chat's own, and the
+ * items and deltas of nested threads (`threadId` set). `threadModel` arranges them into blocks under
+ * the calls that spawned them. A thread's deltas stream into entries that carry their thread, and a
+ * thread item is rewritten in place when its state changes, like a tool call. Only the chat's own
+ * thread can sign the chat out.
  */
 import type { ChatItem, ModelOption } from '../../../shared/agents/chat'
 import type { ChatOpenView, ChatPushEvent } from '../../../shared/agents/chatApi'
@@ -22,6 +25,8 @@ interface StreamingText {
   kind: 'streaming_text'
   id: string
   text: string
+  /** The nested thread the text is being written in; absent for the chat's own. */
+  threadId?: string
 }
 
 export type TranscriptEntry = ChatItem | StreamingText
@@ -48,11 +53,11 @@ export function applyItem(entries: readonly TranscriptEntry[], item: ChatItem): 
   return index === -1 ? [...entries, item] : replaceAt(entries, index, item)
 }
 
-/** More of an assistant text: starts its streaming entry where it begins, then grows it. */
-export function applyDelta(entries: readonly TranscriptEntry[], itemId: string, delta: string): TranscriptEntry[] {
+/** More of an assistant text, in the thread `threadId` (absent: the chat's own): starts its streaming entry where it begins, then grows it. */
+export function applyDelta(entries: readonly TranscriptEntry[], itemId: string, delta: string, threadId?: string): TranscriptEntry[] {
   const index = lastIndexOfId(entries, itemId)
   if (index === -1) {
-    return [...entries, { kind: 'streaming_text', id: itemId, text: delta }]
+    return [...entries, { kind: 'streaming_text', id: itemId, text: delta, ...(threadId === undefined ? {} : { threadId }) }]
   }
   const existing = entries[index]
   if (existing?.kind !== 'streaming_text') {
@@ -107,9 +112,10 @@ export function openSession(chatId: string): SessionState {
   return { chatId, phase: 'loading', entries: [], running: false, auth: NO_AUTH_NEWS, queued: [], error: null }
 }
 
-/** A stored item of the chat's own thread: shown, and an `auth_required` one also means the agent is signed out with a turn to retry. */
-function applyOwnItem(state: SessionState, item: ChatItem): SessionState {
-  const auth: ChatAuth = item.kind === 'auth_required' ? { agent: 'signed_out', cutShort: true, retried: false } : state.auth
+/** A stored item of any thread: shown, and an `auth_required` one of the chat's own thread also means the agent is signed out with a turn to retry. */
+function applyStored(state: SessionState, item: ChatItem): SessionState {
+  const signedOut = item.kind === 'auth_required' && item.threadId === undefined
+  const auth: ChatAuth = signedOut ? { agent: 'signed_out', cutShort: true, retried: false } : state.auth
   return { ...state, entries: applyItem(state.entries, item), auth }
 }
 
@@ -121,9 +127,9 @@ function applyTurn(state: SessionState, running: boolean): SessionState {
 function applyEvent(state: SessionState, event: ChatPushEvent): SessionState {
   switch (event.type) {
     case 'item':
-      return event.item.threadId === undefined ? applyOwnItem(state, event.item) : state
+      return applyStored(state, event.item)
     case 'assistant_delta':
-      return event.threadId === undefined ? { ...state, entries: applyDelta(state.entries, event.itemId, event.delta) } : state
+      return { ...state, entries: applyDelta(state.entries, event.itemId, event.delta, event.threadId) }
     case 'turn':
       return applyTurn(state, event.running)
     case 'agent_auth':
@@ -138,7 +144,7 @@ function authOf(view: ChatOpenView): ChatAuth {
 }
 
 function opened(state: SessionState, view: ChatOpenView): SessionState {
-  const base: SessionState = { ...state, phase: 'ready', entries: view.items.filter((item) => item.threadId === undefined), running: view.running, auth: authOf(view), queued: [], error: null }
+  const base: SessionState = { ...state, phase: 'ready', entries: [...view.items], running: view.running, auth: authOf(view), queued: [], error: null }
   return state.queued.reduce(applyEvent, base)
 }
 

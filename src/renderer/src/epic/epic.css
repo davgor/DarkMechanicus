@@ -446,6 +446,13 @@
   vertical-align: middle;
 }
 
+/* A ticket's state and, while it is being worked on, its hourglass. */
+.ew-list-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .ew-table tr.is-selected td {
   background: var(--primary-soft);
 }

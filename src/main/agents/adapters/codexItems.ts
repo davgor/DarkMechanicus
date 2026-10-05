@@ -55,6 +55,7 @@ const STATUSES: Record<string, ToolStatus> = {
   inProgress: 'running',
   completed: 'completed',
   failed: 'failed',
+  interrupted: 'failed',
   declined: 'denied'
 }
 
@@ -157,12 +158,39 @@ function searchCall(item: Fields): Mapped {
   return { name: 'web_search', input: asText(item.query) === null ? {} : { query: asText(item.query) }, summary: () => null }
 }
 
+/** What the subagents a collab call is about said, one line each, or null when none said anything. */
+function collabResult(item: Fields): string | null {
+  const states = asRecord(item.agentsStates) ?? {}
+  const lines = Object.values(states).flatMap((state) => asText(asRecord(state)?.message) ?? [])
+  return lines.length === 0 ? null : clip(lines.join('\n'))
+}
+
+/**
+ * A tool an agent uses to work with its subagents (`spawnAgent`, `wait`, `closeAgent`, ...), named in
+ * snake case like the tool the model calls. The threads themselves are `codexThreads.ts`'s business.
+ */
+function collabCall(item: Fields): Mapped {
+  const prompt = asText(item.prompt)
+  const model = asText(item.model)
+  return {
+    name: (asText(item.tool) ?? 'collabAgent').replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`),
+    input: { ...(prompt === null ? {} : { prompt: clip(prompt) }), ...(model === null ? {} : { model }) },
+    summary: (status) =>
+      endNote(
+        status,
+        () => collabResult(item) ?? 'Completed',
+        () => collabResult(item) ?? 'Failed'
+      )
+  }
+}
+
 const CALLS: Record<string, (item: Fields) => Mapped> = {
   commandExecution: commandCall,
   fileChange: fileChangeCall,
   mcpToolCall: mcpCall,
   dynamicToolCall: dynamicCall,
-  webSearch: searchCall
+  webSearch: searchCall,
+  collabAgentToolCall: collabCall
 }
 
 /** Where in a turn an item is, and the id and time its transcript item gets. */
@@ -181,6 +209,18 @@ function compactionItem(_item: Fields, { phase, id, at }: Stamp): ChatItem | nul
   return phase === 'completed' ? { id, at, kind: 'context_reset', reason: 'compact' } : null
 }
 
+/**
+ * A v2 subagent has no collab call: its start is a `subAgentActivity` of kind `started`, which stands in
+ * for the `spawn_agent` call that thread hangs from. The other kinds only change the thread's state.
+ */
+function activityItem(item: Fields, { phase, id, at }: Stamp): ChatItem | null {
+  if (phase !== 'completed' || item.kind !== 'started') {
+    return null
+  }
+  const agent = asText(item.agentPath)
+  return { id, at, kind: 'tool_call', name: 'spawn_agent', input: agent === null ? {} : { agent }, status: 'completed', resultSummary: null }
+}
+
 function toolItem(type: string, item: Fields, { phase, id, at }: Stamp): ChatItem | null {
   const call = CALLS[type]?.(item)
   if (call === undefined) {
@@ -192,7 +232,8 @@ function toolItem(type: string, item: Fields, { phase, id, at }: Stamp): ChatIte
 
 const OTHER_ITEMS: Record<string, (item: Fields, stamp: Stamp) => ChatItem | null> = {
   agentMessage: messageItem,
-  contextCompaction: compactionItem
+  contextCompaction: compactionItem,
+  subAgentActivity: activityItem
 }
 
 /**
