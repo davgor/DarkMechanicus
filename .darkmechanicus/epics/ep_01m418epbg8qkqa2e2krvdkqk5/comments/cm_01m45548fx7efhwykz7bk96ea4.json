@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "**Defect from the DM-61 end-to-end run.** The kickoff's step 2 (\"Load the darkmechanicus-orchestrator prompt\") can't be done in a Claude Code chat where no skills are installed. The chat tried `Skill` and `ToolSearch` seven times over about a minute, found no way to load an MCP prompt, then carried on and flagged the gap. Expected: a step the agent can follow, such as inlining the essential orchestrator steps, pointing at a tool or resource it can actually read, or having the app attach the prompt text. Evidence: the chat transcript in the DM-61 evidence profile.",
+  "createdAt": "2026-10-05T04:28:37.245Z",
+  "epicId": "ep_01m418epbg8qkqa2e2krvdkqk5",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m45548fx7efhwykz7bk96ea4",
+  "ticketId": "tk_01m418f9qzwg97pr35tjd795yv"
+}

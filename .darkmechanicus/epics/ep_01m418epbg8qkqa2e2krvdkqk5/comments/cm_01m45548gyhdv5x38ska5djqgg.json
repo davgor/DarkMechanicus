@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "**Finding from the DM-61 end-to-end run (decision needed, low).** An agent can resume a run that was paused for `signed_out`. After Retry, the orchestrator chat called `resume_run` over MCP, and it succeeded once an approval card was allowed (`run.leases_extended` and `run.resumed` by the MCP session). The ticket and runbook say the person resumes from the run bar. Options: gate resume of a `signed_out` pause to the desktop session the same way the pause is gated, or document that an approved agent may resume. Also seen: after resume, the attempt had only the lease time it had left at the pause (about 29 s), and the worker's submit missed it by 4 s, which led to a lease_expired, then a reconcile/resubmit. That's a rough edge with short leases.",
+  "createdAt": "2026-10-05T04:28:37.278Z",
+  "epicId": "ep_01m418epbg8qkqa2e2krvdkqk5",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m45548gyhdv5x38ska5djqgg",
+  "ticketId": "tk_01m43qtb15acpxp9stw2rnedr5"
+}

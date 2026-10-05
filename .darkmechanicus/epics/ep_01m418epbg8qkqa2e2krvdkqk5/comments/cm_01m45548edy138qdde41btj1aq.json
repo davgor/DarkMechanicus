@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "**Defect from the DM-61 end-to-end run (Claude Code, packaged Windows build).** Claude Code's own auto-memory write bypasses `canUseTool`. The scratch chat was told \"remember this code word for later\", and it wrote `codeword.md` and `MEMORY.md` into `~\\.claude\\projects\\<scratch project>\\memory\\` with no approval card. Expected: every file write asks, as the chat contract and runbook promise. Options: route Claude Code's memory writes through `canUseTool`, disable auto-memory for app chats (settings or env), or document it as an exception. Evidence: `docs/reports/agents-e2e.md` defect 1, screenshot `07-read-no-prompt.png`.",
+  "createdAt": "2026-10-05T04:28:37.197Z",
+  "epicId": "ep_01m418epbg8qkqa2e2krvdkqk5",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m45548edy138qdde41btj1aq",
+  "ticketId": "tk_01m418f9qzb42ha3r1m9wwrmx9"
+}

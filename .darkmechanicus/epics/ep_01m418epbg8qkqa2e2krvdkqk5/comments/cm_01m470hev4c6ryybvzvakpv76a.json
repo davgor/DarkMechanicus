@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "**Orchestrator decision: keep the inline `autoMemoryDirectory` setting.** The worker found live that the ticket's premise \"shell commands already ask\" was false. `echo hi >> <memory file>` ran with no card, because the CLI counts it as a read-only command and exempts its own memory folder. A PreToolUse hook cannot see which shell commands those are.\n\nThe worker therefore also passes `settings: { autoMemoryDirectory: <tmp>/dark-mechanicus-unused-memory }` in the SDK options. The SDK sends it as `--settings` for that process only, and no file is read or written. The CLI's exemption then covers only a folder nothing reads.\n\nThe ticket lists \"a permission rule passed through the SDK options, not through a settings file\" as an acceptable mechanism, and c3 forbids only writing or changing the person's settings files. So I'm accepting it without stopping the sprint. DM-200's test that the adapter passes no settings object was narrowed to \"settings holds exactly autoMemoryDirectory\".\n\nResidual: a shell redirect into the pinned temp folder is still exempt. Nothing reads that folder, and auto-memory is off.\n\nNot in scope, for a follow-up:\n- **Allow for this chat** on file edits also covers memory writes.\n- The CLI has other carve-outs: agent-memory, plan files and session dirs.\n- `CLAUDE_COWORK_MEMORY_PATH_OVERRIDE`.",
+  "createdAt": "2026-10-05T21:46:55.716Z",
+  "epicId": "ep_01m418epbg8qkqa2e2krvdkqk5",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m470hev4c6ryybvzvakpv76a",
+  "ticketId": "tk_01m46t84syq2wsz3bw89yg1xj4"
+}

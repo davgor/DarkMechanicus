@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "**Decision (the person, 2026-10-05): the sprint 1 fixes go into a new sprint 3 of this epic, not a follow-up epic.**\n\nThis replaces the line in the sprint 1 report (rp_01m45j3wtyq8nbqrmpycpx3trw) that sends them to a follow-up epic. Revision 9 adds sprint 3: DM-200 to DM-210, with DM-199 as its acceptance node. The run adopted revision 9 at the sprint 1 checkpoint. Sprint 1 is unchanged, and sprint 2 still runs before sprint 3.\n\nTwo follow-ups from that report are not in sprint 3:\n- **Live Codex, Cursor and macOS checks.** The person culled them from this epic on 2026-10-04 and will test outside it.\n- **Whether vendor specifics must be confined to the adapters.** This is a design question, not a defect, and the docs already describe the current split accurately.\n\nDesign choice in DM-202: a run paused for signed_out can be resumed only from the desktop app, which matches what the runbook and the DM-123/DM-124 plan already say. An agent's resume over MCP is refused.",
+  "createdAt": "2026-10-05T13:41:23.028Z",
+  "epicId": "ep_01m418epbg8qkqa2e2krvdkqk5",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m464rcymm09efkhx01hb89we",
+  "ticketId": null
+}

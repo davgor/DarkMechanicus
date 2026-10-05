@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "**From DM-51 (orchestrator note).** `appendItem` masks claim tokens and returns the masked item, so emit that return value. Streamed `assistant_delta` events are not stored items, which means they are not masked. Masking each delta on its own also misses a token split across two deltas. The session manager needs a streaming masker that holds back a possible token prefix, or must avoid sending raw deltas to the renderer. The exported helpers are `maskClaimTokens` and `maskClaimTokensDeep` in `src/main/agents/claimTokenMask.ts`.",
+  "createdAt": "2026-10-04T23:53:11.715Z",
+  "epicId": "ep_01m418epbg8qkqa2e2krvdkqk5",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m44nby93q346n1gzcnvp1qfe",
+  "ticketId": "tk_01m418f9qzc2dggmvvph8jnyp0"
+}
