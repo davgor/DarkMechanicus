@@ -2,6 +2,8 @@ import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import type { AgentAuthHandlers } from './agentAuth'
+import type { AgentHandlers } from './agentHandlers'
 import type { DesktopHandlers } from './handlers'
 import { registerDesktopIpc } from './ipc'
 
@@ -32,6 +34,36 @@ function createFakeIpcMain(): {
 const MCP_VIEW = { command: 'node', args: [], env: {}, json: '{}', note: 'n' }
 const REMOVAL_PLAN = { remove: ['board/x.md'], kept: [], editByHand: [] }
 const REMOVAL_RESULT = { removed: ['board/x.md'], removedFolders: ['board'], kept: [], editByHand: [] }
+
+/** The agent handlers, logging like the others. */
+function createRecordingAgentHandlers(calls: unknown[][]): AgentHandlers & AgentAuthHandlers {
+  return {
+    listAgents: async () => {
+      calls.push(['listAgents'])
+      return []
+    },
+    findAgent: async (kind) => {
+      calls.push(['findAgent', kind])
+      return { outcome: 'cancelled' }
+    },
+    removeAgent: async (kind) => {
+      calls.push(['removeAgent', kind])
+      return []
+    },
+    downloadAgent: async (kind) => {
+      calls.push(['downloadAgent', kind])
+      return { outcome: 'cancelled' }
+    },
+    agentStatus: async (kind) => {
+      calls.push(['agentStatus', kind])
+      return { state: 'unknown', reason: 'Not connected yet.' }
+    },
+    signInAgent: async (kind) => {
+      calls.push(['signInAgent', kind])
+      return { outcome: 'started' }
+    }
+  }
+}
 
 /** Handlers that log each call as [name, ...args] and return a recognizable value. */
 function createRecordingHandlers(): { handlers: DesktopHandlers; calls: unknown[][] } {
@@ -79,12 +111,19 @@ function createRecordingHandlers(): { handlers: DesktopHandlers; calls: unknown[
     openExternal: async (url) => {
       calls.push(['openExternal', url])
       return true
-    }
+    },
+    ...createRecordingAgentHandlers(calls)
   }
   return { handlers, calls }
 }
 
 const EXPECTED_CHANNELS = [
+  'agents:download',
+  'agents:find',
+  'agents:list',
+  'agents:remove',
+  'agents:signIn',
+  'agents:status',
   'dm:command',
   'dm:connectClaudeCode',
   'dm:copyText',
@@ -99,7 +138,7 @@ const EXPECTED_CHANNELS = [
 ]
 
 describe('registerDesktopIpc registration', () => {
-  it('registers exactly the dm channels, each once', () => {
+  it('registers exactly the dm and agents channels, each once', () => {
     const ipc = createFakeIpcMain()
 
     registerDesktopIpc(ipc, createRecordingHandlers().handlers)
@@ -177,16 +216,112 @@ describe('registerDesktopIpc forwarding', () => {
   })
 })
 
+describe('agent channels', () => {
+  it('forward the kind to their handler and return what it resolves with', async () => {
+    const ipc = createFakeIpcMain()
+    const { handlers, calls } = createRecordingHandlers()
+    registerDesktopIpc(ipc, handlers)
+
+    expect(await ipc.invoke('agents:list', 'stray')).toEqual([])
+    expect(await ipc.invoke('agents:find', 'claude', 'stray')).toEqual({ outcome: 'cancelled' })
+    expect(await ipc.invoke('agents:remove', 'codex', 'stray')).toEqual([])
+    expect(await ipc.invoke('agents:download', 'cursor', 'stray')).toEqual({ outcome: 'cancelled' })
+
+    expect(calls).toEqual([
+      ['listAgents'],
+      ['findAgent', 'claude'],
+      ['removeAgent', 'codex'],
+      ['downloadAgent', 'cursor']
+    ])
+  })
+})
+
+describe('agent channels never carry an executable path', () => {
+  it('forward only the kind, dropping any path or options the renderer adds', async () => {
+    const ipc = createFakeIpcMain()
+    const { handlers, calls } = createRecordingHandlers()
+    registerDesktopIpc(ipc, handlers)
+
+    await ipc.invoke('agents:find', 'claude', 'C:\\evil.exe', { executablePath: '/bin/sh' })
+    await ipc.invoke('agents:remove', 'codex', '/bin/sh', { executablePath: '/bin/sh' })
+    await ipc.invoke('agents:download', 'cursor', 'https://evil.example/install.sh', { command: 'calc' })
+
+    expect(calls).toEqual([
+      ['findAgent', 'claude'],
+      ['removeAgent', 'codex'],
+      ['downloadAgent', 'cursor']
+    ])
+  })
+
+  it('status and sign-in forward only the kind, dropping any path, key or other option the renderer adds', async () => {
+    const ipc = createFakeIpcMain()
+    const { handlers, calls } = createRecordingHandlers()
+    registerDesktopIpc(ipc, handlers)
+
+    await ipc.invoke('agents:status', 'claude', 'C:\\evil.exe', { executablePath: '/bin/sh' })
+    await ipc.invoke('agents:signIn', 'codex', 'sk-secret', { apiKey: 'sk-secret', password: 'hunter2' })
+
+    expect(calls).toEqual([
+      ['agentStatus', 'claude'],
+      ['signInAgent', 'codex']
+    ])
+  })
+
+  it('hands a payload that carries a credential to the handler untouched, for it to reject', async () => {
+    const ipc = createFakeIpcMain()
+    const { handlers, calls } = createRecordingHandlers()
+    registerDesktopIpc(ipc, handlers)
+
+    await ipc.invoke('agents:signIn', { kind: 'claude', apiKey: 'sk-secret' })
+
+    expect(calls).toEqual([['signInAgent', { kind: 'claude', apiKey: 'sk-secret' }]])
+  })
+
+  it('hands a non-kind payload to the handler untouched, for it to reject', async () => {
+    const ipc = createFakeIpcMain()
+    const { handlers, calls } = createRecordingHandlers()
+    registerDesktopIpc(ipc, handlers)
+
+    await ipc.invoke('agents:find', { kind: 'claude', executablePath: '/bin/sh' })
+    await ipc.invoke('agents:download', { kind: 'claude', url: 'https://evil.example/install.sh' })
+
+    expect(calls).toEqual([
+      ['findAgent', { kind: 'claude', executablePath: '/bin/sh' }],
+      ['downloadAgent', { kind: 'claude', url: 'https://evil.example/install.sh' }]
+    ])
+  })
+})
+
 describe('preload bridge', () => {
   it('invokes exactly the channels the main process registers', () => {
     const ipc = createFakeIpcMain()
     registerDesktopIpc(ipc, createRecordingHandlers().handlers)
     const preload = readFileSync(fileURLToPath(new URL('../../preload/index.ts', import.meta.url)), 'utf8')
 
-    const invoked = [...preload.matchAll(/ipcRenderer\.invoke\(\s*'(dm:[A-Za-z]+)'/g)]
+    const invoked = [...preload.matchAll(/ipcRenderer\.invoke\(\s*'((?:dm|agents):[A-Za-z]+)'/g)]
       .map((match) => match[1])
       .sort()
 
     expect(invoked).toEqual(ipc.channels())
+  })
+
+  it('sends the agent channels nothing but the kind', () => {
+    const preload = readFileSync(fileURLToPath(new URL('../../preload/index.ts', import.meta.url)), 'utf8')
+
+    expect(preload).toContain("listAgents: () => ipcRenderer.invoke('agents:list')")
+    expect(preload).toContain("findAgent: (kind) => ipcRenderer.invoke('agents:find', kind)")
+    expect(preload).toContain("removeAgent: (kind) => ipcRenderer.invoke('agents:remove', kind)")
+    expect(preload).toContain("agentStatus: (kind) => ipcRenderer.invoke('agents:status', kind)")
+    expect(preload).toContain("signInAgent: (kind) => ipcRenderer.invoke('agents:signIn', kind)")
+    expect(preload).toContain("downloadAgent: (kind) => ipcRenderer.invoke('agents:download', kind)")
+  })
+
+  it('subscribes to download progress on the channel main sends it on, and can unsubscribe', () => {
+    const preload = readFileSync(fileURLToPath(new URL('../../preload/index.ts', import.meta.url)), 'utf8')
+    const bootstrap = readFileSync(fileURLToPath(new URL('./bootstrap.ts', import.meta.url)), 'utf8')
+
+    expect(preload).toContain("ipcRenderer.on('agents:downloadProgress', handler)")
+    expect(preload).toContain("ipcRenderer.removeListener('agents:downloadProgress', handler)")
+    expect(bootstrap).toContain("webContents.send('agents:downloadProgress', progress)")
   })
 })

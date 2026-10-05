@@ -3,7 +3,13 @@
  * expiry, the attempt read model, and the few writes several commands share.
  */
 import type { PlanBundle, TicketContent } from '../../shared/domain/bundle'
-import type { AttemptKind, AttemptState, RunState, WorkStatus } from '../../shared/domain/status'
+import {
+  type AttemptKind,
+  type AttemptState,
+  type RunState,
+  SIGNED_OUT_PAUSE_REASON,
+  type WorkStatus
+} from '../../shared/domain/status'
 import type {
   AttemptDecision,
   AttemptEvidence,
@@ -67,6 +73,8 @@ export interface RunRow {
   skill_version: string | null
   owner_machine_id: string
   pause_reason: string | null
+  /** When the run was last paused; null while it is not paused (and for a pause recorded before schema v8). */
+  paused_at: string | null
   auto_continue: number
   revision: number
   created_at: string
@@ -241,6 +249,8 @@ interface LeaseRow {
 /**
  * Lazily expires overdue leases (optionally only in one run): `claimed/running` attempts whose
  * lease ended before now become `lease_expired`, which requires reconciliation before a new claim.
+ * A run paused for sign-in keeps its open attempts whatever their lease time: its workers lose
+ * nothing while the person signs in, and resume gives them back the time the pause took.
  */
 export function expireLeases(ctx: Ctx, runId?: string): string[] {
   return ctx.db.tx(() => {
@@ -249,9 +259,11 @@ export function expireLeases(ctx: Ctx, runId?: string): string[] {
       `SELECT a.id, a.run_id, a.ticket_id, a.lease_expires_at, r.epic_id
        FROM attempts a JOIN runs r ON r.id = a.run_id
        WHERE a.state IN ('claimed', 'running') AND (? IS NULL OR a.run_id = ?)
+         AND NOT (r.state = 'paused' AND IFNULL(r.pause_reason, '') = ?)
        ORDER BY a.rowid`,
       runId ?? null,
-      runId ?? null
+      runId ?? null,
+      SIGNED_OUT_PAUSE_REASON
     )
     const expired = leased.filter((row) => row.lease_expires_at !== null && isBefore(row.lease_expires_at, now))
     for (const row of expired) {

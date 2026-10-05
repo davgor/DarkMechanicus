@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   BUCKET_DEFAULTS,
+  agentsKey,
   bucketKey,
   folderKey,
   isExpansionMap,
@@ -47,5 +48,13 @@ describe('isExpansionMap', () => {
     expect(isExpansionMap([true])).toBe(false)
     expect(isExpansionMap('x')).toBe(false)
     expect(isExpansionMap({ a: 'yes' })).toBe(false)
+  })
+})
+
+describe('agentsKey', () => {
+  it('namespaces the Agents block per folder, apart from folder and bucket keys', () => {
+    expect(agentsKey('/a/b')).toBe('agents:/a/b')
+    expect(agentsKey('/a')).not.toBe(agentsKey('/b'))
+    expect(agentsKey('/a')).not.toBe(folderKey('/a'))
   })
 })

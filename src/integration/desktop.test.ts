@@ -15,6 +15,7 @@ import { defaultCapabilityProfile } from '../shared/domain/bundle'
 import type { BoardImportView } from '../shared/domain/views'
 import { createSequentialIds, createTestClock } from '../test/testContext'
 import { createFakeGit } from '../test/workspaceHarness'
+import { idleAgentDeps } from '../test/idleAgents'
 
 interface Desktop {
   handlers: DesktopHandlers
@@ -48,7 +49,8 @@ function createDesktop(): Desktop {
     connectClaudeCode: (repoPath, { role, allowSave, replace }) =>
       writeMcpServer(repoPath, claudeCodeServer(mcpConfigFor(repoPath), { role, allowSave }), { replace }),
     previewBoardRemoval: (repoPath) => previewBoardRemoval(repoPath),
-    removeBoardFiles: (repoPath, confirmed) => removeBoardFiles(repoPath, confirmed)
+    removeBoardFiles: (repoPath, confirmed) => removeBoardFiles(repoPath, confirmed),
+    ...idleAgentDeps()
   })
   return {
     handlers,

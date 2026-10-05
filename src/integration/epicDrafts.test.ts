@@ -11,6 +11,7 @@ import type { EpicSummaryView, PlanView } from '../shared/domain/views'
 import { TWO_TICKETS } from '../test/authoring'
 import { createSequentialIds, createTestClock } from '../test/testContext'
 import { createFakeGit } from '../test/workspaceHarness'
+import { idleAgentDeps } from '../test/idleAgents'
 
 /**
  * DM-11: "when you pull one epic out of draft it pulls all epics out of draft." The desktop acts on
@@ -51,7 +52,8 @@ function createDesktop(): Desktop {
     installSkills: () => ({ written: [] }),
     connectClaudeCode: () => ({ outcome: 'unchanged' }),
     previewBoardRemoval: () => ({ remove: [], kept: [], editByHand: [] }),
-    removeBoardFiles: () => ({ removed: [], removedFolders: [], kept: [], editByHand: [] })
+    removeBoardFiles: () => ({ removed: [], removedFolders: [], kept: [], editByHand: [] }),
+    ...idleAgentDeps()
   })
   return {
     handlers,

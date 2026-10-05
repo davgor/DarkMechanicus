@@ -77,6 +77,7 @@ const DESKTOP: Capability[] = [
   'run.adopt',
   'run.redraft',
   'run.authorize_auto',
+  'run.pause_signed_out',
   'attempt.review',
   'attempt.reconcile',
   'checkpoint.approve',
@@ -110,14 +111,22 @@ function sessionWith(role: SessionRole, capabilities: Capability[]): SessionCont
 
 describe('capability vocabulary', () => {
   it('lists every capability exactly once', () => {
-    expect(CAPABILITIES).toHaveLength(36)
-    expect(new Set(CAPABILITIES).size).toBe(36)
+    expect(CAPABILITIES).toHaveLength(37)
+    expect(new Set(CAPABILITIES).size).toBe(37)
     expect(sorted(CAPABILITIES)).toEqual(sorted([...DESKTOP, ...AGENT_ONLY]))
   })
 
-  it('marks approval, auto-continue, retry grants, run queueing and deletion as human-only', () => {
+  it('marks approval, auto-continue, retry grants, run queueing, deletion and the sign-in pause as human-only', () => {
     expect(sorted(HUMAN_ONLY_CAPABILITIES)).toEqual(
-      sorted(['checkpoint.approve', 'run.authorize_auto', 'ticket.retry_grant', 'run.queue', 'epic.delete', 'ticket.delete'])
+      sorted([
+        'checkpoint.approve',
+        'run.authorize_auto',
+        'run.pause_signed_out',
+        'ticket.retry_grant',
+        'run.queue',
+        'epic.delete',
+        'ticket.delete'
+      ])
     )
   })
 })

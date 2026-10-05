@@ -363,7 +363,7 @@ describe('hostile run history', () => {
     expect(reconcile(state).rejected[0]?.message).toContain('Duplicate attempt id')
 
     const other = imported()
-    other.target.db.run('INSERT INTO runs SELECT ?, epic_id, 2, revision_id, ?, NULL, NULL, NULL, NULL, NULL, owner_machine_id, NULL, 0, 1, created_at, NULL, updated_at, NULL FROM runs', idOf('run', 2), 'completed')
+    other.target.db.run('INSERT INTO runs SELECT ?, epic_id, 2, revision_id, ?, NULL, NULL, NULL, NULL, NULL, owner_machine_id, NULL, 0, 1, created_at, NULL, updated_at, NULL, NULL FROM runs', idOf('run', 2), 'completed')
     other.target.db.run('UPDATE attempts SET run_id = ?', idOf('run', 2))
     const before = dumpDomain(other.target.db)
     editJson(other, paths(other).runHistoryFile(RUN), (value) => ({ ...value, pauseReason: 'touched' }))

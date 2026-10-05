@@ -19,7 +19,9 @@ import { Banner, ConfirmStrip, Notices, Toast } from './Feedback'
 import { headerView } from './headerView'
 import { listSections } from './listSections'
 import { ListView } from './ListView'
+import type { OrchestrationHost } from './orchestration'
 import { RunBar } from './RunBar'
+import { StartRunDialog } from './StartRunDialog'
 import { useWorkspace, type WorkspaceHandle } from './useWorkspace'
 import { ValidationPanel } from './ValidationPanel'
 import { WorkspaceHeader } from './WorkspaceHeader'
@@ -32,6 +34,8 @@ export interface EpicWorkspaceProps {
   refreshToken: number
   /** Call after any mutation so the shell refreshes sidebar counts. */
   onChanged(): void
+  /** Connected agents, the folder's chats and the navigation Start run and the run bar use. */
+  orchestration: OrchestrationHost
   onOpenEpic(epicId: string): void
   /** The epic was deleted: leave it (the shell shows the folder home). */
   onDeleted(): void
@@ -184,6 +188,31 @@ function SidePanel({ ws }: { ws: WorkspaceHandle }): JSX.Element | null {
   )
 }
 
+/** The Start run dialog: Run with an agent, or Leave pending. The add-agent link closes it first; signing in does not. */
+function StartRunHost({ ws }: { ws: WorkspaceHandle }): JSX.Element | null {
+  const host = ws.orchestration
+  if (!ws.state.startRunOpen) {
+    return null
+  }
+  const close = (): void => ws.dispatch({ type: 'start_run_dialog', open: false })
+  return (
+    <StartRunDialog
+      epicTitle={ws.data.epic.title}
+      agents={host.agents}
+      statuses={host.statuses}
+      busy={ws.state.busy}
+      onLeavePending={() => void ws.actions.startRun()}
+      onRunWithAgent={(choice) => void ws.actions.startRunWithAgent(choice)}
+      onAddAgent={() => {
+        close()
+        host.onAddAgent()
+      }}
+      onAgentStatus={host.onAgentStatus}
+      onClose={close}
+    />
+  )
+}
+
 function WorkspaceView({ ws }: { ws: WorkspaceHandle }): JSX.Element {
   const draft = ws.state.view === 'draft'
   const run = ws.data.run
@@ -205,6 +234,7 @@ function WorkspaceView({ ws }: { ws: WorkspaceHandle }): JSX.Element {
       </div>
       {draft ? <ValidationPanel ws={ws} /> : <AttemptsStrip ws={ws} />}
       <Toast ws={ws} />
+      <StartRunHost ws={ws} />
     </section>
   )
 }
@@ -231,7 +261,8 @@ function WorkspaceBody(props: EpicWorkspaceProps): JSX.Element {
     folderPath: props.folder.path,
     epicId: props.epicId,
     refreshToken: props.refreshToken,
-    onChanged: props.onChanged
+    onChanged: props.onChanged,
+    onChatsChanged: props.orchestration.onChatsChanged
   })
   const now = useNow()
   const { state } = controller
@@ -247,6 +278,7 @@ function WorkspaceBody(props: EpicWorkspaceProps): JSX.Element {
     now,
     folder: props.folder,
     epicId: props.epicId,
+    orchestration: props.orchestration,
     onOpenEpic: props.onOpenEpic,
     onDeleted: props.onDeleted
   }

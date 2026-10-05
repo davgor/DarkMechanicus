@@ -15,7 +15,9 @@ Electron renderer ─> preload (window.dm) ─> main IPC (src/main/desktop) ─�
 | `src/shared/domain` | everywhere (renderer-safe) | Vocabulary and contracts: statuses, plan bundle types, error codes, read-model views, the `CommandApi` interface |
 | `src/core` | Node (Electron main and the MCP process) | The only place business rules live: database, migrations, services, portable records, import, finalizer, authorization |
 | `src/mcp` | Node child process launched by an agent host | Stdio MCP server; each tool validates input and calls one `CommandApi` method |
-| `src/main` | Electron main | Window, auto-update, folder registry, native dialogs, IPC handlers that call `CommandApi` |
+| `src/main` | Electron main | Window, auto-update, folder registry, native dialogs, IPC handlers that call `CommandApi`, and the agent registry, installer and sign-in (the `agent*` modules in `src/main/desktop`; see [Hosted agents](#hosted-agents)) |
+| `src/main/agents` | Electron main | Hosted agents: the chat sessions, chat store, vendor adapters and the orchestrator start (see [Hosted agents](#hosted-agents)) |
+| `src/shared/agents` | everywhere (renderer-safe) | The provider-neutral chat contract and the `chats:*` bridge types |
 | `src/preload` | Electron preload (sandboxed) | Narrow typed bridge `window.dm` |
 | `src/renderer` | Chromium renderer | React UI; never touches the database or filesystem |
 | `skills/` | shipped as text | Provider-neutral agent instructions, exposed as MCP prompts |
@@ -50,7 +52,7 @@ Errors are `DomainError(code, message, details)` with codes from `src/shared/dom
 
 | Role | Registered by | Notable capabilities |
 |------|---------------|----------------------|
-| `desktop` | Electron main (the person) | Everything editorial, `plan.save`, run control, **checkpoint approval, auto-continue authorization, retry grants, queue run** (human-only) |
+| `desktop` | Electron main (the person) | Everything editorial, `plan.save`, run control, **checkpoint approval, auto-continue authorization, retry grants, queue run, the `signed_out` pause** (human-only) |
 | `planner` | MCP `--role planner` | read, create epics, edit drafts, save named profiles, set the project's Definition of Done; `plan.save` only with `--allow-save` |
 | `orchestrator` (MCP default) | MCP `--role orchestrator` | planner (but not the Definition of Done) + runs, claims, reviews, row checks, reports, advance (never approve) |
 | `worker` | MCP `--role worker` | heartbeat/submit/fail for a claim token it holds |
@@ -121,6 +123,7 @@ An edge `{from: A, to: B}` means **B requires A's accepted result**. Relations (
 - `failAttempt` → `failed`. When a ticket exhausts `retryLimit` (+ user-granted retries), the plan's `onTicketFailure` applies: `continue_independent` (default; dependents stay blocked), `pause_run`, or `fail_run` (terminal; open attempts canceled). A failed dependency is never treated as complete.
 - `carryForwardTicket` records a `carry_forward` attempt (state `accepted`) for a ticket already `completed` by an earlier run, with an explicit note.
 - `cancelRun` cancels open attempts; `pauseRun` stops new claims (open attempts may still report).
+- A run paused with the exact reason `signed_out` (the app's response to an orchestrator chat whose CLI login expired) keeps its open leases: `expireLeases` skips it whatever the lease time, and heartbeats still work. Only the desktop session holds `run.pause_signed_out` (human-only, like checkpoint approval), so `pause_run` with that reason from an MCP session fails with `unauthorized` and changes nothing. Every pause records `paused_at` (schema v8, local, not exported); `resumeRun` after a `signed_out` pause extends each open lease by the time the run spent paused and records a `run.leases_extended` run event (`pausedAt`, `extendedMs`, each attempt's old and new lease end). Other pause reasons, and `takeoverRun`, expire leases as usual.
 
 ### Sprint checkpoints
 
@@ -217,14 +220,102 @@ The retro turns what a sprint left over and found into the next sprint's plan, a
 ## Desktop (`src/main`, `src/preload`, `src/renderer`)
 
 - Tracked folders are a machine-local list in `userData/folders.json`, keyed by canonical real path (tracking an existing path selects it instead of duplicating). Stop tracking removes only that entry.
-- The main process caches one Workspace (desktop session) per folder. IPC channels `dm:*` validate payloads and call `CommandApi`, and only after the sender check below. The renderer polls `listEvents` with a cursor (bounded interval) and refetches what changed; unsaved form edits survive refreshes and conflicts.
+- The main process caches one Workspace (desktop session) per folder. IPC channels `dm:*` validate payloads and call `CommandApi`, and only after the sender check below. The `agents:*` and `chats:*` channels (see [Hosted agents](#hosted-agents)) validate theirs the same way and do not call `CommandApi` themselves. The renderer polls `listEvents` with a cursor (bounded interval) and refetches what changed; unsaved form edits survive refreshes and conflicts.
 - Markdown is rendered by a small safe renderer (no raw HTML); links are allow-listed (`http`, `https`, `mailto`) and opened through the main process. Navigation and new windows are denied.
+
+## Hosted agents
+
+The desktop hosts three agent CLIs, `claude` (Claude Code), `codex` and `cursor`: it connects them, installs them, asks each whether it is signed in, runs chats with them and starts them as a run's orchestrator. The product decision is in [`product-plan.md`](product-plan.md#agents-hosted-in-the-desktop-app); the user guide is [`runbooks/agents.md`](runbooks/agents.md). None of it is in `src/core`: no business rule lives here. A chat's agent reaches a repository through the Dark Mechanicus MCP server it is launched with (the same `out/main/mcp.js`, at the chat's role), and the desktop's own Workspace is used only for the run commands described below. Everything here is machine-local state under `userData`, never a portable record.
+
+The renderer names only an agent kind, a folder, a chat, a model, a role, text or a decision. It never supplies an executable path, a download address, a command or MCP arguments: the executable comes from a native file dialog in main (Find), from the vendor's installer (Download) or from the registry, and the MCP arguments are built in main.
+
+### Connection: registry, probe, installer, sign-in
+
+| Module | Responsibility |
+|--------|----------------|
+| `src/shared/desktop/agentKinds.ts` | The closed set of kinds (`AGENT_KINDS`), each kind's display name and expected executable names; read by main and the renderer |
+| `src/main/desktop/agentRegistry.ts` | The agent registry: connected agents in `userData/agents.json` (`{ version: 1, agents: [...] }`), one entry per kind with `executablePath`, `version`, `connectedVia` (`found` or `downloaded`), `connectedAt` and `lastProbed`. Written to a temp file and renamed; an unreadable or corrupt file reads as empty, and a repeated kind keeps its first entry. Remove deletes only the entry |
+| `src/main/desktop/agentProbe.ts` | What Find checks (`probeAgent`): the file is run once with `--version` and the output must identify the kind's CLI, else it is refused with a code (`not_a_file`, `not_executable`, `unsafe_path`, `did_not_start`, `timed_out`, `failed`, `wrong_program`). Also `planCliLaunch`, the launch rules every run of a registered executable follows, and the native dialog options |
+| `src/main/desktop/agentProbeNode.ts` | The real process runner, file check and `killTree` for the probe |
+| `src/main/desktop/agentInstallRecipes.ts` | What Download means per kind and platform (Windows, macOS; x64 and arm64): the vendor's installer script URL, how the script is checked, the interpreter, the environment, and where the CLI ends up (`layout`). Pure data |
+| `src/main/desktop/agentInstaller.ts` | The Download flow over injected dependencies: confirm, download the script to a temp folder, verify it where the vendor publishes a checksum, run it, then find, probe and store the CLI. Failures store nothing and report a code (`busy`, `unsupported_platform`, `download_failed`, `checksum_mismatch`, `checksum_unavailable`, `installer_failed`, `executable_not_found`, `verify_failed`, `unexpected`) |
+| `src/main/desktop/agentInstallerNode.ts` | The real HTTPS download, installer process runner, temp folder and install environment |
+| `src/main/desktop/agentAuth.ts` | Sign-in state (`getAgentAuthStatus`: the CLI's own status command, classified as `signed_in`, `signed_out` or `unknown`) and sign-in launch (`signInAgent`: a terminal window running the CLI's own login command). Also the handlers behind `agents:status` and `agents:signIn` |
+| `src/main/desktop/agentAuthNode.ts` | The real terminal launcher |
+| `src/main/desktop/agentHandlers.ts` | The handlers behind `agents:list`, `agents:find`, `agents:remove` and `agents:download`; `agentKindSchema` is the only input any `agents:*` channel takes |
+| `src/main/desktop/ipc.ts`, `bootstrap.ts` | `ipc.ts` registers the `agents:*` channels (with the `dm:*` ones); `bootstrap.ts` composes the registries, the installer, the sign-in hooks and the chat sessions, and sends `agents:downloadProgress` |
+
+Rules the connection code keeps:
+
+- **No shell for a path someone chose.** On macOS the executable is one argv entry. On Windows an `.exe` or `.com` is run directly; a `.cmd` or `.bat` shim goes through exactly one `cmd.exe /d /v:off /s /c` parse with the path in one pair of quotes, so `&`, `^`, `(` and spaces in it are literal. A path holding `"`, `%` or a control character is refused (`unsafe_path`), never escaped. Any other Windows extension is refused as not runnable. Every argument after the path is a constant. Stopping a process uses `killTree`, so what a shim started goes with it.
+- **The installer runs without a shell string.** PowerShell is given the downloaded script with `-File` (and `-NoProfile -NonInteractive -ExecutionPolicy Bypass`); on macOS the script is the argument of `/bin/bash` or `/bin/sh`. The confirmation is a native message box that shows the source, the command, the install folders and how the download is checked. Cancel is the default; only a click on the first button installs. The renderer cannot answer it.
+- **The app never touches a credential.** Sign in opens a terminal window running `claude auth login`, `codex login` or `agent login`; the vendor's own page does the signing in. The status command's output is classified and dropped, never stored or returned.
+
+### Chats: adapters, session manager, store
+
+| Module | Responsibility |
+|--------|----------------|
+| `src/shared/agents/chat.ts` | The provider-neutral contract: `ChatRecord`, the `ChatItem` kinds of a transcript (user and assistant text, tool calls, approval requests and decisions, model changes, errors, context resets, `auth_required`), the roles (`CHAT_ROLES`, `canSavePlans`), the approval categories and decisions, and the `ChatAdapter` interface every vendor implements |
+| `src/shared/agents/chatApi.ts` | The `window.dm.chats` surface (`ChatsApi`), its request and result types, `ChatPushEvent`, and the push channel name `CHAT_EVENT_CHANNEL` (`chats:event`) |
+| `src/main/agents/adapterRegistry.ts` | `CHAT_ADAPTERS`: the adapter definition per kind (`startOnOpen`, `create`, `listModels`). A kind with no definition cannot start chats |
+| `src/main/agents/adapters/` | The only vendor code. `claude.ts` drives the user's `claude` through the Claude Agent SDK (`claudeApprovals.ts`, `claudeProcess.ts`, `claudeTranscript.ts`). `codex.ts` runs `codex app-server` over JSON-RPC (`codexRpc.ts`, `codexProcess.ts`, `codexItems.ts`, `codexApprovals.ts`). `cursor.ts` runs `agent acp`, the Agent Client Protocol (`acpClient.ts`, `acpProcess.ts`, `cursorLaunch.ts`, `cursorProtocol.ts`, `cursorSession.ts`, `cursorUpdates.ts`, `cursorAuth.ts`) |
+| `src/main/agents/sessionManager.ts` | Runs the chats: one adapter (one agent process) per active chat, approvals, streaming, sign-in handling |
+| `src/main/agents/chatStore.ts` | The chat store: transcripts on disk |
+| `src/main/agents/chatHandlers.ts` | The handlers behind the `chats:*` channels: validation (strict objects, tracked folders only) and `CommandResult` answers |
+| `src/main/agents/chatIpc.ts` | Registers the `chats:*` channels and delivers `chats:event` pushes to every window |
+| `src/main/agents/orchestratorStart.ts`, `orchestratorKickoff.ts` | Starting an agent as a run's orchestrator, and the kickoff message and chat title it is given |
+| `src/main/agents/claimTokenMask.ts` | Masks claim tokens (`at_<id>.<secret>`) in everything stored or pushed, including a token split across streamed deltas |
+| `src/main/agents/signInFlags.ts`, `signInHooks.ts` | Which agents a chat found signed out, and the hooks that correct the status shown with that |
+| `src/main/quitDisposal.ts` | Disposes live agent processes before the app quits |
+
+The renderer side is `src/renderer/src/agents/` (the add-agent pane and agent page, the new-chat dialog, the chat view with its approval and signed-out cards, `SignInPrompt`, and the `useAgents` and `useChats` hooks), `src/renderer/src/sidebar/AgentsSection.tsx` and `AgentsBlock.tsx`, and, for runs, `src/renderer/src/epic/StartRunDialog.tsx` and `RunBar.tsx`.
+
+**Adapters.** Each adapter implements `ChatAdapter` (`start`, `send`, `setModel`, `stop`, `listModels`, `dispose`) and reports everything through events: transcript items, assistant text deltas, approval requests (the adapter holds the vendor until `respond` is called) and the vendor's session id. The session manager hands it the connected executable (from the registry, never the renderer), the chat's folder as the working directory, the model, the vendor session to resume, and the chat's Dark Mechanicus server, which the adapter passes to the vendor as `darkmechanicus` without writing to the vendor's own configuration (Claude chats do read the person's own Claude Code settings, `user`, `project` and `local`, so their permission rules still apply). Claude and Cursor start their process on the first message; Codex's (`startOnOpen`) starts when the chat is opened. Reads and searches inside the folder never ask; edits, commands and anything else become approval requests.
+
+**Roles and the chat's MCP server.** `darkMechanicusServer` (`src/main/desktop/mcpJson.ts`) builds the entry: the app's launch command, `--role <role>`, `--allow-save` only when `allowSave` is set and the role is `planner` or `orchestrator` (`canSavePlans`), and `--label "<Agent> · <chat title>"`. The role is fixed for the chat's life. `chats:create` takes the role and `allowSave` from the person; `chats:startOrchestrator` takes neither (see below).
+
+**The chat store.** `userData/agents/chats/<folder key>/index.jsonl` holds one line per change of a chat record (the last line for an id wins), and `<chat id>.jsonl` holds the transcript, one `ChatItem` per line. The folder key is the first 24 hex characters of the SHA-256 of the folder's canonical real path, so every spelling of a folder finds the same chats and untracking a folder leaves them. Files are appended to; a truncated last line is repaired on the next append and skipped on read, as is a line of a kind a newer build wrote. Deleting a chat is the one rewrite: its transcript file is removed and the index is replaced atomically without any line of that chat. Everything is masked for claim tokens before it is written, and the masked item is what is pushed.
+
+**The session manager.** A process with no running turn and no waiting approval for ten minutes is disposed, and the next message starts a new one that resumes the vendor session. Stop interrupts the turn and keeps the process. Approval requests are stored and pushed as transcript items and then wait in main, so closing the window loses nothing. Allow for this chat remembers the request's category and tool for that chat until the app quits and answers matching requests itself, recorded as automatic. Stop, quitting and failed storage cancel waiting requests (stored as `cancelled`, and the adapter is told `deny`); a request a crash left unanswered is recorded as `cancelled` the next time its chat is opened. Assistant text deltas are pushed but not stored; the whole text is stored once.
+
+**Sign-in.** An adapter reports a login its CLI no longer accepts as one `auth_required` item and ends the turn cleanly, then closes its process so none runs on the old login. The session manager stores the item, flags the agent kind signed out (`signInFlags.ts`, in memory, cleared when the person starts Sign in and the CLI then says signed in), records the message the turn was cut short on (`cutShortMessageId` on the chat), pushes `agent_auth` to every chat of that agent opened or written to since the app started, and, when the chat orchestrates a run that is `running`, pauses the run with the reason `signed_out`. That pause goes through the folder's own desktop Workspace, the only session that holds `run.pause_signed_out` (see [Runs, readiness, and attempts](#runs-readiness-and-attempts)). While the flag stands, a new message in any chat of that agent is stored, answered with an `auth_required` item and starts nothing. `chats:retryTurn` sends the cut-short message again, once, and is refused while the agent is signed out. Nothing is resent and no run is resumed by the app itself. The CLI's status command reads only what is stored locally and can say "signed in" for a login that no longer works, so `trackChatSignIn` corrects `agents:status` with what the chats found, and every screen shows one state.
+
+**Starting an orchestrator.** `chats:startOrchestrator` (`startOrchestratorRun`) takes only a folder, an epic, an agent and a model. In main it reads the epic, queues the run through the desktop's own `queueRun`, creates the chat as `orchestrator` with `allowSave` off, titled `Orchestrator · <epic title>`, records the run's id on the chat (`runId`), and sends a kickoff message built from ids, the epic's title and its branch, never from anything that grants access. A failure before the run is queued is an error and nothing exists. After it, the run stays queued and the result's `problem` says why no agent is running it (the chat could not be created, or the agent could not start, in which case the chat is removed again, or kept and returned when it cannot be removed). The agent then calls `start_run`, which picks up the queued run.
+
+### IPC surface
+
+All of these go through the guarded `ipc` (see [Bridge hardening](#bridge-hardening)). Invoke channels answer `CommandResult` (`chats:*`) or the plain result type (`agents:*`); a payload that fails validation is refused before anything runs.
+
+| Channel | Direction | Handler | Takes, answers |
+|---------|-----------|---------|----------------|
+| `agents:list` | invoke | `agentHandlers.ts` | nothing; the connected `AgentView[]` |
+| `agents:find` | invoke | `agentHandlers.ts` | an agent kind; opens a native file dialog, probes the pick, stores it: `connected`, `cancelled` or `refused` with a code |
+| `agents:remove` | invoke | `agentHandlers.ts` | a kind; the remaining `AgentView[]` (only the registry entry goes) |
+| `agents:download` | invoke | `agentHandlers.ts`, `agentInstaller.ts` | a kind; `installed` (with `updated`), `cancelled` or `failed` with a code and the installer's last output lines |
+| `agents:status` | invoke | `agentAuth.ts` | a kind; an `AgentAuthStatus` (`signed_in`, `signed_out` or `unknown`, with a reason) |
+| `agents:signIn` | invoke | `agentAuth.ts` | a kind; `started` (a terminal window is running the CLI's login), `not_connected` or `failed` |
+| `agents:downloadProgress` | push, main to renderer | `bootstrap.ts` | `AgentDownloadProgress`: the kind, the phase (`confirming`, `downloading`, `verifying`, `installing`, `checking`, `done`, `cancelled`, `failed`) and a percent |
+| `chats:list` | invoke | `chatHandlers.ts` | a tracked folder; its `ChatSummary[]`, newest first, each with its count of waiting approvals |
+| `chats:create` | invoke | `chatHandlers.ts` | folder, agent, role, optional model, `allowSave` and title; the `ChatRecord` |
+| `chats:startOrchestrator` | invoke | `chatHandlers.ts`, `orchestratorStart.ts` | folder, epic, agent, optional model; the queued run, its chat (or null) and a `problem` (or null) |
+| `chats:open` | invoke | `chatHandlers.ts` | folder and chat; the transcript, waiting approvals and whether a turn is running |
+| `chats:send` | invoke | `chatHandlers.ts` | folder, chat and text; the stored message |
+| `chats:stop` | invoke | `chatHandlers.ts` | folder and chat; ends the running turn and cancels waiting approvals |
+| `chats:retryTurn` | invoke | `chatHandlers.ts` | folder and chat; sends the message a sign-in cut short, once |
+| `chats:setModel` | invoke | `chatHandlers.ts` | folder, chat and model; the model changes from the next turn and a `model_change` item is stored |
+| `chats:rename` | invoke | `chatHandlers.ts` | folder, chat and a title; the updated `ChatRecord` |
+| `chats:delete` | invoke | `chatHandlers.ts` | folder and chat; ends the agent and removes the chat and its transcript |
+| `chats:answerApproval` | invoke | `chatHandlers.ts` | folder, chat, request id and a decision (`allow_once`, `allow_chat`, `deny`) |
+| `chats:models` | invoke | `chatHandlers.ts` | an agent kind; the models that agent offers |
+| `chats:event` | push, main to renderer | `chatIpc.ts` | a `ChatPushEvent`: `item`, `assistant_delta`, `turn` (started or ended) or `agent_auth` (`signed_out` or `signed_in`, for one chat's agent) |
+
+The preload exposes the invoke channels as `window.dm.listAgents`, `findAgent`, `removeAgent`, `downloadAgent`, `agentStatus` and `signInAgent`, `window.dm.chats.*`, and the two push channels as `onAgentDownloadProgress` and `chats.onEvent`, each returning its unsubscribe function.
 
 ## Bridge hardening
 
 Defense in depth on both adapters; the command layer's authorization stays the real boundary.
 
-- **IPC sender check** (`src/main/ipcGuard.ts`). `index.ts` wraps `ipcMain` once with `guardIpc` and passes the result to every registrar (`dm:*`, auto-update, app version); nothing else touches `ipcMain`, and a test scans `src/main` to keep it that way. A call runs only when `event.senderFrame` is live, attached, top-level, and shows the app's own page: `isAppUrl` (shared with the navigation guard) compares the dev server's origin in development, and in production the packaged `index.html` by parsed protocol, host, and resolved path (query and hash ignored, never a prefix). Anything else gets `{ ok: false, error: { code: 'unauthorized' } }`, the handler never runs, and main logs the refusal.
+- **IPC sender check** (`src/main/ipcGuard.ts`). `index.ts` wraps `ipcMain` once with `guardIpc` and passes the result to every registrar (`dm:*`, `agents:*`, `chats:*`, auto-update, app version); nothing else touches `ipcMain`, and a test scans `src/main` to keep it that way. A call runs only when `event.senderFrame` is live, attached, top-level, and shows the app's own page: `isAppUrl` (shared with the navigation guard) compares the dev server's origin in development, and in production the packaged `index.html` by parsed protocol, host, and resolved path (query and hash ignored, never a prefix). Anything else gets `{ ok: false, error: { code: 'unauthorized' } }`, the handler never runs, and main logs the refusal.
 - **Tools per role** (`src/mcp/tools/define.ts`). Each tool adapts one command (its camel-cased name, or an explicit `command` the compiler requires otherwise). `createMcpServer` grants the server the session's capabilities (`capabilitiesForRole(role, { allowSave })`), and `registerTools` registers a tool only when that set holds `COMMAND_CAPABILITIES[command]`. Read-only tools need `read`, which every role has; `save_plan` needs `plan.save`, which only `--allow-save` adds for planner and orchestrator. A withheld tool is still known to the server: calling it answers `unauthorized` without running anything.
 - **Structured validation errors.** The SDK validates tool arguments before the tool callback and answers failures as plain text. The server replaces the SDK's `tools/call` handler with one that parses each tool's zod shape itself and answers failures with `invalid_input` (`details.issues`: path and message per field). `tools/list` stays the SDK's, so advertised JSON schemas are unchanged; a test pins each one to its fingerprint from before the change.
 
@@ -243,6 +334,7 @@ The product plan's open decisions were settled as follows (all revisitable):
 - **First host:** any stdio MCP host; a Claude Code skill wrapper ships (`installSkills`) and the six skills are also plain MCP prompts, so no host-specific API is assumed.
 - **Sprint advancement defaults to a human checkpoint** (`checkpoint.mode = human`); `auto` needs per-run authorization in the desktop.
 - **Deletion stays deferred**, as the plan requires: no delete UI or tools ship (mockup 06 is not implemented).
+- **The desktop hosts three agent CLIs, and vendor code stays in adapters:** Claude Code, Codex and Cursor run as chats behind one provider-neutral contract (`src/shared/agents/chat.ts`); the session manager and the chat store know nothing of a vendor's protocol, the per-kind connection data (install recipes, version match, status command) sits beside the registry in `src/main/desktop`, and plans, tickets and profiles never name a vendor at all. Connected agents and chats are machine-local `userData` files, not portable records (see [Hosted agents](#hosted-agents)).
 - **Named profiles are records like the others:** `format: darkmechanicus.profile`, `formatVersion: 1`, strict schema, key-sorted pretty JSON, imported on reconcile; tickets copy them rather than reference them, so a profile edit never rewrites plans.
 
 ## Testing conventions

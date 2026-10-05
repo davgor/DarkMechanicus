@@ -60,6 +60,8 @@ export interface WorkspaceState {
   saveNotice: Notice | null
   busy: boolean
   confirm: 'discard' | 'cancel_run' | null
+  /** The Start run dialog is open. */
+  startRunOpen: boolean
   validation: ValidationReport | null
 }
 
@@ -80,6 +82,7 @@ export type WorkspaceAction =
   | { type: 'toast'; text: string | null }
   | { type: 'save_notice'; notice: Notice | null }
   | { type: 'confirm'; kind: 'discard' | 'cancel_run' | null }
+  | { type: 'start_run_dialog'; open: boolean }
   | { type: 'validation'; report: ValidationReport | null }
 
 export function initialWorkspaceState(chosenView: PlanViewKind | null = null): WorkspaceState {
@@ -99,6 +102,7 @@ export function initialWorkspaceState(chosenView: PlanViewKind | null = null): W
     saveNotice: null,
     busy: false,
     confirm: null,
+    startRunOpen: false,
     validation: null
   }
 }
@@ -171,6 +175,7 @@ const HANDLERS: Handlers = {
   toast: (state, action) => ({ ...state, toast: action.text }),
   save_notice: (state, action) => ({ ...state, saveNotice: action.notice }),
   confirm: (state, action) => ({ ...state, confirm: action.kind }),
+  start_run_dialog: (state, action) => ({ ...state, startRunOpen: action.open }),
   validation: (state, action) => ({ ...state, validation: action.report })
 }
 

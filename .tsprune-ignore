@@ -1,7 +1,7 @@
 # Baseline ignore for ts-prune (one pattern per line)
 # Generated from tsconfig.node.json + tsconfig.web.json
 # Refresh after export moves/deletes: npm run deadcode:refresh
-# Refreshed 2026-10-04 (73 entries)
+# Refreshed 2026-10-05 (88 entries)
 
 electron.vite.config.ts:37 - default
 src/core/definitionOfDone.ts:12 - checkNameKey
@@ -17,13 +17,28 @@ src/core/plan/graph.ts:528 - dependentsOf
 src/core/plan/graph.ts:532 - sortedSprints
 src/core/plan/graph.ts:584 - SprintRow
 src/core/plan/graph.ts:595 - planRows
-src/preload/index.ts:24 - AutoUpdateApi
-src/preload/index.ts:25 - AppInfoApi
+src/preload/index.ts:25 - AutoUpdateApi
+src/preload/index.ts:26 - AppInfoApi
+src/shared/agents/chat.ts:133 - ApprovalCategory
+src/shared/agents/chat.ts:144 - McpServerSpec
+src/shared/agents/chat.ts:151 - ChatAdapterStartOptions
+src/shared/agents/chat.ts:168 - ChatAdapterEvent
+src/shared/agents/chat.ts:181 - ChatAdapterEmit
+src/shared/agents/chat.ts:188 - ChatAdapter
+src/shared/agents/chat.ts:28 - chatIdSchema
+src/shared/agents/chat.ts:75 - APPROVAL_DECISIONS
+src/shared/agents/chatApi.ts:15 - ChatRequestRef
+src/shared/agents/chatApi.ts:49 - SendChatRequest
+src/shared/agents/chatApi.ts:53 - SetChatModelRequest
+src/shared/agents/chatApi.ts:62 - AnswerApprovalRequest
 src/shared/autoUpdate/types.ts:17 - AUTO_UPDATE_EVENT_CHANNEL
-src/shared/desktop/api.ts:148 - DesktopCommandName
-src/shared/desktop/api.ts:150 - DESKTOP_COMMANDS
-src/shared/desktop/api.ts:22 - CommandInput
-src/shared/desktop/api.ts:26 - CommandOutput
+src/shared/desktop/api.ts:123 - CommandInput
+src/shared/desktop/api.ts:127 - CommandOutput
+src/shared/desktop/api.ts:278 - DesktopCommandName
+src/shared/desktop/api.ts:280 - DESKTOP_COMMANDS
+src/shared/desktop/api.ts:36 - AgentRefusalCode
+src/shared/desktop/api.ts:57 - AgentDownloadFailureCode
+src/shared/desktop/api.ts:86 - AgentDownloadPhase
 src/shared/domain/api.ts:140 - ClaimTicketInput
 src/shared/domain/api.ts:161 - IncrementRef
 src/shared/domain/api.ts:166 - SubmitAttemptInput
@@ -51,14 +66,14 @@ src/shared/domain/retro.ts:21 - RetroDelivered
 src/shared/domain/retro.ts:28 - RetroDiscovery
 src/shared/domain/retro.ts:35 - RetroLeftover
 src/shared/domain/status.ts:21 - ACTIVE_RUN_STATES
-src/shared/domain/status.ts:28 - ATTEMPT_STATES
-src/shared/domain/status.ts:41 - OPEN_ATTEMPT_STATES
-src/shared/domain/status.ts:44 - LEASED_ATTEMPT_STATES
-src/shared/domain/status.ts:49 - ORCHESTRATOR_FALLBACK_LABEL
-src/shared/domain/status.ts:52 - TICKET_EXECUTION_STATES
+src/shared/domain/status.ts:34 - ATTEMPT_STATES
+src/shared/domain/status.ts:47 - OPEN_ATTEMPT_STATES
+src/shared/domain/status.ts:50 - LEASED_ATTEMPT_STATES
+src/shared/domain/status.ts:55 - ORCHESTRATOR_FALLBACK_LABEL
+src/shared/domain/status.ts:58 - TICKET_EXECUTION_STATES
 src/shared/domain/status.ts:6 - WORK_STATUSES
-src/shared/domain/status.ts:73 - isLeasedAttemptState
-src/shared/domain/status.ts:77 - WORK_STATUS_LABELS
+src/shared/domain/status.ts:79 - isLeasedAttemptState
+src/shared/domain/status.ts:83 - WORK_STATUS_LABELS
 src/shared/domain/status.ts:9 - RUN_STATES
 src/shared/domain/views.ts:215 - PrerequisiteOutcome
 src/shared/domain/views.ts:263 - WorkerInfo

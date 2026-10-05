@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest'
 import { FakeDm } from '../__mocks__/fakeDm'
-import { boardImport, boardOpenEpic, EPIC_A, epicDetail, folderView } from '../__mocks__/fixtures'
+import { boardImport, boardOpenEpic, chatRecord, EPIC_A, epicDetail, folderView } from '../__mocks__/fixtures'
+import type { ChatRecord } from '../../../shared/agents/chat'
+import type { CreateChatRequest } from '../../../shared/agents/chatApi'
 import type { FolderPickResult } from '../../../shared/desktop/api'
 import type { WorkStatus } from '../../../shared/domain/status'
 import type { Selection } from './selection'
@@ -25,6 +27,10 @@ class Recorder {
   pickError: string | null = null
   untrackError: string | null = null
   buckets: Record<string, WorkStatus> = {}
+  agentsRevealed: string[] = []
+  chatRequests: CreateChatRequest[] = []
+  /** What creating a chat answers; null stands for a failure that was already reported. */
+  createdChat: ChatRecord | null = chatRecord({ id: 'chat_new_1', folder: '/a' })
 
   actions(selectedPath: string | null = '/a'): ShellActions {
     return createShellActions({
@@ -46,6 +52,13 @@ class Recorder {
       select: (selection) => this.selections.push(selection),
       reveal: (path, bucket) => this.revealed.push(bucket === null ? path : `${path}:${bucket}`),
       bucketOf: (path, epicId) => this.buckets[`${path}:${epicId}`] ?? null,
+      revealAgents: (path) => this.agentsRevealed.push(path),
+      chats: {
+        create: (request) => {
+          this.chatRequests.push(request)
+          return Promise.resolve(this.createdChat)
+        }
+      },
       refresh: (path) => this.refreshed.push(path),
       setBusy: (key: BusyKey, value: boolean) => this.busy.push(`${key}:${value}`),
       selectedPath
@@ -84,6 +97,31 @@ describe('selection actions', () => {
   it('asks for a refresh after a change', () => {
     recorder.actions().changed('/a')
     expect(recorder.refreshed).toEqual(['/a'])
+  })
+})
+
+describe('agents panes', () => {
+  it('opens the add-agent pane over the selected folder, without an epic', () => {
+    recorder.actions('/a').openAddAgent()
+    expect(recorder.selections).toEqual([{ folderPath: '/a', epicId: null, agentPane: { kind: 'add' } }])
+  })
+
+  it('opens an agent page over the selected folder', () => {
+    recorder.actions('/a').openAgent('codex')
+    expect(recorder.selections).toEqual([
+      { folderPath: '/a', epicId: null, agentPane: { kind: 'agent', agent: 'codex' } }
+    ])
+  })
+
+  it('opens the panes with no folder selected too', () => {
+    recorder.actions(null).openAddAgent()
+    expect(recorder.selections).toEqual([{ folderPath: null, epicId: null, agentPane: { kind: 'add' } }])
+  })
+
+  it('leaves the panes when a folder or an epic is selected', () => {
+    recorder.actions().selectFolder('/a')
+    recorder.actions().selectEpic('/a', 'ep_1')
+    expect(recorder.selections.every((selection) => selection.agentPane === undefined)).toBe(true)
   })
 })
 
@@ -344,6 +382,30 @@ describe('createEpic', () => {
     const result = await recorder.actions().createEpic(alpha, { title: 'x' })
     expect(result).toBeNull()
     expect(recorder.errors).toEqual(['Title too long'])
+    expect(recorder.selections).toEqual([])
+  })
+})
+
+describe('chat actions', () => {
+  it('selects a chat of a folder, and reveals the folder\'s Agents block', () => {
+    recorder.actions().selectChat('/a', 'chat_1')
+    expect(recorder.selections).toEqual([{ folderPath: '/a', epicId: null, chatId: 'chat_1' }])
+    expect(recorder.agentsRevealed).toEqual(['/a'])
+  })
+
+  it('creates a chat in the folder with exactly the choice made, then opens it', async () => {
+    const choice = { agent: 'codex', model: 'gpt-5', role: 'reviewer', allowSave: false } as const
+    const created = await recorder.actions().createChat(alpha, choice)
+    expect(recorder.chatRequests).toEqual([{ folder: '/a', ...choice }])
+    expect(created?.id).toBe('chat_new_1')
+    expect(recorder.selections).toEqual([{ folderPath: '/a', epicId: null, chatId: 'chat_new_1' }])
+    expect(recorder.agentsRevealed).toEqual(['/a'])
+  })
+
+  it('selects nothing new when the chat could not be created', async () => {
+    recorder.createdChat = null
+    const created = await recorder.actions().createChat(alpha, { agent: 'claude', model: null, role: 'planner', allowSave: true })
+    expect(created).toBeNull()
     expect(recorder.selections).toEqual([])
   })
 })

@@ -8,6 +8,7 @@ import {
   ACTIVE_RUN_STATES,
   isOpenAttemptState,
   type RunState,
+  SIGNED_OUT_PAUSE_REASON,
   type TicketExecutionState,
   type WorkStatus
 } from '../../shared/domain/status'
@@ -339,17 +340,26 @@ export function getRun(ctx: Ctx, input: { runId?: string; epicId?: string }): Ru
 
 /** Pauses a run in place (shared with the ticket-failure policy); open attempts may still report. */
 export function pauseRunRow(ctx: Ctx, run: RunRow, reason: string): void {
+  const now = ctx.clock.nowIso()
   ctx.db.run(
-    "UPDATE runs SET state = 'paused', pause_reason = ?, updated_at = ?, revision = revision + 1 WHERE id = ?",
+    "UPDATE runs SET state = 'paused', pause_reason = ?, paused_at = ?, updated_at = ?, revision = revision + 1 WHERE id = ?",
     reason,
-    ctx.clock.nowIso(),
+    now,
+    now,
     run.id
   )
   recordRun(ctx, run, 'run.paused', { from: run.state, reason })
 }
 
+/**
+ * Pauses a run. The reason `signed_out` (exact) freezes the run's open leases, so only the desktop's own session
+ * may give it: an agent that could would keep a stalled worker's claim alive indefinitely.
+ */
 export function pauseRun(ctx: Ctx, input: { runId: string; reason?: string }): RunView {
   requireCapability(ctx.session, 'run.control')
+  if (input.reason === SIGNED_OUT_PAUSE_REASON) {
+    requireCapability(ctx.session, 'run.pause_signed_out')
+  }
   return ctx.db.tx(() => {
     const run = requireRun(ctx, input.runId)
     requireRunState(run, PAUSABLE_STATES, 'pause')
@@ -358,16 +368,51 @@ export function pauseRun(ctx: Ctx, input: { runId: string; reason?: string }): R
   })
 }
 
+function shiftIso(iso: string, ms: number): string {
+  return new Date(Date.parse(iso) + ms).toISOString()
+}
+
+/**
+ * A run paused for sign-in kept its open leases, so on resume each one is extended by the time the run spent
+ * paused and the workers get back the lease time they had. Returns nothing to record when no lease is open, or
+ * when the pause time is unknown (a pause recorded before schema v8).
+ */
+function extendKeptLeases(ctx: Ctx, run: RunRow): void {
+  if (run.pause_reason !== SIGNED_OUT_PAUSE_REASON || run.paused_at === null) {
+    return
+  }
+  const now = ctx.clock.nowIso()
+  const pausedMs = Date.parse(now) - Date.parse(run.paused_at)
+  const open = ctx.db.all<{ id: string; lease_expires_at: string }>(
+    `SELECT id, lease_expires_at FROM attempts
+     WHERE run_id = ? AND state IN ('claimed', 'running') AND lease_expires_at IS NOT NULL ORDER BY rowid`,
+    run.id
+  )
+  if (pausedMs <= 0 || open.length === 0) {
+    return
+  }
+  const attempts = open.map((row) => ({
+    attemptId: row.id,
+    from: row.lease_expires_at,
+    to: shiftIso(row.lease_expires_at, pausedMs)
+  }))
+  for (const attempt of attempts) {
+    ctx.db.run('UPDATE attempts SET lease_expires_at = ?, updated_at = ? WHERE id = ?', attempt.to, now, attempt.attemptId)
+  }
+  recordRun(ctx, run, 'run.leases_extended', { pausedAt: run.paused_at, extendedMs: pausedMs, attempts })
+}
+
 export function resumeRun(ctx: Ctx, input: { runId: string }): RunView {
   requireCapability(ctx.session, 'run.control')
   ctx.assertBranch()
   return ctx.db.tx(() => {
     const run = requireOwnedRun(ctx, input.runId)
     requireRunState(run, ['paused'], 'resume')
+    extendKeptLeases(ctx, run)
     // A run paused before it ever started goes back to the queue rather than running without a sprint.
     const to: RunState = run.started_at === null ? 'queued' : 'running'
     ctx.db.run(
-      'UPDATE runs SET state = ?, pause_reason = NULL, updated_at = ?, revision = revision + 1 WHERE id = ?',
+      'UPDATE runs SET state = ?, pause_reason = NULL, paused_at = NULL, updated_at = ?, revision = revision + 1 WHERE id = ?',
       to,
       ctx.clock.nowIso(),
       run.id
@@ -425,9 +470,10 @@ function transferRun(ctx: Ctx, run: RunRow): void {
     run.id
   )
   ctx.db.run(
-    `UPDATE runs SET owner_machine_id = ?, state = 'paused', pause_reason = 'taken_over', auto_continue = 0,
+    `UPDATE runs SET owner_machine_id = ?, state = 'paused', pause_reason = 'taken_over', paused_at = ?, auto_continue = 0,
        updated_at = ?, revision = revision + 1 WHERE id = ?`,
     ctx.machineId,
+    now,
     now,
     run.id
   )

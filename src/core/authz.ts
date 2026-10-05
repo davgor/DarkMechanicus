@@ -26,6 +26,7 @@ export const CAPABILITIES = [
   'run.adopt',
   'run.redraft',
   'run.authorize_auto',
+  'run.pause_signed_out',
   'run.row_check',
   'attempt.claim',
   'attempt.heartbeat',
@@ -46,6 +47,7 @@ export type Capability = (typeof CAPABILITIES)[number]
 export const HUMAN_ONLY_CAPABILITIES: readonly Capability[] = [
   'checkpoint.approve',
   'run.authorize_auto',
+  'run.pause_signed_out',
   'ticket.retry_grant',
   'run.queue',
   'epic.delete',

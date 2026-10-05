@@ -142,7 +142,8 @@ function toView(context: RegistryContext, entry: FolderEntry): TrackedFolderView
   }
 }
 
-function canonicalPath(fs: RegistryFs, path: string): string | null {
+/** The canonical real path of `path`, or null when it does not exist; the one canonical form for folders. */
+export function canonicalPath(fs: Pick<RegistryFs, 'realpath'>, path: string): string | null {
   try {
     return fs.realpath(path)
   } catch {

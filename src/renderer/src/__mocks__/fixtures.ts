@@ -2,7 +2,9 @@
  * Test-only builders for renderer tests. Lives under __mocks__ so fireguard treats it as support
  * code rather than a production module.
  */
-import type { TrackedFolderView } from '../../../shared/desktop/api'
+import type { ChatRecord } from '../../../shared/agents/chat'
+import type { ChatSummary } from '../../../shared/agents/chatApi'
+import type { AgentView, TrackedFolderView } from '../../../shared/desktop/api'
 import type {
   BoardImportView,
   BoardOpenEpicView,
@@ -181,3 +183,37 @@ export function boardRemoval(patch: Partial<BoardRemovalView> = {}): BoardRemova
 
 /** What a repository without an old board answers. */
 export const NO_BOARD: BoardImportView = { open: [], done: [], skipped: [] }
+
+/** A connected Claude Code by default; patch `kind` and the rest for the other agents. */
+export function agentView(patch: Partial<AgentView> = {}): AgentView {
+  return {
+    kind: 'claude',
+    executablePath: '/usr/local/bin/claude',
+    version: '2.1.4',
+    connectedVia: 'found',
+    connectedAt: '2026-02-03T10:00:00.000Z',
+    lastProbed: '2026-02-03T10:00:00.000Z',
+    ...patch
+  }
+}
+
+/** A chat as the list returns it: the record and how many approval requests it is waiting on. */
+export function chatSummary(patch: Partial<ChatSummary> = {}): ChatSummary {
+  return { ...chatRecord(patch), pending: patch.pending ?? 0 }
+}
+
+export function chatRecord(patch: Partial<ChatRecord> = {}): ChatRecord {
+  return {
+    id: 'chat_1',
+    folder: '/home/u/code/alpha',
+    agent: 'claude',
+    model: 'opus',
+    role: 'orchestrator',
+    allowSave: true,
+    title: 'New chat',
+    createdAt: '2026-03-01T10:00:00.000Z',
+    updatedAt: '2026-03-01T10:00:00.000Z',
+    sessionId: null,
+    ...patch
+  }
+}

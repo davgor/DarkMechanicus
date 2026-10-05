@@ -10,6 +10,7 @@ import {
   type TrackedFolderView
 } from '../../shared/desktop/api'
 import type { BoardImportView, BoardOpenEpicView, BoardRemovalResultView, BoardRemovalView } from '../../shared/domain/views'
+import { idleAgentDeps } from '../../test/idleAgents'
 import { createDesktopHandlers, firstPickedDirectory, type DesktopHandlerDeps } from './handlers'
 
 /** Commands that exist on a Workspace but are agent-only: the desktop must not reach them. */
@@ -180,7 +181,8 @@ function createWorld(options: WorldOptions = {}): World {
         world.connectCalls.push([repoPath, request])
         return { outcome: 'conflict', existing: '{}' }
       },
-      ...boardRemovalDeps(() => world)
+      ...boardRemovalDeps(() => world),
+      ...idleAgentDeps()
     }
   }
   return world
@@ -818,6 +820,26 @@ describe('openExternal limits and failures', () => {
 
     expect(await handlers.openExternal('mailto:a@b.co')).toBe(false)
     expect(world.external).toEqual(['mailto:a@b.co'])
+  })
+})
+
+describe('agent handlers', () => {
+  it('are part of the desktop handlers, validated like every other channel', async () => {
+    const handlers = createDesktopHandlers(createWorld().deps)
+
+    expect(await handlers.listAgents()).toEqual([])
+    expect(await handlers.findAgent('claude')).toEqual({ outcome: 'cancelled' })
+    expect(await handlers.removeAgent('claude')).toEqual([])
+    expect(await rejectionOf(handlers.findAgent('/bin/sh'))).toMatchObject({ code: 'invalid_input' })
+    expect(await rejectionOf(handlers.removeAgent({ kind: 'claude' }))).toMatchObject({ code: 'invalid_input' })
+    expect(await handlers.agentStatus('claude')).toEqual({ state: 'unknown', reason: 'Claude Code is not connected yet.' })
+    expect(await handlers.signInAgent('claude')).toEqual({
+      outcome: 'not_connected',
+      reason: 'Claude Code is not connected yet.'
+    })
+    expect(await rejectionOf(handlers.agentStatus({ kind: 'claude', apiKey: 'sk-x' }))).toMatchObject({
+      code: 'invalid_input'
+    })
   })
 })
 

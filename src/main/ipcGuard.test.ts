@@ -8,6 +8,7 @@ import { createStubWorkspace } from '../test/stubWorkspace'
 import { createDesktopHandlers } from './desktop/handlers'
 import { registerDesktopIpc } from './desktop/ipc'
 import { guardIpc, isTrustedSender, type SenderFrame } from './ipcGuard'
+import { idleAgentDeps } from '../test/idleAgents'
 
 const PAGE = pathToFileURL('/opt/app/out/renderer/index.html').href
 const DEV = 'http://localhost:5173'
@@ -198,7 +199,8 @@ function trustingDesktop() {
     installSkills: () => ({ written: [] }),
     connectClaudeCode: () => ({ outcome: 'unchanged' }),
     previewBoardRemoval: () => ({ remove: [], kept: [], editByHand: [] }),
-    removeBoardFiles: () => ({ removed: [], removedFolders: [], kept: [], editByHand: [] })
+    removeBoardFiles: () => ({ removed: [], removedFolders: [], kept: [], editByHand: [] }),
+    ...idleAgentDeps()
   })
   return { workspace, opened, handlers }
 }
@@ -229,13 +231,13 @@ describe('guarded desktop channels', () => {
     expect(desktop.workspace.calls).toEqual([{ name: 'listEpics', input: undefined }])
   })
 
-  it('refuses every dm channel for an untrusted sender', async () => {
+  it('refuses every dm and agents channel for an untrusted sender', async () => {
     const ipc = createFakeIpcMain()
     registerDesktopIpc(guardIpc(ipc, { appUrl: DEV }), trustingDesktop().handlers)
 
     const answers = await Promise.all(ipc.channels().map((channel) => ipc.invoke(channel, frameAt(PAGE), FOLDER)))
 
-    expect(ipc.channels()).toHaveLength(11)
+    expect(ipc.channels()).toHaveLength(17)
     expect(answers).toEqual(ipc.channels().map(() => REFUSED))
   })
 })

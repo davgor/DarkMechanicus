@@ -5,6 +5,7 @@
  * through reducer actions: a toast on success, the canvas banner or an inline notice on failure.
  */
 import { acceptanceTitle } from '../../../core/plan/acceptance'
+import type { StartOrchestratorResult } from '../../../shared/agents/chatApi'
 import type { DraftOp } from '../../../shared/domain/api'
 import type { PlanBundle } from '../../../shared/domain/bundle'
 import type { ApproveWithRedraftResultView, DraftUpdateResultView, PlanView, RunView } from '../../../shared/domain/views'
@@ -12,6 +13,8 @@ import { followUpOp, type NextSprintItem } from '../checkpoint/gateView'
 import type { NextSprintPlan } from '../checkpoint/nextSprint'
 import { redraftRefusal, type RedraftRefusal } from '../checkpoint/redraftView'
 import { dropTarget, type GraphModel } from '../graph/graphModel'
+import { agentName } from '../agents/agentText'
+import type { StartOrchestrator, StartRunChoice } from './orchestration'
 import { failureOf, type Failure, type Runner } from './runner'
 import { saveOutcome } from './validationView'
 import type { WorkspaceAction, WorkspaceState } from './workspaceState'
@@ -21,6 +24,10 @@ export type Result<T> = { ok: true; value: T } | { ok: false; failure: Failure }
 interface ActionDeps {
   runner: Runner
   epicId: string
+  /** Starts an agent as the orchestrator of a new run (the run is queued with it). */
+  startOrchestrator: StartOrchestrator
+  /** A chat was created for a run: the shell fetches the folder's chats again. */
+  onChatsChanged(): void
   getState(): WorkspaceState
   dispatch(action: WorkspaceAction): void
   reload(): void
@@ -40,7 +47,10 @@ export interface WorkspaceActions {
   editDraft(): Promise<void>
   discardDraft(): Promise<void>
   saveDraft(): Promise<void>
+  /** Leave pending: queues the run for an external orchestrator, and closes the Start run dialog. */
   startRun(): Promise<void>
+  /** Run with an agent: queues the run and starts the agent as its orchestrator in a chat, and closes the Start run dialog. */
+  startRunWithAgent(choice: StartRunChoice): Promise<void>
   runCommand(kind: RunCommandKind): Promise<void>
   adopt(revisionId: string): Promise<void>
   connect(from: string, to: string): Promise<void>
@@ -175,11 +185,35 @@ function draftActions(deps: ActionDeps): Pick<WorkspaceActions, 'editDraft' | 'd
   }
 }
 
-function runActions(deps: ActionDeps): Pick<WorkspaceActions, 'startRun' | 'runCommand' | 'adopt'> {
+/** What starting an orchestrator came to: a toast when its chat is running, otherwise the banner says why it is not. */
+function orchestratorFeedback(deps: ActionDeps, result: Result<StartOrchestratorResult>, choice: StartRunChoice): void {
+  if (!result.ok) {
+    deps.dispatch({ type: 'banner', text: result.failure.message })
+    return
+  }
+  const { chat, problem } = result.value
+  if (chat !== null) {
+    deps.onChatsChanged()
+  }
+  if (problem === null) {
+    deps.dispatch({ type: 'toast', text: `Run queued. ${agentName(choice.agent)} is orchestrating it.` })
+  } else {
+    deps.dispatch({ type: 'banner', text: problem })
+  }
+}
+
+function runActions(deps: ActionDeps): Pick<WorkspaceActions, 'startRun' | 'startRunWithAgent' | 'runCommand' | 'adopt'> {
+  const closeDialog = (): void => deps.dispatch({ type: 'start_run_dialog', open: false })
   return {
     async startRun() {
       const result = await perform(deps, () => deps.runner('queueRun', { epicId: deps.epicId }))
+      closeDialog()
       feedback(deps, result, 'Run queued. It starts when an orchestrator picks it up.')
+    },
+    async startRunWithAgent(choice) {
+      const result = await perform(deps, () => deps.startOrchestrator(choice))
+      closeDialog()
+      orchestratorFeedback(deps, result, choice)
     },
     async runCommand(kind) {
       const run = currentRun(deps)

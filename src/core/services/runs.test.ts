@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { RunView } from '../../shared/domain/views'
 import { makeBundle, sid, tid } from '../../test/bundles'
 import {
   attemptRow,
@@ -18,11 +19,13 @@ import {
   seedRevision,
   startedRun
 } from '../../test/execution'
-import { createTestCtx, withRole } from '../../test/testContext'
+import { createTestCtx, type TestCtx, withRole } from '../../test/testContext'
 import { DomainError } from '../errors'
+import { buildRunHistoryRecord } from '../repo/portable'
 import { SKILLS_VERSION } from '../version'
 import type { Ctx } from '../context'
-import { acceptAttempt, failAttempt, submitAttempt } from './attempts'
+import { acceptAttempt, failAttempt, heartbeatAttempt, submitAttempt } from './attempts'
+import { expireLeases, runExecution } from './execution'
 import { registerHost } from './hosts'
 import { cancelRun, getRun, pauseRun, queueRun, requireOwnedRun, resumeRun, startRun, takeoverRun } from './runs'
 
@@ -530,5 +533,226 @@ describe('requireOwnedRun', () => {
     giveAway(ctx, runId)
     const error = domainError(() => requireOwnedRun(ctx, runId))
     expect([error.code, error.message]).toEqual(['run_not_owned', 'This run belongs to another machine; take it over first.'])
+  })
+})
+
+function pauseSignedOut(ctx: TestCtx, runId: string): RunView {
+  return pauseRun(withRole(ctx, 'desktop'), { runId, reason: 'signed_out' })
+}
+
+describe('pauseRun — signed_out', () => {
+  it('lets the desktop pause a run for sign-in, recording the reason and when it was paused', () => {
+    const ctx = createTestCtx()
+    const { runId, epicId } = startedRun(ctx)
+    ctx.clock.advanceSeconds(30)
+    clearOutbox(ctx)
+    expect(pauseSignedOut(ctx, runId)).toMatchObject({ state: 'paused', pauseReason: 'signed_out' })
+    expect(runRow(ctx, runId).paused_at).toBe('2026-01-01T00:00:30.000Z')
+    expect(lastEventPayload(ctx, 'run.paused')).toEqual({ from: 'running', reason: 'signed_out' })
+    expect(pendingOutbox(ctx)).toEqual([`run_history:${epicId}:${runId}`])
+  })
+
+  it('reaches the portable run history as the run record pause reason', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx)
+    pauseSignedOut(ctx, runId)
+    expect(buildRunHistoryRecord(ctx.db, runId)).toMatchObject({ state: 'paused', pauseReason: 'signed_out' })
+  })
+
+  it('refuses an MCP session with unauthorized and leaves the run as it was', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx)
+    const before = runRow(ctx, runId)
+    clearOutbox(ctx)
+    const error = domainError(() => pauseRun(ctx, { runId, reason: 'signed_out' }))
+    expect([error.code, error.details]).toEqual(['unauthorized', { role: 'orchestrator', capability: 'run.pause_signed_out' }])
+    expect(runRow(ctx, runId)).toEqual(before)
+    expect(eventKinds(ctx, 'run.paused')).toEqual([])
+    expect(pendingOutbox(ctx)).toEqual([])
+  })
+
+  it.each(['planner', 'worker', 'reviewer'] as const)('refuses a %s session too', (role) => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx)
+    expect(errorCode(() => pauseRun(withRole(ctx, role), { runId, reason: 'signed_out' }))).toBe('unauthorized')
+    expect(runRow(ctx, runId)).toMatchObject({ state: 'running', pause_reason: null, paused_at: null })
+  })
+
+  it('recognises only the exact reason, so a near miss stays open to any run controller', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx)
+    expect(pauseRun(ctx, { runId, reason: 'Signed_out' })).toMatchObject({ state: 'paused', pauseReason: 'Signed_out' })
+  })
+
+  it('records when the run was paused for any reason, and clears it on resume', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx)
+    ctx.clock.advanceSeconds(5)
+    pauseRun(ctx, { runId, reason: 'lunch' })
+    expect(runRow(ctx, runId).paused_at).toBe('2026-01-01T00:00:05.000Z')
+    resumeRun(ctx, { runId })
+    expect(runRow(ctx, runId).paused_at).toBeNull()
+  })
+})
+
+describe('leases of a run paused for sign-in', () => {
+  it('stay open through get_run, readiness and expireLeases while the lease time passes', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx, { bundle: makeBundle([[1, 2]]) })
+    const attemptId = claim(ctx, runId, 1, { leaseSeconds: 60 }).attempt.id
+    const leaseEnd = attemptRow(ctx, attemptId).lease_expires_at
+    pauseSignedOut(ctx, runId)
+    ctx.clock.advanceSeconds(3600)
+    const view = getRun(withRole(ctx, 'reviewer'), { runId })
+    expect(view?.counts).toEqual({ ...ZERO_COUNTS, running: 1, waiting: 1 })
+    expect(runExecution(ctx, runId).tickets.map((ticket) => ticket.state)).toEqual(['running', 'ready'])
+    expect(expireLeases(ctx, runId)).toEqual([])
+    expect(expireLeases(ctx)).toEqual([])
+    expect(attemptRow(ctx, attemptId)).toMatchObject({ state: 'claimed', lease_expires_at: leaseEnd })
+    expect(eventKinds(ctx, 'attempt.lease_expired')).toEqual([])
+  })
+
+  it('still take a heartbeat from the worker, even after the lease time passed', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx)
+    const claimed = claim(ctx, runId, 1, { leaseSeconds: 60 })
+    pauseSignedOut(ctx, runId)
+    ctx.clock.advanceSeconds(120)
+    const beat = heartbeatAttempt(withRole(ctx, 'worker'), {
+      attemptId: claimed.attempt.id,
+      claimToken: claimed.packet.claimToken,
+      leaseSeconds: 300
+    })
+    expect(beat).toMatchObject({ state: 'running', leaseExpiresAt: '2026-01-01T00:07:00.000Z' })
+  })
+
+  it('are the only ones kept: another run still expires its overdue leases', () => {
+    const ctx = createTestCtx()
+    const paused = startedRun(ctx, { bundle: makeBundle([[1]]) })
+    const other = startedRun(ctx, { bundle: makeBundle([[2]]) })
+    const kept = claim(ctx, paused.runId, 1, { leaseSeconds: 60 }).attempt.id
+    const lapsed = claim(ctx, other.runId, 2, { leaseSeconds: 60 }).attempt.id
+    pauseSignedOut(ctx, paused.runId)
+    ctx.clock.advanceSeconds(61)
+    expect(expireLeases(ctx)).toEqual([lapsed])
+    expect(attemptRow(ctx, kept).state).toBe('claimed')
+  })
+})
+
+describe('leases of a run paused for another reason', () => {
+  it('expire exactly as before', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx, { bundle: makeBundle([[1]]) })
+    const attemptId = claim(ctx, runId, 1, { leaseSeconds: 60 }).attempt.id
+    pauseRun(ctx, { runId, reason: 'lunch' })
+    ctx.clock.advanceSeconds(61)
+    expect(getRun(ctx, { runId })?.counts).toEqual({ ...ZERO_COUNTS, needsReconciliation: 1 })
+    expect(attemptRow(ctx, attemptId).state).toBe('lease_expired')
+  })
+
+  it('expire at a takeover of a run that was paused for sign-in', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx)
+    const attemptId = claim(ctx, runId, 1, { leaseSeconds: 60 }).attempt.id
+    pauseSignedOut(ctx, runId)
+    giveAway(ctx, runId)
+    expect(takeoverRun(ctx, { runId })).toMatchObject({ state: 'paused', pauseReason: 'taken_over' })
+    expect(attemptRow(ctx, attemptId).state).toBe('lease_expired')
+    expect(lastEventPayload(ctx, 'run.taken_over')).toEqual({ previousOwner: 'mc_other', expiredAttempts: [attemptId] })
+  })
+
+  it('do not come back at resume after that takeover', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx)
+    const attemptId = claim(ctx, runId, 1, { leaseSeconds: 60 }).attempt.id
+    pauseSignedOut(ctx, runId)
+    giveAway(ctx, runId)
+    takeoverRun(ctx, { runId })
+    ctx.clock.advanceSeconds(100)
+    resumeRun(ctx, { runId })
+    expect(attemptRow(ctx, attemptId).state).toBe('lease_expired')
+    expect(eventKinds(ctx, 'run.leases_extended')).toEqual([])
+  })
+})
+
+describe('resumeRun — leases kept while paused for sign-in', () => {
+  it('extends each open lease by the time the run spent paused and records it as a run event', () => {
+    const ctx = createTestCtx()
+    const { runId, epicId } = startedRun(ctx, { bundle: makeBundle([[1, 2, 3]]) })
+    const first = claim(ctx, runId, 1, { leaseSeconds: 60 }).attempt.id
+    ctx.clock.advanceSeconds(20)
+    const second = claim(ctx, runId, 2, { leaseSeconds: 300 }).attempt.id
+    const done = claim(ctx, runId, 3)
+    submitAttempt(ctx, { attemptId: done.attempt.id, claimToken: done.packet.claimToken, outputs: { summary: 's' } })
+    ctx.clock.advanceSeconds(10)
+    pauseSignedOut(ctx, runId)
+    ctx.clock.advanceSeconds(100)
+    clearOutbox(ctx)
+    expect(resumeRun(ctx, { runId })).toMatchObject({ state: 'running', pauseReason: null })
+    expect(attemptRow(ctx, first).lease_expires_at).toBe('2026-01-01T00:02:40.000Z')
+    expect(attemptRow(ctx, second).lease_expires_at).toBe('2026-01-01T00:07:00.000Z')
+    expect(attemptRow(ctx, done.attempt.id)).toMatchObject({ state: 'submitted', lease_expires_at: null })
+    expect(lastEventPayload(ctx, 'run.leases_extended')).toEqual({
+      pausedAt: '2026-01-01T00:00:30.000Z',
+      extendedMs: 100_000,
+      attempts: [
+        { attemptId: first, from: '2026-01-01T00:01:00.000Z', to: '2026-01-01T00:02:40.000Z' },
+        { attemptId: second, from: '2026-01-01T00:05:20.000Z', to: '2026-01-01T00:07:00.000Z' }
+      ]
+    })
+    expect(eventKinds(ctx, 'run.')).toEqual(['run.started', 'run.paused', 'run.leases_extended', 'run.resumed'])
+    expect(lastEventPayload(ctx, 'run.resumed')).toEqual({ to: 'running' })
+    expect(pendingOutbox(ctx)).toEqual([`run_history:${epicId}:${runId}`])
+  })
+
+  it('gives the workers back the lease time they had: it lapses only after the extended end', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx)
+    const attemptId = claim(ctx, runId, 1, { leaseSeconds: 60 }).attempt.id
+    ctx.clock.advanceSeconds(40)
+    pauseSignedOut(ctx, runId)
+    ctx.clock.advanceSeconds(1000)
+    resumeRun(ctx, { runId })
+    ctx.clock.advanceSeconds(20)
+    expect(expireLeases(ctx, runId)).toEqual([])
+    ctx.clock.advanceSeconds(1)
+    expect(expireLeases(ctx, runId)).toEqual([attemptId])
+  })
+})
+
+describe('resumeRun — nothing to extend', () => {
+  it('records no extension event when no lease is open', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx)
+    pauseSignedOut(ctx, runId)
+    ctx.clock.advanceSeconds(100)
+    expect(resumeRun(ctx, { runId }).state).toBe('running')
+    expect(eventKinds(ctx, 'run.leases_extended')).toEqual([])
+  })
+
+  it('does not extend leases after a pause for any other reason', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx)
+    const attemptId = claim(ctx, runId, 1, { leaseSeconds: 60 }).attempt.id
+    const leaseEnd = attemptRow(ctx, attemptId).lease_expires_at
+    ctx.clock.advanceSeconds(10)
+    pauseRun(ctx, { runId, reason: 'lunch' })
+    ctx.clock.advanceSeconds(20)
+    resumeRun(ctx, { runId })
+    expect(attemptRow(ctx, attemptId).lease_expires_at).toBe(leaseEnd)
+    expect(eventKinds(ctx, 'run.leases_extended')).toEqual([])
+  })
+
+  it('extends nothing for a run whose pause time was never recorded', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx)
+    const attemptId = claim(ctx, runId, 1, { leaseSeconds: 60 }).attempt.id
+    const leaseEnd = attemptRow(ctx, attemptId).lease_expires_at
+    pauseSignedOut(ctx, runId)
+    ctx.db.run('UPDATE runs SET paused_at = NULL WHERE id = ?', runId)
+    ctx.clock.advanceSeconds(100)
+    resumeRun(ctx, { runId })
+    expect(attemptRow(ctx, attemptId).lease_expires_at).toBe(leaseEnd)
+    expect(eventKinds(ctx, 'run.leases_extended')).toEqual([])
   })
 })

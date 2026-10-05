@@ -9,7 +9,11 @@ const startup = vi.hoisted(() => ({
   dockIcons: [] as string[],
   loadedUrls: [] as string[],
   loadedFiles: [] as string[],
-  hasDock: true
+  hasDock: true,
+  listeners: new Map<string, ((event: { preventDefault(): void }) => void)[]>(),
+  quits: 0,
+  liveChats: 0,
+  chatDisposals: 0
 }))
 
 vi.mock('electron', () => ({
@@ -18,7 +22,12 @@ vi.mock('electron', () => ({
     get dock() {
       return startup.hasDock ? { setIcon: (icon: string) => startup.dockIcons.push(icon) } : undefined
     },
-    on: () => {},
+    on: (name: string, listener: (event: { preventDefault(): void }) => void) => {
+      startup.listeners.set(name, [...(startup.listeners.get(name) ?? []), listener])
+    },
+    quit: () => {
+      startup.quits += 1
+    },
     getVersion: () => '0.6.0'
   },
   BrowserWindow: class {
@@ -32,10 +41,19 @@ vi.mock('electron', () => ({
   shell: {}
 }))
 vi.mock('./autoUpdate', () => ({ initAutoUpdate: () => {}, registerAutoUpdateHandlers: () => {} }))
-vi.mock('./desktop/bootstrap', () => ({ startDesktopBridge: () => {} }))
+vi.mock('./desktop/bootstrap', () => ({
+  startDesktopBridge: () => ({
+    chats: {
+      liveCount: () => startup.liveChats,
+      disposeAll: async () => {
+        startup.chatDisposals += 1
+      }
+    }
+  })
+}))
 vi.mock('./desktop/navigation', () => ({ resolveAppUrl: () => 'file:///app/index.html', hardenWebContents: () => {} }))
 vi.mock('./ipcGuard', () => ({ guardIpc: () => ({ handle: () => {} }) }))
-vi.mock('./logger', () => ({ setupGlobalErrorLogging: () => {}, logger: { warn: () => {} } }))
+vi.mock('./logger', () => ({ setupGlobalErrorLogging: () => {}, logger: { warn: () => {}, error: () => {} } }))
 
 beforeEach(() => {
   vi.resetModules()
@@ -45,6 +63,10 @@ beforeEach(() => {
   startup.loadedUrls = []
   startup.loadedFiles = []
   startup.hasDock = true
+  startup.listeners = new Map()
+  startup.quits = 0
+  startup.liveChats = 0
+  startup.chatDisposals = 0
   vi.stubEnv('ELECTRON_RENDERER_URL', '')
 })
 afterEach(() => vi.unstubAllEnvs())
@@ -90,5 +112,22 @@ describe('desktop startup background', () => {
     startup.ready!()
     await Promise.resolve()
     expect(startup.options[0].backgroundColor?.toLowerCase()).toBe(themeBg?.toLowerCase())
+  })
+})
+
+describe('desktop quit', () => {
+  it('holds the quit until every agent chat is disposed, then quits', async () => {
+    startup.liveChats = 2
+    await import('./index')
+    startup.ready!()
+    await Promise.resolve()
+    let prevented = false
+
+    for (const listener of startup.listeners.get('before-quit') ?? []) {
+      listener({ preventDefault: () => (prevented = true) })
+    }
+    await new Promise((resolve) => setImmediate(resolve))
+
+    expect([prevented, startup.chatDisposals, startup.quits]).toEqual([true, 1, 1])
   })
 })

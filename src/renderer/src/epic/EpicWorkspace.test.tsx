@@ -74,11 +74,12 @@ describe('epic workspace: Saved view (2)', () => {
     expect(screen.getByLabelText('Plan graph').className).toBe('pg is-readonly')
   })
 
-  it('offers Start run when there is no active run', async () => {
+  it('offers Start run when there is no active run, and Leave pending queues the run', async () => {
     const h = renderWorkspace(new FakeBackend(scenario({ run: null, checkpoint: null })))
     const start = await screen.findByRole('button', { name: 'Start run' })
     expect([screen.queryByLabelText('Run activity'), screen.queryByLabelText('Run')]).toEqual([null, null])
     fireEvent.click(start)
+    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Start run' })).getByRole('button', { name: 'Leave pending' }))
     expect(await screen.findByText('Run queued. It starts when an orchestrator picks it up.')).toBeTruthy()
     expect(h.backend.inputs('queueRun')).toEqual([{ epicId: 'ep_1' }])
     expect(h.changes.count).toBe(1)

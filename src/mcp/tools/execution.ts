@@ -89,7 +89,8 @@ const CLAIM_TICKET_INPUT = {
 const RUN_CONTROL_TOOLS = [
   defineTool({
     name: 'pause_run',
-    description: 'Stops new claims on a run; open attempts may still report. Resume with resume_run.',
+    description:
+      'Stops new claims on a run; open attempts may still report. Resume with resume_run. The reason "signed_out" is reserved for the desktop app and fails with unauthorized here.',
     kind: 'idempotent',
     input: { runId, reason: note.optional() },
     run: (api, input) => api.pauseRun(input)

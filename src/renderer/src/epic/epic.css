@@ -268,6 +268,11 @@
   color: var(--accent);
 }
 
+/* A run paused for a lost sign-in: the message, the chat link and the sign-in prompt sit on one wrapping line. */
+.ew-bar-signin {
+  flex-wrap: wrap;
+}
+
 .ew-bar-warning {
   margin: 6px 0 0;
   color: var(--st-blocked);
@@ -613,4 +618,18 @@
   border-color: var(--line-soft);
   color: var(--muted);
   opacity: 1;
+}
+
+/* ---------- Start run dialog ---------- */
+
+/* Two choices in one dialog: a hairline between them, and no default paragraph or heading margins. */
+.start-run-section h3,
+.start-run-section p {
+  margin: 0;
+}
+
+.start-run-section + .start-run-section {
+  align-self: stretch;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-soft);
 }

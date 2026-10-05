@@ -65,6 +65,7 @@ describe('workspace loading', () => {
       saveNotice: null,
       busy: false,
       confirm: null,
+      startRunOpen: false,
       validation: null
     })
   })
@@ -204,6 +205,12 @@ describe('workspace feedback', () => {
     const report = validation({ warnings: [] })
     state = workspaceReducer(state, { type: 'validation', report })
     expect(state.validation).toBe(report)
+  })
+
+  it('opens and closes the Start run dialog', () => {
+    const open = workspaceReducer(loaded(), { type: 'start_run_dialog', open: true })
+    expect(open.startRunOpen).toBe(true)
+    expect(workspaceReducer(open, { type: 'start_run_dialog', open: false }).startRunOpen).toBe(false)
   })
 
   it('selects tickets without leaving the checkpoint view', () => {

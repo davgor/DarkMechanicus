@@ -1,7 +1,15 @@
+import type { ChatRecord } from '../../../shared/agents/chat'
+import type { CreateChatRequest } from '../../../shared/agents/chatApi'
 import type { CreateEpicInput } from '../../../shared/domain/api'
-import type { ClaudeCodeConnectRequest, FolderPickResult, TrackedFolderView } from '../../../shared/desktop/api'
+import type {
+  AgentKind,
+  ClaudeCodeConnectRequest,
+  FolderPickResult,
+  TrackedFolderView
+} from '../../../shared/desktop/api'
 import type { WorkStatus } from '../../../shared/domain/status'
 import type { BoardImportView, EpicDetailView } from '../../../shared/domain/views'
+import type { NewChatChoice } from '../agents/NewChatDialog'
 import { runCommand } from '../api/dm'
 import type { Selection } from './selection'
 import { describeBoardImport, describeClaudeConnect, describeFlush, describeReconcile } from './shellMessages'
@@ -33,6 +41,12 @@ interface ShellDeps {
   }
   select(selection: Selection): void
   reveal(path: string, bucket: WorkStatus | null): void
+  /** Expands a folder and its Agents block. */
+  revealAgents(path: string): void
+  chats: {
+    /** Resolves with the new chat, or null after reporting why it could not be created. */
+    create(request: CreateChatRequest): Promise<ChatRecord | null>
+  }
   bucketOf(path: string, epicId: string): WorkStatus | null
   /** Refetch a folder's epic list and storage status. */
   refresh(path: string): void
@@ -44,10 +58,18 @@ interface ShellDeps {
 export interface ShellActions {
   selectFolder(path: string): void
   selectEpic(path: string, epicId: string): void
+  /** Opens one of a folder's chats in the main area. */
+  selectChat(path: string, chatId: string): void
+  /** Opens the add-agent pane in place of the folder or epic view. */
+  openAddAgent(): void
+  /** Opens one connected agent's page in place of the folder or epic view. */
+  openAgent(kind: AgentKind): void
   changed(path: string): void
   track(): Promise<void>
   untrack(path: string): Promise<void>
   initialize(folder: TrackedFolderView, options: InitializeOptions): Promise<void>
+  /** Creates a chat in the folder with the choice made, and opens it; resolves with it, or null after reporting why it could not be created. */
+  createChat(folder: TrackedFolderView, choice: NewChatChoice): Promise<ChatRecord | null>
   /** Resolves with what the import did, or null after reporting why it failed. */
   importBoard(folder: TrackedFolderView): Promise<BoardImportView | null>
   flush(): Promise<void>
@@ -75,7 +97,10 @@ async function whileBusy(deps: ShellDeps, key: BusyKey, work: () => Promise<void
   }
 }
 
-type SelectionActions = Pick<ShellActions, 'selectFolder' | 'selectEpic' | 'changed'>
+type SelectionActions = Pick<
+  ShellActions,
+  'selectFolder' | 'selectEpic' | 'selectChat' | 'openAddAgent' | 'openAgent' | 'changed'
+>
 
 function selectionActions(deps: ShellDeps): SelectionActions {
   return {
@@ -87,6 +112,14 @@ function selectionActions(deps: ShellDeps): SelectionActions {
       deps.select({ folderPath: path, epicId })
       deps.reveal(path, deps.bucketOf(path, epicId))
     },
+    selectChat: (path, chatId) => {
+      deps.select({ folderPath: path, epicId: null, chatId })
+      deps.revealAgents(path)
+    },
+    // The folder stays selected underneath, so removing an agent lands back on it.
+    openAddAgent: () => deps.select({ folderPath: deps.selectedPath, epicId: null, agentPane: { kind: 'add' } }),
+    openAgent: (agent) =>
+      deps.select({ folderPath: deps.selectedPath, epicId: null, agentPane: { kind: 'agent', agent } }),
     changed: (path) => deps.refresh(path)
   }
 }
@@ -182,10 +215,23 @@ function epicActions(
   }
 }
 
+function chatActions(deps: ShellDeps, selectChat: (path: string, chatId: string) => void): Pick<ShellActions, 'createChat'> {
+  return {
+    createChat: async (folder, choice) => {
+      const chat = await deps.chats.create({ folder: folder.path, ...choice })
+      if (chat !== null) {
+        selectChat(folder.path, chat.id)
+      }
+      return chat
+    }
+  }
+}
+
 export function createShellActions(deps: ShellDeps): ShellActions {
   const selection = selectionActions(deps)
   return {
     ...selection,
+    ...chatActions(deps, selection.selectChat),
     ...folderActions(deps, selection.selectFolder),
     ...repositoryActions(deps),
     ...epicActions(deps, selection.selectEpic)

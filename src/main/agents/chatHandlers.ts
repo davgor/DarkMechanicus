@@ -1,0 +1,159 @@
+/**
+ * The behavior behind the `chats:*` IPC channels, as a pure factory over injected dependencies (no
+ * Electron imports). Every argument arrives from the renderer and is untrusted: it is validated
+ * here, folders must be tracked, and requests are strict objects, so a renderer can name chats,
+ * kinds, models, roles, text and decisions but never an executable or MCP arguments. Answers are
+ * `CommandResult`s, like `dm:command`, so the UI gets the error code and message.
+ */
+import { z } from 'zod'
+import { DomainError, toErrorShape } from '../../core/errors'
+import { LIMITS, parseInput, stableId } from '../../core/schemas'
+import { APPROVAL_DECISIONS, CHAT_ROLES, chatIdSchema, type ChatItem, type ChatRecord, type ModelOption } from '../../shared/agents/chat'
+import type { ChatOpenView, ChatSummary, StartOrchestratorResult } from '../../shared/agents/chatApi'
+import { AGENT_KINDS } from '../../shared/desktop/agentKinds'
+import type { CommandResult } from '../../shared/desktop/api'
+import { agentKindSchema } from '../desktop/agentHandlers'
+import type { FolderRegistry } from '../desktop/folderRegistry'
+import type { ChatRef } from './chatStore'
+import { startOrchestratorRun, type OrchestratorRuns } from './orchestratorStart'
+import type { SessionManager } from './sessionManager'
+
+/** Windows long-path maximum; bounds path strings from the renderer. */
+const MAX_PATH_LENGTH = 32_767
+const MAX_MODEL_LENGTH = 200
+const MAX_REQUEST_ID_LENGTH = 200
+
+const folderSchema = z.string().min(1).max(MAX_PATH_LENGTH)
+const modelSchema = z.string().min(1).max(MAX_MODEL_LENGTH)
+const refShape = { folder: folderSchema, chatId: chatIdSchema }
+
+const createSchema = z.strictObject({
+  folder: folderSchema,
+  agent: z.enum(AGENT_KINDS),
+  role: z.enum(CHAT_ROLES),
+  model: modelSchema.nullable().optional(),
+  allowSave: z.boolean().optional(),
+  title: z.string().max(LIMITS.title).optional()
+})
+/** Only an epic, an agent and its model: the role, Allow save, title and kickoff message are decided in main. */
+const startOrchestratorSchema = z.strictObject({
+  folder: folderSchema,
+  epicId: stableId,
+  agent: z.enum(AGENT_KINDS),
+  model: modelSchema.nullable().optional()
+})
+const refSchema = z.strictObject(refShape)
+const sendSchema = z.strictObject({ ...refShape, text: z.string().min(1).max(LIMITS.markdown) })
+const setModelSchema = z.strictObject({ ...refShape, model: modelSchema })
+const renameSchema = z.strictObject({ ...refShape, title: z.string().trim().min(1).max(LIMITS.title) })
+const answerSchema = z.strictObject({
+  ...refShape,
+  requestId: z.string().min(1).max(MAX_REQUEST_ID_LENGTH),
+  decision: z.enum(APPROVAL_DECISIONS)
+})
+
+interface ChatHandlerDeps {
+  registry: Pick<FolderRegistry, 'resolve'>
+  sessions: SessionManager
+  /** The desktop's run commands, for starting an orchestrator. */
+  runs: OrchestratorRuns
+  /** Told about failures that are not DomainErrors (bugs, I/O), so main can log the stack. */
+  onUnexpectedError?: (error: unknown) => void
+}
+
+/** Arguments are `unknown` because they come straight from IPC. */
+export interface ChatHandlers {
+  list(folder: unknown): Promise<CommandResult<ChatSummary[]>>
+  create(request: unknown): Promise<CommandResult<ChatRecord>>
+  startOrchestrator(request: unknown): Promise<CommandResult<StartOrchestratorResult>>
+  open(request: unknown): Promise<CommandResult<ChatOpenView>>
+  send(request: unknown): Promise<CommandResult<ChatItem>>
+  stop(request: unknown): Promise<CommandResult<null>>
+  retryTurn(request: unknown): Promise<CommandResult<ChatItem>>
+  setModel(request: unknown): Promise<CommandResult<ChatRecord>>
+  rename(request: unknown): Promise<CommandResult<ChatRecord>>
+  delete(request: unknown): Promise<CommandResult<null>>
+  answerApproval(request: unknown): Promise<CommandResult<null>>
+  models(kind: unknown): Promise<CommandResult<ModelOption[]>>
+}
+
+/** The canonical path of a tracked folder; anything else is unauthorized. */
+function trackedFolder(deps: ChatHandlerDeps, folder: string): string {
+  const tracked = deps.registry.resolve(folder)
+  if (tracked === null) {
+    throw new DomainError('unauthorized', 'That folder is not tracked by Dark Mechanicus.')
+  }
+  return tracked
+}
+
+/** Validates a request naming one chat and resolves its folder; returns the chat ref and the rest. */
+function chatRequest<T extends { folder: string; chatId: string }>(deps: ChatHandlerDeps, schema: z.ZodType<T>, input: unknown): { ref: ChatRef; request: T } {
+  const request = parseInput(schema, input, 'chat request')
+  return { ref: { folder: trackedFolder(deps, request.folder), id: request.chatId }, request }
+}
+
+/** Validates the request and the folder before anything is queued; see `startOrchestratorRun` for what happens after. */
+function startOrchestrator(deps: ChatHandlerDeps, input: unknown): Promise<StartOrchestratorResult> {
+  const request = parseInput(startOrchestratorSchema, input, 'orchestrator request')
+  const folder = trackedFolder(deps, request.folder)
+  const { runs, sessions, onUnexpectedError } = deps
+  return startOrchestratorRun({ runs, sessions, ...(onUnexpectedError === undefined ? {} : { onError: onUnexpectedError }) }, { ...request, folder })
+}
+
+async function answer<T>(deps: ChatHandlerDeps, action: () => T | Promise<T>): Promise<CommandResult<T>> {
+  try {
+    return { ok: true, data: await action() }
+  } catch (error) {
+    if (!(error instanceof DomainError)) {
+      deps.onUnexpectedError?.(error)
+    }
+    return { ok: false, error: toErrorShape(error) }
+  }
+}
+
+export function createChatHandlers(deps: ChatHandlerDeps): ChatHandlers {
+  const { sessions } = deps
+  return {
+    list: (folder) => answer(deps, () => sessions.listChats(trackedFolder(deps, parseInput(folderSchema, folder, 'folder')))),
+    create: (input) =>
+      answer(deps, () => {
+        const request = parseInput(createSchema, input, 'new chat')
+        return sessions.createChat({ ...request, folder: trackedFolder(deps, request.folder) })
+      }),
+    startOrchestrator: (input) => answer(deps, () => startOrchestrator(deps, input)),
+    open: (input) => answer(deps, () => sessions.openChat(chatRequest(deps, refSchema, input).ref)),
+    send: (input) =>
+      answer(deps, () => {
+        const { ref, request } = chatRequest(deps, sendSchema, input)
+        return sessions.send(ref, request.text)
+      }),
+    stop: (input) =>
+      answer(deps, async () => {
+        await sessions.stop(chatRequest(deps, refSchema, input).ref)
+        return null
+      }),
+    retryTurn: (input) => answer(deps, () => sessions.retryTurn(chatRequest(deps, refSchema, input).ref)),
+    setModel: (input) =>
+      answer(deps, () => {
+        const { ref, request } = chatRequest(deps, setModelSchema, input)
+        return sessions.setModel(ref, request.model)
+      }),
+    rename: (input) =>
+      answer(deps, () => {
+        const { ref, request } = chatRequest(deps, renameSchema, input)
+        return sessions.renameChat(ref, request.title)
+      }),
+    delete: (input) =>
+      answer(deps, async () => {
+        await sessions.deleteChat(chatRequest(deps, refSchema, input).ref)
+        return null
+      }),
+    answerApproval: (input) =>
+      answer(deps, () => {
+        const { ref, request } = chatRequest(deps, answerSchema, input)
+        sessions.answerApproval(ref, { requestId: request.requestId, decision: request.decision })
+        return null
+      }),
+    models: (kind) => answer(deps, () => sessions.listModels(parseInput(agentKindSchema, kind, 'agent kind')))
+  }
+}

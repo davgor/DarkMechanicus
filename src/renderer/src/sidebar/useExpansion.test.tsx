@@ -66,3 +66,30 @@ describe('useExpansion reveal', () => {
     expect(result.current.isBucketExpanded('/a', 'completed')).toBe(false)
   })
 })
+
+describe('useExpansion agents block', () => {
+  it('opens the Agents block of every folder by default', () => {
+    const { result } = renderHook(useExpansion)
+    expect(result.current.isAgentsExpanded('/a')).toBe(true)
+  })
+
+  it('toggles the block per folder, and remembers it across reloads', () => {
+    const first = renderHook(useExpansion)
+    act(() => first.result.current.toggleAgents('/a'))
+    expect(first.result.current.isAgentsExpanded('/a')).toBe(false)
+    expect(first.result.current.isAgentsExpanded('/b')).toBe(true)
+    first.unmount()
+    const { result } = renderHook(useExpansion)
+    expect(result.current.isAgentsExpanded('/a')).toBe(false)
+  })
+
+  it('reveals the folder and its Agents block, leaving the buckets as they were', () => {
+    const { result } = renderHook(useExpansion)
+    act(() => result.current.toggleFolder('/a'))
+    act(() => result.current.toggleAgents('/a'))
+    act(() => result.current.revealAgents('/a'))
+    expect(result.current.isFolderExpanded('/a')).toBe(true)
+    expect(result.current.isAgentsExpanded('/a')).toBe(true)
+    expect(result.current.isBucketExpanded('/a', 'completed')).toBe(false)
+  })
+})
