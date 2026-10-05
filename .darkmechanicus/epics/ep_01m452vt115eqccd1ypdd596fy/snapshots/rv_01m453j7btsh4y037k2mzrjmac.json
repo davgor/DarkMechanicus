@@ -1,0 +1,4373 @@
+{
+  "baseRevisionId": null,
+  "bundle": {
+    "edges": [
+      {
+        "from": "tk_01m453gpad722597bff996emwn",
+        "to": "tk_01m453gpadq7a63z9sqm20yezm"
+      },
+      {
+        "from": "tk_01m453gpadq7a63z9sqm20yezm",
+        "to": "tk_01m453gpadsqq1e18e766qywbq"
+      },
+      {
+        "from": "tk_01m453gpadq7a63z9sqm20yezm",
+        "to": "tk_01m453gpadxyaff2pr641187we"
+      },
+      {
+        "from": "tk_01m453gpadsqq1e18e766qywbq",
+        "to": "tk_01m453gpadhc46j3sjq55vfbss"
+      },
+      {
+        "from": "tk_01m453gpadxyaff2pr641187we",
+        "to": "tk_01m453gpadhc46j3sjq55vfbss"
+      },
+      {
+        "from": "tk_01m453gpad722597bff996emwn",
+        "to": "tk_01m453gpad3gh7qnetjrmt98pv"
+      },
+      {
+        "from": "tk_01m453gpadq7a63z9sqm20yezm",
+        "to": "tk_01m453gpad3gh7qnetjrmt98pv"
+      },
+      {
+        "from": "tk_01m453gpadsqq1e18e766qywbq",
+        "to": "tk_01m453gpad3gh7qnetjrmt98pv"
+      },
+      {
+        "from": "tk_01m453gpadq7a63z9sqm20yezm",
+        "to": "tk_01m453gpadzz4vpxt5x1kktzbd"
+      },
+      {
+        "from": "tk_01m453gpadsqq1e18e766qywbq",
+        "to": "tk_01m453gpadzz4vpxt5x1kktzbd"
+      },
+      {
+        "from": "tk_01m453gpadxyaff2pr641187we",
+        "to": "tk_01m453gpadahyzv2h66bwjwxmf"
+      },
+      {
+        "from": "tk_01m453gpadhc46j3sjq55vfbss",
+        "to": "tk_01m453gpadahyzv2h66bwjwxmf"
+      },
+      {
+        "from": "tk_01m453gpad3gh7qnetjrmt98pv",
+        "to": "tk_01m453gpadahyzv2h66bwjwxmf"
+      },
+      {
+        "from": "tk_01m453gpadzz4vpxt5x1kktzbd",
+        "to": "tk_01m453gpadahyzv2h66bwjwxmf"
+      },
+      {
+        "from": "tk_01m453gpad3gh7qnetjrmt98pv",
+        "to": "tk_01m453gpadvwpdnfr0d818n39p"
+      },
+      {
+        "from": "tk_01m453gpadzz4vpxt5x1kktzbd",
+        "to": "tk_01m453gpadvwpdnfr0d818n39p"
+      },
+      {
+        "from": "tk_01m453gpadahyzv2h66bwjwxmf",
+        "to": "tk_01m453gpadvwpdnfr0d818n39p"
+      },
+      {
+        "from": "tk_01m453gpadvwpdnfr0d818n39p",
+        "to": "tk_01m453gpads5cm5ah9pyqk7qtw"
+      },
+      {
+        "from": "tk_01m453gpads5cm5ah9pyqk7qtw",
+        "to": "tk_01m453gpadp6xxdy96bhmqnqyq"
+      },
+      {
+        "from": "tk_01m453gpadp6xxdy96bhmqnqyq",
+        "to": "tk_01m453gpad9q17ynbth7y2jgvf"
+      },
+      {
+        "from": "tk_01m453gpadp6xxdy96bhmqnqyq",
+        "to": "tk_01m453gpad0hcwwm8dd6yhqgg3"
+      },
+      {
+        "from": "tk_01m453gpadp6xxdy96bhmqnqyq",
+        "to": "tk_01m453gpadc235syh5c7835hsj"
+      },
+      {
+        "from": "tk_01m453gpadp6xxdy96bhmqnqyq",
+        "to": "tk_01m453gpadqvk72bw1cy08bkm7"
+      },
+      {
+        "from": "tk_01m453gpad9q17ynbth7y2jgvf",
+        "to": "tk_01m453gpadqvk72bw1cy08bkm7"
+      },
+      {
+        "from": "tk_01m453gpadc235syh5c7835hsj",
+        "to": "tk_01m453gpadqvk72bw1cy08bkm7"
+      },
+      {
+        "from": "tk_01m453gpads5cm5ah9pyqk7qtw",
+        "to": "tk_01m453gpad5rx2yc24psphjvqh"
+      },
+      {
+        "from": "tk_01m453gpad5rx2yc24psphjvqh",
+        "to": "tk_01m453gpadv8vzhk8s84s54h1m"
+      },
+      {
+        "from": "tk_01m453gpadvwpdnfr0d818n39p",
+        "to": "tk_01m453gpadv8vzhk8s84s54h1m"
+      },
+      {
+        "from": "tk_01m453gpadv8vzhk8s84s54h1m",
+        "to": "tk_01m453gpadgbwycpmg2dd8y0me"
+      },
+      {
+        "from": "tk_01m453gpad5rx2yc24psphjvqh",
+        "to": "tk_01m453gpadgbwycpmg2dd8y0me"
+      },
+      {
+        "from": "tk_01m453gpadgbwycpmg2dd8y0me",
+        "to": "tk_01m453gpadt3ng2mgjppwqkmkd"
+      },
+      {
+        "from": "tk_01m453gpadc235syh5c7835hsj",
+        "to": "tk_01m453gpadt3ng2mgjppwqkmkd"
+      },
+      {
+        "from": "tk_01m453gpadgbwycpmg2dd8y0me",
+        "to": "tk_01m453gpadc8m55h2bdv26251v"
+      },
+      {
+        "from": "tk_01m453gpads5cm5ah9pyqk7qtw",
+        "to": "tk_01m453gpadc8m55h2bdv26251v"
+      },
+      {
+        "from": "tk_01m453gpad5rx2yc24psphjvqh",
+        "to": "tk_01m453gpadyxvwajsbvf64vdjm"
+      },
+      {
+        "from": "tk_01m453gpadyxvwajsbvf64vdjm",
+        "to": "tk_01m453gpad190h3kdq5kw1065f"
+      },
+      {
+        "from": "tk_01m453gpadgbwycpmg2dd8y0me",
+        "to": "tk_01m453gpad190h3kdq5kw1065f"
+      },
+      {
+        "from": "tk_01m453gpad190h3kdq5kw1065f",
+        "to": "tk_01m453gpadfcep3c11jqkx33vk"
+      },
+      {
+        "from": "tk_01m453gpadt3ng2mgjppwqkmkd",
+        "to": "tk_01m453gpadfcep3c11jqkx33vk"
+      },
+      {
+        "from": "tk_01m453gpadc8m55h2bdv26251v",
+        "to": "tk_01m453gpadfcep3c11jqkx33vk"
+      },
+      {
+        "from": "tk_01m453gpadfcep3c11jqkx33vk",
+        "to": "tk_01m453gpadszmpfvveph0zjtg5"
+      },
+      {
+        "from": "tk_01m453gpadfcep3c11jqkx33vk",
+        "to": "tk_01m453gpadmqx6pcyh3v630an5"
+      },
+      {
+        "from": "tk_01m453gpadszmpfvveph0zjtg5",
+        "to": "tk_01m453gpadmqx6pcyh3v630an5"
+      },
+      {
+        "from": "tk_01m453gpad722597bff996emwn",
+        "to": "tk_01m453gpae5aybf0ta89sz5w37"
+      },
+      {
+        "from": "tk_01m453gpadq7a63z9sqm20yezm",
+        "to": "tk_01m453gpae5aybf0ta89sz5w37"
+      },
+      {
+        "from": "tk_01m453gpadsqq1e18e766qywbq",
+        "to": "tk_01m453gpae5aybf0ta89sz5w37"
+      },
+      {
+        "from": "tk_01m453gpadxyaff2pr641187we",
+        "to": "tk_01m453gpae5aybf0ta89sz5w37"
+      },
+      {
+        "from": "tk_01m453gpadhc46j3sjq55vfbss",
+        "to": "tk_01m453gpae5aybf0ta89sz5w37"
+      },
+      {
+        "from": "tk_01m453gpad3gh7qnetjrmt98pv",
+        "to": "tk_01m453gpaekaydhp5ee5e5qmfb"
+      },
+      {
+        "from": "tk_01m453gpadzz4vpxt5x1kktzbd",
+        "to": "tk_01m453gpaekaydhp5ee5e5qmfb"
+      },
+      {
+        "from": "tk_01m453gpadahyzv2h66bwjwxmf",
+        "to": "tk_01m453gpaekaydhp5ee5e5qmfb"
+      },
+      {
+        "from": "tk_01m453gpadvwpdnfr0d818n39p",
+        "to": "tk_01m453gpaekaydhp5ee5e5qmfb"
+      },
+      {
+        "from": "tk_01m453gpads5cm5ah9pyqk7qtw",
+        "to": "tk_01m453gpaekaydhp5ee5e5qmfb"
+      },
+      {
+        "from": "tk_01m453gpadp6xxdy96bhmqnqyq",
+        "to": "tk_01m453gpafxqgjfwg9v08gmwg2"
+      },
+      {
+        "from": "tk_01m453gpad9q17ynbth7y2jgvf",
+        "to": "tk_01m453gpafxqgjfwg9v08gmwg2"
+      },
+      {
+        "from": "tk_01m453gpad0hcwwm8dd6yhqgg3",
+        "to": "tk_01m453gpafxqgjfwg9v08gmwg2"
+      },
+      {
+        "from": "tk_01m453gpadc235syh5c7835hsj",
+        "to": "tk_01m453gpafxqgjfwg9v08gmwg2"
+      },
+      {
+        "from": "tk_01m453gpadqvk72bw1cy08bkm7",
+        "to": "tk_01m453gpafxqgjfwg9v08gmwg2"
+      },
+      {
+        "from": "tk_01m453gpad5rx2yc24psphjvqh",
+        "to": "tk_01m453gpafp4z3m6axtatfrt33"
+      },
+      {
+        "from": "tk_01m453gpadv8vzhk8s84s54h1m",
+        "to": "tk_01m453gpafp4z3m6axtatfrt33"
+      },
+      {
+        "from": "tk_01m453gpadgbwycpmg2dd8y0me",
+        "to": "tk_01m453gpafp4z3m6axtatfrt33"
+      },
+      {
+        "from": "tk_01m453gpadt3ng2mgjppwqkmkd",
+        "to": "tk_01m453gpafp4z3m6axtatfrt33"
+      },
+      {
+        "from": "tk_01m453gpadc8m55h2bdv26251v",
+        "to": "tk_01m453gpafp4z3m6axtatfrt33"
+      },
+      {
+        "from": "tk_01m453gpadyxvwajsbvf64vdjm",
+        "to": "tk_01m453gpafjr1k8kmyra0nw8k7"
+      },
+      {
+        "from": "tk_01m453gpad190h3kdq5kw1065f",
+        "to": "tk_01m453gpafjr1k8kmyra0nw8k7"
+      },
+      {
+        "from": "tk_01m453gpadfcep3c11jqkx33vk",
+        "to": "tk_01m453gpafjr1k8kmyra0nw8k7"
+      },
+      {
+        "from": "tk_01m453gpadszmpfvveph0zjtg5",
+        "to": "tk_01m453gpafjr1k8kmyra0nw8k7"
+      },
+      {
+        "from": "tk_01m453gpadmqx6pcyh3v630an5",
+        "to": "tk_01m453gpafjr1k8kmyra0nw8k7"
+      }
+    ],
+    "epic": {
+      "intent": "Make Dark Mechanicus the measurable planning and improvement loop for the owner's personal repositories. Each ticket, sprint report and epic exposes an explainable letter-grade scorecard grounded in SPACE, observed token usage and execution time. Retrospectives identify evidence-backed inefficiencies and create reviewable corrective work for the source repository or a locally available Dark Mechanicus source checkout.\n\nConfirmed preference: BALANCED scoring. The five SPACE dimensions plus time efficiency and token efficiency have equal base influence (seven components, 1/7 each). SPACE supplies the multidimensional framework; the normalization and letter bands are an explicit, versioned Dark Mechanicus policy, not a validated scientific benchmark or official SPACE grade. Show all dimensions and outcome status beside the overall grade.\n\nInitial policy: S is optional human satisfaction/confidence feedback (one brief sprint-level response may be explicitly shared as context, with ticket override); P is verified behavior/checks and attributable regressions; A is delivery against frozen committed scope with raw activity shown only as context; C is the reliability of handoffs and review evidence; E is corrective-work/flow efficiency, avoiding a second token/time charge. Token/time comparisons use a pre-dispatch budget or eligible frozen baseline. A/B/C/D/F bands begin at 90/80/70/60/<60. Missing observations are never zero or perfect. Final grades require complete required measurements and verified acceptance; otherwise show provisional/ungraded with coverage and effective weights. Confirmed failed mandatory outcomes cap the letter at F regardless of speed or token savings.\n\nReuse existing attempts, evidence, tier facts, report revisions, retro/redraft and human checkpoint approval. Preserve completed epics and approved reports: later defects, new measurements and policy versions produce labeled reassessments rather than rewriting history. Include all retries, rejected/failed/canceled/superseded attempts and coordination/verification overhead in resource totals; exclude duplicated carried-forward work. Distinguish wall time, active execution and parallel aggregate effort.\n\nRetrospective actions become structured experiments: finding and source evidence, hypothesis, destination, proposed work, baseline metric, expected improvement, quality guardrail and later comparison. Same-repo work becomes a future sprint of an unfinished epic or a linked follow-up epic for completed work. Cross-repo work gets its own plan/branch/run and cross-repository provenance. The owner reviews the draft and uses normal run and checkpoint controls; a low grade never silently launches work. An installed DM app alone is not a source checkout, and missing source is explicitly unavailable.\n\nPlanning only. Implementation must not touch the in-flight Agents epic or share its checkout. Start from an integrated base when executed. Reuse agent usage hooks if available; external-host MCP observation input must work independently. No SaaS, tracker integrations, automatic cloning, automatic deployment/self-update, or fabricated provider usage.",
+      "ownerRole": null,
+      "successCriteria": [
+        {
+          "id": "s1",
+          "text": "Ticket scorecards expose all five SPACE dimensions, measured tokens and time, an explainable balanced seven-component A–F grade, evidence, coverage, policy/baseline versions and explicit failed/provisional/ungraded outcomes; reproducible cases prove low costs cannot hide failed mandatory outcomes."
+        },
+        {
+          "id": "s2",
+          "text": "Token and timing observations are attributed to attempts, tickets, sprints and runs without duplicates; retries and overhead are included, unknown usage remains unknown, cumulative and delta/provider token categories are normalized, and queue/human/blocked waits are distinguished from active execution."
+        },
+        {
+          "id": "s3",
+          "text": "Dedicated Scorecard tabs on tickets, epics and sprint reports show grades, dimension breakdowns, totals, original-scope delivery, failure/rework causes and comparable prior-wave changes; historical/legacy/in-flight views remain usable and never fabricate a complete grade."
+        },
+        {
+          "id": "s4",
+          "text": "Approved sprint scorecards and retros are reproducible from immutable input/policy/cutoff snapshots that survive export, clone/import and restart; later regressions or rescoring create dated reassessments without altering approved evidence or reopening completed epics."
+        },
+        {
+          "id": "s5",
+          "text": "Retrospectives center on observed scorecard gaps and structured improvement experiments; selecting actions previews and creates a valid corrective future sprint or same-repository follow-up epic with criteria, dependencies, provenance, Fireguard and an acceptance node."
+        },
+        {
+          "id": "s6",
+          "text": "Corrective actions can target the active repository or an owner-selected verified local Dark Mechanicus source checkout, using separate target-owned plans, branches and runs with durable cross-repo links, recoverable/idempotent writes, existing authorization and human checkpoints; an unavailable target never silently redirects work."
+        },
+        {
+          "id": "s7",
+          "text": "An end-to-end two-repository exercise demonstrates measurement → grades in all three tabs → retrospective → approved corrective work → before/after assessment, including legacy/missing data and failed/retried paths, with documentation and the repository's normal delivery checks."
+        }
+      ],
+      "title": "SPACE scorecards: balanced grades, token and time accounting, and corrective retrospectives"
+    },
+    "formatVersion": 1,
+    "policies": {
+      "leaseSeconds": 900,
+      "maxConcurrency": 2,
+      "onTicketFailure": "continue_independent",
+      "retryLimit": 3
+    },
+    "rationale": "Planning only; do not start this epic. Five milestones: trustworthy measurements → balanced grading/snapshots → three scorecard tabs → score-driven same-repo correction → optional local Dark Mechanicus target and end-to-end verification. User explicitly selected balanced weights. Each sprint has five implementation/design/documentation work tickets, one dedicated Fireguard ticket and one acceptance node covering every work ticket. Real dependencies permit independent work at cap 2; shared-file edits serialize under the orchestrator. Profiles follow existing core/UI presets with explicit size/effort and no forced model. Critical path: contract→ledger→ingestion/timing→usage→metrics→grader→snapshot→API/tabs→experiments→corrective draft→destination broker→UI→guides/E2E. Human approval at every checkpoint. Execute from an isolated codex/space-scorecards branch on an integrated base; do not switch or modify the currently active Agents epic. Adapter integration must reuse its available source interfaces, while external MCP telemetry is independently supported. The final grade is a product policy, not a claim that Scrum/SPACE causally improves agents. Reference: https://www.microsoft.com/en-us/research/publication/the-space-of-developer-productivity-theres-more-to-it-than-you-think/",
+    "relations": [],
+    "sprints": [
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": 2,
+        "entryCriteria": [],
+        "exitCriteria": [
+          {
+            "id": "x1",
+            "text": "Usage and timing fixtures round-trip through the supported APIs and portable records with provenance and no duplication."
+          },
+          {
+            "id": "x2",
+            "text": "The balanced seven-component policy and measurement contracts are explicit, versioned and testable."
+          }
+        ],
+        "goal": "Collect trustworthy SPACE inputs, token usage and execution timing without fabricating missing data.",
+        "id": "sp_01m452vt12bqj228djrvnak4m9",
+        "ordinal": 1,
+        "ticketIds": [
+          "tk_01m453gpad722597bff996emwn",
+          "tk_01m453gpadq7a63z9sqm20yezm",
+          "tk_01m453gpadsqq1e18e766qywbq",
+          "tk_01m453gpadxyaff2pr641187we",
+          "tk_01m453gpadhc46j3sjq55vfbss",
+          "tk_01m453gpae5aybf0ta89sz5w37",
+          "tk_01m452vt12q4vp2x5sza0hpckg"
+        ]
+      },
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": 2,
+        "entryCriteria": [
+          {
+            "id": "n1",
+            "text": "Previous sprint's accepted increment and human checkpoint approval are available."
+          }
+        ],
+        "exitCriteria": [
+          {
+            "id": "x1",
+            "text": "Deterministic grade cases cover complete, partial, failed, legacy and regressed outcomes."
+          },
+          {
+            "id": "x2",
+            "text": "Sprint/report snapshots and raw-measure rollups preserve original scope and approved history."
+          }
+        ],
+        "goal": "Calculate explainable balanced letter grades and freeze ticket, sprint and epic assessments against verified outcomes.",
+        "id": "sp_01m453gpa714c680dvypw0717a",
+        "ordinal": 2,
+        "ticketIds": [
+          "tk_01m453gpad3gh7qnetjrmt98pv",
+          "tk_01m453gpadzz4vpxt5x1kktzbd",
+          "tk_01m453gpadahyzv2h66bwjwxmf",
+          "tk_01m453gpadvwpdnfr0d818n39p",
+          "tk_01m453gpads5cm5ah9pyqk7qtw",
+          "tk_01m453gpaekaydhp5ee5e5qmfb",
+          "tk_01m453gpa8y9efgvexhagypkyq"
+        ]
+      },
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": 2,
+        "entryCriteria": [
+          {
+            "id": "n1",
+            "text": "Previous sprint's accepted increment and human checkpoint approval are available."
+          }
+        ],
+        "exitCriteria": [
+          {
+            "id": "x1",
+            "text": "All three requested tabs show consistent grades, SPACE dimensions, tokens, timing, coverage and provenance."
+          },
+          {
+            "id": "x2",
+            "text": "Human feedback and planned budgets can be recorded without agents fabricating human responses or rewriting active baselines."
+          }
+        ],
+        "goal": "Show Scorecard tabs on tickets, epics and sprint reports, with evidence drill-down and lightweight measurement controls.",
+        "id": "sp_01m453gpadqzwf0bjhjf1swcdy",
+        "ordinal": 3,
+        "ticketIds": [
+          "tk_01m453gpadp6xxdy96bhmqnqyq",
+          "tk_01m453gpad9q17ynbth7y2jgvf",
+          "tk_01m453gpad0hcwwm8dd6yhqgg3",
+          "tk_01m453gpadc235syh5c7835hsj",
+          "tk_01m453gpadqvk72bw1cy08bkm7",
+          "tk_01m453gpafxqgjfwg9v08gmwg2",
+          "tk_01m453gpad0d3qqcbt3g8wwb86"
+        ]
+      },
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": 2,
+        "entryCriteria": [
+          {
+            "id": "n1",
+            "text": "Previous sprint's accepted increment and human checkpoint approval are available."
+          }
+        ],
+        "exitCriteria": [
+          {
+            "id": "x1",
+            "text": "Structured retrospective experiments link observed gaps to proposed changes, a metric and quality guardrails."
+          },
+          {
+            "id": "x2",
+            "text": "Corrective drafts preserve approved source evidence and can be followed through to a comparable after-assessment."
+          }
+        ],
+        "goal": "Center retrospectives on scorecard findings and turn selected improvements into same-repository corrective work.",
+        "id": "sp_01m453gpadr93s3amjpc6aqwq1",
+        "ordinal": 4,
+        "ticketIds": [
+          "tk_01m453gpad5rx2yc24psphjvqh",
+          "tk_01m453gpadv8vzhk8s84s54h1m",
+          "tk_01m453gpadgbwycpmg2dd8y0me",
+          "tk_01m453gpadt3ng2mgjppwqkmkd",
+          "tk_01m453gpadc8m55h2bdv26251v",
+          "tk_01m453gpafp4z3m6axtatfrt33",
+          "tk_01m453gpad0pjmz8cy0qfwgjwq"
+        ]
+      },
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": 2,
+        "entryCriteria": [
+          {
+            "id": "n1",
+            "text": "Previous sprint's accepted increment and human checkpoint approval are available."
+          }
+        ],
+        "exitCriteria": [
+          {
+            "id": "x1",
+            "text": "Cross-repository corrections have target-owned drafts/runs, portable provenance and retry-safe creation; missing checkout remains unavailable."
+          },
+          {
+            "id": "x2",
+            "text": "A two-repository end-to-end exercise demonstrates all seven epic success criteria without changing the live source epic or auto-launching work."
+          }
+        ],
+        "goal": "Route corrective work into an explicitly selected local Dark Mechanicus source checkout and verify the whole loop.",
+        "id": "sp_01m453gpadxhszqq3hebg7yfkc",
+        "ordinal": 5,
+        "ticketIds": [
+          "tk_01m453gpadyxvwajsbvf64vdjm",
+          "tk_01m453gpad190h3kdq5kw1065f",
+          "tk_01m453gpadfcep3c11jqkx33vk",
+          "tk_01m453gpadszmpfvveph0zjtg5",
+          "tk_01m453gpadmqx6pcyh3v630an5",
+          "tk_01m453gpafjr1k8kmyra0nw8k7",
+          "tk_01m453gpads5dehbbpcv0t9f06"
+        ]
+      }
+    ],
+    "tickets": [
+      {
+        "acceptanceCriteria": [
+          {
+            "covers": "tk_01m453gpad722597bff996emwn",
+            "id": "c1",
+            "text": "Reproduce the documented complete/sparse/failed reference cases and inspect all seven components and the policy version."
+          },
+          {
+            "covers": "tk_01m453gpadq7a63z9sqm20yezm",
+            "id": "c2",
+            "text": "Export a measured scratch run, rebuild its local database, and verify equal observations/totals plus unchanged legacy hashes."
+          },
+          {
+            "covers": "tk_01m453gpadsqq1e18e766qywbq",
+            "id": "c3",
+            "text": "Use a scratch MCP client fixture to ingest duplicate usage, reject foreign/stale writes, and read an unchanged pinned baseline."
+          },
+          {
+            "covers": "tk_01m453gpadxyaff2pr641187we",
+            "id": "c4",
+            "text": "Run the parallel/pause fixture and compare elapsed, active, waiting and summed effort values against the expected timeline."
+          },
+          {
+            "covers": "tk_01m453gpadhc46j3sjq55vfbss",
+            "id": "c5",
+            "text": "Show one supported real-host observation beside replay fixtures with cumulative and nested usage, and demonstrate the missing-provider fallback."
+          },
+          {
+            "covers": "tk_01m453gpae5aybf0ta89sz5w37",
+            "id": "c6",
+            "text": "Inspect Sprint 1's accepted Fireguard evidence: no F, correct sprint-start base and the same combined code under review. Include its result in the Definition of Done without rerunning Fireguard."
+          }
+        ],
+        "body": "Verify Sprint 1's combined increment independently using the six covering criteria below. Run the project's current Definition of Done once, taking Fireguard from this sprint's accepted Fireguard ticket rather than rerunning it. Verify criteria against the exact integrated build, retain evidence and record the one squashed sprint increment on the epic branch through the established workflow. Report failed/skipped checks honestly. Present the scorecard-aware retrospective and stop for the human checkpoint. This plan is not authorization to begin execution.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "AGENTS.md",
+              ".ai-instructions.md",
+              "skills/reviewer.md",
+              "skills/sprint-reporter.md"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Verify the integrated sprint against planned observable cases and the repository Definition of Done."
+          },
+          "skills": [
+            "typescript",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [
+          "Sprint 1 acceptance evidence and screenshots where relevant",
+          "Sprint 1 Definition of Done results and verified increment"
+        ],
+        "id": "tk_01m452vt12q4vp2x5sza0hpckg",
+        "key": "DM-164",
+        "kind": "acceptance",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Sprint reporter workflow",
+            "location": "skills/sprint-reporter.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "space-scorecards",
+          "acceptance"
+        ],
+        "title": "Sprint 1 acceptance"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "covers": "tk_01m453gpad3gh7qnetjrmt98pv",
+            "id": "c1",
+            "text": "Inspect a scope-change fixture and an inherited human rating; verify the score source is explicit and ticket splitting does not increase delivered scope."
+          },
+          {
+            "covers": "tk_01m453gpadzz4vpxt5x1kktzbd",
+            "id": "c2",
+            "text": "Accept a scratch outcome, record a later confirmed defect, and verify the original approval is unchanged while the current assessment shows regression."
+          },
+          {
+            "covers": "tk_01m453gpadahyzv2h66bwjwxmf",
+            "id": "c3",
+            "text": "Compare a repair-heavy run and a research-heavy run under the same documented policy, showing why useful investigation is not classified as waste."
+          },
+          {
+            "covers": "tk_01m453gpadvwpdnfr0d818n39p",
+            "id": "c4",
+            "text": "Recalculate a fixed seven-factor dataset independently and prove exact grade/boundary/coverage agreement."
+          },
+          {
+            "covers": "tk_01m453gpads5cm5ah9pyqk7qtw",
+            "id": "c5",
+            "text": "Approve a measured scratch report, add late usage and a regression, import it elsewhere, and verify the approved snapshot stays fixed while the new assessment differs."
+          },
+          {
+            "covers": "tk_01m453gpaekaydhp5ee5e5qmfb",
+            "id": "c6",
+            "text": "Inspect Sprint 2's accepted Fireguard evidence: no F, correct sprint-start base and the same combined code under review. Include its result in the Definition of Done without rerunning Fireguard."
+          }
+        ],
+        "body": "Verify Sprint 2's combined increment independently using the six covering criteria below. Run the project's current Definition of Done once, taking Fireguard from this sprint's accepted Fireguard ticket rather than rerunning it. Verify criteria against the exact integrated build, retain evidence and record the one squashed sprint increment on the epic branch through the established workflow. Report failed/skipped checks honestly. Present the scorecard-aware retrospective and stop for the human checkpoint. This plan is not authorization to begin execution.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "AGENTS.md",
+              ".ai-instructions.md",
+              "skills/reviewer.md",
+              "skills/sprint-reporter.md"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Verify the integrated sprint against planned observable cases and the repository Definition of Done."
+          },
+          "skills": [
+            "typescript",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [
+          "Sprint 2 acceptance evidence and screenshots where relevant",
+          "Sprint 2 Definition of Done results and verified increment"
+        ],
+        "id": "tk_01m453gpa8y9efgvexhagypkyq",
+        "key": "DM-165",
+        "kind": "acceptance",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Sprint reporter workflow",
+            "location": "skills/sprint-reporter.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "space-scorecards",
+          "acceptance"
+        ],
+        "title": "Sprint 2 acceptance"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "covers": "tk_01m453gpadp6xxdy96bhmqnqyq",
+            "id": "c1",
+            "text": "Compare the same scorecard through MCP and the desktop bridge and verify a human feedback update cannot rewrite a frozen report."
+          },
+          {
+            "covers": "tk_01m453gpad9q17ynbth7y2jgvf",
+            "id": "c2",
+            "text": "Capture the ticket Scorecard tab for complete, partial and rejected/retried tickets at normal and narrow widths."
+          },
+          {
+            "covers": "tk_01m453gpad0hcwwm8dd6yhqgg3",
+            "id": "c3",
+            "text": "Show an epic whose tickets pass but integrated outcome fails, alongside sprint drill-down and reconciled totals."
+          },
+          {
+            "covers": "tk_01m453gpadc235syh5c7835hsj",
+            "id": "c4",
+            "text": "Display an approved sprint scorecard next to a dated regression reassessment and verify the approval remains bound to the original report."
+          },
+          {
+            "covers": "tk_01m453gpadqvk72bw1cy08bkm7",
+            "id": "c5",
+            "text": "Record one sprint feedback response and a future budget edit; show the inherited context and unchanged historical grades."
+          },
+          {
+            "covers": "tk_01m453gpafxqgjfwg9v08gmwg2",
+            "id": "c6",
+            "text": "Inspect Sprint 3's accepted Fireguard evidence: no F, correct sprint-start base and the same combined code under review. Include its result in the Definition of Done without rerunning Fireguard."
+          }
+        ],
+        "body": "Verify Sprint 3's combined increment independently using the six covering criteria below. Run the project's current Definition of Done once, taking Fireguard from this sprint's accepted Fireguard ticket rather than rerunning it. Verify criteria against the exact integrated build, retain evidence and record the one squashed sprint increment on the epic branch through the established workflow. Report failed/skipped checks honestly. Present the scorecard-aware retrospective and stop for the human checkpoint. This plan is not authorization to begin execution.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "AGENTS.md",
+              ".ai-instructions.md",
+              "skills/reviewer.md",
+              "skills/sprint-reporter.md"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Verify the integrated sprint against planned observable cases and the repository Definition of Done."
+          },
+          "skills": [
+            "typescript",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [
+          "Sprint 3 acceptance evidence and screenshots where relevant",
+          "Sprint 3 Definition of Done results and verified increment"
+        ],
+        "id": "tk_01m453gpad0d3qqcbt3g8wwb86",
+        "key": "DM-166",
+        "kind": "acceptance",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Sprint reporter workflow",
+            "location": "skills/sprint-reporter.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "space-scorecards",
+          "acceptance"
+        ],
+        "title": "Sprint 3 acceptance"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "covers": "tk_01m453gpad5rx2yc24psphjvqh",
+            "id": "c1",
+            "text": "Round-trip a structured experiment and a legacy retro through portable import and compare unchanged approved report hashes."
+          },
+          {
+            "covers": "tk_01m453gpadv8vzhk8s84s54h1m",
+            "id": "c2",
+            "text": "Produce a retro from a known repair-heavy dataset and trace its top finding and proposed experiment to the actual evidence."
+          },
+          {
+            "covers": "tk_01m453gpadgbwycpmg2dd8y0me",
+            "id": "c3",
+            "text": "Preview and create one next-sprint correction and one completed-epic follow-up; retry both and prove no duplicate or source-history changes."
+          },
+          {
+            "covers": "tk_01m453gpadt3ng2mgjppwqkmkd",
+            "id": "c4",
+            "text": "Use the desktop to select a measured finding, preview a correction, create its draft and verify no run has started."
+          },
+          {
+            "covers": "tk_01m453gpadc8m55h2bdv26251v",
+            "id": "c5",
+            "text": "Compare one successful correction and one cheaper regression to prove only the guardrail-preserving case is labeled improved."
+          },
+          {
+            "covers": "tk_01m453gpafp4z3m6axtatfrt33",
+            "id": "c6",
+            "text": "Inspect Sprint 4's accepted Fireguard evidence: no F, correct sprint-start base and the same combined code under review. Include its result in the Definition of Done without rerunning Fireguard."
+          }
+        ],
+        "body": "Verify Sprint 4's combined increment independently using the six covering criteria below. Run the project's current Definition of Done once, taking Fireguard from this sprint's accepted Fireguard ticket rather than rerunning it. Verify criteria against the exact integrated build, retain evidence and record the one squashed sprint increment on the epic branch through the established workflow. Report failed/skipped checks honestly. Present the scorecard-aware retrospective and stop for the human checkpoint. This plan is not authorization to begin execution.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "AGENTS.md",
+              ".ai-instructions.md",
+              "skills/reviewer.md",
+              "skills/sprint-reporter.md"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Verify the integrated sprint against planned observable cases and the repository Definition of Done."
+          },
+          "skills": [
+            "typescript",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [
+          "Sprint 4 acceptance evidence and screenshots where relevant",
+          "Sprint 4 Definition of Done results and verified increment"
+        ],
+        "id": "tk_01m453gpad0pjmz8cy0qfwgjwq",
+        "key": "DM-167",
+        "kind": "acceptance",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Sprint reporter workflow",
+            "location": "skills/sprint-reporter.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "space-scorecards",
+          "acceptance"
+        ],
+        "title": "Sprint 4 acceptance"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "covers": "tk_01m453gpadyxvwajsbvf64vdjm",
+            "id": "c1",
+            "text": "Select a real source checkout in the desktop, then exercise missing path, alias and wrong-project fixtures without target mutation."
+          },
+          {
+            "covers": "tk_01m453gpad190h3kdq5kw1065f",
+            "id": "c2",
+            "text": "Interrupt the two-repository creation after the target is written, retry, and verify one target epic plus reconciled provenance with unchanged source report."
+          },
+          {
+            "covers": "tk_01m453gpadfcep3c11jqkx33vk",
+            "id": "c3",
+            "text": "From a completed source report create a DM-targeted correction, navigate to its draft and verify independent run controls and intact source history."
+          },
+          {
+            "covers": "tk_01m453gpadszmpfvveph0zjtg5",
+            "id": "c4",
+            "text": "Follow the written runbook against the final two-repository fixture and confirm every described control and recovery step exists."
+          },
+          {
+            "covers": "tk_01m453gpadmqx6pcyh3v630an5",
+            "id": "c5",
+            "text": "Inspect the final end-to-end evidence record and rerun the independent verification scenarios against the exact combined build."
+          },
+          {
+            "covers": "tk_01m453gpafjr1k8kmyra0nw8k7",
+            "id": "c6",
+            "text": "Inspect Sprint 5's accepted Fireguard evidence: no F, correct sprint-start base and the same combined code under review. Include its result in the Definition of Done without rerunning Fireguard."
+          }
+        ],
+        "body": "Verify Sprint 5's combined increment independently using the six covering criteria below. Run the project's current Definition of Done once, taking Fireguard from this sprint's accepted Fireguard ticket rather than rerunning it. Verify criteria against the exact integrated build, retain evidence and record the one squashed sprint increment on the epic branch through the established workflow. Report failed/skipped checks honestly. Present the scorecard-aware retrospective and stop for the human checkpoint. This plan is not authorization to begin execution.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "AGENTS.md",
+              ".ai-instructions.md",
+              "skills/reviewer.md",
+              "skills/sprint-reporter.md"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Verify the integrated sprint against planned observable cases and the repository Definition of Done."
+          },
+          "skills": [
+            "typescript",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [
+          "Sprint 5 acceptance evidence and screenshots where relevant",
+          "Sprint 5 Definition of Done results and verified increment"
+        ],
+        "id": "tk_01m453gpads5dehbbpcv0t9f06",
+        "key": "DM-168",
+        "kind": "acceptance",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Sprint reporter workflow",
+            "location": "skills/sprint-reporter.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "space-scorecards",
+          "acceptance"
+        ],
+        "title": "Sprint 5 acceptance"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Typed policy, observation, baseline, grade and evidence contracts define units, scope, source, observed/estimated/missing states and stable IDs; representative serialized fixtures validate."
+          },
+          {
+            "id": "c2",
+            "text": "The initial rubric specifies deterministic 0–100 normalization, equal 1/7 base weights, A≥90/B≥80/C≥70/D≥60/F<60, precision before display rounding, and worked complete/sparse/failure examples."
+          },
+          {
+            "id": "c3",
+            "text": "Missing required verification yields Ungraded; confirmed mandatory failure caps F; incomplete other factors yield explicitly Provisional or Ungraded with coverage and effective weights, never imputed success."
+          },
+          {
+            "id": "c4",
+            "text": "Token/time scoring requires a frozen pre-dispatch budget or comparable prior cohort identified by task type/size/risk and sample size; no eligible baseline is missing, and editing a budget cannot improve an already executing assessment."
+          }
+        ],
+        "body": "Define implementation-ready types, a documented initial normalization rubric and reference examples. Seven components have equal base weight: S human satisfaction/confidence; P verified behavior and regressions; A delivery against frozen committed scope; C handoff/review reliability; E corrective-work/flow efficiency; execution-time efficiency; token efficiency. Activity volume is diagnostic, never rewarded. Keep E distinct from raw token/time economy. Use a brief optional sprint human rating as explicitly inherited context, with ticket override; never infer satisfaction from agent prose. Document which signals are direct measures versus product proxies. This is Dark Mechanicus's SPACE-informed policy, not an official SPACE formula.\n\nDelivery: tests first for testable behavior; run only the targeted unit/component/integration checks for these criteria. Put full check-suite execution in the sprint acceptance node and Fireguard in its own ticket. Use existing shared command and portable-state conventions; no direct .darkmechanicus record editing. Keep implementation inside this ticket's scope; coordinate shared interface files with the orchestrator. New module/test names may follow the repository convention.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/shared/domain/views.ts",
+              "src/shared/domain/bundle.ts",
+              "src/shared/domain/retro.ts",
+              "src/core/schemas.ts",
+              "docs/architecture.md"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A coherent change spanning a few related modules, with targeted verification."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "architecture"
+        },
+        "expectedArtifacts": [
+          "Implementation or contract for contract",
+          "Targeted verification evidence for contract"
+        ],
+        "id": "tk_01m453gpad722597bff996emwn",
+        "key": "DM-169",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/domain/views.ts",
+            "location": "src/shared/domain/views.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/domain/bundle.ts",
+            "location": "src/shared/domain/bundle.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/domain/retro.ts",
+            "location": "src/shared/domain/retro.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/schemas.ts",
+            "location": "src/core/schemas.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/architecture.md",
+            "location": "docs/architecture.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "space-scorecards",
+          "sprint-1"
+        ],
+        "title": "Define the balanced SPACE grading and measurement contract"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Migration opens existing repositories without changing saved plan/report content hashes and rejects incompatible newer storage safely."
+          },
+          {
+            "id": "c2",
+            "text": "Repeated observation IDs are idempotent; changed payload under the same ID conflicts; invalid negative/nonfinite usage and unknown ownership/references are rejected."
+          },
+          {
+            "id": "c3",
+            "text": "Portable export/import and interrupted-outbox recovery preserve observation identity/provenance while excluding machine-local paths, credentials and transient claim secrets."
+          },
+          {
+            "id": "c4",
+            "text": "Unknown is distinct from zero and estimates; aborted, rejected, failed, canceled and superseded work remains attributable, while carry-forward references do not duplicate execution."
+          }
+        ],
+        "body": "Implement an append-only observation ledger in the core/storage layer with stable event identities, project/run/sprint/ticket/attempt attribution, actor and source metadata. Include human interventions, workflow causes and parent/child usage scope in the schema. Preserve legacy serialized plan/report hashes by keeping absent fields absent; do not store credentials or raw chat transcripts.\n\nDelivery: tests first for testable behavior; run only the targeted unit/component/integration checks for these criteria. Put full check-suite execution in the sprint acceptance node and Fireguard in its own ticket. Use existing shared command and portable-state conventions; no direct .darkmechanicus record editing. Keep implementation inside this ticket's scope; coordinate shared interface files with the orchestrator. New module/test names may follow the repository convention.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/core/db/migrations.ts",
+              "src/core/repo/portable.ts",
+              "src/core/repo/importer.ts",
+              "src/core/services/outbox.ts",
+              "src/core/services/idempotency.ts"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A coherent change spanning a few related modules, with targeted verification."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Implementation or contract for ledger",
+          "Targeted verification evidence for ledger"
+        ],
+        "id": "tk_01m453gpadq7a63z9sqm20yezm",
+        "key": "DM-170",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/db/migrations.ts",
+            "location": "src/core/db/migrations.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/portable.ts",
+            "location": "src/core/repo/portable.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/importer.ts",
+            "location": "src/core/repo/importer.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/outbox.ts",
+            "location": "src/core/services/outbox.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/idempotency.ts",
+            "location": "src/core/services/idempotency.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "space-scorecards",
+          "sprint-1"
+        ],
+        "title": "Persist attributable metric observations and portable assessment inputs"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Core capability tests prove worker cross-attempt writes, stale claims and agent-authored human feedback fail; allowed scoped reporting succeeds."
+          },
+          {
+            "id": "c2",
+            "text": "API fixtures support delta and cumulative usage with source event/sequence identity, retry-safe ingestion and explicit units; repeated delivery does not double count."
+          },
+          {
+            "id": "c3",
+            "text": "Baseline edits participate in draft/save/pinned revisions; late edits create prospective versions, not retroactive budget inflation."
+          },
+          {
+            "id": "c4",
+            "text": "An external MCP host can supply actual usage without any built-in chat adapter; unsupported usage remains explicitly unavailable, and read tools expose data coverage."
+          }
+        ],
+        "body": "Extend the shared command API and MCP adapters to record real observations and query their provenance. Workers report only their owned attempt; orchestration/review overhead has its own run/sprint bucket. Human satisfaction and approval remain desktop-owned. Add planned token/time baselines to drafts and pin their revisions for runs. Preserve all existing role restrictions and fenced claim behavior.\n\nDelivery: tests first for testable behavior; run only the targeted unit/component/integration checks for these criteria. Put full check-suite execution in the sprint acceptance node and Fireguard in its own ticket. Use existing shared command and portable-state conventions; no direct .darkmechanicus record editing. Keep implementation inside this ticket's scope; coordinate shared interface files with the orchestrator. New module/test names may follow the repository convention.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/shared/domain/api.ts",
+              "src/core/commands/capabilities.ts",
+              "src/core/authz.ts",
+              "src/core/schemas.ts",
+              "src/mcp/tools/execution.ts",
+              "src/mcp/tools/discovery.ts"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A coherent change spanning a few related modules, with targeted verification."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Implementation or contract for metric_api",
+          "Targeted verification evidence for metric_api"
+        ],
+        "id": "tk_01m453gpadsqq1e18e766qywbq",
+        "key": "DM-171",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/domain/api.ts",
+            "location": "src/shared/domain/api.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/commands/capabilities.ts",
+            "location": "src/core/commands/capabilities.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/authz.ts",
+            "location": "src/core/authz.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/schemas.ts",
+            "location": "src/core/schemas.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/tools/execution.ts",
+            "location": "src/mcp/tools/execution.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/tools/discovery.ts",
+            "location": "src/mcp/tools/discovery.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "space-scorecards",
+          "sprint-1"
+        ],
+        "title": "Expose scoped metric ingestion and baseline queries through MCP"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Deterministic clock fixtures cover pauses, resume, crash/lease expiry, missing stop events, duplicate/out-of-order observations and overlapping intervals without negative or invented active durations."
+          },
+          {
+            "id": "c2",
+            "text": "Ticket cycle time, attempt elapsed time, measured active time and classified wait totals have explicit units/coverage and cannot be confused."
+          },
+          {
+            "id": "c3",
+            "text": "Two overlapping workers produce distinct summed effort and sprint wall-clock duration; orchestrator/reviewer overhead remains visible."
+          },
+          {
+            "id": "c4",
+            "text": "Failed/retried/superseded attempts contribute recorded effort and unknown segments stay unknown rather than vanishing."
+          }
+        ],
+        "body": "Add pure interval projection from authoritative lifecycle events and available host activity events. Claim-to-submit is elapsed time only. Separate ready/queue, active execution, build/test wait, blocked, review and human-approval wait where evidence exists; otherwise retain unknown classification. Sum resource effort separately from union elapsed time for parallel workers. Do not count planned verification/research as waste.\n\nDelivery: tests first for testable behavior; run only the targeted unit/component/integration checks for these criteria. Put full check-suite execution in the sprint acceptance node and Fireguard in its own ticket. Use existing shared command and portable-state conventions; no direct .darkmechanicus record editing. Keep implementation inside this ticket's scope; coordinate shared interface files with the orchestrator. New module/test names may follow the repository convention.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/core/services/attempts.ts",
+              "src/core/services/runs.ts",
+              "src/core/services/events.ts",
+              "src/core/clock.ts",
+              "src/shared/domain/views.ts",
+              "src/renderer/src/epic/time.ts"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A coherent change spanning a few related modules, with targeted verification."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Implementation or contract for timing",
+          "Targeted verification evidence for timing"
+        ],
+        "id": "tk_01m453gpadxyaff2pr641187we",
+        "key": "DM-172",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/attempts.ts",
+            "location": "src/core/services/attempts.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/runs.ts",
+            "location": "src/core/services/runs.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/events.ts",
+            "location": "src/core/services/events.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/clock.ts",
+            "location": "src/core/clock.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/domain/views.ts",
+            "location": "src/shared/domain/views.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/epic/time.ts",
+            "location": "src/renderer/src/epic/time.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "space-scorecards",
+          "sprint-1"
+        ],
+        "title": "Derive execution, waiting and aggregate effort from timestamped events"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Recorded host fixtures prove correct normalization for cached-input subsets, reasoning-output subsets, cumulative updates and parent/child inclusion with unknown provider fields preserved."
+          },
+          {
+            "id": "c2",
+            "text": "Current available agent adapter usage attaches to the correct attempt/run through existing session links; unattributed overhead stays in a visible bucket instead of disappearing."
+          },
+          {
+            "id": "c3",
+            "text": "All attempted work is included once across rejection, cancellation, retry, supersession and carry-forward; subscription usage is not mislabeled as marginal dollar cost."
+          },
+          {
+            "id": "c4",
+            "text": "Adapter contract tests and one supported live-host exercise capture genuine token/timing observations; unsupported hosts clearly show unavailable measurements and use no invented estimates."
+          }
+        ],
+        "body": "Normalize provider/host token observations at the measurement boundary. Input/output/cache/reasoning categories can overlap: preserve raw definitions and derive a nonduplicated total only where semantics permit. Support delta/cumulative updates and inclusive parent totals without summing nested children twice. Reuse adapters and attempt/run links delivered by the separate Agents epic when available on the execution base; do not implement another chat subsystem. If an adapter cannot report usage, publish that capability as unavailable and retain the external MCP route.\n\nDelivery: tests first for testable behavior; run only the targeted unit/component/integration checks for these criteria. Put full check-suite execution in the sprint acceptance node and Fireguard in its own ticket. Use existing shared command and portable-state conventions; no direct .darkmechanicus record editing. Keep implementation inside this ticket's scope; coordinate shared interface files with the orchestrator. New module/test names may follow the repository convention.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/mcp/tools/execution.ts",
+              "src/shared/domain/views.ts",
+              "src/main/desktop/bootstrap.ts",
+              "docs/runbooks/mcp-setup.md"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A coherent change spanning a few related modules, with targeted verification."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Implementation or contract for usage",
+          "Targeted verification evidence for usage"
+        ],
+        "id": "tk_01m453gpadhc46j3sjq55vfbss",
+        "key": "DM-173",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/tools/execution.ts",
+            "location": "src/mcp/tools/execution.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/domain/views.ts",
+            "location": "src/shared/domain/views.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/bootstrap.ts",
+            "location": "src/main/desktop/bootstrap.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/runbooks/mcp-setup.md",
+            "location": "docs/runbooks/mcp-setup.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "space-scorecards",
+          "sprint-1"
+        ],
+        "title": "Normalize real host usage and connect available agent adapters"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Desktop-origin human ratings and rescue-minute entries preserve who/when/scope; MCP agents cannot impersonate them and absent feedback stays missing."
+          },
+          {
+            "id": "c2",
+            "text": "Original-scope denominator is frozen and split/renamed/deleted tickets cannot manufacture progress; newly authorized scope is shown separately."
+          },
+          {
+            "id": "c3",
+            "text": "Handoff checks distinguish missing required evidence or interface contracts from valid clarification and link deductions to concrete review/coordination records."
+          },
+          {
+            "id": "c4",
+            "text": "Targeted normalization tests cover inherited versus ticket ratings, zero scope, changed scope, no handoffs and unavailable observations."
+          }
+        ],
+        "body": "Implement S/A/C inputs and their attribution. A brief optional human sprint rating may be shared with tickets only as clearly labeled context; allow ticket-specific override without a mandatory questionnaire per ticket. A measures completion against pre-dispatch committed deliverables, retaining additions/removals separately. C uses reproducible handoff/evidence checks and recorded coordination defects; purposeful clarification is not automatically a failure.\n\nDelivery: tests first for testable behavior; run only the targeted unit/component/integration checks for these criteria. Put full check-suite execution in the sprint acceptance node and Fireguard in its own ticket. Use existing shared command and portable-state conventions; no direct .darkmechanicus record editing. Keep implementation inside this ticket's scope; coordinate shared interface files with the orchestrator. New module/test names may follow the repository convention.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/shared/domain/retro.ts",
+              "src/shared/domain/views.ts",
+              "src/core/services/attempts.ts",
+              "src/core/services/plans.ts",
+              "src/core/authz.ts"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A coherent change spanning a few related modules, with targeted verification."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Implementation or contract for space_signals",
+          "Targeted verification evidence for space_signals"
+        ],
+        "id": "tk_01m453gpad3gh7qnetjrmt98pv",
+        "key": "DM-174",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/domain/retro.ts",
+            "location": "src/shared/domain/retro.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/domain/views.ts",
+            "location": "src/shared/domain/views.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/attempts.ts",
+            "location": "src/core/services/attempts.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/plans.ts",
+            "location": "src/core/services/plans.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/authz.ts",
+            "location": "src/core/authz.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "space-scorecards",
+          "sprint-2"
+        ],
+        "title": "Record human feedback, committed scope and handoff quality"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Verification records distinguish worker claims, reviewer-checked evidence, skipped/missing checks, pending outcomes and confirmed failures."
+          },
+          {
+            "id": "c2",
+            "text": "Escaped defects have stable provenance, severity, observation window and attributable origin or explicit unassigned status; duplicate reports do not count twice."
+          },
+          {
+            "id": "c3",
+            "text": "A later confirmed regression produces a new dated assessment input while accepted report/epic history remains immutable."
+          },
+          {
+            "id": "c4",
+            "text": "Fixtures cover a fast/cheap failing change, a passing change with missing evidence, an unrelated defect and a fixed linked regression."
+          }
+        ],
+        "body": "Build P inputs from independent review decisions, required-check evidence and criterion identities. Add dated defect observations with severity, source build, origin ticket/outcome and discovery phase. Candidate attribution can be uncertain; do not silently blame a ticket. Later fixes link to the defect rather than deleting evidence.\n\nDelivery: tests first for testable behavior; run only the targeted unit/component/integration checks for these criteria. Put full check-suite execution in the sprint acceptance node and Fireguard in its own ticket. Use existing shared command and portable-state conventions; no direct .darkmechanicus record editing. Keep implementation inside this ticket's scope; coordinate shared interface files with the orchestrator. New module/test names may follow the repository convention.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/core/services/attempts.ts",
+              "src/core/services/checkpoints.ts",
+              "src/core/services/reports.ts",
+              "src/shared/domain/views.ts",
+              "src/core/services/history.ts"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A coherent change spanning a few related modules, with targeted verification."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Implementation or contract for quality",
+          "Targeted verification evidence for quality"
+        ],
+        "id": "tk_01m453gpadzz4vpxt5x1kktzbd",
+        "key": "DM-175",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/attempts.ts",
+            "location": "src/core/services/attempts.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/checkpoints.ts",
+            "location": "src/core/services/checkpoints.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/reports.ts",
+            "location": "src/core/services/reports.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/domain/views.ts",
+            "location": "src/shared/domain/views.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/history.ts",
+            "location": "src/core/services/history.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "space-scorecards",
+          "sprint-2"
+        ],
+        "title": "Link verification and escaped defects to the originating outcome"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Corrective share has an explicit effort denominator and observation coverage; retry count is a diagnostic fallback, never falsely labeled time wasted."
+          },
+          {
+            "id": "c2",
+            "text": "Token and execution-time scores compare actual observations with their frozen baseline and include review/orchestration/verification overhead without double charging."
+          },
+          {
+            "id": "c3",
+            "text": "Missing/zero baselines, zero observations, partial telemetry and incomparable cohorts return defined missing/limited states; no division by zero or automatic A."
+          },
+          {
+            "id": "c4",
+            "text": "Cause and cohort fixtures distinguish complexity/research from avoidable repair, prevent retrospective baseline inflation, and do not penalize human approval waiting as active compute."
+          }
+        ],
+        "body": "Implement E, token and time normalization from the contract. E measures corrective-work share/flow reliability using observed classified effort, not another reward for low absolute tokens or short wall time. Track requirement/context/implementation/integration/tooling/verification causes. Planned tests and useful investigation are productive work. Use immutable budgets or qualified historical cohorts, and show outliers and sample sizes.\n\nDelivery: tests first for testable behavior; run only the targeted unit/component/integration checks for these criteria. Put full check-suite execution in the sprint acceptance node and Fireguard in its own ticket. Use existing shared command and portable-state conventions; no direct .darkmechanicus record editing. Keep implementation inside this ticket's scope; coordinate shared interface files with the orchestrator. New module/test names may follow the repository convention.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/core/plan/tierFacts.ts",
+              "src/core/services/reports.ts",
+              "src/shared/domain/bundle.ts",
+              "src/shared/domain/views.ts"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A coherent change spanning a few related modules, with targeted verification."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Implementation or contract for efficiency",
+          "Targeted verification evidence for efficiency"
+        ],
+        "id": "tk_01m453gpadahyzv2h66bwjwxmf",
+        "key": "DM-176",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/plan/tierFacts.ts",
+            "location": "src/core/plan/tierFacts.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/reports.ts",
+            "location": "src/core/services/reports.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/domain/bundle.ts",
+            "location": "src/shared/domain/bundle.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/domain/views.ts",
+            "location": "src/shared/domain/views.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "space-scorecards",
+          "sprint-2"
+        ],
+        "title": "Classify corrective work and calculate comparable resource efficiency"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Exact boundary tests cover 90/80/70/60 and rounding, seven equal base weights, invalid inputs and reproducibility under identical source/policy versions."
+          },
+          {
+            "id": "c2",
+            "text": "Confirmed mandatory outcome failures cap the grade at F; missing required verification stays Ungraded regardless of low token or time consumption."
+          },
+          {
+            "id": "c3",
+            "text": "Incomplete non-verification signals produce the contract's visibly provisional/ungraded result with missing factors and effective weights; unknown cannot be silently perfect or zero."
+          },
+          {
+            "id": "c4",
+            "text": "Each component and final result explains its evidence IDs, observation cutoff, normalization, baseline and applied caps; adding activity volume alone never raises a grade."
+          }
+        ],
+        "body": "Implement the pure grade calculator using accepted rubric fixtures. Preserve seven equal base weights. Display a numeric result and conventional letter only with its final/provisional/ungraded status, all factor inputs, coverage, effective weights, rounding and outcome cap. No worker-supplied overall grade is authoritative.\n\nDelivery: tests first for testable behavior; run only the targeted unit/component/integration checks for these criteria. Put full check-suite execution in the sprint acceptance node and Fireguard in its own ticket. Use existing shared command and portable-state conventions; no direct .darkmechanicus record editing. Keep implementation inside this ticket's scope; coordinate shared interface files with the orchestrator. New module/test names may follow the repository convention.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/core/plan/tierFacts.ts",
+              "src/shared/domain/views.ts",
+              "src/core/services/reports.ts"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A coherent change spanning a few related modules, with targeted verification."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Implementation or contract for grader",
+          "Targeted verification evidence for grader"
+        ],
+        "id": "tk_01m453gpadvwpdnfr0d818n39p",
+        "key": "DM-177",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/plan/tierFacts.ts",
+            "location": "src/core/plan/tierFacts.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/domain/views.ts",
+            "location": "src/shared/domain/views.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/reports.ts",
+            "location": "src/core/services/reports.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "space-scorecards",
+          "sprint-2"
+        ],
+        "title": "Calculate deterministic balanced grades with evidence and coverage"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Sprint/epic grades are calculated from numeric/raw scope-aware measures, keep overhead costs, and do not inflate delivery by counting administrative/Fireguard/acceptance tickets as feature outcomes."
+          },
+          {
+            "id": "c2",
+            "text": "Any failed required integrated sprint/epic outcome remains visible and caps that level's result despite highly graded component tickets."
+          },
+          {
+            "id": "c3",
+            "text": "A report snapshot survives restart/export/import/adoption and later metrics/policy changes byte-for-byte; publishing a changed report follows existing stale-approval rules."
+          },
+          {
+            "id": "c4",
+            "text": "Legacy reports remain readable and ungraded; dated reassessments retain the approved grade and explain differences with comparable observation windows."
+          }
+        ],
+        "body": "Provide ticket/run/sprint/epic read models, recomputing from underlying measures rather than averaging letters. Aggregate active and abandoned work, overhead and original-scope outcomes. Persist immutable grade snapshots with policy, plan revision, source IDs, cutoff, baselines and report hash; live previews and later reassessments are distinct. Do not copy live-derived tierFacts behavior into approved grade history.\n\nDelivery: tests first for testable behavior; run only the targeted unit/component/integration checks for these criteria. Put full check-suite execution in the sprint acceptance node and Fireguard in its own ticket. Use existing shared command and portable-state conventions; no direct .darkmechanicus record editing. Keep implementation inside this ticket's scope; coordinate shared interface files with the orchestrator. New module/test names may follow the repository convention.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/core/services/reports.ts",
+              "src/core/services/checkpoints.ts",
+              "src/core/services/adoption.ts",
+              "src/core/repo/portable.ts",
+              "src/core/repo/importer.ts",
+              "src/core/services/checkpointsReportStale.test.ts"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A coherent change spanning a few related modules, with targeted verification."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Implementation or contract for snapshots",
+          "Targeted verification evidence for snapshots"
+        ],
+        "id": "tk_01m453gpads5cm5ah9pyqk7qtw",
+        "key": "DM-178",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/reports.ts",
+            "location": "src/core/services/reports.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/checkpoints.ts",
+            "location": "src/core/services/checkpoints.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/adoption.ts",
+            "location": "src/core/services/adoption.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/portable.ts",
+            "location": "src/core/repo/portable.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/importer.ts",
+            "location": "src/core/repo/importer.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/checkpointsReportStale.test.ts",
+            "location": "src/core/services/checkpointsReportStale.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "space-scorecards",
+          "sprint-2"
+        ],
+        "title": "Aggregate outcomes and freeze scorecards into report revisions"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "MCP and desktop return the same assessment for the same identity/version; report reads pin the requested report snapshot instead of latest live data."
+          },
+          {
+            "id": "c2",
+            "text": "Scoped queries cannot disclose another workspace; human feedback mutations stay desktop-only and baseline mutations follow draft/save ownership."
+          },
+          {
+            "id": "c3",
+            "text": "Loading, missing telemetry, legacy and actionable error states have typed contracts with no silent empty successful score."
+          },
+          {
+            "id": "c4",
+            "text": "Adapter/IPC tests cover refresh, stale edits, navigation between runs/revisions and relevant capability checks."
+          }
+        ],
+        "body": "Wire narrow typed core/MCP/IPC/preload reads for ticket, epic and specific sprint report assessments. Add authorized desktop commands for human input and prospective budget selection. Keep one calculation layer, no renderer-side regrading. Use event-driven/polled refresh without overwriting unsaved edits.\n\nDelivery: tests first for testable behavior; run only the targeted unit/component/integration checks for these criteria. Put full check-suite execution in the sprint acceptance node and Fireguard in its own ticket. Use existing shared command and portable-state conventions; no direct .darkmechanicus record editing. Keep implementation inside this ticket's scope; coordinate shared interface files with the orchestrator. New module/test names may follow the repository convention.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/shared/domain/api.ts",
+              "src/shared/desktop/api.ts",
+              "src/main/desktop/handlers.ts",
+              "src/preload/index.ts",
+              "src/mcp/tools/discovery.ts"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A coherent change spanning a few related modules, with targeted verification."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Implementation or contract for score_api",
+          "Targeted verification evidence for score_api"
+        ],
+        "id": "tk_01m453gpadp6xxdy96bhmqnqyq",
+        "key": "DM-179",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/domain/api.ts",
+            "location": "src/shared/domain/api.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/desktop/api.ts",
+            "location": "src/shared/desktop/api.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/handlers.ts",
+            "location": "src/main/desktop/handlers.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/preload/index.ts",
+            "location": "src/preload/index.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/tools/discovery.ts",
+            "location": "src/mcp/tools/discovery.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "space-scorecards",
+          "sprint-3"
+        ],
+        "title": "Expose scorecard read models and desktop measurement controls"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The tab shows final/provisional/ungraded/in-progress/failed states, coverage, policy/baseline versions and each factor contribution."
+          },
+          {
+            "id": "c2",
+            "text": "Usage/time units and attribution are visible, missing values show unavailable rather than zero, and evidence/attempt links open the correct source."
+          },
+          {
+            "id": "c3",
+            "text": "An existing legacy ticket and a multi-attempt ticket render without fabricated grades; changing selected run or ticket cannot show stale prior-ticket data."
+          },
+          {
+            "id": "c4",
+            "text": "Component tests and real-app normal/narrow screenshots verify keyboard tab navigation, readable layout, loading/error states and no regression to existing tabs."
+          }
+        ],
+        "body": "Add the requested ticket tab using shared scorecard presentation. Show grade/status, seven-factor breakdown, tokens, elapsed/active/wait times, attempts, corrections and evidence. Include data freshness and original versus reassessed grades. Keep editing, comments and attempts tabs working.\n\nDelivery: tests first for testable behavior; run only the targeted unit/component/integration checks for these criteria. Put full check-suite execution in the sprint acceptance node and Fireguard in its own ticket. Use existing shared command and portable-state conventions; no direct .darkmechanicus record editing. Keep implementation inside this ticket's scope; coordinate shared interface files with the orchestrator. New module/test names may follow the repository convention.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/renderer/src/ticket/TicketPanel.tsx",
+              "src/renderer/src/ticket/panelTabs.tsx",
+              "src/renderer/src/ticket/ticketView.ts",
+              "src/renderer/src/ticket/ticket.css"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A coherent change spanning a few related modules, with targeted verification."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Implementation or contract for ticket_tab",
+          "Targeted verification evidence for ticket_tab"
+        ],
+        "id": "tk_01m453gpad9q17ynbth7y2jgvf",
+        "key": "DM-180",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/ticket/TicketPanel.tsx",
+            "location": "src/renderer/src/ticket/TicketPanel.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/ticket/panelTabs.tsx",
+            "location": "src/renderer/src/ticket/panelTabs.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/ticket/ticketView.ts",
+            "location": "src/renderer/src/ticket/ticketView.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/ticket/ticket.css",
+            "location": "src/renderer/src/ticket/ticket.css",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "space-scorecards",
+          "sprint-3"
+        ],
+        "title": "Add an explainable Scorecard tab to each ticket"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Both active and completed epics expose Scorecard navigation and the proper live or immutable assessment."
+          },
+          {
+            "id": "c2",
+            "text": "Per-sprint drill-down and aggregate original-scope outcomes show that completed tickets alone do not prove epic success."
+          },
+          {
+            "id": "c3",
+            "text": "Total resources include abandoned/retried and administrative work without averaging letter grades or summing parallel elapsed time."
+          },
+          {
+            "id": "c4",
+            "text": "Component tests and live screenshots cover failed integrated outcomes, legacy history, scope changes, comparable/insufficient comparisons and accessible navigation."
+          }
+        ],
+        "body": "Expose an epic-level view with integrated outcome grade, original scope delivery, per-sprint assessments, total usage/effort/wall time, overhead and high-impact failure causes. Show comparison only for compatible cohorts/policy/observation windows. Completed epic views remain read-only.\n\nDelivery: tests first for testable behavior; run only the targeted unit/component/integration checks for these criteria. Put full check-suite execution in the sprint acceptance node and Fireguard in its own ticket. Use existing shared command and portable-state conventions; no direct .darkmechanicus record editing. Keep implementation inside this ticket's scope; coordinate shared interface files with the orchestrator. New module/test names may follow the repository convention.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/renderer/src/epic/EpicWorkspace.tsx",
+              "src/renderer/src/epic/WorkspaceHeader.tsx",
+              "src/renderer/src/epic/workspaceLoad.ts",
+              "src/renderer/src/checkpoint/EpicOverview.tsx"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A coherent change spanning a few related modules, with targeted verification."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Implementation or contract for epic_tab",
+          "Targeted verification evidence for epic_tab"
+        ],
+        "id": "tk_01m453gpad0hcwwm8dd6yhqgg3",
+        "key": "DM-181",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/epic/EpicWorkspace.tsx",
+            "location": "src/renderer/src/epic/EpicWorkspace.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/epic/WorkspaceHeader.tsx",
+            "location": "src/renderer/src/epic/WorkspaceHeader.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/epic/workspaceLoad.ts",
+            "location": "src/renderer/src/epic/workspaceLoad.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/checkpoint/EpicOverview.tsx",
+            "location": "src/renderer/src/checkpoint/EpicOverview.tsx",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "space-scorecards",
+          "sprint-3"
+        ],
+        "title": "Add an epic Scorecard tab for outcome and sprint performance"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Current checkpoint and historical sprint reports expose the same Scorecard tab and pinned report identity."
+          },
+          {
+            "id": "c2",
+            "text": "The view explains grade factors and shows ticket drill-down, sprint outcome status, resource totals and measurement coverage."
+          },
+          {
+            "id": "c3",
+            "text": "Late metrics, new rubric versions and defects never silently replace an approved score; reassessments show separate date and provenance."
+          },
+          {
+            "id": "c4",
+            "text": "Component tests and screenshots cover all historical/provisional/error states and preserve checkpoint approval controls and existing report content."
+          }
+        ],
+        "body": "Add the requested tab to the shared sprint-report rendering in current checkpoints and completed-epic history. Show sprint performance, per-ticket grades, evidence coverage, token/time breakdown, overhead and failure causes. Distinguish approved snapshot, live provisional view and later reassessment.\n\nDelivery: tests first for testable behavior; run only the targeted unit/component/integration checks for these criteria. Put full check-suite execution in the sprint acceptance node and Fireguard in its own ticket. Use existing shared command and portable-state conventions; no direct .darkmechanicus record editing. Keep implementation inside this ticket's scope; coordinate shared interface files with the orchestrator. New module/test names may follow the repository convention.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/renderer/src/checkpoint/CheckpointScreen.tsx",
+              "src/renderer/src/checkpoint/EpicOverview.tsx",
+              "src/renderer/src/checkpoint/RetroSections.tsx"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A coherent change spanning a few related modules, with targeted verification."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Implementation or contract for report_tab",
+          "Targeted verification evidence for report_tab"
+        ],
+        "id": "tk_01m453gpadc235syh5c7835hsj",
+        "key": "DM-182",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/checkpoint/CheckpointScreen.tsx",
+            "location": "src/renderer/src/checkpoint/CheckpointScreen.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/checkpoint/EpicOverview.tsx",
+            "location": "src/renderer/src/checkpoint/EpicOverview.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/checkpoint/RetroSections.tsx",
+            "location": "src/renderer/src/checkpoint/RetroSections.tsx",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "space-scorecards",
+          "sprint-3"
+        ],
+        "title": "Add a sprint-report Scorecard tab with preserved historical grades"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Human satisfaction/confidence can be recorded once per sprint or specifically per ticket; views label inheritance and missing feedback without inventing a response."
+          },
+          {
+            "id": "c2",
+            "text": "Rescue versus planned review/playtesting are separate inputs, with reason and optional actual minutes."
+          },
+          {
+            "id": "c3",
+            "text": "Draft planning supports token/time estimates with units and provenance, freezes them on run dispatch and shows changes only as prospective versions."
+          },
+          {
+            "id": "c4",
+            "text": "Component/authorization tests cover input bounds, conflict recovery, optional omission and preventing edits from improving an already frozen grade."
+          }
+        ],
+        "body": "Add optional brief human feedback once per sprint with explicit inherited ticket context and ticket override, plus rescue minutes/reasons and prospective time/token budgets in appropriate planning controls. Expose the default balanced policy and its calculation; avoid building a general policy editor. No mandatory per-ticket survey and no AI-filled human answers.\n\nDelivery: tests first for testable behavior; run only the targeted unit/component/integration checks for these criteria. Put full check-suite execution in the sprint acceptance node and Fireguard in its own ticket. Use existing shared command and portable-state conventions; no direct .darkmechanicus record editing. Keep implementation inside this ticket's scope; coordinate shared interface files with the orchestrator. New module/test names may follow the repository convention.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/renderer/src/ticket/TicketEditor.tsx",
+              "src/renderer/src/ticket/editorFields.tsx",
+              "src/renderer/src/checkpoint/CheckpointScreen.tsx",
+              "src/renderer/src/epic/workspaceActions.ts"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A coherent change spanning a few related modules, with targeted verification."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Implementation or contract for feedback_ui",
+          "Targeted verification evidence for feedback_ui"
+        ],
+        "id": "tk_01m453gpadqvk72bw1cy08bkm7",
+        "key": "DM-183",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/ticket/TicketEditor.tsx",
+            "location": "src/renderer/src/ticket/TicketEditor.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/ticket/editorFields.tsx",
+            "location": "src/renderer/src/ticket/editorFields.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/checkpoint/CheckpointScreen.tsx",
+            "location": "src/renderer/src/checkpoint/CheckpointScreen.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/epic/workspaceActions.ts",
+            "location": "src/renderer/src/epic/workspaceActions.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "space-scorecards",
+          "sprint-3"
+        ],
+        "title": "Add lightweight satisfaction, rescue and baseline inputs"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Experiment normalization validates source assessment and metric references, stable identity, target descriptor and all required planning fields."
+          },
+          {
+            "id": "c2",
+            "text": "Legacy prose retros preserve serialized hashes, rendering and retroIsEmpty behavior; optional new fields do not make empty retros valid."
+          },
+          {
+            "id": "c3",
+            "text": "Export/import preserves experiment/source provenance without machine paths or credentials, and later status/result events do not mutate approved source content."
+          },
+          {
+            "id": "c4",
+            "text": "Fixtures cover missing references, repeated IDs, invalid metric units, absent destination and structured/prose mixed reports."
+          }
+        ],
+        "body": "Extend retrospective data with stable experiment IDs, frozen assessment/report identity, observed issue/evidence, hypothesis, destination kind, proposed work, baseline metric, expected change, guardrail and measurement window. Retain old prose actions and empty-retro behavior. Store later results outside immutable source reports.\n\nDelivery: tests first for testable behavior; run only the targeted unit/component/integration checks for these criteria. Put full check-suite execution in the sprint acceptance node and Fireguard in its own ticket. Use existing shared command and portable-state conventions; no direct .darkmechanicus record editing. Keep implementation inside this ticket's scope; coordinate shared interface files with the orchestrator. New module/test names may follow the repository convention.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/shared/domain/retro.ts",
+              "src/core/plan/retro.ts",
+              "src/core/schemas.ts",
+              "src/core/repo/portable.ts"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A coherent change spanning a few related modules, with targeted verification."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Implementation or contract for experiments",
+          "Targeted verification evidence for experiments"
+        ],
+        "id": "tk_01m453gpad5rx2yc24psphjvqh",
+        "key": "DM-184",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/domain/retro.ts",
+            "location": "src/shared/domain/retro.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/plan/retro.ts",
+            "location": "src/core/plan/retro.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/schemas.ts",
+            "location": "src/core/schemas.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/portable.ts",
+            "location": "src/core/repo/portable.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "space-scorecards",
+          "sprint-4"
+        ],
+        "title": "Persist structured improvement experiments linked to scorecards"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Findings rank concrete observed gaps and show magnitude/coverage and the originating attempts, criteria or measurements."
+          },
+          {
+            "id": "c2",
+            "text": "Generated/recorded proposals distinguish code defects, plan/context issues, orchestration/tooling limitations and unavailable evidence; valid exploration is not labeled waste."
+          },
+          {
+            "id": "c3",
+            "text": "Each proposed experiment has a measurable baseline/change/guardrail and explicitly targets source repo or selected DM source; vague or unsized execution payloads cannot be silently scheduled."
+          },
+          {
+            "id": "c4",
+            "text": "Deterministic fixtures cover contradictory signals, sparse data, multiple candidate causes and no meaningful issue without inventing improvement work."
+          }
+        ],
+        "body": "Provide fact-derived findings from the frozen scorecard: delivery gaps, failed verification, concentrated corrective effort, coordination problems, missing instrumentation and budget overruns. Each finding links evidence and labels hypotheses as hypotheses. Support planner-authored specific corrective tickets; do not claim the metrics prove a cause or automatically choose a larger model.\n\nDelivery: tests first for testable behavior; run only the targeted unit/component/integration checks for these criteria. Put full check-suite execution in the sprint acceptance node and Fireguard in its own ticket. Use existing shared command and portable-state conventions; no direct .darkmechanicus record editing. Keep implementation inside this ticket's scope; coordinate shared interface files with the orchestrator. New module/test names may follow the repository convention.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/core/services/reports.ts",
+              "src/core/plan/retro.ts",
+              "src/core/plan/tierFacts.ts",
+              "skills/sprint-reporter.md"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A coherent change spanning a few related modules, with targeted verification."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Implementation or contract for retro_findings",
+          "Targeted verification evidence for retro_findings"
+        ],
+        "id": "tk_01m453gpadv8vzhk8s84s54h1m",
+        "key": "DM-185",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/reports.ts",
+            "location": "src/core/services/reports.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/plan/retro.ts",
+            "location": "src/core/plan/retro.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/plan/tierFacts.ts",
+            "location": "src/core/plan/tierFacts.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/sprint-reporter.md",
+            "location": "skills/sprint-reporter.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "space-scorecards",
+          "sprint-4"
+        ],
+        "title": "Center retrospectives on measured gaps and proposed improvements"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Preview lists concrete sized tickets, acceptance criteria, dependencies, target sprint/epic, Fireguard and one acceptance node with covers before materialization."
+          },
+          {
+            "id": "c2",
+            "text": "Unfinished-epic corrections affect future draft scope only; completed epics create a distinct follow-up epic and retain original content/status."
+          },
+          {
+            "id": "c3",
+            "text": "Stable source-report/experiment/target idempotency keys survive rename/retry and reject conflicting payloads; repeated creation produces no duplicate work."
+          },
+          {
+            "id": "c4",
+            "text": "Created work validates and follows normal Save/adopt/start/checkpoint rules; no low grade grants execution, approval, extra retries or automatic continuation."
+          }
+        ],
+        "body": "Materialize selected, fully specified experiments through existing draft APIs. For an unfinished epic, target a future sprint or append one before final closure; for a completed source create a new linked epic. Keep passed sprints, acceptance history and source scores immutable. Preserve existing leftover save/adopt sequencing rather than bypassing a blocked checkpoint.\n\nDelivery: tests first for testable behavior; run only the targeted unit/component/integration checks for these criteria. Put full check-suite execution in the sprint acceptance node and Fireguard in its own ticket. Use existing shared command and portable-state conventions; no direct .darkmechanicus record editing. Keep implementation inside this ticket's scope; coordinate shared interface files with the orchestrator. New module/test names may follow the repository convention.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/core/services/redraft.ts",
+              "src/core/plan/redraft.ts",
+              "src/core/services/approveRedraft.ts",
+              "src/core/services/epics.ts",
+              "src/core/services/adoption.ts",
+              "src/integration/redraft.test.ts"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A coherent change spanning a few related modules, with targeted verification."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Implementation or contract for local_corrections",
+          "Targeted verification evidence for local_corrections"
+        ],
+        "id": "tk_01m453gpadgbwycpmg2dd8y0me",
+        "key": "DM-186",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/redraft.ts",
+            "location": "src/core/services/redraft.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/plan/redraft.ts",
+            "location": "src/core/plan/redraft.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/approveRedraft.ts",
+            "location": "src/core/services/approveRedraft.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/epics.ts",
+            "location": "src/core/services/epics.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/adoption.ts",
+            "location": "src/core/services/adoption.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/integration/redraft.test.ts",
+            "location": "src/integration/redraft.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "space-scorecards",
+          "sprint-4"
+        ],
+        "title": "Create reviewable corrective sprints and same-repo follow-up epics"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Sprint report and completed-epic views show assessment → finding → experiment → resulting work with evidence links."
+          },
+          {
+            "id": "c2",
+            "text": "The person can select and edit proposals and preview ticket criteria/dependencies/destination before creating a draft."
+          },
+          {
+            "id": "c3",
+            "text": "Repeated clicks, stale report/draft, unavailable evidence and blocked prerequisite cases have recoverable feedback without duplicated work or lost edits."
+          },
+          {
+            "id": "c4",
+            "text": "UI tests and screenshots demonstrate same-repo corrective planning and normal approval boundaries; merely opening a report or receiving a low grade starts no work."
+          }
+        ],
+        "body": "Rework the retro presentation around measured results, findings and one or more selected experiments. Let the person inspect/edit scope, choose source repo for this sprint, preview generated tickets, create the draft and reach normal save/run controls. Keep Dark Mechanicus destination visibly pending until destination support lands in sprint 5.\n\nDelivery: tests first for testable behavior; run only the targeted unit/component/integration checks for these criteria. Put full check-suite execution in the sprint acceptance node and Fireguard in its own ticket. Use existing shared command and portable-state conventions; no direct .darkmechanicus record editing. Keep implementation inside this ticket's scope; coordinate shared interface files with the orchestrator. New module/test names may follow the repository convention.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/renderer/src/checkpoint/RetroSections.tsx",
+              "src/renderer/src/checkpoint/CheckpointScreen.tsx",
+              "src/renderer/src/checkpoint/EpicOverview.tsx",
+              "src/renderer/src/epic/workspaceActions.ts"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A coherent change spanning a few related modules, with targeted verification."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Implementation or contract for retro_ui",
+          "Targeted verification evidence for retro_ui"
+        ],
+        "id": "tk_01m453gpadt3ng2mgjppwqkmkd",
+        "key": "DM-187",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/checkpoint/RetroSections.tsx",
+            "location": "src/renderer/src/checkpoint/RetroSections.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/checkpoint/CheckpointScreen.tsx",
+            "location": "src/renderer/src/checkpoint/CheckpointScreen.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/checkpoint/EpicOverview.tsx",
+            "location": "src/renderer/src/checkpoint/EpicOverview.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/epic/workspaceActions.ts",
+            "location": "src/renderer/src/epic/workspaceActions.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "space-scorecards",
+          "sprint-4"
+        ],
+        "title": "Build the scorecard-led retro and corrective-sprint review flow"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Each experiment resolves to specific correction tickets/run/assessment and exposes original baseline, target, guardrail and measured after-result."
+          },
+          {
+            "id": "c2",
+            "text": "Compatible numeric cases produce deterministic improved/unchanged/regressed classifications; missing or incomparable data gives insufficient evidence."
+          },
+          {
+            "id": "c3",
+            "text": "A lower token/time total with failed quality guardrail cannot count as an improvement."
+          },
+          {
+            "id": "c4",
+            "text": "New result events are append-only, survive portable import and leave original report/grade intact; views show the comparison with supporting evidence."
+          }
+        ],
+        "body": "Associate correction results with the original frozen baseline and quality guardrails. Classify improved/unchanged/regressed/insufficient evidence using compatible policy, task scope, units and observation windows. Preserve numeric before/after detail and sample sizes; label observational differences without claiming causal proof.\n\nDelivery: tests first for testable behavior; run only the targeted unit/component/integration checks for these criteria. Put full check-suite execution in the sprint acceptance node and Fireguard in its own ticket. Use existing shared command and portable-state conventions; no direct .darkmechanicus record editing. Keep implementation inside this ticket's scope; coordinate shared interface files with the orchestrator. New module/test names may follow the repository convention.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/shared/domain/retro.ts",
+              "src/core/services/reports.ts",
+              "src/core/services/history.ts",
+              "src/renderer/src/checkpoint/retroView.ts"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A coherent change spanning a few related modules, with targeted verification."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Implementation or contract for comparison",
+          "Targeted verification evidence for comparison"
+        ],
+        "id": "tk_01m453gpadc8m55h2bdv26251v",
+        "key": "DM-188",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/domain/retro.ts",
+            "location": "src/shared/domain/retro.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/reports.ts",
+            "location": "src/core/services/reports.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/history.ts",
+            "location": "src/core/services/history.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/checkpoint/retroView.ts",
+            "location": "src/renderer/src/checkpoint/retroView.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "space-scorecards",
+          "sprint-4"
+        ],
+        "title": "Assess corrective work against the original experiment"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The person can associate a tracked or selected local checkout after native-path validation and initialize/register it through existing authorized flows if needed."
+          },
+          {
+            "id": "c2",
+            "text": "Canonical aliases resolve to the same target identity; relocated/unavailable/replaced paths and symlink changes are revalidated before mutation."
+          },
+          {
+            "id": "c3",
+            "text": "Installed app directories, unrelated repositories and missing clones remain unavailable with clear recovery; no automatic clone or redirect occurs."
+          },
+          {
+            "id": "c4",
+            "text": "Registry and narrow IPC tests show renderer-supplied arbitrary paths cannot bypass native target selection or workspace authorization."
+          }
+        ],
+        "body": "Extend desktop project routing with an explicit owner-selected source checkout association. Reuse folder registry canonicalization/availability and validate initialized project identity plus actual DM source markers; a matching folder name or installed application is insufficient. Keep machine path mapping local and portable target identity separate.\n\nDelivery: tests first for testable behavior; run only the targeted unit/component/integration checks for these criteria. Put full check-suite execution in the sprint acceptance node and Fireguard in its own ticket. Use existing shared command and portable-state conventions; no direct .darkmechanicus record editing. Keep implementation inside this ticket's scope; coordinate shared interface files with the orchestrator. New module/test names may follow the repository convention.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/main/desktop/folderRegistry.ts",
+              "src/main/desktop/workspacePool.ts",
+              "src/main/desktop/handlers.ts",
+              "src/shared/desktop/api.ts",
+              "src/main/ipcGuard.test.ts"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A coherent change spanning a few related modules, with targeted verification."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Implementation or contract for destination",
+          "Targeted verification evidence for destination"
+        ],
+        "id": "tk_01m453gpadyxvwajsbvf64vdjm",
+        "key": "DM-189",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/folderRegistry.ts",
+            "location": "src/main/desktop/folderRegistry.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/workspacePool.ts",
+            "location": "src/main/desktop/workspacePool.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/handlers.ts",
+            "location": "src/main/desktop/handlers.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/desktop/api.ts",
+            "location": "src/shared/desktop/api.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/ipcGuard.test.ts",
+            "location": "src/main/ipcGuard.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "space-scorecards",
+          "sprint-5"
+        ],
+        "title": "Associate and validate a local Dark Mechanicus source checkout"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A source-repository experiment creates a distinct target-owned epic and complete valid draft with portable provenance and local destination mapping separated."
+          },
+          {
+            "id": "c2",
+            "text": "Retries after target creation/source-link failure recover the same target IDs without duplicates; conflicting payload reuse fails and partial progress is accurately reported."
+          },
+          {
+            "id": "c3",
+            "text": "Completed or active source reports/scores remain unchanged; target branch/run state and required approvals are independent."
+          },
+          {
+            "id": "c4",
+            "text": "Cross-repo, stale target identity, partial failure and retry tests prove repository-bound MCP roles gain no arbitrary external write capability."
+          }
+        ],
+        "body": "Add a narrow desktop broker that materializes fully specified correction drafts into the selected target workspace. Introduce portable provenance containing source project/epic/run/sprint/report hash/assessment/policy/experiment and target project IDs: current same-DB EpicProvenance is insufficient. Each target retains its own branch/run; never switch a source checkout or insert foreign tickets into its run. Use target idempotency and a durable receipt/outbox for partial cross-repo completion.\n\nDelivery: tests first for testable behavior; run only the targeted unit/component/integration checks for these criteria. Put full check-suite execution in the sprint acceptance node and Fireguard in its own ticket. Use existing shared command and portable-state conventions; no direct .darkmechanicus record editing. Keep implementation inside this ticket's scope; coordinate shared interface files with the orchestrator. New module/test names may follow the repository convention.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/shared/domain/bundle.ts",
+              "src/shared/domain/api.ts",
+              "src/core/services/epics.ts",
+              "src/core/services/idempotency.ts",
+              "src/core/repo/portable.ts",
+              "src/main/desktop/workspacePool.ts",
+              "src/main/desktop/handlers.ts"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "deep",
+            "rationale": "Cross-repository authorization and interrupted-write recovery require one effort level above the medium size."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Implementation or contract for crossrepo",
+          "Targeted verification evidence for crossrepo"
+        ],
+        "id": "tk_01m453gpad190h3kdq5kw1065f",
+        "key": "DM-190",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/domain/bundle.ts",
+            "location": "src/shared/domain/bundle.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/domain/api.ts",
+            "location": "src/shared/domain/api.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/epics.ts",
+            "location": "src/core/services/epics.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/idempotency.ts",
+            "location": "src/core/services/idempotency.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/portable.ts",
+            "location": "src/core/repo/portable.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/workspacePool.ts",
+            "location": "src/main/desktop/workspacePool.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/handlers.ts",
+            "location": "src/main/desktop/handlers.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "space-scorecards",
+          "sprint-5"
+        ],
+        "title": "Create target-owned correction epics with recoverable cross-repo links"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The preview clearly identifies the destination project and new epic/branch ownership; active repo and local DM targets both work."
+          },
+          {
+            "id": "c2",
+            "text": "Unavailable checkout, already-created correction, partial routing failure and refreshed target state have accurate recoverable UI."
+          },
+          {
+            "id": "c3",
+            "text": "Opening/creating a proposal does not execute it; the target uses normal user run controls and never approves itself or silently alters the source run."
+          },
+          {
+            "id": "c4",
+            "text": "Real-app and component evidence covers target selection, duplicate clicks, target navigation and before/after links without reopening completed source epics."
+          }
+        ],
+        "body": "Complete the target selector and source→correction navigation in scorecard/retro flows. Expose source repo and associated DM checkout, show target availability and exact proposed work before writing, and route the owner to the target's normal Save/Start run/checkpoint screens. Missing source checkout leaves a saved proposal. Support before/after result links back to source.\n\nDelivery: tests first for testable behavior; run only the targeted unit/component/integration checks for these criteria. Put full check-suite execution in the sprint acceptance node and Fireguard in its own ticket. Use existing shared command and portable-state conventions; no direct .darkmechanicus record editing. Keep implementation inside this ticket's scope; coordinate shared interface files with the orchestrator. New module/test names may follow the repository convention.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/renderer/src/checkpoint/RetroSections.tsx",
+              "src/renderer/src/checkpoint/EpicOverview.tsx",
+              "src/renderer/src/epic/workspaceActions.ts",
+              "src/renderer/src/epic/RunBar.tsx"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A coherent change spanning a few related modules, with targeted verification."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Implementation or contract for target_ui",
+          "Targeted verification evidence for target_ui"
+        ],
+        "id": "tk_01m453gpadfcep3c11jqkx33vk",
+        "key": "DM-191",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/checkpoint/RetroSections.tsx",
+            "location": "src/renderer/src/checkpoint/RetroSections.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/checkpoint/EpicOverview.tsx",
+            "location": "src/renderer/src/checkpoint/EpicOverview.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/epic/workspaceActions.ts",
+            "location": "src/renderer/src/epic/workspaceActions.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/epic/RunBar.tsx",
+            "location": "src/renderer/src/epic/RunBar.tsx",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "space-scorecards",
+          "sprint-5"
+        ],
+        "title": "Route reviewed corrections to the chosen repository and normal run controls"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Planner/worker/orchestrator/reviewer/sprint-reporter guides assign who records usage, checks evidence, reviews grades and creates corrective drafts without self-acceptance or approval bypass."
+          },
+          {
+            "id": "c2",
+            "text": "Docs specify seven weights, grade thresholds, missing/provisional states, independent failure cap, observation windows and anti-gaming limits."
+          },
+          {
+            "id": "c3",
+            "text": "Runbook covers both destination flows, missing checkout and partial cross-repo receipt recovery, preserving completed history and separate runs."
+          },
+          {
+            "id": "c4",
+            "text": "Existing skill/prompt tests pass after documentation changes; public references distinguish the SPACE framework from DM-specific grading choices."
+          }
+        ],
+        "body": "Update provider-neutral role guides and product/runbook documentation. Explain balanced policy, evidence hierarchy, telemetry source/coverage, baseline pinning, human feedback, overhead attribution, report immutability, retrospective experiments, local target selection and operator recovery. Describe which agent integrations actually emit usage and unsupported cases; do not promise unavailable telemetry.\n\nDelivery: tests first for testable behavior; run only the targeted unit/component/integration checks for these criteria. Put full check-suite execution in the sprint acceptance node and Fireguard in its own ticket. Use existing shared command and portable-state conventions; no direct .darkmechanicus record editing. Keep implementation inside this ticket's scope; coordinate shared interface files with the orchestrator. New module/test names may follow the repository convention.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "skills/planner.md",
+              "skills/worker.md",
+              "skills/orchestrator.md",
+              "skills/reviewer.md",
+              "skills/sprint-reporter.md",
+              "docs/architecture.md",
+              "docs/product-plan.md",
+              "docs/runbooks/mcp-setup.md",
+              "src/mcp/skills.test.ts"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "A bounded update following the implemented contracts and existing guide structure."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "documentation"
+        },
+        "expectedArtifacts": [
+          "Implementation or contract for guides",
+          "Targeted verification evidence for guides"
+        ],
+        "id": "tk_01m453gpadszmpfvveph0zjtg5",
+        "key": "DM-192",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/planner.md",
+            "location": "skills/planner.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/worker.md",
+            "location": "skills/worker.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/orchestrator.md",
+            "location": "skills/orchestrator.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/reviewer.md",
+            "location": "skills/reviewer.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/sprint-reporter.md",
+            "location": "skills/sprint-reporter.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/architecture.md",
+            "location": "docs/architecture.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/product-plan.md",
+            "location": "docs/product-plan.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/runbooks/mcp-setup.md",
+            "location": "docs/runbooks/mcp-setup.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/skills.test.ts",
+            "location": "src/mcp/skills.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "space-scorecards",
+          "sprint-5"
+        ],
+        "title": "Document measurement, grading and corrective-work responsibilities"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A complete fixture proves all seven epic success criteria with exact build/commit, input evidence, screenshots of the three tabs and arithmetic reconciled to source measurements."
+          },
+          {
+            "id": "c2",
+            "text": "Failure matrix covers legacy/all-unknown/partial data, fast failing work, failed/rejected retries, scope changes, parallel timing, duplicate cumulative usage, parent-child usage, late regressions and policy changes."
+          },
+          {
+            "id": "c3",
+            "text": "Same-repo and cross-repo correction fixtures verify no automatic execution/approval, completed-source immutability, missing target, partial-write recovery and independent target run identity."
+          },
+          {
+            "id": "c4",
+            "text": "Targeted end-to-end tests and packaged-app exercise pass; remaining unsupported measurement capabilities are explicitly labeled in the UI and runbook rather than claimed as verified."
+          }
+        ],
+        "body": "Build meaningful end-to-end fixtures and an operator-readable evidence record for the assembled product. Use isolated scratch repositories and a controlled DM source checkout; never experiment on the live active Agents run. Cover measurement, grade calculations in all tabs, frozen report, retro, same-repo correction, cross-repo correction and after-assessment. Exercise a packaged Windows app and supported host telemetry; preserve deterministic contract fixtures for other supported hosts/platform paths.\n\nDelivery: tests first for testable behavior; run only the targeted unit/component/integration checks for these criteria. Put full check-suite execution in the sprint acceptance node and Fireguard in its own ticket. Use existing shared command and portable-state conventions; no direct .darkmechanicus record editing. Keep implementation inside this ticket's scope; coordinate shared interface files with the orchestrator. New module/test names may follow the repository convention.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/integration/",
+              "src/mcp/tools/",
+              "src/renderer/src/checkpoint/",
+              "src/renderer/src/ticket/",
+              "docs/verification/",
+              "docs/runbooks/mcp-setup.md"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A coherent change spanning a few related modules, with targeted verification."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [
+          "Implementation or contract for e2e",
+          "Targeted verification evidence for e2e"
+        ],
+        "id": "tk_01m453gpadmqx6pcyh3v630an5",
+        "key": "DM-193",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/integration/",
+            "location": "src/integration/",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/tools/",
+            "location": "src/mcp/tools/",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/checkpoint/",
+            "location": "src/renderer/src/checkpoint/",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/ticket/",
+            "location": "src/renderer/src/ticket/",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/verification/",
+            "location": "docs/verification/",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/runbooks/mcp-setup.md",
+            "location": "docs/runbooks/mcp-setup.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "space-scorecards",
+          "sprint-5"
+        ],
+        "title": "Verify the complete grading and corrective-work loop in two repositories"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The recorded base and tested head identify exactly this sprint's combined work."
+          },
+          {
+            "id": "c2",
+            "text": "Fireguard completes with no F; failures are repaired and the resulting report is saved with the final tested head."
+          },
+          {
+            "id": "c3",
+            "text": "Changed test-quality issues and any targeted reruns are recorded; no unrelated code or grading rules are weakened."
+          }
+        ],
+        "body": "Run Fireguard once on this sprint's combined committed work, with FIREGUARD_BASE_REF pinned to the sprint start commit. Preserve its report and repair test-quality failures within sprint scope. This is the sole Fireguard execution for the sprint; the acceptance node uses this accepted evidence.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "fireguard/README.md",
+              ".ai-instructions.md"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "A bounded update following the implemented contracts and existing guide structure."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [
+          "Sprint 1 Fireguard report with base/head"
+        ],
+        "id": "tk_01m453gpae5aybf0ta89sz5w37",
+        "key": "DM-194",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "fireguard/README.md",
+            "location": "fireguard/README.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": ".ai-instructions.md",
+            "location": ".ai-instructions.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "fireguard",
+          "space-scorecards"
+        ],
+        "title": "Grade Sprint 1 unit tests with Fireguard"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The recorded base and tested head identify exactly this sprint's combined work."
+          },
+          {
+            "id": "c2",
+            "text": "Fireguard completes with no F; failures are repaired and the resulting report is saved with the final tested head."
+          },
+          {
+            "id": "c3",
+            "text": "Changed test-quality issues and any targeted reruns are recorded; no unrelated code or grading rules are weakened."
+          }
+        ],
+        "body": "Run Fireguard once on this sprint's combined committed work, with FIREGUARD_BASE_REF pinned to the sprint start commit. Preserve its report and repair test-quality failures within sprint scope. This is the sole Fireguard execution for the sprint; the acceptance node uses this accepted evidence.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "fireguard/README.md",
+              ".ai-instructions.md"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "A bounded update following the implemented contracts and existing guide structure."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [
+          "Sprint 2 Fireguard report with base/head"
+        ],
+        "id": "tk_01m453gpaekaydhp5ee5e5qmfb",
+        "key": "DM-195",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "fireguard/README.md",
+            "location": "fireguard/README.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": ".ai-instructions.md",
+            "location": ".ai-instructions.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "fireguard",
+          "space-scorecards"
+        ],
+        "title": "Grade Sprint 2 unit tests with Fireguard"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The recorded base and tested head identify exactly this sprint's combined work."
+          },
+          {
+            "id": "c2",
+            "text": "Fireguard completes with no F; failures are repaired and the resulting report is saved with the final tested head."
+          },
+          {
+            "id": "c3",
+            "text": "Changed test-quality issues and any targeted reruns are recorded; no unrelated code or grading rules are weakened."
+          }
+        ],
+        "body": "Run Fireguard once on this sprint's combined committed work, with FIREGUARD_BASE_REF pinned to the sprint start commit. Preserve its report and repair test-quality failures within sprint scope. This is the sole Fireguard execution for the sprint; the acceptance node uses this accepted evidence.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "fireguard/README.md",
+              ".ai-instructions.md"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "A bounded update following the implemented contracts and existing guide structure."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [
+          "Sprint 3 Fireguard report with base/head"
+        ],
+        "id": "tk_01m453gpafxqgjfwg9v08gmwg2",
+        "key": "DM-196",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "fireguard/README.md",
+            "location": "fireguard/README.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": ".ai-instructions.md",
+            "location": ".ai-instructions.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "fireguard",
+          "space-scorecards"
+        ],
+        "title": "Grade Sprint 3 unit tests with Fireguard"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The recorded base and tested head identify exactly this sprint's combined work."
+          },
+          {
+            "id": "c2",
+            "text": "Fireguard completes with no F; failures are repaired and the resulting report is saved with the final tested head."
+          },
+          {
+            "id": "c3",
+            "text": "Changed test-quality issues and any targeted reruns are recorded; no unrelated code or grading rules are weakened."
+          }
+        ],
+        "body": "Run Fireguard once on this sprint's combined committed work, with FIREGUARD_BASE_REF pinned to the sprint start commit. Preserve its report and repair test-quality failures within sprint scope. This is the sole Fireguard execution for the sprint; the acceptance node uses this accepted evidence.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "fireguard/README.md",
+              ".ai-instructions.md"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "A bounded update following the implemented contracts and existing guide structure."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [
+          "Sprint 4 Fireguard report with base/head"
+        ],
+        "id": "tk_01m453gpafp4z3m6axtatfrt33",
+        "key": "DM-197",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "fireguard/README.md",
+            "location": "fireguard/README.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": ".ai-instructions.md",
+            "location": ".ai-instructions.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "fireguard",
+          "space-scorecards"
+        ],
+        "title": "Grade Sprint 4 unit tests with Fireguard"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The recorded base and tested head identify exactly this sprint's combined work."
+          },
+          {
+            "id": "c2",
+            "text": "Fireguard completes with no F; failures are repaired and the resulting report is saved with the final tested head."
+          },
+          {
+            "id": "c3",
+            "text": "Changed test-quality issues and any targeted reruns are recorded; no unrelated code or grading rules are weakened."
+          }
+        ],
+        "body": "Run Fireguard once on this sprint's combined committed work, with FIREGUARD_BASE_REF pinned to the sprint start commit. Preserve its report and repair test-quality failures within sprint scope. This is the sole Fireguard execution for the sprint; the acceptance node uses this accepted evidence.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "fireguard/README.md",
+              ".ai-instructions.md"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "A bounded update following the implemented contracts and existing guide structure."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [
+          "Sprint 5 Fireguard report with base/head"
+        ],
+        "id": "tk_01m453gpafjr1k8kmyra0nw8k7",
+        "key": "DM-198",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "fireguard/README.md",
+            "location": "fireguard/README.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": ".ai-instructions.md",
+            "location": ".ai-instructions.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "fireguard",
+          "space-scorecards"
+        ],
+        "title": "Grade Sprint 5 unit tests with Fireguard"
+      }
+    ]
+  },
+  "contentHash": "sha256:b1cd703f47c719fc8e1f0d1885c26247aa5777b01422a9f18c99295deb870ab0",
+  "createdAt": "2026-10-05T04:01:17.690Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.plan-snapshot",
+  "formatVersion": 1,
+  "number": 1,
+  "revisionId": "rv_01m453j7btsh4y037k2mzrjmac",
+  "savedAt": "2026-10-05T04:01:17.690Z"
+}
