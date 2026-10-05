@@ -17,14 +17,26 @@
  * adapter is told `deny`. A request left without a decision by a crash is recorded as `cancelled`
  * the next time its chat is opened, since no process is left to answer.
  *
+ * Ended work. Stop leaves a `turn_stopped` item once the turn has ended, after whatever the agent had
+ * written by then. What can no longer finish is written again by the same id: the tool calls of the
+ * chat's own thread that a stopped or failed turn left running, and the calls of the thread a cancelled
+ * request was raised in, become `cancelled`. Disposing an agent emits nothing, so opening a chat that
+ * has no live agent settles what its stored transcript still says is running: calls become `cancelled`
+ * and threads `failed`. A live agent's own work is never touched there, and only `openChat` writes.
+ * `readChat` is the read-only way to the same view, for panels that follow a chat: it starts nothing and
+ * writes nothing, and shows the settled state without storing it.
+ *
  * Signed-out agents. When an adapter reports `auth_required` (its CLI's login expired or was revoked
  * while the app ran), the item is stored, the agent kind is flagged signed out (see `signInFlags`), the
- * message of the turn that was cut short is remembered on the chat (`cutShortMessageId`), and, when the
- * chat orchestrates a run that is running, that run is paused with the reason `signed_out` through the
- * desktop's own session (`runs`). Until the person signs in again, a new turn in any chat with that agent
- * stores the message and an `auth_required` item and starts nothing. `retryTurn` sends the cut-short
+ * message of the turn that was cut short is remembered on the chat (`cutShortMessageId`; the item says
+ * whether there is one, `cutShort`, so a chat showing it live offers Retry only then), and, when the
+ * chat orchestrates a run that is running or paused, that run is paused (or marked paused) with the reason
+ * `signed_out` through the desktop's own session (`runs`). The flag ends with the next status check that says
+ * signed in, whoever signed in. Until then, a new turn in any
+ * chat with that agent stores the message and an `auth_required` item and starts nothing. `retryTurn` sends the cut-short
  * message again, once, when the agent is not signed out; nothing is ever sent again on its own, and the
- * run is never resumed here: the person does that from the run bar.
+ * run is never resumed here: the person does that from the run bar. A problem with the account (an `error` item
+ * with a `problem`) is none of this: it flags nothing, pauses nothing and refuses nothing.
  *
  * Streaming. Items are stored first and the stored (masked) item is pushed, in the order the
  * adapter emitted them. Assistant deltas are not stored; each text stream goes through a stream
@@ -61,6 +73,7 @@ import type { ActivityBindings } from './activityBindings'
 import type { ChatAdapterDefinition, ChatAdapterDefinitions } from './adapterRegistry'
 import type { ChatRef, ChatStore } from './chatStore'
 import { createStreamMasker, type StreamMasker } from './claimTokenMask'
+import { isOwnServerCall } from './ownServerTools'
 import { createSignInFlags, type SignInFlags } from './signInFlags'
 
 /** How long a process with nothing to do is kept. */
@@ -120,6 +133,14 @@ export interface SessionManager {
   deleteChat(ref: ChatRef): Promise<void>
   /** The transcript, waiting approvals and turn state; starts the process for start-on-open vendors. */
   openChat(ref: ChatRef): Promise<ChatOpenView>
+  /**
+   * What opening the chat shows, for a view that only follows it (an attempt's Activity tab, the orchestrator
+   * feed): it starts no agent and writes, pushes and binds nothing. Approvals waiting on a live agent are
+   * `pending`; for a chat no live agent holds there are none to answer, so `pending` is empty and the
+   * stored requests, calls and threads that opening would have settled are shown settled, in the returned
+   * items only. Throws `not_found` for an unknown chat.
+   */
+  readChat(ref: ChatRef): ChatOpenView
   /** Stores the message and starts a turn; resolves with the stored message once the turn has begun. */
   send(ref: ChatRef, text: string): Promise<ChatItem>
   stop(ref: ChatRef): Promise<void>
@@ -130,12 +151,10 @@ export interface SessionManager {
   retryTurn(ref: ChatRef): Promise<ChatItem>
   /**
    * The status the app shows for an agent, given what its CLI's own status command said: `signed_out`
-   * while a chat has found the sign-in gone, until the person started a sign-in and the CLI says signed in
+   * while a chat has found the sign-in gone, until the CLI says signed in, however the person signed in
    * (which also tells the opened chats). Anything else is the CLI's answer as it was.
    */
   reconcileAuthStatus(kind: AgentKind, status: AgentAuthStatus): AgentAuthStatus
-  /** The person started the CLI's sign-in for the agent (the Sign in button). */
-  signInStarted(kind: AgentKind): void
   setModel(ref: ChatRef, model: string): Promise<ChatRecord>
   answerApproval(ref: ChatRef, answer: ApprovalAnswer): void
   listModels(kind: AgentKind): Promise<ModelOption[]>
@@ -168,6 +187,8 @@ interface Session {
   disposed: boolean
   /** The user message of the running turn: what a sign-in that cuts the turn short leaves for retry. */
   userMessageId: string | null
+  /** The person pressed Stop during the running turn. */
+  stopped: boolean
   /** The turn already reported its sign-in as gone; later reports in the same turn are dropped. */
   authReported: boolean
   /** Pausing the run of a signed-out orchestrator chat; the turn ends once it has finished. Never rejects. */
@@ -237,6 +258,32 @@ function recordDecision(manager: Manager, chat: ChatRef, { requestId, decision, 
   record(manager, chat, { ...stamp(manager), kind: 'approval_decision', requestId, decision, ...(automatic ? { automatic } : {}) })
 }
 
+/** Runs a write that must not stop the work around it: a failure is reported, never thrown. */
+function safely(manager: Manager, write: () => void): void {
+  try {
+    write()
+  } catch (error) {
+    manager.onError(error)
+  }
+}
+
+/** The items stored for a chat; none for a chat the store no longer has. */
+function itemsOf(manager: Manager, chat: ChatRef): ChatItem[] {
+  return manager.store.readTranscript(chat)?.items ?? []
+}
+
+/**
+ * Writes the running tool calls of the chat whose thread `inScope` accepts again as `cancelled`, in
+ * place. `undefined` is the chat's own thread.
+ */
+function cancelRunningCalls(manager: Manager, chat: ChatRef, inScope: (threadId: string | undefined) => boolean): void {
+  for (const item of itemsOf(manager, chat)) {
+    if (item.kind === 'tool_call' && item.status === 'running' && inScope(item.threadId)) {
+      record(manager, chat, { ...item, status: 'cancelled' })
+    }
+  }
+}
+
 // ---- Adapters and the Dark Mechanicus server ----
 
 function adapterFor(manager: Manager, kind: AgentKind): { definition: ChatAdapterDefinition; executablePath: string } {
@@ -297,17 +344,21 @@ function idleWhenQuiet(manager: Manager, session: Session): void {
   }, manager.idleMs)
 }
 
-/** Records every waiting approval as cancelled and tells the adapter `deny`, so it is not left holding. */
+/**
+ * Records every waiting approval as cancelled and tells the adapter `deny`, so it is not left holding.
+ * The calls running in the threads the requests were raised in cannot go on either, so they are
+ * cancelled too.
+ */
 function cancelWaiting(manager: Manager, session: Session): void {
   const waiting = [...session.waiting.entries()]
   session.waiting.clear()
   for (const [requestId, { respond }] of waiting) {
-    try {
-      recordDecision(manager, session.chat, { requestId, decision: 'cancelled' })
-    } catch (error) {
-      manager.onError(error)
-    }
+    safely(manager, () => recordDecision(manager, session.chat, { requestId, decision: 'cancelled' }))
     respond('deny')
+  }
+  const threads = new Set(waiting.map(([, { request }]) => request.threadId))
+  if (threads.size > 0) {
+    safely(manager, () => cancelRunningCalls(manager, session.chat, (threadId) => threads.has(threadId)))
   }
 }
 
@@ -346,6 +397,7 @@ function createSession(manager: Manager, chat: ChatRecord): Session {
     idle: null,
     disposed: false,
     userMessageId: null,
+    stopped: false,
     authReported: false,
     pausing: null
   }
@@ -407,15 +459,19 @@ function tellChats(manager: Manager, agent: AgentKind, state: 'signed_out' | 'si
   }
 }
 
-/** Pauses the run of an orchestrator chat when it is running; any other run state (or no run) is left alone. */
+/**
+ * Pauses the run of an orchestrator chat as signed out when it is running, or marks it so when it is already paused
+ * (a run paused for another reason keeps its open leases only under this one; core leaves a run already paused
+ * for sign-in as it is). Any other run state (or no run) is left alone.
+ */
 async function pauseRunOf(manager: Manager, chat: ChatRecord): Promise<void> {
   const { runs } = manager
   if (runs === undefined || chat.runId === undefined) {
     return
   }
   try {
-    const run = await runs.getRun(chat.folder, chat.runId)
-    if (run?.state === 'running') {
+    const state = (await runs.getRun(chat.folder, chat.runId))?.state
+    if (state === 'running' || state === 'paused') {
       await runs.pauseRun(chat.folder, { runId: chat.runId, reason: SIGNED_OUT_PAUSE_REASON })
     }
   } catch (error) {
@@ -423,17 +479,22 @@ async function pauseRunOf(manager: Manager, chat: ChatRecord): Promise<void> {
   }
 }
 
-/** The adapter's CLI said the sign-in is gone: store it once per turn, flag the agent, keep the message for retry, pause the run. */
+/**
+ * The adapter's CLI said the sign-in is gone: keep the message of the turn it cut short for retry, store the item once
+ * per turn (saying whether a turn waits to be retried, so a chat that shows it live offers Retry only then), flag the
+ * agent, pause the run. A sign-in lost while no turn ran cuts nothing short.
+ */
 function onAuthRequired(manager: Manager, session: Session, item: AuthRequiredItem): void {
   if (session.authReported) {
     return
   }
   session.authReported = true
-  const stored = record(manager, session.chat, { ...item, agent: session.chat.agent }) as AuthRequiredItem
-  manager.flags.markSignedOut(session.chat.agent, stored.message)
   if (session.userMessageId !== null) {
     session.chat = markCutShort(manager, session.chat, session.userMessageId)
   }
+  const cutShort = manager.store.getChat(session.chat)?.cutShortMessageId != null
+  const stored = record(manager, session.chat, { ...item, agent: session.chat.agent, cutShort }) as AuthRequiredItem
+  manager.flags.markSignedOut(session.chat.agent, stored.message)
   tellChats(manager, session.chat.agent, 'signed_out')
   session.pausing = pauseRunOf(manager, session.chat)
 }
@@ -442,7 +503,7 @@ function onAuthRequired(manager: Manager, session: Session, item: AuthRequiredIt
 async function refuseTurn(manager: Manager, chat: ChatRecord, text: string): Promise<ChatItem> {
   const message = record(manager, chat, { ...stamp(manager), kind: 'user_message', text })
   const words = manager.flags.message(chat.agent) ?? signedOutWords(chat.agent)
-  record(manager, chat, { ...stamp(manager), kind: 'auth_required', agent: chat.agent, message: words })
+  record(manager, chat, { ...stamp(manager), kind: 'auth_required', agent: chat.agent, message: words, cutShort: true })
   markCutShort(manager, chat, message.id)
   await pauseRunOf(manager, chat)
   return message
@@ -472,19 +533,31 @@ function flushStreams(manager: Manager, session: Session): void {
   session.streams.clear()
 }
 
-/** What Allow for this chat covers: the request's category and tool. */
-function scopeOf(request: ApprovalRequestItem): string {
-  return `${request.category}\u0000${request.tool}`
+/** What Allow for this chat covers on a call to a tool of the chat's own Dark Mechanicus server: every tool of that server. */
+const OWN_SERVER_SCOPE = 'server\u0000darkmechanicus'
+
+/**
+ * What Allow for this chat covers: the request's category and tool, except for a tool of the chat's own
+ * Dark Mechanicus server, which covers the whole server (the server limits its tools by the chat's role).
+ * `server` is no request category, so this scope never equals the scope of another request.
+ */
+function scopeOf(agent: AgentKind, request: ApprovalRequestItem): string {
+  return isOwnServerCall(agent, request) ? OWN_SERVER_SCOPE : `${request.category}\u0000${request.tool}`
 }
 
 function isAllowedForChat(manager: Manager, session: Session, request: ApprovalRequestItem): boolean {
-  return manager.allowances.get(session.chat.id)?.has(scopeOf(request)) ?? false
+  return manager.allowances.get(session.chat.id)?.has(scopeOf(session.chat.agent, request)) ?? false
+}
+
+/** The request as stored: a call to a tool of the chat's own server is marked, so its card can say what Allow for this chat covers. */
+function markedRequest(session: Session, request: ApprovalRequestItem): ApprovalRequestItem {
+  return isOwnServerCall(session.chat.agent, request) ? { ...request, ownServer: true } : request
 }
 
 function onApproval(manager: Manager, session: Session, request: ApprovalRequestItem, respond: WaitingApproval['respond']): void {
   let stored: ChatItem
   try {
-    stored = record(manager, session.chat, request)
+    stored = record(manager, session.chat, markedRequest(session, request))
   } catch (error) {
     respond('deny')
     throw error
@@ -528,13 +601,26 @@ function onAdapterEvent(manager: Manager, session: Session, event: ChatAdapterEv
 
 // ---- Turns ----
 
+/** A turn the person stopped, or that failed, will not finish what it started: say so, and cancel the calls it left running in the chat's own thread. */
+function settleEndedTurn(manager: Manager, session: Session, stopped: boolean, failed: boolean): void {
+  if (stopped) {
+    safely(manager, () => record(manager, session.chat, { ...stamp(manager), kind: 'turn_stopped' }))
+  }
+  if (stopped || failed) {
+    safely(manager, () => cancelRunningCalls(manager, session.chat, (threadId) => threadId === undefined))
+  }
+}
+
 function endTurn(manager: Manager, session: Session, failure: unknown): void {
+  const { stopped } = session
   session.turn = null
   session.userMessageId = null
+  session.stopped = false
   if (session.disposed) {
     return
   }
   flushStreams(manager, session)
+  settleEndedTurn(manager, session, stopped, failure !== null)
   if (failure !== null) {
     record(manager, session.chat, { ...stamp(manager), kind: 'error', message: errorMessage(failure) })
   }
@@ -570,6 +656,7 @@ function startTurn(manager: Manager, session: Session, message: { id: string }, 
     session.chat = markCutShort(manager, session.chat, null)
   }
   session.userMessageId = message.id
+  session.stopped = false
   session.authReported = false
   clearIdle(manager, session)
   manager.push({ type: 'turn', chatId: session.chat.id, running: true })
@@ -647,6 +734,7 @@ async function stop(manager: Manager, ref: ChatRef): Promise<void> {
   if (session === undefined || session.turn === null) {
     return
   }
+  session.stopped = true
   // Interrupt first, so a request denied below cannot let the turn carry on.
   const stopping = invoke(() => session.adapter.stop())
   cancelWaiting(manager, session)
@@ -684,9 +772,9 @@ function answerApproval(manager: Manager, ref: ChatRef, answer: ApprovalAnswer):
   }
   settleApproval(manager, session, { requestId: answer.requestId, decision: answer.decision })
   if (answer.decision === 'allow_chat') {
-    const scope = scopeOf(waiting.request)
+    const scope = scopeOf(chat.agent, waiting.request)
     allowancesOf(manager, chat.id).add(scope)
-    for (const other of [...session.waiting.values()].filter((item) => scopeOf(item.request) === scope)) {
+    for (const other of [...session.waiting.values()].filter((item) => scopeOf(chat.agent, item.request) === scope)) {
       settleApproval(manager, session, { requestId: other.request.requestId, decision: 'allow_chat', automatic: true })
     }
   }
@@ -697,12 +785,27 @@ function answerApproval(manager: Manager, ref: ChatRef, answer: ApprovalAnswer):
 
 /** Stored requests that never got a decision and that no live process is waiting on any more. */
 function cancelOrphans(manager: Manager, chat: ChatRecord, session: Session | undefined): void {
-  const items = manager.store.readTranscript(chat)?.items ?? []
+  const items = itemsOf(manager, chat)
   const decided = new Set(items.flatMap((item) => (item.kind === 'approval_decision' ? [item.requestId] : [])))
   for (const item of items) {
     if (item.kind === 'approval_request' && !decided.has(item.requestId) && session?.waiting.has(item.requestId) !== true) {
       recordDecision(manager, chat, { requestId: item.requestId, decision: 'cancelled' })
       decided.add(item.requestId)
+    }
+  }
+}
+
+/**
+ * What a chat with no live agent still says is running cannot be: its calls are cancelled and its threads
+ * fail, as an idle stop or a quit (which emit nothing) or a crash left them. A chat with a live agent keeps
+ * its work; that agent settles it when it ends.
+ */
+function settleEnded(manager: Manager, chat: ChatRecord): void {
+  for (const item of itemsOf(manager, chat)) {
+    if (item.kind === 'tool_call' && item.status === 'running') {
+      record(manager, chat, { ...item, status: 'cancelled' })
+    } else if (item.kind === 'thread' && item.state === 'running') {
+      record(manager, chat, { ...item, state: 'failed' })
     }
   }
 }
@@ -727,6 +830,7 @@ async function openChat(manager: Manager, ref: ChatRef): Promise<ChatOpenView> {
   const live = manager.sessions.get(chat.id)
   cancelOrphans(manager, chat, live)
   if (live === undefined) {
+    safely(manager, () => settleEnded(manager, chat))
     await startOnOpen(manager, chat)
   }
   const session = manager.sessions.get(chat.id)
@@ -735,6 +839,40 @@ async function openChat(manager: Manager, ref: ChatRef): Promise<ChatOpenView> {
   return {
     chat: transcript?.chat ?? chat,
     items: transcript?.items ?? [],
+    pending: session === undefined ? [] : [...session.waiting.values()].map((waiting) => waiting.request),
+    running: session?.turn != null
+  }
+}
+
+/**
+ * The items as opening the chat would leave them, worked out for the reader and stored nowhere: a stored
+ * request nobody waits on is shown cancelled, and with no live agent, calls still running are shown
+ * cancelled and threads failed (see `cancelOrphans` and `settleEnded`, which write the same).
+ */
+function settledItems(items: readonly ChatItem[], session: Session | undefined): ChatItem[] {
+  const decided = new Set(items.flatMap((item) => (item.kind === 'approval_decision' ? [item.requestId] : [])))
+  return items.flatMap((item): ChatItem[] => {
+    if (item.kind === 'approval_request' && !decided.has(item.requestId) && session?.waiting.has(item.requestId) !== true) {
+      decided.add(item.requestId)
+      return [item, { id: `${item.id}:cancelled`, at: item.at, kind: 'approval_decision', requestId: item.requestId, decision: 'cancelled' }]
+    }
+    if (session !== undefined) {
+      return [item]
+    }
+    if (item.kind === 'tool_call' && item.status === 'running') {
+      return [{ ...item, status: 'cancelled' }]
+    }
+    return item.kind === 'thread' && item.state === 'running' ? [{ ...item, state: 'failed' }] : [item]
+  })
+}
+
+function readChat(manager: Manager, ref: ChatRef): ChatOpenView {
+  const chat = requireChat(manager, ref)
+  const session = manager.sessions.get(chat.id)
+  const transcript = manager.store.readTranscript(chat)
+  return {
+    chat: transcript?.chat ?? chat,
+    items: settledItems(transcript?.items ?? [], session),
     pending: session === undefined ? [] : [...session.waiting.values()].map((waiting) => waiting.request),
     running: session?.turn != null
   }
@@ -829,13 +967,11 @@ export function createSessionManager(deps: SessionManagerDeps): SessionManager {
     renameChat: (ref, title) => renameChat(manager, ref, title),
     deleteChat: (ref) => deleteChat(manager, ref),
     openChat: (ref) => openChat(manager, ref),
+    readChat: (ref) => readChat(manager, ref),
     send: (ref, text) => send(manager, ref, text),
     stop: (ref) => stop(manager, ref),
     retryTurn: (ref) => retryTurn(manager, ref),
     reconcileAuthStatus: (kind, status) => reconcileAuthStatus(manager, kind, status),
-    signInStarted: (kind) => {
-      manager.flags.signInStarted(kind)
-    },
     setModel: (ref, model) => setModel(manager, ref, model),
     answerApproval: (ref, answer) => {
       answerApproval(manager, ref, answer)

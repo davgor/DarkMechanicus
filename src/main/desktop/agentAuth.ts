@@ -24,20 +24,14 @@ import { parseInput } from '../../core/schemas'
 import { AGENT_DEFINITIONS } from '../../shared/desktop/agentKinds'
 import type { AgentAuthState, AgentAuthStatus, AgentKind, AgentSignInResult } from '../../shared/desktop/api'
 import { agentKindSchema } from './agentHandlers'
-import {
-  checkFile,
-  isQuotableForCmd,
-  planCliLaunch,
-  windowsProgramKind,
-  type AgentProbeDeps,
-  type ProcessOutcome
-} from './agentProbe'
+import { planShimLaunch } from '../agents/shimLaunch'
+import { checkFile, planCliLaunch, windowsProgramKind, type AgentProbeDeps, type ProcessOutcome } from './agentProbe'
 import type { AgentRegistry } from './agentRegistry'
 
 /** The status command can be slow on a cold start or a slow network, but a person is waiting for it. */
 const STATUS_TIMEOUT_MS = 10_000
 
-/** Constant arguments only: they are joined into a cmd.exe command line on Windows, so no user text ever goes here. */
+/** Constant arguments only: on Windows they go through the shared shim launcher's command line, so no user text ever goes here. */
 const STATUS_ARGS: Readonly<Record<AgentKind, readonly string[]>> = {
   claude: ['auth', 'status'],
   codex: ['login', 'status'],
@@ -178,28 +172,17 @@ type SignInPlan = { ok: true; launches: TerminalLaunch[] } | { ok: false; reason
 
 /**
  * The console is cmd.exe itself, started detached so Windows gives it a window of its own, running
- * `/k` (so the window stays up for the CLI's messages) with the login command. The path therefore
- * goes through exactly one cmd.exe parse: `/s` strips the outer pair of quotes and the path stays
- * inside its own pair, where `&`, `^`, `(` and spaces are literal. Do not add a `start` or a nested
- * cmd.exe: that parses the line a second time with the path outside quotes, and an `&` in the path
- * would end the command. `%` and `"` stay refused (they act even inside quotes); `/v:off` rules out
- * `!` expansion and `/d` skips AutoRun commands.
+ * with `/k` (so the window stays up for the CLI's messages) through the shared launcher
+ * (`planShimLaunch`): exactly one cmd.exe parse, the path in its own pair of quotes. Do not add a
+ * `start` or a nested cmd.exe: that parses the line a second time with the path outside quotes, and
+ * an `&` in the path would end the command. A path with `%` or `"` is refused, never escaped.
  */
-function planWindows(path: string, login: string, comspec: string | undefined): SignInPlan {
+function planWindows(path: string, loginArgs: readonly string[], comspec: string | undefined): SignInPlan {
   if (windowsProgramKind(path) === null) {
     return { ok: false, reason: 'That file is not a program Windows can run (.exe or .cmd).' }
   }
-  if (!isQuotableForCmd(path)) {
-    return {
-      ok: false,
-      reason: 'The path has a character (a quote, "%", or a control character) that cannot be launched safely.'
-    }
-  }
-  const command = `""${path}" ${login}"`
-  return {
-    ok: true,
-    launches: [{ file: comspec ?? 'cmd.exe', args: ['/d', '/v:off', '/s', '/k', command], verbatimArguments: true }]
-  }
+  const plan = planShimLaunch(path, loginArgs, { comspec, keepOpen: true })
+  return plan.ok ? { ok: true, launches: [plan.launch] } : { ok: false, reason: plan.reason }
 }
 
 /** The executable path is an argument of the AppleScript (`argv`), shell-quoted by AppleScript itself, never spliced into its source. */
@@ -254,7 +237,7 @@ export function planSignIn(
   }
   const loginArgs = LOGIN_ARGS[kind]
   if (deps.platform === 'win32') {
-    return planWindows(executablePath, loginArgs.join(' '), deps.comspec)
+    return planWindows(executablePath, loginArgs, deps.comspec)
   }
   return deps.platform === 'darwin'
     ? planMac(executablePath, loginArgs.join(' '))

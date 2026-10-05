@@ -8,7 +8,7 @@ const setup = folderView({ initialized: false })
 const missing = folderView({ available: false })
 
 const CASES: [string, Parameters<typeof chooseView>[0], MainView][] = [
-  ['folders are still loading', { loaded: false, folder: ready, epicId: null }, { kind: 'loading' }],
+  ['folders are still loading', { loaded: false, folder: ready, epicId: null }, { kind: 'loading', what: 'folders' }],
   ['no folder is selected', { loaded: true, folder: null, epicId: null }, { kind: 'welcome' }],
   ['the folder is gone', { loaded: true, folder: missing, epicId: null }, { kind: 'unavailable', folder: missing }],
   ['the folder is not initialized', { loaded: true, folder: setup, epicId: null }, { kind: 'onboarding', folder: setup }],
@@ -59,7 +59,7 @@ describe('chooseView with an agents pane', () => {
 
   it('shows loading while the agents are still being listed', () => {
     const pane = { kind: 'agent', agent: 'claude' } as const
-    expect(chooseView({ loaded: true, folder: ready, epicId: null, agentPane: pane, agents: null }).kind).toBe('loading')
+    expect(chooseView({ loaded: true, folder: ready, epicId: null, agentPane: pane, agents: null })).toEqual({ kind: 'loading', what: 'agents' })
   })
 
   it('falls back to the folder view when the agent is gone', () => {
@@ -85,7 +85,7 @@ describe('chooseView with a chat', () => {
   })
 
   it('shows loading while the folder\'s chats are still being listed', () => {
-    expect(chooseView({ ...open, chats: null }).kind).toBe('loading')
+    expect(chooseView({ ...open, chats: null })).toEqual({ kind: 'loading', what: 'chat' })
   })
 
   it('falls back to the folder home when the chat is gone', () => {

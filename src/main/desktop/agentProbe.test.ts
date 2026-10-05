@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { AgentKind } from '../../shared/desktop/api'
 import {
   agentDialogOptions,
+  planCliLaunch,
   probeAgent,
   type AgentProbeDeps,
   type FileCheck,
@@ -313,6 +314,12 @@ describe('probeAgent refuses a shim path cmd.exe could misread', () => {
 
     expect(result).toMatchObject({ ok: false, code: 'unsafe_path' })
     expect(launches).toEqual([])
+  })
+
+  it('refuses an unsafe argument of a shim as well, with the same code, and starts nothing', () => {
+    const plan = planCliLaunch('C:\\Tools\\codex.cmd', ['login', 'a"b'],{ platform: 'win32', inspect: () => 'ok' })
+
+    expect(plan).toMatchObject({ ok: false, code: 'unsafe_path', reason: expect.stringMatching(/argument.*cannot be launched safely/) })
   })
 
   it('does not apply the shell limits to an .exe, which no shell sees', async () => {

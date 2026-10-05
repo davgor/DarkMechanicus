@@ -145,3 +145,40 @@ describe('ApprovalCard keyboard', () => {
     expect(within(card).getByRole('group', { name: 'Answer' })).toBeTruthy()
   })
 })
+
+describe('ApprovalCard Allow for this chat on a Dark Mechanicus tool', () => {
+  const OWN = 'Allow for this chat covers all Dark Mechanicus tools in this chat.'
+  const ownCall = { category: 'other', tool: 'mcp__darkmechanicus__claim_ticket', summary: 'Use mcp__darkmechanicus__claim_ticket', input: { ticketId: 'tk_1' }, ownServer: true } as const
+
+  it('says Allow for this chat covers all of the chat’s Dark Mechanicus tools, beside the answers', async () => {
+    await mountChatView([approvalRequest('q1', ownCall)])
+    const card = cards()[0] as HTMLElement
+    const note = within(card).getByText(OWN)
+    expect(buttonsOf(card)).toEqual(['Allow once', 'Allow for this chat', 'Deny'])
+    expect(note.compareDocumentPosition(within(card).getByRole('group', { name: 'Answer' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('reads the note with each button, after the request itself', async () => {
+    await mountChatView([approvalRequest('q1', ownCall)])
+    const card = cards()[0] as HTMLElement
+    const ids = (within(card).getByRole('button', { name: 'Allow for this chat' }).getAttribute('aria-describedby') ?? '').split(' ')
+    expect(ids.map((id) => document.getElementById(id)?.textContent)).toEqual(['Use mcp__darkmechanicus__claim_ticket', OWN])
+  })
+
+  it('says nothing about it on a card for another server, a command or a file edit', async () => {
+    await mountChatView([
+      approvalRequest('q1', { category: 'other', tool: 'mcp__other__claim_ticket', summary: 'Use mcp__other__claim_ticket', input: undefined }),
+      approvalRequest('q2'),
+      approvalRequest('q3', { category: 'file_edit', tool: 'Edit', summary: 'Edit /a/x.ts', input: { file_path: '/a/x.ts' } })
+    ])
+    expect(cards()).toHaveLength(3)
+    expect(screen.queryByText(OWN)).toBeNull()
+  })
+
+  it('drops the note once the request is answered, since there is nothing left to choose', async () => {
+    await mountChatView([approvalRequest('q1', ownCall), approvalDecision('q1', 'allow_chat')])
+    const card = cards()[0] as HTMLElement
+    expect(within(card).getByText('Allowed for this chat')).toBeTruthy()
+    expect(within(card).queryByText(OWN)).toBeNull()
+  })
+})

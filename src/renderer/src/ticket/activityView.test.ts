@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ActivityEntry, AttemptTimelineView } from '../../../shared/domain/activity'
-import { activityItems, clockTime, endedSummary, isNearBottom, latestAttemptId } from './activityView'
+import { activityItems, attemptWindow, clockTime, endedSummary, isNearBottom, latestAttemptId } from './activityView'
 
 const BASE = { at: '2026-10-05T14:02:00.000Z', sessionId: 'ss_w', attemptId: 'at_1', ticketId: 'tk_1' }
 
@@ -240,6 +240,34 @@ describe('endedSummary on how each ending reads', () => {
 
   it('names the state of a closed view whose state has no recorded ending', () => {
     expect(endedSummary(view({ isLive: false, state: 'submitted' }))).toEqual({ label: 'Submitted', tone: 'review', detail: '' })
+  })
+})
+
+describe('attemptWindow', () => {
+  const at = (time: string): string => `2026-10-05T${time}:00.000Z`
+  const claimed = claim({ at: at('14:00') })
+  const decision = (decidedAt: string): ActivityEntry => ({ ...BASE, at: decidedAt, kind: 'decision', id: 'd', outcome: 'rejected', reasons: [], notes: '', decidedBy: 'orchestrator' })
+
+  it('runs from the claim to now while the attempt is open', () => {
+    expect(attemptWindow(view({ entries: [claimed, note('Reading', { at: at('14:05') })] }))).toEqual({ from: at('14:00'), to: null })
+    expect(attemptWindow(view({ state: 'submitted', entries: [claimed] }))).toEqual({ from: at('14:00'), to: null })
+  })
+
+  it('runs from the claim to the last thing on record once the attempt has ended', () => {
+    const entries = [claimed, note('Reading', { at: at('14:05') }), decision(at('14:30'))]
+
+    expect(attemptWindow(view({ isLive: false, state: 'rejected', entries }))).toEqual({ from: at('14:00'), to: at('14:30') })
+  })
+
+  it('counts a worker that was last seen after everything else as working until then', () => {
+    const entries = [claimed, alive({ at: at('14:01'), until: at('14:50'), active: false }), note('Reading', { at: at('14:05') })]
+
+    expect(attemptWindow(view({ isLive: false, state: 'lease_expired', entries })).to).toBe(at('14:50'))
+  })
+
+  it('has no start without a claim, and no end for a closed attempt with nothing on record', () => {
+    expect(attemptWindow(view({ entries: [note('Reading')] }))).toEqual({ from: null, to: null })
+    expect(attemptWindow(view({ isLive: false, state: 'failed', entries: [] }))).toEqual({ from: null, to: null })
   })
 })
 

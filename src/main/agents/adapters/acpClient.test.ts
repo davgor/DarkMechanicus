@@ -7,6 +7,8 @@ const LAUNCH: ProbeLaunch = { file: 'agent', args: ['acp'], verbatimArguments: f
 interface Rig {
   written: Record<string, unknown>[]
   kills: number
+  /** What a transport kill returns: resolved unless a test holds it back. */
+  killResult: Promise<void>
   notifications: [string, unknown][]
   requests: [number | string, string, unknown][]
   closures: string[]
@@ -20,6 +22,7 @@ function rig(): Rig {
   const state: Rig = {
     written: [],
     kills: 0,
+    killResult: Promise.resolve(),
     notifications: [],
     requests: [],
     closures: [],
@@ -38,6 +41,7 @@ function rig(): Rig {
           },
           kill: () => {
             state.kills += 1
+            return state.killResult
           }
         }
       }
@@ -177,14 +181,40 @@ describe('openAcpConnection: the end of the process', () => {
     const connection = t.open()
     const waiting = connection.request('session/prompt', {})
 
-    connection.kill()
-    connection.kill()
+    const first = connection.kill()
+    const second = connection.kill()
     t.sink().closed('killed')
 
     await expect(waiting).rejects.toThrow('The Cursor agent was stopped')
+    await Promise.all([first, second])
     expect(t.kills).toBe(1)
     expect(connection.isClosed()).toBe(true)
     expect(t.closures).toEqual([])
+  })
+
+})
+
+describe('openAcpConnection: waiting for the tree', () => {
+  it('resolves a kill only once the transport says the process tree is gone, and fails what waits at once', async () => {
+    const t = rig()
+    let gone: () => void = () => {}
+    t.killResult = new Promise<void>((resolve) => {
+      gone = resolve
+    })
+    const connection = t.open()
+    const waiting = connection.request('session/prompt', {}).catch((error: unknown) => error)
+    let done = false
+
+    const killing = connection.kill().then(() => {
+      done = true
+    })
+    expect(await waiting).toBeInstanceOf(AcpError)
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(done).toBe(false)
+    gone()
+    await killing
+
+    expect(done).toBe(true)
   })
 
   it('fails a request whose line cannot be written', async () => {
@@ -193,7 +223,7 @@ describe('openAcpConnection: the end of the process', () => {
         write: () => {
           throw new Error('EPIPE')
         },
-        kill: () => {}
+        kill: () => Promise.resolve()
       }),
       LAUNCH,
       '/work',

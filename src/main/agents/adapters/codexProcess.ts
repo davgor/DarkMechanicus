@@ -4,17 +4,17 @@
  *
  * Launching follows the same rules as every other agent run (`planCliLaunch`): no shell for a
  * user-chosen path, and a Windows `.cmd` shim goes through exactly one cmd.exe parse with the path
- * in one pair of quotes. The subcommand is a constant, never user text. Stopping uses `killTree`, so
- * the shim's child (Node, or the Codex binary) goes with it.
+ * in one pair of quotes. The subcommand is a constant, never user text. Stopping uses the shared
+ * `killProcessTree`, so the shim's child (Node, or the Codex binary) goes with it, and a stop
+ * resolves once the whole tree is gone.
  */
 import { spawn, type ChildProcess } from 'node:child_process'
 import { planCliLaunch, type AgentProbeDeps, type LaunchPlan, type ProbeLaunch } from '../../desktop/agentProbe'
-import { inspectExecutable, killTree } from '../../desktop/agentProbeNode'
+import { inspectExecutable } from '../../desktop/agentProbeNode'
+import { killProcessTree, startsOwnGroup } from '../processTree'
 import type { RpcTransport } from './codexRpc'
 
 const SUBCOMMAND = 'app-server'
-/** How long a stopped process may take to be gone before the stop is reported anyway. */
-const KILL_WAIT_MS = 5_000
 /** What is kept of the program's stderr, to say why it ended. */
 const STDERR_KEEP = 600
 
@@ -79,6 +79,8 @@ class CodexProcess implements RpcTransport {
       shell: false,
       windowsHide: true,
       windowsVerbatimArguments: launch.verbatimArguments,
+      // A group of its own is what lets a stop reach what the program started (macOS and Linux).
+      detached: startsOwnGroup(),
       stdio: ['pipe', 'pipe', 'pipe']
     })
     this.child = child
@@ -116,20 +118,12 @@ class CodexProcess implements RpcTransport {
     }
   }
 
-  kill(): Promise<void> {
-    return new Promise<void>((resolve) => {
-      if (this.closedWith !== null) {
-        resolve()
-        return
-      }
-      this.stopped = true
-      const timer = setTimeout(resolve, KILL_WAIT_MS)
-      this.child.once('close', () => {
-        clearTimeout(timer)
-        resolve()
-      })
-      killTree(this.child)
-    })
+  async kill(): Promise<void> {
+    if (this.closedWith !== null) {
+      return
+    }
+    this.stopped = true
+    await killProcessTree(this.child)
   }
 
   private close(reason: string): void {

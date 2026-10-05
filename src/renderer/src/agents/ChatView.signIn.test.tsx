@@ -16,7 +16,7 @@ afterEach(() => {
 
 const AT = '2026-03-01T10:00:00.000Z'
 const WORDS = 'Not logged in · Please run /login'
-const authRequired = (id = 'auth_1'): ChatItem => ({ id, at: AT, kind: 'auth_required', agent: 'claude', message: WORDS })
+const authRequired = (id = 'auth_1', cutShort?: boolean): ChatItem => ({ id, at: AT, kind: 'auth_required', agent: 'claude', message: WORDS, ...(cutShort === undefined ? {} : { cutShort }) })
 
 const SIGNED_OUT: AgentAuthStatus = { state: 'signed_out', reason: 'Claude Code asked to sign in again.' }
 const SIGNED_IN: AgentAuthStatus = { state: 'signed_in', reason: 'Signed in.' }
@@ -168,5 +168,49 @@ describe('ChatView sign-in cards as records', () => {
     expect(cards).toHaveLength(2)
     expect(within(cards[0] as HTMLElement).queryByRole('button')).toBeNull()
     expect(within(cards[1] as HTMLElement).getByRole('button', { name: 'Sign in' })).toBeTruthy()
+  })
+})
+
+describe('ChatView: Retry only when a turn was cut short', () => {
+  const signedInAgain = (dm: Mounted['dm']): void => act(() => dm.chats.emit({ type: 'agent_auth', chatId: 'chat_1', agent: 'claude', state: 'signed_in' }))
+
+  it('offers Retry for a sign-in that cut a turn short, once the agent is signed in again', async () => {
+    const { dm } = await mountChatView([userMessage('u1', 'Fix the build')])
+    act(() => dm.chats.emitItem('chat_1', authRequired('auth_1', true)))
+    expect(card().queryByRole('button', { name: 'Retry' })).toBeNull()
+
+    signedInAgain(dm)
+
+    expect(card().getByRole('button', { name: 'Retry' })).toBeTruthy()
+  })
+
+  it('offers no Retry for a sign-in lost while no turn ran, which retryTurn has no message for', async () => {
+    const { dm } = await mountChatView([userMessage('u1', 'Fix the build'), assistantText('a1', 'Done.')])
+    act(() => dm.chats.emitItem('chat_1', authRequired('auth_1', false)))
+    expect(card().getByRole('button', { name: 'Sign in' })).toBeTruthy()
+
+    signedInAgain(dm)
+
+    expect(card().queryByRole('button')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
+    expect(composer().disabled).toBe(false)
+  })
+
+  it('offers no Retry in a chat opened with a lost sign-in and no cut-short message, once the status says signed in', async () => {
+    await mountChatView([userMessage('u1', 'Fix the build'), assistantText('a1', 'Done.'), authRequired()], { chat: CHAT, agentStatus: SIGNED_IN })
+
+    expect(card().queryByRole('button')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
+  })
+
+  it('offers Retry in a chat opened with a cut-short message, and none once it is sent again', async () => {
+    const { dm } = await stuck(SIGNED_IN)
+    expect(card().getByRole('button', { name: 'Retry' })).toBeTruthy()
+
+    press('Retry')
+    await settle()
+
+    expect(dm.chats.callsOf('retryTurn')).toEqual([[REF]])
+    expect(card().queryByRole('button', { name: 'Retry' })).toBeNull()
   })
 })

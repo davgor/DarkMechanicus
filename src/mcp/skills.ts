@@ -47,3 +47,16 @@ export const SKILLS: SkillDefinition[] = [
   defineSkill('reviewer', 'Reviewer', reviewerSource),
   defineSkill('sprint-reporter', 'Sprint reporter', sprintReporterSource)
 ]
+
+/**
+ * The Markdown body of a shipped skill, exactly as its MCP prompt serves it. Hosts that cannot load
+ * MCP prompts read the same text from here, so the two cannot drift. Throws for a name that is not a
+ * shipped skill, so a typo cannot ship an empty guide.
+ */
+export function skillBody(name: string): string {
+  const skill = SKILLS.find((candidate) => candidate.name === name)
+  if (skill === undefined) {
+    throw new Error(`There is no shipped skill named ${name}.`)
+  }
+  return skill.body
+}

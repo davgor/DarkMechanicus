@@ -49,25 +49,40 @@ function Details({ detail }: { detail: ApprovalDetail }): JSX.Element {
 }
 
 interface AnswerButtonsProps {
-  describedBy: string
+  /** The id of the request's heading, which each button is about. */
+  titleId: string
+  /** What Allow for this chat covers when that is more than this one tool; null when it is just this tool. */
+  allowChatNote: string | null
   busy: boolean
   onAnswer(decision: ApprovalDecision): void
 }
 
-/** Plain buttons, none focused or marked as the default: Enter does nothing until the person has moved to one on purpose. */
-function AnswerButtons({ describedBy, busy, onAnswer }: AnswerButtonsProps): JSX.Element {
+/**
+ * Plain buttons, none focused or marked as the default: Enter does nothing until the person has moved to one on
+ * purpose. What Allow for this chat covers, when it is more than this tool, is said before the buttons and read with each.
+ */
+function AnswerButtons({ titleId, allowChatNote, busy, onAnswer }: AnswerButtonsProps): JSX.Element {
+  const scopeId = useId()
+  const describedBy = allowChatNote === null ? titleId : `${titleId} ${scopeId}`
   return (
-    <div className="chat-approval-actions" role="group" aria-label="Answer">
-      <Button size="sm" aria-describedby={describedBy} disabled={busy} onClick={() => onAnswer('allow_once')}>
-        Allow once
-      </Button>
-      <Button size="sm" aria-describedby={describedBy} disabled={busy} onClick={() => onAnswer('allow_chat')}>
-        Allow for this chat
-      </Button>
-      <Button size="sm" variant="danger" aria-describedby={describedBy} disabled={busy} onClick={() => onAnswer('deny')}>
-        Deny
-      </Button>
-    </div>
+    <>
+      {allowChatNote === null ? null : (
+        <p id={scopeId} className="chat-approval-scope">
+          {allowChatNote}
+        </p>
+      )}
+      <div className="chat-approval-actions" role="group" aria-label="Answer">
+        <Button size="sm" aria-describedby={describedBy} disabled={busy} onClick={() => onAnswer('allow_once')}>
+          Allow once
+        </Button>
+        <Button size="sm" aria-describedby={describedBy} disabled={busy} onClick={() => onAnswer('allow_chat')}>
+          Allow for this chat
+        </Button>
+        <Button size="sm" variant="danger" aria-describedby={describedBy} disabled={busy} onClick={() => onAnswer('deny')}>
+          Deny
+        </Button>
+      </div>
+    </>
   )
 }
 
@@ -121,7 +136,7 @@ export const ApprovalCard = memo(function ApprovalCard({ request, answer, folder
         </p>
         {request.threadLabel === undefined ? null : <p className="chat-approval-thread">{`Asked by the subagent: ${request.threadLabel}`}</p>}
         <Details detail={detail} />
-        {view === null ? <AnswerButtons describedBy={titleId} busy={answering.busy} onAnswer={send} /> : null}
+        {view === null ? <AnswerButtons titleId={titleId} allowChatNote={detail.allowChatNote} busy={answering.busy} onAnswer={send} /> : null}
         {view?.detail == null ? null : <p className="chat-approval-answer-detail">{view.detail}</p>}
         {answering.error === null ? null : (
           <p role="alert" className="form-error">

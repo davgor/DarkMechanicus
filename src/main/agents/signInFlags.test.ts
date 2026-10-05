@@ -26,36 +26,46 @@ describe('sign-in flags', () => {
     expect(flags.reconcile('codex', SIGNED_IN)).toEqual({ status: SIGNED_IN, cleared: false })
   })
 
-  it('shows signed_out until a sign-in was started and the CLI says signed in', () => {
+  it('shows signed_out while the CLI does not say signed in', () => {
     const flags = createSignInFlags()
     flags.markSignedOut('claude', 'Not logged in')
 
-    expect(flags.reconcile('claude', SIGNED_IN)).toEqual({ status: { state: 'signed_out', reason: 'Claude Code asked to sign in again.' }, cleared: false })
-    flags.signInStarted('claude')
-    expect(flags.reconcile('claude', UNKNOWN).status.state).toBe('signed_out')
+    expect(flags.reconcile('claude', UNKNOWN)).toEqual({ status: { state: 'signed_out', reason: 'Claude Code asked to sign in again.' }, cleared: false })
     expect(flags.reconcile('claude', SIGNED_OUT)).toEqual({ status: SIGNED_OUT, cleared: false })
+    expect(flags.message('claude')).toBe('Not logged in')
+  })
+
+  it('clears the flag when the CLI says signed in, with no sign-in pressed in the app', () => {
+    const flags = createSignInFlags()
+    flags.markSignedOut('claude', 'Not logged in')
+
+    // The person signed in from their own terminal.
     expect(flags.reconcile('claude', SIGNED_IN)).toEqual({ status: SIGNED_IN, cleared: true })
+
     expect(flags.message('claude')).toBeNull()
     expect(flags.reconcile('claude', SIGNED_IN)).toEqual({ status: SIGNED_IN, cleared: false })
   })
 
-  it('needs a new sign-in, and takes the new words, when the agent is found signed out again', () => {
+  it('clears only the agent whose CLI said signed in', () => {
     const flags = createSignInFlags()
     flags.markSignedOut('claude', 'Not logged in')
-    flags.signInStarted('claude')
+    flags.markSignedOut('codex', 'Please sign in again.')
+
+    flags.reconcile('claude', SIGNED_IN)
+
+    expect(flags.message('claude')).toBeNull()
+    expect(flags.message('codex')).toBe('Please sign in again.')
+  })
+
+  it('flags the agent again, with the new words, when a chat finds it signed out after it was cleared', () => {
+    const flags = createSignInFlags()
+    flags.markSignedOut('claude', 'Not logged in')
+    flags.reconcile('claude', SIGNED_IN)
 
     flags.markSignedOut('claude', 'OAuth token has expired')
 
     expect(flags.message('claude')).toBe('OAuth token has expired')
-    expect(flags.reconcile('claude', SIGNED_IN).cleared).toBe(false)
-  })
-
-  it('ignores a sign-in started for an agent that is not flagged', () => {
-    const flags = createSignInFlags()
-
-    flags.signInStarted('claude')
-    flags.markSignedOut('claude', 'Not logged in')
-
-    expect(flags.reconcile('claude', SIGNED_IN).cleared).toBe(false)
+    expect(flags.reconcile('claude', UNKNOWN).status.state).toBe('signed_out')
+    expect(flags.reconcile('claude', SIGNED_IN).cleared).toBe(true)
   })
 })

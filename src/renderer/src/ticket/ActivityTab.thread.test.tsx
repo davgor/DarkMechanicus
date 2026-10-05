@@ -133,14 +133,15 @@ describe('Activity tab of an attempt bound to a chat thread', () => {
 })
 
 describe('Activity tab following the chat', () => {
-  it('opens the chat once and asks for the bound thread of the attempt', async () => {
+  it('reads the chat once, never opening it, and asks for the bound thread of the attempt', async () => {
     seed([THREAD, said('s1', 2, 'Reading')])
     serve(page([claim()], 2))
     renderTab()
     await screen.findByText('Reading')
 
     expect(dm.chats.callsOf('boundThreads')[0]).toEqual([{ folder: FOLDER, attemptId: ATTEMPT }])
-    expect(dm.chats.callsOf('open')).toEqual([[{ folder: FOLDER, chatId: 'chat_o' }]])
+    expect(dm.chats.callsOf('read')).toEqual([[{ folder: FOLDER, chatId: 'chat_o' }]])
+    expect(dm.chats.callsOf('open')).toEqual([])
   })
 
   it('adds an item the thread stores while the tab is open, and a text as it is being written', async () => {
@@ -228,7 +229,7 @@ describe('Activity tab choosing the thread to follow', () => {
 
   it('keeps the timeline when the chat cannot be read, and says so', async () => {
     seed([THREAD])
-    dm.chats.failures.open = { code: 'not_found', message: 'Chat not found.' }
+    dm.chats.failures.read = { code: 'not_found', message: 'Chat not found.' }
     serve(page([claim()], 2))
     renderTab()
 
@@ -316,6 +317,7 @@ describe('Activity tab of an attempt bound to no chat thread', () => {
     expect(screen.queryByRole('button', { name: 'Open chat' })).toBe(null)
     expect(screen.queryByText('Reading')).toBe(null)
     expect(dm.chats.callsOf('open')).toEqual([])
+    expect(dm.chats.callsOf('read')).toEqual([])
     expect(dm.chats.subscribers()).toBe(0)
   })
 
@@ -330,6 +332,7 @@ describe('Activity tab of an attempt bound to no chat thread', () => {
     expect(rows()).toHaveLength(1)
     expect(screen.queryByRole('button', { name: 'Open chat' })).toBe(null)
     expect(dm.chats.callsOf('open')).toEqual([])
+    expect(dm.chats.callsOf('read')).toEqual([])
   })
 
 })
@@ -359,6 +362,7 @@ describe('Activity tab when the lookup goes wrong', () => {
     await settle()
 
     expect(dm.chats.callsOf('open')).toEqual([])
+    expect(dm.chats.callsOf('read')).toEqual([])
     expect(dm.chats.subscribers()).toBe(0)
   })
 
@@ -374,5 +378,101 @@ describe('Activity tab when the lookup goes wrong', () => {
     expect(rows()).toHaveLength(1)
     expect(screen.queryByRole('alert')).toBe(null)
     expect(screen.queryByRole('button', { name: 'Open chat' })).toBe(null)
+  })
+})
+
+const FIRST = 'at_202_1'
+
+function claimOf(attemptId: string, number: number, at: number): ActivityEntry {
+  const worker = { label: 'worker-a', modelId: 'model-large', hostId: 'claude-code', effort: null, rationale: null }
+  return { sessionId: 'ss_w', attemptId, ticketId: 'tk_202', kind: 'claim', id: `claim:${attemptId}`, at: minute(at), number, worker }
+}
+
+function rejected(at: number): ActivityEntry {
+  return { sessionId: 'ss_o', attemptId: FIRST, ticketId: 'tk_202', kind: 'decision', id: 'decision:1', at: minute(at), outcome: 'rejected', reasons: ['No test'], notes: '', decidedBy: 'orchestrator' }
+}
+
+/** The thread worked attempt 1 from minute 0 to 5, was resumed, and worked attempt 2 from minute 10. */
+function seedBoth(): void {
+  seed(
+    [
+      THREAD,
+      said('s1', 2, 'First try: reading the ticket'),
+      ran('r1', 4, 'npm test'),
+      said('s2', 12, 'Second try: fixing the test'),
+      ran('r2', 13, 'npm run lint')
+    ],
+    [ORCHESTRATOR]
+  )
+  dm.chats.bound.attempts[FIRST] = [WORKER]
+  dm.chats.bound.attempts[ATTEMPT] = [WORKER]
+  dm.handlers.getAttemptTimeline = (input) => {
+    const attemptId = (input as { attemptId: string }).attemptId
+    return attemptId === FIRST
+      ? { ...page([claimOf(FIRST, 1, 0), rejected(5)], 3), attemptId: FIRST, state: 'rejected', isLive: false }
+      : page([claimOf(ATTEMPT, 2, 10)], 2)
+  }
+}
+
+function renderAttempt(attemptId: string): ReturnType<typeof render> {
+  return render(
+    <ActivityTab
+      folderPath={FOLDER}
+      attempts={[attempt('DM-202', 1, 'rejected'), attempt('DM-202', 2, 'running')]}
+      attemptId={attemptId}
+      onChoose={() => undefined}
+      onOpenChat={() => undefined}
+      scheduler={scheduler}
+    />
+  )
+}
+
+describe('Activity tab of a thread that served two attempts of the same ticket', () => {
+  it('shows the first attempt only what the thread did from its claim to its end', async () => {
+    seedBoth()
+    renderAttempt(FIRST)
+
+    await screen.findByText('First try: reading the ticket')
+    await settle()
+
+    const lines = rows()
+    expect(lines.map((line) => ['Claimed', 'First try', 'npm test', 'Rejected', 'Second try', 'npm run lint'].find((part) => line.includes(part)))).toEqual([
+      'Claimed',
+      'First try',
+      'npm test',
+      'Rejected'
+    ])
+    expect(screen.queryByText(/Second try/)).toBe(null)
+    expect(screen.queryByText(/npm run lint/)).toBe(null)
+  })
+
+  it('shows the second attempt only what the thread did from its claim on, while it is open', async () => {
+    seedBoth()
+    renderAttempt(ATTEMPT)
+
+    await screen.findByText('Second try: fixing the test')
+    await settle()
+
+    expect(rows().map((line) => ['Claimed', 'First try', 'npm test', 'Second try', 'npm run lint'].find((part) => line.includes(part)))).toEqual(['Claimed', 'Second try', 'npm run lint'])
+    expect(screen.queryByText(/First try/)).toBe(null)
+    expect(screen.queryByText(/npm test/)).toBe(null)
+    act(() => dm.chats.emitItem('chat_o', ran('r3', 14, 'npm run build')))
+    expect(await screen.findByText(/npm run build/)).toBeTruthy()
+  })
+
+})
+
+describe('Activity tab of an attempt that has ended, with its thread still going', () => {
+  it('stops showing what the thread does once the attempt has ended', async () => {
+    seedBoth()
+    renderAttempt(FIRST)
+    await screen.findByText('First try: reading the ticket')
+
+    act(() => dm.chats.emitItem('chat_o', ran('r4', 20, 'npm run later')))
+    act(() => dm.chats.emit({ type: 'assistant_delta', chatId: 'chat_o', itemId: 'typing', delta: 'Still going', threadId: 'th_1' }))
+    await settle()
+
+    expect(screen.queryByText(/npm run later/)).toBe(null)
+    expect(screen.queryByText(/Still going/)).toBe(null)
   })
 })

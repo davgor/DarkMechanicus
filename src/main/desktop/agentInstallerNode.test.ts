@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto'
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { removeScratch } from '../../test/removeScratch'
 import type { InstallLaunch } from './agentInstallRecipes'
 import {
   createInstallerFiles,
@@ -52,7 +53,7 @@ beforeAll(() => {
 })
 
 afterAll(() => {
-  rmSync(scratch, { recursive: true, force: true })
+  removeScratch(scratch)
 })
 
 describe('download', () => {

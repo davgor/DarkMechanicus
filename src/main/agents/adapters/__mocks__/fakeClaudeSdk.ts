@@ -270,6 +270,7 @@ export function fakeProcesses(log: string[], stderr = ''): FakeProcesses {
     killAll: () => {
       processes.killed += 1
       log.push('killAll')
+      return Promise.resolve()
     },
     stderrTail: () => stderr
   }

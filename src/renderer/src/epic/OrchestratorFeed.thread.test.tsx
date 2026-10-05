@@ -113,7 +113,8 @@ describe('the live feed of a run orchestrated in a chat', () => {
     expect(lines[3]).toContain('Planning the sprint')
     expect(lines[4]).toContain('Run started')
     expect(chats.callsOf('boundThreads')).toEqual([[{ folder: FOLDER, runId: 'rn_2' }]])
-    expect(chats.callsOf('open')).toEqual([[{ folder: FOLDER, chatId: 'chat_o' }]])
+    expect(chats.callsOf('read')).toEqual([[{ folder: FOLDER, chatId: 'chat_o' }]])
+    expect(chats.callsOf('open')).toEqual([])
   })
 
   it('adds what the chat stores while the feed is open, and a text as it is being written', async () => {
@@ -168,6 +169,7 @@ describe('the live feed linking to the chat', () => {
     await settle()
     expect(chats.callsOf('boundThreads')).toEqual([])
     expect(chats.callsOf('open')).toEqual([])
+    expect(chats.callsOf('read')).toEqual([])
 
     fireEvent.click(chip)
     await screen.findByText('Planning the sprint')
@@ -178,7 +180,7 @@ describe('the live feed linking to the chat', () => {
   })
 
   it('keeps the run entries when the chat cannot be read, and says so', async () => {
-    chats.failures.open = { code: 'not_found', message: 'Chat not found.' }
+    chats.failures.read = { code: 'not_found', message: 'Chat not found.' }
     const feed = await openFeed(backendWith([]))
 
     expect(within(feed).getByRole('alert').textContent).toBe('Chat not found.')
@@ -219,6 +221,7 @@ describe('the live feed of a run no chat orchestrates', () => {
     expect(within(feed).queryByRole('button', { name: 'Open chat' })).toBe(null)
     expect(within(feed).queryByText('Planning the sprint')).toBe(null)
     expect(chats.callsOf('open')).toEqual([])
+    expect(chats.callsOf('read')).toEqual([])
     expect(chats.subscribers()).toBe(0)
   })
 
@@ -227,6 +230,7 @@ describe('the live feed of a run no chat orchestrates', () => {
 
     expect(within(feed).queryByRole('button', { name: 'Open chat' })).toBe(null)
     expect(chats.callsOf('open')).toEqual([])
+    expect(chats.callsOf('read')).toEqual([])
   })
 
   it('is just as plain when the lookup fails', async () => {

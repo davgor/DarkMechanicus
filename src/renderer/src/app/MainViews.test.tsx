@@ -48,10 +48,14 @@ describe('UnavailableView', () => {
 })
 
 describe('LoadingView', () => {
-  it('announces that folders are loading', () => {
-    render(<LoadingView />)
+  it.each([
+    ['folders', 'Loading folders…'],
+    ['chat', 'Loading chat…'],
+    ['agents', 'Loading agents…']
+  ] as const)('announces that the %s are loading', (what, words) => {
+    render(<LoadingView what={what} />)
     const status = screen.getByRole('status')
-    expect(status.textContent).toBe('Loading folders…')
+    expect(status.textContent).toBe(words)
     expect(status.getAttribute('aria-busy')).toBe('true')
   })
 })

@@ -26,7 +26,7 @@
  * transcript until the agent resumes it.
  */
 import type { ChatAdapterEvent, ChatItem } from '../../../shared/agents/chat'
-import { asRecord, asText, scopedId, type Phase } from './codexItems'
+import { asRecord, asText, clip, scopedId, type Phase } from './codexItems'
 
 type ThreadItem = Extract<ChatItem, { kind: 'thread' }>
 type ThreadState = ThreadItem['state']
@@ -82,7 +82,7 @@ function lineOf(text: string | null | undefined): string {
   if (line === '') {
     return FALLBACK_LABEL
   }
-  return line.length > MAX_LABEL_CHARS ? `${line.slice(0, MAX_LABEL_CHARS)}…` : line
+  return clip(line, MAX_LABEL_CHARS)
 }
 
 /** The part of a v2 agent path (`/root/read_notes`) that names the agent. */

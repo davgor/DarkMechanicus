@@ -30,9 +30,16 @@
  * one `auth_required` item, and the result that follows ends the turn without an error
  * (`authRequired`), so the turn is not also reported as a failure. A rejection inside a subagent is
  * not the chat's own and is dropped like any error message in a thread.
+ *
+ * Account problems. The same message with `error: 'oauth_org_not_allowed'`, `'account_on_hold'` or
+ * `'verification_required'` (the SDK's names; see `claudeAccountProblems.ts`) is a state of the person's
+ * account that signing in cannot fix. It becomes one `error` item that names the problem and carries the
+ * CLI's words, never an `auth_required` item, and the result that follows ends the turn without an error.
  */
-import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk'
+import type { SDKAssistantMessageError, SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 import type { ChatAdapterEvent, ChatItem } from '../../../shared/agents/chat'
+import { clipMasked } from '../claimTokenMask'
+import { accountProblemOf, accountWords } from './claudeAccountProblems'
 
 type ToolCallItem = Extract<ChatItem, { kind: 'tool_call' }>
 type ThreadItem = Extract<ChatItem, { kind: 'thread' }>
@@ -96,7 +103,7 @@ function labelOf(...candidates: unknown[]): string {
   for (const candidate of candidates) {
     const label = typeof candidate === 'string' ? candidate.trim() : ''
     if (label !== '') {
-      return label.length > MAX_LABEL_CHARS ? `${label.slice(0, MAX_LABEL_CHARS)}…` : label
+      return clipMasked(label, MAX_LABEL_CHARS)
     }
   }
   return FALLBACK_LABEL
@@ -107,12 +114,10 @@ function idOf(thread: Thread | null): string | undefined {
   return thread === null ? undefined : thread.item.id
 }
 
-/** A tool's input as plain JSON with long strings cut, which is what the transcript stores. */
+/** A tool's input as plain JSON with long strings cut (claim tokens masked first, so a cut cannot leave part of one), which is what the transcript stores. */
 export function plainInput(input: unknown): ToolInput {
   try {
-    const json = JSON.stringify(input, (_key, value: unknown) =>
-      typeof value === 'string' && value.length > MAX_INPUT_STRING ? `${value.slice(0, MAX_INPUT_STRING)}…` : value
-    )
+    const json = JSON.stringify(input, (_key, value: unknown) => (typeof value === 'string' ? clipMasked(value, MAX_INPUT_STRING) : value))
     return JSON.parse(json) as ToolInput
   } catch {
     return {}
@@ -125,7 +130,7 @@ function resultText(content: unknown): string | null {
   if (text === '') {
     return null
   }
-  return text.length > MAX_RESULT_CHARS ? `${text.slice(0, MAX_RESULT_CHARS)}…` : text
+  return clipMasked(text, MAX_RESULT_CHARS)
 }
 
 function textBlocks(blocks: unknown[]): string {
@@ -169,6 +174,8 @@ export class TranscriptMapper {
   private readonly agentSpawns = new Map<string, string>()
   /** The CLI rejected the sign-in during the turn that is running. */
   private authReported = false
+  /** The CLI reported a problem with the account during the turn that is running. */
+  private problemReported = false
 
   constructor(private readonly deps: TranscriptDeps) {}
 
@@ -244,9 +251,10 @@ export class TranscriptMapper {
 
   private assistant(message: Extract<SDKMessage, { type: 'assistant' }>, events: ChatAdapterEvent[], thread: Thread | null): void {
     if (message.error !== undefined) {
-      // The CLI's own notice of an API failure: the failed result reports it once, except a rejected sign-in, which has an item of its own.
-      if (message.error === 'authentication_failed' && thread === null) {
-        this.rejectedSignIn(message, events)
+      // The CLI's own notice of an API failure: the failed result reports it once, except a rejected sign-in
+      // and a problem with the account, which have an item of their own.
+      if (thread === null) {
+        this.rejected(message.error, message, events)
       }
       return
     }
@@ -261,6 +269,21 @@ export class TranscriptMapper {
         this.startCall(block, thread, events)
       }
     })
+  }
+
+  /** The chat's own assistant message carries an `error`: a lost sign-in or a problem with the account has an item; any other waits for the failed result. */
+  private rejected(error: SDKAssistantMessageError, message: Extract<SDKMessage, { type: 'assistant' }>, events: ChatAdapterEvent[]): void {
+    if (error === 'authentication_failed') {
+      this.rejectedSignIn(message, events)
+      return
+    }
+    const problem = accountProblemOf(error)
+    if (problem === undefined || this.problemReported) {
+      return
+    }
+    this.problemReported = true
+    const words = textBlocks(message.message.content as unknown[]).trim()
+    events.push(this.item({ id: `claude_account_${message.uuid}`, kind: 'error', message: accountWords(problem, words), problem }))
   }
 
   private rejectedSignIn(message: Extract<SDKMessage, { type: 'assistant' }>, events: ChatAdapterEvent[]): void {
@@ -421,6 +444,11 @@ export class TranscriptMapper {
       // The turn failed because the sign-in was rejected, which the item already says.
       this.authReported = false
       return { error: null, startupFailure: false, authRequired: true }
+    }
+    if (this.problemReported) {
+      // The turn failed because of the account, which the item already says; the process is fine.
+      this.problemReported = false
+      return { error: null, startupFailure: false, authRequired: false }
     }
     if (message.subtype === 'success') {
       return { error: message.is_error ? message.result || 'The turn failed.' : null, startupFailure: false, authRequired: false }

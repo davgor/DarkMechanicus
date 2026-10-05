@@ -6,15 +6,16 @@
  * Dark Mechanicus call is named by what it did, never by its input.
  *
  * Which thread of which chat belongs to an attempt or a run is the main process's binding
- * (`chats:boundThreads`); `chooseBoundThread` picks the one to follow. `mergeByTime` puts the rows among
- * the records the places already list, in time order.
+ * (`chats:boundThreads`); `chooseBoundThread` picks the one to follow. `clipRows` keeps the rows of one
+ * attempt's window when a thread served several, and `mergeByTime` puts the rows among the records the
+ * places already list, in time order.
  */
 import type { ApprovalRequestItem, ChatItem } from '../../../shared/agents/chat'
 import type { BoundThread } from '../../../shared/agents/chatApi'
 import type { Tone } from '../graph/ticketStates'
 import { actionMarker, markerText } from './actionMarkers'
 import { transcriptRows } from './approvalModel'
-import { callStatus, callSummary, type TranscriptEntry } from './chatViewModel'
+import { callStatus, callSummary, problemNotice, type TranscriptEntry } from './chatViewModel'
 import { threadStateView } from './threadModel'
 
 type ToolCallItem = Extract<ChatItem, { kind: 'tool_call' }>
@@ -38,7 +39,7 @@ export type StreamRow =
 
 type Body = { [K in StreamRow['kind']]: Omit<Extract<StreamRow, { kind: K }>, keyof RowBase> & { tone: Tone } }[StreamRow['kind']]
 
-const TOOL_TONES: Readonly<Record<ToolCallItem['status'], Tone>> = { running: 'running', completed: 'neutral', failed: 'failed', denied: 'blocked' }
+const TOOL_TONES: Readonly<Record<ToolCallItem['status'], Tone>> = { running: 'running', completed: 'neutral', failed: 'failed', denied: 'blocked', cancelled: 'neutral' }
 const THREAD_TONES: Readonly<Record<ThreadItem['state'], Tone>> = { running: 'running', done: 'accepted', failed: 'failed' }
 
 /** A Dark Mechanicus call reads as "claimed DM-12" (its words, not its input); any other as its tool and the input that says what it does. */
@@ -72,7 +73,7 @@ function bodyOf(entry: TranscriptEntry, answer: DecisionItem | null): Body | nul
     case 'thread':
       return { kind: 'thread', tone: THREAD_TONES[entry.state], label: entry.label, state: threadStateView(entry.state) }
     case 'error':
-      return { kind: 'error', tone: 'failed', message: entry.message }
+      return { kind: 'error', tone: 'failed', message: entry.problem === undefined ? entry.message : `${problemNotice(entry.problem).title}: ${entry.message}` }
     default:
       return null
   }
@@ -126,6 +127,32 @@ export function streamRows(entries: readonly TranscriptEntry[], threadId: string
 function timeOf(at: string | null): number {
   const time = at === null ? Number.NaN : Date.parse(at)
   return Number.isNaN(time) ? Number.POSITIVE_INFINITY : time
+}
+
+/** A stretch of time, both ends included; a null end is open (from the beginning, or to now). */
+export interface RowWindow {
+  from: string | null
+  to: string | null
+}
+
+/** A window's end as a time; an end that is null or cannot be read is open. */
+function boundOf(at: string | null, open: number): number {
+  const time = at === null ? Number.NaN : Date.parse(at)
+  return Number.isNaN(time) ? open : time
+}
+
+/**
+ * The rows that happened inside the window. A thread that served two attempts holds both attempts' rows;
+ * each attempt shows its own. A text still being written (no time yet) is happening now, so it is inside
+ * only a window that has not ended.
+ */
+export function clipRows(rows: readonly StreamRow[], window: RowWindow): StreamRow[] {
+  const from = boundOf(window.from, Number.NEGATIVE_INFINITY)
+  const to = boundOf(window.to, Number.POSITIVE_INFINITY)
+  return rows.filter((row) => {
+    const time = timeOf(row.at)
+    return time >= from && time <= to
+  })
 }
 
 type Merged<R, S> = { source: 'record'; item: R } | { source: 'chat'; row: S }

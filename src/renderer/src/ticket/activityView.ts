@@ -6,6 +6,7 @@
 import type { ActivityEntry, AttemptTimelineView } from '../../../shared/domain/activity'
 import type { AttemptState } from '../../../shared/domain/status'
 import type { AttemptView } from '../../../shared/domain/views'
+import type { RowWindow } from '../agents/threadStream'
 import { ATTEMPT_LABELS, ATTEMPT_TONES, type Tone } from '../graph/ticketStates'
 
 export interface ActivityItem {
@@ -172,6 +173,25 @@ export function endedSummary(view: Pick<AttemptTimelineView, 'state' | 'isLive' 
   }
   const detail = ENDINGS[view.state]?.(view.entries) ?? ''
   return { label: capitalized(ATTEMPT_LABELS[view.state]), tone: ATTEMPT_TONES[view.state], detail }
+}
+
+/** When an entry stopped: a worker seen alive was working until its last heartbeat, anything else is a moment. */
+function endOf(entry: ActivityEntry): string {
+  return entry.kind === 'alive' ? entry.until : entry.at
+}
+
+/**
+ * The attempt's own stretch of time, for telling its rows apart from the other attempts' in a chat thread
+ * that served several: from its claim to its end (the last thing on record, once it is closed), and to now
+ * while it is open. A bound without anything to give it is open.
+ */
+export function attemptWindow(view: Pick<AttemptTimelineView, 'isLive' | 'entries'>): RowWindow {
+  const from = view.entries.find((entry) => entry.kind === 'claim')?.at ?? null
+  if (view.isLive) {
+    return { from, to: null }
+  }
+  const ends = view.entries.map(endOf).sort((a, b) => Date.parse(a) - Date.parse(b))
+  return { from, to: ends[ends.length - 1] ?? null }
 }
 
 /** The attempt the tab shows when none was asked for: the ticket's latest that is still current, else its latest at all. */

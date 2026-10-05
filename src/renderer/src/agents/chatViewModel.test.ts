@@ -223,6 +223,22 @@ describe('sign-in state of a chat', () => {
     expect(ids(state.entries)).toEqual(['u1', 'auth_1'])
   })
 
+})
+
+describe('sign-in state of a chat: what is pushed', () => {
+  it('finds the agent signed out with nothing to retry when the item says the sign-in was lost outside a turn', () => {
+    const outside: ChatItem = { ...AUTH, cutShort: false }
+    const state = reduceSession(readyChat([user('u1'), reply('r1', 'fine')]), push({ type: 'item', chatId: 'chat_1', item: outside }))
+    expect(state.auth).toEqual({ agent: 'signed_out', cutShort: false, retried: false })
+    expect(signInCardState(reduceSession(state, push({ type: 'agent_auth', chatId: 'chat_1', agent: 'claude', state: 'signed_in' })).auth)).toBe('past')
+  })
+
+  it('keeps the turn that was already waiting to be retried when a later item says no turn was cut short', () => {
+    const waiting = readyChat([user('u1'), AUTH], { cutShortMessageId: 'u1' })
+    const state = reduceSession(waiting, push({ type: 'item', chatId: 'chat_1', item: { ...AUTH, id: 'auth_2', cutShort: false } }))
+    expect(state.auth.cutShort).toBe(true)
+  })
+
   it('follows the sign-in the main process reports for the chat’s agent, and forgets an earlier retry when it is lost again', () => {
     let state = reduceSession(readyChat([user('u1'), AUTH], { cutShortMessageId: 'u1' }), { type: 'retried' })
     state = reduceSession(state, push({ type: 'agent_auth', chatId: 'chat_1', agent: 'claude', state: 'signed_out' }))
@@ -292,6 +308,7 @@ describe('call views', () => {
     expect(callStatus('completed')).toEqual({ state: 'accepted', label: 'Done' })
     expect(callStatus('failed')).toEqual({ state: 'failed', label: 'Failed' })
     expect(callStatus('denied')).toEqual({ state: 'blocked', label: 'Denied' })
+    expect(callStatus('cancelled')).toEqual({ state: 'canceled', label: 'Cancelled' })
   })
 })
 

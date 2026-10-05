@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CHAT_ROLES, canSavePlans, chatItemSchema, chatRecordSchema, type ChatItem } from './chat'
+import { CHAT_ROLES, ERROR_PROBLEMS, canSavePlans, chatItemSchema, chatRecordSchema, type ChatItem } from './chat'
 
 const BASE = { id: 'it_1', at: '2026-01-01T00:00:01.000Z' }
 
@@ -8,11 +8,13 @@ const ITEMS: ChatItem[] = [
   { ...BASE, kind: 'assistant_text', text: 'hi there' },
   { ...BASE, kind: 'tool_call', name: 'Bash', input: { command: 'npm test', nested: { a: [1, 'b'] } }, status: 'running', resultSummary: null },
   { ...BASE, kind: 'tool_call', name: 'Bash', input: {}, status: 'completed', resultSummary: '3 passed' },
+  { ...BASE, kind: 'tool_call', name: 'Bash', input: {}, status: 'cancelled', resultSummary: null },
   { ...BASE, kind: 'approval_request', requestId: 'req_1', category: 'command', tool: 'Bash', summary: 'Run npm test', input: { command: 'npm test' } },
   { ...BASE, kind: 'approval_decision', requestId: 'req_1', decision: 'allow_once' },
   { ...BASE, kind: 'approval_decision', requestId: 'req_1', decision: 'cancelled', automatic: false },
   { ...BASE, kind: 'model_change', from: null, to: 'opus' },
   { ...BASE, kind: 'error', message: 'agent exited' },
+  { ...BASE, kind: 'turn_stopped' },
   { ...BASE, kind: 'context_reset', reason: 'model_change' },
   { ...BASE, kind: 'auth_required', agent: 'claude', message: 'Not logged in · Please run /login' },
   { ...BASE, kind: 'thread', parentItemId: 'it_0', label: 'Summarize a.txt', state: 'running' },
@@ -58,6 +60,43 @@ describe('chatItemSchema', () => {
     expect(chatItemSchema.parse(base)).not.toHaveProperty('threadId')
     expect(chatItemSchema.parse({ ...base, threadId: 'th_1' })).toHaveProperty('threadId', 'th_1')
     expect(chatItemSchema.safeParse({ ...base, threadId: '' }).success).toBe(false)
+  })
+})
+
+describe('chatItemSchema: account problems and sign-in notices', () => {
+  it('reads an error that names a problem with the account, and an error that names none (stored before)', () => {
+    const error = { ...BASE, kind: 'error', message: 'Your account is on hold.' }
+    expect(chatItemSchema.parse(error)).not.toHaveProperty('problem')
+    for (const problem of ERROR_PROBLEMS) {
+      expect(chatItemSchema.parse({ ...error, problem })).toHaveProperty('problem', problem)
+    }
+    expect(ERROR_PROBLEMS).toEqual(['organization_not_allowed', 'account_on_hold', 'verification_required'])
+    expect(chatItemSchema.safeParse({ ...error, problem: 'oauth_org_not_allowed' }).success).toBe(false)
+    expect(chatItemSchema.safeParse({ ...error, problem: 'authentication_failed' }).success).toBe(false)
+  })
+
+  it('reads an auth_required item that says whether a turn was cut short, and one stored without it', () => {
+    const item = { ...BASE, kind: 'auth_required', agent: 'claude', message: 'Not logged in' }
+    expect(chatItemSchema.parse(item)).not.toHaveProperty('cutShort')
+    expect(chatItemSchema.parse({ ...item, cutShort: false })).toHaveProperty('cutShort', false)
+    expect(chatItemSchema.parse({ ...item, cutShort: true })).toHaveProperty('cutShort', true)
+    expect(chatItemSchema.safeParse({ ...item, cutShort: 'yes' }).success).toBe(false)
+  })
+})
+
+describe('chatItemSchema: stopped turns and cancelled calls', () => {
+  it("reads a stopped turn in the chat's own thread and in a nested one", () => {
+    const stopped = { ...BASE, kind: 'turn_stopped' }
+    expect(chatItemSchema.parse(stopped)).not.toHaveProperty('threadId')
+    expect(chatItemSchema.parse({ ...stopped, threadId: 'th_1' })).toHaveProperty('threadId', 'th_1')
+  })
+
+  it('knows a tool call that was cancelled, and still reads calls stored with the older statuses', () => {
+    const call = { ...BASE, kind: 'tool_call', name: 'Bash', input: {}, resultSummary: null }
+    for (const status of ['running', 'completed', 'failed', 'denied', 'cancelled']) {
+      expect(chatItemSchema.safeParse({ ...call, status }).success).toBe(true)
+    }
+    expect(chatItemSchema.safeParse({ ...call, status: 'abandoned' }).success).toBe(false)
   })
 })
 

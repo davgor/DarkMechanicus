@@ -11,7 +11,7 @@ import { useBoundThread } from '../agents/useBoundThread'
 import { streamEntries, useThreadStream, type StreamEntry, type ThreadStream } from '../agents/useThreadStream'
 import { StatePill } from '../epic/StatePill'
 import { ATTEMPT_LABELS, ATTEMPT_TONES } from '../graph/ticketStates'
-import { activityItems, clockTime, endedSummary, latestAttemptId, type ActivityItem } from './activityView'
+import { activityItems, attemptWindow, clockTime, endedSummary, latestAttemptId, type ActivityItem } from './activityView'
 import { useFollowScroll } from './useFollowScroll'
 
 interface ActivityTabProps {
@@ -168,9 +168,12 @@ interface TimelineProps {
   scheduler: Scheduler
 }
 
-/** The log with the attempt's chat thread followed: the chat is opened once and its pushes keep the rows current. */
+/**
+ * The log with the attempt's chat thread followed: the chat is read once (never opened) and its pushes keep the
+ * rows current. A thread that served other attempts too shows only the rows from this attempt's window.
+ */
 function BoundLog({ view, thread }: { view: AttemptTimelineView; thread: BoundThread }): JSX.Element {
-  const stream = useThreadStream(thread)
+  const stream = useThreadStream(thread, attemptWindow(view))
   return (
     <>
       {stream.error === null ? null : <p role="alert" className="tp-error">{stream.error}</p>}

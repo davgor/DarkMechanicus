@@ -62,6 +62,18 @@ describe('cursorLaunch', () => {
     })
   })
 
+  it('leaves a plain model id unquoted for a shim, since the launcher quotes only what needs it', () => {
+    const launch = cursorLaunch('C:\\Tools\\agent.cmd', { command: 'acp', model: 'gpt-5.3-codex' }, WINDOWS)
+
+    expect(launch.args.at(-1)).toBe('""C:\\Tools\\agent.cmd" --model gpt-5.3-codex acp"')
+  })
+
+  it('keeps an ampersand in the shim path literal when a model is passed too', () => {
+    const launch = cursorLaunch('C:\\a & b\\agent.cmd', { command: 'acp', model: 'gpt-5.4[a=b]' }, WINDOWS)
+
+    expect(launch.args.at(-1)).toBe('""C:\\a & b\\agent.cmd" --model "gpt-5.4[a=b]" acp"')
+  })
+
   it('runs a Windows shim without a model like the other probes do', () => {
     const comspec = 'C:\\Windows\\System32\\cmd.exe'
 

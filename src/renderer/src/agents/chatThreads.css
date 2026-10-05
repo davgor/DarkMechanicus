@@ -181,6 +181,10 @@
   color: var(--st-failed);
 }
 
+.chat-marker-cancelled .chat-marker-icon {
+  color: var(--muted);
+}
+
 .chat-marker-text {
   white-space: nowrap;
 }

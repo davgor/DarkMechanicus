@@ -1,14 +1,21 @@
 import { spawn } from 'node:child_process'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { killTree } from '../../desktop/agentProbeNode'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FakeChild } from '../__mocks__/fakeChild'
+import { killProcessTree } from '../processTree'
 import { spawnCodexTransport } from './codexProcess'
 
 vi.mock('node:child_process', () => ({ spawn: vi.fn() }))
-vi.mock('../../desktop/agentProbeNode', () => ({
-  inspectExecutable: (): 'ok' => 'ok',
-  killTree: vi.fn()
+vi.mock('../../desktop/agentProbeNode', () => ({ inspectExecutable: (): 'ok' => 'ok' }))
+vi.mock('../processTree', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../processTree')>()),
+  killProcessTree: vi.fn()
 }))
+
+const platform = Object.getOwnPropertyDescriptor(process, 'platform')
+
+function pretendPlatform(name: NodeJS.Platform): void {
+  Object.defineProperty(process, 'platform', { value: name })
+}
 
 /** Lets queued stream callbacks run. */
 function settle(): Promise<void> {
@@ -16,10 +23,10 @@ function settle(): Promise<void> {
 }
 
 /** Starts the transport against a fake child and records what it reports. */
-function start(): { child: FakeChild; transport: ReturnType<typeof spawnCodexTransport>; closes: string[]; lines: string[] } {
+function start(path = process.execPath): { child: FakeChild; transport: ReturnType<typeof spawnCodexTransport>; closes: string[]; lines: string[] } {
   const child = new FakeChild()
   vi.mocked(spawn).mockReturnValue(child.asChild())
-  const transport = spawnCodexTransport(process.execPath, '/work/folder')
+  const transport = spawnCodexTransport(path, '/work/folder')
   const seen = { closes: [] as string[], lines: [] as string[] }
   transport.onLine((line) => seen.lines.push(line))
   transport.onClose((reason) => seen.closes.push(reason))
@@ -28,7 +35,14 @@ function start(): { child: FakeChild; transport: ReturnType<typeof spawnCodexTra
 
 beforeEach(() => {
   vi.mocked(spawn).mockReset()
-  vi.mocked(killTree).mockReset()
+  vi.mocked(killProcessTree).mockReset()
+  vi.mocked(killProcessTree).mockResolvedValue(true)
+})
+
+afterEach(() => {
+  if (platform !== undefined) {
+    Object.defineProperty(process, 'platform', platform)
+  }
 })
 
 describe('how the program ended', () => {
@@ -95,7 +109,7 @@ describe('after the program ended', () => {
     await transport.kill()
 
     expect(child.written).toEqual([])
-    expect(killTree).not.toHaveBeenCalled()
+    expect(killProcessTree).not.toHaveBeenCalled()
   })
 })
 
@@ -132,29 +146,50 @@ describe('while the program runs', () => {
     expect(lines).toEqual(['{"a":1}', '{"b":2}'])
   })
 
-  it('stops the whole tree and settles once the program has closed, reporting it as stopped', async () => {
+})
+
+describe('while the program is stopped', () => {
+  it('has the shared tree killer end the whole tree, and settles only once the tree is gone', async () => {
+    const { child, transport } = start()
+    let treeGone: () => void = () => {}
+    vi.mocked(killProcessTree).mockReturnValue(
+      new Promise<boolean>((resolve) => {
+        treeGone = () => {
+          resolve(true)
+        }
+      })
+    )
+    let done = false
+
+    const stopping = transport.kill().then(() => {
+      done = true
+    })
+    await settle()
+    expect(killProcessTree).toHaveBeenCalledWith(child)
+    expect(done).toBe(false)
+    treeGone()
+    await stopping
+
+    expect(done).toBe(true)
+  })
+
+  it('reports the end it was given as a stop, not as a crash', async () => {
     const { child, transport, closes } = start()
 
     const stopping = transport.kill()
-    expect(killTree).toHaveBeenCalledWith(child)
     child.emit('close', null, 'SIGKILL')
     await stopping
 
     expect(closes).toEqual(['Codex was stopped.'])
   })
 
-  it('settles a stop after a few seconds even if the program never reports closing', async () => {
-    vi.useFakeTimers()
-    try {
-      const { transport } = start()
+  it('starts the program as its own process group leader where there are groups, so the whole group can be killed', () => {
+    pretendPlatform('linux')
+    start('/usr/local/bin/codex')
+    pretendPlatform('win32')
+    start('C:\\Tools\\codex.exe')
 
-      const stopping = transport.kill()
-      await vi.advanceTimersByTimeAsync(5_000)
-
-      await expect(stopping).resolves.toBeUndefined()
-      expect(killTree).toHaveBeenCalledTimes(1)
-    } finally {
-      vi.useRealTimers()
-    }
+    const detached = vi.mocked(spawn).mock.calls.map((call) => (call[2] as { detached: boolean }).detached)
+    expect(detached).toEqual([true, false])
   })
 })

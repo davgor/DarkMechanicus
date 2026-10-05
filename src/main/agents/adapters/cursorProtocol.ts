@@ -11,6 +11,7 @@
  * other plausible shapes (see its comment).
  */
 import type { ApprovalCategory, ApprovalDecision, ModelOption } from '../../../shared/agents/chat'
+import { clipMasked } from '../claimTokenMask'
 
 export type Json = string | number | boolean | null | Json[] | { [key: string]: Json }
 
@@ -18,8 +19,9 @@ export function objectOf(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : null
 }
 
+/** `text` cut to `max` with an ellipsis, claim tokens masked first so a cut inside one cannot leave part of its secret. */
 export function clip(text: string, max: number): string {
-  return text.length <= max ? text : `${text.slice(0, max)}…`
+  return clipMasked(text, max)
 }
 
 // ---- Model ids ----

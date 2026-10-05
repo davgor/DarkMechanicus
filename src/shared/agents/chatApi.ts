@@ -112,6 +112,8 @@ export type ChatPushEvent =
   | { type: 'assistant_delta'; chatId: string; itemId: string; delta: string; threadId?: string }
   /** A turn started or ended. */
   | { type: 'turn'; chatId: string; running: boolean }
+  /** A chat was created, renamed or deleted (`chatId` is that chat): every window lists the folder's chats again, so none shows a stale list. */
+  | { type: 'chats_changed'; folder: string; chatId: string }
   /**
    * The sign-in of the chat's agent changed: a chat found it gone (`signed_out`, with an `auth_required`
    * item in the chat that found it), or the person signed in again and the CLI says so (`signed_in`).
@@ -131,6 +133,14 @@ export interface ChatsApi {
   startOrchestrator(request: StartOrchestratorRequest): Promise<CommandResult<StartOrchestratorResult>>
   /** The transcript and pending approvals; starts the agent when its vendor needs it running. */
   open(request: ChatRequestRef): Promise<CommandResult<ChatOpenView>>
+  /**
+   * The same view as `open`, for a panel that only follows a chat (an attempt's Activity tab, the orchestrator
+   * feed): it starts no agent and writes nothing to the chat store. `pending` lists the requests a live agent is
+   * waiting on, and is empty when none holds the chat (nothing could answer them); a stored request nobody waits
+   * on, and calls and threads a quit left running, come back already cancelled or failed, as `open` would store
+   * them. Push events keep it current from here on.
+   */
+  read(request: ChatRequestRef): Promise<CommandResult<ChatOpenView>>
   /** Stores the message and starts a turn (and the agent, on the first message); returns the stored message. */
   send(request: SendChatRequest): Promise<CommandResult<ChatItem>>
   /**

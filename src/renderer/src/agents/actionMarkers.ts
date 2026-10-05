@@ -135,10 +135,23 @@ function plainPhrases(tool: string): Phrases {
   return { doing: `${words}…`, done: words, failed: `${words} failed` }
 }
 
+/** The phrase for a call in `status`: a cancelled call is what it was doing, marked so; it was neither refused nor done. */
+function phraseFor(phrases: Phrases, status: ToolCallItem['status']): string {
+  switch (status) {
+    case 'running':
+      return phrases.doing
+    case 'completed':
+      return phrases.done
+    case 'cancelled':
+      return `${phrases.doing.replace(/…$/, '')} (cancelled)`
+    default:
+      return phrases.failed
+  }
+}
+
 /** The marker's words for a call in `status`; a null key says "a ticket", which is all a marker may say of a ticket it cannot name. */
 export function markerText(marker: Pick<MarkerModel, 'tool' | 'status'>, ticketKey: string | null): string {
-  const phrases = PHRASES[marker.tool] ?? plainPhrases(marker.tool)
-  const phrase = marker.status === 'running' ? phrases.doing : marker.status === 'completed' ? phrases.done : phrases.failed
+  const phrase = phraseFor(PHRASES[marker.tool] ?? plainPhrases(marker.tool), marker.status)
   return phrase.replace('{ticket}', ticketKey ?? 'a ticket')
 }
 

@@ -8,6 +8,7 @@
  */
 import { isAbsolute, relative, resolve, sep } from 'node:path'
 import type { ApprovalCategory } from '../../../shared/agents/chat'
+import { clipMasked } from '../claimTokenMask'
 
 type ToolVerdict =
   | { kind: 'allow' }
@@ -61,7 +62,7 @@ function command(input: Record<string, unknown>): string | null {
     return null
   }
   const line = value.replace(/\s+/g, ' ').trim()
-  return line.length > MAX_COMMAND_CHARS ? `${line.slice(0, MAX_COMMAND_CHARS)}…` : line
+  return clipMasked(line, MAX_COMMAND_CHARS)
 }
 
 function summaryOf(tool: string, input: Record<string, unknown>): string {

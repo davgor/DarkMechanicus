@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { ChatItem } from '../../../shared/agents/chat'
 import { assistantText, mountChatView, toolCall, transcript, userMessage } from '../__mocks__/chatViewKit'
@@ -72,6 +72,23 @@ describe('ChatView notices', () => {
     const approval = within(transcript().getByRole('article', { name: 'Approval request: Run a command' }))
     expect(approval.getByText('Run npm install')).toBeTruthy()
     expect(approval.getByText('Denied')).toBeTruthy()
+  })
+
+  it('shows a stopped turn after the message it stopped, as stored, and when it arrives while the chat is open', async () => {
+    const { dm } = await mountChatView([userMessage('u1', 'Please fix it'), { id: 's1', at: AT, kind: 'turn_stopped' }])
+    const rows: HTMLElement[] = transcript().getAllByRole('listitem')
+    expect(rows.map((row) => row.textContent)).toEqual([expect.stringContaining('Please fix it'), 'You stopped this turn before the agent finished.'])
+
+    act(() => dm.chats.emitItem('chat_1', userMessage('u2', 'Try again')))
+    act(() => dm.chats.emitItem('chat_1', { id: 's2', at: AT, kind: 'turn_stopped' }))
+    expect(transcript().getAllByText('You stopped this turn before the agent finished.')).toHaveLength(2)
+  })
+
+  it('shows a tool call that was cancelled as Cancelled, not Running', async () => {
+    await mountChatView([toolCall('t1', { name: 'Bash', status: 'cancelled', resultSummary: null })])
+    const row = within(callRow('Tool call: Bash'))
+    expect(row.getByText('Cancelled')).toBeTruthy()
+    expect(row.queryByText('Running')).toBeNull()
   })
 
   it('shows an error with its reason and code', async () => {

@@ -273,6 +273,7 @@
 }
 
 .chat-approval-note,
+.chat-approval-scope,
 .chat-approval-answer-detail {
   margin: 0;
   color: var(--muted);
@@ -379,6 +380,12 @@
   margin: 0;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
+}
+
+.chat-error-advice {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .chat-error-code {

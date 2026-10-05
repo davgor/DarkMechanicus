@@ -82,6 +82,17 @@ describe('Run bar: paused because the orchestrator’s agent signed out', () => 
     harness.refresh(1)
     await waitFor(async () => expect(resume(await runBar()).disabled).toBe(false))
   })
+
+  it('stops offering Sign in when the person signed in from their own terminal and a status check says so', async () => {
+    const host = hostWith(SIGNED_OUT)
+    const harness = renderWorkspace(pausedForSignIn(), { orchestration: host })
+    expect((await runBar()).getByRole('button', { name: 'Sign in' })).toBeTruthy()
+    // The Sign in of the bar was never pressed: only the status the app shows changed.
+    host.statuses = { claude: SIGNED_IN }
+    harness.refresh(1)
+    await waitFor(async () => expect((await runBar()).getByText('Signed in again. The run can resume.')).toBeTruthy())
+    expect((await runBar()).queryByRole('button', { name: 'Sign in' })).toBeNull()
+  })
 })
 
 describe('Run bar: signing in from the bar', () => {

@@ -1,12 +1,15 @@
 import { spawn } from 'node:child_process'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ProbeLaunch } from '../../desktop/agentProbe'
-import { killTree } from '../../desktop/agentProbeNode'
 import { FakeChild } from '../__mocks__/fakeChild'
+import { killProcessTree } from '../processTree'
 import { nodeTransport } from './acpProcess'
 
 vi.mock('node:child_process', () => ({ spawn: vi.fn() }))
-vi.mock('../../desktop/agentProbeNode', () => ({ killTree: vi.fn() }))
+vi.mock('../processTree', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../processTree')>()),
+  killProcessTree: vi.fn()
+}))
 
 const LAUNCH: ProbeLaunch = { file: '/opt/agent', args: ['--acp'], verbatimArguments: false }
 
@@ -33,7 +36,8 @@ function pretendPlatform(name: NodeJS.Platform): void {
 
 beforeEach(() => {
   vi.mocked(spawn).mockReset()
-  vi.mocked(killTree).mockReset()
+  vi.mocked(killProcessTree).mockReset()
+  vi.mocked(killProcessTree).mockResolvedValue(true)
 })
 
 afterEach(() => {
@@ -92,9 +96,9 @@ describe('nodeTransport: how the process ended', () => {
     expect(closed).toEqual(['could not be started: out of descriptors'])
     expect(() => {
       handle.write('ignored')
-      handle.kill()
     }).not.toThrow()
-    expect(killTree).not.toHaveBeenCalled()
+    await expect(handle.kill()).resolves.toBeUndefined()
+    expect(killProcessTree).not.toHaveBeenCalled()
   })
 
 })
@@ -115,15 +119,41 @@ describe('nodeTransport: output and failed starts', () => {
 })
 
 describe('nodeTransport: stopping the process', () => {
-  it('kills the whole process group where there are groups', () => {
+  it('has the shared tree killer end the process and what it started, and resolves once that is done', async () => {
     pretendPlatform('linux')
+    const child = new FakeChild(4242)
+    const { handle } = open(child)
+    let treeGone: () => void = () => {}
+    vi.mocked(killProcessTree).mockReturnValue(
+      new Promise<boolean>((resolve) => {
+        treeGone = () => {
+          resolve(true)
+        }
+      })
+    )
+    let done = false
+
+    const stopping = handle.kill().then(() => {
+      done = true
+    })
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(killProcessTree).toHaveBeenCalledWith(child)
+    expect(done).toBe(false)
+    treeGone()
+    await stopping
+
+    expect(done).toBe(true)
+  })
+
+  it('does not signal the process group itself any more, whatever the platform', async () => {
     const kill = vi.spyOn(process, 'kill').mockReturnValue(true)
-    const { handle } = open(new FakeChild(4242))
+    for (const name of ['linux', 'win32'] as const) {
+      pretendPlatform(name)
+      await open(new FakeChild(4242)).handle.kill()
+    }
 
-    handle.kill()
-
-    expect(kill).toHaveBeenCalledWith(-4242, 'SIGKILL')
-    expect(killTree).not.toHaveBeenCalled()
+    expect(kill).not.toHaveBeenCalled()
+    expect(killProcessTree).toHaveBeenCalledTimes(2)
   })
 
   it('starts the process as its own group leader everywhere but on Windows', () => {
@@ -133,41 +163,10 @@ describe('nodeTransport: stopping the process', () => {
     expect(spawn).toHaveBeenCalledWith('/opt/agent', ['--acp'], expect.objectContaining({ detached: true, shell: false }))
   })
 
-  it('falls back to ending the process directly when the group is already gone', () => {
-    pretendPlatform('linux')
-    vi.spyOn(process, 'kill').mockImplementation(() => {
-      throw new Error('ESRCH')
-    })
-    const child = new FakeChild(4242)
-    const { handle } = open(child)
-
-    handle.kill()
-
-    expect(killTree).toHaveBeenCalledWith(child)
-  })
-
-  it('ends the process directly when it has no pid to address a group by', () => {
-    pretendPlatform('linux')
-    const kill = vi.spyOn(process, 'kill').mockReturnValue(true)
-    const child = new FakeChild(undefined)
-    const { handle } = open(child)
-
-    handle.kill()
-
-    expect(kill).not.toHaveBeenCalled()
-    expect(killTree).toHaveBeenCalledWith(child)
-  })
-
-  it('ends the process tree directly on Windows, where there are no groups', () => {
+  it('does not detach on Windows, where the tree is found through its parent', () => {
     pretendPlatform('win32')
-    const kill = vi.spyOn(process, 'kill').mockReturnValue(true)
-    const child = new FakeChild(4242)
-    const { handle } = open(child)
+    open(new FakeChild(4242))
 
-    handle.kill()
-
-    expect(kill).not.toHaveBeenCalled()
-    expect(killTree).toHaveBeenCalledWith(child)
     expect(spawn).toHaveBeenCalledWith('/opt/agent', ['--acp'], expect.objectContaining({ detached: false }))
   })
 })

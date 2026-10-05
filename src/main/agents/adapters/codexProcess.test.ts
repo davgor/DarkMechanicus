@@ -2,15 +2,16 @@ import { chmodSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from '
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { createEventLog, type EventLog } from '../../../test/eventLog'
 import { removeScratch } from '../../../test/removeScratch'
 import { createLineSplitter, planCodexLaunch, spawnCodexTransport } from './codexProcess'
 
 /**
- * These tests start and kill real processes. On Windows a start or a kill occasionally stalls for a long time when
- * the whole suite is running (about 1 full run in 100), so they get a long limit and a retry.
+ * These tests start and kill real processes. They wait on what the process does (a line, its close, the end of a
+ * tree kill), never on a timer, a poll or a retry, so a slow start or kill only makes a test slower. The long limit
+ * is for a Windows start or kill that stalls under load; a hang still fails once it passes.
  */
 vi.setConfig({ testTimeout: 60_000 })
-const REAL_PROCESSES = { retry: 2 }
 
 describe('createLineSplitter', () => {
   function collect(): { lines: string[]; splitter: ReturnType<typeof createLineSplitter> } {
@@ -137,13 +138,6 @@ function alive(pid: number): boolean {
   }
 }
 
-async function until(condition: () => boolean, timeoutMs = 20_000): Promise<void> {
-  const deadline = Date.now() + timeoutMs
-  while (!condition() && Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, 25))
-  }
-}
-
 beforeAll(() => {
   scratch = realpathSync(mkdtempSync(join(tmpdir(), 'dm-codex-')))
   // An ampersand in the path is what would let a second cmd.exe parse run something else.
@@ -156,23 +150,30 @@ afterAll(() => {
   removeScratch(scratch)
 })
 
-function listen(transport: ReturnType<typeof spawnCodexTransport>): { lines: string[]; closes: string[] } {
-  const seen = { lines: [] as string[], closes: [] as string[] }
-  transport.onLine((line) => seen.lines.push(line))
-  transport.onClose((reason) => seen.closes.push(reason))
+function listen(transport: ReturnType<typeof spawnCodexTransport>): {
+  lines: EventLog<string>
+  closes: EventLog<string>
+} {
+  const seen = { lines: createEventLog<string>(), closes: createEventLog<string>() }
+  transport.onLine((line) => {
+    seen.lines.push(line)
+  })
+  transport.onClose((reason) => {
+    seen.closes.push(reason)
+  })
   return seen
 }
 
-describe('spawnCodexTransport', REAL_PROCESSES, () => {
+describe('spawnCodexTransport', () => {
   it('runs the program in the folder with the app-server subcommand and talks JSON lines over stdio', async () => {
     const transport = spawnCodexTransport(fakeCodex, workFolder)
     const seen = listen(transport)
 
     transport.write(JSON.stringify({ id: 1, method: 'whoami' }))
-    await until(() => seen.lines.length > 0)
+    await seen.lines.reached(1)
     await transport.kill()
 
-    const reply = JSON.parse(seen.lines[0] ?? 'null') as { id: number; result: { cwd: string; args: string[] } }
+    const reply = JSON.parse(seen.lines.items[0] ?? 'null') as { id: number; result: { cwd: string; args: string[] } }
     expect(reply.id).toBe(1)
     expect(reply.result.args).toEqual(['app-server'])
     expect(realpathSync(reply.result.cwd)).toBe(workFolder)
@@ -182,15 +183,16 @@ describe('spawnCodexTransport', REAL_PROCESSES, () => {
     const transport = spawnCodexTransport(fakeCodex, workFolder)
     const seen = listen(transport)
     transport.write(JSON.stringify({ id: 1, method: 'whoami' }))
-    await until(() => seen.lines.length > 0)
-    const { pid } = (JSON.parse(seen.lines[0] ?? 'null') as { result: { pid: number } }).result
+    await seen.lines.reached(1)
+    const { pid } = (JSON.parse(seen.lines.items[0] ?? 'null') as { result: { pid: number } }).result
     expect(alive(pid)).toBe(true)
 
     await transport.kill()
-    await until(() => !alive(pid))
 
+    // No waiting for it: the stop resolves only once the whole tree has exited.
     expect(alive(pid)).toBe(false)
-    expect(seen.closes).toHaveLength(1)
+    await seen.closes.reached(1)
+    expect(seen.closes.items).toHaveLength(1)
   })
 
   it('reports an unexpected exit with its code and what the program said on stderr', async () => {
@@ -198,15 +200,15 @@ describe('spawnCodexTransport', REAL_PROCESSES, () => {
     const seen = listen(transport)
 
     transport.write(JSON.stringify({ id: 1, method: 'crash' }))
-    await until(() => seen.closes.length > 0)
+    await seen.closes.reached(1)
 
-    expect(seen.closes).toHaveLength(1)
-    expect(seen.closes[0]).toContain('exited with code 3')
-    expect(seen.closes[0]).toContain('bad things happened')
+    expect(seen.closes.items).toHaveLength(1)
+    expect(seen.closes.items[0]).toContain('exited with code 3')
+    expect(seen.closes.items[0]).toContain('bad things happened')
   })
 })
 
-describe('spawnCodexTransport failures', REAL_PROCESSES, () => {
+describe('spawnCodexTransport failures', () => {
   it('reports a program that cannot start and a path that cannot be launched safely', async () => {
     expect(() => spawnCodexTransport(join(scratch, 'missing'), workFolder)).toThrow('That is not a file.')
     if (process.platform === 'win32') {
@@ -221,7 +223,7 @@ describe('spawnCodexTransport failures', REAL_PROCESSES, () => {
     const transport = spawnCodexTransport(fakeCodex, workFolder)
     const seen = listen(transport)
     await transport.kill()
-    await until(() => seen.closes.length > 0)
+    await seen.closes.reached(1)
 
     expect(() => {
       transport.write(JSON.stringify({ id: 2, method: 'whoami' }))

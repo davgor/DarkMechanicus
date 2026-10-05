@@ -2,56 +2,41 @@
  * Which agents a chat found signed out, and what the status the app shows says about them.
  *
  * An agent's CLI can lose its login while the app runs (it expires, or is revoked). A chat learns
- * of it when a turn fails for that reason, but the CLI's own status command, which is what
- * `agents:status` runs, reads only what is stored locally and may still say "signed in". So the app
- * keeps a flag per agent kind: set when a chat reports it, and cleared only when the person has
- * started the agent's sign-in (the Sign in button) and the CLI's status then says signed in. Until then
- * the status the app shows is `signed_out`, for the AGENTS section and every chat alike. A flag lives
- * until the app quits or the agent is signed in again; nothing is written to disk.
+ * of it when a turn fails for that reason, and the CLI's own status command, which is what
+ * `agents:status` runs, may not say so yet. So the app keeps a flag per agent kind: set when a chat
+ * reports it, and cleared by the next status check that says signed in, however the person signed in
+ * (the app's Sign in button, or the CLI's own login in a terminal of their own). Until then the status
+ * the app shows is `signed_out`, for the AGENTS section and every chat alike. A flag lives until the
+ * app quits or the agent is signed in again; nothing is written to disk.
  */
 import { AGENT_DEFINITIONS } from '../../shared/desktop/agentKinds'
 import type { AgentAuthStatus, AgentKind } from '../../shared/desktop/api'
 
-interface Flag {
-  /** What the CLI said, as stored in the chat (claim tokens already masked); shown to chats that are refused. */
-  message: string
-  /** The person started the CLI's sign-in after the flag was set. */
-  signInStarted: boolean
-}
-
 export interface SignInFlags {
   /** The CLI's words for a signed-out agent, or null when no chat found it signed out. */
   message(kind: AgentKind): string | null
-  /** Records that a chat found the agent signed out; a sign-in started earlier no longer counts, since it did not hold. */
+  /** Records that a chat found the agent signed out; a sign-in that came earlier no longer counts, since it did not hold. */
   markSignedOut(kind: AgentKind, message: string): void
-  /** The person started the CLI's own sign-in; a flag now waits for a status that says signed in. */
-  signInStarted(kind: AgentKind): void
   /**
    * The status to show for `kind`, given what the CLI's status command said. `cleared` is true when
-   * this answer ended the flag (a sign-in was started and the CLI now says signed in).
+   * this answer ended the flag (the CLI now says signed in).
    */
   reconcile(kind: AgentKind, status: AgentAuthStatus): { status: AgentAuthStatus; cleared: boolean }
 }
 
 export function createSignInFlags(): SignInFlags {
-  const flags = new Map<AgentKind, Flag>()
+  /** What the CLI said, as stored in the chat (claim tokens already masked); shown to chats that are refused. */
+  const flags = new Map<AgentKind, string>()
   return {
-    message: (kind) => flags.get(kind)?.message ?? null,
+    message: (kind) => flags.get(kind) ?? null,
     markSignedOut(kind, message) {
-      flags.set(kind, { message, signInStarted: false })
-    },
-    signInStarted(kind) {
-      const flag = flags.get(kind)
-      if (flag !== undefined) {
-        flag.signInStarted = true
-      }
+      flags.set(kind, message)
     },
     reconcile(kind, status) {
-      const flag = flags.get(kind)
-      if (flag === undefined) {
+      if (!flags.has(kind)) {
         return { status, cleared: false }
       }
-      if (flag.signInStarted && status.state === 'signed_in') {
+      if (status.state === 'signed_in') {
         flags.delete(kind)
         return { status, cleared: true }
       }

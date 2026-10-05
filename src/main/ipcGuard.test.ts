@@ -232,13 +232,18 @@ describe('guarded desktop channels', () => {
   })
 
   it('refuses every dm and agents channel for an untrusted sender', async () => {
+    // What the desktop registers is the list: the same registration, once straight on ipcMain and once through the
+    // guard, so a channel added later is counted and guarded without this test changing.
+    const registered = createFakeIpcMain()
+    registerDesktopIpc(registered, trustingDesktop().handlers)
     const ipc = createFakeIpcMain()
     registerDesktopIpc(guardIpc(ipc, { appUrl: DEV }), trustingDesktop().handlers)
 
     const answers = await Promise.all(ipc.channels().map((channel) => ipc.invoke(channel, frameAt(PAGE), FOLDER)))
 
-    expect(ipc.channels()).toHaveLength(17)
-    expect(answers).toEqual(ipc.channels().map(() => REFUSED))
+    expect(registered.channels().length).toBeGreaterThan(0)
+    expect(ipc.channels()).toEqual(registered.channels())
+    expect(answers).toEqual(registered.channels().map(() => REFUSED))
   })
 })
 

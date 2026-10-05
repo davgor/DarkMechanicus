@@ -1,7 +1,8 @@
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { removeScratch } from '../../test/removeScratch'
 import { probeAgent, type ProbeLaunch } from './agentProbe'
 import { inspectExecutable, runProcess } from './agentProbeNode'
 
@@ -17,7 +18,7 @@ beforeAll(() => {
 })
 
 afterAll(() => {
-  rmSync(scratch, { recursive: true, force: true })
+  removeScratch(scratch)
 })
 
 describe('runProcess', () => {

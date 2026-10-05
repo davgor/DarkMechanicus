@@ -31,6 +31,7 @@ const chats: ChatsApi = {
   create: (request) => ipcRenderer.invoke('chats:create', request),
   startOrchestrator: (request) => ipcRenderer.invoke('chats:startOrchestrator', request),
   open: (request) => ipcRenderer.invoke('chats:open', request),
+  read: (request) => ipcRenderer.invoke('chats:read', request),
   send: (request) => ipcRenderer.invoke('chats:send', request),
   stop: (request) => ipcRenderer.invoke('chats:stop', request),
   threadBindings: (request) => ipcRenderer.invoke('chats:threadBindings', request),

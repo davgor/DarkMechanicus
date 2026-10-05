@@ -77,6 +77,7 @@ const useSdkMock = (...messages: SDKMessage[]): void => {
 
 afterEach(() => {
   vi.useRealTimers()
+  vi.unstubAllEnvs()
   sdkMock.query.mockReset()
 })
 
@@ -1001,6 +1002,39 @@ describe('Claude adapter: launch options (1)', () => {
   })
 })
 
+describe('Claude adapter: memory writes ask first', () => {
+  const AUTO_MEMORY = 'CLAUDE_CODE_DISABLE_AUTO_MEMORY'
+
+  it('starts the CLI with its auto-memory off, so a note is never written without an approval', async () => {
+    vi.stubEnv('DM_200_KEEP', 'kept')
+    const rig = await startRig({ plans: [replay(init(), success('ok'))] })
+
+    await rig.adapter.send('Remember the code word OSPREY-9 for later.')
+
+    expect(rig.sdk.launches[0]?.options.env).toMatchObject({ [AUTO_MEMORY]: '1', DM_200_KEEP: 'kept' })
+  })
+
+  it('turns it off over a switch of the person that would turn it on, and leaves the rest of the environment alone', async () => {
+    const given = { [AUTO_MEMORY]: '0', PATH: '/bin', HOME: '/home/me' }
+    const rig = await startRig({ plans: [replay(init(), success('ok'))], deps: { env: () => given } })
+
+    await rig.adapter.send('hi')
+
+    expect(rig.sdk.launches[0]?.options.env).toEqual({ [AUTO_MEMORY]: '1', PATH: '/bin', HOME: '/home/me' })
+    expect(given[AUTO_MEMORY]).toBe('0')
+  })
+
+  it("hands the CLI no settings file or object, so none of the person's Claude Code settings is written or changed", async () => {
+    const rig = await startRig({ plans: [replay(init(), success('ok'))] })
+
+    await rig.adapter.send('hi')
+
+    const options = rig.sdk.launches[0]?.options
+    expect(options).not.toHaveProperty('settings')
+    expect(options).toMatchObject({ settingSources: ['user', 'project', 'local'], permissionMode: 'default' })
+  })
+})
+
 describe('Claude adapter: launch options (2)', () => {
   it('runs an npm shim through the program it points at', async () => {
     const sdk = fakeSdk([replay(init(), success('ok'))])
@@ -1752,6 +1786,33 @@ describe('Claude adapter: dispose (1)', () => {
     expect(rig.events).toHaveLength(1)
   })
 
+})
+
+describe('Claude adapter: dispose and the process tree', () => {
+  it('resolves only once the process tree is gone, so quitting waits for it', async () => {
+    let treeGone: () => void = () => {}
+    const waitForTree = (): Promise<void> =>
+      new Promise<void>((resolve) => {
+        treeGone = resolve
+      })
+    const rig = await startRig({
+      deps: { createProcesses: () => ({ ...fakeProcesses([]), killAll: waitForTree }) as unknown as ReturnType<typeof fakeProcesses> }
+    })
+    let disposed = false
+
+    const disposing = rig.adapter.dispose().then(() => {
+      disposed = true
+    })
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(disposed).toBe(false)
+    treeGone()
+    await disposing
+
+    expect(disposed).toBe(true)
+  })
+})
+
+describe('Claude adapter: dispose (1b)', () => {
   it('drops messages that were already on their way when it was disposed', async () => {
     const rig = await startRig({ plans: [{ script: ({ emit }) => emit(init()) }] })
     const turn = rig.adapter.send('hi')

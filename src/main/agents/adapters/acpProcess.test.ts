@@ -2,16 +2,17 @@ import { mkdtempSync, realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { createEventLog } from '../../../test/eventLog'
 import { removeScratch } from '../../../test/removeScratch'
 import type { ProbeLaunch } from '../../desktop/agentProbe'
 import { nodeTransport } from './acpProcess'
 
 /**
- * These tests start and kill real processes. On Windows a start or a kill occasionally stalls for a long time when
- * the whole suite is running (about 1 full run in 100), so they get a long limit and a retry.
+ * These tests start and kill real processes. They wait on what the process does (a line, its close, the end of a
+ * tree kill), never on a timer, a poll or a retry, so a slow start or kill only makes a test slower. The long limit
+ * is for a Windows start or kill that stalls under load; a hang still fails once it passes.
  */
 vi.setConfig({ testTimeout: 60_000 })
-const REAL_PROCESSES = { retry: 2 }
 
 /** The real transport is exercised against Node itself, which every machine running these tests has. */
 function node(script: string): ProbeLaunch {
@@ -19,16 +20,31 @@ function node(script: string): ProbeLaunch {
 }
 
 interface Heard {
-  lines: string[]
-  closed: string[]
+  lines: readonly string[]
+  closed: readonly string[]
+  /** Resolves once the process has printed `count` lines. */
+  linesHeard(count: number): Promise<void>
+  /** Resolves once the transport has reported that the process ended. */
+  whenClosed(): Promise<void>
 }
 
 function open(launch: ProbeLaunch, cwd: string): { heard: Heard; handle: ReturnType<typeof nodeTransport> } {
-  const heard: Heard = { lines: [], closed: [] }
+  const lines = createEventLog<string>()
+  const closed = createEventLog<string>()
   const handle = nodeTransport(launch, cwd, {
-    line: (text) => heard.lines.push(text),
-    closed: (detail) => heard.closed.push(detail)
+    line: (text) => {
+      lines.push(text)
+    },
+    closed: (detail) => {
+      closed.push(detail)
+    }
   })
+  const heard: Heard = {
+    lines: lines.items,
+    closed: closed.items,
+    linesHeard: (count) => lines.reached(count),
+    whenClosed: () => closed.reached(1)
+  }
   return { heard, handle }
 }
 
@@ -51,13 +67,21 @@ afterAll(() => {
   removeScratch(scratch)
 })
 
-describe('nodeTransport', REAL_PROCESSES, () => {
+describe('nodeTransport', () => {
   it('delivers whole lines however the output is chunked, with the line ending removed', async () => {
-    const script = `process.stdout.write('{"a":1}\\n{"b"'); setTimeout(() => process.stdout.write(':2}\\r\\n\\r\\nlast'), 60)`
+    // The rest is sent only once the first part, which ends inside a line, has been heard: the line is split
+    // across two chunks however fast or slow the machine is.
+    const script = `
+      process.stdout.write('{"a":1}\\n{"b"')
+      process.stdin.once('data', () => process.stdout.write(':2}\\r\\n\\r\\nlast', () => process.exit(0)))
+    `
 
-    const { heard } = open(node(script), scratch)
+    const { heard, handle } = open(node(script), scratch)
 
-    await vi.waitFor(() => expect(heard.closed).toHaveLength(1), { timeout: 30_000 })
+    await heard.linesHeard(1)
+    handle.write('go')
+    await heard.whenClosed()
+
     expect(heard.lines).toEqual(['{"a":1}', '{"b":2}', 'last'])
   })
 
@@ -68,20 +92,20 @@ describe('nodeTransport', REAL_PROCESSES, () => {
     `
     const { heard, handle } = open(node(script), scratch)
 
-    await vi.waitFor(() => expect(heard.lines).toHaveLength(1), { timeout: 30_000 })
+    await heard.linesHeard(1)
     handle.write('{"ping":true}')
-    await vi.waitFor(() => expect(heard.closed).toHaveLength(1), { timeout: 30_000 })
+    await heard.whenClosed()
 
     expect(realpathSync(heard.lines[0] ?? '')).toBe(scratch)
     expect(heard.lines[1]).toBe('got:{"ping":true}')
   })
 })
 
-describe('nodeTransport: how the process ended', REAL_PROCESSES, () => {
+describe('nodeTransport: how the process ended', () => {
   it('says how the process ended and the last of what it printed on stderr', async () => {
     const { heard } = open(node(`console.error('boom: no login'); process.exit(3)`), scratch)
 
-    await vi.waitFor(() => expect(heard.closed).toHaveLength(1), { timeout: 30_000 })
+    await heard.whenClosed()
 
     expect(heard.closed[0]).toMatch(/^exit code 3: boom: no login/)
   })
@@ -89,7 +113,7 @@ describe('nodeTransport: how the process ended', REAL_PROCESSES, () => {
   it('keeps only the tail of a long stderr', async () => {
     const { heard } = open(node(`console.error('x'.repeat(100000) + 'THE-END'); process.exit(1)`), scratch)
 
-    await vi.waitFor(() => expect(heard.closed).toHaveLength(1), { timeout: 30_000 })
+    await heard.whenClosed()
 
     expect(heard.closed[0]?.length).toBeLessThan(1000)
     expect(heard.closed[0]).toContain('THE-END')
@@ -98,10 +122,11 @@ describe('nodeTransport: how the process ended', REAL_PROCESSES, () => {
   it('reports a program that cannot be started, once', async () => {
     const { heard, handle } = open({ file: join(scratch, 'missing-agent'), args: [], verbatimArguments: false }, scratch)
 
-    await vi.waitFor(() => expect(heard.closed).toHaveLength(1), { timeout: 30_000 })
+    await heard.whenClosed()
     handle.write('ignored')
-    handle.kill()
+    await handle.kill()
 
+    expect(heard.closed).toHaveLength(1)
     expect(heard.closed[0]).toMatch(/ENOENT/)
     expect(heard.lines).toEqual([])
   })
@@ -109,7 +134,7 @@ describe('nodeTransport: how the process ended', REAL_PROCESSES, () => {
   it('reports a folder that does not exist as a failed start', async () => {
     const { heard } = open(node('console.log(1)'), join(scratch, 'no-such-folder'))
 
-    await vi.waitFor(() => expect(heard.closed).toHaveLength(1), { timeout: 30_000 })
+    await heard.whenClosed()
 
     expect(heard.closed[0]).toMatch(/ENOENT/)
   })
@@ -117,7 +142,7 @@ describe('nodeTransport: how the process ended', REAL_PROCESSES, () => {
   it('ignores a write to a process that has already ended', async () => {
     const { heard, handle } = open(node('process.exit(0)'), scratch)
 
-    await vi.waitFor(() => expect(heard.closed).toHaveLength(1), { timeout: 30_000 })
+    await heard.whenClosed()
 
     expect(() => {
       handle.write('{"late":true}')
@@ -132,13 +157,14 @@ describe('nodeTransport: how the process ended', REAL_PROCESSES, () => {
       setInterval(() => {}, 1000)
     `
     const { heard, handle } = open(node(script), scratch)
-    await vi.waitFor(() => expect(heard.lines).toHaveLength(1), { timeout: 30_000 })
+    await heard.linesHeard(1)
     const grandchild = Number((heard.lines[0] ?? '').replace('child:', ''))
     expect(alive(grandchild)).toBe(true)
 
-    handle.kill()
+    await handle.kill()
 
-    await vi.waitFor(() => expect(heard.closed).toHaveLength(1), { timeout: 30_000 })
-    await vi.waitFor(() => expect(alive(grandchild)).toBe(false), { timeout: 30_000 })
+    // No waiting: kill resolves only once the whole tree has exited.
+    expect(alive(grandchild)).toBe(false)
+    await heard.whenClosed()
   })
 })

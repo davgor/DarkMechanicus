@@ -110,7 +110,7 @@ const RUN_CONTROL_TOOLS = [
   defineTool({
     name: 'resume_run',
     description:
-      'Resumes a paused run, including a run paused by a branch change once reconcile_repository has run.',
+      'Resumes a paused run, including a run paused by a branch change once reconcile_repository has run. A run paused with the reason "signed_out" (its agent was signed out) is not yours to resume: the person resumes it in the desktop app, and this fails with unauthorized.',
     kind: 'idempotent',
     input: { runId },
     run: (api, input) => api.resumeRun(input)
