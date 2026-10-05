@@ -1,5 +1,5 @@
 {
-  "activeSprintId": "sp_01m43n1zbxyvf21sa7yxf3wz5p",
+  "activeSprintId": "sp_01m464q30nz932eaxbac5c4twh",
   "attempts": [
     {
       "createdAt": "2026-10-04T23:30:15.937Z",
@@ -3910,6 +3910,1585 @@
         "rationale": "Same worker and evidence as attempt 1. Attempt 1 was rejected only because criterion c7 contradicted itself (revision 8 corrects the wording to the documented quit behaviour). Its evidence already shows the corrected c7: no process left, and the approval shown as cancelled with its reason. No re-run needed, so no escalation.",
         "sessionId": null
       }
+    },
+    {
+      "createdAt": "2026-10-05T13:47:13.244Z",
+      "decidedAt": "2026-10-05T14:00:15.294Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "I re-ran the targeted tests (34 files, 1414 passed), typecheck, and oxlint on the 13 changed files. The masker move keeps its old import path as a re-export.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Before the implementation existed, 5 new attempts tests, 3 schemas tests and 4 MCP execution tests failed.",
+            "name": "red first",
+            "status": "passed"
+          },
+          {
+            "detail": "The worker ran 35 files with 1432 tests. The orchestrator re-ran 34 files (claimTokenMask, attempts, schemas, mcp execution/validation/server, events, portable, src/main/agents): 1414 passed.",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint on 13 changed .ts files exits 0 (worker and orchestrator).",
+            "name": "lint (changed files)",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck exit 0 (worker and orchestrator).",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "After npm run build: 59 tools, and the run reached running with 1 accepted ticket.",
+            "name": "smoke:mcp",
+            "status": "passed"
+          },
+          {
+            "detail": "Full gate at the checkpoint.",
+            "name": "full lint/test/coverage/deadcode/fireguard",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Read heartbeatAttempt/recordProgress: the note is written after the claim is verified, inside the tx; with no progress the path is unchanged. Tests re-run green."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "heartbeatProgress has strictObject max 280/64. maskNote replaces the proven token literally, then applies maskClaimTokens. Tests re-run green."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "appendProgressNote deletes rows beyond OFFSET 200 per run+attempt, for this event kind only."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "The test checks run history and snapshot equality plus contentHash, and that no outbox work is queued."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Red-first list given; smoke:mcp passed on the worker's build."
+          }
+        ],
+        "notes": "heartbeat_attempt keeps its 'idempotent' tool annotation, which server.test.ts pins. A repeated call with a note now appends a second note, so the hint is loose. That's minor and left as is."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m46532ywb4zzagd7c0z0qcjz",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "progress note storage",
+            "location": "src/core/services/events.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "heartbeat with progress",
+            "location": "src/core/services/attempts.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "dm-91",
+        "changedFiles": [
+          "docs/architecture.md",
+          "src/core/claimTokenMask.ts",
+          "src/core/claimTokenMask.test.ts",
+          "src/main/agents/claimTokenMask.ts",
+          "src/core/commandSchemas.ts",
+          "src/core/schemas.ts",
+          "src/core/schemas.test.ts",
+          "src/core/services/attempts.ts",
+          "src/core/services/attempts.test.ts",
+          "src/core/services/events.ts",
+          "src/mcp/tools/execution.ts",
+          "src/mcp/tools/execution.test.ts",
+          "src/mcp/validation.test.ts",
+          "src/shared/domain/api.ts"
+        ],
+        "commits": [
+          "10cc212cbfd75abc30086430ab051ae486984e21",
+          "738ae80ba46062dbcbfa000a1c585e295bb74d50",
+          "6fb09f603bd5a5b57f0a8657fd3f07416c3c06ec"
+        ],
+        "summary": "heartbeat_attempt takes an optional progress { note (≤280), step? (≤64) }, stored as an `attempt.progress` event in the local events table. The event carries time, session, epic, run and ticket, with payload { attemptId, note, step }, so no schema change was needed. It is written only after the claim is verified, in the same transaction, so a refused heartbeat stores nothing. The note and step are masked before storing: the proven claim token is replaced literally, then maskClaimTokens catches any other token-shaped string. The claim-token masker moved from src/main/agents to src/core/claimTokenMask.ts with git mv; the old path re-exports the same API. After each insert, notes beyond the newest 200 per attempt are deleted. Portable run history never reads events and notes queue no outbox work, so exports and their content hashes are unchanged. The MCP tool schema and description are updated, and the validation hash pin was refreshed for the intended schema change."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m464qr300pd5y24xgjt2qy14",
+      "state": "accepted",
+      "submittedAt": "2026-10-05T14:00:09.388Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:33cc220c82c4943c923b5de0994dd91b4b4d3115d92eb3a865523b84416bb552",
+      "ticketId": "tk_01m43n57tyegdewb1zbyc1wer9",
+      "updatedAt": "2026-10-05T14:00:15.294Z",
+      "worker": {
+        "catalogRevision": "2026-10-04-agents",
+        "effort": "medium",
+        "hostId": "claude-code-desktop-davgo",
+        "label": "Claude Code subagent (DM-91)",
+        "modelId": "claude-sonnet-5-5",
+        "rationale": "The matcher recommends Sonnet at low effort (small ticket). I raised the effort to medium per sprint 1's retro action: this ticket masks claim tokens and must keep portable history hashes unchanged, and low effort shipped a security defect on DM-49.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-05T13:47:13.295Z",
+      "decidedAt": "2026-10-05T14:09:03.313Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "The small renderer guard (thread approvals stay visible) is justified: without it a subagent's approval card would vanish and the turn would hang until DM-100. forwardSubagentText exists in SDK 0.3.289's types. I re-ran 47 files (997 tests), typecheck and lint.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "37 failures across chat, chatStore, claude and chatViewModel tests before the implementation.",
+            "name": "red first",
+            "status": "passed"
+          },
+          {
+            "detail": "Worker: 42 files, 954 tests. Orchestrator re-run of src/shared/agents, src/main/agents and src/renderer/src/agents: 47 files, 997 passed.",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint exit 0 on all changed .ts/.tsx files (orchestrator re-run).",
+            "name": "lint (changed files)",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck exit 0 (orchestrator re-run).",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "The orchestrator grepped the diff for user name, email, Windows user paths, API keys and claim tokens: none found.",
+            "name": "fixture scrub",
+            "status": "passed"
+          },
+          {
+            "detail": "Full gate at the checkpoint.",
+            "name": "full gate",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Re-ran claude.test.ts with the rest of the agents suites: green. The fixture header documents a real recording and its scrub."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Contract: approval_request.threadLabel is optional. The adapter tests assert threadId and threadLabel on the recorded subagent Write."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "The old-shape JSONL fixture loads with no skipped lines; thread is an additive kind, so nothing is migrated."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Red-first evidence given."
+          }
+        ],
+        "notes": "Discoveries:\n- Threads left running by an idle dispose or app quit are never closed. dispose emits nothing, so they stay running in storage. Folded into sprint 3's transcript ticket DM-204.\n- threadLabel is on the request but not rendered on the approval card. That is the UI half, for DM-100."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m465330fv3nwr7zadhqv59g0",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "recorded two-subagent session (fixture)",
+            "location": "src/main/agents/adapters/__mocks__/claudeSubagents.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "recording script (not committed)",
+            "location": "C:\\Users\\davgo\\Documents\\GitHub\\dm-wt\\evidence\\DM-96\\scratch\\record.mjs",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "dm-96",
+        "changedFiles": [
+          "docs/architecture.md",
+          "src/shared/agents/chat.ts",
+          "src/shared/agents/chat.test.ts",
+          "src/main/agents/chatStore.ts",
+          "src/main/agents/chatStore.test.ts",
+          "src/main/agents/adapters/claude.ts",
+          "src/main/agents/adapters/claude.test.ts",
+          "src/main/agents/adapters/claudeTranscript.ts",
+          "src/main/agents/adapters/__mocks__/fakeClaudeSdk.ts",
+          "src/main/agents/adapters/__mocks__/claudeSubagents.ts",
+          "src/main/agents/__mocks__/chatBeforeThreads.ts",
+          "src/renderer/src/agents/chatViewModel.ts",
+          "src/renderer/src/agents/chatViewModel.test.ts"
+        ],
+        "commits": [
+          "a58b50b698e96ad6cea352a1be2e18ed83729d3c",
+          "5b3ee947fd0047c46ecf837cbf5b9f7cf62e7d19",
+          "2f3552da9d0db1708fd9db0bcc922308e9b3dcd5",
+          "1dda6565a356a4962f9c5e645a52261785a7e7fd",
+          "c6612c587ba6b9d1beb8c2c895d07dc0f1f0d90b"
+        ],
+        "summary": "Contract: a new vendor-neutral `thread` item { parentItemId, label, state: running|done|failed }, rewritten by the same id as its state changes. A subagent's items carry the thread item's id as threadId, and approval_request gains an optional threadLabel. Stored chats need no migration, and chatStore treats thread as a quiet kind.\n\nClaude adapter:\n- An Agent/Task call emits its tool_call, then a thread item. Messages with parent_tool_use_id map into that thread, including deltas and nested subagents.\n- Thread state follows the spawning call's result. Background subagents (async_launched) are settled by task_notification; foreground threads still running at the turn's result fail, and discard fails all running threads.\n- canUseTool labels approvals from a subagent with threadId and threadLabel, via agentID = task_id or, failing that, the tool call's parent id.\n- forwardSubagentText is on.\n\nRenderer guard: an approval_request inside a thread stays in the transcript, so it can still be answered before DM-100.\n\nThe fixture is a real recording (SDK 0.3.289 against claude.exe 2.1.281, Haiku, scratch folder), trimmed and scrubbed. The background case is built from the message shapes a first run showed."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m464qr300pd5y24xgjt2qy14",
+      "state": "accepted",
+      "submittedAt": "2026-10-05T14:08:57.916Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:af3c66663c333ec4c602a026e56b4a1d2b9870733326445e1ed6d8ddc940b7ad",
+      "ticketId": "tk_01m43n5y353tr2cz3ht07xb2df",
+      "updatedAt": "2026-10-05T14:09:03.313Z",
+      "worker": {
+        "catalogRevision": "2026-10-04-agents",
+        "effort": "medium",
+        "hostId": "claude-code-desktop-davgo",
+        "label": "Claude Code subagent (DM-96)",
+        "modelId": "claude-sonnet-5-5",
+        "rationale": "Matcher's top fit: Sonnet at medium effort for a multi_step, medium ticket extending the chat contract and the Claude adapter.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-05T14:00:50.359Z",
+      "decidedAt": "2026-10-05T14:22:50.977Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Reads run in one transaction after expireLeases, like getRun, and the output is masked with maskClaimTokensDeep. I re-ran 1058 tests, typecheck and lint. The sparse timelines for imported attempts are a follow-up for the retro.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Before the implementation: activity.test.ts (module missing), the handlers timeline test, commands/activity.test.ts (4) and the poller/hook tests all failed. A takeover regression test failed and was then fixed.",
+            "name": "red first",
+            "status": "passed"
+          },
+          {
+            "detail": "Removing the span re-send rule failed 3 cursor tests, and removing only its page part failed the closed-between-polls test.",
+            "name": "mutation spot-check",
+            "status": "passed"
+          },
+          {
+            "detail": "Worker: 12 files, 212 tests. Orchestrator re-run of activity, events, src/core/commands, src/main/desktop, mcp/server, stubApi and src/renderer/src/app: 1058 passed, 1 skipped.",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint exit 0 (orchestrator re-run).",
+            "name": "lint (changed files)",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck exit 0 (orchestrator re-run).",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Full gate at the checkpoint.",
+            "name": "full gate",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Re-ran activity.test.ts green; the time-order and collapsed-heartbeat tests exist."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "The run timeline groups by session (test)."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Cursor tests include the growing span re-sent by id and closed-between-polls. A mutation spot-check confirms the tests bite."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Red-first evidence given."
+          }
+        ],
+        "notes": "Discoveries: attempts brought in by the repository importer (src/core/repo/importer.ts) or by a takeover from another machine have no local events, so their timelines are sparse. Synthesizing entries from the attempt row is possible follow-up work. Possible later: an MCP read tool for the timelines."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m465w0xqaag1zm37g3kgdp6h",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": "dm-92",
+        "changedFiles": [
+          "src/core/services/activity.ts",
+          "src/core/services/activity.test.ts",
+          "src/core/services/activityEntries.ts",
+          "src/core/commands/activity.ts",
+          "src/core/commands/activity.test.ts",
+          "src/shared/domain/activity.ts",
+          "src/renderer/src/app/activityPoller.ts",
+          "src/renderer/src/app/activityPoller.test.ts",
+          "src/renderer/src/app/useActivityTimeline.ts",
+          "src/renderer/src/app/useActivityTimeline.test.tsx",
+          "src/core/services/events.ts",
+          "src/core/commandSchemas.ts",
+          "src/core/commands/index.ts",
+          "src/core/commands/capabilities.ts",
+          "src/core/commands/capabilities.test.ts",
+          "src/shared/domain/api.ts",
+          "src/shared/desktop/api.ts",
+          "src/test/stubApi.ts",
+          "src/main/desktop/handlers.test.ts",
+          "src/mcp/server.test.ts",
+          "docs/architecture.md"
+        ],
+        "commits": [
+          "7bdf88304cd1341e2ded540eece754d27e52c379",
+          "df7c905584d34f3147323018b8f53b2e160cf33d",
+          "b02225e8766992706351a7817e5191187449dfd8",
+          "2e9052a3340dc59abc97c18c24a041ef3c625ffe"
+        ],
+        "summary": "Core read models: getAttemptTimeline and getRunTimeline (src/core/services/activity.ts, with entry mapping in activityEntries.ts). Entry types are a union discriminated by kind in src/shared/domain/activity.ts, so DM-98/99 can add a chat-stream kind.\n- Attempt entries: claim, carried_forward, alive, note, comment, submitted, decision, failed, lease_expired, reconciled, canceled.\n- Heartbeats collapse into one `alive` span, from attempt.running to heartbeat_at, re-sent by id with a later `until` while the attempt holds a lease, or on any page that carries other entries.\n- Comments count only on the attempt's ticket inside the attempt's window.\n- The run timeline groups run, claim, review, report and checkpoint entries by the session that logged them, in order of first activity.\n- The cursor is an event seq (sinceSeq, limit 1 to 500).\n- isLive is true for an open attempt or an active run, computed in the same transaction after expiring overdue leases.\n- Output passes through maskClaimTokensDeep.\n\nDesktop read commands getAttemptTimeline and getRunTimeline (capability read, strict input) are wired through CommandApi, capabilities, stubApi and DESKTOP_COMMANDS; no MCP tool exposes them. The renderer client is activityPoller.ts (history replay, cursor paging, merge by id) plus the useAttemptTimeline and useRunTimeline hooks, polling every 1500 ms and stopping once not live. There is no UI."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m464qr300pd5y24xgjt2qy14",
+      "state": "accepted",
+      "submittedAt": "2026-10-05T14:22:45.323Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:6bfa64408214a562df1fd202c07298779d94aaa4fcf5992f99fcd44bd9508a78",
+      "ticketId": "tk_01m43n57v0xnfq6rhmj0vfybj7",
+      "updatedAt": "2026-10-05T14:22:50.977Z",
+      "worker": {
+        "catalogRevision": "2026-10-04-agents",
+        "effort": "medium",
+        "hostId": "claude-code-desktop-davgo",
+        "label": "Claude Code subagent (DM-92)",
+        "modelId": "claude-sonnet-5-5",
+        "rationale": "Matcher's top fit: Sonnet at medium effort for a multi_step core read model with cursor polling.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-05T14:00:50.404Z",
+      "decidedAt": "2026-10-05T14:04:14.162Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "The version bump (1.5.0 to 1.5.1 in src/core/version.ts) and the tests are fine. Keep them. Only the three wording fixes are needed.",
+        "outcome": "rejected",
+        "reasons": [
+          "c1 is not met. skills/orchestrator.md step 5 gives the 280-character limit but no no-secrets rule, and c1 requires both skills to state it. Add one sentence saying the note must never carry the claim token or any other secret. An orchestrator relaying a worker's status is exactly where a token could leak.",
+          "skills/worker.md: the inserted sentences landed between 'If you hold the claim token... until you submit.' and 'Otherwise the orchestrator does this.', so 'Otherwise' no longer reads against its condition. Put 'Otherwise the orchestrator does this.' straight after the first sentence, then the progress-note sentences.",
+          "docs/runbooks/mcp-setup.md is inaccurate: 'Each skill describes the heartbeat_attempt tool...' is wrong, because only the worker and orchestrator skills do. Say it as a fact about the tool, for example: '`heartbeat_attempt` takes an optional `progress` { note (at most 280 characters), step (at most 64) } ... the worker and orchestrator skills tell agents to send one.' Keep the storage, export and masking facts, which are right."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "skills.test.ts 22, execution.test.ts 65, prompts.test.ts 6 (worker run).",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck exit 0 (worker run).",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint on version.ts and skills.ts (worker run).",
+            "name": "lint (changed files)",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Worker's claim: both skills describe notes and the limit; the no-secrets rule is in the worker skill."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Served via ?raw imports; prompt tests pass."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Runbook Skills section paragraph."
+          }
+        ],
+        "notes": ""
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m465w0z49csw4k71mx782fw2",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": "dm-95",
+        "changedFiles": [
+          "docs/runbooks/mcp-setup.md",
+          "skills/orchestrator.md",
+          "skills/worker.md",
+          "src/core/version.ts"
+        ],
+        "commits": [
+          "4305cdcf602b19824a75c011ac03fb6a3670bacb"
+        ],
+        "summary": "skills/worker.md: each heartbeat sends a progress note (at most 280 characters) with examples and a no-secrets sentence. skills/orchestrator.md step 5: relay the worker's latest status as a progress note (at most 280 characters). docs/runbooks/mcp-setup.md: a paragraph on the progress field in the Skills section. SKILLS_VERSION in src/core/version.ts went from 1.5.0 to 1.5.1. The worker found no mirrored copies."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m464qr300pd5y24xgjt2qy14",
+      "state": "rejected",
+      "submittedAt": "2026-10-05T14:04:05.624Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:fc4ffd41f8d7f1ed4c0b4fca79c742ff82a3f36d8b596a09c0855b55d1952e74",
+      "ticketId": "tk_01m43n5y35a3yj0n560ga5ghta",
+      "updatedAt": "2026-10-05T14:04:14.162Z",
+      "worker": {
+        "catalogRevision": "2026-10-04-agents",
+        "effort": "low",
+        "hostId": "claude-code-desktop-davgo",
+        "label": "Claude Code subagent (DM-95)",
+        "modelId": "claude-haiku-4-5-20251001",
+        "rationale": "Matcher's top fit: Haiku at low effort for routine skills and runbook wording plus a version bump. Sprint 1's Sonnet floor applies only to process, shell or security tickets, so the matcher's pick stands here.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-05T14:04:23.301Z",
+      "decidedAt": "2026-10-05T14:05:34.587Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Attempt 2 fixed all three rejection reasons. I read the diff against agents-s2.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "skills.test.ts, prompts.test.ts and mcp execution.test.ts: 93 of 93 passed.",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck exit 0.",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Full gate at the checkpoint.",
+            "name": "full gate",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Read the diff: the worker and orchestrator skills each give the 280-character limit and a no-secrets sentence."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "skills.ts serves the .md files raw; the worker's prompt and skills tests pass (93/93)."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Runbook paragraph checked against DM-91's behaviour: limits, 200 kept, not exported, masked, none stored on a refused heartbeat."
+          }
+        ],
+        "notes": ""
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m4662gw55gn724q65mqbj382",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [],
+        "branch": "dm-95",
+        "changedFiles": [
+          "docs/runbooks/mcp-setup.md",
+          "skills/orchestrator.md",
+          "skills/worker.md",
+          "src/core/version.ts"
+        ],
+        "commits": [
+          "4305cdcf602b19824a75c011ac03fb6a3670bacb",
+          "3175c8c"
+        ],
+        "summary": "Attempt 2 fixes attempt 1's three wording problems on top of its commit:\n- skills/orchestrator.md step 5 now adds the no-secrets rule to the relayed progress note.\n- skills/worker.md puts 'Otherwise the orchestrator does this.' straight after its condition, followed by the progress-note sentences.\n- docs/runbooks/mcp-setup.md states the progress field as a fact about heartbeat_attempt (note at most 280, step at most 64, last 200 kept, not exported, masked, none stored on a refused heartbeat) and names the two skills that use it.\nSKILLS_VERSION stays at 1.5.1 (src/core/version.ts)."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m464qr300pd5y24xgjt2qy14",
+      "state": "accepted",
+      "submittedAt": "2026-10-05T14:05:30.264Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:fc4ffd41f8d7f1ed4c0b4fca79c742ff82a3f36d8b596a09c0855b55d1952e74",
+      "ticketId": "tk_01m43n5y35a3yj0n560ga5ghta",
+      "updatedAt": "2026-10-05T14:05:34.587Z",
+      "worker": {
+        "catalogRevision": "2026-10-04-agents",
+        "effort": "low",
+        "hostId": "claude-code-desktop-davgo",
+        "label": "Claude Code subagent (DM-95, attempt 2)",
+        "modelId": "claude-sonnet-5-5",
+        "rationale": "Matcher's escalation after the Haiku attempt was rejected: Sonnet at low effort. The fixes are three wording changes on the same branch.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-05T14:11:46.507Z",
+      "decidedAt": "2026-10-05T14:32:10.007Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "The sources are cited in the fixtures and the runbook. No live CLI ran, consistent with the person's cull. I re-ran 652 tests, typecheck and lint.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Codex: codexSubagents 15 of 16 failed and codexItems 6 failed before the implementation (commit 0a9d374); the resume test was red first too. Cursor has no implementation, so a mutation check was used instead: making cursor/task emit a thread failed 2 of 3 tests (reverted).",
+            "name": "red first",
+            "status": "passed"
+          },
+          {
+            "detail": "src/main/agents/adapters, sessionManager and src/shared/agents: 21 files, 652 passed (orchestrator re-run).",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint exit 0 (orchestrator re-run).",
+            "name": "lint (changed files)",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck exit 0 (orchestrator re-run).",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Full gate at the checkpoint.",
+            "name": "full gate",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Re-ran the adapter suites green. The Codex replay produces threads. The Cursor runbook statement plus the one-thread test meet the criterion's alternative branch."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Red commit 0a9d374. The Cursor test-only path is justified by the mutation check."
+          }
+        ],
+        "notes": "No live Codex or Cursor ran (culled by the person). Assumptions: a Codex announce arrives before the subagent's items, and the v1 vs v2 use of a given release is unverified. Discovery: advertise ACP 'subagents' and map subagent_update once Cursor is shown to send it."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m466g1pbvcvvcaatbadyykx0",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": "dm-97",
+        "changedFiles": [
+          "docs/architecture.md",
+          "docs/runbooks/agents.md",
+          "src/main/agents/__mocks__/codexSubagents.ts",
+          "src/main/agents/__mocks__/cursorSubagents.ts",
+          "src/main/agents/adapters/codex.ts",
+          "src/main/agents/adapters/codexItems.ts",
+          "src/main/agents/adapters/codexItems.test.ts",
+          "src/main/agents/adapters/codexSubagents.test.ts",
+          "src/main/agents/adapters/codexThreads.ts",
+          "src/main/agents/adapters/cursor.ts",
+          "src/main/agents/adapters/cursorSubagents.test.ts"
+        ],
+        "commits": [
+          "0a9d37489829a171c798a2bfa984afa77f3e661d",
+          "f8292bf537797cbff2c826080c66ec96d30465b0",
+          "44563276375132d7e77cda57bc8b2a413e50ece5",
+          "54083e0e9e37ed77cb4472483b08ec291c89f3da",
+          "9a370296b1d36e47fcf85bb85a3511912dc94fbd"
+        ],
+        "summary": "Codex exposes subagents and they are now mapped (openai/codex rust-v0.160.0, commit a956835).\n- A subagent is its own thread, attached to every connection. A v1 collabAgentToolCall spawnAgent, or a v2 subAgentActivity started, opens a thread item (label from the task or the agentPath, with a synthesized spawn_agent call for v2).\n- The subagent's items, deltas and approvals carry threadId and threadLabel, and nested spawns nest.\n- State: running until the subagent's turn ends, then done or failed; a collab status or v2 completed/interrupted also ends it, and process death fails running threads.\n- Unannounced threads are still dropped, but their approvals are raised in the main thread so Codex never hangs.\nThe new file is codexThreads.ts, with edits to codex.ts and codexItems.ts.\n\nCursor exposes no subagent structure: cursor/task carries only task metadata (cursor.com/docs/cli/acp, the ACP spec, and the ACP subagents RFD d2631c6 2026-09-30, which needs a client capability that isn't advertised). It keeps one thread; the only change is a comment. The runbook gains a 'Subagents in a chat' section with a per-agent table and sources, plus not-verified notes. Both fixtures are built from source and docs, and their headers say so."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m464qr300pd5y24xgjt2qy14",
+      "state": "accepted",
+      "submittedAt": "2026-10-05T14:32:03.865Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:e37fbb0ce0dbddde0db8d3a6ff986aa89cc5291629c67ab04cf63a43e5f37e4c",
+      "ticketId": "tk_01m43n6mzvf8kzx2rcdxhayqe4",
+      "updatedAt": "2026-10-05T14:32:10.007Z",
+      "worker": {
+        "catalogRevision": "2026-10-04-agents",
+        "effort": "medium",
+        "hostId": "claude-code-desktop-davgo",
+        "label": "Claude Code subagent (DM-97)",
+        "modelId": "claude-sonnet-5-5",
+        "rationale": "Matcher's top fit: Sonnet at medium effort to investigate two vendor protocols from source and map them onto the thread contract.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-05T14:11:46.552Z",
+      "decidedAt": "2026-10-05T14:29:30.634Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "The binding rules refuse ambiguity, and only completed calls bind. A failure doesn't drop items. I re-ran 1258 tests, typecheck and lint. The truncation discovery is folded into sprint 3's DM-201 in the plan draft.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Test commit 6877675 failed with the module missing, and the 'only answered calls bind' test failed before the status check was added. One role-first-wins test was added alongside its change and was never seen failing.",
+            "name": "red first",
+            "status": "passed"
+          },
+          {
+            "detail": "Worker: src/main/agents and src/shared/agents, 29 files, 746 tests. Orchestrator re-run including src/main/desktop: 1258 passed, 1 skipped.",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint exit 0 (orchestrator re-run).",
+            "name": "lint (changed files)",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck exit 0 (orchestrator re-run).",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "No real-shape claim token (at_<26>.<16+>) in the branch diff (orchestrator grep).",
+            "name": "secret scan",
+            "status": "passed"
+          },
+          {
+            "detail": "Full gate at the checkpoint.",
+            "name": "full gate",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Re-ran the agents suites green; the c1 replay test and the openChat test exist."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "byAttempt and byRun lookups are tested, including after a restart."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "ATTEMPT_ID is anchored to the id and stops at the dot. Bindings are masked, zod-validated and skipped on load if they carry a token. My diff scan found no real-shape token."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Red commit first."
+          }
+        ],
+        "notes": "Discovery (security): claudeTranscript cuts tool input at 1000 characters and result text at 500 before the store masks it. A cut inside a token's secret can leave fewer than 16 characters, which maskClaimTokens misses, so a partial secret is stored and pushed. Folded into sprint 3's masking ticket DM-201. Also: claim_ticket binds the main thread to the attempt as orchestrator, so DM-99 must filter on role worker for the attempt panel."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m466g1qrx5t9rw8he6m035zp",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": "dm-98",
+        "changedFiles": [
+          "src/main/agents/activityBindings.ts",
+          "src/main/agents/activityBindings.test.ts",
+          "src/main/agents/sessionManagerActivity.test.ts",
+          "src/main/agents/__mocks__/orchestratorChat.ts",
+          "src/main/agents/sessionManager.ts",
+          "src/main/agents/chatStore.ts",
+          "src/main/desktop/bootstrap.ts",
+          "docs/architecture.md",
+          "docs/runbooks/agents.md"
+        ],
+        "commits": [
+          "6877675105e6ec4f210dbd243b7481d59c9af140",
+          "51337aa928f5269458706fe56690bdce030a2741",
+          "7477f820321368c7163e5156553e39afcf0211dd",
+          "c9b7a597a157de8c6cf8049bd88ae8b89e7ed3c2"
+        ],
+        "summary": "activityBindings.ts binds chat threads to runs and attempts. Bindings are stored at userData/agents/activity-bindings.jsonl beside the chat store: append-only, deduped by chat, folder, thread, kind and id, reloaded on first use, and rewritten on chat delete.\n\nBinding rules:\n- A Start run chat (chat.runId) binds its main thread to the run as orchestrator.\n- In the main thread, a completed start_run (run id from the result), takeover_run or claim_ticket (input.runId) binds the run, and claim_ticket also binds the claimed attempt.\n- A completed heartbeat, submit or fail binds the calling thread to input.attemptId (worker unless it is the orchestrating main thread).\n- An Agent/Task spawn in an orchestrating main thread binds its child thread (by parentItemId) to the single attempt id its prompt carries, as worker.\n- Ids match whole only; a labelled id wins if it is unique, and several distinct ids bind nothing.\n- Only completed calls bind.\n\nTokens: the id regex stops at the dot. Bindings are masked, zod-validated and written; lines carrying a token are skipped on load.\n\nWiring: the session manager calls observe on each stored item, replays the transcript on openChat, binds a Start run chat on create and forgets on delete; a failure goes to onError without losing the item. bootstrap creates the bindings for DM-99. Lookups are byAttempt and byRun. There is no IPC and no UI."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m464qr300pd5y24xgjt2qy14",
+      "state": "accepted",
+      "submittedAt": "2026-10-05T14:29:23.754Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:15f94316d841e83e9cbfedbbea49ebeafd68de2c3a1969246781142a86e2f4bb",
+      "ticketId": "tk_01m43n6mzwnjq91zegj4jvqyz6",
+      "updatedAt": "2026-10-05T14:29:30.634Z",
+      "worker": {
+        "catalogRevision": "2026-10-04-agents",
+        "effort": "medium",
+        "hostId": "claude-code-desktop-davgo",
+        "label": "Claude Code subagent (DM-98)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "The only eligible model for this deep, security-sensitive ticket: Opus at medium effort. It correlates tool calls across threads with run state and must never store tokens.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-05T14:23:29.782Z",
+      "decidedAt": "2026-10-05T14:45:22.415Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "The branch already contains agents-s2 at 0e3df79, so DM-94's hook and icon were reused. I re-ran 1929 renderer tests, typecheck and lint.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Red runs for workingAttempts, graphModel.working, listSections, WorkingHourglass, PlanGraph, ListView, workspaceState, activityView, ActivityTab, TicketPanel.activity and the EpicWorkspace strip tests. The latestAttemptId and workspace-level hourglass tests were added with or after their code.",
+            "name": "red first",
+            "status": "passed"
+          },
+          {
+            "detail": "Worker: 94 files, 1089 tests on the merged result. Orchestrator re-run of all of src/renderer/src: 161 files, 1929 passed.",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint exit 0 (orchestrator re-run).",
+            "name": "lint (changed files)",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck exit 0 after merging agents-s2 (orchestrator re-run).",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "9 PNGs from the built app (throwaway profile, DISABLE_AUTO_UPDATE=1); the orchestrator viewed 03. No Electron process was left running.",
+            "name": "screenshots",
+            "status": "passed"
+          },
+          {
+            "detail": "Full gate at the checkpoint.",
+            "name": "full gate",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Re-ran the renderer suite green."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Screenshot 03 shows the Activity tab opened for the working attempt."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Covered by the ManualScheduler tests."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Reduced-motion tests, plus the computed style in the real app."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Screenshots present; I viewed 03."
+          }
+        ],
+        "notes": "Discoveries: GraphMascot has its own useMotionPreference, which duplicates useReducedMotion. Two similar hourglass keyframes exist (of-turn and ew-hourglass-turn). Both are small tidy-ups."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m4675gfpapaccbn37mn0qwwx",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "graph hourglass",
+            "location": "C:\\Users\\davgo\\Documents\\GitHub\\dm-wt\\evidence\\DM-93\\01-graph-hourglass-on-working-node.png",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "list hourglass",
+            "location": "C:\\Users\\davgo\\Documents\\GitHub\\dm-wt\\evidence\\DM-93\\02-list-view-hourglass.png",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Activity tab during run",
+            "location": "C:\\Users\\davgo\\Documents\\GitHub\\dm-wt\\evidence\\DM-93\\03-activity-tab-during-run.png",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "new note without reload",
+            "location": "C:\\Users\\davgo\\Documents\\GitHub\\dm-wt\\evidence\\DM-93\\04-activity-tab-new-note-without-reload.png",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "attempt ended",
+            "location": "C:\\Users\\davgo\\Documents\\GitHub\\dm-wt\\evidence\\DM-93\\07-activity-tab-after-the-attempt-closed.png",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "dm-93",
+        "changedFiles": [
+          "src/renderer/src/epic/AttemptsStrip.tsx",
+          "src/renderer/src/epic/EpicWorkspace.tsx",
+          "src/renderer/src/epic/ListView.tsx",
+          "src/renderer/src/epic/listSections.ts",
+          "src/renderer/src/epic/workspaceState.ts",
+          "src/renderer/src/epic/epic.css",
+          "src/renderer/src/epic/tones.css",
+          "src/renderer/src/epic/__mocks__/fakeBackend.ts",
+          "src/renderer/src/graph/PlanGraph.tsx",
+          "src/renderer/src/graph/flowElements.ts",
+          "src/renderer/src/graph/graphModel.ts",
+          "src/renderer/src/graph/nodes.tsx",
+          "src/renderer/src/graph/graph.css",
+          "src/renderer/src/graph/WorkingHourglass.tsx",
+          "src/renderer/src/graph/workingAttempts.ts",
+          "src/renderer/src/ticket/ActivityTab.tsx",
+          "src/renderer/src/ticket/activityView.ts",
+          "src/renderer/src/ticket/useFollowScroll.ts",
+          "src/renderer/src/ticket/TicketPanel.tsx",
+          "src/renderer/src/ticket/ticket.css"
+        ],
+        "commits": [
+          "6bc8de356df71023ab57110ce88b19bbacb567e4",
+          "b213ba7f7d7c72bd2858acc93b61ca251d7b0b09",
+          "fd86d627b42f0eb519cba360cfb39bcf3b3bea41",
+          "6e3766429a23cc07893c4853e60802feb5e28ae8",
+          "6940bd1edb75cc4664a89b5501c9cbfa808513aa"
+        ],
+        "summary": "Hourglass: a ticket whose latest non-superseded attempt is claimed or running shows an animated hourglass button next to its state, in the graph card and the list Execution cell (saved view during a run). It is labelled '<KEY> is being worked on' and static under reduced motion; the animation exists only under the no-preference media query, using DM-94's useReducedMotion and hourglass icon.\n\nClicking it, or an attempt in the attempts strip, dispatches open_activity, which opens the ticket panel's new Activity tab for that attempt. ActivityTab uses DM-92's useAttemptTimeline. Entries run oldest first; the alive span is one row ('Working since X, last seen Y'); notes and comments are plain text. It auto-scrolls until the person scrolls up, then offers 'Jump to latest'. When the timeline is no longer live it stops polling and shows 'Attempt ended: <outcome>' with the reason.\n\nThe tab row now wraps for six tabs. agents-s2 was merged into dm-93 at 0e3df79."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m464qr300pd5y24xgjt2qy14",
+      "state": "accepted",
+      "submittedAt": "2026-10-05T14:45:22.379Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:e1d4e267412e1538794bee9b61d3c7e469420c7296758a4369ce4d1413bdc871",
+      "ticketId": "tk_01m43n57v0xmjx16h34g9z64xa",
+      "updatedAt": "2026-10-05T14:45:22.415Z",
+      "worker": {
+        "catalogRevision": "2026-10-04-agents",
+        "effort": "medium",
+        "hostId": "claude-code-desktop-davgo",
+        "label": "Claude Code subagent (DM-93)",
+        "modelId": "claude-sonnet-5-5",
+        "rationale": "Matcher's top fit: Sonnet at medium effort for graph and list live state plus a new panel tab with polling.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-05T14:23:29.828Z",
+      "decidedAt": "2026-10-05T14:35:26.926Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "I re-ran 699 tests, typecheck and lint, and viewed the feed screenshot.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "orchestratorFeedView and OrchestratorFeed tests failed (module missing; 12 failed) before the implementation.",
+            "name": "red first",
+            "status": "passed"
+          },
+          {
+            "detail": "Worker: 28 files, 307 tests. Orchestrator re-run of src/renderer/src/epic, components, app and styles: 65 files, 699 passed.",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint exit 0 (orchestrator re-run).",
+            "name": "lint (changed files)",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck exit 0 (orchestrator re-run).",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "4 PNGs from the built app with a throwaway profile and DISABLE_AUTO_UPDATE=1. The orchestrator viewed 02. No Electron process was left running.",
+            "name": "screenshots",
+            "status": "passed"
+          },
+          {
+            "detail": "Full gate at the checkpoint.",
+            "name": "full gate",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Re-ran the tests green; the chip appears only for active runs."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Screenshot 02, which I viewed, shows claim model, effort and rationale, and ticket links."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "The ManualScheduler test covers the poll stopping."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Screenshot 02."
+          }
+        ],
+        "notes": "The worker's heartbeat schema had no progress field (this session's DM server predates DM-91), so no notes were sent."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m4675gh4y8nzjpjmqyykx5ed",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "chip in run bar",
+            "location": "C:\\Users\\davgo\\Documents\\GitHub\\dm-wt\\evidence\\DM-94\\01-chip-in-run-bar.png",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "feed during run",
+            "location": "C:\\Users\\davgo\\Documents\\GitHub\\dm-wt\\evidence\\DM-94\\02-feed-during-run.png",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "new claim without reload",
+            "location": "C:\\Users\\davgo\\Documents\\GitHub\\dm-wt\\evidence\\DM-94\\03-feed-after-new-claim-without-reload.png",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "ticket entry opens panel",
+            "location": "C:\\Users\\davgo\\Documents\\GitHub\\dm-wt\\evidence\\DM-94\\04-ticket-entry-opens-ticket-panel.png",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "dm-94",
+        "changedFiles": [
+          "src/renderer/src/epic/OrchestratorFeed.tsx",
+          "src/renderer/src/epic/OrchestratorFeed.test.tsx",
+          "src/renderer/src/epic/orchestratorFeedView.ts",
+          "src/renderer/src/epic/orchestratorFeedView.test.ts",
+          "src/renderer/src/epic/orchestratorFeed.css",
+          "src/renderer/src/epic/useReducedMotion.ts",
+          "src/renderer/src/epic/RunBar.tsx",
+          "src/renderer/src/epic/EpicWorkspace.tsx",
+          "src/renderer/src/epic/useWorkspace.ts",
+          "src/renderer/src/epic/__mocks__/fakeBackend.ts",
+          "src/renderer/src/components/Icon.tsx",
+          "src/renderer/src/components/Icon.test.tsx"
+        ],
+        "commits": [
+          "74ddad48f0684250135a4ccb6a42065c53fa9115",
+          "bb69178d8e7e562aa42c9c55a66ce970ae95aa43",
+          "3bd109c0c7f168601f59072b4703430edb5f7854",
+          "b16450553c64b79f8e7e31de0fe04b7aca6909a8"
+        ],
+        "summary": "OrchestratorEntry (OrchestratorFeed.tsx) shows a chip in the run bar while the run is active (queued, running, awaiting checkpoint or paused): an hourglass, static under reduced motion, and the orchestrator session's label from the run timeline, with an 'Orchestrator' fallback. Clicking it opens a non-modal drawer with the live run feed, newest first, as plain text. Claims show model, effort and rationale. A ticket key links to the ticket panel, and the drawer closes first. It uses DM-92's useRunTimeline (1500 ms) and stops when the run is not live. EpicWorkspace takes an optional scheduler, so ManualScheduler can drive the polling in tests. Also adds an hourglass icon and an idle getRunTimeline in fakeBackend."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m464qr300pd5y24xgjt2qy14",
+      "state": "accepted",
+      "submittedAt": "2026-10-05T14:35:26.895Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:36018e86d8f0aeddba942c683cc5ac6f59aa9b8f7275e3b8d909c54a71faae3b",
+      "ticketId": "tk_01m43n5y33rfxdp8p9ma62t71n",
+      "updatedAt": "2026-10-05T14:35:26.926Z",
+      "worker": {
+        "catalogRevision": "2026-10-04-agents",
+        "effort": "low",
+        "hostId": "claude-code-desktop-davgo",
+        "label": "Claude Code subagent (DM-94)",
+        "modelId": "claude-sonnet-5-5",
+        "rationale": "Matcher's top fit: Sonnet at low effort for a small run-bar chip and drawer reusing DM-92's run timeline hook.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-05T14:45:58.622Z",
+      "decidedAt": "2026-10-05T15:16:43.095Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Marker text is built from fixed phrases, never from inputs, and error text is masked. I re-ran 3338 tests, typecheck and lint.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Red runs for activityBindings byChat, threadBindings, chatHandlers, chatIpc, chatViewModel, threadModel, actionMarkers, chatLookup, ChatView.markers (8), ChatView.threads (16), EpicWorkspace.landing (5), landingActions, shellActions and App.links. failureDetail, the landing helpers, the IPC e2e test and ThreadModel were written with their code.",
+            "name": "red first",
+            "status": "passed"
+          },
+          {
+            "detail": "Worker: 117 files, 1790 tests; the landing and threads suites ran 3 times with no flakes. Orchestrator re-run of src/renderer/src, src/main/agents, src/main/desktop, ipcGuard and src/shared/agents: 222 files, 3338 passed, 1 skipped.",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint exit 0 (orchestrator re-run).",
+            "name": "lint (changed files)",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck exit 0 (orchestrator re-run).",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "4 PNGs from the built app (throwaway profile, DISABLE_AUTO_UPDATE=1), seeded through the real core and chat store; the app bound the threads itself. The orchestrator viewed 02. No Electron process was left running.",
+            "name": "screenshots",
+            "status": "passed"
+          },
+          {
+            "detail": "Full gate at the checkpoint.",
+            "name": "full gate",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Re-ran green. Screenshot 02 shows a collapsed block, an expanded block and a nested thread."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Markers in screenshot 02 (started the run, claimed DM-2/DM-3, accepted DM-2, heartbeat, submitted); tests cover navigation."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "DM-2/DM-3 ACTIVITY chips in screenshot 02; link tests pass."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Screenshot 02 viewed."
+          }
+        ],
+        "notes": "openThread has no UI trigger yet; DM-99's Open chat link will use it."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m468enpyazc39tg3f7jxzm33",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "threads collapsed",
+            "location": "C:\\Users\\davgo\\Documents\\GitHub\\dm-wt\\evidence\\DM-100\\01-chat-threads-collapsed.png",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "one thread expanded",
+            "location": "C:\\Users\\davgo\\Documents\\GitHub\\dm-wt\\evidence\\DM-100\\02-chat-one-thread-expanded.png",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "bound thread link opens Activity tab",
+            "location": "C:\\Users\\davgo\\Documents\\GitHub\\dm-wt\\evidence\\DM-100\\03-bound-thread-link-opens-activity-tab.png",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "marker opens ticket",
+            "location": "C:\\Users\\davgo\\Documents\\GitHub\\dm-wt\\evidence\\DM-100\\04-marker-opens-ticket.png",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "dm-100",
+        "changedFiles": [
+          "src/main/agents/activityBindings.ts",
+          "src/main/agents/chatHandlers.ts",
+          "src/main/agents/chatIpc.ts",
+          "src/main/agents/threadBindings.ts",
+          "src/main/desktop/bootstrap.ts",
+          "src/preload/index.ts",
+          "src/shared/agents/chatApi.ts",
+          "src/renderer/src/agents/ActionMarker.tsx",
+          "src/renderer/src/agents/ApprovalCard.tsx",
+          "src/renderer/src/agents/ChatContext.tsx",
+          "src/renderer/src/agents/ChatTranscript.tsx",
+          "src/renderer/src/agents/ChatView.tsx",
+          "src/renderer/src/agents/Hourglass.tsx",
+          "src/renderer/src/agents/ThreadBlock.tsx",
+          "src/renderer/src/agents/ToolCallRow.tsx",
+          "src/renderer/src/agents/useChatLinks.ts",
+          "src/renderer/src/agents/useThreadBindings.ts",
+          "src/renderer/src/agents/actionMarkers.ts",
+          "src/renderer/src/agents/chatLookup.ts",
+          "src/renderer/src/agents/chatViewModel.ts",
+          "src/renderer/src/agents/threadModel.ts",
+          "src/renderer/src/agents/chatThreads.css",
+          "src/renderer/src/App.tsx",
+          "src/renderer/src/app/landing.ts",
+          "src/renderer/src/app/shellActions.ts",
+          "src/renderer/src/app/useShell.ts",
+          "src/renderer/src/epic/EpicWorkspace.tsx",
+          "src/renderer/src/epic/landingActions.ts",
+          "src/renderer/src/epic/orchestration.ts",
+          "src/renderer/src/epic/useLanding.ts",
+          "src/renderer/src/epic/workspaceState.ts"
+        ],
+        "commits": [
+          "08370a407fb298fbf5717302a669794d08d78635",
+          "352e896d002c92f3d14378dbca3eb03ed8cff700",
+          "2d0b4f430579c42f2f828f1fb7c3d2b90a38568f",
+          "fc3ba7216b4b9659ae2065dc6035d0e422796d63"
+        ],
+        "summary": "Chat view threads:\n- chatViewModel keeps every thread's items and deltas. Each thread renders as a collapsible ThreadBlock under its spawning call, showing the label and state (an hourglass while running, via useReducedMotion; Done; Failed), with nesting.\n- A block opens by itself while an approval waits inside it. Orphan threads and entries are still shown, so an approval can't be hidden.\n- The approval card shows 'Asked by the subagent: <label>'.\n\nAction markers: mcp__darkmechanicus__* and darkmechanicus.* calls render as compact markers built only from fixed phrases plus a ticket key. Keys resolve from inputs or results, then getAttemptTimeline/getRun (cached) or the chat's bindings. A marker opens the ticket (on the Activity tab for an attempt) or the epic.\n\nBound threads show the ticket key and an ACTIVITY link.\n\nNew ChatsApi.threadBindings({folder, chatId}) returns ThreadBinding[] with run/epic and attempt/ticket ids and keys resolved in main. It comes with ActivityBindings.byChat, threadBindings.ts, a strict handler, the chats:threadBindings IPC channel, preload, allowlist and bootstrap wiring.\n\nFor DM-99: ShellActions.openThread(path, chatId, threadId) opens a chat with that thread and its ancestors expanded and scrolled into view, and openTicket(path, {epicId, ticketId, attemptId}) opens a ticket, both via a one-shot Landing. OrchestrationHost.onOpenChat takes an optional threadId."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m464qr300pd5y24xgjt2qy14",
+      "state": "accepted",
+      "submittedAt": "2026-10-05T15:16:43.059Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:dbd2d9ae2578e021f5f2e6e5fcfadc7f8c8be269a91cce5a8d43a04df7410245",
+      "ticketId": "tk_01m43nb6nr8sna53rtyazeyefb",
+      "updatedAt": "2026-10-05T15:16:43.095Z",
+      "worker": {
+        "catalogRevision": "2026-10-04-agents",
+        "effort": "medium",
+        "hostId": "claude-code-desktop-davgo",
+        "label": "Claude Code subagent (DM-100)",
+        "modelId": "claude-sonnet-5-5",
+        "rationale": "Matcher's top fit: Sonnet at medium effort for nested live threads, action markers and cross-navigation in the chat view.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-05T15:16:54.589Z",
+      "decidedAt": "2026-10-05T15:46:56.893Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "I re-ran 3455 tests, typecheck and lint. The chats:open side effect when only viewing a panel is a real but bounded gap (Claude chats don't start on open), and it is added to sprint 3.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Before the implementation: the main-side tests (4), threadStream (import), ActivityTab.thread (14) and OrchestratorFeed.thread (9) failed, while the unbound-case tests passed. StreamRow and some branch tests were added afterwards.",
+            "name": "red first",
+            "status": "passed"
+          },
+          {
+            "detail": "Worker: 132 files, 2071 tests. Orchestrator re-run of src/renderer/src, src/main/agents, src/main/desktop, ipcGuard and src/shared/agents: 227 files, 3455 passed, 1 skipped.",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint exit 0 (orchestrator re-run).",
+            "name": "lint (changed files)",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck exit 0 (orchestrator re-run).",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "7 PNGs from the built app with a throwaway profile, scratch repo, real chat store and a fake codex app-server for a live approval. 'Allow once' reached the fake as accept. The orchestrator viewed 02. No Electron or fake-codex process was left running.",
+            "name": "screenshots",
+            "status": "passed"
+          },
+          {
+            "detail": "Full gate at the checkpoint (the row 4 check follows).",
+            "name": "full gate",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Screenshot 02, which I viewed: chat rows merged into the timeline by time, live."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Tests plus screenshot 06."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Unbound-case tests pass: no open call, no subscription."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Screenshot 02 shows an answerable approval card; 07 shows it answered."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Screenshot 02."
+          }
+        ],
+        "notes": "Discovery: chats:open has side effects. It starts a Codex session (startOnOpen) and cancels orphaned approvals, so viewing an old bound attempt's Activity tab can start an agent. A read-only chat read for following panels is a follow-up, added to sprint 3."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m46a7a5xqg6mt57vfrmzhstn",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Activity tab of a bound attempt",
+            "location": "C:\\Users\\davgo\\Documents\\GitHub\\dm-wt\\evidence\\DM-99\\02-activity-tab-bound-attempt.png",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "orchestrator feed main thread",
+            "location": "C:\\Users\\davgo\\Documents\\GitHub\\dm-wt\\evidence\\DM-99\\03-orchestrator-feed-main-thread.png",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Open chat with the thread expanded",
+            "location": "C:\\Users\\davgo\\Documents\\GitHub\\dm-wt\\evidence\\DM-99\\06-open-chat-thread-expanded.png",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "approval answered from the panel",
+            "location": "C:\\Users\\davgo\\Documents\\GitHub\\dm-wt\\evidence\\DM-99\\07-activity-tab-approval-answered.png",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "dm-99",
+        "changedFiles": [
+          "src/main/agents/boundThreads.ts",
+          "src/main/agents/chatHandlers.ts",
+          "src/main/agents/chatIpc.ts",
+          "src/main/desktop/bootstrap.ts",
+          "src/preload/index.ts",
+          "src/shared/agents/chatApi.ts",
+          "src/renderer/src/agents/threadStream.ts",
+          "src/renderer/src/agents/StreamRow.tsx",
+          "src/renderer/src/agents/useBoundThread.ts",
+          "src/renderer/src/agents/useThreadStream.ts",
+          "src/renderer/src/agents/useChatSession.ts",
+          "src/renderer/src/epic/OrchestratorFeed.tsx",
+          "src/renderer/src/epic/orchestratorFeedView.ts",
+          "src/renderer/src/epic/EpicWorkspace.tsx",
+          "src/renderer/src/ticket/ActivityTab.tsx",
+          "src/renderer/src/ticket/TicketPanel.tsx"
+        ],
+        "commits": [
+          "ce5819b152d901cdf76049117ac8aeb4af7915e0",
+          "9f1ba153898b05a9dd023316cd239f678e0587c0",
+          "0811393a1cd354ca998440fff5fc8d538149b9e8",
+          "231a7f7cd50f555513bca74d3aea79327f0dad5b",
+          "ff6837eed6263ee2f9522c186c82b8414dbb8f0a",
+          "2a84423d183efa00d87e2c9fc8be8a5d3df73557",
+          "a87b394213af1ca18cdac1c57207f6f321ba1590"
+        ],
+        "summary": "New ChatsApi.boundThreads({folder, attemptId}|{folder, runId}) returns the bound chat threads. The input is strict and refuses tokens, the folder must be tracked, and it's wired through boundThreads.ts, the handler, the chats:boundThreads IPC channel, preload, bootstrap and the allowlist.\n\nchooseBoundThread takes the latest worker binding for an attempt, or the orchestrator main thread for a run; the orchestrator-only claim binding stays unbound. useBoundThread re-asks only when the timeline cursor changes.\n\nuseThreadStream reuses the chat view's reducer (one chats.open, then onEvent pushes, unsubscribed on unmount). streamRows builds text, tool call, approval, error and subagent rows, plus pending approvals below the bound thread; Dark Mechanicus calls are phrased.\n\nThe Activity tab merges the rows with the timeline by time and adds an Open chat link (onOpenChat(chatId, threadId)). The orchestrator feed drawer merges the main-thread stream while it is open. Approvals are answered from either panel through ApprovalCard. Unbound attempts and runs render exactly as before, with no open and no subscription."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m464qr300pd5y24xgjt2qy14",
+      "state": "accepted",
+      "submittedAt": "2026-10-05T15:46:56.857Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:d709c7663267dee3509b327ac806138c71527e3efe3aa22a820808d9a199bd8c",
+      "ticketId": "tk_01m43n6mzwswktqv5w8x3syb0g",
+      "updatedAt": "2026-10-05T15:46:56.893Z",
+      "worker": {
+        "catalogRevision": "2026-10-04-agents",
+        "effort": "medium",
+        "hostId": "claude-code-desktop-davgo",
+        "label": "Claude Code subagent (DM-99)",
+        "modelId": "claude-sonnet-5-5",
+        "rationale": "Matcher's top fit: Sonnet at medium effort to merge live chat streams into the Activity tab and orchestrator feed, building on DM-100's bindings read and open-thread entry point.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-05T15:49:13.575Z",
+      "decidedAt": "2026-10-05T17:12:03.638Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Increment 5043f7c is verified as one squashed commit with parent 417a154, and its tree is identical to agents-s2 d748c7e. I re-ran lint, typecheck and deadcode on d748c7e. No leftover processes: the claude.exe processes running belong to the person's Claude desktop app.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npm run lint exit 0 on 523d96d and d748c7e (worker); orchestrator re-run on d748c7e exit 0.",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "Node, web and fireguard projects exit 0 (worker and orchestrator).",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npm test: 377 files, 7013 passed, 1 skipped; Fireguard suite 20 files, 105 tests.",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "Statements 97.84, branches 95.55, functions 96.57, lines 97.94 (thresholds 97/95/96/97).",
+            "name": "coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "Grade A (92), all hard gates passed. Isolated clone of 523d96d, FIREGUARD_BASE_REF=417a154, test command with --bail=1. AST 2552 assertions; flake 100/100; mutation 1091 of 1388 killed (79, minimum 75). The later commits change only report files.",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports (worker and orchestrator).",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run build exit 0.",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "checkA evidence: masked rows, no notes in the export."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Read against DM-92's scope: the run timeline intentionally carries no notes; the attempt timeline lists them; the cursor poll returns new entries only."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Screenshots a2, a3, a4."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Screenshots a1, a5, a6, a7."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Served prompts and version 1.5.1."
+          },
+          {
+            "criterionId": "c6",
+            "met": true,
+            "note": "Live chats b1, b2; after restart b4."
+          },
+          {
+            "criterionId": "c7",
+            "met": true,
+            "note": "Runbook section plus adapter tests."
+          },
+          {
+            "criterionId": "c8",
+            "met": true,
+            "note": "Binding mechanics hold: main thread to the run, packet-carrying workers to their attempts. Token search clean. The orchestrator not passing packets by default is a kickoff defect, folded into sprint 3's DM-203."
+          },
+          {
+            "criterionId": "c9",
+            "met": true,
+            "note": "b7, which I viewed, shows a live worker stream in a bound attempt's Activity tab; b6 shows Open chat."
+          },
+          {
+            "criterionId": "c10",
+            "met": true,
+            "note": "b2, b3."
+          },
+          {
+            "criterionId": "c11",
+            "met": true,
+            "note": "Report committed; the diff after 523d96d is report files only (I checked)."
+          },
+          {
+            "criterionId": "c12",
+            "met": true,
+            "note": "fireguard-report.json grade A (92); I checked it."
+          }
+        ],
+        "notes": "Defects:\n1. DM-99 (low): a worker thread reused for a retry shows its earlier attempt's rows in the later attempt's Activity tab (b9).\n2. The known kickoff step-2 problem: without the skill, the orchestrator did not pass packets to its workers.\nBoth go to sprint 3.\n\nWorker process notes:\n- Its own approval helper wrongly denied 6 in-scratch writes, which it fixed.\n- It ran one read-only `git status` in the main checkout against its brief; nothing changed.\n- No processes were left; the person's app and data were untouched."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m46c2fq7m68c116v6b0ddtjg",
+      "increment": {
+        "base": {
+          "commit": "417a1543c20a2583e60d1e71d59a1055e29c08c4",
+          "kind": "previous_increment"
+        },
+        "branch": "agents",
+        "checks": [
+          {
+            "detail": "Names the epic branch agents.",
+            "name": "Epic branch",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 5043f7c exists.",
+            "name": "Commit exists",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 5043f7c has one parent, 417a154.",
+            "name": "One parent",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 5043f7c is reachable from agents.",
+            "name": "On the epic branch",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 5043f7c is not part of the previous sprint's increment 417a154.",
+            "name": "After the base commit",
+            "status": "passed"
+          },
+          {
+            "detail": "None of the 43 commits recorded by this sprint's accepted work is reachable from agents.",
+            "name": "Squashed, not merged",
+            "status": "passed"
+          }
+        ],
+        "commit": "5043f7cda2c70922513ba73e4071f9e22b163b62",
+        "parent": "417a1543c20a2583e60d1e71d59a1055e29c08c4",
+        "passed": true,
+        "reasons": [],
+        "verifiedAt": "2026-10-05T17:11:26.523Z"
+      },
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "live walkthrough report",
+            "location": "docs/reports/live-activity-e2e.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "acceptance evidence",
+            "location": "C:\\Users\\davgo\\Documents\\GitHub\\dm-wt\\evidence\\DM-90",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "fireguard report",
+            "location": "C:\\Users\\davgo\\Documents\\GitHub\\dm-wt\\evidence\\DM-90\\fireguard-report.json",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "agents",
+        "changedFiles": [],
+        "commits": [
+          "5043f7cda2c70922513ba73e4071f9e22b163b62"
+        ],
+        "summary": "Sprint 2 acceptance round on agents-s2 (523d96d, then d748c7e with the report). The Definition of Done passed with no gate fixes. Fireguard graded A (92) in an isolated clone against base 417a154.\n\nLive walkthrough on Windows with Claude Code only:\n- Part A: an external host over MCP showed the hourglass, the Activity tab, notes masked and the orchestrator chip and feed, with the chip gone after the run ended. The timelines were checked through the desktop command path.\n- Part B: two real Claude Code (Sonnet) orchestrator chats in the app showed subagent threads under their spawning calls (also after a restart), action markers, thread bindings, a bound attempt's Activity tab streaming the worker, and Open chat landing with the thread expanded.\n- Claim-token search across the bindings, chat stores and throwaway userData found none.\n\nThe report is docs/reports/live-activity-e2e.md (16 JPEGs). I squashed agents-s2 onto agents as 5043f7c (one parent, 417a154; tree identical to agents-s2 d748c7e)."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m464qr300pd5y24xgjt2qy14",
+      "state": "accepted",
+      "submittedAt": "2026-10-05T17:11:27.103Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:bccf468227512f8f3116457d362b14ebfc54ce381d72251fda24bcaec86e940a",
+      "ticketId": "tk_01m43n1zbxj3b94t8mszhmy85h",
+      "updatedAt": "2026-10-05T17:12:03.638Z",
+      "worker": {
+        "catalogRevision": "2026-10-04-agents",
+        "effort": "high",
+        "hostId": "claude-code-desktop-davgo",
+        "label": "Claude Code subagent (DM-90 acceptance round)",
+        "modelId": "claude-sonnet-5-5",
+        "rationale": "Matcher's top fit is Sonnet. I raised the effort to high because this one node runs the whole Definition of Done (Fireguard included) and a live Windows walkthrough with a Claude Code orchestrator chat. Sprint 1 needed two attempts on its acceptance node.",
+        "sessionId": null
+      }
     }
   ],
   "checkpoints": [
@@ -3921,6 +5500,15 @@
       "policy": "human",
       "reportId": "rp_01m45j3wtyq8nbqrmpycpx3trw",
       "sprintId": "sp_01m418epbh0ysceqjaybx7pxw1"
+    },
+    {
+      "decidedAt": "2026-10-05T17:45:27.749Z",
+      "decidedBy": "ss_01m452dqwnhp6va47bcf9b53qv",
+      "id": "ck_01m46jqae52q1spcayp6w8wy31",
+      "outcome": "advanced",
+      "policy": "human",
+      "reportId": "rp_01m46gx3gda0bxhp0qa4gvr9mr",
+      "sprintId": "sp_01m43n1zbxyvf21sa7yxf3wz5p"
     }
   ],
   "createdAt": "2026-10-04T23:29:35.917Z",
@@ -4586,9 +6174,466 @@
       "reportRevision": 1,
       "sprintId": "sp_01m418epbh0ysceqjaybx7pxw1",
       "submittedBy": "Claude Code"
+    },
+    {
+      "content": {
+        "accepted": [
+          "DM-91 Accept progress notes on heartbeat_attempt",
+          "DM-92 Build attempt and run activity timelines",
+          "DM-93 Show an hourglass on working tickets and open the live attempt panel",
+          "DM-94 Add the orchestrator entry to the epic graph and its live feed",
+          "DM-95 Teach workers and orchestrators to send progress notes",
+          "DM-96 Carry subagent threads in the chat contract and the Claude adapter",
+          "DM-97 Carry subagent threads from the Codex and Cursor adapters",
+          "DM-98 Link chat threads to the attempts and runs they act on",
+          "DM-99 Stream linked chat threads in the attempt panel and orchestrator feed",
+          "DM-100 Show subagent threads and Dark Mechanicus action markers inline in chats",
+          "DM-90 Sprint 2 acceptance"
+        ],
+        "blocked": [],
+        "changes": {
+          "commits": [
+            "5043f7cda2c70922513ba73e4071f9e22b163b62 (sprint 2 increment on agents, squashed from agents-s2 at d748c7e)",
+            "agents-s2 integration commits: 60d41b8 and d420ef2 (dead-export baseline refreshes after rows 1 and 2), 3425578 (merge of s2-row3-fix: +57 covered branches, two types made private), 523d96d (BoundThreadsRequest baselined), 6775119 and d748c7e (live walkthrough report)"
+          ],
+          "files": [
+            ".tsprune-ignore",
+            "docs/architecture.md",
+            "docs/reports/live-activity-e2e.md",
+            "docs/reports/live-activity-e2e/ (16 JPEG screenshots)",
+            "docs/runbooks/agents.md",
+            "docs/runbooks/mcp-setup.md",
+            "skills/orchestrator.md",
+            "skills/worker.md",
+            "src/core/claimTokenMask.test.ts",
+            "src/core/claimTokenMask.ts",
+            "src/core/commandSchemas.ts",
+            "src/core/commands/activity.test.ts",
+            "src/core/commands/activity.ts",
+            "src/core/commands/capabilities.test.ts",
+            "src/core/commands/capabilities.ts",
+            "src/core/commands/index.ts",
+            "src/core/schemas.test.ts",
+            "src/core/schemas.ts",
+            "src/core/services/activity.test.ts",
+            "src/core/services/activity.ts",
+            "src/core/services/activityEntries.test.ts",
+            "src/core/services/activityEntries.ts",
+            "src/core/services/attempts.test.ts",
+            "src/core/services/attempts.ts",
+            "src/core/services/events.ts",
+            "src/core/version.ts",
+            "src/main/agents/__mocks__/chatBeforeThreads.ts",
+            "src/main/agents/__mocks__/codexSubagents.ts",
+            "src/main/agents/__mocks__/cursorSubagents.ts",
+            "src/main/agents/__mocks__/orchestratorChat.ts",
+            "src/main/agents/activityBindings.test.ts",
+            "src/main/agents/activityBindings.ts",
+            "src/main/agents/adapters/__mocks__/claudeSubagents.ts",
+            "src/main/agents/adapters/__mocks__/fakeClaudeSdk.ts",
+            "src/main/agents/adapters/claude.test.ts",
+            "src/main/agents/adapters/claude.ts",
+            "src/main/agents/adapters/claudeTranscript.ts",
+            "src/main/agents/adapters/codex.ts",
+            "src/main/agents/adapters/codexItems.test.ts",
+            "src/main/agents/adapters/codexItems.ts",
+            "src/main/agents/adapters/codexSubagents.test.ts",
+            "src/main/agents/adapters/codexThreads.ts",
+            "src/main/agents/adapters/cursor.ts",
+            "src/main/agents/adapters/cursorSubagents.test.ts",
+            "src/main/agents/boundThreads.test.ts",
+            "src/main/agents/boundThreads.ts",
+            "src/main/agents/chatHandlers.test.ts",
+            "src/main/agents/chatHandlers.ts",
+            "src/main/agents/chatIpc.test.ts",
+            "src/main/agents/chatIpc.ts",
+            "src/main/agents/chatStore.test.ts",
+            "src/main/agents/chatStore.ts",
+            "src/main/agents/claimTokenMask.ts",
+            "src/main/agents/sessionManager.ts",
+            "src/main/agents/sessionManagerActivity.test.ts",
+            "src/main/agents/threadBindings.test.ts",
+            "src/main/agents/threadBindings.ts",
+            "src/main/desktop/bootstrap.ts",
+            "src/main/desktop/handlers.test.ts",
+            "src/mcp/server.test.ts",
+            "src/mcp/tools/execution.test.ts",
+            "src/mcp/tools/execution.ts",
+            "src/mcp/validation.test.ts",
+            "src/preload/index.ts",
+            "src/renderer/src/App.links.test.tsx",
+            "src/renderer/src/App.tsx",
+            "src/renderer/src/__mocks__/appHarness.tsx",
+            "src/renderer/src/__mocks__/chatViewKit.tsx",
+            "src/renderer/src/__mocks__/fakeChats.ts",
+            "src/renderer/src/__mocks__/idleChats.ts",
+            "src/renderer/src/agents/ActionMarker.tsx",
+            "src/renderer/src/agents/ApprovalCard.tsx",
+            "src/renderer/src/agents/ChatContext.tsx",
+            "src/renderer/src/agents/ChatTranscript.tsx",
+            "src/renderer/src/agents/ChatView.markers.test.tsx",
+            "src/renderer/src/agents/ChatView.threads.test.tsx",
+            "src/renderer/src/agents/ChatView.tsx",
+            "src/renderer/src/agents/Hourglass.tsx",
+            "src/renderer/src/agents/StreamRow.test.tsx",
+            "src/renderer/src/agents/StreamRow.tsx",
+            "src/renderer/src/agents/ThreadBlock.tsx",
+            "src/renderer/src/agents/ToolCallRow.tsx",
+            "src/renderer/src/agents/actionMarkers.test.ts",
+            "src/renderer/src/agents/actionMarkers.ts",
+            "src/renderer/src/agents/chatLookup.test.ts",
+            "src/renderer/src/agents/chatLookup.ts",
+            "src/renderer/src/agents/chatThreads.css",
+            "src/renderer/src/agents/chatViewModel.test.ts",
+            "src/renderer/src/agents/chatViewModel.ts",
+            "src/renderer/src/agents/threadModel.test.ts",
+            "src/renderer/src/agents/threadModel.ts",
+            "src/renderer/src/agents/threadStream.css",
+            "src/renderer/src/agents/threadStream.test.ts",
+            "src/renderer/src/agents/threadStream.ts",
+            "src/renderer/src/agents/useBoundThread.ts",
+            "src/renderer/src/agents/useChatLinks.ts",
+            "src/renderer/src/agents/useChatSession.ts",
+            "src/renderer/src/agents/useThreadBindings.ts",
+            "src/renderer/src/agents/useThreadStream.ts",
+            "src/renderer/src/app/activityPoller.test.ts",
+            "src/renderer/src/app/activityPoller.ts",
+            "src/renderer/src/app/landing.test.ts",
+            "src/renderer/src/app/landing.ts",
+            "src/renderer/src/app/shellActions.test.ts",
+            "src/renderer/src/app/shellActions.ts",
+            "src/renderer/src/app/useActivityTimeline.test.tsx",
+            "src/renderer/src/app/useActivityTimeline.ts",
+            "src/renderer/src/app/useShell.ts",
+            "src/renderer/src/components/Icon.test.tsx",
+            "src/renderer/src/components/Icon.tsx",
+            "src/renderer/src/epic/AttemptsStrip.tsx",
+            "src/renderer/src/epic/EpicWorkspace.activity.test.tsx",
+            "src/renderer/src/epic/EpicWorkspace.landing.test.tsx",
+            "src/renderer/src/epic/EpicWorkspace.tsx",
+            "src/renderer/src/epic/ListView.test.tsx",
+            "src/renderer/src/epic/ListView.tsx",
+            "src/renderer/src/epic/OrchestratorFeed.test.tsx",
+            "src/renderer/src/epic/OrchestratorFeed.thread.test.tsx",
+            "src/renderer/src/epic/OrchestratorFeed.tsx",
+            "src/renderer/src/epic/RunBar.tsx",
+            "src/renderer/src/epic/__mocks__/fakeBackend.ts",
+            "src/renderer/src/epic/epic.css",
+            "src/renderer/src/epic/landingActions.test.ts",
+            "src/renderer/src/epic/landingActions.ts",
+            "src/renderer/src/epic/listSections.test.ts",
+            "src/renderer/src/epic/listSections.ts",
+            "src/renderer/src/epic/orchestration.ts",
+            "src/renderer/src/epic/orchestratorFeed.css",
+            "src/renderer/src/epic/orchestratorFeedView.test.ts",
+            "src/renderer/src/epic/orchestratorFeedView.ts",
+            "src/renderer/src/epic/tones.css",
+            "src/renderer/src/epic/useLanding.ts",
+            "src/renderer/src/epic/useReducedMotion.ts",
+            "src/renderer/src/epic/useWorkspace.ts",
+            "src/renderer/src/epic/workspaceState.test.ts",
+            "src/renderer/src/epic/workspaceState.ts",
+            "src/renderer/src/graph/PlanGraph.test.tsx",
+            "src/renderer/src/graph/PlanGraph.tsx",
+            "src/renderer/src/graph/WorkingHourglass.test.tsx",
+            "src/renderer/src/graph/WorkingHourglass.tsx",
+            "src/renderer/src/graph/flowElements.test.ts",
+            "src/renderer/src/graph/flowElements.ts",
+            "src/renderer/src/graph/graph.css",
+            "src/renderer/src/graph/graphModel.ts",
+            "src/renderer/src/graph/graphModel.working.test.ts",
+            "src/renderer/src/graph/hourglassStyles.test.ts",
+            "src/renderer/src/graph/nodes.tsx",
+            "src/renderer/src/graph/workingAttempts.test.ts",
+            "src/renderer/src/graph/workingAttempts.ts",
+            "src/renderer/src/mascot/graphReach.test.ts",
+            "src/renderer/src/ticket/ActivityTab.test.tsx",
+            "src/renderer/src/ticket/ActivityTab.thread.test.tsx",
+            "src/renderer/src/ticket/ActivityTab.tsx",
+            "src/renderer/src/ticket/TicketPanel.activity.test.tsx",
+            "src/renderer/src/ticket/TicketPanel.test.tsx",
+            "src/renderer/src/ticket/TicketPanel.tsx",
+            "src/renderer/src/ticket/activityView.test.ts",
+            "src/renderer/src/ticket/activityView.ts",
+            "src/renderer/src/ticket/ticket.css",
+            "src/renderer/src/ticket/useFollowScroll.ts",
+            "src/shared/agents/chat.test.ts",
+            "src/shared/agents/chat.ts",
+            "src/shared/agents/chatApi.ts",
+            "src/shared/desktop/api.ts",
+            "src/shared/domain/activity.ts",
+            "src/shared/domain/api.ts",
+            "src/test/stubApi.ts"
+          ]
+        },
+        "checks": [
+          {
+            "detail": "npm run lint exit 0 on d748c7e (DM-90 and orchestrator).",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "Node, web and fireguard projects exit 0.",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "377 files, 7013 passed, 1 skipped; Fireguard suite 20 files, 105 tests.",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "Statements 97.84, branches 95.55, functions 96.57, lines 97.94 (thresholds 97/95/96/97).",
+            "name": "coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "Grade A (92) against base 417a154: AST passed, flake 100/100, mutation 79 (1091 of 1388 killed).",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports.",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run build exit 0.",
+            "name": "build",
+            "status": "passed"
+          },
+          {
+            "detail": "Rows 1 to 4 passed (lint, typecheck, deadcode, coverage). Row 3 needed the s2-row3-fix test branch first.",
+            "name": "row checks",
+            "status": "passed"
+          },
+          {
+            "detail": "5043f7c verified: one parent 417a154, on agents, none of the sprint's 43 worker commits reachable.",
+            "name": "increment",
+            "status": "passed"
+          }
+        ],
+        "epicOutcome": null,
+        "exitCriteria": [
+          {
+            "criterionId": "e1",
+            "met": true,
+            "note": "DM-90 part A: an external MCP host ran a sample epic; hourglasses in graph and list, the live Activity tab with progress notes and events, and the orchestrator feed with claims, submissions and reviews, all updating without reload (report a1 to a7)."
+          },
+          {
+            "criterionId": "e2",
+            "met": true,
+            "note": "DM-95: the worker and orchestrator skills describe progress notes, the 280-character limit and the no-secrets rule; the served prompts were checked in DM-90 (skills 1.5.1)."
+          },
+          {
+            "criterionId": "e3",
+            "met": true,
+            "note": "DM-90 part B on Windows with Claude Code: a working ticket's Activity tab streams the worker subagent (b7), the orchestrator feed shows the chat's stream, and the chat shows subagent threads inline with links both ways (b1, b2, b3, b6). Caveat: the orchestrator passed packets only when told; fixed in sprint 3's DM-203."
+          }
+        ],
+        "failed": [],
+        "followUps": [
+          {
+            "body": "Attempts brought in by the repository importer or a takeover from another machine have no local events, so their Activity timelines are empty or sparse. Build claim, submission and decision entries from the attempt row when no event exists (DM-92 discovery; src/core/repo/importer.ts).",
+            "title": "Synthesize timeline entries for imported or taken-over attempts"
+          },
+          {
+            "body": "GraphMascot.tsx has its own useMotionPreference that duplicates epic/useReducedMotion.ts, and orchestratorFeed.css (of-turn) and tones.css (ew-hourglass-turn) define similar keyframes (DM-93 discovery).",
+            "title": "Share the reduced-motion hook and one hourglass keyframe"
+          },
+          {
+            "body": "The ACP draft (2026-09-30) defines subagent sessions with a parent link. If Cursor implements it, advertise the client capability and map subagent_update into threads (DM-97 discovery).",
+            "title": "Advertise the ACP subagents capability once Cursor sends subagent_update"
+          },
+          {
+            "body": ".tsprune-ignore entries carry line numbers, so every merge that shifts a contract file needs `npm run deadcode:refresh` (each sprint 2 row needed one). Matching on file plus symbol would remove the churn.",
+            "title": "Key the dead-export baseline on file and symbol, not line"
+          },
+          {
+            "body": "DM-90 c2's wording implies both timelines list notes; by design (DM-92) the run timeline carries orchestrator-level entries only. Either document it in the runbook or add notes there.",
+            "title": "Decide whether the run timeline should list notes"
+          }
+        ],
+        "retro": {
+          "actions": [
+            "Use Sonnet as the floor for skills and documentation tickets too: Haiku has now missed criteria twice (DM-46, DM-95).",
+            "Tell each worker to cover the branches it adds. Branch coverage has under 1% of margin, so per-ticket coverage matters.",
+            "Keep sequencing tickets that share a navigation or contract surface, and brief running workers when a neighbour merges.",
+            "Keep the full row checks at every row.",
+            "Sprint 3: after its tickets merge, check the orchestrator chat end to end without any nudge (DM-199 c4)."
+          ],
+          "delivered": [
+            {
+              "demo": "heartbeat_attempt takes progress { note ≤280, step ≤64 }, stored as a masked attempt.progress event, 200 kept per attempt, never exported.",
+              "evidence": "attempts.test.ts; DM-90 part A checkA (masked rows, no notes in the export).",
+              "ticket": "tk_01m43n57tyegdewb1zbyc1wer9"
+            },
+            {
+              "demo": "Attempt and run timelines in core with cursor paging, collapsed alive spans and isLive, exposed as desktop read commands with a renderer poller.",
+              "evidence": "activity.test.ts; DM-90 c2 through window.dm.command.",
+              "ticket": "tk_01m43n57v0xnfq6rhmj0vfybj7"
+            },
+            {
+              "demo": "An hourglass on working tickets in the graph and list opens a live Activity tab.",
+              "evidence": "docs/reports/live-activity-e2e/a2, a3, a4.",
+              "ticket": "tk_01m43n57v0xmjx16h34g9z64xa"
+            },
+            {
+              "demo": "An orchestrator chip in the run bar opens a live run feed; it is gone after the run ends.",
+              "evidence": "live-activity-e2e/a1, a5, a6, a7.",
+              "ticket": "tk_01m43n5y33rfxdp8p9ma62t71n"
+            },
+            {
+              "demo": "The worker and orchestrator skills teach progress notes (280 characters, no secrets); skills 1.5.1.",
+              "evidence": "skills/*.md; served prompts in DM-90.",
+              "ticket": "tk_01m43n5y35a3yj0n560ga5ghta"
+            },
+            {
+              "demo": "A thread item in the chat contract; the Claude adapter maps subagents (parent_tool_use_id) into threads, and approvals carry threadLabel.",
+              "evidence": "claude.test.ts with a real recorded two-subagent session; live b1.",
+              "ticket": "tk_01m43n5y353tr2cz3ht07xb2df"
+            },
+            {
+              "demo": "Codex subagents map to threads (v1 collab and v2 activity); Cursor keeps one thread, documented.",
+              "evidence": "codexSubagents and cursorSubagents tests; runbook 'Subagents in a chat'.",
+              "ticket": "tk_01m43n6mzvf8kzx2rcdxhayqe4"
+            },
+            {
+              "demo": "Chat threads are bound to the runs and attempts they act on, persisted with no tokens.",
+              "evidence": "activityBindings tests; DM-90 b8 and the bindings file.",
+              "ticket": "tk_01m43n6mzwnjq91zegj4jvqyz6"
+            },
+            {
+              "demo": "The Activity tab and feed stream a bound thread live, with Open chat and approvals answered in the panel.",
+              "evidence": "live-activity-e2e/b5, b6, b7.",
+              "ticket": "tk_01m43n6mzwswktqv5w8x3syb0g"
+            },
+            {
+              "demo": "The chat shows collapsible subagent threads, Dark Mechanicus action markers and bound ticket links.",
+              "evidence": "live-activity-e2e/b1, b2, b3.",
+              "ticket": "tk_01m43nb6nr8sna53rtyazeyefb"
+            },
+            {
+              "demo": "Full Definition of Done (Fireguard A 92) plus the live Windows walkthrough.",
+              "evidence": "docs/reports/live-activity-e2e.md; dm-wt/evidence/DM-90.",
+              "ticket": "tk_01m43n1zbxj3b94t8mszhmy85h"
+            }
+          ],
+          "discoveries": [
+            {
+              "body": "DM-98 found that shortened tool inputs and results can leave a partial secret. Already in sprint 3 as DM-201.",
+              "ticket": "tk_01m43n6mzwnjq91zegj4jvqyz6",
+              "title": "Mask claim tokens that are glued together or cut short, in stored and streamed text"
+            },
+            {
+              "body": "DM-96 found that threads are left running after dispose. Already in sprint 3 as DM-204.",
+              "ticket": "tk_01m43n5y353tr2cz3ht07xb2df",
+              "title": "Show stopped turns, cancelled approvals and ended threads in the transcript"
+            },
+            {
+              "body": "DM-99 found that chats:open has side effects, and DM-90 found that retried attempts show earlier rows. Already in sprint 3 as DM-211.",
+              "ticket": "tk_01m43n6mzwswktqv5w8x3syb0g",
+              "title": "Follow a chat thread from a panel without starting the agent, and only for the attempt's own window"
+            },
+            {
+              "body": "DM-90 found that the orchestrator didn't pass packets without the skill. Already in sprint 3 as DM-203.",
+              "ticket": "tk_01m43n1zbxj3b94t8mszhmy85h",
+              "title": "Make the orchestrator kickoff carry the orchestrator guidance and the worker handoff"
+            }
+          ],
+          "leftovers": [],
+          "tierFit": [
+            {
+              "note": "Sonnet; effort raised from low to medium for masking and hash safety.",
+              "ticket": "tk_01m43n57tyegdewb1zbyc1wer9",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Sonnet, medium.",
+              "ticket": "tk_01m43n57v0xnfq6rhmj0vfybj7",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Sonnet, medium.",
+              "ticket": "tk_01m43n57v0xmjx16h34g9z64xa",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Sonnet, low.",
+              "ticket": "tk_01m43n5y33rfxdp8p9ma62t71n",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Haiku (low) missed c1's no-secrets rule in the orchestrator skill and wrote an inaccurate runbook line; Sonnet (low) fixed it.",
+              "ticket": "tk_01m43n5y35a3yj0n560ga5ghta",
+              "verdict": "undersized"
+            },
+            {
+              "note": "Sonnet, medium, with a real recording.",
+              "ticket": "tk_01m43n5y353tr2cz3ht07xb2df",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Sonnet, medium, sourced from vendor code and docs.",
+              "ticket": "tk_01m43n6mzvf8kzx2rcdxhayqe4",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Opus, medium (deep, security-sensitive).",
+              "ticket": "tk_01m43n6mzwnjq91zegj4jvqyz6",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Sonnet, medium.",
+              "ticket": "tk_01m43n6mzwswktqv5w8x3syb0g",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Sonnet, medium.",
+              "ticket": "tk_01m43nb6nr8sna53rtyazeyefb",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Sonnet, high: full DoD plus a live walkthrough, accepted first time.",
+              "ticket": "tk_01m43n1zbxj3b94t8mszhmy85h",
+              "verdict": "right_sized"
+            }
+          ],
+          "wentPoorly": [
+            "Haiku again missed a criterion (DM-95: no no-secrets rule in the orchestrator skill, plus an inaccurate runbook line), after DM-46 in sprint 1.",
+            "Row 3 branch coverage fell to 94.89% after three UI tickets merged, and needed a separate test-only fix branch.",
+            "The line-keyed dead-export baseline needed a refresh at every row, which was noise.",
+            "The sprint 1 report wrongly listed streamed-delta masking as a risk. It had already been fixed, and a comment corrected it.",
+            "In the live run, the orchestrator did not pass packets to its workers until told, so sprint 2's bindings and live streams didn't engage by default.",
+            "This session's Dark Mechanicus MCP server predates DM-91, so workers' heartbeats couldn't carry progress notes this sprint.",
+            "The acceptance worker's own approval helper wrongly denied six in-scratch writes, and it once ran a read-only git command in the main checkout against its brief."
+          ],
+          "wentWell": [
+            "Running lint, typecheck, deadcode and coverage at every row (sprint 1's retro action) caught the coverage drop and the dead exports at row 3, not at acceptance. DM-90 then needed no gate fixes, against five in sprint 1.",
+            "Sequencing tickets that share a surface, even where the plan allowed parallel work, avoided competing designs. DM-100 waited for DM-93's tab, and DM-99 waited for DM-100's navigation and bindings read.",
+            "Telling running workers what just merged (DM-93 about DM-94's hook and icon; DM-99 about the row 3 fix) kept merges conflict-free.",
+            "Real evidence: DM-96 recorded a real Claude Code session with two parallel subagents, and DM-90 ran two real Claude Code orchestrator chats end to end in the app.",
+            "10 of 11 tickets were accepted on the first attempt."
+          ]
+        },
+        "risks": [
+          "Until sprint 3's DM-203 ships, an orchestrator started with Run with agent doesn't pass workers their packet. Its worker threads stay unbound, so the Activity tab can't stream them and workers send no progress notes.",
+          "Viewing a bound attempt's Activity tab or the orchestrator feed calls chats:open, which can start a Codex agent and settle orphaned approvals (DM-211, sprint 3).",
+          "Codex subagent threads are mapped from openai/codex source (rust-v0.160.0), never run live; v1 vs v2 multi-agent use per release is unverified.",
+          "Branch coverage margin is thin (95.55% vs 95%). Three UI tickets in one row dropped it below the line once.",
+          "Fireguard takes about 75 minutes on Windows with --bail=1 in an isolated clone, which lengthens the acceptance round."
+        ],
+        "summary": "Sprint 2 (live agent activity) delivered. All 10 work tickets (DM-91 to DM-100) are accepted, and the acceptance node DM-90 is accepted on its first attempt. The increment is 5043f7c on `agents` (one squashed commit, parent 417a154, 182 files, +16,184/−343).\n\nWhat the person can now do:\n- A working ticket shows an hourglass in the graph and the list. It opens a live Activity tab with the claim (model, effort, rationale), an alive span, the worker's progress notes, comments, submission and review.\n- The run bar shows an orchestrator chip whose drawer is a live run feed.\n- When the orchestrator runs in a Dark Mechanicus chat, worker subagents appear as collapsible threads with Dark Mechanicus action markers. Each thread is bound to the run or attempt it acts on, the Activity tab and feed stream the bound thread live, and approvals can be answered from those panels.\n- Codex subagents map to threads (from source; not run live). Cursor keeps one thread, as the runbook explains.\n\nChecks:\n- All four row checks passed: lint, typecheck, deadcode and coverage at every row, which was a sprint 1 retro action. Row 3 first failed on branch coverage (94.89%), and a test-only fix brought it to 95.50%.\n- DM-90 passed the whole Definition of Done with no gate fixes. Fireguard graded A (92).\n- DM-90's live walkthrough on Windows used an external MCP host and two real Claude Code orchestrator chats in the app, recorded in docs/reports/live-activity-e2e.md. The claim-token search found nothing.\n\nWhat moved to sprint 3:\n- Sprint 2's real fixes are already in sprint 3 (plan revision 10): DM-201 (tokens cut short), DM-203 (the kickoff must hand workers their packet), DM-204 (threads left running) and DM-211 (panels follow threads read-only, clipped to the attempt).\n- Smaller tidy-ups are listed as follow-ups."
+      },
+      "contentHash": "sha256:fd50d657221dc50b463bede14b7e25da08cbe59757e2132938fe5d009d04ede2",
+      "createdAt": "2026-10-05T17:13:40.110Z",
+      "id": "rp_01m46gx3gda0bxhp0qa4gvr9mr",
+      "reportRevision": 1,
+      "sprintId": "sp_01m43n1zbxyvf21sa7yxf3wz5p",
+      "submittedBy": "Claude Code"
     }
   ],
-  "revisionId": "rv_01m464qr300pd5y24xgjt2qy14",
+  "revisionId": "rv_01m46gtaq0a7hyqfqsxt3ttdrd",
   "rowChecks": [
     {
       "checks": [
@@ -4820,11 +6865,135 @@
       "recordedBy": "Claude Code",
       "row": 12,
       "sprintId": "sp_01m418epbh0ysceqjaybx7pxw1"
+    },
+    {
+      "checks": [
+        {
+          "detail": "npm run lint (oxlint src scripts) exit 0 on agents-s2 with DM-91 and DM-96 merged.",
+          "name": "lint",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run typecheck exit 0.",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run coverage: 342 files, 6545 passed, 1 skipped. Statements 97.77, branches 95.51, functions 96.51, lines 97.86 (thresholds 97/95/96/97).",
+          "name": "coverage",
+          "status": "passed"
+        },
+        {
+          "detail": "No new dead exports, after 60d41b8 refreshed the line-keyed baseline. The same symbols had shifted lines, and DM-91's HeartbeatAttemptInput contract type was added.",
+          "name": "deadcode",
+          "status": "passed"
+        }
+      ],
+      "commit": "60d41b8",
+      "createdAt": "2026-10-05T14:11:13.392Z",
+      "id": "rk_01m466f1bgeed2ha8kpjx1wqqq",
+      "number": 12,
+      "recordedBy": "Claude Code",
+      "row": 1,
+      "sprintId": "sp_01m43n1zbxyvf21sa7yxf3wz5p"
+    },
+    {
+      "checks": [
+        {
+          "detail": "npm run lint exit 0 on agents-s2 with DM-92, DM-95, DM-97 and DM-98 merged.",
+          "name": "lint",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run typecheck exit 0.",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run coverage: 350 files, 6669 passed, 1 skipped. Statements 97.81, branches 95.16, functions 96.59, lines 97.90 (thresholds 97/95/96/97).",
+          "name": "coverage",
+          "status": "passed"
+        },
+        {
+          "detail": "No new dead exports at d420ef2. One real new export, DM-97's unused TASK_PROMPT in a test mock, was made private. The other findings were line shifts of baselined contract exports, refreshed.",
+          "name": "deadcode",
+          "status": "passed"
+        }
+      ],
+      "commit": "d420ef2",
+      "createdAt": "2026-10-05T14:33:41.737Z",
+      "id": "rk_01m467r6390d5hnaz8tnp52cpx",
+      "number": 13,
+      "recordedBy": "Claude Code",
+      "row": 2,
+      "sprintId": "sp_01m43n1zbxyvf21sa7yxf3wz5p"
+    },
+    {
+      "checks": [
+        {
+          "detail": "npm run lint exit 0 on agents-s2 with DM-93, DM-94 and DM-100 merged, plus the integration fix.",
+          "name": "lint",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run typecheck exit 0.",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "372 files, 6938 passed, 1 skipped. Statements 97.84, branches 95.50, functions 96.57, lines 97.94. Before the fix, branches were 94.89 (below the 95 threshold). Test-only fix s2-row3-fix covered 57 branches in activityEntries, orchestratorFeedView, activityView, activity and useActivityTimeline; 11 mutation spot-checks showed the tests catch breakage.",
+          "name": "coverage",
+          "status": "passed"
+        },
+        {
+          "detail": "No new dead exports. ThreadItem and EndedSummary were made private. The core claimTokenMask exports are baselined because the renderer now imports the module (the node project uses them), and a stale isLeasedAttemptState entry was dropped.",
+          "name": "deadcode",
+          "status": "passed"
+        }
+      ],
+      "commit": "3425578",
+      "createdAt": "2026-10-05T15:29:56.335Z",
+      "id": "rk_01m46az5kfd8c2j3k0w1wca5vb",
+      "number": 14,
+      "recordedBy": "Claude Code",
+      "row": 3,
+      "sprintId": "sp_01m43n1zbxyvf21sa7yxf3wz5p"
+    },
+    {
+      "checks": [
+        {
+          "detail": "npm run lint exit 0 on agents-s2 with DM-99 merged.",
+          "name": "lint",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run typecheck exit 0.",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "377 files, 7013 passed, 1 skipped. Statements 97.84, branches 95.55, functions 96.57, lines 97.94.",
+          "name": "coverage",
+          "status": "passed"
+        },
+        {
+          "detail": "No new dead exports at 523d96d. BoundThreadsRequest was baselined: it is a contract type the renderer uses, like its baselined siblings ChatRequestRef and SendChatRequest.",
+          "name": "deadcode",
+          "status": "passed"
+        }
+      ],
+      "commit": "523d96d",
+      "createdAt": "2026-10-05T15:48:22.536Z",
+      "id": "rk_01m46c0xw88rqyxq1vrwe6ctcw",
+      "number": 15,
+      "recordedBy": "Claude Code",
+      "row": 4,
+      "sprintId": "sp_01m43n1zbxyvf21sa7yxf3wz5p"
     }
   ],
   "runId": "rn_01m44m0qnd0nn90p29a12041js",
   "skillVersion": "1.5.0",
   "startedAt": "2026-10-04T23:29:35.918Z",
   "state": "running",
-  "updatedAt": "2026-10-05T13:43:35.609Z"
+  "updatedAt": "2026-10-05T17:45:27.749Z"
 }
