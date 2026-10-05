@@ -14,6 +14,11 @@
  * the session manager, which answers matching requests itself so each one is recorded in the
  * transcript, and no permission rule is written to any settings file.
  *
+ * Subagents. What a subagent does is a nested thread of the chat (see `claudeTranscript`), and the
+ * CLI is asked to forward its text as well as its tool calls. A request raised inside a subagent goes
+ * through the same flow and carries its thread's id and label. When the process ends, the threads
+ * still running are marked failed: their subagents died with it.
+ *
  * Context. The SDK session id is reported as a `session` event and passed back as `resume` when a
  * chat is reopened. A process that dies before saying anything while resuming means the session is
  * gone (deleted, or the CLI was reinstalled): the adapter records a `context_reset` item and
@@ -379,6 +384,8 @@ class ClaudeChatAdapter implements ChatAdapter {
       permissionMode: 'default',
       canUseTool: this.canUseTool,
       includePartialMessages: true,
+      // Without this the CLI sends only a subagent's tool calls; with it, its text too, so a thread holds its whole conversation.
+      forwardSubagentText: true,
       systemPrompt: { type: 'preset', preset: 'claude_code' },
       settingSources: ['user', 'project', 'local'],
       mcpServers: stdioServer(options.darkMechanicus),
@@ -484,11 +491,14 @@ class ClaudeChatAdapter implements ChatAdapter {
     this.processes.killAll()
   }
 
-  /** Lets go of a process that is done or no longer wanted. */
+  /** Lets go of a process that is done or no longer wanted; the subagents it was running are gone with it. */
   private discard(live: Live): void {
     this.live = null
     live.input.close()
     closeQuietly(live.query)
+    for (const event of this.mapper.endThreads()) {
+      this.publish(event)
+    }
   }
 
   /** What went wrong, with the end of the process's stderr when it has something to add. */
@@ -526,6 +536,7 @@ class ClaudeChatAdapter implements ChatAdapter {
       return { behavior: 'deny', message: verdict.message, toolUseID }
     }
     const summary = options.title !== undefined && options.title !== '' ? options.title : verdict.summary
+    const thread = this.mapper.threadOfRequest(toolUseID, options.agentID)
     const request: ApprovalRequestItem = {
       id: `claude_approval_${toolUseID}`,
       at: this.deps.now(),
@@ -534,7 +545,8 @@ class ClaudeChatAdapter implements ChatAdapter {
       category: verdict.category,
       tool,
       summary,
-      input: plainInput(input)
+      input: plainInput(input),
+      ...(thread === null ? {} : { threadId: thread.id, threadLabel: thread.label })
     }
     const outcome = await this.ask(request, options.signal)
     if (outcome === 'allow_once' || outcome === 'allow_chat') {

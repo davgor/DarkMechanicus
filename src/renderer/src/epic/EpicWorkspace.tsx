@@ -4,6 +4,8 @@ import { useCallback, useMemo } from 'react'
 import type { TrackedFolderView } from '../../../shared/desktop/api'
 import { isActiveRunState } from '../../../shared/domain/status'
 import type { CheckpointView, PlanView, RunView } from '../../../shared/domain/views'
+import type { TicketLanding } from '../app/landing'
+import { browserScheduler, type Scheduler } from '../app/scheduler'
 import { CheckpointScreen } from '../checkpoint/CheckpointScreen'
 import { EpicOverview } from '../checkpoint/EpicOverview'
 import { badgeResolver, buildGraphModel, type GraphInput } from '../graph/graphModel'
@@ -22,6 +24,7 @@ import { ListView } from './ListView'
 import type { OrchestrationHost } from './orchestration'
 import { RunBar } from './RunBar'
 import { StartRunDialog } from './StartRunDialog'
+import { useLanding } from './useLanding'
 import { useWorkspace, type WorkspaceHandle } from './useWorkspace'
 import { ValidationPanel } from './ValidationPanel'
 import { WorkspaceHeader } from './WorkspaceHeader'
@@ -39,12 +42,22 @@ export interface EpicWorkspaceProps {
   onOpenEpic(epicId: string): void
   /** The epic was deleted: leave it (the shell shows the folder home). */
   onDeleted(): void
+  /** Timers for polling the run feed; the browser's unless a test brings its own. */
+  scheduler?: Scheduler
+  /** A request from another screen (a link in a chat) to open a ticket, taken once the epic has loaded. */
+  landing?: TicketLanding | null
+  /** The request was taken: the shell forgets it. */
+  onLanded?(): void
 }
 
 function GraphStage({ ws, input }: { ws: WorkspaceHandle; input: GraphInput }): JSX.Element {
   const { actions, dispatch } = ws
   const model = useMemo(() => buildGraphModel(input), [input])
   const select = useCallback((ticketId: string) => dispatch({ type: 'select_ticket', ticketId }), [dispatch])
+  const openActivity = useCallback(
+    (ticketId: string, attemptId: string) => dispatch({ type: 'open_activity', ticketId, attemptId }),
+    [dispatch]
+  )
   const connect = useCallback((from: string, to: string) => void actions.connect(from, to), [actions])
   const drop = useCallback((ticketId: string, top: number) => void actions.dropTicket(model, ticketId, top), [actions, model])
   const disconnect = useCallback((from: string, to: string) => void actions.disconnect(from, to), [actions])
@@ -64,6 +77,7 @@ function GraphStage({ ws, input }: { ws: WorkspaceHandle; input: GraphInput }): 
       onRemoveDependency={disconnect}
       onAddTicket={addTicket}
       onAddAcceptance={addAcceptance}
+      onOpenActivity={openActivity}
     />
   )
 }
@@ -123,7 +137,14 @@ function StageContent({ ws, input }: { ws: WorkspaceHandle; input: GraphInput | 
     return <p className="ew-empty">This epic has no plan yet.</p>
   }
   if (ws.state.layout === 'list') {
-    return <ListView sections={listSections(input)} selectedTicketId={ws.state.selectedTicketId} onSelect={(ticketId) => ws.dispatch({ type: 'select_ticket', ticketId })} />
+    return (
+      <ListView
+        sections={listSections(input)}
+        selectedTicketId={ws.state.selectedTicketId}
+        onSelect={(ticketId) => ws.dispatch({ type: 'select_ticket', ticketId })}
+        onOpenActivity={(ticketId, attemptId) => ws.dispatch({ type: 'open_activity', ticketId, attemptId })}
+      />
+    )
   }
   return <GraphStage ws={ws} input={input} />
 }
@@ -173,6 +194,9 @@ function SidePanel({ ws }: { ws: WorkspaceHandle }): JSX.Element | null {
     <TicketPanel
       key={ticketId}
       runner={ws.runner}
+      folderPath={ws.folder.path}
+      activity={ws.state.activity}
+      scheduler={ws.scheduler}
       epicId={ws.epicId}
       ticketId={ticketId}
       plan={plan}
@@ -183,6 +207,7 @@ function SidePanel({ ws }: { ws: WorkspaceHandle }): JSX.Element | null {
       onClose={() => ws.dispatch({ type: 'select_ticket', ticketId: null })}
       onSelectTicket={(id) => ws.dispatch({ type: 'select_ticket', ticketId: id })}
       onReview={(input) => ws.actions.review(input)}
+      onOpenChat={ws.orchestration.onOpenChat}
       onDelete={() => deleteTicketFromPlan(ws, ticketId, key)}
     />
   )
@@ -266,6 +291,7 @@ function WorkspaceBody(props: EpicWorkspaceProps): JSX.Element {
   })
   const now = useNow()
   const { state } = controller
+  useLanding({ landing: props.landing, state, dispatch: controller.dispatch, onLanded: props.onLanded })
   if (state.data === null) {
     return <WorkspaceStatus error={state.loadError} onRetry={controller.reload} />
   }
@@ -276,6 +302,7 @@ function WorkspaceBody(props: EpicWorkspaceProps): JSX.Element {
     actions: controller.actions,
     runner: controller.runner,
     now,
+    scheduler: props.scheduler ?? browserScheduler,
     folder: props.folder,
     epicId: props.epicId,
     orchestration: props.orchestration,

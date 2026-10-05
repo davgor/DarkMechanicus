@@ -38,6 +38,13 @@
  * is held until the first message (`start` resolves, so the chat still opens), which tries again.
  * The shapes are from the Codex source (see `__mocks__/codexSignedOut.ts`), not from a real session.
  *
+ * Subagents. A subagent Codex starts is a thread of its own whose notifications and requests arrive
+ * on the same connection with its own `threadId`. They are filed as nested threads of the chat
+ * (`codexThreads.ts`): a `thread` item after the spawning tool call, the subagent's items and
+ * deltas with the thread's id, its approval requests with the thread's id and label. A notification
+ * for a thread that no spawn announced is dropped, as before; an approval request from one is raised
+ * in the chat's own thread so that the server is never left waiting.
+ *
  * Resume. A stored thread id is resumed with `thread/resume`. When Codex refuses (the thread is
  * gone), a `context_reset` item says so and a new thread starts. A new thread's id is reported as
  * the chat's session once its first turn starts (see `useThread`). A process that dies between
@@ -60,6 +67,7 @@ import { answerFor, describeApproval, type ApprovalDescription } from './codexAp
 import { asRecord, asText, fileChangeOf, itemFor, reloginMessage, scopedId, turnEnd, type ChangedFile, type Phase } from './codexItems'
 import { spawnCodexTransport } from './codexProcess'
 import { createRpcClient, RpcError, type RpcClient, type RpcTransport } from './codexRpc'
+import { CodexThreads, inThread, type ThreadRef } from './codexThreads'
 
 /** Ask before every command that is not a known-safe read, and before every file change. */
 const APPROVAL_POLICY = 'untrusted'
@@ -232,6 +240,8 @@ class CodexAdapter implements ChatAdapter {
   private signedOut = false
   /** The files of each file-change item, so its approval request can name them. */
   private readonly fileChanges = new Map<string, ChangedFile[]>()
+  /** The subagent threads of the chat. */
+  private readonly threads = new CodexThreads(() => this.deps.now())
 
   constructor(
     private readonly executablePath: string,
@@ -309,6 +319,7 @@ class CodexAdapter implements ChatAdapter {
     if (rpc !== null && !rpc.closed) {
       rpc.close('The Codex login was rejected.')
       await transport?.kill()
+      this.outAll(this.threads.end())
     }
   }
 
@@ -379,6 +390,7 @@ class CodexAdapter implements ChatAdapter {
       onClose: (reason) => {
         if (this.rpc === rpc) {
           this.turn?.fail(new Error(reason))
+          this.outAll(this.threads.end())
         }
       }
     })
@@ -472,6 +484,12 @@ class CodexAdapter implements ChatAdapter {
     }
   }
 
+  private outAll(events: ChatAdapterEvent[]): void {
+    for (const event of events) {
+      this.out(event)
+    }
+  }
+
   private onNotification(method: string, params: unknown): void {
     const fields = asRecord(params)
     if (this.disposed || fields === null) {
@@ -487,6 +505,9 @@ class CodexAdapter implements ChatAdapter {
       case 'item/agentMessage/delta':
         this.onDelta(fields)
         return
+      case 'turn/started':
+        this.onTurnStarted(fields)
+        return
       case 'turn/completed':
         this.onTurnCompleted(fields)
         return
@@ -499,36 +520,63 @@ class CodexAdapter implements ChatAdapter {
     return fields.threadId === this.threadId
   }
 
+  /**
+   * Where a notification or request belongs: the chat's own thread (null), the thread of a subagent
+   * a spawn announced (its reference), or no thread this chat knows (undefined).
+   */
+  private scopeOf(fields: Record<string, unknown>): ThreadRef | null | undefined {
+    if (this.ownThread(fields)) {
+      return null
+    }
+    return this.threads.find(asText(fields.threadId) ?? '') ?? undefined
+  }
+
   /** The turn an event belongs to: the one it names, else the one running. */
   private turnIdOf(fields: Record<string, unknown>): string {
     return asText(fields.turnId) ?? this.turn?.turnId ?? 'turn'
   }
 
   private onItem(fields: Record<string, unknown>, phase: Phase): void {
-    if (!this.ownThread(fields)) {
+    const scope = this.scopeOf(fields)
+    if (scope === undefined) {
       return
     }
+    const threadId = scope?.id
     const change = fileChangeOf(fields.item)
     if (change !== null) {
       this.fileChanges.set(change.id, change.files)
     }
-    const item = itemFor(fields.item, phase, this.turnIdOf(fields), this.deps.now())
+    const turnId = this.turnIdOf(fields)
+    const item = itemFor(fields.item, phase, turnId, this.deps.now())
     if (item !== null) {
-      this.out({ type: 'item', item })
+      this.out({ type: 'item', item: inThread(item, threadId) })
     }
+    this.outAll(this.threads.observe(fields.item, { phase, turnId, inThread: threadId }))
   }
 
   private onDelta(fields: Record<string, unknown>): void {
+    const scope = this.scopeOf(fields)
     const itemId = asText(fields.itemId)
     const delta = asText(fields.delta)
-    if (this.ownThread(fields) && itemId !== null && delta !== null) {
-      this.out({ type: 'assistant_delta', itemId: scopedId(this.turnIdOf(fields), itemId), delta })
+    if (scope !== undefined && itemId !== null && delta !== null) {
+      const threadId = scope === null ? {} : { threadId: scope.id }
+      this.out({ type: 'assistant_delta', itemId: scopedId(this.turnIdOf(fields), itemId), delta, ...threadId })
+    }
+  }
+
+  private onTurnStarted(fields: Record<string, unknown>): void {
+    if (!this.ownThread(fields)) {
+      this.outAll(this.threads.turnStarted(asText(fields.threadId) ?? ''))
     }
   }
 
   private onTurnCompleted(fields: Record<string, unknown>): void {
+    if (!this.ownThread(fields)) {
+      this.outAll(this.threads.turnEnded(asText(fields.threadId) ?? '', fields.turn))
+      return
+    }
     const { turn } = this
-    const end = turn === null || !this.ownThread(fields) ? null : turnEnd(fields.turn, turn.turnId)
+    const end = turn === null ? null : turnEnd(fields.turn, turn.turnId)
     if (turn === null || end === null) {
       return
     }
@@ -576,7 +624,15 @@ class CodexAdapter implements ChatAdapter {
   /** Raises an approval request and holds the server until the person decides. */
   private async askPerson(method: string, params: Record<string, unknown>, description: ApprovalDescription): Promise<unknown> {
     const requestId = this.deps.newId()
-    const request: ApprovalRequestItem = { id: `approval_${requestId}`, at: this.deps.now(), kind: 'approval_request', requestId, ...description }
+    const thread = this.scopeOf(params) ?? null
+    const request: ApprovalRequestItem = {
+      id: `approval_${requestId}`,
+      at: this.deps.now(),
+      kind: 'approval_request',
+      requestId,
+      ...description,
+      ...(thread === null ? {} : { threadId: thread.id, threadLabel: thread.label })
+    }
     const decision = await new Promise<ApprovalDecision>((respond) => {
       this.out({ type: 'approval_request', request, respond })
     })

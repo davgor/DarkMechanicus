@@ -14,6 +14,7 @@ import { isActiveRunState, type WorkStatus } from '../../../shared/domain/status
 import { implicitPrerequisitesOf, isAcceptanceTicket } from '../../../core/plan/acceptance'
 import { groupIntoRows } from '../../../core/plan/graph'
 import { sprintLabelSize, type SprintLabelSize } from './sprintLabel'
+import { workingAttempts } from './workingAttempts'
 import { DASHED_EXECUTION, EXECUTION_LABELS, EXECUTION_TONES, STATUS_LABELS, STATUS_TONES, type Tone } from './ticketStates'
 
 const CARD_WIDTH = 210
@@ -122,6 +123,8 @@ export interface TicketNodeModel extends Box {
   effort: ReasoningEffort | null
   /** A sprint's acceptance node, drawn apart from work tickets. */
   acceptance: boolean
+  /** The attempt being worked on (claimed or running) in the Saved view of a run; null for any other ticket. */
+  working: string | null
 }
 
 /** The one bracket from a sprint's work rows to its acceptance node (instead of an edge per ticket). */
@@ -194,6 +197,8 @@ interface Context {
   /** The run, only in the Saved view. */
   run: RunView | null
   execution: ReadonlyMap<string, TicketExecutionView> | null
+  /** Each ticket's open attempt (by ticket id) while the Saved view shows a run. */
+  working: ReadonlyMap<string, string>
   changes: ReadonlyMap<string, ChangeKind>
   tickets: ReadonlyMap<string, TicketContent>
 }
@@ -239,6 +244,7 @@ function createContext(input: GraphInput): Context {
     bundle: input.plan.bundle,
     run,
     execution: run ? new Map(run.tickets.map((item) => [item.ticketId, item])) : null,
+    working: workingAttempts(run),
     changes: new Map(ticketChanges.map((change) => [change.id, change.kind])),
     tickets: new Map(input.plan.bundle.tickets.map((item) => [item.id, item]))
   }
@@ -541,6 +547,7 @@ function ticketNode(context: Context, id: string, frame: Frame): TicketNodeModel
     size: content.size ?? null,
     effort: content.capability.reasoning.effort ?? null,
     acceptance: isAcceptanceTicket(content),
+    working: context.working.get(id) ?? null,
     x: FIRST_COLUMN_X + placement.column * COLUMN_PITCH,
     y: frame.top + placement.row * ROW_PITCH,
     width: CARD_WIDTH,

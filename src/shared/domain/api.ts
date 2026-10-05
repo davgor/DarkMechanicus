@@ -15,6 +15,7 @@ import type {
   TicketReference,
   TicketSize
 } from './bundle'
+import type { AttemptTimelineView, RunTimelineView, TimelineWindow } from './activity'
 import type { SprintRetroInput } from './retro'
 import type { WorkStatus } from './status'
 import type {
@@ -161,6 +162,14 @@ export interface ClaimTicketInput {
 export interface IncrementRef {
   branch: string
   commit: string
+}
+
+export interface HeartbeatAttemptInput {
+  attemptId: string
+  claimToken: string
+  leaseSeconds?: number
+  /** A short working note shown with the attempt; kept locally, never exported with the run history. */
+  progress?: { note: string; step?: string }
 }
 
 export interface SubmitAttemptInput {
@@ -330,11 +339,7 @@ export interface CommandApi {
   getRun(input: { runId?: string; epicId?: string }): Promise<RunView | null>
   getReadyTickets(input: { runId: string }): Promise<ReadinessView>
   claimTicket(input: ClaimTicketInput): Promise<ClaimResultView>
-  heartbeatAttempt(input: {
-    attemptId: string
-    claimToken: string
-    leaseSeconds?: number
-  }): Promise<AttemptView>
+  heartbeatAttempt(input: HeartbeatAttemptInput): Promise<AttemptView>
   submitAttempt(input: SubmitAttemptInput): Promise<AttemptView>
   acceptAttempt(input: {
     attemptId: string
@@ -418,6 +423,17 @@ export interface CommandApi {
     epicId?: string
     runId?: string
   }): Promise<EventsPage>
+
+  // Activity timelines
+  /**
+   * One attempt's story in time order: the claim, its alive span (heartbeats collapsed), progress notes, comments
+   * made while it was open, submission, decision, failure, lease expiry and reconciliation. `sinceSeq` is the
+   * `cursor` of the previous page (0 or absent: everything). Keep polling while `isLive`; the alive span comes
+   * again by id while the attempt holds a lease, so the client replaces it.
+   */
+  getAttemptTimeline(input: { attemptId: string } & TimelineWindow): Promise<AttemptTimelineView>
+  /** A run's story grouped by the session that did each thing; paged with `sinceSeq` like an attempt timeline. */
+  getRunTimeline(input: { runId: string } & TimelineWindow): Promise<RunTimelineView>
 }
 
 export type CommandName = keyof CommandApi

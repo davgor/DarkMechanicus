@@ -7,6 +7,7 @@ import {
   commitHash,
   criterionResult,
   epicBranch,
+  heartbeatProgress,
   hostCatalog,
   incrementRef,
   LIMITS,
@@ -85,6 +86,17 @@ const CLAIM_TICKET_INPUT = {
   leaseSeconds: leaseSeconds.optional(),
   idempotencyKey
 }
+
+const HEARTBEAT_PROGRESS = z
+  .strictObject({
+    note: heartbeatProgress.shape.note.describe(
+      `What you did or are doing, in a sentence or two (at most ${LIMITS.progressNote} characters).`
+    ),
+    step: heartbeatProgress.shape.step.describe(
+      `Optional short label for the phase of work, such as "testing" (at most ${LIMITS.progressStep} characters).`
+    )
+  })
+  .describe('Optional progress note that shows what you are doing; it is stored with this attempt.')
 
 const RUN_CONTROL_TOOLS = [
   defineTool({
@@ -184,9 +196,9 @@ const ATTEMPT_TOOLS = [
   defineTool({
     name: 'heartbeat_attempt',
     description:
-      'Extends the lease of your claim while work continues; call it at the packet\'s heartbeatIntervalSeconds. Writes from an expired or superseded claim fail with `expired_claim` or `stale_claim`.',
+      'Extends the lease of your claim while work continues; call it at the packet\'s heartbeatIntervalSeconds. Add `progress` { note, step? } to show your work: a short note (at most 280 characters) with an optional step label such as "testing". Notes are local working data: the server keeps the last 200 per attempt, never exports them with the run history, and masks anything shaped like a claim token before storing a note. A refused heartbeat stores no note. Writes from an expired or superseded claim fail with `expired_claim` or `stale_claim`.',
     kind: 'idempotent',
-    input: { attemptId, claimToken, leaseSeconds: leaseSeconds.optional() },
+    input: { attemptId, claimToken, leaseSeconds: leaseSeconds.optional(), progress: HEARTBEAT_PROGRESS.optional() },
     run: (api, input) => api.heartbeatAttempt(input)
   }),
   defineTool({

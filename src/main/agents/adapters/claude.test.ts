@@ -1,7 +1,8 @@
 import { resolve } from 'node:path'
 import type { CanUseTool, ModelInfo, Options, PermissionResult, SDKMessage, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { ChatAdapterEvent, ChatItem, ModelOption } from '../../../shared/agents/chat'
+import type { ApprovalDecision, ApprovalRequestItem, ChatAdapterEvent, ChatItem, ModelOption } from '../../../shared/agents/chat'
+import { REPO, memoryChatStore } from '../__mocks__/fakeChatAdapter'
 import {
   CURATED_CLAUDE_MODELS,
   claudeAdapterDefinition,
@@ -9,6 +10,7 @@ import {
   createClaudeAdapterDefinition,
   type ClaudeQueryFactory
 } from './claude'
+import { AGENT_B, CLAUDE_SUBAGENTS, SPAWN_A, SPAWN_B, WRITE_CALL, type RecordedStep } from './__mocks__/claudeSubagents'
 import {
   EXECUTABLE,
   FOLDER,
@@ -17,6 +19,8 @@ import {
   OTHER_SESSION,
   SESSION,
   START,
+  type Plan,
+  type Rig,
   assistant,
   failure,
   fakeProcesses,
@@ -182,15 +186,13 @@ describe('Claude adapter: replaying a recorded session (3)', () => {
     expect(completed?.resultSummary?.length).toBeLessThan(600)
   })
 
-  it('ignores thinking, empty text, subagent traffic and unknown messages', async () => {
+  it('ignores thinking, empty text, results of unknown calls and unknown messages', async () => {
     const rig = await startRig({
       plans: [
         replay(
           init(),
           assistant('msg_6', [{ type: 'thinking', thinking: 'secret', signature: 's' }, text('')]),
-          assistant('msg_7', [text('inside a subagent')], { parent_tool_use_id: 'toolu_task' }),
           toolResult('toolu_unknown', 'no such call'),
-          streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'sub' } }, 'toolu_task'),
           streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } }),
           message({ type: 'system', subtype: 'status', status: 'requesting', session_id: SESSION, uuid: uuid() }),
           message({ type: 'user', session_id: SESSION, parent_tool_use_id: null, message: { role: 'user', content: 'echo' } }),
@@ -503,6 +505,455 @@ describe('Claude adapter: one process carries several turns (2)', () => {
     await rig.adapter.send('two')
 
     expect(rig.items()).toEqual([])
+  })
+})
+
+// ---- Subagent threads ----
+
+type ThreadItem = Extract<ChatItem, { kind: 'thread' }>
+
+const settle = (): Promise<void> => new Promise((resolve) => setImmediate(resolve))
+
+/** The transcript: each id once, where it first appeared, with its latest content (the rule of the chat store). */
+const collapse = (items: readonly ChatItem[]): ChatItem[] => [...new Map(items.map((item) => [item.id, item])).values()]
+
+const threadItems = (items: readonly ChatItem[]): ThreadItem[] => collapse(items).filter((item): item is ThreadItem => item.kind === 'thread')
+
+/** One short line per item, to read an order at a glance. */
+function brief(item: ChatItem): string {
+  if (item.kind === 'tool_call') {
+    return `${item.name} ${item.status}`
+  }
+  return item.kind === 'thread' ? `thread ${item.label} ${item.state}` : item.kind
+}
+
+/** The briefs of one thread's items (the chat's own thread when `threadId` is undefined), in transcript order. */
+const inThread = (items: readonly ChatItem[], threadId: string | undefined): string[] =>
+  collapse(items)
+    .filter((item) => item.threadId === threadId)
+    .map(brief)
+
+const threadOf = (spawnId: string): string => `claude_thread_${spawnId}`
+
+/** Plays a recorded session: its messages stream, and a recorded permission request waits for the person to answer. */
+const playRecording = (steps: readonly RecordedStep[]): Plan => ({
+  script: async ({ emit, ask }) => {
+    for (const step of steps) {
+      if (step.kind === 'message') {
+        emit(step.message)
+      } else {
+        await settle()
+        await ask(step.tool, step.input, step.options.toolUseID, { agentID: step.options.agentID })
+      }
+    }
+  }
+})
+
+async function playRecorded(answer: ApprovalDecision = 'deny'): Promise<Rig> {
+  const rig = await startRig({ plans: [playRecording(CLAUDE_SUBAGENTS)] })
+  const turn = rig.adapter.send('Summarize a.txt and b.txt with two subagents')
+  ;(await pendingApproval(rig)).respond(answer)
+  await turn
+  return rig
+}
+
+describe('Claude adapter: a recorded session with two parallel subagents', () => {
+  it('replays into two threads under their spawning calls, in order, each with its own items', async () => {
+    const rig = await playRecorded()
+
+    expect(inThread(rig.items(), undefined)).toEqual([
+      'Agent completed',
+      'thread Summarize a.txt done',
+      'Agent completed',
+      'thread Summarize b.txt done',
+      'assistant_text'
+    ])
+    expect(inThread(rig.items(), threadOf(SPAWN_A))).toEqual(['Read completed', 'assistant_text'])
+    expect(inThread(rig.items(), threadOf(SPAWN_B))).toEqual(['Read completed', 'Write denied', 'assistant_text'])
+    expect(threadItems(rig.items())).toEqual([
+      { id: threadOf(SPAWN_A), at: NOW, kind: 'thread', parentItemId: `claude_tool_${SPAWN_A}`, label: 'Summarize a.txt', state: 'done' },
+      { id: threadOf(SPAWN_B), at: NOW, kind: 'thread', parentItemId: `claude_tool_${SPAWN_B}`, label: 'Summarize b.txt', state: 'done' }
+    ])
+  })
+
+  it('opens each thread right after its spawning call, before anything that happens inside it', async () => {
+    const rig = await playRecorded()
+
+    expect(rig.items().slice(0, 4).map(brief)).toEqual(['Agent running', 'thread Summarize a.txt running', 'Agent running', 'thread Summarize b.txt running'])
+    expect(rig.items().slice(0, 4).map((item) => item.id)).toEqual([`claude_tool_${SPAWN_A}`, threadOf(SPAWN_A), `claude_tool_${SPAWN_B}`, threadOf(SPAWN_B)])
+  })
+
+  it('gives each spawning call the subagent\'s own report as its result, not the hand-back frame around it', async () => {
+    const rig = await playRecorded()
+
+    const calls = collapse(rig.items()).filter((item) => item.kind === 'tool_call' && item.name === 'Agent')
+    expect(calls[0]).toMatchObject({ resultSummary: 'The alpha file lists three fruits: apple, banana, and cherry.' })
+    expect(calls[1]).toMatchObject({ resultSummary: expect.stringContaining('beta notes listing three tools') })
+  })
+
+  it('stores and replays through the chat store with the rest of the chat', async () => {
+    const rig = await playRecorded()
+    const store = memoryChatStore()
+    const chat = store.createChat({ folder: REPO, agent: 'claude', model: null, role: 'orchestrator', allowSave: true })
+
+    for (const event of rig.events) {
+      if (event.type === 'item' || event.type === 'approval_request') {
+        store.appendItem(chat, event.type === 'item' ? event.item : event.request)
+      }
+    }
+
+    const stored = store.readTranscript(chat)?.items ?? []
+    expect(inThread(stored, undefined)).toContain('thread Summarize b.txt done')
+    expect(inThread(stored, threadOf(SPAWN_B))).toEqual(['Read completed', 'Write denied', 'approval_request', 'assistant_text'])
+    expect(threadItems(stored).map((item) => [item.label, item.state])).toEqual([
+      ['Summarize a.txt', 'done'],
+      ['Summarize b.txt', 'done']
+    ])
+  })
+})
+
+const SPAWN = 'toolu_spawn'
+
+const spawnCall = (id = SPAWN, description: string | null = 'Summarize a.txt', name = 'Agent'): SDKMessage =>
+  assistant(`msg_${id}`, [toolUse(id, name, { ...(description === null ? {} : { description }), subagent_type: 'file-reader', prompt: 'Read a.txt.' })])
+
+const taskStarted = (spawnId: string, taskId: string, background = false): SDKMessage =>
+  message({ type: 'system', subtype: 'task_started', task_id: taskId, tool_use_id: spawnId, description: 'Summarize a.txt', is_backgrounded: background, session_id: SESSION, uuid: uuid() })
+
+const taskEnded = (status: string, spawnId = SPAWN, taskId = AGENT_B): SDKMessage =>
+  message({ type: 'system', subtype: 'task_notification', task_id: taskId, tool_use_id: spawnId, status, output_file: '/tmp/out', summary: 'done', session_id: SESSION, uuid: uuid() })
+
+const inside = (spawnId: string, messageId: string, ...blocks: object[]): SDKMessage => assistant(messageId, blocks, { parent_tool_use_id: spawnId })
+
+/** The result of an Agent call that started its subagent in the background: the call is answered at once, the outcome comes later. */
+const launched = (spawnId = SPAWN): SDKMessage =>
+  toolResult(spawnId, 'Async agent launched successfully.', false, { tool_use_result: { isAsync: true, status: 'async_launched', agentId: AGENT_B } })
+
+const states = (rig: Rig): string[] => threadItems(rig.items()).map((item) => item.state)
+
+/** A rig whose CLI streams `messages`, lets the adapter read them, and then asks permission to Write; resolves with the request raised. */
+async function requestAfter(messages: SDKMessage[], toolUseID: string, agentID?: string): Promise<ApprovalRequestItem> {
+  const extras = agentID === undefined ? {} : { agentID }
+  const rig = await startRig({
+    plans: [
+      {
+        script: async ({ emit, ask }) => {
+          emit(init(), ...messages)
+          await settle()
+          await ask('Write', { file_path: resolve(FOLDER, 'a.txt'), content: 'x' }, toolUseID, extras)
+        }
+      }
+    ]
+  })
+  void rig.adapter.send('go')
+  return (await pendingApproval(rig)).request
+}
+
+describe('Claude adapter: approvals raised inside a subagent (1)', () => {
+  it('carries the id and label of the subagent\'s thread (recorded Write request)', async () => {
+    const rig = await startRig({ plans: [playRecording(CLAUDE_SUBAGENTS)] })
+    const turn = rig.adapter.send('Summarize a.txt and b.txt with two subagents')
+
+    const approval = await pendingApproval(rig)
+
+    expect(approval.request).toEqual({
+      id: `claude_approval_${WRITE_CALL}`,
+      at: NOW,
+      kind: 'approval_request',
+      requestId: WRITE_CALL,
+      category: 'file_edit',
+      tool: 'Write',
+      summary: 'Write /work/repo/summary-b.txt',
+      input: { file_path: '/work/repo/summary-b.txt', content: 'The file contains beta notes listing three tools: hammer, wrench, and saw.' },
+      threadId: threadOf(SPAWN_B),
+      threadLabel: 'Summarize b.txt'
+    })
+    approval.respond('allow_once')
+    await turn
+  })
+
+  it('labels the request from the subagent id alone, when the adapter has not yet read the tool call', async () => {
+    const request = await requestAfter([spawnCall(), taskStarted(SPAWN, AGENT_B)], 'toolu_w', AGENT_B)
+
+    expect(request).toMatchObject({ threadId: threadOf(SPAWN), threadLabel: 'Summarize a.txt' })
+  })
+
+  it('labels the request from the tool call alone, when the CLI names no subagent', async () => {
+    const write = toolUse('toolu_w', 'Write', { file_path: resolve(FOLDER, 'a.txt'), content: 'x' })
+
+    const request = await requestAfter([spawnCall(), inside(SPAWN, 'msg_in', write)], 'toolu_w')
+
+    expect(request).toMatchObject({ threadId: threadOf(SPAWN), threadLabel: 'Summarize a.txt' })
+  })
+})
+
+describe('Claude adapter: approvals raised inside a subagent (2)', () => {
+  it('names the innermost thread when a subagent starts one of its own', async () => {
+    const inner = inside(SPAWN, 'msg_s', toolUse('toolu_inner', 'Agent', { description: 'Check the cherries', prompt: 'p' }))
+
+    const request = await requestAfter([spawnCall(), inner, taskStarted('toolu_inner', 'agent_inner')], 'toolu_b', 'agent_inner')
+
+    expect(request).toMatchObject({ threadId: threadOf('toolu_inner'), threadLabel: 'Check the cherries' })
+  })
+
+  it('leaves the request in the chat\'s own thread when the subagent is not one it has seen', async () => {
+    const request = await requestAfter([], 'toolu_x', 'nobody_we_know')
+
+    expect(request).not.toHaveProperty('threadId')
+    expect(request).not.toHaveProperty('threadLabel')
+  })
+})
+
+describe('Claude adapter: how a thread ends (1)', () => {
+  it('is done when the spawning call succeeds, and failed when it fails', async () => {
+    const done = await startRig({ plans: [replay(init(), spawnCall(), taskStarted(SPAWN, AGENT_B), toolResult(SPAWN, 'All good.'), success('ok'))] })
+    await done.adapter.send('go')
+    expect(states(done)).toEqual(['done'])
+
+    const failed = await startRig({ plans: [replay(init(), spawnCall(), taskStarted(SPAWN, AGENT_B), toolResult(SPAWN, 'The subagent gave up.', true), success('ok'))] })
+    await failed.adapter.send('go')
+    expect(states(failed)).toEqual(['failed'])
+    expect(collapse(failed.items()).map(brief)).toEqual(['Agent failed', 'thread Summarize a.txt failed'])
+  })
+
+  it('follows the spawning call\'s result, not the notification, for a subagent the call waited for', async () => {
+    const rig = await startRig({
+      plans: [replay(init(), spawnCall(), taskStarted(SPAWN, AGENT_B), taskEnded('completed'), toolResult(SPAWN, 'The subagent failed after all.', true), success('ok'))]
+    })
+
+    await rig.adapter.send('go')
+
+    expect(states(rig)).toEqual(['failed'])
+  })
+
+  it('stays running after the answer that only says a background subagent started, and follows its notification', async () => {
+    const rig = await startRig({ plans: [{ script: ({ emit }) => emit(init(), spawnCall(), taskStarted(SPAWN, AGENT_B, true), launched(), success('started')) }] })
+
+    await rig.adapter.send('go')
+    expect(states(rig)).toEqual(['running'])
+    expect(collapse(rig.items()).map(brief)).toEqual(['Agent completed', 'thread Summarize a.txt running'])
+
+    rig.sdk.launches[0]?.emit(taskEnded('completed'))
+    await vi.waitFor(() => expect(states(rig)).toEqual(['done']))
+  })
+
+  it.each([
+    ['failed', 'failed'],
+    ['stopped', 'failed']
+  ])('ends a background thread as failed when its notification says %s', async (status, state) => {
+    const rig = await startRig({ plans: [{ script: ({ emit }) => emit(init(), spawnCall(), launched(), success('started')) }] })
+    await rig.adapter.send('go')
+
+    rig.sdk.launches[0]?.emit(taskEnded(status))
+
+    await vi.waitFor(() => expect(states(rig)).toEqual([state]))
+  })
+
+  it('does not reopen or change a thread that already ended', async () => {
+    const rig = await startRig({ plans: [replay(init(), spawnCall(), toolResult(SPAWN, 'ok'), taskEnded('failed'), toolResult(SPAWN, 'again', true), success('ok'))] })
+
+    await rig.adapter.send('go')
+
+    expect(rig.items().filter((item) => item.kind === 'thread').map(brief)).toEqual(['thread Summarize a.txt running', 'thread Summarize a.txt done'])
+  })
+})
+
+describe('Claude adapter: how a thread ends (2)', () => {
+  it('fails a thread whose call never got an answer when the turn ends', async () => {
+    const rig = await startRig({ plans: [replay(init(), spawnCall(), taskStarted(SPAWN, AGENT_B), success('interrupted'))] })
+
+    await rig.adapter.send('go')
+
+    expect(states(rig)).toEqual(['failed'])
+  })
+
+  it('leaves a background thread running when the turn ends, since its subagent goes on', async () => {
+    const rig = await startRig({ plans: [replay(init(), spawnCall(), taskStarted(SPAWN, AGENT_B, true), launched(), success('started'))] })
+
+    await rig.adapter.send('go')
+
+    expect(states(rig)).toEqual(['running'])
+  })
+
+  it('fails the threads still running when the process ends, since their subagents died with it', async () => {
+    const rig = await startRig({ plans: [{ script: ({ emit }) => emit(init(), spawnCall(), launched(), success('started')) }] })
+    await rig.adapter.send('go')
+
+    rig.sdk.launches[0]?.finish(null)
+
+    await vi.waitFor(() => expect(states(rig)).toEqual(['failed']))
+  })
+
+  it('sends nothing more once the adapter is disposed', async () => {
+    const rig = await startRig({ plans: [{ script: ({ emit }) => emit(init(), spawnCall(), launched(), success('started')) }] })
+    await rig.adapter.send('go')
+
+    await rig.adapter.dispose()
+
+    expect(states(rig)).toEqual(['running'])
+  })
+})
+
+describe('Claude adapter: how a thread ends (3)', () => {
+  it.each([
+    ['isAsync', { isAsync: true }],
+    ['status', { status: 'async_launched' }]
+  ])('takes a call answered with only %s as the launch of a background subagent', async (_name, structured) => {
+    const rig = await startRig({ plans: [replay(init(), spawnCall(), toolResult(SPAWN, 'Started.', false, { tool_use_result: structured }), success('ok'))] })
+
+    await rig.adapter.send('go')
+
+    expect(states(rig)).toEqual(['running'])
+  })
+
+  it('shows the answer\'s own text when the structured result holds no report', async () => {
+    const answer = toolResult(SPAWN, 'The plain answer.', false, { tool_use_result: { status: 'completed', content: [] } })
+    const rig = await startRig({ plans: [replay(init(), spawnCall(), answer, success('ok'))] })
+
+    await rig.adapter.send('go')
+
+    expect(collapse(rig.items())[0]).toMatchObject({ kind: 'tool_call', status: 'completed', resultSummary: 'The plain answer.' })
+  })
+})
+
+describe('Claude adapter: what a thread holds (1)', () => {
+  it('maps text and tool calls of a subagent into its thread, with results that finish the same calls', async () => {
+    const rig = await startRig({
+      plans: [
+        replay(
+          init(),
+          spawnCall(),
+          inside(SPAWN, 'msg_a', { type: 'thinking', thinking: 'hm', signature: 's' }, toolUse('toolu_r', 'Read', { file_path: 'a.txt' })),
+          message({ type: 'user', session_id: SESSION, parent_tool_use_id: SPAWN, message: { role: 'user', content: [{ type: 'text', text: 'the prompt it was given' }] } }),
+          toolResult('toolu_r', 'Alpha', false, { parent_tool_use_id: SPAWN }),
+          inside(SPAWN, 'msg_b', text('Alpha lists fruit.')),
+          toolResult(SPAWN, 'Alpha lists fruit.'),
+          success('ok')
+        )
+      ]
+    })
+
+    await rig.adapter.send('go')
+
+    expect(inThread(rig.items(), threadOf(SPAWN))).toEqual(['Read completed', 'assistant_text'])
+    expect(collapse(rig.items()).filter((item) => item.threadId !== undefined)).toEqual([
+      { id: 'claude_tool_toolu_r', at: NOW, kind: 'tool_call', name: 'Read', input: { file_path: 'a.txt' }, status: 'completed', resultSummary: 'Alpha', threadId: threadOf(SPAWN) },
+      { id: 'claude_msg_b_0', at: NOW, kind: 'assistant_text', text: 'Alpha lists fruit.', threadId: threadOf(SPAWN) }
+    ])
+  })
+
+  it('streams a subagent\'s text as deltas of its thread, apart from the main agent\'s own streaming', async () => {
+    const rig = await startRig({
+      plans: [
+        replay(
+          init(),
+          spawnCall(),
+          streamEvent({ type: 'message_start', message: { id: 'msg_sub', role: 'assistant', content: [] } }, SPAWN),
+          messageStart('msg_main'),
+          streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'inner' } }, SPAWN),
+          textDelta(0, 'outer'),
+          success('ok')
+        )
+      ]
+    })
+
+    await rig.adapter.send('go')
+
+    expect(rig.events.filter((event) => event.type === 'assistant_delta')).toEqual([
+      { type: 'assistant_delta', itemId: 'claude_msg_sub_0', delta: 'inner', threadId: threadOf(SPAWN) },
+      { type: 'assistant_delta', itemId: 'claude_msg_main_0', delta: 'outer' }
+    ])
+  })
+
+})
+
+describe('Claude adapter: what a thread holds (2)', () => {
+  it('opens a thread inside the thread of the subagent that started it', async () => {
+    const rig = await startRig({
+      plans: [
+        replay(
+          init(),
+          spawnCall(),
+          inside(SPAWN, 'msg_s', toolUse('toolu_inner', 'Agent', { description: 'Check the cherries', prompt: 'p' })),
+          inside('toolu_inner', 'msg_t', text('Cherries are red.')),
+          success('ok')
+        )
+      ]
+    })
+
+    await rig.adapter.send('go')
+
+    expect(threadItems(rig.items()).map((item) => [item.id, item.threadId, item.parentItemId])).toEqual([
+      [threadOf(SPAWN), undefined, `claude_tool_${SPAWN}`],
+      [threadOf('toolu_inner'), threadOf(SPAWN), 'claude_tool_toolu_inner']
+    ])
+    expect(inThread(rig.items(), threadOf('toolu_inner'))).toEqual(['assistant_text'])
+  })
+
+  it('opens a thread for subagent traffic whose spawning call it never saw, labelled by what the CLI says', async () => {
+    const rig = await startRig({
+      plans: [
+        replay(
+          init(),
+          assistant('msg_7', [text('inside a subagent')], { parent_tool_use_id: 'toolu_task', task_description: 'Check the cherries', subagent_type: 'file-reader' }),
+          assistant('msg_8', [text('inside another')], { parent_tool_use_id: 'toolu_other', subagent_type: 'file-reader' }),
+          assistant('msg_9', [text('and a third')], { parent_tool_use_id: 'toolu_third' }),
+          success('ok')
+        )
+      ]
+    })
+
+    await rig.adapter.send('go')
+
+    expect(threadItems(rig.items()).map((item) => [item.id, item.label, item.parentItemId])).toEqual([
+      [threadOf('toolu_task'), 'Check the cherries', 'claude_tool_toolu_task'],
+      [threadOf('toolu_other'), 'file-reader', 'claude_tool_toolu_other'],
+      [threadOf('toolu_third'), 'Subagent', 'claude_tool_toolu_third']
+    ])
+    expect(inThread(rig.items(), threadOf('toolu_task'))).toEqual(['assistant_text'])
+  })
+
+  it('does not report a rejected sign-in raised inside a subagent as the chat\'s own', async () => {
+    const rig = await startRig({
+      plans: [replay(init(), spawnCall(), assistant('msg_auth', [text('Not logged in')], { parent_tool_use_id: SPAWN, error: 'authentication_failed' }), success('ok'))]
+    })
+
+    await rig.adapter.send('go')
+
+    expect(rig.items().some((item) => item.kind === 'auth_required')).toBe(false)
+    expect(inThread(rig.items(), threadOf(SPAWN))).toEqual([])
+  })
+})
+
+describe('Claude adapter: naming a thread', () => {
+  it.each([
+    ['trims the description the call gave', '  Summarize a.txt  ', 'Summarize a.txt'],
+    ['falls back to the subagent type', null, 'file-reader'],
+    ['cuts a very long description short', 'x'.repeat(300), `${'x'.repeat(120)}…`]
+  ])('%s', async (_name, description, label) => {
+    const rig = await startRig({ plans: [replay(init(), spawnCall(SPAWN, description), success('ok'))] })
+
+    await rig.adapter.send('go')
+
+    expect(threadItems(rig.items()).map((item) => item.label)).toEqual([label])
+  })
+
+  it('opens a thread for the older name of the subagent tool, and for no other tool', async () => {
+    const rig = await startRig({
+      plans: [replay(init(), spawnCall('toolu_old', 'Old name', 'Task'), assistant('msg_r', [toolUse('toolu_read', 'Read', { file_path: 'a.txt' })]), success('ok'))]
+    })
+
+    await rig.adapter.send('go')
+
+    expect(threadItems(rig.items()).map((item) => item.label)).toEqual(['Old name'])
+  })
+
+  it('has the CLI forward subagent text, so a thread holds more than the tool calls', async () => {
+    const rig = await startRig({ plans: [replay(init(), success('ok'))] })
+
+    await rig.adapter.send('hi')
+
+    expect(rig.sdk.launches[0]?.options).toMatchObject({ forwardSubagentText: true })
   })
 })
 

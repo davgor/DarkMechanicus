@@ -119,6 +119,7 @@ export const ApprovalCard = memo(function ApprovalCard({ request, answer, folder
         <p id={titleId} className="chat-approval-title">
           {detail.heading}
         </p>
+        {request.threadLabel === undefined ? null : <p className="chat-approval-thread">{`Asked by the subagent: ${request.threadLabel}`}</p>}
         <Details detail={detail} />
         {view === null ? <AnswerButtons describedBy={titleId} busy={answering.busy} onAnswer={send} /> : null}
         {view?.detail == null ? null : <p className="chat-approval-answer-detail">{view.detail}</p>}

@@ -37,13 +37,15 @@ interface Recorded {
   removed: string[]
   added: string[]
   addedAcceptance: string[]
+  /** Live attempts opened from an hourglass, as `ticketId:attemptId`. */
+  opened: string[]
 }
 
 function renderGraph(
   mode: 'saved' | 'draft',
   graphModel: GraphModel = model(mode)
 ): { recorded: Recorded; container: HTMLElement } {
-  const recorded: Recorded = { selected: [], connected: [], dropped: [], removed: [], added: [], addedAcceptance: [] }
+  const recorded: Recorded = { selected: [], connected: [], dropped: [], removed: [], added: [], addedAcceptance: [], opened: [] }
   const props: PlanGraphProps = {
     model: graphModel,
     editable: mode === 'draft',
@@ -55,7 +57,8 @@ function renderGraph(
     onDropTicket: (id, top) => recorded.dropped.push(`${id}@${top}`),
     onRemoveDependency: (from, to) => recorded.removed.push(`${from}->${to}`),
     onAddTicket: (id) => recorded.added.push(id),
-    onAddAcceptance: (id) => recorded.addedAcceptance.push(id)
+    onAddAcceptance: (id) => recorded.addedAcceptance.push(id),
+    onOpenActivity: (ticketId, attemptId) => recorded.opened.push(`${ticketId}:${attemptId}`)
   }
   const { container } = render(<PlanGraph {...props} />)
   return { recorded, container }
@@ -448,5 +451,28 @@ describe('PlanGraph effort badges', () => {
     expect(card?.querySelector('.pg-note')?.textContent).toBe('Rejected: would require DM-301')
     expect(card?.querySelector('.pg-effort')?.textContent).toBe('medium effort')
     expect(card?.querySelector('.pg-card-label')?.querySelector('.pg-effort, .pg-tags') ?? null).toBe(null)
+  })
+})
+
+describe('PlanGraph hourglass', () => {
+  it('shows an hourglass only on the ticket whose latest attempt is open', () => {
+    const { container } = renderGraph('saved')
+    expect(screen.getAllByRole('button', { name: /is being worked on/ }).map((item) => item.getAttribute('aria-label'))).toEqual([
+      'DM-202 is being worked on'
+    ])
+    expect(container.querySelectorAll('.ew-hourglass')).toHaveLength(1)
+    expect(container.querySelector('[data-ticket="tk_202"] .pg-card-head .ew-hourglass')).not.toBe(null)
+    expect(container.querySelector('[data-ticket="tk_201"] .ew-hourglass')).toBe(null)
+  })
+
+  it('opens the live attempt from the hourglass and does not select the ticket', () => {
+    const { recorded } = renderGraph('saved')
+    fireEvent.click(screen.getByRole('button', { name: 'DM-202 is being worked on' }))
+    expect([recorded.opened, recorded.selected]).toEqual([['tk_202:at_202_2'], []])
+  })
+
+  it('shows no hourglass in the Draft view', () => {
+    const { container } = renderGraph('draft')
+    expect(container.querySelector('.ew-hourglass')).toBe(null)
   })
 })

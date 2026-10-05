@@ -45,13 +45,14 @@ export const assistant = (messageId: string, content: object[], extra: object = 
 export const text = (value: string): object => ({ type: 'text', text: value })
 export const toolUse = (id: string, name: string, input: object): object => ({ type: 'tool_use', id, name, input })
 
-export const toolResult = (toolUseId: string, content: unknown, isError = false): SDKMessage =>
+export const toolResult = (toolUseId: string, content: unknown, isError = false, extra: object = {}): SDKMessage =>
   message({
     type: 'user',
     uuid: uuid(),
     session_id: SESSION,
     parent_tool_use_id: null,
-    message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: toolUseId, content, is_error: isError }] }
+    message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: toolUseId, content, is_error: isError }] },
+    ...extra
   })
 
 export const streamEvent = (event: object, parent: string | null = null): SDKMessage =>
@@ -67,18 +68,24 @@ export const success = (result: string, extra: object = {}): SDKMessage =>
 export const failure = (subtype: string, errors: string[], extra: object = {}): SDKMessage =>
   message({ type: 'result', subtype, is_error: true, errors, session_id: SESSION, uuid: uuid(), ...extra })
 
+/** What the CLI adds to a permission request besides the tool call itself. */
+interface AskExtras {
+  /** The subagent the tool call runs in, when it runs in one. */
+  agentID?: string
+}
+
 interface TurnContext {
   index: number
   text: string
   options: Options
   emit: (...messages: SDKMessage[]) => void
-  ask: (tool: string, input: Record<string, unknown>, toolUseID?: string) => Promise<PermissionResult>
+  ask: (tool: string, input: Record<string, unknown>, toolUseID?: string, extras?: AskExtras) => Promise<PermissionResult>
 }
 
 type Script = (turn: TurnContext) => Promise<void> | void
 
 /** One query the adapter starts: how its turns go, and how it dies before saying anything. */
-interface Plan {
+export interface Plan {
   script?: Script
   models?: ModelInfo[]
   /** The message stream throws (or, for `'end'`, just ends) before the first message. */
@@ -187,18 +194,19 @@ export class FakeQuery implements ClaudeQuery {
         text: body,
         options: this.options,
         emit: (...messages) => this.emit(...messages),
-        ask: (tool, toolInput, toolUseID = `tool_${tool}_${index}`) => this.ask(tool, toolInput, toolUseID)
+        ask: (tool, toolInput, toolUseID = `tool_${tool}_${index}`, extras = {}) => this.ask(tool, toolInput, toolUseID, extras)
       })
       index += 1
     }
   }
 
-  private async ask(tool: string, input: Record<string, unknown>, toolUseID: string): Promise<PermissionResult> {
+  private async ask(tool: string, input: Record<string, unknown>, toolUseID: string, extras: AskExtras): Promise<PermissionResult> {
     const canUseTool = this.options.canUseTool as CanUseTool
     const result = await canUseTool(tool, input, {
       signal: new AbortController().signal,
       toolUseID,
-      requestId: `req_${toolUseID}`
+      requestId: `req_${toolUseID}`,
+      ...extras
     } as Parameters<CanUseTool>[2])
     if (result === null) {
       throw new Error('canUseTool returned null')

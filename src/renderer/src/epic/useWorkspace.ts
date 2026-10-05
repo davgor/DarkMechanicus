@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type Dis
 import type { TrackedFolderView } from '../../../shared/desktop/api'
 import { unwrapChat } from '../agents/chatCalls'
 import { errorMessage } from '../api/dm'
+import type { Scheduler } from '../app/scheduler'
 import { useClock } from './clock'
 import type { OrchestrationHost, StartOrchestrator } from './orchestration'
 import { bindRunner, type Runner } from './runner'
@@ -32,6 +33,8 @@ export interface WorkspaceHandle {
   actions: WorkspaceActions
   runner: Runner
   now: number
+  /** Timers for what the workspace polls (the run feed). */
+  scheduler: Scheduler
   folder: TrackedFolderView
   epicId: string
   /** Agents, chats and navigation for starting a run with an agent and linking the chat that runs it. */

@@ -239,6 +239,8 @@ Nested fields use dotted paths such as `ops.0.ticket.title`. Omitted `arguments`
 
 The six shipped skills are served as MCP prompts: `darkmechanicus-planner`, `darkmechanicus-graph-planner`, `darkmechanicus-orchestrator`, `darkmechanicus-worker`, `darkmechanicus-reviewer`, and `darkmechanicus-sprint-reporter`. Load the one that matches the job before starting. `get_capabilities` reports the skills version, and runs record it.
 
+`heartbeat_attempt` takes an optional `progress` field: a note (at most 280 characters) and an optional step label (at most 64 characters) showing what work is in progress. The worker and orchestrator skills tell agents to send one with each heartbeat. The server stores the last 200 notes per attempt as local working data, never exports them with run history, and masks anything shaped like a claim token before storing. A refused heartbeat stores no note.
+
 ## Working with the desktop closed
 
 - All tools work without the desktop. Both processes use the same SQLite database. Writes queue on the write lock, so a busy moment can delay a call by a few seconds but not corrupt anything.

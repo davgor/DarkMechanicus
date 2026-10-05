@@ -114,12 +114,11 @@ describe('reduceSession', () => {
     expect(state.running).toBe(false)
   })
 
-  it('ignores events of other chats and of nested threads', () => {
+  it('ignores events of other chats', () => {
     let state = reduceSession(start(), { type: 'opened', view: opened([]) })
     state = reduceSession(state, push({ type: 'item', chatId: 'other', item: user('x') }))
+    state = reduceSession(state, push({ type: 'assistant_delta', chatId: 'other', itemId: 'y', delta: 'sub', threadId: 'th' }))
     state = reduceSession(state, push({ type: 'turn', chatId: 'other', running: true }))
-    state = reduceSession(state, push({ type: 'item', chatId: 'chat_1', item: { ...reply('n', 'sub'), threadId: 'th' } }))
-    state = reduceSession(state, push({ type: 'assistant_delta', chatId: 'chat_1', itemId: 'n2', delta: 'sub', threadId: 'th' }))
     expect(state.entries).toEqual([])
     expect(state.running).toBe(false)
   })
@@ -134,6 +133,59 @@ describe('reduceSession', () => {
     expect(failed).toMatchObject({ phase: 'failed', error: 'nope' })
     expect(reduceSession(failed, push({ type: 'turn', chatId: 'chat_1', running: true }))).toBe(failed)
     expect(reduceSession(failed, { type: 'reopen' })).toEqual(start())
+  })
+})
+
+describe('reduceSession: nested threads', () => {
+  const start = (): SessionState => openSession('chat_1')
+  const ready = (items: ChatItem[] = []): SessionState => reduceSession(start(), { type: 'opened', view: opened(items) })
+  const inThread = (item: ChatItem, threadId = 'th'): ChatItem => ({ ...item, threadId }) as ChatItem
+  const thread = (state: 'running' | 'done' | 'failed' = 'running'): ChatItem => ({ id: 'th', at: AT, kind: 'thread', parentItemId: 't1', label: 'Summarize a.txt', state })
+
+  it('keeps the items of a thread with the rest of the transcript, in the order they were stored, and the approvals among them', () => {
+    const asked: ChatItem = { id: 'q', at: AT, kind: 'approval_request', requestId: 'req_1', category: 'file_edit', tool: 'Write', summary: 'Write a.txt', threadId: 'th', threadLabel: 'Summarize a.txt' }
+    const stored = ready([user('a'), call('t1', 'running'), thread(), inThread(reply('n', 'sub')), asked])
+    expect(ids(stored.entries)).toEqual(['a', 't1', 'th', 'n', 'q'])
+
+    const pushed = reduceSession(ready([user('a')]), push({ type: 'item', chatId: 'chat_1', item: inThread(reply('n', 'sub')) }))
+    expect(ids(pushed.entries)).toEqual(['a', 'n'])
+    expect(pushed.entries[1]).toMatchObject({ threadId: 'th' })
+  })
+
+  it('rewrites a thread item in place when its state changes', () => {
+    let state = ready([user('a'), call('t1', 'running'), thread(), inThread(reply('n', 'sub'))])
+    state = reduceSession(state, push({ type: 'item', chatId: 'chat_1', item: thread('done') }))
+    expect(ids(state.entries)).toEqual(['a', 't1', 'th', 'n'])
+    expect(state.entries[2]).toMatchObject({ kind: 'thread', state: 'done' })
+  })
+
+  it('streams the deltas of a thread into an entry that carries the thread, and the stored text takes its place', () => {
+    let state = ready([thread()])
+    state = reduceSession(state, push({ type: 'assistant_delta', chatId: 'chat_1', itemId: 'n', delta: 'Sub', threadId: 'th' }))
+    state = reduceSession(state, push({ type: 'assistant_delta', chatId: 'chat_1', itemId: 'n', delta: 'agent', threadId: 'th' }))
+    expect(state.entries[1]).toEqual({ kind: 'streaming_text', id: 'n', text: 'Subagent', threadId: 'th' })
+
+    state = reduceSession(state, push({ type: 'item', chatId: 'chat_1', item: inThread(reply('n', 'Subagent here.')) }))
+    expect(state.entries[1]).toMatchObject({ kind: 'assistant_text', text: 'Subagent here.', threadId: 'th' })
+    expect(state.entries).toHaveLength(2)
+  })
+
+  it('keeps the main thread streaming apart: a delta without a thread carries none', () => {
+    const state = reduceSession(ready(), push({ type: 'assistant_delta', chatId: 'chat_1', itemId: 'm', delta: 'Hi' }))
+    expect(state.entries).toEqual([{ kind: 'streaming_text', id: 'm', text: 'Hi' }])
+  })
+
+  it('replays what was pushed while the transcript loaded, threads included', () => {
+    let state = reduceSession(start(), push({ type: 'item', chatId: 'chat_1', item: thread() }))
+    state = reduceSession(state, push({ type: 'assistant_delta', chatId: 'chat_1', itemId: 'n', delta: 'x', threadId: 'th' }))
+    state = reduceSession(state, { type: 'opened', view: opened([user('a')]) })
+    expect(ids(state.entries)).toEqual(['a', 'th', 'n'])
+  })
+
+  it('only the main thread can sign the chat out: a subagent that lost its sign-in does not', () => {
+    const lost: ChatItem = { id: 'auth_t', at: AT, kind: 'auth_required', agent: 'claude', message: 'Please log in.', threadId: 'th' }
+    expect(reduceSession(ready([thread()]), push({ type: 'item', chatId: 'chat_1', item: lost })).auth.agent).toBe('signed_in')
+    expect(ready([thread(), lost]).auth).toEqual({ agent: 'signed_in', cutShort: false, retried: false })
   })
 })
 

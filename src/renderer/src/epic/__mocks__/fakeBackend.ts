@@ -4,6 +4,7 @@
  * on recorded requests and rendered state instead of mock expectations.
  */
 import type { ChatsApi } from '../../../../shared/agents/chatApi'
+import type { AttemptTimelineView, RunTimelineView } from '../../../../shared/domain/activity'
 import type { CommandName } from '../../../../shared/domain/api'
 import type { DomainErrorShape } from '../../../../shared/domain/errors'
 import type {
@@ -22,6 +23,7 @@ import type {
   TrackedFolderView
 } from '../../../../shared/desktop/api'
 import type { CapabilityProfile } from '../../../../shared/domain/bundle'
+import { isActiveRunState, isOpenAttemptState } from '../../../../shared/domain/status'
 import type {
   BoardRemovalResultView,
   BoardRemovalView,
@@ -340,6 +342,8 @@ function runHandlers(state: Scenario): Partial<Record<CommandName, Handler>> {
   return {
     approveWithRedraft: () => approveWithRedraft(state),
     getRun: () => state.run,
+    getRunTimeline: () => idleTimeline(state),
+    getAttemptTimeline: (input: { attemptId: string }) => idleAttemptTimeline(state, input.attemptId),
     getCheckpoint: () => state.checkpoint ?? notFound('No checkpoint'),
     getSprintReport: (input: { runId: string; sprintId?: string }) =>
       state.reports.find((item) => item.runId === input.runId && item.sprintId === input.sprintId) ?? null,
@@ -400,4 +404,18 @@ function defaultHandlers(state: Scenario): Partial<Record<CommandName, Handler>>
     saveProfile: (input: SaveProfileRequest) => saveProfile(state, input),
     ...runHandlers(state)
   }
+}
+
+/** What an attempt's Activity tab finds when a test says nothing about it: the attempt with no activity recorded yet. */
+function idleAttemptTimeline(state: Scenario, attemptId: string): AttemptTimelineView {
+  const run = state.run ?? notFound('No run')
+  const found = run.attempts.find((item) => item.id === attemptId) ?? notFound('No attempt')
+  const isLive = isOpenAttemptState(found.state)
+  return { attemptId, runId: run.id, ticketId: found.ticketId, state: found.state, isLive, cursor: 0, entries: [], sessions: [] }
+}
+
+/** What the run feed finds when a test says nothing about it: a run with no activity yet. */
+function idleTimeline(state: Scenario): RunTimelineView {
+  const run = state.run ?? notFound('No run')
+  return { runId: run.id, epicId: run.epicId, state: run.state, isLive: isActiveRunState(run.state), cursor: 0, groups: [] }
 }

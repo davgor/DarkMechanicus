@@ -14,6 +14,8 @@ export function registerChatIpc(ipcMain: Pick<IpcMain, 'handle'>, handlers: Chat
   ipcMain.handle('chats:open',(_event, request: unknown) => handlers.open(request))
   ipcMain.handle('chats:send', (_event, request: unknown) => handlers.send(request))
   ipcMain.handle('chats:stop', (_event, request: unknown) => handlers.stop(request))
+  ipcMain.handle('chats:threadBindings', (_event, request: unknown) => handlers.threadBindings(request))
+  ipcMain.handle('chats:boundThreads', (_event, request: unknown) => handlers.boundThreads(request))
   ipcMain.handle('chats:retryTurn', (_event, request: unknown) => handlers.retryTurn(request))
   ipcMain.handle('chats:setModel', (_event, request: unknown) => handlers.setModel(request))
   ipcMain.handle('chats:rename', (_event, request: unknown) => handlers.rename(request))

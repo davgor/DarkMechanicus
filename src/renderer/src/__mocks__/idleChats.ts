@@ -17,6 +17,8 @@ export function idleChats(): ChatsApi {
     open: refused,
     send: refused,
     stop: refused,
+    threadBindings: () => Promise.resolve({ ok: true, data: [] }),
+    boundThreads: () => Promise.resolve({ ok: true, data: [] }),
     retryTurn: refused,
     setModel: refused,
     rename: refused,

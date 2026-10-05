@@ -53,3 +53,52 @@
   font-size: 11px;
   white-space: nowrap;
 }
+
+/* The hourglass on a ticket being worked on: a small button that opens its live activity. */
+.ew-hourglass {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--st-running) 55%, var(--line));
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--st-running) 12%, var(--bg));
+  color: var(--st-running);
+  cursor: pointer;
+}
+
+.ew-hourglass:hover {
+  background: color-mix(in srgb, var(--st-running) 24%, var(--bg));
+}
+
+.ew-hourglass:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.ew-hourglass-icon {
+  display: block;
+  transform-origin: 50% 50%;
+}
+
+/* The hourglass turns over, rests, and turns again; with reduced motion it never moves. */
+@media (prefers-reduced-motion: no-preference) {
+  .ew-hourglass.is-animated .ew-hourglass-icon {
+    animation: ew-hourglass-turn 2.4s ease-in-out infinite;
+  }
+}
+
+@keyframes ew-hourglass-turn {
+  0%,
+  55% {
+    transform: rotate(0deg);
+  }
+
+  85%,
+  100% {
+    transform: rotate(180deg);
+  }
+}

@@ -16,9 +16,10 @@ interface Opened {
 /**
  * Opens a chat and keeps its transcript current. It subscribes to the push channel before asking
  * for the stored transcript, so nothing pushed while the request is in flight is lost; the
- * reducer replays those events on top of the stored items. The subscription ends with the view.
+ * reducer replays those events on top of the stored items. The subscription ends with the view. Shared with
+ * the views that follow one thread of a chat (an attempt's Activity tab, the orchestrator feed).
  */
-function useOpenedChat(ref: ChatRequestRef): Opened {
+export function useOpenedChat(ref: ChatRequestRef): Opened {
   const { folder, chatId } = ref
   const [state, dispatch] = useReducer(reduceSession, chatId, openSession)
   const [attempt, setAttempt] = useState(0)

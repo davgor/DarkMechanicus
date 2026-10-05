@@ -13,6 +13,7 @@ import { activeFolderPaths } from './activePaths'
 import { chooseView } from './chooseView'
 import type { MainView } from './chooseView'
 import { epicToken, folderToken } from './eventRouting'
+import type { Landing } from './landing'
 import type { Tokens } from './eventRouting'
 import { EMPTY_SELECTION, findFolder, isSelection, resolveSelection } from './selection'
 import type { Selection } from './selection'
@@ -44,6 +45,11 @@ export interface ShellModel {
   chats: ChatsModel
   busy: Record<BusyKey, boolean>
   actions: ShellActions
+  /**
+   * What a link from another screen (`actions.openTicket`, `actions.openThread`) asked the screen it opened to
+   * show, until that screen took it (`actions.landed`) or the person went somewhere else.
+   */
+  landing: Landing | null
   /** Refresh token for an epic view: changes whenever events touch that epic. */
   epicToken(folderPath: string, epicId: string): number
 }
@@ -107,6 +113,7 @@ export function useShell(scheduler: Scheduler): ShellModel {
   const connected = agents.loaded ? agents.agents : null
   const expansion = useExpansion()
   const [busy, setBusy] = useState(IDLE)
+  const [landing, setLanding] = useState<Landing | null>(null)
   const { selection, select, paths, chats } = useSelection(folders, connected, expansion, toasts.reportError)
   const selected = findFolder(folders.folders, selection.folderPath)
   const feed = useEventFeed({ paths, selectedPath: selection.folderPath, scheduler, onError: toasts.reportError })
@@ -117,6 +124,7 @@ export function useShell(scheduler: Scheduler): ShellModel {
     toasts,
     folders,
     select,
+    land: setLanding,
     reveal: expansion.reveal,
     revealAgents: expansion.revealAgents,
     chats: { create: chats.create },
@@ -145,6 +153,7 @@ export function useShell(scheduler: Scheduler): ShellModel {
     chats,
     busy,
     actions,
+    landing,
     epicToken: (path, epicId) => epicToken(feed.tokens, path, epicId)
   }
 }

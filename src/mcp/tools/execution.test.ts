@@ -103,6 +103,12 @@ const CASES: Case[] = [
     input: { attemptId: ATTEMPT, claimToken: 'at.secret', leaseSeconds: 300 }
   },
   {
+    tool: 'heartbeat_attempt',
+    args: { attemptId: ATTEMPT, claimToken: 'at.secret', progress: { note: 'schema is in', step: 'testing' } },
+    method: 'heartbeatAttempt',
+    input: { attemptId: ATTEMPT, claimToken: 'at.secret', progress: { note: 'schema is in', step: 'testing' } }
+  },
+  {
     tool: 'submit_attempt',
     args: { attemptId: ATTEMPT, claimToken: 'at.secret', outputs: OUTPUTS, evidence: EVIDENCE, idempotencyKey: 's-1' },
     method: 'submitAttempt',
@@ -286,6 +292,9 @@ describe('execution input validation', () => {
     ['claim_ticket with a ticket key instead of an id', 'claim_ticket', { runId: RUN, ticketId: 'DM-1', worker: WORKER }],
     ['heartbeat_attempt without a claim token', 'heartbeat_attempt', { attemptId: ATTEMPT }],
     ['heartbeat_attempt with an empty claim token', 'heartbeat_attempt', { attemptId: ATTEMPT, claimToken: '' }],
+    ['heartbeat_attempt with a progress note over 280 characters', 'heartbeat_attempt', { attemptId: ATTEMPT, claimToken: 't', progress: { note: 'x'.repeat(281) } }],
+    ['heartbeat_attempt with a progress step over 64 characters', 'heartbeat_attempt', { attemptId: ATTEMPT, claimToken: 't', progress: { note: 'n', step: 'x'.repeat(65) } }],
+    ['heartbeat_attempt with a progress step but no note', 'heartbeat_attempt', { attemptId: ATTEMPT, claimToken: 't', progress: { step: 'testing' } }],
     ['submit_attempt without a summary', 'submit_attempt', { attemptId: ATTEMPT, claimToken: 't', outputs: {} }],
     ['submit_attempt with an unknown check status', 'submit_attempt', { attemptId: ATTEMPT, claimToken: 't', outputs: { summary: 's' }, evidence: { checks: [{ name: 'x', status: 'maybe' }] } }],
     ['submit_attempt with a ref name as the increment commit', 'submit_attempt', { attemptId: ATTEMPT, claimToken: 't', outputs: { summary: 's' }, increment: { branch: 'epic/x', commit: 'HEAD' } }],

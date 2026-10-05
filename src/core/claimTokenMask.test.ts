@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createIdGenerator } from '../../core/ids'
+import { createIdGenerator } from './ids'
 import { CLAIM_TOKEN_MASK, createStreamMasker, maskClaimTokens, maskClaimTokensDeep } from './claimTokenMask'
 
 /** A token built by the real id generator, so it has exactly the shape attempts.ts hands out. */

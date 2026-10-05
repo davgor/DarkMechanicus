@@ -83,7 +83,9 @@ const COMMAND_FLAGS: Record<CommandName, true> = {
   approveWithRedraft: true,
   authorizeAutoContinue: true,
   grantRetry: true,
-  listEvents: true
+  listEvents: true,
+  getAttemptTimeline: true,
+  getRunTimeline: true
 }
 
 export const COMMAND_NAMES = Object.keys(COMMAND_FLAGS) as CommandName[]

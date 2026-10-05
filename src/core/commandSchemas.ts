@@ -12,6 +12,7 @@ import {
   draftOps,
   entityRef,
   epicBranch,
+  heartbeatProgress,
   hostCatalog,
   idempotencyKey,
   incrementRef,
@@ -34,6 +35,11 @@ const claimToken = z.string().min(1).max(300)
 const leaseSeconds = z.number().int().min(30).max(86_400)
 const epicRef = z.strictObject({ epicId: stableId })
 const runRef = z.strictObject({ runId: stableId })
+/** The paging of a timeline: entries after the previous page's cursor, at most `limit` of them. */
+const timelineWindow = {
+  sinceSeq: z.number().int().min(0).optional(),
+  limit: z.number().int().min(1).max(500).optional()
+}
 
 export const COMMAND_SCHEMAS = {
   setDefinitionOfDone: z.strictObject({ checks: definitionOfDoneChecks }),
@@ -125,7 +131,12 @@ export const COMMAND_SCHEMAS = {
     leaseSeconds: leaseSeconds.optional(),
     idempotencyKey
   }),
-  heartbeatAttempt: z.strictObject({ attemptId: stableId, claimToken, leaseSeconds: leaseSeconds.optional() }),
+  heartbeatAttempt: z.strictObject({
+    attemptId: stableId,
+    claimToken,
+    leaseSeconds: leaseSeconds.optional(),
+    progress: heartbeatProgress.optional()
+  }),
   submitAttempt: z.strictObject({
     attemptId: stableId,
     claimToken,
@@ -205,6 +216,8 @@ export const COMMAND_SCHEMAS = {
     limit: z.number().int().min(1).max(500).optional(),
     epicId: stableId.optional(),
     runId: stableId.optional()
-  })
+  }),
+  getAttemptTimeline: z.strictObject({ attemptId: stableId, ...timelineWindow }),
+  getRunTimeline: z.strictObject({ runId: stableId, ...timelineWindow })
 }
 

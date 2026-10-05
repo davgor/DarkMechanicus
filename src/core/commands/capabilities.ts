@@ -24,6 +24,8 @@ export const COMMAND_CAPABILITIES: Readonly<Record<CommandName, Capability>> = {
   backupDatabase: 'repo.backup',
   listSessions: 'read',
   listEvents: 'read',
+  getAttemptTimeline: 'read',
+  getRunTimeline: 'read',
   listEpics: 'read',
   createEpic: 'epic.create',
   getEpic: 'read',

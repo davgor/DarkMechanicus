@@ -11,7 +11,12 @@ import type {
   TicketNodeModel
 } from './graphModel'
 
-type TicketNodeData = { model: TicketNodeModel; active: boolean; editable: boolean }
+type TicketNodeData = {
+  model: TicketNodeModel
+  active: boolean
+  editable: boolean
+  onOpenActivity: (ticketId: string, attemptId: string) => void
+}
 type SprintNodeData = {
   model: SprintNodeModel
   editable: boolean
@@ -42,6 +47,8 @@ interface FlowOptions {
   selectedTicketId: string | null
   onAddTicket(sprintId: string): void
   onAddAcceptance(sprintId: string): void
+  /** The hourglass of a ticket being worked on was clicked: open the live activity of that attempt. */
+  onOpenActivity(ticketId: string, attemptId: string): void
 }
 
 /**
@@ -63,7 +70,12 @@ function ticketNode(item: TicketNodeModel, options: FlowOptions): TicketFlowNode
   return {
     ...placement(item),
     type: 'ticket',
-    data: { model: item, active: item.id === options.selectedTicketId, editable: options.editable },
+    data: {
+      model: item,
+      active: item.id === options.selectedTicketId,
+      editable: options.editable,
+      onOpenActivity: options.onOpenActivity
+    },
     // An acceptance node closes its own sprint, so it is never dragged to another one.
     draggable: options.editable && !item.acceptance,
     connectable: options.editable,

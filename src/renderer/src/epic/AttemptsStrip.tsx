@@ -22,7 +22,7 @@ export function AttemptsStrip({ ws }: { ws: WorkspaceHandle }): JSX.Element | nu
             <button
               type="button"
               className={`ew-strip-item ew-tone-${item.tone}`}
-              onClick={() => ws.dispatch({ type: 'select_ticket', ticketId: item.ticketId })}
+              onClick={() => ws.dispatch({ type: 'open_activity', ticketId: item.ticketId, attemptId: item.attemptId })}
             >
               <span className="ew-dot" aria-hidden="true" />
               {item.text}

@@ -347,3 +347,82 @@ describe('relogin refusals', () => {
     expect(reloginMessage(new Error('relogin'))).toBeNull()
   })
 })
+
+const call = (fields: Record<string, unknown>) => ({
+  type: 'collabAgentToolCall',
+  id: 'a1',
+  tool: 'spawnAgent',
+  status: 'inProgress',
+  senderThreadId: 'p',
+  receiverThreadIds: [],
+  prompt: null,
+  model: null,
+  agentsStates: {},
+  ...fields
+})
+
+describe('the tools of an agent that works with subagents', () => {
+  it('shows a collab call as a tool call named like the tool, with its task and the model asked for', () => {
+    expect(itemOf(call({ prompt: 'Read a.txt', model: 'gpt-5' }), 'started')).toEqual({
+      id: 't1:a1',
+      at: AT,
+      kind: 'tool_call',
+      name: 'spawn_agent',
+      input: { prompt: 'Read a.txt', model: 'gpt-5' },
+      status: 'running',
+      resultSummary: null
+    })
+  })
+
+  it('leaves out a task that is missing and a model that is empty, and clips a long task', () => {
+    expect(itemOf(call({ model: '' }), 'started')).toMatchObject({ input: {} })
+    expect(itemOf(call({ prompt: 'p'.repeat(350) }), 'started')).toMatchObject({ input: { prompt: `${'p'.repeat(300)}…` } })
+  })
+
+  it('writes any tool name in snake case, whatever Codex adds', () => {
+    expect(itemOf(call({ tool: 'wait' }))).toMatchObject({ name: 'wait' })
+    expect(itemOf(call({ tool: 'closeAgent' }))).toMatchObject({ name: 'close_agent' })
+    expect(itemOf(call({ tool: 'interruptAgent' }))).toMatchObject({ name: 'interrupt_agent' })
+    expect(itemOf(call({ tool: undefined }))).toMatchObject({ name: 'collab_agent' })
+  })
+
+})
+
+describe('what the tools of an agent that works with subagents report', () => {
+  it('reports what the subagents said, or that the call completed, or that it failed', () => {
+    const states = { x: { status: 'completed', message: 'Found alpha.' }, y: { status: 'errored', message: 'No file.' }, z: { status: 'running', message: null } }
+
+    expect(itemOf(call({ status: 'completed', agentsStates: states }))).toMatchObject({ status: 'completed', resultSummary: 'Found alpha.\nNo file.' })
+    expect(itemOf(call({ status: 'completed' }))).toMatchObject({ status: 'completed', resultSummary: 'Completed' })
+    expect(itemOf(call({ status: 'failed' }))).toMatchObject({ status: 'failed', resultSummary: 'Failed' })
+    expect(itemOf(call({ status: 'interrupted', agentsStates: { x: { status: 'interrupted', message: 'Stopped.' } } }))).toMatchObject({
+      status: 'failed',
+      resultSummary: 'Stopped.'
+    })
+  })
+
+  it('clips what the subagents said', () => {
+    const states = { x: { status: 'completed', message: 'm'.repeat(350) } }
+
+    expect(itemOf(call({ status: 'completed', agentsStates: states }))).toMatchObject({ resultSummary: `${'m'.repeat(300)}…` })
+  })
+
+  it('shows the start of a v2 subagent as a finished spawn_agent call, and the rest of its activity as nothing', () => {
+    const activity = (kind: string) => ({ type: 'subAgentActivity', id: 'call_9', kind, agentThreadId: 'c', agentPath: '/root/reader' })
+
+    expect(itemOf(activity('started'))).toEqual({
+      id: 't1:call_9',
+      at: AT,
+      kind: 'tool_call',
+      name: 'spawn_agent',
+      input: { agent: '/root/reader' },
+      status: 'completed',
+      resultSummary: null
+    })
+    expect(itemOf({ ...activity('started'), agentPath: undefined })).toMatchObject({ input: {} })
+    expect(itemOf(activity('started'), 'started')).toBeNull()
+    expect(itemOf(activity('completed'))).toBeNull()
+    expect(itemOf(activity('interrupted'))).toBeNull()
+    expect(itemOf(activity('interacted'))).toBeNull()
+  })
+})

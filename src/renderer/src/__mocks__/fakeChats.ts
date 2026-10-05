@@ -11,6 +11,8 @@
  * A chat whose record has a `cutShortMessageId` can be retried: `retryTurn` clears it, starts the turn and
  * answers the stored message, and is `not_found` for a chat with nothing cut short, as in main (a test
  * makes it refuse as signed out through `failures`).
+ * `threadBindings` answers what a test put in `bindings` for the chat (none by default); `boundThreads` answers what a test
+ * put in `bound` for the attempt or run (none by default).
  * Starting an orchestrator needs `orchestration` (how to queue the run and what the epic is called):
  * it then queues the run, stores an orchestrator chat with Allow save off that records the run's id
  * and answers both, as main does, unless `orchestrationProblem` says the chat could not be started.
@@ -18,6 +20,8 @@
 import type { ApprovalRequestItem, ChatItem, ChatRecord, ModelOption } from '../../../shared/agents/chat'
 import type {
   AnswerApprovalRequest,
+  BoundThread,
+  BoundThreadsRequest,
   ChatOpenView,
   ChatPushEvent,
   ChatRequestRef,
@@ -27,7 +31,8 @@ import type {
   SendChatRequest,
   SetChatModelRequest,
   StartOrchestratorRequest,
-  StartOrchestratorResult
+  StartOrchestratorResult,
+  ThreadBinding
 } from '../../../shared/agents/chatApi'
 import type { AgentKind, CommandResult } from '../../../shared/desktop/api'
 import type { DomainErrorShape } from '../../../shared/domain/errors'
@@ -47,6 +52,8 @@ type Method =
   | 'send'
   | 'stop'
   | 'retryTurn'
+  | 'threadBindings'
+  | 'boundThreads'
   | 'setModel'
   | 'answerApproval'
 
@@ -73,6 +80,10 @@ export class FakeChats implements ChatsApi {
   orchestrationProblem: string | null = null
   /** Each chat's stored transcript, as `open` returns it. */
   transcripts: Record<string, ChatItem[]> = {}
+  /** Each chat's thread bindings, as `threadBindings` answers them; a chat with no entry has none. */
+  bindings: Record<string, ThreadBinding[]> = {}
+  /** The threads bound to each attempt and each run, as `boundThreads` answers them; one with no entry has none. */
+  bound: { attempts: Record<string, BoundThread[]>; runs: Record<string, BoundThread[]> } = { attempts: {}, runs: {} }
   /** The chats whose turn is running, as `open` reports it. */
   running = new Set<string>()
   /** Every call with exactly the arguments it was given, oldest first. */
@@ -95,6 +106,11 @@ export class FakeChats implements ChatsApi {
     for (const listener of this.listeners) {
       listener(event)
     }
+  }
+
+  /** How many views follow pushed events right now: a view that closed has unsubscribed. */
+  subscribers(): number {
+    return this.listeners.size
   }
 
   callsOf(method: Method): unknown[][] {
@@ -206,6 +222,17 @@ export class FakeChats implements ChatsApi {
       this.emitItem(request.chatId, message)
       this.emit({ type: 'turn', chatId: request.chatId, running: true })
       return { ok: true, data: message }
+    })
+  }
+
+  threadBindings(request: ChatRequestRef): Promise<CommandResult<ThreadBinding[]>> {
+    return this.call('threadBindings', [request], () => ({ ok: true, data: [...(this.bindings[request.chatId] ?? [])] }))
+  }
+
+  boundThreads(request: BoundThreadsRequest): Promise<CommandResult<BoundThread[]>> {
+    return this.call('boundThreads', [request], () => {
+      const found = 'attemptId' in request ? this.bound.attempts[request.attemptId] : this.bound.runs[request.runId]
+      return { ok: true, data: [...(found ?? [])] }
     })
   }
 

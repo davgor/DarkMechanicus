@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import type { DividerFlowNode, EpicFlowNode, JoinFlowNode, RowCheckFlowNode, SprintFlowNode, TicketFlowNode } from './flowElements'
 import type { RowCheckState, TicketNodeModel } from './graphModel'
 import type { Tone } from './ticketStates'
+import { WorkingHourglass } from './WorkingHourglass'
 
 const DIVIDER_TONES: Record<'passed' | 'locked' | 'awaiting' | 'neutral', Tone> = {
   passed: 'accepted',
@@ -31,13 +32,26 @@ function TicketNode({ data }: NodeProps<TicketFlowNode>): JSX.Element {
     <div className={classes.filter((name) => name !== '').join(' ')} data-ticket={card.id}>
       {card.note === null ? null : <span className="pg-note">{card.note}</span>}
       <Handle type="target" position={Position.Top} isConnectable={data.editable} />
-      <span className="pg-card-label">{card.label}</span>
+      <span className="pg-card-head">
+        <span className="pg-card-label">{card.label}</span>
+        <Hourglass card={card} onOpen={data.onOpenActivity} />
+      </span>
       <span className="pg-card-title">{card.title}</span>
       {card.acceptance ? <span className="pg-kind">ACCEPTANCE</span> : null}
       <TicketTags size={card.size} effort={card.effort} />
       <Handle type="source" position={Position.Bottom} isConnectable={data.editable} />
     </div>
   )
+}
+
+/** The hourglass beside a card's state label while its ticket is being worked on. */
+function Hourglass(props: { card: TicketNodeModel; onOpen(ticketId: string, attemptId: string): void }): JSX.Element | null {
+  const { card, onOpen } = props
+  const attemptId = card.working
+  if (attemptId === null) {
+    return null
+  }
+  return <WorkingHourglass ticketKey={card.ticketKey} onOpen={() => onOpen(card.id, attemptId)} />
 }
 
 /** The effort and size badges on a card's bottom edge: the effort beside the size, either one alone, none for neither. */

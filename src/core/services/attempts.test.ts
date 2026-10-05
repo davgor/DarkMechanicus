@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { EventView } from '../../shared/domain/views'
 import { makeBundle, sid, tid } from '../../test/bundles'
 import {
   attemptRow,
@@ -21,9 +22,12 @@ import {
 } from '../../test/execution'
 import { createSequentialIds, createTestClock, createTestCtx, createTestDb, withRole } from '../../test/testContext'
 import { contentHash } from '../canonical'
+import type { Ctx } from '../context'
 import { openDatabase } from '../db/database'
 import { DomainError } from '../errors'
+import { buildRunHistoryRecord, buildSnapshotRecord } from '../repo/portable'
 import { failAttempt, heartbeatAttempt, reconcileAttempt, submitAttempt } from './attempts'
+import { listEvents, MAX_EVENT_PAGE } from './events'
 import { attemptView } from './execution'
 import { registerHost } from './hosts'
 import { pauseRun } from './runs'
@@ -415,6 +419,152 @@ describe('heartbeatAttempt', () => {
 
   it('rejects an unknown attempt', () => {
     expect(errorCode(() => heartbeatAttempt(createTestCtx(), { attemptId: 'at_missing', claimToken: 'x.y' }))).toBe('not_found')
+  })
+})
+
+/** A claim token in the real shape: `at_` + 26 id characters, a dot, and 32 URL-safe secret characters. */
+const LOOKALIKE_TOKEN = 'at_01j8z3k5m7n9p2q4r6s8t0v1w2.Zk9_aB3dEf7-Hj2LmN5pQr8TuVw0XyZa'
+
+function progressNotes(ctx: Ctx, runId: string, attemptId?: string): EventView[] {
+  return listEvents(ctx, { runId, limit: MAX_EVENT_PAGE }).events.filter(
+    (event) => event.kind === 'attempt.progress' && (attemptId === undefined || event.payload.attemptId === attemptId)
+  )
+}
+
+describe('heartbeatAttempt — progress notes', () => {
+  it('stores a note with its time, session and step and returns the attempt as before', () => {
+    const ctx = createTestCtx()
+    const { runId, epicId } = startedRun(ctx)
+    const claimed = claim(ctx, runId, 1)
+    const worker = withRole(ctx, 'worker')
+    ctx.clock.advanceSeconds(100)
+    const token = { attemptId: claimed.attempt.id, claimToken: claimed.packet.claimToken }
+    const view = heartbeatAttempt(worker, { ...token, progress: { note: 'schema is in, wiring the service', step: 'coding' } })
+    expect(view).toMatchObject({ state: 'running', heartbeatAt: '2026-01-01T00:01:40.000Z', leaseExpiresAt: '2026-01-01T00:16:40.000Z' })
+    const [event, ...rest] = progressNotes(ctx, runId)
+    expect(rest).toEqual([])
+    expect(event).toMatchObject({
+      at: '2026-01-01T00:01:40.000Z',
+      kind: 'attempt.progress',
+      epicId,
+      runId,
+      ticketId: tid(1),
+      sessionId: worker.session.id,
+      payload: { attemptId: claimed.attempt.id, note: 'schema is in, wiring the service', step: 'coding' }
+    })
+  })
+
+  it('stores a note without a step, and several notes in order', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx)
+    const claimed = claim(ctx, runId, 1)
+    const token = { attemptId: claimed.attempt.id, claimToken: claimed.packet.claimToken }
+    heartbeatAttempt(ctx, { ...token, progress: { note: 'first' } })
+    heartbeatAttempt(ctx, { ...token, progress: { note: 'second', step: 'testing' } })
+    expect(progressNotes(ctx, runId).map((event) => event.payload)).toEqual([
+      { attemptId: claimed.attempt.id, note: 'first', step: null },
+      { attemptId: claimed.attempt.id, note: 'second', step: 'testing' }
+    ])
+  })
+
+  it('behaves exactly as before when the heartbeat carries no note', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx)
+    const claimed = claim(ctx, runId, 1)
+    heartbeatAttempt(ctx, { attemptId: claimed.attempt.id, claimToken: claimed.packet.claimToken })
+    expect(eventKinds(ctx, 'attempt.')).toEqual(['attempt.claimed', 'attempt.running'])
+    expect(progressNotes(ctx, runId)).toEqual([])
+  })
+
+})
+
+describe('heartbeatAttempt — progress notes and claim tokens', () => {
+  it('stores nothing from a heartbeat that is refused', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx)
+    const claimed = claim(ctx, runId, 1, { leaseSeconds: 60 })
+    const attemptId = claimed.attempt.id
+    const progress = { note: 'should not be kept' }
+    expect(errorCode(() => heartbeatAttempt(ctx, { attemptId, claimToken: `${attemptId}.wrong`, progress }))).toBe('stale_claim')
+    ctx.clock.advanceSeconds(61)
+    expect(errorCode(() => heartbeatAttempt(ctx, { attemptId, claimToken: claimed.packet.claimToken, progress }))).toBe('expired_claim')
+    expect(progressNotes(ctx, runId)).toEqual([])
+  })
+
+  it('masks a claim token in the note and the step before storing, and the heartbeat still succeeds', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx)
+    const claimed = claim(ctx, runId, 1)
+    const own = claimed.packet.claimToken
+    const view = heartbeatAttempt(ctx, {
+      attemptId: claimed.attempt.id,
+      claimToken: own,
+      progress: { note: `retrying with ${LOOKALIKE_TOKEN} then ${own}, done`, step: LOOKALIKE_TOKEN }
+    })
+    expect(view.state).toBe('running')
+    const [event] = progressNotes(ctx, runId)
+    expect(event?.payload).toEqual({
+      attemptId: claimed.attempt.id,
+      note: 'retrying with [claim token masked] then [claim token masked], done',
+      step: '[claim token masked]'
+    })
+    const stored = ctx.db.all<{ payload_json: string }>('SELECT payload_json FROM events').map((row) => row.payload_json).join('\n')
+    expect([stored.includes('Zk9_aB3dEf7'), stored.includes(own.split('.')[1] ?? '')]).toEqual([false, false])
+  })
+
+})
+
+describe('heartbeatAttempt — progress note retention', () => {
+  it('keeps only the last 200 notes of an attempt and leaves other attempts and events alone', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx)
+    const other = claim(ctx, runId, 2)
+    const claimed = claim(ctx, runId, 1)
+    const token = { attemptId: claimed.attempt.id, claimToken: claimed.packet.claimToken }
+    heartbeatAttempt(ctx, { attemptId: other.attempt.id, claimToken: other.packet.claimToken, progress: { note: 'other attempt' } })
+    for (let index = 1; index <= 205; index += 1) {
+      heartbeatAttempt(ctx, { ...token, progress: { note: `note ${index}` } })
+    }
+    const kept = progressNotes(ctx, runId, claimed.attempt.id).map((event) => event.payload.note)
+    expect([kept.length, kept[0], kept[kept.length - 1]]).toEqual([200, 'note 6', 'note 205'])
+    expect(progressNotes(ctx, runId, other.attempt.id).map((event) => event.payload.note)).toEqual(['other attempt'])
+    expect(eventKinds(ctx, 'attempt.').filter((kind) => kind !== 'attempt.progress')).toEqual([
+      'attempt.claimed',
+      'attempt.claimed',
+      'attempt.running',
+      'attempt.running'
+    ])
+  })
+
+})
+
+describe('heartbeatAttempt — progress notes stay local', () => {
+  it('queues no outbox work for a note: it is not portable history', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx)
+    const claimed = claim(ctx, runId, 1)
+    const token = { attemptId: claimed.attempt.id, claimToken: claimed.packet.claimToken }
+    heartbeatAttempt(ctx, token)
+    clearOutbox(ctx)
+    heartbeatAttempt(ctx, { ...token, progress: { note: 'still going' } })
+    expect(pendingOutbox(ctx)).toEqual([])
+  })
+
+  it('leaves run history and plan snapshots byte for byte as they were', () => {
+    const ctx = createTestCtx()
+    const { runId, revisionId } = startedRun(ctx)
+    const claimed = claim(ctx, runId, 1)
+    const token = { attemptId: claimed.attempt.id, claimToken: claimed.packet.claimToken }
+    heartbeatAttempt(ctx, token)
+    const history = buildRunHistoryRecord(ctx.db, runId)
+    const snapshot = buildSnapshotRecord(ctx.db, revisionId ?? '')
+    heartbeatAttempt(ctx, { ...token, progress: { note: 'wiring the schema', step: 'coding' } })
+    expect(progressNotes(ctx, runId)).toHaveLength(1)
+    const after = buildRunHistoryRecord(ctx.db, runId)
+    expect(after).toEqual(history)
+    expect(contentHash(after)).toBe(contentHash(history))
+    expect(JSON.stringify(after)).not.toContain('wiring the schema')
+    expect(buildSnapshotRecord(ctx.db, revisionId ?? '')).toEqual(snapshot)
   })
 })
 

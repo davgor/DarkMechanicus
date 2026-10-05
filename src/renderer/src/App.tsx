@@ -1,6 +1,8 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import type { ComponentProps, ComponentType } from 'react'
+import type { ChatRecord } from '../../shared/agents/chat'
 import type { TrackedFolderView } from '../../shared/desktop/api'
+import { threadLandingFor, ticketLandingFor } from './app/landing'
 import { findFolder } from './app/selection'
 import { listFor } from './app/useEpicLists'
 import { browserScheduler } from './app/scheduler'
@@ -12,6 +14,7 @@ import { useShell } from './app/useShell'
 import type { ShellModel } from './app/useShell'
 import { AddAgentPane } from './agents/AddAgentPane'
 import { AgentPage } from './agents/AgentPage'
+import type { ChatNavigation } from './agents/ChatContext'
 import { ChatView } from './agents/ChatView'
 import { NewChatDialog } from './agents/NewChatDialog'
 import { chatsFor } from './agents/useChats'
@@ -58,7 +61,7 @@ function orchestrationFor(shell: ShellModel, folder: TrackedFolderView): Orchest
     onChatsChanged: () => void shell.chats.reload(folder.path),
     onAddAgent: actions.openAddAgent,
     onAgentStatus: shell.agents.recordStatus,
-    onOpenChat: (chatId) => actions.selectChat(folder.path, chatId)
+    onOpenChat: (chatId, threadId) => (threadId === undefined ? actions.selectChat(folder.path, chatId) : actions.openThread(folder.path, chatId, threadId))
   }
 }
 
@@ -74,6 +77,7 @@ function EpicPane({ shell, EpicView, folder, epicId }: EpicPaneProps): JSX.Eleme
     actions.current.changed(folder.path)
     actions.current.selectFolder(folder.path)
   }, [actions, folder.path])
+  const onLanded = useCallback(() => actions.current.landed(), [actions])
   return (
     <EpicView
       key={`${folder.path}:${epicId}`}
@@ -83,9 +87,31 @@ function EpicPane({ shell, EpicView, folder, epicId }: EpicPaneProps): JSX.Eleme
       onChanged={onChanged}
       onOpenEpic={onOpenEpic}
       onDeleted={onDeleted}
+      landing={ticketLandingFor(shell.landing, epicId)}
+      onLanded={onLanded}
       orchestration={orchestrationFor(shell, folder)}
     />
   )
+}
+
+interface ChatPaneProps {
+  shell: ShellModel
+  folder: TrackedFolderView
+  chat: ChatRecord
+}
+
+/** An open chat. Its links (markers, bound threads) open tickets and epics in the folder; a request to show one of its threads is handed to it once. */
+function ChatPane({ shell, folder, chat }: ChatPaneProps): JSX.Element {
+  const actions = useLatest(shell.actions)
+  const navigation = useMemo<ChatNavigation>(
+    () => ({
+      openTicket: (link) => actions.current.openTicket(folder.path, link),
+      openEpic: (epicId) => actions.current.selectEpic(folder.path, epicId)
+    }),
+    [actions, folder.path]
+  )
+  const onLanded = useCallback(() => actions.current.landed(), [actions])
+  return <ChatView chat={chat} onAgentStatus={shell.agents.recordStatus} navigation={navigation} landing={threadLandingFor(shell.landing, chat.id)} onLanded={onLanded} />
 }
 
 /** An open folder: either one of its epics, or the folder home. */
@@ -127,7 +153,7 @@ function MainPane(props: PaneProps): JSX.Element | null {
     case 'agent':
       return <AgentPage key={view.agent.kind} agent={view.agent} agents={shell.agents} />
     case 'chat':
-      return <ChatView key={view.chat.id} chat={view.chat} onAgentStatus={shell.agents.recordStatus} />
+      return <ChatPane key={view.chat.id} shell={shell} folder={view.folder} chat={view.chat} />
     case 'unavailable':
       return <UnavailableView folder={view.folder} onStopTracking={props.onRequestUntrack} />
     case 'onboarding':

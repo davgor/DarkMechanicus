@@ -10,7 +10,7 @@ interface NewEvent {
   payload?: Record<string, unknown>
 }
 
-interface EventRow {
+export interface EventRow {
   seq: number
   at: string
   kind: string
@@ -37,7 +37,41 @@ export function appendEvent(ctx: Ctx, event: NewEvent): number {
   return result.lastInsertRowid
 }
 
-function toEventView(row: EventRow): EventView {
+const PROGRESS_EVENT_KIND = 'attempt.progress'
+/** Progress notes kept per attempt; the oldest go first. */
+const MAX_PROGRESS_NOTES = 200
+
+interface ProgressNote {
+  attemptId: string
+  epicId: string
+  runId: string
+  ticketId: string
+  note: string
+  step?: string
+}
+
+/**
+ * Records a worker's progress note as an event of its attempt (the event carries the sending session and the
+ * time) and drops the attempt's notes beyond the last `MAX_PROGRESS_NOTES`. Notes are local working data: they
+ * queue no outbox work, and no portable record reads the events table. The caller masks the text first. Call
+ * inside the mutation's transaction.
+ */
+export function appendProgressNote(ctx: Ctx, progress: ProgressNote): void {
+  const { attemptId, epicId, runId, ticketId, note, step } = progress
+  appendEvent(ctx, { kind: PROGRESS_EVENT_KIND, epicId, runId, ticketId, payload: { attemptId, note, step: step ?? null } })
+  ctx.db.run(
+    `DELETE FROM events WHERE seq IN (
+       SELECT seq FROM events
+       WHERE kind = ? AND run_id = ? AND json_extract(payload_json, '$.attemptId') = ?
+       ORDER BY seq DESC LIMIT -1 OFFSET ?)`,
+    PROGRESS_EVENT_KIND,
+    runId,
+    attemptId,
+    MAX_PROGRESS_NOTES
+  )
+}
+
+export function toEventView(row: EventRow): EventView {
   return {
     seq: row.seq,
     at: row.at,
@@ -77,7 +111,7 @@ export function listEvents(
   return { events, cursor: last ? last.seq : horizon }
 }
 
-function latestSeq(ctx: Ctx, fallback: number): number {
+export function latestSeq(ctx: Ctx, fallback: number): number {
   const row = ctx.db.get<{ seq: number | null }>('SELECT MAX(seq) AS seq FROM events')
   return Math.max(fallback, row?.seq ?? 0)
 }

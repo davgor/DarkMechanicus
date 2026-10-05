@@ -74,9 +74,10 @@ const DEFAULT_TITLE = 'New chat'
 const INDEX_FILE = 'index.jsonl'
 
 /** Items that arrive in bursts inside a turn; they do not rewrite the index to bump `updatedAt`. */
-const QUIET_KINDS: ReadonlySet<ChatItem['kind']> = new Set(['tool_call', 'approval_request', 'approval_decision'])
+const QUIET_KINDS: ReadonlySet<ChatItem['kind']> = new Set(['tool_call', 'approval_request', 'approval_decision', 'thread'])
 
-const nodeChatStoreFs: ChatStoreFs = {
+/** The real filesystem; the activity bindings next to the chats use it too. */
+export const nodeChatStoreFs: ChatStoreFs = {
   readFile: (path) => readFileSync(path, 'utf8'),
   appendFile: (path, data) => {
     appendFileSync(path, data, 'utf8')

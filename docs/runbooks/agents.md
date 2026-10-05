@@ -8,12 +8,13 @@ Dark Mechanicus runs the vendor's own CLI under your own sign-in. It never asks 
 
 ## Where things are kept
 
-Both live in the app's `userData` folder, outside every repository. Neither is a portable record: they do not travel with a pull, and untracking a folder does not touch them.
+All live in the app's `userData` folder, outside every repository. None is a portable record: they do not travel with a pull, and untracking a folder does not touch them.
 
 | What | Where |
 |------|-------|
 | Connected agents | `userData/agents.json`: one entry per agent (path, version, found or downloaded, timestamps). Remove deletes only the entry. A corrupt file reads as no agents connected |
 | Chats | `userData/agents/chats/<folder key>/index.jsonl` (one line per change of a chat; the last line for an id wins) and `userData/agents/chats/<folder key>/<chatId>.jsonl` (the transcript, one item per line) |
+| Activity bindings | `userData/agents/activity-bindings.jsonl`: which chat threads act on which runs and attempts, one line per binding (ids only, never a claim token). Delete chat removes the chat's lines |
 | Credentials | Not kept by Dark Mechanicus. The CLI keeps its own login |
 
 The folder key is the first 24 hex characters of the SHA-256 of the folder's canonical path, so every spelling of a folder finds the same chats. Claim tokens (`at_...`) are masked before anything is written to a transcript or shown. Delete chat removes the transcript and every stored version of the chat's record; nothing is moved to a trash.
@@ -108,6 +109,29 @@ The categories are file edits, commands and other (for example a read or search 
 
 Each vendor enforces this its own way. Claude Code runs in its default permission mode and asks the app before edits, commands and other tools. Codex runs with approval policy `untrusted` and the `workspace-write` sandbox, so it asks before every file change and before any command it does not know is a safe read; how much of the sandbox applies on Windows is up to Codex. Cursor's permission requests come through the Agent Client Protocol; **Allow for this chat** sends Cursor's own "allow always" option when it offers one.
 
+## Subagents in a chat
+
+When an agent starts a subagent, the chat shows the subagent's work as a **nested thread** under the tool call that started it, with a state (running, done or failed). What the subagent writes, the tools it calls and the approval requests it raises appear inside the thread, and a request names the thread it came from. A subagent that starts one of its own opens a thread inside its thread. How much of this an agent shows depends on what its CLI tells the app:
+
+| Agent | Subagent threads | What the chat shows |
+|-------|------------------|---------------------|
+| Claude Code | Yes | The `Agent` tool call, and a thread with the subagent's messages, tool calls and approval requests. A subagent started in the background ends when its notification arrives |
+| Codex | Yes, from the Codex source; not run against a real Codex | The `spawn_agent` call, and a thread with the subagent's messages, tool calls and approval requests. Details below |
+| Cursor | No | One thread. The subagent task is shown as the tool call it is; what the subagent does is not shown. Details below |
+
+**Codex.** `codex app-server` runs a subagent as a thread of its own and sends that thread's notifications and requests on the chat's connection with the subagent's thread id. The app reads both ways Codex announces a subagent: the `spawn_agent` tool of multi-agent v1 (a `collabAgentToolCall` item, which names the new thread when it completes) and the `subAgentActivity` item of multi-agent v2 (kind `started`). Both open a thread, named by the first line of the task (v1) or by the last part of the agent path (v2), or just "Subagent".
+
+- A thread is running until the subagent's turn ends: done when the turn completed, failed when it failed or was interrupted, and running again if the subagent is given another turn. The status Codex reports for a subagent when the agent uses `wait`, `close_agent` or the like, and a v2 `completed` or `interrupted` activity, end a running thread the same way. A thread still running when the Codex process ends is marked failed.
+- The agent's other subagent tools (`wait`, `send_input`, `close_agent`, ...) show as ordinary tool calls in the thread of the agent that used them.
+- A subagent the app never saw announced (one from before the Codex process started) is not shown, and its notifications are dropped, until the agent resumes it with the resume tool, which opens a thread for it named "Subagent". An approval request from a thread the app does not know is raised in the chat itself, without a thread name, so that Codex is never left waiting.
+- Source: openai/codex at tag `rust-v0.160.0` (commit `a956835d020762cb2b570053af06f643a11c0ecc`), read 2026-10-05: `codex-rs/app-server-protocol/schema/typescript/v2/ThreadItem.ts` and the `Collab*` types next to it, `codex-rs/core/src/tools/handlers/multi_agents/spawn.rs` and `multi_agents_v2/spawn.rs`, and `codex-rs/app-server/src/lib.rs` (every new thread is attached to every initialized connection). The test exchanges (`src/main/agents/__mocks__/codexSubagents.ts`) are built from that source and say so; none was captured from a running Codex. Not checked against a real Codex: that these items arrive as the source says, that a subagent's first output never comes before its announcement (such an item would be dropped), and which of the two multi-agent versions a given Codex release uses.
+
+**Cursor.** Cursor's ACP page (https://cursor.com/docs/cli/acp, read 2026-10-05) documents one subagent message, `cursor/task`: the task's tool call id, description, prompt and subagent type, and optionally the model, an agent id and a duration. It names no session of the subagent and says nothing about the subagent's own messages or tool calls reaching the client, and the Agent Client Protocol itself (https://agentclientprotocol.com/protocol) has no subagent concept. The chat therefore keeps one thread:
+
+- The task shows as the tool call that started it (its title and input, and the report when the call completes). The app answers `cursor/task` as `completed`, or says nothing when Cursor sends it as a notification, and writes no thread item, since a thread would hold nothing.
+- If Cursor streams anything from the subagent as ordinary updates, it appears in the chat's own thread with everything else, and the app cannot tell it from the agent's own work.
+- Not checked against a real Cursor: whether the CLI sends a subagent's work at all. The Agent Client Protocol has an unstable draft for subagent sessions (`subagent_update`, `docs/rfds/subagents.mdx` in agentclientprotocol/agent-client-protocol, commit `d2631c6f092cb2105a235c9cf295b5a3b51fa0e5`, 2026-09-30) that an agent may send only to a client that advertises a `subagents` capability. The app does not advertise it, and nothing read from Cursor says it sends those updates, so nothing was built on it.
+
 ## Roles and Allow save
 
 A chat's role is one of the four Dark Mechanicus roles and is fixed when the chat starts; to change it, start a new chat.
@@ -196,5 +220,6 @@ Not verified, and not claimed:
 
 - **macOS.** Nothing here was run on a Mac: the macOS install recipes and folders, the Terminal sign-in through `osascript` (and whether macOS asks for permission), the `~/.local/bin` locations, and the Find dialog on macOS.
 - **Codex and Cursor** were not installed on that machine. Their sign-in detection comes from the vendors' source, documentation and forum posts, not from a real signed-out session. Cursor's `agent status` wording is not documented (the app matches "not logged in" and "logged in" style messages and otherwise says Sign-in unknown), neither is the output of `agent models`, and whether an older Cursor gates the Dark Mechanicus server is unchecked.
+- **Subagent threads for Codex and Cursor.** The Codex mapping is read from the Codex source (tag `rust-v0.160.0`) and the Cursor outcome (one thread) from Cursor's ACP page and the Agent Client Protocol; no real Codex or Cursor ran, and the test exchanges are built from those documents, not recorded. See [Subagents in a chat](#subagents-in-a-chat).
 - **Download against the live vendor endpoints.** The installer flow is tested with fake downloads and fake processes. This runbook does not record a real install on either platform.
 - **Where `userData` is** on an installed build, as noted above.

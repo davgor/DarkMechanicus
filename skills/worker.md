@@ -26,7 +26,7 @@ If something needed is missing or contradictory, do not guess: report it (see Bl
 - Work in a worktree of your own, on a working branch that starts from the sprint integration branch the orchestrator names (the epic feature branch from the packet when it names none). Run every git command with `git -C <worktree>` so none can act on another checkout, and never switch branches in the coordinating checkout: that pauses the run with `branch_changed`. Commit on your working branch and integrate only as the orchestrator instructs, which means it merges your accepted work. Never push to the default branch.
 - Stay in scope. Do not refactor unrelated code, fix unrelated bugs, or do other tickets' work. If you notice something worth doing, record it as a discovery (see Discoveries) instead of doing it.
 - Keep changes reviewable: small commits with clear messages, and only the files the ticket needs.
-- If you hold the claim token and the reporting tools, call `heartbeat_attempt` every `heartbeatIntervalSeconds` (well inside the lease) until you submit. Otherwise the orchestrator does this.
+- If you hold the claim token and the reporting tools, call `heartbeat_attempt` every `heartbeatIntervalSeconds` (well inside the lease) until you submit. Otherwise the orchestrator does this. With each heartbeat, send a `progress` note (at most 280 characters) saying what you are doing now, for example "running npm test" or "editing src/main/file.ts". Never include the claim token or any other secret.
 
 ## Verify
 

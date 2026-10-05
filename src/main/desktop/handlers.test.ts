@@ -349,6 +349,25 @@ describe('command execution', () => {
   })
 })
 
+describe('timeline commands', () => {
+  it('lets the person read attempt and run timelines, with the cursor passed through untouched', async () => {
+    const world = createWorld({ tracked: ['/repos/a'] })
+    const handlers = createDesktopHandlers(world.deps)
+    const attempt = { attemptId: 'at_x', sinceSeq: 12, limit: 50 }
+    const run = { runId: 'rn_x', sinceSeq: 7 }
+
+    expect(DESKTOP_COMMANDS).toEqual(expect.arrayContaining(['getAttemptTimeline', 'getRunTimeline']))
+    expect(await handlers.command('/repos/a', 'getAttemptTimeline', attempt)).toEqual({
+      ok: true,
+      data: { name: 'getAttemptTimeline', input: attempt, repoRoot: '/repos/a' }
+    })
+    expect(await handlers.command('/repos/a', 'getRunTimeline', run)).toEqual({
+      ok: true,
+      data: { name: 'getRunTimeline', input: run, repoRoot: '/repos/a' }
+    })
+  })
+})
+
 describe('command authorization', () => {
   it('refuses agent-only commands even though the workspace implements them', async () => {
     const world = createWorld({ tracked: ['/repos/a'] })
