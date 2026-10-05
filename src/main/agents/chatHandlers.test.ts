@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { DomainError } from '../../core/errors'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { EpicDetailView, RunView } from '../../shared/domain/views'
-import type { ThreadBinding } from '../../shared/agents/chatApi'
+import type { ChatPushEvent, ThreadBinding } from '../../shared/agents/chatApi'
 import type { CommandResult } from '../../shared/desktop/api'
 import { AT, MODELS, REPO } from './__mocks__/fakeChatAdapter'
 import { createChatHandlers, type ChatHandlers } from './chatHandlers'
@@ -39,15 +39,13 @@ function recordingSessions(): { sessions: SessionManager; calls: unknown[][] } {
       calls.push(['deleteChat', ...args])
     },
     openChat: async (...args) => (calls.push(['openChat', ...args]), { chat: CHAT, items: [], pending: [], running: false }),
+    readChat: (...args) => (calls.push(['readChat', ...args]), { chat: CHAT, items: [], pending: [], running: false }),
     send: async (...args) => (calls.push(['send', ...args]), MESSAGE),
     stop: async (...args) => {
       calls.push(['stop', ...args])
     },
     retryTurn: async (...args) => (calls.push(['retryTurn', ...args]), MESSAGE),
     reconcileAuthStatus: (kind, status) => (calls.push(['reconcileAuthStatus', kind]), status),
-    signInStarted: (kind) => {
-      calls.push(['signInStarted', kind])
-    },
     setModel: async (...args) => (calls.push(['setModel', ...args]), { ...CHAT, model: 'small' }),
     answerApproval: (...args) => {
       calls.push(['answerApproval', ...args])
@@ -71,11 +69,12 @@ function recordingRuns(calls: string[] = []): OrchestratorRuns {
   }
 }
 
-function handlersOver(sessions: SessionManager, errors: unknown[] = [], runs: OrchestratorRuns = recordingRuns()): ChatHandlers {
+function handlersOver(sessions: SessionManager, errors: unknown[] = [], runs: OrchestratorRuns = recordingRuns(), push?: (event: ChatPushEvent) => void): ChatHandlers {
   return createChatHandlers({
     registry: { resolve: (path) => (path === REPO || path === SPELLING ? REPO : null) },
     sessions,
     runs,
+    ...(push === undefined ? {} : { push }),
     onUnexpectedError: (error) => errors.push(error)
   })
 }
@@ -91,6 +90,7 @@ describe('chat handlers: forwarding', () => {
     expect(await handlers.list(SPELLING)).toEqual({ ok: true, data: [{ ...CHAT, pending: 0 }] })
     expect(await handlers.create({ folder: SPELLING, agent: 'codex', role: 'orchestrator' })).toEqual({ ok: true, data: CHAT })
     expect((await handlers.open(REF)).ok).toBe(true)
+    expect(await handlers.read(REF)).toEqual({ ok: true, data: { chat: CHAT, items: [], pending: [], running: false } })
     expect(await handlers.send({ ...REF, text: 'hi' })).toEqual({ ok: true, data: MESSAGE })
     expect(await handlers.stop(REF)).toEqual({ ok: true, data: null })
     expect(await handlers.retryTurn(REF)).toEqual({ ok: true, data: MESSAGE })
@@ -104,6 +104,7 @@ describe('chat handlers: forwarding', () => {
       ['listChats', REPO],
       ['createChat', { folder: REPO, agent: 'codex', role: 'orchestrator' }],
       ['openChat', CANONICAL],
+      ['readChat', CANONICAL],
       ['send', CANONICAL, 'hi'],
       ['stop', CANONICAL],
       ['retryTurn', CANONICAL],
@@ -137,7 +138,8 @@ describe('chat handlers: refusals', () => {
       await handlers.send({ folder: elsewhere, chatId: 'chat_1', text: 'hi' }),
       await handlers.rename({ folder: elsewhere, chatId: 'chat_1', title: 'x' }),
       await handlers.delete({ folder: elsewhere, chatId: 'chat_1' }),
-      await handlers.retryTurn({ folder: elsewhere, chatId: 'chat_1' })
+      await handlers.retryTurn({ folder: elsewhere, chatId: 'chat_1' }),
+      await handlers.read({ folder: elsewhere, chatId: 'chat_1' })
     ]
 
     expect(results.map((result) => (result.ok ? 'ok' : result.error.code))).toEqual(Array(results.length).fill('unauthorized'))
@@ -158,6 +160,10 @@ describe('chat handlers: refusals', () => {
       await handlers.setModel(REF),
       await handlers.answerApproval({ ...REF, requestId: 'q1', decision: 'allow' }),
       await handlers.open('chat_1'),
+      await handlers.read('chat_1'),
+      await handlers.read({ folder: REPO }),
+      await handlers.read({ ...REF, start: true }),
+      await handlers.read({ folder: REPO, chatId: '../index' }),
       await handlers.models('/bin/claude'),
       await handlers.list(42),
       await handlers.retryTurn({ ...REF, text: 'send this instead' }),
@@ -257,11 +263,15 @@ describe('chat handlers: rename, delete and failures', () => {
     sessions.send = () => Promise.reject(new DomainError('conflict', 'still answering'))
     sessions.retryTurn = () => Promise.reject(new DomainError('conflict', 'Claude Code is still signed out. Sign in first.'))
     sessions.listModels = () => Promise.reject(new Error('boom'))
+    sessions.readChat = () => {
+      throw new DomainError('not_found', 'Chat not found: chat_1')
+    }
     const handlers = handlersOver(sessions, errors)
 
     expect(await handlers.send({ ...REF, text: 'hi' })).toEqual({ ok: false, error: { code: 'conflict', message: 'still answering' } })
     expect(await handlers.retryTurn(REF)).toEqual({ ok: false, error: { code: 'conflict', message: 'Claude Code is still signed out. Sign in first.' } })
     expect(await handlers.models('claude')).toEqual({ ok: false, error: { code: 'internal', message: 'boom' } })
+    expect(await handlers.read(REF)).toEqual({ ok: false, error: { code: 'not_found', message: 'Chat not found: chat_1' } })
     expect(errors).toEqual([expect.objectContaining({ message: 'boom' })])
   })
 })
@@ -403,5 +413,64 @@ describe('chat handlers: bound threads', () => {
 
     expect(await failing.boundThreads({ folder: REPO, attemptId: BOUND_ATTEMPT })).toMatchObject({ ok: false })
     expect(errors).toHaveLength(1)
+  })
+})
+
+describe('chat handlers: pushing list changes', () => {
+  const CHANGED: ChatPushEvent = { type: 'chats_changed', folder: REPO, chatId: 'chat_1' }
+
+  function pushing(sessions: SessionManager): { handlers: ChatHandlers; pushed: ChatPushEvent[] } {
+    const pushed: ChatPushEvent[] = []
+    return { handlers: handlersOver(sessions, [], recordingRuns(), (event) => pushed.push(event)), pushed }
+  }
+
+  it('says a chat was created, renamed or deleted, naming the tracked folder and the chat', async () => {
+    const { sessions } = recordingSessions()
+    const { handlers, pushed } = pushing(sessions)
+
+    await handlers.create({ folder: SPELLING, agent: 'claude', role: 'planner' })
+    await handlers.rename({ ...REF, title: 'Fix the build' })
+    await handlers.delete(REF)
+
+    expect(pushed).toEqual([CHANGED, CHANGED, CHANGED])
+  })
+
+  it('says the chat of a started orchestrator was created, and nothing when no chat was left', async () => {
+    const { sessions } = recordingSessions()
+    const started = pushing(sessions)
+    await started.handlers.startOrchestrator({ folder: SPELLING, epicId: EPIC_ID, agent: 'codex' })
+    expect(started.pushed).toEqual([CHANGED])
+
+    sessions.createChat = () => {
+      throw new Error('disk full')
+    }
+    const failed = pushing(sessions)
+    const result = await failed.handlers.startOrchestrator({ folder: SPELLING, epicId: EPIC_ID, agent: 'codex' })
+    expect(result).toMatchObject({ ok: true, data: { chat: null } })
+    expect(failed.pushed).toEqual([])
+  })
+
+  it('says nothing for a change that was refused or failed, and works without a push', async () => {
+    const { sessions } = recordingSessions()
+    sessions.renameChat = () => {
+      throw new DomainError('not_found', 'Chat not found.')
+    }
+    sessions.deleteChat = () => Promise.reject(new DomainError('not_found', 'Chat not found.'))
+    sessions.createChat = () => {
+      throw new DomainError('conflict', 'No.')
+    }
+    const { handlers, pushed } = pushing(sessions)
+
+    const results = [
+      await handlers.create({ folder: SPELLING, agent: 'claude', role: 'planner' }),
+      await handlers.rename({ ...REF, title: 'x' }),
+      await handlers.delete(REF),
+      await handlers.rename({ ...REF, title: '' }),
+      await handlers.delete({ folder: join(REPO, '..', 'elsewhere'), chatId: 'chat_1' })
+    ]
+
+    expect(results.every((result) => !result.ok)).toBe(true)
+    expect(pushed).toEqual([])
+    expect(await handlersOver(recordingSessions().sessions).delete(REF)).toEqual({ ok: true, data: null })
   })
 })

@@ -11,11 +11,11 @@ import { removeScratch } from '../../../test/removeScratch'
 import { createClaudeProcesses, createInputQueue, resolveClaudeExecutable, type ProcessDeps } from './claudeProcess'
 
 /**
- * These tests start and kill real processes. On Windows a start or a kill occasionally stalls for a long time when
- * the whole suite is running (about 1 full run in 100), so they get a long limit and a retry.
+ * The real-process tests start and kill real processes. They wait on what the process does (its first output, the
+ * end of a tree kill), never on a timer, a poll or a retry, so a slow start or kill only makes a test slower. The
+ * long limit is for a Windows start or kill that stalls under load; a hang still fails once it passes.
  */
 vi.setConfig({ testTimeout: 60_000 })
-const REAL_PROCESSES = { retry: 2 }
 
 // ---- Finding the program to run ----
 
@@ -136,10 +136,6 @@ interface FakeChild extends EventEmitter {
   stdout: PassThrough
   stderr: PassThrough
   pid: number | undefined
-  exitCode: number | null
-  signalCode: string | null
-  killed: boolean
-  kill: ReturnType<typeof vi.fn>
 }
 
 function fakeChild(pid: number | undefined): FakeChild {
@@ -148,10 +144,6 @@ function fakeChild(pid: number | undefined): FakeChild {
   child.stdout = new PassThrough()
   child.stderr = new PassThrough()
   child.pid = pid
-  child.exitCode = null
-  child.signalCode = null
-  child.killed = false
-  child.kill = vi.fn()
   return child
 }
 
@@ -159,12 +151,12 @@ interface Harness {
   deps: ProcessDeps
   spawned: { command: string; args: string[]; options: Parameters<ProcessDeps['spawn']>[2] }[]
   children: FakeChild[]
+  /** The children the shared tree killer was asked to end, in order. */
   treeKills: unknown[]
-  groupKills: number[]
 }
 
 function harness(platform: string, overrides: Partial<ProcessDeps> = {}): Harness {
-  const h: Harness = { deps: undefined as never, spawned: [], children: [], treeKills: [], groupKills: [] }
+  const h: Harness = { deps: undefined as never, spawned: [], children: [], treeKills: [] }
   h.deps = {
     platform,
     spawn: (command, args, options) => {
@@ -175,9 +167,7 @@ function harness(platform: string, overrides: Partial<ProcessDeps> = {}): Harnes
     },
     killTree: (child) => {
       h.treeKills.push(child)
-    },
-    killGroup: (pid) => {
-      h.groupKills.push(pid)
+      return Promise.resolve(true)
     },
     ...overrides
   }
@@ -236,92 +226,85 @@ describe('createClaudeProcesses: starting programs', () => {
     expect(createClaudeProcesses(harness('linux').deps).stderrTail()).toBe('')
   })
 
-})
-
-describe('createClaudeProcesses: killing programs', () => {
-  it('kills the process group of every live child on POSIX', () => {
-    const h = harness('darwin')
-    const processes = createClaudeProcesses(h.deps)
-    processes.spawn(spawnOptions())
-    processes.spawn(spawnOptions())
-
-    processes.killAll()
-
-    expect(h.groupKills).toEqual([1000, 1001])
-    expect(h.treeKills).toEqual([])
-  })
-
-  it('kills the whole tree through taskkill on Windows', () => {
-    const h = harness('win32')
-    const processes = createClaudeProcesses(h.deps)
-    processes.spawn(spawnOptions())
-
-    processes.killAll()
-
-    expect(h.treeKills).toEqual([h.children[0]])
-    expect(h.groupKills).toEqual([])
-  })
-
-  it('falls back to killing the child itself when the group is already gone', () => {
-    const h = harness('linux', {
-      killGroup: () => {
-        throw Object.assign(new Error('no such process'), { code: 'ESRCH' })
-      }
-    })
-    const processes = createClaudeProcesses(h.deps)
-    processes.spawn(spawnOptions())
-
-    processes.killAll()
-
-    expect(h.treeKills).toEqual([h.children[0]])
-  })
-
-})
-
-describe('createClaudeProcesses: children that are gone or odd', () => {
-  it('uses the tree killer for a child that has no pid yet', () => {
-    const h = harness('linux', { spawn: () => fakeChild(undefined) as unknown as Piped })
-    const processes = createClaudeProcesses(h.deps)
-    const child = processes.spawn(spawnOptions())
-
-    processes.killAll()
-
-    expect(h.treeKills).toEqual([child])
-    expect(h.groupKills).toEqual([])
-  })
-
-  it('leaves children that already exited alone, and forgets them', () => {
-    const h = harness('linux')
-    const processes = createClaudeProcesses(h.deps)
-    processes.spawn(spawnOptions())
-    processes.spawn(spawnOptions())
-    processes.spawn(spawnOptions())
-    h.children[0]?.emit('exit', 0, null)
-    ;(h.children[1] as FakeChild).exitCode = 1
-    ;(h.children[1] as FakeChild).signalCode = null
-
-    processes.killAll()
-    processes.killAll()
-
-    expect(h.groupKills).toEqual([1002, 1002])
-  })
-
-  it('does not signal a child that ended by signal', () => {
-    const h = harness('linux')
-    const processes = createClaudeProcesses(h.deps)
-    processes.spawn(spawnOptions())
-    ;(h.children[0] as FakeChild).signalCode = 'SIGTERM'
-
-    processes.killAll()
-
-    expect(h.groupKills).toEqual([])
-    expect(h.treeKills).toEqual([])
-  })
-
   it('refuses a child without pipes', () => {
     const h = harness('linux', { spawn: () => ({ stdin: null, stdout: null, stderr: null }) as unknown as Piped })
 
     expect(() => createClaudeProcesses(h.deps).spawn(spawnOptions())).toThrow(/pipes/)
+  })
+})
+
+describe('createClaudeProcesses: killing programs', () => {
+  it('has the shared tree killer end every child that is still running, on any platform', () => {
+    for (const platform of ['win32', 'darwin', 'linux']) {
+      const h = harness(platform)
+      const processes = createClaudeProcesses(h.deps)
+      processes.spawn(spawnOptions())
+      processes.spawn(spawnOptions())
+
+      void processes.killAll()
+
+      expect(h.treeKills).toEqual(h.children)
+    }
+  })
+
+  it('sends every kill before it returns, so a caller that does not wait still stops the trees', () => {
+    const h = harness('linux')
+    const processes = createClaudeProcesses(h.deps)
+    processes.spawn(spawnOptions())
+
+    void processes.killAll()
+
+    expect(h.treeKills).toHaveLength(1)
+  })
+
+  it('resolves only once every tree is gone', async () => {
+    const finish: (() => void)[] = []
+    const h = harness('linux', {
+      killTree: () =>
+        new Promise<boolean>((resolve) => {
+          finish.push(() => {
+            resolve(true)
+          })
+        })
+    })
+    const processes = createClaudeProcesses(h.deps)
+    processes.spawn(spawnOptions())
+    processes.spawn(spawnOptions())
+    let done = false
+
+    const killing = processes.killAll().then(() => {
+      done = true
+    })
+    finish[0]?.()
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(done).toBe(false)
+    finish[1]?.()
+    await killing
+
+    expect(done).toBe(true)
+  })
+
+})
+
+describe('createClaudeProcesses: what killing waits for', () => {
+  it('has nothing to wait for when nothing is running', async () => {
+    const h = harness('linux')
+
+    await createClaudeProcesses(h.deps).killAll()
+
+    expect(h.treeKills).toEqual([])
+  })
+
+  it('forgets a child once it has exited, and still ends the others', () => {
+    const h = harness('linux')
+    const processes = createClaudeProcesses(h.deps)
+    processes.spawn(spawnOptions())
+    processes.spawn(spawnOptions())
+    h.children[0]?.emit('exit', 0, null)
+
+    void processes.killAll()
+
+    expect(h.treeKills).toEqual([h.children[1]])
   })
 })
 
@@ -336,7 +319,7 @@ const alive = (pid: number): boolean => {
   }
 }
 
-describe('createClaudeProcesses with real processes', REAL_PROCESSES, () => {
+describe('createClaudeProcesses with real processes', () => {
   let scratch = ''
 
   beforeAll(() => {
@@ -363,17 +346,13 @@ describe('createClaudeProcesses with real processes', REAL_PROCESSES, () => {
         resolve(Number(String(chunk).trim()))
       })
     })
-    const exited = new Promise<void>((resolve) => {
-      child.on('exit', () => {
-        resolve()
-      })
-    })
     expect(alive(grandchildPid)).toBe(true)
 
-    processes.killAll()
-    await exited
+    await processes.killAll()
 
-    await vi.waitFor(() => expect(alive(grandchildPid)).toBe(false), { timeout: 30_000 })
+    // No waiting: killAll resolves only once the whole tree has exited.
+    expect(child.exitCode !== null || child.signalCode !== null).toBe(true)
+    expect(alive(grandchildPid)).toBe(false)
   })
 
   it('reports a program that does not exist through the child, as the SDK expects', async () => {

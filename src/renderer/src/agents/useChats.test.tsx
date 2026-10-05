@@ -190,3 +190,48 @@ describe('useChats sign-in and ignored events', () => {
     expect(dm.chats.callsOf('list')).toHaveLength(before)
   })
 })
+
+describe('useChats with two windows', () => {
+  it('shows a chat renamed in one window in the other, without a reload', async () => {
+    const first = await mount(['/a'])
+    const second = await mount(['/a'])
+    const chat = chatsFor(first.result.current.lists, '/a').chats[1]
+    await act(async () => {
+      await first.result.current.rename(chatRecord({ ...chat }), 'Fresh name')
+    })
+    await settle()
+    expect(titles(second, '/a')).toEqual(['Fresh name', 'Newer'])
+  })
+
+  it('drops a chat deleted in one window from the other', async () => {
+    const first = await mount(['/a'])
+    const second = await mount(['/a'])
+    await act(async () => {
+      await first.result.current.remove(chatRecord({ id: 'chat_a2', folder: '/a' }))
+    })
+    await settle()
+    expect(titles(second, '/a')).toEqual(['Older'])
+  })
+
+  it('lists a chat created in one window in the other', async () => {
+    const first = await mount(['/a'])
+    const second = await mount(['/a'])
+    await act(async () => {
+      await first.result.current.create({ folder: '/a', agent: 'claude', role: 'planner' })
+    })
+    await settle()
+    expect(titles(second, '/a')[0]).toBe('New chat')
+  })
+
+  it('ignores a change in a folder it is not showing, and stops listening when unmounted', async () => {
+    const view = await mount(['/a'])
+    const before = dm.chats.callsOf('list').length
+    act(() => dm.chats.emit({ type: 'chats_changed', folder: '/b', chatId: 'chat_b1' }))
+    await settle()
+    expect(dm.chats.callsOf('list')).toHaveLength(before)
+    view.unmount()
+    act(() => dm.chats.emit({ type: 'chats_changed', folder: '/a', chatId: 'chat_a1' }))
+    await settle()
+    expect(dm.chats.callsOf('list')).toHaveLength(before)
+  })
+})

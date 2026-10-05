@@ -5,16 +5,19 @@
  *
  * Process trees. The SDK's own close only reaches the program it started (on Windows
  * `TerminateProcess` leaves what that program started running). The SDK lets the host start the
- * process, so this module does, remembers every child, and kills the tree: `taskkill /t` on Windows
- * (through the shared `killTree`), the child's own process group on macOS and Linux, where it is
- * started detached to get one.
+ * process, so this module does, remembers every child, and ends the whole tree through the shared
+ * `killProcessTree` (`taskkill /t` on Windows, the child's own process group elsewhere, where the
+ * child is started detached to get one). `killAll` resolves once every tree is gone.
+ *
+ * A `.cmd` shim is not launched here: the SDK's arguments hold JSON and quotes, which the shim
+ * launcher refuses, so `resolveClaudeExecutable` follows the shim to the script or program it runs.
  */
 import { spawn as nodeSpawn, type ChildProcessByStdio } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { win32 } from 'node:path'
 import type { Readable, Writable } from 'node:stream'
 import type { SpawnedProcess, SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
-import { killTree } from '../../desktop/agentProbeNode'
+import { killProcessTree, startsOwnGroup } from '../processTree'
 
 /** How much of the program's stderr is kept to explain a failure with. */
 const STDERR_CHARS = 2000
@@ -32,18 +35,16 @@ interface PipedSpawnOptions {
 export interface ProcessDeps {
   platform: string
   spawn: (command: string, args: string[], options: PipedSpawnOptions) => PipedChild
-  /** Kills a child and, on Windows, everything it started (`taskkill /t`). */
-  killTree: (child: PipedChild) => void
-  /** Kills a whole POSIX process group by the pid of its leader. */
-  killGroup: (pid: number) => void
+  /** Ends a child and everything it started; resolves once they are gone. */
+  killTree: (child: PipedChild) => Promise<boolean>
 }
 
 /** The processes a chat started, for the SDK to run and for the adapter to kill. */
 export interface ClaudeProcesses {
   /** For the SDK's `spawnClaudeCodeProcess` option. */
   spawn: (options: SpawnOptions) => SpawnedProcess
-  /** Kills every live process this started, with everything they started. */
-  killAll: () => void
+  /** Kills every live process this started, with everything they started; resolves once they are gone. The kills are sent before this returns. */
+  killAll: () => Promise<void>
   /** The end of what those processes printed on stderr. */
   stderrTail: () => string
 }
@@ -51,30 +52,7 @@ export interface ClaudeProcesses {
 const realDeps: ProcessDeps = {
   platform: process.platform,
   spawn: (command, args, options) => nodeSpawn(command, args, { ...options, stdio: ['pipe', 'pipe', 'pipe'] }),
-  killTree,
-  killGroup: (pid) => {
-    process.kill(-pid, 'SIGKILL')
-  }
-}
-
-function isLive(child: PipedChild): boolean {
-  return child.exitCode === null && child.signalCode === null
-}
-
-function killOne(child: PipedChild, deps: ProcessDeps): void {
-  if (!isLive(child)) {
-    return
-  }
-  if (deps.platform === 'win32' || child.pid === undefined) {
-    deps.killTree(child)
-    return
-  }
-  try {
-    deps.killGroup(child.pid)
-  } catch {
-    // The group is already gone (or never formed); make sure the child itself is.
-    deps.killTree(child)
-  }
+  killTree: killProcessTree
 }
 
 export function createClaudeProcesses(overrides: Partial<ProcessDeps> = {}): ClaudeProcesses {
@@ -88,7 +66,7 @@ export function createClaudeProcesses(overrides: Partial<ProcessDeps> = {}): Cla
         env: options.env,
         signal: options.signal,
         // A POSIX group of its own is what lets killAll reach what the program started.
-        detached: deps.platform !== 'win32',
+        detached: startsOwnGroup(deps.platform),
         windowsHide: true
       })
       if (child.stdin === null || child.stdout === null || child.stderr === null) {
@@ -102,10 +80,10 @@ export function createClaudeProcesses(overrides: Partial<ProcessDeps> = {}): Cla
       child.once('exit', () => children.delete(child))
       return child
     },
-    killAll: () => {
-      for (const child of children) {
-        killOne(child, deps)
-      }
+    killAll: async () => {
+      // Every kill is sent here, before the first await.
+      const gone = [...children].map((child) => deps.killTree(child))
+      await Promise.all(gone)
     },
     stderrTail: () => stderr
   }

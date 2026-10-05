@@ -12,6 +12,7 @@ export function registerChatIpc(ipcMain: Pick<IpcMain, 'handle'>, handlers: Chat
   ipcMain.handle('chats:create', (_event, request: unknown) => handlers.create(request))
   ipcMain.handle('chats:startOrchestrator', (_event, request: unknown) => handlers.startOrchestrator(request))
   ipcMain.handle('chats:open',(_event, request: unknown) => handlers.open(request))
+  ipcMain.handle('chats:read', (_event, request: unknown) => handlers.read(request))
   ipcMain.handle('chats:send', (_event, request: unknown) => handlers.send(request))
   ipcMain.handle('chats:stop', (_event, request: unknown) => handlers.stop(request))
   ipcMain.handle('chats:threadBindings', (_event, request: unknown) => handlers.threadBindings(request))

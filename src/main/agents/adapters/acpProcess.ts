@@ -3,12 +3,13 @@
  * inheritance of the app's own stdin), splits its output into lines for the connection, keeps the
  * tail of its stderr to say why it ended, and ends the whole process tree on `kill`.
  *
- * Tree kill. On Windows `killTree` runs `taskkill /t /f`, which also ends what a `.cmd` shim started.
- * Elsewhere the agent is started as its own process group and the group is killed, so a shell
- * wrapper's children do not outlive it. Tests run it against Node itself.
+ * Tree kill. `kill` goes through the shared `killProcessTree`: on Windows `taskkill /t /f`, which also
+ * ends what a `.cmd` shim started; elsewhere the agent is started as its own process group
+ * (`startsOwnGroup`) and the group is killed, so a shell wrapper's children do not outlive it. It
+ * resolves once the tree is gone. Tests run it against Node itself.
  */
 import { spawn, type ChildProcess } from 'node:child_process'
-import { killTree } from '../../desktop/agentProbeNode'
+import { killProcessTree, startsOwnGroup } from '../processTree'
 import type { TransportFactory, TransportHandle, TransportSink } from './acpClient'
 
 /** What is kept of stderr to explain an exit. */
@@ -16,19 +17,7 @@ const STDERR_TAIL_CHARS = 500
 
 const NOTHING: TransportHandle = {
   write: () => {},
-  kill: () => {}
-}
-
-function killProcessTree(child: ChildProcess): void {
-  if (process.platform !== 'win32' && child.pid !== undefined) {
-    try {
-      process.kill(-child.pid, 'SIGKILL')
-      return
-    } catch {
-      // The group is already gone, or was never made; the direct kill below covers it.
-    }
-  }
-  killTree(child)
+  kill: () => Promise.resolve()
 }
 
 function failureText(error: unknown): string {
@@ -100,7 +89,7 @@ export const nodeTransport: TransportFactory = (launch, cwd, sink) => {
       shell: false,
       windowsHide: true,
       windowsVerbatimArguments: launch.verbatimArguments,
-      detached: process.platform !== 'win32',
+      detached: startsOwnGroup(),
       stdio: ['pipe', 'pipe', 'pipe']
     })
   } catch (error) {
@@ -116,8 +105,8 @@ export const nodeTransport: TransportFactory = (launch, cwd, sink) => {
         child.stdin.write(`${line}\n`)
       }
     },
-    kill() {
-      killProcessTree(child)
+    async kill() {
+      await killProcessTree(child)
     }
   }
 }

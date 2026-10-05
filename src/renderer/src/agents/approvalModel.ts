@@ -41,8 +41,11 @@ export interface ApprovalDetail {
   diff: DiffPreview | null
   /** The reason or description the vendor gave. */
   note: string | null
+  /** What Allow for this chat covers when that is more than this one request; null when it is just this tool. */
+  allowChatNote: string | null
 }
 
+const OWN_SERVER_NOTE = 'Allow for this chat covers all Dark Mechanicus tools in this chat.'
 const MAX_PREVIEW_LINES = 12
 const MAX_LINE_CHARS = 160
 const CWD_KEYS = ['cwd', 'workdir', 'working_directory'] as const
@@ -168,7 +171,8 @@ export function approvalDetail(item: ApprovalRequestItem, folder: string): Appro
     workingDirectory: isCommand ? (firstText(input, CWD_KEYS) ?? folder) : null,
     files,
     diff: isEdit ? diffOf(input) : null,
-    note: firstText(input, ['reason', 'description'])
+    note: firstText(input, ['reason', 'description']),
+    allowChatNote: item.ownServer === true ? OWN_SERVER_NOTE : null
   }
 }
 

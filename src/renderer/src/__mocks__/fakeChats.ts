@@ -2,7 +2,8 @@
  * `window.dm.chats` for renderer tests about chats: an in-memory store of chat records that
  * answers list, create, rename and delete the way the main process does (newest first, `not_found`
  * for a chat that is gone), answers `models` per agent kind, and records every call. Opening a chat
- * returns its stored transcript; sending, stopping and switching the model behave as the main
+ * returns its stored transcript, and so does `read` (the panels' way to follow a chat), recorded as its own
+ * call so a test can tell the two apart; sending, stopping and switching the model behave as the main
  * process does (a send stores the message and pushes it with the turn starting, a switch pushes the
  * model change). A test drives the rest through the push channel: `emit` for deltas and `emitItem`
  * for stored items, `finishTurn` for a turn ending. An approval request is pending while no decision
@@ -16,6 +17,8 @@
  * Starting an orchestrator needs `orchestration` (how to queue the run and what the epic is called):
  * it then queues the run, stores an orchestrator chat with Allow save off that records the run's id
  * and answers both, as main does, unless `orchestrationProblem` says the chat could not be started.
+ * A create, a rename and a delete that succeed push `chats_changed` to every subscriber (the originating
+ * window too), as main does, so a second subscriber stands for a second window.
  */
 import type { ApprovalRequestItem, ChatItem, ChatRecord, ModelOption } from '../../../shared/agents/chat'
 import type {
@@ -49,6 +52,7 @@ type Method =
   | 'delete'
   | 'models'
   | 'open'
+  | 'read'
   | 'send'
   | 'stop'
   | 'retryTurn'
@@ -136,6 +140,7 @@ export class FakeChats implements ChatsApi {
         updatedAt: this.tick()
       })
       this.chats.push(chat)
+      this.changed(chat)
       return { ok: true, data: chat }
     })
   }
@@ -164,6 +169,7 @@ export class FakeChats implements ChatsApi {
         updatedAt: this.tick()
       })
       this.chats.push(chat)
+      this.changed(chat)
       return { ok: true, data: { run, chat, problem: null } }
     })
   }
@@ -177,16 +183,19 @@ export class FakeChats implements ChatsApi {
       // A new record, so a chat a test seeded by reference is not changed behind its back.
       const renamed = { ...chat, title: request.title, updatedAt: this.tick() }
       this.chats = this.chats.map((candidate) => (candidate.id === chat.id ? renamed : candidate))
+      this.changed(renamed)
       return { ok: true, data: { ...renamed } }
     })
   }
 
   delete(request: { folder: string; chatId: string }): Promise<CommandResult<null>> {
     return this.call('delete', [request], () => {
-      if (this.find(request.chatId) === undefined) {
+      const chat = this.find(request.chatId)
+      if (chat === undefined) {
         return { ok: false, error: NOT_FOUND }
       }
-      this.chats = this.chats.filter((chat) => chat.id !== request.chatId)
+      this.chats = this.chats.filter((candidate) => candidate.id !== chat.id)
+      this.changed(chat)
       return { ok: true, data: null }
     })
   }
@@ -199,14 +208,21 @@ export class FakeChats implements ChatsApi {
   }
 
   open(request: ChatRequestRef): Promise<CommandResult<ChatOpenView>> {
-    return this.call('open', [request], () => {
-      const chat = this.find(request.chatId)
-      if (chat === undefined) {
-        return { ok: false, error: NOT_FOUND }
-      }
-      const items = [...(this.transcripts[chat.id] ?? [])]
-      return { ok: true, data: { chat: { ...chat }, items, pending: this.pendingOf(chat.id), running: this.running.has(chat.id) } }
-    })
+    return this.call('open', [request], () => this.view(request))
+  }
+
+  /** What `open` answers, as a separate call so a test can tell a view that follows a chat from one that opens it. */
+  read(request: ChatRequestRef): Promise<CommandResult<ChatOpenView>> {
+    return this.call('read', [request], () => this.view(request))
+  }
+
+  private view(request: ChatRequestRef): CommandResult<ChatOpenView> {
+    const chat = this.find(request.chatId)
+    if (chat === undefined) {
+      return { ok: false, error: NOT_FOUND }
+    }
+    const items = [...(this.transcripts[chat.id] ?? [])]
+    return { ok: true, data: { chat: { ...chat }, items, pending: this.pendingOf(chat.id), running: this.running.has(chat.id) } }
   }
 
   send(request: SendChatRequest): Promise<CommandResult<ChatItem>> {
@@ -291,6 +307,11 @@ export class FakeChats implements ChatsApi {
   finishTurn(chatId: string): void {
     this.running.delete(chatId)
     this.emit({ type: 'turn', chatId, running: false })
+  }
+
+  /** Says the chat list of the chat's folder changed, as main does after a create, rename or delete. */
+  private changed(chat: ChatRecord): void {
+    this.emit({ type: 'chats_changed', folder: chat.folder, chatId: chat.id })
   }
 
   private made(chatId: string, item: { kind: ChatItem['kind'] } & Record<string, unknown>): ChatItem {

@@ -4,6 +4,7 @@
  */
 export {
   CLAIM_TOKEN_MASK,
+  clipMasked,
   createStreamMasker,
   maskClaimTokens,
   maskClaimTokensDeep,

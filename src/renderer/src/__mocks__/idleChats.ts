@@ -15,6 +15,7 @@ export function idleChats(): ChatsApi {
     create: refused,
     startOrchestrator: refused,
     open: refused,
+    read: refused,
     send: refused,
     stop: refused,
     threadBindings: () => Promise.resolve({ ok: true, data: [] }),

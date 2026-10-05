@@ -7,6 +7,7 @@
  * other's lines in the stored transcript. The same id is used for the streamed text deltas.
  */
 import type { ChatItem } from '../../../shared/agents/chat'
+import { clipMasked } from '../claimTokenMask'
 import { RpcError } from './codexRpc'
 
 type ToolCall = Extract<ChatItem, { kind: 'tool_call' }>
@@ -30,8 +31,9 @@ export function asText(value: unknown): string | null {
   return typeof value === 'string' && value !== '' ? value : null
 }
 
+/** `text` cut to `limit` with an ellipsis, claim tokens masked first so a cut inside one cannot leave part of its secret. */
 export function clip(text: string, limit = CLIP): string {
-  return text.length <= limit ? text : `${text.slice(0, limit)}…`
+  return clipMasked(text, limit)
 }
 
 /** The id a Codex item has in the transcript. */

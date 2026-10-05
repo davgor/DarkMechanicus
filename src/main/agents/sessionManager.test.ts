@@ -110,6 +110,9 @@ function describeEvent(event: ChatPushEvent): string {
   if (event.type === 'agent_auth') {
     return `auth:${event.chatId}:${event.state}`
   }
+  if (event.type === 'chats_changed') {
+    return `chats_changed:${event.chatId}`
+  }
   return event.type === 'turn' ? `turn:${event.running}` : `delta:${event.delta}`
 }
 
@@ -809,6 +812,8 @@ describe('session manager: deleting a chat', () => {
 // ---- A sign-in the agent's CLI says is gone ----
 
 const SIGNED_IN: AgentAuthStatus = { state: 'signed_in', reason: 'Claude Code reports it is signed in.' }
+/** What a status check that cannot tell says: it neither ends a sign-out the chats found nor is mistaken for one. */
+const UNKNOWN: AgentAuthStatus = { state: 'unknown', reason: 'Claude Code did not answer in time.' }
 const CLI_WORDS = 'Not logged in · Please run /login'
 
 function authItem(message = CLI_WORDS, agent: 'claude' | 'codex' = 'claude'): ChatItem {
@@ -850,7 +855,7 @@ describe('session manager: an agent that is signed out', () => {
     expect(authItems(storedItems(store, chat))).toEqual([expect.objectContaining({ agent: 'claude', message: CLI_WORDS })])
     expect(events.at(-1)).toEqual({ type: 'turn', chatId: chat.id, running: false })
     expect(store.getChat(chat)?.cutShortMessageId).toBe(message.id)
-    expect(manager.reconcileAuthStatus('claude', SIGNED_IN)).toEqual({ state: 'signed_out', reason: expect.stringContaining('Claude Code') })
+    expect(manager.reconcileAuthStatus('claude', UNKNOWN)).toEqual({ state: 'signed_out', reason: expect.stringContaining('Claude Code') })
   })
 
   it('leaves other agents alone', async () => {
@@ -1002,19 +1007,16 @@ describe('session manager: claim tokens in what the CLI says', () => {
 })
 
 describe('session manager: signing in again', () => {
-  it('keeps reporting signed out until a sign-in was started and the CLI says it is signed in', async () => {
+  it('keeps reporting signed out until the CLI says it is signed in, whoever signed in', async () => {
     const { manager, fakes } = rig()
     signedOutOnce(fakes)
     await manager.send(newChat(manager), 'go')
     await settle()
     const signedOut = { state: 'signed_out', reason: expect.any(String) }
-    const unknown: AgentAuthStatus = { state: 'unknown', reason: 'Claude Code did not answer in time.' }
 
-    // The CLI's own check cannot see an expired token, so a "signed in" before anyone signed in again proves nothing.
-    expect(manager.reconcileAuthStatus('claude', SIGNED_IN)).toEqual(signedOut)
-    manager.signInStarted('claude')
-    expect(manager.reconcileAuthStatus('claude', unknown)).toEqual(signedOut)
+    expect(manager.reconcileAuthStatus('claude', UNKNOWN)).toEqual(signedOut)
     expect(manager.reconcileAuthStatus('claude', { state: 'signed_out', reason: 'Claude Code reports it is not signed in.' })).toMatchObject({ state: 'signed_out' })
+    // Signed in from a terminal of the person's own: the app's Sign in was never pressed.
     expect(manager.reconcileAuthStatus('claude', SIGNED_IN)).toEqual(SIGNED_IN)
     expect(manager.reconcileAuthStatus('claude', SIGNED_IN)).toEqual(SIGNED_IN)
   })
@@ -1025,7 +1027,6 @@ describe('session manager: signing in again', () => {
     signedOutOnce(fakes)
     await manager.send(chat, 'go')
     await settle()
-    manager.signInStarted('claude')
     manager.reconcileAuthStatus('claude', SIGNED_IN)
 
     await manager.send(chat, 'next')
@@ -1046,21 +1047,12 @@ describe('session manager: a sign-in that did not hold', () => {
     }
     await manager.send(chat, 'go')
     await settle()
-    manager.signInStarted('claude')
     manager.reconcileAuthStatus('claude', SIGNED_IN)
 
     await manager.send(chat, 'go again')
     await settle()
 
-    expect(manager.reconcileAuthStatus('claude', SIGNED_IN)).toMatchObject({ state: 'signed_out' })
-  })
-
-  it('ignores a sign-in that was started for an agent that is not signed out', () => {
-    const { manager } = rig()
-
-    manager.signInStarted('claude')
-
-    expect(manager.reconcileAuthStatus('claude', SIGNED_IN)).toEqual(SIGNED_IN)
+    expect(manager.reconcileAuthStatus('claude', UNKNOWN)).toMatchObject({ state: 'signed_out' })
   })
 
 })
@@ -1084,7 +1076,6 @@ describe('session manager: telling the opened chats', () => {
       { type: 'agent_auth', chatId: second.id, agent: 'claude', state: 'signed_out' }
     ])
 
-    manager.signInStarted('claude')
     manager.reconcileAuthStatus('claude', SIGNED_IN)
     manager.reconcileAuthStatus('claude', SIGNED_IN)
 
@@ -1118,7 +1109,6 @@ describe('session manager: retrying the turn a sign-in cut short', () => {
     await settle()
 
     await expect(manager.retryTurn(chat)).rejects.toMatchObject({ code: 'conflict' })
-    manager.signInStarted('claude')
     manager.reconcileAuthStatus('claude', { state: 'signed_out', reason: 'Claude Code reports it is not signed in.' })
     await expect(manager.retryTurn(chat)).rejects.toMatchObject({ code: 'conflict' })
 
@@ -1131,7 +1121,6 @@ describe('session manager: retrying the turn a sign-in cut short', () => {
     signedOutOnce(fakes)
     const message = await manager.send(chat, 'Run the sprint')
     await settle()
-    manager.signInStarted('claude')
     manager.reconcileAuthStatus('claude', SIGNED_IN)
     await settle()
     expect(only(fakes.created).sent).toEqual(['Run the sprint'])
@@ -1161,7 +1150,6 @@ describe('session manager: how often a cut-short turn is sent', () => {
     signedOutOnce(fakes)
     await manager.send(chat, 'go')
     await settle()
-    manager.signInStarted('claude')
     manager.reconcileAuthStatus('claude', SIGNED_IN)
 
     const results = await Promise.allSettled([manager.retryTurn(chat), manager.retryTurn(chat), manager.retryTurn(chat)])
@@ -1191,7 +1179,6 @@ describe('session manager: what a retry leaves behind', () => {
     signedOutOnce(fakes)
     await manager.send(chat, 'first')
     await settle()
-    manager.signInStarted('claude')
     manager.reconcileAuthStatus('claude', SIGNED_IN)
 
     await manager.send(chat, 'second')
@@ -1210,14 +1197,13 @@ describe('session manager: what a retry leaves behind', () => {
     }
     const message = await manager.send(chat, 'go')
     await settle()
-    manager.signInStarted('claude')
     manager.reconcileAuthStatus('claude', SIGNED_IN)
 
     await manager.retryTurn(chat)
     await settle()
 
     expect(store.getChat(chat)?.cutShortMessageId).toBe(message.id)
-    expect(manager.reconcileAuthStatus('claude', SIGNED_IN)).toMatchObject({ state: 'signed_out' })
+    expect(manager.reconcileAuthStatus('claude', UNKNOWN)).toMatchObject({ state: 'signed_out' })
     await expect(manager.retryTurn(chat)).rejects.toMatchObject({ code: 'conflict' })
   })
 
@@ -1230,7 +1216,6 @@ describe('session manager: a retry that cannot start the agent', () => {
     signedOutOnce(fakes)
     const message = await manager.send(chat, 'go')
     await settle()
-    manager.signInStarted('claude')
     manager.reconcileAuthStatus('claude', SIGNED_IN)
     timers.fire()
     await settle()
@@ -1344,11 +1329,39 @@ describe('session manager: pausing the run of a signed-out orchestrator', () => 
     const started = await state().orchestrator.startRun({ epicId })
     const { manager } = await run.signedOutChat(started.id)
 
-    manager.signInStarted('claude')
     manager.reconcileAuthStatus('claude', SIGNED_IN)
     await settle()
 
     expect(await state().desktop.getRun({ runId: started.id })).toMatchObject({ state: 'paused', pauseReason: 'signed_out' })
+    expect(state().calls).toEqual([`getRun ${started.id}`, `pauseRun ${started.id} signed_out`])
+  })
+})
+
+describe('session manager: a run that is already paused when its orchestrator is signed out', () => {
+  const run = useRunRig()
+
+  it('marks a run that is already paused for another reason as signed out, so its open leases are kept', async () => {
+    const { state } = run
+    const epicId = await plannedEpic(state().orchestrator, 'Paused by the person')
+    const started = await state().orchestrator.startRun({ epicId })
+    await state().orchestrator.pauseRun({ runId: started.id, reason: 'lunch' })
+
+    await run.signedOutChat(started.id)
+
+    expect(await state().desktop.getRun({ runId: started.id })).toMatchObject({ state: 'paused', pauseReason: 'signed_out' })
+    expect(state().calls).toEqual([`getRun ${started.id}`, `pauseRun ${started.id} signed_out`])
+  })
+
+  it('leaves a run that is already paused for sign-in as it is when another turn is cut short', async () => {
+    const { state } = run
+    const epicId = await plannedEpic(state().orchestrator, 'Paused twice')
+    const started = await state().orchestrator.startRun({ epicId })
+    await state().desktop.pauseRun({ runId: started.id, reason: 'signed_out' })
+    const before = await state().desktop.getRun({ runId: started.id })
+
+    await run.signedOutChat(started.id)
+
+    expect(await state().desktop.getRun({ runId: started.id })).toEqual(before)
     expect(state().calls).toEqual([`getRun ${started.id}`, `pauseRun ${started.id} signed_out`])
   })
 })
@@ -1373,25 +1386,13 @@ describe('session manager: runs that are left alone when their orchestrator is s
     expect(await state().desktop.getRun({ runId: queued.id })).toMatchObject({ state: 'queued', pauseReason: null })
   })
 
-  it("pauses nothing when the chat's run is already paused, and keeps its own reason", async () => {
-    const { state } = run
-    const epicId = await plannedEpic(state().orchestrator, 'Paused by the person')
-    const started = await state().orchestrator.startRun({ epicId })
-    await state().orchestrator.pauseRun({ runId: started.id, reason: 'lunch' })
-
-    await run.signedOutChat(started.id)
-
-    expect(state().calls).toEqual([`getRun ${started.id}`])
-    expect(await state().desktop.getRun({ runId: started.id })).toMatchObject({ state: 'paused', pauseReason: 'lunch' })
-  })
-
   it('pauses nothing for a run that no longer exists, and does not fail the turn', async () => {
     const missing = 'rn_01m44m0qnd0nn90p29a12041js'
 
     const { manager } = await run.signedOutChat(missing)
 
     expect(run.state().calls).toEqual([`getRun ${missing}`])
-    expect(manager.reconcileAuthStatus('claude', SIGNED_IN)).toMatchObject({ state: 'signed_out' })
+    expect(manager.reconcileAuthStatus('claude', UNKNOWN)).toMatchObject({ state: 'signed_out' })
   })
 })
 
@@ -1520,7 +1521,6 @@ describe('session manager: a retry that finds its message already sent', () => {
     signedOutOnce(fakes)
     await manager.send(chat, 'go')
     await settle()
-    manager.signInStarted('claude')
     manager.reconcileAuthStatus('claude', SIGNED_IN)
     timers.fire()
     await settle()

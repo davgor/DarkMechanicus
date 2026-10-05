@@ -14,6 +14,12 @@
  * the session manager, which answers matching requests itself so each one is recorded in the
  * transcript, and no permission rule is written to any settings file.
  *
+ * Memory. The CLI's own auto-memory writes notes under `~/.claude/projects/<project>/memory/` and
+ * allows those writes without asking, so `canUseTool` never sees them. Every process the adapter
+ * starts is given `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`, so a hosted chat asks before it writes any
+ * file. The switch travels in the process environment, per session: none of the person's Claude Code
+ * settings is read for it, written or changed.
+ *
  * Subagents. What a subagent does is a nested thread of the chat (see `claudeTranscript`), and the
  * CLI is asked to forward its text as well as its tool calls. A request raised inside a subagent goes
  * through the same flow and carries its thread's id and label. When the process ends, the threads
@@ -34,7 +40,7 @@
  * person's new login, resuming the same session.
  *
  * Process tree. The SDK starts the CLI through `claudeProcess`, which kills the whole tree on
- * `dispose`, before the query is closed.
+ * `dispose` (before the query is closed) and resolves once it is gone, so quitting waits for it.
  */
 import { homedir } from 'node:os'
 import { randomUUID } from 'node:crypto'
@@ -50,6 +56,7 @@ import type {
   ModelOption
 } from '../../../shared/agents/chat'
 import type { ChatAdapterDefinition } from '../adapterRegistry'
+import { maskClaimTokens } from '../claimTokenMask'
 import { classifyTool } from './claudeApprovals'
 import {
   createClaudeProcesses,
@@ -82,6 +89,8 @@ export interface ClaudeAdapterDeps {
   /** Milliseconds, for how long a model list is remembered. */
   clock: () => number
   platform: string
+  /** The environment the CLI inherits; the adapter adds its own switches on top. */
+  env: () => NodeJS.ProcessEnv
   readFile: (path: string) => string
   /** A fresh process tracker: one per chat, and one per helper process that lists models. */
   createProcesses: () => ClaudeProcesses
@@ -98,6 +107,12 @@ export const CURATED_CLAUDE_MODELS: ModelOption[] = [
 ]
 
 const SERVER_NAME = 'darkmechanicus'
+/**
+ * Claude Code's documented switch for auto-memory (https://code.claude.com/docs/en/memory#enable-or-disable-auto-memory).
+ * Unlike the `autoMemoryEnabled` setting it wins over every settings layer and over a value the person has
+ * in their own environment.
+ */
+const AUTO_MEMORY_OFF = { CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1' }
 const SHUT_DOWN = 'The Claude Code session was shut down.'
 const MODEL_LIST_TTL_MS = 10 * 60_000
 const MAX_DETAIL_CHARS = 600
@@ -115,6 +130,7 @@ function withDefaults(overrides: Partial<ClaudeAdapterDeps>): ClaudeAdapterDeps 
     newId: () => randomUUID(),
     clock: () => Date.now(),
     platform: process.platform,
+    env: () => process.env,
     readFile: readShimFile,
     createProcesses: () => createClaudeProcesses(),
     modelTimeoutMs: 20_000,
@@ -189,7 +205,7 @@ async function probeModels(executablePath: string, deps: ClaudeAdapterDeps): Pro
     return null
   } finally {
     input.close()
-    processes.killAll()
+    void processes.killAll()
     closeQuietly(query)
   }
 }
@@ -335,9 +351,9 @@ class ClaudeChatAdapter implements ChatAdapter {
     return (await probeModels(this.executablePath, this.deps)) ?? CURATED_CLAUDE_MODELS
   }
 
-  dispose(): Promise<void> {
+  async dispose(): Promise<void> {
     if (this.disposed) {
-      return Promise.resolve()
+      return
     }
     this.disposed = true
     this.denyPending()
@@ -345,11 +361,11 @@ class ClaudeChatAdapter implements ChatAdapter {
     this.live = null
     this.turn = null
     // The tree first: once the program has exited, what it started can no longer be found through it.
-    this.processes.killAll()
+    const treeGone = this.processes.killAll()
     live?.input.close()
     closeQuietly(live?.query ?? null)
     turn?.reject(new Error(SHUT_DOWN))
-    return Promise.resolve()
+    await treeGone
   }
 
   // ---- Starting the process ----
@@ -363,8 +379,9 @@ class ClaudeChatAdapter implements ChatAdapter {
     const query = await this.deps.query({ prompt: input.iterable, options: this.queryOptions(resume) })
     if (this.disposed) {
       // Disposed while the SDK was loading: whatever it started is not left running.
-      this.processes.killAll()
+      const treeGone = this.processes.killAll()
       closeQuietly(query)
+      await treeGone
       throw new Error(SHUT_DOWN)
     }
     const live: Live = { query, input, resumed: resume !== null, started: false }
@@ -382,6 +399,8 @@ class ClaudeChatAdapter implements ChatAdapter {
       pathToClaudeCodeExecutable: this.launchPath,
       spawnClaudeCodeProcess: this.processes.spawn,
       permissionMode: 'default',
+      // A copy: the inherited environment is the process's own and stays as it was.
+      env: { ...this.deps.env(), ...AUTO_MEMORY_OFF },
       canUseTool: this.canUseTool,
       includePartialMessages: true,
       // Without this the CLI sends only a subagent's tool calls; with it, its text too, so a thread holds its whole conversation.
@@ -488,7 +507,7 @@ class ClaudeChatAdapter implements ChatAdapter {
   /** Closes the process and kills its tree, so nothing runs on a login that was rejected. */
   private endProcess(live: Live): void {
     this.discard(live)
-    this.processes.killAll()
+    void this.processes.killAll()
   }
 
   /** Lets go of a process that is done or no longer wanted; the subagents it was running are gone with it. */
@@ -504,7 +523,7 @@ class ClaudeChatAdapter implements ChatAdapter {
   /** What went wrong, with the end of the process's stderr when it has something to add. */
   private describeFailure(failure: unknown): string {
     const base = failure === null ? 'Claude Code stopped before the turn finished.' : toError(failure).message
-    const tail = this.processes.stderrTail().trim().slice(-MAX_DETAIL_CHARS)
+    const tail = maskClaimTokens(this.processes.stderrTail().trim()).slice(-MAX_DETAIL_CHARS)
     return tail === '' || base.includes(tail) ? base : `${base}\n${tail}`
   }
 

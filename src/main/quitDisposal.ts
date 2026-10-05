@@ -1,9 +1,10 @@
 /**
  * Disposes agent processes before the app exits. Electron's `before-quit` cannot wait for async
  * work, so while processes are live the first quit is prevented, they are disposed (each adapter
- * kills its process tree; bounded by `timeoutMs` so a stuck one cannot keep the app open), and
- * the quit is then repeated. With nothing live the quit goes straight through; `dispose` still
- * runs so nothing new starts. Free of Electron runtime imports so it can be unit tested.
+ * kills its process tree with `killProcessTree` and resolves once the tree is gone; bounded by
+ * `timeoutMs` so a stuck one cannot keep the app open), and the quit is then repeated. With
+ * nothing live the quit goes straight through; `dispose` still runs so nothing new starts. Free of
+ * Electron runtime imports so it can be unit tested.
  */
 
 /** What this needs of Electron's `app`. */

@@ -17,9 +17,11 @@ interface Opened {
  * Opens a chat and keeps its transcript current. It subscribes to the push channel before asking
  * for the stored transcript, so nothing pushed while the request is in flight is lost; the
  * reducer replays those events on top of the stored items. The subscription ends with the view. Shared with
- * the views that follow one thread of a chat (an attempt's Activity tab, the orchestrator feed).
+ * the views that follow one thread of a chat (an attempt's Activity tab, the orchestrator feed), which pass
+ * `'read'`: that fetches the same view without starting the agent or writing to the chat store, which
+ * `'open'` (the chat view itself, and the default) does.
  */
-export function useOpenedChat(ref: ChatRequestRef): Opened {
+export function useOpenedChat(ref: ChatRequestRef, load: 'open' | 'read' = 'open'): Opened {
   const { folder, chatId } = ref
   const [state, dispatch] = useReducer(reduceSession, chatId, openSession)
   const [attempt, setAttempt] = useState(0)
@@ -28,7 +30,7 @@ export function useOpenedChat(ref: ChatRequestRef): Opened {
     const unsubscribe = window.dm.chats.onEvent((event) => {
       if (current) dispatch({ type: 'push', event })
     })
-    unwrapChat(window.dm.chats.open({ folder, chatId })).then(
+    unwrapChat(window.dm.chats[load]({ folder, chatId })).then(
       (view) => {
         if (current) dispatch({ type: 'opened', view })
       },
@@ -40,7 +42,7 @@ export function useOpenedChat(ref: ChatRequestRef): Opened {
       current = false
       unsubscribe()
     }
-  }, [folder, chatId, attempt])
+  }, [folder, chatId, load, attempt])
   const reopen = useCallback(() => {
     dispatch({ type: 'reopen' })
     setAttempt((count) => count + 1)

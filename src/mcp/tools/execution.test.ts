@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import { DomainError } from '../../core/errors'
 import { SKILLS_VERSION } from '../../core/version'
 import type { CommandName } from '../../shared/domain/api'
 import { areaServer, callTool, type McpRig, sampleId, withRig } from '../../test/mcpHarness'
-import { createCannedApi, type StubApi } from '../../test/stubApi'
+import { createCannedApi, createStubApi, type StubApi } from '../../test/stubApi'
 import { registerExecutionTools } from './execution'
 
 const EPIC = sampleId('epic')
@@ -411,6 +412,36 @@ describe('sprint increments in the tool descriptions', () => {
       expect(described['get_run']).toContain('increments')
       const submit = tools.find((tool) => tool.name === 'submit_attempt')?.inputSchema.properties?.['increment']
       expect(submit).toMatchObject({ type: 'object', required: ['branch', 'commit'] })
+    })
+  })
+})
+
+describe('resume_run', () => {
+  it('tells an agent that the person resumes a run paused for sign-in in the desktop app', async () => {
+    await inRig(createCannedApi({}), async (rig) => {
+      const { tools } = await rig.client.listTools()
+      const description = tools.find((tool) => tool.name === 'resume_run')?.description ?? ''
+      expect(description).toContain('"signed_out"')
+      expect(description).toContain('person resumes it in the desktop app')
+      expect(description).toContain('unauthorized')
+    })
+  })
+
+  it('returns the command layer’s unauthorized failure for a signed-out run as it is', async () => {
+    const message = 'This run is paused because its agent was signed out. The person resumes it in the desktop app, with Resume run.'
+    const api = createStubApi({
+      resumeRun: async () => {
+        throw new DomainError('unauthorized', message, { role: 'orchestrator', capability: 'run.resume_signed_out' })
+      }
+    })
+    await inRig(api, async (rig) => {
+      const outcome = await callTool(rig, 'resume_run', { runId: RUN })
+      expect(outcome.isError).toBe(true)
+      expect(outcome.payload).toEqual({
+        ok: false,
+        error: { code: 'unauthorized', message, details: { role: 'orchestrator', capability: 'run.resume_signed_out' } }
+      })
+      expect(api.calls).toEqual([{ name: 'resumeRun', input: { runId: RUN } }])
     })
   })
 })

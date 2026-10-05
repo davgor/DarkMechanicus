@@ -216,6 +216,8 @@ function startChats(ipc: Pick<IpcMain, 'handle'>, services: ChatServices): void 
   const handlers = createChatHandlers({
     registry: folders,
     sessions,
+    // Every window hears of a chat created, renamed or deleted, so none keeps a stale list.
+    push: createChatPush(() => BrowserWindow.getAllWindows()),
     threadBindings: (chat) => listThreadBindings({ activity, reads: bindingReads(workspaces) }, chat),
     boundThreads: (folder, target) => listBoundThreads(activity, folder, target),
     // The same desktop commands the Start run button runs, through the folder's own workspace.

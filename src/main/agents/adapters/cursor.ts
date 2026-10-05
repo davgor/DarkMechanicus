@@ -33,7 +33,8 @@
  * installed here); `__mocks__/cursorSubagents.ts` is built from the documents, not recorded.
  *
  * Stop. `session/cancel`; if the agent has not ended the turn within a grace period the process is
- * killed (the next message resumes the session in a new one). `dispose` kills the whole tree.
+ * killed (the next message resumes the session in a new one). `dispose` kills the whole tree and resolves
+ * once it is gone.
  *
  * Dark Mechanicus MCP. The server is passed in `session/new`/`session/load` as `darkmechanicus`;
  * nothing is enabled and nothing is written to Cursor's config. `--approve-mcps` is not wired into
@@ -209,7 +210,7 @@ class CursorAdapter implements ChatAdapter {
     if (session !== null) {
       session.cancel()
       turn.timer = this.deps.timers.set(() => {
-        session.kill()
+        void session.kill()
       }, this.deps.cancelGraceMs)
     }
     return Promise.resolve()
@@ -219,14 +220,14 @@ class CursorAdapter implements ChatAdapter {
     return listCursorModels(this.executablePath, this.deps)
   }
 
-  dispose(): Promise<void> {
+  async dispose(): Promise<void> {
     this.disposed = true
     if (this.turn !== null) {
       this.clearTimer(this.turn)
     }
-    this.session?.kill()
+    const treeGone = this.session?.kill()
     this.session = null
-    return Promise.resolve()
+    await treeGone
   }
 
   private emit(event: ChatAdapterEvent): void {
@@ -258,7 +259,7 @@ class CursorAdapter implements ChatAdapter {
   /** One `auth_required` item, and the process is killed so the next message starts one that reads the new login. */
   private reportSignedOut(message: string): void {
     this.emit({ type: 'item', item: { id: this.deps.newId(), at: this.deps.now(), kind: 'auth_required', agent: 'cursor', message } })
-    this.session?.kill()
+    void this.session?.kill()
     this.session = null
   }
 
@@ -283,7 +284,7 @@ class CursorAdapter implements ChatAdapter {
       return current
     }
     const reason: ResetReason = current !== null && this.runningModel !== this.model ? 'model_change' : 'session_lost'
-    current?.kill()
+    void current?.kill()
     return this.connect(options, reason)
   }
 
@@ -309,7 +310,7 @@ class CursorAdapter implements ChatAdapter {
         this.emit({ type: 'session', sessionId: begun.sessionId })
       }
     } catch (error) {
-      session.kill()
+      void session.kill()
       if (this.session === session) {
         this.session = null
       }

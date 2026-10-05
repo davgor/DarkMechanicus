@@ -17,8 +17,8 @@ export interface TransportSink {
 /** What the connection can do to the process. */
 export interface TransportHandle {
   write(line: string): void
-  /** Ends the process and everything it started. */
-  kill(): void
+  /** Ends the process and everything it started; resolves once they are gone. */
+  kill(): Promise<void>
 }
 
 /** Starts the agent process in `cwd`; its output is reported to `sink`. */
@@ -58,8 +58,8 @@ export interface AcpConnection {
   respond(id: RpcId, result: unknown): void
   fail(id: RpcId, code: number, message: string): void
   isClosed(): boolean
-  /** Ends the process tree; waiting requests are rejected and `closed` is not reported. */
-  kill(): void
+  /** Ends the process tree; waiting requests are rejected at once and `closed` is not reported. Resolves once the tree is gone. */
+  kill(): Promise<void>
 }
 
 interface Waiting {
@@ -139,13 +139,14 @@ class Connection implements AcpConnection {
     this.sendQuietly({ jsonrpc: '2.0', id, error: { code, message } })
   }
 
-  kill(): void {
+  async kill(): Promise<void> {
     if (this.closed) {
       return
     }
     this.closed = true
-    this.handle?.kill()
+    const treeGone = this.handle?.kill()
     this.rejectAll(new AcpError('The Cursor agent was stopped.'))
+    await treeGone
   }
 
   private send(message: Message): void {

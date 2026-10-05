@@ -1,9 +1,9 @@
 import { memo, useLayoutEffect, useMemo, useRef, type ReactNode, type RefObject } from 'react'
-import type { ApprovalDecision } from '../../../shared/agents/chat'
+import type { ApprovalDecision, ErrorProblem } from '../../../shared/agents/chat'
 import type { AgentAuthStatus, AgentKind } from '../../../shared/desktop/api'
 import { Markdown } from '../markdown/Markdown'
 import { ApprovalCard } from './ApprovalCard'
-import { decisionText, modelChangeText, resetText, signInCardState, type ChatAuth, type SignInCardState, type TranscriptEntry } from './chatViewModel'
+import { decisionText, modelChangeText, problemNotice, resetText, signInCardState, STOPPED_TEXT, type ChatAuth, type SignInCardState, type TranscriptEntry } from './chatViewModel'
 import { SignedOutCard } from './SignedOutCard'
 import { ThreadBlock } from './ThreadBlock'
 import { transcriptTree, type TreeRow } from './threadModel'
@@ -36,25 +36,37 @@ function Notice({ children }: { children: ReactNode }): JSX.Element {
   )
 }
 
-function ErrorRow({ message, code }: { message: string; code: string | undefined }): JSX.Element {
+interface ErrorRowProps {
+  message: string
+  code: string | undefined
+  /** Set when the error is a state of the person's account: it gets its own title and advice, and never offers Sign in. */
+  problem: ErrorProblem | undefined
+}
+
+function ErrorRow({ message, code, problem }: ErrorRowProps): JSX.Element {
+  const notice = problem === undefined ? null : problemNotice(problem)
+  const title = notice === null ? 'Error' : notice.title
   return (
     <li className="chat-error-row">
-      <article aria-label="Error" className="chat-error">
-        <p className="chat-msg-who">Error</p>
+      <article aria-label={title} className="chat-error">
+        <p className="chat-msg-who">{title}</p>
         <p className="chat-error-text">{message}</p>
+        {notice === null ? null : <p className="chat-error-advice">{notice.advice}</p>}
         {code === undefined ? null : <p className="chat-error-code">{code}</p>}
       </article>
     </li>
   )
 }
 
-/** The inline notices: model changes, context resets, and a decision whose request is not in the transcript. */
+/** The inline notices: model changes, context resets, a stopped turn, and a decision whose request is not in the transcript. */
 function NoticeRow({ entry, labels }: { entry: TranscriptEntry; labels: Labels }): JSX.Element | null {
   switch (entry.kind) {
     case 'model_change':
       return <Notice>{modelChangeText(entry.from, entry.to, labels)}</Notice>
     case 'context_reset':
       return <Notice>{resetText(entry.reason, entry.message)}</Notice>
+    case 'turn_stopped':
+      return <Notice>{STOPPED_TEXT}</Notice>
     case 'approval_decision':
       return <Notice>{decisionText(entry)}</Notice>
     default:
@@ -109,7 +121,7 @@ function EntryRow({ entry, answer, labels, folder, onAnswer, signIn, onSignedIn,
     case 'tool_call':
       return <ToolCallRow call={entry} />
     case 'error':
-      return <ErrorRow message={entry.message} code={entry.code} />
+      return <ErrorRow message={entry.message} code={entry.code} problem={entry.problem} />
     case 'approval_request':
       return <ApprovalCard request={entry} answer={answer} folder={folder} onAnswer={onAnswer} />
     case 'auth_required':

@@ -18,6 +18,7 @@
 import { posix, win32 } from 'node:path'
 import { AGENT_DEFINITIONS, expectedExecutableNames } from '../../shared/desktop/agentKinds'
 import type { AgentKind, AgentRefusalCode } from '../../shared/desktop/api'
+import { planShimLaunch } from '../agents/shimLaunch'
 
 const VERSION_FLAG = '--version'
 /** Long enough for a cold Node start behind antivirus scanning, short enough to feel like a refusal. */
@@ -134,33 +135,18 @@ export function windowsProgramKind(path: string): 'shim' | 'program' | null {
   return PROGRAM_EXTENSIONS.has(extension) ? 'program' : null
 }
 
-/**
- * cmd.exe still reads inside quotes: `%` expands even there and a `"` would end the quoted path.
- * Windows file names cannot hold a quote or a control character, so a path with one did not come
- * from a real file; none of these is escaped, they are refused.
- */
-export function isQuotableForCmd(path: string): boolean {
-  return [...path].every((char) => char !== '"' && char !== '%' && char.charCodeAt(0) >= 32)
-}
-
 export type LaunchPlan = { launch: ProbeLaunch } | AgentRefusal
 
 /**
- * Node refuses to spawn `.cmd` files without a shell, and npm installs agents as `.cmd` shims. The
- * shim is run as `cmd.exe /d /v:off /s /c ""<path>" --version"`: the version flag is a constant, the
- * path is the only user-controlled text and sits inside one pair of quotes (so `&`, `^`, `(` and
- * spaces are literal), `/v:off` rules out `!` expansion, `/d` skips AutoRun commands, and `/s` makes
- * cmd strip exactly the outer pair of quotes.
+ * Node refuses to spawn `.cmd` files without a shell, and npm installs agents as `.cmd` shims, so a
+ * shim goes through the shared launcher: exactly one cmd.exe parse with the path in one pair of
+ * quotes (see `planShimLaunch`). The arguments are constants, or ids their caller has checked. An
+ * unsafe path is refused as `unsafe_path`, and so is an unsafe argument, which the shared API has no
+ * code of its own for.
  */
-function planShim(path: string, args: readonly string[], comspec: string): LaunchPlan {
-  if (!isQuotableForCmd(path)) {
-    return refuse(
-      'unsafe_path',
-      'The path has a character (a quote, "%", or a control character) that cannot be launched safely.'
-    )
-  }
-  const command = `""${path}" ${args.join(' ')}"`
-  return { launch: { file: comspec, args: ['/d', '/v:off', '/s', '/c', command], verbatimArguments: true } }
+function planShim(path: string, args: readonly string[], comspec: string | undefined): LaunchPlan {
+  const plan = planShimLaunch(path, args, { comspec })
+  return plan.ok ? { launch: plan.launch } : refuse('unsafe_path', plan.reason)
 }
 
 function planLaunch(path: string, args: readonly string[], deps: Pick<AgentProbeDeps, 'platform' | 'comspec'>): LaunchPlan {
@@ -169,7 +155,7 @@ function planLaunch(path: string, args: readonly string[], deps: Pick<AgentProbe
   }
   const kind = windowsProgramKind(path)
   if (kind === 'shim') {
-    return planShim(path, args, deps.comspec ?? 'cmd.exe')
+    return planShim(path, args, deps.comspec)
   }
   if (kind === 'program') {
     return { launch: { file: path, args, verbatimArguments: false } }

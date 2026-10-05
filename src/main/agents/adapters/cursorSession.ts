@@ -103,9 +103,9 @@ export class CursorSession {
     return this.connection.isClosed()
   }
 
-  /** Ends the process tree. */
-  kill(): void {
-    this.connection.kill()
+  /** Ends the process tree; resolves once it is gone. */
+  kill(): Promise<void> {
+    return this.connection.kill()
   }
 
   /**

@@ -1,24 +1,40 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { removeScratch } from '../../test/removeScratch'
 import { getAgentAuthStatus, planSignIn } from './agentAuth'
 import { launchTerminal } from './agentAuthNode'
 import { inspectExecutable, runProcess } from './agentProbeNode'
 
+/**
+ * A program that keeps running until the folder it is given is removed (or an hour has passed, so a test that died
+ * cannot leave it behind). The test removes the folder only after the launch has answered, so the program cannot
+ * have finished by then, however long the launch takes.
+ */
+const RUNS_UNTIL_FOLDER_IS_GONE = `
+  const fs = require('node:fs')
+  const folder = process.argv[1]
+  const poll = setInterval(() => { if (!fs.existsSync(folder)) clearInterval(poll) }, 25)
+  setTimeout(() => process.exit(0), 3_600_000).unref()
+`
+
 /** The real launcher is exercised against Node itself, started detached with nothing to show. */
 describe('launchTerminal', () => {
   it('resolves ok once the program has started, without waiting for it to finish', async () => {
-    const started = Date.now()
+    const folder = mkdtempSync(join(tmpdir(), 'dm-launch-'))
+    try {
+      const outcome = await launchTerminal({
+        file: process.execPath,
+        args: ['-e', RUNS_UNTIL_FOLDER_IS_GONE, folder],
+        verbatimArguments: false
+      })
 
-    const outcome = await launchTerminal({
-      file: process.execPath,
-      args: ['-e', 'setTimeout(() => {}, 1500)'],
-      verbatimArguments: false
-    })
-
-    expect(outcome).toEqual({ ok: true })
-    expect(Date.now() - started).toBeLessThan(1_000)
+      // The program is still waiting for its folder to go away: the launch did not wait for it to finish.
+      expect(outcome).toEqual({ ok: true })
+    } finally {
+      removeScratch(folder)
+    }
   })
 
   it('reports a program that does not exist with its error code, without throwing', async () => {
@@ -57,7 +73,7 @@ describe.skipIf(process.platform !== 'win32')('the Windows commands keep the pat
   })
 
   afterAll(() => {
-    rmSync(scratch, { recursive: true, force: true })
+    removeScratch(scratch)
   })
 
   const deps = (): Parameters<typeof planSignIn>[2] => ({

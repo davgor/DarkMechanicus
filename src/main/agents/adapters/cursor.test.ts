@@ -727,6 +727,27 @@ describe('ending the session', () => {
     expect(agents.launches).toHaveLength(1)
   })
 
+  it('resolves dispose only once the process tree is gone, so quitting waits for it', async () => {
+    const agents = new ReplayAcpAgents(newChat(prompt(4, S, 'go')))
+    agents.holdKills = true
+    const rig = new Rig(agents)
+    await rig.start()
+    void rig.adapter.send('go').catch(() => {})
+    await promptWritten(agents)
+    let disposed = false
+
+    const disposing = rig.adapter.dispose().then(() => {
+      disposed = true
+    })
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(agents.processes[0]?.killed).toBe(true)
+    expect(disposed).toBe(false)
+    agents.processes[0]?.releaseKill?.()
+    await disposing
+
+    expect(disposed).toBe(true)
+  })
+
   it('is safe to dispose before it ever started', async () => {
     const rig = new Rig(new ReplayAcpAgents())
 

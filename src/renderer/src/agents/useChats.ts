@@ -78,17 +78,25 @@ function changesRow(event: ChatPushEvent): boolean {
   return event.type === 'turn' || (event.type === 'item' && ROW_ITEMS.has(event.item.kind))
 }
 
-/** A turn starting or ending, a model switch, or a request being asked or answered changes the chat's row: reload its folder. */
-function useTurnEvents(lists: Lists, reload: (path: string) => Promise<void>): void {
+/** The folder to list again after an event: a chat added, renamed or removed (in any window) names its folder; a change to a chat's row is found by the chat. Null when the event changes no listed chat. */
+function folderToReload(lists: Lists, event: ChatPushEvent): string | null {
+  if (event.type === 'chats_changed') {
+    return lists[event.folder] === undefined ? null : event.folder
+  }
+  if (!changesRow(event)) {
+    return null
+  }
+  return Object.keys(lists).find((path) => lists[path]?.chats.some((chat) => chat.id === event.chatId)) ?? null
+}
+
+/** A chat created, renamed or deleted (here or in another window), a turn starting or ending, a model switch, or a request being asked or answered changes the list: reload its folder. */
+function useChatEvents(lists: Lists, reload: (path: string) => Promise<void>): void {
   const current = useLatest(lists)
   useEffect(
     () =>
       window.dm.chats.onEvent((event) => {
-        if (!changesRow(event)) {
-          return
-        }
-        const folder = Object.keys(current.current).find((path) => current.current[path]?.chats.some((chat) => chat.id === event.chatId))
-        if (folder !== undefined) {
+        const folder = folderToReload(current.current, event)
+        if (folder !== null) {
           void reload(folder)
         }
       }),
@@ -129,7 +137,7 @@ async function changeChat(deps: Reporter, folder: string, change: () => Promise<
 export function useChats(options: { paths: readonly string[]; onError(error: unknown): void }): ChatsModel {
   const { lists, reload } = useChatLists(options.onError)
   useActiveFolders(options.paths, reload)
-  useTurnEvents(lists, reload)
+  useChatEvents(lists, reload)
   const report = useLatest(options.onError)
   const deps: Reporter = { reload, onError: (error) => report.current(error) }
   return {

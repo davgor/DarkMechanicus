@@ -102,6 +102,12 @@ describe('markerText', () => {
     expect(text('submit_sprint_report', 'failed')).toBe('sprint report refused')
   })
 
+  it('words a call that was cancelled as what it was doing, never as a refusal', () => {
+    expect(text('claim_ticket', 'cancelled', 'DM-12')).toBe('claiming DM-12 (cancelled)')
+    expect(text('submit_sprint_report', 'cancelled')).toBe('filing the sprint report (cancelled)')
+    expect(text('list_epics', 'cancelled')).toBe('list epics (cancelled)')
+  })
+
   it('words a tool it has no phrase for from its name, so every call still has a marker', () => {
     expect(text('list_epics', 'completed')).toBe('list epics')
     expect(text('list_epics', 'running')).toBe('list epics…')

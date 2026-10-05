@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ChatItem } from '../../../shared/agents/chat'
 import type { TranscriptEntry } from './chatViewModel'
-import { chooseBoundThread, mergeByTime, streamRows, type StreamRow } from './threadStream'
+import { chooseBoundThread, clipRows, mergeByTime, streamRows, type StreamRow } from './threadStream'
 
 const AT = '2026-03-01T10:00:00.000Z'
 
@@ -99,6 +99,17 @@ describe('streamRows of the chat main thread: what is said and run', () => {
     expect(rows[1]).toMatchObject({ kind: 'approval', tone: 'attention', answer: null })
   })
 
+  it('names a problem with the account in front of the CLI’s words, and leaves a plain error as it was', () => {
+    const entries: TranscriptEntry[] = [
+      { id: 'p', at: AT, kind: 'error', message: 'Your account is on hold.', problem: 'account_on_hold' },
+      { id: 'e', at: AT, kind: 'error', message: 'It broke' }
+    ]
+
+    expect(streamRows(entries, null)).toEqual([
+      { id: 'p', at: AT, tone: 'failed', kind: 'error', message: 'Account on hold: Your account is on hold.' },
+      { id: 'e', at: AT, tone: 'failed', kind: 'error', message: 'It broke' }
+    ])
+  })
 })
 
 describe('streamRows of the chat main thread: tool calls', () => {
@@ -115,13 +126,14 @@ describe('streamRows of the chat main thread: tool calls', () => {
   })
 
   it('names any other call by its tool and the input that says what it does, with its status', () => {
-    const rows = streamRows([call('ok'), call('run', { status: 'running', resultSummary: null }), call('no', { status: 'failed' }), call('den', { status: 'denied' })], null)
+    const rows = streamRows([call('ok'), call('run', { status: 'running', resultSummary: null }), call('no', { status: 'failed' }), call('den', { status: 'denied' }), call('gone', { status: 'cancelled' })], null)
 
     expect(rows.map((row) => (row.kind === 'tool' ? [row.title, row.summary, row.status.label, row.tone] : null))).toEqual([
       ['Bash', 'npm test', 'Done', 'neutral'],
       ['Bash', 'npm test', 'Running', 'running'],
       ['Bash', 'npm test', 'Failed', 'failed'],
-      ['Bash', 'npm test', 'Denied', 'blocked']
+      ['Bash', 'npm test', 'Denied', 'blocked'],
+      ['Bash', 'npm test', 'Cancelled', 'neutral']
     ])
   })
 
@@ -242,6 +254,51 @@ describe('mergeByTime', () => {
 
     expect(merged.map((entry) => entry.source)).toEqual(['record', 'record'])
     expect(names(merged)).toEqual(['a', 'b'])
+  })
+})
+
+describe('clipRows to the window of an attempt', () => {
+  const timed = (id: string, minute: number): ChatItem => ({ ...said(id), at: at(minute) })
+  const entries: TranscriptEntry[] = [timed('early', 1), timed('start', 2), timed('middle', 4), timed('end', 6), timed('late', 8), streaming('typing', 'Writing')]
+  const rows = streamRows(entries, null)
+  const window = (from: number | null, to: number | null): { from: string | null; to: string | null } => ({
+    from: from === null ? null : at(from),
+    to: to === null ? null : at(to)
+  })
+
+  it('keeps what happened from the start to the end, both included, and drops what came before or after', () => {
+    expect(ids(clipRows(rows, window(2, 6)))).toEqual(['start', 'middle', 'end'])
+  })
+
+  it('goes on to now while the end is open, including the text still being written', () => {
+    expect(ids(clipRows(rows, window(4, null)))).toEqual(['middle', 'end', 'late', 'typing'])
+  })
+
+  it('drops the text still being written once the window has ended, since it is newer than the end', () => {
+    expect(ids(clipRows(rows, window(null, 8)))).toEqual(['early', 'start', 'middle', 'end', 'late'])
+  })
+
+  it('treats a time it cannot read as being written now', () => {
+    const odd = streamRows([{ ...said('odd'), at: 'sometime' }, timed('middle', 4)], null)
+
+    expect(ids(clipRows(odd, window(2, null)))).toEqual(['odd', 'middle'])
+    expect(ids(clipRows(odd, window(2, 6)))).toEqual(['middle'])
+  })
+
+  it('is every row for a window with no bounds, and ignores a bound it cannot read', () => {
+    expect(ids(clipRows(rows, { from: null, to: null }))).toEqual(ids(rows))
+    expect(ids(clipRows(rows, { from: 'whenever', to: 'never' }))).toEqual(ids(rows))
+  })
+
+  it('clips requests and subagent threads the same way, answered or not', () => {
+    const stored: TranscriptEntry[] = [
+      { ...asked('old'), at: at(1) },
+      { ...asked('now'), at: at(5) },
+      { ...thread('old_thread'), at: at(1) },
+      { ...thread('new_thread'), at: at(5) }
+    ]
+
+    expect(ids(clipRows(streamRows(stored, null), window(3, null)))).toEqual(['item_now', 'new_thread'])
   })
 })
 

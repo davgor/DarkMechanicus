@@ -9,7 +9,7 @@ import { z } from 'zod'
 import { DomainError, toErrorShape } from '../../core/errors'
 import { LIMITS, parseInput, stableId } from '../../core/schemas'
 import { APPROVAL_DECISIONS, CHAT_ROLES, chatIdSchema, type ChatItem, type ChatRecord, type ModelOption } from '../../shared/agents/chat'
-import type { BoundThread, ChatOpenView, ChatSummary, StartOrchestratorResult, ThreadBinding } from '../../shared/agents/chatApi'
+import type { BoundThread, ChatOpenView, ChatPushEvent, ChatSummary, StartOrchestratorResult, ThreadBinding } from '../../shared/agents/chatApi'
 import { AGENT_KINDS } from '../../shared/desktop/agentKinds'
 import type { CommandResult } from '../../shared/desktop/api'
 import { agentKindSchema } from '../desktop/agentHandlers'
@@ -67,6 +67,8 @@ interface ChatHandlerDeps {
   threadBindings?: (chat: ChatRef) => Promise<ThreadBinding[]>
   /** The threads bound to an attempt or a run among the chats of a (canonical) folder; without it nothing is bound. */
   boundThreads?: (folder: string, target: BoundTarget) => BoundThread[]
+  /** Told that a chat was created, renamed or deleted, so every window can list the folder's chats again; without it nothing is pushed. */
+  push?: (event: ChatPushEvent) => void
   /** Told about failures that are not DomainErrors (bugs, I/O), so main can log the stack. */
   onUnexpectedError?: (error: unknown) => void
 }
@@ -77,6 +79,8 @@ export interface ChatHandlers {
   create(request: unknown): Promise<CommandResult<ChatRecord>>
   startOrchestrator(request: unknown): Promise<CommandResult<StartOrchestratorResult>>
   open(request: unknown): Promise<CommandResult<ChatOpenView>>
+  /** The same view as `open`, read-only: no agent is started and nothing is stored, for panels that follow a chat. */
+  read(request: unknown): Promise<CommandResult<ChatOpenView>>
   send(request: unknown): Promise<CommandResult<ChatItem>>
   stop(request: unknown): Promise<CommandResult<null>>
   threadBindings(request: unknown): Promise<CommandResult<ThreadBinding[]>>
@@ -105,11 +109,15 @@ function chatRequest<T extends { folder: string; chatId: string }>(deps: ChatHan
 }
 
 /** Validates the request and the folder before anything is queued; see `startOrchestratorRun` for what happens after. */
-function startOrchestrator(deps: ChatHandlerDeps, input: unknown): Promise<StartOrchestratorResult> {
+async function startOrchestrator(deps: ChatHandlerDeps, input: unknown): Promise<StartOrchestratorResult> {
   const request = parseInput(startOrchestratorSchema, input, 'orchestrator request')
   const folder = trackedFolder(deps, request.folder)
   const { runs, sessions, onUnexpectedError } = deps
-  return startOrchestratorRun({ runs, sessions, ...(onUnexpectedError === undefined ? {} : { onError: onUnexpectedError }) }, { ...request, folder })
+  const started = await startOrchestratorRun({ runs, sessions, ...(onUnexpectedError === undefined ? {} : { onError: onUnexpectedError }) }, { ...request, folder })
+  if (started.chat !== null) {
+    chatsChanged(deps, { folder: started.chat.folder, id: started.chat.id })
+  }
+  return started
 }
 
 /** The chat's thread bindings; the request is validated even when the app wired none. */
@@ -137,17 +145,40 @@ async function answer<T>(deps: ChatHandlerDeps, action: () => T | Promise<T>): P
   }
 }
 
+/** Tells every window that the chat was created, renamed or deleted in its (canonical) folder. */
+function chatsChanged(deps: ChatHandlerDeps, chat: ChatRef): void {
+  deps.push?.({ type: 'chats_changed', folder: chat.folder, chatId: chat.id })
+}
+
+function createChat(deps: ChatHandlerDeps, input: unknown): ChatRecord {
+  const request = parseInput(createSchema, input, 'new chat')
+  const chat = deps.sessions.createChat({ ...request, folder: trackedFolder(deps, request.folder) })
+  chatsChanged(deps, { folder: chat.folder, id: chat.id })
+  return chat
+}
+
+function renameChat(deps: ChatHandlerDeps, input: unknown): ChatRecord {
+  const { ref, request } = chatRequest(deps, renameSchema, input)
+  const chat = deps.sessions.renameChat(ref, request.title)
+  chatsChanged(deps, ref)
+  return chat
+}
+
+async function deleteChat(deps: ChatHandlerDeps, input: unknown): Promise<null> {
+  const { ref } = chatRequest(deps, refSchema, input)
+  await deps.sessions.deleteChat(ref)
+  chatsChanged(deps, ref)
+  return null
+}
+
 export function createChatHandlers(deps: ChatHandlerDeps): ChatHandlers {
   const { sessions } = deps
   return {
     list: (folder) => answer(deps, () => sessions.listChats(trackedFolder(deps, parseInput(folderSchema, folder, 'folder')))),
-    create: (input) =>
-      answer(deps, () => {
-        const request = parseInput(createSchema, input, 'new chat')
-        return sessions.createChat({ ...request, folder: trackedFolder(deps, request.folder) })
-      }),
+    create: (input) => answer(deps, () => createChat(deps, input)),
     startOrchestrator: (input) => answer(deps, () => startOrchestrator(deps, input)),
     open: (input) => answer(deps, () => sessions.openChat(chatRequest(deps, refSchema, input).ref)),
+    read: (input) => answer(deps, () => sessions.readChat(chatRequest(deps, refSchema, input).ref)),
     send: (input) =>
       answer(deps, () => {
         const { ref, request } = chatRequest(deps, sendSchema, input)
@@ -166,16 +197,8 @@ export function createChatHandlers(deps: ChatHandlerDeps): ChatHandlers {
         const { ref, request } = chatRequest(deps, setModelSchema, input)
         return sessions.setModel(ref, request.model)
       }),
-    rename: (input) =>
-      answer(deps, () => {
-        const { ref, request } = chatRequest(deps, renameSchema, input)
-        return sessions.renameChat(ref, request.title)
-      }),
-    delete: (input) =>
-      answer(deps, async () => {
-        await sessions.deleteChat(chatRequest(deps, refSchema, input).ref)
-        return null
-      }),
+    rename: (input) => answer(deps, () => renameChat(deps, input)),
+    delete: (input) => answer(deps, () => deleteChat(deps, input)),
     answerApproval: (input) =>
       answer(deps, () => {
         const { ref, request } = chatRequest(deps, answerSchema, input)

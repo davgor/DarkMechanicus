@@ -33,6 +33,8 @@ interface Launched {
 
 class Replay implements TransportHandle {
   killed = false
+  /** Resolves a held kill; set while one is held. */
+  releaseKill: (() => void) | null = null
   /** Every line the client wrote, as written. */
   readonly writes: string[] = []
   private next = 0
@@ -40,7 +42,8 @@ class Replay implements TransportHandle {
   constructor(
     private readonly frames: readonly Frame[],
     private readonly sink: TransportSink,
-    private readonly problems: string[]
+    private readonly problems: string[],
+    private readonly holdKill: boolean
   ) {
     this.deliver()
   }
@@ -62,8 +65,14 @@ class Replay implements TransportHandle {
     this.deliver()
   }
 
-  kill(): void {
+  kill(): Promise<void> {
     this.killed = true
+    if (!this.holdKill) {
+      return Promise.resolve()
+    }
+    return new Promise<void>((resolve) => {
+      this.releaseKill = resolve
+    })
   }
 
   /** The agent's own exit, which the client learns from the closed stream. */
@@ -90,6 +99,8 @@ export class ReplayAcpAgents {
   /** What went wrong: unexpected or unequal client messages, and processes nobody recorded. */
   readonly problems: string[] = []
   readonly processes: Replay[] = []
+  /** When set, a process's kill stays pending until its `releaseKill` is called. */
+  holdKills = false
   private readonly recordings: Frame[][]
 
   constructor(...recordings: Frame[][]) {
@@ -102,7 +113,7 @@ export class ReplayAcpAgents {
     if (frames === undefined) {
       this.problems.push(`A process was started that no recording covers: ${JSON.stringify(launch.args)}`)
     }
-    const replay = new Replay(frames ?? [], sink, this.problems)
+    const replay = new Replay(frames ?? [], sink, this.problems, this.holdKills)
     this.processes.push(replay)
     return replay
   }

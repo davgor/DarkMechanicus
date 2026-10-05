@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import architecture from '../../docs/architecture.md?raw'
 import { SKILLS_VERSION } from '../core/version'
-import { SKILLS, splitSkillSource } from './skills'
+import { SKILLS, skillBody, splitSkillSource } from './skills'
 
 const EXPECTED = [
   ['planner', 'Planner'],
@@ -368,5 +368,17 @@ describe('splitSkillSource', () => {
 
   it('rejects a file that starts with a heading instead of a description', () => {
     expect(() => splitSkillSource('# Title\n\nText.\n')).toThrow(/start with a one-line description/)
+  })
+})
+
+describe('skillBody', () => {
+  it('is the body the MCP prompt of that skill serves', () => {
+    for (const item of SKILLS) {
+      expect(skillBody(item.name)).toBe(item.body)
+    }
+  })
+
+  it('refuses a name that is not a shipped skill, so a typo cannot ship an empty guide', () => {
+    expect(() => skillBody('orchestrater')).toThrow(/no shipped skill named orchestrater/i)
   })
 })

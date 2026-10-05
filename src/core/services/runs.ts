@@ -352,18 +352,47 @@ export function pauseRunRow(ctx: Ctx, run: RunRow, reason: string): void {
 }
 
 /**
+ * Switches a run that is already paused to the reason `signed_out`. For its workers the pause starts now: a lease
+ * that was already overdue lapses first, as it would have, the ones still open are kept from this moment, and
+ * resume extends them by the time since. A run already paused for sign-in is left as it is, so the time it has
+ * been paused since is not lost when the hook that pauses runs for sign-in fires again.
+ */
+function markPausedRunSignedOut(ctx: Ctx, run: RunRow): void {
+  if (run.pause_reason === SIGNED_OUT_PAUSE_REASON) {
+    return
+  }
+  expireLeases(ctx, run.id)
+  const now = ctx.clock.nowIso()
+  ctx.db.run(
+    'UPDATE runs SET pause_reason = ?, paused_at = ?, updated_at = ?, revision = revision + 1 WHERE id = ?',
+    SIGNED_OUT_PAUSE_REASON,
+    now,
+    now,
+    run.id
+  )
+  recordRun(ctx, run, 'run.paused', { from: run.state, reason: SIGNED_OUT_PAUSE_REASON, previousReason: run.pause_reason })
+}
+
+/**
  * Pauses a run. The reason `signed_out` (exact) freezes the run's open leases, so only the desktop's own session
- * may give it: an agent that could would keep a stalled worker's claim alive indefinitely.
+ * may give it: an agent that could would keep a stalled worker's claim alive indefinitely. With that reason a run
+ * that is already paused for another one is switched to it (see `markPausedRunSignedOut`); any other pause still
+ * needs a queued, running or awaiting_checkpoint run.
  */
 export function pauseRun(ctx: Ctx, input: { runId: string; reason?: string }): RunView {
   requireCapability(ctx.session, 'run.control')
-  if (input.reason === SIGNED_OUT_PAUSE_REASON) {
+  const signedOut = input.reason === SIGNED_OUT_PAUSE_REASON
+  if (signedOut) {
     requireCapability(ctx.session, 'run.pause_signed_out')
   }
   return ctx.db.tx(() => {
     const run = requireRun(ctx, input.runId)
-    requireRunState(run, PAUSABLE_STATES, 'pause')
-    pauseRunRow(ctx, run, input.reason ?? 'paused')
+    if (signedOut && run.state === 'paused') {
+      markPausedRunSignedOut(ctx, run)
+    } else {
+      requireRunState(run, PAUSABLE_STATES, 'pause')
+      pauseRunRow(ctx, run, input.reason ?? 'paused')
+    }
     return buildRunView(ctx, run.id)
   })
 }
@@ -402,12 +431,23 @@ function extendKeptLeases(ctx: Ctx, run: RunRow): void {
   recordRun(ctx, run, 'run.leases_extended', { pausedAt: run.paused_at, extendedMs: pausedMs, attempts })
 }
 
+const SIGNED_OUT_RESUME_MESSAGE =
+  'This run is paused because its agent was signed out. The person resumes it in the desktop app, with Resume run.'
+
+/**
+ * Resumes a paused run. A run paused for sign-in (reason `signed_out`) is the person's to resume once they have
+ * signed in again, so it needs the desktop-only `run.resume_signed_out`: an agent that could would lift the pause
+ * before anyone had signed in. A run paused for any other reason is resumed by whoever controls runs.
+ */
 export function resumeRun(ctx: Ctx, input: { runId: string }): RunView {
   requireCapability(ctx.session, 'run.control')
   ctx.assertBranch()
   return ctx.db.tx(() => {
     const run = requireOwnedRun(ctx, input.runId)
     requireRunState(run, ['paused'], 'resume')
+    if (run.pause_reason === SIGNED_OUT_PAUSE_REASON) {
+      requireCapability(ctx.session, 'run.resume_signed_out', SIGNED_OUT_RESUME_MESSAGE)
+    }
     extendKeptLeases(ctx, run)
     // A run paused before it ever started goes back to the queue rather than running without a sprint.
     const to: RunState = run.started_at === null ? 'queued' : 'running'

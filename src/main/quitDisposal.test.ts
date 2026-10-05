@@ -1,5 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { spawn, type ChildProcess } from 'node:child_process'
+import { once } from 'node:events'
+import { describe, expect, it, vi } from 'vitest'
+import { killProcessTree, startsOwnGroup } from './agents/processTree'
 import { disposeBeforeQuit, type QuitApp } from './quitDisposal'
+
+/** The test below starts and kills real processes, which can stall on Windows when the whole suite is running. */
+vi.setConfig({ testTimeout: 60_000 })
 
 interface FakeApp extends QuitApp {
   /** Emits before-quit; returns whether the quit was prevented. */
@@ -114,5 +120,63 @@ describe('disposeBeforeQuit when disposing does not finish', () => {
     await settle()
     expect([failing.quits, failing.lastQuitPrevented]).toEqual([1, false])
     expect(errors).toEqual([expect.objectContaining({ message: 'stuck' })])
+  })
+})
+
+/** An "agent" that has started a tool of its own: it prints the tool's pid and then keeps running. */
+const AGENT_WITH_A_TOOL = `
+const { spawn } = require('node:child_process')
+const tool = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: ['ignore', 'inherit', 'ignore'] })
+console.log(tool.pid)
+setInterval(() => {}, 1000)
+`
+
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+describe('quitting while an agent is mid-turn, with real processes', () => {
+  it('lets the quit through only after the agent and the tool it started have exited', async () => {
+    const agent: ChildProcess = spawn(process.execPath, ['-e', AGENT_WITH_A_TOOL], {
+      stdio: ['ignore', 'pipe', 'ignore'],
+      detached: startsOwnGroup(),
+      windowsHide: true
+    })
+    const [chunk] = (await once(agent.stdout as NonNullable<ChildProcess['stdout']>, 'data')) as [Buffer]
+    const toolPid = Number(String(chunk).trim())
+    const app = fakeApp()
+    const quit = app.quit
+    const quitReached = new Promise<{ agentExited: boolean; toolAlive: boolean }>((resolve) => {
+      app.quit = () => {
+        resolve({ agentExited: agent.exitCode !== null || agent.signalCode !== null, toolAlive: alive(toolPid) })
+        quit()
+      }
+    })
+    try {
+      disposeBeforeQuit(app, {
+        busy: () => true,
+        dispose: async () => {
+          await killProcessTree(agent)
+        },
+        timeoutMs: 30_000
+      })
+
+      expect(app.beforeQuit()).toBe(true)
+
+      expect(await quitReached).toEqual({ agentExited: true, toolAlive: false })
+    } finally {
+      for (const pid of [agent.pid, toolPid]) {
+        try {
+          process.kill(pid as number)
+        } catch {
+          // Already gone, which is what the test wants.
+        }
+      }
+    }
   })
 })

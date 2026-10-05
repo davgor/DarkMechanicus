@@ -133,3 +133,21 @@ describe('answerView', () => {
     expect(answerView(decision('a', 'cancelled'))).toMatchObject({ state: 'canceled', label: 'Cancelled', detail: 'No answer reached the agent.' })
   })
 })
+
+describe('approvalDetail: what Allow for this chat covers', () => {
+  const OWN = 'Allow for this chat covers all Dark Mechanicus tools in this chat.'
+
+  it('says Allow for this chat covers all the chat’s Dark Mechanicus tools, for a call to one of them', () => {
+    const detail = approvalDetail(request({ category: 'other', tool: 'mcp__darkmechanicus__claim_ticket', summary: 'Use mcp__darkmechanicus__claim_ticket', ownServer: true }), FOLDER)
+    expect(detail.allowChatNote).toBe(OWN)
+  })
+
+  it.each([
+    ['a request main did not mark', request({ category: 'other', tool: 'mcp__other__claim_ticket', summary: 'Use mcp__other__claim_ticket' })],
+    ['a request marked false', request({ category: 'other', tool: 'mcp__other__claim_ticket', ownServer: false })],
+    ['a command', request({ category: 'command', tool: 'Bash' })],
+    ['a file edit', request({ category: 'file_edit', tool: 'Edit' })]
+  ])('says nothing more for %s', (_what, item) => {
+    expect(approvalDetail(item, FOLDER).allowChatNote).toBeNull()
+  })
+})

@@ -2,9 +2,13 @@ import type { ChatRecord } from '../../../shared/agents/chat'
 import type { AgentView, TrackedFolderView } from '../../../shared/desktop/api'
 import type { AgentPane } from './selection'
 
+/** What a loading view is waiting for: the tracked folders, the folder's chat list (for a stored chat), the connected agents. */
+export type LoadingWhat = 'folders' | 'chat' | 'agents'
+
 /** What the main area renders; variants that need a folder carry it, so rendering needs no null checks. */
 export type MainView =
-  | { kind: 'loading' }
+  /** `what` is what is still being fetched, so the view can say so. */
+  | { kind: 'loading'; what: LoadingWhat }
   | { kind: 'welcome' }
   | { kind: 'unavailable'; folder: TrackedFolderView }
   | { kind: 'onboarding'; folder: TrackedFolderView }
@@ -40,7 +44,7 @@ function chooseAgentView(pane: AgentPane | undefined, agents: readonly AgentView
     return { kind: 'add-agent' }
   }
   if (agents === null) {
-    return { kind: 'loading' }
+    return { kind: 'loading', what: 'agents' }
   }
   const agent = agents.find((candidate) => candidate.kind === pane.agent)
   return agent ? { kind: 'agent', agent } : null
@@ -50,7 +54,7 @@ function chooseAgentView(pane: AgentPane | undefined, agents: readonly AgentView
 export function chooseView(input: ViewInput): MainView {
   const { folder, epicId } = input
   if (!input.loaded) {
-    return { kind: 'loading' }
+    return { kind: 'loading', what: 'folders' }
   }
   const agentView = chooseAgentView(input.agentPane, input.agents ?? null)
   if (agentView !== null) {
@@ -77,7 +81,7 @@ function chooseChatView(folder: TrackedFolderView, chatId: string | null, chats:
     return { kind: 'home', folder }
   }
   if (chats === null) {
-    return { kind: 'loading' }
+    return { kind: 'loading', what: 'chat' }
   }
   const chat = chats.find((candidate) => candidate.id === chatId)
   return chat ? { kind: 'chat', folder, chat } : { kind: 'home', folder }

@@ -10,7 +10,7 @@
  * thread item is rewritten in place when its state changes, like a tool call. Only the chat's own
  * thread can sign the chat out.
  */
-import type { ChatItem, ModelOption } from '../../../shared/agents/chat'
+import type { ChatItem, ErrorProblem, ModelOption } from '../../../shared/agents/chat'
 import type { ChatOpenView, ChatPushEvent } from '../../../shared/agents/chatApi'
 import type { AgentAuthState } from '../../../shared/desktop/api'
 import type { PillState } from '../components/StatePill'
@@ -112,11 +112,17 @@ export function openSession(chatId: string): SessionState {
   return { chatId, phase: 'loading', entries: [], running: false, auth: NO_AUTH_NEWS, queued: [], error: null }
 }
 
-/** A stored item of any thread: shown, and an `auth_required` one of the chat's own thread also means the agent is signed out with a turn to retry. */
+/**
+ * A stored item of any thread: shown, and an `auth_required` one of the chat's own thread also means the agent is
+ * signed out. A turn is waiting to be retried unless the item says none was cut short (a sign-in lost while no turn
+ * ran), and one that was already waiting still is; an item that does not say counts as having cut one short.
+ */
 function applyStored(state: SessionState, item: ChatItem): SessionState {
-  const signedOut = item.kind === 'auth_required' && item.threadId === undefined
-  const auth: ChatAuth = signedOut ? { agent: 'signed_out', cutShort: true, retried: false } : state.auth
-  return { ...state, entries: applyItem(state.entries, item), auth }
+  const entries = applyItem(state.entries, item)
+  if (item.kind !== 'auth_required' || item.threadId !== undefined) {
+    return { ...state, entries }
+  }
+  return { ...state, entries, auth: { agent: 'signed_out', cutShort: item.cutShort !== false || state.auth.cutShort, retried: false } }
 }
 
 /** A turn starting leaves nothing to retry: the main process forgets the cut-short message when one starts. */
@@ -134,6 +140,9 @@ function applyEvent(state: SessionState, event: ChatPushEvent): SessionState {
       return applyTurn(state, event.running)
     case 'agent_auth':
       return { ...state, auth: { ...state.auth, agent: event.state, retried: event.state === 'signed_out' ? false : state.auth.retried } }
+    case 'chats_changed':
+      // The chat list is not part of a transcript; `useChats` follows it.
+      return state
   }
 }
 
@@ -264,6 +273,8 @@ export function callStatus(status: ToolCallItem['status']): { state: PillState; 
       return { state: 'failed', label: 'Failed' }
     case 'denied':
       return { state: 'blocked', label: 'Denied' }
+    case 'cancelled':
+      return { state: 'canceled', label: 'Cancelled' }
   }
 }
 
@@ -288,6 +299,9 @@ export function modelChangeText(from: string | null, to: string, labels: Readonl
   return `${head} It takes effect from the next turn.`
 }
 
+/** The notice a stopped turn leaves after the message it was answering. */
+export const STOPPED_TEXT = 'You stopped this turn before the agent finished.'
+
 const RESET_TEXTS: Readonly<Record<ResetItem['reason'], string>> = {
   compact: 'The earlier conversation was compacted.',
   clear: 'The context was cleared.',
@@ -298,6 +312,32 @@ const RESET_TEXTS: Readonly<Record<ResetItem['reason'], string>> = {
 /** A context reset: the agent's own message when it gave one, else the reason in words. */
 export function resetText(reason: ResetItem['reason'], message: string | undefined): string {
   return message !== undefined && message !== '' ? message : RESET_TEXTS[reason]
+}
+
+interface ProblemNotice {
+  title: string
+  /** What the person can do about it; always says that signing in again will not. */
+  advice: string
+}
+
+const PROBLEM_NOTICES: Readonly<Record<ErrorProblem, ProblemNotice>> = {
+  organization_not_allowed: {
+    title: 'Organization not allowed',
+    advice: 'The organization behind this account does not allow this agent. Ask its administrator, or use another account. Signing in again will not change this.'
+  },
+  account_on_hold: {
+    title: 'Account on hold',
+    advice: 'The account is on hold. Sort it out with the agent’s provider. Signing in again will not change this.'
+  },
+  verification_required: {
+    title: 'Verification required',
+    advice: 'The account has to be verified with the agent’s provider before it can be used. Signing in again will not change this.'
+  }
+}
+
+/** What a problem with the account is called, and what to do about it: the notice that stands in for a plain error. */
+export function problemNotice(problem: ErrorProblem): ProblemNotice {
+  return PROBLEM_NOTICES[problem]
 }
 
 const DECISION_WORDS: Readonly<Record<Exclude<DecisionItem['decision'], 'cancelled'>, string>> = {

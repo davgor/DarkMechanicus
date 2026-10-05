@@ -69,6 +69,17 @@ describe('App Agents block', () => {
     expect(openChatTitle()).toBe('Old plan')
   })
 
+  it('says it is loading the chat, not the folders, while the folder of a stored chat is still being listed', async () => {
+    window.localStorage.setItem('dm.selection', JSON.stringify({ folderPath: '/a', epicId: null, chatId: 'chat_old' }))
+    const gate = h.dm.chats.hold('list')
+    await mount()
+    expect(screen.getByRole('status').textContent).toBe('Loading chat…')
+    gate.resolve()
+    await settle()
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(openChatTitle()).toBe('Old plan')
+  })
+
   it('falls back to the folder home when the stored chat is gone', async () => {
     window.localStorage.setItem('dm.selection', JSON.stringify({ folderPath: '/a', epicId: null, chatId: 'chat_deleted' }))
     await mount()

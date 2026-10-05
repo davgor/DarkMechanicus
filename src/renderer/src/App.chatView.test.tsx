@@ -41,6 +41,7 @@ describe('App chat view', () => {
   it('opens the chat in the main area with its stored transcript and a composer', async () => {
     await openChat()
     expect(h.dm.chats.callsOf('open')).toEqual([[{ folder: '/a', chatId: 'chat_a' }]])
+    expect(h.dm.chats.callsOf('read')).toEqual([])
     expect(screen.getByRole('heading', { level: 1, name: 'Fix the build' })).toBeTruthy()
     expect(within(screen.getByRole('log', { name: 'Transcript' })).getByText('Why is CI red?')).toBeTruthy()
     expect(screen.getByRole('textbox', { name: 'Message' })).toBeTruthy()

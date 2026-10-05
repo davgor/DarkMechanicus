@@ -1,13 +1,14 @@
 # Baseline ignore for ts-prune (one pattern per line)
 # Generated from tsconfig.node.json + tsconfig.web.json
 # Refresh after export moves/deletes: npm run deadcode:refresh
-# Refreshed 2026-10-05 (93 entries)
+# Refreshed 2026-10-05 (94 entries)
 
 electron.vite.config.ts:37 - default
-src/core/claimTokenMask.ts:22 - CLAIM_TOKEN_MASK
-src/core/claimTokenMask.ts:50 - maskClaimTokensDeep
-src/core/claimTokenMask.ts:55 - StreamMasker
-src/core/claimTokenMask.ts:66 - createStreamMasker
+src/core/claimTokenMask.ts:35 - CLAIM_TOKEN_MASK
+src/core/claimTokenMask.ts:46 - clipMasked
+src/core/claimTokenMask.ts:73 - maskClaimTokensDeep
+src/core/claimTokenMask.ts:78 - StreamMasker
+src/core/claimTokenMask.ts:89 - createStreamMasker
 src/core/definitionOfDone.ts:12 - checkNameKey
 src/core/plan/acceptance.ts:35 - acceptanceNodeOf
 src/core/plan/graph.ts:112 - checkEdgeAddition
@@ -23,14 +24,14 @@ src/core/plan/graph.ts:584 - SprintRow
 src/core/plan/graph.ts:595 - planRows
 src/preload/index.ts:25 - AutoUpdateApi
 src/preload/index.ts:26 - AppInfoApi
-src/shared/agents/chat.ts:157 - ApprovalCategory
-src/shared/agents/chat.ts:168 - McpServerSpec
-src/shared/agents/chat.ts:175 - ChatAdapterStartOptions
-src/shared/agents/chat.ts:192 - ChatAdapterEvent
-src/shared/agents/chat.ts:205 - ChatAdapterEmit
-src/shared/agents/chat.ts:212 - ChatAdapter
-src/shared/agents/chat.ts:34 - chatIdSchema
-src/shared/agents/chat.ts:81 - APPROVAL_DECISIONS
+src/shared/agents/chat.ts:189 - ApprovalCategory
+src/shared/agents/chat.ts:200 - McpServerSpec
+src/shared/agents/chat.ts:207 - ChatAdapterStartOptions
+src/shared/agents/chat.ts:224 - ChatAdapterEvent
+src/shared/agents/chat.ts:237 - ChatAdapterEmit
+src/shared/agents/chat.ts:244 - ChatAdapter
+src/shared/agents/chat.ts:38 - chatIdSchema
+src/shared/agents/chat.ts:87 - APPROVAL_DECISIONS
 src/shared/agents/chatApi.ts:15 - ChatRequestRef
 src/shared/agents/chatApi.ts:49 - SendChatRequest
 src/shared/agents/chatApi.ts:53 - SetChatModelRequest

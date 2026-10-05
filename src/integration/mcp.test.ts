@@ -1,6 +1,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import type { Workspace } from '../core/workspace'
 import { createMcpServer } from '../mcp/server'
 import type { SessionRole } from '../shared/domain/views'
 import { createHarness, type Harness } from '../test/workspaceHarness'
@@ -189,5 +190,66 @@ describe('named capability profiles over MCP', () => {
     const client = await connect(harness, 'worker', false)
     const denied = await call(client, 'save_profile', { name: 'deep-review', capability: REVIEW_CAPABILITY })
     expect(denied.error).toEqual({ code: 'unauthorized', message: 'This worker session is not permitted to perform "profile.write".', details: { role: 'worker', capability: 'profile.write', tool: 'save_profile' } })
+  })
+})
+
+describe('resume_run over MCP for a run paused for sign-in', () => {
+  let harness: Harness
+
+  beforeEach(() => {
+    harness = createHarness()
+  })
+
+  afterEach(() => {
+    harness.cleanup()
+  })
+
+  /** An orchestrator MCP client with a running run, and the desktop's own session on the same repository. */
+  async function runningRun(): Promise<{ orchestrator: Client; desktop: Workspace; runId: string }> {
+    const orchestrator = await connect(harness, 'orchestrator', true)
+    data(await call(orchestrator, 'initialize_repository', { name: 'signed-out-repo' }))
+    const epic = data<{ id: string }>(await call(orchestrator, 'create_epic', { title: 'Sign-in pause' }))
+    const ticket = data<{ draftRevision: number }>(await call(orchestrator, 'create_ticket', { epicId: epic.id, ticket: { title: 'Only ticket' } }))
+    data(await call(orchestrator, 'save_plan', { epicId: epic.id, expectedDraftRevision: ticket.draftRevision }))
+    const run = data<{ id: string; state: string }>(await call(orchestrator, 'start_run', { epicId: epic.id }))
+    expect(run.state).toBe('running')
+    return { orchestrator, desktop: harness.open('desktop'), runId: run.id }
+  }
+
+  it('fails with unauthorized naming the desktop app, and only the desktop resumes the run', async () => {
+    const { orchestrator, desktop, runId } = await runningRun()
+    await desktop.pauseRun({ runId, reason: 'signed_out' })
+
+    const refused = await call(orchestrator, 'resume_run', { runId })
+
+    expect(refused.error).toEqual({
+      code: 'unauthorized',
+      message: 'This run is paused because its agent was signed out. The person resumes it in the desktop app, with Resume run.',
+      details: { role: 'orchestrator', capability: 'run.resume_signed_out' }
+    })
+    expect(data<{ state: string; pauseReason: string }>(await call(orchestrator, 'get_run', { runId }))).toMatchObject({
+      state: 'paused',
+      pauseReason: 'signed_out'
+    })
+    expect(await desktop.resumeRun({ runId })).toMatchObject({ state: 'running', pauseReason: null })
+  })
+
+  it('still resumes a run paused for any other reason', async () => {
+    const { orchestrator, runId } = await runningRun()
+    data(await call(orchestrator, 'pause_run', { runId, reason: 'lunch' }))
+
+    expect(data<{ state: string; pauseReason: string | null }>(await call(orchestrator, 'resume_run', { runId }))).toMatchObject({
+      state: 'running',
+      pauseReason: null
+    })
+  })
+
+  it('refuses it as well after the desktop marked a run paused for another reason as signed out', async () => {
+    const { orchestrator, desktop, runId } = await runningRun()
+    data(await call(orchestrator, 'pause_run', { runId, reason: 'lunch' }))
+    await desktop.pauseRun({ runId, reason: 'signed_out' })
+
+    expect((await call(orchestrator, 'resume_run', { runId })).error?.code).toBe('unauthorized')
+    expect(await desktop.resumeRun({ runId })).toMatchObject({ state: 'running' })
   })
 })

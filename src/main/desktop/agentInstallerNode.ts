@@ -9,9 +9,9 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { open } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { killProcessTree, startsOwnGroup } from '../agents/processTree'
 import type { InstallerFiles, InstallerHttp, InstallOutcome, InstallRunner } from './agentInstaller'
 import type { InstallEnvironment } from './agentInstallRecipes'
-import { killTree } from './agentProbeNode'
 
 /** Installer scripts are a few tens of kilobytes; anything near this is not one. */
 const DEFAULT_MAX_BYTES = 5 * 1024 * 1024
@@ -109,12 +109,14 @@ function spawnFailure(error: unknown): InstallOutcome {
 
 /**
  * Starts the installer without a shell and resolves with how it ended, never rejecting. Output is
- * stdout and stderr together, keeping the end; the process (tree) is killed when `timeoutMs` passes.
+ * stdout and stderr together, keeping the end; the process tree is killed when `timeoutMs` passes, and
+ * the timeout is reported once it is gone.
  */
 export const runInstallerProcess: InstallRunner = (launch, timeoutMs) =>
   new Promise<InstallOutcome>((resolve) => {
     let tail = ''
     let settled = false
+    let timedOut = false
     const finish = (outcome: InstallOutcome): void => {
       if (!settled) {
         settled = true
@@ -126,6 +128,8 @@ export const runInstallerProcess: InstallRunner = (launch, timeoutMs) =>
       child = spawn(launch.file, [...launch.args], {
         shell: false,
         windowsHide: true,
+        // A group of its own is what lets a timeout reach what the installer started (macOS and Linux).
+        detached: startsOwnGroup(),
         // No stdin: an installer that asks a question sees end-of-file instead of waiting out the timeout.
         stdio: ['ignore', 'pipe', 'pipe'],
         env: { ...process.env, ...launch.env }
@@ -135,8 +139,10 @@ export const runInstallerProcess: InstallRunner = (launch, timeoutMs) =>
       return
     }
     const timer = setTimeout(() => {
-      killTree(child)
-      finish({ kind: 'timed_out', output: tail })
+      timedOut = true
+      void killProcessTree(child).then(() => {
+        finish({ kind: 'timed_out', output: tail })
+      })
     }, timeoutMs)
     const collect = (chunk: string): void => {
       tail = (tail + chunk).slice(-MAX_TAIL_CHARS)
@@ -149,7 +155,7 @@ export const runInstallerProcess: InstallRunner = (launch, timeoutMs) =>
     })
     child.on('close', (code) => {
       clearTimeout(timer)
-      finish({ kind: 'exited', exitCode: code ?? -1, output: tail })
+      finish(timedOut ? { kind: 'timed_out', output: tail } : { kind: 'exited', exitCode: code ?? -1, output: tail })
     })
   })
 

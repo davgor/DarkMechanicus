@@ -13,6 +13,10 @@
  * (`parentItemId`), a `label` and a `state`, and every item of the subagent carries that thread
  * item's `id` as its `threadId`. The thread item is written again, by the same id, when its state
  * changes. An approval request raised inside a thread carries its `threadId` and `threadLabel`.
+ *
+ * Ended work. A turn the person stops leaves a `turn_stopped` item. A tool call or thread that cannot
+ * finish because its agent ended is written again, by the same id, as `cancelled` (a call) or `failed`
+ * (a thread): when its approval is cancelled, and when the chat is opened with no live agent.
  */
 import { z } from 'zod'
 import { AGENT_KINDS } from '../desktop/agentKinds'
@@ -69,14 +73,16 @@ const itemBase = {
   threadId: z.string().min(1).optional()
 }
 
-const TOOL_CALL_STATUSES = ['running', 'completed', 'failed', 'denied'] as const
+/** `cancelled`: the call can no longer finish, because its turn was stopped or its agent ended (quit, idle stop, a failed turn). */
+const TOOL_CALL_STATUSES = ['running', 'completed', 'failed', 'denied', 'cancelled'] as const
 
 /** What an approval request asks to do. Reads and searches inside the folder never ask. */
 const APPROVAL_CATEGORIES = ['file_edit', 'command', 'other'] as const
 
 /**
  * The person's answers; each reaches the adapter as a distinct outcome. `allow_chat` also answers
- * later requests of the same category and tool in the same chat, until the app quits.
+ * later requests of the same category and tool in the same chat, until the app quits. On a call to a
+ * tool of the chat's own Dark Mechanicus server it answers later calls to any tool of that server.
  */
 export const APPROVAL_DECISIONS = ['allow_once', 'allow_chat', 'deny'] as const
 
@@ -87,6 +93,16 @@ const CONTEXT_RESET_REASONS = ['model_change', 'compact', 'clear', 'session_lost
 
 /** How a nested thread is going: its subagent is working, finished, or ended without finishing. */
 const THREAD_STATES = ['running', 'done', 'failed'] as const
+
+/**
+ * What an `error` item says is wrong with the person's account at the agent's vendor, for the states that
+ * signing in again cannot fix: the account's organization does not allow the agent, the account is on hold,
+ * or it has to be verified first. Named by what they are, not by any vendor's wording; each adapter maps its
+ * own error names onto them.
+ */
+export const ERROR_PROBLEMS = ['organization_not_allowed', 'account_on_hold', 'verification_required'] as const
+
+export type ErrorProblem = (typeof ERROR_PROBLEMS)[number]
 
 export const chatItemSchema = z.discriminatedUnion('kind', [
   z.object({ ...itemBase, kind: z.literal('user_message'), text: z.string() }),
@@ -111,7 +127,12 @@ export const chatItemSchema = z.discriminatedUnion('kind', [
     /** The raw detail the vendor sent (the command, the edit), as the adapter passes it on. */
     input: toolInputSchema.optional(),
     /** The label of the thread (`threadId`) the request was raised in; absent in the chat's own thread. */
-    threadLabel: z.string().min(1).optional()
+    threadLabel: z.string().min(1).optional(),
+    /**
+     * Set by the session manager, never by an adapter: the request is a call to a tool of the chat's own Dark
+     * Mechanicus server, so Allow for this chat covers every tool of that server. Absent for any other request.
+     */
+    ownServer: z.boolean().optional()
   }),
   z.object({
     ...itemBase,
@@ -122,7 +143,16 @@ export const chatItemSchema = z.discriminatedUnion('kind', [
     automatic: z.boolean().optional()
   }),
   z.object({ ...itemBase, kind: z.literal('model_change'), from: z.string().nullable(), to: z.string().min(1) }),
-  z.object({ ...itemBase, kind: z.literal('error'), message: z.string(), code: z.string().optional() }),
+  z.object({
+    ...itemBase,
+    kind: z.literal('error'),
+    message: z.string(),
+    code: z.string().optional(),
+    /** Set when the error is a state of the person's account (see `ERROR_PROBLEMS`); a plain failure leaves it out, as every error stored before did. */
+    problem: z.enum(ERROR_PROBLEMS).optional()
+  }),
+  /** The person pressed Stop and the turn ended; it sits after whatever the agent had stored by then, so a message with no reply still says why. */
+  z.object({ ...itemBase, kind: z.literal('turn_stopped') }),
   z.object({
     ...itemBase,
     kind: z.literal('context_reset'),
@@ -132,9 +162,11 @@ export const chatItemSchema = z.discriminatedUnion('kind', [
   /**
    * The agent's CLI said its sign-in is gone (expired, revoked, never done) and ended the turn. `message`
    * is the CLI's own words, with claim tokens masked when stored; `at` is when it said so. The message
-   * that was cut short is recorded on the chat (`cutShortMessageId`).
+   * that was cut short is recorded on the chat (`cutShortMessageId`). `cutShort` says whether a turn was
+   * waiting to be sent again when this was stored; it is false for a sign-in lost while no turn ran, and
+   * absent on items stored before it existed.
    */
-  z.object({ ...itemBase, kind: z.literal('auth_required'), agent: z.enum(AGENT_KINDS), message: z.string() }),
+  z.object({ ...itemBase, kind: z.literal('auth_required'), agent: z.enum(AGENT_KINDS), message: z.string(), cutShort: z.boolean().optional() }),
   /**
    * A nested thread: the work of a subagent. The items inside carry this item's `id` as their
    * `threadId`; this item is rewritten, by the same id, as `state` changes.

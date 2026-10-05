@@ -145,7 +145,7 @@ function MainPane(props: PaneProps): JSX.Element | null {
   const { view, actions } = shell
   switch (view.kind) {
     case 'loading':
-      return <LoadingView />
+      return <LoadingView what={view.what} />
     case 'welcome':
       return <WelcomeView onTrack={() => void actions.track()} />
     case 'add-agent':
