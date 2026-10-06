@@ -1,0 +1,25 @@
+/* A folder's page: header, tab strip, panel. */
+.folder-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.folder-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 28px 40px 12px;
+}
+
+.folder-tabs {
+  padding: 0 40px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.folder-panel {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}

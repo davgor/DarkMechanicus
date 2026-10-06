@@ -12,6 +12,8 @@ import type { Expansion } from '../sidebar/useExpansion'
 import { activeFolderPaths } from './activePaths'
 import { chooseView } from './chooseView'
 import type { MainView } from './chooseView'
+import { folderTabOf, isFolderTabs } from './folderTabs'
+import type { FolderTab, FolderTabs } from './folderTabs'
 import { epicToken, folderToken } from './eventRouting'
 import type { Landing } from './landing'
 import type { Tokens } from './eventRouting'
@@ -30,6 +32,7 @@ import { useRefreshTick } from './useRefreshTick'
 import { useStorageStatus } from './useStorageStatus'
 
 const SELECTION_STORAGE_KEY = 'dm.selection'
+const FOLDER_TABS_STORAGE_KEY = 'dm.folderTabs'
 
 export interface ShellModel {
   folders: TrackedFolderView[]
@@ -50,6 +53,8 @@ export interface ShellModel {
    * show, until that screen took it (`actions.landed`) or the person went somewhere else.
    */
   landing: Landing | null
+  /** Remembers which tab the folder page opens on for a folder. */
+  setFolderTab(folderPath: string, tab: FolderTab): void
   /** Refresh token for an epic view: changes whenever events touch that epic. */
   epicToken(folderPath: string, epicId: string): number
 }
@@ -91,6 +96,34 @@ function useSelection(
   return { selection: resolveSelection(stored, folders.folders, folders.loaded, known), select, paths, chats }
 }
 
+/** What the main area shows for the selection, with the data it was reconciled against. */
+function shellView(input: {
+  folders: ReturnType<typeof useFolders>
+  selected: TrackedFolderView | null
+  selection: Selection
+  chats: readonly ChatRecord[] | null
+  agents: readonly AgentView[] | null
+  folderTabs: FolderTabs
+}): MainView {
+  const { folders, selected, selection, chats, agents, folderTabs } = input
+  return chooseView({
+    loaded: folders.loaded,
+    folder: selected,
+    epicId: selection.epicId,
+    chatId: selection.chatId,
+    chats,
+    agentPane: selection.agentPane,
+    agents,
+    folderTab: folderTabOf(folderTabs, selection.folderPath)
+  })
+}
+
+/** The tab each folder page was left on, and a setter that remembers one. */
+function useFolderTabs(): [FolderTabs, (folderPath: string, tab: FolderTab) => void] {
+  const [tabs, setTabs] = usePersistentState<FolderTabs>(FOLDER_TABS_STORAGE_KEY, {}, isFolderTabs)
+  return [tabs, (folderPath, tab) => setTabs((previous) => ({ ...previous, [folderPath]: tab }))]
+}
+
 /** The storage status of the folder the footer describes, refreshed by its events and on a timer. */
 function useFooterStatus(
   path: string | null,
@@ -114,6 +147,7 @@ export function useShell(scheduler: Scheduler): ShellModel {
   const expansion = useExpansion()
   const [busy, setBusy] = useState(IDLE)
   const [landing, setLanding] = useState<Landing | null>(null)
+  const [folderTabs, setFolderTab] = useFolderTabs()
   const { selection, select, paths, chats } = useSelection(folders, connected, expansion, toasts.reportError)
   const selected = findFolder(folders.folders, selection.folderPath)
   const feed = useEventFeed({ paths, selectedPath: selection.folderPath, scheduler, onError: toasts.reportError })
@@ -137,14 +171,13 @@ export function useShell(scheduler: Scheduler): ShellModel {
   return {
     folders: folders.folders,
     selection,
-    view: chooseView({
-      loaded: folders.loaded,
-      folder: selected,
-      epicId: selection.epicId,
-      chatId: selection.chatId,
+    view: shellView({
+      folders,
+      selected,
+      selection,
       chats: knownChats(chats, selection.folderPath),
-      agentPane: selection.agentPane,
-      agents: connected
+      agents: connected,
+      folderTabs
     }),
     lists,
     status,
@@ -154,6 +187,7 @@ export function useShell(scheduler: Scheduler): ShellModel {
     busy,
     actions,
     landing,
+    setFolderTab,
     epicToken: (path, epicId) => epicToken(feed.tokens, path, epicId)
   }
 }

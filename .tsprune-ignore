@@ -22,8 +22,8 @@ src/core/plan/graph.ts:528 - dependentsOf
 src/core/plan/graph.ts:532 - sortedSprints
 src/core/plan/graph.ts:584 - SprintRow
 src/core/plan/graph.ts:595 - planRows
-src/preload/index.ts:25 - AutoUpdateApi
-src/preload/index.ts:26 - AppInfoApi
+src/preload/index.ts:26 - AutoUpdateApi
+src/preload/index.ts:27 - AppInfoApi
 src/shared/agents/chat.ts:189 - ApprovalCategory
 src/shared/agents/chat.ts:200 - McpServerSpec
 src/shared/agents/chat.ts:207 - ChatAdapterStartOptions

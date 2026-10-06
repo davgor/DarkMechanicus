@@ -36,16 +36,11 @@ export function FolderHome(props: FolderHomeProps): JSX.Element {
   const titles = Object.fromEntries(props.list.epics.map((epic) => [epic.id, epic.title]))
   return (
     <div className="home">
-      <header className="home-header">
-        <div>
-          <span className="eyebrow">FOLDER</span>
-          <h1 className="display">{folder.name}</h1>
-          <span className="mono muted">{folder.displayPath}</span>
-        </div>
+      <div className="home-actions">
         <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>
           New epic
         </Button>
-      </header>
+      </div>
       <div className="home-grid">
         <div className="home-primary">
           <section className="home-section" aria-label="Epics">

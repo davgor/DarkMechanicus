@@ -10,6 +10,7 @@ let h: AppHarness
 beforeEach(() => {
   window.localStorage.clear()
   h = new AppHarness()
+  h.rememberEpicsTab('/a')
   h.dm.folders = [folderView({ path: '/a', name: 'alpha', displayPath: '~/code/alpha' })]
 })
 

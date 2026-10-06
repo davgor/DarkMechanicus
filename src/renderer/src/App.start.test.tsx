@@ -10,6 +10,7 @@ let h: AppHarness
 beforeEach(() => {
   window.localStorage.clear()
   h = new AppHarness()
+  h.rememberEpicsTab(setup.path)
 })
 
 afterEach(cleanup)
@@ -54,7 +55,7 @@ describe('App first run', () => {
     await settle()
     fireEvent.click(screen.getByRole('button', { name: 'Choose folder' }))
     await settle()
-    expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('new-service')
+    expect(screen.getAllByRole('heading', { level: 1 })[0]?.textContent).toContain('new-service')
   })
 })
 
@@ -65,7 +66,7 @@ describe('App onboarding', () => {
     await settle()
     fireEvent.click(screen.getByRole('button', { name: 'Track a folder' }))
     await settle()
-    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('new-service isn’t set up for Dark Mechanicus yet')
+    expect(screen.getByRole('heading', { level: 1, name: /set up for Dark Mechanicus yet/ })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Setup required' }).getAttribute('aria-current')).toBe('true')
     expect(screen.getByLabelText('MCP server configuration')).toBeTruthy()
   })

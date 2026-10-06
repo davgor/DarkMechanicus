@@ -68,10 +68,10 @@ function renderHome(create: () => Promise<EpicDetailView | null> = () => Promise
 const IMPORTED = boardImport({ open: [boardOpenEpic({ state: 'created', epicId: EPIC_A })] })
 
 describe('FolderHome layout', () => {
-  it('names the folder and shows where it lives', async () => {
+  it('leaves the folder header to the folder page', async () => {
     renderHome()
-    expect(screen.getByRole('heading', { level: 1, name: 'alpha' })).toBeTruthy()
-    expect(screen.getByText('~/code/alpha')).toBeTruthy()
+    expect(screen.queryByRole('heading', { level: 1 })).toBeNull()
+    expect(screen.getByRole('button', { name: 'New epic' })).toBeTruthy()
     await settle()
   })
 

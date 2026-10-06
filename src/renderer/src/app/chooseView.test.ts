@@ -11,9 +11,11 @@ const CASES: [string, Parameters<typeof chooseView>[0], MainView][] = [
   ['folders are still loading', { loaded: false, folder: ready, epicId: null }, { kind: 'loading', what: 'folders' }],
   ['no folder is selected', { loaded: true, folder: null, epicId: null }, { kind: 'welcome' }],
   ['the folder is gone', { loaded: true, folder: missing, epicId: null }, { kind: 'unavailable', folder: missing }],
-  ['the folder is not initialized', { loaded: true, folder: setup, epicId: null }, { kind: 'onboarding', folder: setup }],
+  ['the folder is not initialized', { loaded: true, folder: setup, epicId: null }, { kind: 'folder', folder: setup, tab: 'source' }],
   ['an epic is selected', { loaded: true, folder: ready, epicId: 'ep_1' }, { kind: 'epic', folder: ready, epicId: 'ep_1' }],
-  ['no epic is selected', { loaded: true, folder: ready, epicId: null }, { kind: 'home', folder: ready }]
+  ['no epic is selected', { loaded: true, folder: ready, epicId: null }, { kind: 'folder', folder: ready, tab: 'source' }],
+  ['the folder was left on Epics', { loaded: true, folder: ready, epicId: null, folderTab: 'epics' }, { kind: 'folder', folder: ready, tab: 'epics' }],
+  ['an uninitialized folder was left on Epics', { loaded: true, folder: setup, epicId: null, folderTab: 'epics' }, { kind: 'folder', folder: setup, tab: 'epics' }]
 ]
 
 describe('chooseView', () => {
@@ -22,7 +24,7 @@ describe('chooseView', () => {
   })
 
   it('ignores a stale epic on an uninitialized folder', () => {
-    expect(chooseView({ loaded: true, folder: setup, epicId: 'ep_1' }).kind).toBe('onboarding')
+    expect(chooseView({ loaded: true, folder: setup, epicId: 'ep_1' }).kind).toBe('folder')
   })
 
   it('ignores a stale epic on an unavailable folder', () => {
@@ -65,8 +67,9 @@ describe('chooseView with an agents pane', () => {
   it('falls back to the folder view when the agent is gone', () => {
     const pane = { kind: 'agent', agent: 'codex' } as const
     expect(chooseView({ loaded: true, folder: ready, epicId: null, agentPane: pane, agents: [claude] })).toEqual({
-      kind: 'home',
-      folder: ready
+      kind: 'folder',
+      folder: ready,
+      tab: 'source'
     })
   })
 
@@ -89,11 +92,11 @@ describe('chooseView with a chat', () => {
   })
 
   it('falls back to the folder home when the chat is gone', () => {
-    expect(chooseView({ ...open, chats: [chatRecord({ id: 'chat_2' })] })).toEqual({ kind: 'home', folder: ready })
+    expect(chooseView({ ...open, chats: [chatRecord({ id: 'chat_2' })] })).toEqual({ kind: 'folder', folder: ready, tab: 'source' })
   })
 
   it('never shows a chat for a folder that cannot hold one', () => {
-    expect(chooseView({ ...open, folder: setup, chats: [chat] }).kind).toBe('onboarding')
+    expect(chooseView({ ...open, folder: setup, chats: [chat] }).kind).toBe('folder')
     expect(chooseView({ ...open, folder: missing, chats: [chat] }).kind).toBe('unavailable')
   })
 

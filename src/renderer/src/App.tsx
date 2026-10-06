@@ -23,8 +23,10 @@ import { UpdateBanner, useAppUpdate } from './autoUpdate/UpdateBanner'
 import { EpicWorkspace } from './epic/EpicWorkspace'
 import type { EpicWorkspaceProps } from './epic/EpicWorkspace'
 import type { OrchestrationHost } from './epic/orchestration'
+import { FolderPage } from './folder/FolderPage'
 import { FolderHome } from './home/FolderHome'
 import { OnboardingView } from './onboarding/OnboardingView'
+import { SourceControlView } from './source/SourceControlView'
 import { Sidebar } from './sidebar/Sidebar'
 import { SidebarFooter } from './sidebar/SidebarFooter'
 import { UntrackDialog } from './sidebar/UntrackDialog'
@@ -40,6 +42,7 @@ interface AppProps {
 
 interface PaneProps {
   shell: ShellModel
+  scheduler: Scheduler
   EpicView: EpicView
   onRequestUntrack(folder: TrackedFolderView): void
 }
@@ -114,16 +117,19 @@ function ChatPane({ shell, folder, chat }: ChatPaneProps): JSX.Element {
   return <ChatView chat={chat} onAgentStatus={shell.agents.recordStatus} navigation={navigation} landing={threadLandingFor(shell.landing, chat.id)} onLanded={onLanded} />
 }
 
-/** An open folder: either one of its epics, or the folder home. */
-function FolderPane({ shell, EpicView }: PaneProps): JSX.Element | null {
-  const { view, actions } = shell
-  if (view.kind === 'epic') {
-    return <EpicPane shell={shell} EpicView={EpicView} folder={view.folder} epicId={view.epicId} />
+/** The Epics tab: the folder home for an initialized folder, onboarding for one that is not. */
+function EpicsPanel({ shell, folder }: { shell: ShellModel; folder: TrackedFolderView }): JSX.Element {
+  const { actions } = shell
+  if (!folder.initialized) {
+    return (
+      <OnboardingView
+        folder={folder}
+        busy={shell.busy.initialize}
+        onInitialize={(options) => void actions.initialize(folder, options)}
+        onChooseDifferent={() => void actions.track()}
+      />
+    )
   }
-  if (view.kind !== 'home') {
-    return null
-  }
-  const { folder } = view
   return (
     <FolderHome
       key={folder.path}
@@ -137,6 +143,23 @@ function FolderPane({ shell, EpicView }: PaneProps): JSX.Element | null {
       onReconcile={() => void actions.reconcile()}
       onImportBoard={() => actions.importBoard(folder)}
     />
+  )
+}
+
+/** An open folder: either one of its epics, or the folder page with its Source control and Epics tabs. */
+function FolderPane({ shell, scheduler, EpicView }: PaneProps): JSX.Element | null {
+  const { view } = shell
+  if (view.kind === 'epic') {
+    return <EpicPane shell={shell} EpicView={EpicView} folder={view.folder} epicId={view.epicId} />
+  }
+  if (view.kind !== 'folder') {
+    return null
+  }
+  const { folder, tab } = view
+  return (
+    <FolderPage key={folder.path} folder={folder} tab={tab} onTab={(next) => shell.setFolderTab(folder.path, next)}>
+      {tab === 'source' ? <SourceControlView key={folder.path} folder={folder} scheduler={scheduler} /> : <EpicsPanel shell={shell} folder={folder} />}
+    </FolderPage>
   )
 }
 
@@ -156,22 +179,15 @@ function MainPane(props: PaneProps): JSX.Element | null {
       return <ChatPane key={view.chat.id} shell={shell} folder={view.folder} chat={view.chat} />
     case 'unavailable':
       return <UnavailableView folder={view.folder} onStopTracking={props.onRequestUntrack} />
-    case 'onboarding':
-      return (
-        <OnboardingView
-          folder={view.folder}
-          busy={shell.busy.initialize}
-          onInitialize={(options) => void actions.initialize(view.folder, options)}
-          onChooseDifferent={() => void actions.track()}
-        />
-      )
     default:
       return <FolderPane {...props} />
   }
 }
 
 function ShellFooter({ shell }: { shell: ShellModel }): JSX.Element {
-  const folderReady = shell.view.kind === 'home' || shell.view.kind === 'epic' || shell.view.kind === 'chat'
+  const { view } = shell
+  const onFolder = view.kind === 'folder' || view.kind === 'epic' || view.kind === 'chat'
+  const folderReady = onFolder && view.folder.initialized
   return (
     <SidebarFooter
       status={shell.status}
@@ -250,7 +266,7 @@ function Shell({ scheduler, EpicView }: { scheduler: Scheduler; EpicView: EpicVi
         onRequestUntrack={setPending}
       />
       <main className="app-main" aria-label="Workspace">
-        <MainPane shell={shell} EpicView={EpicView} onRequestUntrack={setPending} />
+        <MainPane shell={shell} scheduler={scheduler} EpicView={EpicView} onRequestUntrack={setPending} />
       </main>
       <UpdateBanner />
       {newChatIn === null ? null : (

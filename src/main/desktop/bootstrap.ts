@@ -26,6 +26,9 @@ import { createSessionManager, type SessionManager } from '../agents/sessionMana
 import { listBoundThreads } from '../agents/boundThreads'
 import { listThreadBindings, type BindingReads } from '../agents/threadBindings'
 import { trackChatSignIn } from '../agents/signInHooks'
+import { createGitHandlers } from '../git/handlers'
+import { registerGitIpc } from '../git/ipc'
+import { createGitRunner } from '../git/runner'
 import { logger } from '../logger'
 import { getAgentAuthStatus, signInAgent } from './agentAuth'
 import { launchTerminal } from './agentAuthNode'
@@ -232,8 +235,23 @@ function startChats(ipc: Pick<IpcMain, 'handle'>, services: ChatServices): void 
   registerChatIpc(ipc, handlers)
 }
 
+/** Serves the `git:*` channels over the real git runner, for the tracked folders only. */
+function startGit(ipc: Pick<IpcMain, 'handle'>, folders: Pick<FolderRegistry, 'resolve'>): void {
+  registerGitIpc(
+    ipc,
+    createGitHandlers({
+      registry: folders,
+      runner: createGitRunner(),
+      trashItem: (path) => shell.trashItem(path),
+      onUnexpectedError: (error) => {
+        logger.error('Git request failed:', error)
+      }
+    })
+  )
+}
+
 /**
- * Registers the `dm:*`, `agents:*` and `chats:*` IPC handlers on `ipc` (the sender-guarded
+ * Registers the `dm:*`, `agents:*`, `chats:*` and `git:*` IPC handlers on `ipc` (the sender-guarded
  * registrar from `guardIpc`) and the background heartbeat/shutdown for open workspaces.
  */
 export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick<IpcMain, 'handle'>): DesktopBridge {
@@ -282,6 +300,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   registerDesktopIpc(ipc, handlers)
   setInterval(() => pool.heartbeatAll(), HEARTBEAT_INTERVAL_MS)
   app.on('before-quit', () => pool.closeAll())
+  startGit(ipc, registry)
   startChats(ipc, { folders: registry, sessions, workspaces: pool, activity })
   return { chats: sessions }
 }

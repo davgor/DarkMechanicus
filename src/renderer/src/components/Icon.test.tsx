@@ -22,6 +22,7 @@ const NAMES: IconName[] = [
   'close',
   'refresh',
   'branch',
+  'arrow-up',
   'download',
   'hourglass'
 ]

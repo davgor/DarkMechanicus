@@ -77,6 +77,14 @@
   --edge-waiting: #6f6057;
   --node-bg: #1e1917;
 
+  /* Diff view */
+  --diff-add-bg: #1b2a1f;
+  --diff-add-ink: #8fdca8;
+  --diff-del-bg: #33191f;
+  --diff-del-ink: #f29ab0;
+  --diff-hunk-bg: #2b2532;
+  --diff-gutter-ink: #a39a8c;
+
   --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   --font-serif: "IBM Plex Serif", Georgia, serif;
@@ -1864,6 +1872,11 @@ textarea.input {
   flex-direction: column;
   gap: 4px;
   min-width: 0;
+}
+
+.home-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .home-grid {

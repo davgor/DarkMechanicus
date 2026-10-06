@@ -48,7 +48,7 @@ describe('App event polling', () => {
     h.dm.folders = [...h.dm.folders, folderView({ path: '/b', name: 'beta', displayPath: '~/code/beta' })]
     h.mount()
     await settle()
-    expect(sortedIntervals()).toEqual([1500, 5000, 10_000])
+    expect(sortedIntervals()).toEqual([1500, 5000, 5000, 10_000]) // the folder page's Source control also reads its repository every 5 seconds
   })
 
   it('does not replay history when it starts', async () => {

@@ -17,6 +17,7 @@ const ICON_PATHS = {
   close: 'M4 4l8 8M12 4l-8 8',
   refresh: 'M13 8a5 5 0 1 1-1.5-3.5M13 2.5v3h-3',
   branch: 'M5 2.5v7M11 3.5v1.5a2 2 0 0 1-2 2H6.5M5 13a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z',
+  'arrow-up': 'M8 13V3M4 7l4-4 4 4',
   download: 'M8 2.5v8M4.5 7.5L8 11l3.5-3.5M3 13.5h10',
   hourglass: 'M4 2h8M4 14h8M5 2v2.5L8 8l-3 3.5V14M11 2v2.5L8 8l3 3.5V14'
 } as const

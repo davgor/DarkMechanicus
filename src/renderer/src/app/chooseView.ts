@@ -1,5 +1,6 @@
 import type { ChatRecord } from '../../../shared/agents/chat'
 import type { AgentView, TrackedFolderView } from '../../../shared/desktop/api'
+import type { FolderTab } from './folderTabs'
 import type { AgentPane } from './selection'
 
 /** What a loading view is waiting for: the tracked folders, the folder's chat list (for a stored chat), the connected agents. */
@@ -11,8 +12,8 @@ export type MainView =
   | { kind: 'loading'; what: LoadingWhat }
   | { kind: 'welcome' }
   | { kind: 'unavailable'; folder: TrackedFolderView }
-  | { kind: 'onboarding'; folder: TrackedFolderView }
-  | { kind: 'home'; folder: TrackedFolderView }
+  /** The folder's page: its Source control or Epics tab. */
+  | { kind: 'folder'; folder: TrackedFolderView; tab: FolderTab }
   | { kind: 'epic'; folder: TrackedFolderView; epicId: string }
   /** One of the folder's agent chats. */
   | { kind: 'chat'; folder: TrackedFolderView; chat: ChatRecord }
@@ -33,6 +34,8 @@ interface ViewInput {
   agentPane?: AgentPane
   /** The connected agents, or null until they have loaded. */
   agents?: readonly AgentView[] | null
+  /** The folder's remembered tab; Source control when absent. */
+  folderTab?: FolderTab
 }
 
 /** The agents screen the selection asks for, or null when the folder view applies (also for an agent that is gone). */
@@ -52,7 +55,7 @@ function chooseAgentView(pane: AgentPane | undefined, agents: readonly AgentView
 
 /** Decides what the main area shows for the current selection. */
 export function chooseView(input: ViewInput): MainView {
-  const { folder, epicId } = input
+  const { folder } = input
   if (!input.loaded) {
     return { kind: 'loading', what: 'folders' }
   }
@@ -66,23 +69,29 @@ export function chooseView(input: ViewInput): MainView {
   if (!folder.available) {
     return { kind: 'unavailable', folder }
   }
-  if (!folder.initialized) {
-    return { kind: 'onboarding', folder }
-  }
-  if (epicId !== null) {
-    return { kind: 'epic', folder, epicId }
-  }
-  return chooseChatView(folder, input.chatId ?? null, input.chats ?? null)
+  return chooseFolderView(input, folder)
 }
 
-/** The chat view for the selected chat, loading while the chats are listed, or the folder home when the chat is gone. */
-function chooseChatView(folder: TrackedFolderView, chatId: string | null, chats: readonly ChatRecord[] | null): MainView {
+/** The selected folder's page, its epic, or its chat. */
+function chooseFolderView(input: ViewInput, folder: TrackedFolderView): MainView {
+  const tab = input.folderTab ?? 'source'
+  if (!folder.initialized) {
+    return { kind: 'folder', folder, tab }
+  }
+  if (input.epicId !== null) {
+    return { kind: 'epic', folder, epicId: input.epicId }
+  }
+  return chooseChatView(folder, tab, input.chatId ?? null, input.chats ?? null)
+}
+
+/** The chat view for the selected chat, loading while the chats are listed, or the folder page when the chat is gone. */
+function chooseChatView(folder: TrackedFolderView, tab: FolderTab, chatId: string | null, chats: readonly ChatRecord[] | null): MainView {
   if (chatId === null) {
-    return { kind: 'home', folder }
+    return { kind: 'folder', folder, tab }
   }
   if (chats === null) {
     return { kind: 'loading', what: 'chat' }
   }
   const chat = chats.find((candidate) => candidate.id === chatId)
-  return chat ? { kind: 'chat', folder, chat } : { kind: 'home', folder }
+  return chat ? { kind: 'chat', folder, chat } : { kind: 'folder', folder, tab }
 }

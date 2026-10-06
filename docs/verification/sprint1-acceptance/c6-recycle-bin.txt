@@ -1,0 +1,3 @@
+Discarded three.txt via the app (scratch-b). Recycle Bin item: three.txt, $ROKUMAH.txt
+Content: three.txt CHANGED unique-three.txt
+Working file after discard: three.txt original

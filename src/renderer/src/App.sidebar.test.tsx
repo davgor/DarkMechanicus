@@ -91,6 +91,7 @@ describe('App after the epic view deletes its epic', () => {
 describe('App sidebar completed bucket', () => {
   it('reveals the completed bucket when a completed epic is opened from the folder home', async () => {
     seed()
+    h.rememberEpicsTab('/a')
     h.mount()
     await settle()
     expect(sidebar().getByRole('button', { name: 'Completed, 1 epic' }).getAttribute('aria-expanded')).toBe('false')

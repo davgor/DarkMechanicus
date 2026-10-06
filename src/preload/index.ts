@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { CHAT_EVENT_CHANNEL, type ChatPushEvent, type ChatsApi } from '../shared/agents/chatApi'
 import type { AutoUpdateState } from '../shared/autoUpdate/types'
 import type { AgentDownloadProgress, DmApi } from '../shared/desktop/api'
+import { GIT_PROGRESS_CHANNEL, type GitApi, type GitProgressEvent } from '../shared/git/api'
 
 const autoUpdate = {
   getState: (): Promise<AutoUpdateState> => ipcRenderer.invoke('autoUpdate:getState'),
@@ -81,3 +82,25 @@ const dm: DmApi = {
 }
 
 contextBridge.exposeInMainWorld('dm', dm)
+
+/** Source control: every method is one `git:*` IPC invoke; main validates each payload. */
+const git: GitApi = {
+  getState: (folder) => ipcRenderer.invoke('git:getState', folder),
+  getWorkingDiff: (folder, request) => ipcRenderer.invoke('git:getWorkingDiff', folder, request),
+  initRepository: (folder) => ipcRenderer.invoke('git:initRepository', folder),
+  commit: (folder, request) => ipcRenderer.invoke('git:commit', folder, request),
+  undoLastCommit: (folder) => ipcRenderer.invoke('git:undoLastCommit', folder),
+  discardChanges: (folder, request) => ipcRenderer.invoke('git:discardChanges', folder, request),
+  getHistory: (folder, request) => ipcRenderer.invoke('git:getHistory', folder, request),
+  getCommitFiles: (folder, oid) => ipcRenderer.invoke('git:getCommitFiles', folder, oid),
+  getCommitDiff: (folder, request) => ipcRenderer.invoke('git:getCommitDiff', folder, request),
+  onProgress: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, event: GitProgressEvent): void => {
+      listener(event)
+    }
+    ipcRenderer.on(GIT_PROGRESS_CHANNEL, handler)
+    return () => ipcRenderer.removeListener(GIT_PROGRESS_CHANNEL, handler)
+  }
+}
+
+contextBridge.exposeInMainWorld('git', git)
