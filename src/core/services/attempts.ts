@@ -344,6 +344,8 @@ function claimReadyTicket(ctx: Ctx, context: RunContext, input: ClaimTicketInput
     claimSecret: secret,
     leaseExpiresAt: addSeconds(ctx.clock.nowIso(), leaseSeconds),
     outputs: null,
+    evidence: null,
+    increment: null,
     decision: null
   })
   advanceTicketStatus(ctx, { epicId: run.epic_id, ticketId: ticket.id }, 'in_progress')
