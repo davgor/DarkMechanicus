@@ -937,3 +937,29 @@ describe('models: listing failures that say little', () => {
     await expect(listCursorModels(PATH, makeDeps(new ReplayAcpAgents(), { scheduled: [] }, { run }))).rejects.toThrow(message)
   })
 })
+
+describe('live work the idle stop must leave alone', () => {
+  it('is the running turn: Cursor does nothing between turns', async () => {
+    const agents = new ReplayAcpAgents(newChat(prompt(4, S, 'go')))
+    const rig = new Rig(agents)
+    await rig.start()
+    expect(rig.adapter.hasLiveWork()).toBe(false)
+
+    const turn = rig.adapter.send('go').catch((error: unknown) => error)
+    await promptWritten(agents)
+    expect(rig.adapter.hasLiveWork()).toBe(true)
+
+    await rig.adapter.dispose()
+    await turn
+    expect(rig.adapter.hasLiveWork()).toBe(false)
+  })
+
+  it('has none after a turn that ended', async () => {
+    const rig = new Rig(new ReplayAcpAgents(newChat(prompt(4, S, 'go'), say(S, 'Done.'), turnEnd(4))))
+    await rig.start()
+
+    await rig.adapter.send('go')
+
+    expect(rig.adapter.hasLiveWork()).toBe(false)
+  })
+})

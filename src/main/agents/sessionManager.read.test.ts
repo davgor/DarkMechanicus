@@ -255,5 +255,8 @@ describe('session manager: reading a chat a live agent holds, and one it has lef
     expect(read.pending).toEqual([])
     expect(read.running).toBe(false)
     expect(read.items.find((item) => item.id === 'th1')).toMatchObject({ state: 'failed' })
+    // The idle stop stored that settled state itself, with a notice saying why the agent stopped.
+    expect(state.store.readTranscript(chat)?.items.find((item) => item.id === 'th1')).toMatchObject({ state: 'failed' })
+    expect(read.items.at(-1)).toMatchObject({ kind: 'error', code: 'idle_stop' })
   })
 })

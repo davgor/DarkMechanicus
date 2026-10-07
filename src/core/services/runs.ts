@@ -401,6 +401,33 @@ function shiftIso(iso: string, ms: number): string {
   return new Date(Date.parse(iso) + ms).toISOString()
 }
 
+/** The run event a resume records for the leases it extended, each with its end before and after. */
+const LEASES_EXTENDED = 'run.leases_extended'
+
+interface LeaseExtension {
+  attemptId: string
+  from: string
+  to: string
+}
+
+/**
+ * The milliseconds resumes added to the attempt's lease from `since` on, giving back the time a pause for sign-in
+ * took. That time lengthens the lease without the claim or a heartbeat granting it, so it is not part of the lease
+ * length a heartbeat keeps.
+ */
+export function leaseTimeGivenBack(ctx: Ctx, attempt: Pick<AttemptRow, 'id' | 'run_id'>, since: string): number {
+  const events = ctx.db.all<{ payload_json: string }>(
+    'SELECT payload_json FROM events WHERE run_id = ? AND kind = ? AND at >= ? ORDER BY seq',
+    attempt.run_id,
+    LEASES_EXTENDED,
+    since
+  )
+  return events
+    .flatMap((event) => parseJson<{ attempts?: LeaseExtension[] }>(event.payload_json, {}).attempts ?? [])
+    .filter((extension) => extension.attemptId === attempt.id)
+    .reduce((total, extension) => total + Date.parse(extension.to) - Date.parse(extension.from), 0)
+}
+
 /**
  * A run paused for sign-in kept its open leases, so on resume each one is extended by the time the run spent
  * paused and the workers get back the lease time they had. Returns nothing to record when no lease is open, or
@@ -420,7 +447,7 @@ function extendKeptLeases(ctx: Ctx, run: RunRow): void {
   if (pausedMs <= 0 || open.length === 0) {
     return
   }
-  const attempts = open.map((row) => ({
+  const attempts = open.map((row): LeaseExtension => ({
     attemptId: row.id,
     from: row.lease_expires_at,
     to: shiftIso(row.lease_expires_at, pausedMs)
@@ -428,7 +455,7 @@ function extendKeptLeases(ctx: Ctx, run: RunRow): void {
   for (const attempt of attempts) {
     ctx.db.run('UPDATE attempts SET lease_expires_at = ?, updated_at = ? WHERE id = ?', attempt.to, now, attempt.attemptId)
   }
-  recordRun(ctx, run, 'run.leases_extended', { pausedAt: run.paused_at, extendedMs: pausedMs, attempts })
+  recordRun(ctx, run, LEASES_EXTENDED, { pausedAt: run.paused_at, extendedMs: pausedMs, attempts })
 }
 
 const SIGNED_OUT_RESUME_MESSAGE =

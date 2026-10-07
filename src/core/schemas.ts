@@ -417,7 +417,8 @@ export const hostCatalog = z.strictObject({
   hostId: z.string().min(1).max(LIMITS.label),
   hostType: z.string().min(1).max(LIMITS.label),
   catalogRevision: z.string().min(1).max(LIMITS.label),
-  tools: z.array(z.string().max(LIMITS.tag)).max(LIMITS.tags),
+  // The names ticket capability profiles require: a tool listed by any other name could never match one.
+  tools: z.array(z.enum(TOOL_CAPABILITIES)).max(TOOL_CAPABILITIES.length),
   canSelectWorkerModel: z.boolean(),
   models: z
     .array(

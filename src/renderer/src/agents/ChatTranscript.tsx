@@ -1,5 +1,5 @@
 import { memo, useLayoutEffect, useMemo, useRef, type ReactNode, type RefObject } from 'react'
-import type { ApprovalDecision, ErrorProblem } from '../../../shared/agents/chat'
+import { IDLE_STOP_CODE, type ApprovalDecision, type ErrorProblem } from '../../../shared/agents/chat'
 import type { AgentAuthStatus, AgentKind } from '../../../shared/desktop/api'
 import { Markdown } from '../markdown/Markdown'
 import { ApprovalCard } from './ApprovalCard'
@@ -121,7 +121,8 @@ function EntryRow({ entry, answer, labels, folder, onAnswer, signIn, onSignedIn,
     case 'tool_call':
       return <ToolCallRow call={entry} />
     case 'error':
-      return <ErrorRow message={entry.message} code={entry.code} problem={entry.problem} />
+      // An idle stop failed nothing: it says why the agent is not running, like the other notices.
+      return entry.code === IDLE_STOP_CODE ? <Notice>{entry.message}</Notice> : <ErrorRow message={entry.message} code={entry.code} problem={entry.problem} />
     case 'approval_request':
       return <ApprovalCard request={entry} answer={answer} folder={folder} onAnswer={onAnswer} />
     case 'auth_required':

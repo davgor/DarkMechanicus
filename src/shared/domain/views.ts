@@ -11,7 +11,8 @@ import type {
   ReasoningEffort,
   TicketContent,
   TicketKind,
-  TicketSize
+  TicketSize,
+  ToolCapability
 } from './bundle'
 import type { SprintRetro, TicketTierFacts } from './retro'
 import type {
@@ -403,7 +404,7 @@ export interface HostCatalog {
   hostId: string
   hostType: string
   catalogRevision: string
-  tools: string[]
+  tools: ToolCapability[]
   canSelectWorkerModel: boolean
   models: HostModel[]
 }
@@ -497,6 +498,11 @@ export interface GateCondition {
 
 export interface CheckpointView {
   runId: string
+  /**
+   * The run's state. A run that ended (`canceled`, `failed`, `completed`) has nothing to approve: its `approval`
+   * condition is unmet and says so, and `canAdvance` is false.
+   */
+  runState: RunState
   sprintId: string
   sprintOrdinal: number
   sprintCount: number

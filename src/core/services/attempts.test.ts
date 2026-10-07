@@ -422,6 +422,43 @@ describe('heartbeatAttempt', () => {
   })
 })
 
+describe('heartbeatAttempt — the length of the extended lease', () => {
+  it('extends a claim made longer than the plan default by the length it was claimed for', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx)
+    const claimed = claim(ctx, runId, 1, { leaseSeconds: 14_400 })
+    ctx.clock.advanceSeconds(3600)
+    const beat = heartbeatAttempt(withRole(ctx, 'worker'), { attemptId: claimed.attempt.id, claimToken: claimed.packet.claimToken })
+    expect(beat).toMatchObject({ heartbeatAt: '2026-01-01T01:00:00.000Z', leaseExpiresAt: '2026-01-01T05:00:00.000Z' })
+  })
+
+  it('extends a claim made at the plan default by the plan default', () => {
+    const ctx = createTestCtx()
+    const { runId, bundle } = startedRun(ctx)
+    const claimed = claim(ctx, runId, 1)
+    ctx.clock.advanceSeconds(300)
+    const beat = heartbeatAttempt(withRole(ctx, 'worker'), { attemptId: claimed.attempt.id, claimToken: claimed.packet.claimToken })
+    expect(bundle.policies.leaseSeconds).toBe(900)
+    expect(beat.leaseExpiresAt).toBe('2026-01-01T00:20:00.000Z')
+  })
+
+  it('keeps the length the last heartbeat named, and a length named again replaces it', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx)
+    const claimed = claim(ctx, runId, 1, { leaseSeconds: 14_400 })
+    const token = { attemptId: claimed.attempt.id, claimToken: claimed.packet.claimToken }
+    const worker = withRole(ctx, 'worker')
+    ctx.clock.advanceSeconds(60)
+    expect(heartbeatAttempt(worker, { ...token, leaseSeconds: 600 }).leaseExpiresAt).toBe('2026-01-01T00:11:00.000Z')
+    ctx.clock.advanceSeconds(60)
+    expect(heartbeatAttempt(worker, token).leaseExpiresAt).toBe('2026-01-01T00:12:00.000Z')
+    ctx.clock.advanceSeconds(60)
+    expect(heartbeatAttempt(worker, { ...token, leaseSeconds: 7200 }).leaseExpiresAt).toBe('2026-01-01T02:03:00.000Z')
+    ctx.clock.advanceSeconds(60)
+    expect(heartbeatAttempt(worker, token).leaseExpiresAt).toBe('2026-01-01T02:04:00.000Z')
+  })
+})
+
 /** A claim token in the real shape: `at_` + 26 id characters, a dot, and 32 URL-safe secret characters. */
 const LOOKALIKE_TOKEN = 'at_01j8z3k5m7n9p2q4r6s8t0v1w2.Zk9_aB3dEf7-Hj2LmN5pQr8TuVw0XyZa'
 

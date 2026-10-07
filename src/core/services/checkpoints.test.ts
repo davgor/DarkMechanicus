@@ -44,6 +44,7 @@ describe('getCheckpoint view', () => {
     const submitted = report(ctx, run)
     expect(getCheckpoint(ctx, { runId: run.runId })).toEqual({
       runId: run.runId,
+      runState: 'awaiting_checkpoint',
       sprintId: sid(1),
       sprintOrdinal: 1,
       sprintCount: 2,
@@ -70,6 +71,44 @@ describe('getCheckpoint view', () => {
     })
   })
 
+})
+
+describe('getCheckpoint of a run that has ended', () => {
+  // On 2026-10-06 an orchestrator read the checkpoint of a run canceled 6 minutes earlier and asked the person to approve it.
+  it.each(['canceled', 'failed', 'completed'] as const)('says a %s run has nothing to approve, and that it cannot advance', (state) => {
+    const { ctx, run } = setup()
+    acceptTickets(ctx, run, [1, 2])
+    report(ctx, run)
+    setRunState(ctx, run.runId, state)
+
+    const view = getCheckpoint(ctx, { runId: run.runId })
+
+    expect(view.runState).toBe(state)
+    expect(view.conditions.at(-1)).toEqual({ id: 'approval', label: 'Advance authorized', met: false, detail: `Run #1 is ${state}; nothing to approve` })
+    expect([view.gatesMet, view.canAdvance]).toEqual([true, false])
+  })
+
+  it('says so for a run that ended with automatic continuation authorized', () => {
+    const { ctx, run } = setup({ autoContinue: true, bundle: withSprintOne(makeBundle([[1, 2], [3]]), { checkpoint: { mode: 'auto' } }) })
+    acceptTickets(ctx, run, [1, 2])
+    report(ctx, run)
+    setRunState(ctx, run.runId, 'canceled')
+
+    const view = getCheckpoint(ctx, { runId: run.runId })
+
+    expect(view.conditions.at(-1)).toMatchObject({ met: false, detail: 'Run #1 is canceled; nothing to approve' })
+    expect(view.canAdvance).toBe(false)
+  })
+
+  it('names the state of a run that has not ended, and keeps its approval condition as it was', () => {
+    const { ctx, run } = setup()
+    acceptTickets(ctx, run, [1, 2])
+
+    const view = getCheckpoint(ctx, { runId: run.runId })
+
+    expect(view.runState).toBe('running')
+    expect(view.conditions.at(-1)).toMatchObject({ met: false, detail: 'A person must approve this checkpoint in the desktop app' })
+  })
 })
 
 describe('getCheckpoint without a report or on the final sprint', () => {
