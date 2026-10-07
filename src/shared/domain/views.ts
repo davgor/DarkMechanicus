@@ -498,6 +498,11 @@ export interface GateCondition {
 
 export interface CheckpointView {
   runId: string
+  /**
+   * The run's state. A run that ended (`canceled`, `failed`, `completed`) has nothing to approve: its `approval`
+   * condition is unmet and says so, and `canAdvance` is false.
+   */
+  runState: RunState
   sprintId: string
   sprintOrdinal: number
   sprintCount: number

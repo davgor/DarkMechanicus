@@ -589,6 +589,7 @@ export function reportWithRetro(retro: SprintRetro = retroView(), patch: Partial
 export function checkpointView(patch: Partial<CheckpointView> = {}): CheckpointView {
   return {
     runId: 'rn_2',
+    runState: 'awaiting_checkpoint',
     sprintId: 'sp_2',
     sprintOrdinal: 2,
     sprintCount: 3,
