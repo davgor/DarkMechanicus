@@ -61,7 +61,7 @@ import {
 } from './execution'
 import { requestWithoutKey, withIdempotency } from './idempotency'
 import { enqueueOutbox } from './outbox'
-import { failRunRow, PAUSABLE_STATES, pauseRunRow, requireOwnedRun } from './runs'
+import { failRunRow, leaseTimeGivenBack, PAUSABLE_STATES, pauseRunRow, requireOwnedRun } from './runs'
 import { indexDocument } from './searchIndex'
 
 type OutputsInput = SubmitAttemptInput['outputs']
@@ -342,7 +342,7 @@ function claimReadyTicket(ctx: Ctx, context: RunContext, input: ClaimTicketInput
     state: 'claimed',
     worker,
     claimSecret: secret,
-    leaseExpiresAt: addSeconds(ctx.clock.nowIso(), leaseSeconds),
+    leaseSeconds,
     outputs: null,
     evidence: null,
     increment: null,
@@ -444,6 +444,25 @@ function recordProgress(
   })
 }
 
+/**
+ * The length of the lease the attempt holds, in whole seconds: what its claim or its last heartbeat granted, read
+ * back as the time from that grant to the lease's end, less the time resumes gave back since. Null when the attempt
+ * holds no lease or the length does not come out positive.
+ */
+function heldLeaseSeconds(ctx: Ctx, row: AttemptRow): number | null {
+  if (row.lease_expires_at === null) {
+    return null
+  }
+  const grantedAt = row.heartbeat_at ?? row.created_at
+  const grantedMs = Date.parse(row.lease_expires_at) - Date.parse(grantedAt) - leaseTimeGivenBack(ctx, row, grantedAt)
+  const seconds = Math.round(grantedMs / 1000)
+  return seconds > 0 ? seconds : null
+}
+
+/**
+ * Extends the claim's lease from now by `leaseSeconds`, or without it by the length of the lease the claim holds,
+ * so a claim made longer than the plan default keeps that length. The plan default is the last resort.
+ */
 export function heartbeatAttempt(ctx: Ctx, input: HeartbeatAttemptInput): AttemptView {
   requireCapability(ctx.session, 'attempt.heartbeat')
   settleLeases(ctx, input.attemptId)
@@ -451,7 +470,8 @@ export function heartbeatAttempt(ctx: Ctx, input: HeartbeatAttemptInput): Attemp
     const row = loadAttempt(ctx, input.attemptId)
     verifyClaim(ctx, row, input.claimToken)
     const now = ctx.clock.nowIso()
-    const leaseSeconds = input.leaseSeconds ?? loadBundle(ctx, row.revision_id).policies.leaseSeconds
+    const leaseSeconds =
+      input.leaseSeconds ?? heldLeaseSeconds(ctx, row) ?? loadBundle(ctx, row.revision_id).policies.leaseSeconds
     ctx.db.run(
       "UPDATE attempts SET state = 'running', lease_expires_at = ?, heartbeat_at = ?, updated_at = ? WHERE id = ?",
       addSeconds(now, leaseSeconds),

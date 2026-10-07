@@ -227,7 +227,7 @@ const SCHEMA_FINGERPRINTS: Record<string, string> = {
   get_run: '404c90791e4f466b',
   get_ready_tickets: 'd481e0f29f2ca1c1',
   claim_ticket: '4e01c7293527281d',
-  heartbeat_attempt: 'e81e91e2d003dfa9',
+  heartbeat_attempt: '00ab97ed57813ee0',
   submit_attempt: '8e8351284522261e',
   accept_attempt: '1f6d74d0987c0a6e',
   reject_attempt: 'a75cbd153cdd82ca',

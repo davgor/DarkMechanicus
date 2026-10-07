@@ -22,7 +22,7 @@ import type {
   WorkerInfo
 } from '../../shared/domain/views'
 import { contentHash } from '../canonical'
-import { isBefore } from '../clock'
+import { addSeconds, isBefore } from '../clock'
 import type { Ctx } from '../context'
 import { parseJson, toJson } from '../db/database'
 import { fail } from '../errors'
@@ -352,7 +352,8 @@ interface NewAttempt {
   state: AttemptState
   worker: WorkerInfo
   claimSecret: string | null
-  leaseExpiresAt: string | null
+  /** The lease granted from the moment the attempt is created; null for an attempt that holds none. */
+  leaseSeconds: number | null
   outputs: AttemptOutputs | null
   evidence: AttemptEvidence | null
   /** The `SprintIncrement` verdict the attempt stands on; null for every attempt but a carried-forward acceptance's. */
@@ -388,7 +389,7 @@ export function insertAttempt(ctx: Ctx, attempt: NewAttempt): AttemptRow {
         toJson(attempt.worker),
         attempt.run.revision_id,
         contentHash(attempt.ticket),
-        attempt.leaseExpiresAt,
+        attempt.leaseSeconds === null ? null : addSeconds(now, attempt.leaseSeconds),
         attempt.outputs === null ? null : toJson(attempt.outputs),
         attempt.evidence === null ? null : toJson(attempt.evidence),
         attempt.increment === null ? null : toJson(attempt.increment),
@@ -450,7 +451,7 @@ export function recordCarryForward(
     state: 'accepted',
     worker: { ...EMPTY_WORKER, sessionId: ctx.session.id, label: ctx.session.label },
     claimSecret: null,
-    leaseExpiresAt: null,
+    leaseSeconds: null,
     outputs: parseJson<AttemptOutputs | null>(earlier?.outputs_json, null),
     evidence: parseJson<AttemptEvidence | null>(earlier?.evidence_json, null),
     increment: parseJson<SprintIncrement | null>(earlier?.increment_json, null),

@@ -400,6 +400,19 @@ describe('acceptance node readiness in the tool descriptions', () => {
   })
 })
 
+describe('the lease a heartbeat extends, in the heartbeat_attempt description', () => {
+  it('tells workers that leaving out leaseSeconds keeps the length of the lease the claim holds', async () => {
+    await inRig(createCannedApi({}), async (rig) => {
+      const { tools } = await rig.client.listTools()
+      const heartbeat = tools.find((tool) => tool.name === 'heartbeat_attempt')
+      expect(heartbeat?.description).toContain('Without leaseSeconds, the lease is extended by the length of the lease the claim holds')
+      expect(heartbeat?.inputSchema.properties?.['leaseSeconds']).toMatchObject({
+        description: expect.stringContaining('omit to keep the length of the lease the claim holds')
+      })
+    })
+  })
+})
+
 describe('sprint increments in the tool descriptions', () => {
   it('tells workers and orchestrators how an acceptance node names its increment and what is checked', async () => {
     await inRig(createCannedApi({}), async (rig) => {
