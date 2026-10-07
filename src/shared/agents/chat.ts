@@ -16,7 +16,8 @@
  *
  * Ended work. A turn the person stops leaves a `turn_stopped` item. A tool call or thread that cannot
  * finish because its agent ended is written again, by the same id, as `cancelled` (a call) or `failed`
- * (a thread): when its approval is cancelled, and when the chat is opened with no live agent.
+ * (a thread): when its approval is cancelled, when its agent is disposed, and when the chat is opened or
+ * a new agent starts on it with no live agent before.
  */
 import { z } from 'zod'
 import { AGENT_KINDS } from '../desktop/agentKinds'
@@ -103,6 +104,12 @@ const THREAD_STATES = ['running', 'done', 'failed'] as const
 export const ERROR_PROBLEMS = ['organization_not_allowed', 'account_on_hold', 'verification_required'] as const
 
 export type ErrorProblem = (typeof ERROR_PROBLEMS)[number]
+
+/**
+ * The `code` of the `error` item the session manager stores when it stops an agent that sat idle with nothing
+ * running. Nothing failed: the transcript shows it as a notice, and the next message starts the agent again.
+ */
+export const IDLE_STOP_CODE = 'idle_stop'
 
 export const chatItemSchema = z.discriminatedUnion('kind', [
   z.object({ ...itemBase, kind: z.literal('user_message'), text: z.string() }),

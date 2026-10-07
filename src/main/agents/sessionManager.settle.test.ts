@@ -254,12 +254,12 @@ describe('session manager: approvals cancelled by a quit', () => {
 })
 
 describe('session manager: approvals cancelled in a thread, or that cannot be stored', () => {
-  it('cancels the calls of the thread an approval was raised in, and no others', async () => {
+  it('cancels the calls of the thread an approval was raised in, and not those of other threads', async () => {
     const state = rig()
     const chat = newChat(state.manager)
     state.fakes.prepare = (adapter) => {
       adapter.turn = async (self) => {
-        for (const item of [call('c1'), call('c2', 'running', 'th1'), call('c3', 'running', 'th2')]) {
+        for (const item of [call('c1', 'running', 'th0'), call('c2', 'running', 'th1'), call('c3', 'running', 'th2')]) {
           self.emit({ type: 'item', item })
         }
         await new Promise<void>((respond) => {
@@ -271,7 +271,8 @@ describe('session manager: approvals cancelled in a thread, or that cannot be st
     await state.manager.send(chat, 'go')
     await settle()
 
-    await state.manager.disposeAll()
+    await state.manager.stop(chat)
+    await settle()
 
     const items = stored(state.store, chat)
     expect([statusOf(items, 'c1'), statusOf(items, 'c2'), statusOf(items, 'c3')]).toEqual(['running', 'cancelled', 'running'])
@@ -301,7 +302,8 @@ describe('session manager: approvals cancelled in a thread, or that cannot be st
 
     expect(answers).toEqual(['deny'])
     expect(state.fakes.created[0]?.disposals).toBe(1)
-    expect(state.errors).toEqual([expect.objectContaining({ message: 'disk full' })])
+    // Reported twice: by the cancelled request's thread, and by settling what the disposed agent left running.
+    expect(state.errors).toEqual([expect.objectContaining({ message: 'disk full' }), expect.objectContaining({ message: 'disk full' })])
   })
 })
 
@@ -352,23 +354,53 @@ describe('session manager: opening a chat whose agent is gone', () => {
 
 })
 
-describe('session manager: opening a chat after an idle stop or a quit', () => {
-  it('stores a thread whose agent was disposed by an idle stop as failed when the chat next opens', async () => {
+describe('session manager: what a disposed agent left running', () => {
+  it('settles an idle stop at once: running calls cancelled, threads failed, pushed with a note and the end of the turn', async () => {
     const state = rig()
     const chat = newChat(state.manager)
     await play(state, chat, [call('spawn', 'completed'), thread('th1'), call('c1', 'running', 'th1')], false)
     expect(statusOf(stored(state.store, chat), 'th1')).toBe('running')
+    const before = state.events.length
 
     state.fireIdle()
     await settle()
-    expect(state.manager.liveCount()).toBe(0)
-    expect(statusOf(stored(state.store, chat), 'th1')).toBe('running')
-    const opened = await state.manager.openChat(chat)
 
-    expect(statusOf(opened.items, 'th1')).toBe('failed')
-    expect(statusOf(opened.items, 'c1')).toBe('cancelled')
-    expect(statusOf(stored(state.store, chat), 'th1')).toBe('failed')
+    expect(state.manager.liveCount()).toBe(0)
+    const items = stored(state.store, chat)
+    expect([statusOf(items, 'c1'), statusOf(items, 'th1'), statusOf(items, 'spawn')]).toEqual(['cancelled', 'failed', 'completed'])
+    expect(items.at(-1)).toMatchObject({ kind: 'error', code: 'idle_stop', message: expect.stringMatching(/idle/i) })
+    const pushed = state.events.slice(before).map((event) => (event.type === 'item' ? `item:${event.item.id}` : `${event.type}:${'running' in event ? event.running : ''}`))
+    expect(pushed).toEqual(['item:th1', 'item:c1', `item:${(items.at(-1) as ChatItem).id}`, 'turn:false'])
   })
+
+  it('settles on a quit too, without saying the agent was idle', async () => {
+    const state = rig()
+    const chat = newChat(state.manager)
+    await play(state, chat, [thread('th1'), call('c1', 'running', 'th1')])
+
+    await state.manager.disposeAll()
+
+    const items = stored(state.store, chat)
+    expect([statusOf(items, 'c1'), statusOf(items, 'th1')]).toEqual(['cancelled', 'failed'])
+    expect(items.some((item) => item.kind === 'error')).toBe(false)
+    expect(state.events.at(-1)).toEqual({ type: 'turn', chatId: chat.id, running: false })
+  })
+
+  it('settles what a dead process left running before a new agent starts on the chat, and leaves the new agent\'s work alone', async () => {
+    const before = rig()
+    const chat = newChat(before.manager)
+    before.store.appendItem(chat, thread('th_old'))
+    before.store.appendItem(chat, call('c_old', 'running', 'th_old'))
+    const after = rig(before.fs)
+
+    await play(after, chat, [call('c_new')])
+
+    const items = stored(after.store, chat)
+    expect([statusOf(items, 'c_old'), statusOf(items, 'th_old'), statusOf(items, 'c_new')]).toEqual(['cancelled', 'failed', 'running'])
+  })
+})
+
+describe('session manager: opening a chat after an idle stop or a quit', () => {
 
   it('stores a thread left running when the app quit as failed when the chat is opened again, and keeps the finished ones', async () => {
     const before = rig()

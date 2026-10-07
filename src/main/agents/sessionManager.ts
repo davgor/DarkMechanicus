@@ -22,11 +22,15 @@
  * Ended work. Stop leaves a `turn_stopped` item once the turn has ended, after whatever the agent had
  * written by then. What can no longer finish is written again by the same id: the tool calls of the
  * chat's own thread that a stopped or failed turn left running, and the calls of the thread a cancelled
- * request was raised in, become `cancelled`. Disposing an agent emits nothing, so opening a chat that
- * has no live agent settles what its stored transcript still says is running: calls become `cancelled`
- * and threads `failed`. A live agent's own work is never touched there, and only `openChat` writes.
- * `readChat` is the read-only way to the same view, for panels that follow a chat: it starts nothing and
- * writes nothing, and shows the settled state without storing it.
+ * request was raised in, become `cancelled`. A disposed agent sends nothing more, so disposing one (an
+ * idle stop, a quit, a start that failed; not deleting its chat, which keeps nothing) settles what its
+ * chat's stored transcript still says is running, before the process is killed: calls become `cancelled`
+ * and threads `failed`, each pushed, and the chat is told no turn runs. An idle stop also stores an
+ * `error` item with the code `idle_stop` that says the agent was stopped for sitting idle. An agent that
+ * ended without being disposed (a crash, a quit cut short) left the same behind: opening its chat with no
+ * live agent, or starting a new agent on it, settles it the same way. A live agent's own work is never
+ * touched there. `readChat` is the read-only way to the same view, for panels that follow a chat: it
+ * starts nothing and writes nothing, and shows the settled state without storing it.
  *
  * Signed-out agents. When an adapter reports `auth_required` (its CLI's login expired or was revoked
  * while the app ran), the item is stored, the agent kind is flagged signed out (see `signInFlags`), the
@@ -64,7 +68,7 @@ import type {
   McpServerSpec,
   ModelOption
 } from '../../shared/agents/chat'
-import { canSavePlans } from '../../shared/agents/chat'
+import { canSavePlans, IDLE_STOP_CODE } from '../../shared/agents/chat'
 import type { ChatOpenView, ChatPushEvent, ChatSummary, CreateChatRequest } from '../../shared/agents/chatApi'
 import { AGENT_DEFINITIONS } from '../../shared/desktop/agentKinds'
 import type { AgentAuthStatus, AgentKind, McpConfigView } from '../../shared/desktop/api'
@@ -350,7 +354,7 @@ function idleWhenQuiet(manager: Manager, session: Session): void {
       idleWhenQuiet(manager, session)
       return
     }
-    void disposeSession(manager, session)
+    void disposeSession(manager, session, 'idle')
   }, manager.idleMs)
 }
 
@@ -372,7 +376,27 @@ function cancelWaiting(manager: Manager, session: Session): void {
   }
 }
 
-async function disposeSession(manager: Manager, session: Session): Promise<void> {
+/** Why an agent is disposed: it sat idle, its chat is being deleted (nothing of the chat is kept), or it ended otherwise (a quit, a failed start). */
+type DisposeReason = 'idle' | 'deleted' | 'ended'
+
+/** What an idle stop says, after what it settled. */
+const IDLE_STOP_MESSAGE = 'The agent was stopped after it sat idle with nothing running. Your next message starts it again in the same conversation.'
+
+/**
+ * A disposed agent sends nothing more, so what its chat still says is running cannot finish: settled, and the
+ * chat told that no turn runs. Done before the process is killed, while no other agent of the chat can have
+ * written anything, so only this one's work is settled.
+ */
+function settleDisposed(manager: Manager, session: Session, reason: DisposeReason): void {
+  const { chat } = session
+  safely(manager, () => settleEnded(manager, chat))
+  if (reason === 'idle') {
+    safely(manager, () => record(manager, chat, { ...stamp(manager), kind: 'error', message: IDLE_STOP_MESSAGE, code: IDLE_STOP_CODE }))
+  }
+  safely(manager, () => manager.push({ type: 'turn', chatId: chat.id, running: false }))
+}
+
+async function disposeSession(manager: Manager, session: Session, reason: DisposeReason = 'ended'): Promise<void> {
   if (session.disposed) {
     return
   }
@@ -383,6 +407,9 @@ async function disposeSession(manager: Manager, session: Session): Promise<void>
   clearIdle(manager, session)
   cancelWaiting(manager, session)
   session.streams.clear()
+  if (reason !== 'deleted') {
+    settleDisposed(manager, session, reason)
+  }
   try {
     await session.adapter.dispose()
   } catch (error) {
@@ -397,6 +424,8 @@ function createSession(manager: Manager, chat: ChatRecord): Session {
   const { definition, executablePath } = adapterFor(manager, chat.agent)
   // Everything that can throw happens before the session is registered, so a failure leaves no trace.
   const options = startOptions(manager, chat)
+  // What an agent that ended undisposed (a crash) left running cannot finish; settled before this one adds its own work.
+  safely(manager, () => settleEnded(manager, chat))
   const session: Session = {
     chat,
     adapter: definition.create(executablePath),
@@ -811,10 +840,10 @@ function cancelOrphans(manager: Manager, chat: ChatRecord, session: Session | un
 
 /**
  * What a chat with no live agent still says is running cannot be: its calls are cancelled and its threads
- * fail, as an idle stop or a quit (which emit nothing) or a crash left them. A chat with a live agent keeps
- * its work; that agent settles it when it ends.
+ * fail, as a disposed agent or one that crashed left them. Called only while no live agent holds the chat (or
+ * as its agent is disposed), so a live agent's work is never touched.
  */
-function settleEnded(manager: Manager, chat: ChatRecord): void {
+function settleEnded(manager: Manager, chat: ChatRef): void {
   for (const item of itemsOf(manager, chat)) {
     if (item.kind === 'tool_call' && item.status === 'running') {
       record(manager, chat, { ...item, status: 'cancelled' })
@@ -939,7 +968,7 @@ async function deleteChat(manager: Manager, ref: ChatRef): Promise<void> {
   const chat = requireChat(manager, ref)
   const session = manager.sessions.get(chat.id)
   if (session !== undefined) {
-    await disposeSession(manager, session)
+    await disposeSession(manager, session, 'deleted')
   }
   manager.allowances.delete(chat.id)
   manager.seen.delete(chat.id)
