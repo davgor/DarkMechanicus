@@ -34,12 +34,14 @@
  * place, so that agent's notification ends it. Seen in a stored transcript of 2026-10-06, not recorded.
  *
  * Live work (`hasLiveWork`). What the process still runs, so it is not stopped for being idle: a call that has
- * no answer yet, a thread still running, and a task the CLI started and has not reported ended
- * (`task_started` up to its `task_notification`; a subagent or a command run in the background). Its
- * `background_tasks_changed` message lists every live background task, and replaces the tasks known so far.
- * Ambient tasks (watchers, housekeeping) are no one's work and do not count. A turn's result ends the calls of
- * the chat's own thread and of the foreground threads it fails, whether or not their answers came; when the
- * process is gone, its calls still running are cancelled with its threads, and nothing is live any more.
+ * no answer yet, a thread still running, and a task the CLI runs in the background and has not reported ended
+ * (`task_started` with `is_backgrounded`, or a `task_updated` that moves it there, up to its
+ * `task_notification` or an update that ends it; a subagent or a command run in the background). A task in
+ * the foreground is its call's work. The CLI's `background_tasks_changed` message lists every live background
+ * task, and replaces the tasks known so far. Ambient tasks (watchers, housekeeping) are no one's work and do
+ * not count. A turn's result ends the calls of the chat's own thread and of the foreground threads it fails,
+ * whether or not their answers came; when the process is gone, its calls still running are cancelled with its
+ * threads, and nothing is live any more.
  *
  * Sign-in. A rejected login (expired, revoked, never done) arrives as a synthetic `assistant`
  * message with `error: 'authentication_failed'` and the CLI's words as its text, followed by an error
@@ -522,6 +524,8 @@ export class TranscriptMapper {
     } else if (message.subtype === 'task_notification') {
       this.tasks.delete(message.task_id)
       this.subagentEnded(message, events)
+    } else if (message.subtype === 'task_updated') {
+      this.taskUpdated(message)
     } else if (message.subtype === 'background_tasks_changed') {
       this.tasks.clear()
       for (const task of message.tasks) {
@@ -532,9 +536,22 @@ export class TranscriptMapper {
     }
   }
 
-  /** A task is live work until the CLI reports it ended, unless it is ambient (a watcher, housekeeping). */
+  /**
+   * A task started in the background is live work until the CLI reports it ended, unless it is ambient (a watcher,
+   * housekeeping). One started in the foreground is its call's work, which counts while the call has no answer.
+   */
   private taskStarted(message: Extract<SDKMessage, { type: 'system'; subtype: 'task_started' }>): void {
-    if (message.ambient !== true && message.skip_transcript !== true) {
+    if (message.is_backgrounded === true && message.ambient !== true && message.skip_transcript !== true) {
+      this.tasks.add(message.task_id)
+    }
+  }
+
+  /** A foreground task moved to the background is live work from then on; a task the update says ended is not. */
+  private taskUpdated(message: Extract<SDKMessage, { type: 'system'; subtype: 'task_updated' }>): void {
+    const { status, is_backgrounded: background } = message.patch
+    if (status === 'completed' || status === 'failed' || status === 'killed') {
+      this.tasks.delete(message.task_id)
+    } else if (background === true) {
       this.tasks.add(message.task_id)
     }
   }

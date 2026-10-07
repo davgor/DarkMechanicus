@@ -26,6 +26,8 @@ const taskStarted = (taskId: string, toolUseId: string, extra: object = {}): SDK
 const taskEnded = (taskId: string, toolUseId: string): SDKMessage =>
   message({ type: 'system', subtype: 'task_notification', task_id: taskId, tool_use_id: toolUseId, status: 'completed', output_file: '/tmp/out', summary: 'done', session_id: SESSION, uuid: uuid() })
 
+const taskUpdated = (taskId: string, patch: object): SDKMessage => message({ type: 'system', subtype: 'task_updated', task_id: taskId, patch, session_id: SESSION, uuid: uuid() })
+
 /** The CLI's level signal: every live background task after a change. */
 const backgroundTasks = (...tasks: { task_id: string; ambient?: boolean }[]): SDKMessage =>
   message({ type: 'system', subtype: 'background_tasks_changed', tasks: tasks.map((task) => ({ task_type: 'local_bash', description: 'work', ...task })), session_id: SESSION, uuid: uuid() })
@@ -135,6 +137,17 @@ describe('Claude adapter: live work (background commands)', () => {
     const rig = await afterTurn(taskStarted('watcher', 'toolu_watch', { ambient: true }))
 
     expect(rig.adapter.hasLiveWork()).toBe(false)
+  })
+
+  it('counts a foreground task only once it is moved to the background, until an update says it ended', async () => {
+    const rig = await afterTurn(taskStarted(SHELL, BASH, { task_type: 'local_bash', is_backgrounded: false }))
+    expect(rig.adapter.hasLiveWork()).toBe(false)
+
+    rig.later(taskUpdated(SHELL, { is_backgrounded: true }))
+    await vi.waitFor(() => expect(rig.adapter.hasLiveWork()).toBe(true))
+
+    rig.later(taskUpdated(SHELL, { status: 'killed' }))
+    await vi.waitFor(() => expect(rig.adapter.hasLiveWork()).toBe(false))
   })
 })
 
