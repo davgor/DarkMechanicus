@@ -11,7 +11,8 @@ import type {
   ReasoningEffort,
   TicketContent,
   TicketKind,
-  TicketSize
+  TicketSize,
+  ToolCapability
 } from './bundle'
 import type { SprintRetro, TicketTierFacts } from './retro'
 import type {
@@ -403,7 +404,7 @@ export interface HostCatalog {
   hostId: string
   hostType: string
   catalogRevision: string
-  tools: string[]
+  tools: ToolCapability[]
   canSelectWorkerModel: boolean
   models: HostModel[]
 }

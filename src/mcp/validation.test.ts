@@ -221,7 +221,7 @@ const SCHEMA_FINGERPRINTS: Record<string, string> = {
   save_plan: 'a77f363be76d0e70',
   discard_plan_draft: 'e242b76040271758',
   list_revisions: 'f7874c5f7d17c6c5',
-  register_host: '7b1836e8b45f3421',
+  register_host: 'dd992f0463b6a6ea',
   match_capabilities: 'f4c7e82b30f2a0aa',
   start_run: '34b2624801200ad2',
   get_run: '404c90791e4f466b',

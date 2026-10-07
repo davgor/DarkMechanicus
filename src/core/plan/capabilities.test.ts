@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { type CapabilityProfile, defaultCapabilityProfile } from '../../shared/domain/bundle'
+import { type CapabilityProfile, defaultCapabilityProfile, type ToolCapability } from '../../shared/domain/bundle'
 import type { HostCatalog, HostModel } from '../../shared/domain/views'
 import { matchProfile } from './capabilities'
 
@@ -17,7 +17,7 @@ function model(id: string, overrides: Partial<HostModel> = {}): HostModel {
   }
 }
 
-function catalog(models: HostModel[], tools: string[] = ['repo_read', 'repo_write', 'shell']): HostCatalog {
+function catalog(models: HostModel[], tools: ToolCapability[] = ['repo_read', 'repo_write', 'shell']): HostCatalog {
   return { hostId: 'host-1', hostType: 'cli', catalogRevision: 'r1', tools, canSelectWorkerModel: true, models }
 }
 

@@ -16,7 +16,7 @@ import {
 } from '../../core/schemas'
 import { SKILLS_VERSION } from '../../core/version'
 import type { CommandApi } from '../../shared/domain/api'
-import { REASONING_EFFORTS } from '../../shared/domain/bundle'
+import { REASONING_EFFORTS, TOOL_CAPABILITIES } from '../../shared/domain/bundle'
 import { defineTool, registerTools } from './define'
 import {
   attemptId,
@@ -149,7 +149,7 @@ const SETUP_TOOLS = [
   defineTool({
     name: 'register_host',
     description:
-      'Registers the models and tools this host can really use, so ticket capability profiles can be matched. Returns the catalog id to pass as hostCatalogId to start_run. Call it before start_run, and again with a new catalogRevision when the catalog changes. Do not list models you cannot use. A model may list the efforts (low, medium, high) it can run at in efforts; a claim at an effort the model does not list is refused, and a model that lists none accepts any effort.',
+      `Registers the models and tools this host can really use, so ticket capability profiles can be matched. List tools by the names capability profiles require: ${TOOL_CAPABILITIES.join(', ')}; any other name is refused with \`invalid_input\`. Returns the catalog id to pass as hostCatalogId to start_run. Call it before start_run, and again with a new catalogRevision when the catalog changes. Do not list models you cannot use. A model may list the efforts (low, medium, high) it can run at in efforts; a claim at an effort the model does not list is refused, and a model that lists none accepts any effort.`,
     kind: 'write',
     input: hostCatalog.shape,
     run: (api, input) => api.registerHost(input)
