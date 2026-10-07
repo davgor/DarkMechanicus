@@ -4,9 +4,11 @@
  * Lifecycle. A chat's process starts on its first message, or when the chat is opened if its
  * vendor needs it running (`startOnOpen`). It runs in the chat's folder with the chat's Dark
  * Mechanicus MCP server. Stop interrupts the running turn and keeps the process. A process with no
- * running turn and no waiting approval for `idleMs` is disposed; the next message starts a new one
- * that resumes the vendor session. `disposeAll` (app quit) disposes every process and refuses new
- * ones; each adapter's `dispose` kills its process tree.
+ * running turn and no waiting approval is disposed once it has sent nothing for `idleMs` (every event it
+ * sends starts the wait again) and its adapter reports no live work (`hasLiveWork`: a call still running, a
+ * background subagent or command, a turn the agent started on its own); while it does, the wait starts
+ * again. The next message starts a new process that resumes the vendor session. `disposeAll` (app quit)
+ * disposes every process and refuses new ones; each adapter's `dispose` kills its process tree.
  *
  * Approvals. A request is stored (and pushed) as a transcript item, then waits in main, not in
  * the renderer, until the person answers: closing the window or reopening the chat loses nothing.
@@ -333,13 +335,21 @@ function clearIdle(manager: Manager, session: Session): void {
   }
 }
 
-/** Arms the idle timer when the session has nothing to do. */
+/**
+ * Arms the idle timer, or starts its wait again, when the session has nothing to do. When it fires, an agent that
+ * still reports live work (a subagent working in the background, a command running) is given another wait.
+ */
 function idleWhenQuiet(manager: Manager, session: Session): void {
   if (session.disposed || session.turn !== null || session.waiting.size > 0) {
     return
   }
   clearIdle(manager, session)
   session.idle = manager.timers.set(() => {
+    session.idle = null
+    if (session.adapter.hasLiveWork()) {
+      idleWhenQuiet(manager, session)
+      return
+    }
     void disposeSession(manager, session)
   }, manager.idleMs)
 }
@@ -588,6 +598,7 @@ function handleEvent(manager: Manager, session: Session, event: ChatAdapterEvent
   }
 }
 
+/** Handles one event; whatever the agent sends while the idle wait runs (a background subagent at work) starts it again. */
 function onAdapterEvent(manager: Manager, session: Session, event: ChatAdapterEvent): void {
   if (session.disposed) {
     return
@@ -596,6 +607,9 @@ function onAdapterEvent(manager: Manager, session: Session, event: ChatAdapterEv
     handleEvent(manager, session, event)
   } catch (error) {
     manager.onError(error)
+  }
+  if (session.idle !== null) {
+    idleWhenQuiet(manager, session)
   }
 }
 

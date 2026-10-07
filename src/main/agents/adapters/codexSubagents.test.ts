@@ -472,3 +472,30 @@ describe('the tools a Codex agent uses to work with its subagents', () => {
     ])
   })
 })
+
+describe('live work the idle stop must leave alone', () => {
+  it('counts a subagent thread that is still running after the chat\'s own turn ended, until its turn ends', async () => {
+    const target = await rig(spawned([]))
+    expect(target.adapter.hasLiveWork()).toBe(false)
+
+    await target.adapter.send('go')
+    expect(target.adapter.hasLiveWork()).toBe(true)
+
+    target.transport.say(turnCompleted(CHILD, CHILD_TURN, 'completed'))
+    await Promise.resolve()
+
+    expect(states(target, THREAD_ID)).toEqual(['running', 'done'])
+    expect(target.adapter.hasLiveWork()).toBe(false)
+  })
+
+  it('has none once the process is gone or the chat is disposed', async () => {
+    const crashed = await rig(spawned([], [step.exit('codex crashed')]))
+    await expect(crashed.adapter.send('go')).rejects.toThrow('codex crashed')
+    expect(crashed.adapter.hasLiveWork()).toBe(false)
+
+    const disposed = await rig(spawned([]))
+    await disposed.adapter.send('go')
+    await disposed.adapter.dispose()
+    expect(disposed.adapter.hasLiveWork()).toBe(false)
+  })
+})

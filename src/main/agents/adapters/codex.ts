@@ -367,6 +367,11 @@ class CodexAdapter implements ChatAdapter {
     await this.transport?.kill()
   }
 
+  /** A turn, or a subagent thread still running (a subagent can work on after the chat's own turn ended). */
+  hasLiveWork(): boolean {
+    return !this.disposed && (this.turn !== null || this.threads.anyRunning())
+  }
+
   // ---- Process and thread ----
 
   /** The live connection; a process that died since the last turn is replaced and its thread resumed. */

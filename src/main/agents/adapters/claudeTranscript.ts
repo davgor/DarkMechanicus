@@ -19,10 +19,18 @@
  * result: `done`, or `failed` when the result is an error. One the CLI starts in the background
  * answers the call at once (`tool_use_result.status` is `async_launched`) and ends with a
  * `task_notification` (`completed`, or `failed`/`stopped` as `failed`). A foreground thread whose call
- * never got an answer ends as `failed` with the turn; `endThreads` fails the rest when the process is
+ * never got an answer ends as `failed` with the turn; `processEnded` fails the rest when the process is
  * gone. The CLI names the subagent behind a permission request by the id of its `task_started` message,
  * so `threadOfRequest` finds a request's thread by that id, or else by the tool call it is about.
  * Recorded from a real session in `__mocks__/claudeSubagents.ts`.
+ *
+ * Live work (`hasLiveWork`). What the process still runs, so it is not stopped for being idle: a call that has
+ * no answer yet, a thread still running, and a task the CLI started and has not reported ended
+ * (`task_started` up to its `task_notification`; a subagent or a command run in the background). Its
+ * `background_tasks_changed` message lists every live background task, and replaces the tasks known so far.
+ * Ambient tasks (watchers, housekeeping) are no one's work and do not count. A turn's result ends the calls of
+ * the chat's own thread and of the foreground threads it fails, whether or not their answers came; when the
+ * process is gone, its calls still running are cancelled with its threads, and nothing is live any more.
  *
  * Sign-in. A rejected login (expired, revoked, never done) arrives as a synthetic `assistant`
  * message with `error: 'authentication_failed'` and the CLI's words as its text, followed by an error
@@ -172,6 +180,8 @@ export class TranscriptMapper {
   private readonly callSpawns = new Map<string, string>()
   /** The spawning call each subagent belongs to, by the id the CLI gave the subagent. */
   private readonly agentSpawns = new Map<string, string>()
+  /** The tasks the CLI started and has not reported ended, by task id (ambient ones left out). */
+  private readonly tasks = new Set<string>()
   /** The CLI rejected the sign-in during the turn that is running. */
   private authReported = false
   /** The CLI reported a problem with the account during the turn that is running. */
@@ -199,9 +209,19 @@ export class TranscriptMapper {
     return thread === undefined ? null : { id: thread.item.id, label: thread.item.label }
   }
 
-  /** Fails every thread still running, for a process that is gone: its subagents died with it. */
-  endThreads(): ChatAdapterEvent[] {
-    const events: ChatAdapterEvent[] = []
+  /** A call without an answer, a thread still running, or a task not reported ended. */
+  hasLiveWork(): boolean {
+    return this.calls.size > 0 || this.tasks.size > 0 || [...this.threads.values()].some((thread) => thread.item.state === 'running')
+  }
+
+  /**
+   * For a process that is gone: the calls still running are cancelled and every thread still running fails,
+   * since its subagents died with it, and none of its tasks is live any more.
+   */
+  processEnded(): ChatAdapterEvent[] {
+    const events: ChatAdapterEvent[] = [...this.calls.values()].map((call) => ({ type: 'item', item: { ...call, status: 'cancelled' } }))
+    this.calls.clear()
+    this.tasks.clear()
     for (const thread of this.threads.values()) {
       this.settle(thread, 'failed', events)
     }
@@ -341,11 +361,21 @@ export class TranscriptMapper {
     events.push({ type: 'item', item: thread.item })
   }
 
-  /** The turn is over, so a subagent its call was still waiting for is not coming back. */
+  /**
+   * The turn is over, so a subagent its call was still waiting for is not coming back, and the calls of the chat's
+   * own thread and of those subagents are not running any more, answered or not.
+   */
   private endForegroundThreads(events: ChatAdapterEvent[]): void {
+    const ended = new Set<string | undefined>([undefined])
     for (const thread of this.threads.values()) {
       if (!thread.background) {
         this.settle(thread, 'failed', events)
+        ended.add(thread.item.id)
+      }
+    }
+    for (const [toolUseId, call] of this.calls) {
+      if (ended.has(call.threadId)) {
+        this.calls.delete(toolUseId)
       }
     }
   }
@@ -413,9 +443,25 @@ export class TranscriptMapper {
     if (message.subtype === 'compact_boundary') {
       events.push(this.resetItem(`claude_reset_${message.uuid}`, 'compact', 'The conversation was compacted to free up room.'))
     } else if (message.subtype === 'task_started') {
+      this.taskStarted(message)
       this.subagentStarted(message)
     } else if (message.subtype === 'task_notification') {
+      this.tasks.delete(message.task_id)
       this.subagentEnded(message, events)
+    } else if (message.subtype === 'background_tasks_changed') {
+      this.tasks.clear()
+      for (const task of message.tasks) {
+        if (task.ambient !== true) {
+          this.tasks.add(task.task_id)
+        }
+      }
+    }
+  }
+
+  /** A task is live work until the CLI reports it ended, unless it is ambient (a watcher, housekeeping). */
+  private taskStarted(message: Extract<SDKMessage, { type: 'system'; subtype: 'task_started' }>): void {
+    if (message.ambient !== true && message.skip_transcript !== true) {
+      this.tasks.add(message.task_id)
     }
   }
 

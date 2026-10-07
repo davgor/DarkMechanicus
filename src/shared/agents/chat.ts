@@ -255,4 +255,11 @@ export interface ChatAdapter {
   listModels(): Promise<ModelOption[]>
   /** Ends the session and kills its whole process tree (no orphans on Windows or macOS); no events follow. */
   dispose(): Promise<void>
+  /**
+   * The agent still has work going on, with or without a turn of the person's: a turn, one the agent started on
+   * its own, a tool call waiting for its answer, or a subagent or background command that has not ended. The
+   * session manager never stops an agent for being idle while this is true, so an adapter that cannot tell says
+   * true whenever there may be some.
+   */
+  hasLiveWork(): boolean
 }

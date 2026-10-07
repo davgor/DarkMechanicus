@@ -230,6 +230,11 @@ class CursorAdapter implements ChatAdapter {
     await treeGone
   }
 
+  /** The running turn: an ACP agent works only inside a prompt turn, and its subagents are calls of that turn. */
+  hasLiveWork(): boolean {
+    return !this.disposed && this.turn !== null
+  }
+
   private emit(event: ChatAdapterEvent): void {
     if (!this.disposed) {
       if (event.type === 'item') {
