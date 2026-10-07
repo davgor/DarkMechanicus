@@ -1,7 +1,7 @@
 # Baseline ignore for ts-prune (one pattern per line)
 # Generated from tsconfig.node.json + tsconfig.web.json
 # Refresh after export moves/deletes: npm run deadcode:refresh
-# Refreshed 2026-10-05 (94 entries)
+# Refreshed 2026-10-07 (93 entries)
 
 electron.vite.config.ts:37 - default
 src/core/claimTokenMask.ts:35 - CLAIM_TOKEN_MASK
@@ -66,7 +66,6 @@ src/shared/domain/bundle.ts:196 - EpicContent
 src/shared/domain/bundle.ts:29 - WorkType
 src/shared/domain/bundle.ts:56 - TICKET_KINDS
 src/shared/domain/bundle.ts:60 - Modality
-src/shared/domain/bundle.ts:70 - ToolCapability
 src/shared/domain/errors.ts:5 - DOMAIN_ERROR_CODES
 src/shared/domain/retro.ts:17 - TIER_VERDICTS
 src/shared/domain/retro.ts:21 - RetroDelivered
@@ -81,19 +80,19 @@ src/shared/domain/status.ts:58 - TICKET_EXECUTION_STATES
 src/shared/domain/status.ts:6 - WORK_STATUSES
 src/shared/domain/status.ts:83 - WORK_STATUS_LABELS
 src/shared/domain/status.ts:9 - RUN_STATES
-src/shared/domain/views.ts:215 - PrerequisiteOutcome
-src/shared/domain/views.ts:263 - WorkerInfo
-src/shared/domain/views.ts:318 - AttemptDecision
-src/shared/domain/views.ts:389 - HostModel
-src/shared/domain/views.ts:418 - CapabilityRecommendation
-src/shared/domain/views.ts:436 - FollowUpProposal
-src/shared/domain/views.ts:478 - GateConditionId
-src/shared/domain/views.ts:569 - AssignmentFallback
-src/shared/domain/views.ts:574 - ExecutionPacket
-src/shared/domain/views.ts:841 - RedraftMovedView
-src/shared/domain/views.ts:849 - RedraftDependentView
-src/shared/domain/views.ts:857 - RedraftAddedView
-src/shared/domain/views.ts:865 - RedraftSkipCode
-src/shared/domain/views.ts:878 - RedraftSkippedView
-src/shared/domain/views.ts:887 - RedraftChangesView
-src/shared/domain/views.ts:95 - EpicOutcome
+src/shared/domain/views.ts:216 - PrerequisiteOutcome
+src/shared/domain/views.ts:264 - WorkerInfo
+src/shared/domain/views.ts:319 - AttemptDecision
+src/shared/domain/views.ts:390 - HostModel
+src/shared/domain/views.ts:419 - CapabilityRecommendation
+src/shared/domain/views.ts:437 - FollowUpProposal
+src/shared/domain/views.ts:479 - GateConditionId
+src/shared/domain/views.ts:570 - AssignmentFallback
+src/shared/domain/views.ts:575 - ExecutionPacket
+src/shared/domain/views.ts:842 - RedraftMovedView
+src/shared/domain/views.ts:850 - RedraftDependentView
+src/shared/domain/views.ts:858 - RedraftAddedView
+src/shared/domain/views.ts:866 - RedraftSkipCode
+src/shared/domain/views.ts:879 - RedraftSkippedView
+src/shared/domain/views.ts:888 - RedraftChangesView
+src/shared/domain/views.ts:96 - EpicOutcome
