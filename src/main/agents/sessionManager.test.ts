@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createIdGenerator } from '../../core/ids'
 import type { Workspace } from '../../core/workspace'
-import type { ApprovalDecision, ChatItem, ChatRecord } from '../../shared/agents/chat'
+import { IDLE_STOP_CODE, type ApprovalDecision, type ChatItem, type ChatRecord } from '../../shared/agents/chat'
 import type { ChatPushEvent } from '../../shared/agents/chatApi'
 import type { AgentAuthStatus } from '../../shared/desktop/api'
 import { dropAcceptanceNodes } from '../../test/acceptanceNodes'
@@ -651,6 +651,43 @@ describe('session manager: idle processes', () => {
     state.manager.answerApproval(chat, { requestId: 'q1', decision: 'allow_once' })
     await settle()
     expect(state.timers.count()).toBe(1)
+  })
+})
+
+describe('session manager: idle processes that still work', () => {
+  it('keeps a process that reports live work when the idle timer fires, and disposes it at a later firing once the work ended', async () => {
+    const { manager, fakes, timers } = rig()
+    const chat = newChat(manager)
+    fakes.prepare = (adapter) => {
+      adapter.liveWork = true
+    }
+    await manager.send(chat, 'go')
+    await settle()
+    const adapter = only(fakes.created)
+
+    timers.fire()
+    await settle()
+    expect(adapter.disposals).toBe(0)
+    expect(timers.count()).toBe(1)
+
+    adapter.liveWork = false
+    timers.fire()
+    await settle()
+    expect(adapter.disposals).toBe(1)
+    expect(manager.liveCount()).toBe(0)
+  })
+
+  it('says in the chat that an idle process was stopped, and that no turn runs', async () => {
+    const { manager, store, events, timers } = rig()
+    const chat = newChat(manager)
+    await manager.send(chat, 'go')
+    await settle()
+
+    timers.fire()
+    await settle()
+
+    expect(storedItems(store, chat).at(-1)).toMatchObject({ kind: 'error', code: IDLE_STOP_CODE })
+    expect(events.at(-1)).toEqual({ type: 'turn', chatId: chat.id, running: false })
   })
 })
 

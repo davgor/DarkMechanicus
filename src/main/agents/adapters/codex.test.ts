@@ -1346,3 +1346,21 @@ describe('a file edit that touches many files', () => {
     })
   })
 })
+
+describe('live work between turns', () => {
+  it('has live work while a turn runs, and none after a turn that ended or once the chat is disposed', async () => {
+    const target = rig([[...NEW_THREAD, ...turn([]), step.expect('turn/start'), step.reply({ turn: TURN_OBJECT('inProgress') })]])
+    await start(target)
+    expect(target.adapter.hasLiveWork()).toBe(false)
+    await target.adapter.send('quick')
+    expect(target.adapter.hasLiveWork()).toBe(false)
+
+    const sending = target.adapter.send('long')
+    await settle()
+    expect(target.adapter.hasLiveWork()).toBe(true)
+
+    await target.adapter.dispose()
+    await sending
+    expect(target.adapter.hasLiveWork()).toBe(false)
+  })
+})

@@ -650,6 +650,31 @@ async function requestAfter(messages: SDKMessage[], toolUseID: string, agentID?:
   return (await pendingApproval(rig)).request
 }
 
+/** The id the CLI gave the first subagent of the recording, in its `task_started` and in its call's answer. */
+const AGENT_A = 'a8b6738d1969b72f0'
+
+describe('Claude adapter: a subagent of the recorded session continued with SendMessage', () => {
+  it('runs the thread of the subagent the answer names again, past the end of the turn, and leaves the other one done', async () => {
+    const recording = playRecording(CLAUDE_SUBAGENTS)
+    const send = toolUse('toolu_send', 'SendMessage', { to: AGENT_A, summary: 'More on a.txt', message: 'Also count the fruits.' })
+    const answer = toolResult('toolu_send', 'Resuming agent a8b6738', false, { tool_use_result: { success: true, resumedAgentId: AGENT_A } })
+    const rig = await startRig({
+      plans: [{ script: async (turn) => (turn.index === 0 ? recording.script?.(turn) : turn.emit(assistant('msg_send', [send]), answer, success('sent'))) }]
+    })
+    const first = rig.adapter.send('Summarize a.txt and b.txt with two subagents')
+    ;(await pendingApproval(rig)).respond('deny')
+    await first
+
+    await rig.adapter.send('Ask the first one to count the fruits')
+
+    expect(threadItems(rig.items()).map((item) => [item.label, item.state])).toEqual([
+      ['Summarize a.txt', 'running'],
+      ['Summarize b.txt', 'done']
+    ])
+    expect(rig.adapter.hasLiveWork()).toBe(true)
+  })
+})
+
 describe('Claude adapter: approvals raised inside a subagent (1)', () => {
   it('carries the id and label of the subagent\'s thread (recorded Write request)', async () => {
     const rig = await startRig({ plans: [playRecording(CLAUDE_SUBAGENTS)] })
