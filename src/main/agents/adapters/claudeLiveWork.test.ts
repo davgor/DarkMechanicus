@@ -7,7 +7,8 @@ import { resolve } from 'node:path'
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 import { describe, expect, it, vi } from 'vitest'
 import type { ChatItem } from '../../../shared/agents/chat'
-import { FOLDER, SESSION, assistant, init, message, startRig, success, text, toolResult, toolUse, uuid, type Rig } from './__mocks__/fakeClaudeSdk'
+import { FOLDER, NOW, SESSION, assistant, init, message, startRig, success, text, toolResult, toolUse, uuid, type Rig } from './__mocks__/fakeClaudeSdk'
+import { TranscriptMapper } from './claudeTranscript'
 
 const SPAWN = 'toolu_worker'
 const AGENT = 'a0f00d0f00d0f00d1'
@@ -82,14 +83,27 @@ describe('Claude adapter: live work (background subagents)', () => {
     await vi.waitFor(() => expect(rig.adapter.hasLiveWork()).toBe(false))
   })
 
-  it('counts a call a background subagent is still waiting on', async () => {
+  it('counts a background subagent with a call in flight until the call is answered and the subagent ended', async () => {
     const rig = await afterTurn(spawnInBackground(), launched(), inside('msg_in', toolUse('toolu_test', 'Bash', { command: 'npm test' })))
-    rig.later(taskEnded(AGENT, SPAWN))
-    await vi.waitFor(() => expect(latest(rig.items(), `claude_thread_${SPAWN}`)).toMatchObject({ state: 'done' }))
 
-    expect(rig.adapter.hasLiveWork()).toBe(true)
     rig.later(toolResult('toolu_test', 'passed', false, { parent_tool_use_id: SPAWN }))
+    await vi.waitFor(() => expect(latest(rig.items(), 'claude_tool_toolu_test')).toMatchObject({ status: 'completed' }))
+    expect(rig.adapter.hasLiveWork()).toBe(true)
+
+    rig.later(taskEnded(AGENT, SPAWN))
     await vi.waitFor(() => expect(rig.adapter.hasLiveWork()).toBe(false))
+  })
+})
+
+describe('Claude transcript mapper: live work', () => {
+  it('counts a call until its answer comes', () => {
+    const mapper = new TranscriptMapper({ now: () => NOW, newId: () => 'id' })
+
+    mapper.map(assistant('msg_c', [toolUse('toolu_c', 'Bash', { command: 'npm test' })]))
+    expect(mapper.hasLiveWork()).toBe(true)
+    mapper.map(toolResult('toolu_c', 'ok'))
+
+    expect(mapper.hasLiveWork()).toBe(false)
   })
 })
 
