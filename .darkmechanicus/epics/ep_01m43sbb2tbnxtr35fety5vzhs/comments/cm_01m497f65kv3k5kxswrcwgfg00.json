@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code · Orchestrator · Source control: a GitHub Desktop-style Git view in every folder",
+    "role": "orchestrator"
+  },
+  "body": "**Blocker and decision (orchestrator).** Two Fireguard runs graded F on the flake gate only, both at about run 60 of 100. Run 1 failed with a vitest fork exiting unexpectedly. Run 2 failed when `git init` began failing in `src/test/gitRepo.ts` for many tests at once. This looks like a resource buildup across repeated runs, not a single flaky test.\n\nAttempts 1 and 2 were lost to session restarts, a lease reset and the worker stalling, with no work product. The person chose to grant extra retries in the desktop app before the next attempt. That attempt runs on Opus 5.5 in the foreground, to find the buildup and fix it in tests or the test helper. If the cause is in production code, the attempt fails with the finding.",
+  "createdAt": "2026-10-06T18:26:30.195Z",
+  "epicId": "ep_01m43sbb2tbnxtr35fety5vzhs",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m497f65kv3k5kxswrcwgfg00",
+  "ticketId": "tk_01m43skwxxm1te8ryz4kx3jjz8"
+}

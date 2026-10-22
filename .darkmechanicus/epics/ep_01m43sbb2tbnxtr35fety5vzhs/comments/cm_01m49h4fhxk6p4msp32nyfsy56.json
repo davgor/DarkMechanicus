@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code · Orchestrator · Source control: a GitHub Desktop-style Git view in every folder",
+    "role": "orchestrator"
+  },
+  "body": "**Blocker (orchestrator, run 2).** Run 2 carried all 10 sprint 1 tickets forward from run 1, because run 1 had accepted them and squashed the sprint as 5a5a03c on source-control. The sprint 1 report is submitted. The gate still fails two conditions that the orchestrator cannot meet:\n\n- `increment_merged`: the carried-forward DM-130 attempt names no increment.\n- `definition_of_done`: the same attempt reports no DoD checks.\n\nAn accepted ticket cannot be claimed again in a run, so DM-130 can't be resubmitted with increment 5a5a03c and run 1's DoD evidence. A person needs to decide how sprint 1's checkpoint is cleared.\n\n**Also open:** sprint 2 entry criterion n1. No comment records the GitHub OAuth App client ID that DM-141 needs.",
+  "createdAt": "2026-10-06T21:15:25.117Z",
+  "epicId": "ep_01m43sbb2tbnxtr35fety5vzhs",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m49h4fhxk6p4msp32nyfsy56",
+  "ticketId": null
+}
