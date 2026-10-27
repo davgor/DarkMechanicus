@@ -260,7 +260,12 @@ export const START: ChatAdapterStartOptions = {
   role: 'orchestrator',
   allowSave: true,
   sessionId: null,
-  darkMechanicus: { command: 'node', args: ['mcp.js', '--role', 'orchestrator', '--allow-save', '--label', 'Claude · Chat'], env: { DM_HOME: '/state' } }
+  darkMechanicus: {
+    command: 'node',
+    args: ['/app/out/main/cli.js', '--repo', '/work/repo'],
+    env: { DM_SESSION_TOKEN: 'dmg_test' }
+  },
+  instructions: 'Use the dm CLI.'
 }
 
 export function fakeProcesses(log: string[], stderr = ''): FakeProcesses {

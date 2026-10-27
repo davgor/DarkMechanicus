@@ -81,11 +81,13 @@ function wire(child: ChildProcess, sink: TransportSink): void {
 }
 
 /** Starts `launch` in `cwd` and reports its lines and its end to `sink`. */
-export const nodeTransport: TransportFactory = (launch, cwd, sink) => {
+export const nodeTransport: TransportFactory = (launch, cwd, sink, env = {}) => {
   let child: ChildProcess
   try {
     child = spawn(launch.file, [...launch.args], {
       cwd,
+      // The chat's grant travels here, so the `dm` the agent runs is the one it was authorized for.
+      env: { ...process.env, ...env },
       shell: false,
       windowsHide: true,
       windowsVerbatimArguments: launch.verbatimArguments,

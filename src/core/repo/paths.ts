@@ -43,9 +43,18 @@ export function ownedPaths(layout: RepoLayout) {
   }
 }
 
-/** Repository-relative path with forward slashes, for messages and results (never absolute). */
+/**
+ * Path with forward slashes for messages and results, never absolute: relative to the repository
+ * root in `repo` mode, and to the project directory in `db` mode (whose absolute location the
+ * storage status reports once, rather than in every message).
+ */
 export function displayPath(layout: RepoLayout, path: string): string {
-  return relative(layout.root, resolve(path)).split(sep).join('/')
+  return relative(layout.displayBase, resolve(path)).split(sep).join('/')
+}
+
+/** What the containment messages call the directory every owned path must stay inside. */
+function baseLabel(layout: RepoLayout): string {
+  return layout.mode === 'repo' ? '.darkmechanicus' : 'the project directory'
 }
 
 /** Whether `target` lies below `base` (not `base` itself), compared lexically. */
@@ -73,27 +82,28 @@ function unsafe(layout: RepoLayout, path: string, reason: string): never {
 
 function checkComponent(check: ContainmentCheck, component: string): void {
   if (check.fs.isSymlink(component)) {
-    unsafe(check.layout, component, 'symbolic links and junctions are not allowed inside .darkmechanicus')
+    unsafe(check.layout, component, `symbolic links and junctions are not allowed inside ${baseLabel(check.layout)}`)
   }
   if (check.fs.exists(component) && !isStrictlyInside(check.realBase, check.fs.realpath(component))) {
-    unsafe(check.layout, component, 'it resolves outside .darkmechanicus')
+    unsafe(check.layout, component, `it resolves outside ${baseLabel(check.layout)}`)
   }
 }
 
 /**
- * Fails closed with `unsafe_path` unless `target` is lexically inside `.darkmechanicus/`, no
- * component from `.darkmechanicus/` down to it is a link (symlink or junction), and every existing
- * component's real path stays inside the real `.darkmechanicus/`. Call before each owned read or
- * write so a path replaced since the last check is caught at use.
+ * Fails closed with `unsafe_path` unless `target` is lexically inside the owned base directory
+ * (`.darkmechanicus/`, or the project directory in `db` mode), no component from that base down to
+ * it is a link (symlink or junction), and every existing component's real path stays inside the
+ * real base. Call before each owned read or write so a path replaced since the last check is
+ * caught at use.
  */
 export function assertContained(layout: RepoLayout, fs: FsAdapter, target: string): void {
   const base = resolve(layout.dmDir)
   const resolved = resolve(target)
   if (!isStrictlyInside(base, resolved)) {
-    unsafe(layout, resolved, 'it is outside .darkmechanicus')
+    unsafe(layout, resolved, `it is outside ${baseLabel(layout)}`)
   }
   if (fs.isSymlink(base) || !fs.isDirectory(base)) {
-    unsafe(layout, base, '.darkmechanicus must be a real directory, not a link')
+    unsafe(layout, base, `${baseLabel(layout)} must be a real directory, not a link`)
   }
   const check: ContainmentCheck = { layout, fs, realBase: fs.realpath(base) }
   for (const component of componentsBelow(base, resolved)) {

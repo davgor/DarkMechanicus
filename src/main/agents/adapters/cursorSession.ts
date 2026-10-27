@@ -13,7 +13,7 @@
  * allows anything), and the methods this client does not offer get a JSON-RPC error, because an
  * unanswered request would leave the agent waiting for ever.
  */
-import type { ApprovalDecision, ChatAdapterEmit, ChatItem, McpServerSpec } from '../../../shared/agents/chat'
+import type { ApprovalDecision, ChatAdapterEmit, ChatItem, DarkMechanicusCli } from '../../../shared/agents/chat'
 import type { ProbeLaunch } from '../../desktop/agentProbe'
 import {
   AcpError,
@@ -27,8 +27,6 @@ import { isAuthRequired } from './cursorAuth'
 import { chooseOptionId, objectOf, permissionDetails } from './cursorProtocol'
 import { UpdateTranslator } from './cursorUpdates'
 
-/** The name the Dark Mechanicus server is registered under, as in the other agents' MCP configs. */
-const MCP_SERVER_NAME = 'darkmechanicus'
 
 /** ACP protocol version 1 is the one Cursor's page documents. */
 const PROTOCOL_VERSION = 1
@@ -42,7 +40,8 @@ interface SessionEnv {
 
 interface SessionContext {
   folder: string
-  server: McpServerSpec
+  /** The chat's `dm` invocation; only its environment is used, to carry the grant. */
+  server: DarkMechanicusCli
   /** Reaches the chat; the adapter makes it silent once it is disposed. */
   emit: ChatAdapterEmit
 }
@@ -88,7 +87,7 @@ export class CursorSession {
     this.translator = new UpdateTranslator(env, (event) => {
       context.emit(event)
     })
-    this.connection = openAcpConnection(env.transport, launch, context.folder, {
+    this.connection = openAcpConnection(env.transport, launch, { cwd: context.folder, env: context.server.env }, {
       notification: (method, params) => {
         this.onNotification(method, params)
       },
@@ -114,7 +113,9 @@ export class CursorSession {
    */
   async begin(resumeId: string | null): Promise<BegunSession> {
     const canLoad = await this.handshake()
-    const params = { cwd: this.context.folder, mcpServers: [this.mcpServer()] }
+    // No MCP server: the agent reaches Dark Mechanicus by running `dm`, authorized by the grant
+    // in its environment.
+    const params = { cwd: this.context.folder, mcpServers: [] }
     let lost: string | null = null
     if (resumeId !== null) {
       lost = canLoad ? await this.load(resumeId, params) : 'resuming is not supported'
@@ -151,11 +152,6 @@ export class CursorSession {
     for (const cancel of this.waiting.values()) {
       cancel()
     }
-  }
-
-  private mcpServer(): Record<string, unknown> {
-    const { command, args, env = {} } = this.context.server
-    return { name: MCP_SERVER_NAME, command, args, env: Object.entries(env).map(([name, value]) => ({ name, value })) }
   }
 
   /** initialize and authenticate; true unless Cursor says it cannot load sessions. */

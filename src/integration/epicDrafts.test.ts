@@ -38,7 +38,7 @@ function createDesktop(): Desktop {
   const open = (repoRoot: string, role: 'desktop' | 'planner'): Workspace =>
     openWorkspace({ repoRoot, role, label: role, transport: 'in_process', allowSave: true, clock, ids, git })
   const planners = { one: open(folders.one, 'planner'), two: open(folders.two, 'planner') }
-  const registry = createFolderRegistry({ file: join(config, 'folders.json'), homeDir: config })
+  const registry = createFolderRegistry({ dmHome: join(config, 'dm-home'), file: join(config, 'folders.json'), homeDir: config })
   registry.track(folders.one)
   registry.track(folders.two)
   const pool = createWorkspacePool((repoRoot) => open(repoRoot, 'desktop'))

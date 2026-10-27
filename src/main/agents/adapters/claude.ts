@@ -61,7 +61,6 @@ import type {
   ChatAdapterEmit,
   ChatAdapterEvent,
   ChatAdapterStartOptions,
-  McpServerSpec,
   ModelOption
 } from '../../../shared/agents/chat'
 import type { ChatAdapterDefinition } from '../adapterRegistry'
@@ -120,7 +119,6 @@ export const CURATED_CLAUDE_MODELS: ModelOption[] = [
   { id: 'haiku', label: 'Haiku' }
 ]
 
-const SERVER_NAME = 'darkmechanicus'
 /**
  * Claude Code's documented switch for auto-memory (https://code.claude.com/docs/en/memory#enable-or-disable-auto-memory).
  * Unlike the `autoMemoryEnabled` setting it wins over every settings layer and over a value the person has
@@ -165,11 +163,6 @@ function closeQuietly(query: ClaudeQuery | null): void {
 /** `default` is the CLI's own choice: the SDK takes no model for it. */
 function sdkModel(model: string | null): string | undefined {
   return model === null || model === 'default' ? undefined : model
-}
-
-function stdioServer(spec: McpServerSpec): Record<string, { type: 'stdio'; command: string; args: string[]; env?: Record<string, string> }> {
-  const env = spec.env === undefined ? {} : { env: spec.env }
-  return { [SERVER_NAME]: { type: 'stdio', command: spec.command, args: spec.args, ...env } }
 }
 
 // ---- Models ----
@@ -417,7 +410,9 @@ class ClaudeChatAdapter implements ChatAdapter {
     const options = this.options as ChatAdapterStartOptions
     const model = sdkModel(this.model)
     // A copy: the inherited environment is the process's own and stays as it was.
-    const env = { ...this.deps.env(), ...AUTO_MEMORY_OFF }
+    // The chat's grant travels in the environment: the agent runs `dm`, and nothing is registered
+    // with the CLI as an MCP server (which an enterprise MCP policy can refuse outright).
+    const env = { ...this.deps.env(), ...AUTO_MEMORY_OFF, ...options.darkMechanicus.env }
     const memory = { env, home: this.deps.homeDir(), tmp: this.deps.tempDir(), platform: this.deps.platform }
     return {
       cwd: options.folder,
@@ -433,9 +428,9 @@ class ClaudeChatAdapter implements ChatAdapter {
       includePartialMessages: true,
       // Without this the CLI sends only a subagent's tool calls; with it, its text too, so a thread holds its whole conversation.
       forwardSubagentText: true,
-      systemPrompt: { type: 'preset', preset: 'claude_code' },
+      // Appended, not replaced: the chat keeps Claude Code's own prompt and gains how to reach us.
+      systemPrompt: { type: 'preset', preset: 'claude_code', append: options.instructions },
       settingSources: ['user', 'project', 'local'],
-      mcpServers: stdioServer(options.darkMechanicus),
       ...(model === undefined ? {} : { model }),
       ...(resume === null ? {} : { resume })
     }

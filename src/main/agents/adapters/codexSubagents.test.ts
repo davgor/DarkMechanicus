@@ -59,7 +59,8 @@ async function rig(script: Step[], answers: ApprovalDecision[] = ['allow_once'])
       role: 'planner',
       allowSave: true,
       sessionId: null,
-      darkMechanicus: { command: 'node', args: ['mcp.js'] }
+      darkMechanicus: { command: 'node', args: ['cli.js'], env: { DM_SESSION_TOKEN: 'dmg_test' } },
+      instructions: 'Use the dm CLI.'
     },
     (event) => {
       events.push(event)

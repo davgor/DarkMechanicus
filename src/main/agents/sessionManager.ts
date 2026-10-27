@@ -65,20 +65,21 @@ import type {
   ChatAdapterStartOptions,
   ChatItem,
   ChatRecord,
-  McpServerSpec,
+  ChatRole,
+  DarkMechanicusCli,
   ModelOption
 } from '../../shared/agents/chat'
 import { canSavePlans, IDLE_STOP_CODE } from '../../shared/agents/chat'
 import type { ChatOpenView, ChatPushEvent, ChatSummary, CreateChatRequest } from '../../shared/agents/chatApi'
 import { AGENT_DEFINITIONS } from '../../shared/desktop/agentKinds'
-import type { AgentAuthStatus, AgentKind, McpConfigView } from '../../shared/desktop/api'
+import type { AgentAuthStatus, AgentKind } from '../../shared/desktop/api'
 import { SIGNED_OUT_PAUSE_REASON } from '../../shared/domain/status'
 import type { RunView } from '../../shared/domain/views'
-import { darkMechanicusServer } from '../desktop/mcpJson'
 import type { ActivityBindings } from './activityBindings'
 import type { ChatAdapterDefinition, ChatAdapterDefinitions } from './adapterRegistry'
 import type { ChatRef, ChatStore } from './chatStore'
 import { createStreamMasker, type StreamMasker } from './claimTokenMask'
+import { cliInstructions } from './cliInstructions'
 import { isOwnServerCall } from './ownServerTools'
 import { createSignInFlags, type SignInFlags } from './signInFlags'
 
@@ -103,8 +104,17 @@ export interface SessionManagerDeps {
   adapters: ChatAdapterDefinitions
   /** The connected executable for a kind (agent registry); null when the agent is not connected. */
   executablePath: (kind: AgentKind) => string | null
-  /** The app's Dark Mechanicus launch command for a folder (`buildMcpConfig`). */
-  mcpConfig: (folder: string) => Pick<McpConfigView, 'command' | 'args' | 'env'>
+  /**
+   * Issues the chat the grant its role needs and returns the `dm` invocation carrying it. The
+   * chat's authority comes from this grant, not from anything the agent can pass: it is the
+   * desktop, where a person is, that issues it.
+   */
+  issueChatCli: (
+    folder: string,
+    grant: { role: ChatRole; allowSave: boolean; label: string }
+  ) => Promise<{ cli: DarkMechanicusCli; grantId: string }>
+  /** Revokes a chat's grant when its session ends, so a token outlives nothing. */
+  revokeChatGrant: (folder: string, grantId: string) => Promise<void>
   /** Delivers an event to the renderer. */
   push: (event: ChatPushEvent) => void
   /** Lets a signed-out orchestrator chat pause its run; without it no run is touched. */
@@ -184,6 +194,8 @@ interface TextStream {
 interface Session {
   chat: ChatRecord
   adapter: ChatAdapter
+  /** The grant this session runs on; revoked when it ends. */
+  grantId: string
   ready: Promise<void>
   /** The running turn; null between turns. */
   turn: Promise<void> | null
@@ -212,6 +224,8 @@ interface Manager extends Required<Omit<SessionManagerDeps, 'runs' | 'activity'>
   seen: Map<string, AgentKind>
   /** Live sessions by chat id. */
   sessions: Map<string, Session>
+  /** Starts in flight by chat id, so racing callers share one agent rather than starting two. */
+  starting: Map<string, Promise<Session>>
   /** Chat id -> approval scopes the person allowed for that chat. */
   allowances: Map<string, Set<string>>
   closing: boolean
@@ -309,24 +323,26 @@ function savesPlans(chat: ChatRecord): boolean {
   return chat.allowSave && canSavePlans(chat.role)
 }
 
-/** The chat's server: its role, `--allow-save` when it may save, and the label "<Agent> · <title>". */
-function chatServer(manager: Manager, chat: ChatRecord): McpServerSpec {
-  return darkMechanicusServer(manager.mcpConfig(chat.folder), {
+/** The chat's grant: its role, whether it may save, and the label "<Agent> · <title>". */
+function chatGrant(chat: ChatRecord): { role: ChatRole; allowSave: boolean; label: string } {
+  return {
     role: chat.role,
     allowSave: savesPlans(chat),
     label: `${AGENT_DEFINITIONS[chat.agent].displayName} · ${chat.title}`
-  })
+  }
 }
 
-function startOptions(manager: Manager, chat: ChatRecord): ChatAdapterStartOptions {
+function startOptions(chat: ChatRecord, cli: DarkMechanicusCli): ChatAdapterStartOptions {
+  const allowSave = savesPlans(chat)
   return {
     chatId: chat.id,
     folder: chat.folder,
     model: chat.model,
     role: chat.role,
-    allowSave: savesPlans(chat),
+    allowSave,
     sessionId: chat.sessionId,
-    darkMechanicus: chatServer(manager, chat)
+    darkMechanicus: cli,
+    instructions: cliInstructions({ cli, role: chat.role, allowSave })
   }
 }
 
@@ -411,23 +427,29 @@ async function disposeSession(manager: Manager, session: Session, reason: Dispos
     settleDisposed(manager, session, reason)
   }
   try {
+    await manager.revokeChatGrant(session.chat.folder, session.grantId)
+  } catch (error) {
+    manager.onError(error)
+  }
+  try {
     await session.adapter.dispose()
   } catch (error) {
     manager.onError(error)
   }
 }
 
-function createSession(manager: Manager, chat: ChatRecord): Session {
+function createSession(manager: Manager, chat: ChatRecord, cli: DarkMechanicusCli, grantId: string): Session {
   if (manager.closing) {
     throw new DomainError('conflict', 'Dark Mechanicus is quitting, so no agent can start.')
   }
   const { definition, executablePath } = adapterFor(manager, chat.agent)
   // Everything that can throw happens before the session is registered, so a failure leaves no trace.
-  const options = startOptions(manager, chat)
+  const options = startOptions(chat, cli)
   // What an agent that ended undisposed (a crash) left running cannot finish; settled before this one adds its own work.
   safely(manager, () => settleEnded(manager, chat))
   const session: Session = {
     chat,
+    grantId,
     adapter: definition.create(executablePath),
     ready: Promise.resolve(),
     turn: null,
@@ -445,10 +467,45 @@ function createSession(manager: Manager, chat: ChatRecord): Session {
   return session
 }
 
+/**
+ * Issues the chat's grant, then starts its session. Separate from `createSession` because issuing
+ * is the one part that waits: everything after it must stay synchronous so a racing caller cannot
+ * find a half-registered session.
+ */
+async function startedSession(manager: Manager, chat: ChatRecord): Promise<Session> {
+  const { cli, grantId } = await manager.issueChatCli(chat.folder, chatGrant(chat))
+  try {
+    return createSession(manager, chat, cli, grantId)
+  } catch (error) {
+    // The session never started, so its grant must not outlive the attempt.
+    void manager.revokeChatGrant(chat.folder, grantId).catch((failure: unknown) => manager.onError(failure))
+    throw error
+  }
+}
+
+/**
+ * Starts the chat's session at most once, however many callers race. Issuing the grant waits, so
+ * unlike the synchronous start this replaced there is a window in which a second caller would find
+ * no session yet; they share this promise instead of each starting an agent.
+ */
+async function startOnce(manager: Manager, chat: ChatRecord): Promise<Session> {
+  const inFlight = manager.starting.get(chat.id)
+  if (inFlight !== undefined) {
+    return inFlight
+  }
+  const pending = startedSession(manager, chat)
+  manager.starting.set(chat.id, pending)
+  try {
+    return await pending
+  } finally {
+    manager.starting.delete(chat.id)
+  }
+}
+
 /** The chat's live session, starting it (once, however many callers race) when there is none. */
 async function ensureSession(manager: Manager, chat: ChatRecord): Promise<Session> {
   const existing = manager.sessions.get(chat.id)
-  const session = existing ?? createSession(manager, chat)
+  const session = existing ?? (await startOnce(manager, chat))
   try {
     await session.ready
   } catch (error) {
@@ -1001,6 +1058,7 @@ export function createSessionManager(deps: SessionManagerDeps): SessionManager {
     flags: createSignInFlags(),
     seen: new Map(),
     sessions: new Map(),
+    starting: new Map(),
     allowances: new Map(),
     closing: false
   }

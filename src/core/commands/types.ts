@@ -10,6 +10,7 @@ import type { Clock } from '../clock'
 import type { Ctx } from '../context'
 import type { Db } from '../db/database'
 import type { ProjectRecord } from '../repo/portable'
+import type { StorageMode } from '../repo/storageMode'
 import type { FsAdapter, GitAdapter, RepoLayout } from '../repo/types'
 import type { z } from 'zod'
 
@@ -28,7 +29,7 @@ export interface WorkspaceCore {
   project(): ProjectRecord
   db(): Db | null
   ctx(): Ctx
-  initialize(input: { name?: string; keyPrefix?: string }): InitializeResultView
+  initialize(input: { name?: string; keyPrefix?: string; mode?: StorageMode }): InitializeResultView
   reconcile(): ReconcileResultView
   flush(): FlushResultView
   safeFlush(): void

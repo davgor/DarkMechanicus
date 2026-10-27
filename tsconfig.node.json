@@ -17,6 +17,7 @@
     "src/shared/**/*",
     "src/core/**/*",
     "src/mcp/**/*",
+    "src/cli/**/*",
     "src/test/**/*",
     "src/integration/**/*"
   ],

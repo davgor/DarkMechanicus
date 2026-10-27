@@ -19,7 +19,7 @@
  *
  * Not shipped.
  */
-import { ACP_DM_SERVER, FOLDER, handshake, loadSession, newSession, prompt, say, turnEnd } from './cursorRecordings'
+import { ACP_MCP_SERVERS, FOLDER, handshake, loadSession, newSession, prompt, say, turnEnd } from './cursorRecordings'
 import { agent, client, type Frame } from './replayAcpAgent'
 
 export const SESSION = 'sess_1'
@@ -46,7 +46,7 @@ export function authenticateRefused(): Frame[] {
 export function newSessionRefused(): Frame[] {
   return [
     ...handshake(),
-    client({ id: 3, method: 'session/new', params: { cwd: FOLDER, mcpServers: [ACP_DM_SERVER] } }),
+    client({ id: 3, method: 'session/new', params: { cwd: FOLDER, mcpServers: ACP_MCP_SERVERS } }),
     refuse(3)
   ]
 }
@@ -55,7 +55,7 @@ export function newSessionRefused(): Frame[] {
 export function loadRefused(): Frame[] {
   return [
     ...handshake(),
-    client({ id: 3, method: 'session/load', params: { sessionId: SESSION, cwd: FOLDER, mcpServers: [ACP_DM_SERVER] } }),
+    client({ id: 3, method: 'session/load', params: { sessionId: SESSION, cwd: FOLDER, mcpServers: ACP_MCP_SERVERS } }),
     refuse(3)
   ]
 }

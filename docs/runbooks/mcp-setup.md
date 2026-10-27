@@ -1,6 +1,11 @@
 # Connect an agent host over MCP
 
-Dark Mechanicus ships a headless MCP server: `out/main/mcp.js`. An agent host launches it as a child process and talks to it over stdio. It opens the repository's `.darkmechanicus/local/state.sqlite` directly, so it works with the desktop app closed and shares the same data when the app is open.
+Dark Mechanicus ships a headless MCP server: `out/main/mcp.js`. An agent host launches it as a child process and talks to it over stdio. It opens the project's database directly, so it works with the desktop app closed and shares the same data when the app is open.
+
+Which database that is follows the folder's [storage mode](../decisions/0002-storage-modes.md), which the server resolves from the repository path — there is no flag to keep in sync:
+
+- **`repo`** (the default): the repository's own `.darkmechanicus/local/state.sqlite`, beside the Git-tracked records.
+- **`db`**: `~/.darkmechanicus/projects/<key>/local/state.sqlite`, and nothing is written into the repository at all. Set `DARKMECHANICUS_HOME` to move that directory — set it for **both** the app and the agent host, or the two will look in different places. The snippet the app gives you already pins it, so copy the snippet rather than writing the entry by hand.
 
 One process is one session with one role. Start one server entry per role you want to give an agent (see [Roles](#roles-and---allow-save)). Every server offers the 6 shipped skills as prompts and lists only the tools its role may call (see [Tools per role](#tools-per-role)).
 
@@ -22,6 +27,8 @@ One process is one session with one role. Start one server entry per role you wa
 | `--label <text>` | Name shown for the session in the desktop app. Default: `<role> via MCP`. |
 | `--help` | Print usage on stdout and exit. |
 
+Environment: `DARKMECHANICUS_REPO` supplies the default `--repo`, and `DARKMECHANICUS_HOME` the Dark Mechanicus home directory (default `~/.darkmechanicus`) that database-only projects live in.
+
 Exit codes: `0` clean shutdown, `1` startup or shutdown failure, `2` bad arguments.
 
 ## Connect the host
@@ -31,7 +38,7 @@ Exit codes: `0` clean shutdown, `1` startup or shutdown failure, `2` bad argumen
 For Claude Code, the desktop app writes the config for you. It adds a `darkmechanicus` server to `.mcp.json` at the repository root, the project config file Claude Code reads. Other hosts still use the copy-paste snippet and the sections below.
 
 - **Folder home:** the MCP card has a **Claude Code** section. It shows the target file, the role (`planner` by default, or `orchestrator`), and whether the agent may save plans (`--allow-save`, on by default). Pick `orchestrator` so the session can run epics as well as plan them (see [Working model](#working-model-your-session-is-the-orchestrator)), then press **Connect Claude Code**.
-- **Onboarding:** **Also write .mcp.json so Claude Code can connect** is on by default. Initialize then writes the file after it creates `.darkmechanicus/`, as a `planner` with `--allow-save`.
+- **Onboarding:** **Also write .mcp.json so Claude Code can connect** is on by default. Initialize then writes the file after it creates `.darkmechanicus/`, as a `planner` with `--allow-save`. A **Database only** folder is not offered the option, and both writing `.mcp.json` and installing the skills are refused for it with `unsupported_capability`: that mode writes nothing into the repository, so copy the snippet into your host's own configuration (for Claude Code, `~/.claude.json`) instead.
 
 The entry is built for the app you are running, like the copy-paste snippet, plus `--role`, `--allow-save` when allowed, and `--label "Claude Code"` (the session name in the app). For the packaged macOS app:
 
