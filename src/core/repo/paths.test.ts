@@ -186,31 +186,3 @@ describe('assertContained (disk)', () => {
     expect(assertContained(repo.layout, nodeFs, join(repo.layout.epicsDir, EPIC, 'current.json'))).toBeUndefined()
   })
 })
-
-describe('owned paths in db mode', () => {
-  const dbLayout = resolveLayout(ROOT, { mode: 'db', homeDir: resolve('/home/dev/.darkmechanicus') })
-
-  it('shows owned paths relative to the project directory, never as a detour out of the repository', () => {
-    const shown = displayPath(dbLayout, dbLayout.projectFile)
-    expect(shown).toBe('project.json')
-    expect(displayPath(dbLayout, ownedPaths(dbLayout).epicStateFile(EPIC))).toBe(`epics/${EPIC}/state.json`)
-    expect(shown.startsWith('..')).toBe(false)
-  })
-
-  it('contains paths inside the project directory and refuses anything outside it', () => {
-    const fs = createMemoryFs()
-    fs.mkdirp(dbLayout.dmDir)
-    expect(() => assertContained(dbLayout, fs, dbLayout.projectFile)).not.toThrow()
-    expect(captureError(() => assertContained(dbLayout, fs, join(ROOT, '.darkmechanicus', 'project.json'))).code).toBe(
-      'unsafe_path'
-    )
-  })
-
-  it('names the project directory rather than .darkmechanicus when it refuses a path', () => {
-    const fs = createMemoryFs()
-    fs.mkdirp(dbLayout.dmDir)
-    const error = captureError(() => assertContained(dbLayout, fs, resolve('/elsewhere/project.json')))
-    expect(error.message).toContain('the project directory')
-    expect(error.message).not.toContain('.darkmechanicus')
-  })
-})

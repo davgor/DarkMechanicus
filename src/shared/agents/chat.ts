@@ -221,27 +221,10 @@ export interface ChatAdapterStartOptions {
   /** The vendor session to resume; null starts a new one. */
   sessionId: string | null
   /**
-   * How the chat reaches Dark Mechanicus: the `dm` CLI it may run, pinned to its folder, with the
-   * grant issued for its role already in `env`. The adapter puts `env` into the process it starts
-   * and tells the agent, in its first instructions, to use this command. Nothing is registered
-   * with the vendor as an MCP server.
+   * The chat's Dark Mechanicus MCP server, with role, label and save permission already in its
+   * arguments. The adapter hands it to the vendor as the `darkmechanicus` server.
    */
-  darkMechanicus: DarkMechanicusCli
-  /**
-   * Appended to the agent's system prompt: how to reach Dark Mechanicus, and that its grant is
-   * already in place. Without it an agent looks for MCP tools, finds none, and reports that it has
-   * no access.
-   */
-  instructions: string
-}
-
-/** The exact `dm` invocation a chat may make, and the environment that authorizes it. */
-export interface DarkMechanicusCli {
-  command: string
-  /** The script and the repository it is pinned to: `[<cli.js>, '--repo', <folder>]`. */
-  args: string[]
-  /** Carries `DM_SESSION_TOKEN`, and the runtime switches the packaged app needs. */
-  env: Record<string, string>
+  darkMechanicus: McpServerSpec
 }
 
 /** Everything an adapter reports while it runs. */

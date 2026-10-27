@@ -8,7 +8,6 @@ import { BoardImportCard } from './BoardImportCard'
 import { BranchEpics } from './BranchEpics'
 import { EpicBuckets } from './EpicBuckets'
 import { HistorySearch } from './HistorySearch'
-import { GrantsCard } from './GrantsCard'
 import { McpCard } from './McpCard'
 import { NewEpicDialog } from './NewEpicDialog'
 import { StorageCard } from './StorageCard'
@@ -31,31 +30,6 @@ interface FolderHomeProps {
  * An initialized folder with no epic open: its epics, history search, storage and MCP status, and
  * the import of an old-style board while the folder still has one.
  */
-/** The side column: the board, storage, agent access and what other branches hold. */
-function SecondaryColumn(props: FolderHomeProps & { titles: Readonly<Record<string, string>> }): JSX.Element {
-  const { folder } = props
-  return (
-    <div className="home-secondary">
-      <BoardImportCard
-        folder={folder}
-        version={props.list.epics.length}
-        onImport={props.onImportBoard}
-        onOpenEpic={props.onOpenEpic}
-      />
-      <StorageCard
-        status={props.status}
-        titles={props.titles}
-        busy={props.busy}
-        onFlush={props.onFlush}
-        onReconcile={props.onReconcile}
-      />
-      <McpCard folder={folder} status={props.status} />
-      <GrantsCard folder={folder} />
-      <BranchEpics folder={folder} />
-    </div>
-  )
-}
-
 export function FolderHome(props: FolderHomeProps): JSX.Element {
   const { folder } = props
   const [creating, setCreating] = useState(false)
@@ -79,7 +53,23 @@ export function FolderHome(props: FolderHomeProps): JSX.Element {
           </section>
           <HistorySearch folder={folder} onOpenEpic={props.onOpenEpic} />
         </div>
-        <SecondaryColumn {...props} titles={titles} />
+        <div className="home-secondary">
+          <BoardImportCard
+            folder={folder}
+            version={props.list.epics.length}
+            onImport={props.onImportBoard}
+            onOpenEpic={props.onOpenEpic}
+          />
+          <StorageCard
+            status={props.status}
+            titles={titles}
+            busy={props.busy}
+            onFlush={props.onFlush}
+            onReconcile={props.onReconcile}
+          />
+          <McpCard folder={folder} status={props.status} />
+          <BranchEpics folder={folder} />
+        </div>
       </div>
       {creating ? (
         <NewEpicDialog

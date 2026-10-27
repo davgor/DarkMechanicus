@@ -1,7 +1,5 @@
 import { z } from 'zod'
 import { REASONING_EFFORTS } from '../shared/domain/bundle'
-import { STORAGE_MODES } from './repo/storageMode'
-import { MAX_GRANT_MINUTES, MIN_GRANT_MINUTES } from './services/grants'
 import {
   attemptEvidenceInput,
   attemptOutputsInput,
@@ -47,17 +45,8 @@ export const COMMAND_SCHEMAS = {
   setDefinitionOfDone: z.strictObject({ checks: definitionOfDoneChecks }),
   initializeRepository: z.strictObject({
     name: z.string().min(1).max(200).optional(),
-    keyPrefix: z.string().regex(/^[A-Z][A-Z0-9]{0,11}$/).optional(),
-    /** Where the project's records live: in the repository (default), or in the home directory only. */
-    mode: z.enum(STORAGE_MODES).optional()
+    keyPrefix: z.string().regex(/^[A-Z][A-Z0-9]{0,11}$/).optional()
   }),
-  issueGrant: z.strictObject({
-    role: z.enum(['planner', 'orchestrator', 'worker', 'reviewer', 'reader']),
-    label: z.string().min(1).max(120),
-    minutes: z.number().int().min(MIN_GRANT_MINUTES).max(MAX_GRANT_MINUTES).optional(),
-    allowSave: z.boolean().optional()
-  }),
-  revokeGrant: z.strictObject({ grantId: stableId }),
   searchHistory: z.strictObject({
     query: z.string().max(500),
     limit: z.number().int().min(1).max(100).optional(),
@@ -66,7 +55,7 @@ export const COMMAND_SCHEMAS = {
   backupDatabase: z.strictObject({
     targetPath: z
       .string()
-      .regex(/^[A-Za-z0-9._-]{1,100}\.sqlite$/, "Backups are written to the project's local/backups directory; give a file name only")
+      .regex(/^[A-Za-z0-9._-]{1,100}\.sqlite$/, 'Backups are written to .darkmechanicus/local/backups; give a file name only')
       .optional()
   }),
   createEpic: z.strictObject({

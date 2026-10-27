@@ -1,6 +1,6 @@
 import { useId, useState } from 'react'
 import type { TrackedFolderView } from '../../../shared/desktop/api'
-import type { BoardImportView, StorageMode } from '../../../shared/domain/views'
+import type { BoardImportView } from '../../../shared/domain/views'
 import type { InitializeOptions } from '../app/shellActions'
 import { useToasts } from '../app/toasts'
 import { useBoardPreview } from '../app/useBoardPreview'
@@ -66,65 +66,6 @@ function CreatedFiles(): JSX.Element {
           </span>
           <span className="created-note-text">{entry.note}</span>
         </div>
-      ))}
-    </div>
-  )
-}
-
-/** What a database-only project creates instead: one database, outside the repository. */
-function CreatedNothing({ name }: { name: string }): JSX.Element {
-  return (
-    <div className="created-list">
-      <p className="created-note-text">
-        Nothing is written into <strong>{name}</strong>: no <code>.darkmechanicus/</code>, no{' '}
-        <code>.mcp.json</code>, no skills, nothing for Git to ignore. Epics, tickets, plan revisions,
-        run history and comments all live in one database in the Dark Mechanicus home directory on this
-        machine.
-      </p>
-      <p className="created-note-text">
-        They stay on this machine: nothing travels with the repository, and a clone elsewhere sees none of it.
-      </p>
-    </div>
-  )
-}
-
-const MODE_CHOICES = [
-  {
-    mode: 'repo' as const,
-    label: 'In this repository',
-    note: 'Plans and history are files under .darkmechanicus/, tracked by Git, so they travel with the code.'
-  },
-  {
-    mode: 'db' as const,
-    label: 'Database only',
-    note: 'Nothing is written into the repository. Everything stays in one database on this machine — for a checkout whose history should not carry planning data.'
-  }
-]
-
-interface StorageModeChoiceProps {
-  mode: StorageMode
-  disabled: boolean
-  onChange(mode: StorageMode): void
-}
-
-/** Where this folder's plans, tickets and history are kept. Fixed once the project has data. */
-function StorageModeChoice({ mode, disabled, onChange }: StorageModeChoiceProps): JSX.Element {
-  const name = useId()
-  return (
-    <div className="onboarding-modes" role="radiogroup" aria-label="Where plans and history are stored">
-      {MODE_CHOICES.map((choice) => (
-        <label key={choice.mode} className={classNames('onboarding-mode', mode === choice.mode && 'is-selected')}>
-          <input
-            type="radio"
-            name={name}
-            value={choice.mode}
-            checked={mode === choice.mode}
-            disabled={disabled}
-            onChange={() => onChange(choice.mode)}
-          />
-          <span className="onboarding-mode-label">{choice.label}</span>
-          <span className="onboarding-mode-note">{choice.note}</span>
-        </label>
       ))}
     </div>
   )
@@ -231,99 +172,58 @@ function BoardCard({ folder, view, removable }: BoardCardProps): JSX.Element {
   )
 }
 
-function OnboardingHead({ name, mode }: { name: string; mode: StorageMode }): JSX.Element {
+function OnboardingHead({ name }: { name: string }): JSX.Element {
   return (
     <header className="onboarding-head">
       <Mascot size={96} />
       <h1 className="display">{name} isn’t set up for Dark Mechanicus yet</h1>
       <p className="lede">
-        {mode === 'repo'
-          ? 'Plans, tickets and run history will live inside this repository so they travel with it. Initializing only creates files; nothing is committed or pushed.'
-          : 'Plans, tickets and run history will live in a database on this machine. The repository is left exactly as it is: no file is created in it, so there is nothing to commit or to explain to anyone else.'}
+        Plans, tickets and run history will live inside this repository so they travel with it.
+        Initializing only creates files; nothing is committed or pushed.
       </p>
     </header>
   )
 }
 
-interface SetupCardProps {
-  folder: TrackedFolderView
-  busy: boolean
-  /** Open board epics an import would create; zero hides the option. */
-  importable: number
-  mode: StorageMode
-  onModeChange(mode: StorageMode): void
-  onInitialize(options: InitializeOptions): void
-  onChooseDifferent(): void
-}
-
-/** What setting the folder up does, the choices it offers, and the button that does it. */
-function SetupCard(props: SetupCardProps): JSX.Element {
-  const { folder, busy, importable, mode, onModeChange } = props
-  const [writeMcpConfig, setWriteMcpConfig] = useState(true)
-  const [importBoard, setImportBoard] = useState(false)
-  const inRepo = mode === 'repo'
-  return (
-    <section className="card card-strong" aria-label="What initializing creates">
-      <span className="eyebrow">
-        <span>{inRepo ? 'WILL BE CREATED IN' : 'NOTHING WILL BE CREATED IN'}</span>{' '}
-        <span className="eyebrow-path">{folder.displayPath}</span>
-      </span>
-      <StorageModeChoice mode={mode} disabled={busy} onChange={onModeChange} />
-      {inRepo ? <CreatedFiles /> : <CreatedNothing name={folder.name} />}
-      {inRepo ? (
-        <p className="created-note">
-          <Icon name="file" />
-          <span>
-            Adds <code>.darkmechanicus/.gitignore</code> so <code>local/</code> is never committed
-          </span>
-        </p>
-      ) : null}
-      {/* A db project writes nothing into the repository, and `.mcp.json` would be a file in it. */}
-      {inRepo ? <McpJsonOption checked={writeMcpConfig} disabled={busy} onChange={setWriteMcpConfig} /> : null}
-      {importable > 0 ? (
-        <BoardImportOption count={importable} checked={importBoard} disabled={busy} onChange={setImportBoard} />
-      ) : null}
-      <div className="button-row">
-        <Button
-          variant="primary"
-          busy={busy}
-          onClick={() =>
-            props.onInitialize({
-              mode,
-              writeMcpConfig: inRepo && writeMcpConfig,
-              importBoard: importable > 0 && importBoard
-            })
-          }
-        >
-          {busy ? 'Initializing…' : 'Initialize folder'}
-        </Button>
-        <Button onClick={props.onChooseDifferent}>Choose a different folder</Button>
-      </div>
-    </section>
-  )
-}
-
-/** Shown for a tracked folder with no project yet: explains and performs setup. */
+/** Shown for a tracked folder that has no `.darkmechanicus/` yet: explains and performs setup. */
 export function OnboardingView({ folder, busy, onInitialize, onChooseDifferent }: OnboardingViewProps): JSX.Element {
   const toasts = useToasts()
-  const [mode, setMode] = useState<StorageMode>('repo')
+  const [writeMcpConfig, setWriteMcpConfig] = useState(true)
+  const [importBoard, setImportBoard] = useState(false)
   const preview = useBoardPreview(folder.path, 0, toasts.reportError)
   const board = preview.status === 'ready' && boardFound(preview.value) ? preview.value : null
   const importable = board === null ? 0 : newEpicCount(board)
   return (
     <div className="onboarding">
       <Stepper />
-      <OnboardingHead name={folder.name} mode={mode} />
+      <OnboardingHead name={folder.name} />
       <div className="onboarding-grid">
-        <SetupCard
-          folder={folder}
-          busy={busy}
-          importable={importable}
-          mode={mode}
-          onModeChange={setMode}
-          onInitialize={onInitialize}
-          onChooseDifferent={onChooseDifferent}
-        />
+        <section className="card card-strong" aria-label="What initializing creates">
+          <span className="eyebrow">
+            <span>WILL BE CREATED IN</span> <span className="eyebrow-path">{folder.displayPath}</span>
+          </span>
+          <CreatedFiles />
+          <p className="created-note">
+            <Icon name="file" />
+            <span>
+              Adds <code>.darkmechanicus/.gitignore</code> so <code>local/</code> is never committed
+            </span>
+          </p>
+          <McpJsonOption checked={writeMcpConfig} disabled={busy} onChange={setWriteMcpConfig} />
+          {importable > 0 ? (
+            <BoardImportOption count={importable} checked={importBoard} disabled={busy} onChange={setImportBoard} />
+          ) : null}
+          <div className="button-row">
+            <Button
+              variant="primary"
+              busy={busy}
+              onClick={() => onInitialize({ writeMcpConfig, importBoard: importable > 0 && importBoard })}
+            >
+              {busy ? 'Initializing…' : 'Initialize folder'}
+            </Button>
+            <Button onClick={onChooseDifferent}>Choose a different folder</Button>
+          </div>
+        </section>
         <section className="card card-dashed" aria-label="Connect an agent">
           <McpSnippet folderPath={folder.path} heading="NEXT · CONNECT AN AGENT OVER MCP" />
           <p className="note">The MCP server runs headless, so agents can plan with this window closed.</p>

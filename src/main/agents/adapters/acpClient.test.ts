@@ -45,7 +45,7 @@ function rig(): Rig {
           }
         }
       }
-      return openAcpConnection(factory, LAUNCH, { cwd: '/work' }, {
+      return openAcpConnection(factory, LAUNCH, '/work', {
         notification: (method, params) => state.notifications.push([method, params]),
         request: (id, method, params) => state.requests.push([id, method, params]),
         closed: (detail) => state.closures.push(detail),
@@ -226,7 +226,7 @@ describe('openAcpConnection: waiting for the tree', () => {
         kill: () => Promise.resolve()
       }),
       LAUNCH,
-      { cwd: '/work' },
+      '/work',
       { notification: () => {}, request: () => {}, closed: () => {} }
     )
 

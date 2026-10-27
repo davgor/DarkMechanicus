@@ -4,21 +4,25 @@
  * Cursor CLI is not installed where these were written). Not shipped.
  */
 import { resolve } from 'node:path'
-import type { DarkMechanicusCli } from '../../../shared/agents/chat'
+import type { McpServerSpec } from '../../../shared/agents/chat'
 import { agent, client, type Frame } from './replayAcpAgent'
 
 export const FOLDER = resolve('/work/repo')
 export const CLIENT_VERSION = '9.9.9'
 
-/** The chat's `dm` invocation; only its environment reaches the agent, carrying the grant. */
-export const DM_SERVER: DarkMechanicusCli = {
+export const DM_SERVER: McpServerSpec = {
   command: 'node',
-  args: ['/app/out/main/cli.js', '--repo', FOLDER],
-  env: { DM_SESSION_TOKEN: 'dmg_test' }
+  args: ['mcp.js', '--role', 'worker', '--label', 'Cursor · Chat'],
+  env: { DM_HOME: '/state' }
 }
 
-/** A session is opened with no MCP server at all: the agent reaches Dark Mechanicus by running `dm`. */
-export const ACP_MCP_SERVERS: never[] = []
+/** The same server as ACP's `mcpServers` lists it. */
+export const ACP_DM_SERVER = {
+  name: 'darkmechanicus',
+  command: 'node',
+  args: ['mcp.js', '--role', 'worker', '--label', 'Cursor · Chat'],
+  env: [{ name: 'DM_HOME', value: '/state' }]
+}
 
 const PERMISSION_OPTIONS = [
   { optionId: 'allow-once', name: 'Allow', kind: 'allow_once' },
@@ -57,7 +61,7 @@ export function handshake(loadSupported = true): Frame[] {
 
 export function newSession(id: number, sessionId: string): Frame[] {
   return [
-    client({ id, method: 'session/new', params: { cwd: FOLDER, mcpServers: ACP_MCP_SERVERS } }),
+    client({ id, method: 'session/new', params: { cwd: FOLDER, mcpServers: [ACP_DM_SERVER] } }),
     agent({ id, result: { sessionId, modes: { currentModeId: 'agent', availableModes: [] } } })
   ]
 }
@@ -65,7 +69,7 @@ export function newSession(id: number, sessionId: string): Frame[] {
 /** session/load: the history is replayed as updates before the (null) answer. */
 export function loadSession(id: number, sessionId: string, history: Frame[] = []): Frame[] {
   return [
-    client({ id, method: 'session/load', params: { sessionId, cwd: FOLDER, mcpServers: ACP_MCP_SERVERS } }),
+    client({ id, method: 'session/load', params: { sessionId, cwd: FOLDER, mcpServers: [ACP_DM_SERVER] } }),
     ...history,
     agent({ id, result: null })
   ]
@@ -73,7 +77,7 @@ export function loadSession(id: number, sessionId: string, history: Frame[] = []
 
 export function failedLoad(id: number, sessionId: string): Frame[] {
   return [
-    client({ id, method: 'session/load', params: { sessionId, cwd: FOLDER, mcpServers: ACP_MCP_SERVERS } }),
+    client({ id, method: 'session/load', params: { sessionId, cwd: FOLDER, mcpServers: [ACP_DM_SERVER] } }),
     agent({ id, error: { code: -32602, message: 'Session not found' } })
   ]
 }

@@ -73,11 +73,9 @@ class CodexProcess implements RpcTransport {
   })
   private readonly child: ChildProcess
 
-  constructor(launch: ProbeLaunch, folder: string, env: Record<string, string> = {}) {
+  constructor(launch: ProbeLaunch, folder: string) {
     const child = spawn(launch.file, [...launch.args], {
       cwd: folder,
-      // The chat's grant travels here, so the `dm` the agent runs is the one it was authorized for.
-      env: { ...process.env, ...env },
       shell: false,
       windowsHide: true,
       windowsVerbatimArguments: launch.verbatimArguments,
@@ -141,14 +139,10 @@ class CodexProcess implements RpcTransport {
  * Starts `codex app-server` for the folder. Throws when the executable cannot be launched safely;
  * a program that starts and then fails reports through `onClose`.
  */
-export function spawnCodexTransport(
-  executablePath: string,
-  folder: string,
-  env: Record<string, string> = {}
-): RpcTransport {
+export function spawnCodexTransport(executablePath: string, folder: string): RpcTransport {
   const plan = planCodexLaunch(executablePath, { platform: process.platform, inspect: inspectExecutable })
   if ('ok' in plan) {
     throw new Error(plan.reason)
   }
-  return new CodexProcess(plan.launch, folder, env)
+  return new CodexProcess(plan.launch, folder)
 }

@@ -37,8 +37,8 @@ afterEach(() => {
 })
 
 describe('migrate on a fresh database', () => {
-  it('starts at schema version 0 and targets SCHEMA_VERSION 9', () => {
-    expect(SCHEMA_VERSION).toBe(9)
+  it('starts at schema version 0 and targets SCHEMA_VERSION 8', () => {
+    expect(SCHEMA_VERSION).toBe(8)
     expect(readSchemaVersion(freshDb())).toBe(0)
   })
 
@@ -46,7 +46,7 @@ describe('migrate on a fresh database', () => {
     const db = freshDb()
     expect(migrate(db)).toEqual({ from: 0, to: SCHEMA_VERSION })
     expect(readSchemaVersion(db)).toBe(SCHEMA_VERSION)
-    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(9)
+    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(8)
   })
 })
 
@@ -60,7 +60,6 @@ describe('the schema a fresh database ends up with', () => {
       'drafts',
       'epics',
       'events',
-      'grants',
       'host_catalogs',
       'idempotency',
       'meta',
@@ -85,7 +84,6 @@ describe('the schema a fresh database ends up with', () => {
       'comments_epic_ticket',
       'events_epic',
       'events_run',
-      'grants_active',
       'outbox_state',
       'plan_revisions_epic',
       'row_checks_run',
@@ -98,8 +96,8 @@ describe('the schema a fresh database ends up with', () => {
 describe('migrate when already current', () => {
   it('is a no-op the second time', () => {
     const db = migratedDb()
-    expect(migrate(db)).toEqual({ from: 9, to: 9 })
-    expect(readSchemaVersion(db)).toBe(9)
+    expect(migrate(db)).toEqual({ from: 8, to: 8 })
+    expect(readSchemaVersion(db)).toBe(8)
   })
 
   it('keeps existing data', () => {
@@ -118,19 +116,19 @@ describe('migrate refuses newer databases', () => {
     expect(error).toBeInstanceOf(DomainError)
     expect((error as DomainError).code).toBe('incompatible_schema')
     expect((error as DomainError).message).toBe(
-      'Database schema v10 is newer than this build supports (v9). Update Dark Mechanicus.'
+      'Database schema v9 is newer than this build supports (v8). Update Dark Mechanicus.'
     )
-    expect((error as DomainError).details).toEqual({ found: 10, supported: 9 })
-    expect(readSchemaVersion(db)).toBe(10)
+    expect((error as DomainError).details).toEqual({ found: 9, supported: 8 })
+    expect(readSchemaVersion(db)).toBe(9)
     expect(objectNames(db, 'table')).toEqual([])
   })
 
   it('refuses a migrated database that a newer build has upgraded', () => {
     const db = migratedDb()
-    db.exec('PRAGMA user_version = 10')
+    db.exec('PRAGMA user_version = 9')
     const error = thrownBy(() => migrate(db))
     expect((error as DomainError).code).toBe('incompatible_schema')
-    expect((error as DomainError).details).toEqual({ found: 10, supported: 9 })
+    expect((error as DomainError).details).toEqual({ found: 9, supported: 8 })
     expect(objectNames(db, 'table')).toContain('epics')
   })
 
@@ -157,7 +155,7 @@ describe('migrate a v1 database to v2', () => {
       `INSERT INTO outbox (kind, epic_id, run_id, revision_id, state, attempts, last_error, created_at)
        VALUES ('snapshot', 'ep1', NULL, 'rv1', 'done', 1, NULL, 't'), ('run_history', 'ep1', 'rn1', NULL, 'failed', 3, 'disk full', 't')`
     )
-    expect(migrate(db)).toEqual({ from: 1, to: 9 })
+    expect(migrate(db)).toEqual({ from: 1, to: 8 })
     expect(outboxRows(db)).toEqual([
       { id: 1, kind: 'snapshot', epic_id: 'ep1', run_id: null, revision_id: 'rv1', entity_id: null, state: 'done', attempts: 1, last_error: null },
       { id: 2, kind: 'run_history', epic_id: 'ep1', run_id: 'rn1', revision_id: null, entity_id: null, state: 'failed', attempts: 3, last_error: 'disk full' }
@@ -284,7 +282,7 @@ describe('schema v4 named profiles', () => {
   it('upgrades a v2 database to the latest version, keeping its rows and adding an empty profiles table', () => {
     const db = v2Db()
     db.run("INSERT INTO outbox (kind, entity_id, state, created_at) VALUES ('profile', 'deep-review', 'pending', 't')")
-    expect(migrate(db)).toEqual({ from: 2, to: 9 })
+    expect(migrate(db)).toEqual({ from: 2, to: 8 })
     expect(db.all('SELECT kind, entity_id, state FROM outbox')).toEqual([{ kind: 'profile', entity_id: 'deep-review', state: 'pending' }])
     expect(db.all('SELECT * FROM profiles')).toEqual([])
   })
@@ -379,7 +377,7 @@ describe('migrate failure handling', () => {
     const db = freshDb()
     thrownBy(() => migrate(db, [{ version: 1, sql: 'NOT SQL' }]))
     expect(db.inTransaction()).toBe(false)
-    expect(migrate(db)).toEqual({ from: 0, to: 9 })
+    expect(migrate(db)).toEqual({ from: 0, to: 8 })
   })
 })
 
@@ -526,7 +524,7 @@ describe('one open attempt per ticket', () => {
 
 describe('schema constraints', () => {
   it.each([
-    ['sessions.role', "INSERT INTO sessions VALUES ('s1', 'admin', 'l', '[]', 'stdio', NULL, NULL, 't', 't', NULL)"],
+    ['sessions.role', "INSERT INTO sessions VALUES ('s1', 'admin', 'l', '[]', 'stdio', NULL, 't', 't', NULL)"],
     ['epics.status', "INSERT INTO epics (id, title, status, created_at, updated_at) VALUES ('e', 'T', 'done', 't', 't')"],
     ['outbox.kind', "INSERT INTO outbox (kind, state, created_at) VALUES ('other', 'pending', 't')"],
     ['outbox.state', "INSERT INTO outbox (kind, state, created_at) VALUES ('snapshot', 'weird', 't')"],
@@ -613,15 +611,12 @@ describe('schema constraints on other vocabularies', () => {
     expect(() => insert('mystery')).toThrow(/CHECK constraint failed/)
   })
 
-  it.each(['desktop', 'planner', 'orchestrator', 'worker', 'reviewer', 'reader'])(
-    'accepts the session role %s',
-    (role) => {
-      const db = migratedDb()
-      expect(() =>
-        db.run("INSERT INTO sessions VALUES (?, ?, 'l', '[]', 'stdio', NULL, NULL, 't', 't', NULL)", `ss_${role}`, role)
-      ).not.toThrow()
-    }
-  )
+  it.each(['desktop', 'planner', 'orchestrator', 'worker', 'reviewer'])('accepts the session role %s', (role) => {
+    const db = migratedDb()
+    expect(() =>
+      db.run("INSERT INTO sessions VALUES (?, ?, 'l', '[]', 'stdio', NULL, 't', 't', NULL)", `ss_${role}`, role)
+    ).not.toThrow()
+  })
 
   it.each(['pending', 'saved', 'failed'])('accepts the plan revision state %s', (state) => {
     const db = runsDb()
@@ -655,7 +650,7 @@ describe('schema v5 row checks', () => {
     insertEpic(db, 'ep1')
     insertRevision(db, 'rv1', 'ep1')
     insertRun(db, { id: 'rn1', state: 'running' })
-    expect(migrate(db)).toEqual({ from: 4, to: 9 })
+    expect(migrate(db)).toEqual({ from: 4, to: 8 })
     expect(db.all('SELECT id FROM runs')).toEqual([{ id: 'rn1' }])
     expect(db.all('SELECT * FROM row_checks')).toEqual([])
   })
@@ -706,7 +701,7 @@ describe('schema v6 sprint increments', () => {
     insertRevision(db, 'rv1', 'ep1')
     insertRun(db, { id: 'rn1', state: 'running' })
     insertAttempt(db, { id: 'at1', state: 'accepted', number: 1 })
-    expect(migrate(db)).toEqual({ from: 5, to: 9 })
+    expect(migrate(db)).toEqual({ from: 5, to: 8 })
     expect(db.all('SELECT id, state, increment_json FROM attempts')).toEqual([{ id: 'at1', state: 'accepted', increment_json: null }])
   })
 
@@ -733,7 +728,7 @@ describe('schema v7 report plan revisions', () => {
       `INSERT INTO sprint_reports (id, run_id, sprint_id, report_revision, content_json, content_hash, created_at)
        VALUES ('rp1', 'rn1', 'sp1', 1, '{}', 'h', 't')`
     )
-    expect(migrate(db)).toEqual({ from: 6, to: 9 })
+    expect(migrate(db)).toEqual({ from: 6, to: 8 })
     expect(db.all('SELECT id, revision_id FROM sprint_reports')).toEqual([{ id: 'rp1', revision_id: null }])
   })
 
@@ -754,7 +749,7 @@ describe('schema v8 run pause time', () => {
     insertEpic(db, 'ep1')
     insertRevision(db, 'rv1', 'ep1')
     insertRun(db, { id: 'rn1', state: 'paused' })
-    expect(migrate(db)).toEqual({ from: 7, to: 9 })
+    expect(migrate(db)).toEqual({ from: 7, to: 8 })
     expect(db.all('SELECT id, state, paused_at FROM runs')).toEqual([{ id: 'rn1', state: 'paused', paused_at: null }])
   })
 

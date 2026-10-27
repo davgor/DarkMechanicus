@@ -41,15 +41,7 @@ function rig(): Rig {
     store,
     adapters: fakes.definitions,
     executablePath: (kind) => `/bin/${kind}`,
-    issueChatCli: async (folder: string) => ({
-      cli: {
-        command: 'node',
-        args: ['/app/out/main/cli.js', '--repo', folder],
-        env: { DM_SESSION_TOKEN: 'dmg_test' }
-      },
-      grantId: 'gr_00000000000000000000000001'
-    }),
-    revokeChatGrant: async () => undefined,
+    mcpConfig: (folder) => ({ command: 'node', args: ['/app/out/main/mcp.js', '--repo', folder], env: {} }),
     push: () => {},
     newId: () => `item_o${(itemCount += 1)}`,
     now: () => AT,

@@ -171,16 +171,16 @@ describe('untrack', () => {
   })
 })
 
-const INIT_ONLY = { mode: 'repo' as const, writeMcpConfig: false, importBoard: false }
-const INIT_AND_CONNECT = { mode: 'repo' as const, writeMcpConfig: true, importBoard: false }
-const INIT_AND_IMPORT = { mode: 'repo' as const, writeMcpConfig: false, importBoard: true }
+const INIT_ONLY = { writeMcpConfig: false, importBoard: false }
+const INIT_AND_CONNECT = { writeMcpConfig: true, importBoard: false }
+const INIT_AND_IMPORT = { writeMcpConfig: false, importBoard: true }
 const ONBOARDING_CONNECT = { role: 'orchestrator', allowSave: true, replace: false }
 const IMPORTED = boardImport({ open: [boardOpenEpic({ state: 'created', epicId: EPIC_A })] })
 
 describe('initialize', () => {
   it('initializes, reloads folders, refreshes and confirms', async () => {
     await recorder.actions().initialize(alpha, INIT_ONLY)
-    expect(dm.callsOf('initializeRepository').map((call) => [call.folder, call.input])).toEqual([['/a', { mode: 'repo' }]])
+    expect(dm.callsOf('initializeRepository').map((call) => [call.folder, call.input])).toEqual([['/a', {}]])
     expect(recorder.reloads).toBe(1)
     expect(recorder.refreshed).toEqual(['/a'])
     expect(recorder.toasts).toEqual([['success', 'Initialized alpha.']])
@@ -259,7 +259,7 @@ describe('initialize with a board import', () => {
     dm.responses.importBoard = IMPORTED
     await recorder.actions().initialize(alpha, INIT_AND_IMPORT)
     expect(dm.commandCalls.map((call) => [call.name, call.folder, call.input])).toEqual([
-      ['initializeRepository', '/a', { mode: 'repo' }],
+      ['initializeRepository', '/a', {}],
       ['importBoard', '/a', {}]
     ])
     expect(recorder.refreshed).toEqual(['/a', '/a'])
@@ -283,7 +283,7 @@ describe('initialize with a board import', () => {
       order.push(`connect:${dm.callsOf('importBoard').length}`)
       return connect(folder, request)
     }
-    await recorder.actions().initialize(alpha, { mode: 'repo' as const, writeMcpConfig: true, importBoard: true })
+    await recorder.actions().initialize(alpha, { writeMcpConfig: true, importBoard: true })
     expect(order).toEqual(['connect:0'])
     expect(dm.callsOf('importBoard')).toHaveLength(1)
   })

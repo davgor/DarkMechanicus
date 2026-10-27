@@ -79,36 +79,3 @@ describe('buildMcpConfig repo path handling', () => {
     expect(JSON.parse(view.json).mcpServers.darkmechanicus.args[2]).toBe(repoPath)
   })
 })
-
-describe('buildMcpConfig and the Dark Mechanicus home directory', () => {
-  const DM_HOME = join('/home', 'dev', '.darkmechanicus')
-
-  /**
-   * A GUI app on macOS does not inherit a shell's environment, so the app and a shell-launched
-   * agent could otherwise resolve different home directories and never find the same project.
-   */
-  it('pins the home directory the app itself uses, so the agent resolves the same projects', () => {
-    const view = buildMcpConfig({
-      packaged: false,
-      execPath: '/usr/lib/electron/electron',
-      appPath: DEV_APP,
-      repoPath: '/repos/site',
-      dmHome: DM_HOME
-    })
-    expect(view.env).toEqual({ DARKMECHANICUS_HOME: DM_HOME })
-    expect(JSON.parse(view.json)).toMatchObject({
-      mcpServers: { darkmechanicus: { env: { DARKMECHANICUS_HOME: DM_HOME } } }
-    })
-  })
-
-  it('keeps the packaged runtime own variables alongside it', () => {
-    const view = buildMcpConfig({
-      packaged: true,
-      execPath: PACKAGED_EXEC,
-      appPath: PACKAGED_APP,
-      repoPath: '/repos/site',
-      dmHome: DM_HOME
-    })
-    expect(view.env).toEqual({ ELECTRON_RUN_AS_NODE: '1', DARKMECHANICUS_HOME: DM_HOME })
-  })
-})

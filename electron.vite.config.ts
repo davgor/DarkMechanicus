@@ -49,9 +49,7 @@ export default defineConfig(({ command }) => {
           // `mcp` is the headless stdio MCP server agents launch; it shares src/core with the desktop.
           input: {
             index: 'src/main/index.ts',
-            mcp: 'src/mcp/main.ts',
-            // `cli` is the `dm` command: the same command table over a one-shot process.
-            cli: 'src/cli/main.ts'
+            mcp: 'src/mcp/main.ts'
           }
         }
       }

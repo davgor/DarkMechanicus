@@ -56,8 +56,6 @@ const REVIEWER: Capability[] = ['read', 'attempt.review', 'comment.write']
 
 const DESKTOP: Capability[] = [
   'read',
-  'grant.issue',
-  'grant.revoke',
   'repo.init',
   'repo.flush',
   'repo.reconcile',
@@ -101,12 +99,8 @@ const AGENT_ONLY = [
   'host.register'
 ] as const
 
-const READER: Capability[] = ['read']
-
-const AGENT_ROLES: SessionRole[] = ['planner', 'orchestrator', 'worker', 'reviewer', 'reader']
+const AGENT_ROLES: SessionRole[] = ['planner', 'orchestrator', 'worker', 'reviewer']
 const ALL_ROLES: SessionRole[] = ['desktop', ...AGENT_ROLES]
-/** Every role but `reader`, which observes and writes nothing, not even a comment. */
-const WRITING_ROLES: SessionRole[] = ALL_ROLES.filter((role) => role !== 'reader')
 
 function sorted(values: readonly string[]): string[] {
   return [...values].sort()
@@ -118,17 +112,15 @@ function sessionWith(role: SessionRole, capabilities: Capability[]): SessionCont
 
 describe('capability vocabulary', () => {
   it('lists every capability exactly once', () => {
-    expect(CAPABILITIES).toHaveLength(40)
-    expect(new Set(CAPABILITIES).size).toBe(40)
+    expect(CAPABILITIES).toHaveLength(38)
+    expect(new Set(CAPABILITIES).size).toBe(38)
     expect(sorted(CAPABILITIES)).toEqual(sorted([...DESKTOP, ...AGENT_ONLY]))
   })
 
-  it('marks approval, auto-continue, retry grants, run queueing, deletion, granting roles and the sign-in pause and resume as human-only', () => {
+  it('marks approval, auto-continue, retry grants, run queueing, deletion and the sign-in pause and resume as human-only', () => {
     expect(sorted(HUMAN_ONLY_CAPABILITIES)).toEqual(
       sorted([
         'checkpoint.approve',
-        'grant.issue',
-        'grant.revoke',
         'run.authorize_auto',
         'run.pause_signed_out',
         'run.resume_signed_out',
@@ -147,8 +139,7 @@ describe('capabilitiesForRole exact sets', () => {
     ['reviewer', REVIEWER],
     ['planner', PLANNER],
     ['orchestrator', ORCHESTRATOR],
-    ['desktop', DESKTOP],
-    ['reader', READER]
+    ['desktop', DESKTOP]
   ] as const)('gives the %s role exactly its capabilities', (role, expected) => {
     expect(sorted(capabilitiesForRole(role))).toEqual(sorted(expected))
   })
@@ -159,7 +150,7 @@ describe('capabilitiesForRole exact sets', () => {
     expect(capabilities.filter((capability) => !CAPABILITIES.includes(capability))).toEqual([])
   })
 
-  it.each(WRITING_ROLES)('lets the %s role write comments', (role) => {
+  it.each(ALL_ROLES)('lets the %s role write comments', (role) => {
     expect(capabilitiesForRole(role).filter((capability) => capability === 'comment.write')).toEqual(['comment.write'])
   })
 
@@ -281,32 +272,5 @@ describe('requireCapability', () => {
   it('rejects everything for a session with no capabilities', () => {
     const empty = sessionWith('planner', [])
     expect(() => requireCapability(empty, 'read')).toThrow(DomainError)
-  })
-})
-
-describe('the reader role', () => {
-  it('may only read, whatever is asked of it', () => {
-    for (const options of [{}, { allowSave: true }, { allowSave: false }]) {
-      expect(capabilitiesForRole('reader', options)).toEqual(['read'])
-    }
-  })
-
-  it('cannot write a comment, edit a draft, save a plan or claim a ticket', () => {
-    const granted = capabilitiesForRole('reader', { allowSave: true })
-    for (const capability of ['comment.write', 'draft.edit', 'plan.save', 'attempt.claim'] as Capability[]) {
-      expect(granted).not.toContain(capability)
-    }
-  })
-})
-
-describe('granting a role is the person own act', () => {
-  it.each(AGENT_ROLES)('never lets the %s role issue or revoke a grant', (role) => {
-    const granted = capabilitiesForRole(role, { allowSave: true })
-    expect(granted).not.toContain('grant.issue')
-    expect(granted).not.toContain('grant.revoke')
-  })
-
-  it('keeps both with the desktop, where a person is at the keyboard', () => {
-    expect(capabilitiesForRole('desktop')).toEqual(expect.arrayContaining(['grant.issue', 'grant.revoke']))
   })
 })

@@ -145,28 +145,3 @@ describe('listBranchEpics limits', () => {
     expect(crowded.listed).toEqual(['first', 'second'])
   })
 })
-
-describe('listBranchEpics for a database-only project', () => {
-  const dbLayout = resolveLayout(resolve('/repo'), { mode: 'db', homeDir: resolve('/home/dev/.darkmechanicus') })
-
-  it('finds nothing, because no branch can carry an epic record', async () => {
-    const db = createTestDb()
-    insertEpic(db, { id: idOf('epic', 1) })
-    const git = fakeGit('main', { 'feature/a': epicFiles(idOf('epic', 1), 'Shared epic', 3) })
-    expect(await listBranchEpics({ db, git, layout: dbLayout })).toEqual([])
-  })
-
-  it('asks Git nothing at all, rather than reading other branches and discarding the result', async () => {
-    const db = createTestDb()
-    const git = fakeGit('main', { 'feature/a': epicFiles(idOf('epic', 1), 'Shared epic', 3) })
-    await listBranchEpics({ db, git, layout: dbLayout })
-    expect(git.listed).toEqual([])
-  })
-
-  it('still lists them for a repository-backed project, so the guard is on the mode alone', async () => {
-    const db = createTestDb()
-    const git = fakeGit('main', { 'feature/a': epicFiles(idOf('epic', 1), 'Shared epic', 3) })
-    expect(await listBranchEpics({ db, git, layout })).toHaveLength(1)
-    expect(git.listed).toEqual(['feature/a'])
-  })
-})

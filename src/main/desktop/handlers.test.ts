@@ -42,16 +42,12 @@ const REMOVAL_RESULT: BoardRemovalResultView = {
   editByHand: [{ path: 'README.md', lines: [3] }]
 }
 
-/** Folders set up database-only in a world; everything else is a repo-backed folder. */
-let dbFolders: Set<string> = new Set()
-
 function view(path: string): TrackedFolderView {
   return {
     path,
     name: basename(path),
     displayPath: path,
     initialized: true,
-    storageMode: dbFolders.has(path) ? 'db' : 'repo',
     available: true,
     addedAt: '2026-01-01T00:00:00.000Z'
   }
@@ -70,8 +66,6 @@ function echoWorkspace(repoRoot: string): Workspace {
 
 interface WorldOptions {
   tracked?: string[]
-  /** Tracked folders that are database-only projects. */
-  dbMode?: string[]
   /** Non-canonical spellings of tracked paths (symlinks, trailing separators). */
   aliases?: Record<string, string>
   workspace?: Workspace
@@ -119,7 +113,6 @@ function createRegistryFake(
       }
       return tracked.map(view)
     },
-    storageMode: (path: string) => view(aliases[path] ?? path).storageMode,
     resolve(path) {
       const canonical = aliases[path] ?? path
       return tracked.includes(canonical) ? canonical : null
@@ -146,7 +139,6 @@ function createPoolFake(
 }
 
 function createWorld(options: WorldOptions = {}): World {
-  dbFolders = new Set(options.dbMode ?? [])
   const tracked = [...(options.tracked ?? [])]
   const picks = [...(options.picks ?? [])]
   const log: { opened: string[]; closed: string[] } = { opened: [], closed: [] }
@@ -875,63 +867,5 @@ describe('firstPickedDirectory', () => {
     expect(firstPickedDirectory({ canceled: false, filePaths: ['/repos/a', '/repos/b'] })).toBe('/repos/a')
     expect(firstPickedDirectory({ canceled: true, filePaths: ['/repos/a'] })).toBeNull()
     expect(firstPickedDirectory({ canceled: false, filePaths: [] })).toBeNull()
-  })
-})
-
-describe('a database-only folder stays invisible to its repository', () => {
-  const FOLDER = '/repos/work'
-
-  function dbWorld(): World {
-    return createWorld({ tracked: [FOLDER], dbMode: [FOLDER] })
-  }
-
-  it('refuses to install skills into it, and writes nothing', async () => {
-    const world = dbWorld()
-    const handlers = createDesktopHandlers(world.deps)
-    await expect(handlers.installSkills(FOLDER)).rejects.toMatchObject({ code: 'unsupported_capability' })
-    expect(world.installCalls).toEqual([])
-  })
-
-  it('refuses to write .mcp.json into it, and writes nothing', async () => {
-    const world = dbWorld()
-    const handlers = createDesktopHandlers(world.deps)
-    const request: ClaudeCodeConnectRequest = { role: 'orchestrator', allowSave: true, replace: false }
-    await expect(handlers.connectClaudeCode(FOLDER, request)).rejects.toMatchObject({
-      code: 'unsupported_capability'
-    })
-    expect(world.connectCalls).toEqual([])
-  })
-
-  it('says why, and points at the snippet instead', async () => {
-    const world = dbWorld()
-    const handlers = createDesktopHandlers(world.deps)
-    const error = await handlers.installSkills(FOLDER).catch((caught: unknown) => caught)
-    expect((error as DomainError).message).toMatch(/database-only/i)
-    expect((error as DomainError).message).toMatch(/writes nothing into it/i)
-  })
-
-  it('refuses to delete the old board files from it, and deletes nothing', async () => {
-    const world = dbWorld()
-    const handlers = createDesktopHandlers(world.deps)
-    await expect(handlers.removeBoardFiles(FOLDER, ['board/done/001-a.md'])).rejects.toMatchObject({
-      code: 'unsupported_capability'
-    })
-    expect(world.removals).toEqual([])
-  })
-
-  it('still shows the connection snippet, which is copied rather than written', async () => {
-    const world = dbWorld()
-    const handlers = createDesktopHandlers(world.deps)
-    await expect(handlers.getMcpConfig(FOLDER)).resolves.toBeDefined()
-    expect(world.mcpCalls).toEqual([FOLDER])
-  })
-
-  it('leaves a repository-backed folder able to do both', async () => {
-    const world = createWorld({ tracked: ['/repos/own'] })
-    const handlers = createDesktopHandlers(world.deps)
-    await handlers.installSkills('/repos/own')
-    await handlers.connectClaudeCode('/repos/own', { role: 'orchestrator', allowSave: true, replace: false })
-    expect(world.installCalls).toEqual(['/repos/own'])
-    expect(world.connectCalls).toHaveLength(1)
   })
 })

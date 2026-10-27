@@ -1,6 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { STORAGE_MODES } from '../../core/repo/storageMode'
 import { definitionOfDoneChecks } from '../../core/schemas'
 import type { CommandApi } from '../../shared/domain/api'
 import { defineArglessTool, defineTool, registerTools } from './define'
@@ -44,27 +43,21 @@ const DISCOVERY_TOOLS = [
   defineTool({
     name: 'initialize_repository',
     description:
-      'Sets the repository up for Dark Mechanicus. Explicit, safe to repeat, and never commits anything. In the default repo mode it creates the .darkmechanicus/ folder (project record and Git ignore rules for local state) in the repository, so plans and history travel with the code. In db mode it creates nothing in the repository at all: the project lives in one machine-local database in the Dark Mechanicus home directory, for a checkout whose history should not carry planning data. A folder already set up one way is never given a second project. The key prefix (uppercase letters and digits, e.g. DM) is used for ticket keys such as DM-12.',
+      'Creates the .darkmechanicus/ folder (project record and Git ignore rules for local state) in the repository. Explicit, safe to repeat, and never commits anything. The key prefix (uppercase letters and digits, e.g. DM) is used for ticket keys such as DM-12.',
     kind: 'idempotent',
     input: {
       name: z.string().min(1).max(200).optional(),
       keyPrefix: z
         .string()
         .regex(/^[A-Z][A-Z0-9]{0,11}$/, 'Use 1-12 uppercase letters or digits starting with a letter, e.g. DM')
-        .optional(),
-      mode: z
-        .enum(STORAGE_MODES)
         .optional()
-        .describe(
-          'repo (default): records in .darkmechanicus/, tracked by Git. db: everything in one database in the Dark Mechanicus home directory, nothing written into the repository.'
-        )
     },
     run: (api, input) => api.initializeRepository(input)
   }),
   defineArglessTool({
     name: 'get_storage_status',
     description:
-      'Reports storage health: the project\'s storage mode and where its database lives, pending or failed writes of Git-tracked records, the recorded versus current Git branch (branch.changed blocks saving and dispatch with `branch_changed` until reconcile_repository; a db project is never branch-bound), conflicts, and active sessions.',
+      'Reports repository storage health: pending or failed writes of Git-tracked records, the recorded versus current Git branch (branch.changed blocks saving and dispatch with `branch_changed` until reconcile_repository), conflicts, and active sessions.',
     kind: 'read',
     run: (api) => api.getStorageStatus()
   }),

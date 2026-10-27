@@ -1085,37 +1085,13 @@ function applyPlan(deps: ImporterDeps, context: ApplyContext): ReconcileResultVi
 }
 
 /**
- * A database-only project tracks no record file, so there is never anything to import. Built fresh
- * each time: the result goes out to callers, and a shared one would let any of them change what
- * every later reconcile returns.
- */
-function nothingToReconcile(): ReconcileResultView {
-  return {
-    imported: [],
-    unchanged: [],
-    conflicts: [],
-    profileConflicts: [],
-    rejected: [],
-    branchChanged: false,
-    pausedRuns: []
-  }
-}
-
-/**
  * Reconciles tracked records into the local database under the write lock (so no finalizer can be
  * mid-write while files are read). Throws `not_initialized` or `project_mismatch` without changing
  * anything; per-epic, per-run, and per-profile problems (including an `epics/`, `history/`, or
  * `profiles` that is a link, resolves outside, or is not a directory, which is then read as empty)
  * are reported in `rejected`/`conflicts`/`profileConflicts` and leave those entities as they were.
- *
- * A `db` project has nothing to reconcile: its database *is* the record, so no file is read, the
- * checkout branch is never recorded, and moving the checkout never pauses a run — the plan is not
- * in the checkout to begin with.
  */
 export function reconcileRepository(deps: ImporterDeps): ReconcileResultView {
-  if (deps.layout.mode === 'db') {
-    return nothingToReconcile()
-  }
   return deps.db.tx(() => {
     const current = deps.git.head()?.branch ?? null
     const branchChanged = branchState(deps.db, current).changed

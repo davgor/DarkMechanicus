@@ -197,8 +197,7 @@ const SCHEMA_FINGERPRINTS: Record<string, string> = {
   get_capabilities: 'efddc7bd8bbcef73',
   get_project: 'efddc7bd8bbcef73',
   list_projects: 'efddc7bd8bbcef73',
-  // Changed on purpose: the tool gained the optional `mode` (repo | db) storage choice.
-  initialize_repository: 'e841294b37f8b9ea',
+  initialize_repository: 'f11b9b72dcf6b080',
   get_storage_status: 'efddc7bd8bbcef73',
   flush_portable_state: 'efddc7bd8bbcef73',
   reconcile_repository: 'efddc7bd8bbcef73',

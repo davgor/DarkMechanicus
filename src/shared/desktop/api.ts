@@ -6,7 +6,7 @@
 import type { ChatsApi } from '../agents/chatApi'
 import type { CommandApi, CommandName } from '../domain/api'
 import type { DomainErrorShape } from '../domain/errors'
-import type { BoardRemovalResultView, BoardRemovalView, StorageMode } from '../domain/views'
+import type { BoardRemovalResultView, BoardRemovalView } from '../domain/views'
 
 export interface TrackedFolderView {
   /** Canonical real path; the registry key. */
@@ -15,8 +15,6 @@ export interface TrackedFolderView {
   /** Path with the home directory abbreviated to `~`. */
   displayPath: string
   initialized: boolean
-  /** `repo`: records in the repository. `db`: one database in the Dark Mechanicus home directory. */
-  storageMode: StorageMode
   /** False when the folder no longer exists or is unreadable. */
   available: boolean
   addedAt: string
@@ -230,9 +228,6 @@ const DESKTOP_COMMANDS = [
   'listBranchEpics',
   'backupDatabase',
   'listSessions',
-  'issueGrant',
-  'listGrants',
-  'revokeGrant',
   'listEpics',
   'createEpic',
   'getEpic',

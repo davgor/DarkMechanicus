@@ -22,12 +22,7 @@ export interface TransportHandle {
 }
 
 /** Starts the agent process in `cwd`; its output is reported to `sink`. */
-export type TransportFactory = (
-  launch: ProbeLaunch,
-  cwd: string,
-  sink: TransportSink,
-  env?: Record<string, string>
-) => TransportHandle
+export type TransportFactory = (launch: ProbeLaunch, cwd: string, sink: TransportSink) => TransportHandle
 
 export type RpcId = number | string
 
@@ -97,17 +92,17 @@ class Connection implements AcpConnection {
   constructor(
     factory: TransportFactory,
     launch: ProbeLaunch,
-    where: { cwd: string; env: Record<string, string> },
+    cwd: string,
     private readonly handlers: AcpHandlers
   ) {
-    this.handle = factory(launch, where.cwd, {
+    this.handle = factory(launch, cwd, {
       line: (text) => {
         this.hear(text)
       },
       closed: (detail) => {
         this.end(detail)
       }
-    }, where.env)
+    })
   }
 
   isClosed(): boolean {
@@ -252,12 +247,6 @@ function parseLine(text: string): Message | null {
 }
 
 /** Starts the agent process and returns the connection to it. */
-export function openAcpConnection(
-  factory: TransportFactory,
-  launch: ProbeLaunch,
-  /** Where the agent runs, and what its environment carries (the chat's Dark Mechanicus grant). */
-  where: { cwd: string; env?: Record<string, string> },
-  handlers: AcpHandlers
-): AcpConnection {
-  return new Connection(factory, launch, { cwd: where.cwd, env: where.env ?? {} }, handlers)
+export function openAcpConnection(factory: TransportFactory, launch: ProbeLaunch, cwd: string, handlers: AcpHandlers): AcpConnection {
+  return new Connection(factory, launch, cwd, handlers)
 }

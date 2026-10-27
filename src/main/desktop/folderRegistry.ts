@@ -16,7 +16,6 @@ import { basename, dirname, isAbsolute, sep } from 'node:path'
 import { z } from 'zod'
 import { DomainError } from '../../core/errors'
 import { resolveLayout } from '../../core/repo/layout'
-import { resolveStorageMode, type StorageMode } from '../../core/repo/storageMode'
 import type { TrackedFolderView } from '../../shared/desktop/api'
 
 /** The filesystem surface the registry uses; tests inject fakes and faults through it. */
@@ -34,8 +33,6 @@ export interface RegistryFs {
 export interface FolderRegistry {
   /** Tracked folders in insertion order, with availability and initialization read fresh. */
   list(): TrackedFolderView[]
-  /** How the folder stores its records, read fresh; `repo` for a folder nothing has set up. */
-  storageMode(path: string): StorageMode
   /** Adds a folder, or selects the existing entry for the same canonical path (`added: false`). */
   track(path: string): { folder: TrackedFolderView; added: boolean }
   /** Removes only the registry entry (never repository data) and returns the remaining folders. */
@@ -79,8 +76,6 @@ const nodeRegistryFs: RegistryFs = {
 interface RegistryContext {
   file: string
   homeDir: string
-  /** Dark Mechanicus home directory, where database-only projects live. */
-  dmHome: string
   fs: RegistryFs
   now: () => string
 }
@@ -135,25 +130,13 @@ function abbreviateHome(path: string, homeDir: string): string {
   return path.startsWith(`${home}${sep}`) ? `~${path.slice(home.length)}` : path
 }
 
-/**
- * How a folder is set up, read fresh: a project in the Dark Mechanicus home directory makes it
- * `db`, anything else `repo`. A folder nothing has initialized yet reads as `repo`, the mode it
- * gets unless the person picks the other one during setup.
- */
-function storageModeOf(context: RegistryContext, path: string): StorageMode {
-  return resolveStorageMode({ repoRoot: path, homeDir: context.dmHome, fs: context.fs })
-}
-
 function toView(context: RegistryContext, entry: FolderEntry): TrackedFolderView {
   const { fs, homeDir } = context
-  const mode = storageModeOf(context, entry.path)
-  const layout = resolveLayout(entry.path, { mode, homeDir: context.dmHome })
   return {
     path: entry.path,
     name: basename(entry.path) || entry.path,
     displayPath: abbreviateHome(entry.path, homeDir),
-    initialized: fs.exists(layout.projectFile),
-    storageMode: mode,
+    initialized: fs.exists(resolveLayout(entry.path).projectFile),
     available: fs.isDirectory(entry.path),
     addedAt: entry.addedAt
   }
@@ -226,8 +209,6 @@ export function createFolderRegistry(options: {
   file: string
   /** Home directory, abbreviated as `~` in display paths. */
   homeDir: string
-  /** Dark Mechanicus home directory holding database-only projects (`resolveHomeDir`). */
-  dmHome: string
   fs?: RegistryFs
   /** ISO timestamp source for `addedAt`. */
   now?: () => string
@@ -235,14 +216,12 @@ export function createFolderRegistry(options: {
   const context: RegistryContext = {
     file: options.file,
     homeDir: options.homeDir,
-    dmHome: options.dmHome,
     fs: options.fs ?? nodeRegistryFs,
     now: options.now ?? (() => new Date().toISOString())
   }
   const state: RegistryState = { entries: loadEntries(context.fs, context.file) }
   return {
     list: () => state.entries.map((entry) => toView(context, entry)),
-    storageMode: (path) => storageModeOf(context, findEntry(context.fs, state.entries, path)?.path ?? path),
     track: (path) => trackFolder(context, state, path),
     untrack: (path) => untrackFolder(context, state, path),
     has: (path) => findEntry(context.fs, state.entries, path) !== undefined,

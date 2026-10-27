@@ -88,13 +88,8 @@ async function readBranch(deps: BranchEpicDeps, branch: string, limit: number): 
 /**
  * Epics recorded on other local branches, read through Git without switching the checkout
  * (at most 50 branches and 500 epics). Records are untrusted; invalid ones are skipped.
- * Always empty for a `db` project, whose epics live outside the checkout entirely.
  */
 export async function listBranchEpics(deps: BranchEpicDeps): Promise<BranchEpicView[]> {
-  // A db project keeps no epic record in the checkout, so no branch can carry one.
-  if (deps.layout.mode === 'db') {
-    return []
-  }
   const current = deps.git.head()?.branch ?? null
   const branches = (await deps.git.listLocalBranches()).filter((branch) => branch !== current).slice(0, MAX_BRANCHES)
   const views: BranchEpicView[] = []

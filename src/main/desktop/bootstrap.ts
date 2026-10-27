@@ -15,7 +15,6 @@ import {
 } from 'electron'
 import { join } from 'node:path'
 import { DomainError } from '../../core/errors'
-import { resolveHomeDir } from '../../core/repo/storageMode'
 import { openWorkspace, type Workspace } from '../../core/workspace'
 import type { AgentDownloadProgress, AgentKind, McpConfigView } from '../../shared/desktop/api'
 import { createActivityBindings, type ActivityBindings } from '../agents/activityBindings'
@@ -49,7 +48,6 @@ import { previewBoardRemoval, removeBoardFiles } from './boardRemovalFiles'
 import { createFolderRegistry, type FolderRegistry } from './folderRegistry'
 import { createDesktopHandlers, firstPickedDirectory } from './handlers'
 import { registerDesktopIpc } from './ipc'
-import { buildCliConfig, type CliLaunch } from './cliConfig'
 import { buildMcpConfig } from './mcpConfig'
 import { claudeCodeServer } from './mcpJson'
 import { writeMcpServer } from './mcpJsonFile'
@@ -127,43 +125,12 @@ function createInstaller(agents: AgentRegistry): AgentInstaller {
 }
 
 /** The MCP launch command for `repoPath`, for this build of the app (packaged or development). */
-let dmHome: string | undefined
-
-/**
- * The Dark Mechanicus home directory this machine uses. The headless MCP server resolves it the
- * same way, so both processes find the same database-only projects. Read on first use rather than
- * at module load: this module is imported before `app.whenReady()`, and every other path here is
- * read after it.
- */
-function darkMechanicusHome(): string {
-  dmHome ??= resolveHomeDir(process.env, app.getPath('home'))
-  return dmHome
-}
-
-/**
- * How long a chat's grant lasts. Long enough that a working session is never interrupted, and it
- * is revoked the moment the session ends anyway; the expiry only matters if the app dies first.
- */
-const CHAT_GRANT_MINUTES = 12 * 60
-
-/** The `dm` invocation a chat may make, pinned to its folder. */
-function cliConfigFor(repoPath: string): CliLaunch {
-  return buildCliConfig({
-    packaged: app.isPackaged,
-    execPath: process.execPath,
-    appPath: app.getAppPath(),
-    repoPath,
-    dmHome: darkMechanicusHome()
-  })
-}
-
 function mcpConfigFor(repoPath: string): McpConfigView {
   return buildMcpConfig({
     packaged: app.isPackaged,
     execPath: process.execPath,
     appPath: app.getAppPath(),
-    repoPath,
-    dmHome: darkMechanicusHome()
+    repoPath
   })
 }
 
@@ -174,7 +141,6 @@ function openDesktopWorkspace(repoRoot: string): Workspace {
     label: 'Desktop',
     transport: 'desktop',
     pid: process.pid,
-    homeDir: darkMechanicusHome(),
     serverInfo: { name: 'darkmechanicus-desktop', version: app.getVersion() }
   })
 }
@@ -210,22 +176,7 @@ function createSessions(
     activity,
     adapters: CHAT_ADAPTERS,
     executablePath: (kind) => agents.list().find((agent) => agent.kind === kind)?.executablePath ?? null,
-    issueChatCli: async (folder, grant) => {
-      const issued = await desktopWorkspace(folders, workspaces, folder).issueGrant({
-        role: grant.role,
-        label: grant.label,
-        allowSave: grant.allowSave,
-        minutes: CHAT_GRANT_MINUTES
-      })
-      const launch = cliConfigFor(folder)
-      return {
-        cli: { ...launch, env: { ...launch.env, DM_SESSION_TOKEN: issued.token } },
-        grantId: issued.grant.id
-      }
-    },
-    revokeChatGrant: async (folder, grantId) => {
-      await desktopWorkspace(folders, workspaces, folder).revokeGrant({ grantId })
-    },
+    mcpConfig: mcpConfigFor,
     push: createChatPush(() => BrowserWindow.getAllWindows()),
     runs: {
       getRun: async (folder, runId) => desktopWorkspace(folders, workspaces, folder).getRun({ runId }),
@@ -288,8 +239,7 @@ function startChats(ipc: Pick<IpcMain, 'handle'>, services: ChatServices): void 
 export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick<IpcMain, 'handle'>): DesktopBridge {
   const registry = createFolderRegistry({
     file: join(app.getPath('userData'), 'folders.json'),
-    homeDir: app.getPath('home'),
-    dmHome: darkMechanicusHome()
+    homeDir: app.getPath('home')
   })
   const agents = createAgentRegistry({ file: join(app.getPath('userData'), 'agents.json') })
   const installer = createInstaller(agents)

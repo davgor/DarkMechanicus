@@ -34,15 +34,7 @@ function rig(runs: Partial<OrchestratorRuns> = {}): Rig {
     store,
     adapters: fakes.definitions,
     executablePath: (kind) => `/bin/${kind}`,
-    issueChatCli: async (folder: string) => ({
-      cli: {
-        command: 'node',
-        args: ['/app/out/main/cli.js', '--repo', folder],
-        env: { DM_SESSION_TOKEN: 'dmg_test' }
-      },
-      grantId: 'gr_00000000000000000000000001'
-    }),
-    revokeChatGrant: async () => undefined,
+    mcpConfig: (folder) => ({ command: 'node', args: ['/app/out/main/mcp.js', '--repo', folder], env: {} }),
     push: () => {},
     now: () => AT,
     onError: (error) => errors.push(error)
@@ -195,15 +187,7 @@ describe('start an orchestrator: an agent that cannot start', () => {
       store,
       adapters: fakeAdapters().definitions,
       executablePath: () => null,
-      issueChatCli: async (folder: string) => ({
-        cli: {
-          command: 'node',
-          args: ['/app/out/main/cli.js', '--repo', folder],
-          env: { DM_SESSION_TOKEN: 'dmg_test' }
-        },
-        grantId: 'gr_00000000000000000000000001'
-      }),
-      revokeChatGrant: async () => undefined,
+      mcpConfig: () => ({ command: 'node', args: [], env: {} }),
       push: () => {}
     })
 

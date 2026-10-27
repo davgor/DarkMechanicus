@@ -126,7 +126,7 @@ describe('OnboardingView actions', () => {
   it('initializes on request', () => {
     const calls = renderView()
     fireEvent.click(screen.getByRole('button', { name: 'Initialize folder' }))
-    expect(calls.initialize).toEqual([{ mode: 'repo', writeMcpConfig: true, importBoard: false }])
+    expect(calls.initialize).toEqual([{ writeMcpConfig: true, importBoard: false }])
   })
 
   it('offers a different folder', () => {
@@ -163,7 +163,7 @@ describe('OnboardingView Claude Code option', () => {
     fireEvent.click(writeMcpJson())
     fireEvent.click(screen.getByRole('button', { name: 'Initialize folder' }))
     expect(writeMcpJson().checked).toBe(false)
-    expect(calls.initialize).toEqual([{ mode: 'repo', writeMcpConfig: false, importBoard: false }])
+    expect(calls.initialize).toEqual([{ writeMcpConfig: false, importBoard: false }])
   })
 })
 
@@ -222,7 +222,7 @@ describe('OnboardingView old-style board import option', () => {
     await settle()
     expect(importBoard().checked).toBe(false)
     fireEvent.click(screen.getByRole('button', { name: 'Initialize folder' }))
-    expect(calls.initialize).toEqual([{ mode: 'repo', writeMcpConfig: true, importBoard: false }])
+    expect(calls.initialize).toEqual([{ writeMcpConfig: true, importBoard: false }])
   })
 
   it('imports after initializing when the person chooses it, and says what that does', async () => {
@@ -231,7 +231,7 @@ describe('OnboardingView old-style board import option', () => {
     await settle()
     fireEvent.click(importBoard('Import 2 open epics from board/ as drafts'))
     fireEvent.click(screen.getByRole('button', { name: 'Initialize folder' }))
-    expect(calls.initialize).toEqual([{ mode: 'repo', writeMcpConfig: true, importBoard: true }])
+    expect(calls.initialize).toEqual([{ writeMcpConfig: true, importBoard: true }])
     expect(
       screen.getByText(/Each becomes a Backlog epic whose plan stays a draft until you review it and press Save/)
     ).toBeTruthy()
@@ -244,7 +244,7 @@ describe('OnboardingView old-style board import option', () => {
     expect(screen.getByRole('region', { name: 'Old-style board' })).toBeTruthy()
     expect(screen.queryByRole('checkbox', { name: /^Import / })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Initialize folder' }))
-    expect(calls.initialize).toEqual([{ mode: 'repo', writeMcpConfig: true, importBoard: false }])
+    expect(calls.initialize).toEqual([{ writeMcpConfig: true, importBoard: false }])
   })
 
   it('locks the import option while initializing', async () => {
@@ -281,61 +281,5 @@ describe('OnboardingView removal of the old workflow', () => {
     await settle()
     expect(within(removal as HTMLElement).getByRole('region', { name: 'Files to delete' })).toBeTruthy()
     expect(dm.boardRemovals).toEqual([])
-  })
-})
-
-describe('OnboardingView storage mode', () => {
-  function chooseDbMode(): void {
-    fireEvent.click(screen.getByRole('radio', { name: /database only/i }))
-  }
-
-  it('offers both modes, with records in the repository chosen', () => {
-    renderView()
-    const group = screen.getByRole('radiogroup', { name: /where .* stored/i })
-    const options = within(group).getAllByRole('radio')
-    expect(options).toHaveLength(2)
-    expect(options[0]?.getAttribute('aria-checked') ?? String((options[0] as HTMLInputElement).checked)).toMatch(
-      /true/
-    )
-  })
-
-  it('initializes in repo mode by default', () => {
-    const calls = renderView()
-    fireEvent.click(screen.getByRole('button', { name: 'Initialize folder' }))
-    expect(calls.initialize).toEqual([{ mode: 'repo', writeMcpConfig: true, importBoard: false }])
-  })
-
-  it('initializes in db mode once that is chosen', () => {
-    const calls = renderView()
-    chooseDbMode()
-    fireEvent.click(screen.getByRole('button', { name: 'Initialize folder' }))
-    expect(calls.initialize).toEqual([{ mode: 'db', writeMcpConfig: false, importBoard: false }])
-  })
-
-  it('says the repository is left untouched, and lists no file it would create there', () => {
-    renderView()
-    chooseDbMode()
-    const panel = screen.getByRole('region', { name: 'What initializing creates' })
-    expect(panel.textContent).toMatch(/nothing is written into/i)
-    expect(panel.textContent).toContain('NOTHING WILL BE CREATED IN')
-    // The list of files initializing would create is gone, not merely reworded.
-    expect(panel.querySelectorAll('.created-row')).toHaveLength(0)
-    expect(panel.textContent).not.toContain('epics/ history/ profiles/')
-    expect(panel.textContent).not.toContain('never committed')
-  })
-
-  it('offers no .mcp.json option in db mode, because that would be a file in the repository', () => {
-    renderView()
-    expect(screen.queryByRole('checkbox', { name: /mcp\.json/i })).not.toBeNull()
-    chooseDbMode()
-    expect(screen.queryByRole('checkbox', { name: /mcp\.json/i })).toBeNull()
-  })
-
-  it('brings the .mcp.json option back, still on, when the repository mode is chosen again', () => {
-    const calls = renderView()
-    chooseDbMode()
-    fireEvent.click(screen.getByRole('radio', { name: /in this repository/i }))
-    fireEvent.click(screen.getByRole('button', { name: 'Initialize folder' }))
-    expect(calls.initialize).toEqual([{ mode: 'repo', writeMcpConfig: true, importBoard: false }])
   })
 })

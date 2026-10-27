@@ -70,7 +70,6 @@ describe('registerSession', () => {
         label: 'orchestrator label',
         transport: 'stdio',
         pid: 99,
-        grantId: null,
         startedAt: '2026-03-01T10:00:00.000Z',
         lastSeenAt: '2026-03-01T10:00:00.000Z',
         active: true
@@ -273,29 +272,5 @@ describe('summarizeActiveSessions at scale', () => {
     }
     touchSession(fx.deps, veteran)
     expect(summarizeActiveSessions(fx.deps)).toEqual({ active: 1, byRole: { orchestrator: 1 } })
-  })
-})
-
-describe('registerSession and grants', () => {
-  it('records the grant a session presented, so it can be traced back to the person who issued it', () => {
-    const fx = fixture()
-    registerSession(fx.deps, {
-      role: 'worker',
-      label: 'dm CLI',
-      transport: 'cli',
-      pid: null,
-      capabilities: capabilitiesForRole('worker'),
-      grantId: 'gr_00000000000000000000000001'
-    })
-    expect(listSessions(fx.deps)[0]).toMatchObject({
-      transport: 'cli',
-      grantId: 'gr_00000000000000000000000001'
-    })
-  })
-
-  it('leaves it empty for a session that presented none', () => {
-    const fx = fixture()
-    register(fx, 'orchestrator')
-    expect(listSessions(fx.deps)[0]?.grantId).toBeNull()
   })
 })

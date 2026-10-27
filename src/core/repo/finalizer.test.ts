@@ -621,22 +621,3 @@ describe('flushOutbox profile failures', () => {
     expect([...env.fs.files().keys()].filter((path) => path.startsWith(resolve('/outside')))).toEqual([resolve('/outside/keep.txt')])
   })
 })
-
-describe('flushOutbox for a database-only project', () => {
-  it('completes a save without writing a snapshot, state or pointer file', () => {
-    const env = createRepoEnv({ mode: 'db' })
-    const outcome = saveRevision(env, { epicId: EPIC, revisionId: R1, number: 1, bundle: BUNDLE_1 })
-    expect(outcome).toEqual({ flushed: 1, failed: 0, errors: [], savedRevisionIds: [R1], failedRevisionIds: [] })
-    expect(revisionState(env, R1)).toBe('saved')
-    expect([...env.fs.files().keys()]).toEqual([])
-  })
-
-  it('writes the files for a repository-backed project, so the mode alone decides', () => {
-    const env = createRepoEnv()
-    saveRevision(env, { epicId: EPIC, revisionId: R1, number: 1, bundle: BUNDLE_1 })
-    const f = files(env)
-    expect(env.fs.get(f.snapshot(R1))).toBeDefined()
-    expect(env.fs.get(f.pointer)).toBeDefined()
-    expect(env.fs.get(f.state)).toBeDefined()
-  })
-})

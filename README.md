@@ -13,16 +13,13 @@ An agent helps you shape an epic, decomposes it into tickets with acceptance cri
 ## Using it
 
 1. **Track a folder** — press **+** in the sidebar and pick a repository. Each tracked folder expands into **In progress**, **Backlog**, and **Completed** epics.
-2. **Initialize** — a new folder shows the setup screen, where you choose where its plans and history are stored:
-   - **In this repository** (default) — initializing creates `.darkmechanicus/` (Git-tracked plans and history, plus a Git-ignored `local/` working database), so the plan travels with the code. Nothing is committed for you.
-   - **Database only** — nothing at all is written into the repository: no `.darkmechanicus/`, no `.mcp.json`, no skills. Epics, tickets, plan revisions, run history and comments live in one machine-local database under `~/.darkmechanicus/projects/`, for a checkout whose history should not carry planning data. It stays on this machine, a clone sees none of it, and moving or renaming the folder orphans it — see the limitations in [`docs/decisions/0002-storage-modes.md`](docs/decisions/0002-storage-modes.md).
-3. **Or drive it from a terminal** — `node out/main/cli.js --list` runs any command and prints JSON, with nothing configured in the agent's host (useful where an enterprise MCP policy blocks server registration). A `dm` session reads only until you issue it a role from the folder's **Agent access** card; see [Use the `dm` CLI](docs/runbooks/cli.md).
-4. **Connect an agent host** — copy the MCP snippet from the setup screen into your agent host. The server runs headless: agents can plan and execute with the desktop closed. `--allow-save` lets an agent save plans; without it, you save in the app. Connect the agent session you work with as `orchestrator`: that role includes everything a planner can do, so the same session plans epics and runs them (see [the working model](docs/runbooks/mcp-setup.md#working-model-your-session-is-the-orchestrator)).
-5. **Add an agent** — to work with an agent inside the app instead, press **+** next to **AGENTS** in the sidebar. **Find** a Claude Code, Codex or Cursor CLI that is already installed, or **Download** it from its official source after a confirmation, then **Sign in** with the CLI's own login (the app never sees a password). Open a chat from a folder's **Agents** group; its edits and commands wait for your approval in the chat. Connecting, sign-in prompts, approvals and troubleshooting are in [the agents runbook](docs/runbooks/agents.md).
-6. **Plan** — agents (or you) edit a **draft**; the saved plan only changes on Save. Invalid edits are rejected with a concrete reason (cycles, a prerequisite in a later sprint, …). Reusable capability requirements live in named profiles (`.darkmechanicus/profiles/`): pick one with **Start from profile** in the ticket editor, or let agents use `list_profiles` and `save_profile`.
-7. **Run** — press **Start run**, then either **Run with an agent** (one of the agents from step 4, signed in, with a model: it starts as the run's orchestrator in a chat you can follow, and it cannot save plans) or **Leave pending** (an external orchestrator, such as the session from step 3, picks the run up). If an agent's login expires, its run pauses and keeps its open leases until you sign in and resume ([details](docs/runbooks/agents.md#a-run-paused-for-sign-in)). An orchestrator can also start a run itself. Runs pin a saved revision; tickets become ready when their prerequisites are accepted.
-8. **Checkpoint** — at the end of each sprint the orchestrator files a report; you review it and **Approve & advance**. The final checkpoint completes the epic, which then becomes read-only history that agents can search.
-9. **Comment** — people and agents leave Markdown notes on tickets (the ticket panel's **Comments** tab, or `add_comment` over MCP): blockers, decisions, review notes. Comments travel with the repository and show up in history search.
+2. **Initialize** — a new folder shows the setup screen; initializing creates `.darkmechanicus/` (Git-tracked plans and history, plus a Git-ignored `local/` working database). Nothing is committed for you.
+3. **Connect an agent host** — copy the MCP snippet from the setup screen into your agent host. The server runs headless: agents can plan and execute with the desktop closed. `--allow-save` lets an agent save plans; without it, you save in the app. Connect the agent session you work with as `orchestrator`: that role includes everything a planner can do, so the same session plans epics and runs them (see [the working model](docs/runbooks/mcp-setup.md#working-model-your-session-is-the-orchestrator)).
+4. **Add an agent** — to work with an agent inside the app instead, press **+** next to **AGENTS** in the sidebar. **Find** a Claude Code, Codex or Cursor CLI that is already installed, or **Download** it from its official source after a confirmation, then **Sign in** with the CLI's own login (the app never sees a password). Open a chat from a folder's **Agents** group; its edits and commands wait for your approval in the chat. Connecting, sign-in prompts, approvals and troubleshooting are in [the agents runbook](docs/runbooks/agents.md).
+5. **Plan** — agents (or you) edit a **draft**; the saved plan only changes on Save. Invalid edits are rejected with a concrete reason (cycles, a prerequisite in a later sprint, …). Reusable capability requirements live in named profiles (`.darkmechanicus/profiles/`): pick one with **Start from profile** in the ticket editor, or let agents use `list_profiles` and `save_profile`.
+6. **Run** — press **Start run**, then either **Run with an agent** (one of the agents from step 4, signed in, with a model: it starts as the run's orchestrator in a chat you can follow, and it cannot save plans) or **Leave pending** (an external orchestrator, such as the session from step 3, picks the run up). If an agent's login expires, its run pauses and keeps its open leases until you sign in and resume ([details](docs/runbooks/agents.md#a-run-paused-for-sign-in)). An orchestrator can also start a run itself. Runs pin a saved revision; tickets become ready when their prerequisites are accepted.
+7. **Checkpoint** — at the end of each sprint the orchestrator files a report; you review it and **Approve & advance**. The final checkpoint completes the epic, which then becomes read-only history that agents can search.
+8. **Comment** — people and agents leave Markdown notes on tickets (the ticket panel's **Comments** tab, or `add_comment` over MCP): blockers, decisions, review notes. Comments travel with the repository and show up in history search.
 
 CI/CD mirrored from [CapitalGains](https://github.com/davgor/CapitalGains) (itself aligned with [AI-DND-Matrix](https://github.com/davgor/AI-DND-Matrix) packaging/deploy).
 
@@ -49,7 +46,7 @@ Implementation follows the engineering process above: tests first, then lint, ty
 ## Stack
 
 - Electron + React + TypeScript
-- SQLite via built-in `node:sqlite` (one database per project, shared by the desktop and headless MCP processes: beside the records in the repository, or under `~/.darkmechanicus/projects/` for a database-only folder)
+- SQLite via built-in `node:sqlite` (one repository-local database shared by the desktop and headless MCP processes)
 - `@modelcontextprotocol/sdk` stdio server, React Flow plan graph, zod validation
 - electron-vite / electron-builder for build and packaging
 - Vitest for unit tests
@@ -73,7 +70,6 @@ npm run package:mac  # macOS .dmg
 npm run deadcode     # ts-prune vs .tsprune-ignore
 npm run deadcode:refresh
 npm run mcp -- --repo <path>   # headless stdio MCP server (after npm run build)
-npm run dm -- --list           # the dm CLI: one command, JSON out (after npm run build)
 npm run smoke:mcp    # drive the built MCP server end to end over stdio
 npm run spike:claims # multi-process competing-claim stress proof
 ```

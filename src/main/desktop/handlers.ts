@@ -47,7 +47,7 @@ const claudeCodeRequestSchema = z.strictObject({
 })
 
 export interface DesktopHandlerDeps extends AgentHandlerDeps, AgentAuthHooks {
-  registry: Pick<FolderRegistry, 'list' | 'track' | 'untrack' | 'resolve' | 'storageMode'>
+  registry: Pick<FolderRegistry, 'list' | 'track' | 'untrack' | 'resolve'>
   pool: Pick<WorkspacePool, 'get' | 'close'>
   /** Native folder picker; null when the person cancels. */
   pickDirectory: () => Promise<string | null>
@@ -87,26 +87,6 @@ interface CommandRequest {
 }
 
 type WorkspaceCommand = (input: unknown) => Promise<unknown>
-
-/**
- * A database-only project is invisible to its repository: Dark Mechanicus neither writes nor
- * deletes anything there, so every operation that would change the checkout is refused rather than
- * quietly skipped. The connection snippet is still available to copy into the agent host's own
- * config, and reading the repository (the board preview, the board import) is unaffected.
- */
-function assertRepositoryWritable(
-  registry: Pick<FolderRegistry, 'storageMode'>,
-  repoPath: string,
-  action: string
-): void {
-  if (registry.storageMode(repoPath) === 'db') {
-    throw new DomainError(
-      'unsupported_capability',
-      `${action} would write into ${repoPath}. That folder is a database-only project, and Dark Mechanicus writes nothing into it: copy the MCP connection snippet into your agent host's own configuration instead.`,
-      { path: repoPath, storageMode: 'db' }
-    )
-  }
-}
 
 /** The canonical path of a tracked folder; anything else is unauthorized. */
 function requireTracked(registry: Pick<FolderRegistry, 'resolve'>, folder: unknown): string {
@@ -195,7 +175,6 @@ async function assertBoardImported(workspace: Workspace): Promise<void> {
 /** Deletes the confirmed board files of a tracked folder, once nothing on its board is left to import. */
 async function removeBoardFiles(deps: DesktopHandlerDeps, folder: unknown, paths: unknown): Promise<BoardRemovalResultView> {
   const repoPath = requireTracked(deps.registry, folder)
-  assertRepositoryWritable(deps.registry, repoPath, 'Removing the old board files')
   const confirmed = parseInput(removalPathsSchema, paths, 'files to remove')
   await assertBoardImported(deps.pool.get(repoPath))
   return deps.removeBoardFiles(repoPath, confirmed)
@@ -215,14 +194,9 @@ export function createDesktopHandlers(deps: DesktopHandlerDeps): DesktopHandlers
     untrackFolder: (path) => untrackFolder(deps, path),
     command: (folder, name, input) => runCommand(deps, { folder, name, input }),
     getMcpConfig: async (folder) => deps.mcpConfig(requireTracked(deps.registry, folder)),
-    installSkills: async (folder) => {
-      const repoPath = requireTracked(deps.registry, folder)
-      assertRepositoryWritable(deps.registry, repoPath, 'Installing the Dark Mechanicus skills')
-      return deps.installSkills(repoPath)
-    },
+    installSkills: async (folder) => deps.installSkills(requireTracked(deps.registry, folder)),
     connectClaudeCode: async (folder, request) => {
       const repoPath = requireTracked(deps.registry, folder)
-      assertRepositoryWritable(deps.registry, repoPath, 'Writing .mcp.json')
       return deps.connectClaudeCode(repoPath, parseInput(claudeCodeRequestSchema, request, 'Claude Code connection'))
     },
     previewBoardRemoval: async (folder) => deps.previewBoardRemoval(requireTracked(deps.registry, folder)),

@@ -45,10 +45,6 @@ export function storageFooterLine(status: StorageStatusView | null): FooterLine 
   if (status.outbox.pending > 0) {
     return { text: 'Save pending', tone: 'warn' }
   }
-  // A db project exports nothing: saying "exported" would describe files that do not exist.
-  if (status.storage.mode === 'db') {
-    return { text: 'Database only', tone: 'ok' }
-  }
   return exportedLine(status.uncommittedRecordFiles)
 }
 

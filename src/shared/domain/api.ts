@@ -53,8 +53,6 @@ import type {
   RunView,
   SaveResultView,
   SearchResultView,
-  GrantableRole,
-  GrantView,
   SessionView,
   SprintReportContent,
   SprintReportView,
@@ -234,12 +232,7 @@ export interface CommandApi {
   setDefinitionOfDone(input: {
     checks: { name: string; command: string; description?: string }[]
   }): Promise<ProjectView>
-  initializeRepository(input: {
-    name?: string
-    keyPrefix?: string
-    /** `repo` (default) keeps records in the repository; `db` keeps them only in the home directory. */
-    mode?: 'repo' | 'db'
-  }): Promise<InitializeResultView>
+  initializeRepository(input: { name?: string; keyPrefix?: string }): Promise<InitializeResultView>
   getStorageStatus(): Promise<StorageStatusView>
   flushPortableState(): Promise<FlushResultView>
   reconcileRepository(): Promise<ReconcileResultView>
@@ -247,18 +240,6 @@ export interface CommandApi {
   listBranchEpics(): Promise<BranchEpicView[]>
   backupDatabase(input: { targetPath?: string }): Promise<{ path: string }>
   listSessions(): Promise<SessionView[]>
-  /**
-   * Issues a role for an agent session to present. The token comes back once and is never stored
-   * in readable form; only a person at the desktop may call it.
-   */
-  issueGrant(input: {
-    role: GrantableRole
-    label: string
-    minutes?: number
-    allowSave?: boolean
-  }): Promise<{ grant: GrantView; token: string }>
-  listGrants(): Promise<GrantView[]>
-  revokeGrant(input: { grantId: string }): Promise<GrantView>
 
   // Epics
   listEpics(): Promise<EpicSummaryView[]>

@@ -7,7 +7,6 @@ import { flushOutbox, type FinalizerDeps, type FlushOutcome } from '../core/repo
 import type { ImporterDeps } from '../core/repo/importer'
 import { initializeRepository } from '../core/repo/initialize'
 import { resolveLayout } from '../core/repo/layout'
-import type { StorageMode } from '../core/repo/storageMode'
 import type { GitAdapter, RepoLayout } from '../core/repo/types'
 import type { PlanBundle } from '../shared/domain/bundle'
 import { makeBundle } from './bundles'
@@ -24,21 +23,9 @@ export interface RepoEnv extends FinalizerDeps {
   hook: RecordingSaveHook
 }
 
-interface RepoEnvOptions {
-  root?: string
-  fs?: MemoryFs
-  clock?: TestClock
-  /** `db` puts the whole project in `homeDir` instead of the repository (default `repo`). */
-  mode?: StorageMode
-  homeDir?: string
-}
-
-/** The Dark Mechanicus home directory db-mode environments use unless one is given. */
-const TEST_HOME = resolve('/home/dev/.darkmechanicus')
-
-export function createRepoEnv(options: RepoEnvOptions = {}): RepoEnv {
+export function createRepoEnv(options: { root?: string; fs?: MemoryFs; clock?: TestClock } = {}): RepoEnv {
   const root = resolve(options.root ?? '/repo')
-  const layout = resolveLayout(root, { mode: options.mode, homeDir: options.homeDir ?? TEST_HOME })
+  const layout = resolveLayout(root)
   const fs = options.fs ?? createMemoryFs()
   fs.mkdirp(layout.dmDir)
   const db = createTestDb()
@@ -101,7 +88,7 @@ export function createStubGit(initial: string | null = 'main'): StubGit {
   }
 }
 
-/** Initializes the project (project record, gitignore in repo mode, machine) with deterministic ids. */
+/** Initializes `.darkmechanicus/` (project, gitignore, machine) with deterministic ids. */
 export function initProject(env: RepoEnv, ids: IdGenerator = createSequentialIds()): string {
   return initializeRepository({ layout: env.layout, fs: env.fs, ids, clock: env.clock }, { name: 'Demo' }).machineId
 }

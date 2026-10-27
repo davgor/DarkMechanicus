@@ -463,7 +463,7 @@ describe('chats are keyed by the canonical folder path', () => {
 describe('chats and the folder registry', () => {
   it("keeps a folder's chats when it is untracked, and shows them again when it is tracked again", () => {
     const fs = memoryFs()
-    const registry = createFolderRegistry({ dmHome: resolve('/state/dm-home'), file: resolve('/state/folders.json'), homeDir: '', fs: registryFsOver(fs) })
+    const registry = createFolderRegistry({ file: resolve('/state/folders.json'), homeDir: '', fs: registryFsOver(fs) })
     const store = openStore(fs)
     const chat = store.createChat({ ...NEW_CHAT, folder: registry.track(REPO).folder.path })
     store.appendItem(chat, userMessage('remember me'))

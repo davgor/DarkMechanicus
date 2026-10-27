@@ -37,9 +37,6 @@ export function createStubWorkspace(options: StubWorkspaceOptions = {}): StubWor
         throw options.heartbeatError
       }
     },
-    execute: (name: CommandName, input: unknown): Promise<unknown> =>
-      (workspace as unknown as Record<string, (value: unknown) => Promise<unknown>>)[name]?.(input) ??
-      Promise.resolve(undefined),
     close: (): void => {
       workspace.closes += 1
       if (options.closeError !== undefined) {

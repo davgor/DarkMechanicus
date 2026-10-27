@@ -35,9 +35,6 @@ const PROBES: Record<CommandName, unknown> = {
   listBranchEpics: undefined,
   backupDatabase: {},
   listSessions: undefined,
-  issueGrant: { role: 'reader', label: 'CLI' },
-  listGrants: undefined,
-  revokeGrant: { grantId: 'gr_00000000000000000000000001' },
   listEpics: undefined,
   createEpic: { title: 'Probe epic' },
   getEpic: { epicId: EPIC },
@@ -135,9 +132,7 @@ const SESSIONS: Session[] = [
   { role: 'orchestrator', allowSave: false },
   { role: 'orchestrator', allowSave: true },
   { role: 'worker', allowSave: true },
-  { role: 'reviewer', allowSave: false },
-  // The authority every ungranted `dm` invocation runs with, so it belongs in the matrix too.
-  { role: 'reader', allowSave: true }
+  { role: 'reviewer', allowSave: false }
 ]
 
 describe('declared command capabilities match what the services enforce', () => {
@@ -178,9 +173,7 @@ describe('COMMAND_CAPABILITIES', () => {
       'deleteEpic',
       'deleteTicket',
       'grantRetry',
-      'issueGrant',
-      'queueRun',
-      'revokeGrant'
+      'queueRun'
     ])
   })
 })

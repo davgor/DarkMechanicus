@@ -39,7 +39,6 @@ describe('getStorageStatus without a database', () => {
     expect(status).toEqual({
       initialized: false,
       repoRoot: layout.root,
-      storage: { mode: 'repo', projectDir: layout.dmDir, databasePath: layout.dbFile },
       projectId: null,
       projectName: null,
       schemaVersion: null,
@@ -106,7 +105,6 @@ describe('getStorageStatus with a database', () => {
     expect(status).toEqual({
       initialized: true,
       repoRoot: layout.root,
-      storage: { mode: 'repo', projectDir: layout.dmDir, databasePath: layout.dbFile },
       projectId: PROJECT.projectId,
       projectName: 'Demo',
       schemaVersion: SCHEMA_VERSION,
@@ -157,36 +155,5 @@ describe('getStorageStatus outside Git', () => {
     const git: GitAdapter = { ...createStubGit('main'), head: () => null, countUncommitted: async () => null }
     const status = await getStorageStatus({ db: null, layout, fs: initializedFs(), git, clock: createTestClock() })
     expect(status.branch).toEqual({ current: null, recorded: null, changed: false, repository: false })
-  })
-})
-
-describe('getStorageStatus for a database-only project', () => {
-  const dbLayout = resolveLayout(resolve('/repo'), { mode: 'db', homeDir: resolve('/home/dev/.darkmechanicus') })
-
-  it('reports the mode, the project directory outside the repository, and no tracked files to commit', async () => {
-    const fs = createMemoryFs()
-    fs.put(dbLayout.projectFile, prettyJson(PROJECT))
-    const status = await getStorageStatus({ db: null, layout: dbLayout, fs, git: gitWith(0), clock: createTestClock() })
-    expect(status.storage).toEqual({
-      mode: 'db',
-      projectDir: dbLayout.dmDir,
-      databasePath: dbLayout.dbFile
-    })
-    expect(status.initialized).toBe(true)
-    expect(status.uncommittedRecordFiles).toBeNull()
-    expect(status.repoRoot).toBe(dbLayout.root)
-  })
-
-  it('never asks Git what is uncommitted, because no record file is in the checkout', async () => {
-    const fs = createMemoryFs()
-    fs.put(dbLayout.projectFile, prettyJson(PROJECT))
-    let asked = 0
-    const git: GitAdapter = { ...createStubGit('main'), countUncommitted: async () => {
-      asked += 1
-      return 3
-    } }
-    const status = await getStorageStatus({ db: null, layout: dbLayout, fs, git, clock: createTestClock() })
-    expect(asked).toBe(0)
-    expect(status.uncommittedRecordFiles).toBeNull()
   })
 })

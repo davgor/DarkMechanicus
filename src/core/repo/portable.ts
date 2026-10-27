@@ -63,13 +63,6 @@ export const projectRecord = z.strictObject({
   name: z.string().min(1).max(200),
   keyPrefix: z.string().regex(KEY_PREFIX_PATTERN),
   createdAt: isoTime,
-  /**
-   * The repository folder this project belongs to, recorded only by a database-only project, whose
-   * record sits outside that folder and is keyed by its path. It is a note for a person reading
-   * the home directory — and the one way to tell which folder an orphaned project came from after
-   * that folder is moved or renamed. Nothing resolves a project through it.
-   */
-  repoRoot: z.string().min(1).max(4096).optional(),
   // No default: a project record written before the Definition of Done existed must parse and re-serialize unchanged.
   definitionOfDone: definitionOfDoneChecks.optional()
 })

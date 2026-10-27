@@ -53,7 +53,6 @@ describe('board module purity', () => {
   })
 
   it('would catch such an import: the file adapter itself reads through one', () => {
-    // Its own closure may legitimately grow; what matters is that the detector reports the edge.
-    expect(forbiddenImports(['core/repo/nodeFs.ts'])).toContain('core/repo/nodeFs.ts -> node:fs')
+    expect(forbiddenImports(['core/repo/nodeFs.ts'])).toEqual(['core/repo/nodeFs.ts -> node:fs'])
   })
 })

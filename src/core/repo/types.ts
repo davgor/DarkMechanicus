@@ -1,5 +1,3 @@
-import type { StorageMode } from '../../shared/domain/views'
-
 /**
  * Injectable boundaries for repository files and Git. Production implementations live in
  * `nodeFs.ts` and `git.ts`; tests inject fakes (including fault injection) through these types.
@@ -61,10 +59,6 @@ export interface GitAdapter {
 
 export interface RepoLayout {
   root: string
-  /** How this project stores its records (`repo`: in the repository; `db`: in the home directory). */
-  mode: StorageMode
-  /** What `displayPath` shows owned paths relative to: the repository root, or the project directory. */
-  displayBase: string
   dmDir: string
   projectFile: string
   gitignoreFile: string

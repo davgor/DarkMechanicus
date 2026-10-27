@@ -2,7 +2,7 @@ import { fail } from '../errors'
 import type { Db } from './database'
 
 /** Highest schema version this build understands. Newer databases are refused, never downgraded. */
-export const SCHEMA_VERSION = 9
+export const SCHEMA_VERSION = 8
 
 interface Migration {
   version: number
@@ -372,55 +372,6 @@ const V8 = `
 ALTER TABLE runs ADD COLUMN paused_at TEXT;
 `
 
-/**
- * v9 adds grants, and the `reader` role the sessions they govern fall back to.
- *
- * A session's role used to come from the flags its process was launched with, which only a person
- * could set because only a person wrote the MCP configuration. A local CLI has no such property:
- * anything that can run it can pass any flag. So a role is instead *granted* — a person issues one
- * in the desktop app, and the grant is what a session presents. Only the hash of the token is kept,
- * so the database never holds anything that could be replayed; `machine_id` ties a grant to the
- * machine it was issued on, and a grant expires and can be revoked.
- *
- * A session with no grant runs as `reader`, which may only read, so the sessions table has to admit
- * that role. SQLite cannot alter a CHECK constraint, so the table is rebuilt the way v2 rebuilt the
- * outbox. Grants never carry a human-only capability (`HUMAN_ONLY_CAPABILITIES`): approving a
- * checkpoint, deleting an epic and issuing a further grant stay with the person at the desktop.
- */
-const V9 = `
-CREATE TABLE grants (
-  id TEXT PRIMARY KEY,
-  role TEXT NOT NULL CHECK (role IN ('planner','orchestrator','worker','reviewer','reader')),
-  allow_save INTEGER NOT NULL DEFAULT 0,
-  label TEXT NOT NULL,
-  token_hash TEXT NOT NULL UNIQUE,
-  machine_id TEXT NOT NULL,
-  issued_by_session TEXT,
-  created_at TEXT NOT NULL,
-  expires_at TEXT NOT NULL,
-  revoked_at TEXT,
-  last_used_at TEXT
-);
-CREATE INDEX grants_active ON grants(revoked_at, expires_at);
-
-CREATE TABLE sessions_v2 (
-  id TEXT PRIMARY KEY,
-  role TEXT NOT NULL CHECK (role IN ('desktop','planner','orchestrator','worker','reviewer','reader')),
-  label TEXT NOT NULL,
-  capabilities_json TEXT NOT NULL,
-  transport TEXT NOT NULL,
-  pid INTEGER,
-  grant_id TEXT,
-  started_at TEXT NOT NULL,
-  last_seen_at TEXT NOT NULL,
-  ended_at TEXT
-);
-INSERT INTO sessions_v2 (id, role, label, capabilities_json, transport, pid, grant_id, started_at, last_seen_at, ended_at)
-  SELECT id, role, label, capabilities_json, transport, pid, NULL, started_at, last_seen_at, ended_at FROM sessions;
-DROP TABLE sessions;
-ALTER TABLE sessions_v2 RENAME TO sessions;
-`
-
 export const MIGRATIONS: Migration[] = [
   { version: 1, sql: V1 },
   { version: 2, sql: V2 },
@@ -429,8 +380,7 @@ export const MIGRATIONS: Migration[] = [
   { version: 5, sql: V5 },
   { version: 6, sql: V6 },
   { version: 7, sql: V7 },
-  { version: 8, sql: V8 },
-  { version: 9, sql: V9 }
+  { version: 8, sql: V8 }
 ]
 
 export function readSchemaVersion(db: Db): number {

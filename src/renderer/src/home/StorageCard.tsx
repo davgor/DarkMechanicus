@@ -36,14 +36,8 @@ function queueText(status: StorageStatusView): string {
   return failed > 0 && lastError !== null ? `${summary} — ${lastError}` : summary
 }
 
-const MODE_LABELS: Record<StorageStatusView['storage']['mode'], string> = {
-  repo: 'In this repository',
-  db: 'Database only'
-}
-
 function Details({ status, titles }: { status: StorageStatusView; titles: Readonly<Record<string, string>> }): JSX.Element {
   const exported = storageFooterLine(status)
-  const databaseOnly = status.storage.mode === 'db'
   return (
     <dl className="kv">
       <Row label="Project">{status.projectName ?? 'Unnamed'}</Row>
@@ -51,19 +45,11 @@ function Details({ status, titles }: { status: StorageStatusView; titles: Readon
         <span className="mono">{status.projectId ?? 'none'}</span>
       </Row>
       <Row label="Schema">{status.schemaVersion === null ? '—' : `v${status.schemaVersion}`}</Row>
-      <Row label="Storage">{MODE_LABELS[status.storage.mode]}</Row>
-      <Row label="Database">
-        <span className="mono">{status.storage.databasePath}</span>
+      <Row label="Branch">{branchLabel(status.branch)}</Row>
+      <Row label="Export">
+        <span className={`tone-${exported.tone}`}>{exported.text}</span>
       </Row>
-      {databaseOnly ? null : <Row label="Branch">{branchLabel(status.branch)}</Row>}
-      {databaseOnly ? null : (
-        <Row label="Export">
-          <span className={`tone-${exported.tone}`}>{exported.text}</span>
-        </Row>
-      )}
-      {databaseOnly ? null : (
-        <Row label="Last export">{status.lastFlushAt === null ? 'Never' : formatShortDate(status.lastFlushAt)}</Row>
-      )}
+      <Row label="Last export">{status.lastFlushAt === null ? 'Never' : formatShortDate(status.lastFlushAt)}</Row>
       <Row label="Save queue">{queueText(status)}</Row>
       {status.conflicts.length + status.profileConflicts.length === 0 ? null : (
         <Row label="Conflicts">
@@ -87,19 +73,17 @@ function Details({ status, titles }: { status: StorageStatusView; titles: Readon
 /** Where the folder's records stand: export state, branch, save queue, and Flush/Reconcile. */
 export function StorageCard({ status, titles, busy, onFlush, onReconcile }: StorageCardProps): JSX.Element {
   const warning = branchWarning(status)
-  // Flush and Reconcile move repository record files, which a db project does not have.
-  const databaseOnly = status?.storage.mode === 'db'
   return (
     <section className="card" aria-label="Storage">
       <h2 className="card-title">Storage</h2>
       {status === null ? <p className="muted">Loading storage status…</p> : <Details status={status} titles={titles} />}
-      {warning === null || databaseOnly ? null : (
+      {warning === null ? null : (
         <p className="inline-warning">
           <Icon name="warning" />
           <span>{warning}</span>
         </p>
       )}
-      {status === null || databaseOnly ? null : (
+      {status === null ? null : (
         <div className="button-row">
           <Button icon="export" busy={busy.flush} onClick={onFlush}>
             Flush
@@ -111,9 +95,8 @@ export function StorageCard({ status, titles, busy, onFlush, onReconcile }: Stor
       )}
       {status === null ? null : (
         <p className="note">
-          {databaseOnly
-            ? 'Everything for this folder is in the database above. Nothing is written into the repository, so there is nothing to flush, reconcile or commit, and nothing travels with a clone.'
-            : 'Flush writes pending changes to the repository files. Reconcile re-reads them after a pull, clone or branch switch.'}
+          Flush writes pending changes to the repository files. Reconcile re-reads them after a pull, clone or branch
+          switch.
         </p>
       )}
     </section>

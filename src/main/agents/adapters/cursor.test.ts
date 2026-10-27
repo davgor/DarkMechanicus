@@ -15,7 +15,7 @@ import {
   DM_SERVER,
   failedLoad,
   FOLDER,
-  ACP_MCP_SERVERS,
+  ACP_DM_SERVER,
   handshake,
   loadSession,
   newSession,
@@ -71,7 +71,6 @@ function startOptions(overrides: Partial<ChatAdapterStartOptions> = {}): ChatAda
     allowSave: false,
     sessionId: null,
     darkMechanicus: DM_SERVER,
-    instructions: 'Use the dm CLI.',
     ...overrides
   }
 }
@@ -172,7 +171,7 @@ describe('starting a session', () => {
 
     const noSession = new ReplayAcpAgents([
       ...handshake(),
-      client({ id: 3, method: 'session/new', params: { cwd: FOLDER, mcpServers: ACP_MCP_SERVERS } }),
+      client({ id: 3, method: 'session/new', params: { cwd: FOLDER, mcpServers: [ACP_DM_SERVER] } }),
       agent({ id: 3, result: {} })
     ])
     const other = new Rig(noSession)
@@ -568,7 +567,7 @@ describe('resuming: without a stored session to load', () => {
   it('fails the start, rather than faking a reset, when the process itself dies while loading', async () => {
     const agents = new ReplayAcpAgents([
       ...handshake(),
-      client({ id: 3, method: 'session/load', params: { sessionId: 'sess_old', cwd: FOLDER, mcpServers: ACP_MCP_SERVERS } })
+      client({ id: 3, method: 'session/load', params: { sessionId: 'sess_old', cwd: FOLDER, mcpServers: [ACP_DM_SERVER] } })
     ])
     const rig = new Rig(agents)
 

@@ -33,10 +33,9 @@ function options(overrides: Partial<ChatAdapterStartOptions> = {}): ChatAdapterS
     sessionId: null,
     darkMechanicus: {
       command: 'node',
-      args: ['/app/out/main/cli.js', '--repo', REPO],
-      env: { DM_SESSION_TOKEN: 'dmg_test' }
+      args: ['/app/out/main/mcp.js', '--role', 'planner', '--allow-save', '--label', 'Codex · Plan'],
+      env: { DM_HOME: '/state' }
     },
-    instructions: 'Use the dm CLI.',
     ...overrides
   }
 }
@@ -90,7 +89,7 @@ interface Rig {
   adapter: ChatAdapter
   events: ChatAdapterEvent[]
   transports: ReplayTransport[]
-  connects: { executablePath: string; folder: string; env?: Record<string, string> }[]
+  connects: { executablePath: string; folder: string }[]
   /** The answers to give, in order, to the approval requests the adapter raises. */
   answers: ApprovalDecision[]
   /** When set, approval requests wait in `held` for the test to answer instead of being answered from `answers`. */
@@ -111,8 +110,8 @@ function rig(scripts: Step[][], { deps = {} }: RigOptions = {}): Rig {
   const answers: ApprovalDecision[] = []
   const events: ChatAdapterEvent[] = []
   const adapter = createCodexAdapter('/bin/codex', {
-    connect: (executablePath, folder, env) => {
-      connects.push({ executablePath, folder, env })
+    connect: (executablePath, folder) => {
+      connects.push({ executablePath, folder })
       const next = transports[connects.length - 1]
       if (next === undefined) {
         throw new Error('The test recorded no more connections.')
@@ -592,23 +591,27 @@ describe('the thread Dark Mechanicus starts', () => {
       params: {
         cwd: REPO,
         approvalPolicy: 'untrusted',
-        sandbox: 'workspace-write'
+        sandbox: 'workspace-write',
+        config: {
+          'mcp_servers.darkmechanicus': {
+            command: 'node',
+            args: ['/app/out/main/mcp.js', '--role', 'planner', '--allow-save', '--label', 'Codex · Plan'],
+            env: { DM_HOME: '/state' }
+          }
+        }
       }
     })
-    // No MCP server is configured for the thread: the agent runs `dm`, authorized by its grant.
-    expect(target.connects).toEqual([
-      { executablePath: '/bin/codex', folder: REPO, env: { DM_SESSION_TOKEN: 'dmg_test' } }
-    ])
+    expect(target.connects).toEqual([{ executablePath: '/bin/codex', folder: REPO }])
   })
 
-  it('leaves the model out until the chat has one, and configures no server at all', async () => {
+  it('leaves the model out until the chat has one, and omits an empty server environment', async () => {
     const target = rig([NEW_THREAD])
 
-    await start(target, options({ darkMechanicus: { command: 'dm', args: [], env: { DM_SESSION_TOKEN: 'dmg_test' } } }))
+    await start(target, options({ darkMechanicus: { command: 'dm', args: [] } }))
 
     const params = written(target)[2]?.params as Record<string, unknown>
     expect(params).not.toHaveProperty('model')
-    expect(params).not.toHaveProperty('config')
+    expect(params.config).toEqual({ 'mcp_servers.darkmechanicus': { command: 'dm', args: [] } })
   })
 
   it("reports a new thread's id as the vendor session once its first turn starts, not before", async () => {
@@ -664,7 +667,7 @@ describe('a chat that fails to start', () => {
 // ---- c3: resume and context reset ----
 
 describe('resuming a chat', () => {
-  it('resumes the stored thread id with the same approval policy and sandbox, and no server (c3)', async () => {
+  it('resumes the stored thread id with the same approval policy, sandbox and server (c3)', async () => {
     const target = rig([[...INITIALIZE, step.expect('thread/resume'), step.reply({ thread: { id: 'thr_old' } })]])
 
     await start(target, options({ sessionId: 'thr_old', model: 'gpt-5' }))
@@ -678,7 +681,8 @@ describe('resuming a chat', () => {
         cwd: REPO,
         model: 'gpt-5',
         approvalPolicy: 'untrusted',
-        sandbox: 'workspace-write'
+        sandbox: 'workspace-write',
+        config: { 'mcp_servers.darkmechanicus': expect.objectContaining({ command: 'node' }) as unknown }
       }
     })
     expect(target.transcript()).toEqual([])

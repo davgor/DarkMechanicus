@@ -59,8 +59,7 @@ function rig(...recordings: Frame[][]): Rig {
     role: 'orchestrator',
     allowSave: false,
     sessionId: null,
-    darkMechanicus: DM_SERVER,
-    instructions: 'Use the dm CLI.'
+    darkMechanicus: DM_SERVER
   }
   return {
     adapter,

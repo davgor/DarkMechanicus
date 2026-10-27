@@ -52,28 +52,14 @@ interface Rig {
   store: ChatStore
   fakes: FakeAdapters
   events: ChatPushEvent[]
-  grants: Grants
   timers: ManualTimers
   errors: unknown[]
-}
-
-interface IssuedGrant {
-  folder: string
-  role: string
-  allowSave: boolean
-  label: string
-}
-
-interface Grants {
-  issued: IssuedGrant[]
-  revoked: string[]
 }
 
 function rig(fs: ChatStoreFs = memoryChatFs(), overrides: Partial<SessionManagerDeps> = {}): Rig {
   const store = memoryChatStore(fs)
   const fakes = fakeAdapters()
   const events: ChatPushEvent[] = []
-  const grants: Grants = { issued: [], revoked: [] }
   const timers = manualTimers()
   const errors: unknown[] = []
   let itemCount = 0
@@ -81,20 +67,7 @@ function rig(fs: ChatStoreFs = memoryChatFs(), overrides: Partial<SessionManager
     store,
     adapters: fakes.definitions,
     executablePath: (kind) => (kind === 'cursor' ? null : `/bin/${kind}`),
-    issueChatCli: async (folder: string, grant) => {
-      grants.issued.push({ folder, ...grant })
-      return {
-        cli: {
-          command: 'node',
-          args: ['/app/out/main/cli.js', '--repo', folder],
-          env: { DM_SESSION_TOKEN: `dmg_${grants.issued.length}` }
-        },
-        grantId: `gr_${grants.issued.length}`
-      }
-    },
-    revokeChatGrant: async (_folder: string, grantId: string) => {
-      grants.revoked.push(grantId)
-    },
+    mcpConfig: (folder) => ({ command: 'node', args: ['/app/out/main/mcp.js', '--repo', folder], env: {} }),
     push: (event) => events.push(event),
     newId: () => `item_m${(itemCount += 1)}`,
     now: () => AT,
@@ -103,7 +76,7 @@ function rig(fs: ChatStoreFs = memoryChatFs(), overrides: Partial<SessionManager
     onError: (error) => errors.push(error),
     ...overrides
   })
-  return { manager, store, fakes, events, grants, timers, errors }
+  return { manager, store, fakes, events, timers, errors }
 }
 
 /** Lets every queued promise callback run. */
@@ -210,17 +183,14 @@ describe('session manager: agents that cannot start', () => {
 })
 
 describe('session manager: failed starts', () => {
-  it('leaves no session behind when the chat grant cannot be issued', async () => {
+  it('leaves no session behind when the Dark Mechanicus server cannot be built', async () => {
     let fail = true
     const { manager, fakes } = rig(memoryChatFs(), {
-      issueChatCli: async (folder: string) => {
+      mcpConfig: (folder) => {
         if (fail) {
           throw new Error('no app path')
         }
-        return {
-          cli: { command: 'node', args: ['/app/out/main/cli.js', '--repo', folder], env: {} },
-          grantId: 'gr_00000000000000000000000001'
-        }
+        return { command: 'node', args: ['mcp.js', '--repo', folder], env: {} }
       }
     })
     const chat = newChat(manager)
@@ -264,68 +234,49 @@ describe('session manager: failed starts', () => {
   })
 })
 
-describe('session manager: the grant each chat gets', () => {
-  it('asks for the chat role, the label "<Agent> · <title>" and saving for an orchestrator that allows it', async () => {
-    const { manager, grants } = rig()
-    await manager.send(newChat(manager, { role: 'orchestrator', title: 'Fix the build' }), 'go')
-
-    expect(grants.issued).toEqual([
-      { folder: REPO, role: 'orchestrator', allowSave: true, label: 'Claude Code · Fix the build' }
-    ])
-  })
-
-  it('hands the chat the dm command, with the grant in its environment and nothing on the command line', async () => {
+describe('session manager: the Dark Mechanicus server each chat gets', () => {
+  it('passes the chat role, the label "<Agent> · <title>" and --allow-save for an orchestrator that allows it', async () => {
     const { manager, fakes } = rig()
     await manager.send(newChat(manager, { role: 'orchestrator', title: 'Fix the build' }), 'go')
 
-    const cli = only(fakes.created).started[0]?.darkMechanicus
-    expect(cli).toEqual({
+    expect(only(fakes.created).started[0]?.darkMechanicus).toEqual({
       command: 'node',
-      args: ['/app/out/main/cli.js', '--repo', REPO],
-      env: { DM_SESSION_TOKEN: 'dmg_1' }
+      args: ['/app/out/main/mcp.js', '--repo', REPO, '--role', 'orchestrator', '--allow-save', '--label', 'Claude Code · Fix the build']
     })
-    // The role is in the grant, never in an argument a process could have written for itself.
-    expect(cli?.args.join(' ')).not.toContain('role')
   })
 
-  it('allows saving by default, and asks for none for a planner that does not allow it', async () => {
-    const { manager, grants } = rig()
+  it('allows saving by default, and leaves --allow-save out for a planner that does not allow it', async () => {
+    const { manager, fakes } = rig()
     const planner = newChat(manager, { agent: 'codex', role: 'planner', title: 'Plan', allowSave: false })
     const byDefault = manager.createChat({ folder: REPO, agent: 'claude', role: 'planner' })
     await manager.send(planner, 'go')
     await manager.send(byDefault, 'go')
 
     expect(byDefault.allowSave).toBe(true)
-    expect(grants.issued).toEqual([
-      { folder: REPO, role: 'planner', allowSave: false, label: 'Codex · Plan' },
-      { folder: REPO, role: 'planner', allowSave: true, label: 'Claude Code · New chat' }
+    const [codex, claude] = [only(fakes.of('codex')), only(fakes.of('claude'))]
+    expect(codex.started[0]?.darkMechanicus.args).toEqual(['/app/out/main/mcp.js', '--repo', REPO, '--role', 'planner', '--label', 'Codex · Plan'])
+    expect(codex.started[0]?.allowSave).toBe(false)
+    expect(claude.started[0]?.darkMechanicus.args).toEqual([
+      '/app/out/main/mcp.js',
+      '--repo',
+      REPO,
+      '--role',
+      'planner',
+      '--allow-save',
+      '--label',
+      'Claude Code · New chat'
     ])
   })
 
-  it('asks for a worker or reviewer grant that never saves, even when the chat allows it', async () => {
-    const { manager, grants, fakes } = rig()
+  it('runs a worker or reviewer under its own role and never passes --allow-save, even when the chat allows it', async () => {
+    const { manager, fakes } = rig()
     await manager.send(newChat(manager, { role: 'worker', title: 'Do DM-1', allowSave: true }), 'go')
     await manager.send(newChat(manager, { role: 'reviewer', title: 'Review DM-1', allowSave: true }), 'go')
 
-    expect(grants.issued.map((grant) => [grant.role, grant.allowSave])).toEqual([
-      ['worker', false],
-      ['reviewer', false]
-    ])
     const [worker, reviewer] = fakes.of('claude')
     expect(worker?.started[0]).toMatchObject({ role: 'worker', allowSave: false })
+    expect(worker?.started[0]?.darkMechanicus.args).toEqual(['/app/out/main/mcp.js', '--repo', REPO, '--role', 'worker', '--label', 'Claude Code · Do DM-1'])
     expect(reviewer?.started[0]).toMatchObject({ role: 'reviewer', allowSave: false })
-  })
-
-})
-
-describe('session manager: a chat grant does not outlive its session', () => {
-  it('revokes the grant when the session ends', async () => {
-    const { manager, grants } = rig()
-    const chat = newChat(manager)
-    await manager.send(chat, 'go')
-    expect(grants.revoked).toEqual([])
-    await manager.disposeAll()
-    expect(grants.revoked).toEqual(['gr_1'])
   })
 })
 
@@ -809,7 +760,7 @@ describe('session manager: chats', () => {
 
 describe('session manager: renaming a chat', () => {
   it('changes only the title, and names the chat\'s next agent session after it', async () => {
-    const { manager, grants } = rig()
+    const { manager, fakes } = rig()
     const chat = newChat(manager, { title: 'Old' })
 
     const renamed = manager.renameChat(chat, 'Fix the build')
@@ -817,7 +768,7 @@ describe('session manager: renaming a chat', () => {
 
     expect(renamed).toMatchObject({ id: chat.id, title: 'Fix the build', role: chat.role, model: chat.model, agent: chat.agent })
     expect(manager.listChats(REPO).map((listed) => listed.title)).toEqual(['Fix the build'])
-    expect(grants.issued.at(-1)?.label).toBe('Claude Code · Fix the build')
+    expect(only(fakes.created).started[0]?.darkMechanicus.args.at(-1)).toBe('Claude Code · Fix the build')
   })
 
   it('does not lose the title when the vendor session id is stored while the chat runs', async () => {
@@ -1655,29 +1606,5 @@ describe('session manager: allowing several tools for a chat', () => {
       ['q3', 'allow_chat'],
       ['q4', 'allow_chat']
     ])
-  })
-})
-
-describe('session manager: what a chat is told about Dark Mechanicus', () => {
-  it('appends the dm instructions, naming the granted role and the exact command', async () => {
-    const { manager, fakes } = rig()
-    await manager.send(newChat(manager, { role: 'orchestrator', title: 'Fix the build' }), 'go')
-
-    const instructions = only(fakes.created).started[0]?.instructions ?? ''
-    expect(instructions).toContain('node /app/out/main/cli.js --repo')
-    expect(instructions).toContain('**orchestrator**')
-    expect(instructions).toContain('DM_SESSION_TOKEN')
-  })
-
-  it('never puts the token itself in the instructions', async () => {
-    const { manager, fakes } = rig()
-    await manager.send(newChat(manager), 'go')
-    expect(only(fakes.created).started[0]?.instructions).not.toContain('dmg_')
-  })
-
-  it('tells a chat that may not save to hand the draft to the person', async () => {
-    const { manager, fakes } = rig()
-    await manager.send(newChat(manager, { role: 'planner', allowSave: false }), 'go')
-    expect(only(fakes.created).started[0]?.instructions).toContain('may not save plans')
   })
 })
