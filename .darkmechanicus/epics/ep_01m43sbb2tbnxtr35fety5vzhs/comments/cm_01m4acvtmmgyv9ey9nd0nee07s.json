@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "**Reconciled sprint 1's checkpoint (orchestrator, run 2).** The gate failed on `increment_merged` and `definition_of_done` because `recordCarryForward` copies only outputs, so the carried DM-130 attempt had no increment and no evidence.\n\nFix applied:\n1. Paused run 2 and saved **revision 3**. It changes only DM-130's body, adding a resubmission note.\n2. Adopted revision 3 at the checkpoint. That superseded DM-130's carried acceptance and kept the other nine sprint 1 tickets accepted. Then resumed the run.\n3. Claimed DM-130 (attempt 2, Haiku 4.5, medium). The worker checked that 5a5a03c's tree is `1b9793b`, the same as 79227b2, and that nothing outside `docs/verification` changed after 6c86378, where run 1 ran the Definition of Done. It then resubmitted with increment `source-control@5a5a03c` (the server verified it) and run 1's DoD and criteria evidence. I re-checked and accepted it.\n4. Submitted sprint 1 report revision 2.\n\nEvery gate is now met. The only one left is the person's approval in the desktop app. Sprint 2 entry criterion **n1** (the GitHub OAuth App client ID) is still open.",
+  "createdAt": "2026-10-07T05:20:01.684Z",
+  "epicId": "ep_01m43sbb2tbnxtr35fety5vzhs",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m4acvtmmgyv9ey9nd0nee07s",
+  "ticketId": null
+}
