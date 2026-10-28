@@ -927,7 +927,7 @@
   },
   "hostCatalogId": "hc_01m49h2h070m93ec4wy9czr4kh",
   "number": 2,
-  "ownerMachineId": "mc_01m41707wstg1crxjbt3jw2ap5",
+  "ownerMachineId": "mc_01m4912pg590r3j7r99nbcw9wz",
   "pauseReason": null,
   "reports": [
     {
@@ -1288,6 +1288,6 @@
   "runId": "rn_01m49gyd8b5g5p67pz2awqr99n",
   "skillVersion": "1.5.1",
   "startedAt": "2026-10-06T21:14:34.059Z",
-  "state": "awaiting_checkpoint",
-  "updatedAt": "2026-10-07T05:19:39.596Z"
+  "state": "running",
+  "updatedAt": "2026-10-28T14:14:54.425Z"
 }

@@ -1,0 +1,1916 @@
+{
+  "baseRevisionId": null,
+  "bundle": {
+    "edges": [
+      {
+        "from": "tk_01m61r9qvt4yf9wb1hpjtj0rwm",
+        "to": "tk_01m61r9qvz31hss46xw17k7gcz"
+      },
+      {
+        "from": "tk_01m61r9qvz31hss46xw17k7gcz",
+        "to": "tk_01m61r9qvz6rf23jhb13y9926e"
+      },
+      {
+        "from": "tk_01m61r9qvz6rf23jhb13y9926e",
+        "to": "tk_01m61r9qvzawsxderyck3w4mgy"
+      },
+      {
+        "from": "tk_01m61r9qvzawsxderyck3w4mgy",
+        "to": "tk_01m61r9qvzcjmpq4d4x6j4m6y7"
+      },
+      {
+        "from": "tk_01m61r9qvzckhthd0feem68v13",
+        "to": "tk_01m61r9qvzcjmpq4d4x6j4m6y7"
+      },
+      {
+        "from": "tk_01m61r9qvzcg9f9qqk1z3v7wtq",
+        "to": "tk_01m61r9qvzrband4bpxsw8rnpq"
+      },
+      {
+        "from": "tk_01m61r9qvzrband4bpxsw8rnpq",
+        "to": "tk_01m61r9qvz47ez425t8jxtw8c0"
+      },
+      {
+        "from": "tk_01m61r9qvzckhthd0feem68v13",
+        "to": "tk_01m61r9qvz47ez425t8jxtw8c0"
+      },
+      {
+        "from": "tk_01m61r9qvzrband4bpxsw8rnpq",
+        "to": "tk_01m61r9qvzjh2yyk89xbzd67dn"
+      },
+      {
+        "from": "tk_01m61r9qvz47ez425t8jxtw8c0",
+        "to": "tk_01m61r9qvz970qhrtt5vcwwpb7"
+      },
+      {
+        "from": "tk_01m61r9qvzjh2yyk89xbzd67dn",
+        "to": "tk_01m61r9qvz970qhrtt5vcwwpb7"
+      },
+      {
+        "from": "tk_01m61r9qvz1g826jmjdkvwyres",
+        "to": "tk_01m61r9qvzhd787c0t1q8jq8h7"
+      },
+      {
+        "from": "tk_01m61r9qvz970qhrtt5vcwwpb7",
+        "to": "tk_01m61r9qvzvkvv2bt1hcf2cpqs"
+      },
+      {
+        "from": "tk_01m61r9qvzhd787c0t1q8jq8h7",
+        "to": "tk_01m61r9qvzvkvv2bt1hcf2cpqs"
+      },
+      {
+        "from": "tk_01m61r9qvz970qhrtt5vcwwpb7",
+        "to": "tk_01m61r9qvzs7j3hm111qjmrgbx"
+      },
+      {
+        "from": "tk_01m61r9qvzhd787c0t1q8jq8h7",
+        "to": "tk_01m61r9qvzs7j3hm111qjmrgbx"
+      }
+    ],
+    "epic": {
+      "intent": "The desktop app runs in-app agents through three built-in CLIs (Claude Code, Codex, Cursor) that the person connects with Find or Download. Which CLIs are connected is kept in a JSON file (`userData/agents.json`), the set is closed (`AgentKind = 'claude' | 'codex' | 'cursor'`), and there is no way to run Autonomous (`a8s`) or any other CLI from the app. This epic lets the person choose the CLI behind every in-app agent: Autonomous, Claude, Codex, Cursor, or a custom command. The choice is stored in SQL, and every agent process provably runs in the repository folder it is working in.\n\n## What changes\n\n- **An app-wide SQL store.** A new SQLite database in the app's user data (`userData/app.sqlite`, its own migrations) holds the connected CLIs and each folder's default CLI. `agents.json` is imported once and deleted. There is no JSON fallback.\n- **Agents get an id and a protocol.** Each connected CLI is a row with an id, a kind, and the protocol the app speaks to it: the Claude Agent SDK, Codex `app-server`, or ACP (Agent Client Protocol). Adapters, chats, sign-in state and IPC address agents by id. Vendor specifics stay in adapters.\n- **Autonomous is a built-in agent.** It is connected with Find (no Download) and runs as `a8s start <folder> --mode acp`. Its exact argv, sign-in and model handling come from a recorded spike against the installed CLI.\n- **Custom CLIs.** The person picks an executable (through main's native dialog, never a path from the renderer), enters fixed arguments, and chooses the protocol. An argument that is exactly `{folder}` becomes the chat's folder. Main validates the arguments, shows the exact command for confirmation, and stores the CLI only after that protocol's handshake succeeds.\n- **A default CLI per folder.** It is set on the folder page and preselected by New chat and Start run in that folder.\n- **Pinned to the folder.** Before any agent process starts, main re-resolves the chat's folder: it must exist, still be tracked, and still be the same canonical directory. That one path is then used as the process working directory, as the protocol's own workspace (`cwd` for the Claude SDK, Codex `thread/start` and ACP `session/new`), and as the `--repo` of the chat's `dm` command. A moved or deleted folder refuses to start instead of running somewhere else.\n\n## Decisions (from the person, 2026-10-28)\n\n- Storage: a new app-wide SQLite database in user data, not each folder's `state.sqlite`.\n- Custom CLIs choose their protocol: ACP, Codex app-server or Claude Code SDK.\n- A per-folder default CLI, preselected in New chat and Start run.\n\n## Constraints\n\n- The renderer never sends an executable path. Arguments are validated in main and passed without a shell, through the existing `planCliLaunch` rules (including the Windows `.cmd` shim parse).\n- The app stores no vendor credentials. Custom CLIs sign in outside the app.\n- Plans, tickets and profiles stay provider-neutral.\n- Chats and transcripts stay in their existing store (`userData/agents/chats`). Only CLI settings and folder defaults move to SQL.\n\n## Out of scope\n\n- Moving chats, transcripts or activity bindings to SQL.\n- Download or installers for Autonomous or custom CLIs.\n- A Sign in button for custom CLIs.\n- Switching the agent within a chat.\n- The GUI apps.\n",
+      "ownerRole": null,
+      "successCriteria": [
+        {
+          "id": "s1",
+          "text": "Connected agent CLIs (built-in and custom) and each folder's default CLI are stored in `app.sqlite` in the app's user data. After upgrading, every agent connected before is still connected, and `agents.json` is gone."
+        },
+        {
+          "id": "s2",
+          "text": "A person can connect Autonomous with Find and chat with it in a folder, with approvals, model choice, resume across restarts and the folder's `dm` CLI access, as with the other built-in agents."
+        },
+        {
+          "id": "s3",
+          "text": "A person can add a custom CLI by picking an executable, entering fixed arguments and choosing ACP, Codex app-server or Claude Code SDK. It is stored only after the person confirms the exact command and the protocol's handshake succeeds. It is then offered wherever an agent can be chosen."
+        },
+        {
+          "id": "s4",
+          "text": "Each folder can store a default CLI. New chat and Start run in that folder preselect it. It survives a restart and is cleared when that CLI is removed or the folder is untracked."
+        },
+        {
+          "id": "s5",
+          "text": "Every chat process, built-in or custom, runs with the chat's canonical folder as its working directory and protocol workspace, and its `dm` command targets the same folder. A chat whose folder was moved, deleted or untracked refuses to start."
+        },
+        {
+          "id": "s6",
+          "text": "The renderer never supplies an executable path, and custom arguments are validated in main and passed without a shell."
+        }
+      ],
+      "title": "Agent CLIs: run Autonomous, Claude, Codex or a custom CLI in the app, stored in SQL and pinned to the folder"
+    },
+    "formatVersion": 1,
+    "policies": {
+      "leaseSeconds": 900,
+      "maxConcurrency": null,
+      "onTicketFailure": "continue_independent",
+      "retryLimit": 3
+    },
+    "rationale": "## Why two sprints\n\n1. **Sprint 1: the foundation (no new agent yet).**\n   - It moves the connected CLIs into the new app database and makes agents addressable by id and protocol. That is the riskiest change: it touches about 54 files and the person's existing connections.\n   - It pins every chat process to its folder.\n   - It records Autonomous's real ACP behaviour, so sprint 2 builds against observed answers instead of guesses.\n   - The person can check at the checkpoint that nothing they had connected was lost.\n2. **Sprint 2: the new choices.** Autonomous, custom CLIs for all three protocols, and the per-folder default, each with its UI, plus the docs.\n\n## The graph\n\n**Sprint 1**\n- The critical path is appdb → registry → identity → pinning → Fireguard.\n  - The identity ticket is large and can't be split, because the shared `AgentKind` key gates typecheck in shared, main, preload and renderer at once.\n  - Pinning follows identity because both edit the session manager and all three adapters.\n- The Autonomous spike runs in parallel from the start. It touches no source except a new fixture and a report.\n\n**Sprint 2**\n- acp (extract the generic ACP session) → customlaunch (one argv rule, `{folder}`, the `unchecked` sign-in state).\n- customlaunch unlocks two parallel tickets: autonomous (which also uses sprint 1's spike) and customconnect (main-process add, edit and remove, with validation, confirmation and the handshake).\n- defaults (folder default table access and IPC) runs from the start, in parallel with acp, and feeds uidefaults.\n- uiagents joins autonomous and customconnect. docs joins uiagents and uidefaults.\n- The Fireguard ticket requires uiagents and uidefaults, so transitively every ticket with tests. It runs beside docs, which adds no tests.\n\n**Every sprint**\n- Each sprint has its own Fireguard ticket, as delivery-standards requires.\n- The acceptance nodes run in the built app with an isolated `--user-data-dir` and scratch repositories. They never touch the person's own app user data or tracked folders. The CLIs keep their own existing sign-ins.\n- Native, process and IPC changes are exercised in the built Electron app before acceptance.\n\n## Assumptions (planner, 2026-10-28)\n\n- **Autonomous is a built-in agent.** It is added beside Claude, Codex and Cursor, in addition to custom CLIs. The person asked to \"run autonomous from the app\". It gets Find only: its installer is the company's, so Download is out of scope.\n- **What moves to SQL.** Only the connected CLIs and the per-folder defaults. Chats, transcripts and activity bindings stay in their JSONL stores. The request was to store the CLI choice in SQL.\n- **Agent ids.**\n  - Built-in agent ids equal today's kind strings (`claude`, `codex`, `cursor`, `autonomous`). So existing chat records (`\"agent\":\"cursor\"`) load without a rewrite.\n  - Custom ids are `cu_` plus a ULID.\n- **Custom CLI arguments.**\n  - They are fixed. The only placeholder is `{folder}`, as a whole argument. There is no `{model}` placeholder, to keep chat input out of argv.\n  - The process is the executable, then the args, then the protocol's own arguments.\n  - A custom CLI's protocol is fixed once it is added. Its name, args and executable can be edited, and every edit is confirmed and handshake-checked again.\n- **Custom CLI models.** Custom ACP CLIs run their own default model; a model picker for them is out of scope. Custom Codex-protocol and Claude-protocol CLIs list models through their protocol, as the built-ins do.\n- **Custom CLI sign-in.** Custom CLIs sign in outside the app. Their status is the new `unchecked` state, which is choosable. Their Signed out card has no Sign in button.\n- **Confirming a custom CLI.** Saving one shows the exact command in a native dialog in main. This keeps the person in the loop even if the renderer is compromised, because the renderer can propose arguments but never a path.\n- **The legacy file.** `agents.json` is imported once and deleted. There is no JSON fallback, and no downgrade: an older build will not see the connected agents.\n- **Live checks.** They run on this macOS machine. Codex and Cursor are not installed here, so their paths are covered by replay tests, and the Codex-protocol custom check uses a throwaway stub. Windows shim rules are covered by unit tests only.\n- **Branch.** No epic branch was named. The orchestrator sets it at run start.\n\n## Open questions for the person\n\n- Should a custom CLI have an optional login command, so that its Signed out card gets a Sign in button? This plan leaves sign-in outside the app.\n- Should custom ACP CLIs get a model picker, through ACP's `session/set_model` or a `{model}` argument? This plan leaves the CLI's default.\n\n## Overlap with other epics\n\n- **Source control (in progress).** It replaces the folder home with a tabbed folder view (its DM-135). The uidefaults ticket puts the Default agent select on whichever folder page exists when it runs.\n- **Trustworthy completion (backlog).** It plans changes to agent orchestration and worker lifecycle in the session manager. Whichever epic runs second must adapt to the other's `sessionManager.ts`.",
+    "relations": [],
+    "sprints": [
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": null,
+        "entryCriteria": [],
+        "exitCriteria": [
+          {
+            "id": "x1",
+            "text": "Upgrading a profile with connected agents moves them into `app.sqlite` and deletes `agents.json`. Existing chats still open and run."
+          },
+          {
+            "id": "x2",
+            "text": "Adapters, chats and IPC address agents by id, and pick their adapter by protocol."
+          },
+          {
+            "id": "x3",
+            "text": "Every chat process runs with its canonical folder as working directory, protocol workspace and `dm --repo`. A moved, deleted or untracked folder refuses to start."
+          },
+          {
+            "id": "x4",
+            "text": "The Autonomous ACP report and recording exist."
+          },
+          {
+            "id": "x5",
+            "text": "Fireguard grades nothing F, and the Definition of Done passes on the combined sprint."
+          }
+        ],
+        "goal": "Connected CLIs live in a new app-wide SQLite database, every agent has an id and a protocol, every chat process is pinned to its canonical folder, and Autonomous's ACP surface is recorded.",
+        "id": "sp_01m61r9qjde16e16k0b5fmvzbr",
+        "ordinal": 1,
+        "ticketIds": [
+          "tk_01m61r9qvt4yf9wb1hpjtj0rwm",
+          "tk_01m61r9qvz31hss46xw17k7gcz",
+          "tk_01m61r9qvz6rf23jhb13y9926e",
+          "tk_01m61r9qvzawsxderyck3w4mgy",
+          "tk_01m61r9qvzckhthd0feem68v13",
+          "tk_01m61r9qvzcjmpq4d4x6j4m6y7",
+          "tk_01m61r9qjdbwy52ytqkx119dyn"
+        ]
+      },
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": null,
+        "entryCriteria": [
+          {
+            "id": "n1",
+            "text": "Sprint 1 is landed on the epic branch, and the Autonomous ACP report is accepted."
+          }
+        ],
+        "exitCriteria": [
+          {
+            "id": "x1",
+            "text": "Autonomous connects with Find and chats in a folder with approvals, resume and the `dm` CLI."
+          },
+          {
+            "id": "x2",
+            "text": "A custom CLI for each protocol can be added, confirmed, handshake-checked, edited and removed. Invalid input is refused in main."
+          },
+          {
+            "id": "x3",
+            "text": "The per-folder default is stored in `app.sqlite` and preselected by New chat and Start run."
+          },
+          {
+            "id": "x4",
+            "text": "The docs describe the app database, Autonomous, custom CLIs, the folder default and folder pinning."
+          },
+          {
+            "id": "x5",
+            "text": "Fireguard grades nothing F, and the Definition of Done passes on the combined sprint."
+          }
+        ],
+        "goal": "A person can chat with Autonomous, add a custom CLI speaking ACP, Codex app-server or Claude Code SDK, and set a default CLI per folder that New chat and Start run preselect.",
+        "id": "sp_01m61r9qvz5etpsw93jt562k4s",
+        "ordinal": 2,
+        "ticketIds": [
+          "tk_01m61r9qvzcg9f9qqk1z3v7wtq",
+          "tk_01m61r9qvzrband4bpxsw8rnpq",
+          "tk_01m61r9qvz1g826jmjdkvwyres",
+          "tk_01m61r9qvz47ez425t8jxtw8c0",
+          "tk_01m61r9qvzjh2yyk89xbzd67dn",
+          "tk_01m61r9qvz970qhrtt5vcwwpb7",
+          "tk_01m61r9qvzhd787c0t1q8jq8h7",
+          "tk_01m61r9qvzvkvv2bt1hcf2cpqs",
+          "tk_01m61r9qvzs7j3hm111qjmrgbx",
+          "tk_01m61r9qvz0e8090tfw2bbyd6d"
+        ]
+      }
+    ],
+    "tickets": [
+      {
+        "acceptanceCriteria": [
+          {
+            "covers": "tk_01m61r9qvt4yf9wb1hpjtj0rwm",
+            "id": "c1",
+            "text": "`app.sqlite` exists in the profile's user data at `PRAGMA user_version` 1, with the `agents`, `folder_agent_defaults` and `app_meta` tables. Quitting and restarting the app reopens it with no error."
+          },
+          {
+            "covers": "tk_01m61r9qvz31hss46xw17k7gcz",
+            "id": "c2",
+            "text": "After the first start of the new build, `agents.json` is gone, `app_meta.legacyAgentsImported` is `imported`, and `SELECT id, kind, protocol, executable_path FROM agents` lists exactly the agents the old build had connected. The agents page shows Claude Code connected, with its version."
+          },
+          {
+            "covers": "tk_01m61r9qvz6rf23jhb13y9926e",
+            "id": "c3",
+            "text": "The chat the old build made is listed and reopens with its transcript, and a new message in it gets an answer from Claude. A new Claude chat in `scratch-a` also works."
+          },
+          {
+            "covers": "tk_01m61r9qvzawsxderyck3w4mgy",
+            "id": "c4",
+            "text": "In a Claude chat in `scratch-a`, asking the agent to run `pwd` prints `scratch-a`'s canonical path, and asking it to run the `dm` CLI's `get_capabilities` shows `repoRoot` as the same path. After `scratch-a` is renamed on disk, sending a message shows the error naming the folder, and `ps` shows no new agent process."
+          },
+          {
+            "covers": "tk_01m61r9qvzckhthd0feem68v13",
+            "id": "c5",
+            "text": "`docs/reports/autonomous-acp.md` and `autonomousRecordings.ts` exist on the combined branch. A grep of the recording for the person's user name, email and home path finds nothing, and the same grep finds a planted copy of one of them (positive control)."
+          },
+          {
+            "covers": "tk_01m61r9qvzcjmpq4d4x6j4m6y7",
+            "id": "c6",
+            "text": "The sprint 1 Fireguard ticket is accepted with a grade other than F. The report quotes its grade and score as the Definition of Done's fireguard result."
+          }
+        ],
+        "body": "This is the planned final round for sprint 1, run once on the combined work.\n\n1. **Combine** every accepted sprint 1 ticket on the sprint integration branch.\n2. **Make an \"old\" profile.** Never use the person's own app user data or tracked folders. The CLIs keep their own existing sign-ins.\n   - Build the epic branch's start commit (before sprint 1) and run it with a temporary `--user-data-dir`.\n   - Track a scratch Git repository `scratch-a` in a temp folder.\n   - Connect Claude Code with Find (`~/.local/bin/claude`, which is installed here) and create one chat in `scratch-a` with a short exchange.\n   - Quit. Check that `agents.json` exists in that user data.\n3. **Upgrade.** Build the combined branch (`npm run build`) and start it with the same `--user-data-dir`.\n4. **Verify each item below** in the built app, with screenshots and `sqlite3 <userData>/app.sqlite` dumps.\n5. **Run the Definition of Done** on the combined branch. Take Fireguard's grade from the sprint 1 Fireguard ticket, which must be accepted first. Re-run Fireguard only if test files changed after that ticket.\n6. **Squash** the sprint into one commit on the epic branch.\n\nCodex and Cursor are not installed on this machine. Their paths are covered by the replay tests only; say so in the report.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "End-to-end upgrade checks in the built app with an isolated profile, the full Definition of Done and the squash."
+          },
+          "skills": [
+            "typescript",
+            "testing",
+            "electron",
+            "database"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [
+          "Sprint 1 report: screenshots, app.sqlite dumps, Definition of Done results, the squashed commit"
+        ],
+        "id": "tk_01m61r9qjdbwy52ytqkx119dyn",
+        "key": "DM-248",
+        "kind": "acceptance",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "tags": [],
+        "title": "Sprint 1 acceptance: upgrade a profile with connected agents, chat in a pinned folder, run the Definition of Done, land one commit"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "`openAppDatabase(dir)` creates `dir/app.sqlite` at `user_version` 1, with `agents`, `folder_agent_defaults` and `app_meta` exactly as in the body. Reopening it applies nothing (tested)."
+          },
+          {
+            "id": "c2",
+            "text": "A database at a newer `user_version` is refused with `incompatible_schema` (tested)."
+          },
+          {
+            "id": "c3",
+            "text": "Tests show the cascade from `agents` to `folder_agent_defaults`, and both id/kind CHECKs and the protocol CHECK rejecting bad rows."
+          },
+          {
+            "id": "c4",
+            "text": "`bootstrap.ts` opens the database once from `app.getPath('userData')` and closes it in the `before-quit` hook. No JSON fallback exists."
+          }
+        ],
+        "body": "Size: **small**. This is the first ticket of the epic. It adds the store that the rest of the epic writes to. Nothing is visible to the person yet.\n\n**Context**\n- There is no app-wide database today. App state is JSON in user data: `agents.json`, `folders.json` and `agents/chats/`.\n- The core DB layer can be reused as it is:\n  - `src/core/db/database.ts` `openDatabase(path, options)`: `node:sqlite`, WAL, `foreign_keys = ON`, `synchronous = FULL`, `BEGIN IMMEDIATE` transactions.\n  - `src/core/db/migrations.ts:444` `migrate(db, migrations)` takes its own list. It stamps `PRAGMA user_version`, and it refuses a newer version with `incompatible_schema`.\n- Do **not** add to the project `MIGRATIONS` list or bump `SCHEMA_VERSION`. That is the per-folder database.\n\n**Build `src/main/desktop/appDatabase.ts`**\n- `export const APP_MIGRATIONS: Migration[]`, with version 1 exactly as below.\n- `export function openAppDatabase(userDataDir: string): Db`. It opens `join(userDataDir, 'app.sqlite')` with `openDatabase`, then runs `migrate(db, APP_MIGRATIONS)`.\n\n```sql\nCREATE TABLE agents (\n  id TEXT PRIMARY KEY,\n  kind TEXT NOT NULL CHECK (kind IN ('claude','codex','cursor','autonomous','custom')),\n  protocol TEXT NOT NULL CHECK (protocol IN ('claude','codex','acp')),\n  display_name TEXT NOT NULL,\n  executable_path TEXT NOT NULL,\n  args_json TEXT NOT NULL DEFAULT '[]',\n  version TEXT,\n  connected_via TEXT NOT NULL CHECK (connected_via IN ('found','downloaded','custom')),\n  connected_at TEXT NOT NULL,\n  last_probed TEXT NOT NULL,\n  CHECK (kind = 'custom' OR id = kind),\n  CHECK (kind <> 'custom' OR substr(id, 1, 3) = 'cu_')\n);\nCREATE TABLE folder_agent_defaults (\n  folder TEXT PRIMARY KEY,\n  agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,\n  updated_at TEXT NOT NULL\n);\nCREATE TABLE app_meta (\n  key TEXT PRIMARY KEY,\n  value TEXT NOT NULL\n);\n```\n\n**Wire it in `src/main/desktop/bootstrap.ts`**\n- Open it once in `startDesktopBridge`, next to where `createFolderRegistry` and `createAgentRegistry` are built (about L289-301), from `app.getPath('userData')`. Hold the `Db` for the registry ticket that follows.\n- Close it in the existing `app.on('before-quit', …)` hook (about L334), after `pool.closeAll()`.\n- If opening throws (for example `incompatible_schema`), let the error propagate. Do not fall back to JSON.\n\n**Tests first: `src/main/desktop/appDatabase.test.ts`** (temp directory, as `database.test.ts` does)\n- A fresh database is at `user_version` 1 and has the three tables. Reopening it applies nothing: `migrate` returns `{from: 1, to: 1}`.\n- A file stamped `PRAGMA user_version = 2` is refused with `incompatible_schema`.\n- Deleting an `agents` row deletes its `folder_agent_defaults` row.\n- The CHECKs refuse each of these:\n  - a built-in row whose id is not its kind;\n  - a custom row whose id doesn't start with `cu_`;\n  - an unknown protocol.\n\n**Out of scope:** moving any data (that is the next ticket), and chat storage.\n\n**Verify:** `npx vitest run src/main/desktop/appDatabase.test.ts`, `npm run typecheck`, `npm run lint`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "The schema and wiring are spelled out; the work is one new module and its tests."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing",
+            "database"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/main/desktop/appDatabase.ts",
+          "src/main/desktop/appDatabase.test.ts"
+        ],
+        "id": "tk_01m61r9qvt4yf9wb1hpjtj0rwm",
+        "key": "DM-249",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/db/database.ts",
+            "location": "src/core/db/database.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/db/migrations.ts",
+            "location": "src/core/db/migrations.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/bootstrap.ts",
+            "location": "src/main/desktop/bootstrap.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "database",
+          "main-process",
+          "agents"
+        ],
+        "title": "Open an app-wide SQLite database in user data with its own migrations"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The registry reads and writes only the `agents` table. `RegistryFs` and the agents.json persistence code are deleted. No file under `src/` mentions `agents.json` except the importer and its one call in `bootstrap.ts`."
+          },
+          {
+            "id": "c2",
+            "text": "Upgrading with a valid `agents.json` imports every entry (kind, path, version, connectedVia, timestamps) and deletes the file. A second start changes nothing (tested)."
+          },
+          {
+            "id": "c3",
+            "text": "An unreadable `agents.json` is left in place, imports nothing and is not retried. A crash after the commit but before the delete removes the file on the next start, without duplicating rows (tested)."
+          },
+          {
+            "id": "c4",
+            "text": "The existing agent handler, auth and installer tests pass against the SQL-backed registry."
+          }
+        ],
+        "body": "Size: **medium**. It moves the connected-agent registry from JSON into `app.sqlite`, and moves the person's existing connections across once.\n\n**Context**\n- `src/main/desktop/agentRegistry.ts` `createAgentRegistry({file, fs?, now?})` returns `{list, upsert, remove}`.\n  - It persists `{version: 1, agents: [{kind, executablePath, version, connectedVia, connectedAt, lastProbed}]}` to `userData/agents.json`.\n  - Writes are atomic: `.tmp` plus rename (about L94-98).\n  - `upsert` keeps `connectedAt` and refreshes `lastProbed` (about L122-142).\n- Consumers:\n  - `agentHandlers.ts`;\n  - `agentAuth.ts` (`Pick<AgentRegistry, 'list'>`);\n  - `agentInstaller.ts` (`list`, `upsert`);\n  - `bootstrap.ts` (about L212 `executablePath`, about L294 construction).\n- `agentHandlers.test.ts:7` imports `RegistryFs`.\n- The `agents`, `app_meta` and `folder_agent_defaults` tables come from the previous ticket (`src/main/desktop/appDatabase.ts`).\n\n**Change**\n1. Rewrite `createAgentRegistry({ db: Db, now? })` over the `agents` table.\n   - Keep the `AgentRegistry` interface and the `AgentView` shape unchanged in this ticket. The identity ticket changes them.\n   - A built-in row has:\n     - `id` = kind;\n     - `protocol` from the kind (`claude` → `claude`, `codex` → `codex`, `cursor` → `acp`);\n     - `display_name` from `AGENT_DEFINITIONS[kind].displayName`;\n     - `args_json` = `'[]'`.\n   - `upsert` keeps `connected_at` and refreshes `last_probed`, as today.\n   - Every write is one statement or one `db.tx`.\n2. Add `importLegacyAgents({ db, file, fs, log })` in `src/main/desktop/agentRegistryImport.ts`. It runs once per database and is driven by the `app_meta` key `legacyAgentsImported`:\n   - **No key, valid file:** in one `db.tx`, insert every valid entry (skip kinds already present) and set the key to `imported`. After the commit, delete `agents.json`.\n   - **No key, missing file:** set the key to `none`.\n   - **No key, unreadable or invalid file:** set the key to `unreadable`, leave the file where it is, log one line, and never throw.\n   - **Key is `imported` and the file still exists** (a crash between the commit and the delete): delete the file and insert nothing.\n3. Call `importLegacyAgents` in `bootstrap.ts` before `createAgentRegistry`.\n4. Clean cutover:\n   - delete `RegistryFs`, `loadEntries`, `saveEntries` and `FILE_VERSION`;\n   - move tests to `openDatabase(':memory:')` + `migrate(db, APP_MIGRATIONS)`;\n   - no file under `src/` may mention `agents.json` except the importer and its one call in `bootstrap.ts`.\n\n**Tests first**\n- `list`, `upsert` and `remove` behave as today. `connectedAt` survives an upsert.\n- Import:\n  - a valid two-entry file gives two rows, the key `imported`, and no file;\n  - a second run changes nothing;\n  - invalid JSON gives no rows, the key `unreadable`, and the file still present;\n  - the key `imported` with the file present deletes the file and leaves the rows unchanged;\n  - a failure inside the transaction leaves no rows and no key.\n- Existing `agentHandlers.test.ts`, `agentAuth.test.ts` and `agentInstaller.test.ts` pass against the SQL-backed registry.\n\n**Verify:** `npx vitest run src/main/desktop/agentRegistry src/main/desktop/agentHandlers.test.ts src/main/desktop/agentAuth.test.ts src/main/desktop/agentInstaller.test.ts`, `npm run typecheck`, `npm run lint`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A one-time data migration with crash recovery; the failure states must be tested, not assumed."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing",
+            "database"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/main/desktop/agentRegistry.ts",
+          "src/main/desktop/agentRegistryImport.ts",
+          "src/main/desktop/agentRegistryImport.test.ts"
+        ],
+        "id": "tk_01m61r9qvz31hss46xw17k7gcz",
+        "key": "DM-250",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/agentRegistry.ts",
+            "location": "src/main/desktop/agentRegistry.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/bootstrap.ts",
+            "location": "src/main/desktop/bootstrap.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/agentHandlers.test.ts",
+            "location": "src/main/desktop/agentHandlers.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "database",
+          "main-process",
+          "agents",
+          "migration"
+        ],
+        "title": "Store connected agents in the app database and import agents.json once"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "`AgentView` carries `id`, `protocol`, `displayName` and `args`. Chats, statuses, sign-in flags, model lists and IPC address agents by id. Vendor maps are keyed by `BuiltInAgentKind`."
+          },
+          {
+            "id": "c2",
+            "text": "A chat's adapter is chosen by its agent's protocol (tested with fake adapters for all three protocols)."
+          },
+          {
+            "id": "c3",
+            "text": "A chat index line written before this change (`\"agent\":\"cursor\"`) loads unchanged (tested)."
+          },
+          {
+            "id": "c4",
+            "text": "The `agentIdSchema` boundary tests pass. IPC refuses a malformed id with `invalid_input` and an unknown one with `not_found`, and runs nothing."
+          },
+          {
+            "id": "c5",
+            "text": "`npm run typecheck` and `npm run lint` pass. Existing chat, agent and Start run tests pass with only mechanical updates."
+          }
+        ],
+        "body": "Size: **large**. It can't be split: `AgentKind` is the closed key in about 54 files across shared, main, preload and renderer. Changing that key breaks typecheck everywhere at once, so a split would leave the build red between tickets. The work is broad but mostly mechanical. The body lists every decision, so none is left to the worker.\n\n**Context (today)**\n- Shared types:\n  - `src/shared/desktop/api.ts:26` `AgentKind = 'claude' | 'codex' | 'cursor'`.\n  - `AgentView` (L28-35) is `{kind, executablePath, version, connectedVia, connectedAt, lastProbed}`.\n  - `src/shared/desktop/agentKinds.ts` holds `AGENT_KINDS` and `AGENT_DEFINITIONS`.\n- Chats:\n  - `src/shared/agents/chat.ts`: `chatRecordSchema.agent` is `z.enum(AGENT_KINDS)`.\n  - `src/shared/agents/chatApi.ts`: `CreateChatRequest.agent`, `StartOrchestratorRequest.agent`, `ChatsApi.models(kind)`.\n- Main:\n  - `src/main/agents/adapterRegistry.ts`: `ChatAdapterDefinitions = Partial<Record<AgentKind, …>>`.\n  - `sessionManager.ts`: L106 `executablePath(kind)`, L224 `seen: Map<string, AgentKind>`, L309 `adapterFor`, L550 `tellChats`, L640 `scopeOf`.\n  - `ownServerTools.ts:26` `OWN_SERVER_TOOL` per kind.\n  - `signInFlags.ts` per kind.\n  - `src/main/desktop/agentAuth.ts` `createAgentAuthHandlers` (L299-307).\n  - `src/main/desktop/ipc.ts` `agents:*` handlers.\n- Renderer:\n  - `NewChatFields.tsx:23` `statuses[agent.kind]`;\n  - `useAgentModels.ts:24` `chats.models(kind)`;\n  - `StartRunDialog.tsx`, `AgentsSection.tsx`, `AgentPage.tsx`, `useAgents.ts`.\n\n**Decisions**\n- **Types**\n  - `BuiltInAgentKind = 'claude' | 'codex' | 'cursor'`, and `AgentKind = BuiltInAgentKind | 'custom'`. Autonomous is added to `BuiltInAgentKind` by a later ticket.\n  - Vendor maps are keyed by `BuiltInAgentKind`: `AGENT_DEFINITIONS`, `STATUS_ARGS`, `LOGIN_ARGS`, `CLASSIFIERS`, `LINE_MATCHERS` and `RECIPES`.\n  - `AgentProtocol = 'claude' | 'codex' | 'acp'`.\n  - `AgentId = string`, validated by `agentIdSchema`: a built-in kind name, or `cu_` plus 26 lowercase Crockford base32 characters (a ULID).\n  - `AgentView` gains `id`, `protocol`, `displayName` and `args: readonly string[]` (empty for built-ins), and keeps `kind`.\n- **Chats**\n  - Keep the stored field name `agent`, so existing `index.jsonl` lines load unchanged. Its value becomes an `AgentId`.\n  - Built-in ids equal the old kind strings, so no chat file is rewritten.\n- **Main**\n  - `ChatAdapterDefinitions = Record<AgentProtocol, ChatAdapterDefinition>`: `claude` → the Claude adapter, `codex` → the Codex adapter, `acp` → the Cursor adapter for now.\n  - The session manager dependency `executablePath(kind)` becomes `agentFor(id): AgentView | null`, backed by a new registry `get(id)`.\n  - `adapterFor` resolves the row, then takes its protocol's definition.\n  - `seen`, `tellChats` and `signInFlags` are keyed by agent id.\n  - `OWN_SERVER_TOOL` is keyed by protocol, with the same three patterns as today.\n- **IPC**\n  - These take an agent id, checked with `agentIdSchema` and then against the registry: `agents:status`, `agents:signIn`, `agents:remove`, `chats:models`, and the `agent` field of `chats:create` and `chats:startOrchestrator`.\n  - `agents:find` and `agents:download` keep taking a built-in kind.\n  - A malformed id is refused with `invalid_input`, and an unknown one with `not_found`, before anything runs.\n  - The renderer still never sends a path.\n- **Renderer**\n  - Statuses, model lists and choices are keyed by `agent.id`, and labels use `agent.displayName`.\n  - A chat whose agent is no longer connected keeps today's not-connected behaviour.\n\n**Tests first (new)**\n- `agentIdSchema`:\n  - accepts each built-in name and a `cu_` + 26-character id;\n  - rejects 25 and 27 characters, uppercase, `cu_../…`, and the empty string.\n- A chat index line written before this change (`\"agent\":\"cursor\"`) loads unchanged.\n- The session manager starts the definition for the agent's protocol (fake adapters for all three protocols).\n- `chats:create` with an unknown id is refused with `not_found`, and no adapter is created.\n\nUpdate existing tests mechanically; do not weaken their assertions.\n\n**Verify:**\n- `npm run typecheck`\n- `npm run lint`\n- `npx vitest run src/main/agents src/main/desktop src/shared src/renderer/src/agents src/renderer/src/epic src/renderer/src/sidebar src/renderer/src/app`\n\nThe full suite runs at acceptance.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "multi_step",
+            "rationale": "A cross-cutting type change through shared, main, preload and renderer that must keep the stored chat records loading."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing",
+            "react"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/shared/desktop/api.ts",
+          "src/shared/desktop/agentKinds.ts",
+          "src/main/agents/adapterRegistry.ts",
+          "src/main/agents/sessionManager.ts"
+        ],
+        "id": "tk_01m61r9qvz6rf23jhb13y9926e",
+        "key": "DM-251",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/desktop/api.ts",
+            "location": "src/shared/desktop/api.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/agents/chat.ts",
+            "location": "src/shared/agents/chat.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/agents/chatApi.ts",
+            "location": "src/shared/agents/chatApi.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/sessionManager.ts",
+            "location": "src/main/agents/sessionManager.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/adapterRegistry.ts",
+            "location": "src/main/agents/adapterRegistry.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/ownServerTools.ts",
+            "location": "src/main/agents/ownServerTools.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/agentAuth.ts",
+            "location": "src/main/desktop/agentAuth.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/ipc.ts",
+            "location": "src/main/desktop/ipc.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "large",
+        "tags": [
+          "agents",
+          "refactor",
+          "ipc",
+          "renderer"
+        ],
+        "title": "Give every agent an id and a protocol, and key adapters, chats and IPC by them"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "For each protocol, a test shows that the process cwd, the protocol's own cwd field and the `--repo` of the chat's `dm` command are the same canonical folder path."
+          },
+          {
+            "id": "c2",
+            "text": "A chat whose folder was deleted, untracked, or replaced by a symlink to another directory refuses to start. It creates no process and shows an error naming the folder (tested)."
+          },
+          {
+            "id": "c3",
+            "text": "The check runs on every start path: the first message, a restart after a model change or crash, and Start run's orchestrator chat (tested)."
+          }
+        ],
+        "body": "Size: **medium**. The person asked that the CLI always point at the repository folder being worked in. Today that holds only by convention. This ticket makes it one checked path, on every start.\n\n**Context (today)**\n- The folder flows from `createChat` (`sessionManager.ts` about L1003, `folder: request.folder`) to `startOptions` (about L335-342, `folder: chat.folder`) to each adapter:\n  - **Claude:** `queryOptions` sets `cwd: options.folder` (`claude.ts` about L409-436).\n  - **Codex:** the spawn uses `cwd: folder` (`codexProcess.ts` about L77), and `threadSettings()` sets `cwd: folder` (`codex.ts` about L416).\n  - **ACP:** `openAcpConnection(…, {cwd: context.folder})` (`cursorSession.ts:90`), and the `session/new`/`session/load` params carry `cwd` (L118).\n- The chat's `dm` command comes from `cliConfigFor(folder)` (`bootstrap.ts` about L103; `buildCliConfig` in `cliConfig.ts` adds `--repo <folder>`).\n- The folder is canonicalized only when it is tracked (`folderRegistry.ts:163` `canonicalPath`). Nothing re-checks it when a process starts. A folder that was moved, deleted, untracked, or replaced by a symlink after the chat was created goes unnoticed.\n\n**Change**\n- Add `resolveLaunchFolder(chat, deps)` in `src/main/agents/launchFolder.ts`:\n  - `realpath` the chat's folder;\n  - require that it exists, is a directory, equals the stored canonical path (so a symlink swapped in is refused), and is still a tracked folder;\n  - on failure, throw a `DomainError` with an existing code (`not_found`) and a message that names the folder and the reason, plus \"Track the folder again to keep using this chat.\"\n- Call it in the session manager before **every** adapter start:\n  - the first message;\n  - the restart after a model change or a crash;\n  - the orchestrator chat that Start run opens.\n- Pass the result as `folder` to `startOptions` and to `issueChatCli`. That makes the spawn cwd, the protocol's workspace and `dm --repo` the same string. The protocol's workspace is the Claude `cwd`, Codex `thread/start`/`thread/resume` `cwd`, or ACP `session/new`/`session/load` `cwd`.\n- A refused start creates no adapter and spawns nothing. The turn ends with the chat's existing error item, carrying that message.\n\n**Tests first**\n- **Per adapter** (replay or fake transports): the spawned process's cwd, the protocol's `cwd` field, and the `--repo` of the chat's `dm` command all equal the folder passed in.\n  - Codex and Cursor already assert part of this (`codex.test.ts` about L678-682, `cursor.test.ts:175,571`).\n  - Add Claude's `cwd`, and the `--repo` equality for all three.\n- **Session manager:**\n  - a deleted folder is refused and no adapter is created;\n  - a folder replaced by a symlink to another directory is refused;\n  - an untracked folder is refused;\n  - a normal folder starts with its canonical path;\n  - the restart and orchestrator paths run the check.\n\n**Verify:** `npx vitest run src/main/agents`, `npm run typecheck`, `npm run lint`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Touches every start path in the session manager and all three adapters; the refusal paths must spawn nothing."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/main/agents/launchFolder.ts",
+          "src/main/agents/launchFolder.test.ts"
+        ],
+        "id": "tk_01m61r9qvzawsxderyck3w4mgy",
+        "key": "DM-252",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/sessionManager.ts",
+            "location": "src/main/agents/sessionManager.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/folderRegistry.ts",
+            "location": "src/main/desktop/folderRegistry.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/cliConfig.ts",
+            "location": "src/main/desktop/cliConfig.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/adapters/cursorSession.ts",
+            "location": "src/main/agents/adapters/cursorSession.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/adapters/codex.ts",
+            "location": "src/main/agents/adapters/codex.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/adapters/claude.ts",
+            "location": "src/main/agents/adapters/claude.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "agents",
+          "main-process",
+          "safety"
+        ],
+        "title": "Pin every chat process to its canonical folder and refuse a folder that is gone"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "`docs/reports/autonomous-acp.md` answers each question in step 3 with observed output, and marks anything not observed as unverified."
+          },
+          {
+            "id": "c2",
+            "text": "`autonomousRecordings.ts` holds the recorded `initialize`, `session/new`, a prompt turn with permission requests, a cancel, and a `session/load`. It contains no token, email, user name or home path."
+          },
+          {
+            "id": "c3",
+            "text": "The report states the exact launch argv, how models are listed and switched, and which status and login commands the adapter should use."
+          }
+        ],
+        "body": "Size: **small**. This de-risks the Autonomous adapter in sprint 2. Nothing in the app reads a8s's answers yet.\n\n**Context**\n- Autonomous is installed at `~/.local/bin/a8s`. `a8s --version` prints `Autonomous 0.77.0 · darwin-arm64 · OMP 18.11.2`. The profile is personal, which ACP mode requires.\n- It speaks ACP with `a8s start [DIR] --mode acp`. It takes the launch flags `--model [PROVIDER/]ID`, `--thinking LEVEL`, `--approval-mode always-ask|write|yolo` and `--append-system-prompt TEXT` (see `a8s --help`).\n- The app's ACP client is `src/main/agents/adapters/acpClient.ts` (JSON-RPC over stdio). Cursor's session is `cursorSession.ts`: its handshake is at L158-170, and its params are at L118.\n\n**Do**\n1. Make a scratch Git repository in a temp folder. Never use this repository.\n2. Write a throwaway Node script that spawns `a8s start <scratch> --mode acp --approval-mode always-ask` with `shell: false` and speaks ACP. Delete the script afterwards. It sends:\n   1. `initialize` (protocol version 1, the client capabilities `cursorSession.ts` sends);\n   2. `authenticate`, only if `authMethods` lists one;\n   3. `session/new` with `{cwd: <scratch>, mcpServers: []}`;\n   4. one `session/prompt` that asks it to run `pwd` and then create a file. Answer one `session/request_permission` with allow, and one with reject;\n   5. a `session/cancel` during a second turn;\n   6. in a new process, `session/load` of the same session id.\n3. Record:\n   - **`initialize`:** the result (`agentInfo`, `agentCapabilities` including `loadSession`, `promptCapabilities`, `authMethods`).\n   - **`session/new`:** the result (`sessionId`, and any `models`, `modes` or `configOptions`).\n   - **Updates:** the `session/update` kinds seen.\n   - **Permissions:** the permission request shape and its option ids.\n   - **Folder:** what `pwd` printed, compared with the scratch path.\n   - **Approvals:** whether it asks without `--approval-mode`.\n   - **Models:** how to list them without a chat (check `a8s omp --help`), and how to switch them (a `--model` relaunch plus `session/load`, or an ACP method).\n   - **Sign-in:** which command reports signed in versus signed out (`a8s status`, `a8s doctor --readiness --cwd`), and what its output looks like. Which command signs in (`a8s init`, `a8s login`).\n   - **Signed-out error:** the error shape when the model sign-in is missing. Record it from a real refusal only if that is safe to produce. Otherwise mark it unverified.\n4. Save a sanitized recording as `src/main/agents/adapters/__mocks__/autonomousRecordings.ts`, in the shape of `cursorRecordings.ts`. Mask every token, user name, email and home path.\n5. Write the findings in `docs/reports/autonomous-acp.md`: each item above, the exact launch argv the adapter should use, and the version-line format for the Find probe.\n\n**Out of scope:** adapter code.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "multi_step",
+            "rationale": "Driving an unfamiliar CLI over ACP and deciding which observations the adapter can rely on."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "acp"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "network"
+          ],
+          "workType": "investigation"
+        },
+        "expectedArtifacts": [
+          "docs/reports/autonomous-acp.md",
+          "src/main/agents/adapters/__mocks__/autonomousRecordings.ts"
+        ],
+        "id": "tk_01m61r9qvzckhthd0feem68v13",
+        "key": "DM-253",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/adapters/acpClient.ts",
+            "location": "src/main/agents/adapters/acpClient.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/adapters/cursorSession.ts",
+            "location": "src/main/agents/adapters/cursorSession.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/__mocks__/cursorRecordings.ts",
+            "location": "src/main/agents/__mocks__/cursorRecordings.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "investigation",
+          "agents",
+          "autonomous"
+        ],
+        "title": "Record Autonomous's ACP surface against the installed a8s"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Fireguard ran on the combined sprint 1 branch, with `FIREGUARD_BASE_REF` set to the sprint's start commit. It graded every unit test added or modified in sprint 1, and the graded file list is in the evidence."
+          },
+          {
+            "id": "c2",
+            "text": "The final grade is not F. The letter grade and score are in the evidence."
+          },
+          {
+            "id": "c3",
+            "text": "Every test graded F was rewritten and re-graded, with no production code changed. This ticket's diff touches only test files, or nothing if no test was graded F."
+          }
+        ],
+        "body": "Size: **small**. This is sprint 1's only Fireguard run. Fireguard is slow (100× flake isolation and mutation), so no other ticket in the sprint runs it, and workers run only their targeted tests. The sprint 1 acceptance ticket takes Fireguard's grade from this ticket.\n\n1. **Wait** until every other sprint 1 work ticket is accepted and combined on the sprint integration branch. That branch was made from the epic branch at the sprint's start.\n2. **Grade** with `npm run fireguard -- --json` on that branch.\n   - Set `FIREGUARD_BASE_REF` to the sprint's start commit.\n   - Fireguard grades only committed changes.\n   - On Windows, set `FIREGUARD_TEST_COMMAND='node node_modules/vitest/vitest.mjs run'`, because of the npx spawn quirk.\n3. **Fix any F:** rewrite each test graded F and re-grade until nothing is F.\n   - Don't change production code to raise a grade.\n   - If a finding points at a real bug in production code, fail the attempt with the finding, so the orchestrator can send it back to the ticket that owns that code.\n4. **Record** the letter grade, the score, the graded files and each finding in the evidence.\n\nOut of scope: lint, typecheck, the full test suite, deadcode and build. The acceptance ticket runs those once.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": "low",
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "multi_step",
+            "rationale": "Running fireguard is mechanical, but rewriting a test graded F takes judgement about what the test should assert."
+          },
+          "skills": [
+            "typescript",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [
+          "Fireguard report for sprint 1 (grade, score, graded files, findings) in the attempt evidence"
+        ],
+        "id": "tk_01m61r9qvzcjmpq4d4x6j4m6y7",
+        "key": "DM-254",
+        "optional": false,
+        "priority": "high",
+        "references": [],
+        "size": "small",
+        "tags": [
+          "fireguard",
+          "testing"
+        ],
+        "title": "Sprint 1 fireguard: grade the sprint's new unit tests and fix any F"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "covers": "tk_01m61r9qvzcg9f9qqk1z3v7wtq",
+            "id": "c1",
+            "text": "On the combined branch, the Cursor replay tests pass unchanged, and the custom ACP chat below runs on the generic ACP session."
+          },
+          {
+            "covers": "tk_01m61r9qvz47ez425t8jxtw8c0",
+            "id": "c2",
+            "text": "Find connects `~/.local/bin/a8s` as Autonomous, with its version. In a chat in `scratch-a`, asking it to create `hello.txt` shows an approval card. Deny leaves no file, and Allow creates it. `pwd` prints `scratch-a`'s canonical path. After quitting and restarting the app, the chat answers \"which file did you create?\" correctly."
+          },
+          {
+            "covers": "tk_01m61r9qvzrband4bpxsw8rnpq",
+            "id": "c3",
+            "text": "A custom ACP CLI named `a8s custom` (executable `~/.local/bin/a8s`, args `start {folder} --mode acp --approval-mode always-ask`) chats in `scratch-b`. `ps -o args` for its process shows exactly the executable and arguments, with `{folder}` replaced by `scratch-b`'s canonical path."
+          },
+          {
+            "covers": "tk_01m61r9qvzjh2yyk89xbzd67dn",
+            "id": "c4",
+            "text": "A custom ACP CLI with `/bin/echo` as its executable is refused with the handshake reason, and nothing is added to `agents`. Cancel on the confirmation dialog adds nothing. A Claude-protocol custom CLI at `~/.local/bin/claude` connects and answers in a chat, and a Codex-protocol custom CLI pointing at the stub connects. In devtools, `window.dm.addCustomAgent({name:'x', protocol:'acp', args:[], executablePath:'/bin/sh'})` is refused with `invalid_input`."
+          },
+          {
+            "covers": "tk_01m61r9qvz1g826jmjdkvwyres",
+            "id": "c5",
+            "text": "After Autonomous is set as `scratch-a`'s default, `SELECT * FROM folder_agent_defaults` shows the row. Removing the `a8s custom` agent while it is `scratch-b`'s default clears that row."
+          },
+          {
+            "covers": "tk_01m61r9qvz970qhrtt5vcwwpb7",
+            "id": "c6",
+            "text": "Screenshots show the add-agent pane with the Autonomous and Custom CLI cards, the filled Custom CLI form, and a custom agent page with its protocol, executable and arguments."
+          },
+          {
+            "covers": "tk_01m61r9qvzhd787c0t1q8jq8h7",
+            "id": "c7",
+            "text": "New chat and Start run in `scratch-a` open with Autonomous preselected, and in `scratch-b` with today's first choice. Start run with Autonomous opens an orchestrator chat in `scratch-a`; it doesn't need to finish the run."
+          },
+          {
+            "covers": "tk_01m61r9qvzvkvv2bt1hcf2cpqs",
+            "id": "c8",
+            "text": "`rg -n \"agents.json\" docs README.md` finds only the import and downgrade note, and the runbook's custom CLI section matches the behaviour checked above."
+          },
+          {
+            "covers": "tk_01m61r9qvzs7j3hm111qjmrgbx",
+            "id": "c9",
+            "text": "The sprint 2 Fireguard ticket is accepted with a grade other than F. The report quotes its grade and score as the Definition of Done's fireguard result."
+          }
+        ],
+        "body": "This is the planned final round for sprint 2, run once on the combined work.\n\n1. **Combine** every accepted sprint 2 ticket on the sprint integration branch.\n2. **Build and run.** Build (`npm run build`) and run the app with a temporary `--user-data-dir`. Never use the person's own user data or folders.\n3. **Prepare.**\n   - Track two scratch Git repositories, `scratch-a` and `scratch-b`, in a temp folder.\n   - Installed here: Autonomous (`~/.local/bin/a8s`, personal profile) and Claude Code (`~/.local/bin/claude`).\n   - Codex is not installed. For the Codex-protocol custom check, write a throwaway Node stub in the temp folder that speaks enough `app-server` JSON-RPC: `initialize`, `model/list`, and a `thread/start` plus one `turn/start` answered with a fixed message. Delete it afterwards.\n4. **Verify each item below** in the built app, with screenshots. Inspect `app.sqlite` with `sqlite3`, and agent processes with `ps -o pid,args`.\n5. **Run the Definition of Done** on the combined branch. Take Fireguard's grade from the sprint 2 Fireguard ticket, which must be accepted first. Re-run Fireguard only if test files changed after that ticket.\n6. **Squash** the sprint into one commit on the epic branch.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Live end-to-end checks with two real CLIs and a stub, process inspection, the full Definition of Done and the squash."
+          },
+          "skills": [
+            "typescript",
+            "testing",
+            "electron",
+            "acp"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution",
+            "network"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [
+          "Sprint 2 report: screenshots, app.sqlite dumps, ps output, Definition of Done results, the squashed commit"
+        ],
+        "id": "tk_01m61r9qvz0e8090tfw2bbyd6d",
+        "key": "DM-255",
+        "kind": "acceptance",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "tags": [],
+        "title": "Sprint 2 acceptance: chat with Autonomous and custom CLIs, use the folder default, run the Definition of Done, land one commit"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "`src/main/agents/adapters/acp/` holds the ACP session and adapter, with no Cursor names. Cursor-specific behaviour lives only in the Cursor flavor."
+          },
+          {
+            "id": "c2",
+            "text": "All existing Cursor and ACP tests pass with import updates only, and no fixture changed."
+          },
+          {
+            "id": "c3",
+            "text": "A minimal-flavor test shows a streamed turn, an approval round trip, and an undeclared extension answered with method-not-found."
+          }
+        ],
+        "body": "Size: **medium**. Autonomous and custom ACP CLIs need the ACP machinery that today lives inside the Cursor adapter. This ticket separates the generic protocol from Cursor's specifics, with no change in behaviour.\n\n**Context**\n- **Already vendor-neutral:** the JSON-RPC client `acpClient.ts` and the process transport `acpProcess.ts`.\n- **Mixed generic and Cursor-specific:**\n  - `cursor.ts` (`CursorAdapter`, L132-336: turns, stop, dispose, restart);\n  - `cursorSession.ts` (`CursorSession`: handshake, `session/new`/`load`/`prompt`/`cancel`, `session/request_permission`);\n  - `cursorUpdates.ts` (`UpdateTranslator`);\n  - `cursorProtocol.ts` (`chooseOptionId`, `permissionDetails`, `objectOf`, `isSafeModelId`, `parseModelList`);\n  - `cursorAuth.ts` (`isAuthRequired`, `isSignInPrompt`);\n  - `cursorLaunch.ts`.\n- **Only Cursor's:**\n  - `authenticate` with `cursor_login` (`cursorSession.ts:158-170`);\n  - the `cursor/*` extension methods (L207-227);\n  - listing models with `agent models`;\n  - switching models by relaunching with `--model` and then `session/load`.\n\n**Change**\n- Move the generic parts into `src/main/agents/adapters/acp/`:\n  - `acpSession.ts` (`AcpSession`);\n  - `acpUpdates.ts`;\n  - `acpPermissions.ts`;\n  - `acpAdapter.ts`: `createAcpAdapter(flavor, executablePath, deps)`, with today's adapter lifecycle.\n- Add an `AcpFlavor` interface:\n  - `displayName`;\n  - `authMethodId: string | null`;\n  - `extensions: Record<string, ExtensionHandler>`;\n  - `launchArgs(model: string | null): readonly string[]`;\n  - `listModels(executablePath): Promise<ModelOption[]>`;\n  - `switchModel: 'relaunch' | 'none'`;\n  - `isSignInPrompt?(text): boolean`.\n- Cursor becomes `cursorFlavor` in `cursor.ts`, with exactly today's behaviour. `cursorAdapterDefinition` still exports the same definition.\n- No generic module may name Cursor. Any request method a flavor doesn't declare is answered with `RPC_METHOD_NOT_FOUND`, as today.\n\n**Tests**\n- Every existing Cursor and ACP test passes with import-path updates only, and no fixture changes:\n  - `cursor.test.ts`, `cursorSubagents.test.ts`, `cursorAuth.test.ts`, `cursorMasking.test.ts`, `cursorUpdates.test.ts`, `cursorProtocol.test.ts`, `cursorLaunch.test.ts`;\n  - `acpClient.test.ts`, `acpProcess.test.ts`, `acpProcessSpawn.test.ts`;\n  - fixtures in `__mocks__/` (`cursorRecordings.ts`, `cursorSignedOut.ts`, `cursorSubagents.ts`, `replayAcpAgent.ts`).\n- New: a minimal flavor (no `authenticate`, no extensions) over `replayAcpAgent`. It streams a text turn, makes one approval round trip, and answers an undeclared extension request with method-not-found.\n\n**Verify:** `npx vitest run src/main/agents/adapters`, `npm run typecheck`, `npm run lint`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A behaviour-preserving extraction across five modules with replay tests as the guard."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing",
+            "acp"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/main/agents/adapters/acp/acpSession.ts",
+          "src/main/agents/adapters/acp/acpAdapter.ts"
+        ],
+        "id": "tk_01m61r9qvzcg9f9qqk1z3v7wtq",
+        "key": "DM-256",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/adapters/cursor.ts",
+            "location": "src/main/agents/adapters/cursor.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/adapters/cursorSession.ts",
+            "location": "src/main/agents/adapters/cursorSession.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/adapters/acpClient.ts",
+            "location": "src/main/agents/adapters/acpClient.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "agents",
+          "acp",
+          "refactor"
+        ],
+        "title": "Extract a generic ACP session from the Cursor adapter"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Built-in Claude, Codex and Cursor start with exactly today's argv; the existing launch tests are unchanged."
+          },
+          {
+            "id": "c2",
+            "text": "A custom spec starts as the executable, then its args (each whole-argument `{folder}` replaced by the canonical chat folder), then the protocol's own arguments. Tested for all three protocols, with argv and cwd."
+          },
+          {
+            "id": "c3",
+            "text": "An argument that contains `{folder}` inside a longer string, or one that `planCliLaunch` refuses, prevents the start and spawns nothing (tested)."
+          },
+          {
+            "id": "c4",
+            "text": "`AgentAuthState` includes `unchecked`, and `chattableAgents` offers `signed_in` and `unchecked` agents only (tested)."
+          }
+        ],
+        "body": "Size: **medium**. This gives every protocol adapter one launch rule that a custom CLI can use. It also adds the sign-in state for CLIs whose sign-in the app can't check.\n\n**Context**\n- After sprint 1, `AgentView` has `protocol`, `executablePath` and `args` (empty for built-ins). `ChatAdapterDefinition` (`adapterRegistry.ts`) has `create(executablePath)` and `listModels(executablePath)`.\n- Today's argv:\n  - **Claude:** the SDK builds the argv. The spawn wrapper is `claudeProcess.ts:63-69`, and `resolveClaudeExecutable` follows Windows shims.\n  - **Codex:** `planCodexLaunch(exe)` = `planCliLaunch(exe, ['app-server'])` (`codexProcess.ts`).\n  - **Cursor:** `cursorLaunch` → `planCliLaunch(exe, [...(model ? ['--model', model] : []), 'acp'])`. After the ACP extraction, these are the Cursor flavor's `launchArgs`.\n- `planCliLaunch` (`src/main/desktop/agentProbe.ts:181`) is the shell-free launch planner. A Windows `.cmd` shim goes through one cmd.exe parse, and arguments with `\"`, `%` or control characters are refused.\n- `resolveLaunchFolder` (sprint 1, `src/main/agents/launchFolder.ts`) gives the canonical chat folder.\n- `AgentAuthState = 'signed_in' | 'signed_out' | 'unknown'` (`api.ts:107`). `chattableAgents` (`NewChatFields.tsx:22`) offers only `signed_in`.\n\n**Change**\n1. Add `AgentLaunchSpec { protocol, executablePath, args: readonly string[] }`, built in main from the registry row:\n   - for a built-in, `args` is a preset in code (Codex `['app-server']`, Claude and Cursor `[]`);\n   - for a custom CLI, it is the row's `args_json`.\n   - `ChatAdapterDefinition.create(spec)` and `listModels(spec)` take it.\n2. **One argument rule** for every protocol. The process is `executablePath`, then `spec.args`, then the arguments the protocol adds itself.\n   - In `spec.args`, every argument exactly equal to `{folder}` becomes the launch folder.\n   - The protocol's own arguments are: the Claude SDK's flags; nothing for Codex; the ACP flavor's `launchArgs(model)`.\n   - An argument that contains `{folder}` inside a longer string is refused. So is any argv `planCliLaunch` refuses. A refused start spawns nothing and has no shell fallback.\n3. **Claude:** prepend the substituted `spec.args` to the SDK's arguments in the `spawnClaudeCodeProcess` wrapper. Built-in Claude's argv is unchanged.\n4. **Codex:** start with `planCliLaunch(exe, substitutedArgs)`.\n5. **ACP:** add `genericAcpFlavor` for custom CLIs: `authMethodId: null`, `launchArgs: () => []`, `listModels: () => []` (the CLI's default model), `switchModel: 'none'`.\n6. **Sign-in state:** add `'unchecked'` to `AgentAuthState`, meaning the app can't check this CLI's sign-in.\n   - `chattableAgents` offers `signed_in` and `unchecked`.\n   - Its renderer label is \"Sign-in not checked\".\n\n**Tests first**\n- Built-in Claude, Codex and Cursor argv are unchanged (the existing launch tests are untouched).\n- For a custom spec of each protocol, a test checks the exact argv with `{folder}` replaced, and the cwd.\n- A partial `{folder}` is refused. On Windows, a `.cmd` custom spec with a `%` argument is refused. Neither spawns anything.\n- `chattableAgents` offers `unchecked` and still hides `signed_out` and `unknown`.\n\n**Verify:** `npx vitest run src/main/agents src/main/desktop/agentProbe.test.ts src/renderer/src/agents`, `npm run typecheck`, `npm run lint`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "One argv rule across three protocol adapters, including the Windows shim refusals."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/main/agents/launchSpec.ts",
+          "src/main/agents/launchSpec.test.ts"
+        ],
+        "id": "tk_01m61r9qvzrband4bpxsw8rnpq",
+        "key": "DM-257",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/agentProbe.ts",
+            "location": "src/main/desktop/agentProbe.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/adapters/claudeProcess.ts",
+            "location": "src/main/agents/adapters/claudeProcess.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/adapters/codexProcess.ts",
+            "location": "src/main/agents/adapters/codexProcess.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/adapterRegistry.ts",
+            "location": "src/main/agents/adapterRegistry.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "agents",
+          "main-process",
+          "security"
+        ],
+        "title": "Start agents from a launch spec with fixed arguments, a {folder} placeholder and an unchecked sign-in state"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "`agents:folderDefault` and `agents:setFolderDefault` read and write `folder_agent_defaults`, keyed by the canonical folder path (tested)."
+          },
+          {
+            "id": "c2",
+            "text": "An untracked folder is refused with `unauthorized`, and an unknown agent id with `not_found` (tested)."
+          },
+          {
+            "id": "c3",
+            "text": "Removing the agent or untracking the folder clears the default (tested)."
+          }
+        ],
+        "body": "Size: **small**. This is the main-process half of the per-folder default CLI.\n\n**Context**\n- The `folder_agent_defaults` table is from sprint 1 (`src/main/desktop/appDatabase.ts`). It has `folder` as primary key, `agent_id` referencing `agents(id)` with `ON DELETE CASCADE`, and `updated_at`.\n- Folders are canonicalized by `canonicalPath` and tracked in `folderRegistry.ts`. Untracked folders are refused with `unauthorized`, as `desktopWorkspace` does.\n- IPC pattern: `src/main/desktop/ipc.ts` (`unknown` args, handlers validate), `DmApi` in `src/shared/desktop/api.ts`, preload in `src/preload/index.ts`.\n\n**Change**\n- Add `src/main/desktop/folderAgentDefaults.ts`: `createFolderAgentDefaults({db, now})` → `get(folder): AgentId | null` and `set(folder, agentId | null)`. Null deletes the row.\n- Add IPC `agents:folderDefault(folder)` and `agents:setFolderDefault({folder, agentId})`, as `DmApi.folderDefaultAgent` and `setFolderDefaultAgent`.\n  - The folder is canonicalized and must be tracked, or the call is refused with `unauthorized`.\n  - `agentId` must pass `agentIdSchema` and be connected, or the call is refused with `not_found`.\n- Untracking a folder deletes its row: hook into the folder registry's remove path. Removing an agent clears its rows through the cascade.\n\n**Tests first**\n- set, get and clear;\n- an untracked folder is refused;\n- an unknown agent is refused;\n- removing the agent clears the default;\n- untracking the folder clears the default;\n- a symlinked path to a tracked folder reads that folder's default.\n\n**Verify:** `npx vitest run src/main/desktop/folderAgentDefaults.test.ts src/main/desktop/ipc`, `npm run typecheck`, `npm run lint`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "A small table accessor and two IPC handlers following existing patterns, all spelled out."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing",
+            "database"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/main/desktop/folderAgentDefaults.ts",
+          "src/main/desktop/folderAgentDefaults.test.ts"
+        ],
+        "id": "tk_01m61r9qvz1g826jmjdkvwyres",
+        "key": "DM-258",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/folderRegistry.ts",
+            "location": "src/main/desktop/folderRegistry.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/ipc.ts",
+            "location": "src/main/desktop/ipc.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "agents",
+          "ipc",
+          "database"
+        ],
+        "title": "Store a default CLI per folder and expose it over IPC"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Find accepts an `a8s` that prints an `Autonomous <version>` line, and stores it as `autonomous` with protocol `acp`. It refuses other programs (tested)."
+          },
+          {
+            "id": "c2",
+            "text": "Replay tests from the spike's recording cover streaming, Allow and Deny, cancel, resume with `session/load`, the model switch and the signed-out case."
+          },
+          {
+            "id": "c3",
+            "text": "Autonomous starts with the argv the spike report specifies, in the chat's folder. A model id that fails `isSafeModelId` refuses the start (tested)."
+          },
+          {
+            "id": "c4",
+            "text": "`agents:download` refuses `autonomous` with `invalid_input`. Sign-in status and login follow the spike report, or report `unchecked` if the report found no status command."
+          }
+        ],
+        "body": "Size: **medium**. Autonomous (`a8s`) becomes the fourth built-in agent, beside Claude Code, Codex and Cursor.\n\n**Read first:** `docs/reports/autonomous-acp.md` and `src/main/agents/adapters/__mocks__/autonomousRecordings.ts`, from sprint 1's spike. They give the argv, the sign-in commands and the model handling. Where this body and the report disagree, follow the report and say so in the evidence.\n\n**Context**\n- Built-in kinds: `BuiltInAgentKind`, `AGENT_KINDS` and `AGENT_DEFINITIONS` (`src/shared/desktop/agentKinds.ts`).\n- Find probe: `agentProbe.ts` `LINE_MATCHERS` (about L83).\n- Auth: `agentAuth.ts` `STATUS_ARGS`, `LOGIN_ARGS` and `CLASSIFIERS` (L34-108).\n- Downloads: `agentInstallRecipes.ts` `RECIPES`.\n- ACP: the flavor interface from `src/main/agents/adapters/acp/`, and the launch spec from `launchSpec.ts`.\n\n**Change**\n- **Kind:** add `'autonomous'` to `BuiltInAgentKind`, `AGENT_KINDS` and `AGENT_DEFINITIONS` (`displayName: 'Autonomous'`, `executables: ['a8s']`), with protocol `acp`. Its registry row id is `autonomous`.\n- **Find:** match a line `^Autonomous \\d`. `Autonomous 0.77.0 · darwin-arm64 · OMP 18.11.2` gives version `0.77.0`.\n- **No Download:**\n  - key `RECIPES` by `DownloadableAgentKind = 'claude' | 'codex' | 'cursor'`;\n  - the `agents:download` schema accepts only those kinds, so `autonomous` is refused with `invalid_input`.\n- **Flavor (`autonomousFlavor`):**\n  - the launch preset is the report's argv (expected `start {folder} --mode acp --approval-mode always-ask`, plus `--model <id>` when a model is chosen);\n  - the model id must pass `isSafeModelId`, or the start is refused;\n  - `authMethodId`, `listModels`, `switchModel` and the sign-in prompt detection follow the report.\n- **Sign-in:**\n  - status args, classifier and login args follow the report, and the login runs in a terminal through `planSignIn`;\n  - if the report found no reliable status command, status is `unchecked`.\n- **Access:** Autonomous chats get the same `dm` grant environment and instructions as the other agents (`issueChatCli`, `cliInstructions.ts`).\n\n**Tests first** (replay from `autonomousRecordings.ts`)\n- a streamed turn;\n- a permission request that becomes an approval: Allow runs it, and Deny is reported back;\n- cancel;\n- resume with `session/load`;\n- a model switch, by the report's method;\n- the signed-out shape, which becomes `auth_required`;\n- argv and cwd equal to the chat folder;\n- the probe accepts the version line and refuses `2.1.281 (Claude Code)`.\n\n**Verify:** `npx vitest run src/main/agents src/main/desktop`, `npm run typecheck`, `npm run lint`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A new vendor flavor whose protocol details come from a recorded spike rather than documentation."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing",
+            "acp"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/main/agents/adapters/autonomous.ts",
+          "src/main/agents/adapters/autonomous.test.ts"
+        ],
+        "id": "tk_01m61r9qvz47ez425t8jxtw8c0",
+        "key": "DM-259",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/reports/autonomous-acp.md",
+            "location": "docs/reports/autonomous-acp.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/desktop/agentKinds.ts",
+            "location": "src/shared/desktop/agentKinds.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/agentProbe.ts",
+            "location": "src/main/desktop/agentProbe.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/agentAuth.ts",
+            "location": "src/main/desktop/agentAuth.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/agentInstallRecipes.ts",
+            "location": "src/main/desktop/agentInstallRecipes.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "agents",
+          "acp",
+          "autonomous"
+        ],
+        "title": "Add Autonomous as a built-in ACP agent"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Adding a custom CLI takes only name, protocol and arguments from the renderer. The executable comes from main's native dialog. A payload that carries a path or an unknown key is refused (tested)."
+          },
+          {
+            "id": "c2",
+            "text": "The validation boundaries for name, argument count and length, control characters and `{folder}` placement are enforced in main and tested."
+          },
+          {
+            "id": "c3",
+            "text": "Nothing is stored unless the person confirms the exact command in a native dialog and the chosen protocol's handshake succeeds in a temp folder within 20 s. On failure or timeout the process tree is killed (tested per protocol with fakes)."
+          },
+          {
+            "id": "c4",
+            "text": "Custom agents are stored as `cu_…` rows with their args and report `unchecked` sign-in. An edit can't change the protocol, and removing one clears its folder defaults (tested)."
+          }
+        ],
+        "body": "Size: **medium**. This is the main-process half of custom CLIs. A custom CLI runs a program the person chose, with arguments they typed, so every check here is a guard against a compromised renderer or a mistake.\n\n**Context**\n- `agentHandlers.ts`: `pickExecutable(kind)` opens the native file dialog, the only source of a path. `probeAgent` runs the Find probe.\n- IPC: `src/main/desktop/ipc.ts` `registerDesktopIpc`, whose `agents:*` handlers validate `unknown` payloads. The preload object is in `src/preload/index.ts`, and `DmApi` in `src/shared/desktop/api.ts`.\n- The SQL registry is from sprint 1. `AgentLaunchSpec`, the `{folder}` rule, `genericAcpFlavor` and the `unchecked` state come from the launch-spec ticket.\n- Handshakes to reuse:\n  - ACP `initialize` (`acp/acpSession.ts`);\n  - Codex `handshake` and `fetchModels` (`codex.ts` about L166 and L184-197);\n  - Claude `probeModels` (`claude.ts` about L194-222).\n- Process tree kill: `processTree.ts` `killProcessTree`. Native confirm precedent: the Download confirmation in `agentInstaller.ts`.\n\n**Change**\n1. **IPC and `DmApi`:**\n   - `addCustomAgent({name, protocol, args})` on `agents:addCustom`;\n   - `updateCustomAgent({id, name, args, repick})` on `agents:updateCustom`;\n   - the existing `removeAgent(id)` also covers custom ids.\n   - Main opens the native file dialog for an add, and for an edit with `repick: true`. The renderer never sends a path.\n2. **Validation in main** (strict zod, `src/main/desktop/customAgent.ts`):\n   - `name`: 1-64 characters, trimmed, no control characters, unique among custom agents (case-insensitive);\n   - `protocol`: `'claude' | 'codex' | 'acp'`;\n   - `args`: at most 32 items, each 1-1024 characters, no NUL or control characters, with `{folder}` only as a whole argument;\n   - the argv must pass `planCliLaunch` for the picked executable on this platform, with `{folder}` replaced by a sample path;\n   - unknown keys (such as `executablePath`) are refused.\n3. **Confirmation:** before storing an add or an edit, main shows a native dialog with the exact executable, arguments and protocol. Cancel stores nothing.\n4. **Handshake, before storing:**\n   - It runs in a fresh temp directory, used as both `{folder}` and the cwd, with a 20 s limit.\n   - It starts the spec and runs the protocol's own handshake:\n     - **ACP:** `initialize` must return a JSON-RPC result with `protocolVersion`;\n     - **Codex:** `initialize`, then `model/list`;\n     - **Claude:** the SDK model probe.\n   - It kills the process tree afterwards, whatever the outcome.\n   - A failed, timed-out or malformed handshake answers `refused`, with `did_not_start`, `timed_out` or `wrong_program` and a reason, and stores nothing.\n5. **Storing:**\n   - `id` is `cu_` plus a lowercase ULID, `kind` is `custom`, `connected_via` is `custom`;\n   - `args_json` holds the args;\n   - `version` is the handshake's reported version, or null.\n   - An edit cannot change the protocol.\n6. **Sign-in:** custom agents report `unchecked`. `signInAgent` for a custom id is refused with `invalid_input`.\n7. **Remove:** removing a custom agent deletes its row, and the cascade clears its folder defaults. Its chats stay listed and behave as not connected.\n\n**Tests first**\n- Validation boundaries:\n  - name 64 and 65 characters, and a duplicate name;\n  - 32 and 33 args, 1024 and 1025 characters;\n  - a control character, and a partial `{folder}`;\n  - a payload with `executablePath`.\n- Cancelling the file dialog or the confirmation stores nothing.\n- The handshake succeeds for each protocol with fake transports. A failing or timed-out handshake stores nothing and kills the process tree.\n- An edit can't change the protocol. Remove cascades the folder default.\n\n**Verify:** `npx vitest run src/main/desktop src/main/agents`, `npm run typecheck`, `npm run lint`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "multi_step",
+            "rationale": "Runs a person-chosen program with person-typed arguments: the validation, confirmation and handshake guards are security-relevant and easy to get subtly wrong."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing",
+            "security-review"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/main/desktop/customAgent.ts",
+          "src/main/desktop/customAgent.test.ts"
+        ],
+        "id": "tk_01m61r9qvzjh2yyk89xbzd67dn",
+        "key": "DM-260",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/agentHandlers.ts",
+            "location": "src/main/desktop/agentHandlers.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/ipc.ts",
+            "location": "src/main/desktop/ipc.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/preload/index.ts",
+            "location": "src/preload/index.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/agentInstaller.ts",
+            "location": "src/main/desktop/agentInstaller.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/processTree.ts",
+            "location": "src/main/agents/processTree.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "agents",
+          "ipc",
+          "security"
+        ],
+        "title": "Add, edit and remove custom CLIs in main, with validated arguments, a confirmation and a protocol handshake"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The add-agent pane shows Autonomous (Find only) and a Custom CLI card. Its form sends exactly name, protocol and arguments, and shows main's refusal reason (tested)."
+          },
+          {
+            "id": "c2",
+            "text": "A custom agent's page shows its protocol, executable and arguments, and supports Edit and Remove (tested)."
+          },
+          {
+            "id": "c3",
+            "text": "Custom agents appear in the sidebar, New chat and Start run. An agent with no models offers CLI default (`model: null`), and a custom agent's Signed out card has no Sign in button (tested)."
+          },
+          {
+            "id": "c4",
+            "text": "Screenshots of the add-agent pane, the Custom CLI form and a custom agent page are in the evidence."
+          }
+        ],
+        "body": "Size: **medium**. This is the renderer half of Autonomous and custom CLIs.\n\n**Context**\n- `src/renderer/src/agents/AddAgentPane.tsx`: the cards, with Find and Download through `agentOperations.ts:46,64`.\n- `AgentPage.tsx`: Find again, Update and Remove.\n- `src/renderer/src/sidebar/AgentsSection.tsx`: the connected agents.\n- `NewChatFields.tsx` (`AgentChoice`, `chattableAgents`), `NewChatDialog.tsx` and `src/renderer/src/epic/StartRunDialog.tsx`.\n- `SignInPrompt.tsx` and the Signed out card in the chat view.\n- Test fakes: `src/renderer/src/__mocks__/fakeChats.ts` and the FakeDm pattern used by `NewChatDialog.test.tsx`.\n- Main APIs: `window.dm.addCustomAgent({name, protocol, args})` and `window.dm.updateCustomAgent({id, name, args, repick})`. They answer `connected`, `cancelled` or `refused{code, reason}`.\n\n**Change**\n- **Add-agent pane:**\n  - an **Autonomous** card with Find only (no Download);\n  - a **Custom CLI** card that opens a form with:\n    - **Name**;\n    - **Protocol:** ACP, Codex app-server or Claude Code SDK, each with a one-line explanation;\n    - **Arguments:** one per row, with add and remove, prefilled by protocol (Codex `app-server`; ACP and Claude empty);\n    - the hint \"An argument `{folder}` becomes the chat's folder\";\n    - **Choose executable…**, which calls `addCustomAgent`.\n  - Main's refusal reason is shown inline.\n- **Custom agent page:**\n  - shows the name, protocol (read-only), executable, arguments and version;\n  - **Edit** changes the name and arguments, or picks another executable (`updateCustomAgent`);\n  - **Remove** uses the existing confirmation.\n- **Lists:** custom agents appear by name in the sidebar AGENTS section, New chat and Start run.\n- **No models:** when an agent lists no models (a custom ACP CLI), New chat and Start run offer one **CLI default** choice, which creates the chat with `model: null`.\n- **Signed out:** the card for a custom agent has no Sign in button. It reads \"Sign in to <name> outside the app, then Retry\", and Retry works as today.\n\n**Tests first** (React Testing Library, following the existing patterns)\n- the form sends exactly `{name, protocol, args}`, and the protocol prefill works;\n- a refusal shows its reason;\n- the Autonomous card has Find and no Download;\n- a custom agent appears in the sidebar and in New chat's choices;\n- a custom agent's Signed out card has no Sign in button.\n- an agent with no models offers CLI default, and the chat is created with `model: null`.\n\n**Verify:** `npx vitest run src/renderer/src/agents src/renderer/src/sidebar src/renderer/src/epic`, `npm run typecheck`, `npm run lint`. Attach screenshots of the add-agent pane, the Custom CLI form and a custom agent page, from `npm run dev` with an isolated profile.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A new form and page variants across the add-agent pane, agent page, sidebar and pickers, checked visually."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/agents/CustomAgentForm.tsx",
+          "src/renderer/src/agents/CustomAgentForm.test.tsx",
+          "Screenshots in the evidence"
+        ],
+        "id": "tk_01m61r9qvz970qhrtt5vcwwpb7",
+        "key": "DM-261",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/agents/AddAgentPane.tsx",
+            "location": "src/renderer/src/agents/AddAgentPane.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/agents/AgentPage.tsx",
+            "location": "src/renderer/src/agents/AgentPage.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/sidebar/AgentsSection.tsx",
+            "location": "src/renderer/src/sidebar/AgentsSection.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/agents/NewChatFields.tsx",
+            "location": "src/renderer/src/agents/NewChatFields.tsx",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "ui",
+          "agents",
+          "renderer"
+        ],
+        "title": "Show Autonomous and a Custom CLI form in the add-agent pane and agent pages"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "With a default that is set and chattable, New chat and Start run open with it selected. Otherwise they keep today's first choice (tested)."
+          },
+          {
+            "id": "c2",
+            "text": "The folder page's Default agent select sets and clears the default, and shows the stored value after a reload (tested)."
+          },
+          {
+            "id": "c3",
+            "text": "Screenshots of the select and of New chat with the default preselected are in the evidence."
+          }
+        ],
+        "body": "Size: **small**. This is the renderer half of the per-folder default CLI.\n\n**Context**\n- `src/renderer/src/agents/useAgentModelChoice.ts` picks the first chattable agent. `NewChatDialog.tsx` and `src/renderer/src/epic/StartRunDialog.tsx` both use it.\n- The folder page is `src/renderer/src/home/FolderHome.tsx` today. The in-flight Source control epic may have replaced it with a tabbed folder view (its DM-135). Put the control on whichever folder page exists when this ticket runs, and say which in the evidence.\n- Main APIs: `window.dm.folderDefaultAgent(folder)` → `AgentId | null`, and `window.dm.setFolderDefaultAgent({folder, agentId})`.\n\n**Change**\n- `useAgentModelChoice` takes an optional `preferredAgentId`. It picks that agent when it is chattable, and otherwise today's first chattable agent.\n- New chat and Start run load the folder's default and pass it in.\n- The folder page gets a **Default agent** select with None plus the connected agents. Changing it calls `setFolderDefaultAgent`, and it shows the stored value when it reloads.\n\n**Tests first**\n- With a chattable default, both dialogs open with it selected.\n- A signed-out or removed default falls back to today's first choice.\n- The select writes the default, clears it, and re-reads it.\n\n**Verify:** `npx vitest run src/renderer/src/agents src/renderer/src/epic src/renderer/src/home`, `npm run typecheck`, `npm run lint`. Attach screenshots of the select, and of New chat with the default preselected.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "One hook option and one select, with the behaviour spelled out."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Screenshots in the evidence"
+        ],
+        "id": "tk_01m61r9qvzhd787c0t1q8jq8h7",
+        "key": "DM-262",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/agents/useAgentModelChoice.ts",
+            "location": "src/renderer/src/agents/useAgentModelChoice.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/agents/NewChatDialog.tsx",
+            "location": "src/renderer/src/agents/NewChatDialog.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/epic/StartRunDialog.tsx",
+            "location": "src/renderer/src/epic/StartRunDialog.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/home/FolderHome.tsx",
+            "location": "src/renderer/src/home/FolderHome.tsx",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "ui",
+          "agents",
+          "renderer"
+        ],
+        "title": "Preselect the folder's default CLI in New chat and Start run, and set it from the folder page"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "`docs/runbooks/agents.md` documents the app database, Autonomous, custom CLIs (protocols, argument rule, `{folder}`, confirmation, handshake, sign-in), the per-folder default and folder pinning."
+          },
+          {
+            "id": "c2",
+            "text": "`docs/architecture.md`'s connection and IPC tables list the new modules and the channels `agents:addCustom`, `agents:updateCustom`, `agents:folderDefault` and `agents:setFolderDefault`."
+          },
+          {
+            "id": "c3",
+            "text": "No doc still says connected agents are stored in `agents.json`, except the import and downgrade note."
+          }
+        ],
+        "body": "Size: **small**. It brings the agent docs up to date with what this epic ships.\n\n**Files**\n- `docs/runbooks/agents.md`:\n  - storage, L15-17;\n  - Find and Download, L26-44;\n  - Windows shims, L227-229;\n  - unverified areas, L249-252.\n- `docs/architecture.md`: the connection table (L231-244) and the IPC table (L299-323).\n- `docs/product-plan.md`: L28-37.\n- `README.md`: L21.\n\n**Write**\n- **App database:** `userData/app.sqlite`, its tables, the one-time import of `agents.json`, and that an older build will no longer see the connected agents (no downgrade).\n- **Autonomous:** Find only, the argv, and sign-in and models as the spike report found them.\n- **Custom CLIs:**\n  - the three protocols and the argument rule (executable, then args, then the protocol's own arguments);\n  - `{folder}`, the confirmation dialog and the handshake check;\n  - that sign-in happens outside the app;\n  - a security note: the app runs exactly what the person confirmed, with the chat's `dm` grant in its environment.\n- **Per-folder default:** where it is set, what preselects it, and when it is cleared.\n- **Folder pinning:** the rule, and the refusal when a folder is gone.\n- **Corrections:** where a section you edit says chats get a Dark Mechanicus MCP server, correct it. They run the `dm` CLI (`src/main/agents/cliInstructions.ts`).\n\n**Verify:**\n- `rg -n \"agents.json\" docs README.md` finds only the import and downgrade note.\n- Links resolve.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": "low",
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "Updating known doc sections to match shipped behaviour."
+          },
+          "skills": [
+            "documentation"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell"
+          ],
+          "workType": "documentation"
+        },
+        "expectedArtifacts": [
+          "docs/runbooks/agents.md",
+          "docs/architecture.md",
+          "docs/product-plan.md",
+          "README.md"
+        ],
+        "id": "tk_01m61r9qvzvkvv2bt1hcf2cpqs",
+        "key": "DM-263",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/runbooks/agents.md",
+            "location": "docs/runbooks/agents.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/architecture.md",
+            "location": "docs/architecture.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/product-plan.md",
+            "location": "docs/product-plan.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "documentation",
+          "agents"
+        ],
+        "title": "Document Autonomous, custom CLIs, the app database and folder pinning"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Fireguard ran on the combined sprint 2 branch, with `FIREGUARD_BASE_REF` set to the sprint's start commit. It graded every unit test added or modified in sprint 2, and the graded file list is in the evidence."
+          },
+          {
+            "id": "c2",
+            "text": "The final grade is not F. The letter grade and score are in the evidence."
+          },
+          {
+            "id": "c3",
+            "text": "Every test graded F was rewritten and re-graded, with no production code changed. This ticket's diff touches only test files, or nothing if no test was graded F."
+          }
+        ],
+        "body": "Size: **small**. This is sprint 2's only Fireguard run. Fireguard is slow (100× flake isolation and mutation), so no other ticket in the sprint runs it, and workers run only their targeted tests. The sprint 2 acceptance ticket takes Fireguard's grade from this ticket.\n\n1. **Wait** until every other sprint 2 work ticket is accepted and combined on the sprint integration branch. That branch was made from the epic branch at the sprint's start, after sprint 1 landed.\n2. **Grade** with `npm run fireguard -- --json` on that branch.\n   - Set `FIREGUARD_BASE_REF` to the sprint's start commit.\n   - Fireguard grades only committed changes.\n   - On Windows, set `FIREGUARD_TEST_COMMAND='node node_modules/vitest/vitest.mjs run'`, because of the npx spawn quirk.\n3. **Fix any F:** rewrite each test graded F and re-grade until nothing is F.\n   - Don't change production code to raise a grade.\n   - If a finding points at a real bug in production code, fail the attempt with the finding, so the orchestrator can send it back to the ticket that owns that code.\n4. **Record** the letter grade, the score, the graded files and each finding in the evidence.\n\nOut of scope: lint, typecheck, the full test suite, deadcode and build. The acceptance ticket runs those once.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": "low",
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "multi_step",
+            "rationale": "Running fireguard is mechanical, but rewriting a test graded F takes judgement about what the test should assert."
+          },
+          "skills": [
+            "typescript",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [
+          "Fireguard report for sprint 2 (grade, score, graded files, findings) in the attempt evidence"
+        ],
+        "id": "tk_01m61r9qvzs7j3hm111qjmrgbx",
+        "key": "DM-264",
+        "optional": false,
+        "priority": "high",
+        "references": [],
+        "size": "small",
+        "tags": [
+          "fireguard",
+          "testing"
+        ],
+        "title": "Sprint 2 fireguard: grade the sprint's new unit tests and fix any F"
+      }
+    ]
+  },
+  "contentHash": "sha256:fc103ff7d9a76b8c98851648f1ac2c789899ae7d25a3dcc0734f4ff6f61866fc",
+  "createdAt": "2026-10-28T17:18:58.644Z",
+  "epicId": "ep_01m61r9qjc28t4x2jpczpwk41a",
+  "format": "darkmechanicus.plan-snapshot",
+  "formatVersion": 1,
+  "number": 1,
+  "revisionId": "rv_01m61rbbjkc67qber512q3zp39",
+  "savedAt": "2026-10-28T17:18:58.644Z"
+}

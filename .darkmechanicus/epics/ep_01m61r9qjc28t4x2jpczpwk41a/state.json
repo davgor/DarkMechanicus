@@ -1,0 +1,33 @@
+{
+  "branch": null,
+  "completedAt": null,
+  "createdAt": "2026-10-28T17:18:05.388Z",
+  "epicId": "ep_01m61r9qjc28t4x2jpczpwk41a",
+  "format": "darkmechanicus.epic-state",
+  "formatVersion": 1,
+  "generation": 1,
+  "outcome": null,
+  "provenance": null,
+  "status": "backlog",
+  "ticketStatuses": {
+    "tk_01m61r9qjdbwy52ytqkx119dyn": "backlog",
+    "tk_01m61r9qvt4yf9wb1hpjtj0rwm": "backlog",
+    "tk_01m61r9qvz0e8090tfw2bbyd6d": "backlog",
+    "tk_01m61r9qvz1g826jmjdkvwyres": "backlog",
+    "tk_01m61r9qvz31hss46xw17k7gcz": "backlog",
+    "tk_01m61r9qvz47ez425t8jxtw8c0": "backlog",
+    "tk_01m61r9qvz6rf23jhb13y9926e": "backlog",
+    "tk_01m61r9qvz970qhrtt5vcwwpb7": "backlog",
+    "tk_01m61r9qvzawsxderyck3w4mgy": "backlog",
+    "tk_01m61r9qvzcg9f9qqk1z3v7wtq": "backlog",
+    "tk_01m61r9qvzcjmpq4d4x6j4m6y7": "backlog",
+    "tk_01m61r9qvzckhthd0feem68v13": "backlog",
+    "tk_01m61r9qvzhd787c0t1q8jq8h7": "backlog",
+    "tk_01m61r9qvzjh2yyk89xbzd67dn": "backlog",
+    "tk_01m61r9qvzrband4bpxsw8rnpq": "backlog",
+    "tk_01m61r9qvzs7j3hm111qjmrgbx": "backlog",
+    "tk_01m61r9qvzvkvv2bt1hcf2cpqs": "backlog"
+  },
+  "title": "Agent CLIs: run Autonomous, Claude, Codex or a custom CLI in the app, stored in SQL and pinned to the folder",
+  "updatedAt": "2026-10-28T17:18:58.678Z"
+}
