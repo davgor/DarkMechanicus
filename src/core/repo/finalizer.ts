@@ -1,5 +1,6 @@
 /**
- * Crash-safe flush of the `outbox` table into repository-owned records.
+ * Crash-safe flush of the `outbox` table into repository-owned records (`repo` mode), or straight
+ * through without a file in hand (`db` mode, where the database is the record).
  *
  * Each entry is handled inside one `db.tx` (BEGIN IMMEDIATE), so the cross-process write lock is
  * held while files are written and finalizers in different processes never interleave. Files are
@@ -16,6 +17,7 @@ import type { Db } from '../db/database'
 import { fail } from '../errors'
 import { META_KEYS, setMeta } from '../meta'
 import type { OutboxKind } from '../services/outbox'
+import type { StorageMode } from './storageMode'
 import { assertContained, displayPath, ownedPaths } from './paths'
 import {
   buildCommentRecord,
@@ -243,7 +245,7 @@ function required(value: string | null, what: string): string {
 
 type EntryHandler = (deps: FinalizerDeps, hooks: FinalizerHooks, entry: OutboxRow) => void
 
-const HANDLERS: Record<OutboxKind, EntryHandler> = {
+const FILE_HANDLERS: Record<OutboxKind, EntryHandler> = {
   snapshot: (deps, hooks, entry) => {
     const revisionId = required(entry.revision_id, 'revision id')
     const record = buildSnapshotRecord(deps.db, revisionId)
@@ -267,6 +269,41 @@ const HANDLERS: Record<OutboxKind, EntryHandler> = {
   }
 }
 
+/** A comment with no `sync_state` row is re-queued by every later save (`enqueueUnexportedComments`). */
+const SETTLED_IN_DATABASE = 'database-only'
+
+/**
+ * A database-only project has no record files, so flushing it only has to finish the database side
+ * of a save: `onSnapshotSaved` marks the revision saved, settles the draft and indexes it, exactly
+ * as it does once a snapshot file is durable in `repo` mode. Every other kind of entry describes a
+ * file that mode never writes, and the database already holds that record, so the entry is simply
+ * completed.
+ *
+ * A comment still gets its `sync_state` row. Nothing was exported, so the hash is a marker rather
+ * than a digest, but that row is also what tells `enqueueUnexportedComments` the comment is
+ * accounted for: without it every save of the epic would queue every one of its comments again.
+ */
+const DB_HANDLERS: Record<OutboxKind, EntryHandler> = {
+  snapshot: (_deps, hooks, entry) => hooks.onSnapshotSaved(required(entry.revision_id, 'revision id')),
+  epic_state: () => undefined,
+  run_history: () => undefined,
+  comment: (deps, _hooks, entry) => {
+    const commentId = required(entry.entity_id, 'comment id')
+    recordExport(deps, {
+      kind: 'comment',
+      entityId: commentId,
+      hash: SETTLED_IN_DATABASE,
+      generation: nextGeneration(deps.db, 'comment', commentId)
+    })
+  },
+  profile: () => undefined
+}
+
+const HANDLERS_BY_MODE: Record<StorageMode, Record<OutboxKind, EntryHandler>> = {
+  repo: FILE_HANDLERS,
+  db: DB_HANDLERS
+}
+
 type EntryResult = 'flushed' | 'skipped'
 
 /** Runs inside the entry's transaction; skips an entry another process completed meanwhile. */
@@ -275,7 +312,7 @@ function processEntry(deps: FinalizerDeps, hooks: FinalizerHooks, entry: OutboxR
   if (current === undefined || current.state === 'done') {
     return 'skipped'
   }
-  HANDLERS[entry.kind](deps, hooks, entry)
+  HANDLERS_BY_MODE[deps.layout.mode][entry.kind](deps, hooks, entry)
   const now = deps.clock.nowIso()
   deps.db.run("UPDATE outbox SET state = 'done', done_at = ?, last_error = NULL WHERE id = ?", now, entry.id)
   setMeta(deps.db, META_KEYS.lastFlushAt, now)
@@ -360,7 +397,8 @@ function queuedAfter(db: Db, afterId: number): OutboxRow[] {
 }
 
 /**
- * Flushes pending (and previously failed) outbox entries in id order. A failed entry blocks later
+ * Flushes pending (and previously failed) outbox entries in id order, through the handlers of the
+ * project's storage mode (`db` writes no file). A failed entry blocks later
  * entries of the same epic, run, or keyed record (such as a profile) so their records are never
  * written out of order; other entities continue. Entries queued by the flush itself are picked up
  * by a further pass (bounded). Flush failures never throw: they are counted, and the entry keeps

@@ -81,7 +81,7 @@ const MAX_MODEL_PAGES = 20
 
 export interface CodexDeps {
   /** Starts `codex app-server` (the registry's executable) in `folder`. */
-  connect(executablePath: string, folder: string): RpcTransport
+  connect(executablePath: string, folder: string, env?: Record<string, string>): RpcTransport
   /** A fresh id for what the adapter makes up itself (approval requests, notices). */
   newId(): string
   now(): string
@@ -386,7 +386,7 @@ class CodexAdapter implements ChatAdapter {
 
   private async open(resumeId: string | null): Promise<void> {
     const options = this.options as ChatAdapterStartOptions
-    const transport = this.deps.connect(this.executablePath, options.folder)
+    const transport = this.deps.connect(this.executablePath, options.folder, options.darkMechanicus.env)
     const rpc: RpcClient = createRpcClient(transport, {
       onNotification: (method, params) => {
         this.onNotification(method, params)
@@ -411,17 +411,14 @@ class CodexAdapter implements ChatAdapter {
     }
   }
 
-  /** The settings every thread gets, new or resumed. */
+  /** The settings every thread gets, new or resumed. No MCP server: the agent runs the `dm` CLI. */
   private threadSettings(): Record<string, unknown> {
-    const { folder, darkMechanicus } = this.options as ChatAdapterStartOptions
-    const { command, args, env } = darkMechanicus
-    const server = { command, args, ...(env === undefined || Object.keys(env).length === 0 ? {} : { env }) }
+    const { folder } = this.options as ChatAdapterStartOptions
     return {
       cwd: folder,
       ...(this.model === null ? {} : { model: this.model }),
       approvalPolicy: APPROVAL_POLICY,
-      sandbox: SANDBOX_MODE,
-      config: { [`mcp_servers.${SERVER_NAME}`]: server }
+      sandbox: SANDBOX_MODE
     }
   }
 

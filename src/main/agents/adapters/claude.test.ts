@@ -986,30 +986,39 @@ describe('Claude adapter: naming a thread', () => {
 // ---- The Dark Mechanicus server and the executable ----
 
 describe('Claude adapter: launch options (1)', () => {
-  it('passes the Dark Mechanicus server through mcpServers', async () => {
+  it('registers no MCP server, because the agent reaches Dark Mechanicus by running dm', async () => {
     const rig = await startRig({ plans: [replay(init(), success('ok'))] })
 
     await rig.adapter.send('hi')
 
-    expect(rig.sdk.launches[0]?.options.mcpServers).toEqual({
-      darkmechanicus: {
-        type: 'stdio',
-        command: 'node',
-        args: ['mcp.js', '--role', 'orchestrator', '--allow-save', '--label', 'Claude · Chat'],
-        env: { DM_HOME: '/state' }
-      }
-    })
+    // An enterprise MCP policy refuses a dynamically configured server outright; nothing is offered.
+    expect(rig.sdk.launches[0]?.options.mcpServers).toBeUndefined()
   })
 
-  it('leaves the server environment out when it has none', async () => {
+  it('appends how to reach Dark Mechanicus to the system prompt, keeping the CLI preset', async () => {
     const rig = await startRig({
       plans: [replay(init(), success('ok'))],
-      start: { darkMechanicus: { command: 'dm', args: ['--role', 'planner'] } }
+      start: { instructions: 'Run dm like this.' }
     })
 
     await rig.adapter.send('hi')
 
-    expect(rig.sdk.launches[0]?.options.mcpServers).toEqual({ darkmechanicus: { type: 'stdio', command: 'dm', args: ['--role', 'planner'] } })
+    expect(rig.sdk.launches[0]?.options.systemPrompt).toEqual({
+      type: 'preset',
+      preset: 'claude_code',
+      append: 'Run dm like this.'
+    })
+  })
+
+  it('carries the chat grant in the process environment instead', async () => {
+    const rig = await startRig({
+      plans: [replay(init(), success('ok'))],
+      start: { darkMechanicus: { command: 'dm', args: ['--repo', '/work/repo'], env: { DM_SESSION_TOKEN: 'dmg_abc' } } }
+    })
+
+    await rig.adapter.send('hi')
+
+    expect(rig.sdk.launches[0]?.options.env).toMatchObject({ DM_SESSION_TOKEN: 'dmg_abc' })
   })
 
   it('starts on the chat model, treating "default" as the CLI default', async () => {
@@ -1045,7 +1054,12 @@ describe('Claude adapter: memory writes ask first', () => {
 
     await rig.adapter.send('hi')
 
-    expect(rig.sdk.launches[0]?.options.env).toEqual({ [AUTO_MEMORY]: '1', PATH: '/bin', HOME: '/home/me' })
+    expect(rig.sdk.launches[0]?.options.env).toEqual({
+      [AUTO_MEMORY]: '1',
+      PATH: '/bin',
+      HOME: '/home/me',
+      DM_SESSION_TOKEN: 'dmg_test'
+    })
     expect(given[AUTO_MEMORY]).toBe('0')
   })
 

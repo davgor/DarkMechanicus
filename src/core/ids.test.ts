@@ -152,7 +152,8 @@ describe('createIdGenerator kinds and secrets', () => {
       checkpoint: 'ck',
       hostCatalog: 'hc',
       comment: 'cm',
-      rowCheck: 'rk'
+      rowCheck: 'rk',
+      grant: 'gr'
     })
   })
 

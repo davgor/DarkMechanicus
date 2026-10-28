@@ -28,7 +28,8 @@ const OPTIONS: ChatAdapterStartOptions = {
   role: 'orchestrator',
   allowSave: false,
   sessionId: null,
-  darkMechanicus: { command: 'node', args: ['/app/out/main/mcp.js', '--role', 'orchestrator', '--label', 'Codex · Run'], env: {} }
+  darkMechanicus: { command: 'node', args: ['/app/out/main/cli.js', '--repo', REPO], env: {} },
+  instructions: 'Use the dm CLI.'
 }
 
 interface Rig {

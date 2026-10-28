@@ -931,3 +931,23 @@ describe('plan snapshots with acceptance nodes', () => {
     expect(domainErrorOf(() => parseRecord(snapshotRecord, text, 'snapshot.json')).code).toBe('import_rejected')
   })
 })
+
+describe('the project record and the repository it belongs to', () => {
+  it('accepts a recorded repository folder, which a database-only project needs', () => {
+    const record = { ...PROJECT, repoRoot: '/work/api' }
+    expect(parseRecord(projectRecord, prettyJson(record), PATH)).toEqual(record)
+  })
+
+  it('accepts a record without one, so an existing project parses and re-serializes unchanged', () => {
+    expect(parseRecord(projectRecord, prettyJson(PROJECT), PATH).repoRoot).toBeUndefined()
+  })
+
+  it.each([
+    ['an empty path', ''],
+    ['a path longer than the limit', 'x'.repeat(4097)]
+  ])('rejects %s', (_label, repoRoot) => {
+    expect(rejection(() => parseRecord(projectRecord, prettyJson({ ...PROJECT, repoRoot }), PATH)).code).toBe(
+      'import_rejected'
+    )
+  })
+})

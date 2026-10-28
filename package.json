@@ -24,6 +24,7 @@
     "deadcode": "node scripts/deadcode-check.mjs",
     "deadcode:refresh": "node scripts/deadcode-refresh.mjs",
     "mcp": "node out/main/mcp.js",
+    "dm": "node out/main/cli.js",
     "smoke:mcp": "node scripts/mcp-smoke.mjs",
     "spike:claims": "tsx scripts/spike/claim-stress.ts"
   },

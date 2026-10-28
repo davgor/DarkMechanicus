@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, sep } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { DomainError } from '../../core/errors'
+import { dbProjectDir } from '../../core/repo/storageMode'
 import { createFolderRegistry, type RegistryFs } from './folderRegistry'
 
 interface Sandbox {
@@ -39,6 +40,11 @@ function makeFolder(parent: string, ...segments: string[]): string {
   return path
 }
 
+/** Dark Mechanicus home directory for a sandbox; nothing creates it unless a test does. */
+function dmHomeFor(home: string): string {
+  return join(home, '.darkmechanicus')
+}
+
 /** Deterministic timestamps: 00:00:01, 00:00:02, … */
 function counterNow(): () => string {
   let tick = 0
@@ -60,7 +66,7 @@ function errorCode(action: () => unknown): string {
 describe('createFolderRegistry tracking', () => {
   it('starts empty and does not create the registry file until something changes', () => {
     withSandbox(({ file, home }) => {
-      const registry = createFolderRegistry({ file, homeDir: home })
+      const registry = createFolderRegistry({ file, homeDir: home, dmHome: dmHomeFor(home) })
 
       expect(registry.list()).toEqual([])
       expect(existsSync(file)).toBe(false)
@@ -70,7 +76,7 @@ describe('createFolderRegistry tracking', () => {
   it('tracks a folder and describes it', () => {
     withSandbox(({ file, home }) => {
       const folder = makeFolder(home, 'projects', 'alpha')
-      const registry = createFolderRegistry({ file, homeDir: home, now: counterNow() })
+      const registry = createFolderRegistry({ file, homeDir: home, dmHome: dmHomeFor(home), now: counterNow() })
 
       const result = registry.track(folder)
 
@@ -81,6 +87,7 @@ describe('createFolderRegistry tracking', () => {
           name: 'alpha',
           displayPath: join('~', 'projects', 'alpha'),
           initialized: false,
+          storageMode: 'repo',
           available: true,
           addedAt: '2026-01-01T00:00:01.000Z'
         }
@@ -95,7 +102,7 @@ describe('createFolderRegistry persistence', () => {
   it('persists a versioned JSON file atomically through a temp file', () => {
     withSandbox(({ file, home }) => {
       const folder = makeFolder(home, 'alpha')
-      createFolderRegistry({ file, homeDir: home, now: counterNow() }).track(folder)
+      createFolderRegistry({ file, homeDir: home, dmHome: dmHomeFor(home), now: counterNow() }).track(folder)
 
       expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({
         version: 1,
@@ -110,12 +117,12 @@ describe('createFolderRegistry persistence', () => {
       const b = makeFolder(home, 'b')
       const a = makeFolder(home, 'a')
       const c = makeFolder(home, 'c')
-      const first = createFolderRegistry({ file, homeDir: home, now: counterNow() })
+      const first = createFolderRegistry({ file, homeDir: home, dmHome: dmHomeFor(home), now: counterNow() })
       first.track(b)
       first.track(a)
       first.track(c)
 
-      const restarted = createFolderRegistry({ file, homeDir: home })
+      const restarted = createFolderRegistry({ file, homeDir: home, dmHome: dmHomeFor(home) })
 
       expect(first.list().map((folder) => folder.name)).toEqual(['b', 'a', 'c'])
       expect(restarted.list()).toEqual(first.list())
@@ -125,7 +132,7 @@ describe('createFolderRegistry persistence', () => {
   it('stamps addedAt with a real ISO time when no clock is injected', () => {
     withSandbox(({ file, home }) => {
       const folder = makeFolder(home, 'alpha')
-      const { folder: view } = createFolderRegistry({ file, homeDir: home }).track(folder)
+      const { folder: view } = createFolderRegistry({ file, homeDir: home, dmHome: dmHomeFor(home) }).track(folder)
 
       expect(new Date(view.addedAt).toISOString()).toBe(view.addedAt)
     })
@@ -136,7 +143,7 @@ describe('createFolderRegistry canonical paths', () => {
   it('selects the existing entry instead of adding a duplicate', () => {
     withSandbox(({ file, home }) => {
       const folder = makeFolder(home, 'alpha')
-      const registry = createFolderRegistry({ file, homeDir: home, now: counterNow() })
+      const registry = createFolderRegistry({ file, homeDir: home, dmHome: dmHomeFor(home), now: counterNow() })
       const first = registry.track(folder)
 
       const again = registry.track(folder)
@@ -151,7 +158,7 @@ describe('createFolderRegistry canonical paths', () => {
   it('treats a trailing separator as the same folder', () => {
     withSandbox(({ file, home }) => {
       const folder = makeFolder(home, 'alpha')
-      const registry = createFolderRegistry({ file, homeDir: home })
+      const registry = createFolderRegistry({ file, homeDir: home, dmHome: dmHomeFor(home) })
       registry.track(folder)
 
       const result = registry.track(`${folder}${sep}`)
@@ -166,7 +173,7 @@ describe('createFolderRegistry canonical paths', () => {
     withSandbox(({ file, home }) => {
       const folder = makeFolder(home, 'alpha')
       makeFolder(home, 'beta')
-      const registry = createFolderRegistry({ file, homeDir: home })
+      const registry = createFolderRegistry({ file, homeDir: home, dmHome: dmHomeFor(home) })
       registry.track(folder)
 
       // Built by hand: path.join would normalize the detour away.
@@ -185,7 +192,7 @@ describe('createFolderRegistry symbolic links', () => {
       const folder = makeFolder(home, 'alpha')
       const link = join(root, 'link-to-alpha')
       symlinkSync(folder, link, 'junction')
-      const viaLink = createFolderRegistry({ file, homeDir: home })
+      const viaLink = createFolderRegistry({ file, homeDir: home, dmHome: dmHomeFor(home) })
 
       const first = viaLink.track(link)
       const second = viaLink.track(folder)
@@ -206,7 +213,7 @@ describe('createFolderRegistry resolving', () => {
       const other = makeFolder(home, 'other')
       const link = join(root, 'link-to-alpha')
       symlinkSync(folder, link, 'junction')
-      const registry = createFolderRegistry({ file, homeDir: home })
+      const registry = createFolderRegistry({ file, homeDir: home, dmHome: dmHomeFor(home) })
       registry.track(folder)
 
       expect(registry.resolve(folder)).toBe(folder)
@@ -223,7 +230,7 @@ describe('createFolderRegistry resolving', () => {
 
   it('rejects paths that cannot be tracked', () => {
     withSandbox(({ root, file, home }) => {
-      const registry = createFolderRegistry({ file, homeDir: home })
+      const registry = createFolderRegistry({ file, homeDir: home, dmHome: dmHomeFor(home) })
       const plainFile = join(root, 'a-file.txt')
       writeFileSync(plainFile, 'not a folder')
 
@@ -241,7 +248,7 @@ describe('createFolderRegistry folder state', () => {
   it('reports whether the repository has been initialized, at the time of listing', () => {
     withSandbox(({ file, home }) => {
       const folder = makeFolder(home, 'alpha')
-      const registry = createFolderRegistry({ file, homeDir: home })
+      const registry = createFolderRegistry({ file, homeDir: home, dmHome: dmHomeFor(home) })
       const tracked = registry.track(folder)
 
       makeFolder(folder, '.darkmechanicus')
@@ -257,7 +264,7 @@ describe('createFolderRegistry folder state', () => {
   it('keeps a deleted folder listed as unavailable so it can be untracked', () => {
     withSandbox(({ file, home }) => {
       const folder = makeFolder(home, 'alpha')
-      const registry = createFolderRegistry({ file, homeDir: home })
+      const registry = createFolderRegistry({ file, homeDir: home, dmHome: dmHomeFor(home) })
       registry.track(folder)
       rmSync(folder, { recursive: true })
 
@@ -275,7 +282,7 @@ describe('createFolderRegistry folder state', () => {
   it('reports a path that turned into a file as unavailable', () => {
     withSandbox(({ file, home }) => {
       const folder = makeFolder(home, 'alpha')
-      const registry = createFolderRegistry({ file, homeDir: home })
+      const registry = createFolderRegistry({ file, homeDir: home, dmHome: dmHomeFor(home) })
       registry.track(folder)
       rmSync(folder, { recursive: true })
       writeFileSync(folder, 'now a file')
@@ -292,7 +299,7 @@ describe('createFolderRegistry untracking', () => {
       const b = makeFolder(home, 'b')
       makeFolder(a, '.darkmechanicus')
       writeFileSync(join(a, '.darkmechanicus', 'project.json'), '{"keep":"me"}')
-      const registry = createFolderRegistry({ file, homeDir: home })
+      const registry = createFolderRegistry({ file, homeDir: home, dmHome: dmHomeFor(home) })
       registry.track(a)
       registry.track(b)
 
@@ -311,7 +318,7 @@ describe('createFolderRegistry untracking', () => {
       const folder = makeFolder(home, 'alpha')
       const link = join(root, 'link-to-alpha')
       symlinkSync(folder, link, 'junction')
-      const registry = createFolderRegistry({ file, homeDir: home })
+      const registry = createFolderRegistry({ file, homeDir: home, dmHome: dmHomeFor(home) })
       registry.track(folder)
 
       expect(registry.untrack(link)).toEqual([])
@@ -326,7 +333,7 @@ describe('createFolderRegistry untracking edge cases', () => {
     withSandbox(({ file, home }) => {
       const tracked = makeFolder(home, 'tracked')
       const stranger = makeFolder(home, 'stranger')
-      const registry = createFolderRegistry({ file, homeDir: home })
+      const registry = createFolderRegistry({ file, homeDir: home, dmHome: dmHomeFor(home) })
 
       expect(registry.untrack(stranger)).toEqual([])
       expect(existsSync(file)).toBe(false)
@@ -341,7 +348,7 @@ describe('createFolderRegistry untracking edge cases', () => {
   it('lets a folder be tracked again after it was untracked', () => {
     withSandbox(({ file, home }) => {
       const folder = makeFolder(home, 'alpha')
-      const registry = createFolderRegistry({ file, homeDir: home })
+      const registry = createFolderRegistry({ file, homeDir: home, dmHome: dmHomeFor(home) })
       registry.track(folder)
       registry.untrack(folder)
 
@@ -368,7 +375,7 @@ describe('createFolderRegistry recovery', () => {
 
       const lists = contents.map((text) => {
         writeFileSync(file, text)
-        return createFolderRegistry({ file, homeDir: home }).list()
+        return createFolderRegistry({ file, homeDir: home, dmHome: dmHomeFor(home) }).list()
       })
 
       expect(lists).toEqual(contents.map(() => []))
@@ -379,7 +386,7 @@ describe('createFolderRegistry recovery', () => {
     withSandbox(({ file, home }) => {
       mkdirSync(file, { recursive: true })
 
-      expect(createFolderRegistry({ file, homeDir: home }).list()).toEqual([])
+      expect(createFolderRegistry({ file, homeDir: home, dmHome: dmHomeFor(home) }).list()).toEqual([])
     })
   })
 
@@ -405,7 +412,7 @@ describe('createFolderRegistry partial recovery', () => {
         })
       )
 
-      const list = createFolderRegistry({ file, homeDir: home }).list()
+      const list = createFolderRegistry({ file, homeDir: home, dmHome: dmHomeFor(home) }).list()
 
       expect(list.map((view) => [view.path, view.addedAt])).toEqual([[folder, '2026-02-02T00:00:00.000Z']])
     })
@@ -416,7 +423,7 @@ describe('createFolderRegistry partial recovery', () => {
       const folder = makeFolder(home, 'alpha')
       mkdirSync(dirname(file), { recursive: true })
       writeFileSync(file, '{not json')
-      const registry = createFolderRegistry({ file, homeDir: home, now: counterNow() })
+      const registry = createFolderRegistry({ file, homeDir: home, dmHome: dmHomeFor(home), now: counterNow() })
 
       registry.track(folder)
 
@@ -482,7 +489,7 @@ const REGISTRY_FILE = join(sep, 'state', 'folders.json')
 const HOME = join(sep, 'home', 'u')
 
 function memoryRegistry(fs: MemoryFs, homeDir = HOME) {
-  return createFolderRegistry({ file: REGISTRY_FILE, homeDir, fs, now: counterNow() })
+  return createFolderRegistry({ file: REGISTRY_FILE, homeDir, dmHome: join(homeDir, '.darkmechanicus'), fs, now: counterNow() })
 }
 
 describe('createFolderRegistry persistence boundary', () => {
@@ -561,5 +568,74 @@ describe('createFolderRegistry display paths', () => {
 
   it('leaves paths alone when no home directory is known', () => {
     expect(displayPath(join(sep, 'srv', 'code'), '')).toBe(join(sep, 'srv', 'code'))
+  })
+})
+
+describe('createFolderRegistry and storage modes', () => {
+  /** A folder set up the original way: `.darkmechanicus/project.json` in the repository. */
+  function initializeInRepo(folder: string): void {
+    mkdirSync(join(folder, '.darkmechanicus'), { recursive: true })
+    writeFileSync(join(folder, '.darkmechanicus', 'project.json'), '{}')
+  }
+
+  it('reports an untouched folder as neither initialized nor database-only', () => {
+    withSandbox(({ file, home, root }) => {
+      const folder = makeFolder(home, 'alpha')
+      const registry = createFolderRegistry({ file, homeDir: home, dmHome: join(root, 'dm') })
+      expect(registry.track(folder).folder).toMatchObject({ initialized: false, storageMode: 'repo' })
+    })
+  })
+
+  it('reports a repository-backed folder as initialized in repo mode', () => {
+    withSandbox(({ file, home, root }) => {
+      const folder = makeFolder(home, 'alpha')
+      initializeInRepo(folder)
+      const registry = createFolderRegistry({ file, homeDir: home, dmHome: join(root, 'dm') })
+      expect(registry.track(folder).folder).toMatchObject({ initialized: true, storageMode: 'repo' })
+    })
+  })
+
+})
+
+describe('createFolderRegistry and database-only folders', () => {
+  /** A folder set up database-only: its project lives in the Dark Mechanicus home directory. */
+  function initializeInDb(folder: string, dmHome: string): void {
+    const dir = dbProjectDir(folder, dmHome)
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'project.json'), '{}')
+  }
+
+  /** A folder set up the original way: `.darkmechanicus/project.json` in the repository. */
+  function initializeInRepo(folder: string): void {
+    mkdirSync(join(folder, '.darkmechanicus'), { recursive: true })
+    writeFileSync(join(folder, '.darkmechanicus', 'project.json'), '{}')
+  }
+
+  it('reports a database-only folder as initialized, with nothing in the repository', () => {
+    withSandbox(({ file, home, root }) => {
+      const dmHome = join(root, 'dm')
+      const folder = makeFolder(home, 'alpha')
+      initializeInDb(folder, dmHome)
+      const registry = createFolderRegistry({ file, homeDir: home, dmHome })
+      expect(registry.track(folder).folder).toMatchObject({ initialized: true, storageMode: 'db' })
+      expect(existsSync(join(folder, '.darkmechanicus'))).toBe(false)
+    })
+  })
+
+  it('keeps each tracked folder on its own mode', () => {
+    withSandbox(({ file, home, root }) => {
+      const dmHome = join(root, 'dm')
+      const tracked = makeFolder(home, 'tracked')
+      const local = makeFolder(home, 'local')
+      initializeInRepo(tracked)
+      initializeInDb(local, dmHome)
+      const registry = createFolderRegistry({ file, homeDir: home, dmHome, now: counterNow() })
+      registry.track(tracked)
+      registry.track(local)
+      expect(registry.list().map((folder) => [folder.name, folder.storageMode])).toEqual([
+        ['tracked', 'repo'],
+        ['local', 'db']
+      ])
+    })
   })
 })

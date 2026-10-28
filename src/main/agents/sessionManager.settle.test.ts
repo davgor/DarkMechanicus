@@ -31,7 +31,15 @@ function rig(fs: MemoryChatFs = memoryChatFs()): Rig {
     store,
     adapters: fakes.definitions,
     executablePath: (kind) => `/bin/${kind}`,
-    mcpConfig: (folder) => ({ command: 'node', args: ['/app/out/main/mcp.js', '--repo', folder], env: {} }),
+    issueChatCli: async (folder: string) => ({
+      cli: {
+        command: 'node',
+        args: ['/app/out/main/cli.js', '--repo', folder],
+        env: { DM_SESSION_TOKEN: 'dmg_test' }
+      },
+      grantId: 'gr_00000000000000000000000001'
+    }),
+    revokeChatGrant: async () => undefined,
     push: (event) => events.push(event),
     newId: () => `item_s${(itemCount += 1)}`,
     now: () => AT,

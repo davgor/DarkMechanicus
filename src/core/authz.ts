@@ -39,7 +39,9 @@ export const CAPABILITIES = [
   'report.submit',
   'checkpoint.approve',
   'checkpoint.advance',
-  'comment.write'
+  'comment.write',
+  'grant.issue',
+  'grant.revoke'
 ] as const
 
 export type Capability = (typeof CAPABILITIES)[number]
@@ -47,6 +49,9 @@ export type Capability = (typeof CAPABILITIES)[number]
 /** Capabilities only a person at the desktop can exercise; no agent role ever receives them. */
 export const HUMAN_ONLY_CAPABILITIES: readonly Capability[] = [
   'checkpoint.approve',
+  // Granting an agent a role is the person's act: a session that could grant could promote itself.
+  'grant.issue',
+  'grant.revoke',
   'run.authorize_auto',
   'run.pause_signed_out',
   'run.resume_signed_out',
@@ -116,6 +121,7 @@ const DESKTOP: Capability[] = CAPABILITIES.filter(
 
 const ROLE_CAPABILITIES: Record<SessionRole, Capability[]> = {
   desktop: DESKTOP,
+  reader: ['read'],
   planner: PLANNER,
   orchestrator: ORCHESTRATOR,
   worker: ['read', 'attempt.heartbeat', 'attempt.submit', 'attempt.fail', 'comment.write'],

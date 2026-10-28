@@ -29,6 +29,39 @@ function NothingNew({ view }: { view: BoardImportView }): JSX.Element | null {
  * after one, what it created. Once nothing is left to import it offers to remove the old workflow
  * files, and after that shows only what the removal did. Hidden for folders without a board.
  */
+interface BoardActionsProps {
+  folder: TrackedFolderView
+  /** Open epics left to import; zero means the old workflow may be removed instead. */
+  count: number
+  busy: boolean
+  removed: boolean
+  view: BoardImportView
+  onImport(): void
+  onRemoved(): void
+}
+
+/** Import while anything is left to bring in; once nothing is, offer to remove the old workflow. */
+function BoardActions(props: BoardActionsProps): JSX.Element {
+  if (props.count > 0) {
+    return (
+      <div className="button-row">
+        <Button variant="primary" icon="download" busy={props.busy} onClick={props.onImport}>
+          {importButtonLabel(props.count)}
+        </Button>
+      </div>
+    )
+  }
+  return (
+    <>
+      {props.removed ? null : <NothingNew view={props.view} />}
+      {/* A db project never changes the checkout, so it never offers to delete the board. */}
+      {props.folder.storageMode === 'repo' ? (
+        <BoardRemoval folder={props.folder} onRemoved={props.onRemoved} />
+      ) : null}
+    </>
+  )
+}
+
 export function BoardImportCard({ folder, version, onImport, onOpenEpic }: BoardImportCardProps): JSX.Element | null {
   const toasts = useToasts()
   const preview = useBoardPreview(folder.path, version, toasts.reportError)
@@ -66,18 +99,15 @@ export function BoardImportCard({ folder, version, onImport, onOpenEpic }: Board
           <BoardPreview view={view} onOpenEpic={onOpenEpic} />
         </>
       )}
-      {count > 0 ? (
-        <div className="button-row">
-          <Button variant="primary" icon="download" busy={busy} onClick={() => void importNow()}>
-            {importButtonLabel(count)}
-          </Button>
-        </div>
-      ) : (
-        <>
-          {removed ? null : <NothingNew view={view} />}
-          <BoardRemoval folder={folder} onRemoved={() => setRemoved(true)} />
-        </>
-      )}
+      <BoardActions
+        folder={folder}
+        count={count}
+        busy={busy}
+        removed={removed}
+        view={view}
+        onImport={() => void importNow()}
+        onRemoved={() => setRemoved(true)}
+      />
     </section>
   )
 }

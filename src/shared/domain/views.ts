@@ -23,7 +23,11 @@ import type {
   WorkStatus
 } from './status'
 
-export type SessionRole = 'desktop' | 'planner' | 'orchestrator' | 'worker' | 'reviewer'
+/**
+ * `reader` observes and nothing else. It is what a `dm` CLI invocation runs as until a person
+ * grants it a role, so reading the plan needs no ceremony while changing anything needs a grant.
+ */
+export type SessionRole = 'desktop' | 'planner' | 'orchestrator' | 'worker' | 'reviewer' | 'reader'
 
 export interface CapabilitiesView {
   server: { name: string; version: string }
@@ -662,6 +666,8 @@ export interface EventsPage {
 export interface StorageStatusView {
   initialized: boolean
   repoRoot: string
+  /** The project's storage mode and where its database lives. */
+  storage: StorageLocationView & { databasePath: string }
   projectId: string | null
   projectName: string | null
   schemaVersion: number | null
@@ -669,11 +675,30 @@ export interface StorageStatusView {
   lastFlushAt: string | null
   /** `repository` is false outside a Git checkout (then `current` is null too, but not because HEAD is detached). */
   branch: { current: string | null; recorded: string | null; changed: boolean; repository: boolean }
+  /** Uncommitted record files in the checkout; null outside Git, and always null in `db` mode. */
   uncommittedRecordFiles: number | null
   conflicts: { epicId: string; message: string }[]
   /** Named profiles whose tracked file changed while a local save waits to be exported. */
   profileConflicts: { name: string; message: string }[]
   sessions: { active: number; byRole: Record<string, number> }
+}
+
+/** Roles a person may delegate. Never `desktop`: that is the person's own seat, not a role to hand out. */
+export type GrantableRole = Exclude<SessionRole, 'desktop'>
+
+/** A role a person delegated to an agent session, as the desktop and the CLI report it. */
+export interface GrantView {
+  id: string
+  role: GrantableRole
+  /** Only a planner or orchestrator grant can carry it. */
+  allowSave: boolean
+  label: string
+  createdAt: string
+  expiresAt: string
+  revokedAt: string | null
+  lastUsedAt: string | null
+  /** Neither revoked nor expired, as of the moment it was read. */
+  active: boolean
 }
 
 export interface SessionView {
@@ -682,6 +707,8 @@ export interface SessionView {
   label: string
   transport: string
   pid: number | null
+  /** The grant this session's role came from, for a `cli` session that presented one. */
+  grantId: string | null
   startedAt: string
   lastSeenAt: string
   active: boolean
@@ -793,12 +820,28 @@ export interface BoardRemovalResultView {
   editByHand: BoardMentionView[]
 }
 
+/**
+ * How a project stores its records. `repo`: files in `.darkmechanicus/`, tracked by Git, so the
+ * plan travels with the code. `db`: one machine-local database in the Dark Mechanicus home
+ * directory, with nothing written into the repository at all.
+ */
+export type StorageMode = 'repo' | 'db'
+
+/** Where a project keeps its records: in the repository, or in the Dark Mechanicus home directory. */
+export interface StorageLocationView {
+  mode: StorageMode
+  /** Absolute directory holding the project: `<repo>/.darkmechanicus`, or the home-directory project. */
+  projectDir: string
+}
+
 export interface InitializeResultView {
   projectId: string
   name: string
   keyPrefix: string
+  /** Created files, shown relative to `storage.projectDir`'s parent in repo mode and to it in db mode. */
   createdFiles: string[]
   alreadyInitialized: boolean
+  storage: StorageLocationView
 }
 
 export interface FlushResultView {

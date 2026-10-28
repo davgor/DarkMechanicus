@@ -71,6 +71,21 @@ interface IpcRig {
 }
 
 /** The real handlers and session manager behind fake IPC, with fake adapters, an in-memory store and a fake run queue. */
+/** The chat's `dm` invocation and the grant it carries; no chat in these tests inspects them. */
+function chatCliDeps() {
+  return {
+    issueChatCli: async (folder: string) => ({
+      cli: {
+        command: 'node',
+        args: ['/app/out/main/cli.js', '--repo', folder],
+        env: { DM_SESSION_TOKEN: 'dmg_test' }
+      },
+      grantId: 'gr_00000000000000000000000001'
+    }),
+    revokeChatGrant: async () => undefined
+  }
+}
+
 function ipcRig(options: { bindings?: boolean; windows?: readonly ChatWindow[] } = {}): IpcRig {
   const ipc = createFakeIpcMain()
   const fakes = fakeAdapters()
@@ -83,7 +98,7 @@ function ipcRig(options: { bindings?: boolean; windows?: readonly ChatWindow[] }
     ...(activity === undefined ? {} : { activity }),
     adapters: fakes.definitions,
     executablePath: (kind) => `/bin/${kind}`,
-    mcpConfig: (folder) => ({ command: 'node', args: ['mcp.js', '--repo', folder], env: {} }),
+    ...chatCliDeps(),
     push: (event) => events.push(event)
   })
   const queued: string[] = []
