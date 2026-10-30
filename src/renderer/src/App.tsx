@@ -111,7 +111,8 @@ function ChatPane({ shell, folder, chat }: ChatPaneProps): JSX.Element {
     [actions, folder.path]
   )
   const onLanded = useCallback(() => actions.current.landed(), [actions])
-  return <ChatView chat={chat} onAgentStatus={shell.agents.recordStatus} navigation={navigation} landing={threadLandingFor(shell.landing, chat.id)} onLanded={onLanded} />
+  const agentDisplayName = shell.agents.agents.find((agent) => agent.id === chat.agent)?.displayName
+  return <ChatView chat={chat} agentDisplayName={agentDisplayName} onAgentStatus={shell.agents.recordStatus} navigation={navigation} landing={threadLandingFor(shell.landing, chat.id)} onLanded={onLanded} />
 }
 
 /** An open folder: either one of its epics, or the folder home. */
@@ -128,6 +129,7 @@ function FolderPane({ shell, EpicView }: PaneProps): JSX.Element | null {
     <FolderHome
       key={folder.path}
       folder={folder}
+      agents={shell.agents.agents}
       list={listFor(shell.lists, folder.path)}
       status={shell.status}
       busy={shell.busy}

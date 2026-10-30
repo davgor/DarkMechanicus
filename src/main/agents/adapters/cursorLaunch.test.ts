@@ -56,7 +56,7 @@ describe('cursorLaunch', () => {
     const launch = cursorLaunch('C:\\Tools\\agent.cmd', { command: 'acp', model }, WINDOWS)
 
     expect(launch).toEqual({
-      file: 'cmd.exe',
+      file: expect.stringMatching(/\\System32\\cmd\.exe$/),
       args: ['/d', '/v:off', '/s', '/c', `""C:\\Tools\\agent.cmd" --model "${model}" acp"`],
       verbatimArguments: true
     })

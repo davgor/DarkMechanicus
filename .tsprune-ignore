@@ -1,7 +1,7 @@
 # Baseline ignore for ts-prune (one pattern per line)
 # Generated from tsconfig.node.json + tsconfig.web.json
 # Refresh after export moves/deletes: npm run deadcode:refresh
-# Refreshed 2026-10-30 (99 entries)
+# Refreshed 2026-10-30 (98 entries)
 
 electron.vite.config.ts:37 - default
 src/core/claimTokenMask.ts:35 - CLAIM_TOKEN_MASK
@@ -23,7 +23,6 @@ src/core/plan/graph.ts:532 - sortedSprints
 src/core/plan/graph.ts:584 - SprintRow
 src/core/plan/graph.ts:595 - planRows
 src/core/repo/layout.ts:8 - ResolveLayoutOptions
-src/main/agents/adapters/__mocks__/autonomousRecordings.ts:608 - AUTONOMOUS_RECORDINGS
 src/main/agents/ownCliCommand.ts:47 - OwnCliCall
 src/main/desktop/cliConfig.ts:8 - CliConfigOptions
 src/preload/index.ts:25 - AutoUpdateApi
@@ -43,13 +42,13 @@ src/shared/agents/chatApi.ts:53 - SetChatModelRequest
 src/shared/agents/chatApi.ts:62 - AnswerApprovalRequest
 src/shared/agents/chatApi.ts:94 - BoundThreadsRequest
 src/shared/autoUpdate/types.ts:17 - AUTO_UPDATE_EVENT_CHANNEL
-src/shared/desktop/api.ts:102 - AgentDownloadPhase
-src/shared/desktop/api.ts:135 - CommandInput
-src/shared/desktop/api.ts:139 - CommandOutput
-src/shared/desktop/api.ts:299 - DesktopCommandName
-src/shared/desktop/api.ts:301 - DESKTOP_COMMANDS
-src/shared/desktop/api.ts:52 - AgentRefusalCode
-src/shared/desktop/api.ts:73 - AgentDownloadFailureCode
+src/shared/desktop/api.ts:125 - AgentDownloadPhase
+src/shared/desktop/api.ts:161 - CommandInput
+src/shared/desktop/api.ts:165 - CommandOutput
+src/shared/desktop/api.ts:347 - DesktopCommandName
+src/shared/desktop/api.ts:349 - DESKTOP_COMMANDS
+src/shared/desktop/api.ts:53 - AgentRefusalCode
+src/shared/desktop/api.ts:96 - AgentDownloadFailureCode
 src/shared/domain/api.ts:100 - SprintInput
 src/shared/domain/api.ts:143 - ClaimTicketInput
 src/shared/domain/api.ts:164 - IncrementRef

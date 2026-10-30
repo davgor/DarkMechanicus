@@ -41,6 +41,7 @@ function renderHome(create: () => Promise<EpicDetailView | null> = () => Promise
     <ToastProvider scheduler={new ManualScheduler()}>
       <FolderHome
         folder={folder}
+        agents={[]}
         list={list}
         status={storageStatus()}
         busy={{ flush: false, reconcile: false }}

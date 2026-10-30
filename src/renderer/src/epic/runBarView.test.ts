@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chatRecord } from '../__mocks__/fixtures'
+import { agentView, chatRecord } from '../__mocks__/fixtures'
 import { MINUTE, NOW, epicDetail, iso, runView } from './__mocks__/fixtures'
 import { SIGNED_OUT_PAUSE_REASON } from '../../../shared/domain/status'
 import {
@@ -167,7 +167,7 @@ describe('signed-out note', () => {
   const SIGNED_IN = { claude: { state: 'signed_in', reason: 'Signed in.' } } as const
 
   it('says the agent signed out, links the orchestrating chat, and keeps the agent’s state for the prompt', () => {
-    expect(signedOutNote(paused, chat, SIGNED_OUT)).toEqual({
+    expect(signedOutNote(paused, chat, SIGNED_OUT, [])).toEqual({
       text: 'Paused: Claude Code signed out',
       agent: 'claude',
       status: SIGNED_OUT.claude,
@@ -177,16 +177,16 @@ describe('signed-out note', () => {
   })
 
   it('knows the agent is signed in again once its status says so', () => {
-    expect(signedOutNote(paused, chat, SIGNED_IN)?.signedIn).toBe(true)
+    expect(signedOutNote(paused, chat, SIGNED_IN, [])?.signedIn).toBe(true)
   })
 
   it('does not know yet while the agent’s status is still being asked, or cannot be told', () => {
-    expect(signedOutNote(paused, chat, {})?.signedIn).toBe(false)
-    expect(signedOutNote(paused, chat, { claude: { state: 'unknown', reason: '?' } })?.signedIn).toBe(false)
+    expect(signedOutNote(paused, chat, {}, [])?.signedIn).toBe(false)
+    expect(signedOutNote(paused, chat, { claude: { state: 'unknown', reason: '?' } }, [])?.signedIn).toBe(false)
   })
 
   it('stays general when the chat orchestrating the run is not known', () => {
-    expect(signedOutNote(paused, null, SIGNED_OUT)).toEqual({
+    expect(signedOutNote(paused, null, SIGNED_OUT, [])).toEqual({
       text: 'Paused: the orchestrator’s agent signed out',
       agent: null,
       status: undefined,
@@ -195,17 +195,25 @@ describe('signed-out note', () => {
     })
   })
 
+  it('names a connected custom agent by its display name, and a disconnected one generically', () => {
+    const custom = chatRecord({ ...chat, agent: 'cu_01m65kwqqeyajbj5bnq81gngrb' })
+    expect(signedOutNote(paused, custom, {}, [agentView({ kind: 'custom', displayName: 'My Claude' })])?.text).toBe('Paused: My Claude signed out')
+    expect(signedOutNote(paused, custom, {}, [])?.text).toBe('Paused: Custom agent signed out')
+    expect(orchestratorNote(runView({ state: 'queued' }), custom, [agentView({ kind: 'custom', displayName: 'My Claude' })])).toMatchObject({ text: 'Orchestrated by My Claude in' })
+    expect(orchestratorNote(runView({ state: 'queued' }), custom, [])).toMatchObject({ text: 'Orchestrated by Custom agent in' })
+  })
+
   it('belongs to a run paused for a lost sign-in and to no other', () => {
-    expect(signedOutNote(runView({ state: 'paused', pauseReason: 'branch changed' }), chat, SIGNED_OUT)).toBe(null)
-    expect(signedOutNote(runView({ state: 'paused' }), chat, SIGNED_OUT)).toBe(null)
-    expect(signedOutNote(runView({ state: 'running', pauseReason: SIGNED_OUT_PAUSE_REASON }), chat, SIGNED_OUT)).toBe(null)
+    expect(signedOutNote(runView({ state: 'paused', pauseReason: 'branch changed' }), chat, SIGNED_OUT, [])).toBe(null)
+    expect(signedOutNote(runView({ state: 'paused' }), chat, SIGNED_OUT, [])).toBe(null)
+    expect(signedOutNote(runView({ state: 'running', pauseReason: SIGNED_OUT_PAUSE_REASON }), chat, SIGNED_OUT, [])).toBe(null)
   })
 
   it('holds Resume back until the agent is signed in, and never for a run it does not describe or an agent it cannot name', () => {
-    expect(resumeBlocked(signedOutNote(paused, chat, SIGNED_OUT))).toBe(true)
-    expect(resumeBlocked(signedOutNote(paused, chat, {}))).toBe(true)
-    expect(resumeBlocked(signedOutNote(paused, chat, SIGNED_IN))).toBe(false)
-    expect(resumeBlocked(signedOutNote(paused, null, SIGNED_OUT))).toBe(false)
+    expect(resumeBlocked(signedOutNote(paused, chat, SIGNED_OUT, []))).toBe(true)
+    expect(resumeBlocked(signedOutNote(paused, chat, {}, []))).toBe(true)
+    expect(resumeBlocked(signedOutNote(paused, chat, SIGNED_IN, []))).toBe(false)
+    expect(resumeBlocked(signedOutNote(paused, null, SIGNED_OUT, []))).toBe(false)
     expect(resumeBlocked(null)).toBe(false)
   })
 })
@@ -215,7 +223,7 @@ describe('orchestrator note', () => {
 
   it('links the chat orchestrating an active run, whatever state the run is in', () => {
     for (const state of ['queued', 'running', 'paused', 'awaiting_checkpoint'] as const) {
-      expect(orchestratorNote(runView({ state }), chat)).toEqual({
+      expect(orchestratorNote(runView({ state }), chat, [])).toEqual({
         kind: 'chat',
         chatId: 'chat_9',
         text: 'Orchestrated by Codex in',
@@ -225,15 +233,15 @@ describe('orchestrator note', () => {
   })
 
   it('says a queued run with no chat is waiting for an orchestrator', () => {
-    expect(orchestratorNote(runView({ state: 'queued' }), null)).toEqual({
+    expect(orchestratorNote(runView({ state: 'queued' }), null, [])).toEqual({
       kind: 'waiting',
       text: 'Waiting for an orchestrator. An agent picks this run up with start_run.'
     })
   })
 
   it('has nothing to say about a run an external agent is already running, or one that has ended', () => {
-    expect(orchestratorNote(runView({ state: 'running' }), null)).toBe(null)
-    expect(orchestratorNote(runView({ state: 'completed' }), chat)).toBe(null)
-    expect(orchestratorNote(runView({ state: 'canceled' }), null)).toBe(null)
+    expect(orchestratorNote(runView({ state: 'running' }), null, [])).toBe(null)
+    expect(orchestratorNote(runView({ state: 'completed' }), chat, [])).toBe(null)
+    expect(orchestratorNote(runView({ state: 'canceled' }), null, [])).toBe(null)
   })
 })

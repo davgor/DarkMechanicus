@@ -18,9 +18,12 @@ const ROLE_HINTS: Readonly<Record<ChatRole, string>> = {
 
 type Statuses = Readonly<Partial<Record<AgentId, AgentAuthStatus>>>
 
-/** An agent a chat can run on: connected, and its own CLI says it is signed in. */
+/** An agent a chat can run on: connected, and its own CLI says it is signed in, or its sign-in cannot be checked. */
 export function chattableAgents(agents: readonly AgentView[], statuses: Statuses): AgentView[] {
-  return agents.filter((agent) => statuses[agent.id]?.state === 'signed_in')
+  return agents.filter((agent) => {
+    const state = statuses[agent.id]?.state
+    return state === 'signed_in' || state === 'unchecked'
+  })
 }
 
 interface AgentChoiceProps {
@@ -119,9 +122,6 @@ function ModelNote({ state, agent }: { state: ModelsState; agent: AgentId }): JS
     case 'failed':
       return <p className="note">{`Could not list this agent’s models: ${state.message} The chat will use its default model.`}</p>
     case 'ready':
-      return state.models.length === 0 ? (
-        <p className="note">No models available for this agent yet. The chat will use its default model.</p>
-      ) : null
     case 'idle':
       return null
   }
@@ -134,10 +134,32 @@ interface ModelChoiceProps {
   onChange(model: string): void
 }
 
-/** Step two: the models the chosen agent offers; without any, a note says what the chat will use instead. */
+/** The one choice of an agent that lists no models (a custom ACP CLI): the chat is created with `model: null`, so the CLI picks. */
+function CliDefault({ id }: { id: string }): JSX.Element {
+  return (
+    <>
+      <select id={id} className="connect-select">
+        <option value="">CLI default</option>
+      </select>
+      <span className="field-hint">The CLI picks its own model.</span>
+    </>
+  )
+}
+
+/** Step two: the models the chosen agent offers; one that lists none offers CLI default, and a list that could not be read says why. */
 export function ModelChoice({ agent, state, value, onChange }: ModelChoiceProps): JSX.Element {
   const id = useId()
   const models = state.status === 'ready' ? state.models : []
+  if (state.status === 'ready' && models.length === 0) {
+    return (
+      <div className="chat-field">
+        <label className="field-label" htmlFor={id}>
+          Model
+        </label>
+        <CliDefault id={id} />
+      </div>
+    )
+  }
   return (
     <div className="chat-field">
       <label className="field-label" htmlFor={id}>

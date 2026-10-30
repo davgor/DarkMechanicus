@@ -6,6 +6,7 @@
  */
 import { acceptanceTitle } from '../../../core/plan/acceptance'
 import type { StartOrchestratorResult } from '../../../shared/agents/chatApi'
+import type { AgentView } from '../../../shared/desktop/api'
 import type { DraftOp } from '../../../shared/domain/api'
 import type { PlanBundle } from '../../../shared/domain/bundle'
 import type { ApproveWithRedraftResultView, DraftUpdateResultView, PlanView, RunView } from '../../../shared/domain/views'
@@ -28,6 +29,8 @@ interface ActionDeps {
   startOrchestrator: StartOrchestrator
   /** A chat was created for a run: the shell fetches the folder's chats again. */
   onChatsChanged(): void
+  /** The connected agents, so the toast calls a custom orchestrator by its display name. */
+  agents(): readonly AgentView[]
   getState(): WorkspaceState
   dispatch(action: WorkspaceAction): void
   reload(): void
@@ -196,7 +199,7 @@ function orchestratorFeedback(deps: ActionDeps, result: Result<StartOrchestrator
     deps.onChatsChanged()
   }
   if (problem === null) {
-    deps.dispatch({ type: 'toast', text: `Run queued. ${agentName(choice.agent)} is orchestrating it.` })
+    deps.dispatch({ type: 'toast', text: `Run queued. ${agentName(choice.agent, deps.agents())} is orchestrating it.` })
   } else {
     deps.dispatch({ type: 'banner', text: problem })
   }

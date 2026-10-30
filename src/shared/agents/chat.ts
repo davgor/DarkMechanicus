@@ -21,7 +21,7 @@
  */
 import { z } from 'zod'
 import { agentIdSchema } from '../desktop/agentKinds'
-import type { BuiltInAgentKind } from '../desktop/api'
+import type { AgentView } from '../desktop/api'
 
 /** Dark Mechanicus roles a chat can run as: the four roles the app's MCP server serves. */
 export const CHAT_ROLES = ['planner', 'orchestrator', 'worker', 'reviewer'] as const
@@ -276,7 +276,7 @@ export type ChatAdapterEmit = (event: ChatAdapterEvent) => void
  * vendor that way); file edits, commands and anything else do.
  */
 export interface ChatAdapter {
-  readonly kind: BuiltInAgentKind
+  readonly kind: AgentView['kind']
   /** Starts or resumes the session; events flow to `emit` until `dispose`. */
   start(options: ChatAdapterStartOptions, emit: ChatAdapterEmit): Promise<void>
   /** Sends a user message and runs one turn: resolves when the turn has ended (finished or stopped), rejects when it failed. */

@@ -5,6 +5,7 @@ import { FakeChild } from '../__mocks__/fakeChild'
 import { killProcessTree } from '../processTree'
 import { nodeTransport } from './acpProcess'
 
+vi.mock('../../logger', () => ({ logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() } }))
 vi.mock('node:child_process', () => ({ spawn: vi.fn() }))
 vi.mock('../processTree', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../processTree')>()),

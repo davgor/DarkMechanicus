@@ -68,6 +68,8 @@ const dm: DmApi = {
   listAgents: () => ipcRenderer.invoke('agents:list'),
   findAgent: (kind) => ipcRenderer.invoke('agents:find', kind),
   removeAgent: (id) => ipcRenderer.invoke('agents:remove', id),
+  addCustomAgent: (request) => ipcRenderer.invoke('agents:addCustom', request),
+  updateCustomAgent: (request) => ipcRenderer.invoke('agents:updateCustom', request),
   downloadAgent: (kind) => ipcRenderer.invoke('agents:download', kind),
   onAgentDownloadProgress: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, progress: AgentDownloadProgress): void => {
@@ -77,7 +79,9 @@ const dm: DmApi = {
     return () => ipcRenderer.removeListener('agents:downloadProgress', handler)
   },
   agentStatus: (id) => ipcRenderer.invoke('agents:status', id),
-  signInAgent: (id) => ipcRenderer.invoke('agents:signIn', id)
+  signInAgent: (id) => ipcRenderer.invoke('agents:signIn', id),
+  folderDefaultAgent: (folder) => ipcRenderer.invoke('agents:folderDefault', folder),
+  setFolderDefaultAgent: (request) => ipcRenderer.invoke('agents:setFolderDefault', request)
 }
 
 contextBridge.exposeInMainWorld('dm', dm)

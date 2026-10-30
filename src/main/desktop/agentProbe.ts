@@ -53,7 +53,7 @@ export interface AgentProbeDeps {
   inspect: (path: string) => FileCheck
   /** How long the version flag may take before the pick is refused. */
   timeoutMs?: number
-  /** The Windows command interpreter used for `.cmd` shims; defaults to `cmd.exe` on PATH lookup. */
+  /** The Windows command interpreter used for `.cmd` shims; defaults to `%SystemRoot%\System32\cmd.exe` by its full path. */
   comspec?: string
 }
 
@@ -83,7 +83,9 @@ type LineMatcher = (line: string) => boolean
 const LINE_MATCHERS: Record<BuiltInAgentKind, LineMatcher> = {
   claude: (line) => /\bClaude Code\b/i.test(line),
   codex: (line) => /^codex(?:-cli)?\b/i.test(line),
-  cursor: (line) => CURSOR_BUILD.test(line) || /\bcursor\b/i.test(line)
+  cursor: (line) => CURSOR_BUILD.test(line) || /\bcursor\b/i.test(line),
+  // `Autonomous 0.79.0 · darwin-arm64 · OMP 18.11.2` (docs/reports/autonomous-acp.md); the first version on it is Autonomous's own.
+  autonomous: (line) => /^Autonomous \d/.test(line)
 }
 
 /** The first output line that names the CLI, with the version found on it, or null for a stranger. */

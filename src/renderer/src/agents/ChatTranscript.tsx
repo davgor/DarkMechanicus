@@ -88,6 +88,8 @@ interface SignInAnswers {
 }
 
 interface RowProps extends Approvals, SignInAnswers {
+  /** The chat's agent's display name, which its sign-in cards use. */
+  agentName: string
   entry: TreeRow['entry']
   answer: TreeRow['answer']
   /** The thread blocks that hang under this entry (a call that spawned subagents). */
@@ -98,7 +100,7 @@ interface RowProps extends Approvals, SignInAnswers {
 }
 
 /** One transcript entry. Only text from the agent goes through the Markdown renderer; everything else is plain text. */
-function EntryRow({ entry, answer, labels, folder, onAnswer, signIn, onSignedIn, onAgentStatus, onRetryTurn }: RowProps): JSX.Element | null {
+function EntryRow({ entry, answer, labels, folder, onAnswer, agentName, signIn, onSignedIn, onAgentStatus, onRetryTurn }: RowProps): JSX.Element | null {
   switch (entry.kind) {
     case 'user_message':
       return (
@@ -126,7 +128,7 @@ function EntryRow({ entry, answer, labels, folder, onAnswer, signIn, onSignedIn,
     case 'approval_request':
       return <ApprovalCard request={entry} answer={answer} folder={folder} onAnswer={onAnswer} />
     case 'auth_required':
-      return <SignedOutCard item={entry} state={signIn} onSignedIn={onSignedIn} onAgentStatus={onAgentStatus} onRetry={onRetryTurn} />
+      return <SignedOutCard item={entry} name={agentName} state={signIn} onSignedIn={onSignedIn} onAgentStatus={onAgentStatus} onRetry={onRetryTurn} />
     default:
       return <NoticeRow entry={entry} labels={labels} />
   }
@@ -196,6 +198,8 @@ function lastOwn(entries: readonly TranscriptEntry[]): TranscriptEntry | undefin
 }
 
 interface ChatTranscriptProps extends Approvals, SignInAnswers {
+  /** The chat's agent's display name. */
+  agentName: string
   phase: 'loading' | 'ready' | 'failed'
   entries: readonly TranscriptEntry[]
   auth: ChatAuth
@@ -239,6 +243,7 @@ function Body(props: ChatTranscriptProps & { rows: readonly TreeRow[] }): JSX.El
           labels={props.labels}
           folder={props.folder}
           onAnswer={props.onAnswer}
+          agentName={props.agentName}
           signIn={row.entry.id === latest ? current : 'past'}
           onSignedIn={props.onSignedIn}
           onAgentStatus={props.onAgentStatus}

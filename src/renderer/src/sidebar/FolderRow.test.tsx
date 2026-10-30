@@ -48,6 +48,7 @@ function row(setup: Setup, calls: Calls): JSX.Element {
       expansion={calls.expansion}
       chats={setup.chats ?? { status: 'ready', chats: [] }}
       statuses={setup.statuses ?? {}}
+      agents={[]}
       onSelectFolder={(path) => calls.folders.push(path)}
       onSelectEpic={(path, id) => calls.epics.push(`${path}:${id}`)}
       onNewChat={(path) => calls.newChats.push(path)}

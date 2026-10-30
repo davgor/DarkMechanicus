@@ -1,0 +1,122 @@
+# DM-255 sprint 2 acceptance: command outputs
+Combined branch agent-clis-sprint-2 at cb70580. Built app (npm run build) run as DISABLE_AUTO_UPDATE=1 <worktree>/node_modules/.bin/electron --inspect=9334 <worktree> --user-data-dir=<evidence>/userdata --remote-debugging-port=9333, with <evidence> = /tmp/dm255 (canonical /private/tmp/dm255). Native dialogs stubbed over the main inspector. Harness workaround (run 1 and 2): the 'agents:status' IPC handler for 'autonomous' was replaced by one that runs the same 'a8s doctor' check with a 60 s limit, because a8s doctor takes ~12 s here and the app's 10 s STATUS_TIMEOUT_MS reported 'Autonomous did not answer in time', which blocks New chat.
+
+## c5: SELECT * FROM folder_agent_defaults after setting Autonomous as scratch-a default (folder page select)
+folder|agent_id|updated_at
+/private/tmp/dm255/scratch-a|autonomous|2026-10-30T21:10:36.226Z
+
+## c2: scratch-a/hello.txt after Deny
+absent (Bun.file exists=false)
+
+## c2: scratch-a/hello.txt after Allow once
+hi
+
+## c3: ps -o pid,ppid,args for the a8s custom chat (child of Electron 26330); ~/.local/bin/a8s is a #!/bin/sh launcher that does `exec node --use-system-ca …/a8s/dist/main.js "$@"`
+PID  PPID COMMAND
+39658 26330 node --use-system-ca <home>/.local/opt/a8s/dist/main.js start /private/tmp/dm255/scratch-b --mode acp --approval-mode always-ask
+
+## c4: /bin/echo as ACP custom CLI — form message and agents table after
+Not connected
+It stopped before it finished the ACP handshake: echo test stopped: exit code 0
+
+sqlite3 app.sqlite 'SELECT id, display_name FROM agents':
+autonomous|Autonomous
+cu_01m67ae82mjh2ps5193p0xy86z|a8s custom
+
+## c4: window.dm.addCustomAgent({name:'x', protocol:'acp', args:[], executablePath:'/bin/sh'}) from devtools
+Error: Error invoking remote method 'agents:addCustom': DomainError: Invalid custom CLI: Unrecognized key: "executablePath"
+(thrown by parseOrThrow in src/core/schemas.ts:449 as DomainError('invalid_input', …); no dialog shown, no handshake run)
+
+## c4: Cancel on the confirmation (showMessageBox -> {response:1, checkboxChecked:false})
+agents after: autonomous|Autonomous / cu_01m67ae82mjh2ps5193p0xy86z|a8s custom (no 'cancel test' row)
+
+## c20: run main.log (userdata/logs/main.log) line 57 while adding ~/.local/bin/claude as a Claude Code SDK custom CLI
+[2026-10-30 14:15:44.473] [info]  Claude Code refused --strict-mcp-config because an enterprise MCP config is present; asking for its models again without it
+Form result: "Connected claude custom". Observed via a temporary main-process spawn observer: 1st handshake process (…--strict-mcp-config…) stderr "You cannot use --strict-mcp-config when an enterprise MCP config is present", exit 1 after 251 ms; 2nd process without the flag answered and was ended by the app (exit null at 3.3 s).
+
+## c7: ps after Start run with Autonomous in scratch-a
+48891 node --use-system-ca <home>/.local/opt/a8s/dist/main.js start /private/tmp/dm255/scratch-a --mode acp --approval-mode always-ask (child of Electron 26330); chat 'Orchestrator · DM-255 scratch epic', role Orchestrator, first message 'Run this Dark Mechanicus epic as its orchestrator…'. Stopped with Stop after the screenshot.
+
+## c5: folder_agent_defaults with a8s custom as scratch-b default, then after Remove a8s custom (agent page, confirmed)
+before:
+folder|agent_id|updated_at
+/private/tmp/dm255/scratch-a|autonomous|2026-10-30T21:10:36.226Z
+/private/tmp/dm255/scratch-b|cu_01m67ae82mjh2ps5193p0xy86z|2026-10-30T21:21:14.141Z
+after:
+folder|agent_id|updated_at
+/private/tmp/dm255/scratch-a|autonomous|2026-10-30T21:10:36.226Z
+agents after: autonomous, claude custom, codex stub, claude (a8s custom gone; its chat process 39658 ended)
+
+## c11: ps -axo pid,ppid,args (dm255 agent processes) before renaming scratch-a -> scratch-a-moved, with the Autonomous chat live
+PID  PPID ARGS
+55074 54402 node --use-system-ca <home>/.local/opt/a8s/dist/main.js start /private/tmp/dm255/scratch-a --mode acp --approval-mode always-ask
+
+## c11: chat error after sending "Say hi." and ps after
+ERROR: The folder /private/tmp/dm255/scratch-a is gone: it was moved or deleted. Track the folder again to keep using this chat.
+ps after (dm255 agent processes):
+  PID  PPID ARGS
+(none; Electron 54402 has no agent children)
+
+## c12: scratch-b replaced by a symlink (mv scratch-b scratch-b-real; mkdir elsewhere; ln -s /tmp/dm255/elsewhere scratch-b), then the claude custom chat opened
+Chat shows: The folder /private/tmp/dm255/scratch-b now leads to /private/tmp/dm255/elsewhere, not to the folder this chat was created in. Track the folder again to keep using this chat.
+process tree of Electron 54402 before and after opening: only Electron itself (no agent child started)
+
+## c13: window.dm.untrackFolder('/private/tmp/dm255/scratch-b'), then from the page window.dm.chats.send({folder:'/private/tmp/dm255/scratch-b', chatId:'chat_5d464ff4-…', text:'hi'})
+{"ok":false,"error":{"code":"unauthorized","message":"The folder /private/tmp/dm255/scratch-b is not tracked by Dark Mechanicus. Track the folder again to keep using this chat."}}
+process tree of Electron 54402 before and 3 s after: only Electron itself (nothing started)
+
+## c15: sqlite3 <evidence>/scratch-a-moved/.darkmechanicus/local/state.sqlite after renaming scratch-a during the live chat and quitting run 2 (chat grant gr_01m67b5nd8mm6s8w3em5s2dz6m)
+id|role|label|created_at|revoked_at
+gr_01m67a6zkwy0ejk8mwtx522bz9|orchestrator|Autonomous · New chat|2026-10-30T21:07:21.852Z|2026-10-30T21:20:16.138Z
+gr_01m67ay128xkwp249epfmzt898|orchestrator|Autonomous · Orchestrator · DM-255 scratch epic|2026-10-30T21:19:57.000Z|2026-10-30T21:23:08.955Z
+gr_01m67b1qzqyqfjp8ge5eamsews|worker|Claude Code · New chat|2026-10-30T21:21:58.775Z|2026-10-30T21:23:08.956Z
+gr_01m67b5nd8mm6s8w3em5s2dz6m|orchestrator|Autonomous · New chat|2026-10-30T21:24:07.208Z|2026-10-30T21:24:53.589Z
+
+## c10: run 1 quit with built-in Claude Code chat process 52445 live (Haiku turn answered "ok"); exit code of node_modules/.bin/electron (mirrors Electron 26330)
+exit code: 0
+
+grep -c "database is not open" run-1 main.log: 0
+
+ps -o pid,args -p 26291,26330,45050,46658,48891,48919,52445 after exit: header only (all gone)
+run 2 exit code: 0
+; "database is not open" in run-2 log: 0
+
+Note: run 1's log has one harness-caused line "[error] Uncaught exception: ReferenceError: require is not defined" from DM-255's first quit attempt over the inspector (setTimeout lost the console's require); the second attempt quit the app.
+
+## c19: ls -l of ~/Library/Logs/dark-mechanicus/main.log before (14:00) and after both runs, and the run log under <evidence>/userdata/logs
+before: -rw-r--r-- 1 <user> staff 6313 Oct 30 07:43 <home>/Library/Logs/dark-mechanicus/main.log
+after:  -rw-r--r--  1 <user>  staff  6313 Oct 30 07:43 <home>/Library/Logs/dark-mechanicus/main.log
+
+total 32
+-rw-r--r--  1 <user>  wheel  14741 Oct 30 14:24 main.log
+
+first line of run log: [2026-10-30 14:02:32.929] [info]  Auto-update disabled (dev build or DISABLE_AUTO_UPDATE=1)
+
+## c18: npx vitest run src/main/agents/adapters/acpProcess.test.ts --reporter=verbose (logs one line naming the pid)
+[32m✓[39m src/main/agents/adapters/acpProcess.test.ts[2m > [22mendAgentTree: a tree that outlives the kill[2m > [22mlogs one line naming the process id when the tree outlived the wait[32m 0[2mms[22m[39m
+ [32m✓[39m src/main/agents/adapters/acpProcess.test.ts[2m > [22mendAgentTree: a tree that outlives the kill[2m > [22mlogs nothing when the tree is gone[32m 0[2mms[22m[39m
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m10 passed[39m[22m[90m (10)[39m
+
+## c1: Cursor/Codex replay tests on the combined branch
+[32m✓[39m src/main/agents/adapters/cursor.test.ts[2m > [22ma turn[2m > [22mreplays a recorded exchange into the transcript items, streaming the text and following the tool call[32m 1[2mms[22m[39m
+ [32m✓[39m src/main/agents/adapters/cursor.test.ts[2m > [22mresuming[2m > [22mloads the stored session instead of creating one, and keeps the replayed history out of the transcript[32m 0[2mms[22m[39m
+ [32m✓[39m src/main/agents/adapters/cursor.test.ts[2m > [22mthe registry entry[2m > [22mruns Cursor on its own flavor for ACP chats, started on the first message, and a custom ACP CLI on the generic one[32m 0[2mms[22m[39m
+ [32m✓[39m src/main/agents/adapters/codex.test.ts[2m > [22ma recorded turn[2m > [22mreplays into the expected transcript, deltas and approval answers (c1, c2)[32m 3[2mms[22m[39m
+[2m Test Files [22m [1m[32m5 passed[39m[22m[90m (5)[39m
+[2m      Tests [22m [1m[32m173 passed[39m[22m[90m (173)[39m
+
+ src/main/agents/adapters/cursor.test.ts          | 83 ++++++++++++------------
+ src/main/agents/adapters/cursorAuth.test.ts      | 10 +--
+ src/main/agents/adapters/cursorLaunch.test.ts    |  2 +-
+ src/main/agents/adapters/cursorMasking.test.ts   |  6 +-
+ src/main/agents/adapters/cursorProtocol.test.ts  |  4 +-
+ src/main/agents/adapters/cursorSubagents.test.ts |  3 +-
+ src/main/agents/adapters/cursorUpdates.test.ts   |  2 +-
+ 7 files changed, 59 insertions(+), 51 deletions(-)
+b80b7fe DM-257: start agents from a launch spec with a {folder} placeholder; add the unchecked sign-in state
+5310308 DM-278: tell Codex and ACP chats the dm command they may run
+0b6d963 DM-256: extract a generic ACP session and adapter from the Cursor adapter
+
+## c8: rg -n "agents.json" docs README.md (excluding docs/verification evidence)
+

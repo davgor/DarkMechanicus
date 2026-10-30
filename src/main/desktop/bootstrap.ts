@@ -21,15 +21,21 @@ import { openWorkspace, type Workspace } from '../../core/workspace'
 import type { AgentDownloadProgress, BuiltInAgentKind, McpConfigView } from '../../shared/desktop/api'
 import { createActivityBindings, type ActivityBindings } from '../agents/activityBindings'
 import { CHAT_ADAPTERS } from '../agents/adapterRegistry'
+import { nodeTransport } from '../agents/adapters/acpProcess'
+import { startClaudeProbe } from '../agents/adapters/claude'
+import { startCodexProbe } from '../agents/adapters/codex'
+import { createChatGrants } from '../agents/chatGrants'
 import { createChatHandlers } from '../agents/chatHandlers'
 import { createChatPush, registerChatIpc } from '../agents/chatIpc'
 import { createChatStore } from '../agents/chatStore'
 import { createSessionManager, type SessionManager } from '../agents/sessionManager'
+import { acpExchange, createHandshakeFolders, runHandshake, type HandshakeOutcome } from '../agents/protocolHandshake'
+import type { AgentLaunchSpec } from '../agents/launchSpec'
 import { listBoundThreads } from '../agents/boundThreads'
 import { listThreadBindings, type BindingReads } from '../agents/threadBindings'
 import { trackChatSignIn } from '../agents/signInHooks'
 import { logger } from '../logger'
-import { getAgentAuthStatus, signInAgent } from './agentAuth'
+import { getAgentAuthStatus, signInAgent, type AgentAuthHooks } from './agentAuth'
 import { launchTerminal } from './agentAuthNode'
 import {
   createAgentInstaller,
@@ -49,8 +55,17 @@ import { openAppDatabase } from './appDatabase'
 import { createAgentRegistry, type AgentRegistry } from './agentRegistry'
 import { importLegacyAgents } from './agentRegistryImport'
 import { previewBoardRemoval, removeBoardFiles } from './boardRemovalFiles'
+import { createFolderAgentDefaults } from './folderAgentDefaults'
 import { createFolderRegistry, type FolderRegistry } from './folderRegistry'
 import { createDesktopHandlers, firstPickedDirectory } from './handlers'
+import {
+  createCustomAgents,
+  customAgentApproved,
+  customAgentDialogOptions,
+  customExecutableDialogOptions,
+  type CustomAgentConfirmation,
+  type CustomAgents
+} from './customAgent'
 import { registerDesktopIpc } from './ipc'
 import { buildCliConfig, type CliLaunch } from './cliConfig'
 import { buildMcpConfig } from './mcpConfig'
@@ -82,13 +97,15 @@ function pickExecutable(kind: BuiltInAgentKind): Promise<string | null> {
   return showOpenDialog(agentDialogOptions(kind, process.platform))
 }
 
-/** What running an agent's registered executable needs: the real runner and file check for this platform. */
+/**
+ * What running an agent's registered executable needs: the real runner and file check for this platform.
+ * No comspec: every launch, check or chat start alike, runs the System32 cmd.exe (`planShimLaunch`).
+ */
 function agentRunDeps(): AgentProbeDeps {
   return {
     platform: process.platform,
     run: runProcess,
-    inspect: inspectExecutable,
-    ...(process.env['ComSpec'] === undefined ? {} : { comspec: process.env['ComSpec'] })
+    inspect: inspectExecutable
   }
 }
 
@@ -126,6 +143,42 @@ function createInstaller(agents: AgentRegistry): AgentInstaller {
     probeAgent: probeExecutable,
     agents,
     report: broadcastDownloadProgress
+  })
+}
+
+/** The only place a custom CLI's program is chosen: a native dialog in this process, never the renderer. */
+function pickCustomExecutable(): Promise<string | null> {
+  return showOpenDialog(customExecutableDialogOptions(process.platform))
+}
+
+/** The only place a custom CLI's command is approved: a native message box; only Run and save with the box ticked is a yes. */
+function confirmCustomAgent(confirmation: CustomAgentConfirmation): Promise<boolean> {
+  const options = customAgentDialogOptions(confirmation)
+  const parent = BrowserWindow.getFocusedWindow()
+  const shown = parent ? dialog.showMessageBox(parent, options) : dialog.showMessageBox(options)
+  return shown.then(customAgentApproved)
+}
+
+/** A custom CLI's protocol handshake, on real processes, in a fresh temp folder. */
+function handshakeCustomAgent(spec: AgentLaunchSpec): Promise<HandshakeOutcome> {
+  const launch = agentRunDeps()
+  return runHandshake(spec, {
+    ...createHandshakeFolders(),
+    exchanges: {
+      acp: acpExchange({ ...launch, transport: nodeTransport, clientVersion: app.getVersion() }),
+      codex: (custom, folder) => startCodexProbe(custom, folder),
+      claude: (custom, folder) => startClaudeProbe(custom, folder)
+    }
+  })
+}
+
+function createCustom(agents: AgentRegistry): CustomAgents {
+  return createCustomAgents({
+    agents,
+    pickExecutable: pickCustomExecutable,
+    confirm: confirmCustomAgent,
+    handshake: handshakeCustomAgent,
+    launch: agentRunDeps()
   })
 }
 
@@ -182,9 +235,13 @@ function openDesktopWorkspace(repoRoot: string): Workspace {
   })
 }
 
-/** What main keeps of the bridge: the chat sessions, which must be disposed before the app exits. */
+/**
+ * What main keeps of the bridge: the chat sessions, which must be disposed before the app exits,
+ * and `close`, which releases the open workspaces and then `app.sqlite` once they are.
+ */
 interface DesktopBridge {
   chats: Pick<SessionManager, 'liveCount' | 'disposeAll'>
+  close: () => void
 }
 
 /** The desktop's own workspace for a tracked folder; the run commands of a chat never reach a folder that is not tracked. */
@@ -214,22 +271,15 @@ function createSessions(
     adapters: CHAT_ADAPTERS,
     agentFor: (id) => agents.get(id),
     folders: { trackedFolder: (path) => folders.resolve(path) },
-    issueChatCli: async (folder, grant) => {
-      const issued = await desktopWorkspace(folders, workspaces, folder).issueGrant({
-        role: grant.role,
-        label: grant.label,
-        allowSave: grant.allowSave,
-        minutes: CHAT_GRANT_MINUTES
-      })
-      const launch = cliConfigFor(folder)
-      return {
-        cli: { ...launch, env: { ...launch.env, DM_SESSION_TOKEN: issued.token } },
-        grantId: issued.grant.id
+    // Revoked through the workspace each grant was issued in, even after its folder moved.
+    ...createChatGrants({
+      workspaceFor: (folder) => desktopWorkspace(folders, workspaces, folder),
+      cliFor: cliConfigFor,
+      minutes: CHAT_GRANT_MINUTES,
+      log: (line) => {
+        logger.warn(line)
       }
-    },
-    revokeChatGrant: async (folder, grantId) => {
-      await desktopWorkspace(folders, workspaces, folder).revokeGrant({ grantId })
-    },
+    }),
     push: createChatPush(() => BrowserWindow.getAllWindows()),
     runs: {
       getRun: async (folder, runId) => desktopWorkspace(folders, workspaces, folder).getRun({ runId }),
@@ -287,13 +337,13 @@ function startChats(ipc: Pick<IpcMain, 'handle'>, services: ChatServices): void 
   registerChatIpc(ipc, handlers)
 }
 
-/** Heartbeats open workspaces; before quit, releases them first and then the app-wide database. */
-function runLifecycle(pool: WorkspacePool, appDb: Db): void {
+/** Heartbeats open workspaces; the returned close releases them first and then the app-wide database. */
+function runLifecycle(pool: WorkspacePool, appDb: Db): () => void {
   setInterval(() => pool.heartbeatAll(), HEARTBEAT_INTERVAL_MS)
-  app.on('before-quit', () => {
+  return () => {
     pool.closeAll()
     appDb.close()
-  })
+  }
 }
 
 /** Moves the legacy JSON agent list into the app database once, then opens the SQL-backed registry. */
@@ -306,6 +356,17 @@ function openAgentRegistry(appDb: Db): AgentRegistry {
     }
   })
   return createAgentRegistry({ db: appDb })
+}
+
+/** The status the app shows is the CLI's own, corrected by what chats found out (an expired login). */
+function chatAwareAuthHooks(sessions: SessionManager): AgentAuthHooks {
+  return trackChatSignIn(
+    {
+      checkAuth: (agent) => getAgentAuthStatus(agent.kind, agent.executablePath, agentRunDeps()),
+      signIn: (agent) => signInAgent(agent.kind, agent.executablePath, { ...agentRunDeps(), launch: launchTerminal })
+    },
+    sessions
+  )
 }
 
 /**
@@ -327,24 +388,20 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   // Which chat threads act on which runs and attempts, next to the chats; main code looks them up here.
   const activity = createActivityBindings({ file: join(app.getPath('userData'), 'agents', 'activity-bindings.jsonl') })
   const sessions = createSessions(registry, agents, pool, activity)
-  // The status the app shows is the CLI's own, corrected by what chats found out (an expired login).
-  const authHooks = trackChatSignIn(
-    {
-      checkAuth: (agent) => getAgentAuthStatus(agent.kind, agent.executablePath, agentRunDeps()),
-      signIn: (agent) => signInAgent(agent.kind, agent.executablePath, { ...agentRunDeps(), launch: launchTerminal })
-    },
-    sessions
-  )
+  const authHooks = chatAwareAuthHooks(sessions)
   const handlers = createDesktopHandlers({
     registry,
     pool,
     agents,
+    folderDefaults: createFolderAgentDefaults({ db: appDb }),
     pickDirectory,
     pickExecutable,
     probeAgent: probeExecutable,
     installAgent: (kind) => installer.download(kind),
     checkAuth: authHooks.checkAuth,
     signIn: authHooks.signIn,
+    customAgents: createCustom(agents),
+    endAgentSessions: (id) => sessions.endAgentSessions(id),
     writeClipboard: (text) => clipboard.writeText(text),
     openExternal: (url) => shell.openExternal(url),
     mcpConfig: mcpConfigFor,
@@ -358,7 +415,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
     }
   })
   registerDesktopIpc(ipc, handlers)
-  runLifecycle(pool, appDb)
+  const close = runLifecycle(pool, appDb)
   startChats(ipc, { folders: registry, agents, sessions, workspaces: pool, activity })
-  return { chats: sessions }
+  return { chats: sessions, close }
 }

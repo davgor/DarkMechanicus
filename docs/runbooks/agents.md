@@ -1,6 +1,6 @@
 # Agents: connect, sign in, chat, run
 
-The desktop app can host three agent CLIs: **Claude Code**, **Codex** and **Cursor**. You connect each one (Find it, or Download it), sign in with its own login, chat with it in a tracked folder, answer its approval requests, and start a run with it as the orchestrator. Windows and macOS are supported; there is no Linux install recipe.
+The desktop app can host four built-in agent CLIs, **Claude Code**, **Codex**, **Cursor** and **Autonomous** (`a8s`), and any number of [custom CLIs](#custom-clis) that speak one of their protocols. You connect each one (Find it, Download it, or add it as a custom CLI), sign in with its own login, chat with it in a tracked folder, answer its approval requests, and start a run with it as the orchestrator. Windows and macOS are supported; there is no Linux install recipe.
 
 This is separate from [connecting an external agent host over MCP](mcp-setup.md), which still works with the desktop closed. How the hosted agents are built is in [`architecture.md`](../architecture.md#hosted-agents).
 
@@ -8,11 +8,13 @@ Dark Mechanicus runs the vendor's own CLI under your own sign-in. It never asks 
 
 ## Where things are kept
 
-All live in the app's `userData` folder, outside every repository. None is a portable record: they do not travel with a pull, and untracking a folder does not touch them.
+All live in the app's `userData` folder, outside every repository. None is a portable record: they do not travel with a pull. Untracking a folder clears only its [default agent](#default-agent-of-a-folder).
 
 | What | Where |
 |------|-------|
-| Connected agents | `userData/agents.json`: one entry per agent (path, version, found or downloaded, timestamps). Remove deletes only the entry. A corrupt file reads as no agents connected |
+| Connected agents | `userData/app.sqlite`, table `agents`: one row per agent (id, kind, protocol, name, executable path, arguments, version, found, downloaded or custom, timestamps). Remove deletes only the row (and any folder default naming it) |
+| Default agent of each folder | `userData/app.sqlite`, table `folder_agent_defaults`: the folder's canonical path and an agent id |
+| App bookkeeping | `userData/app.sqlite`, table `app_meta` (for example whether the old agents file was imported) |
 | Chats | `userData/agents/chats/<folder key>/index.jsonl` (one line per change of a chat; the last line for an id wins) and `userData/agents/chats/<folder key>/<chatId>.jsonl` (the transcript, one item per line) |
 | Activity bindings | `userData/agents/activity-bindings.jsonl`: which chat threads act on which runs and attempts, one line per binding (ids only, never a claim token). Delete chat removes the chat's lines |
 | Credentials | Not kept by Dark Mechanicus. The CLI keeps its own login |
@@ -20,6 +22,8 @@ All live in the app's `userData` folder, outside every repository. None is a por
 The folder key is the first 24 hex characters of the SHA-256 of the folder's canonical path, so every spelling of a folder finds the same chats. Claim tokens (`at_...`) are masked before anything is written to a transcript or shown, including two tokens run together and a token cut short at the end of a text; text that is shortened is masked before it is cut. Delete chat removes the transcript and every stored version of the chat's record; nothing is moved to a trash.
 
 `userData` is `%APPDATA%\<app name>` on Windows and `~/Library/Application Support/<app name>` on macOS. A development run on this Windows machine uses `%APPDATA%\dark-mechanicus`; an installed build is expected to use `DarkMechanicus` (the product name), which has not been checked on an installed build.
+
+**The app database and the old agents file.** Builds before the app database kept connected agents in a JSON file, `userData/agents.json`. On its first start a newer build imports that file into `app.sqlite` once (`agentRegistryImport.ts`): every valid entry becomes a row, `app_meta` records `legacyAgentsImported`, and the file is deleted. A file that cannot be read is left in place, recorded and not imported; a failed import is retried at the next start. There is no downgrade: an older build reads only `agents.json`, which is gone, so it shows no connected agents, and an `app.sqlite` written by a newer build than the running one is refused (`incompatible_schema`). Connect the agents again in the older build if you have to go back.
 
 ## Connect an agent
 
@@ -53,7 +57,45 @@ On Windows the script runs in the system PowerShell as `-NoProfile -NonInteracti
 
 ### Remove
 
-**Remove** on an agent's page asks first. It only forgets the connection: the CLI stays installed, nothing is uninstalled or deleted, and you can connect it again.
+**Remove** on an agent's page asks first. It only forgets the connection: the CLI stays installed, nothing is uninstalled or deleted, and you can connect it again. Its chats that are running are ended, and every folder whose default it was has no default any more.
+
+### Autonomous
+
+Autonomous (`a8s`) is connected with **Find** only: it has its own managed installer, so there is no Download or Update. Pick the `a8s` executable; its `--version` must start with `Autonomous <version>` (for example `Autonomous 0.79.0 · darwin-arm64 · …`).
+
+- **How it runs.** Every chat starts `a8s start <chat folder> --mode acp --approval-mode always-ask`, plus `--model <id>` when the chat has a model, in the chat's folder. It never runs with `--approval-mode write` or `yolo`. It speaks the Agent Client Protocol: file writes are asked about through `elicitation/create` and shell commands through `session/request_permission`, and both become ordinary approval cards.
+- **Sign-in.** The state comes from `a8s doctor`'s `Model route` line; **Sign in** opens a terminal running `a8s init`. The signed-out wording of `a8s doctor` was not observed, so anything other than a recognised signed-in line reads as Sign-in unknown.
+- **Models.** a8s has no command that lists them: the list is the `model` option a short-lived a8s returns when a session is created in a temp folder (it takes about 11 seconds, once per executable while the app runs). A running chat switches models with `session/set_config_option`.
+
+What this rests on is the recording of a8s 0.79.0 in [`autonomous-acp.md`](../reports/autonomous-acp.md).
+
+### Custom CLIs
+
+**Add a custom CLI** connects any program that speaks one of three protocols:
+
+| Protocol | What the app expects of it |
+|----------|----------------------------|
+| Agent Client Protocol (ACP) | Answers `initialize` with a numeric `protocolVersion` |
+| Codex app-server | Answers `initialize` and then `model/list` with a `data` list |
+| Claude Code SDK | Lists its models when the Claude Agent SDK asks (`supportedModels`) |
+
+You give it a name (1-64 characters, unique among custom CLIs whatever its case), a protocol and up to 32 arguments; then the app's native file dialog asks for the program. The renderer never supplies a path. A custom CLI is started as **the program, then your arguments, then the protocol's own arguments** (the Claude SDK's flags; nothing for Codex app-server or generic ACP), so for Codex app-server you type `app-server` yourself.
+
+- **`{folder}`.** An argument that is exactly `{folder}` is replaced by the chat's folder (its canonical path) at every start. `{folder}` inside a longer argument (`--cwd={folder}`) is refused. Names and arguments may not hold control or formatting characters or spaces other than the plain one.
+- **Confirmation.** Before anything runs, a native dialog shows the program, every argument on its own numbered line as a JSON string, and the protocol. **Cancel** is the default; only **Run and save** with **I have checked this command** ticked goes on.
+- **Handshake.** The app then runs the command once in a fresh, empty temporary folder (which is also `{folder}`) for at most 20 seconds and checks the protocol's handshake from the table. A program that answers wrongly is refused (`wrong_program`), one that exits or cannot start `did_not_start`, one that never answers `timed_out`; the process tree is ended and the folder removed whatever happens, and nothing is stored unless it passed.
+- **Editing.** The agent's page can change the name and arguments and pick the program again; every edit goes through the confirmation and the handshake again. The protocol cannot be changed: remove and add the CLI.
+- **Sign-in happens outside the app.** A custom CLI's sign-in state is always **unchecked**: sign in with its own login in a terminal before chatting.
+- **Models.** Listing models never starts a custom CLI: a Claude Code SDK one gets the app's list of Claude models, and a Codex app-server or ACP one offers none (it uses its own default).
+- **Windows.** A `.cmd` or `.bat` program runs through the System32 `cmd.exe` by full path ([Windows `.cmd` shims](#windows-cmd-shims)). For the Claude Code SDK protocol, pick the program itself: a `.cmd`/`.bat` shim, or a `.js`/`.ts` script the SDK would run with whatever `node` is on the path, is refused (`unsafe_path`).
+
+**Security.** The app runs exactly the program and arguments you confirmed, under your account, in the chat's folder, with the chat's `dm` grant (`DM_SESSION_TOKEN`, at the chat's role) in its environment. It cannot tell what the program does with them. Add only programs you trust as much as the built-in agents.
+
+**Known limitation: Claude Code SDK custom CLIs on machines with an enterprise MCP config.** The handshake's model probe always passes `--strict-mcp-config`, which `claude` refuses when an enterprise (managed) MCP configuration is present. On such a machine the handshake fails and a Claude Code SDK custom CLI cannot be added. There is no workaround in the app.
+
+### Default agent of a folder
+
+A tracked folder's page has a **Default agent** select. The choice is stored per canonical folder path (`folder_agent_defaults`), and **New chat** and **Start run** (Run with an agent) in that folder start with it selected; you can still pick another. Only a connected agent can be the default. It is cleared when the folder is untracked or the agent is removed.
 
 ## Sign in
 
@@ -87,7 +129,9 @@ In a tracked, initialized folder, press **+** on the folder's **Agents** group (
 2. **Model.** The models that agent offers (Claude Code from its own model list, with a built-in list when that fails; Codex from `model/list`; Cursor from `agent models`). If the list cannot be read the chat uses the agent's default model.
 3. **Role**, and for a planner or orchestrator **Allow save** (see [Roles and Allow save](#roles-and-allow-save)).
 
-The chat opens as soon as it is created. The agent runs in that folder with its own Dark Mechanicus MCP server at the chat's role, labelled `<Agent> · <chat title>`. Nothing is written to the agent's own configuration. Claude Code chats do read your own Claude Code settings (user, project and local), so your permission rules in them still apply.
+The chat opens as soon as it is created. The agent runs in that folder, and reaches Dark Mechanicus by running the `dm` CLI with a grant at the chat's role that the app has already issued (`DM_SESSION_TOKEN` in its environment). The chat is told the exact command up front: in Claude's system prompt, in Codex's `developerInstructions`, and at the head of an ACP agent's first prompt (`cliInstructions.ts`). Nothing is written to the agent's own configuration. Claude Code chats do read your own Claude Code settings (user, project and local), so your permission rules in them still apply.
+
+**The chat's folder is pinned.** Every start of a chat's agent process checks the folder first: it must still exist, be a directory, be its own real path (not a symlink swapped in that leads elsewhere) and be tracked. That checked canonical path is where the process runs, the protocol's own workspace, the `{folder}` of its arguments and the `--repo` of its `dm` command. A folder that was moved, deleted, untracked or replaced by a symlink refuses the start with a message naming the folder and why; nothing is started and no grant is issued. A running agent whose folder moves is stopped at its next turn the same way. Grants are revoked through the workspace they were issued in, so a renamed folder's grant still ends.
 
 The app does not list a chat's role and label anywhere (see [`agents-e2e.md`](../reports/agents-e2e.md), defect 2). They show in these places:
 
@@ -226,7 +270,9 @@ If the chat is the orchestrator of a run that is **running**, the app also pause
 
 npm installs agents on Windows as `.cmd` shims, and Node cannot start those without a shell. So a shim is run through exactly one `cmd.exe /d /v:off /s /c` parse with its path inside one pair of quotes: `&`, `^`, `(` and spaces in the path are literal, `!` expansion is off and AutoRun is skipped. Every argument after the path is a constant, and stopping a chat stops what the shim started. The cost is that a path with `"`, `%` or a control character cannot be run safely, and is refused rather than escaped. This applies to Find, to the sign-in window and to Codex and Cursor chats.
 
-Claude Code chats work differently. Its SDK needs a real program, not a shim, so Dark Mechanicus follows an npm shim to the script or program it runs (the quoted path under `%dp0%`, next to the shim). Find may accept a Claude `.cmd` and the chat still fail with "Dark Mechanicus cannot launch Claude Code through that .cmd shim. Connect claude.exe instead (the native installer puts it in %USERPROFILE%\.local\bin)." when the shim cannot be read or followed. Connect `claude.exe` as the message says (Download installs it there).
+Claude Code chats work differently. Its SDK needs a real program, not a shim, so Dark Mechanicus follows an npm shim to the script or program it runs (the quoted path under `%dp0%`, next to the shim). Find may accept a Claude `.cmd` and the chat still fail with "Dark Mechanicus cannot launch Claude Code through that .cmd shim. Connect claude.exe instead (the native installer puts it in %USERPROFILE%\.local\bin)." when the shim cannot be read or followed. Connect `claude.exe` as the message says (Download installs it there). A [custom CLI](#custom-clis) with the Claude Code SDK protocol is stricter: a `.cmd` or `.bat` pick is refused outright.
+
+A custom CLI's `.cmd` shim always goes through the System32 `cmd.exe` by its full path, and its arguments follow the same rules: one holding `"`, `%` or a control character, or ending in a backslash, is refused when you add it.
 
 ### Download failures
 
@@ -251,5 +297,8 @@ Not verified, and not claimed:
 - **Subagent threads for Codex and Cursor.** The Codex mapping is read from the Codex source (tag `rust-v0.160.0`) and the Cursor outcome (one thread) from Cursor's ACP page and the Agent Client Protocol; no real Codex or Cursor ran, and the test exchanges are built from those documents, not recorded. See [Subagents in a chat](#subagents-in-a-chat).
 - **Download against the live vendor endpoints.** The installer flow is tested with fake downloads and fake processes. This runbook does not record a real install on either platform.
 - **Where `userData` is** on an installed build, as noted above.
+- **Custom CLIs** are tested with fake handshakes and fake processes; no third-party ACP, Codex app-server or Claude Code SDK program was added on a real machine for this runbook. A Claude Code SDK custom CLI cannot be added where an enterprise MCP config is present (see [Custom CLIs](#custom-clis)).
+- **Autonomous** behaviour comes from a recording of a8s 0.79.0 ([`autonomous-acp.md`](../reports/autonomous-acp.md)); `a8s doctor`'s signed-out wording and what a8s answers when its model sign-in is missing were not observed.
+- **The app database import** was run once on macOS with an old build's `agents.json` ([`DM-248-acceptance.md`](../verification/DM-248-acceptance.md)).
 - **Sprint 3's changes:** on Windows, against a real Claude Code, [`agents-fixes-e2e.md`](../reports/agents-fixes-e2e.md) ran these live: the memory switch (its gap is closed by the memory-folder check below), the stopped-turn marker, the cancelled approval and tool row after a quit and reopen, the process tree gone after a quit, one Allow for this chat covering the Dark Mechanicus tools, the kickoff hand-off that binds worker threads, and a retried attempt's Activity tab. Not verified live: the signed-out flag clearing, the account notices, Retry, the chat list in two windows, and anything with Codex, Cursor or a Mac. The account notices in particular come from the Agent SDK's error names, not from a real account in that state.
 - **The memory-folder check:** on Windows, with Claude Code 2.1.281 and Agent SDK 0.3.289, the app's own Claude adapter was driven against the real CLI (Haiku, scratch folders, a throwaway harness that is not shipped). Each of these raised an approval card, and on Deny the memory folder's listing (names, sizes, hashes, times) did not change: a Write by absolute path, by `~`, by relative path (`..` six times up to `.claude\projects\<project>\memory`), with forward slashes, in upper case, and through a junction in the chat folder (relative and absolute); an Edit of an existing memory file; and shell redirects (`>>`, `1>>`, `>`, a relative target, through the junction). Without the hook and the setting the same Write by `~` and by relative path, and `echo hi >> <memory file>`, ran with no card and wrote the file. On Allow the memory write happened; an ordinary Write in the chat folder still asked, and wrote on Allow. A `CLAUDE_CONFIG_DIR` set to the default folder (with forward slashes) changed nothing. A Write into the unused folder itself asked too, but only because of the hook (the CLI exempts that folder); a shell redirect into it is not asked about and fails, because the folder does not exist. The sprint 4 acceptance round then ran the main cases in the running app, through its chat view ([`agents-fixes-e2e.md`](../reports/agents-fixes-e2e.md), Sprint 4): in a Haiku chat a Write by absolute path and by `~` raised a file-edit card and a shell redirect (`echo hi >> <memory file>`) raised a command card; each was denied with the project's `memory\` folder unchanged (names, sizes, hashes); the absolute path asked again and, on Allow once, was written. A plain "Remember that my code word is PINEAPPLE." wrote nothing and raised no card, and an ordinary `ordinary.txt` in the chat folder asked as before. The process the app started carried `--settings` with `autoMemoryDirectory` set to the temp folder's `dark-mechanicus-unused-memory`, which did not exist afterwards. **Not verified live:** MultiEdit and NotebookEdit (tests only), the PowerShell tool, macOS and Linux, a `CLAUDE_CONFIG_DIR` that points somewhere else (the login lives in the default folder), and a real `autoMemoryDirectory` of yours (a managed, organization-level value would outrank the app's).

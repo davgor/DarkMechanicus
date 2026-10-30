@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import type { TrackedFolderView } from '../../../shared/desktop/api'
+import type { AgentView, TrackedFolderView } from '../../../shared/desktop/api'
 import type { CreateEpicInput } from '../../../shared/domain/api'
 import type { BoardImportView, EpicDetailView, StorageStatusView } from '../../../shared/domain/views'
 import type { EpicListState } from '../app/useEpicLists'
 import { Button } from '../components/Button'
 import { BoardImportCard } from './BoardImportCard'
+import { DefaultAgentCard } from './DefaultAgentCard'
 import { BranchEpics } from './BranchEpics'
 import { EpicBuckets } from './EpicBuckets'
 import { HistorySearch } from './HistorySearch'
@@ -15,6 +16,8 @@ import { StorageCard } from './StorageCard'
 
 interface FolderHomeProps {
   folder: TrackedFolderView
+  /** The connected agents, offered as the folder's default agent. */
+  agents: readonly AgentView[]
   list: EpicListState
   status: StorageStatusView | null
   busy: { flush: boolean; reconcile: boolean }
@@ -50,6 +53,7 @@ function SecondaryColumn(props: FolderHomeProps & { titles: Readonly<Record<stri
         onReconcile={props.onReconcile}
       />
       <McpCard folder={folder} status={props.status} />
+      <DefaultAgentCard folder={folder} agents={props.agents} />
       <GrantsCard folder={folder} />
       <BranchEpics folder={folder} />
     </div>

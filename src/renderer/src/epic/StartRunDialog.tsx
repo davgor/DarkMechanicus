@@ -3,12 +3,15 @@ import { AgentChoice, ModelChoice } from '../agents/NewChatFields'
 import type { AgentStatuses } from '../agents/useAgents'
 import { useAgentModelChoice } from '../agents/useAgentModelChoice'
 import type { AgentModelChoice } from '../agents/useAgentModelChoice'
+import { useFolderDefaultAgent } from '../agents/useFolderDefaultAgent'
 import { Button } from '../components/Button'
 import { Dialog } from '../components/Dialog'
 import type { StartRunChoice } from './orchestration'
 
 interface StartRunDialogProps {
   epicTitle: string
+  /** The epic's folder; its default agent is chosen first when it can chat. */
+  folderPath: string
   /** The connected agents and their sign-in states. */
   agents: readonly AgentView[]
   statuses: AgentStatuses
@@ -61,9 +64,10 @@ function RunWithAgentSection({ props, choice }: { props: DialogProps; choice: Ag
  * agent the first choice links to where one is added, and Leave pending still works.
  */
 export function StartRunDialog(props: StartRunDialogProps): JSX.Element {
-  const choice = useAgentModelChoice(props.agents, props.statuses)
+  const preferred = useFolderDefaultAgent(props.folderPath)
+  const choice = useAgentModelChoice(props.agents, props.statuses, preferred.agentId)
   const { agent } = choice
-  const canRun = agent !== null && choice.settled && !props.busy
+  const canRun = agent !== null && preferred.loaded && choice.settled && !props.busy
   return (
     <Dialog
       title="Start run"

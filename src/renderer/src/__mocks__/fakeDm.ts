@@ -13,6 +13,8 @@ import type {
   AgentSignInResult,
   AgentView,
   BuiltInAgentKind,
+  CustomAgentRequest,
+  CustomAgentUpdate,
   ClaudeCodeConnectRequest,
   ClaudeCodeConnectResult,
   CommandInput,
@@ -146,6 +148,8 @@ export class FakeDm implements DmApi {
   agentStatuses: Partial<Record<AgentId, AgentAuthStatus>> = {}
   /** Answers to signInAgent, in order; once used up the sign-in starts. */
   signInOutcomes: AgentSignInResult[] = []
+  /** Default agent per folder path, as `setFolderDefaultAgent` leaves it. */
+  folderDefaults: Partial<Record<string, AgentId>> = {}
   /** Every agent API call with exactly the arguments it was given, oldest first. */
   agentCalls: { method: string; args: unknown[] }[] = []
   private agentHolds: Partial<Record<string, Deferred[]>> = {}
@@ -184,6 +188,17 @@ export class FakeDm implements DmApi {
     })
   }
 
+  /** Answers to addCustomAgent and updateCustomAgent, in order; once used up the file dialog is closed without a pick. */
+  customOutcomes: AgentFindResult[] = []
+
+  addCustomAgent(request: CustomAgentRequest): Promise<AgentFindResult> {
+    return this.agentCall('addCustomAgent', [request], () => this.customOutcomes.shift() ?? { outcome: 'cancelled' })
+  }
+
+  updateCustomAgent(request: CustomAgentUpdate): Promise<AgentFindResult> {
+    return this.agentCall('updateCustomAgent', [request], () => this.customOutcomes.shift() ?? { outcome: 'cancelled' })
+  }
+
   downloadAgent(kind: BuiltInAgentKind): Promise<AgentDownloadResult> {
     return this.agentCall('downloadAgent', [kind], () => this.downloadOutcomes.shift() ?? { outcome: 'cancelled' })
   }
@@ -203,6 +218,21 @@ export class FakeDm implements DmApi {
 
   signInAgent(kind: AgentId): Promise<AgentSignInResult> {
     return this.agentCall('signInAgent', [kind], () => this.signInOutcomes.shift() ?? { outcome: 'started' })
+  }
+
+  folderDefaultAgent(folder: string): Promise<AgentId | null> {
+    return this.agentCall('folderDefaultAgent', [folder], () => this.folderDefaults[folder] ?? null)
+  }
+
+  setFolderDefaultAgent(request: { folder: string; agentId: AgentId | null }): Promise<AgentId | null> {
+    return this.agentCall('setFolderDefaultAgent', [request], () => {
+      if (request.agentId === null) {
+        delete this.folderDefaults[request.folder]
+      } else {
+        this.folderDefaults[request.folder] = request.agentId
+      }
+      return request.agentId
+    })
   }
 
   /** Calls recorded for one agent method. */

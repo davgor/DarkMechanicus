@@ -1,8 +1,10 @@
 /**
  * The behavior behind the `chats:*` IPC channels, as a pure factory over injected dependencies (no
  * Electron imports). Every argument arrives from the renderer and is untrusted: it is validated
- * here, folders must be tracked, and requests are strict objects, so a renderer can name chats,
- * agent ids, models, roles, text and decisions but never an executable or MCP arguments. Agent ids are
+ * here, folders must be tracked and still lead to the folder that was tracked (one replaced by a
+ * symlink to another directory is refused before any chat is looked up), and requests are strict
+ * objects, so a renderer can name chats, agent ids, models, roles, text and decisions but never an
+ * executable or MCP arguments. Agent ids are
  * checked against the agent registry (`not_found` for one that is not connected) before anything runs. Answers are
  * `CommandResult`s, like `dm:command`, so the UI gets the error code and message.
  */
@@ -18,6 +20,7 @@ import type { AgentRegistry } from '../desktop/agentRegistry'
 import type { FolderRegistry } from '../desktop/folderRegistry'
 import type { BoundTarget } from './boundThreads'
 import type { ChatRef } from './chatStore'
+import { refuseSwappedFolder } from './launchFolder'
 import { startOrchestratorRun, type OrchestratorRuns } from './orchestratorStart'
 import type { SessionManager } from './sessionManager'
 
@@ -97,26 +100,36 @@ export interface ChatHandlers {
   models(agent: unknown): Promise<CommandResult<ModelOption[]>>
 }
 
-/** The canonical path of a tracked folder; anything else is unauthorized. */
+/** The canonical path of a tracked folder; anything else is unauthorized, with a refusal naming the folder like `launchFolder`'s. */
 function trackedFolder(deps: ChatHandlerDeps, folder: string): string {
   const tracked = deps.registry.resolve(folder)
   if (tracked === null) {
-    throw new DomainError('unauthorized', 'That folder is not tracked by Dark Mechanicus.')
+    throw new DomainError(
+      'unauthorized',
+      `The folder ${folder} is not tracked by Dark Mechanicus. Track the folder again to keep using this chat.`
+    )
   }
+  return tracked
+}
+
+/** A tracked folder's canonical path, as its chats are stored under it; one replaced by a symlink to another directory is refused. */
+function chatFolder(deps: ChatHandlerDeps, folder: string): string {
+  const tracked = trackedFolder(deps, folder)
+  refuseSwappedFolder(tracked)
   return tracked
 }
 
 /** Validates a request naming one chat and resolves its folder; returns the chat ref and the rest. */
 function chatRequest<T extends { folder: string; chatId: string }>(deps: ChatHandlerDeps, schema: z.ZodType<T>, input: unknown): { ref: ChatRef; request: T } {
   const request = parseInput(schema, input, 'chat request')
-  return { ref: { folder: trackedFolder(deps, request.folder), id: request.chatId }, request }
+  return { ref: { folder: chatFolder(deps, request.folder), id: request.chatId }, request }
 }
 
 /** Validates the request and the folder before anything is queued; see `startOrchestratorRun` for what happens after. */
 async function startOrchestrator(deps: ChatHandlerDeps, input: unknown): Promise<StartOrchestratorResult> {
   const request = parseInput(startOrchestratorSchema, input, 'orchestrator request')
   connectedAgent(deps.agents, request.agent)
-  const folder = trackedFolder(deps, request.folder)
+  const folder = chatFolder(deps, request.folder)
   const { runs, sessions, onUnexpectedError } = deps
   const started = await startOrchestratorRun({ runs, sessions, ...(onUnexpectedError === undefined ? {} : { onError: onUnexpectedError }) }, { ...request, folder })
   if (started.chat !== null) {
@@ -134,7 +147,7 @@ async function threadBindings(deps: ChatHandlerDeps, input: unknown): Promise<Th
 /** The threads bound to the attempt or run the request names; the request and the folder are validated even when the app wired no lookup. */
 function boundThreads(deps: ChatHandlerDeps, input: unknown): BoundThread[] {
   const request = parseInput(boundThreadsSchema, input, 'bound threads request')
-  const folder = trackedFolder(deps, request.folder)
+  const folder = chatFolder(deps, request.folder)
   const target: BoundTarget = 'attemptId' in request ? { attemptId: request.attemptId } : { runId: request.runId }
   return deps.boundThreads?.(folder, target) ?? []
 }
@@ -158,7 +171,7 @@ function chatsChanged(deps: ChatHandlerDeps, chat: ChatRef): void {
 function createChat(deps: ChatHandlerDeps, input: unknown): ChatRecord {
   const request = parseInput(createSchema, input, 'new chat')
   connectedAgent(deps.agents, request.agent)
-  const chat = deps.sessions.createChat({ ...request, folder: trackedFolder(deps, request.folder) })
+  const chat = deps.sessions.createChat({ ...request, folder: chatFolder(deps, request.folder) })
   chatsChanged(deps, { folder: chat.folder, id: chat.id })
   return chat
 }
@@ -180,7 +193,7 @@ async function deleteChat(deps: ChatHandlerDeps, input: unknown): Promise<null> 
 export function createChatHandlers(deps: ChatHandlerDeps): ChatHandlers {
   const { sessions } = deps
   return {
-    list: (folder) => answer(deps, () => sessions.listChats(trackedFolder(deps, parseInput(folderSchema, folder, 'folder')))),
+    list: (folder) => answer(deps, () => sessions.listChats(chatFolder(deps, parseInput(folderSchema, folder, 'folder')))),
     create: (input) => answer(deps, () => createChat(deps, input)),
     startOrchestrator: (input) => answer(deps, () => startOrchestrator(deps, input)),
     open: (input) => answer(deps, () => sessions.openChat(chatRequest(deps, refSchema, input).ref)),

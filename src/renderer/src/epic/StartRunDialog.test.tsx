@@ -54,6 +54,7 @@ function Harness({ setup, calls }: { setup: Setup; calls: Calls }): JSX.Element 
   return (
     <StartRunDialog
       epicTitle="Agent chats"
+      folderPath="/a"
       agents={setup.agents ?? [claude, codex]}
       statuses={statuses}
       busy={setup.busy ?? false}
@@ -86,6 +87,68 @@ const modelOptions = (): string[] =>
 const runWithAgent = (): HTMLButtonElement => dialog().getByRole('button', { name: 'Run with agent' }) as HTMLButtonElement
 const leavePending = (): HTMLButtonElement => dialog().getByRole('button', { name: 'Leave pending' }) as HTMLButtonElement
 
+describe('StartRunDialog: the folder default agent', () => {
+  it('opens with the folder’s default agent chosen when it can chat, and runs it', async () => {
+    dm.folderDefaults['/a'] = 'codex'
+    const calls = await open()
+    expect(dm.agentCalls.filter((call) => call.method === 'folderDefaultAgent')).toEqual([
+      { method: 'folderDefaultAgent', args: ['/a'] }
+    ])
+    expect(agentRadio('Codex').checked).toBe(true)
+    fireEvent.click(runWithAgent())
+    expect(calls.agent).toEqual([{ agent: 'codex', model: 'gpt-5' }])
+  })
+
+  it('waits for the default before it can run with an agent', async () => {
+    dm.folderDefaults['/a'] = 'codex'
+    const hold = dm.holdAgent('folderDefaultAgent')
+    await open()
+    expect(runWithAgent().disabled).toBe(true)
+    hold.resolve()
+    await settle()
+    expect(agentRadio('Codex').checked).toBe(true)
+    expect(runWithAgent().disabled).toBe(false)
+  })
+
+  it('keeps the first choice when the default is signed out', async () => {
+    dm.folderDefaults['/a'] = 'codex'
+    await open({ statuses: { claude: SIGNED_IN, codex: SIGNED_OUT } })
+    expect(agentRadio('Claude Code').checked).toBe(true)
+  })
+
+  it('keeps the first choice when the default is no longer connected', async () => {
+    dm.folderDefaults['/a'] = 'codex'
+    await open({ agents: [claude], statuses: { claude: SIGNED_IN } })
+    expect(agentRadio('Claude Code').checked).toBe(true)
+  })
+
+  it('keeps the first choice when the default cannot be read', async () => {
+    dm.folderDefaultAgent = () => Promise.reject(new Error('unauthorized'))
+    await open()
+    expect(agentRadio('Claude Code').checked).toBe(true)
+    expect(runWithAgent().disabled).toBe(false)
+  })
+})
+
+describe('StartRunDialog: a custom agent', () => {
+  it('preselects a custom agent default by its id', async () => {
+    const custom = agentView({ kind: 'custom' })
+    dm.folderDefaults['/a'] = custom.id
+    const calls = await open({ agents: [claude, custom], statuses: { claude: SIGNED_IN, [custom.id]: SIGNED_IN } })
+    expect(agentRadio('Custom agent').checked).toBe(true)
+    fireEvent.click(runWithAgent())
+    expect(calls.agent[0]?.agent).toBe(custom.id)
+  })
+
+  it('uses a custom agent’s id when it is the first that can chat', async () => {
+    const custom = agentView({ kind: 'custom' })
+    const calls = await open({ agents: [custom, claude], statuses: { claude: SIGNED_IN, [custom.id]: SIGNED_IN } })
+    expect(agentRadio('Custom agent').checked).toBe(true)
+    fireEvent.click(runWithAgent())
+    expect(calls.agent[0]?.agent).toBe(custom.id)
+  })
+})
+
 describe('StartRunDialog: run with an agent', () => {
   it('offers only connected agents that are signed in, the first one chosen, with that agent’s models', async () => {
     await open({ agents: [claude, codex], statuses: { claude: SIGNED_OUT, codex: SIGNED_IN } })
@@ -116,13 +179,27 @@ describe('StartRunDialog: run with an agent', () => {
     expect(calls.pending).toBe(0)
   })
 
-  it('starts the agent on its default model when it lists none', async () => {
+  it('offers CLI default when the agent lists no models, and starts it with model null', async () => {
     dm.chats.modelLists = {}
     const calls = await open()
+    const select = dialog().getByLabelText('Model') as HTMLSelectElement
+    expect(Array.from(select.options).map((option) => option.textContent)).toEqual(['CLI default'])
 
     fireEvent.click(runWithAgent())
 
     expect(calls.agent).toEqual([{ agent: 'claude', model: null }])
+  })
+
+  it('offers a custom agent by its name and runs it on CLI default', async () => {
+    const custom = agentView({ kind: 'custom', displayName: 'My ACP', protocol: 'acp' })
+    dm.chats.modelLists = { [custom.id]: [] }
+    const calls = await open({ agents: [custom], statuses: { [custom.id]: { state: 'unchecked', reason: 'Not checked.' } } })
+    expect(agentRadio('My ACP').checked).toBe(true)
+    expect(Array.from((dialog().getByLabelText('Model') as HTMLSelectElement).options).map((option) => option.textContent)).toEqual(['CLI default'])
+
+    fireEvent.click(runWithAgent())
+
+    expect(calls.agent).toEqual([{ agent: custom.id, model: null }])
   })
 
   it('says the orchestrator cannot save plans, and offers no role or Allow save choice', async () => {

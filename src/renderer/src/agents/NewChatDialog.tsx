@@ -10,6 +10,7 @@ import { AgentChoice, ModelChoice, RoleChoice } from './NewChatFields'
 import type { AgentStatuses } from './useAgents'
 import { useAgentModelChoice } from './useAgentModelChoice'
 import type { AgentModelChoice } from './useAgentModelChoice'
+import { useFolderDefaultAgent } from './useFolderDefaultAgent'
 
 /** What the person chose: exactly what the new chat is created with, in this folder. */
 export type NewChatChoice = Required<Pick<CreateChatRequest, 'agent' | 'model' | 'role' | 'allowSave'>>
@@ -48,8 +49,10 @@ interface Form {
 function useNewChatForm(props: NewChatDialogProps): Form {
   const [draft, setDraft] = useState(INITIAL_DRAFT)
   const [busy, setBusy] = useState(false)
-  const choice = useAgentModelChoice(props.agents, props.statuses)
-  const canStart = choice.settled && !busy
+  const preferred = useFolderDefaultAgent(props.folder.path)
+  const choice = useAgentModelChoice(props.agents, props.statuses, preferred.agentId)
+  // Waits for the folder's default so a quick Start cannot use the stand-in it replaces.
+  const canStart = preferred.loaded && choice.settled && !busy
   const submit = async (event: FormEvent): Promise<void> => {
     event.preventDefault()
     if (choice.agent === null || !canStart) {

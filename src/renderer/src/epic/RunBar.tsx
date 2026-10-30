@@ -36,7 +36,7 @@ function ResumeButton({ ws, signedOut }: Pick<RunButtonsProps, 'ws' | 'signedOut
       type="button"
       className="btn"
       disabled={ws.state.busy || held}
-      title={held && signedOut?.agent ? `Sign in to ${agentName(signedOut.agent)} first` : undefined}
+      title={held && signedOut?.agent ? `Sign in to ${agentName(signedOut.agent, ws.orchestration.agents)} first` : undefined}
       onClick={() => void ws.actions.runCommand('resume')}
     >
       Resume run
@@ -122,7 +122,7 @@ function SignedOutLine({ ws, note }: { ws: WorkspaceHandle; note: SignedOutNote 
         </button>
       )}
       {note.signedIn ? <span>Signed in again. The run can resume.</span> : null}
-      {agent === null ? null : <SignInOffer agent={agent} name={agentName(agent)} status={note.status} onStatus={(status) => host.onAgentStatus(agent, status)} />}
+      {agent === null ? null : <SignInOffer agent={agent} name={agentName(agent, host.agents)} status={note.status} onStatus={(status) => host.onAgentStatus(agent, status)} />}
     </div>
   )
 }
@@ -144,8 +144,8 @@ export function RunBar({ ws }: { ws: WorkspaceHandle }): JSX.Element | null {
   const adopt = adoptNotice(run, ws.data.epic)
   const reportAt = ws.data.checkpoint?.report?.createdAt ?? null
   const chat = orchestratingChat(ws.orchestration.chats, run)
-  const signedOut = signedOutNote(run, chat, ws.orchestration.statuses)
-  const orchestrator = signedOut === null ? orchestratorNote(run, chat) : null
+  const signedOut = signedOutNote(run, chat, ws.orchestration.statuses, ws.orchestration.agents)
+  const orchestrator = signedOut === null ? orchestratorNote(run, chat, ws.orchestration.agents) : null
   return (
     <div className="ew-bar ew-runbar" aria-label="Run">
       <div className="ew-bar-row">

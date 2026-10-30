@@ -17,6 +17,7 @@ import { readFileSync } from 'node:fs'
 import { win32 } from 'node:path'
 import type { Readable, Writable } from 'node:stream'
 import type { SpawnedProcess, SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
+import { logger } from '../../logger'
 import { killProcessTree, startsOwnGroup } from '../processTree'
 
 /** How much of the program's stderr is kept to explain a failure with. */
@@ -82,11 +83,31 @@ export function createClaudeProcesses(overrides: Partial<ProcessDeps> = {}): Cla
     },
     killAll: async () => {
       // Every kill is sent here, before the first await.
-      const gone = [...children].map((child) => deps.killTree(child))
+      const gone = [...children].map(async (child) => {
+        if (!(await deps.killTree(child))) {
+          logger.warn(`Claude Code process ${child.pid ?? 'unknown'}: its process tree was still alive after the kill wait`)
+        }
+      })
       await Promise.all(gone)
     },
     stderrTail: () => stderr
   }
+}
+
+/**
+ * The SDK's spawn options with the launch spec's arguments (`{folder}` already replaced) put right after
+ * `program`, before the SDK's own flags. The SDK runs a native `program` as the command, and a script
+ * as an argument of `node`; anything else is refused rather than guessed at.
+ */
+export function withSpecArgs(options: SpawnOptions, program: string, specArgs: readonly string[]): SpawnOptions {
+  if (options.command === program) {
+    return { ...options, args: [...specArgs, ...options.args] }
+  }
+  const at = options.args.indexOf(program)
+  if (at === -1) {
+    throw new Error('The Claude Code process was not started with the connected program, so its arguments cannot be added.')
+  }
+  return { ...options, args: [...options.args.slice(0, at + 1), ...specArgs, ...options.args.slice(at + 1)] }
 }
 
 // ---- Finding the program ----

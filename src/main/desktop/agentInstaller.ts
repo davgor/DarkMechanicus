@@ -29,6 +29,7 @@ import type {
 import {
   installerLaunch,
   resolveRecipe,
+  type DownloadableAgentKind,
   type InstallEnvironment,
   type InstallLaunch,
   type InstallRecipe,
@@ -98,7 +99,7 @@ export interface InstallerDeps {
 }
 
 export interface AgentInstaller {
-  download(kind: BuiltInAgentKind): Promise<AgentDownloadResult>
+  download(kind: DownloadableAgentKind): Promise<AgentDownloadResult>
 }
 
 /** A step that failed for a reason worth telling the person; carries the installer output when it ran. */
@@ -332,7 +333,7 @@ function failed(code: AgentDownloadFailureCode, reason: string): AgentDownloadRe
   return { outcome: 'failed', code, reason, output: [] }
 }
 
-async function confirmAndInstall(deps: InstallerDeps, kind: BuiltInAgentKind): Promise<AgentDownloadResult> {
+async function confirmAndInstall(deps: InstallerDeps, kind: DownloadableAgentKind): Promise<AgentDownloadResult> {
   const recipe = resolveRecipe(kind, deps.environment)
   if (recipe === null) {
     const { platform, arch } = deps.environment
@@ -350,7 +351,7 @@ async function confirmAndInstall(deps: InstallerDeps, kind: BuiltInAgentKind): P
 }
 
 export function createAgentInstaller(deps: InstallerDeps): AgentInstaller {
-  const running = new Set<BuiltInAgentKind>()
+  const running = new Set<DownloadableAgentKind>()
   return {
     async download(kind) {
       if (running.has(kind)) {

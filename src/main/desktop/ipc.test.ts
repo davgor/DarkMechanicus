@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import type { AgentAuthHandlers } from './agentAuth'
 import type { AgentHandlers } from './agentHandlers'
+import type { FolderDefaultHandlers } from './folderAgentDefaults'
 import type { DesktopHandlers } from './handlers'
 import { registerDesktopIpc } from './ipc'
 
@@ -36,7 +37,7 @@ const REMOVAL_PLAN = { remove: ['board/x.md'], kept: [], editByHand: [] }
 const REMOVAL_RESULT = { removed: ['board/x.md'], removedFolders: ['board'], kept: [], editByHand: [] }
 
 /** The agent handlers, logging like the others. */
-function createRecordingAgentHandlers(calls: unknown[][]): AgentHandlers & AgentAuthHandlers {
+function createRecordingAgentHandlers(calls: unknown[][]): AgentHandlers & AgentAuthHandlers & FolderDefaultHandlers {
   return {
     listAgents: async () => {
       calls.push(['listAgents'])
@@ -54,6 +55,14 @@ function createRecordingAgentHandlers(calls: unknown[][]): AgentHandlers & Agent
       calls.push(['downloadAgent', kind])
       return { outcome: 'cancelled' }
     },
+    addCustomAgent: async (request) => {
+      calls.push(['addCustomAgent', request])
+      return { outcome: 'cancelled' }
+    },
+    updateCustomAgent: async (request) => {
+      calls.push(['updateCustomAgent', request])
+      return { outcome: 'cancelled' }
+    },
     agentStatus: async (kind) => {
       calls.push(['agentStatus', kind])
       return { state: 'unknown', reason: 'Not connected yet.' }
@@ -61,6 +70,14 @@ function createRecordingAgentHandlers(calls: unknown[][]): AgentHandlers & Agent
     signInAgent: async (kind) => {
       calls.push(['signInAgent', kind])
       return { outcome: 'started' }
+    },
+    folderDefaultAgent: async (folder) => {
+      calls.push(['folderDefaultAgent', folder])
+      return 'claude'
+    },
+    setFolderDefaultAgent: async (request) => {
+      calls.push(['setFolderDefaultAgent', request])
+      return null
     }
   }
 }
@@ -118,12 +135,16 @@ function createRecordingHandlers(): { handlers: DesktopHandlers; calls: unknown[
 }
 
 const EXPECTED_CHANNELS = [
+  'agents:addCustom',
   'agents:download',
   'agents:find',
+  'agents:folderDefault',
   'agents:list',
   'agents:remove',
+  'agents:setFolderDefault',
   'agents:signIn',
   'agents:status',
+  'agents:updateCustom',
   'dm:command',
   'dm:connectClaudeCode',
   'dm:copyText',
@@ -292,6 +313,40 @@ describe('agent channels never carry an executable path', () => {
   })
 })
 
+describe('custom agent channels', () => {
+  it('forward the custom agent payloads as one argument, untouched, for main to check', async () => {
+    const ipc = createFakeIpcMain()
+    const { handlers, calls } = createRecordingHandlers()
+    registerDesktopIpc(ipc, handlers)
+    const add = { name: 'Mine', protocol: 'acp', args: ['{folder}'], executablePath: '/bin/sh' }
+    const edit = { id: 'cu_01m65kwqqeyajbj5bnq81gngrb', name: 'Mine', args: [], repick: false, protocol: 'codex' }
+
+    expect(await ipc.invoke('agents:addCustom', add, '/bin/sh')).toEqual({ outcome: 'cancelled' })
+    expect(await ipc.invoke('agents:updateCustom', edit, { executablePath: '/bin/sh' })).toEqual({ outcome: 'cancelled' })
+
+    expect(calls).toEqual([
+      ['addCustomAgent', add],
+      ['updateCustomAgent', edit]
+    ])
+  })
+})
+
+describe('folder default channels', () => {
+  it('forwards the folder default channels their one argument, untouched', async () => {
+    const ipc = createFakeIpcMain()
+    const { handlers, calls } = createRecordingHandlers()
+    registerDesktopIpc(ipc, handlers)
+
+    expect(await ipc.invoke('agents:folderDefault', '/repos/a', 'stray')).toBe('claude')
+    expect(await ipc.invoke('agents:setFolderDefault', { folder: '/repos/a', agentId: 'codex' }, 'stray')).toBeNull()
+
+    expect(calls).toEqual([
+      ['folderDefaultAgent', '/repos/a'],
+      ['setFolderDefaultAgent', { folder: '/repos/a', agentId: 'codex' }]
+    ])
+  })
+})
+
 describe('preload bridge', () => {
   it('invokes exactly the channels the main process registers', () => {
     const ipc = createFakeIpcMain()
@@ -313,7 +368,13 @@ describe('preload bridge', () => {
     expect(preload).toContain("removeAgent: (id) => ipcRenderer.invoke('agents:remove', id)")
     expect(preload).toContain("agentStatus: (id) => ipcRenderer.invoke('agents:status', id)")
     expect(preload).toContain("signInAgent: (id) => ipcRenderer.invoke('agents:signIn', id)")
+    expect(preload).toContain("folderDefaultAgent: (folder) => ipcRenderer.invoke('agents:folderDefault', folder)")
+    expect(preload).toContain(
+      "setFolderDefaultAgent: (request) => ipcRenderer.invoke('agents:setFolderDefault', request)"
+    )
     expect(preload).toContain("downloadAgent: (kind) => ipcRenderer.invoke('agents:download', kind)")
+    expect(preload).toContain("addCustomAgent: (request) => ipcRenderer.invoke('agents:addCustom', request)")
+    expect(preload).toContain("updateCustomAgent: (request) => ipcRenderer.invoke('agents:updateCustom', request)")
   })
 
   it('subscribes to download progress on the channel main sends it on, and can unsubscribe', () => {

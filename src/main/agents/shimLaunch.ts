@@ -19,6 +19,7 @@
  * as they are; any other is wrapped in its own pair of quotes, so a model id such as
  * `claude-opus-4-7[thinking=true,effort=high]` stays one argument. Callers pass arguments unquoted.
  */
+import { win32 } from 'node:path'
 
 /** The process to start: cmd.exe with a command line that is already quoted, so Node must not quote it again. */
 interface ShimLaunch {
@@ -32,10 +33,16 @@ type ShimPlan =
   | { ok: false; unsafe: 'path' | 'argument'; reason: string }
 
 interface ShimOptions {
-  /** The command interpreter; `cmd.exe` is looked up on the path when absent. */
+  /**
+   * The command interpreter. Absent, it is `%SystemRoot%\System32\cmd.exe` by its full path (as `taskkill`
+   * in `processTree.ts`), never a bare `cmd.exe` the system could find in the working folder, and never
+   * `%ComSpec%`, so every check and every start run the same one.
+   */
   comspec?: string
   /** Leave the window open after the program ends (`/k`), for a sign-in console. */
   keepOpen?: boolean
+  /** Where `SystemRoot` is read from; the process environment by default. */
+  env?: Readonly<Record<string, string | undefined>>
 }
 
 const UNSAFE_PATH = 'The path has a character (a quote, "%", or a control character) that cannot be launched safely.'
@@ -77,7 +84,7 @@ export function planShimLaunch(path: string, args: readonly string[], options: S
   return {
     ok: true,
     launch: {
-      file: options.comspec ?? 'cmd.exe',
+      file: options.comspec ?? win32.join((options.env ?? process.env)['SystemRoot'] ?? 'C:\\Windows', 'System32', 'cmd.exe'),
       args: ['/d', '/v:off', '/s', options.keepOpen === true ? '/k' : '/c', command],
       verbatimArguments: true
     }

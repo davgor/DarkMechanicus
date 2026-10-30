@@ -26,7 +26,9 @@ interface InstructionOptions {
 }
 
 /**
- * The instructions appended to the chat's system prompt. Written as fact rather than suggestion:
+ * The instructions every chat is given: appended to Claude's system prompt, sent as Codex's
+ * `developerInstructions` of each thread, and leading the first prompt of each ACP process.
+ * Written as fact rather than suggestion:
  * the grant exists already, so an agent that asks a person to set one up has misread its own
  * situation, which is the failure this text exists to prevent.
  */

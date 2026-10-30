@@ -22,6 +22,11 @@
 import { posix, win32 } from 'node:path'
 import type { BuiltInAgentKind } from '../../shared/desktop/api'
 
+/** The built-in kinds with a recipe (`downloadable` in their definitions); Autonomous has its own managed installer. */
+export const DOWNLOADABLE_AGENT_KINDS = ['claude', 'codex', 'cursor'] as const satisfies readonly BuiltInAgentKind[]
+
+export type DownloadableAgentKind = (typeof DOWNLOADABLE_AGENT_KINDS)[number]
+
 export type InstallPlatform = 'win32' | 'darwin'
 
 /** What the recipes need to know about this machine; injected so tests can pose as any of them. */
@@ -51,7 +56,7 @@ interface InstallLayout {
 }
 
 export interface InstallRecipe {
-  kind: BuiltInAgentKind
+  kind: DownloadableAgentKind
   platform: InstallPlatform
   /** The vendor documentation this recipe was taken from. */
   docsUrl: string
@@ -126,7 +131,8 @@ const CLAUDE_DOCS = 'https://code.claude.com/docs/en/setup'
 const CODEX_DOCS = 'https://github.com/openai/codex'
 const CURSOR_DOCS = 'https://cursor.com/docs/cli/installation'
 
-const RECIPES: Record<BuiltInAgentKind, Record<InstallPlatform, RecipeSpec>> = {
+/** Autonomous has no recipe: it is installed and updated by its own managed installer, so the app never downloads it. */
+const RECIPES: Record<DownloadableAgentKind, Record<InstallPlatform, RecipeSpec>> = {
   claude: {
     // Docs: "Native Install (Recommended)": `irm https://claude.ai/install.ps1 | iex` and
     // `curl -fsSL https://claude.ai/install.sh | bash`. The scripts redirect to downloads.claude.ai and
@@ -206,7 +212,7 @@ function isInstallPlatform(platform: string): platform is InstallPlatform {
 }
 
 /** The recipe for a kind on this machine, or null when its operating system or processor is unsupported. */
-export function resolveRecipe(kind: BuiltInAgentKind, environment: InstallEnvironment): InstallRecipe | null {
+export function resolveRecipe(kind: DownloadableAgentKind, environment: InstallEnvironment): InstallRecipe | null {
   const { platform } = environment
   if (!isInstallPlatform(platform) || !SUPPORTED_ARCHITECTURES.has(environment.arch)) {
     return null

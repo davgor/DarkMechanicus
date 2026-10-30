@@ -124,4 +124,15 @@ describe('AgentsSection list', () => {
     expect(screen.getByRole('button', { name: /Codex/ }).getAttribute('aria-current')).toBe('true')
     expect(screen.getByRole('button', { name: /Claude Code/ }).getAttribute('aria-current')).toBeNull()
   })
+
+  it('lists a custom agent by its name, with no Sign in, and opens its page by its id', () => {
+    const custom = agentView({ kind: 'custom', displayName: 'My Claude', connectedVia: 'custom', version: '2.1.4' })
+    const calls = renderSection([claude, custom], { [custom.id]: { state: 'unchecked', reason: 'Not checked.' } })
+    const row = within(within(screen.getByRole('list')).getAllByRole('listitem')[1] as HTMLElement)
+    expect(row.getByText('My Claude')).toBeTruthy()
+    expect(row.getByText('Sign-in not checked')).toBeTruthy()
+    expect(row.queryByRole('button', { name: 'Sign in' })).toBeNull()
+    fireEvent.click(row.getByRole('button', { name: /My Claude/ }))
+    expect(calls.selected).toEqual([custom.id])
+  })
 })

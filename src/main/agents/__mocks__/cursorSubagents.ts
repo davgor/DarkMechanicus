@@ -23,7 +23,7 @@
  * Not shipped.
  */
 import { agent, client, type Frame } from './replayAcpAgent'
-import { handshake, newSession, prompt, say, turnEnd, update } from './cursorRecordings'
+import { firstPrompt, handshake, newSession, say, turnEnd, update } from './cursorRecordings'
 
 export const SESSION = 'sess_1'
 export const TASK_CALL = 'call_126'
@@ -53,7 +53,7 @@ function exchange(taskMessage: Frame[]): Frame[] {
   return [
     ...handshake(),
     ...newSession(3, SESSION),
-    prompt(4, SESSION, 'Where is authentication handled?'),
+    firstPrompt(4, SESSION, 'Where is authentication handled?'),
     say(SESSION, 'I will have a subagent look.'),
     TASK_CALL_UPDATE,
     ...taskMessage,

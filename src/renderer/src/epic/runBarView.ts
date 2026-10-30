@@ -1,6 +1,6 @@
 /** Pure view model for the run bar: state pill, summary line, counts and available actions. */
 import type { ChatRecord } from '../../../shared/agents/chat'
-import type { AgentAuthStatus, AgentId } from '../../../shared/desktop/api'
+import type { AgentAuthStatus, AgentId, AgentView } from '../../../shared/desktop/api'
 import { SIGNED_OUT_PAUSE_REASON, isActiveRunState } from '../../../shared/domain/status'
 import type { EpicDetailView, RunCounts, RunView } from '../../../shared/domain/views'
 import { agentName } from '../agents/agentText'
@@ -143,7 +143,7 @@ export interface SignedOutNote {
   signedIn: boolean
 }
 
-export function signedOutNote(run: RunView, chat: ChatRecord | null, statuses: AgentStatuses): SignedOutNote | null {
+export function signedOutNote(run: RunView, chat: ChatRecord | null, statuses: AgentStatuses, connected: readonly AgentView[]): SignedOutNote | null {
   if (run.state !== 'paused' || run.pauseReason !== SIGNED_OUT_PAUSE_REASON) {
     return null
   }
@@ -152,7 +152,7 @@ export function signedOutNote(run: RunView, chat: ChatRecord | null, statuses: A
   }
   const status = statuses[chat.agent]
   return {
-    text: `Paused: ${agentName(chat.agent)} signed out`,
+    text: `Paused: ${agentName(chat.agent, connected)} signed out`,
     agent: chat.agent,
     status,
     chat: { id: chat.id, title: chat.title },
@@ -168,12 +168,12 @@ export type OrchestratorNote =
   | { kind: 'chat'; chatId: string; text: string; link: string }
   | { kind: 'waiting'; text: string }
 
-export function orchestratorNote(run: RunView, chat: ChatRecord | null): OrchestratorNote | null {
+export function orchestratorNote(run: RunView, chat: ChatRecord | null, connected: readonly AgentView[]): OrchestratorNote | null {
   if (!isActiveRunState(run.state)) {
     return null
   }
   if (chat !== null) {
-    return { kind: 'chat', chatId: chat.id, text: `Orchestrated by ${agentName(chat.agent)} in`, link: chat.title }
+    return { kind: 'chat', chatId: chat.id, text: `Orchestrated by ${agentName(chat.agent, connected)} in`, link: chat.title }
   }
   return run.state === 'queued'
     ? { kind: 'waiting', text: 'Waiting for an orchestrator. An agent picks this run up with start_run.' }

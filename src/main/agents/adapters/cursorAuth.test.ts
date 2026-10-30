@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { ChatAdapter, ChatAdapterEvent, ChatAdapterStartOptions, ChatItem } from '../../../shared/agents/chat'
-import { CLIENT_VERSION, DM_SERVER, FOLDER, handshake, newSession, prompt, say, turnEnd } from '../__mocks__/cursorRecordings'
+import { CLIENT_VERSION, DM_INSTRUCTIONS, DM_SERVER, firstPrompt, FOLDER, handshake, newSession, say, turnEnd } from '../__mocks__/cursorRecordings'
 import {
   AUTH_REQUIRED,
   SESSION,
@@ -61,7 +61,7 @@ function rig(...recordings: Frame[][]): Rig {
     allowSave: false,
     sessionId: null,
     darkMechanicus: DM_SERVER,
-    instructions: 'Use the dm CLI.'
+    instructions: DM_INSTRUCTIONS
   }
   return {
     adapter,
@@ -114,7 +114,7 @@ describe('Cursor adapter: a login that went stale in a running process', () => {
 
   it('takes the sign-in prompt with or without its full stop, in any case', async () => {
     for (const reply of ['Please sign in to continue.', 'please sign in to continue', ' Please sign in to continue \n']) {
-      const target = rig([...handshake(), ...newSession(3, SESSION), prompt(4, SESSION, 'hello'), say(SESSION, reply), turnEnd(4)])
+      const target = rig([...handshake(), ...newSession(3, SESSION), firstPrompt(4, SESSION, 'hello'), say(SESSION, reply), turnEnd(4)])
       await target.start()
 
       await target.adapter.send('hello')
@@ -139,7 +139,7 @@ describe('Cursor adapter: a login that went stale in a running process', () => {
     ['a different sentence', 'Please sign in with your work account.'],
     ['a longer answer', 'Sure.\n\nPlease sign in to continue is what Cursor says when you are logged out.']
   ])('does not take %s for a rejected sign-in', async (_name, reply) => {
-    const target = rig([...handshake(), ...newSession(3, SESSION), prompt(4, SESSION, 'hello'), say(SESSION, reply), turnEnd(4)])
+    const target = rig([...handshake(), ...newSession(3, SESSION), firstPrompt(4, SESSION, 'hello'), say(SESSION, reply), turnEnd(4)])
     await target.start()
 
     await target.adapter.send('hello')
@@ -196,7 +196,7 @@ describe('Cursor adapter: a login the agent refuses', () => {
 
   it('still fails a turn the agent refuses for another reason', async () => {
     const other: Frame[] = [...handshake(), ...newSession(3, SESSION)]
-    const failing = [...other, prompt(4, SESSION, 'hello'), { from: 'agent', message: { jsonrpc: '2.0', id: 4, error: { code: -32603, message: 'Internal error' } } } as Frame]
+    const failing = [...other, firstPrompt(4, SESSION, 'hello'), { from: 'agent', message: { jsonrpc: '2.0', id: 4, error: { code: -32603, message: 'Internal error' } } } as Frame]
     const target = rig(failing)
     await target.start()
 

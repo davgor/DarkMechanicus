@@ -93,7 +93,7 @@ function rig(fs: ChatStoreFs = memoryChatFs(), overrides: Partial<SessionManager
         grantId: `gr_${grants.issued.length}`
       }
     },
-    revokeChatGrant: async (_folder: string, grantId: string) => {
+    revokeChatGrant: async (grantId: string) => {
       grants.revoked.push(grantId)
     },
     push: (event) => events.push(event),

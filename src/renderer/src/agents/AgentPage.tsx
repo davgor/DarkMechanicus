@@ -5,7 +5,10 @@ import { Button } from '../components/Button'
 import { Dialog } from '../components/Dialog'
 import { formatShortDate } from '../sidebar/epicStatusLine'
 import { ActivityNote } from './ActivityNote'
-import { connectedViaText, signInLabel } from './agentText'
+import { describeActivity, IDLE_ACTIVITY } from './agentActivity'
+import type { AgentOutcome } from './agentOutcomes'
+import { connectedViaText, PROTOCOL_TEXT, signInLabel } from './agentText'
+import { CustomAgentEdit } from './CustomAgentEdit'
 import { CheckAgain, SignInPrompt } from './SignInPrompt'
 import type { AgentsModel } from './useAgents'
 
@@ -23,7 +26,10 @@ function Row({ label, children }: { label: string; children: ReactNode }): JSX.E
   )
 }
 
-/** The state is its color plus its words; Sign in is always offered (it also switches accounts), and an unknown state adds its reason and Check again. */
+/**
+ * The state is its color plus its words; Sign in is always offered (it also switches accounts), and an unknown state
+ * adds its reason and Check again. A custom CLI is signed in outside the app, so it has no Sign in.
+ */
 function SignInRow({ agent, agents }: AgentPageProps): JSX.Element {
   const { id } = agent
   const status = agents.statuses[id]
@@ -36,14 +42,16 @@ function SignInRow({ agent, agents }: AgentPageProps): JSX.Element {
           <span className="agent-state-dot" aria-hidden="true" />
           {state.text}
         </span>
-        <SignInPrompt
-          key={status?.state ?? 'checking'}
-          agent={id}
-          name={agent.displayName}
-          variant={status?.state === 'signed_out' ? 'primary' : 'default'}
-          disabled={agents.activity(id).busy}
-          onStatus={record}
-        />
+        {agent.kind === 'custom' ? null : (
+          <SignInPrompt
+            key={status?.state ?? 'checking'}
+            agent={id}
+            name={agent.displayName}
+            variant={status?.state === 'signed_out' ? 'primary' : 'default'}
+            disabled={agents.activity(id).busy}
+            onStatus={record}
+          />
+        )}
       </div>
       {status?.state === 'unknown' ? <CheckAgain agent={id} name={agent.displayName} reason={status.reason} onStatus={record} /> : null}
       {status === undefined || status.state === 'unknown' ? null : <p className="note">{status.reason}</p>}
@@ -56,9 +64,13 @@ function Details({ agent, agents }: AgentPageProps): JSX.Element {
     <section className="card" aria-label="Connection">
       <h2 className="card-title">Connection</h2>
       <dl className="kv agent-kv">
+        {agent.kind === 'custom' ? <Row label="Protocol">{PROTOCOL_TEXT[agent.protocol].label}</Row> : null}
         <Row label="Executable">
           <span className="mono">{agent.executablePath}</span>
         </Row>
+        {agent.kind === 'custom' ? (
+          <Row label="Arguments">{agent.args.length === 0 ? 'None' : <span className="mono">{agent.args.join(' ')}</span>}</Row>
+        ) : null}
         <Row label="Version">{agent.version ?? 'Unknown'}</Row>
         <Row label="Connected">
           {connectedViaText(agent.connectedVia)} · {formatShortDate(agent.connectedAt)}
@@ -94,12 +106,49 @@ function RemoveDialog({ name, onConfirm, onCancel }: RemoveDialogProps): JSX.Ele
   )
 }
 
+interface ActionsProps extends AgentPageProps {
+  onEdit(): void
+  onRemove(): void
+}
+
+/** A built-in agent is found again or updated from its vendor; a custom CLI is edited. Either can be removed. */
+function PageActions({ agent, agents, onEdit, onRemove }: ActionsProps): JSX.Element {
+  const { kind } = agent
+  const activity = agents.activity(agent.id)
+  return (
+    <div className="button-row">
+      {kind === 'custom' ? (
+        <Button disabled={activity.busy} onClick={onEdit}>
+          Edit
+        </Button>
+      ) : (
+        <>
+          <Button icon="search" busy={activity.finding} disabled={activity.busy} onClick={() => void agents.find(kind)}>
+            Find again
+          </Button>
+          <Button icon="refresh" busy={activity.download !== null} disabled={activity.busy} onClick={() => void agents.download(kind)}>
+            Update
+          </Button>
+        </>
+      )}
+      <Button disabled={activity.busy} onClick={onRemove}>
+        Remove
+      </Button>
+    </div>
+  )
+}
+
 /** A connected agent: where it runs from, how it was connected, whether it is signed in, and what can be done about it. */
 export function AgentPage({ agent, agents }: AgentPageProps): JSX.Element {
   const [removing, setRemoving] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [saved, setSaved] = useState<AgentOutcome | null>(null)
   const name = agent.displayName
-  const { kind } = agent
   const activity = agents.activity(agent.id)
+  const edit = (): void => {
+    setSaved(null)
+    setEditing(true)
+  }
   return (
     <div className="home agent-pane">
       <header className="home-header">
@@ -109,27 +158,20 @@ export function AgentPage({ agent, agents }: AgentPageProps): JSX.Element {
         </div>
       </header>
       <Details agent={agent} agents={agents} />
-      <ActivityNote name={name} activity={activity} />
-      <div className="button-row">
-        {kind === 'custom' ? null : (
-          <>
-            <Button icon="search" busy={activity.finding} disabled={activity.busy} onClick={() => void agents.find(kind)}>
-              Find again
-            </Button>
-            <Button
-              icon="refresh"
-              busy={activity.download !== null}
-              disabled={activity.busy}
-              onClick={() => void agents.download(kind)}
-            >
-              Update
-            </Button>
-          </>
-        )}
-        <Button disabled={activity.busy} onClick={() => setRemoving(true)}>
-          Remove
-        </Button>
-      </div>
+      <ActivityNote name={name} activity={saved === null || activity.busy ? activity : describeActivity({ ...IDLE_ACTIVITY, outcome: saved })} />
+      {editing ? (
+        <CustomAgentEdit
+          agent={agent}
+          agents={agents}
+          onCancel={() => setEditing(false)}
+          onSaved={(outcome) => {
+            setSaved(outcome)
+            setEditing(false)
+          }}
+        />
+      ) : (
+        <PageActions agent={agent} agents={agents} onEdit={edit} onRemove={() => setRemoving(true)} />
+      )}
       {removing ? (
         <RemoveDialog
           name={name}

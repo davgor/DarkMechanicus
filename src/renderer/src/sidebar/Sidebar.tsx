@@ -106,6 +106,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
             expansion={props.expansion}
             chats={chatsFor(props.chats.lists, folder.path)}
             statuses={props.agentStatuses}
+            agents={props.agents}
             onSelectFolder={props.onSelectFolder}
             onSelectEpic={props.onSelectEpic}
             onStopTracking={props.onRequestUntrack}

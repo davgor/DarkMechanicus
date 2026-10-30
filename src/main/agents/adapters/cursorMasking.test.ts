@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest'
 import type { ChatAdapterEvent, ChatItem } from '../../../shared/agents/chat'
 import { ATTEMPT_ID, SECRET, cutInsideToken, leaksSecret, maskedThenCut } from '../__mocks__/claimTokenFixture'
 import { CLAIM_TOKEN_MASK } from '../claimTokenMask'
-import { clip, permissionDetails, summarizeInput } from './cursorProtocol'
-import { UpdateTranslator } from './cursorUpdates'
+import { clip } from './acp/acpJson'
+import { summarizeInput } from './acp/acpToolCalls'
+import { UpdateTranslator } from './acp/acpUpdates'
+import { permissionDetails } from './cursorProtocol'
 
 const AT = '2026-01-01T00:00:00.000Z'
 /** How much of the secret is left before a cut: too little for the mask to see it unless the text is masked first. */

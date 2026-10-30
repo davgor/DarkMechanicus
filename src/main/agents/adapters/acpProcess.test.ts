@@ -1,3 +1,4 @@
+import type { ChildProcess } from 'node:child_process'
 import { mkdtempSync, realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -5,7 +6,10 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { createEventLog } from '../../../test/eventLog'
 import { removeScratch } from '../../../test/removeScratch'
 import type { ProbeLaunch } from '../../desktop/agentProbe'
-import { nodeTransport } from './acpProcess'
+import { endAgentTree, nodeTransport } from './acpProcess'
+
+/** A tree that outlives the kill under load must not write to the person's real app log. */
+vi.mock('../../logger', () => ({ logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() } }))
 
 /**
  * These tests start and kill real processes. They wait on what the process does (a line, its close, the end of a
@@ -164,5 +168,22 @@ describe('nodeTransport: how the process ended', () => {
     await handle.kill()
     await heard.whenClosed()
     expect(heard.closed[0]).toBe('signal SIGKILL')
+  })
+})
+
+describe('endAgentTree: a tree that outlives the kill', () => {
+  const child = { pid: 4321 } as unknown as ChildProcess
+
+  it('logs one line naming the process id when the tree outlived the wait', async () => {
+    const warn = vi.fn()
+    await endAgentTree(child, { killProcessTree: () => Promise.resolve(false), warn })
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(String(warn.mock.calls[0]?.[0])).toContain('4321')
+  })
+
+  it('logs nothing when the tree is gone', async () => {
+    const warn = vi.fn()
+    await endAgentTree(child, { killProcessTree: () => Promise.resolve(true), warn })
+    expect(warn).not.toHaveBeenCalled()
   })
 })

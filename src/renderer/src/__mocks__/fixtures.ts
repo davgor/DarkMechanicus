@@ -191,7 +191,7 @@ export function boardRemoval(patch: Partial<BoardRemovalView> = {}): BoardRemova
 /** What a repository without an old board answers. */
 export const NO_BOARD: BoardImportView = { open: [], done: [], skipped: [] }
 
-const PROTOCOLS: Readonly<Record<BuiltInAgentKind, AgentProtocol>> = { claude: 'claude', codex: 'codex', cursor: 'acp' }
+const PROTOCOLS: Readonly<Record<BuiltInAgentKind, AgentProtocol>> = { claude: 'claude', codex: 'codex', cursor: 'acp', autonomous: 'acp' }
 
 /** A connected Claude Code by default; patch `kind` for another built-in agent (its id, protocol and name follow), and the rest as needed. */
 export function agentView(patch: Partial<AgentView> = {}): AgentView {

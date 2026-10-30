@@ -15,6 +15,8 @@ import './chatView.css'
 
 interface ChatViewProps {
   chat: ChatRecord
+  /** The connected agent's display name; without it (an agent no longer connected) the built-in kind's name or a generic one. */
+  agentDisplayName?: string
   /** The sign-in prompt in the chat asked its agent's state itself: the shell shows what it found. */
   onAgentStatus(id: AgentId, status: AgentAuthStatus): void
   /** Where the markers and bound threads of the chat lead; without it they are shown but do not link. */
@@ -35,17 +37,19 @@ function noop(): void {}
  * `window.dm.chats`; the view shows what the main process reports. The thread blocks and action
  * markers in the transcript get their links, bound threads and the thread to show from `ChatContext`.
  */
-export function ChatView({ chat, onAgentStatus, navigation, landing = null, onLanded = noop }: ChatViewProps): JSX.Element {
+export function ChatView({ chat, agentDisplayName, onAgentStatus, navigation, landing = null, onLanded = noop }: ChatViewProps): JSX.Element {
   const session = useChatSession(chat)
   const links = useChatLinks({ chat, session, navigation: navigation ?? null, landing, onLanded })
   const models = useAgentModels(chat.agent)
   const offered = models.status === 'ready' ? models.models : null
   const labels = useMemo(() => modelLabels(offered ?? []), [offered])
+  const name = agentDisplayName ?? agentName(chat.agent)
   return (
     <ChatContext.Provider value={links}>
       <section className="chat-view">
         <ChatHeader
           chat={chat}
+          agentName={name}
           model={session.model}
           models={models}
           running={session.running}
@@ -53,6 +57,7 @@ export function ChatView({ chat, onAgentStatus, navigation, landing = null, onLa
           onSwitchModel={(model) => void session.switchModel(model)}
         />
         <ChatTranscript
+          agentName={name}
           phase={session.phase}
           entries={session.entries}
           labels={labels}
@@ -68,7 +73,7 @@ export function ChatView({ chat, onAgentStatus, navigation, landing = null, onLa
         />
         <ChatComposer
           ready={session.phase === 'ready'}
-          signedOutOf={session.auth.agent === 'signed_out' ? agentName(chat.agent) : null}
+          signedOutOf={session.auth.agent === 'signed_out' ? name : null}
           running={session.running}
           stopping={session.stopping}
           error={session.actionError}

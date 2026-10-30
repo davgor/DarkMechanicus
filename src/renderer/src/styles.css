@@ -1579,6 +1579,40 @@ textarea.input {
   margin-top: auto;
 }
 
+/* The Custom CLI card takes the whole row while its form is open. */
+.agent-card-wide {
+  grid-column: 1 / -1;
+}
+
+.custom-agent-form {
+  max-width: 720px;
+}
+
+.custom-agent-form .button-row {
+  margin-top: 0;
+}
+
+.custom-protocol {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.custom-protocol .field-hint {
+  padding-left: 24px;
+}
+
+.custom-args {
+  align-self: stretch;
+}
+
+.custom-arg-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
 .agent-kv .kv-row {
   grid-template-columns: 120px minmax(0, 1fr);
 }

@@ -10,14 +10,17 @@ interface AgentKindDefinition {
   displayName: string
   /** Bare executable names the CLI is expected under, most likely first (no extension). */
   executables: readonly string[]
+  /** False when the app has no installer for it: Autonomous is installed and updated by its own managed installer. */
+  downloadable: boolean
 }
 
-export const AGENT_KINDS = ['claude', 'codex', 'cursor'] as const satisfies readonly BuiltInAgentKind[]
+export const AGENT_KINDS = ['claude', 'codex', 'cursor', 'autonomous'] as const satisfies readonly BuiltInAgentKind[]
 
 export const AGENT_DEFINITIONS: Readonly<Record<BuiltInAgentKind, AgentKindDefinition>> = {
-  claude: { displayName: 'Claude Code', executables: ['claude'] },
-  codex: { displayName: 'Codex', executables: ['codex'] },
-  cursor: { displayName: 'Cursor', executables: ['agent', 'cursor-agent'] }
+  claude: { displayName: 'Claude Code', executables: ['claude'], downloadable: true },
+  codex: { displayName: 'Codex', executables: ['codex'], downloadable: true },
+  cursor: { displayName: 'Cursor', executables: ['agent', 'cursor-agent'], downloadable: true },
+  autonomous: { displayName: 'Autonomous', executables: ['a8s'], downloadable: false }
 }
 
 /** A custom agent's id: `cu_` and a ULID (26 lowercase Crockford base32 characters). */

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type Dispatch } from 'react'
-import type { TrackedFolderView } from '../../../shared/desktop/api'
+import type { AgentView, TrackedFolderView } from '../../../shared/desktop/api'
 import { unwrapChat } from '../agents/chatCalls'
 import { errorMessage } from '../api/dm'
 import type { Scheduler } from '../app/scheduler'
@@ -50,6 +50,8 @@ interface WorkspaceInput {
   refreshToken: number
   onChanged(): void
   onChatsChanged(): void
+  /** The connected agents, read when an action names one. */
+  agents: readonly AgentView[]
 }
 
 interface LoadInput {
@@ -100,6 +102,8 @@ export function useWorkspace(input: WorkspaceInput): WorkspaceController {
   changedRef.current = input.onChanged
   const chatsChangedRef = useRef(input.onChatsChanged)
   chatsChangedRef.current = input.onChatsChanged
+  const agentsRef = useRef(input.agents)
+  agentsRef.current = input.agents
   const startOrchestrator = useMemo<StartOrchestrator>(
     () => (choice) => unwrapChat(window.dm.chats.startOrchestrator({ folder: folderPath, epicId, agent: choice.agent, model: choice.model })),
     [folderPath, epicId]
@@ -115,6 +119,7 @@ export function useWorkspace(input: WorkspaceInput): WorkspaceController {
         runner,
         epicId,
         startOrchestrator,
+        agents: () => agentsRef.current,
         getState: () => stateRef.current,
         dispatch,
         reload,

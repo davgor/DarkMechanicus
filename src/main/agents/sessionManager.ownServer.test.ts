@@ -5,14 +5,15 @@ import { AT, connectedAgents, fakeAdapters, memoryChatStore, REPO, trackedFolder
 import type { ChatStore } from './chatStore'
 import { createSessionManager, type SessionManager } from './sessionManager'
 
+/** The vendors whose tool names are recorded here; Autonomous's way of naming another server's tool was not recorded. */
+const AGENTS = ['claude', 'codex', 'cursor'] as const
+
 /** How each vendor names a tool of the chat's own server, a tool of another server, and a tool that only looks like ours. */
 const NAMES = {
   claude: { own: ['mcp__darkmechanicus__claim_ticket', 'mcp__darkmechanicus__get_ticket'], other: 'mcp__other__claim_ticket', lookalike: 'mcp__darkmechanicus_evil__claim_ticket' },
   codex: { own: ['mcp:darkmechanicus', 'mcp:darkmechanicus'], other: 'mcp:other', lookalike: 'mcp:darkmechanicus_evil' },
   cursor: { own: ['darkmechanicus:claim_ticket', 'darkmechanicus:get_ticket'], other: 'other:claim_ticket', lookalike: 'darkmechanicus_evil:claim_ticket' }
-} as const satisfies Record<BuiltInAgentKind, { own: readonly string[]; other: string; lookalike: string }>
-
-const AGENTS = ['claude', 'codex', 'cursor'] as const
+} as const satisfies Record<(typeof AGENTS)[number], { own: readonly string[]; other: string; lookalike: string }>
 
 interface Rig {
   manager: SessionManager

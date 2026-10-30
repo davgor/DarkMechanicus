@@ -41,6 +41,8 @@
  *
  * Models. `listModels` asks the SDK (`supportedModels`), through the running process when there is
  * one, otherwise through a short-lived helper process; a curated list stands in when that fails.
+ * The helper loads no settings and starts no MCP server (`--strict-mcp-config`); when Claude Code
+ * refuses that flag because an enterprise MCP config is present, it is asked once more without it.
  * Any model name is accepted. `setModel` takes effect from the next turn.
  *
  * Sign-in. A turn the CLI ends because its login was rejected is reported as an `auth_required`
@@ -72,9 +74,13 @@ import {
   createInputQueue,
   readShimFile,
   resolveClaudeExecutable,
+  withSpecArgs,
   type ClaudeProcesses,
   type InputQueue
 } from './claudeProcess'
+import { logger } from '../../logger'
+import { withFolder, type AgentLaunchSpec } from '../launchSpec'
+import type { ProtocolExchange } from '../protocolHandshake'
 import { plainInput, TranscriptMapper, type TurnResult } from './claudeTranscript'
 
 /** What the adapter uses of an SDK `Query`; the real one satisfies it, and tests replay messages through it. */
@@ -190,33 +196,125 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   })
 }
 
-/** The models a short-lived helper process reports, or null when it cannot be asked. */
-async function probeModels(executablePath: string, deps: ClaudeAdapterDeps): Promise<ModelOption[] | null> {
-  const processes = deps.createProcesses()
-  const input = createInputQueue<SDKUserMessage>()
-  let query: ClaudeQuery | null = null
-  try {
-    query = await deps.query({
-      prompt: input.iterable,
-      options: {
-        cwd: homedir(),
-        pathToClaudeCodeExecutable: resolveClaudeExecutable(executablePath, deps.platform, deps.readFile),
-        spawnClaudeCodeProcess: processes.spawn,
-        // Nothing of the user's setup is loaded or started just to ask which models exist.
-        settingSources: [],
-        strictMcpConfig: true,
-        persistSession: false,
-        permissionMode: 'default'
+/** The SDK's spawn hook: the tracker's own when the spec adds nothing (the built-in's argv), else one that puts the spec's arguments first. */
+function specSpawn(processes: ClaudeProcesses, program: string, args: readonly string[]): Options['spawnClaudeCodeProcess'] {
+  return args.length === 0 ? processes.spawn : (options) => processes.spawn(withSpecArgs(options, program, args))
+}
+
+/**
+ * What Claude Code prints on stderr before it exits 1 when an enterprise (managed) MCP config is present: it
+ * then refuses `--strict-mcp-config`. Seen with 2.1.291.
+ */
+const STRICT_MCP_REFUSAL = 'You cannot use --strict-mcp-config when an enterprise MCP config is present'
+/** The SDK's error for an exit with code 1; it adds `. stderr: …` when it holds the stderr itself. */
+const EXITED_WITH_ONE = /^Claude Code process exited with code 1(?:\.|$)/
+
+/** One helper process started to ask for the models. */
+interface ModelAttempt {
+  processes: ClaudeProcesses
+  input: InputQueue<SDKUserMessage>
+  query: ClaudeQuery | null
+  /** Set once the attempt is being ended, so its trees are killed once. */
+  ended: Promise<void> | null
+}
+
+/** True only for the exit Claude Code makes when it refuses `--strict-mcp-config` for an enterprise MCP config. */
+function refusedStrictMcp(error: unknown, attempt: ModelAttempt): boolean {
+  return error instanceof Error && EXITED_WITH_ONE.test(error.message) && `${error.message}\n${attempt.processes.stderrTail()}`.includes(STRICT_MCP_REFUSAL)
+}
+
+/** Closes an attempt and ends its process trees (once); resolves once they are gone. */
+function endAttempt(attempt: ModelAttempt): Promise<void> {
+  attempt.ended ??= (async () => {
+    attempt.input.close()
+    // The kills are sent before the first await.
+    const killed = attempt.processes.killAll()
+    closeQuietly(attempt.query)
+    await killed
+  })()
+  return attempt.ended
+}
+
+/** The helper's options: `strictMcp` false only for the one retry an enterprise MCP config forces. */
+function modelQueryOptions(program: string, cwd: string, spawnClaudeCodeProcess: Options['spawnClaudeCodeProcess'], strictMcp: boolean): Options {
+  return {
+    cwd,
+    pathToClaudeCodeExecutable: program,
+    spawnClaudeCodeProcess,
+    // Nothing of the user's setup is loaded or started just to ask which models exist; an enterprise
+    // MCP config forbids the strict flag, and then only the managed servers it names may start.
+    settingSources: [],
+    ...(strictMcp ? { strictMcpConfig: true } : {}),
+    persistSession: false,
+    permissionMode: 'default'
+  }
+}
+
+/**
+ * A short-lived helper process in `cwd` (which is also `{folder}`), asked for its models; `stop` closes it and ends its
+ * process trees. When Claude Code refuses `--strict-mcp-config` because an enterprise MCP config is present, a second
+ * helper process is asked once without it; `answer` covers both, so a caller's time limit bounds both.
+ */
+function startModelQuery(spec: Pick<AgentLaunchSpec, 'executablePath' | 'args'>, cwd: string, deps: ClaudeAdapterDeps): ProtocolExchange<ModelInfo[]> {
+  const attempts: ModelAttempt[] = []
+  let stopped = false
+  const ask = async (program: string, strictMcp: boolean): Promise<ModelInfo[]> => {
+    if (stopped) {
+      throw new Error('Asking for the models was stopped.')
+    }
+    const attempt: ModelAttempt = { processes: deps.createProcesses(), input: createInputQueue<SDKUserMessage>(), query: null, ended: null }
+    attempts.push(attempt)
+    const spawn = specSpawn(attempt.processes, program, withFolder(spec.args, cwd))
+    attempt.query = await deps.query({ prompt: attempt.input.iterable, options: modelQueryOptions(program, cwd, spawn, strictMcp) })
+    if (stopped) {
+      // Stopped while the SDK was still loading: what it started goes at once.
+      closeQuietly(attempt.query)
+      await attempt.processes.killAll()
+      throw new Error('Asking for the models was stopped.')
+    }
+    return attempt.query.supportedModels()
+  }
+  const answer = (async () => {
+    const program = resolveClaudeExecutable(spec.executablePath, deps.platform, deps.readFile)
+    try {
+      return await ask(program, true)
+    } catch (error) {
+      const [first] = attempts
+      if (stopped || first === undefined || !refusedStrictMcp(error, first)) {
+        throw error
       }
-    })
-    return toModelOptions(await withTimeout(query.supportedModels(), deps.modelTimeoutMs))
+      logger.info('Claude Code refused --strict-mcp-config because an enterprise MCP config is present; asking for its models again without it')
+      await endAttempt(first)
+      return ask(program, false)
+    }
+  })()
+  return {
+    answer,
+    stop: async () => {
+      stopped = true
+      await Promise.all(attempts.map(endAttempt))
+    }
+  }
+}
+
+/** The models a short-lived helper process reports, or null when it cannot be asked. */
+async function probeModels(executablePath: string, specArgs: readonly string[], deps: ClaudeAdapterDeps): Promise<ModelOption[] | null> {
+  const probe = startModelQuery({ executablePath, args: specArgs }, homedir(), deps)
+  try {
+    return toModelOptions(await withTimeout(probe.answer, deps.modelTimeoutMs))
   } catch {
     return null
   } finally {
-    input.close()
-    void processes.killAll()
-    closeQuietly(query)
+    void probe.stop()
   }
+}
+
+/**
+ * The handshake a custom CLI on the Claude Code SDK protocol must pass, run in `folder`: the SDK's model
+ * probe. The answer is what `supportedModels` returned, unread; `stop` ends the process trees.
+ */
+export function startClaudeProbe(spec: AgentLaunchSpec, folder: string, overrides: Partial<ClaudeAdapterDeps> = {}): ProtocolExchange<ModelInfo[]> {
+  return startModelQuery(spec, folder, withDefaults(overrides))
 }
 
 // ---- The adapter ----
@@ -287,7 +385,9 @@ class ClaudeChatAdapter implements ChatAdapter {
 
   constructor(
     private readonly executablePath: string,
-    private readonly deps: ClaudeAdapterDeps
+    private readonly deps: ClaudeAdapterDeps,
+    /** The launch spec's arguments, before `{folder}` is replaced; they go before the SDK's flags. */
+    private readonly specArgs: readonly string[]
   ) {
     this.launchPath = executablePath
     this.processes = deps.createProcesses()
@@ -301,6 +401,8 @@ class ClaudeChatAdapter implements ChatAdapter {
     this.sessionId = options.sessionId
     try {
       this.launchPath = resolveClaudeExecutable(this.executablePath, this.deps.platform, this.deps.readFile)
+      // Checked here to fail early; every process start substitutes again, so a refused spec never runs.
+      withFolder(this.specArgs, options.folder)
     } catch (error) {
       return Promise.reject(toError(error))
     }
@@ -359,7 +461,7 @@ class ClaudeChatAdapter implements ChatAdapter {
         return CURATED_CLAUDE_MODELS
       }
     }
-    return (await probeModels(this.executablePath, this.deps)) ?? CURATED_CLAUDE_MODELS
+    return (await probeModels(this.executablePath, this.specArgs, this.deps)) ?? CURATED_CLAUDE_MODELS
   }
 
   async dispose(): Promise<void> {
@@ -420,7 +522,7 @@ class ClaudeChatAdapter implements ChatAdapter {
     return {
       cwd: options.folder,
       pathToClaudeCodeExecutable: this.launchPath,
-      spawnClaudeCodeProcess: this.processes.spawn,
+      spawnClaudeCodeProcess: specSpawn(this.processes, this.launchPath, withFolder(this.specArgs, options.folder)),
       permissionMode: 'default',
       env,
       // Inline, for this process only: the CLI's memory-folder carve-out moves to a folder nothing reads.
@@ -642,8 +744,9 @@ class ClaudeChatAdapter implements ChatAdapter {
   }
 }
 
-export function createClaudeAdapter(executablePath: string, overrides: Partial<ClaudeAdapterDeps> = {}): ChatAdapter {
-  return new ClaudeChatAdapter(executablePath, withDefaults(overrides))
+/** `specArgs` are the launch spec's, before `{folder}` is replaced; none for the built-in. */
+export function createClaudeAdapter(executablePath: string, overrides: Partial<ClaudeAdapterDeps> = {}, specArgs: readonly string[] = []): ChatAdapter {
+  return new ClaudeChatAdapter(executablePath, withDefaults(overrides), specArgs)
 }
 
 export function createClaudeAdapterDefinition(overrides: Partial<ClaudeAdapterDeps> = {}): ChatAdapterDefinition {
@@ -652,17 +755,22 @@ export function createClaudeAdapterDefinition(overrides: Partial<ClaudeAdapterDe
   return {
     // The process starts with the first message; nothing needs it running to show an opened chat.
     startOnOpen: false,
-    create: (executablePath) => createClaudeAdapter(executablePath, overrides),
-    listModels: async (executablePath) => {
-      const known = remembered.get(executablePath)
+    create: (spec) => createClaudeAdapter(spec.executablePath, overrides, spec.args),
+    listModels: async (spec) => {
+      // A custom CLI runs only in its chats (the confirmation promised it): the curated aliases are offered instead.
+      if (spec.kind === 'custom') {
+        return CURATED_CLAUDE_MODELS
+      }
+      const key = JSON.stringify([spec.executablePath, ...spec.args])
+      const known = remembered.get(key)
       if (known !== undefined && known.until > deps.clock()) {
         return known.models
       }
-      const models = await probeModels(executablePath, deps)
+      const models = await probeModels(spec.executablePath, spec.args, deps)
       if (models === null) {
         return CURATED_CLAUDE_MODELS
       }
-      remembered.set(executablePath, { until: deps.clock() + MODEL_LIST_TTL_MS, models })
+      remembered.set(key, { until: deps.clock() + MODEL_LIST_TTL_MS, models })
       return models
     }
   }

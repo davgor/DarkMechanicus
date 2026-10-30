@@ -45,7 +45,7 @@ function rig(): Rig {
           }
         }
       }
-      return openAcpConnection(factory, LAUNCH, { cwd: '/work' }, {
+      return openAcpConnection(factory, LAUNCH, { cwd: '/work', agentName: 'Autonomous' }, {
         notification: (method, params) => state.notifications.push([method, params]),
         request: (id, method, params) => state.requests.push([id, method, params]),
         closed: (detail) => state.closures.push(detail),
@@ -167,8 +167,8 @@ describe('openAcpConnection: the end of the process', () => {
     t.sink().closed('exit code 1: boom')
     t.sink().closed('again')
 
-    await expect(waiting).rejects.toThrow('The Cursor agent stopped: exit code 1: boom')
-    await expect(connection.request('session/prompt', {})).rejects.toThrow('The Cursor agent stopped')
+    await expect(waiting).rejects.toThrow('Autonomous stopped: exit code 1: boom')
+    await expect(connection.request('session/prompt', {})).rejects.toThrow('Autonomous stopped.')
     expect(connection.isClosed()).toBe(true)
     expect(t.closures).toEqual(['exit code 1: boom'])
     connection.respond(1, {})
@@ -185,7 +185,7 @@ describe('openAcpConnection: the end of the process', () => {
     const second = connection.kill()
     t.sink().closed('killed')
 
-    await expect(waiting).rejects.toThrow('The Cursor agent was stopped')
+    await expect(waiting).rejects.toThrow('Autonomous was stopped.')
     await Promise.all([first, second])
     expect(t.kills).toBe(1)
     expect(connection.isClosed()).toBe(true)
@@ -226,7 +226,7 @@ describe('openAcpConnection: waiting for the tree', () => {
         kill: () => Promise.resolve()
       }),
       LAUNCH,
-      { cwd: '/work' },
+      { cwd: '/work', agentName: 'Autonomous' },
       { notification: () => {}, request: () => {}, closed: () => {} }
     )
 

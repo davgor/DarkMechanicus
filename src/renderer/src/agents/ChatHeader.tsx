@@ -2,7 +2,6 @@ import { useId } from 'react'
 import type { ChatRecord, ModelOption } from '../../../shared/agents/chat'
 import { canSavePlans } from '../../../shared/agents/chat'
 import { StatePill } from '../components/StatePill'
-import { agentName } from './agentText'
 import { modelText, ROLE_LABELS } from './chatList'
 import type { ModelsState } from './useAgentModels'
 
@@ -40,6 +39,8 @@ function ModelPicker({ model, models, disabled, onPick }: ModelPickerProps): JSX
 
 interface ChatHeaderProps {
   chat: ChatRecord
+  /** What to call the chat's agent: the connected agent's display name, or its fallback. */
+  agentName: string
   /** The model the chat runs on from the next turn. */
   model: string | null
   models: ModelsState
@@ -54,7 +55,7 @@ const saveText = (chat: ChatRecord): string => (chat.allowSave && canSavePlans(c
  * What the chat is: title, agent, model, role. The agent is text only, since a chat keeps its agent
  * for life; the model can be switched, from the next turn on, whenever the agent lists its models.
  */
-export function ChatHeader({ chat, model, models, running, switching, onSwitchModel }: ChatHeaderProps): JSX.Element {
+export function ChatHeader({ chat, agentName, model, models, running, switching, onSwitchModel }: ChatHeaderProps): JSX.Element {
   return (
     <header className="chat-header">
       <span className="eyebrow">CHAT</span>
@@ -63,7 +64,7 @@ export function ChatHeader({ chat, model, models, running, switching, onSwitchMo
         {running ? <StatePill state="running" label="Answering" /> : null}
       </div>
       <ul className="chat-facts" aria-label="Chat details">
-        <li>{agentName(chat.agent)}</li>
+        <li>{agentName}</li>
         <li className="chat-model">
           {models.status === 'ready' && models.models.length > 0 ? (
             <ModelPicker model={model} models={models.models} disabled={switching} onPick={onSwitchModel} />

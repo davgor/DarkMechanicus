@@ -30,7 +30,7 @@ type Turn = (adapter: FakeChatAdapter, text: string) => Promise<void>
 
 /** The built-in kind each protocol's adapter stands for. */
 const KIND_BY_PROTOCOL: Readonly<Record<AgentProtocol, BuiltInAgentKind>> = { claude: 'claude', codex: 'codex', acp: 'cursor' }
-const PROTOCOL_BY_KIND: Readonly<Record<BuiltInAgentKind, AgentProtocol>> = { claude: 'claude', codex: 'codex', cursor: 'acp' }
+const PROTOCOL_BY_KIND: Readonly<Record<BuiltInAgentKind, AgentProtocol>> = { claude: 'claude', codex: 'codex', cursor: 'acp', autonomous: 'acp' }
 
 /** A connected built-in agent as the registry lists it, at `/bin/<kind>`. */
 export function builtInAgent(kind: BuiltInAgentKind, overrides: Partial<AgentView> = {}): AgentView {
@@ -174,13 +174,13 @@ export function fakeAdapters(): FakeAdapters {
   const created: FakeChatAdapter[] = []
   const define = (protocol: AgentProtocol, startOnOpen: boolean): ChatAdapterDefinition => ({
     startOnOpen,
-    create: (executablePath) => {
-      const adapter = new FakeChatAdapter(protocol, executablePath)
+    create: (spec) => {
+      const adapter = new FakeChatAdapter(protocol, spec.executablePath)
       fakes.prepare(adapter)
       created.push(adapter)
       return adapter
     },
-    listModels: (executablePath) => Promise.resolve([...MODELS, { id: executablePath, label: protocol }])
+    listModels: (spec) => Promise.resolve([...MODELS, { id: spec.executablePath, label: protocol }])
   })
   const fakes: FakeAdapters = {
     definitions: { claude: define('claude', false), codex: define('codex', true), acp: define('acp', false) },

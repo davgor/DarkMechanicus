@@ -18,8 +18,10 @@ import type {
 import { replayTransport, step, type Json, type ReplayTransport, type Step } from '../__mocks__/codexReplay'
 import { buildCliConfig } from '../../desktop/cliConfig'
 import { AT, REPO } from '../__mocks__/fakeChatAdapter'
+import { builtInSpec } from '../__mocks__/launchSpecs'
 import { CHAT_ADAPTERS } from '../adapterRegistry'
 import { codexAdapterDefinition, createCodexAdapter, type CodexDeps } from './codex'
+import { cliInstructions } from '../cliInstructions'
 
 const THREAD = 'thr_1'
 const TURN = 'turn_1'
@@ -594,7 +596,8 @@ describe('the thread Dark Mechanicus starts', () => {
       params: {
         cwd: REPO,
         approvalPolicy: 'untrusted',
-        sandbox: 'workspace-write'
+        sandbox: 'workspace-write',
+        developerInstructions: 'Use the dm CLI.'
       }
     })
     // No MCP server is configured for the thread: the agent runs `dm`, authorized by its grant.
@@ -680,7 +683,8 @@ describe('resuming a chat', () => {
         cwd: REPO,
         model: 'gpt-5',
         approvalPolicy: 'untrusted',
-        sandbox: 'workspace-write'
+        sandbox: 'workspace-write',
+        developerInstructions: 'Use the dm CLI.'
       }
     })
     expect(target.transcript()).toEqual([])
@@ -776,7 +780,47 @@ describe('the folder every Codex process runs in', () => {
       rmSync(folder, { recursive: true, force: true })
     }
   })
+})
 
+describe('what a Codex thread is told about dm', () => {
+  it("gives every thread, new or resumed, the chat's dm instructions with --repo <folder>, and the token nowhere (c1, c3)", async () => {
+    const folder = realpathSync(mkdtempSync(join(tmpdir(), 'dm-codex-instructions-')))
+    const token = 'dmg_FAKE_TOKEN_DM278'
+    try {
+      const cli = { ...buildCliConfig({ packaged: false, execPath: '/bin/electron', appPath: '/app', repoPath: folder }), env: { DM_SESSION_TOKEN: token } }
+      const instructions = cliInstructions({ cli, role: 'orchestrator', allowSave: false })
+      const reply = [completed({ type: 'agentMessage', id: 'm1', text: 'ok' })]
+      const fresh = rig([[...NEW_THREAD, ...turn(reply)]])
+      const resumed = rig([[...INITIALIZE, step.expect('thread/resume'), step.reply(THREAD_RESULT), ...turn(reply)]])
+      // A lost thread starts a new one in the same process: that one is told too.
+      const reset = rig([[...INITIALIZE, step.expect('thread/resume'), step.fail(-32600, 'gone'), step.expect('thread/start'), step.reply(THREAD_RESULT)]])
+
+      await start(fresh, options({ folder, darkMechanicus: cli, instructions }))
+      await start(resumed, options({ folder, darkMechanicus: cli, instructions, sessionId: THREAD }))
+      await start(reset, options({ folder, darkMechanicus: cli, instructions, sessionId: 'thr_lost' }))
+      await fresh.adapter.send('hi')
+      await resumed.adapter.send('hi')
+
+      expect(instructions).toContain(`--repo ${folder}`)
+      const threads = [fresh, resumed, reset].flatMap((target) =>
+        written(target).filter((message) => message.method === 'thread/start' || message.method === 'thread/resume')
+      )
+      expect(threads.map((message) => message.method)).toEqual(['thread/start', 'thread/resume', 'thread/resume', 'thread/start'])
+      for (const message of threads) {
+        expect(message.params).toMatchObject({ developerInstructions: instructions })
+      }
+      for (const target of [fresh, resumed, reset]) {
+        expect(JSON.stringify(written(target))).not.toContain(token)
+        expect(JSON.stringify(target.transcript())).not.toContain(token)
+        expect(JSON.stringify(target.events)).not.toContain(token)
+      }
+    } finally {
+      rmSync(folder, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('the folder every Codex process runs in, after a crash', () => {
   it('checks the folder before it starts another process after a crash, and starts none in a folder that is gone', async () => {
     let checks = 0
     let gone = false
@@ -824,7 +868,7 @@ describe('listing models without a chat', () => {
       return transport(target)
     }, newId: () => 'n', now: () => AT, clientVersion: '9.9.9' })
 
-    const models = await definition.listModels('/bin/codex')
+    const models = await definition.listModels(builtInSpec('codex', '/bin/codex'))
 
     expect(models.map((model) => model.id)).toEqual(['gpt-5-codex', 'gpt-5', 'bare'])
     expect(target.connects[0]?.executablePath).toBe('/bin/codex')
@@ -1157,7 +1201,7 @@ describe('the adapter registry', () => {
     const definition = CHAT_ADAPTERS.codex
 
     expect(definition?.startOnOpen).toBe(true)
-    expect(definition?.create('/bin/codex').kind).toBe('codex')
+    expect(definition?.create(builtInSpec('codex', '/bin/codex')).kind).toBe('codex')
   })
 })
 

@@ -2,9 +2,11 @@ import { spawn } from 'node:child_process'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FakeChild } from '../__mocks__/fakeChild'
 import { killProcessTree } from '../processTree'
+import { logger } from '../../logger'
 import { spawnCodexTransport } from './codexProcess'
 
 vi.mock('node:child_process', () => ({ spawn: vi.fn() }))
+vi.mock('../../logger', () => ({ logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() } }))
 vi.mock('../../desktop/agentProbeNode', () => ({ inspectExecutable: (): 'ok' => 'ok' }))
 vi.mock('../processTree', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../processTree')>()),
@@ -191,5 +193,19 @@ describe('while the program is stopped', () => {
 
     const detached = vi.mocked(spawn).mock.calls.map((call) => (call[2] as { detached: boolean }).detached)
     expect(detached).toEqual([true, false])
+  })
+})
+
+describe('a stop whose tree outlives the kill wait', () => {
+  it('logs one line naming the process id', async () => {
+    const child = new FakeChild(4242)
+    vi.mocked(spawn).mockReturnValue(child.asChild())
+    const transport = spawnCodexTransport(process.execPath, '/work/folder')
+    vi.mocked(killProcessTree).mockResolvedValue(false)
+    vi.mocked(logger.warn).mockClear()
+
+    await transport.kill()
+
+    expect(vi.mocked(logger.warn).mock.calls).toEqual([[expect.stringContaining('4242')]])
   })
 })

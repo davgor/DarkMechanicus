@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ChatAdapterEvent } from '../../../shared/agents/chat'
-import { UpdateTranslator } from './cursorUpdates'
+import { UpdateTranslator } from './acp/acpUpdates'
 
 const AT = '2026-01-01T00:00:00.000Z'
 const S = 'sess_1'

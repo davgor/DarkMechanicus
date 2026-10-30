@@ -8,7 +8,10 @@ import type { Readable, Writable } from 'node:stream'
 import type { SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { removeScratch } from '../../../test/removeScratch'
+import { logger } from '../../logger'
 import { createClaudeProcesses, createInputQueue, resolveClaudeExecutable, type ProcessDeps } from './claudeProcess'
+
+vi.mock('../../logger', () => ({ logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() } }))
 
 /**
  * The real-process tests start and kill real processes. They wait on what the process does (its first output, the
@@ -364,5 +367,18 @@ describe('createClaudeProcesses with real processes', () => {
     })
 
     expect(error).toMatchObject({ code: 'ENOENT' })
+  })
+})
+
+describe('createClaudeProcesses: a tree that outlives the kill wait', () => {
+  it('logs one line naming its process id, and still resolves', async () => {
+    const h = harness('linux', { killTree: () => Promise.resolve(false) })
+    const processes = createClaudeProcesses(h.deps)
+    processes.spawn(spawnOptions())
+    vi.mocked(logger.warn).mockClear()
+
+    await processes.killAll()
+
+    expect(vi.mocked(logger.warn).mock.calls).toEqual([[expect.stringContaining('1000')]])
   })
 })

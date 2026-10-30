@@ -23,11 +23,13 @@
  * turn every edit into a failure plus an escalation, so neither gives the "everything asks"
  * behavior the chat promises.
  *
- * The Dark Mechanicus server. It is handed over as a config override on `thread/start` and
- * `thread/resume` (`config: { "mcp_servers.darkmechanicus": { command, args, env } }`), which
- * Codex applies for that thread only and merges with whatever servers the person configured.
- * Nothing is written to the person's Codex configuration, and none of this code touches the file
- * system. Codex asks before running a tool of an MCP server (`mcpServer/elicitation/request`);
+ * Dark Mechanicus. No MCP server is configured: the agent runs the `dm` CLI, authorized by the grant
+ * in `DM_SESSION_TOKEN` in the process environment. The chat's instructions, which give the exact
+ * `dm` command line (with `--repo <folder>`) and never the token, go in `developerInstructions` of
+ * every `thread/start` and `thread/resume` (v2 `ThreadStartParams` and `ThreadResumeParams`; the
+ * recordings here were written from that schema, not captured), so a resumed thread is told again.
+ * Nothing is written to the person's Codex configuration, and none of this code touches the file system.
+ * Codex asks before running a tool of an MCP server the person configured (`mcpServer/elicitation/request`);
  * that reaches the person as an approval request like the others.
  *
  * Sign-in. A login that Codex cannot use is reported as one `auth_required` item and the turn
@@ -63,6 +65,8 @@ import type {
 } from '../../../shared/agents/chat'
 import type { BuiltInAgentKind } from '../../../shared/desktop/api'
 import type { ChatAdapterDefinition } from '../adapterRegistry'
+import { CODEX_APP_SERVER_ARGS, withFolder, type AgentLaunchSpec } from '../launchSpec'
+import type { ProtocolExchange } from '../protocolHandshake'
 import { answerFor, describeApproval, type ApprovalDescription } from './codexApprovals'
 import { asRecord, asText, fileChangeOf, itemFor, reloginMessage, scopedId, turnEnd, type ChangedFile, type Phase } from './codexItems'
 import { spawnCodexTransport } from './codexProcess'
@@ -80,8 +84,8 @@ const DEFAULT_INTERRUPT_GRACE_MS = 5_000
 const MAX_MODEL_PAGES = 20
 
 export interface CodexDeps {
-  /** Starts `codex app-server` (the registry's executable) in `folder`. */
-  connect(executablePath: string, folder: string, env?: Record<string, string>): RpcTransport
+  /** Starts the registry's executable with `args` (the spec's, `{folder}` replaced: `app-server` for the built-in) in `folder`. */
+  connect(executablePath: string, folder: string, env: Record<string, string> | undefined, args: readonly string[]): RpcTransport
   /** A fresh id for what the adapter makes up itself (approval requests, notices). */
   newId(): string
   now(): string
@@ -163,12 +167,17 @@ function createTurn(): ActiveTurn {
 
 // ---- Handshake and catalog, shared by chats and by the model picker ----
 
-async function handshake(rpc: RpcClient, deps: CodexDeps): Promise<void> {
-  await rpc.request('initialize', {
+/** What starting an app-server outside a chat needs: the process, and the client version it is told. */
+export type CodexProbeDeps = Pick<CodexDeps, 'connect' | 'clientVersion'>
+
+/** `initialize` and `initialized`; resolves with what `initialize` answered. */
+async function handshake(rpc: RpcClient, deps: CodexProbeDeps): Promise<unknown> {
+  const initialized = await rpc.request('initialize', {
     clientInfo: { name: 'dark-mechanicus', title: 'Dark Mechanicus', version: deps.clientVersion ?? 'unknown' },
     capabilities: null
   })
   rpc.notify('initialized')
+  return initialized
 }
 
 function modelOption(entry: unknown): ModelOption | null {
@@ -201,17 +210,50 @@ const NO_REQUESTS: Parameters<typeof createRpcClient>[1] = {
   onRequest: (method) => Promise.reject(new RpcError(-32601, `Dark Mechanicus does not handle the Codex request ${method}.`))
 }
 
-/** The models without a chat: a process of its own, stopped as soon as the catalog is read. */
-async function listCodexModels(deps: CodexDeps, executablePath: string): Promise<ModelOption[]> {
-  const transport = deps.connect(executablePath, tmpdir())
+/** A process of its own in `folder` (which is also `{folder}`) running `exchange` on its connection; `stop` ends the process tree. */
+function startExchange<T>(
+  deps: CodexProbeDeps,
+  spec: Pick<AgentLaunchSpec, 'executablePath' | 'args'>,
+  folder: string,
+  exchange: (rpc: RpcClient) => Promise<T>
+): ProtocolExchange<T> {
+  const transport = deps.connect(spec.executablePath, folder, undefined, withFolder(spec.args, folder))
   const rpc = createRpcClient(transport, NO_REQUESTS)
-  try {
-    await handshake(rpc, deps)
-    return await fetchModels(rpc)
-  } finally {
-    rpc.close('Listing models is done.')
-    await transport.kill()
+  return {
+    answer: exchange(rpc),
+    stop: async () => {
+      rpc.close('The app-server is no longer needed.')
+      await transport.kill()
+    }
   }
+}
+
+/** The models without a chat: a process of its own, stopped as soon as the catalog is read. */
+async function listCodexModels(deps: CodexDeps, executablePath: string, specArgs: readonly string[]): Promise<ModelOption[]> {
+  const { answer, stop } = startExchange(deps, { executablePath, args: specArgs }, tmpdir(), async (rpc) => {
+    await handshake(rpc, deps)
+    return fetchModels(rpc)
+  })
+  try {
+    return await answer
+  } finally {
+    await stop()
+  }
+}
+
+/**
+ * The handshake a custom CLI on the Codex protocol must pass, run in `folder`: `initialize`, `initialized`,
+ * then `model/list`. The answer holds what the two requests returned, unread; `stop` ends the process tree.
+ */
+export function startCodexProbe(
+  spec: AgentLaunchSpec,
+  folder: string,
+  deps: CodexProbeDeps = { connect: spawnCodexTransport }
+): ProtocolExchange<{ initialized: unknown; catalog: unknown }> {
+  return startExchange(deps, spec, folder, async (rpc) => {
+    const initialized = await handshake(rpc, deps)
+    return { initialized, catalog: await rpc.request('model/list', {}) }
+  })
 }
 
 // ---- The adapter ----
@@ -245,7 +287,8 @@ class CodexAdapter implements ChatAdapter {
 
   constructor(
     private readonly executablePath: string,
-    private readonly deps: CodexDeps
+    private readonly deps: CodexDeps,
+    private readonly specArgs: readonly string[]
   ) {}
 
   async start(options: ChatAdapterStartOptions, emit: ChatAdapterEmit): Promise<void> {
@@ -354,7 +397,9 @@ class CodexAdapter implements ChatAdapter {
   }
 
   listModels(): Promise<ModelOption[]> {
-    return this.rpc !== null && !this.rpc.closed ? fetchModels(this.rpc) : listCodexModels(this.deps, this.executablePath)
+    return this.rpc !== null && !this.rpc.closed
+      ? fetchModels(this.rpc)
+      : listCodexModels(this.deps, this.executablePath, this.specArgs)
   }
 
   async dispose(): Promise<void> {
@@ -388,7 +433,8 @@ class CodexAdapter implements ChatAdapter {
     const options = this.options as ChatAdapterStartOptions
     // Every process, a new one after a crash included, starts only in a folder that is still the chat's.
     options.checkFolder()
-    const transport = this.deps.connect(this.executablePath, options.folder, options.darkMechanicus.env)
+    const args = withFolder(this.specArgs, options.folder)
+    const transport = this.deps.connect(this.executablePath, options.folder, options.darkMechanicus.env, args)
     const rpc: RpcClient = createRpcClient(transport, {
       onNotification: (method, params) => {
         this.onNotification(method, params)
@@ -413,14 +459,15 @@ class CodexAdapter implements ChatAdapter {
     }
   }
 
-  /** The settings every thread gets, new or resumed. No MCP server: the agent runs the `dm` CLI. */
+  /** The settings every thread gets, new or resumed. No MCP server: the agent runs the `dm` CLI it is told about here. */
   private threadSettings(): Record<string, unknown> {
-    const { folder } = this.options as ChatAdapterStartOptions
+    const { folder, instructions } = this.options as ChatAdapterStartOptions
     return {
       cwd: folder,
       ...(this.model === null ? {} : { model: this.model }),
       approvalPolicy: APPROVAL_POLICY,
-      sandbox: SANDBOX_MODE
+      sandbox: SANDBOX_MODE,
+      developerInstructions: instructions
     }
   }
 
@@ -644,8 +691,9 @@ class CodexAdapter implements ChatAdapter {
   }
 }
 
-export function createCodexAdapter(executablePath: string, deps: CodexDeps): ChatAdapter {
-  return new CodexAdapter(executablePath, deps)
+/** `specArgs` are the launch spec's, before `{folder}` is replaced; the built-in's `app-server` unless given. */
+export function createCodexAdapter(executablePath: string, deps: CodexDeps, specArgs: readonly string[] = CODEX_APP_SERVER_ARGS): ChatAdapter {
+  return new CodexAdapter(executablePath, deps, specArgs)
 }
 
 export function codexAdapterDefinition(deps: CodexDeps): ChatAdapterDefinition {
@@ -653,8 +701,9 @@ export function codexAdapterDefinition(deps: CodexDeps): ChatAdapterDefinition {
     // The handshake and the thread resume take a moment; doing them when the chat opens makes the
     // first message quick and reports a lost thread (a context reset) as soon as the chat is open.
     startOnOpen: true,
-    create: (executablePath) => createCodexAdapter(executablePath, deps),
-    listModels: (executablePath) => listCodexModels(deps, executablePath)
+    create: (spec) => createCodexAdapter(spec.executablePath, deps, spec.args),
+    // A custom CLI runs only in its chats (the confirmation promised it): none listed, so it runs on its own default.
+    listModels: (spec) => (spec.kind === 'custom' ? Promise.resolve([]) : listCodexModels(deps, spec.executablePath, spec.args))
   }
 }
 

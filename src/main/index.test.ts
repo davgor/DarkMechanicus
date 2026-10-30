@@ -13,7 +13,7 @@ const startup = vi.hoisted(() => ({
   listeners: new Map<string, ((event: { preventDefault(): void }) => void)[]>(),
   quits: 0,
   liveChats: 0,
-  chatDisposals: 0
+  events: [] as string[]
 }))
 
 vi.mock('electron', () => ({
@@ -46,8 +46,11 @@ vi.mock('./desktop/bootstrap', () => ({
     chats: {
       liveCount: () => startup.liveChats,
       disposeAll: async () => {
-        startup.chatDisposals += 1
+        startup.events.push('dispose chats')
       }
+    },
+    close: () => {
+      startup.events.push('close stores')
     }
   })
 }))
@@ -66,7 +69,7 @@ beforeEach(() => {
   startup.listeners = new Map()
   startup.quits = 0
   startup.liveChats = 0
-  startup.chatDisposals = 0
+  startup.events = []
   vi.stubEnv('ELECTRON_RENDERER_URL', '')
 })
 afterEach(() => vi.unstubAllEnvs())
@@ -115,19 +118,36 @@ describe('desktop startup background', () => {
   })
 })
 
+function emitBeforeQuit(): boolean {
+  let prevented = false
+  for (const listener of startup.listeners.get('before-quit') ?? []) {
+    listener({ preventDefault: () => (prevented = true) })
+  }
+  return prevented
+}
+
 describe('desktop quit', () => {
-  it('holds the quit until every agent chat is disposed, then quits', async () => {
+  it('holds the quit until every agent chat is disposed, then closes the stores once and quits', async () => {
     startup.liveChats = 2
     await import('./index')
     startup.ready!()
     await Promise.resolve()
-    let prevented = false
 
-    for (const listener of startup.listeners.get('before-quit') ?? []) {
-      listener({ preventDefault: () => (prevented = true) })
-    }
+    const prevented = emitBeforeQuit()
     await new Promise((resolve) => setImmediate(resolve))
+    emitBeforeQuit()
 
-    expect([prevented, startup.chatDisposals, startup.quits]).toEqual([true, 1, 1])
+    expect([prevented, startup.events, startup.quits]).toEqual([true, ['dispose chats', 'close stores'], 1])
+  })
+
+  it('closes the stores once on a quit with no live chat', async () => {
+    await import('./index')
+    startup.ready!()
+    await Promise.resolve()
+
+    const prevented = emitBeforeQuit()
+    emitBeforeQuit()
+
+    expect([prevented, startup.events, startup.quits]).toEqual([false, ['dispose chats', 'close stores'], 0])
   })
 })

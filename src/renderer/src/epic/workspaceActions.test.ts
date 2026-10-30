@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { StartOrchestratorResult } from '../../../shared/agents/chatApi'
-import { chatRecord } from '../__mocks__/fixtures'
+import type { AgentView } from '../../../shared/desktop/api'
+import { agentView, chatRecord } from '../__mocks__/fixtures'
 import { FakeBackend, scenario } from './__mocks__/fakeBackend'
 import { checkpointView, draftPlan, epicDetail, runView, savedPlan, validation } from './__mocks__/fixtures'
 import { CommandError } from '../api/dm'
@@ -32,6 +33,9 @@ function data(patch: Partial<WorkspaceData> = {}): WorkspaceData {
 /** What main answers by default: a queued run and the chat started for it. */
 let orchestrator = (): StartOrchestratorResult => ({ run: runView({ state: 'queued' }), chat: chatRecord({ runId: 'rn_2' }), problem: null })
 
+/** The connected agents the workspace names an orchestrator by. */
+let connected: AgentView[] = []
+
 function harness(patch: Partial<WorkspaceData> = {}, backend = new FakeBackend(scenario({ draft: draftPlan() }))) {
   const dispatched: WorkspaceAction[] = []
   const counts = { reloads: 0, changes: 0, chats: 0 }
@@ -51,6 +55,7 @@ function harness(patch: Partial<WorkspaceData> = {}, backend = new FakeBackend(s
     onChatsChanged: () => {
       counts.chats += 1
     },
+    agents: () => connected,
     getState: () => current,
     dispatch,
     reload: () => {
@@ -144,6 +149,19 @@ describe('draft lifecycle actions (2)', () => {
 })
 
 describe('start a run with an agent', () => {
+  it('names a connected custom agent by its display name, and one no longer connected generically', async () => {
+    orchestrator = () => ({ run: runView({ state: 'queued' }), chat: chatRecord({ runId: 'rn_2' }), problem: null })
+    const custom = agentView({ kind: 'custom', displayName: 'My Claude' })
+    connected = [custom]
+    const h = harness({ run: null })
+    await h.actions.startRunWithAgent({ agent: custom.id, model: null })
+    expect(h.state().toast).toBe('Run queued. My Claude is orchestrating it.')
+    connected = []
+    const gone = harness({ run: null })
+    await gone.actions.startRunWithAgent({ agent: custom.id, model: null })
+    expect(gone.state().toast).toBe('Run queued. Custom agent is orchestrating it.')
+  })
+
   it('starts the chosen agent as the orchestrator, says so, and closes the dialog', async () => {
     orchestrator = () => ({ run: runView({ state: 'queued' }), chat: chatRecord({ runId: 'rn_2' }), problem: null })
     const h = harness({ run: null })

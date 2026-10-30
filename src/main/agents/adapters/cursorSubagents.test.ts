@@ -9,7 +9,8 @@ import type { ChatAdapterEvent } from '../../../shared/agents/chat'
 import { CLIENT_VERSION, DM_SERVER, FOLDER } from '../__mocks__/cursorRecordings'
 import { SESSION, TASK_AS_NOTIFICATION, TASK_AS_REQUEST, TASK_CALL, TASK_RESULT } from '../__mocks__/cursorSubagents'
 import { ReplayAcpAgents, type Frame } from '../__mocks__/replayAcpAgent'
-import { createCursorAdapter, type CursorDeps } from './cursor'
+import type { AcpDeps as CursorDeps } from './acp/acpAdapter'
+import { createCursorAdapter } from './cursor'
 
 const AT = '2026-01-01T00:00:00.000Z'
 

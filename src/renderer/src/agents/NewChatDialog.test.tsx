@@ -83,6 +83,91 @@ const modelOptions = (): string[] =>
   Array.from((dialog().getByLabelText('Model') as HTMLSelectElement).options).map((option) => option.value)
 const start = (): HTMLButtonElement => dialog().getByRole('button', { name: 'Start chat' }) as HTMLButtonElement
 
+describe('NewChatDialog: the folder default agent', () => {
+  it('opens with the folder’s default agent chosen when it can chat', async () => {
+    dm.folderDefaults['/a'] = 'codex'
+    await open()
+    expect(dm.agentCalls.filter((call) => call.method === 'folderDefaultAgent')).toEqual([
+      { method: 'folderDefaultAgent', args: ['/a'] }
+    ])
+    expect(agentRadio('Codex').checked).toBe(true)
+    expect(modelOptions()).toEqual(['gpt-5'])
+  })
+
+  it('chooses the default once it arrives, and waits for it before a chat can start', async () => {
+    dm.folderDefaults['/a'] = 'codex'
+    const hold = dm.holdAgent('folderDefaultAgent')
+    await open()
+    expect(start().disabled).toBe(true)
+    hold.resolve()
+    await settle()
+    expect(agentRadio('Codex').checked).toBe(true)
+    expect(start().disabled).toBe(false)
+  })
+
+  it('keeps the first choice when the default is signed out', async () => {
+    dm.folderDefaults['/a'] = 'codex'
+    await open({ statuses: { claude: SIGNED_IN, codex: SIGNED_OUT } })
+    expect(agentRadio('Claude Code').checked).toBe(true)
+  })
+
+  it('keeps the first choice when the default is no longer connected', async () => {
+    dm.folderDefaults['/a'] = 'codex'
+    await open({ agents: [claude], statuses: { claude: SIGNED_IN } })
+    expect(agentRadio('Claude Code').checked).toBe(true)
+  })
+
+  it('keeps the first choice when the default cannot be read', async () => {
+    dm.folderDefaultAgent = () => Promise.reject(new Error('unauthorized'))
+    await open()
+    expect(agentRadio('Claude Code').checked).toBe(true)
+    expect(start().disabled).toBe(false)
+  })
+
+  it('lets the person pick another agent over the default', async () => {
+    dm.folderDefaults['/a'] = 'codex'
+    const calls = await open()
+    fireEvent.click(agentRadio('Claude Code'))
+    await settle()
+    fireEvent.click(start())
+    await settle()
+    expect(calls.created[0]?.agent).toBe('claude')
+  })
+})
+
+describe('NewChatDialog: a custom agent', () => {
+  it('preselects a custom agent default by its id', async () => {
+    const custom = agentView({ kind: 'custom' })
+    dm.folderDefaults['/a'] = custom.id
+    const calls = await open({ agents: [claude, custom], statuses: { claude: SIGNED_IN, [custom.id]: SIGNED_IN } })
+    expect(agentRadio('Custom agent').checked).toBe(true)
+    fireEvent.click(start())
+    await settle()
+    expect(calls.created[0]?.agent).toBe(custom.id)
+  })
+
+  it('uses a custom agent’s id when it is the first that can chat', async () => {
+    const custom = agentView({ kind: 'custom' })
+    const calls = await open({ agents: [custom, claude], statuses: { claude: SIGNED_IN, [custom.id]: SIGNED_IN } })
+    expect(agentRadio('Custom agent').checked).toBe(true)
+    fireEvent.click(start())
+    await settle()
+    expect(calls.created[0]?.agent).toBe(custom.id)
+  })
+
+  it('lists a custom agent by its name, and offers CLI default when it lists no models', async () => {
+    const custom = agentView({ kind: 'custom', displayName: 'My ACP', protocol: 'acp' })
+    dm.chats.modelLists = { ...dm.chats.modelLists, [custom.id]: [] }
+    const calls = await open({ agents: [claude, custom], statuses: { claude: SIGNED_IN, [custom.id]: { state: 'unchecked', reason: 'Not checked.' } } })
+    fireEvent.click(agentRadio('My ACP'))
+    await settle()
+    expect(Array.from((dialog().getByLabelText('Model') as HTMLSelectElement).options).map((option) => option.textContent)).toEqual(['CLI default'])
+    fireEvent.click(start())
+    await settle()
+    expect(calls.created).toEqual([{ agent: custom.id, model: null, role: 'orchestrator', allowSave: true }])
+  })
+})
+
 describe('NewChatDialog: the agent', () => {
   it('offers only connected agents that are signed in, the first one chosen', async () => {
     await open({ agents: [claude, codex], statuses: { claude: SIGNED_OUT, codex: SIGNED_IN } })
@@ -102,11 +187,12 @@ describe('NewChatDialog: the agent', () => {
 })
 
 describe('NewChatDialog: signing in from the list', () => {
-  it('lists an agent that is signed out with Sign in, and the one that is not connected with Add, and cannot pick either', async () => {
+  it('lists an agent that is signed out with Sign in, and the ones that are not connected with Add, and cannot pick any', async () => {
     const calls = await open({ agents: [claude, codex], statuses: { claude: SIGNED_OUT, codex: SIGNED_IN } })
     const unavailable = within(dialog().getByRole('list', { name: 'Not available' }))
     expect(unavailable.getByText('Signed out')).toBeTruthy()
-    expect(unavailable.getByText('Not connected')).toBeTruthy()
+    expect(unavailable.getAllByText('Not connected')).toHaveLength(2)
+    expect(unavailable.getByRole('button', { name: 'Add Autonomous' })).toBeTruthy()
     expect(dialog().queryByRole('radio', { name: /Claude Code/ })).toBeNull()
     fireEvent.click(unavailable.getByRole('button', { name: 'Sign in' }))
     await settle()
@@ -166,10 +252,12 @@ describe('NewChatDialog: the model', () => {
     expect(start().disabled).toBe(false)
   })
 
-  it('says so when the agent offers no models, and starts the chat on the agent\'s default model', async () => {
+  it('offers one CLI default choice when the agent lists no models, and starts the chat with model null', async () => {
     dm.chats.modelLists = { claude: [] }
     const calls = await open()
-    expect(dialog().getByText('No models available for this agent yet. The chat will use its default model.')).toBeTruthy()
+    const select = dialog().getByLabelText('Model') as HTMLSelectElement
+    expect(Array.from(select.options).map((option) => option.textContent)).toEqual(['CLI default'])
+    expect(dialog().getByText('The CLI picks its own model.')).toBeTruthy()
     fireEvent.click(start())
     expect(calls.created).toEqual([{ agent: 'claude', model: null, role: 'orchestrator', allowSave: true }])
   })

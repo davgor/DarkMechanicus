@@ -52,12 +52,13 @@ function exited(output: string, exitCode = 0): ProcessOutcome {
 const VERSION_OUTPUT: Record<BuiltInAgentKind, string> = {
   claude: '2.1.281 (Claude Code)\n',
   codex: 'codex-cli 0.46.0\n',
-  cursor: '2025.09.18-7ae6800\n'
+  cursor: '2025.09.18-7ae6800\n',
+  autonomous: 'Autonomous 0.79.0 · darwin-arm64 · OMP 18.11.2\n'
 }
 
-const KINDS: BuiltInAgentKind[] = ['claude', 'codex', 'cursor']
+const KINDS: BuiltInAgentKind[] = ['claude', 'codex', 'cursor', 'autonomous']
 
-const CLI_NAMES: Record<BuiltInAgentKind, string> = { claude: 'Claude Code', codex: 'Codex', cursor: 'Cursor' }
+const CLI_NAMES: Record<BuiltInAgentKind, string> = { claude: 'Claude Code', codex: 'Codex', cursor: 'Cursor', autonomous: 'Autonomous' }
 
 const IDENTIFIED: [BuiltInAgentKind, string, string | null][] = [
   ['claude', '2.1.281 (Claude Code)\n', '2.1.281'],
@@ -66,7 +67,9 @@ const IDENTIFIED: [BuiltInAgentKind, string, string | null][] = [
   ['codex', 'codex-cli 0.46.0\n', '0.46.0'],
   ['codex', 'codex 1.2.3\r\n', '1.2.3'],
   ['cursor', '2025.09.18-7ae6800\n', '2025.09.18-7ae6800'],
-  ['cursor', 'cursor-agent 1.0.2\n', '1.0.2']
+  ['cursor', 'cursor-agent 1.0.2\n', '1.0.2'],
+  ['autonomous', 'Autonomous 0.79.0 · darwin-arm64 · OMP 18.11.2\n', '0.79.0'],
+  ['autonomous', 'Autonomous 0.77.0 · darwin-arm64 · OMP 18.11.2\n', '0.77.0']
 ]
 
 describe('probeAgent identification', () => {
@@ -117,6 +120,15 @@ describe('probeAgent refuses a different program', () => {
 
     expect(await probeAgent('codex', '/bin/wrapper', deps)).toMatchObject({ ok: false, code: 'wrong_program' })
   })
+
+  it.each([['2.1.281 (Claude Code)\n'], ['omp/18.11.2\n'], ['autonomous 0.79.0\n'], ['The Autonomous 0.79.0 build\n'], ['Autonomous agent\n']])(
+    'refuses %j as Autonomous: only a line that starts `Autonomous <digit>` is it',
+    async (output) => {
+      const { deps } = harness(exited(output))
+
+      expect(await probeAgent('autonomous', '/bin/a8s', deps)).toEqual({ ok: false, code: 'wrong_program', reason: 'This is not the Autonomous CLI.' })
+    }
+  )
 
   it('refuses a program that exits with an error even when it names the CLI', async () => {
     const { deps } = harness(exited('2.1.281 (Claude Code)\n', 3))
@@ -291,13 +303,13 @@ describe('probeAgent on a Windows .cmd shim', () => {
     expect(launches[0]?.args.at(-1)).toBe(`""${path}" --version"`)
   })
 
-  it('falls back to cmd.exe when no ComSpec is given', async () => {
+  it('falls back to the System32 cmd.exe by its full path when no comspec is given', async () => {
     const { deps, launches } = harness(exited(VERSION_OUTPUT.codex), { platform: 'win32' })
     const { comspec: _unused, ...withoutComspec } = deps
 
     await probeAgent('codex', SHIM, withoutComspec)
 
-    expect(launches[0]?.file).toBe('cmd.exe')
+    expect(launches[0]?.file).toMatch(/^[A-Za-z]:\\.+\\System32\\cmd\.exe$/)
   })
 })
 

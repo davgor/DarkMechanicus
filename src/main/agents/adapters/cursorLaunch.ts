@@ -6,7 +6,8 @@
  * its `,` and `=` stay part of one argument. A model id that does not pass is an error, never escaped.
  */
 import { planCliLaunch, type AgentProbeDeps, type ProbeLaunch } from '../../desktop/agentProbe'
-import { clip, isSafeModelId } from './cursorProtocol'
+import { clip } from './acp/acpJson'
+import { isSafeModelId } from './cursorProtocol'
 
 interface CursorCommand {
   /** `acp` runs the protocol server; the other two list the models. */
@@ -17,13 +18,18 @@ interface CursorCommand {
 
 type CursorLaunchDeps = Pick<AgentProbeDeps, 'platform' | 'inspect' | 'comspec'>
 
-/** The process to start for `command`, or an Error saying why none can be started. */
-export function cursorLaunch(executablePath: string, { command, model }: CursorCommand, deps: CursorLaunchDeps): ProbeLaunch {
+/** The arguments for `command`, or an Error when the model id cannot be passed safely. */
+export function cursorArguments({ command, model }: CursorCommand): string[] {
   if (model !== null && !isSafeModelId(model)) {
     throw new Error(`${JSON.stringify(clip(model, 60))} is not a model id Cursor can be started with.`)
   }
   const modelArguments = model === null ? [] : ['--model', model]
-  const plan = planCliLaunch(executablePath, [...modelArguments, command], deps)
+  return [...modelArguments, command]
+}
+
+/** The process to start for `command`, or an Error saying why none can be started. */
+export function cursorLaunch(executablePath: string, command: CursorCommand, deps: CursorLaunchDeps): ProbeLaunch {
+  const plan = planCliLaunch(executablePath, cursorArguments(command), deps)
   if ('ok' in plan) {
     throw new Error(plan.reason)
   }

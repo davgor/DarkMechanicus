@@ -1,10 +1,10 @@
 /**
  * ACP exchanges as `a8s start <folder> --mode acp` speaks them, captured from the installed
- * Autonomous 0.79.0 (OMP 18.11.2) against a scratch Git repository. Findings are in
- * docs/reports/autonomous-acp.md. Not shipped, and nothing reads it yet: it is the
- * ground truth for the Autonomous adapter.
+ * Autonomous 0.79.0 (OMP 18.11.2) against scratch Git repositories: two processes on 2026-10-29
+ * (DM-253) and a third on 2026-10-30 (DM-281). Findings are in docs/reports/autonomous-acp.md.
+ * Not shipped, and nothing reads it yet: it is the ground truth for the Autonomous adapter.
  *
- * Sanitized: the scratch folder is FOLDER (and REAL_FOLDER, the symlink-resolved path the shell
+ * Sanitized: each scratch folder is FOLDER (and REAL_FOLDER, the symlink-resolved path the shell
  * printed), session, message and tool-call ids are placeholders, `updatedAt` timestamps are
  * shifted, costs and wall times are rounded, and the client version is CLIENT_VERSION. Streamed
  * `agent_thought_chunk` / `agent_message_chunk` updates that shared a `messageId` are joined into
@@ -77,7 +77,7 @@ const THINKING_OPTIONS = [
   { value: 'max', name: 'max' }
 ]
 
-function configOptions(model: string): Record<string, unknown>[] {
+function configOptions(model: string, thinking = 'xhigh'): Record<string, unknown>[] {
   return [
     {
       id: 'mode',
@@ -100,7 +100,7 @@ function configOptions(model: string): Record<string, unknown>[] {
       name: 'Thinking',
       category: 'thought_level',
       type: 'select',
-      currentValue: 'xhigh',
+      currentValue: thinking,
       options: THINKING_OPTIONS
     }
   ]
@@ -248,6 +248,8 @@ const NEW_SESSION: Frame[] = [
   })
 ]
 
+const PWD_THEN_WRITE =
+  'Run the shell command `pwd`. Then create a file named hello.txt containing "hi" in the current folder. Use one tool call for each step. Be brief.'
 const PWD_OUTPUT = `${REAL_FOLDER}\n`
 const PWD_CONTENT = [text('$ pwd'), text(PWD_OUTPUT), text(REAL_FOLDER)]
 const PWD_DETAILS = {
@@ -258,14 +260,12 @@ const PWD_DETAILS = {
 
 /**
  * Turn 1: "run pwd, then create hello.txt". `pwd` is asked about and allowed; the write is
- * refused by a8s without any permission request (see the report), so the second permission
- * answer, a reject, is recorded in LOAD_SESSION's turn instead.
+ * refused by a8s without any request, because the client declared no `elicitation.form` (see the
+ * report and WRITE_TURN), so the second permission answer, a reject, is recorded in
+ * LOAD_SESSION's turn instead.
  */
 const PROMPT_TURN: Frame[] = [
-  prompt(
-    4,
-    'Run the shell command `pwd`. Then create a file named hello.txt containing "hi" in the current folder. Use one tool call for each step. Be brief.'
-  ),
+  prompt(4, PWD_THEN_WRITE),
   COMMANDS_UPDATE,
   update({
     sessionUpdate: 'session_info_update',
@@ -427,7 +427,7 @@ const LOAD_SESSION: Frame[] = [
     sessionUpdate: 'user_message_chunk',
     content: {
       type: 'text',
-      text: 'Run the shell command `pwd`. Then create a file named hello.txt containing "hi" in the current folder. Use one tool call for each step. Be brief.'
+      text: PWD_THEN_WRITE
     },
     messageId: 'message-3'
   }),
@@ -604,19 +604,221 @@ const LOAD_SESSION: Frame[] = [
   })
 ]
 
-/** The recorded processes: the first opens the session and runs both turns, the second loads it. */
+/** Session id of the third process (a new session, not a load of SESSION_ID). */
+const WRITE_SESSION_ID = '00000000-0000-7000-8000-000000000002'
+
+/**
+ * The third process's argv. `--model` and `--thinking` only made the turn cheaper: the write is
+ * asked about because of `--approval-mode always-ask` plus the client's `elicitation.form`.
+ */
+const WRITE_LAUNCH_ARGV = [...LAUNCH_ARGV, '--model', 'anthropic/claude-haiku-5-5', '--thinking', 'off']
+
+/** HANDSHAKE's capabilities plus `elicitation.form`, without which a8s refuses a write unasked. */
+const WRITE_CLIENT_CAPABILITIES = {
+  fs: { readTextFile: false, writeTextFile: false },
+  terminal: false,
+  elicitation: { form: {} }
+}
+
+/** The same frame, sent for another session. */
+function inSession(sessionId: string, frame: Frame): Frame {
+  const params = frame.message.params as Record<string, unknown>
+  return { ...frame, message: { ...frame.message, params: { ...params, sessionId } } }
+}
+
+function writeUpdate(body: Record<string, unknown>): Frame {
+  return inSession(WRITE_SESSION_ID, update(body))
+}
+
+/** HANDSHAKE with WRITE_CLIENT_CAPABILITIES; the answer and authenticate were unchanged. */
+const WRITE_HANDSHAKE: Frame[] = [
+  client({
+    id: 1,
+    method: 'initialize',
+    params: {
+      protocolVersion: 1,
+      clientCapabilities: WRITE_CLIENT_CAPABILITIES,
+      clientInfo: { name: 'dark-mechanicus', version: CLIENT_VERSION }
+    }
+  }),
+  ...HANDSHAKE.slice(1)
+]
+
+const WRITE_PWD_DETAILS = { ...PWD_DETAILS, wallTimeMs: 103.49 }
+const HELLO_PATH = `${REAL_FOLDER}/hello.txt`
+
+/**
+ * Process 3: `session/new`, then turn 1's prompt again. `pwd` is asked about with
+ * `session/request_permission` and allowed. The write is asked about with `elicitation/create`
+ * (a form with one `value`, Approve or Deny), not `session/request_permission`; accepted with
+ * Approve, a8s writes the file itself (the client declared `fs.writeTextFile: false`) and the
+ * call completes.
+ */
+const WRITE_TURN: Frame[] = [
+  client({ id: 3, method: 'session/new', params: SESSION_PARAMS }),
+  inSession(WRITE_SESSION_ID, HIVEMIND_NOTICE),
+  agent({
+    id: 3,
+    result: {
+      sessionId: WRITE_SESSION_ID,
+      configOptions: configOptions('anthropic/claude-haiku-5-5', 'off'),
+      modes: MODES
+    }
+  }),
+  inSession(WRITE_SESSION_ID, prompt(4, PWD_THEN_WRITE)),
+  inSession(WRITE_SESSION_ID, COMMANDS_UPDATE),
+  writeUpdate({
+    sessionUpdate: 'session_info_update',
+    updatedAt: '2026-01-01T00:00:00.000Z'
+  }),
+  writeUpdate({
+    sessionUpdate: 'agent_message_chunk',
+    content: { type: 'text', text: "I'll start by running `pwd`." },
+    messageId: 'message-8'
+  }),
+  inSession(WRITE_SESSION_ID, askToRun(0, 'toolu_pwd', 'pwd', { command: 'pwd' })),
+  selected(0, 'allow_once'),
+  writeUpdate({
+    sessionUpdate: 'tool_call',
+    toolCallId: 'toolu_pwd',
+    title: '$ pwd',
+    kind: 'execute',
+    status: 'pending',
+    rawInput: { command: 'pwd' },
+    content: [text('$ pwd')]
+  }),
+  writeUpdate({
+    sessionUpdate: 'tool_call_update',
+    toolCallId: 'toolu_pwd',
+    status: 'in_progress',
+    rawOutput: { content: [{ type: 'text', text: PWD_OUTPUT }], details: {} },
+    content: PWD_CONTENT
+  }),
+  writeUpdate({
+    sessionUpdate: 'tool_call_update',
+    toolCallId: 'toolu_pwd',
+    status: 'in_progress',
+    rawOutput: {
+      content: [{ type: 'text', text: PWD_OUTPUT }],
+      details: WRITE_PWD_DETAILS
+    },
+    content: PWD_CONTENT
+  }),
+  writeUpdate({
+    sessionUpdate: 'tool_call_update',
+    toolCallId: 'toolu_pwd',
+    status: 'completed',
+    rawOutput: {
+      content: [{ type: 'text', text: PWD_OUTPUT }],
+      details: WRITE_PWD_DETAILS
+    },
+    content: PWD_CONTENT
+  }),
+  writeUpdate({
+    sessionUpdate: 'agent_message_chunk',
+    content: { type: 'text', text: 'Now creating the file.' },
+    messageId: 'message-9'
+  }),
+  writeUpdate({
+    sessionUpdate: 'tool_call',
+    toolCallId: 'toolu_write',
+    title: 'Creating hello.txt with "hi"',
+    kind: 'edit',
+    status: 'pending',
+    rawInput: { path: 'hello.txt', content: 'hi' },
+    locations: [{ path: HELLO_PATH }]
+  }),
+  agent({
+    id: 1,
+    method: 'elicitation/create',
+    params: {
+      mode: 'form',
+      sessionId: WRITE_SESSION_ID,
+      message: 'Allow tool: write\nPath: hello.txt\nContent:\nhi',
+      requestedSchema: {
+        type: 'object',
+        properties: { value: { type: 'string', enum: ['Approve', 'Deny'] } },
+        required: ['value']
+      }
+    }
+  }),
+  client({ id: 1, result: { action: 'accept', content: { value: 'Approve' } } }),
+  writeUpdate({
+    sessionUpdate: 'tool_call_update',
+    toolCallId: 'toolu_write',
+    status: 'in_progress',
+    rawOutput: {
+      content: [{ type: 'text', text: 'Writing 2 bytes to hello.txt...' }],
+      details: { resolvedPath: HELLO_PATH }
+    },
+    content: [text('Writing 2 bytes to hello.txt...')],
+    locations: [{ path: HELLO_PATH }]
+  }),
+  writeUpdate({
+    sessionUpdate: 'tool_call_update',
+    toolCallId: 'toolu_write',
+    status: 'completed',
+    rawOutput: {
+      content: [{ type: 'text', text: '[hello.txt#A564]\nSuccessfully wrote 2 bytes to hello.txt' }],
+      details: { resolvedPath: HELLO_PATH }
+    },
+    content: [text('[hello.txt#A564]\nSuccessfully wrote 2 bytes to hello.txt')],
+    locations: [{ path: HELLO_PATH }]
+  }),
+  writeUpdate({
+    sessionUpdate: 'agent_message_chunk',
+    content: {
+      type: 'text',
+      text: `Done.\n\n- \`pwd\`: \`${REAL_FOLDER}\`\n- Created \`hello.txt\` in that folder containing \`hi\` (2 bytes).`
+    },
+    messageId: 'message-10'
+  }),
+  writeUpdate({
+    sessionUpdate: 'usage_update',
+    size: 100000,
+    used: 21583,
+    cost: { amount: 0.0008, currency: 'USD' }
+  }),
+  writeUpdate({
+    sessionUpdate: 'session_info_update',
+    updatedAt: '2026-01-01T00:00:05.000Z'
+  }),
+  agent({
+    id: 4,
+    result: {
+      stopReason: 'end_turn',
+      usage: {
+        inputTokens: 8,
+        outputTokens: 262,
+        totalTokens: 64603,
+        cachedReadTokens: 63954,
+        cachedWriteTokens: 379
+      }
+    }
+  })
+]
+
+/**
+ * The recorded processes: the first opens the session and runs both turns, the second loads it,
+ * the third (its own session) has a write asked about and allowed.
+ */
 export const AUTONOMOUS_RECORDINGS = {
   folder: FOLDER,
   realFolder: REAL_FOLDER,
   clientVersion: CLIENT_VERSION,
   sessionId: SESSION_ID,
+  writeSessionId: WRITE_SESSION_ID,
   launchArgv: LAUNCH_ARGV,
+  writeLaunchArgv: WRITE_LAUNCH_ARGV,
   versionLine: 'Autonomous 0.79.0 · darwin-arm64 · OMP 18.11.2',
   handshake: HANDSHAKE,
+  writeHandshake: WRITE_HANDSHAKE,
   newSession: NEW_SESSION,
   promptTurn: PROMPT_TURN,
   cancelTurn: CANCEL_TURN,
   loadSession: LOAD_SESSION,
+  writeTurn: WRITE_TURN,
   firstProcess: [...HANDSHAKE, ...NEW_SESSION, ...PROMPT_TURN, ...CANCEL_TURN],
-  secondProcess: [...HANDSHAKE, ...LOAD_SESSION]
+  secondProcess: [...HANDSHAKE, ...LOAD_SESSION],
+  writeProcess: [...WRITE_HANDSHAKE, ...WRITE_TURN]
 } as const

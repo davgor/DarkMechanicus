@@ -33,11 +33,19 @@ function modelFor(picked: Picked, state: ModelsState): string | null {
 
 const modelsSettled = (state: ModelsState): boolean => state.status === 'ready' || state.status === 'failed'
 
-/** Agent, then model, as the new-chat and Start run dialogs both ask for them. */
-export function useAgentModelChoice(agents: readonly AgentView[], statuses: AgentStatuses): AgentModelChoice {
+/**
+ * Agent, then model, as the new-chat and Start run dialogs both ask for them. Until one is picked, the
+ * preferred agent (a folder's default) stands in when it can chat, and otherwise the first that can.
+ */
+export function useAgentModelChoice(
+  agents: readonly AgentView[],
+  statuses: AgentStatuses,
+  preferredAgentId: AgentId | null = null
+): AgentModelChoice {
   const [picked, setPicked] = useState<Picked>({ agent: null, model: null })
   const ready = chattableAgents(agents, statuses)
-  const agent = ready.find((candidate) => candidate.kind === picked.agent)?.kind ?? ready[0]?.kind ?? null
+  const usable = (id: AgentId | null): AgentId | undefined => ready.find((candidate) => candidate.id === id)?.id
+  const agent = usable(picked.agent) ?? usable(preferredAgentId) ?? ready[0]?.id ?? null
   const models = useAgentModels(agent)
   return {
     agent,

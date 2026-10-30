@@ -57,7 +57,10 @@ function recordingSessions(): { sessions: SessionManager; calls: unknown[][] } {
     listModels: async (...args) => (calls.push(['listModels', ...args]), MODELS),
     agentName: (id) => id,
     liveCount: () => 0,
-    disposeAll: async () => {}
+    disposeAll: async () => {},
+    endAgentSessions: async (...args) => {
+      calls.push(['endAgentSessions', ...args])
+    }
   }
   return { sessions, calls }
 }
@@ -149,6 +152,8 @@ describe('chat handlers: refusals', () => {
     ]
 
     expect(results.map((result) => (result.ok ? 'ok' : result.error.code))).toEqual(Array(results.length).fill('unauthorized'))
+    const named = `The folder ${elsewhere} is not tracked by Dark Mechanicus. Track the folder again to keep using this chat.`
+    expect(results.map((result) => (result.ok ? 'ok' : result.error.message))).toEqual(Array(results.length).fill(named))
     expect(calls).toEqual([])
   })
 

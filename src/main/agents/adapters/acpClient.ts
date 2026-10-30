@@ -33,7 +33,7 @@ export type RpcId = number | string
 
 /** The JSON-RPC error codes this client answers with. */
 export const RPC_METHOD_NOT_FOUND = -32601
-const RPC_INTERNAL_ERROR = -32603
+export const RPC_INTERNAL_ERROR = -32603
 
 /** An error answer from the agent, or the end of the process while a request waited. */
 export class AcpError extends Error {
@@ -94,12 +94,16 @@ class Connection implements AcpConnection {
   private nextId = 1
   private readonly waiting = new Map<RpcId, Waiting>()
 
+  /** How the agent is named in the errors that say its process ended. */
+  private readonly agentName: string
+
   constructor(
     factory: TransportFactory,
     launch: ProbeLaunch,
-    where: { cwd: string; env: Record<string, string> },
+    where: { cwd: string; env: Record<string, string>; agentName: string },
     private readonly handlers: AcpHandlers
   ) {
+    this.agentName = where.agentName
     this.handle = factory(launch, where.cwd, {
       line: (text) => {
         this.hear(text)
@@ -116,7 +120,7 @@ class Connection implements AcpConnection {
 
   request(method: string, params: unknown): Promise<unknown> {
     if (this.closed) {
-      return Promise.reject(new AcpError('The Cursor agent stopped.'))
+      return Promise.reject(new AcpError(`${this.agentName} stopped.`))
     }
     const id = this.nextId
     this.nextId += 1
@@ -150,13 +154,13 @@ class Connection implements AcpConnection {
     }
     this.closed = true
     const treeGone = this.handle?.kill()
-    this.rejectAll(new AcpError('The Cursor agent was stopped.'))
+    this.rejectAll(new AcpError(`${this.agentName} was stopped.`))
     await treeGone
   }
 
   private send(message: Message): void {
     if (this.handle === null || this.closed) {
-      throw new AcpError('The Cursor agent stopped.')
+      throw new AcpError(`${this.agentName} stopped.`)
     }
     this.handle.write(JSON.stringify(message))
   }
@@ -175,7 +179,7 @@ class Connection implements AcpConnection {
       return
     }
     this.closed = true
-    this.rejectAll(new AcpError(`The Cursor agent stopped: ${detail}`))
+    this.rejectAll(new AcpError(`${this.agentName} stopped: ${detail}`))
     this.handlers.closed(detail)
   }
 
@@ -255,9 +259,9 @@ function parseLine(text: string): Message | null {
 export function openAcpConnection(
   factory: TransportFactory,
   launch: ProbeLaunch,
-  /** Where the agent runs, and what its environment carries (the chat's Dark Mechanicus grant). */
-  where: { cwd: string; env?: Record<string, string> },
+  /** Where the agent runs, what its environment carries (the chat's Dark Mechanicus grant), and its name for errors. */
+  where: { cwd: string; env?: Record<string, string>; agentName: string },
   handlers: AcpHandlers
 ): AcpConnection {
-  return new Connection(factory, launch, { cwd: where.cwd, env: where.env ?? {} }, handlers)
+  return new Connection(factory, launch, { cwd: where.cwd, env: where.env ?? {}, agentName: where.agentName }, handlers)
 }

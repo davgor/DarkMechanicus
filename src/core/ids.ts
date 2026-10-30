@@ -53,14 +53,19 @@ function randomChars(bytes: Buffer, length: number): string {
   return out
 }
 
+/** A lowercase ULID: 10 time chars and 16 random chars, the body of every stable id. */
+export function newUlid(nowMs: () => number = Date.now, random: (size: number) => Buffer = randomBytes): string {
+  const time = encodeBase32(BigInt(Math.max(0, Math.floor(nowMs()))), TIME_CHARS)
+  return `${time}${randomChars(random(RANDOM_CHARS), RANDOM_CHARS)}`
+}
+
 export function createIdGenerator(
   nowMs: () => number = Date.now,
   random: (size: number) => Buffer = randomBytes
 ): IdGenerator {
   return {
     next(kind) {
-      const time = encodeBase32(BigInt(Math.max(0, Math.floor(nowMs()))), TIME_CHARS)
-      return `${ID_PREFIXES[kind]}_${time}${randomChars(random(RANDOM_CHARS), RANDOM_CHARS)}`
+      return `${ID_PREFIXES[kind]}_${newUlid(nowMs, random)}`
     },
     secret() {
       return random(24).toString('base64url')

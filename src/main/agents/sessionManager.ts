@@ -84,6 +84,7 @@ import type { ChatRef, ChatStore } from './chatStore'
 import { createStreamMasker, type StreamMasker } from './claimTokenMask'
 import { cliInstructions } from './cliInstructions'
 import { resolveLaunchFolder, type LaunchFolderDeps } from './launchFolder'
+import { launchSpecFor } from './launchSpec'
 import { isOwnServerCall } from './ownServerTools'
 import { createSignInFlags, type SignInFlags } from './signInFlags'
 
@@ -119,8 +120,11 @@ export interface SessionManagerDeps {
     folder: string,
     grant: { role: ChatRole; allowSave: boolean; label: string }
   ) => Promise<{ cli: DarkMechanicusCli; grantId: string }>
-  /** Revokes a chat's grant when its session ends, so a token outlives nothing. */
-  revokeChatGrant: (folder: string, grantId: string) => Promise<void>
+  /**
+   * Revokes a chat's grant when its session ends, so a token outlives nothing. By grant id alone: it
+   * is revoked where it was issued, even when the chat's folder has since moved (see `chatGrants.ts`).
+   */
+  revokeChatGrant: (grantId: string) => Promise<void>
   /** Delivers an event to the renderer. */
   push: (event: ChatPushEvent) => void
   /** Lets a signed-out orchestrator chat pause its run; without it no run is touched. */
@@ -186,6 +190,11 @@ export interface SessionManager {
   liveCount(): number
   /** Disposes every process and refuses to start more (app quit). */
   disposeAll(): Promise<void>
+  /**
+   * Disposes the live processes of every chat with this agent, which was just removed. The chats stay; their
+   * next message is refused as not connected, since the agent is no longer in the registry.
+   */
+  endAgentSessions(id: AgentId): Promise<void>
 }
 
 interface WaitingApproval {
@@ -441,7 +450,7 @@ async function disposeSession(manager: Manager, session: Session, reason: Dispos
     settleDisposed(manager, session, reason)
   }
   try {
-    await manager.revokeChatGrant(session.chat.folder, session.grantId)
+    await manager.revokeChatGrant(session.grantId)
   } catch (error) {
     manager.onError(error)
   }
@@ -465,7 +474,7 @@ function createSession(manager: Manager, chat: ChatRecord, folder: string, issue
   const session: Session = {
     chat,
     grantId: issued.grantId,
-    adapter: definition.create(agent.executablePath),
+    adapter: definition.create(launchSpecFor(agent)),
     protocol: agent.protocol,
     ready: Promise.resolve(),
     turn: null,
@@ -495,7 +504,7 @@ async function startedSession(manager: Manager, chat: ChatRecord): Promise<Sessi
     return createSession(manager, chat, folder, issued)
   } catch (error) {
     // The session never started, so its grant must not outlive the attempt.
-    void manager.revokeChatGrant(folder, issued.grantId).catch((failure: unknown) => manager.onError(failure))
+    void manager.revokeChatGrant(issued.grantId).catch((failure: unknown) => manager.onError(failure))
     throw error
   }
 }
@@ -595,7 +604,7 @@ async function pauseRunOf(manager: Manager, chat: ChatRecord): Promise<void> {
 /**
  * The adapter's CLI said the sign-in is gone: keep the message of the turn it cut short for retry, store the item once
  * per turn (saying whether a turn waits to be retried, so a chat that shows it live offers Retry only then), flag the
- * agent, pause the run. A sign-in lost while no turn ran cuts nothing short.
+ * agent when the app can check its sign-in (not a custom CLI), pause the run. A sign-in lost while no turn ran cuts nothing short.
  */
 function onAuthRequired(manager: Manager, session: Session, item: AuthRequiredItem): void {
   if (session.authReported) {
@@ -607,8 +616,12 @@ function onAuthRequired(manager: Manager, session: Session, item: AuthRequiredIt
   }
   const cutShort = manager.store.getChat(session.chat)?.cutShortMessageId != null
   const stored = record(manager, session.chat, { ...item, agent: session.chat.agent, cutShort }) as AuthRequiredItem
-  manager.flags.markSignedOut(session.chat.agent, stored.message)
-  tellChats(manager, session.chat.agent, 'signed_out')
+  // Only an agent whose status the app can check is held as signed out: a check that says signed in lifts
+  // the hold. A custom CLI has no such check, so its next message simply starts it again.
+  if (manager.agentFor(session.chat.agent)?.kind !== 'custom') {
+    manager.flags.markSignedOut(session.chat.agent, stored.message)
+    tellChats(manager, session.chat.agent, 'signed_out')
+  }
   session.pausing = pauseRunOf(manager, session.chat)
 }
 
@@ -780,6 +793,26 @@ function startTurn(manager: Manager, session: Session, message: { id: string }, 
   session.turn = playTurn(manager, session, text)
 }
 
+/**
+ * A live agent's folder may have been moved, deleted or untracked since it started, while the process kept its
+ * old cwd. Every turn checks the folder as a start does; when it fails, the agent is stopped as an idle stop
+ * stops it (process tree ended, grant revoked), nothing is sent, and the turn ends with the check's error.
+ * Returns the error message when it stopped the agent, null otherwise; a session with a turn running is left alone.
+ */
+async function stoppedForFolder(manager: Manager, chat: ChatRecord): Promise<string | null> {
+  const session = manager.sessions.get(chat.id)
+  if (session === undefined || session.disposed || session.turn !== null) {
+    return null
+  }
+  try {
+    resolveLaunchFolder(session.chat, manager.folders)
+    return null
+  } catch (error) {
+    await disposeSession(manager, session)
+    return errorMessage(error)
+  }
+}
+
 async function send(manager: Manager, ref: ChatRef, text: string): Promise<ChatItem> {
   const chat = requireChat(manager, ref)
   see(manager, chat)
@@ -788,6 +821,12 @@ async function send(manager: Manager, ref: ChatRef, text: string): Promise<ChatI
       throw new DomainError('conflict', STILL_ANSWERING)
     }
     return refuseTurn(manager, chat, text)
+  }
+  const gone = await stoppedForFolder(manager, chat)
+  if (gone !== null) {
+    const message = record(manager, chat, { ...stamp(manager), kind: 'user_message', text })
+    record(manager, chat, { ...stamp(manager), kind: 'error', message: gone })
+    return message
   }
   const session = await ensureSession(manager, chat)
   if (session.turn !== null) {
@@ -816,6 +855,11 @@ async function retryTurn(manager: Manager, ref: ChatRef): Promise<ChatItem> {
   }
   const message = cutShortMessage(manager, chat)
   see(manager, chat)
+  const gone = await stoppedForFolder(manager, chat)
+  if (gone !== null) {
+    record(manager, chat, { ...stamp(manager), kind: 'error', message: gone })
+    return message
+  }
   const session = await ensureSession(manager, chat)
   if (session.turn !== null) {
     throw new DomainError('conflict', STILL_ANSWERING)
@@ -1097,10 +1141,14 @@ export function createSessionManager(deps: SessionManagerDeps): SessionManager {
     },
     listModels: async (id) => {
       const { definition, agent } = adapterFor(manager, id)
-      return definition.listModels(agent.executablePath)
+      return definition.listModels(launchSpecFor(agent))
     },
     agentName: (id) => agentName(manager, id),
     liveCount: () => manager.sessions.size,
-    disposeAll: () => disposeAll(manager)
+    disposeAll: () => disposeAll(manager),
+    endAgentSessions: async (id) => {
+      const ending = [...manager.sessions.values()].filter((session) => session.chat.agent === id)
+      await Promise.all(ending.map((session) => disposeSession(manager, session)))
+    }
   }
 }

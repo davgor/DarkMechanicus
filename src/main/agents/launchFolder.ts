@@ -32,6 +32,23 @@ function refuse(folder: string, reason: string): never {
   throw new DomainError('not_found', `The folder ${folder} ${reason}. Track the folder again to keep using this chat.`)
 }
 
+function refuseLeadingElsewhere(folder: string, canonical: string): never {
+  refuse(folder, `now leads to ${canonical}, not to the folder this chat was created in`)
+}
+
+/**
+ * Refuses a tracked folder whose path now leads to another real path (a symlink swapped in), with the same
+ * `not_found` message `resolveLaunchFolder` gives. A folder's chats are stored under its tracked path, so this
+ * runs before any chat is looked up: under the symlink's target the store would find another folder's chats.
+ * A folder that is gone passes, so its chats stay readable; starting one is refused when it starts.
+ */
+export function refuseSwappedFolder(folder: string, fs: Pick<RegistryFs, 'realpath'> = nodeFs): void {
+  const canonical = canonicalPath(fs, folder)
+  if (canonical !== null && canonical !== folder) {
+    refuseLeadingElsewhere(folder, canonical)
+  }
+}
+
 /**
  * The chat's folder as its agent may start in it: the canonical real path, which must exist, be a directory,
  * equal the path the chat stored (a symlink swapped in leads somewhere else), and still be tracked. Throws a
@@ -48,7 +65,7 @@ export function resolveLaunchFolder(chat: Pick<ChatRecord, 'folder'>, deps: Laun
     refuse(folder, 'is no longer a folder')
   }
   if (canonical !== folder) {
-    refuse(folder, `now leads to ${canonical}, not to the folder this chat was created in`)
+    refuseLeadingElsewhere(folder, canonical)
   }
   if (deps.trackedFolder(canonical) !== canonical) {
     refuse(folder, 'is no longer tracked')

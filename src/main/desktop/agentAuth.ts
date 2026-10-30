@@ -18,8 +18,16 @@
  * - Cursor `agent status`: the vendor documents the command but not its wording, so the match is
  *   tolerant: a "not logged in / not authenticated" style message is signed out, and a "logged in" /
  *   "authenticated" message with exit 0 is signed in. Anything else is `unknown`.
+ * - Autonomous `a8s doctor` (docs/reports/autonomous-acp.md, the only command that showed a sign-in
+ *   state): its `Model route` line, `✓ Model route  Claude subscription · <model> · signed in` when
+ *   signed in to a model. The signed-out wording was not observed, so only a `Model route` line that
+ *   says "not signed in" / "signed out" is signed out; any other line, or none (the `Okta` line is the
+ *   company sign-in, not the model's), is `unknown`. Its output holds the account email and local
+ *   paths, which are dropped like every status output. The model sign-in is `a8s init`; `a8s login`
+ *   is the company Okta sign-in and is never run.
  */
 import { z } from 'zod'
+import { DomainError } from '../../core/errors'
 import { AGENT_DEFINITIONS } from '../../shared/desktop/agentKinds'
 import type { AgentAuthState, AgentAuthStatus, AgentSignInResult, AgentView, BuiltInAgentKind } from '../../shared/desktop/api'
 import { connectedAgent } from './agentHandlers'
@@ -34,14 +42,16 @@ const STATUS_TIMEOUT_MS = 10_000
 const STATUS_ARGS: Readonly<Record<BuiltInAgentKind, readonly string[]>> = {
   claude: ['auth', 'status'],
   codex: ['login', 'status'],
-  cursor: ['status']
+  cursor: ['status'],
+  autonomous: ['doctor']
 }
 
 /** Each CLI's own login command: no key, token, email, or password option. */
 const LOGIN_ARGS: Readonly<Record<BuiltInAgentKind, readonly string[]>> = {
   claude: ['auth', 'login'],
   codex: ['login'],
-  cursor: ['login']
+  cursor: ['login'],
+  autonomous: ['init']
 }
 
 const ANSI_ESCAPE = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*[A-Za-z]`, 'g')
@@ -100,10 +110,26 @@ function classifyCursor(exitCode: number, text: string): Verdict {
   return exitCode === 0 && CURSOR_SIGNED_IN.test(text) ? 'signed_in' : null
 }
 
+const A8S_MODEL_ROUTE = /^\W*Model route\b/i
+const A8S_SIGNED_OUT = /\b(?:not (?:logged|signed) in|signed out|logged out)\b/i
+
+function classifyAutonomous(_exitCode: number, text: string): Verdict {
+  const route = outputLines(text).find((line) => A8S_MODEL_ROUTE.test(line))
+  if (route === undefined) {
+    return null
+  }
+  if (A8S_SIGNED_OUT.test(route)) {
+    return 'signed_out'
+  }
+  // A passed check (✓) that says signed in; a failed one with other words is not a verdict.
+  return route.startsWith('✓') && /\bsigned in\b/i.test(route) ? 'signed_in' : null
+}
+
 const CLASSIFIERS: Readonly<Record<BuiltInAgentKind, Classifier>> = {
   claude: classifyClaude,
   codex: classifyCodex,
-  cursor: classifyCursor
+  cursor: classifyCursor,
+  autonomous: classifyAutonomous
 }
 
 function unknown(reason: string): AgentAuthStatus {
@@ -301,17 +327,23 @@ function isBuiltIn(agent: AgentView): agent is BuiltInAgentView {
  * The behavior behind `agents:status` and `agents:signIn`. The only input is the agent id: anything
  * else (such as an object carrying a key or a path) is refused with `invalid_input`, and an id that is
  * not connected with `not_found`, before anything runs. The executable comes from the registry entry,
- * never from the renderer. A custom agent has no known status or login command, so nothing runs for it.
+ * never from the renderer. A custom agent has no known status or login command, so nothing runs for it:
+ * its status is `unchecked` and signing it in is refused with `invalid_input`.
  */
 export function createAgentAuthHandlers(agents: Pick<AgentRegistry, 'get'>, hooks: AgentAuthHooks): AgentAuthHandlers {
   return {
     agentStatus: async (input) => {
       const agent = connectedAgent(agents, input)
-      return isBuiltIn(agent) ? hooks.checkAuth(agent) : unknown(`${agent.displayName} has no status command this app knows.`)
+      return isBuiltIn(agent)
+        ? hooks.checkAuth(agent)
+        : { state: 'unchecked', reason: `The app cannot check whether ${agent.displayName} is signed in; sign it in from a terminal if it needs that.` }
     },
     signInAgent: async (input) => {
       const agent = connectedAgent(agents, input)
-      return isBuiltIn(agent) ? hooks.signIn(agent) : failed(`${agent.displayName} has no sign-in command this app knows.`)
+      if (!isBuiltIn(agent)) {
+        throw new DomainError('invalid_input', `${agent.displayName} is a custom CLI; the app has no sign-in command for it. Sign it in from a terminal.`)
+      }
+      return hooks.signIn(agent)
     }
   }
 }

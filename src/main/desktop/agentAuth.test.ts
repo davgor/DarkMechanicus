@@ -50,11 +50,21 @@ const CURSOR_SIGNED_IN = '✓ Logged in as dev@example.com\n'
 const CURSOR_SIGNED_OUT = '✗ Not logged in\nRun `agent login` to authenticate.\n'
 const CURSOR_NOT_AUTHENTICATED = 'Not authenticated\n'
 const CURSOR_ERROR = 'Error: could not reach api2.cursor.sh\n'
+/**
+ * Autonomous `a8s doctor`: the signed-in lines are the report's recording (docs/reports/autonomous-acp.md),
+ * with the email replaced. The signed-out `Model route` line was not observed; it is an assumed shape.
+ */
+const A8S_SIGNED_IN =
+  '✓ Okta  signed in as dev@example.com\n✓ Model route  Claude subscription · anthropic/claude-opus-5-5 · signed in\n! gh  not found\n0 problems, 3 warnings.\n'
+const A8S_SIGNED_OUT = '✓ Okta  signed in as dev@example.com\n✗ Model route  Claude subscription · not signed in\n  fix: a8s init\n1 problem, 3 warnings.\n'
+const A8S_OKTA_ONLY = '✓ Okta  signed in as dev@example.com\n0 problems, 0 warnings.\n'
+const A8S_ROUTE_FAILED = '✗ Model route  Claude subscription · anthropic/claude-opus-5-5 · signed in · token refresh failed\n'
 
 const POSIX_PATHS: Record<BuiltInAgentKind, string> = {
   claude: '/home/me/.local/bin/claude',
   codex: '/usr/local/bin/codex',
-  cursor: '/home/me/.local/bin/agent'
+  cursor: '/home/me/.local/bin/agent',
+  autonomous: '/home/me/.local/bin/a8s'
 }
 
 interface Run {
@@ -99,7 +109,9 @@ describe('status maps each CLI output to signed_in, signed_out or unknown', () =
     ['codex', 1, CODEX_SIGNED_OUT, 'signed_out'],
     ['cursor', 0, CURSOR_SIGNED_IN, 'signed_in'],
     ['cursor', 1, CURSOR_SIGNED_OUT, 'signed_out'],
-    ['cursor', 0, CURSOR_NOT_AUTHENTICATED, 'signed_out']
+    ['cursor', 0, CURSOR_NOT_AUTHENTICATED, 'signed_out'],
+    ['autonomous', 0, A8S_SIGNED_IN, 'signed_in'],
+    ['autonomous', 1, A8S_SIGNED_OUT, 'signed_out']
   ] as const)('%s exit %i with a recorded output is %s', async (kind, exitCode, output, state) => {
     expect((await statusOf(kind, exited(exitCode, output))).state).toBe(state)
   })
@@ -112,7 +124,10 @@ describe('status maps each CLI output to signed_in, signed_out or unknown', () =
     ['codex', 0, CODEX_ERROR],
     ['codex', 0, 'something new\n'],
     ['cursor', 1, CURSOR_ERROR],
-    ['cursor', 0, 'agent 2026.01.01-abcdef0\n']
+    ['cursor', 0, 'agent 2026.01.01-abcdef0\n'],
+    ['autonomous', 0, A8S_OKTA_ONLY],
+    ['autonomous', 1, A8S_ROUTE_FAILED],
+    ['autonomous', 0, 'Autonomous 0.79.0 · darwin-arm64 · OMP 18.11.2\n']
   ] as const)('%s exit %i with an error or unrecognised output is unknown, with a reason', async (kind, exitCode, output) => {
     const status = await statusOf(kind, exited(exitCode, output))
 
@@ -170,7 +185,8 @@ describe('status runs only the CLI own status command, with a timeout', () => {
   it.each([
     ['claude', ['auth', 'status']],
     ['codex', ['login', 'status']],
-    ['cursor', ['status']]
+    ['cursor', ['status']],
+    ['autonomous', ['doctor']]
   ] as const)('%s runs %j on its registered executable', async (kind, args) => {
     const { run, deps } = statusWorld(exited(0, ''))
 
@@ -245,7 +261,7 @@ function signInWorld(
   return world
 }
 
-const LOGIN_ARGS: Record<BuiltInAgentKind, string[]> = { claude: ['auth', 'login'], codex: ['login'], cursor: ['login'] }
+const LOGIN_ARGS: Record<BuiltInAgentKind, string[]> = { claude: ['auth', 'login'], codex: ['login'], cursor: ['login'], autonomous: ['init'] }
 
 describe('sign in starts the CLI own login command in a visible terminal', () => {
   it.each(AGENT_KINDS)('%s: on Windows, one new console runs the shim with only its login args, parsed by one cmd.exe', async (kind) => {
@@ -387,7 +403,7 @@ describe('sign in carries no credential', () => {
   })
 
   it('has exactly one login command per kind, and none of them takes a credential option', () => {
-    expect(LOGIN_ARGS).toEqual({ claude: ['auth', 'login'], codex: ['login'], cursor: ['login'] })
+    expect(LOGIN_ARGS).toEqual({ claude: ['auth', 'login'], codex: ['login'], cursor: ['login'], autonomous: ['init'] })
     for (const args of Object.values(LOGIN_ARGS)) {
       expect(args.every((arg) => /^[a-z]+$/.test(arg))).toBe(true)
     }
@@ -488,13 +504,20 @@ describe('agents:status and agents:signIn handlers', () => {
 })
 
 describe('agents:status and agents:signIn for a custom agent', () => {
-  it('run no status or sign-in command for a connected custom agent', async () => {
+  it('report a connected custom agent as unchecked, without running anything', async () => {
     const custom = builtInAgent('cursor', { id: CUSTOM_ID, kind: 'custom', displayName: 'My agent', executablePath: '/opt/mine' })
     const world = handlerWorld([], [custom])
 
-    expect(await world.handlers.agentStatus(CUSTOM_ID)).toMatchObject({ state: 'unknown', reason: expect.stringContaining('My agent') })
-    expect(await world.handlers.signInAgent(CUSTOM_ID)).toMatchObject({ outcome: 'failed', reason: expect.stringContaining('My agent') })
+    expect(await world.handlers.agentStatus(CUSTOM_ID)).toEqual({ state: 'unchecked', reason: expect.stringContaining('My agent') })
     expect(world.checked).toEqual([])
+    expect(world.signedIn).toEqual([])
+  })
+
+  it('refuse to sign a custom agent in with invalid_input, without opening a terminal', async () => {
+    const custom = builtInAgent('cursor', { id: CUSTOM_ID, kind: 'custom', displayName: 'My agent', executablePath: '/opt/mine' })
+    const world = handlerWorld([], [custom])
+
+    expect(await rejectionCode(world.handlers.signInAgent(CUSTOM_ID))).toBe('invalid_input')
     expect(world.signedIn).toEqual([])
   })
 })

@@ -5,6 +5,7 @@ import type { CanUseTool, ModelInfo, Options, PermissionResult, SDKMessage, SDKU
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ApprovalDecision, ApprovalRequestItem, ChatAdapterEvent, ChatItem, ModelOption } from '../../../shared/agents/chat'
 import { REPO, memoryChatStore } from '../__mocks__/fakeChatAdapter'
+import { builtInSpec } from '../__mocks__/launchSpecs'
 import { buildCliConfig } from '../../desktop/cliConfig'
 import { cliInstructions } from '../cliInstructions'
 import {
@@ -1704,7 +1705,7 @@ describe('Claude adapter: models (2)', () => {
     const sdk = fakeSdk([{ models: INFOS }])
     const definition = createClaudeAdapterDefinition({ query: sdk.query, createProcesses: () => fakeProcesses(sdk.log), platform: 'linux' })
 
-    expect(await definition.listModels(EXECUTABLE)).toEqual(EXPECTED)
+    expect(await definition.listModels(builtInSpec('claude', EXECUTABLE))).toEqual(EXPECTED)
     expect(sdk.launches[0]?.options.pathToClaudeCodeExecutable).toBe(EXECUTABLE)
   })
 
@@ -1718,13 +1719,13 @@ describe('Claude adapter: models (2)', () => {
       clock: () => now
     })
 
-    await definition.listModels(EXECUTABLE)
+    await definition.listModels(builtInSpec('claude', EXECUTABLE))
     now += 60_000
-    await definition.listModels(EXECUTABLE)
+    await definition.listModels(builtInSpec('claude', EXECUTABLE))
     expect(sdk.launches).toHaveLength(1)
 
     now += 60 * 60_000
-    await definition.listModels(EXECUTABLE)
+    await definition.listModels(builtInSpec('claude', EXECUTABLE))
     expect(sdk.launches).toHaveLength(2)
   })
 
@@ -1737,8 +1738,8 @@ describe('Claude adapter: models (2)', () => {
       clock: () => 0
     })
 
-    expect(await definition.listModels(EXECUTABLE)).toEqual(CURATED_CLAUDE_MODELS)
-    expect(await definition.listModels(EXECUTABLE)).toEqual(EXPECTED)
+    expect(await definition.listModels(builtInSpec('claude', EXECUTABLE))).toEqual(CURATED_CLAUDE_MODELS)
+    expect(await definition.listModels(builtInSpec('claude', EXECUTABLE))).toEqual(EXPECTED)
   })
 })
 
@@ -1752,7 +1753,7 @@ describe('Claude adapter: models (3)', () => {
       readFile: () => 'nothing'
     })
 
-    expect(await definition.listModels('C:\\npm\\claude.cmd')).toEqual(CURATED_CLAUDE_MODELS)
+    expect(await definition.listModels(builtInSpec('claude', 'C:\\npm\\claude.cmd'))).toEqual(CURATED_CLAUDE_MODELS)
     expect(sdk.launches).toHaveLength(0)
   })
 
@@ -1981,7 +1982,7 @@ describe('Claude adapter: dispose (2)', () => {
 
 describe('Claude adapter definition', () => {
   it('is a Claude adapter that starts on the first message', () => {
-    const adapter = claudeAdapterDefinition.create(EXECUTABLE)
+    const adapter = claudeAdapterDefinition.create(builtInSpec('claude', EXECUTABLE))
 
     expect(claudeAdapterDefinition.startOnOpen).toBe(false)
     expect(adapter.kind).toBe('claude')

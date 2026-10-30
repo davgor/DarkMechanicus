@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chatRecord, chatSummary } from '../__mocks__/fixtures'
+import { agentView, chatRecord, chatSummary } from '../__mocks__/fixtures'
 import type { AgentStatuses } from './useAgents'
 import { chatMeta, newestFirst, ROLE_LABELS, waitingCount, waitingOnSignIn, waitingReason } from './chatList'
 
@@ -68,12 +68,18 @@ describe('waitingReason', () => {
 
 describe('chatMeta', () => {
   it('names the agent and the model', () => {
-    expect(chatMeta(chatRecord({ agent: 'claude', model: 'opus' }))).toBe('Claude Code · opus')
-    expect(chatMeta(chatRecord({ agent: 'codex', model: 'gpt-5' }))).toBe('Codex · gpt-5')
+    expect(chatMeta(chatRecord({ agent: 'claude', model: 'opus' }), [])).toBe('Claude Code · opus')
+    expect(chatMeta(chatRecord({ agent: 'codex', model: 'gpt-5' }), [])).toBe('Codex · gpt-5')
+  })
+
+  it('names a connected custom agent by its display name, and a disconnected one generically', () => {
+    const chat = chatRecord({ agent: 'cu_01m65kwqqeyajbj5bnq81gngrb', model: null })
+    expect(chatMeta(chat, [agentView({ kind: 'custom', displayName: 'My Claude' })])).toBe('My Claude · Default model')
+    expect(chatMeta(chat, [])).toBe('Custom agent · Default model')
   })
 
   it('says so when the chat runs on the agent\'s own default model', () => {
-    expect(chatMeta(chatRecord({ agent: 'cursor', model: null }))).toBe('Cursor · Default model')
+    expect(chatMeta(chatRecord({ agent: 'cursor', model: null }), [])).toBe('Cursor · Default model')
   })
 })
 

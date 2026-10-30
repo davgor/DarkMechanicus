@@ -19,7 +19,7 @@
  *
  * Not shipped.
  */
-import { ACP_MCP_SERVERS, FOLDER, handshake, loadSession, newSession, prompt, say, turnEnd } from './cursorRecordings'
+import { ACP_MCP_SERVERS, firstPrompt, FOLDER, handshake, loadSession, newSession, say, turnEnd } from './cursorRecordings'
 import { agent, client, type Frame } from './replayAcpAgent'
 
 export const SESSION = 'sess_1'
@@ -34,7 +34,7 @@ const refuse = (id: number): Frame => agent({ id, error: AUTH_REQUIRED })
 
 /** A process that was signed in, whose login then went stale: the prompt is answered with the sign-in text. */
 export function staleProcess(id = 3): Frame[] {
-  return [...handshake(), ...newSession(id, SESSION), prompt(id + 1, SESSION, 'hello'), say(SESSION, SIGN_IN_PROMPT), turnEnd(id + 1)]
+  return [...handshake(), ...newSession(id, SESSION), firstPrompt(id + 1, SESSION, 'hello'), say(SESSION, SIGN_IN_PROMPT), turnEnd(id + 1)]
 }
 
 /** `authenticate` is refused: the handshake never gets past it. */
@@ -62,10 +62,10 @@ export function loadRefused(): Frame[] {
 
 /** A process that is signed in when the session opens, and refuses the prompt. */
 export function promptRefused(): Frame[] {
-  return [...handshake(), ...newSession(3, SESSION), prompt(4, SESSION, 'hello'), refuse(4)]
+  return [...handshake(), ...newSession(3, SESSION), firstPrompt(4, SESSION, 'hello'), refuse(4)]
 }
 
 /** The next process after the person signed in: it loads the stored session and answers. */
 export function signedInAgain(): Frame[] {
-  return [...handshake(), ...loadSession(3, SESSION), prompt(4, SESSION, 'hello again'), say(SESSION, 'Back in.'), turnEnd(4)]
+  return [...handshake(), ...loadSession(3, SESSION), firstPrompt(4, SESSION, 'hello again'), say(SESSION, 'Back in.'), turnEnd(4)]
 }

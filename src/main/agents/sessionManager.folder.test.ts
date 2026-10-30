@@ -2,9 +2,10 @@
  * Every start of a chat's agent runs in the chat's canonical, tracked folder, checked on disk at that moment:
  * the first message, a new process after an idle stop or a model change, a process the adapter starts again
  * after a crash, and the orchestrator chat Start run opens. A folder that is gone is refused before a grant
- * is issued or an adapter created.
+ * is issued or an adapter created. Every turn of a live agent checks it too: one whose folder went away is
+ * stopped as an idle stop stops it, and its turn ends with the error, before anything is sent.
  */
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, realpathSync, renameSync, rmSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -26,6 +27,8 @@ interface Rig {
   issued: string[]
   /** The folders the app tracks; a test untracks one by deleting it. */
   tracked: Set<string>
+  /** The grants revoked, in order. */
+  revoked: string[]
   fireIdle: () => void
 }
 
@@ -48,6 +51,7 @@ function rig(): Rig {
   const store = memoryChatStore(memoryChatFs([repo]))
   const fakes = fakeAdapters()
   const issued: string[] = []
+  const revoked: string[] = []
   const tracked = new Set([repo])
   const idle: (() => void)[] = []
   let itemCount = 0
@@ -61,7 +65,9 @@ function rig(): Rig {
       const launch = buildCliConfig({ packaged: false, execPath: '/bin/electron', appPath: '/app', repoPath: folder })
       return { cli: { ...launch, env: { DM_SESSION_TOKEN: 'dmg_test' } }, grantId: `gr_${issued.length}` }
     },
-    revokeChatGrant: async () => undefined,
+    revokeChatGrant: async (grantId: string) => {
+      revoked.push(grantId)
+    },
     push: () => {},
     newId: () => `item_f${(itemCount += 1)}`,
     now: () => AT,
@@ -75,7 +81,7 @@ function rig(): Rig {
       callback()
     }
   }
-  return { manager, store, fakes, issued, tracked, fireIdle }
+  return { manager, store, fakes, issued, revoked, tracked, fireIdle }
 }
 
 function newChat(manager: SessionManager, agent = 'claude'): ChatRecord {
@@ -203,5 +209,85 @@ describe('session manager: every start checks the folder', () => {
     expect(result.problem).toContain(repo)
     expect(store.listChats(repo)).toEqual([])
     expect([fakes.created.length, issued.length]).toEqual([0, 0])
+  })
+})
+
+/** The ways a live agent's folder goes away between two turns, and what the error says for each. */
+const CHANGES = [
+  ['moved', () => renameSync(repo, `${repo}-renamed`), 'moved or deleted'],
+  ['deleted', () => rmSync(repo, { recursive: true }), 'moved or deleted'],
+  ['untracked', null, 'no longer tracked']
+] as const
+
+function change(state: Rig, how: (() => void) | null): void {
+  if (how === null) {
+    state.tracked.delete(repo)
+  } else {
+    how()
+  }
+}
+
+describe('session manager: every message to a live agent checks the folder', () => {
+  it.each(CHANGES)('stops a live agent whose folder was %s before the next message, sending it nothing', async (_how, how, reason) => {
+    const state = rig()
+    const chat = newChat(state.manager)
+    await state.manager.send(chat, 'hello')
+    await settle()
+    const adapter = state.fakes.created[0]
+    change(state, how)
+
+    await state.manager.send(chat, 'again')
+    await settle()
+
+    expect(adapter?.sent).toEqual(['hello'])
+    expect(state.fakes.created).toHaveLength(1)
+    expect(state.issued).toEqual([repo])
+    const items = state.store.readTranscript(chat)?.items ?? []
+    const [message] = errorsIn(items)
+    expect(message).toContain(repo)
+    expect(message).toContain(reason)
+    expect(message).toContain(AGAIN)
+    expect(items.at(-1)?.kind).toBe('error')
+    // Stopped as an idle stop stops it: process tree disposed, grant revoked, nothing live.
+    expect(adapter?.disposals).toBe(1)
+    expect(state.revoked).toEqual(['gr_1'])
+    expect(state.manager.liveCount()).toBe(0)
+  })
+})
+
+describe('session manager: every retry on a live agent checks the folder', () => {
+  it.each(CHANGES)('stops a live agent whose folder was %s before a retry, sending it nothing', async (_how, how, reason) => {
+    const state = rig()
+    const chat = newChat(state.manager)
+    const sent = await state.manager.send(chat, 'hello')
+    await settle()
+    state.store.updateChat(chat, { cutShortMessageId: sent.id })
+    const adapter = state.fakes.created[0]
+    change(state, how)
+
+    await state.manager.retryTurn(chat)
+    await settle()
+
+    expect(adapter?.sent).toEqual(['hello'])
+    expect(state.fakes.created).toHaveLength(1)
+    const [message] = errorsIn(state.store.readTranscript(chat)?.items ?? [])
+    expect(message).toContain(repo)
+    expect(message).toContain(reason)
+    expect(adapter?.disposals).toBe(1)
+    expect(state.revoked).toEqual(['gr_1'])
+    expect(state.manager.liveCount()).toBe(0)
+  })
+
+  it('sends the next turn to the same agent while its folder is unchanged', async () => {
+    const state = rig()
+    const chat = newChat(state.manager)
+    await state.manager.send(chat, 'hello')
+    await settle()
+
+    await state.manager.send(chat, 'again')
+    await settle()
+
+    expect(state.fakes.created[0]?.sent).toEqual(['hello', 'again'])
+    expect([state.revoked, errorsIn(state.store.readTranscript(chat)?.items ?? [])]).toEqual([[], []])
   })
 })

@@ -31,6 +31,18 @@ export function findOutcome(name: string, result: AgentFindResult): AgentOutcome
   }
 }
 
+/** What editing a custom CLI came to; null when the person closed the file dialog of a repick, which changed nothing. */
+export function editOutcome(name: string, result: AgentFindResult): AgentOutcome | null {
+  switch (result.outcome) {
+    case 'connected':
+      return outcome('ok', withVersion('Saved', name, result.agent))
+    case 'cancelled':
+      return null
+    case 'refused':
+      return outcome('error', 'Not saved', result.reason)
+  }
+}
+
 export function downloadOutcome(name: string, result: AgentDownloadResult): AgentOutcome {
   switch (result.outcome) {
     case 'installed':

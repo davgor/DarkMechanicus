@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { AGENT_KINDS, expectedExecutableNames } from '../../shared/desktop/agentKinds'
-import type { BuiltInAgentKind } from '../../shared/desktop/api'
+import { expectedExecutableNames } from '../../shared/desktop/agentKinds'
 import {
+  DOWNLOADABLE_AGENT_KINDS,
   installerLaunch,
   resolveRecipe,
+  type DownloadableAgentKind,
   type InstallEnvironment,
   type InstallPlatform
 } from './agentInstallRecipes'
@@ -29,7 +30,7 @@ function environmentFor(platform: InstallPlatform, arch: string): InstallEnviron
   return { ...(platform === 'win32' ? WINDOWS : MAC), platform, arch }
 }
 
-const SOURCES: Record<BuiltInAgentKind, Record<InstallPlatform, string>> = {
+const SOURCES: Record<DownloadableAgentKind, Record<InstallPlatform, string>> = {
   claude: { win32: 'https://claude.ai/install.ps1', darwin: 'https://claude.ai/install.sh' },
   codex: {
     win32: 'https://github.com/openai/codex/releases/latest/download/install.ps1',
@@ -39,14 +40,14 @@ const SOURCES: Record<BuiltInAgentKind, Record<InstallPlatform, string>> = {
 }
 
 /** The hosts each vendor's own documentation lives on: a recipe must cite one of them. */
-const DOC_HOSTS: Record<BuiltInAgentKind, string[]> = {
+const DOC_HOSTS: Record<DownloadableAgentKind, string[]> = {
   claude: ['code.claude.com'],
   codex: ['github.com', 'developers.openai.com'],
   cursor: ['cursor.com']
 }
 
 describe('every kind has a recipe for Windows and macOS on both processors', () => {
-  it.each(AGENT_KINDS.flatMap((kind) => TARGETS.map(([platform, arch]) => [kind, platform, arch] as const)))(
+  it.each(DOWNLOADABLE_AGENT_KINDS.flatMap((kind) => TARGETS.map(([platform, arch]) => [kind, platform, arch] as const)))(
     '%s on %s %s',
     (kind, platform, arch) => {
       const recipe = resolveRecipe(kind, environmentFor(platform, arch))
@@ -58,7 +59,7 @@ describe('every kind has a recipe for Windows and macOS on both processors', () 
   )
 
   it('has no recipe for another operating system or a 32-bit processor', () => {
-    for (const kind of AGENT_KINDS) {
+    for (const kind of DOWNLOADABLE_AGENT_KINDS) {
       expect(resolveRecipe(kind, { ...WINDOWS, platform: 'linux' })).toBeNull()
       expect(resolveRecipe(kind, { ...WINDOWS, arch: 'ia32' })).toBeNull()
       expect(resolveRecipe(kind, { ...MAC, arch: 'ppc64' })).toBeNull()
@@ -67,7 +68,7 @@ describe('every kind has a recipe for Windows and macOS on both processors', () 
 })
 
 describe('every recipe uses a vendor-official HTTPS source and cites the doc it came from', () => {
-  it.each(AGENT_KINDS.flatMap((kind) => (['win32', 'darwin'] as const).map((platform) => [kind, platform] as const)))(
+  it.each(DOWNLOADABLE_AGENT_KINDS.flatMap((kind) => (['win32', 'darwin'] as const).map((platform) => [kind, platform] as const)))(
     '%s on %s',
     (kind, platform) => {
       const recipe = resolveRecipe(kind, environmentFor(platform, 'x64'))
@@ -146,7 +147,7 @@ describe('installerLaunch runs a downloaded script without a shell string or ren
 describe('a script path is one argument that no command interpreter ever parses', () => {
   const hostile = 'C:\\Users\\A&B 100%\\Temp\\dm "x"\\install.ps1'
 
-  it.each(AGENT_KINDS.flatMap((kind) => TARGETS.map(([platform, arch]) => [kind, platform, arch] as const)))(
+  it.each(DOWNLOADABLE_AGENT_KINDS.flatMap((kind) => TARGETS.map(([platform, arch]) => [kind, platform, arch] as const)))(
     '%s on %s %s starts PowerShell or an absolute shell, never cmd.exe or start',
     (kind, platform, arch) => {
       const environment = environmentFor(platform, arch)
@@ -166,7 +167,7 @@ describe('a script path is one argument that no command interpreter ever parses'
 })
 
 describe('where each installer leaves the executable, so the probe can find it', () => {
-  it.each(AGENT_KINDS.flatMap((kind) => (['win32', 'darwin'] as const).map((platform) => [kind, platform] as const)))(
+  it.each(DOWNLOADABLE_AGENT_KINDS.flatMap((kind) => (['win32', 'darwin'] as const).map((platform) => [kind, platform] as const)))(
     '%s on %s is an absolute path under the person home with an expected executable name',
     (kind, platform) => {
       const environment = environmentFor(platform, 'x64')
@@ -184,7 +185,7 @@ describe('where each installer leaves the executable, so the probe can find it',
   )
 
   it('names the vendor documented default for each', () => {
-    const at = (kind: BuiltInAgentKind, environment: InstallEnvironment): string[] =>
+    const at = (kind: DownloadableAgentKind, environment: InstallEnvironment): string[] =>
       resolveRecipe(kind, environment)?.layout(environment).executables ?? []
 
     expect(at('claude', WINDOWS)).toEqual(['C:\\Users\\Ada\\.local\\bin\\claude.exe'])

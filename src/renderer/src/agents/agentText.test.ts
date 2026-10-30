@@ -2,6 +2,14 @@ import { describe, expect, it } from 'vitest'
 import { agentName, AGENT_BLURBS, connectedViaText, phaseText, signInLabel } from './agentText'
 
 describe('agentName', () => {
+  it('uses a connected custom agent\'s display name, and a generic one once it is no longer connected', () => {
+    const connected = [{ id: 'cu_01m65kwqqeyajbj5bnq81gngrb', displayName: 'My Claude' }]
+    expect(agentName('cu_01m65kwqqeyajbj5bnq81gngrb', connected)).toBe('My Claude')
+    expect(agentName('cu_01m65kwqqeyajbj5bnq81gngrb', [])).toBe('Custom agent')
+    expect(agentName('cu_01m65kwqqeyajbj5bnq81gngrb')).toBe('Custom agent')
+  })
+
+
   it('uses the display names the main process knows each agent by', () => {
     expect(agentName('claude')).toBe('Claude Code')
     expect(agentName('codex')).toBe('Codex')
@@ -11,7 +19,7 @@ describe('agentName', () => {
 
 describe('AGENT_BLURBS', () => {
   it('gives each agent one line to tell it apart', () => {
-    for (const kind of ['claude', 'codex', 'cursor'] as const) {
+    for (const kind of ['claude', 'codex', 'cursor', 'autonomous'] as const) {
       expect(AGENT_BLURBS[kind]).not.toBe('')
       expect(AGENT_BLURBS[kind]).not.toContain('\n')
     }
@@ -26,6 +34,7 @@ describe('signInLabel', () => {
   it('names each state in words, with a tone besides', () => {
     expect(signInLabel({ state: 'signed_in', reason: 'ok' })).toEqual({ text: 'Signed in', tone: 'ok' })
     expect(signInLabel({ state: 'signed_out', reason: 'no' })).toEqual({ text: 'Signed out', tone: 'warn' })
+    expect(signInLabel({ state: 'unchecked', reason: 'custom' })).toEqual({ text: 'Sign-in not checked', tone: 'muted' })
     expect(signInLabel({ state: 'unknown', reason: 'huh' })).toEqual({ text: 'Sign-in unknown', tone: 'muted' })
   })
 })
@@ -34,6 +43,7 @@ describe('connectedViaText', () => {
   it('says how the agent was connected', () => {
     expect(connectedViaText('found')).toBe('Found on this computer')
     expect(connectedViaText('downloaded')).toBe('Downloaded by Dark Mechanicus')
+    expect(connectedViaText('custom')).toBe('Added as a custom CLI')
   })
 })
 

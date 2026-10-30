@@ -53,6 +53,8 @@ interface MountOptions {
   landing?: ThreadLanding
   /** Leaves the chat's links unwired, as in a view that has nowhere to go. */
   noNavigation?: boolean
+  /** The connected agent's display name, as the shell passes it (a custom agent's name is known only from its connection). */
+  agentDisplayName?: string
 }
 
 export interface Mounted {
@@ -108,6 +110,7 @@ export async function mountChatView(items: ChatItem[] = [], options: MountOption
   render(
     <ChatView
       chat={chat}
+      {...(options.agentDisplayName === undefined ? {} : { agentDisplayName: options.agentDisplayName })}
       onAgentStatus={(kind, status) => reported.push([kind, status])}
       {...(navigation === undefined ? {} : { navigation })}
       landing={options.landing ?? null}

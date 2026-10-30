@@ -1,5 +1,6 @@
 import { memo, useState } from 'react'
 import type { ChatItem } from '../../../shared/agents/chat'
+import { isBuiltInAgentKind } from '../../../shared/desktop/agentKinds'
 import type { AgentAuthStatus, AgentId } from '../../../shared/desktop/api'
 import { errorMessage } from '../api/dm'
 import { Button } from '../components/Button'
@@ -7,7 +8,6 @@ import { classNames } from '../components/classNames'
 import { StatePill } from '../components/StatePill'
 import type { PillState } from '../components/StatePill'
 import type { SignInCardState } from './chatViewModel'
-import { agentName } from './agentText'
 import { SignInPrompt } from './SignInPrompt'
 
 type AuthRequiredItem = Extract<ChatItem, { kind: 'auth_required' }>
@@ -38,11 +38,11 @@ function useRetrying(onRetry: () => Promise<void>): [Retrying, () => void] {
   return [state, retry]
 }
 
-function RetryAction({ onRetry }: { onRetry: () => Promise<void> }): JSX.Element {
+function RetryAction({ note, onRetry }: { note: string; onRetry: () => Promise<void> }): JSX.Element {
   const [retrying, retry] = useRetrying(onRetry)
   return (
     <>
-      <p className="chat-approval-note">Signed in again. The message that was cut short has not been sent yet.</p>
+      <p className="chat-approval-note">{note}</p>
       <div className="chat-approval-actions">
         <Button size="sm" variant="primary" busy={retrying.busy} onClick={retry}>
           Retry
@@ -59,6 +59,8 @@ function RetryAction({ onRetry }: { onRetry: () => Promise<void> }): JSX.Element
 
 interface ActionsProps {
   item: AuthRequiredItem
+  /** The connected agent's display name. */
+  name: string
   state: SignInCardState
   onSignedIn(): void
   /** The sign-in prompt asked the agent's state itself. */
@@ -66,12 +68,28 @@ interface ActionsProps {
   onRetry(): Promise<void>
 }
 
-/** What the card offers for its state: Sign in, a wait, Retry, or the note that the turn was retried. */
-function Actions({ item, state, onSignedIn, onAgentStatus, onRetry }: ActionsProps): JSX.Element | null {
-  const name = agentName(item.agent)
+/**
+ * A custom CLI's sign-in cannot be checked or started from the app: the person signs in outside it, then Retry sends
+ * the message that was cut short (and, with none, just lets the chat go on); the chat then counts the agent as signed in.
+ */
+function CustomRetry({ item, name, onSignedIn, onRetry }: Pick<ActionsProps, 'item' | 'name' | 'onSignedIn' | 'onRetry'>): JSX.Element {
+  const retry = async (): Promise<void> => {
+    if (item.cutShort !== false) await onRetry()
+    onSignedIn()
+  }
+  return <RetryAction note={`Sign in to ${name} outside the app, then Retry.`} onRetry={retry} />
+}
+
+/** What the card offers for its state: Sign in (or, for a custom CLI, Retry once signed in outside the app), a wait, Retry, or the note that the turn was retried. */
+function Actions({ item, name, state, onSignedIn, onAgentStatus, onRetry }: ActionsProps): JSX.Element | null {
+  const custom = !isBuiltInAgentKind(item.agent)
   switch (state) {
     case 'signed_out':
-      return <SignInPrompt agent={item.agent} name={name} onSignedIn={onSignedIn} onStatus={(status) => onAgentStatus(item.agent, status)} />
+      return custom ? (
+        <CustomRetry item={item} name={name} onSignedIn={onSignedIn} onRetry={onRetry} />
+      ) : (
+        <SignInPrompt agent={item.agent} name={name} onSignedIn={onSignedIn} onStatus={(status) => onAgentStatus(item.agent, status)} />
+      )
     case 'checking':
       return (
         <p className="note" role="status">
@@ -79,7 +97,11 @@ function Actions({ item, state, onSignedIn, onAgentStatus, onRetry }: ActionsPro
         </p>
       )
     case 'retry':
-      return <RetryAction onRetry={onRetry} />
+      return custom ? (
+        <CustomRetry item={item} name={name} onSignedIn={onSignedIn} onRetry={onRetry} />
+      ) : (
+        <RetryAction note="Signed in again. The message that was cut short has not been sent yet." onRetry={onRetry} />
+      )
     case 'retried':
       return (
         <p className="chat-approval-answer-detail" role="status">
@@ -99,10 +121,10 @@ interface SignedOutCardProps extends Omit<ActionsProps, 'state'> {
 /**
  * An `auth_required` item in the transcript: the agent's CLI said its sign-in is gone. While it is, the
  * card offers Sign in (which checks the status until it says signed in); once signed in it offers Retry,
- * which sends the message that was cut short, once; then it says the turn was retried.
+ * which sends the message that was cut short, once; then it says the turn was retried. A custom CLI has no Sign in:
+ * the card says to sign in outside the app, then Retry.
  */
-export const SignedOutCard = memo(function SignedOutCard({ item, state, onSignedIn, onAgentStatus, onRetry }: SignedOutCardProps): JSX.Element {
-  const name = agentName(item.agent)
+export const SignedOutCard = memo(function SignedOutCard({ item, name, state, onSignedIn, onAgentStatus, onRetry }: SignedOutCardProps): JSX.Element {
   const pill = PILLS[state]
   return (
     <li className="chat-approval">
@@ -113,7 +135,7 @@ export const SignedOutCard = memo(function SignedOutCard({ item, state, onSigned
         </div>
         <p className="chat-approval-title">{`Signed out of ${name}`}</p>
         <p className="chat-approval-summary">{item.message}</p>
-        <Actions item={item} state={state} onSignedIn={onSignedIn} onAgentStatus={onAgentStatus} onRetry={onRetry} />
+        <Actions item={item} name={name} state={state} onSignedIn={onSignedIn} onAgentStatus={onAgentStatus} onRetry={onRetry} />
       </article>
     </li>
   )

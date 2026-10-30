@@ -4,17 +4,19 @@
  *
  * Launching follows the same rules as every other agent run (`planCliLaunch`): no shell for a
  * user-chosen path, and a Windows `.cmd` shim goes through exactly one cmd.exe parse with the path
- * in one pair of quotes. The subcommand is a constant, never user text. Stopping uses the shared
+ * in one pair of quotes. The arguments are the launch spec's (`app-server` for the built-in), with
+ * `{folder}` already replaced; any the launcher refuses stop the start. Stopping uses the shared
  * `killProcessTree`, so the shim's child (Node, or the Codex binary) goes with it, and a stop
  * resolves once the whole tree is gone.
  */
 import { spawn, type ChildProcess } from 'node:child_process'
 import { planCliLaunch, type AgentProbeDeps, type LaunchPlan, type ProbeLaunch } from '../../desktop/agentProbe'
 import { inspectExecutable } from '../../desktop/agentProbeNode'
+import { CODEX_APP_SERVER_ARGS } from '../launchSpec'
+import { logger } from '../../logger'
 import { killProcessTree, startsOwnGroup } from '../processTree'
 import type { RpcTransport } from './codexRpc'
 
-const SUBCOMMAND = 'app-server'
 /** What is kept of the program's stderr, to say why it ended. */
 const STDERR_KEEP = 600
 
@@ -47,9 +49,13 @@ export function createLineSplitter(onLine: (line: string) => void): LineSplitter
   }
 }
 
-/** How to run `<executable> app-server`, or why it cannot be run. */
-export function planCodexLaunch(executablePath: string, deps: Pick<AgentProbeDeps, 'platform' | 'inspect' | 'comspec'>): LaunchPlan {
-  return planCliLaunch(executablePath, [SUBCOMMAND], deps)
+/** How to run `<executable> <args>` (by default the built-in's `app-server`), or why it cannot be run. */
+export function planCodexLaunch(
+  executablePath: string,
+  deps: Pick<AgentProbeDeps, 'platform' | 'inspect' | 'comspec'>,
+  args: readonly string[] = CODEX_APP_SERVER_ARGS
+): LaunchPlan {
+  return planCliLaunch(executablePath, args, deps)
 }
 
 function describeExit(code: number | null, signal: NodeJS.Signals | null, stderr: string, stopped: boolean): string {
@@ -125,7 +131,9 @@ class CodexProcess implements RpcTransport {
       return
     }
     this.stopped = true
-    await killProcessTree(this.child)
+    if (!(await killProcessTree(this.child))) {
+      logger.warn(`Codex process ${this.child.pid ?? 'unknown'}: its process tree was still alive after the kill wait`)
+    }
   }
 
   private close(reason: string): void {
@@ -144,9 +152,10 @@ class CodexProcess implements RpcTransport {
 export function spawnCodexTransport(
   executablePath: string,
   folder: string,
-  env: Record<string, string> = {}
+  env: Record<string, string> = {},
+  args: readonly string[] = CODEX_APP_SERVER_ARGS
 ): RpcTransport {
-  const plan = planCodexLaunch(executablePath, { platform: process.platform, inspect: inspectExecutable })
+  const plan = planCodexLaunch(executablePath, { platform: process.platform, inspect: inspectExecutable }, args)
   if ('ok' in plan) {
     throw new Error(plan.reason)
   }
