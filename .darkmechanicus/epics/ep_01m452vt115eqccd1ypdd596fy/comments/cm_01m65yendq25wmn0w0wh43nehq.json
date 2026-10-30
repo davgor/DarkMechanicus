@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "Replanned 2026-10-30 at the owner's request.\n\n- Five sprints collapsed into one sprint with one checkpoint.\n- New: project metrics summary command on the desktop command channel, read-only MCP scorecard/metrics tools, and a Metrics dashboard linked directly below the sidebar MCP indicator. DM-179 keeps the core/IPC side; MCP moved to the new tools ticket.\n- Owner decision, this epic only: TDD-first is waived. Work tickets write no new tests; they run typecheck, lint on their files and the existing tests they touch, and leave rerunnable demonstration scripts under `scratch/`.\n- Testing tail after implementation: five layer test tickets and the end-to-end exercise (DM-193, now on a packaged macOS app), then one full check sweep.\n- Per-sprint Fireguard tickets DM-194–DM-197 removed. DM-198 is the only ticket that runs Fireguard, after the sweep. The acceptance node reruns the Definition of Done on the final head.\n- Accepted risk: defects surface late and cluster in the tail; coverage is first checked by the sweep.\n- Repository rules synced so workers don't contradict this: `.cursor/rules/delivery-standards.mdc`, the `.claude`, `.cursor` and `.agents` delivery-standards skills, and `README.md`.\n",
+  "createdAt": "2026-10-30T08:22:36.216Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m65yendq25wmn0w0wh43nehq",
+  "ticketId": null
+}

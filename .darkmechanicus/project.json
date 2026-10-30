@@ -22,11 +22,6 @@
       "name": "coverage"
     },
     {
-      "command": "npm run fireguard",
-      "description": "Unit-test quality grade (A to F; F fails) on the sprint's combined, committed work. The base is the sprint's start commit: run it with FIREGUARD_BASE_REF set to that commit. The acceptance node does not run it: it reports this check from the accepted result of the sprint's Fireguard ticket.",
-      "name": "fireguard"
-    },
-    {
       "command": "npm run deadcode",
       "description": "ts-prune reports no unused export beyond the .tsprune-ignore baseline.",
       "name": "deadcode"

@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "**Handover (orchestrator, run 2, 2026-10-29, this Mac).** Picked up run 2 at the sprint 1 checkpoint. Every gate condition is met except `approval`: a person presses **Approve & advance** in the desktop app.\n\n**Host catalog gap.** The run's `host_catalog_id` (hc_01m49h2h070m93ec4wy9czr4kh) was registered on the Windows machine. The import copied the run's pointer but not the catalog row, so `match_capabilities` fails with `not_found` and `claim_ticket` skips catalog checks for this run. No service repoints a run's catalog. I registered hc_01m65kmjydhscdpcb1pj582b0r for this host, and I'll pick worker effort from ticket size until the run uses a local catalog. Proposed follow-up: import host catalogs together with runs, or let `takeover_run` take a new `hostCatalogId`.\n\n**Sprint 2 entry criterion n1 is still open.** No comment records the GitHub OAuth App client ID. DM-141 c5 needs it, and DM-142 to DM-147 depend on DM-141. DM-214 to DM-219 are independent and can start once the checkpoint is approved.\n\n**Branches.** Local `source-control` now tracks origin/source-control at 5a5a03c (the sprint 1 increment). The sprint 2 integration branch `source-control-sprint-2` is in the worktree ../DarkMechanicus-worktrees/sprint-2-integration. The coordinating checkout stays on `main` (the recorded branch), because the desktop app runs from it in dev mode. main is 25 commits ahead of the epic branch's base 2f69524.",
+  "createdAt": "2026-10-30T05:13:47.945Z",
+  "epicId": "ep_01m43sbb2tbnxtr35fety5vzhs",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m65kmyn9g6gjx67ds5j18mjp",
+  "ticketId": null
+}
