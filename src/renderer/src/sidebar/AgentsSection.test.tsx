@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { FakeDm } from '../__mocks__/fakeDm'
 import { agentView } from '../__mocks__/fixtures'
 import { settle } from '../__mocks__/settle'
-import type { AgentAuthStatus, AgentKind, AgentView } from '../../../shared/desktop/api'
+import type { AgentAuthStatus, AgentId, AgentView } from '../../../shared/desktop/api'
 import type { AgentStatuses } from '../agents/useAgents'
 import { AgentsSection } from './AgentsSection'
 
@@ -22,11 +22,11 @@ const codex = agentView({ kind: 'codex', version: null, executablePath: '/usr/lo
 
 interface Calls {
   added: number
-  selected: AgentKind[]
-  statuses: [AgentKind, AgentAuthStatus][]
+  selected: AgentId[]
+  statuses: [AgentId, AgentAuthStatus][]
 }
 
-function renderSection(agents: AgentView[], statuses: AgentStatuses = {}, selected: AgentKind | null = null): Calls {
+function renderSection(agents: AgentView[], statuses: AgentStatuses = {}, selected: AgentId | null = null): Calls {
   const calls: Calls = { added: 0, selected: [], statuses: [] }
   render(
     <AgentsSection

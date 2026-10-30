@@ -70,6 +70,16 @@ describe('chooseView with an agents pane', () => {
     })
   })
 
+  it('picks a custom agent by its id among several custom agents', () => {
+    const first = agentView({ kind: 'custom', id: 'cu_01hz3k4m5n6p7q8r9s0tvwxyza' })
+    const second = agentView({ kind: 'custom', id: 'cu_01hz3k4m5n6p7q8r9s0tvwxyzb' })
+    const pane = { kind: 'agent', agent: second.id } as const
+    expect(chooseView({ loaded: true, folder: ready, epicId: null, agentPane: pane, agents: [first, second] })).toEqual({
+      kind: 'agent',
+      agent: second
+    })
+  })
+
   it('still shows loading until folders arrive', () => {
     const view = chooseView({ loaded: false, folder: null, epicId: null, agentPane: { kind: 'add' }, agents: [] })
     expect(view.kind).toBe('loading')

@@ -1,10 +1,16 @@
-import { AGENT_DEFINITIONS } from '../../../shared/desktop/agentKinds'
-import type { AgentAuthStatus, AgentDownloadProgress, AgentKind, AgentView } from '../../../shared/desktop/api'
+import { AGENT_DEFINITIONS, isBuiltInAgentKind } from '../../../shared/desktop/agentKinds'
+import type { AgentAuthStatus, AgentDownloadProgress, AgentId, AgentView, BuiltInAgentKind } from '../../../shared/desktop/api'
 
-export const agentName = (kind: AgentKind): string => AGENT_DEFINITIONS[kind].displayName
+/**
+ * What to call an agent known only by its id (a chat's agent, which can outlive its connection): the
+ * built-in kind's name, or a generic one for a custom agent. Screens with the connected agent use its `displayName`.
+ */
+export function agentName(id: AgentId): string {
+  return isBuiltInAgentKind(id) ? AGENT_DEFINITIONS[id].displayName : 'Custom agent'
+}
 
 /** One line per agent on its card in the add-agent pane. */
-export const AGENT_BLURBS: Readonly<Record<AgentKind, string>> = {
+export const AGENT_BLURBS: Readonly<Record<BuiltInAgentKind, string>> = {
   claude: 'Anthropic’s coding agent, run from the terminal.',
   codex: 'OpenAI’s coding agent, run from the terminal.',
   cursor: 'Cursor’s coding agent, run from the terminal.'

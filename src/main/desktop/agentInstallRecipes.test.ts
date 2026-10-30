@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { AGENT_KINDS, expectedExecutableNames } from '../../shared/desktop/agentKinds'
-import type { AgentKind } from '../../shared/desktop/api'
+import type { BuiltInAgentKind } from '../../shared/desktop/api'
 import {
   installerLaunch,
   resolveRecipe,
@@ -29,7 +29,7 @@ function environmentFor(platform: InstallPlatform, arch: string): InstallEnviron
   return { ...(platform === 'win32' ? WINDOWS : MAC), platform, arch }
 }
 
-const SOURCES: Record<AgentKind, Record<InstallPlatform, string>> = {
+const SOURCES: Record<BuiltInAgentKind, Record<InstallPlatform, string>> = {
   claude: { win32: 'https://claude.ai/install.ps1', darwin: 'https://claude.ai/install.sh' },
   codex: {
     win32: 'https://github.com/openai/codex/releases/latest/download/install.ps1',
@@ -39,7 +39,7 @@ const SOURCES: Record<AgentKind, Record<InstallPlatform, string>> = {
 }
 
 /** The hosts each vendor's own documentation lives on: a recipe must cite one of them. */
-const DOC_HOSTS: Record<AgentKind, string[]> = {
+const DOC_HOSTS: Record<BuiltInAgentKind, string[]> = {
   claude: ['code.claude.com'],
   codex: ['github.com', 'developers.openai.com'],
   cursor: ['cursor.com']
@@ -184,7 +184,7 @@ describe('where each installer leaves the executable, so the probe can find it',
   )
 
   it('names the vendor documented default for each', () => {
-    const at = (kind: AgentKind, environment: InstallEnvironment): string[] =>
+    const at = (kind: BuiltInAgentKind, environment: InstallEnvironment): string[] =>
       resolveRecipe(kind, environment)?.layout(environment).executables ?? []
 
     expect(at('claude', WINDOWS)).toEqual(['C:\\Users\\Ada\\.local\\bin\\claude.exe'])

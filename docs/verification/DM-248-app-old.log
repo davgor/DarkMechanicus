@@ -1,0 +1,7 @@
+Debugger listening on ws://127.0.0.1:9339/d0538266-75ea-4712-952e-fa165cbb626d
+For help, see: https://nodejs.org/learn/getting-started/debugging
+
+DevTools listening on ws://127.0.0.1:9333/devtools/browser/99aa143d-4af6-47a4-9fff-2940df2d622f
+06:17:03.317 › Auto-update disabled (dev build or DISABLE_AUTO_UPDATE=1)
+Debugger attached.
+Waiting for the debugger to disconnect...

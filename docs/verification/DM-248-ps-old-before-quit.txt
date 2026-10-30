@@ -1,0 +1,8 @@
+ 2473 44609 /bin/zsh -l -c DISABLE_AUTO_UPDATE=1 ~/Documents/GitHub/DarkMechanicus-worktrees/DM-248-old/node_modules/.bin/electron --inspect=9339 ~/Documents/GitHub/DarkMechanicus-worktr
+ 3194  2473 node ~/Documents/GitHub/DarkMechanicus-worktrees/DM-248-old/node_modules/.bin/electron --inspect=9339 ~/Documents/GitHub/DarkMechanicus-worktrees/DM-248-old --user-data-dir=/
+ 3195  2473 tee -a /tmp/dm248-evidence/old-app.log
+ 3196  3194 ~/Documents/GitHub/DarkMechanicus/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron --inspect=9339 ~/Documents/GitHub/DarkMechanicus-worktrees/DM-248-old --user
+ 3197  3196 ~/Documents/GitHub/DarkMechanicus/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper.app/Contents/MacOS/Electron Helper --type=gpu-process --user-data-dir=/private/tm
+ 3198  3196 ~/Documents/GitHub/DarkMechanicus/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper.app/Contents/MacOS/Electron Helper --type=utility --utility-sub-type=network.mojo
+ 3209  3196 ~/Documents/GitHub/DarkMechanicus/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper (Renderer).app/Contents/MacOS/Electron Helper (Renderer) --type=renderer --user-d
+ 4717  3196 ~/.local/share/claude/versions/2.1.291 --output-format stream-json --verbose --input-format stream-json --model haiku --permission-prompt-tool stdio --setting-sources=user,project,local --per

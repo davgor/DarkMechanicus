@@ -305,14 +305,14 @@ describe('preload bridge', () => {
     expect(invoked).toEqual(ipc.channels())
   })
 
-  it('sends the agent channels nothing but the kind', () => {
+  it('sends the agent channels nothing but the agent id or, for find and download, the kind', () => {
     const preload = readFileSync(fileURLToPath(new URL('../../preload/index.ts', import.meta.url)), 'utf8')
 
     expect(preload).toContain("listAgents: () => ipcRenderer.invoke('agents:list')")
     expect(preload).toContain("findAgent: (kind) => ipcRenderer.invoke('agents:find', kind)")
-    expect(preload).toContain("removeAgent: (kind) => ipcRenderer.invoke('agents:remove', kind)")
-    expect(preload).toContain("agentStatus: (kind) => ipcRenderer.invoke('agents:status', kind)")
-    expect(preload).toContain("signInAgent: (kind) => ipcRenderer.invoke('agents:signIn', kind)")
+    expect(preload).toContain("removeAgent: (id) => ipcRenderer.invoke('agents:remove', id)")
+    expect(preload).toContain("agentStatus: (id) => ipcRenderer.invoke('agents:status', id)")
+    expect(preload).toContain("signInAgent: (id) => ipcRenderer.invoke('agents:signIn', id)")
     expect(preload).toContain("downloadAgent: (kind) => ipcRenderer.invoke('agents:download', kind)")
   })
 

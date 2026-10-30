@@ -35,14 +35,14 @@ async function wait(ms: number): Promise<void> {
 }
 
 async function startSignIn(props: Partial<Parameters<typeof SignInPrompt>[0]> = {}): Promise<void> {
-  render(<SignInPrompt kind="claude" {...props} />)
+  render(<SignInPrompt agent="claude" name="Claude Code" {...props} />)
   press('Sign in')
   await settle()
 }
 
 describe('SignInPrompt starting', () => {
   it('offers Sign in for the agent and starts the CLI’s own sign-in naming only the kind', async () => {
-    render(<SignInPrompt kind="claude" />)
+    render(<SignInPrompt agent="claude" name="Claude Code" />)
     expect(screen.getByRole('group', { name: 'Sign in to Claude Code' })).toBeTruthy()
     expect(dm.agentCallsOf('signInAgent')).toEqual([])
     press('Sign in')
@@ -60,7 +60,7 @@ describe('SignInPrompt starting', () => {
 
   it('does not start a second sign-in while the first is starting', async () => {
     const hold = dm.holdAgent('signInAgent')
-    render(<SignInPrompt kind="claude" />)
+    render(<SignInPrompt agent="claude" name="Claude Code" />)
     press('Sign in')
     expect((screen.getByRole('button', { name: 'Sign in' }) as HTMLButtonElement).disabled).toBe(true)
     hold.resolve()
@@ -84,7 +84,7 @@ describe('SignInPrompt starting', () => {
   })
 
   it('can be disabled while another action on the agent is running', () => {
-    render(<SignInPrompt kind="claude" disabled />)
+    render(<SignInPrompt agent="claude" name="Claude Code" disabled />)
     expect((screen.getByRole('button', { name: 'Sign in' }) as HTMLButtonElement).disabled).toBe(true)
   })
 })
@@ -95,7 +95,7 @@ describe('SignInPrompt checking', () => {
   })
 
   it('does not ask for the status before the sign-in has started', async () => {
-    render(<SignInPrompt kind="claude" />)
+    render(<SignInPrompt agent="claude" name="Claude Code" />)
     await wait(SIGN_IN_POLL_MS * 3)
     expect(dm.agentCallsOf('agentStatus')).toEqual([])
   })
@@ -176,7 +176,7 @@ describe('SignInPrompt overlap and stopping', () => {
   })
 
   it('stops checking when it is removed from the screen', async () => {
-    const view = render(<SignInPrompt kind="claude" />)
+    const view = render(<SignInPrompt agent="claude" name="Claude Code" />)
     press('Sign in')
     await settle()
     await wait(SIGN_IN_POLL_MS)
@@ -190,7 +190,7 @@ describe('CheckAgain', () => {
   it('shows why the state is unknown and asks once when pressed, reporting the answer', async () => {
     const seen: AgentAuthStatus[] = []
     dm.agentStatuses.claude = SIGNED_IN
-    render(<CheckAgain kind="claude" reason={UNKNOWN.reason} onStatus={(status) => seen.push(status)} />)
+    render(<CheckAgain agent="claude" name="Claude Code" reason={UNKNOWN.reason} onStatus={(status) => seen.push(status)} />)
     expect(screen.getByText('The status command did not answer.')).toBeTruthy()
     expect(dm.agentCallsOf('agentStatus')).toEqual([])
     press('Check again')
@@ -201,7 +201,7 @@ describe('CheckAgain', () => {
 
   it('is busy while the check is out, so it cannot be pressed twice', async () => {
     const hold = dm.holdAgent('agentStatus')
-    render(<CheckAgain kind="claude" reason={UNKNOWN.reason} />)
+    render(<CheckAgain agent="claude" name="Claude Code" reason={UNKNOWN.reason} />)
     press('Check again')
     expect((screen.getByRole('button', { name: 'Check again' }) as HTMLButtonElement).disabled).toBe(true)
     hold.resolve()
@@ -212,7 +212,7 @@ describe('CheckAgain', () => {
 
   it('says when the check itself failed', async () => {
     dm.agentStatus = () => Promise.reject(new Error('ipc closed'))
-    render(<CheckAgain kind="claude" reason={UNKNOWN.reason} />)
+    render(<CheckAgain agent="claude" name="Claude Code" reason={UNKNOWN.reason} />)
     press('Check again')
     await settle()
     expect(screen.getByRole('alert').textContent).toContain('ipc closed')

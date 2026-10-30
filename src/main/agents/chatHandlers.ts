@@ -2,7 +2,8 @@
  * The behavior behind the `chats:*` IPC channels, as a pure factory over injected dependencies (no
  * Electron imports). Every argument arrives from the renderer and is untrusted: it is validated
  * here, folders must be tracked, and requests are strict objects, so a renderer can name chats,
- * kinds, models, roles, text and decisions but never an executable or MCP arguments. Answers are
+ * agent ids, models, roles, text and decisions but never an executable or MCP arguments. Agent ids are
+ * checked against the agent registry (`not_found` for one that is not connected) before anything runs. Answers are
  * `CommandResult`s, like `dm:command`, so the UI gets the error code and message.
  */
 import { z } from 'zod'
@@ -10,9 +11,10 @@ import { DomainError, toErrorShape } from '../../core/errors'
 import { LIMITS, parseInput, stableId } from '../../core/schemas'
 import { APPROVAL_DECISIONS, CHAT_ROLES, chatIdSchema, type ChatItem, type ChatRecord, type ModelOption } from '../../shared/agents/chat'
 import type { BoundThread, ChatOpenView, ChatPushEvent, ChatSummary, StartOrchestratorResult, ThreadBinding } from '../../shared/agents/chatApi'
-import { AGENT_KINDS } from '../../shared/desktop/agentKinds'
+import { agentIdSchema } from '../../shared/desktop/agentKinds'
 import type { CommandResult } from '../../shared/desktop/api'
-import { agentKindSchema } from '../desktop/agentHandlers'
+import { connectedAgent } from '../desktop/agentHandlers'
+import type { AgentRegistry } from '../desktop/agentRegistry'
 import type { FolderRegistry } from '../desktop/folderRegistry'
 import type { BoundTarget } from './boundThreads'
 import type { ChatRef } from './chatStore'
@@ -30,7 +32,7 @@ const refShape = { folder: folderSchema, chatId: chatIdSchema }
 
 const createSchema = z.strictObject({
   folder: folderSchema,
-  agent: z.enum(AGENT_KINDS),
+  agent: agentIdSchema,
   role: z.enum(CHAT_ROLES),
   model: modelSchema.nullable().optional(),
   allowSave: z.boolean().optional(),
@@ -40,7 +42,7 @@ const createSchema = z.strictObject({
 const startOrchestratorSchema = z.strictObject({
   folder: folderSchema,
   epicId: stableId,
-  agent: z.enum(AGENT_KINDS),
+  agent: agentIdSchema,
   model: modelSchema.nullable().optional()
 })
 const refSchema = z.strictObject(refShape)
@@ -60,6 +62,8 @@ const answerSchema = z.strictObject({
 
 interface ChatHandlerDeps {
   registry: Pick<FolderRegistry, 'resolve'>
+  /** The connected agents; a request naming any other agent is refused before anything runs. */
+  agents: Pick<AgentRegistry, 'get'>
   sessions: SessionManager
   /** The desktop's run commands, for starting an orchestrator. */
   runs: OrchestratorRuns
@@ -90,7 +94,7 @@ export interface ChatHandlers {
   rename(request: unknown): Promise<CommandResult<ChatRecord>>
   delete(request: unknown): Promise<CommandResult<null>>
   answerApproval(request: unknown): Promise<CommandResult<null>>
-  models(kind: unknown): Promise<CommandResult<ModelOption[]>>
+  models(agent: unknown): Promise<CommandResult<ModelOption[]>>
 }
 
 /** The canonical path of a tracked folder; anything else is unauthorized. */
@@ -111,6 +115,7 @@ function chatRequest<T extends { folder: string; chatId: string }>(deps: ChatHan
 /** Validates the request and the folder before anything is queued; see `startOrchestratorRun` for what happens after. */
 async function startOrchestrator(deps: ChatHandlerDeps, input: unknown): Promise<StartOrchestratorResult> {
   const request = parseInput(startOrchestratorSchema, input, 'orchestrator request')
+  connectedAgent(deps.agents, request.agent)
   const folder = trackedFolder(deps, request.folder)
   const { runs, sessions, onUnexpectedError } = deps
   const started = await startOrchestratorRun({ runs, sessions, ...(onUnexpectedError === undefined ? {} : { onError: onUnexpectedError }) }, { ...request, folder })
@@ -152,6 +157,7 @@ function chatsChanged(deps: ChatHandlerDeps, chat: ChatRef): void {
 
 function createChat(deps: ChatHandlerDeps, input: unknown): ChatRecord {
   const request = parseInput(createSchema, input, 'new chat')
+  connectedAgent(deps.agents, request.agent)
   const chat = deps.sessions.createChat({ ...request, folder: trackedFolder(deps, request.folder) })
   chatsChanged(deps, { folder: chat.folder, id: chat.id })
   return chat
@@ -205,6 +211,6 @@ export function createChatHandlers(deps: ChatHandlerDeps): ChatHandlers {
         sessions.answerApproval(ref, { requestId: request.requestId, decision: request.decision })
         return null
       }),
-    models: (kind) => answer(deps, () => sessions.listModels(parseInput(agentKindSchema, kind, 'agent kind')))
+    models: (agent) => answer(deps, () => sessions.listModels(connectedAgent(deps.agents, agent).id))
   }
 }

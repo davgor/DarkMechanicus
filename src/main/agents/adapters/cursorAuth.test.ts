@@ -55,6 +55,7 @@ function rig(...recordings: Frame[][]): Rig {
   const options: ChatAdapterStartOptions = {
     chatId: 'chat_1',
     folder: FOLDER,
+    checkFolder: () => {},
     model: null,
     role: 'orchestrator',
     allowSave: false,

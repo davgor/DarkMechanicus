@@ -3,7 +3,8 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { DomainError } from '../../core/errors'
 import { AGENT_KINDS } from '../../shared/desktop/agentKinds'
-import type { AgentAuthStatus, AgentKind, AgentView } from '../../shared/desktop/api'
+import type { AgentAuthStatus, AgentView, BuiltInAgentKind } from '../../shared/desktop/api'
+import { builtInAgent } from '../agents/__mocks__/fakeChatAdapter'
 import {
   createAgentAuthHandlers,
   getAgentAuthStatus,
@@ -50,7 +51,7 @@ const CURSOR_SIGNED_OUT = '✗ Not logged in\nRun `agent login` to authenticate.
 const CURSOR_NOT_AUTHENTICATED = 'Not authenticated\n'
 const CURSOR_ERROR = 'Error: could not reach api2.cursor.sh\n'
 
-const POSIX_PATHS: Record<AgentKind, string> = {
+const POSIX_PATHS: Record<BuiltInAgentKind, string> = {
   claude: '/home/me/.local/bin/claude',
   codex: '/usr/local/bin/codex',
   cursor: '/home/me/.local/bin/agent'
@@ -84,7 +85,7 @@ function exited(exitCode: number, output: string): ProcessOutcome {
   return { kind: 'exited', exitCode, output }
 }
 
-async function statusOf(kind: AgentKind, outcome: ProcessOutcome): Promise<AgentAuthStatus> {
+async function statusOf(kind: BuiltInAgentKind, outcome: ProcessOutcome): Promise<AgentAuthStatus> {
   return getAgentAuthStatus(kind, POSIX_PATHS[kind], statusWorld(outcome).deps)
 }
 
@@ -244,7 +245,7 @@ function signInWorld(
   return world
 }
 
-const LOGIN_ARGS: Record<AgentKind, string[]> = { claude: ['auth', 'login'], codex: ['login'], cursor: ['login'] }
+const LOGIN_ARGS: Record<BuiltInAgentKind, string[]> = { claude: ['auth', 'login'], codex: ['login'], cursor: ['login'] }
 
 describe('sign in starts the CLI own login command in a visible terminal', () => {
   it.each(AGENT_KINDS)('%s: on Windows, one new console runs the shim with only its login args, parsed by one cmd.exe', async (kind) => {
@@ -368,7 +369,7 @@ describe('sign in refuses what it cannot launch', () => {
 })
 
 describe('sign in carries no credential', () => {
-  const PLATFORM_PATHS: [string, (kind: AgentKind) => string][] = [
+  const PLATFORM_PATHS: [string, (kind: BuiltInAgentKind) => string][] = [
     ['win32', (kind) => `C:\\Users\\me\\AppData\\Roaming\\npm\\${kind}.cmd`],
     ['darwin', (kind) => POSIX_PATHS[kind]],
     ['linux', (kind) => POSIX_PATHS[kind]]
@@ -415,42 +416,38 @@ describe('no view accepts a credential', () => {
     }
   })
 
-  it('has bridge methods that take the kind and nothing else', () => {
+  it('has bridge methods that take the agent id and nothing else', () => {
     const api = readFileSync(fileURLToPath(new URL('../../shared/desktop/api.ts', import.meta.url)), 'utf8')
 
-    expect(api).toContain('agentStatus(kind: AgentKind): Promise<AgentAuthStatus>')
-    expect(api).toContain('signInAgent(kind: AgentKind): Promise<AgentSignInResult>')
+    expect(api).toContain('agentStatus(id: AgentId): Promise<AgentAuthStatus>')
+    expect(api).toContain('signInAgent(id: AgentId): Promise<AgentSignInResult>')
   })
 })
 
-function connectedAgent(kind: AgentKind): AgentView {
-  return {
-    kind,
-    executablePath: POSIX_PATHS[kind],
-    version: '1.0.0',
-    connectedVia: 'found',
-    connectedAt: '2026-01-01T00:00:00.000Z',
-    lastProbed: '2026-01-01T00:00:00.000Z'
-  }
+function connectedAgent(kind: BuiltInAgentKind): AgentView {
+  return builtInAgent(kind, { executablePath: POSIX_PATHS[kind], connectedAt: '2026-01-01T00:00:00.000Z', lastProbed: '2026-01-01T00:00:00.000Z' })
 }
+
+const CUSTOM_ID = 'cu_01m65kwqqeyajbj5bnq81gngrb'
 
 interface HandlerWorld {
   handlers: ReturnType<typeof createAgentAuthHandlers>
-  checked: [AgentKind, string][]
-  signedIn: [AgentKind, string][]
+  checked: [string, string][]
+  signedIn: [string, string][]
 }
 
-function handlerWorld(connected: AgentKind[]): HandlerWorld {
+function handlerWorld(connected: BuiltInAgentKind[], extra: AgentView[] = []): HandlerWorld {
   const world: HandlerWorld = { handlers: undefined as never, checked: [], signedIn: [] }
+  const agents = [...connected.map(connectedAgent), ...extra]
   world.handlers = createAgentAuthHandlers(
-    { list: () => connected.map(connectedAgent) },
+    { get: (id) => agents.find((agent) => agent.id === id) ?? null },
     {
-      checkAuth: (kind, path) => {
-        world.checked.push([kind, path])
+      checkAuth: (agent) => {
+        world.checked.push([agent.id, agent.executablePath])
         return Promise.resolve({ state: 'signed_in', reason: 'ok' })
       },
-      signIn: (kind, path) => {
-        world.signedIn.push([kind, path])
+      signIn: (agent) => {
+        world.signedIn.push([agent.id, agent.executablePath])
         return Promise.resolve({ outcome: 'started' })
       }
     }
@@ -468,7 +465,7 @@ async function rejectionCode(promise: Promise<unknown>): Promise<string> {
 }
 
 describe('agents:status and agents:signIn handlers', () => {
-  it('check the registered executable for the kind, never one from the request', async () => {
+  it('check the registered executable for the agent id, never one from the request', async () => {
     const world = handlerWorld(['codex'])
 
     expect(await world.handlers.agentStatus('codex')).toEqual({ state: 'signed_in', reason: 'ok' })
@@ -478,21 +475,31 @@ describe('agents:status and agents:signIn handlers', () => {
     expect(world.signedIn).toEqual([['codex', POSIX_PATHS.codex]])
   })
 
-  it('answer unknown, with a reason, for a kind that is not connected, without running anything', async () => {
+  it('refuse an agent id that is not connected with not_found, without running anything', async () => {
     const world = handlerWorld(['claude'])
 
-    expect(await world.handlers.agentStatus('cursor')).toEqual({
-      state: 'unknown',
-      reason: expect.stringMatching(/Cursor is not connected/)
-    })
-    expect(await world.handlers.signInAgent('cursor')).toEqual({
-      outcome: 'not_connected',
-      reason: expect.stringMatching(/Cursor is not connected/)
-    })
+    for (const id of ['cursor', CUSTOM_ID]) {
+      expect(await rejectionCode(world.handlers.agentStatus(id))).toBe('not_found')
+      expect(await rejectionCode(world.handlers.signInAgent(id))).toBe('not_found')
+    }
     expect(world.checked).toEqual([])
     expect(world.signedIn).toEqual([])
   })
+})
 
+describe('agents:status and agents:signIn for a custom agent', () => {
+  it('run no status or sign-in command for a connected custom agent', async () => {
+    const custom = builtInAgent('cursor', { id: CUSTOM_ID, kind: 'custom', displayName: 'My agent', executablePath: '/opt/mine' })
+    const world = handlerWorld([], [custom])
+
+    expect(await world.handlers.agentStatus(CUSTOM_ID)).toMatchObject({ state: 'unknown', reason: expect.stringContaining('My agent') })
+    expect(await world.handlers.signInAgent(CUSTOM_ID)).toMatchObject({ outcome: 'failed', reason: expect.stringContaining('My agent') })
+    expect(world.checked).toEqual([])
+    expect(world.signedIn).toEqual([])
+  })
+})
+
+describe('agents:status and agents:signIn inputs', () => {
   it.each([
     { kind: 'claude', apiKey: 'sk-ant-secret' },
     { kind: 'codex', password: 'hunter2' },

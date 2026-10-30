@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { AGENT_DEFINITIONS, AGENT_KINDS, expectedExecutableNames } from './agentKinds'
+import { AGENT_DEFINITIONS, AGENT_KINDS, agentIdSchema, expectedExecutableNames } from './agentKinds'
 
 describe('agent kind definitions', () => {
   it('is a closed set of claude, codex and cursor', () => {
@@ -30,5 +30,33 @@ describe('expectedExecutableNames', () => {
       'cursor-agent.exe',
       'cursor-agent.cmd'
     ])
+  })
+})
+
+describe('agentIdSchema', () => {
+  const ulid = '01m65kwqqeyajbj5bnq81gngrb'
+
+  it('accepts each built-in kind name and a cu_ id of 26 Crockford base32 characters', () => {
+    for (const kind of AGENT_KINDS) {
+      expect(agentIdSchema.safeParse(kind).success).toBe(true)
+    }
+    expect(ulid).toHaveLength(26)
+    expect(agentIdSchema.safeParse(`cu_${ulid}`).success).toBe(true)
+  })
+
+  it('rejects 25 and 27 characters, uppercase, path tricks, other names and the empty string', () => {
+    for (const id of [
+      `cu_${ulid.slice(1)}`,
+      `cu_${ulid}0`,
+      `cu_${ulid.toUpperCase()}`,
+      `CU_${ulid}`,
+      'cu_../../../../../../../../etc',
+      `cu_${ulid.slice(0, 25)}u`,
+      'custom',
+      'Claude',
+      ''
+    ]) {
+      expect(agentIdSchema.safeParse(id).success, id).toBe(false)
+    }
   })
 })

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useReducer, useState, type Dispatch } from 'react'
 import type { ApprovalDecision, ChatRecord } from '../../../shared/agents/chat'
 import type { ChatRequestRef } from '../../../shared/agents/chatApi'
-import type { AgentKind } from '../../../shared/desktop/api'
+import type { AgentId } from '../../../shared/desktop/api'
 import { errorMessage } from '../api/dm'
 import { unwrapChat } from './chatCalls'
 import { openSession, reduceSession, type ChatAuth, type SessionAction, type SessionState } from './chatViewModel'
@@ -54,7 +54,7 @@ export function useOpenedChat(ref: ChatRequestRef, load: 'open' | 'read' = 'open
  * A chat whose stored transcript says its agent's sign-in was lost asks the agent's own status whether it
  * still is, once, as it opens; what the main process pushes afterwards is newer and wins.
  */
-function useSignInCheck(agent: AgentKind, asking: boolean, push: Dispatch<SessionAction>): void {
+function useSignInCheck(agent: AgentId, asking: boolean, push: Dispatch<SessionAction>): void {
   useEffect(() => {
     if (!asking) {
       return undefined

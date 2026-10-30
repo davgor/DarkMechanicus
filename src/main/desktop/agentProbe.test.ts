@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { AgentKind } from '../../shared/desktop/api'
+import type { BuiltInAgentKind } from '../../shared/desktop/api'
 import {
   agentDialogOptions,
   planCliLaunch,
@@ -49,17 +49,17 @@ function exited(output: string, exitCode = 0): ProcessOutcome {
 }
 
 /** What each real CLI prints for its version flag (the assumption documented in agentProbe.ts). */
-const VERSION_OUTPUT: Record<AgentKind, string> = {
+const VERSION_OUTPUT: Record<BuiltInAgentKind, string> = {
   claude: '2.1.281 (Claude Code)\n',
   codex: 'codex-cli 0.46.0\n',
   cursor: '2025.09.18-7ae6800\n'
 }
 
-const KINDS: AgentKind[] = ['claude', 'codex', 'cursor']
+const KINDS: BuiltInAgentKind[] = ['claude', 'codex', 'cursor']
 
-const CLI_NAMES: Record<AgentKind, string> = { claude: 'Claude Code', codex: 'Codex', cursor: 'Cursor' }
+const CLI_NAMES: Record<BuiltInAgentKind, string> = { claude: 'Claude Code', codex: 'Codex', cursor: 'Cursor' }
 
-const IDENTIFIED: [AgentKind, string, string | null][] = [
+const IDENTIFIED: [BuiltInAgentKind, string, string | null][] = [
   ['claude', '2.1.281 (Claude Code)\n', '2.1.281'],
   ['claude', 'Claude Code v3.0.0-beta.1\n', '3.0.0-beta.1'],
   ['claude', 'Claude Code\n', null],

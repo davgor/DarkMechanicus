@@ -1,6 +1,6 @@
 import { memo, useState } from 'react'
 import type { ChatItem } from '../../../shared/agents/chat'
-import type { AgentAuthStatus, AgentKind } from '../../../shared/desktop/api'
+import type { AgentAuthStatus, AgentId } from '../../../shared/desktop/api'
 import { errorMessage } from '../api/dm'
 import { Button } from '../components/Button'
 import { classNames } from '../components/classNames'
@@ -62,7 +62,7 @@ interface ActionsProps {
   state: SignInCardState
   onSignedIn(): void
   /** The sign-in prompt asked the agent's state itself. */
-  onAgentStatus(kind: AgentKind, status: AgentAuthStatus): void
+  onAgentStatus(id: AgentId, status: AgentAuthStatus): void
   onRetry(): Promise<void>
 }
 
@@ -71,7 +71,7 @@ function Actions({ item, state, onSignedIn, onAgentStatus, onRetry }: ActionsPro
   const name = agentName(item.agent)
   switch (state) {
     case 'signed_out':
-      return <SignInPrompt kind={item.agent} onSignedIn={onSignedIn} onStatus={(status) => onAgentStatus(item.agent, status)} />
+      return <SignInPrompt agent={item.agent} name={name} onSignedIn={onSignedIn} onStatus={(status) => onAgentStatus(item.agent, status)} />
     case 'checking':
       return (
         <p className="note" role="status">

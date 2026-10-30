@@ -6,7 +6,7 @@ import type { ApprovalDecision, ChatItem, ChatRecord } from '../../shared/agents
 import { CHAT_EVENT_CHANNEL, type BoundThread, type ChatOpenView, type ChatPushEvent, type StartOrchestratorResult, type ThreadBinding } from '../../shared/agents/chatApi'
 import type { CommandResult } from '../../shared/desktop/api'
 import type { EpicDetailView, RunView } from '../../shared/domain/views'
-import { AT, fakeAdapters, memoryChatFs, memoryChatStore, MODELS, REPO, type FakeAdapters, type MemoryChatFs } from './__mocks__/fakeChatAdapter'
+import { AT, connectedAgents, fakeAdapters, memoryChatFs, memoryChatStore, MODELS, REPO, trackedFolders, type FakeAdapters, type MemoryChatFs } from './__mocks__/fakeChatAdapter'
 import { ATTEMPT_A, ATTEMPT_B, RUN_ID, THREAD_A } from './__mocks__/orchestratorChat'
 import { createActivityBindings } from './activityBindings'
 import { createChatHandlers } from './chatHandlers'
@@ -97,7 +97,8 @@ function ipcRig(options: { bindings?: boolean; windows?: readonly ChatWindow[] }
     store,
     ...(activity === undefined ? {} : { activity }),
     adapters: fakes.definitions,
-    executablePath: (kind) => `/bin/${kind}`,
+    agentFor: connectedAgents(),
+    folders: trackedFolders(),
     ...chatCliDeps(),
     push: (event) => events.push(event)
   })
@@ -116,6 +117,7 @@ function ipcRig(options: { bindings?: boolean; windows?: readonly ChatWindow[] }
     ipc,
     createChatHandlers({
       registry: { resolve: (path) => (path === REPO ? REPO : null) },
+      agents: { get: connectedAgents() },
       sessions,
       runs,
       ...(options.windows === undefined ? {} : { push: createChatPush(() => options.windows ?? []) }),
@@ -400,13 +402,37 @@ describe('chat IPC: start an orchestrator', () => {
   })
 })
 
+describe('chat IPC: agents named by id', () => {
+  it('refuses chats:create for an agent id that is not connected with not_found, and creates no chat or adapter', async () => {
+    const state = ipcRig()
+
+    const answer = await state.invoke<CommandResult<unknown>>('chats:create', { folder: REPO, agent: 'cu_01m65kwqqeyajbj5bnq81gngrb', role: 'planner' })
+    await settle()
+
+    expect(answer).toMatchObject({ ok: false, error: { code: 'not_found' } })
+    expect(state.store.listChats(REPO)).toEqual([])
+    expect(state.fakes.created).toEqual([])
+  })
+
+  it('refuses a malformed agent id with invalid_input before anything runs', async () => {
+    const state = ipcRig()
+
+    const answers = await Promise.all(
+      ['cu_../../../etc', 'CU_01M65KWQQEYAJBJ5BNQ81GNGRB', ''].map((agent) => state.invoke<CommandResult<unknown>>('chats:create', { folder: REPO, agent, role: 'planner' }))
+    )
+
+    expect(answers.map((answer) => (answer.ok ? 'ok' : answer.error.code))).toEqual(['invalid_input', 'invalid_input', 'invalid_input'])
+    expect(state.fakes.created).toEqual([])
+  })
+})
+
 describe('chat IPC behind the sender guard', () => {
   it('answers no chats channel for a sender that is not the app page, and never reaches a handler', async () => {
     const listeners = new Map<string, Listener>()
     const reached = (): never => {
       throw new Error('a handler was reached')
     }
-    const handlers = createChatHandlers({ registry: { resolve: reached }, sessions: {} as SessionManager, runs: {} as OrchestratorRuns })
+    const handlers = createChatHandlers({ registry: { resolve: reached }, agents: { get: reached }, sessions: {} as SessionManager, runs: {} as OrchestratorRuns })
     registerChatIpc(guardIpc({ handle: (channel, listener) => void listeners.set(channel, listener) }, { appUrl: 'http://localhost:5173' }), handlers)
     const stranger = { senderFrame: { url: 'https://example.com/', parent: null, detached: false, isDestroyed: () => false } } as unknown as IpcMainInvokeEvent
 

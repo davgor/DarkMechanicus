@@ -55,6 +55,7 @@ async function rig(script: Step[], answers: ApprovalDecision[] = ['allow_once'])
     {
       chatId: 'chat_1',
       folder: REPO,
+      checkFolder: () => {},
       model: null,
       role: 'planner',
       allowSave: true,

@@ -6,7 +6,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ChatItem, ChatRecord } from '../../shared/agents/chat'
-import { AT, fakeAdapters, memoryChatFs, memoryChatStore, REPO, type FakeAdapters, type FakeChatAdapter } from './__mocks__/fakeChatAdapter'
+import { AT, connectedAgents, fakeAdapters, memoryChatFs, memoryChatStore, REPO, trackedFolders, type FakeAdapters, type FakeChatAdapter } from './__mocks__/fakeChatAdapter'
 import { createSessionManager, type SessionManager } from './sessionManager'
 
 const MINUTE = 60_000
@@ -23,7 +23,8 @@ function rig(): Rig {
   const manager = createSessionManager({
     store: memoryChatStore(memoryChatFs()),
     adapters: fakes.definitions,
-    executablePath: (kind) => `/bin/${kind}`,
+    agentFor: connectedAgents(),
+    folders: trackedFolders(),
     issueChatCli: async (folder: string) => ({
       cli: {
         command: 'node',

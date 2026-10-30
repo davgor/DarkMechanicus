@@ -1,0 +1,4 @@
+# ps after quitting the new build (app.quit over the inspector), run 1
+2026-10-30T13:31:24Z
+filter: dm248|agent-clis-sprint-1/node_modules/electron|claude/versions
+(end; empty = nothing left, the live agent 8287 included)

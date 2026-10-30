@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AgentAuthStatus, AgentKind, AgentView } from '../../../shared/desktop/api'
+import type { AgentAuthStatus, AgentId, AgentView } from '../../../shared/desktop/api'
 import { FakeDm } from '../__mocks__/fakeDm'
 import { agentView, folderView } from '../__mocks__/fixtures'
 import { settle } from '../__mocks__/settle'
@@ -37,7 +37,7 @@ const codex = agentView({ kind: 'codex', executablePath: '/bin/codex', version: 
 
 interface Setup {
   agents?: AgentView[]
-  statuses?: Partial<Record<AgentKind, AgentAuthStatus>>
+  statuses?: Partial<Record<AgentId, AgentAuthStatus>>
   create?: (choice: NewChatChoice) => Promise<boolean>
 }
 

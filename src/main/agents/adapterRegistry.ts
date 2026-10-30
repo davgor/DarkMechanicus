@@ -1,10 +1,9 @@
 /**
- * How the app runs each agent kind's chats. A vendor adapter (Claude Code, Codex, Cursor) plugs in
- * by adding its definition to `CHAT_ADAPTERS`; the session manager looks the kind up there and
- * hands the definition the executable the person connected.
+ * How the app runs each agent protocol's chats. The session manager looks up the chat's agent, takes
+ * the definition for that agent's protocol here, and hands it the executable the person connected.
  */
 import type { ChatAdapter, ModelOption } from '../../shared/agents/chat'
-import type { AgentKind } from '../../shared/desktop/api'
+import type { AgentProtocol } from '../../shared/desktop/api'
 import { claudeAdapterDefinition } from './adapters/claude'
 import { CODEX_ADAPTER } from './adapters/codex'
 import { cursorAdapterDefinition } from './adapters/cursor'
@@ -18,11 +17,11 @@ export interface ChatAdapterDefinition {
   listModels(executablePath: string): Promise<ModelOption[]>
 }
 
-export type ChatAdapterDefinitions = Partial<Record<AgentKind, ChatAdapterDefinition>>
+export type ChatAdapterDefinitions = Record<AgentProtocol, ChatAdapterDefinition>
 
-/** The adapters this build ships; a kind with none yet cannot start chats. */
+/** The adapters this build ships; ACP agents run on the Cursor adapter for now. */
 export const CHAT_ADAPTERS: ChatAdapterDefinitions = {
   claude: claudeAdapterDefinition,
   codex: CODEX_ADAPTER,
-  cursor: cursorAdapterDefinition
+  acp: cursorAdapterDefinition
 }

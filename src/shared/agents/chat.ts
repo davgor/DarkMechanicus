@@ -20,8 +20,8 @@
  * a new agent starts on it with no live agent before.
  */
 import { z } from 'zod'
-import { AGENT_KINDS } from '../desktop/agentKinds'
-import type { AgentKind } from '../desktop/api'
+import { agentIdSchema } from '../desktop/agentKinds'
+import type { BuiltInAgentKind } from '../desktop/api'
 
 /** Dark Mechanicus roles a chat can run as: the four roles the app's MCP server serves. */
 export const CHAT_ROLES = ['planner', 'orchestrator', 'worker', 'reviewer'] as const
@@ -44,7 +44,8 @@ export const chatRecordSchema = z.object({
   id: chatIdSchema,
   /** Canonical path of the folder the chat belongs to. */
   folder: z.string().min(1),
-  agent: z.enum(AGENT_KINDS),
+  /** The agent's id. Built-in ids equal the kind names stored before agents had ids, so old lines load unchanged. */
+  agent: agentIdSchema,
   /** The model the chat currently runs on; null until one is chosen. */
   model: z.string().min(1).nullable(),
   role: z.enum(CHAT_ROLES),
@@ -173,7 +174,7 @@ export const chatItemSchema = z.discriminatedUnion('kind', [
    * waiting to be sent again when this was stored; it is false for a sign-in lost while no turn ran, and
    * absent on items stored before it existed.
    */
-  z.object({ ...itemBase, kind: z.literal('auth_required'), agent: z.enum(AGENT_KINDS), message: z.string(), cutShort: z.boolean().optional() }),
+  z.object({ ...itemBase, kind: z.literal('auth_required'), agent: agentIdSchema, message: z.string(), cutShort: z.boolean().optional() }),
   /**
    * A nested thread: the work of a subagent. The items inside carry this item's `id` as their
    * `threadId`; this item is rewritten, by the same id, as `state` changes.
@@ -213,8 +214,17 @@ export interface McpServerSpec {
 /** What an adapter needs to start (or resume) a chat's agent session. */
 export interface ChatAdapterStartOptions {
   chatId: string
-  /** Canonical folder the agent works in: the process runs with it as its working directory. */
+  /**
+   * Canonical folder the agent works in, checked on disk when the session started: the process runs with it as
+   * its working directory, the protocol's own workspace (`cwd`) is it, and the `dm` command is pinned to it.
+   */
   folder: string
+  /**
+   * Checks `folder` on disk again, throwing (a `not_found` error naming it) when it was moved, deleted,
+   * untracked or replaced by a symlink since. The adapter calls it before every process it starts, the ones
+   * started again after a crash or for a model change included, so no process runs in a folder that is gone.
+   */
+  checkFolder: () => void
   model: string | null
   role: ChatRole
   allowSave: boolean
@@ -266,7 +276,7 @@ export type ChatAdapterEmit = (event: ChatAdapterEvent) => void
  * vendor that way); file edits, commands and anything else do.
  */
 export interface ChatAdapter {
-  readonly kind: AgentKind
+  readonly kind: BuiltInAgentKind
   /** Starts or resumes the session; events flow to `emit` until `dispose`. */
   start(options: ChatAdapterStartOptions, emit: ChatAdapterEmit): Promise<void>
   /** Sends a user message and runs one turn: resolves when the turn has ended (finished or stopped), rejects when it failed. */

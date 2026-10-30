@@ -4,7 +4,8 @@
  */
 import type { ChatRecord } from '../../../shared/agents/chat'
 import type { ChatSummary } from '../../../shared/agents/chatApi'
-import type { AgentView, TrackedFolderView } from '../../../shared/desktop/api'
+import { AGENT_DEFINITIONS } from '../../../shared/desktop/agentKinds'
+import type { AgentProtocol, AgentView, BuiltInAgentKind, TrackedFolderView } from '../../../shared/desktop/api'
 import type {
   BoardImportView,
   BoardOpenEpicView,
@@ -190,11 +191,19 @@ export function boardRemoval(patch: Partial<BoardRemovalView> = {}): BoardRemova
 /** What a repository without an old board answers. */
 export const NO_BOARD: BoardImportView = { open: [], done: [], skipped: [] }
 
-/** A connected Claude Code by default; patch `kind` and the rest for the other agents. */
+const PROTOCOLS: Readonly<Record<BuiltInAgentKind, AgentProtocol>> = { claude: 'claude', codex: 'codex', cursor: 'acp' }
+
+/** A connected Claude Code by default; patch `kind` for another built-in agent (its id, protocol and name follow), and the rest as needed. */
 export function agentView(patch: Partial<AgentView> = {}): AgentView {
+  const kind = patch.kind ?? 'claude'
+  const builtIn = kind === 'custom' ? null : kind
   return {
-    kind: 'claude',
+    id: builtIn ?? 'cu_01m65kwqqeyajbj5bnq81gngrb',
+    kind,
+    protocol: builtIn === null ? 'acp' : PROTOCOLS[builtIn],
+    displayName: builtIn === null ? 'Custom agent' : AGENT_DEFINITIONS[builtIn].displayName,
     executablePath: '/usr/local/bin/claude',
+    args: [],
     version: '2.1.4',
     connectedVia: 'found',
     connectedAt: '2026-02-03T10:00:00.000Z',

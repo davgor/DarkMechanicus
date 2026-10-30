@@ -2,7 +2,7 @@ import type { ChatRecord } from '../../../shared/agents/chat'
 import type { CreateChatRequest } from '../../../shared/agents/chatApi'
 import type { CreateEpicInput } from '../../../shared/domain/api'
 import type {
-  AgentKind,
+  AgentId,
   ClaudeCodeConnectRequest,
   FolderPickResult,
   TrackedFolderView
@@ -82,7 +82,7 @@ export interface ShellActions {
   /** Opens the add-agent pane in place of the folder or epic view. */
   openAddAgent(): void
   /** Opens one connected agent's page in place of the folder or epic view. */
-  openAgent(kind: AgentKind): void
+  openAgent(id: AgentId): void
   changed(path: string): void
   track(): Promise<void>
   untrack(path: string): Promise<void>

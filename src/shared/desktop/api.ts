@@ -22,12 +22,26 @@ export interface TrackedFolderView {
   addedAt: string
 }
 
-/** Supported agent kinds; a closed set. */
-export type AgentKind = 'claude' | 'codex' | 'cursor'
+/** The agents the app knows how to find, download and sign in; vendor maps are keyed by these. */
+export type BuiltInAgentKind = 'claude' | 'codex' | 'cursor'
+
+/** What an agent is: a built-in vendor CLI, or a custom CLI the person connected. */
+type AgentKind = BuiltInAgentKind | 'custom'
+
+/** How the app talks to an agent's CLI; chooses the chat adapter. */
+export type AgentProtocol = 'claude' | 'codex' | 'acp'
+
+/** An agent's id (see `agentIdSchema`): a built-in kind's name, or `cu_` and a ULID for a custom agent. */
+export type AgentId = string
 
 export interface AgentView {
+  id: AgentId
   kind: AgentKind
+  protocol: AgentProtocol
+  displayName: string
   executablePath: string
+  /** Arguments passed before the app's own; empty for built-ins. */
+  args: readonly string[]
   version: string | null
   connectedVia: 'found' | 'downloaded'
   connectedAt: string
@@ -97,7 +111,7 @@ export type AgentDownloadPhase =
 
 /** One step of a running download, pushed to the renderer as it happens. */
 export interface AgentDownloadProgress {
-  kind: AgentKind
+  kind: BuiltInAgentKind
   phase: AgentDownloadPhase
   /** Whole percent when the phase knows it (the download does, from the content length), otherwise null. */
   percent: number | null
@@ -116,11 +130,7 @@ export interface AgentAuthStatus {
  * What starting a sign-in came to. `started` means the CLI's own login is now running in a terminal
  * window of its own (the vendor's browser page opens from there); check the status afterwards.
  */
-export type AgentSignInResult =
-  | { outcome: 'started' }
-  /** The kind has no connected executable yet, so there is nothing to sign in. */
-  | { outcome: 'not_connected'; reason: string }
-  | { outcome: 'failed'; reason: string }
+export type AgentSignInResult = { outcome: 'started' } | { outcome: 'failed'; reason: string }
 
 export type CommandInput<K extends CommandName> = Parameters<CommandApi[K]> extends [infer I]
   ? I
@@ -188,33 +198,37 @@ export interface DmApi {
   removeBoardFiles(folder: string, paths: string[]): Promise<BoardRemovalResultView>
   copyText(text: string): Promise<void>
   openExternal(url: string): Promise<boolean>
-  /** Connected agents, at most one per kind. */
+  /** Connected agents, at most one per id. */
   listAgents(): Promise<AgentView[]>
   /**
-   * Opens a native file dialog for the kind, verifies the picked executable is that agent's CLI,
+   * Opens a native file dialog for the built-in kind, verifies the picked executable is that agent's CLI,
    * and connects it. Takes the kind only; the renderer never supplies a path to run.
    */
-  findAgent(kind: AgentKind): Promise<AgentFindResult>
-  /** Forgets the connection for a kind (never uninstalls the CLI) and returns the remaining agents. */
-  removeAgent(kind: AgentKind): Promise<AgentView[]>
+  findAgent(kind: BuiltInAgentKind): Promise<AgentFindResult>
   /**
-   * Installs the kind's CLI from its vendor's official source and connects it. Takes the kind only:
+   * Forgets the connection of the agent with this id (never uninstalls the CLI) and returns the remaining
+   * agents. A malformed id is refused with `invalid_input`, one that is not connected with `not_found`.
+   */
+  removeAgent(id: AgentId): Promise<AgentView[]>
+  /**
+   * Installs the built-in kind's CLI from its vendor's official source and connects it. Takes the kind only:
    * main owns the URL, the command and the location, shows them in a native confirmation first, and
    * fetches or runs nothing until the person confirms. Running it again updates an installed agent.
    */
-  downloadAgent(kind: AgentKind): Promise<AgentDownloadResult>
+  downloadAgent(kind: BuiltInAgentKind): Promise<AgentDownloadResult>
   /** Subscribes to the progress of downloads; returns the unsubscribe function. */
   onAgentDownloadProgress(listener: (progress: AgentDownloadProgress) => void): () => void
   /**
-   * Asks the connected CLI's own status command whether it is signed in. Takes the kind only; the
-   * app reads no credential and keeps nothing of the command's output.
+   * Asks the connected CLI's own status command whether it is signed in. Takes the agent id only; the
+   * app reads no credential and keeps nothing of the command's output. Refuses a malformed id
+   * (`invalid_input`) or one that is not connected (`not_found`) before anything runs.
    */
-  agentStatus(kind: AgentKind): Promise<AgentAuthStatus>
+  agentStatus(id: AgentId): Promise<AgentAuthStatus>
   /**
-   * Starts that CLI's own login flow in a visible terminal window. Takes the kind only: there is no
-   * password or key field anywhere, the vendor's own page does the signing in.
+   * Starts that CLI's own login flow in a visible terminal window. Takes the agent id only: there is no
+   * password or key field anywhere, the vendor's own page does the signing in. Refuses ids like `agentStatus`.
    */
-  signInAgent(kind: AgentKind): Promise<AgentSignInResult>
+  signInAgent(id: AgentId): Promise<AgentSignInResult>
 }
 
 /** Every CommandApi method the renderer may invoke. Main rejects anything else. */

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import type { ChatRecord } from '../../../shared/agents/chat'
-import type { AgentAuthStatus, AgentKind, AgentView, TrackedFolderView } from '../../../shared/desktop/api'
+import type { AgentAuthStatus, AgentId, AgentView, TrackedFolderView } from '../../../shared/desktop/api'
 import type { AgentStatuses } from '../agents/useAgents'
 import { chatsFor } from '../agents/useChats'
 import type { ChatListState } from '../agents/useChats'
@@ -42,9 +42,9 @@ interface SidebarProps {
   onTrack(): void
   /** Opens the add-agent pane. */
   onAddAgent(): void
-  onSelectAgent(kind: AgentKind): void
+  onSelectAgent(id: AgentId): void
   /** A sign-in prompt in the Agents list asked an agent's state itself. */
-  onAgentStatus(kind: AgentKind, status: AgentAuthStatus): void
+  onAgentStatus(id: AgentId, status: AgentAuthStatus): void
   onSelectFolder(path: string): void
   onSelectEpic(path: string, epicId: string): void
   /** Asks the shell to confirm and stop tracking a folder. */

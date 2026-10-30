@@ -4,7 +4,7 @@
  * a test can see what was opened. Test support only.
  */
 import type { ChatRecord } from '../../../../shared/agents/chat'
-import type { AgentAuthStatus, AgentKind, AgentView } from '../../../../shared/desktop/api'
+import type { AgentAuthStatus, AgentId, AgentView, BuiltInAgentKind } from '../../../../shared/desktop/api'
 import { agentView } from '../../__mocks__/fixtures'
 import type { OrchestrationHost } from '../orchestration'
 
@@ -12,7 +12,7 @@ export interface FakeOrchestration extends OrchestrationHost {
   /** Times the add-agent pane was asked for. */
   added: { count: number }
   /** The statuses a sign-in prompt reported, oldest first. */
-  reportedStatuses: [AgentKind, AgentAuthStatus][]
+  reportedStatuses: [AgentId, AgentAuthStatus][]
   /** The chats that were opened. */
   openedChats: string[]
   /** Times the shell was told to fetch the folder's chats again. */
@@ -21,14 +21,14 @@ export interface FakeOrchestration extends OrchestrationHost {
 
 const SIGNED_IN: AgentAuthStatus = { state: 'signed_in', reason: 'Signed in as a test user.' }
 
-/** A connected, signed-in agent of `kind`. */
-export function readyAgent(kind: AgentKind): { agent: AgentView; status: AgentAuthStatus } {
+/** A connected, signed-in built-in agent of `kind`. */
+export function readyAgent(kind: BuiltInAgentKind): { agent: AgentView; status: AgentAuthStatus } {
   return { agent: agentView({ kind, executablePath: `/bin/${kind}`, version: '1.0.0' }), status: SIGNED_IN }
 }
 
 export function fakeOrchestration(patch: Partial<OrchestrationHost> = {}): FakeOrchestration {
   const added = { count: 0 }
-  const reportedStatuses: [AgentKind, AgentAuthStatus][] = []
+  const reportedStatuses: [AgentId, AgentAuthStatus][] = []
   const openedChats: string[] = []
   const chatsChanged = { count: 0 }
   const chats: readonly ChatRecord[] = []

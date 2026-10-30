@@ -12,9 +12,11 @@ import type {
   ChatAdapterStartOptions,
   ModelOption
 } from '../../../shared/agents/chat'
-import type { AgentKind } from '../../../shared/desktop/api'
+import { AGENT_DEFINITIONS } from '../../../shared/desktop/agentKinds'
+import type { AgentId, AgentProtocol, AgentView, BuiltInAgentKind } from '../../../shared/desktop/api'
 import type { ChatAdapterDefinition, ChatAdapterDefinitions } from '../adapterRegistry'
 import { createChatStore, type ChatStore, type ChatStoreFs } from '../chatStore'
+import type { LaunchFolderDeps } from '../launchFolder'
 
 export const REPO = resolve('/work/repo')
 export const AT = '2026-01-01T00:00:00.000Z'
@@ -25,6 +27,49 @@ export const MODELS: ModelOption[] = [
 
 /** A turn script: what the agent does with one message; the turn ends when it settles. */
 type Turn = (adapter: FakeChatAdapter, text: string) => Promise<void>
+
+/** The built-in kind each protocol's adapter stands for. */
+const KIND_BY_PROTOCOL: Readonly<Record<AgentProtocol, BuiltInAgentKind>> = { claude: 'claude', codex: 'codex', acp: 'cursor' }
+const PROTOCOL_BY_KIND: Readonly<Record<BuiltInAgentKind, AgentProtocol>> = { claude: 'claude', codex: 'codex', cursor: 'acp' }
+
+/** A connected built-in agent as the registry lists it, at `/bin/<kind>`. */
+export function builtInAgent(kind: BuiltInAgentKind, overrides: Partial<AgentView> = {}): AgentView {
+  return {
+    id: kind,
+    kind,
+    protocol: PROTOCOL_BY_KIND[kind],
+    displayName: AGENT_DEFINITIONS[kind].displayName,
+    executablePath: `/bin/${kind}`,
+    args: [],
+    version: '1.0.0',
+    connectedVia: 'found',
+    connectedAt: AT,
+    lastProbed: AT,
+    ...overrides
+  }
+}
+
+/** The session manager's `agentFor`: the listed agents are connected, anything else is not. */
+export function connectedAgents(agents: readonly AgentView[] = [builtInAgent('claude'), builtInAgent('codex'), builtInAgent('cursor')]): (id: AgentId) => AgentView | null {
+  return (id) => agents.find((agent) => agent.id === id) ?? null
+}
+
+/** The session manager's `folders`: the listed folders exist, are directories and are tracked at their own path; nothing touches the disk. */
+export function trackedFolders(folders: readonly string[] = [REPO]): LaunchFolderDeps {
+  const present = new Set(folders)
+  return {
+    trackedFolder: (path) => (present.has(path) ? path : null),
+    fs: {
+      realpath: (path) => {
+        if (!present.has(path)) {
+          throw new Error(`ENOENT: ${path}`)
+        }
+        return path
+      },
+      isDirectory: (path) => present.has(path)
+    }
+  }
+}
 
 export class FakeChatAdapter implements ChatAdapter {
   readonly started: ChatAdapterStartOptions[] = []
@@ -41,10 +86,14 @@ export class FakeChatAdapter implements ChatAdapter {
   private emitter: ChatAdapterEmit | null = null
   private interrupt: (() => void) | null = null
 
+  readonly kind: BuiltInAgentKind
+
   constructor(
-    readonly kind: AgentKind,
+    readonly protocol: AgentProtocol,
     readonly executablePath: string
-  ) {}
+  ) {
+    this.kind = KIND_BY_PROTOCOL[protocol]
+  }
 
   start(options: ChatAdapterStartOptions, emit: ChatAdapterEmit): Promise<void> {
     this.started.push(options)
@@ -114,31 +163,31 @@ export interface FakeAdapters {
   definitions: ChatAdapterDefinitions
   /** Every adapter created, in order. */
   created: FakeChatAdapter[]
-  /** The adapters created for one kind. */
-  of(kind: AgentKind): FakeChatAdapter[]
+  /** The adapters created for one protocol. */
+  of(protocol: AgentProtocol): FakeChatAdapter[]
   /** Applied to each new adapter before it is handed out. */
   prepare: (adapter: FakeChatAdapter) => void
 }
 
-/** Claude and Codex definitions (Codex starts on open); Cursor has no adapter. */
+/** A definition for every protocol (Codex starts on open); each records the adapters it creates. */
 export function fakeAdapters(): FakeAdapters {
-  const fakes: FakeAdapters = {
-    definitions: {},
-    created: [],
-    of: (kind) => fakes.created.filter((adapter) => adapter.kind === kind),
-    prepare: () => {}
-  }
-  const define = (kind: AgentKind, startOnOpen: boolean): ChatAdapterDefinition => ({
+  const created: FakeChatAdapter[] = []
+  const define = (protocol: AgentProtocol, startOnOpen: boolean): ChatAdapterDefinition => ({
     startOnOpen,
     create: (executablePath) => {
-      const adapter = new FakeChatAdapter(kind, executablePath)
+      const adapter = new FakeChatAdapter(protocol, executablePath)
       fakes.prepare(adapter)
-      fakes.created.push(adapter)
+      created.push(adapter)
       return adapter
     },
-    listModels: (executablePath) => Promise.resolve([...MODELS, { id: executablePath, label: kind }])
+    listModels: (executablePath) => Promise.resolve([...MODELS, { id: executablePath, label: protocol }])
   })
-  fakes.definitions = { claude: define('claude', false), codex: define('codex', true) }
+  const fakes: FakeAdapters = {
+    definitions: { claude: define('claude', false), codex: define('codex', true), acp: define('acp', false) },
+    created,
+    of: (protocol) => created.filter((adapter) => adapter.protocol === protocol),
+    prepare: () => {}
+  }
   return fakes
 }
 

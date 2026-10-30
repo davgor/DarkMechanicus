@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { AgentAuthStatus, AgentKind } from '../../../shared/desktop/api'
+import type { AgentAuthStatus, AgentId } from '../../../shared/desktop/api'
 import { errorMessage } from '../api/dm'
 import { useLatest } from '../app/useLatest'
 import { Button } from '../components/Button'
 import { signInOutcome } from './agentOutcomes'
 import type { AgentOutcome } from './agentOutcomes'
-import { agentName } from './agentText'
 
 /** How often a started sign-in asks the app for the agent's status, until it is signed in or dismissed. */
 export const SIGN_IN_POLL_MS = 3000
@@ -27,7 +26,7 @@ interface Handlers {
 const problemOf = (detail: string): AgentOutcome => ({ tone: 'error', title: 'Could not start sign-in', detail, output: [] })
 
 /** Asks the status once per interval while `active`; a check that fails is retried on the next one, and checks never overlap. */
-function usePolling(kind: AgentKind, active: boolean, onStatus: Handlers['onStatus'], onSignedIn: () => void): void {
+function usePolling(agent: AgentId, active: boolean, onStatus: Handlers['onStatus'], onSignedIn: () => void): void {
   const report = useLatest(onStatus)
   const done = useLatest(onSignedIn)
   useEffect(() => {
@@ -41,7 +40,7 @@ function usePolling(kind: AgentKind, active: boolean, onStatus: Handlers['onStat
         return
       }
       checking = true
-      window.dm.agentStatus(kind).then(
+      window.dm.agentStatus(agent).then(
         (status) => {
           checking = false
           if (!live) {
@@ -63,7 +62,7 @@ function usePolling(kind: AgentKind, active: boolean, onStatus: Handlers['onStat
       live = false
       clearInterval(timer)
     }
-  }, [kind, active, report, done])
+  }, [agent, active, report, done])
 }
 
 interface SignIn {
@@ -72,7 +71,7 @@ interface SignIn {
   dismiss(): void
 }
 
-function useSignIn(kind: AgentKind, handlers: Handlers): SignIn {
+function useSignIn(agent: AgentId, handlers: Handlers): SignIn {
   const [state, setState] = useState<Step>({ step: 'idle', problem: null })
   const latest = useLatest(handlers)
   const mounted = useRef(true)
@@ -86,10 +85,10 @@ function useSignIn(kind: AgentKind, handlers: Handlers): SignIn {
     setState({ step: 'signed_in' })
     latest.current.onSignedIn?.()
   }, [latest])
-  usePolling(kind, state.step === 'waiting', handlers.onStatus, signedIn)
+  usePolling(agent, state.step === 'waiting', handlers.onStatus, signedIn)
   const start = useCallback(() => {
     setState({ step: 'starting' })
-    window.dm.signInAgent(kind).then(
+    window.dm.signInAgent(agent).then(
       (result) => {
         if (!mounted.current) return
         const outcome = signInOutcome(result)
@@ -99,13 +98,16 @@ function useSignIn(kind: AgentKind, handlers: Handlers): SignIn {
         if (mounted.current) setState({ step: 'idle', problem: problemOf(errorMessage(error)) })
       }
     )
-  }, [kind])
+  }, [agent])
   const dismiss = useCallback(() => setState({ step: 'idle', problem: null }), [])
   return { state, start, dismiss }
 }
 
 interface SignInPromptProps extends Handlers {
-  kind: AgentKind
+  /** The agent's id; the only thing sign-in and the status checks send. */
+  agent: AgentId
+  /** What to call the agent: the connected agent's display name. */
+  name: string
   /** Another action on the agent (a download, Find) is running, so Sign in waits. */
   disabled?: boolean
   /** The attention of the state it answers: primary while the agent is signed out. */
@@ -136,12 +138,11 @@ function Problem({ problem }: { problem: AgentOutcome }): JSX.Element {
 
 /**
  * Sign in for an agent that needs it, wherever it is needed. Pressing it starts the CLI's own login
- * (naming only the kind; the vendor's page does the signing in) and then asks `agents:status` every
+ * (naming only the agent id; the vendor's page does the signing in) and then asks `agents:status` every
  * few seconds until it says signed in, or until the person dismisses the prompt or leaves the screen.
  */
-export function SignInPrompt({ kind, disabled = false, variant = 'primary', size = 'sm', ...handlers }: SignInPromptProps): JSX.Element {
-  const { state, start, dismiss } = useSignIn(kind, handlers)
-  const name = agentName(kind)
+export function SignInPrompt({ agent, name, disabled = false, variant = 'primary', size = 'sm', ...handlers }: SignInPromptProps): JSX.Element {
+  const { state, start, dismiss } = useSignIn(agent, handlers)
   return (
     <div className="sign-in" role="group" aria-label={`Sign in to ${name}`}>
       {state.step === 'waiting' ? <Waiting started={state.started} onDismiss={dismiss} /> : null}
@@ -161,7 +162,8 @@ export function SignInPrompt({ kind, disabled = false, variant = 'primary', size
 }
 
 interface CheckAgainProps {
-  kind: AgentKind
+  agent: AgentId
+  name: string
   /** Why the state could not be told, in the app's own words. */
   reason: string
   onStatus?(status: AgentAuthStatus): void
@@ -172,7 +174,7 @@ interface CheckAgainProps {
 type Check = { checking: boolean; error: string | null }
 
 /** Asks the status once more, for a state the app could not tell. */
-function useCheckAgain(kind: AgentKind, onStatus: ((status: AgentAuthStatus) => void) | undefined): [Check, () => void] {
+function useCheckAgain(agent: AgentId, onStatus: ((status: AgentAuthStatus) => void) | undefined): [Check, () => void] {
   const [check, setCheck] = useState<Check>({ checking: false, error: null })
   const latest = useLatest(onStatus)
   const mounted = useRef(true)
@@ -184,7 +186,7 @@ function useCheckAgain(kind: AgentKind, onStatus: ((status: AgentAuthStatus) => 
   }, [])
   const run = useCallback(() => {
     setCheck({ checking: true, error: null })
-    window.dm.agentStatus(kind).then(
+    window.dm.agentStatus(agent).then(
       (status) => {
         latest.current?.(status)
         if (mounted.current) setCheck({ checking: false, error: null })
@@ -193,15 +195,15 @@ function useCheckAgain(kind: AgentKind, onStatus: ((status: AgentAuthStatus) => 
         if (mounted.current) setCheck({ checking: false, error: errorMessage(error) })
       }
     )
-  }, [kind, latest])
+  }, [agent, latest])
   return [check, run]
 }
 
 /** An unknown sign-in state: the reason it is unknown, and a way to ask again. */
-export function CheckAgain({ kind, reason, onStatus, disabled = false, size = 'sm' }: CheckAgainProps): JSX.Element {
-  const [check, run] = useCheckAgain(kind, onStatus)
+export function CheckAgain({ agent, name, reason, onStatus, disabled = false, size = 'sm' }: CheckAgainProps): JSX.Element {
+  const [check, run] = useCheckAgain(agent, onStatus)
   return (
-    <div className="sign-in" role="group" aria-label={`Sign-in state of ${agentName(kind)}`}>
+    <div className="sign-in" role="group" aria-label={`Sign-in state of ${name}`}>
       <p className="note">{reason}</p>
       {check.error === null ? null : (
         <p role="alert" className="form-error">
@@ -216,19 +218,20 @@ export function CheckAgain({ kind, reason, onStatus, disabled = false, size = 's
 }
 
 interface SignInOfferProps extends Handlers {
-  kind: AgentKind
+  agent: AgentId
+  name: string
   /** The agent's state as the screen knows it; undefined while it is still being asked. */
   status: AgentAuthStatus | undefined
   disabled?: boolean
 }
 
 /** What a state that needs attention offers: Sign in when the agent is signed out, its reason and Check again when the state is unknown; nothing otherwise. */
-export function SignInOffer({ kind, status, disabled, onStatus, onSignedIn }: SignInOfferProps): JSX.Element | null {
+export function SignInOffer({ agent, name, status, disabled, onStatus, onSignedIn }: SignInOfferProps): JSX.Element | null {
   if (status?.state === 'signed_out') {
-    return <SignInPrompt kind={kind} disabled={disabled} onStatus={onStatus} onSignedIn={onSignedIn} />
+    return <SignInPrompt agent={agent} name={name} disabled={disabled} onStatus={onStatus} onSignedIn={onSignedIn} />
   }
   if (status?.state === 'unknown') {
-    return <CheckAgain kind={kind} reason={status.reason} disabled={disabled} onStatus={onStatus} />
+    return <CheckAgain agent={agent} name={name} reason={status.reason} disabled={disabled} onStatus={onStatus} />
   }
   return null
 }

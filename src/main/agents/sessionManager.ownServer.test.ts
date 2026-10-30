@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ApprovalDecision, ChatItem, ChatRecord } from '../../shared/agents/chat'
-import type { AgentKind } from '../../shared/desktop/api'
-import { AT, fakeAdapters, FakeChatAdapter, memoryChatStore, REPO, type FakeAdapters } from './__mocks__/fakeChatAdapter'
+import type { BuiltInAgentKind } from '../../shared/desktop/api'
+import { AT, connectedAgents, fakeAdapters, memoryChatStore, REPO, trackedFolders, type FakeAdapters } from './__mocks__/fakeChatAdapter'
 import type { ChatStore } from './chatStore'
 import { createSessionManager, type SessionManager } from './sessionManager'
 
@@ -10,7 +10,7 @@ const NAMES = {
   claude: { own: ['mcp__darkmechanicus__claim_ticket', 'mcp__darkmechanicus__get_ticket'], other: 'mcp__other__claim_ticket', lookalike: 'mcp__darkmechanicus_evil__claim_ticket' },
   codex: { own: ['mcp:darkmechanicus', 'mcp:darkmechanicus'], other: 'mcp:other', lookalike: 'mcp:darkmechanicus_evil' },
   cursor: { own: ['darkmechanicus:claim_ticket', 'darkmechanicus:get_ticket'], other: 'other:claim_ticket', lookalike: 'darkmechanicus_evil:claim_ticket' }
-} as const satisfies Record<AgentKind, { own: readonly string[]; other: string; lookalike: string }>
+} as const satisfies Record<BuiltInAgentKind, { own: readonly string[]; other: string; lookalike: string }>
 
 const AGENTS = ['claude', 'codex', 'cursor'] as const
 
@@ -23,24 +23,12 @@ interface Rig {
 function rig(): Rig {
   const store = memoryChatStore()
   const fakes = fakeAdapters()
-  fakes.definitions = {
-    ...fakes.definitions,
-    cursor: {
-      startOnOpen: false,
-      create: (executablePath) => {
-        const adapter = new FakeChatAdapter('cursor', executablePath)
-        fakes.prepare(adapter)
-        fakes.created.push(adapter)
-        return adapter
-      },
-      listModels: () => Promise.resolve([])
-    }
-  }
   let itemCount = 0
   const manager = createSessionManager({
     store,
     adapters: fakes.definitions,
-    executablePath: (kind) => `/bin/${kind}`,
+    agentFor: connectedAgents(),
+    folders: trackedFolders(),
     issueChatCli: async (folder: string) => ({
       cli: {
         command: 'node',
@@ -66,7 +54,7 @@ function settle(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve))
 }
 
-function newChat(manager: SessionManager, agent: AgentKind, title = 'Run the epic'): ChatRecord {
+function newChat(manager: SessionManager, agent: BuiltInAgentKind, title = 'Run the epic'): ChatRecord {
   return manager.createChat({ folder: REPO, agent, role: 'orchestrator', title })
 }
 
@@ -82,7 +70,7 @@ interface Ask {
 }
 
 /** A chat whose turn raises every request at once, as an agent that calls several tools in parallel does; answers by request id. */
-async function askingChat(state: Rig, agent: AgentKind, asks: Ask[], title?: string): Promise<{ chat: ChatRecord; answers: Record<string, ApprovalDecision> }> {
+async function askingChat(state: Rig, agent: BuiltInAgentKind, asks: Ask[], title?: string): Promise<{ chat: ChatRecord; answers: Record<string, ApprovalDecision> }> {
   const answers: Record<string, ApprovalDecision> = {}
   state.fakes.prepare = (adapter) => {
     adapter.turn = (self) => {
@@ -99,7 +87,7 @@ async function askingChat(state: Rig, agent: AgentKind, asks: Ask[], title?: str
 }
 
 /** A chat whose turn asks one request, waits for the answer, and then raises the rest at once. */
-async function followUpChat(state: Rig, agent: AgentKind, first: Ask, rest: Ask[]): Promise<{ chat: ChatRecord; answers: Record<string, ApprovalDecision> }> {
+async function followUpChat(state: Rig, agent: BuiltInAgentKind, first: Ask, rest: Ask[]): Promise<{ chat: ChatRecord; answers: Record<string, ApprovalDecision> }> {
   const answers: Record<string, ApprovalDecision> = {}
   state.fakes.prepare = (adapter) => {
     adapter.turn = async (self) => {

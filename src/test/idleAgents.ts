@@ -11,7 +11,7 @@ function failTest(message: string): never {
 
 export function idleAgentDeps(): AgentHandlerDeps & AgentAuthHooks {
   return {
-    agents: { list: () => [], upsert: () => failTest('no agent should be stored'), remove: () => undefined },
+    agents: { list: () => [], get: () => null, upsert: () => failTest('no agent should be stored'), remove: () => undefined },
     pickExecutable: () => Promise.resolve(null),
     probeAgent: () => failTest('no agent should be probed'),
     installAgent: () => failTest('no agent should be downloaded'),

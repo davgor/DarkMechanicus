@@ -313,6 +313,32 @@ describe('chat store reads chats stored before threads existed', () => {
   })
 })
 
+describe('chat store reads index lines written before agents had ids', () => {
+  it('loads an "agent":"cursor" line unchanged and does not rewrite the index', () => {
+    const fs = memoryFs()
+    const created = openStore(fs).createChat(NEW_CHAT)
+    const line = JSON.stringify({
+      id: 'ch_old_cursor',
+      folder: created.folder,
+      agent: 'cursor',
+      model: null,
+      role: 'worker',
+      allowSave: false,
+      title: 'Old cursor chat',
+      createdAt: AT,
+      updatedAt: AT,
+      sessionId: 'sess-1'
+    })
+    expect(line).toContain('"agent":"cursor"')
+    fs.files.set(indexPath(fs), `${line}\n`)
+
+    const chats = openStore(fs).listChats(created.folder)
+
+    expect(chats).toEqual([JSON.parse(line)])
+    expect(fs.files.get(indexPath(fs))).toBe(`${line}\n`)
+  })
+})
+
 describe('chat store updates and errors', () => {
   it('updates the title, model and vendor session id, and keeps them across a reopen', () => {
     const fs = memoryFs()

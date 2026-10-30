@@ -1,0 +1,27 @@
+Debugger listening on ws://127.0.0.1:9349/f57c8d34-b192-49ff-aa86-c2a1b9d1df3f
+For help, see: https://nodejs.org/learn/getting-started/debugging
+
+DevTools listening on ws://127.0.0.1:9343/devtools/browser/eb353204-2b39-475b-b564-9b5d5f9ab2be
+06:19:40.794 › Auto-update disabled (dev build or DISABLE_AUTO_UPDATE=1)
+Debugger attached.
+Debugger ending on ws://127.0.0.1:9349/f57c8d34-b192-49ff-aa86-c2a1b9d1df3f
+For help, see: https://nodejs.org/learn/getting-started/debugging
+Debugger attached.
+06:31:12.558 › Agent chat failed: DomainError: /private/tmp/dm248-evidence/scratch-a is not initialized for Dark Mechanicus. Run initialize_repository first.
+    at fail (~/Documents/GitHub/DarkMechanicus-worktrees/agent-clis-sprint-1/out/main/chunks/workspace-Uw38SZ0u.js:113:9)
+    at RepositoryWorkspace.requireStore (~/Documents/GitHub/DarkMechanicus-worktrees/agent-clis-sprint-1/out/main/chunks/workspace-Uw38SZ0u.js:12079:7)
+    at RepositoryWorkspace.execute (~/Documents/GitHub/DarkMechanicus-worktrees/agent-clis-sprint-1/out/main/chunks/workspace-Uw38SZ0u.js:12267:12)
+    at commands.<computed> [as revokeGrant] (~/Documents/GitHub/DarkMechanicus-worktrees/agent-clis-sprint-1/out/main/chunks/workspace-Uw38SZ0u.js:12294:38)
+    at Object.revokeChatGrant (~/Documents/GitHub/DarkMechanicus-worktrees/agent-clis-sprint-1/out/main/index.js:7558:59)
+    at disposeSession (~/Documents/GitHub/DarkMechanicus-worktrees/agent-clis-sprint-1/out/main/index.js:5080:19)
+    at ~/Documents/GitHub/DarkMechanicus-worktrees/agent-clis-sprint-1/out/main/index.js:5571:69
+    at Array.map (<anonymous>)
+    at disposeAll (~/Documents/GitHub/DarkMechanicus-worktrees/agent-clis-sprint-1/out/main/index.js:5571:52)
+    at Object.disposeAll (~/Documents/GitHub/DarkMechanicus-worktrees/agent-clis-sprint-1/out/main/index.js:5618:23)
+06:31:12.573 › Uncaught exception: Error: database is not open
+    at SqliteDb.close (~/Documents/GitHub/DarkMechanicus-worktrees/agent-clis-sprint-1/out/main/chunks/workspace-Uw38SZ0u.js:335:13)
+    at EventEmitter.<anonymous> (~/Documents/GitHub/DarkMechanicus-worktrees/agent-clis-sprint-1/out/main/index.js:7607:11)
+    at EventEmitter.emit (node:events:521:24)
+    at disposeThenQuit (~/Documents/GitHub/DarkMechanicus-worktrees/agent-clis-sprint-1/out/main/index.js:7718:7)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+Waiting for the debugger to disconnect...

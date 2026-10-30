@@ -1,218 +1,111 @@
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join, sep } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { createAgentRegistry, type AgentConnection, type RegistryFs } from './agentRegistry'
+import { type Db, openDatabase } from '../../core/db/database'
+import { migrate } from '../../core/db/migrations'
+import { createAgentRegistry, type AgentConnection } from './agentRegistry'
+import { APP_MIGRATIONS } from './appDatabase'
 
-interface MemoryFs extends RegistryFs {
-  files: Map<string, string>
-  /** Paths passed to writeFile, in order. */
-  writes: string[]
-  /** Completed renames as `from -> to`, in order. */
-  renames: string[]
-  faults: { rename: boolean }
+function appDb(): Db {
+  const db = openDatabase(':memory:')
+  migrate(db, APP_MIGRATIONS)
+  return db
 }
 
-function createMemoryFs(): MemoryFs {
-  const files = new Map<string, string>()
-  const writes: string[] = []
-  const renames: string[] = []
-  const faults = { rename: false }
-  return {
-    files,
-    writes,
-    renames,
-    faults,
-    readFile(path) {
-      const data = files.get(path)
-      if (data === undefined) {
-        throw new Error(`ENOENT: ${path}`)
-      }
-      return data
-    },
-    writeFile(path, data) {
-      writes.push(path)
-      files.set(path, data)
-    },
-    rename(from, to) {
-      if (faults.rename) {
-        throw new Error('EIO: rename failed')
-      }
-      files.set(to, files.get(from) ?? '')
-      files.delete(from)
-      renames.push(`${from} -> ${to}`)
-    },
-    mkdirp() {}
-  }
-}
-
-const REGISTRY_FILE = join(sep, 'state', 'agents.json')
-const TEMP_FILE = `${REGISTRY_FILE}.tmp`
-
-/** Deterministic timestamps: 00:00:01, 00:00:02, … */
 function counterNow(): () => string {
   let tick = 0
-  return () => {
-    tick += 1
-    return `2026-01-01T00:00:0${tick}.000Z`
-  }
-}
-
-function memoryRegistry(fs: MemoryFs) {
-  return createAgentRegistry({ file: REGISTRY_FILE, fs, now: counterNow() })
+  return () => new Date(Date.UTC(2026, 0, 1, 0, 0, tick++)).toISOString()
 }
 
 function connection(kind: AgentConnection['kind'], overrides: Partial<AgentConnection> = {}): AgentConnection {
-  return { kind, executablePath: `/usr/bin/${kind}`, version: '1.0.0', connectedVia: 'found', ...overrides }
+  return { kind, executablePath: `/bin/${kind}`, version: '1.0.0', connectedVia: 'found', ...overrides }
 }
 
-function storedEntry(kind: string): Record<string, unknown> {
-  return {
-    kind,
-    executablePath: `/usr/bin/${kind}`,
-    version: '1.0.0',
-    connectedVia: 'found',
-    connectedAt: '2026-01-01T00:00:01.000Z',
-    lastProbed: '2026-01-01T00:00:01.000Z'
-  }
+interface AgentRow {
+  id: string
+  kind: string
+  protocol: string
+  display_name: string
+  args_json: string
 }
 
 describe('createAgentRegistry listing', () => {
-  it('returns an empty list when agents.json is missing', () => {
-    const registry = memoryRegistry(createMemoryFs())
-
-    expect(registry.list()).toEqual([])
+  it('returns an empty list for an empty table', () => {
+    expect(createAgentRegistry({ db: appDb() }).list()).toEqual([])
   })
 
-  it('returns an empty list when agents.json is unreadable', () => {
-    const fs = createMemoryFs()
-    fs.files.set(REGISTRY_FILE, '{not json')
+  it('reads agents already in the table, in insertion order', () => {
+    const db = appDb()
+    const first = createAgentRegistry({ db, now: counterNow() })
+    first.upsert(connection('codex'))
+    first.upsert(connection('claude'))
 
-    expect(memoryRegistry(fs).list()).toEqual([])
-  })
-
-  it('leaves a corrupt file in place until the next successful write', () => {
-    const fs = createMemoryFs()
-    fs.files.set(REGISTRY_FILE, '{not json')
-    const registry = memoryRegistry(fs)
-
-    expect(registry.list()).toEqual([])
-    expect(fs.files.get(REGISTRY_FILE)).toBe('{not json')
-
-    registry.upsert(connection('claude'))
-
-    expect(JSON.parse(fs.files.get(REGISTRY_FILE) ?? 'null').agents).toHaveLength(1)
-  })
-
-  it('reads the agents stored in a valid file', () => {
-    const fs = createMemoryFs()
-    fs.files.set(REGISTRY_FILE, JSON.stringify({ version: 1, agents: [storedEntry('claude')] }))
-
-    expect(memoryRegistry(fs).list()).toEqual([storedEntry('claude')])
-  })
-
-  it('skips entries that fail validation and keeps the first entry of a repeated kind', () => {
-    const fs = createMemoryFs()
-    const repeated = { ...storedEntry('claude'), executablePath: '/elsewhere/claude' }
-    fs.files.set(
-      REGISTRY_FILE,
-      JSON.stringify({
-        version: 1,
-        agents: [storedEntry('claude'), repeated, storedEntry('gemini'), { kind: 'codex' }, storedEntry('cursor')]
-      })
-    )
-
-    const list = memoryRegistry(fs).list()
-
-    expect(list.map((agent) => agent.kind)).toEqual(['claude', 'cursor'])
-    expect(list[0]?.executablePath).toBe('/usr/bin/claude')
+    const reopened = createAgentRegistry({ db })
+    expect(reopened.list().map((agent) => agent.kind)).toEqual(['codex', 'claude'])
   })
 })
 
 describe('createAgentRegistry upsert', () => {
-  it('adds an entry for a new kind', () => {
-    const registry = memoryRegistry(createMemoryFs())
+  it('adds an entry for a new kind and returns its view', () => {
+    const registry = createAgentRegistry({ db: appDb(), now: () => '2026-01-01T00:00:00.000Z' })
 
-    const result = registry.upsert(connection('claude'))
+    const view = registry.upsert(connection('claude'))
 
-    expect(result).toEqual(storedEntry('claude'))
-    expect(registry.list()).toEqual([storedEntry('claude')])
+    expect(view).toEqual({
+      id: 'claude',
+      kind: 'claude',
+      protocol: 'claude',
+      displayName: 'Claude Code',
+      args: [],
+      executablePath: '/bin/claude',
+      version: '1.0.0',
+      connectedVia: 'found',
+      connectedAt: '2026-01-01T00:00:00.000Z',
+      lastProbed: '2026-01-01T00:00:00.000Z'
+    })
+    expect(registry.list()).toEqual([view])
   })
 
-  it('replaces the entry for the same kind so there is one per kind', () => {
-    const registry = memoryRegistry(createMemoryFs())
-    registry.upsert(connection('claude'))
-
-    registry.upsert(connection('claude', { executablePath: '/opt/claude', version: '2.0.0', connectedVia: 'downloaded' }))
-
-    const list = registry.list()
-    expect(list).toHaveLength(1)
-    expect(list[0]).toMatchObject({ executablePath: '/opt/claude', version: '2.0.0', connectedVia: 'downloaded' })
-  })
-
-  it('keeps entries of other kinds', () => {
-    const registry = memoryRegistry(createMemoryFs())
-
-    registry.upsert(connection('claude'))
-    registry.upsert(connection('codex', { connectedVia: 'downloaded' }))
-
-    expect(registry.list().map((agent) => agent.kind)).toEqual(['claude', 'codex'])
-  })
-
-  it('stamps both timestamps on insert and keeps connectedAt on replacement', () => {
-    const registry = memoryRegistry(createMemoryFs())
-
-    const first = registry.upsert(connection('claude'))
-    const second = registry.upsert(connection('claude', { version: '2.0.0' }))
-
-    expect(first.connectedAt).toBe('2026-01-01T00:00:01.000Z')
-    expect(first.lastProbed).toBe('2026-01-01T00:00:01.000Z')
-    expect(second.connectedAt).toBe(first.connectedAt)
-    expect(second.lastProbed).toBe('2026-01-01T00:00:02.000Z')
-  })
-})
-
-describe('createAgentRegistry writes', () => {
-  it('writes every change to a temp file and renames it over agents.json', () => {
-    const fs = createMemoryFs()
-    const registry = memoryRegistry(fs)
-
+  it('writes the built-in identity columns from the kind', () => {
+    const db = appDb()
+    const registry = createAgentRegistry({ db })
     registry.upsert(connection('claude'))
     registry.upsert(connection('codex'))
-    registry.remove('claude')
+    registry.upsert(connection('cursor'))
 
-    expect(fs.writes).toEqual([TEMP_FILE, TEMP_FILE, TEMP_FILE])
-    expect(fs.renames).toEqual(Array(3).fill(`${TEMP_FILE} -> ${REGISTRY_FILE}`))
-    expect(fs.files.has(TEMP_FILE)).toBe(false)
+    expect(db.all<AgentRow>('SELECT id, kind, protocol, display_name, args_json FROM agents ORDER BY rowid')).toEqual([
+      { id: 'claude', kind: 'claude', protocol: 'claude', display_name: 'Claude Code', args_json: '[]' },
+      { id: 'codex', kind: 'codex', protocol: 'codex', display_name: 'Codex', args_json: '[]' },
+      { id: 'cursor', kind: 'cursor', protocol: 'acp', display_name: 'Cursor', args_json: '[]' }
+    ])
   })
 
-  it('persists a versioned file', () => {
-    const fs = createMemoryFs()
-
-    memoryRegistry(fs).upsert(connection('claude'))
-
-    expect(JSON.parse(fs.files.get(REGISTRY_FILE) ?? 'null')).toEqual({ version: 1, agents: [storedEntry('claude')] })
-  })
-
-  it('leaves the registry unchanged when a write fails, and succeeds on retry', () => {
-    const fs = createMemoryFs()
-    const registry = memoryRegistry(fs)
-    fs.faults.rename = true
-
-    expect(() => registry.upsert(connection('claude'))).toThrow('EIO')
-    expect(registry.list()).toEqual([])
-    expect(fs.files.has(REGISTRY_FILE)).toBe(false)
-
-    fs.faults.rename = false
+  it('replaces the entry for the same kind, keeping its position and other kinds', () => {
+    const registry = createAgentRegistry({ db: appDb(), now: counterNow() })
     registry.upsert(connection('claude'))
+    registry.upsert(connection('codex'))
 
-    expect(registry.list()).toHaveLength(1)
+    registry.upsert(connection('claude', { executablePath: '/opt/claude', version: null, connectedVia: 'downloaded' }))
+
+    const agents = registry.list()
+    expect(agents.map((agent) => agent.kind)).toEqual(['claude', 'codex'])
+    expect(agents[0]).toMatchObject({ executablePath: '/opt/claude', version: null, connectedVia: 'downloaded' })
+    expect(agents[1]).toMatchObject({ executablePath: '/bin/codex' })
+  })
+
+  it('keeps connectedAt and refreshes lastProbed on replacement', () => {
+    const registry = createAgentRegistry({ db: appDb(), now: counterNow() })
+    const first = registry.upsert(connection('codex'))
+
+    const second = registry.upsert(connection('codex', { version: '2.0.0' }))
+
+    expect(second.connectedAt).toBe(first.connectedAt)
+    expect(second.lastProbed).not.toBe(first.lastProbed)
+    expect(registry.list()).toEqual([second])
   })
 })
 
 describe('createAgentRegistry remove', () => {
   it('drops only the entry for that kind', () => {
-    const registry = memoryRegistry(createMemoryFs())
+    const registry = createAgentRegistry({ db: appDb() })
     registry.upsert(connection('claude'))
     registry.upsert(connection('codex'))
 
@@ -221,70 +114,12 @@ describe('createAgentRegistry remove', () => {
     expect(registry.list().map((agent) => agent.kind)).toEqual(['codex'])
   })
 
-  it('never touches the executable', () => {
-    const fs = createMemoryFs()
-    fs.files.set('/usr/bin/claude', 'binary')
-    const registry = memoryRegistry(fs)
-    registry.upsert(connection('claude'))
+  it('is a no-op for a kind that is not connected', () => {
+    const registry = createAgentRegistry({ db: appDb() })
+    registry.upsert(connection('codex'))
 
-    registry.remove('claude')
+    registry.remove('cursor')
 
-    expect(fs.files.get('/usr/bin/claude')).toBe('binary')
-    expect(fs.writes.every((path) => path === TEMP_FILE)).toBe(true)
-  })
-
-  it('does not write when the kind is not in the registry', () => {
-    const fs = createMemoryFs()
-    const registry = memoryRegistry(fs)
-    registry.upsert(connection('claude'))
-    const writesBefore = fs.writes.length
-
-    registry.remove('codex')
-
-    expect(fs.writes).toHaveLength(writesBefore)
-    expect(registry.list()).toHaveLength(1)
-  })
-})
-
-describe('createAgentRegistry files that are not a registry', () => {
-  it.each([
-    ['a file of another version', { version: 2, agents: [storedEntry('claude')] }],
-    ['a file without an agents list', { version: 1 }],
-    ['a list instead of an object', [storedEntry('claude')]]
-  ])('lists nothing for %s', (_name, content) => {
-    const fs = createMemoryFs()
-    fs.files.set(REGISTRY_FILE, JSON.stringify(content))
-
-    expect(memoryRegistry(fs).list()).toEqual([])
-  })
-
-  it('replaces one kind among several and leaves the others as they were', () => {
-    const registry = memoryRegistry(createMemoryFs())
-    registry.upsert(connection('claude'))
-    const codex = registry.upsert(connection('codex'))
-
-    registry.upsert(connection('claude', { version: '3.0.0' }))
-
-    expect(registry.list()).toMatchObject([{ kind: 'claude', version: '3.0.0' }, codex])
-  })
-})
-
-describe('createAgentRegistry on the real file system', () => {
-  it('creates its folder and file, stamps real times, and reads them back', () => {
-    const folder = mkdtempSync(join(tmpdir(), 'dm-registry-'))
-    const file = join(folder, 'nested', 'agents.json')
-    try {
-      const before = Date.now()
-      const added = createAgentRegistry({ file }).upsert(connection('claude'))
-
-      const reopened = createAgentRegistry({ file }).list()
-      expect(Date.parse(added.connectedAt)).toBeGreaterThanOrEqual(before)
-      expect(Date.parse(added.lastProbed)).toBeLessThanOrEqual(Date.now())
-      expect(reopened).toEqual([added])
-      expect(JSON.parse(readFileSync(file, 'utf8')).version).toBe(1)
-      expect(readdirSync(join(folder, 'nested'))).toEqual(['agents.json'])
-    } finally {
-      rmSync(folder, { recursive: true, force: true })
-    }
+    expect(registry.list().map((agent) => agent.kind)).toEqual(['codex'])
   })
 })

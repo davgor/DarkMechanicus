@@ -61,7 +61,7 @@ import type {
   ChatAdapterStartOptions,
   ModelOption
 } from '../../../shared/agents/chat'
-import type { AgentKind } from '../../../shared/desktop/api'
+import type { BuiltInAgentKind } from '../../../shared/desktop/api'
 import type { ChatAdapterDefinition } from '../adapterRegistry'
 import { answerFor, describeApproval, type ApprovalDescription } from './codexApprovals'
 import { asRecord, asText, fileChangeOf, itemFor, reloginMessage, scopedId, turnEnd, type ChangedFile, type Phase } from './codexItems'
@@ -225,7 +225,7 @@ function turnIdOf(response: unknown): string {
 }
 
 class CodexAdapter implements ChatAdapter {
-  readonly kind: AgentKind = 'codex'
+  readonly kind: BuiltInAgentKind = 'codex'
   private options: ChatAdapterStartOptions | null = null
   private emit: ChatAdapterEmit | null = null
   private rpc: RpcClient | null = null
@@ -386,6 +386,8 @@ class CodexAdapter implements ChatAdapter {
 
   private async open(resumeId: string | null): Promise<void> {
     const options = this.options as ChatAdapterStartOptions
+    // Every process, a new one after a crash included, starts only in a folder that is still the chat's.
+    options.checkFolder()
     const transport = this.deps.connect(this.executablePath, options.folder, options.darkMechanicus.env)
     const rpc: RpcClient = createRpcClient(transport, {
       onNotification: (method, params) => {

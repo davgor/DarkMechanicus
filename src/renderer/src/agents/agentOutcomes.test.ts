@@ -77,7 +77,7 @@ describe('signInOutcome', () => {
   })
 
   it('shows why a sign-in could not start', () => {
-    expect(signInOutcome({ outcome: 'not_connected', reason: 'Connect it first.' })).toEqual({
+    expect(signInOutcome({ outcome: 'failed', reason: 'Connect it first.' })).toEqual({
       tone: 'error',
       title: 'Could not start sign-in',
       detail: 'Connect it first.',

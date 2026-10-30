@@ -4,7 +4,7 @@ import type { Db } from './database'
 /** Highest schema version this build understands. Newer databases are refused, never downgraded. */
 export const SCHEMA_VERSION = 9
 
-interface Migration {
+export interface Migration {
   version: number
   sql: string
 }

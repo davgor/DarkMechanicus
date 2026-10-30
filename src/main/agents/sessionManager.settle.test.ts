@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ChatItem, ChatRecord } from '../../shared/agents/chat'
 import type { ChatPushEvent } from '../../shared/agents/chatApi'
-import { AT, fakeAdapters, memoryChatFs, memoryChatStore, REPO, type FakeAdapters, type FakeChatAdapter, type MemoryChatFs } from './__mocks__/fakeChatAdapter'
+import { AT, connectedAgents, fakeAdapters, memoryChatFs, memoryChatStore, REPO, trackedFolders, type FakeAdapters, type FakeChatAdapter, type MemoryChatFs } from './__mocks__/fakeChatAdapter'
 import { CHAT_BEFORE_THREADS_LINES } from './__mocks__/chatBeforeThreads'
 import type { ChatStore } from './chatStore'
 import { createSessionManager, type SessionManager } from './sessionManager'
@@ -30,7 +30,8 @@ function rig(fs: MemoryChatFs = memoryChatFs()): Rig {
   const manager = createSessionManager({
     store,
     adapters: fakes.definitions,
-    executablePath: (kind) => `/bin/${kind}`,
+    agentFor: connectedAgents(),
+    folders: trackedFolders(),
     issueChatCli: async (folder: string) => ({
       cli: {
         command: 'node',

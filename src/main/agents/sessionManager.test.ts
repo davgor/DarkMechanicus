@@ -6,7 +6,7 @@ import type { ChatPushEvent } from '../../shared/agents/chatApi'
 import type { AgentAuthStatus } from '../../shared/desktop/api'
 import { dropAcceptanceNodes } from '../../test/acceptanceNodes'
 import { createHarness, type Harness } from '../../test/workspaceHarness'
-import { AT, fakeAdapters, memoryChatFs, memoryChatStore, MODELS, REPO, type FakeAdapters, type FakeChatAdapter } from './__mocks__/fakeChatAdapter'
+import { AT, builtInAgent, connectedAgents, fakeAdapters, memoryChatFs, memoryChatStore, MODELS, REPO, trackedFolders, type FakeAdapters, type FakeChatAdapter } from './__mocks__/fakeChatAdapter'
 import type { ChatStore, ChatStoreFs } from './chatStore'
 import { CLAIM_TOKEN_MASK } from './claimTokenMask'
 import { createSessionManager, type SessionManager, type SessionManagerDeps, type SignedOutRuns } from './sessionManager'
@@ -80,7 +80,8 @@ function rig(fs: ChatStoreFs = memoryChatFs(), overrides: Partial<SessionManager
   const manager = createSessionManager({
     store,
     adapters: fakes.definitions,
-    executablePath: (kind) => (kind === 'cursor' ? null : `/bin/${kind}`),
+    agentFor: connectedAgents([builtInAgent('claude'), builtInAgent('codex')]),
+    folders: trackedFolders(),
     issueChatCli: async (folder: string, grant) => {
       grants.issued.push({ folder, ...grant })
       return {
@@ -182,7 +183,7 @@ describe('session manager: the agent process', () => {
 
   it('opens a start-on-open chat whose agent is not connected without starting anything', async () => {
     const { manager, fakes, errors } = rig()
-    fakes.definitions.cursor = fakes.definitions.codex
+    fakes.definitions.acp = fakes.definitions.codex
     const chat = newChat(manager, { agent: 'cursor' })
 
     const opened = await manager.openChat(chat)
@@ -193,16 +194,35 @@ describe('session manager: the agent process', () => {
   })
 })
 
+describe('session manager: the adapter for the agent protocol', () => {
+  it.each([
+    ['claude', 'claude'],
+    ['codex', 'codex'],
+    ['acp', 'cu_01m65kwqqeyajbj5bnq81gngrb']
+  ] as const)('starts the %s definition for an agent of that protocol, on its executable', async (protocol, id) => {
+    const custom = builtInAgent('cursor', { id, kind: 'custom', displayName: 'My ACP agent', executablePath: '/opt/my-acp' })
+    const { manager, fakes } = rig(memoryChatFs(), {
+      agentFor: connectedAgents([builtInAgent('claude'), builtInAgent('codex'), custom])
+    })
+
+    await manager.send(newChat(manager, { agent: id }), 'hi')
+
+    const adapter = only(fakes.created)
+    expect(adapter.protocol).toBe(protocol)
+    expect(adapter.executablePath).toBe(protocol === 'acp' ? '/opt/my-acp' : `/bin/${protocol}`)
+    expect(adapter.sent).toEqual(['hi'])
+  })
+})
+
 describe('session manager: agents that cannot start', () => {
-  it('refuses a chat whose agent has no adapter yet or is not connected, and starts nothing', async () => {
+  it('refuses a chat whose agent is not connected, and starts nothing', async () => {
     const { manager, fakes } = rig()
 
-    await expect(manager.send(newChat(manager, { agent: 'cursor' }), 'hi')).rejects.toMatchObject({ code: 'unsupported_capability' })
-    fakes.definitions.cursor = fakes.definitions.claude
     await expect(manager.send(newChat(manager, { agent: 'cursor' }), 'hi')).rejects.toMatchObject({
       code: 'not_found',
       message: expect.stringContaining('Cursor')
     })
+    await expect(manager.send(newChat(manager, { agent: 'cu_01m65kwqqeyajbj5bnq81gngrb' }), 'hi')).rejects.toMatchObject({ code: 'not_found' })
     await expect(manager.send({ folder: REPO, id: 'chat_missing' }, 'hi')).rejects.toMatchObject({ code: 'not_found' })
     await expect(manager.openChat({ folder: REPO, id: 'chat_missing' })).rejects.toMatchObject({ code: 'not_found' })
     expect(fakes.created).toHaveLength(0)
@@ -668,7 +688,7 @@ describe('session manager: models', () => {
     const { manager } = rig()
 
     expect(await manager.listModels('codex')).toEqual([...MODELS, { id: '/bin/codex', label: 'codex' }])
-    await expect(manager.listModels('cursor')).rejects.toMatchObject({ code: 'unsupported_capability' })
+    await expect(manager.listModels('cursor')).rejects.toMatchObject({ code: 'not_found' })
   })
 })
 

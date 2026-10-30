@@ -1,0 +1,7 @@
+
+> dark-mechanicus@0.19.0 deadcode:refresh
+> node scripts/deadcode-refresh.mjs
+
+Wrote 99 entries to .tsprune-ignore
+(node:23852) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)

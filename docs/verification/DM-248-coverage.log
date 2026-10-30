@@ -1,0 +1,23 @@
+# npm run coverage at 796b5af1a49bee655e57cd2820c19f3d6834fb6f (exit 0)
+
+> dark-mechanicus@0.19.0 coverage
+> vitest run --coverage
+
+
+ RUN  v4.1.11 ~/Documents/GitHub/DarkMechanicus-worktrees/agent-clis-sprint-1
+      Coverage enabled with v8
+
+
+ Test Files  417 passed (417)
+      Tests  7987 passed | 9 skipped (7996)
+   Start at  06:34:28
+   Duration  40.81s (transform 13.06s, setup 0ms, import 82.74s, tests 176.32s, environment 91.98s)
+
+ % Coverage report from v8
+
+=============================== Coverage summary ===============================
+Statements   : 97.69% ( 16198/16581 )
+Branches     : 95.5% ( 10022/10494 )
+Functions    : 96.34% ( 5463/5670 )
+Lines        : 97.8% ( 15076/15414 )
+================================================================================

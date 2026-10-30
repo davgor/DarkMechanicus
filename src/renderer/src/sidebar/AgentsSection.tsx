@@ -1,5 +1,5 @@
-import type { AgentAuthStatus, AgentKind, AgentView } from '../../../shared/desktop/api'
-import { agentName, signInLabel } from '../agents/agentText'
+import type { AgentAuthStatus, AgentId, AgentView } from '../../../shared/desktop/api'
+import { signInLabel } from '../agents/agentText'
 import { SignInOffer } from '../agents/SignInPrompt'
 import type { AgentStatuses } from '../agents/useAgents'
 import { Button } from '../components/Button'
@@ -9,36 +9,36 @@ import { Icon } from '../components/Icon'
 interface AgentsSectionProps {
   agents: readonly AgentView[]
   statuses: AgentStatuses
-  /** The agent whose page is open in the main area. */
-  selected: AgentKind | null
+  /** The id of the agent whose page is open in the main area. */
+  selected: AgentId | null
   onAdd(): void
-  onSelect(kind: AgentKind): void
+  onSelect(id: AgentId): void
   /** A sign-in prompt asked an agent's state itself: the shell shows what it found. */
-  onStatus(kind: AgentKind, status: AgentAuthStatus): void
+  onStatus(id: AgentId, status: AgentAuthStatus): void
 }
 
 interface AgentRowProps {
   agent: AgentView
   statuses: AgentStatuses
   selected: boolean
-  onSelect(kind: AgentKind): void
-  onStatus(kind: AgentKind, status: AgentAuthStatus): void
+  onSelect(id: AgentId): void
+  onStatus(id: AgentId, status: AgentAuthStatus): void
 }
 
 /** An agent that needs attention says so right on its row: Sign in when it is signed out, its reason and Check again when its state is unknown. */
 function AgentRow({ agent, statuses, selected, onSelect, onStatus }: AgentRowProps): JSX.Element {
-  const state = signInLabel(statuses[agent.kind])
+  const state = signInLabel(statuses[agent.id])
   return (
     <li>
       <button
         type="button"
         className={classNames('agent-row', selected && 'is-selected')}
         aria-current={selected ? 'true' : undefined}
-        onClick={() => onSelect(agent.kind)}
+        onClick={() => onSelect(agent.id)}
       >
         <Icon name="plug" />
         <span className="agent-text">
-          <span className="agent-name">{agentName(agent.kind)}</span>
+          <span className="agent-name">{agent.displayName}</span>
           <span className="agent-meta">
             <span className="mono">{agent.version === null ? 'Version unknown' : `v${agent.version}`}</span>
             <span className={`agent-state tone-${state.tone}`}>
@@ -49,7 +49,7 @@ function AgentRow({ agent, statuses, selected, onSelect, onStatus }: AgentRowPro
         </span>
       </button>
       <div className="agent-row-offer">
-        <SignInOffer kind={agent.kind} status={statuses[agent.kind]} onStatus={(status) => onStatus(agent.kind, status)} />
+        <SignInOffer agent={agent.id} name={agent.displayName} status={statuses[agent.id]} onStatus={(status) => onStatus(agent.id, status)} />
       </div>
     </li>
   )
@@ -69,10 +69,10 @@ export function AgentsSection({ agents, statuses, selected, onAdd, onSelect, onS
         <ul className="agent-list">
           {agents.map((agent) => (
             <AgentRow
-              key={agent.kind}
+              key={agent.id}
               agent={agent}
               statuses={statuses}
-              selected={selected === agent.kind}
+              selected={selected === agent.id}
               onSelect={onSelect}
               onStatus={onStatus}
             />

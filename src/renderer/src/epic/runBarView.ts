@@ -1,6 +1,6 @@
 /** Pure view model for the run bar: state pill, summary line, counts and available actions. */
 import type { ChatRecord } from '../../../shared/agents/chat'
-import type { AgentAuthStatus, AgentKind } from '../../../shared/desktop/api'
+import type { AgentAuthStatus, AgentId } from '../../../shared/desktop/api'
 import { SIGNED_OUT_PAUSE_REASON, isActiveRunState } from '../../../shared/domain/status'
 import type { EpicDetailView, RunCounts, RunView } from '../../../shared/domain/views'
 import { agentName } from '../agents/agentText'
@@ -135,7 +135,7 @@ export function adoptNotice(run: RunView, epic: EpicDetailView): AdoptNotice | n
 export interface SignedOutNote {
   text: string
   /** The orchestrating agent; null when the chat that orchestrates the run is not known. */
-  agent: AgentKind | null
+  agent: AgentId | null
   /** The agent's sign-in state as the app knows it; undefined while it is still being asked. */
   status: AgentAuthStatus | undefined
   chat: { id: string; title: string } | null

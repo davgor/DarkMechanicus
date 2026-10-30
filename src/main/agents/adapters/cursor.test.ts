@@ -1,3 +1,6 @@
+import { mkdtempSync, realpathSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import type {
   ApprovalDecision,
@@ -26,6 +29,7 @@ import {
   update
 } from '../__mocks__/cursorRecordings'
 import { agent, client, ReplayAcpAgents, type Frame } from '../__mocks__/replayAcpAgent'
+import { buildCliConfig } from '../../desktop/cliConfig'
 import { CHAT_ADAPTERS } from '../adapterRegistry'
 import { createCursorAdapter, cursorAdapterDefinition, listCursorModels, type CursorDeps } from './cursor'
 
@@ -66,6 +70,7 @@ function startOptions(overrides: Partial<ChatAdapterStartOptions> = {}): ChatAda
   return {
     chatId: 'chat_1',
     folder: FOLDER,
+    checkFolder: () => {},
     model: null,
     role: 'planner',
     allowSave: false,
@@ -301,6 +306,68 @@ describe('a turn the agent dies in', () => {
     rig.expectReplayed()
     expect(agents.launches).toHaveLength(2)
     expect(rig.items.some((item) => item.kind === 'context_reset')).toBe(false)
+  })
+})
+
+describe('the folder every Cursor process runs in', () => {
+  it('spawns the process, opens and loads the session, and pins the dm command in the one canonical folder', async () => {
+    const folder = realpathSync(mkdtempSync(join(tmpdir(), 'dm-cursor-folder-')))
+    try {
+      const cli = { ...buildCliConfig({ packaged: false, execPath: '/bin/electron', appPath: '/app', repoPath: folder }), env: { DM_SESSION_TOKEN: 'dmg_test' } }
+      const opened = new Rig(
+        new ReplayAcpAgents([
+          ...handshake(),
+          client({ id: 3, method: 'session/new', params: { cwd: folder, mcpServers: [] } }),
+          agent({ id: 3, result: { sessionId: S } })
+        ])
+      )
+      const loaded = new Rig(
+        new ReplayAcpAgents([...handshake(), client({ id: 3, method: 'session/load', params: { sessionId: S, cwd: folder, mcpServers: [] } }), agent({ id: 3, result: null })])
+      )
+
+      await opened.start({ folder, darkMechanicus: cli })
+      await loaded.start({ folder, darkMechanicus: cli, sessionId: S })
+
+      for (const rig of [opened, loaded]) {
+        rig.expectReplayed()
+        expect(rig.agents.launches.map((launch) => launch.cwd)).toEqual([folder])
+      }
+      expect(cli.args.slice(-2)).toEqual(['--repo', folder])
+    } finally {
+      rmSync(folder, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('the folder a Cursor process is started again in', () => {
+  it.each([
+    ['a crash', 'crash'],
+    ['a model change', 'model']
+  ] as const)('checks the folder before it starts the process again after %s, and starts none in a folder that is gone', async (_why, restart) => {
+    let checks = 0
+    let gone = false
+    const checkFolder = (): void => {
+      checks += 1
+      if (gone) {
+        throw new Error(`The folder ${FOLDER} is gone: it was moved or deleted. Track the folder again to keep using this chat.`)
+      }
+    }
+    const agents = new ReplayAcpAgents(newChat(prompt(4, S, 'one'), turnEnd(4)))
+    const rig = new Rig(agents)
+    await rig.start({ checkFolder })
+    await rig.adapter.send('one')
+    expect(checks).toBe(1)
+    if (restart === 'crash') {
+      agents.processes[0]?.exit('exit code 1: out of memory')
+    } else {
+      await rig.adapter.setModel('gpt-5.3-codex')
+    }
+    gone = true
+
+    await expect(rig.adapter.send('two')).rejects.toThrow(FOLDER)
+
+    expect(checks).toBe(2)
+    expect(agents.launches).toHaveLength(1)
   })
 })
 
@@ -789,8 +856,8 @@ describe('approvals that cannot reach the person', () => {
 })
 
 describe('the registry entry', () => {
-  it('registers Cursor chats to start on the first message, with the adapter and the model list', () => {
-    expect(CHAT_ADAPTERS.cursor).toBe(cursorAdapterDefinition)
+  it('registers the Cursor adapter for ACP chats, to start on the first message, with the adapter and the model list', () => {
+    expect(CHAT_ADAPTERS.acp).toBe(cursorAdapterDefinition)
     expect(cursorAdapterDefinition.startOnOpen).toBe(false)
     const adapter = cursorAdapterDefinition.create(PATH)
     expect(adapter.kind).toBe('cursor')

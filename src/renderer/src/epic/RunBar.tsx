@@ -122,7 +122,7 @@ function SignedOutLine({ ws, note }: { ws: WorkspaceHandle; note: SignedOutNote 
         </button>
       )}
       {note.signedIn ? <span>Signed in again. The run can resume.</span> : null}
-      {agent === null ? null : <SignInOffer kind={agent} status={note.status} onStatus={(status) => host.onAgentStatus(agent, status)} />}
+      {agent === null ? null : <SignInOffer agent={agent} name={agentName(agent)} status={note.status} onStatus={(status) => host.onAgentStatus(agent, status)} />}
     </div>
   )
 }

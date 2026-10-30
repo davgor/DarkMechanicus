@@ -3,7 +3,7 @@ import type { FormEvent } from 'react'
 import { canSavePlans } from '../../../shared/agents/chat'
 import type { ChatRole } from '../../../shared/agents/chat'
 import type { CreateChatRequest } from '../../../shared/agents/chatApi'
-import type { AgentAuthStatus, AgentKind, AgentView, TrackedFolderView } from '../../../shared/desktop/api'
+import type { AgentAuthStatus, AgentId, AgentView, TrackedFolderView } from '../../../shared/desktop/api'
 import { Button } from '../components/Button'
 import { Dialog } from '../components/Dialog'
 import { AgentChoice, ModelChoice, RoleChoice } from './NewChatFields'
@@ -24,7 +24,7 @@ interface NewChatDialogProps {
   /** Closes the dialog and opens the add-agent pane, for an agent that is not connected. */
   onAddAgent(): void
   /** A sign-in prompt in the dialog asked an agent's state itself: the shell shows what it found, and the agent can be chosen once it is signed in. */
-  onAgentStatus(kind: AgentKind, status: AgentAuthStatus): void
+  onAgentStatus(id: AgentId, status: AgentAuthStatus): void
   onClose(): void
 }
 

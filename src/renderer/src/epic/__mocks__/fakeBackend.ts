@@ -220,7 +220,7 @@ export class FakeBackend implements DmApi {
   }
 
   signInAgent(): Promise<AgentSignInResult> {
-    return Promise.resolve({ outcome: 'not_connected', reason: 'Not connected yet.' })
+    return Promise.resolve({ outcome: 'failed', reason: 'Not connected yet.' })
   }
 }
 

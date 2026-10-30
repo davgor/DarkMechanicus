@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
 import type { ChatItem, ChatRecord } from '../../shared/agents/chat'
 import type { ChatPushEvent } from '../../shared/agents/chatApi'
 import type { AgentAuthStatus } from '../../shared/desktop/api'
-import { AT, fakeAdapters, memoryChatStore, REPO, type FakeAdapters } from './__mocks__/fakeChatAdapter'
+import { AT, connectedAgents, fakeAdapters, memoryChatStore, REPO, trackedFolders, type FakeAdapters } from './__mocks__/fakeChatAdapter'
 import { createSessionManager, type SessionManager } from './sessionManager'
 
 const SIGNED_IN: AgentAuthStatus = { state: 'signed_in', reason: 'Claude Code reports it is signed in.' }
@@ -27,7 +27,8 @@ function world(): World {
   const manager = createSessionManager({
     store,
     adapters: fakes.definitions,
-    executablePath: (kind) => `/bin/${kind}`,
+    agentFor: connectedAgents(),
+    folders: trackedFolders(),
     issueChatCli: async (folder: string) => ({
       cli: {
         command: 'node',

@@ -1,6 +1,6 @@
 import { win32 } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import type { AgentDownloadProgress, AgentKind } from '../../shared/desktop/api'
+import type { AgentDownloadProgress, BuiltInAgentKind } from '../../shared/desktop/api'
 import type { InstallEnvironment } from './agentInstallRecipes'
 import {
   createAgentInstaller,
@@ -10,7 +10,10 @@ import {
   type InstallerDeps
 } from './agentInstaller'
 import type { AgentProbeResult, FileCheck } from './agentProbe'
-import { createAgentRegistry, type AgentRegistry, type RegistryFs } from './agentRegistry'
+import { openDatabase } from '../../core/db/database'
+import { migrate } from '../../core/db/migrations'
+import { createAgentRegistry, type AgentRegistry } from './agentRegistry'
+import { APP_MIGRATIONS } from './appDatabase'
 
 const WINDOWS: InstallEnvironment = {
   platform: 'win32',
@@ -29,23 +32,10 @@ const DIGEST = 'a1'.repeat(32)
 
 const OK: InstallOutcome = { kind: 'exited', exitCode: 0, output: 'installed' }
 
-function memoryFs(): RegistryFs {
-  const files = new Map<string, string>()
-  return {
-    readFile(path) {
-      const data = files.get(path)
-      if (data === undefined) {
-        throw new Error(`ENOENT: ${path}`)
-      }
-      return data
-    },
-    writeFile: (path, data) => files.set(path, data),
-    rename(from, to) {
-      files.set(to, files.get(from) ?? '')
-      files.delete(from)
-    },
-    mkdirp() {}
-  }
+function sqlRegistry(now: () => string): AgentRegistry {
+  const db = openDatabase(':memory:')
+  migrate(db, APP_MIGRATIONS)
+  return createAgentRegistry({ db, now })
 }
 
 /** A GitHub release as the releases API describes it, with the installer asset under test. */
@@ -119,7 +109,7 @@ function createWorld(options: WorldOptions = {}): World {
   const log: string[] = []
   const installed = new Set(options.installed ?? [])
   const probes = [...(options.probes ?? [])]
-  const registry = createAgentRegistry({ file: '/state/agents.json', fs: memoryFs(), now: () => '2026-01-01T00:00:00.000Z' })
+  const registry = sqlRegistry(() => '2026-01-01T00:00:00.000Z')
   const world: World = { installer: undefined as never, registry, log, progress: [], confirmations: [], launches: [], timeouts: [] }
   const deps: InstallerDeps = {
     environment: options.environment ?? WINDOWS,
@@ -233,7 +223,11 @@ describe('a confirmed install of a vendor installer', () => {
       outcome: 'installed',
       updated: false,
       agent: {
+        id: 'claude',
         kind: 'claude',
+        protocol: 'claude',
+        displayName: 'Claude Code',
+        args: [],
         executablePath: CLAUDE_EXE,
         version: '2.1.281',
         connectedVia: 'downloaded',
@@ -531,7 +525,7 @@ describe('only one download of a kind runs at a time', () => {
 
 describe('the confirmation dialog', () => {
   const confirmation: InstallConfirmation = {
-    kind: 'cursor' satisfies AgentKind,
+    kind: 'cursor' satisfies BuiltInAgentKind,
     displayName: 'Cursor',
     sourceUrl: 'https://cursor.com/install',
     command: '/bin/bash <downloaded installer>',

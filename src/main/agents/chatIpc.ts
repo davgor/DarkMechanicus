@@ -22,7 +22,7 @@ export function registerChatIpc(ipcMain: Pick<IpcMain, 'handle'>, handlers: Chat
   ipcMain.handle('chats:rename', (_event, request: unknown) => handlers.rename(request))
   ipcMain.handle('chats:delete', (_event, request: unknown) => handlers.delete(request))
   ipcMain.handle('chats:answerApproval', (_event, request: unknown) => handlers.answerApproval(request))
-  ipcMain.handle('chats:models', (_event, kind: unknown) => handlers.models(kind))
+  ipcMain.handle('chats:models', (_event, agent: unknown) => handlers.models(agent))
 }
 
 /** What the push needs of a `BrowserWindow`. */

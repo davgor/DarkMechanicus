@@ -1,6 +1,6 @@
 import { memo, useLayoutEffect, useMemo, useRef, type ReactNode, type RefObject } from 'react'
 import { IDLE_STOP_CODE, type ApprovalDecision, type ErrorProblem } from '../../../shared/agents/chat'
-import type { AgentAuthStatus, AgentKind } from '../../../shared/desktop/api'
+import type { AgentAuthStatus, AgentId } from '../../../shared/desktop/api'
 import { Markdown } from '../markdown/Markdown'
 import { ApprovalCard } from './ApprovalCard'
 import { decisionText, modelChangeText, problemNotice, resetText, signInCardState, STOPPED_TEXT, type ChatAuth, type SignInCardState, type TranscriptEntry } from './chatViewModel'
@@ -83,7 +83,7 @@ interface Approvals {
 /** What a sign-in card reports and asks for: the agent was seen signed in, the status its prompt found, and the cut-short turn sent again. */
 interface SignInAnswers {
   onSignedIn(): void
-  onAgentStatus(kind: AgentKind, status: AgentAuthStatus): void
+  onAgentStatus(id: AgentId, status: AgentAuthStatus): void
   onRetryTurn(): Promise<void>
 }
 

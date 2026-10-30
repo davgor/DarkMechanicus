@@ -1,8 +1,12 @@
-import { resolve } from 'node:path'
+import { mkdtempSync, realpathSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
 import type { CanUseTool, ModelInfo, Options, PermissionResult, SDKMessage, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ApprovalDecision, ApprovalRequestItem, ChatAdapterEvent, ChatItem, ModelOption } from '../../../shared/agents/chat'
 import { REPO, memoryChatStore } from '../__mocks__/fakeChatAdapter'
+import { buildCliConfig } from '../../desktop/cliConfig'
+import { cliInstructions } from '../cliInstructions'
 import {
   CURATED_CLAUDE_MODELS,
   claudeAdapterDefinition,
@@ -506,6 +510,53 @@ describe('Claude adapter: one process carries several turns (2)', () => {
     await rig.adapter.send('two')
 
     expect(rig.items()).toEqual([])
+  })
+})
+
+describe('Claude adapter: the folder every process runs in', () => {
+  it('runs the process (the SDK `cwd` it spawns with) in the folder the dm command it is told about is pinned to', async () => {
+    const folder = realpathSync(mkdtempSync(join(tmpdir(), 'dm-claude-folder-')))
+    try {
+      const cli = { ...buildCliConfig({ packaged: false, execPath: '/bin/electron', appPath: '/app', repoPath: folder }), env: { DM_SESSION_TOKEN: 'dmg_test' } }
+      const rig = await startRig({
+        plans: [replay(init(), success('ok'))],
+        start: { folder, darkMechanicus: cli, instructions: cliInstructions({ cli, role: 'orchestrator', allowSave: true }) }
+      })
+
+      await rig.adapter.send('hi')
+
+      const options = rig.sdk.launches[0]?.options
+      expect(options?.spawnClaudeCodeProcess).toBe(rig.processes.spawn)
+      expect(options).toMatchObject({
+        cwd: folder,
+        env: { DM_SESSION_TOKEN: 'dmg_test' },
+        systemPrompt: { append: expect.stringContaining(`--repo ${folder} `) as string }
+      })
+    } finally {
+      rmSync(folder, { recursive: true, force: true })
+    }
+  })
+
+  it('checks the folder before it starts another process after a crash, and starts none in a folder that is gone', async () => {
+    let checks = 0
+    let gone = false
+    const checkFolder = (): void => {
+      checks += 1
+      if (gone) {
+        throw new Error(`The folder ${FOLDER} is gone: it was moved or deleted. Track the folder again to keep using this chat.`)
+      }
+    }
+    const rig = await startRig({ plans: [{ script: ({ emit }) => emit(init(), success('ok')) }], start: { checkFolder } })
+    await rig.adapter.send('one')
+    expect(checks).toBe(1)
+    rig.sdk.launches[0]?.finish(null)
+    await vi.waitFor(() => expect(rig.sdk.launches[0]?.closed).toBe(true))
+    gone = true
+
+    await expect(rig.adapter.send('two')).rejects.toThrow(FOLDER)
+
+    expect(checks).toBe(2)
+    expect(rig.sdk.launches).toHaveLength(1)
   })
 })
 

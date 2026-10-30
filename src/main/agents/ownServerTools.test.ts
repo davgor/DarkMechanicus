@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { ApprovalCategory } from '../../shared/agents/chat'
-import type { AgentKind } from '../../shared/desktop/api'
+import type { AgentProtocol } from '../../shared/desktop/api'
 import { isOwnServerCall } from './ownServerTools'
 
-function call(agent: AgentKind, tool: string, category: ApprovalCategory = 'other'): boolean {
-  return isOwnServerCall(agent, { category, tool })
+function call(protocol: AgentProtocol, tool: string, category: ApprovalCategory = 'other'): boolean {
+  return isOwnServerCall(protocol, { category, tool })
 }
 
 describe('isOwnServerCall: Claude names a tool mcp__<server>__<tool>', () => {
@@ -51,9 +51,9 @@ describe('isOwnServerCall: Codex asks per server, as mcp:<server>', () => {
   })
 })
 
-describe('isOwnServerCall: Cursor names a tool <server>:<tool>', () => {
+describe('isOwnServerCall: ACP (Cursor) names a tool <server>:<tool>', () => {
   it.each(['darkmechanicus:claim_ticket', 'darkmechanicus:get_run'])('covers %s', (tool) => {
-    expect(call('cursor', tool)).toBe(true)
+    expect(call('acp', tool)).toBe(true)
   })
 
   it.each([
@@ -66,11 +66,11 @@ describe('isOwnServerCall: Cursor names a tool <server>:<tool>', () => {
     ['a tool with another server inside its name', 'darkmechanicus:claim:other'],
     ['a built-in tool', 'Shell']
   ])('does not cover %s', (_what, tool) => {
-    expect(call('cursor', tool)).toBe(false)
+    expect(call('acp', tool)).toBe(false)
   })
 
   it('covers only a request that is not a file edit or a command', () => {
-    expect(call('cursor', 'darkmechanicus:claim_ticket', 'command')).toBe(false)
+    expect(call('acp', 'darkmechanicus:claim_ticket', 'command')).toBe(false)
   })
 })
 
@@ -80,8 +80,8 @@ describe('isOwnServerCall: one vendor never matches another vendor’s spelling'
     ['claude', 'darkmechanicus:claim_ticket'],
     ['codex', 'mcp__darkmechanicus__claim_ticket'],
     ['codex', 'darkmechanicus:claim_ticket'],
-    ['cursor', 'mcp__darkmechanicus__claim_ticket'],
-    ['cursor', 'mcp:darkmechanicus']
+    ['acp', 'mcp__darkmechanicus__claim_ticket'],
+    ['acp', 'mcp:darkmechanicus']
   ] as const)('%s does not take %s', (agent, tool) => {
     expect(call(agent, tool)).toBe(false)
   })

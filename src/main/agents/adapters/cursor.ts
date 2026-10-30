@@ -56,7 +56,7 @@ import type {
   ChatItem,
   ModelOption
 } from '../../../shared/agents/chat'
-import type { AgentKind } from '../../../shared/desktop/api'
+import type { BuiltInAgentKind } from '../../../shared/desktop/api'
 import type { AgentProbeDeps, ProcessOutcome, ProcessRunner } from '../../desktop/agentProbe'
 import { inspectExecutable, runProcess } from '../../desktop/agentProbeNode'
 import type { ChatAdapterDefinition } from '../adapterRegistry'
@@ -130,7 +130,7 @@ export async function listCursorModels(executablePath: string, deps: CursorDeps)
 }
 
 class CursorAdapter implements ChatAdapter {
-  readonly kind: AgentKind = 'cursor'
+  readonly kind: BuiltInAgentKind = 'cursor'
   private options: ChatAdapterStartOptions | null = null
   private emitter: ChatAdapterEmit | null = null
   private session: CursorSession | null = null
@@ -295,6 +295,8 @@ class CursorAdapter implements ChatAdapter {
 
   /** Starts `agent acp` and opens the session: the stored one if it can be loaded, else a new one. */
   private async connect(options: ChatAdapterStartOptions, reason: ResetReason): Promise<CursorSession> {
+    // Every process, one started again after a crash or for a model change included, starts only in a folder that is still the chat's.
+    options.checkFolder()
     const launch = cursorLaunch(this.executablePath, { command: 'acp', model: this.model }, this.deps)
     const session = new CursorSession(this.deps, launch, {
       folder: options.folder,

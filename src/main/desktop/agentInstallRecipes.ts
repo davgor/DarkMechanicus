@@ -20,7 +20,7 @@
  * only for a release that ships a bare binary, and all three vendors ship an installer.
  */
 import { posix, win32 } from 'node:path'
-import type { AgentKind } from '../../shared/desktop/api'
+import type { BuiltInAgentKind } from '../../shared/desktop/api'
 
 export type InstallPlatform = 'win32' | 'darwin'
 
@@ -51,7 +51,7 @@ interface InstallLayout {
 }
 
 export interface InstallRecipe {
-  kind: AgentKind
+  kind: BuiltInAgentKind
   platform: InstallPlatform
   /** The vendor documentation this recipe was taken from. */
   docsUrl: string
@@ -126,7 +126,7 @@ const CLAUDE_DOCS = 'https://code.claude.com/docs/en/setup'
 const CODEX_DOCS = 'https://github.com/openai/codex'
 const CURSOR_DOCS = 'https://cursor.com/docs/cli/installation'
 
-const RECIPES: Record<AgentKind, Record<InstallPlatform, RecipeSpec>> = {
+const RECIPES: Record<BuiltInAgentKind, Record<InstallPlatform, RecipeSpec>> = {
   claude: {
     // Docs: "Native Install (Recommended)": `irm https://claude.ai/install.ps1 | iex` and
     // `curl -fsSL https://claude.ai/install.sh | bash`. The scripts redirect to downloads.claude.ai and
@@ -206,7 +206,7 @@ function isInstallPlatform(platform: string): platform is InstallPlatform {
 }
 
 /** The recipe for a kind on this machine, or null when its operating system or processor is unsupported. */
-export function resolveRecipe(kind: AgentKind, environment: InstallEnvironment): InstallRecipe | null {
+export function resolveRecipe(kind: BuiltInAgentKind, environment: InstallEnvironment): InstallRecipe | null {
   const { platform } = environment
   if (!isInstallPlatform(platform) || !SUPPORTED_ARCHITECTURES.has(environment.arch)) {
     return null

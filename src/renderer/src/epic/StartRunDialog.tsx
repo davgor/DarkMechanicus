@@ -1,4 +1,4 @@
-import type { AgentAuthStatus, AgentKind, AgentView } from '../../../shared/desktop/api'
+import type { AgentAuthStatus, AgentId, AgentView } from '../../../shared/desktop/api'
 import { AgentChoice, ModelChoice } from '../agents/NewChatFields'
 import type { AgentStatuses } from '../agents/useAgents'
 import { useAgentModelChoice } from '../agents/useAgentModelChoice'
@@ -21,7 +21,7 @@ interface StartRunDialogProps {
   /** Opens the add-agent pane (the dialog closes). */
   onAddAgent(): void
   /** A sign-in prompt in the dialog asked an agent's state itself: the shell shows what it found, and the agent can be chosen once it is signed in. */
-  onAgentStatus(kind: AgentKind, status: AgentAuthStatus): void
+  onAgentStatus(id: AgentId, status: AgentAuthStatus): void
   onClose(): void
 }
 

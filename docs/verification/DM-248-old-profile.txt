@@ -1,0 +1,30 @@
+# old profile after quit
+-rw-r--r--  1 <user> wheel   312 Oct 30 06:17 agents.json
+-rw-r--r--  1 <user> wheel   150 Oct 30 06:17 folders.json
+## agents.json
+{
+  "version": 1,
+  "agents": [
+    {
+      "kind": "claude",
+      "executablePath": "~/.local/share/claude/versions/2.1.291",
+      "version": "2.1.291",
+      "connectedVia": "found",
+      "connectedAt": "2026-10-30T13:17:30.253Z",
+      "lastProbed": "2026-10-30T13:17:30.253Z"
+    }
+  ]
+}
+## folders.json
+{
+  "version": 1,
+  "folders": [
+    {
+      "path": "/private/tmp/dm248-evidence/scratch-a",
+      "addedAt": "2026-10-30T13:17:23.667Z"
+    }
+  ]
+}
+## agents/chats
+userdata/agents/chats/c8788c2a1034f150480212da/index.jsonl
+userdata/agents/chats/c8788c2a1034f150480212da/chat_1007d3a4-18ee-4f36-ab2b-4085fb347cd0.jsonl

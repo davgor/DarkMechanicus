@@ -1,0 +1,44 @@
+# sqlite3 <userData>/app.sqlite after the first start of the new build (7f55d00), app running
+$ ls userData (json/sqlite)
+-rw-r--r-- 4096 app.sqlite
+-rw-r--r-- 32768 app.sqlite-shm
+-rw-r--r-- 45352 app.sqlite-wal
+-rw-r--r-- 150 folders.json
+sqlite> PRAGMA user_version;
+1
+sqlite> .tables
+agents                 app_meta               folder_agent_defaults
+sqlite> SELECT key, value FROM app_meta;
+legacyAgentsImported|imported
+sqlite> SELECT id, kind, protocol, executable_path FROM agents;
+claude|claude|claude|~/.local/share/claude/versions/2.1.291
+sqlite> .schema agents
+CREATE TABLE agents (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL CHECK (kind IN ('claude','codex','cursor','autonomous','custom')),
+  protocol TEXT NOT NULL CHECK (protocol IN ('claude','codex','acp')),
+  display_name TEXT NOT NULL,
+  executable_path TEXT NOT NULL,
+  args_json TEXT NOT NULL DEFAULT '[]',
+  version TEXT,
+  connected_via TEXT NOT NULL CHECK (connected_via IN ('found','downloaded','custom')),
+  connected_at TEXT NOT NULL,
+  last_probed TEXT NOT NULL,
+  CHECK (kind = 'custom' OR id = kind),
+  CHECK (kind <> 'custom' OR substr(id, 1, 3) = 'cu_')
+);
+sqlite> .schema folder_agent_defaults
+CREATE TABLE folder_agent_defaults (
+  folder TEXT PRIMARY KEY,
+  agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+  updated_at TEXT NOT NULL
+);
+sqlite> .schema app_meta
+CREATE TABLE app_meta (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+sqlite> SELECT * FROM agents;
+claude|claude|claude|Claude Code|~/.local/share/claude/versions/2.1.291|[]|2.1.291|found|2026-10-30T13:17:30.253Z|2026-10-30T13:17:30.253Z
+sqlite> SELECT count(*) FROM folder_agent_defaults;
+0

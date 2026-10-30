@@ -9,9 +9,10 @@ import type {
   AgentDownloadProgress,
   AgentDownloadResult,
   AgentFindResult,
-  AgentKind,
+  AgentId,
   AgentSignInResult,
   AgentView,
+  BuiltInAgentKind,
   ClaudeCodeConnectRequest,
   ClaudeCodeConnectResult,
   CommandInput,
@@ -141,8 +142,8 @@ export class FakeDm implements DmApi {
   findOutcomes: AgentFindResult[] = []
   /** Answers to downloadAgent, in order; once used up the confirmation is declined. */
   downloadOutcomes: AgentDownloadResult[] = []
-  /** What agentStatus answers per kind; an agent with no entry is `unknown`. */
-  agentStatuses: Partial<Record<AgentKind, AgentAuthStatus>> = {}
+  /** What agentStatus answers per agent id; an agent with no entry is `unknown`. */
+  agentStatuses: Partial<Record<AgentId, AgentAuthStatus>> = {}
   /** Answers to signInAgent, in order; once used up the sign-in starts. */
   signInOutcomes: AgentSignInResult[] = []
   /** Every agent API call with exactly the arguments it was given, oldest first. */
@@ -172,18 +173,18 @@ export class FakeDm implements DmApi {
     return this.agentCall('listAgents', [], () => [...this.agents])
   }
 
-  findAgent(kind: AgentKind): Promise<AgentFindResult> {
+  findAgent(kind: BuiltInAgentKind): Promise<AgentFindResult> {
     return this.agentCall('findAgent', [kind], () => this.findOutcomes.shift() ?? { outcome: 'cancelled' })
   }
 
-  removeAgent(kind: AgentKind): Promise<AgentView[]> {
-    return this.agentCall('removeAgent', [kind], () => {
-      this.agents = this.agents.filter((agent) => agent.kind !== kind)
+  removeAgent(id: AgentId): Promise<AgentView[]> {
+    return this.agentCall('removeAgent', [id], () => {
+      this.agents = this.agents.filter((agent) => agent.id !== id)
       return [...this.agents]
     })
   }
 
-  downloadAgent(kind: AgentKind): Promise<AgentDownloadResult> {
+  downloadAgent(kind: BuiltInAgentKind): Promise<AgentDownloadResult> {
     return this.agentCall('downloadAgent', [kind], () => this.downloadOutcomes.shift() ?? { outcome: 'cancelled' })
   }
 
@@ -192,7 +193,7 @@ export class FakeDm implements DmApi {
     return () => this.progressListeners.delete(listener)
   }
 
-  agentStatus(kind: AgentKind): Promise<AgentAuthStatus> {
+  agentStatus(kind: AgentId): Promise<AgentAuthStatus> {
     return this.agentCall(
       'agentStatus',
       [kind],
@@ -200,7 +201,7 @@ export class FakeDm implements DmApi {
     )
   }
 
-  signInAgent(kind: AgentKind): Promise<AgentSignInResult> {
+  signInAgent(kind: AgentId): Promise<AgentSignInResult> {
     return this.agentCall('signInAgent', [kind], () => this.signInOutcomes.shift() ?? { outcome: 'started' })
   }
 

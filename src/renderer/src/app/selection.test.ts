@@ -84,6 +84,14 @@ describe('isSelection with an agents pane', () => {
     expect(isSelection({ ...base, agentPane: { kind: 'agent' } })).toBe(false)
     expect(isSelection({ ...base, agentPane: { kind: 'agent', agent: 'gemini' } })).toBe(false)
   })
+
+  it('accepts a custom agent by its cu_ id, and rejects a malformed custom id or the bare custom kind', () => {
+    const base = { folderPath: '/a', epicId: null }
+    const id = 'cu_01hz3k4m5n6p7q8r9s0tvwxyza'
+    expect(isSelection({ ...base, agentPane: { kind: 'agent', agent: id } })).toBe(true)
+    expect(isSelection({ ...base, agentPane: { kind: 'agent', agent: 'cu_short' } })).toBe(false)
+    expect(isSelection({ ...base, agentPane: { kind: 'agent', agent: 'custom' } })).toBe(false)
+  })
 })
 
 describe('resolveSelection with an agents pane', () => {
@@ -125,6 +133,16 @@ describe('resolveSelection with an agents pane', () => {
       epicId: null,
       agentPane: { kind: 'add' }
     })
+  })
+
+  it('matches a custom agent pane by the agent id, not its kind', () => {
+    const id = 'cu_01hz3k4m5n6p7q8r9s0tvwxyza'
+    const pane = { kind: 'agent', agent: id } as const
+    const customStored = { folderPath: '/a', epicId: null, agentPane: pane }
+    const custom = agentView({ kind: 'custom', id })
+    const other = agentView({ kind: 'custom', id: 'cu_01hz3k4m5n6p7q8r9s0tvwxyzb' })
+    expect(resolveSelection(customStored, [alpha], true, { agents: [custom] })).toEqual(customStored)
+    expect(resolveSelection(customStored, [alpha], true, { agents: [other] })).toEqual({ folderPath: '/a', epicId: null })
   })
 })
 

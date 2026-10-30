@@ -5,7 +5,7 @@ import { Button } from '../components/Button'
 import { Dialog } from '../components/Dialog'
 import { formatShortDate } from '../sidebar/epicStatusLine'
 import { ActivityNote } from './ActivityNote'
-import { agentName, connectedViaText, signInLabel } from './agentText'
+import { connectedViaText, signInLabel } from './agentText'
 import { CheckAgain, SignInPrompt } from './SignInPrompt'
 import type { AgentsModel } from './useAgents'
 
@@ -25,10 +25,10 @@ function Row({ label, children }: { label: string; children: ReactNode }): JSX.E
 
 /** The state is its color plus its words; Sign in is always offered (it also switches accounts), and an unknown state adds its reason and Check again. */
 function SignInRow({ agent, agents }: AgentPageProps): JSX.Element {
-  const { kind } = agent
-  const status = agents.statuses[kind]
+  const { id } = agent
+  const status = agents.statuses[id]
   const state = signInLabel(status)
-  const record = (fresh: AgentAuthStatus): void => agents.recordStatus(kind, fresh)
+  const record = (fresh: AgentAuthStatus): void => agents.recordStatus(id, fresh)
   return (
     <Row label="Sign-in">
       <div className="agent-signin">
@@ -38,13 +38,14 @@ function SignInRow({ agent, agents }: AgentPageProps): JSX.Element {
         </span>
         <SignInPrompt
           key={status?.state ?? 'checking'}
-          kind={kind}
+          agent={id}
+          name={agent.displayName}
           variant={status?.state === 'signed_out' ? 'primary' : 'default'}
-          disabled={agents.activity(kind).busy}
+          disabled={agents.activity(id).busy}
           onStatus={record}
         />
       </div>
-      {status?.state === 'unknown' ? <CheckAgain kind={kind} reason={status.reason} onStatus={record} /> : null}
+      {status?.state === 'unknown' ? <CheckAgain agent={id} name={agent.displayName} reason={status.reason} onStatus={record} /> : null}
       {status === undefined || status.state === 'unknown' ? null : <p className="note">{status.reason}</p>}
     </Row>
   )
@@ -96,8 +97,9 @@ function RemoveDialog({ name, onConfirm, onCancel }: RemoveDialogProps): JSX.Ele
 /** A connected agent: where it runs from, how it was connected, whether it is signed in, and what can be done about it. */
 export function AgentPage({ agent, agents }: AgentPageProps): JSX.Element {
   const [removing, setRemoving] = useState(false)
-  const name = agentName(agent.kind)
-  const activity = agents.activity(agent.kind)
+  const name = agent.displayName
+  const { kind } = agent
+  const activity = agents.activity(agent.id)
   return (
     <div className="home agent-pane">
       <header className="home-header">
@@ -109,17 +111,21 @@ export function AgentPage({ agent, agents }: AgentPageProps): JSX.Element {
       <Details agent={agent} agents={agents} />
       <ActivityNote name={name} activity={activity} />
       <div className="button-row">
-        <Button icon="search" busy={activity.finding} disabled={activity.busy} onClick={() => void agents.find(agent.kind)}>
-          Find again
-        </Button>
-        <Button
-          icon="refresh"
-          busy={activity.download !== null}
-          disabled={activity.busy}
-          onClick={() => void agents.download(agent.kind)}
-        >
-          Update
-        </Button>
+        {kind === 'custom' ? null : (
+          <>
+            <Button icon="search" busy={activity.finding} disabled={activity.busy} onClick={() => void agents.find(kind)}>
+              Find again
+            </Button>
+            <Button
+              icon="refresh"
+              busy={activity.download !== null}
+              disabled={activity.busy}
+              onClick={() => void agents.download(kind)}
+            >
+              Update
+            </Button>
+          </>
+        )}
         <Button disabled={activity.busy} onClick={() => setRemoving(true)}>
           Remove
         </Button>
@@ -130,7 +136,7 @@ export function AgentPage({ agent, agents }: AgentPageProps): JSX.Element {
           onCancel={() => setRemoving(false)}
           onConfirm={() => {
             setRemoving(false)
-            void agents.remove(agent.kind)
+            void agents.remove(agent.id)
           }}
         />
       ) : null}

@@ -1,51 +1,41 @@
 import { describe, expect, it } from 'vitest'
 import { DomainError } from '../../core/errors'
 import { AGENT_KINDS } from '../../shared/desktop/agentKinds'
-import type { AgentDownloadResult, AgentKind } from '../../shared/desktop/api'
+import type { AgentDownloadResult, BuiltInAgentKind } from '../../shared/desktop/api'
 import { agentKindSchema, createAgentHandlers } from './agentHandlers'
 import type { AgentProbeResult } from './agentProbe'
-import { createAgentRegistry, type AgentRegistry, type RegistryFs } from './agentRegistry'
+import { openDatabase } from '../../core/db/database'
+import { migrate } from '../../core/db/migrations'
+import { createAgentRegistry, type AgentRegistry } from './agentRegistry'
+import { APP_MIGRATIONS } from './appDatabase'
 
-function memoryFs(): RegistryFs {
-  const files = new Map<string, string>()
-  return {
-    readFile(path) {
-      const data = files.get(path)
-      if (data === undefined) {
-        throw new Error(`ENOENT: ${path}`)
-      }
-      return data
-    },
-    writeFile: (path, data) => files.set(path, data),
-    rename(from, to) {
-      files.set(to, files.get(from) ?? '')
-      files.delete(from)
-    },
-    mkdirp() {}
-  }
+function sqlRegistry(now?: () => string): AgentRegistry {
+  const db = openDatabase(':memory:')
+  migrate(db, APP_MIGRATIONS)
+  return createAgentRegistry({ db, now })
 }
 
 interface WorldOptions {
   /** Successive results of the native file dialog (null is a cancelled dialog). */
   picks?: (string | null)[]
   /** What the probe says about each picked executable; defaults to Claude Code 2.1.281. */
-  probe?: (kind: AgentKind, path: string) => AgentProbeResult
+  probe?: (kind: BuiltInAgentKind, path: string) => AgentProbeResult
 }
 
 interface World {
   registry: AgentRegistry
   handlers: ReturnType<typeof createAgentHandlers>
   /** The kind each file dialog was opened for. */
-  dialogs: AgentKind[]
+  dialogs: BuiltInAgentKind[]
   /** Every executable the probe was asked to run. */
-  probed: [AgentKind, string][]
+  probed: [BuiltInAgentKind, string][]
   /** Every kind the installer was asked to download. */
-  downloaded: AgentKind[]
+  downloaded: BuiltInAgentKind[]
 }
 
 function createWorld(options: WorldOptions = {}): World {
   const picks = [...(options.picks ?? [])]
-  const registry = createAgentRegistry({ file: '/state/agents.json', fs: memoryFs(), now: () => '2026-01-01T00:00:00.000Z' })
+  const registry = sqlRegistry(() => '2026-01-01T00:00:00.000Z')
   const world: World = { registry, dialogs: [], probed: [], downloaded: [], handlers: undefined as never }
   world.handlers = createAgentHandlers({
     agents: registry,
@@ -87,7 +77,11 @@ describe('findAgent connects a verified pick', () => {
     const result = await world.handlers.findAgent('claude')
 
     const expected = {
+      id: 'claude',
       kind: 'claude',
+      protocol: 'claude',
+      displayName: 'Claude Code',
+      args: [],
       executablePath: '/home/me/.local/bin/claude',
       version: '2.1.281',
       connectedVia: 'found',
@@ -171,10 +165,14 @@ describe('listAgents and removeAgent', () => {
     expect(world.probed).toHaveLength(2)
   })
 
-  it('treats removing an agent that is not connected as a no-op', async () => {
-    const world = createWorld()
+  it('refuses removing an agent that is not connected with not_found, and changes nothing', async () => {
+    const world = createWorld({ picks: ['/bin/claude'] })
+    await world.handlers.findAgent('claude')
 
-    expect(await world.handlers.removeAgent('cursor')).toEqual([])
+    for (const id of ['cursor', 'cu_01m65kwqqeyajbj5bnq81gngrb']) {
+      expect(await rejectionCode(world.handlers.removeAgent(id))).toBe('not_found')
+    }
+    expect(world.registry.list().map((agent) => agent.id)).toEqual(['claude'])
   })
 })
 
@@ -248,7 +246,7 @@ describe('downloadAgent takes a kind and nothing else', () => {
   it('returns whatever the installer reports', async () => {
     const failed: AgentDownloadResult = { outcome: 'failed', code: 'installer_failed', reason: 'nope', output: ['last line'] }
     const handlers = createAgentHandlers({
-      agents: createAgentRegistry({ file: '/state/agents.json', fs: memoryFs() }),
+      agents: sqlRegistry(),
       pickExecutable: () => Promise.resolve(null),
       probeAgent: () => Promise.resolve(WRONG_PROGRAM),
       installAgent: () => Promise.resolve(failed)

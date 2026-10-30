@@ -256,6 +256,7 @@ export interface Rig {
 export const START: ChatAdapterStartOptions = {
   chatId: 'chat_1',
   folder: FOLDER,
+  checkFolder: () => {},
   model: null,
   role: 'orchestrator',
   allowSave: true,

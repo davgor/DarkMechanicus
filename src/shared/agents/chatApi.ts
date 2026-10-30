@@ -1,10 +1,10 @@
 /**
  * The chat surface of the desktop bridge (`window.dm.chats`): one `chats:*` IPC channel per request
  * and one push channel for what running chats report. The renderer names folders, chats, agent
- * kinds, models, roles, text and decisions only; which executable runs and the Dark Mechanicus MCP
+ * ids, models, roles, text and decisions only; which executable runs and the Dark Mechanicus MCP
  * arguments are decided in the main process.
  */
-import type { AgentKind, CommandResult } from '../desktop/api'
+import type { AgentId, CommandResult } from '../desktop/api'
 import type { RunView } from '../domain/views'
 import type { ApprovalDecision, ApprovalRequestItem, ChatItem, ChatRecord, ChatRole, ModelOption } from './chat'
 
@@ -19,7 +19,7 @@ export interface ChatRequestRef {
 
 export interface CreateChatRequest {
   folder: string
-  agent: AgentKind
+  agent: AgentId
   role: ChatRole
   /** Null (or left out) lets the agent use its default model. */
   model?: string | null
@@ -32,7 +32,7 @@ export interface CreateChatRequest {
 export interface StartOrchestratorRequest {
   folder: string
   epicId: string
-  agent: AgentKind
+  agent: AgentId
   /** Null (or left out) lets the agent use its default model. */
   model?: string | null
 }
@@ -119,7 +119,7 @@ export type ChatPushEvent =
    * item in the chat that found it), or the person signed in again and the CLI says so (`signed_in`).
    * Sent for every chat of that agent that was opened since the app started, so they all agree.
    */
-  | { type: 'agent_auth'; chatId: string; agent: AgentKind; state: 'signed_out' | 'signed_in' }
+  | { type: 'agent_auth'; chatId: string; agent: AgentId; state: 'signed_out' | 'signed_in' }
 
 export interface ChatsApi {
   /** A tracked folder's chats, most recently updated first, each with its waiting requests. */
@@ -169,7 +169,7 @@ export interface ChatsApi {
   delete(request: ChatRequestRef): Promise<CommandResult<null>>
   answerApproval(request: AnswerApprovalRequest): Promise<CommandResult<null>>
   /** The models a connected agent offers. */
-  models(kind: AgentKind): Promise<CommandResult<ModelOption[]>>
+  models(agent: AgentId): Promise<CommandResult<ModelOption[]>>
   /** Subscribes to pushed chat events; returns the unsubscribe function. */
   onEvent(listener: (event: ChatPushEvent) => void): () => void
 }

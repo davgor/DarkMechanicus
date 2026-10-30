@@ -14,10 +14,11 @@ import {
   type OpenDialogOptions
 } from 'electron'
 import { join } from 'node:path'
+import type { Db } from '../../core/db/database'
 import { DomainError } from '../../core/errors'
 import { resolveHomeDir } from '../../core/repo/storageMode'
 import { openWorkspace, type Workspace } from '../../core/workspace'
-import type { AgentDownloadProgress, AgentKind, McpConfigView } from '../../shared/desktop/api'
+import type { AgentDownloadProgress, BuiltInAgentKind, McpConfigView } from '../../shared/desktop/api'
 import { createActivityBindings, type ActivityBindings } from '../agents/activityBindings'
 import { CHAT_ADAPTERS } from '../agents/adapterRegistry'
 import { createChatHandlers } from '../agents/chatHandlers'
@@ -44,7 +45,9 @@ import {
 } from './agentInstallerNode'
 import { agentDialogOptions, probeAgent, type AgentProbeDeps } from './agentProbe'
 import { inspectExecutable, runProcess } from './agentProbeNode'
+import { openAppDatabase } from './appDatabase'
 import { createAgentRegistry, type AgentRegistry } from './agentRegistry'
+import { importLegacyAgents } from './agentRegistryImport'
 import { previewBoardRemoval, removeBoardFiles } from './boardRemovalFiles'
 import { createFolderRegistry, type FolderRegistry } from './folderRegistry'
 import { createDesktopHandlers, firstPickedDirectory } from './handlers'
@@ -75,7 +78,7 @@ function pickDirectory(): Promise<string | null> {
 }
 
 /** The only place an executable to run is chosen: a native dialog in this process, never the renderer. */
-function pickExecutable(kind: AgentKind): Promise<string | null> {
+function pickExecutable(kind: BuiltInAgentKind): Promise<string | null> {
   return showOpenDialog(agentDialogOptions(kind, process.platform))
 }
 
@@ -89,7 +92,7 @@ function agentRunDeps(): AgentProbeDeps {
   }
 }
 
-function probeExecutable(kind: AgentKind, executablePath: string): ReturnType<typeof probeAgent> {
+function probeExecutable(kind: BuiltInAgentKind, executablePath: string): ReturnType<typeof probeAgent> {
   return probeAgent(kind, executablePath, agentRunDeps())
 }
 
@@ -201,7 +204,7 @@ function desktopWorkspace(folders: Pick<FolderRegistry, 'resolve'>, workspaces: 
  */
 function createSessions(
   folders: Pick<FolderRegistry, 'resolve'>,
-  agents: Pick<AgentRegistry, 'list'>,
+  agents: Pick<AgentRegistry, 'get'>,
   workspaces: Pick<WorkspacePool, 'get'>,
   activity: ActivityBindings
 ): SessionManager {
@@ -209,7 +212,8 @@ function createSessions(
     store: createChatStore({ root: join(app.getPath('userData'), 'agents', 'chats') }),
     activity,
     adapters: CHAT_ADAPTERS,
-    executablePath: (kind) => agents.list().find((agent) => agent.kind === kind)?.executablePath ?? null,
+    agentFor: (id) => agents.get(id),
+    folders: { trackedFolder: (path) => folders.resolve(path) },
     issueChatCli: async (folder, grant) => {
       const issued = await desktopWorkspace(folders, workspaces, folder).issueGrant({
         role: grant.role,
@@ -251,9 +255,10 @@ function bindingReads(workspaces: Pick<WorkspacePool, 'get'>): BindingReads {
   }
 }
 
-/** What the `chats:*` channels run over: the tracked folders, the chat sessions, the workspaces and the thread bindings. */
+/** What the `chats:*` channels run over: the tracked folders, the connected agents, the chat sessions, the workspaces and the thread bindings. */
 interface ChatServices {
   folders: Pick<FolderRegistry, 'resolve'>
+  agents: Pick<AgentRegistry, 'get'>
   sessions: SessionManager
   workspaces: Pick<WorkspacePool, 'get'>
   activity: ActivityBindings
@@ -261,9 +266,10 @@ interface ChatServices {
 
 /** Serves the `chats:*` channels over the chat sessions. */
 function startChats(ipc: Pick<IpcMain, 'handle'>, services: ChatServices): void {
-  const { folders, sessions, workspaces, activity } = services
+  const { folders, agents, sessions, workspaces, activity } = services
   const handlers = createChatHandlers({
     registry: folders,
+    agents,
     sessions,
     // Every window hears of a chat created, renamed or deleted, so none keeps a stale list.
     push: createChatPush(() => BrowserWindow.getAllWindows()),
@@ -281,17 +287,39 @@ function startChats(ipc: Pick<IpcMain, 'handle'>, services: ChatServices): void 
   registerChatIpc(ipc, handlers)
 }
 
+/** Heartbeats open workspaces; before quit, releases them first and then the app-wide database. */
+function runLifecycle(pool: WorkspacePool, appDb: Db): void {
+  setInterval(() => pool.heartbeatAll(), HEARTBEAT_INTERVAL_MS)
+  app.on('before-quit', () => {
+    pool.closeAll()
+    appDb.close()
+  })
+}
+
+/** Moves the legacy JSON agent list into the app database once, then opens the SQL-backed registry. */
+function openAgentRegistry(appDb: Db): AgentRegistry {
+  importLegacyAgents({
+    db: appDb,
+    file: join(app.getPath('userData'), 'agents.json'),
+    log: (line) => {
+      logger.warn(line)
+    }
+  })
+  return createAgentRegistry({ db: appDb })
+}
+
 /**
  * Registers the `dm:*`, `agents:*` and `chats:*` IPC handlers on `ipc` (the sender-guarded
  * registrar from `guardIpc`) and the background heartbeat/shutdown for open workspaces.
  */
 export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick<IpcMain, 'handle'>): DesktopBridge {
+  const appDb = openAppDatabase(app.getPath('userData'))
   const registry = createFolderRegistry({
     file: join(app.getPath('userData'), 'folders.json'),
     homeDir: app.getPath('home'),
     dmHome: darkMechanicusHome()
   })
-  const agents = createAgentRegistry({ file: join(app.getPath('userData'), 'agents.json') })
+  const agents = openAgentRegistry(appDb)
   const installer = createInstaller(agents)
   const pool = createWorkspacePool(openDesktopWorkspace, (path, error) => {
     logger.error(`Workspace error for ${path}:`, error)
@@ -302,8 +330,8 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   // The status the app shows is the CLI's own, corrected by what chats found out (an expired login).
   const authHooks = trackChatSignIn(
     {
-      checkAuth: (kind, executablePath) => getAgentAuthStatus(kind, executablePath, agentRunDeps()),
-      signIn: (kind, executablePath) => signInAgent(kind, executablePath, { ...agentRunDeps(), launch: launchTerminal })
+      checkAuth: (agent) => getAgentAuthStatus(agent.kind, agent.executablePath, agentRunDeps()),
+      signIn: (agent) => signInAgent(agent.kind, agent.executablePath, { ...agentRunDeps(), launch: launchTerminal })
     },
     sessions
   )
@@ -330,8 +358,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
     }
   })
   registerDesktopIpc(ipc, handlers)
-  setInterval(() => pool.heartbeatAll(), HEARTBEAT_INTERVAL_MS)
-  app.on('before-quit', () => pool.closeAll())
-  startChats(ipc, { folders: registry, sessions, workspaces: pool, activity })
+  runLifecycle(pool, appDb)
+  startChats(ipc, { folders: registry, agents, sessions, workspaces: pool, activity })
   return { chats: sessions }
 }

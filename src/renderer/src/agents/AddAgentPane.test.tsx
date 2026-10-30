@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { FakeDm } from '../__mocks__/fakeDm'
 import { agentView } from '../__mocks__/fixtures'
 import { settle } from '../__mocks__/settle'
-import type { AgentKind } from '../../../shared/desktop/api'
+import type { BuiltInAgentKind } from '../../../shared/desktop/api'
 import { AddAgentPane } from './AddAgentPane'
 import { useAgents } from './useAgents'
 
@@ -129,7 +129,7 @@ describe('AddAgentPane sign-in after connecting', () => {
 })
 
 describe('AddAgentPane actions', () => {
-  it.each<[AgentKind, string]>([
+  it.each<[BuiltInAgentKind, string]>([
     ['claude', 'Claude Code'],
     ['codex', 'Codex'],
     ['cursor', 'Cursor']
@@ -141,7 +141,7 @@ describe('AddAgentPane actions', () => {
     expect(dm.agentCallsOf('downloadAgent')).toEqual([])
   })
 
-  it.each<[AgentKind, string]>([
+  it.each<[BuiltInAgentKind, string]>([
     ['claude', 'Claude Code'],
     ['codex', 'Codex'],
     ['cursor', 'Cursor']

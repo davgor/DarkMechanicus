@@ -151,7 +151,7 @@ function MainPane(props: PaneProps): JSX.Element | null {
     case 'add-agent':
       return <AddAgentPane agents={shell.agents} />
     case 'agent':
-      return <AgentPage key={view.agent.kind} agent={view.agent} agents={shell.agents} />
+      return <AgentPage key={view.agent.id} agent={view.agent} agents={shell.agents} />
     case 'chat':
       return <ChatPane key={view.chat.id} shell={shell} folder={view.folder} chat={view.chat} />
     case 'unavailable':

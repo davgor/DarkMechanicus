@@ -1,0 +1,6 @@
+# ps after renaming scratch-a and sending AFTER-RENAME to the live new chat (process already running)
+2026-10-30T13:23:13Z
+ 8014  7098 Fri Oct 30 06:20:20 2026 ~/.local/share/claude/versions/2.1.291 --output-format stream-json --verbose --input-format stream-json
+ 8287  7098 Fri Oct 30 06:20:40 2026 ~/.local/share/claude/versions/2.1.291 --output-format stream-json --verbose --input-format stream-json
+8014 cwd: /private/tmp/dm248-evidence/scratch-a-renamed
+8287 cwd: /private/tmp/dm248-evidence/scratch-a-renamed

@@ -41,7 +41,7 @@ const chats: ChatsApi = {
   rename: (request) => ipcRenderer.invoke('chats:rename', request),
   delete: (request) => ipcRenderer.invoke('chats:delete', request),
   answerApproval: (request) => ipcRenderer.invoke('chats:answerApproval', request),
-  models: (kind) => ipcRenderer.invoke('chats:models', kind),
+  models: (agent) => ipcRenderer.invoke('chats:models', agent),
   onEvent: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, event: ChatPushEvent): void => {
       listener(event)
@@ -67,7 +67,7 @@ const dm: DmApi = {
   openExternal: (url) => ipcRenderer.invoke('dm:openExternal', url),
   listAgents: () => ipcRenderer.invoke('agents:list'),
   findAgent: (kind) => ipcRenderer.invoke('agents:find', kind),
-  removeAgent: (kind) => ipcRenderer.invoke('agents:remove', kind),
+  removeAgent: (id) => ipcRenderer.invoke('agents:remove', id),
   downloadAgent: (kind) => ipcRenderer.invoke('agents:download', kind),
   onAgentDownloadProgress: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, progress: AgentDownloadProgress): void => {
@@ -76,8 +76,8 @@ const dm: DmApi = {
     ipcRenderer.on('agents:downloadProgress', handler)
     return () => ipcRenderer.removeListener('agents:downloadProgress', handler)
   },
-  agentStatus: (kind) => ipcRenderer.invoke('agents:status', kind),
-  signInAgent: (kind) => ipcRenderer.invoke('agents:signIn', kind)
+  agentStatus: (id) => ipcRenderer.invoke('agents:status', id),
+  signInAgent: (id) => ipcRenderer.invoke('agents:signIn', id)
 }
 
 contextBridge.exposeInMainWorld('dm', dm)

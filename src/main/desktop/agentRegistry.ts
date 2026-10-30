@@ -1,173 +1,118 @@
 /**
- * Machine-local registry of connected agents (`userData/agents.json`). One entry per agent kind.
- * Entries are identified by kind: `claude`, `codex`, or `cursor`.
+ * Machine-local registry of connected agents, stored in the `agents` table of the app database.
+ * One row per agent id. A built-in agent's (`claude`, `codex`, or `cursor`) id is its kind.
  */
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
-import { dirname } from 'node:path'
-import { z } from 'zod'
-import { AGENT_KINDS } from '../../shared/desktop/agentKinds'
-import type { AgentKind, AgentView } from '../../shared/desktop/api'
+import type { Db } from '../../core/db/database'
+import { AGENT_DEFINITIONS } from '../../shared/desktop/agentKinds'
+import type { AgentId, AgentProtocol, AgentView, BuiltInAgentKind } from '../../shared/desktop/api'
 
-/** The filesystem surface the registry uses; tests inject fakes and faults through it. */
-export interface RegistryFs {
-  readFile(path: string): string
-  writeFile(path: string, data: string): void
-  rename(from: string, to: string): void
-  mkdirp(path: string): void
+/** A built-in agent's own fields; its id, protocol, display name and (empty) arguments follow from its kind. */
+type BuiltInAgentEntry = Pick<AgentView, 'executablePath' | 'version' | 'connectedVia' | 'connectedAt' | 'lastProbed'> & {
+  kind: BuiltInAgentKind
 }
 
-/** What a caller supplies when connecting an agent; the registry stamps the timestamps. */
-export type AgentConnection = Pick<AgentView, 'kind' | 'executablePath' | 'version' | 'connectedVia'>
+/** What a caller supplies when connecting a built-in agent; the registry stamps the timestamps. */
+export type AgentConnection = Omit<BuiltInAgentEntry, 'connectedAt' | 'lastProbed'>
 
 export interface AgentRegistry {
-  /** Connected agents in insertion order, at most one per kind. */
+  /** Connected agents in insertion order, at most one per id. */
   list(): AgentView[]
-  /** Replaces the entry for the agent's kind, or adds one; `connectedAt` survives a replacement. */
+  /** The connected agent with this id, or null. */
+  get(id: AgentId): AgentView | null
+  /** Replaces the entry for the built-in agent's kind, or adds one; `connectedAt` survives a replacement. */
   upsert(agent: AgentConnection): AgentView
-  /** Removes only the registry entry for a kind (never uninstalls the CLI or touches the executable). */
-  remove(kind: AgentKind): void
+  /** Removes only the registry entry for an id (never uninstalls the CLI or touches the executable). */
+  remove(id: AgentId): void
 }
 
-const FILE_VERSION = 1
-
-const registryFileSchema = z.object({
-  version: z.literal(FILE_VERSION),
-  agents: z.array(z.unknown())
-})
-
-const agentEntrySchema = z.object({
-  kind: z.enum(AGENT_KINDS),
-  executablePath: z.string().min(1),
-  version: z.string().nullable(),
-  connectedVia: z.enum(['found', 'downloaded']),
-  connectedAt: z.string(),
-  lastProbed: z.string()
-})
-
-type AgentEntry = z.infer<typeof agentEntrySchema>
-
-const nodeRegistryFs: RegistryFs = {
-  readFile: (path) => readFileSync(path, 'utf8'),
-  writeFile: (path, data) => {
-    writeFileSync(path, data, 'utf8')
-  },
-  rename: renameSync,
-  mkdirp: (path) => {
-    mkdirSync(path, { recursive: true })
-  }
+const PROTOCOL_BY_KIND: Readonly<Record<BuiltInAgentKind, AgentProtocol>> = {
+  claude: 'claude',
+  codex: 'codex',
+  cursor: 'acp'
 }
 
-interface RegistryContext {
-  file: string
-  fs: RegistryFs
-  now: () => string
+interface AgentRow {
+  id: AgentId
+  kind: AgentView['kind']
+  protocol: AgentProtocol
+  display_name: string
+  executable_path: string
+  args_json: string
+  version: string | null
+  connected_via: AgentView['connectedVia']
+  connected_at: string
+  last_probed: string
 }
 
-interface RegistryState {
-  entries: AgentEntry[]
-}
+const SELECT_AGENTS = `SELECT id, kind, protocol, display_name, executable_path, args_json, version, connected_via, connected_at, last_probed FROM agents`
 
-function parseEntries(raw: unknown): AgentEntry[] {
-  const file = registryFileSchema.safeParse(raw)
-  if (!file.success) {
-    return []
-  }
-  const entries = file.data.agents.flatMap((item) => {
-    const entry = agentEntrySchema.safeParse(item)
-    return entry.success ? [entry.data] : []
-  })
-  // A hand-edited file could repeat a kind; the first entry wins so the registry holds one per kind.
-  return entries.filter((entry, index) => entries.findIndex((other) => other.kind === entry.kind) === index)
-}
-
-/** A missing, unreadable, or corrupt registry file is an empty registry; loading never throws. */
-function loadEntries(fs: RegistryFs, file: string): AgentEntry[] {
-  try {
-    return parseEntries(JSON.parse(fs.readFile(file)))
-  } catch {
-    return []
-  }
-}
-
-function saveEntries(context: RegistryContext, entries: readonly AgentEntry[]): void {
-  const { fs, file } = context
-  const temp = `${file}.tmp`
-  const data = `${JSON.stringify({ version: FILE_VERSION, agents: entries }, null, 2)}\n`
-  fs.mkdirp(dirname(file))
-  fs.writeFile(temp, data)
-  fs.rename(temp, file)
-}
-
-/** Persists first and only then updates memory, so a failed write leaves both unchanged. */
-function commit(context: RegistryContext, state: RegistryState, next: AgentEntry[]): void {
-  saveEntries(context, next)
-  state.entries = next
-}
-
-function findEntry(entries: readonly AgentEntry[], kind: AgentKind): AgentEntry | undefined {
-  return entries.find((entry) => entry.kind === kind)
-}
-
-function toView(entry: AgentEntry): AgentView {
+function toView(row: AgentRow): AgentView {
   return {
-    kind: entry.kind,
-    executablePath: entry.executablePath,
-    version: entry.version,
-    connectedVia: entry.connectedVia,
-    connectedAt: entry.connectedAt,
-    lastProbed: entry.lastProbed
+    id: row.id,
+    kind: row.kind,
+    protocol: row.protocol,
+    displayName: row.display_name,
+    executablePath: row.executable_path,
+    args: JSON.parse(row.args_json) as string[],
+    version: row.version,
+    connectedVia: row.connected_via,
+    connectedAt: row.connected_at,
+    lastProbed: row.last_probed
   }
 }
 
-/** Replaces the entry for this kind or adds one, keeping `connectedAt` and refreshing `lastProbed`. */
-function upsertAgent(context: RegistryContext, state: RegistryState, agent: AgentConnection): AgentView {
-  const now = context.now()
-  const existing = findEntry(state.entries, agent.kind)
-
-  const entry: AgentEntry = {
-    kind: agent.kind,
-    executablePath: agent.executablePath,
-    version: agent.version,
-    connectedVia: agent.connectedVia,
-    connectedAt: existing?.connectedAt ?? now,
-    lastProbed: now
-  }
-
-  const next = existing
-    ? state.entries.map((e) => (e.kind === agent.kind ? entry : e))
-    : [...state.entries, entry]
-
-  commit(context, state, next)
-  return toView(entry)
+/**
+ * Inserts a built-in agent row, or (when `replace`) updates the row of that kind in place, keeping
+ * `connected_at` and its position. Shared with the legacy importer so both write identical rows.
+ */
+export function writeBuiltInAgent(db: Db, agent: BuiltInAgentEntry, replace: boolean): void {
+  const conflict = replace
+    ? `DO UPDATE SET executable_path = excluded.executable_path, version = excluded.version,
+       connected_via = excluded.connected_via, last_probed = excluded.last_probed`
+    : 'DO NOTHING'
+  db.run(
+    `INSERT INTO agents (id, kind, protocol, display_name, executable_path, args_json, version, connected_via, connected_at, last_probed)
+     VALUES (?, ?, ?, ?, ?, '[]', ?, ?, ?, ?)
+     ON CONFLICT (id) ${conflict}`,
+    agent.kind,
+    agent.kind,
+    PROTOCOL_BY_KIND[agent.kind],
+    AGENT_DEFINITIONS[agent.kind].displayName,
+    agent.executablePath,
+    agent.version,
+    agent.connectedVia,
+    agent.connectedAt,
+    agent.lastProbed
+  )
 }
 
-function removeAgent(context: RegistryContext, state: RegistryState, kind: AgentKind): void {
-  const existing = findEntry(state.entries, kind)
-  if (existing !== undefined) {
-    commit(
-      context,
-      state,
-      state.entries.filter((entry) => entry.kind !== kind)
-    )
-  }
+function getAgent(db: Db, id: AgentId): AgentView | null {
+  const row = db.get<AgentRow>(`${SELECT_AGENTS} WHERE id = ?`, id)
+  return row === undefined ? null : toView(row)
 }
 
 export function createAgentRegistry(options: {
-  /** Absolute path of the registry JSON file. */
-  file: string
-  fs?: RegistryFs
+  db: Db
   /** ISO timestamp source for `connectedAt` and `lastProbed`. */
   now?: () => string
 }): AgentRegistry {
-  const context: RegistryContext = {
-    file: options.file,
-    fs: options.fs ?? nodeRegistryFs,
-    now: options.now ?? (() => new Date().toISOString())
-  }
-  const state: RegistryState = { entries: loadEntries(context.fs, context.file) }
+  const { db } = options
+  const now = options.now ?? (() => new Date().toISOString())
   return {
-    list: () => state.entries.map((entry) => toView(entry)),
-    upsert: (entry) => upsertAgent(context, state, entry),
-    remove: (kind) => removeAgent(context, state, kind)
+    list: () => db.all<AgentRow>(`${SELECT_AGENTS} ORDER BY rowid`).map((row) => toView(row)),
+    get: (id) => getAgent(db, id),
+    upsert: (agent) => {
+      const stamp = now()
+      // One statement: a replacement keeps connected_at and refreshes last_probed.
+      writeBuiltInAgent(db, { ...agent, connectedAt: stamp, lastProbed: stamp }, true)
+      const view = getAgent(db, agent.kind)
+      if (view === null) {
+        throw new Error(`agent row ${agent.kind} vanished after upsert`)
+      }
+      return view
+    },
+    remove: (id) => {
+      db.run('DELETE FROM agents WHERE id = ?', id)
+    }
   }
 }

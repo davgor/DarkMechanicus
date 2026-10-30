@@ -1,0 +1,25 @@
+
+> dark-mechanicus@0.19.0 deadcode
+> node scripts/deadcode-check.mjs
+
+New dead exports detected:
+src/main/desktop/agentAuth.ts:282 - BuiltInAgentView
+src/main/desktop/agentRegistry.ts:10 - BuiltInAgentEntry
+src/shared/agents/chat.ts:208 - McpServerSpec
+src/shared/desktop/api.ts:29 - AgentKind
+src/shared/desktop/api.ts:135 - CommandInput
+src/shared/desktop/api.ts:139 - CommandOutput
+src/shared/agents/chat.ts:89 - APPROVAL_DECISIONS
+src/shared/agents/chat.ts:197 - ApprovalCategory
+src/shared/agents/chat.ts:208 - McpServerSpec
+src/shared/agents/chat.ts:215 - ChatAdapterStartOptions
+src/shared/agents/chat.ts:249 - DarkMechanicusCli
+src/shared/agents/chat.ts:258 - ChatAdapterEvent
+src/shared/agents/chat.ts:271 - ChatAdapterEmit
+src/shared/agents/chat.ts:278 - ChatAdapter
+src/shared/desktop/api.ts:29 - AgentKind
+src/shared/desktop/api.ts:52 - AgentRefusalCode
+src/shared/desktop/api.ts:73 - AgentDownloadFailureCode
+src/shared/desktop/api.ts:102 - AgentDownloadPhase
+src/shared/desktop/api.ts:299 - DesktopCommandName
+src/shared/desktop/api.ts:301 - DESKTOP_COMMANDS

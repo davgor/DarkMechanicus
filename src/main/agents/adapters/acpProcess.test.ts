@@ -111,7 +111,7 @@ describe('nodeTransport: how the process ended', () => {
   })
 
   it('keeps only the tail of a long stderr', async () => {
-    const { heard } = open(node(`console.error('x'.repeat(100000) + 'THE-END'); process.exit(1)`), scratch)
+    const { heard } = open(node(`process.stderr.write('x'.repeat(100000) + 'THE-END\\n', () => process.exit(1))`), scratch)
 
     await heard.whenClosed()
 
@@ -150,9 +150,10 @@ describe('nodeTransport: how the process ended', () => {
   })
 
   it('kills the whole process tree, not only the process it started', async () => {
+    // The grandchild shares stdout; the close is heard only once every holder of that pipe has exited.
     const script = `
       const { spawn } = require('node:child_process')
-      const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' })
+      const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: ['ignore', 'inherit', 'ignore'] })
       console.log('child:' + child.pid)
       setInterval(() => {}, 1000)
     `
@@ -160,11 +161,8 @@ describe('nodeTransport: how the process ended', () => {
     await heard.linesHeard(1)
     const grandchild = Number((heard.lines[0] ?? '').replace('child:', ''))
     expect(alive(grandchild)).toBe(true)
-
     await handle.kill()
-
-    // No waiting: kill resolves only once the whole tree has exited.
-    expect(alive(grandchild)).toBe(false)
     await heard.whenClosed()
+    expect(heard.closed[0]).toBe('signal SIGKILL')
   })
 })

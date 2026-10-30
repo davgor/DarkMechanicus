@@ -4,7 +4,7 @@
  * `schema/typescript`: ClientRequest, ServerRequest, ServerNotification and the v2 types); they were
  * written from it, not captured from a running Codex.
  */
-import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -16,6 +16,7 @@ import type {
   ChatItem
 } from '../../../shared/agents/chat'
 import { replayTransport, step, type Json, type ReplayTransport, type Step } from '../__mocks__/codexReplay'
+import { buildCliConfig } from '../../desktop/cliConfig'
 import { AT, REPO } from '../__mocks__/fakeChatAdapter'
 import { CHAT_ADAPTERS } from '../adapterRegistry'
 import { codexAdapterDefinition, createCodexAdapter, type CodexDeps } from './codex'
@@ -27,6 +28,7 @@ function options(overrides: Partial<ChatAdapterStartOptions> = {}): ChatAdapterS
   return {
     chatId: 'chat_1',
     folder: REPO,
+    checkFolder: () => {},
     model: null,
     role: 'planner',
     allowSave: true,
@@ -749,6 +751,51 @@ describe('a process that died between turns', () => {
     expect(target.connects).toHaveLength(2)
     expect(target.transcript()).toEqual([assistantText(`${TURN}:m1`, 'back')])
     expect(target.events.filter((event) => event.type === 'session')).toHaveLength(1)
+  })
+})
+
+describe('the folder every Codex process runs in', () => {
+  it('spawns the process, starts and resumes the thread, and pins the dm command in the one canonical folder', async () => {
+    const folder = realpathSync(mkdtempSync(join(tmpdir(), 'dm-codex-folder-')))
+    try {
+      const cli = { ...buildCliConfig({ packaged: false, execPath: '/bin/electron', appPath: '/app', repoPath: folder }), env: { DM_SESSION_TOKEN: 'dmg_test' } }
+      const fresh = rig([NEW_THREAD])
+      const resumed = rig([[...INITIALIZE, step.expect('thread/resume'), step.reply(THREAD_RESULT)]])
+
+      await start(fresh, options({ folder, darkMechanicus: cli }))
+      await start(resumed, options({ folder, darkMechanicus: cli, sessionId: THREAD }))
+
+      for (const target of [fresh, resumed]) {
+        expect(target.connects).toEqual([{ executablePath: '/bin/codex', folder, env: { DM_SESSION_TOKEN: 'dmg_test' } }])
+        expect(written(target)[2]).toMatchObject({ params: { cwd: folder } })
+      }
+      expect(methods(fresh)[2]).toBe('thread/start')
+      expect(methods(resumed)[2]).toBe('thread/resume')
+      expect(cli.args.slice(-2)).toEqual(['--repo', folder])
+    } finally {
+      rmSync(folder, { recursive: true, force: true })
+    }
+  })
+
+  it('checks the folder before it starts another process after a crash, and starts none in a folder that is gone', async () => {
+    let checks = 0
+    let gone = false
+    const checkFolder = (): void => {
+      checks += 1
+      if (gone) {
+        throw new Error(`The folder ${REPO} is gone: it was moved or deleted. Track the folder again to keep using this chat.`)
+      }
+    }
+    const target = rig([[...NEW_THREAD, step.expect('turn/start'), step.reply({ turn: TURN_OBJECT('inProgress') }), step.exit('Codex exited with code 1: crashed')]])
+    await start(target, options({ checkFolder }))
+    expect(checks).toBe(1)
+    await expect(target.adapter.send('first')).rejects.toThrow('crashed')
+    gone = true
+
+    await expect(target.adapter.send('second')).rejects.toThrow(REPO)
+
+    expect(checks).toBe(2)
+    expect(target.connects).toHaveLength(1)
   })
 })
 

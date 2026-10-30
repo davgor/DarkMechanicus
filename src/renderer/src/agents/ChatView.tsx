@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import type { ChatRecord } from '../../../shared/agents/chat'
-import type { AgentAuthStatus, AgentKind } from '../../../shared/desktop/api'
+import type { AgentAuthStatus, AgentId } from '../../../shared/desktop/api'
 import { ChatComposer } from './ChatComposer'
 import { ChatContext, type ChatNavigation, type ThreadLanding } from './ChatContext'
 import { ChatHeader } from './ChatHeader'
@@ -16,7 +16,7 @@ import './chatView.css'
 interface ChatViewProps {
   chat: ChatRecord
   /** The sign-in prompt in the chat asked its agent's state itself: the shell shows what it found. */
-  onAgentStatus(kind: AgentKind, status: AgentAuthStatus): void
+  onAgentStatus(id: AgentId, status: AgentAuthStatus): void
   /** Where the markers and bound threads of the chat lead; without it they are shown but do not link. */
   navigation?: ChatNavigation
   /**

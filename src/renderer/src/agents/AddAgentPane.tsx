@@ -1,9 +1,9 @@
-import { AGENT_KINDS } from '../../../shared/desktop/agentKinds'
-import type { AgentAuthStatus, AgentKind, AgentView } from '../../../shared/desktop/api'
+import { AGENT_DEFINITIONS, AGENT_KINDS } from '../../../shared/desktop/agentKinds'
+import type { AgentAuthStatus, AgentView, BuiltInAgentKind } from '../../../shared/desktop/api'
 import { Button } from '../components/Button'
 import { Icon } from '../components/Icon'
 import { ActivityNote } from './ActivityNote'
-import { AGENT_BLURBS, agentName } from './agentText'
+import { AGENT_BLURBS } from './agentText'
 import { CheckAgain, SignInPrompt } from './SignInPrompt'
 import type { AgentsModel } from './useAgents'
 
@@ -12,7 +12,7 @@ interface AddAgentPaneProps {
 }
 
 interface AgentCardProps {
-  kind: AgentKind
+  kind: BuiltInAgentKind
   agents: AgentsModel
   connected: AgentView | undefined
 }
@@ -31,8 +31,8 @@ function ConnectedLine({ agent }: { agent: AgentView }): JSX.Element {
  * Sign in (so the person learns it here, not from a failed chat), an unknown one gives its reason and
  * Check again.
  */
-function SignInLine({ kind, status, onStatus }: { kind: AgentKind; status: AgentAuthStatus | undefined; onStatus(status: AgentAuthStatus): void }): JSX.Element {
-  const name = agentName(kind)
+function SignInLine({ agent, status, onStatus }: { agent: AgentView; status: AgentAuthStatus | undefined; onStatus(status: AgentAuthStatus): void }): JSX.Element {
+  const name = agent.displayName
   switch (status?.state) {
     case undefined:
       return <p className="agent-card-state tone-muted">Checking sign-in…</p>
@@ -45,17 +45,17 @@ function SignInLine({ kind, status, onStatus }: { kind: AgentKind; status: Agent
             <Icon name="warning" size={14} />
             <span>{`Signed out. Sign in to use ${name}.`}</span>
           </p>
-          <SignInPrompt kind={kind} onStatus={onStatus} />
+          <SignInPrompt agent={agent.id} name={name} onStatus={onStatus} />
         </>
       )
     case 'unknown':
-      return <CheckAgain kind={kind} reason={status.reason} onStatus={onStatus} />
+      return <CheckAgain agent={agent.id} name={name} reason={status.reason} onStatus={onStatus} />
   }
 }
 
 /** Find opens a native file dialog; Download (Update once connected) runs the vendor's installer after a confirmation. */
 function CardActions({ kind, agents, connected }: AgentCardProps): JSX.Element {
-  const name = agentName(kind)
+  const name = AGENT_DEFINITIONS[kind].displayName
   const activity = agents.activity(kind)
   return (
     <div className="button-row">
@@ -83,14 +83,14 @@ function CardActions({ kind, agents, connected }: AgentCardProps): JSX.Element {
 
 function AgentCard(props: AgentCardProps): JSX.Element {
   const { kind, agents, connected } = props
-  const name = agentName(kind)
+  const name = AGENT_DEFINITIONS[kind].displayName
   return (
     <article className="card agent-card" aria-label={name}>
       <h2 className="agent-card-title">{name}</h2>
       <p className="note">{AGENT_BLURBS[kind]}</p>
       {connected ? <ConnectedLine agent={connected} /> : null}
       <ActivityNote name={name} activity={agents.activity(kind)} />
-      {connected ? <SignInLine kind={kind} status={agents.statuses[kind]} onStatus={(status) => agents.recordStatus(kind, status)} /> : null}
+      {connected ? <SignInLine agent={connected} status={agents.statuses[connected.id]} onStatus={(status) => agents.recordStatus(connected.id, status)} /> : null}
       <CardActions {...props} />
     </article>
   )
@@ -116,7 +116,7 @@ export function AddAgentPane({ agents }: AddAgentPaneProps): JSX.Element {
             key={kind}
             kind={kind}
             agents={agents}
-            connected={agents.agents.find((agent) => agent.kind === kind)}
+            connected={agents.agents.find((agent) => agent.id === kind)}
           />
         ))}
       </div>

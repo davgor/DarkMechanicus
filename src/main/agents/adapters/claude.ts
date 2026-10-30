@@ -390,6 +390,9 @@ class ClaudeChatAdapter implements ChatAdapter {
   }
 
   private async launch(resume: string | null): Promise<Live> {
+    const { checkFolder } = this.options as ChatAdapterStartOptions
+    // Every process, a new one after a crash included, starts only in a folder that is still the chat's.
+    checkFolder()
     const input = createInputQueue<SDKUserMessage>()
     const query = await this.deps.query({ prompt: input.iterable, options: this.queryOptions(resume) })
     if (this.disposed) {
