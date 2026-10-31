@@ -2125,23 +2125,206 @@
     },
     {
       "createdAt": "2026-10-31T09:58:34.210Z",
-      "decidedAt": null,
-      "decision": null,
-      "evidence": null,
+      "decidedAt": "2026-10-31T11:21:26.379Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Checks I ran in the worktree:\n- `npm run typecheck`: clean.\n- `npx oxlint` on all 9 changed src files: clean. The two scratch files have max-params errors (harness.ts:151, c4-fixtures.ts:266), but `npm run lint` covers only `src scripts`, so this is not a reason.\n- `npx vitest run` on capabilities, mcp/server, repo/portable, services/adoption, authz, core/schemas, repo/importer, repo/importer.hostile and services/attempts: 9 files, 850 tests passed.\n- scratch/DM-176 c1–c4: ALL PASS.\n\nstateAsOf focus:\n- DM-174 c1–c4 (41, 20, 23, 16 PASS) and DM-175 c1–c4 (18, 50, 16, 32 PASS) all print ALL PASS on this branch.\n- DM-172 c1–c4 (8 scripts) and DM-173 c1 and c2–c4 also print ALL PASS, so the runTimingObservations/runTimingProjection refactor keeps projectRunTiming's behaviour.\n- The change affects only accepted or rejected attempts decided after the cutoff and also not submitted by it. C's `unchecked` already required submittedAt, so it is unchanged. P maps running to `open` instead of `awaiting`, which is more correct.\n\nGaming focus, apart from the two reasons:\n- Failing before submitting makes the follow-up corrective (`blocked`).\n- Self-classification is refused at write, import and read.\n- A worker-only figure is `limited (self_reported)` and never final, but it still enters the provisional score.\n- A worker's inclusive report cannot replace the desktop's or the orchestrator's figure.\n- A worker cannot write to the run or sprint buckets: it holds only metric.record_attempt.\n\nMinor, not reasons:\n- A ticket's T/K includes no review or orchestration overhead. It is disclosed and follows from the ledger model, but a ticket-level score is `scored` without it; consider flagging it.\n- Any run-bucket entry recorded at a checkpoint gap or after the last sprint closes marks every sprint `limited (overhead_unallocated)` for good. That fails closed, but sprint grades may never become final.\n- The sprint budget is frozen at the first dispatch, while the actual includes tickets added to the sprint later.\n- In cohortView, `superseded` has no date, so a supersession after dispatch changes an already-frozen cohort. The function is pure and has no production caller yet.\n- The summary calls classified_effort 'orchestrator-only'. reviewOnlyViolation also allows the reviewer and desktop roles, but only the orchestrator holds metric.record_attempt, as docs/architecture.md says.\n- An orchestrator-fallback attempt's own report counts as trusted, not self-reported.\n- The disclosed possible review double count (desktop child usage plus a reviewer's own report) remains.",
+        "outcome": "rejected",
+        "reasons": [
+          "c3 (E scores a missing measure as observed): `attemptMeasureFromTiming` in src/core/space/efficiency.ts turns a timing `active` measure that is `state: 'missing'` with `unknownMs: 0` into `{ state: 'missing', unknown: 0 }`. DM-172 gives this shape when one actor's active span is unended while another actor's spans cover the whole window (timing.ts activeOf: missing even where other spans cover the window). `flowTotals` does not count it as unmeasured, because unknownMs is not null, and no limited reason fires, so E is `scored` with an `observed` input. Repro (/tmp/dm176-probe/pA.ts, with the DM-176 harness): 1 ticket, 1 attempt accepted after 20 min; activity is worker actorRef 'x' work start at t0 with no stop, and worker actorRef 'y' work t0–t20. getSpaceSignals({ticketId, activity}) gives flow.status 'scored', input observed 1,200,000 ms, gradeSpace E observed 100. On the same read, time is `missing (unmeasured_attempts)` and the projection lists an `unclosed_span` anomaly (subject 'sx'). Fix: return an unmeasured measure (`unknown: null`) when `active.state === 'missing' && active.unknownMs === 0`, or whenever projection.anomalies holds an `unclosed_span` for a span on that attempt (spaceSignals.ts activeTimeOf has both the projection and `input.activity`). Add the case to scratch/DM-176/c3-missing-limited.ts and show E `missing (unmeasured_attempts)`.",
+          "c3 (T/K turns unknown overhead into zero): `amountOfTiming` in src/core/space/efficiency.ts treats a `missing` overhead measure with knownMs 0 and unknownMs 0 as nothing reported (`reports: 0`). DM-172 gives exactly that shape for a bucket whose only span is unended ('its length is unknown, so the bucket is missing, never an observed 0', scratch/DM-172/c3-sprints-overhead.ts). `overheadView` then drops the reviewer and unattributed parts silently, and an unended orchestrator span only makes T `limited (overhead_unreported)`. Repro (/tmp/dm176-probe/pB.ts): sprint 1 with 1 attempt. Activity: a worker span on the attempt covering claim to submit, an orchestrator span t20–t25, and a reviewer span (role reviewer, attemptId null) that starts at t21 and never stops. getSpaceSignals({sprintId, activity}) gives time.status 'scored', limitedReasons [], input observed 1,560,000, gradeSpace T observed 100. That is identical to the same read without the reviewer span. Fix: in timingOverheadOf (spaceSignals.ts), use projection.anomalies `unclosed_span` and the caller's `activity` (span id to role and attemptId null) to mark each bucket holding an unended span as a reported, missing part (`reports >= 1`, state missing), so T is `missing (overhead_unavailable)`. Show it in the c3 script."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "node, web and fireguard tsconfigs all clean",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "No findings in efficiency.ts (core and shared), spaceSignals.ts, timing.ts, plannedBaselines.ts, ledger.ts, schemas.ts, space.ts, signals.ts",
+            "name": "npx oxlint (changed source files)",
+            "status": "passed"
+          },
+          {
+            "detail": "capabilities.test.ts, mcp/server.test.ts, repo/portable.test.ts, services/adoption.test.ts, authz.test.ts: 5 files, 207 tests passed. The touched space modules have no test files of their own on space-sprint-1.",
+            "name": "npx vitest run (existing tests covering the touched contracts)",
+            "status": "passed"
+          },
+          {
+            "detail": "c1 13 PASS, c2 16 PASS, c3 24 PASS, c4 38 PASS; each prints ALL PASS",
+            "name": "scratch/DM-176 demos (npx tsx)",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-171 c1–c4, DM-172 c1–c4, DM-173 c1 and c2–c4, DM-174 c1–c4, DM-175 c1–c4 and dm-169-demo all print ALL PASS after my changes. Exception: scratch/DM-170/c1-migration.ts has 3 failures because it expects schema v10 while migrations.ts is at v11; I changed no migration (see Discoveries).",
+            "name": "Predecessor scratch scripts (regression)",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test (full suite)",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run build",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "coverage / whole-tree lint",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "c1-denominator-coverage.ts, through the real getSpaceSignals. Denominator: 50 ms measured and classified, 20 corrective (implementation), E = 20. Coverage: 2 of 2 attempts measured; with one attempt unmeasured, 1 of 2, and E missing (`unmeasured_attempts`), with the attempt listed. With no host reporting, E is missing (`no_effort_observation`); `retries` shows {metric retry_count, unit count, byTrigger}, corrective ms stays 0 and the grader gets null, never a time derived from retries. A worker's own classification is refused as `unauthorized`."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "c2-resource-baselines.ts. Ticket K: 90k + an inclusive 60k = 150k, not 210k; the budget is v1, in force at the first claim, while v2 (raised later for the retry) is listed but unused; K = 50, T = 75. A worker's 1-token inclusive report cannot replace the desktop's 5k. Sprint 1: K actual is work 155k + review 5k + orchestration 8k = 168k, and T is 71 min. Review filed under sprint 2 while sprint 1 was active is charged to sprint 1; orchestration after the checkpoint goes to sprint 2. The sprint budget is the ticket budgets in force at first dispatch, 150k; K = 88, T = 98.57. Every token is charged exactly once across sprints (173k). Verification overhead counted once beside active time is shown in c4 (timing fixture: 30 min active + 15 min review/orchestration = 45 min)."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "c3-missing-limited.ts. Missing: no budget gives `no_candidate`; a zero budget gives `non_positive_value` and is listed as malformed, never graded; zero use gives `zero_observation` and `zero_effort`; an unavailable report gives `unmeasured_attempts` with the known part shown; an overhead report marked unavailable gives `overhead_unavailable`; a cohort of other work gives `cohort_mismatch`; a ticket with no risk key gives `no_cohort_key`; under 80 % classified gives `insufficient_classified_effort`. Limited (estimated): estimates, self-reports, attempts open at a past cutoff, partial timing coverage, unreported orchestration, unallocated run overhead. The fractional-millisecond case is accepted by the grader. No view holds NaN or Infinity, and no missing E, T or K was scored. The insufficient cohort case (3 samples) is in c4."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "c4-fixtures.ts on the checked-in fixtures. causes.json, 11 cases each with the expected E score: research (60 of 90 min) and complexity score 100; the same retry as an implementation repair scores 20; verification, tooling and requirement repairs; a blocker's follow-up scores 0 unclassified and 100 as complexity; a worker's classification is ignored; an overclassification is capped. cohorts.json: 6 qualified samples, median 1.05M, the outlier listed and kept; a slower sample completed after dispatch is excluded (it would have raised the median to 1.1M); a budget raised after dispatch is never used (K 80, not 100). approval-wait.json: an hour of approval wait inside the attempt and an hour at the checkpoint are not compute; T = 45 of 50 min, scores 100, versus 0 if waits were charged. The same holds through getSpaceSignals with host spans: 20 of 80 min, T 100."
+          }
+        ],
+        "notes": "Red-team review. I ran an adversarial reviewer subagent against the first version. It found 10 issues; I fixed all of them and added regression checks to the scripts:\n1. A worker's `inclusive` report could replace the desktop's measured figure, or erase its `unavailable` marker. Now each figure comes from its most trusted reporter only. In c2.\n2. Figures only the graded worker reported counted as observed. They are now `limited` (`self_reported`). In c3.\n3. Failing an attempt before submitting made its follow-up productive. The follow-up is now corrective (`blocked`) until the orchestrator classifies it. In the causes fixture.\n4. Fractional milliseconds made corrective exceed classified, so `gradeSpace` threw. Corrective is now clamped. In c3.\n5. A read at a past cutoff showed an attempt still running then as submitted, so E and T read `observed`. Fixed in `stateAsOf`. In c3.\n6. Run overhead recorded outside every sprint was dropped silently. It is now counted and marks every sprint `limited` (`overhead_unallocated`).\n7. No live score could include overhead, because sprints had no baseline. Sprint budgets are now derived. In c2.\n8. A producer could move review overhead by naming another sprint's bucket. Both buckets are now charged by the server's clock. In c2.\n9. A missing orchestration report still left the input `observed`. It is now `limited`.\n10. The timing path had no production caller. `getSpaceSignals` now takes `activity`. In c4.\n\nI also checked these and they held: worker classifications are refused on every write path, on import and on read; `effortCause` is checked before the defect and handoff early returns; there is no division by zero; evidence lists stay within their limits; nothing is double-charged across tickets, sprints and reporters.\n\nLimits:\n- **Orchestration and review overhead is never charged to a ticket.** The ledger refuses overhead on a ticket, so a ticket's T and K are work only. A sprint's include it.\n- **Possible double count of review usage.** Where the desktop records a reviewer subagent as child usage in the run bucket and the reviewer also reports itself in the sprint bucket, the two can overlap. Not resolvable from the records.\n- **Stored producer `corrective_effort` totals are not read by E.**\n\nI wrote no new unit tests, per the fast-lane testing policy.\n\nDiscoveries:\n- title: Give tickets a planner-declared risk so cohort baselines can be keyed\n  reason: CohortKey needs workType, size and risk, but TicketContent has no risk field (src/shared/domain/bundle.ts). getSpaceSignals therefore always reports `no_cohort_key` for a ticket, and only budgets can be its baseline; cohortView works only on supplied samples (cohorts.json).\n  ticket: DM-176\n- title: Date closed attempt states from their events, not updated_at, in cutoff reads\n  reason: stateAsOf (src/core/services/spaceSignals.ts) dates failed, canceled and lease_expired states by attempts.updated_at. A later adoption that supersedes the attempt bumps updated_at, so a cutoff read made after the adoption shows an already-failed attempt as running (reviewer probe P6).\n  ticket: DM-176\n- title: getRunMetrics totals let any reporter's inclusive figure replace others\n  reason: usageTotal (src/core/space/ledger.ts) groups all reporters of an attempt or bucket together, so in the getRunMetrics coverage a worker's tiny inclusive report replaces the desktop's measured figure. DM-176 works around it with a per-reporter rule (src/core/space/efficiency.ts); the shared read model still has the problem.\n  ticket: DM-176\n- title: Stale DM-170 migration scratch script expects schema v10\n  reason: scratch/DM-170/c1-migration.ts fails 3 checks ('migration runs v9 -> v11' and two others) because it expects v10 while src/core/db/migrations.ts is at v11 since DM-171. This is not caused by DM-176, which adds no migration; the testing tail should update the expectation when it converts the script.\n  ticket: DM-176"
+      },
       "failure": null,
       "fencingToken": 1,
       "id": "at_01m68pb3f2dfshbr9hcva4rvjt",
       "kind": "work",
       "number": 1,
-      "outputs": null,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "c1 demo: npx tsx scratch/DM-176/c1-denominator-coverage.ts → 13 PASS, ALL PASS",
+            "location": "scratch/DM-176/c1-denominator-coverage.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "c2 demo: npx tsx scratch/DM-176/c2-resource-baselines.ts → 16 PASS, ALL PASS",
+            "location": "scratch/DM-176/c2-resource-baselines.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "c3 demo: npx tsx scratch/DM-176/c3-missing-limited.ts → 24 PASS, ALL PASS",
+            "location": "scratch/DM-176/c3-missing-limited.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "c4 demo: npx tsx scratch/DM-176/c4-fixtures.ts → 38 PASS, ALL PASS",
+            "location": "scratch/DM-176/c4-fixtures.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Shared demo harness (real lifecycle, metric commands, gradeSpace)",
+            "location": "scratch/DM-176/harness.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Cause fixtures (11 cases with expected classification and E score)",
+            "location": "src/core/space/fixtures/efficiency/causes.json",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Cohort fixture (qualified cohort, outlier, every exclusion, an insufficient cohort)",
+            "location": "src/core/space/fixtures/efficiency/cohorts.json",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Approval-wait timing fixture (approval waits not charged as compute)",
+            "location": "src/core/space/fixtures/efficiency/approval-wait.json",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "E/T/K rules (pure)",
+            "location": "src/core/space/efficiency.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "E/T/K view types",
+            "location": "src/shared/domain/efficiency.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Where E, T and K come from (docs section)",
+            "location": "docs/space-grading.md",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "space-DM-176",
+        "changedFiles": [
+          "docs/architecture.md",
+          "docs/space-grading.md",
+          "scratch/DM-176/c1-denominator-coverage.ts",
+          "scratch/DM-176/c2-resource-baselines.ts",
+          "scratch/DM-176/c3-missing-limited.ts",
+          "scratch/DM-176/c4-fixtures.ts",
+          "scratch/DM-176/harness.ts",
+          "src/core/services/plannedBaselines.ts",
+          "src/core/services/spaceSignals.ts",
+          "src/core/services/timing.ts",
+          "src/core/space/efficiency.ts",
+          "src/core/space/fixtures/efficiency/approval-wait.json",
+          "src/core/space/fixtures/efficiency/causes.json",
+          "src/core/space/fixtures/efficiency/cohorts.json",
+          "src/core/space/ledger.ts",
+          "src/core/space/schemas.ts",
+          "src/shared/domain/efficiency.ts",
+          "src/shared/domain/signals.ts",
+          "src/shared/domain/space.ts"
+        ],
+        "commits": [
+          "fa186dc99b71afd321a06761b2eda9ec37bc20bf",
+          "ca61d622460c04d3ab47cb9544cd621137c532dc",
+          "4f3a082f9cf949af0467a127a837bdaace4bd2d2",
+          "3dab2c35aa5cb6c53a397a718bc6b5ee611fcfa0",
+          "2838de72439fabce255df4f8a00e32b9f53867c8"
+        ],
+        "summary": "DM-176 is done on branch space-DM-176 in 5 commits, and the worktree is clean. All four criteria are shown by scratch scripts that pass (13, 16, 24 and 38 PASS). Typecheck passes, oxlint is clean on every changed source file, and the 5 existing test files that cover the touched contracts pass (207 tests).\n\nWhat it does: `getSpaceSignals` now also returns `flow` (E), `time` (T) and `tokens` (K). Each has a status (`scored`, `limited` or `missing`) with a reason, the input the grader takes, and the records behind it. Changes are additive, as you asked for DM-177.\n\n**E (corrective work):**\n- Effort is each executing attempt's measured active time: the ledger's `active_execution_time`, or the timing projection's host spans when the caller passes `activity`. Never both, and never elapsed time.\n- A new orchestrator-only record, `classified_effort` with an `effortCause`, splits an attempt's effort by cause. `complexity` counts as productive. `requirement`, `context`, `implementation`, `integration`, `tooling` and `verification` count as repair. A classification is capped at the measured effort and never adds effort; a worker's is refused when written and ignored when read.\n- Effort no classification covers is classified from the lifecycle. A ticket's first execution is planned work, research and planned tests included. Any later execution is a repair, with its trigger (rejected, lease expired, cancelled, blocked, failed, superseded). Its cause stays unattributed unless the orchestrator names one; after a superseded acceptance it defaults to `requirement`.\n- The result shows the denominator (classified and total ms), coverage (measured versus executing attempts, and which are unmeasured) and a retry count by trigger. The retry count is a count only: never time, never scored.\n\n**T and K (resource use):**\n- The actual covers every executing attempt, the rejected ones too.\n- A sprint also carries the review and orchestration overhead the server recorded while that sprint was active, judged by the server's clock. Each overhead entry lands in at most one sprint.\n- Each figure comes from its most trusted reporter only: the desktop, else the orchestrator, else the worker. An `inclusive` figure replaces only its own reporter's figures.\n- Baselines:\n  - **Ticket:** the budget version in force in the revision its first attempt was claimed against (new `dispatchBudgetCandidates`). Later versions are listed but never used.\n  - **Sprint:** its tickets' budgets in force at its first dispatch, summed (new `sprintBudgetCandidate`). If any required ticket has no budget, the sprint has none.\n  - **Cohort:** `cohortView` takes the median of earlier work of the same type, size and risk that was accepted, observed, positive and completed by the dispatch. It lists every sample's exclusion reason, the sample size, quartiles and outliers.\n- A budget the serialized contract refuses (for example a stored zero) is listed as `malformed` and never handed to the grader, which would otherwise reject the whole grade.\n\n**Missing and limited states:** missing baseline, zero budget, zero use, unavailable or unreported data, an incomparable or too-small cohort, and fewer than 80 % of effort classified each give a defined missing state, never 100. Estimates, self-reports, attempts still running at the cutoff, unreported orchestration overhead and overhead recorded outside every sprint give a `limited` (estimated) state, so the grade stays provisional.\n\nOther changes a reviewer should know about:\n- `stateAsOf` in `spaceSignals.ts` (DM-174 code): an attempt decided after the cutoff now reads as running or submitted as of the cutoff, instead of always submitted.\n- `services/timing.ts` now exports `runTimingObservations` and `runTimingProjection`; `projectRunTiming` behaves as before.\n- The design changed during the adversarial review. The first version treated the execution after a worker's blocker as productive, which a worker could exploit by failing broken work instead of submitting it. Self-reported figures also used to count as observed."
+      },
       "reconciledAt": null,
       "revisionId": "rv_01m65yene3p1dwngx9apevkpn4",
-      "state": "running",
-      "submittedAt": null,
+      "state": "rejected",
+      "submittedAt": "2026-10-31T11:06:58.126Z",
       "supersededAt": null,
       "ticketContentHash": "sha256:7eb11ddd86c9f2bf0324d6321b7160be512eb687eec540bc244501d9217e574c",
       "ticketId": "tk_01m453gpadahyzv2h66bwjwxmf",
-      "updatedAt": "2026-10-31T09:58:44.106Z",
+      "updatedAt": "2026-10-31T11:21:26.379Z",
       "worker": {
         "catalogRevision": "2026-10-31.1",
         "effort": "medium",
@@ -2149,6 +2332,377 @@
         "label": "omp task subagent",
         "modelId": "anthropic/claude-opus-5-5",
         "rationale": "Recommended by match_capabilities (Top-ranked of 1 eligible model.; Highest reasoning level \"deep\" is 1 rank above the ticket's \"multi_step\" need (-20).; Lists skills \"typescript\", \"node\", \"testing\" (+10, capped at 10).; Cost tier \"high\": cheaper tiers sort first on equal scores.; Uses the ticket's \"medium\" effort.). This host cannot set a subagent's model or effort; the worker is an omp task subagent at the harness default, which the catalog lists as anthropic/claude-opus-5-5.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T11:21:26.420Z",
+      "decidedAt": "2026-10-31T11:42:52.597Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Checks run:\n- Probes: pA gives flow missing (unmeasured_attempts), attempt unknownMs null, E and T grade null. pB gives T missing (overhead_unavailable), reviewer part missing with reports 1, grade null. `pB none` still scores 1,560,000 ms (T 100). pC runs (it passes one argument; tsx does not typecheck).\n- New probes: pD (post-submit own span), pE and pF (cost of the new rule).\n- Scratch: DM-176 c1 13, c2 16, c3 33 and c4 38 PASS. DM-172 c3-sprints-overhead, DM-174 c1–c4 and DM-175 c1–c4 all print ALL PASS.\n- `npm run typecheck` is clean.\n- oxlint is clean on the 9 changed src files and the 4 c-scripts.\n- `npx vitest run` on capabilities, server, portable, importer, reportsTierFacts, adoption and authz: 7 files, 257 tests pass.\n- `git merge-tree --write-tree space-sprint-1 HEAD` is clean. space-sprint-1 is the merge base, so the merge is a fast-forward.\n\nMinor:\n- scratch/DM-176/harness.ts `classify` fails oxlint max-params (5 parameters). It has not changed since attempt 1 and scratch/ is outside `npm run lint`, but the worker's lint check left it out.\n- The `unendedOverheadBuckets` rule in docs/space-grading.md (T and K: the actual) needs the own-span exception once fixed.\n- The sprint span runs from first activation to last close, while DM-172 ends at the first close. The difference only errs toward missing, which is acceptable.\n- Fix 1 is exact: DM-172 reports missing with unknownMs 0 only for an unended active span (activeOf `established`).",
+        "outcome": "rejected",
+        "reasons": [
+          "c3: `unendedOverheadBuckets` (src/core/space/efficiency.ts) counts a later observation by the same actor about the same attempt as ending the attempt's own span even when that span began after execution ended. DM-172 never closes an own span past the attempt's window end (timingSpans.ts `limit: own.windowEnd`), so the span stays unended and runs into later sprints. Repro /tmp/dm176-probe/pD.ts: in sprint 1 the worker starts span 'late' after submit with no stop, then reports late2. In sprint 2, DM-172's unattributed bucket is missing 0/0, but getSpaceSignals gives T scored 1,200,000 ms, grade 100. Without late2 it is missing. Fix: skip `endedBefore` for own-attempt spans that `overheadBucketOf` maps to unattributed. Add the case to c3-missing-limited.ts.",
+          "c3 (performance regression): `unendedOverheadBuckets` runs `activity.some(...)`, with a `Date.parse` on every observation, once for every unclosed start, so the cost grows with n². Repro: an orchestrator that reports spans as starts only (DM-172 closes each at the next start). The getSpaceSignals sprint read takes 3,991 ms at 5,000 spans and 34,827 ms at 14,000, while the projection alone takes 81 ms (/tmp/dm176-probe/pF.ts). The pure call takes 47,951 ms at the 20,000 limit (pE.ts), where DM-172 needs about 95 ms. Fix: index the activity once by (role, actorRef, attemptId) with sorted instants. Then binary-search for the first observation after the start, as timingSpans `firstAfter` does, and compare it with the sprint start."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "tsc node, web and fireguard projects: no errors (rerun after the last edit).",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npx oxlint src/core/space/efficiency.ts src/core/services/spaceSignals.ts scratch/DM-176/c3-missing-limited.ts scratch/DM-176/c4-fixtures.ts → 0 warnings, 0 errors. I fixed a max-params error in each of the two scratch span helpers; the c4 one dates from attempt 1.",
+            "name": "npx oxlint (changed files)",
+            "status": "passed"
+          },
+          {
+            "detail": "No existing test imports efficiency.ts or spaceSignals.ts. I ran the nearest related suites instead: npx vitest run src/core/services/adoption.test.ts src/core/authz.test.ts src/core/commands/capabilities.test.ts src/mcp/server.test.ts src/core/services/reportsTierFacts.test.ts → 5 files, 121 tests passed.",
+            "name": "Targeted vitest",
+            "status": "passed"
+          },
+          {
+            "detail": "c1 13, c2 16, c3 33, c4 38 PASS; each ALL PASS, exit 0.",
+            "name": "DM-176 scratch scripts",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-172: c1-clock-fixtures 62, c1-event-log 16, c1-unclosed-spans 15, c2-units-coverage 31, c3-parallel-effort 15, c3-sprints-overhead 27, c4-retries-unknown 24, c4-unknown-visible 13. DM-173: c1 20, c2-c4 ALL PASS. DM-174: c1 41, c2 20, c3 23, c4 16. DM-175: c1 18, c2 50, c3 16, c4 32. All exit 0, ALL PASS.",
+            "name": "Predecessor scratch scripts",
+            "status": "passed"
+          },
+          {
+            "detail": "Both now show the missing states the review asked for. The pB control without the reviewer span still scores.",
+            "name": "Review probes pA/pB",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "Full npm test",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "Coverage",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run build",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "No change since attempt 1. Re-verified: scratch/DM-176/c1-denominator-coverage.ts gives 13 PASS (explicit effort denominator, observation coverage, retries as a diagnostic count only). An attempt with an unended span is now listed as unmeasured in coverage rather than as measured (c3 script case 1)."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Re-verified: scratch/DM-176/c2-resource-baselines.ts gives 16 PASS (actual against the frozen baseline, review/orchestration/verification overhead counted once). c3 script control: worker 21m plus orchestrator 5m scores 26m, and a reviewer span ended by the reviewer's own next observation adds its 4m once (30m)."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Both review reasons are fixed. In scratch/DM-176/c3-missing-limited.ts (33 PASS): an unended span beside a covering one gives E missing (unmeasured_attempts), score null; an unended reviewer span gives T missing (overhead_unavailable) with a reported, missing reviewer part; an unended orchestrator span gives T missing (overhead_unavailable), not limited; a never-ended span in sprint 1 leaves sprint 1 and sprint 2 missing; controls still score. Probes pA/pB confirm. All earlier missing/zero/partial/cohort cases still pass, and the no-NaN/Infinity and no-missing-scored checks pass across all views."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Re-verified: scratch/DM-176/c4-fixtures.ts gives 38 PASS on the checked-in cause, cohort and approval-wait fixtures (complexity and research are distinguished from avoidable repair, cohort inflation is prevented, approval waiting is not charged as active compute, including through getSpaceSignals with host spans)."
+          }
+        ],
+        "notes": "Red-team of this attempt's diff:\n- **Bypass via a span with no stop that later closes.** DM-172 also reports `unclosed_span` for spans it ends at the actor's next own observation. Marking every such bucket would fail closed wrongly. So a bucket is listed only if the span started before the sprint ended and no same-actor, same-attempt observation came by the sprint's start. A span closed inside the sprint leaves its bucket observed, so listing it changes nothing. Checked: one sprint with the span closed by the reviewer's next span (scored, 30m); two sprints with the span ended in sprint 1 (both scored); never ended (both missing).\n- **Non-active unended spans** (approval_wait, idle and so on) do not make a DM-172 bucket missing, so they are skipped (ACTIVE_PURPOSES).\n- **Own-attempt unended spans** stay with the attempt and are handled by fix 1. One that starts after execution ended is mapped to unattributed, as clipToWindow does.\n- **Unchanged paths:**\n  - A sprint that was never activated has no windows: empty set, and the orchestrator part stays limited (overhead_unreported) as before.\n  - Ledger time overhead still takes precedence over the projection.\n  - Ticket subjects carry no overhead.\n  - Without activity there is no projection.\n- **Every caller of the changed contract.** `amountOfTiming` now takes a second `unended` argument; its only callers are spaceSignals.ts and scratch/DM-176/c4-fixtures.ts (updated to `false`). The review's own /tmp/dm176-probe/pC.ts still calls it with one argument; tsx does not typecheck, so the argument is undefined and treated as false, and the probe is not part of the repo. The new `attemptMeasureFromTiming` shape (`unknown: null`, source timing) is read by flowTotals (counts it as unmeasured), workAmount and resourceSignal (state missing, so T is unmeasured), and attemptEffort; all were checked through the c3 script.\n- **Limitation I chose to accept:** my sprint span (first activation to last close, from sprintWindows) approximates DM-172's internal sprint bounds. Where they differ, the result errs toward missing, never toward scored.\n\nThe worktree is clean. No dev server was started.\n\nDiscoveries:\n- Title: Projection does not expose which spans stayed unended. Reason: DM-172 reports `unclosed_span` both for spans it later ends at the actor's next observation and for spans it never ends, and a bucket missing with 0/0 looks the same whether nobody reported or a span never ended. DM-176 therefore has to approximate unended-ness (unendedOverheadBuckets). An explicit `unended_span` anomaly, or a per-bucket unended flag in TimingProjection, would make this exact. Ticket: DM-172 follow-up (timing projection contract)."
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m68v2v4mgnatnbvjrxgasynt",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "c1 demo: npx tsx scratch/DM-176/c1-denominator-coverage.ts → 13 PASS, ALL PASS",
+            "location": "scratch/DM-176/c1-denominator-coverage.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "c2 demo: npx tsx scratch/DM-176/c2-resource-baselines.ts → 16 PASS, ALL PASS",
+            "location": "scratch/DM-176/c2-resource-baselines.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "c3 demo with the unended-span review cases: npx tsx scratch/DM-176/c3-missing-limited.ts → 33 PASS, ALL PASS. Output includes 'unended span beside a covering one: E missing (unmeasured_attempts), atte",
+            "location": "scratch/DM-176/c3-missing-limited.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "c4 demo: npx tsx scratch/DM-176/c4-fixtures.ts → 38 PASS, ALL PASS",
+            "location": "scratch/DM-176/c4-fixtures.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Review probe A: npx tsx /tmp/dm176-probe/pA.ts → 'flow missing unmeasured_attempts', 'attempt timing missing 1200000 null', 'E grade missing null T grade missing null'",
+            "location": "/tmp/dm176-probe/pA.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Review probe B: npx tsx /tmp/dm176-probe/pB.ts → 'time missing overhead_unavailable [] actual null', reviewer part reports 1 missing, 'T grade missing null'; control 'pB.ts none' → 'time scored null [",
+            "location": "/tmp/dm176-probe/pB.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Unended overhead bucket rule and unmeasured unended attempt",
+            "location": "src/core/space/efficiency.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "timingOverheadOf uses the read's activity and the sprint windows",
+            "location": "src/core/services/spaceSignals.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "space-DM-176",
+        "changedFiles": [
+          "docs/architecture.md",
+          "docs/space-grading.md",
+          "scratch/DM-176/c1-denominator-coverage.ts",
+          "scratch/DM-176/c2-resource-baselines.ts",
+          "scratch/DM-176/c3-missing-limited.ts",
+          "scratch/DM-176/c4-fixtures.ts",
+          "scratch/DM-176/harness.ts",
+          "src/core/services/plannedBaselines.ts",
+          "src/core/services/spaceSignals.ts",
+          "src/core/services/timing.ts",
+          "src/core/space/efficiency.ts",
+          "src/core/space/fixtures/efficiency/approval-wait.json",
+          "src/core/space/fixtures/efficiency/causes.json",
+          "src/core/space/fixtures/efficiency/cohorts.json",
+          "src/core/space/ledger.ts",
+          "src/core/space/schemas.ts",
+          "src/shared/domain/efficiency.ts",
+          "src/shared/domain/signals.ts",
+          "src/shared/domain/space.ts"
+        ],
+        "commits": [
+          "f53cf6ab15863b6c96c005b43dae94af7b18a601",
+          "a9e6e9d94c119306fc83bb4050f9a2270208f954",
+          "fa186dc99b71afd321a06761b2eda9ec37bc20bf",
+          "ca61d622460c04d3ab47cb9544cd621137c532dc",
+          "4f3a082f9cf949af0467a127a837bdaace4bd2d2",
+          "3dab2c35aa5cb6c53a397a718bc6b5ee611fcfa0",
+          "2838de72439fabce255df4f8a00e32b9f53867c8"
+        ],
+        "summary": "DM-176 attempt 2 fixes both c3 review reasons. It builds on the attempt-1 commits and keeps all of them, adding two commits.\n\n1. **E no longer scores an unmeasured attempt.** In `attemptMeasureFromTiming` (src/core/space/efficiency.ts), when an attempt's active time is `missing` with `unknownMs` 0, the attempt now counts as unmeasured (`unknown: null`). DM-172 gives that shape when an active span never ends while other spans cover the whole window. Probe pA now gives E `missing (unmeasured_attempts)` with grade score null (before: scored, observed 1,200,000 ms, E 100). T was already `missing (unmeasured_attempts)` and still is.\n\n2. **An unended overhead span no longer disappears.** The new pure function `unendedOverheadBuckets` (efficiency.ts) uses `projection.anomalies` `unclosed_span` and the caller's `activity` to find the sprint's overhead buckets that may hold an active span that never ended:\n   - It maps each span to its bucket the way timingSpans does: role orchestrator or reviewer; worker, or unknown attempt, goes to unattributed; an attempt's own span stays with the attempt unless it started after execution ended.\n   - A span counts if it started before the sprint ended.\n   - It is skipped if the same actor sent another observation about the same attempt by the time the sprint started, because that observation ended the span before the sprint.\n\n   `amountOfTiming(measure, unended)` marks such a bucket as reported and missing. `timingOverheadOf` (spaceSignals.ts) now takes the read's `activity`, which is added to `SubjectRead`, plus the sprint windows. Results:\n   - Probe pB: T `missing (overhead_unavailable)`, the reviewer part has `reports: 1`, state missing, grade T null (before: scored 1,560,000, T 100).\n   - Without the reviewer span, the same read still scores 1,560,000 / T 100.\n   - An unended orchestrator span alone now gives `missing (overhead_unavailable)`, not just `limited (overhead_unreported)`.\n\ndocs/space-grading.md (Effort, and 'T and K: the actual') describes both rules. scratch/DM-176/c3-missing-limited.ts now covers both review cases plus controls and goes from 23 to 33 PASS. I re-ran all four DM-176 scripts and every predecessor script (DM-172 through DM-175); all pass."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m65yene3p1dwngx9apevkpn4",
+      "state": "rejected",
+      "submittedAt": "2026-10-31T11:30:23.677Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:7eb11ddd86c9f2bf0324d6321b7160be512eb687eec540bc244501d9217e574c",
+      "ticketId": "tk_01m453gpadahyzv2h66bwjwxmf",
+      "updatedAt": "2026-10-31T11:42:52.597Z",
+      "worker": {
+        "catalogRevision": "2026-10-31.1",
+        "effort": "high",
+        "hostId": "omp-darwin-arm64-space",
+        "label": "omp task subagent",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (Last attempt on \"anthropic/claude-opus-5-5\" was rejected; nothing eligible sits above it, so the same model runs at higher effort.; Highest reasoning level \"deep\" is 1 rank above the ticket's \"multi_step\" need (-20).; Lists skills \"typescript\", \"node\", \"testing\" (+10, capped at 10).; Cost tier \"high\": cheaper tiers sort first on equal scores.; Effort raised from \"medium\" to \"high\".). This host cannot set a subagent's model or effort; the worker is an omp task subagent at the harness default, which the catalog lists as anthropic/claude-opus-5-5. Attempt 1 rejected (unended host spans scored as observed in E and as zero overhead in T/K); escalating one effort step per match_capabilities.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T11:42:52.639Z",
+      "decidedAt": "2026-10-31T12:00:54.583Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Checks I ran:\n- Probes: pA gives E/T missing (unmeasured_attempts). pB gives reviewer unended and T missing (overhead_unavailable). pD 'follow' and 'none' give sprint 1 and sprint 2 T missing, grade null. pE takes 16 ms at 20,000 and 6 ms at 5,000. pF's sprint read takes 30 ms at 5,000 and 75 ms at 14,000.\n- DM-176 c1–c4: 13/16/35/38, ALL PASS.\n- c3 against attempt 2's efficiency.ts (a git archive copy in /tmp): 1 FAILED, so the new check is not vacuous.\n- All 8 DM-172 scratch scripts: ALL PASS (62/15/16/31/15/27/24/13).\n- Old-vs-new fuzz, one start at a time: 220 differences, all the intended own-span-after-execution case.\n- Other 20,000-span worst cases (all ended before the sprint, distinct actors, own late spans): 13–19 ms.\n- `npm run typecheck` is clean. oxlint on the touched files finds nothing. vitest on capabilities, server, adoption and authz: 4 files, 114 tests passed.\n\nMinor issues (not reasons to reject):\n- The `./timingSpans` import sits between `../canonical` and `../ids`, out of order.\n- Two cases fail closed (missing instead of scored): a non-own span DM-172 cuts at a silent run pause before the sprint, and a span that ends in the gap of a reactivated sprint. Both still list their bucket.\n- pF's own setup fails at 19,990 spans because the claim expires, as the worker reported; pE covers that size.",
+        "outcome": "rejected",
+        "reasons": [
+          "c3: `unendedOverheadBuckets` (src/core/space/efficiency.ts) indexes every delivery in `activity` (`actorInstants`, and the loop too). DM-172's `prepareObservations` keeps only the first delivery of each id and drops a conflicting re-delivery, so the dropped delivery counts as the actor's later observation and hides an unended span. Repro /tmp/dm176-probe/pH.ts: in sprint 1 a reviewer starts span 'r1' with no stop, and 5 minutes later id 'r1' arrives again as an idle start. DM-172 reports conflicting_duplicate and leaves sprint 2's reviewer bucket missing, but sprint 2 T is scored at 1,200,000 ms with grade 100. Without the re-delivery T is missing (overhead_unavailable). Fix: keep only the first delivery of each id for the index and the loop, and add the case to c3-missing-limited.ts."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "node, web and fireguard tsconfigs clean",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "0 findings; the classify max-params and the new complexity finding are both fixed",
+            "name": "npx oxlint src/core/space/efficiency.ts src/core/space/timingSpans.ts scratch/DM-176/",
+            "status": "passed"
+          },
+          {
+            "detail": "4 files, 114 tests. No test file imports efficiency.ts, timingSpans.ts or spaceSignals.ts directly.",
+            "name": "npx vitest run src/core/commands/capabilities.test.ts src/mcp/server.test.ts src/core/services/adoption.test.ts src/core/authz.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "13/16/35/38 PASS, ALL PASS",
+            "name": "DM-176 scratch scripts c1–c4",
+            "status": "passed"
+          },
+          {
+            "detail": "pA: E/T missing (unmeasured_attempts). pB: reviewer unended, T missing. pD follow and none: sprint 2 T missing (overhead_unavailable), grade null. pE 20,000: 18–27 ms. pF 5,000: sprint 28 ms, projection 38 ms. pF 14,000: sprint 79 ms, projection 89 ms. At 19,990, pF's own setup fails with expired_claim (its minutes exceed the 4-hour lease); pE covers that size.",
+            "name": "Review probes pA, pB, pD, pE, pF",
+            "status": "passed"
+          },
+          {
+            "detail": "ALL PASS after exporting firstAfter",
+            "name": "DM-172 scratch c3-sprints-overhead, c1-unclosed-spans",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test (full), coverage, build, deadcode, fireguard",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "scratch/DM-176/c1-denominator-coverage.ts: 13 PASS, ALL PASS. Rerun after classify became an options call."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "scratch/DM-176/c2-resource-baselines.ts: 16 PASS, ALL PASS. Unchanged this attempt."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "scratch/DM-176/c3-missing-limited.ts: 35 PASS, ALL PASS. New pD checks: an own span after submission, followed by another own span, leaves sprint 2 T missing (unattributed part missing, reports 1, grade null). This check fails with the old code. pE 20,000 spans: 18–27 ms. pF sprint read 28 ms at 5,000 and 79 ms at 14,000 (was 3,991 / 34,827 ms)."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "scratch/DM-176/c4-fixtures.ts: 38 PASS, ALL PASS. Unchanged this attempt."
+          }
+        ],
+        "notes": "Rule: an unclosed active start whose bucket is non-null and that began before the sprint ended is listed when no observation of the same (role, actorRef, attemptId) came after it by the sprint's start. Own-attempt spans (named attempt, same role) are always listed. Only spans begun after execution ended reach that branch; the others have a null bucket. This matches DM-172: `limit = own.windowEnd`, and windowEnd = executionEnd ?? endBound, the same instant overheadBucketOf uses.\n\nRed team:\n- Fail-open on unparseable instants: a NaN `at` would have poisoned the binary search. NaN instants are left out of the index, and a NaN start is always listed (fail closed, as before).\n- Quadratic traps: I caught and fixed an array spread while building the index. Attempt lookup is now a Map, not `find` per start. The worst case (every span ended before the sprint) is 19 ms at 20,000.\n- Bucket routing: in an interim edit I briefly broke the orchestrator-about-a-worker-attempt branch and restored it. pB and the DM-176 c3 orchestrator and reviewer checks pass.\n- Vacuous test: the new pD check fails with HEAD's efficiency.ts (1 FAILED), and the reviewer-ended-in-sprint-1 control still scores.\n- Seams: firstAfter's export doesn't change DM-172 behaviour (its scripts pass). spaceSignals is the only caller of unendedOverheadBuckets, and its signature is unchanged. The docs line is updated.\n\nDiscoveries: none."
+      },
+      "failure": null,
+      "fencingToken": 3,
+      "id": "at_01m68wa36z2bbmxtbpftbbv0m3",
+      "kind": "work",
+      "number": 3,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "c1: npx tsx scratch/DM-176/c1-denominator-coverage.ts → 13 PASS, ALL PASS",
+            "location": "scratch/DM-176/c1-denominator-coverage.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "c2: npx tsx scratch/DM-176/c2-resource-baselines.ts → 16 PASS, ALL PASS",
+            "location": "scratch/DM-176/c2-resource-baselines.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "c3 incl. new pD own-span case: npx tsx scratch/DM-176/c3-missing-limited.ts → 35 PASS, ALL PASS (1 FAILED with the previous efficiency.ts)",
+            "location": "scratch/DM-176/c3-missing-limited.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "c4: npx tsx scratch/DM-176/c4-fixtures.ts → 38 PASS, ALL PASS",
+            "location": "scratch/DM-176/c4-fixtures.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Shared harness (classify now takes {cause, ms, role})",
+            "location": "scratch/DM-176/harness.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Fixed unendedOverheadBuckets",
+            "location": "src/core/space/efficiency.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "space-DM-176",
+        "changedFiles": [
+          "docs/architecture.md",
+          "docs/space-grading.md",
+          "scratch/DM-176/c1-denominator-coverage.ts",
+          "scratch/DM-176/c2-resource-baselines.ts",
+          "scratch/DM-176/c3-missing-limited.ts",
+          "scratch/DM-176/c4-fixtures.ts",
+          "scratch/DM-176/harness.ts",
+          "src/core/services/plannedBaselines.ts",
+          "src/core/services/spaceSignals.ts",
+          "src/core/services/timing.ts",
+          "src/core/space/efficiency.ts",
+          "src/core/space/fixtures/efficiency/approval-wait.json",
+          "src/core/space/fixtures/efficiency/causes.json",
+          "src/core/space/fixtures/efficiency/cohorts.json",
+          "src/core/space/ledger.ts",
+          "src/core/space/schemas.ts",
+          "src/core/space/timingSpans.ts",
+          "src/shared/domain/efficiency.ts",
+          "src/shared/domain/signals.ts",
+          "src/shared/domain/space.ts"
+        ],
+        "commits": [
+          "0f863f0d0b0e1aa6613904aa8b5366727e1c8322",
+          "f53cf6ab15863b6c96c005b43dae94af7b18a601",
+          "a9e6e9d94c119306fc83bb4050f9a2270208f954",
+          "fa186dc99b71afd321a06761b2eda9ec37bc20bf",
+          "ca61d622460c04d3ab47cb9544cd621137c532dc",
+          "4f3a082f9cf949af0467a127a837bdaace4bd2d2",
+          "3dab2c35aa5cb6c53a397a718bc6b5ee611fcfa0",
+          "2838de72439fabce255df4f8a00e32b9f53867c8"
+        ],
+        "summary": "Attempt 3 fixes the two review defects in `unendedOverheadBuckets` (src/core/space/efficiency.ts) in commit 0f863f0. Both are verified, and the worktree is clean.\n1. An attempt's own span that began after its execution ended (unattributed overhead) is no longer ended by a later observation, because DM-172 caps own spans at the window end. pD sprint 2 now gives T missing (overhead_unavailable) and grade null, with or without late2.\n2. Activity is indexed once per (role, actorRef, attemptId) into sorted instants, and each unclosed start binary-searches its next observation with DM-172's `firstAfter`, now exported from timingSpans.ts. This is O(n log n). pE at 20,000 spans: 18–27 ms. pF sprint read: 28 ms at 5,000 spans (was 3,991 ms) and 79 ms at 14,000 (was 34,827 ms).\nThe c3 script has the pD case, docs/space-grading.md documents the exception, and scratch classify takes an options object."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m65yene3p1dwngx9apevkpn4",
+      "state": "rejected",
+      "submittedAt": "2026-10-31T11:49:52.075Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:7eb11ddd86c9f2bf0324d6321b7160be512eb687eec540bc244501d9217e574c",
+      "ticketId": "tk_01m453gpadahyzv2h66bwjwxmf",
+      "updatedAt": "2026-10-31T12:00:54.583Z",
+      "worker": {
+        "catalogRevision": "2026-10-31.1",
+        "effort": "high",
+        "hostId": "omp-darwin-arm64-space",
+        "label": "omp task subagent",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (Last attempt on \"anthropic/claude-opus-5-5\" was rejected; nothing eligible sits above it and \"high\" is already its highest effort, so the same model is repeated.; Highest reasoning level \"deep\" is 1 rank above the ticket's \"multi_step\" need (-20).; Lists skills \"typescript\", \"node\", \"testing\" (+10, capped at 10).; Cost tier \"high\": cheaper tiers sort first on equal scores.). This host cannot set a subagent's model or effort; the worker is an omp task subagent at the harness default, which the catalog lists as anthropic/claude-opus-5-5. Attempt 2 rejected (an own span after submit is dropped from later sprints; the new rule is quadratic). Same model at the highest effort per match_capabilities; nothing sits above it in this catalog.",
         "sessionId": null
       }
     }

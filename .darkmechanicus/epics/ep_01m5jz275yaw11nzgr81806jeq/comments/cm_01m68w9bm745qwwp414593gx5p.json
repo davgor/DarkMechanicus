@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "**Orchestrator decision (DM-318 attempt 1 review).** The real-PTY test runs on darwin only, not on Windows. The person chose \"macOS live, Windows optional\", and nothing in this run can run ConPTY. Windows PTY behavior is verified by the optional DM-333.\n\n**Pre-existing, not caused by this epic:** main's `pr-checks` Windows job is already red. It fails on 8.3 short temp paths (`C:\\Users\\RUNNER~1\\…`) in `chatGrants.test.ts` and `launchFolder.test.ts`. This is recorded for the retro.",
+  "createdAt": "2026-10-31T11:42:28.487Z",
+  "epicId": "ep_01m5jz275yaw11nzgr81806jeq",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m68w9bm745qwwp414593gx5p",
+  "ticketId": "tk_01m68tv9x1bay77zhr4p3qyqej"
+}

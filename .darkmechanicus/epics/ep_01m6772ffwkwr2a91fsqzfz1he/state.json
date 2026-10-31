@@ -4,15 +4,51 @@
     "repository": "/Users/davidgorden/Documents/GitHub/DarkMechanicus",
     "startCommit": "88c212f1edd98c6054a66e9d853e78208de74724"
   },
-  "completedAt": null,
+  "completedAt": "2026-10-31T15:16:37.938Z",
   "createdAt": "2026-10-30T20:12:28.540Z",
   "epicId": "ep_01m6772ffwkwr2a91fsqzfz1he",
   "format": "darkmechanicus.epic-state",
   "formatVersion": 1,
-  "generation": 30,
-  "outcome": null,
+  "generation": 58,
+  "outcome": {
+    "recordedAt": "2026-10-31T15:16:37.938Z",
+    "runId": "rn_01m682cjdcgmrpc9tg2xweptbs",
+    "successCriteria": [
+      {
+        "criterionId": "s1",
+        "met": true,
+        "note": "buildLinearPacket (DM-287) orders issues by sprint, row and sprint order with each acceptance node last; DM-293's integration test shows one milestone per sprint, ENG identifiers rising in execution order, acceptance issues last and blocked, blocks and related relations; descriptions carry checklist, back-link and marker; priority and labels mapped. DM-284 c3 printed this epic's packet order. Fake Linear only. Sprint 2: DM-315 adds a DM-completed ticket whose issue ends in a completed state."
+      },
+      {
+        "criterionId": "s2",
+        "met": true,
+        "note": "DM-290 compareReadback: 16 mismatch fields incl. unexpected and duplicate, each with ref, key and field; the epic stays open on any mismatch (17-case table test). DM-284 c6: one wrong priority rejected naming DS-6/priority; the corrected read-back completed the epic. Sprint 2: DM-315 shows an open issue for a completed ticket rejected as a state mismatch by key; DM-312 bounds each part and the merged read-back. Sprint 3: DM-339 caps the merged read-back at 100,000,000 characters; DM-340 states which final parts end a read-back."
+      },
+      {
+        "criterionId": "s3",
+        "met": true,
+        "note": "DM-288 recorded mapping + next; DM-293 crash between create and record resumed by marker search with create count equal to the packet; cancel and re-queue adopted every item, 0 creates."
+      },
+      {
+        "criterionId": "s4",
+        "met": true,
+        "note": "DM-290 completion transaction: epic completed with outcome.transfer (projectUrl, revisionId, packetHash, every key -> identifier), summary comment, epic.transferred; afterwards start_run, plan edits and queueTransfer refuse with completed_epic (tests, DM-293, DM-284 c6). Sprint 2: DM-311 refuses completion while pulled records are held."
+      },
+      {
+        "criterionId": "s5",
+        "met": true,
+        "note": "transfer.queue is human-only and not grantable (DM-288), desktop-only queue/cancel with no MCP tool (DM-291); in-app chat (DM-294), Copy prompt and Transfer with agent (DM-295), `dm transfer linear` for an external agent (DM-292); queue_run, start_run and Save refused until verified or canceled (DM-289). Sprint 2: Save hidden while a transfer is open (DM-313); another machine's revisions and runs are held until cancel (DM-311). Sprint 3: the transfer chat follows main's agent-id model and refuses an unconnected agent or a swapped folder (DM-337)."
+      },
+      {
+        "criterionId": "s6",
+        "met": true,
+        "note": "DM-285 role guides and DM-286 repository rules state the plan-stated rule and the per-ticket Tests section; served prompts quoted in DM-284 c1. Sprint 2: DM-317 makes the delivery-standards links resolve."
+      }
+    ],
+    "summary": "The Linear handoff is complete and ready to merge into main: a person authorizes a transfer in the desktop app, an orchestrator agent carries it out through its own Linear MCP server following the darkmechanicus-linear-transfer guide, and DM completes the epic only when the agent's bounded read-back matches the stored packet. While a transfer is open, runs, Save and another machine's revisions and runs are held back, and no epic export overwrites records pulled from another machine. The epic branch includes main 022734c with the transfers migration as V11. Verified against a fake Linear MCP server; a real Linear workspace was not exercised."
+  },
   "provenance": null,
-  "status": "in_progress",
+  "status": "completed",
   "ticketStatuses": {
     "tk_01m6772ffw7g0zd5kz42brhp8z": "completed",
     "tk_01m6772fg91dsy3716fa3gq227": "completed",
@@ -27,15 +63,21 @@
     "tk_01m6772fgen0tqgp39mgahnctk": "completed",
     "tk_01m6772fget96mdb0dxv4tygh9": "completed",
     "tk_01m6772fgeztxwzehczabspkeg": "completed",
-    "tk_01m68dpc02n5x6b5fj143vbchs": "backlog",
-    "tk_01m68dpc081yvkz7m9gfyk7nst": "backlog",
-    "tk_01m68dpc082gspaxv89z2xm19v": "backlog",
-    "tk_01m68dpc0850cbf38att5taef0": "backlog",
-    "tk_01m68dpc086t3tc17m2kj8zjcr": "backlog",
-    "tk_01m68dpc08nzp247t97y9eekcy": "backlog",
+    "tk_01m68dpc02n5x6b5fj143vbchs": "completed",
+    "tk_01m68dpc081yvkz7m9gfyk7nst": "completed",
+    "tk_01m68dpc082gspaxv89z2xm19v": "completed",
+    "tk_01m68dpc0850cbf38att5taef0": "completed",
+    "tk_01m68dpc086t3tc17m2kj8zjcr": "completed",
+    "tk_01m68dpc08nzp247t97y9eekcy": "completed",
     "tk_01m68dpc08y4w7cqj105sd6cs9": "backlog",
-    "tk_01m68dpc08z3gh8ferv0mfezfv": "backlog"
+    "tk_01m68dpc08z3gh8ferv0mfezfv": "completed",
+    "tk_01m68vsqaj0yz4gqmhns6st1sf": "completed",
+    "tk_01m68vsqaz1gnst6m68ppmzp6z": "completed",
+    "tk_01m68vsqazanz0esg2854pnhkk": "completed",
+    "tk_01m68vsqazarqdrkrjybenx3vc": "completed",
+    "tk_01m68vsqaze6w0z42qf252qnfj": "completed",
+    "tk_01m68vsqazfgx7ksn2wtsx4qyq": "completed"
   },
   "title": "Linear handoff: transfer a saved plan to a Linear project in execution order, verify it, and complete the epic",
-  "updatedAt": "2026-10-31T10:42:44.098Z"
+  "updatedAt": "2026-10-31T15:16:37.968Z"
 }

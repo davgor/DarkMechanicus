@@ -916,23 +916,159 @@
     },
     {
       "createdAt": "2026-10-31T04:35:29.270Z",
-      "decidedAt": null,
-      "decision": null,
-      "evidence": null,
+      "decidedAt": "2026-10-31T10:47:32.049Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Reviewed 942f7e8 (red) + eb883ff. Idle kill still exists (DEFAULT_IDLE_MS) but since c2789d6 waits while a command/subagent runs. Discovery: history.test.ts 'pages past 100 commits' times out under heavy load. Accepted.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npx vitest run src/test/gitRepo.test.ts: 15 passed (15). At red commit 942f7e8, before the implementation, it gave 15 failed (15).",
+            "name": "unit tests (touched)",
+            "status": "passed"
+          },
+          {
+            "detail": "/tmp/sc-epic/logs/DM-214-loop.sh, 20 files / 365 tests per run, on eb883ff: 197 passed, 3 failed (runs 7, 8, 114). Every failure was 'Error: Test timed out in 15000ms' in src/main/git/history.test.ts > getHistory > pages past 100 commits, at load1 57.8/92.3/58.6. runs-with-retry=0. Longest passing streak 105.",
+            "name": "git-backed test files loop 1 (200 runs)",
+            "status": "failed"
+          },
+          {
+            "detail": "Same script and commit: 200 passed, 0 failed, runs-with-retry=0, 200 consecutive. load1 median 47.1, max 70.8; mean 11.3 s per run.",
+            "name": "git-backed test files loop 2 (200 runs)",
+            "status": "passed"
+          },
+          {
+            "detail": "npx oxlint src/test/gitRepo.ts src/test/gitRepo.test.ts: exit 0, no findings. A scratch file with `debugger` was flagged, so the linter does report findings.",
+            "name": "oxlint (touched files)",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck (node, web and fireguard projects): exit 0 on eb883ff",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run lint (whole tree)",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test (full suite)",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the sprint's Fireguard ticket. Under fireguard's gitScope, src/test/ helpers are not production modules, so only the AST and flake gates apply to gitRepo.test.ts.",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node. No new exports were added; GitRepoDeps is module-private.",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "No reproduction on macOS: loop 2 shows 200 clean runs of the 20 git-backed test files (365 tests each), /tmp/sc-epic/logs/DM-214-loop2-loop.log; loop 1's 3 failures were a 15 s timeout in history.test.ts 'pages past 100 commits' at load ~60, not git init or a fork crash."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "createGitRepo retries temp-folder creation + git init up to 3 times, only on EBUSY/EPERM/EACCES from mkdtemp/mkdir/realpath or git's 'could not lock'/'Device or resource busy'/'Permission denied'; everything else throws first time. Keyed on the ticket's named examples (no observed reproduction), as the orchestrator directed. gitRepo.test.ts (15 tests, red first) covers retry-then-succeed, exhaustion, and immediate throw."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "200 consecutive passing runs in loop 2 (log above)."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Only src/test/gitRepo.ts and src/test/gitRepo.test.ts changed; vitest.config.ts untouched. A stray edit to the coordinating checkout was reverted; orchestrator confirmed it is clean."
+          }
+        ],
+        "notes": "Limits: (1) Only createGitRepo has the retry. createTempRepo's other callers (backup/discovery/importer/initialize/nodeFs/paths tests) and scratchDir + gitIn('init') in the src/main/git tests do not, as the orchestrator's scope said. (2) The total backoff is 150 ms, and a Windows Defender/indexer lock could last longer; this was never observed. (3) If createTempRepo throws after mkdtemp succeeded (mkdir of repo/outside fails), its base folder stays in the OS temp dir, because createTempRepo has no partial cleanup; this is harmless. (4) 'Permission denied' could also be a permanent failure; it is retried at most twice (about 150 ms) and then the same error is thrown. Process incident: one edit was first applied by relative path to the coordinating checkout's src/test/gitRepo.ts. I saved it as a diff (/tmp/sc-epic/logs/DM-214-misplaced-edit.diff), applied it to my worktree, and reverse-applied it in the coordinating checkout. `git status -- src/test/gitRepo.ts` there is now clean, and no other file in the coordinating checkout was touched. Loop 1's first launch (plain nohup &) died after run 1 when the tool shell ended (log kept at /tmp/sc-epic/logs/DM-214-loop-attempt1-died.log); both counted loops were relaunched in their own session (start_new_session). Red-team self-review: I attacked fail-open classification, which spawn-error syscalls keep out of the errno branch. I attacked retries hiding flakes, which the stderr warning and the loop's retry-log capture cover. I attacked vacuous tests: they were red 15/15 before the implementation, and the waits/attempt counts are asserted. I attacked cross-realm instanceof, verified under vitest forks. I attacked deadcode/fireguard seams: no new exports, and src/test is excluded from mutation. Two things I found and fixed: an untested `status` check in the git-error branch was removed, and the backoff was made injectable and asserted.\nDiscoveries:\n- title: Make history.test.ts 'pages past 100 commits' fast enough not to time out under load\n  reason: It makes 120 sequential `git commit --allow-empty` spawns, and under load it ran 16-20 s against the 15 s testTimeout. It failed 3/200 runs in loop 1 on eb883ff (load1 57-92 on 12 cores; /tmp/sc-epic/logs/DM-214-fail-run-7.log, -8, -114) and 2/2 probe runs on baseline 682aead (/tmp/sc-epic/logs/DM-214-probe-2.log). Windows spawns git more slowly, so a Fireguard flake gate there is at risk. Building the history with one `git fast-import` (or a commit-tree chain), or giving that test an explicit timeout, would remove it. This ticket may not touch it (c4).\n  ticket: DM-214\n- title: Cover scratchDir + gitIn('init') and createTempRepo's direct callers if the Windows busy-folder flake recurs\n  reason: The DM-214 retry covers only createGitRepo. The commit/diff/history/status/handlers tests also create repos with scratchDir() + gitIn(path, 'init'), and seven core/repo tests call createTempRepo directly. None of these paths retries a busy temp folder, so the same Windows failure would still fail them on the first try.\n  ticket: DM-214"
+      },
       "failure": null,
       "fencingToken": 1,
       "id": "at_01m683vgvprytxzz19kt25tb3w",
       "kind": "work",
       "number": 1,
-      "outputs": null,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Retry tests (injected failing execFileSync / temp folder)",
+            "location": "src/test/gitRepo.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Loop 1 log: 200 runs, 197 passed, 3 history.test.ts timeouts",
+            "location": "/tmp/sc-epic/logs/DM-214-loop.log",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Loop 2 log: 200 runs, 200 passed (200 consecutive)",
+            "location": "/tmp/sc-epic/logs/DM-214-loop2-loop.log",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Loop 1 kept failing-run logs (runs 7, 8, 114)",
+            "location": "/tmp/sc-epic/logs/DM-214-fail-run-7.log, /tmp/sc-epic/logs/DM-214-fail-run-8.log, /tmp/sc-epic/logs/DM-214-fail-run-114.log",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Loop script (keeps every failing run and every run with a retry warning)",
+            "location": "/tmp/sc-epic/logs/DM-214-loop.sh",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Git-backed test file list used by the loops",
+            "location": "/tmp/sc-epic/logs/DM-214-files.txt",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Baseline probe at 682aead (before the change) showing the same history.test.ts timeout",
+            "location": "/tmp/sc-epic/logs/DM-214-probe-2.log",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "source-control-DM-214",
+        "changedFiles": [
+          "src/test/gitRepo.ts",
+          "src/test/gitRepo.test.ts"
+        ],
+        "commits": [
+          "942f7e829daf30e9d4d21d058a5b2fc0c17875a0",
+          "eb883ff3cebf42b05952e81d9584382d506cca77"
+        ],
+        "summary": "createGitRepo (src/test/gitRepo.ts) now retries temp-folder creation plus `git init` as one unit. It makes up to 3 attempts with a 50 ms then 100 ms backoff, and each attempt uses a fresh temp folder; a failed attempt's folder is removed with removeScratch. The retry fires only on the busy/locked-folder class that the ticket names: errno EBUSY/EPERM/EACCES from the temp-folder calls (syscall mkdtemp/mkdir/realpath), or git stderr matching `could not lock`, `Device or resource busy` or `Permission denied` from `git init`. Every other failure throws its original error on the first attempt: a different git error, the same errno from spawnSync git (git cannot start or is missing), ENOSPC, or EBUSY on a non-temp syscall. Any failure after `git init` also throws at once, including in the initial commit and later repo.git()/commit() calls. Each retry writes a console.warn line containing git's stderr, so a retry cannot hide a flake. execFileSync, createTempRepo, warn and pause can be injected through an optional `createGitRepo(overrides)`; the existing zero-argument callers are unchanged. Tests were written first: commit 942f7e8 failed 15/15 against the old helper, and eb883ff makes them pass. Reproduction: the 20 git-backed test files (19 that import gitRepo/tempRepo/gitScratch, plus the new gitRepo.test.ts) ran 200 times in a detached loop, twice, on eb883ff. Loop 1 passed 197/200. Its 3 failures were all the same 15 s timeout in src/main/git/history.test.ts > 'pages past 100 commits' (120 sequential git commits) at load1 57.8, 92.3 and 58.6 on 12 cores. The same timeout also hit 2 of 2 probe runs on the baseline 682aead before any change. Loop 2 passed 200/200. Neither loop reproduced the `git init` failure, the vitest `Worker exited unexpectedly` crash, or any retry (runs-with-retry=0). So the transient set comes from the ticket's examples, not from an observed failure, and vitest.config.ts is unchanged. Idle-kill check: it is present in this tree. src/main/agents/sessionManager.ts:87 sets `DEFAULT_IDLE_MS = 10 * 60_000`. idleWhenQuiet (lines 362-375) disposes a session, which kills its process tree through the adapter, after 10 quiet minutes with no running turn and no waiting approval. Since c2789d6 (2026-10-07, 'Keep an agent with work in progress past the idle stop'), the timer re-arms instead while adapter.hasLiveWork() is true; for Claude that is claudeTranscript.ts:236 (an unanswered call, a background task or a running thread). Whether that idle-kill caused the Windows flake could not be tested on this macOS host: both loops ran detached in their own session, outside any app process tree."
+      },
       "reconciledAt": null,
       "revisionId": "rv_01m4acnd85d82fg5qgy4jb4kse",
-      "state": "running",
-      "submittedAt": null,
+      "state": "accepted",
+      "submittedAt": "2026-10-31T10:47:32.023Z",
       "supersededAt": null,
       "ticketContentHash": "sha256:4773f4d227902fda57cee1eb45f8a9e3786b128458b07dbb979e118c6f707d6e",
       "ticketId": "tk_01m49emzz6ymm1v65mzf6zfbza",
-      "updatedAt": "2026-10-31T04:37:23.676Z",
+      "updatedAt": "2026-10-31T10:47:32.049Z",
       "worker": {
         "catalogRevision": "hc_01m683v6zpwtyanf40hj5gg7wd",
         "effort": "medium",
@@ -1464,6 +1600,1503 @@
         "effort": "low",
         "hostId": "omp-mac-davidgorden",
         "label": "omp task subagent (DM-219)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Run's host catalog (hc_01m49h2h…, Windows) was never imported, so match_capabilities returns not_found and the claim skips catalog checks. omp cannot select a worker model; its task subagents run claude-opus-5-5. Effort recorded as the ticket's planned effort. Lease 4h; orchestrator heartbeats for the worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T10:47:58.314Z",
+      "decidedAt": "2026-10-31T11:18:56.898Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Accepted with c5 unmet by the person's explicit decision to build against a placeholder client ID; see the DM-141 decision comment. An adversarial security review (security-reviewer subagent) found no blocker/major; its 4 minor findings plus redirect hardening were fixed in 20bae39/dfe4e13 before submission.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npx vitest run src/main/github src/renderer/src/__mocks__/fakeGithub.test.ts src/renderer/src/api/github.test.ts src/main/desktop/ipc.test.ts src/main/index.test.ts + the 9 AppHarness test files: 20 files, 189 tests passed (after review fixes)",
+            "name": "unit tests (touched)",
+            "status": "passed"
+          },
+          {
+            "detail": "commit fbd43c2 holds the tests only; npx vitest on them failed 8/8 files (modules missing) before implementation; errors.test.ts and the tmp-cleanup store test were also run red (3 failed) before their fixes; review round: 20bae39 holds the new tests only and 11 failed before dfe4e13",
+            "name": "tests written first (red)",
+            "status": "passed"
+          },
+          {
+            "detail": "unredacted logging, full account in getAccount, token in the account broadcast, plain token in the file, and a 401 not signing out each made the targeted tests fail; all mutations reverted, worktree clean; review round: removing the superseded-attempt guard, signing out on any 401, dropping the mid-body abort check, showing undecryptable accounts, and dropping redirect: 'error' each failed the targeted tests (reverted, worktree clean)",
+            "name": "mutation spot-checks",
+            "status": "passed"
+          },
+          {
+            "detail": "npx oxlint on every touched source and test file: exit 0 (re-run after review fixes)",
+            "name": "lint (touched files)",
+            "status": "passed"
+          },
+          {
+            "detail": "exit 0 (node, web and fireguard projects) (re-run after review fixes)",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found; .tsprune-ignore unchanged (re-run after review fixes)",
+            "name": "npm run deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test (full)",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run lint (whole tree)",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run build",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "coverage",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "deviceFlow.test.ts/handlers.test.ts with fake fetch + clock: pending→slow_down(+5 s)→success; expired, denied, misconfigured, cancel (incl. mid-body abort) each end with their own code; startSignIn opens only https://github.com/ verification URLs and broadcasts the account. Orchestrator re-ran src/main/github + fakeGithub/api tests: 74 passed."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "accountStore: safeStorage-encrypted base64 token in userData/github-account.json, atomic tmp+rename, refused with secure_storage_unavailable (Linux basic_text counted unavailable), sign-out deletes file and leftover .tmp; undecryptable token reads as signed out."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "expectNoSecrets searches every result, broadcast, log line (message/stack/cause) and the account file for the fake token and device code; mutations that leak make it fail (worker + independent red-team)."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "createSessionClient: a 401 signs out locally only when the rejected token is still stored, returns auth_required; wired in bootstrap and exported on the bridge for DM-143/150/152."
+          },
+          {
+            "criterionId": "c5",
+            "met": false,
+            "note": "GITHUB_SCOPES = 'repo read:user workflow' is met. GITHUB_OAUTH_CLIENT_ID is an empty placeholder by the person's decision (no OAuth App registered; sprint 2 entry criterion n1 open). Sign-in fails fast with sign_in_misconfigured and no network call. Filling the constant in src/main/github/config.ts is the only change needed."
+          },
+          {
+            "criterionId": "c6",
+            "met": true,
+            "note": "Red tests first (fbd43c2, 20bae39); touched tests, oxlint, typecheck and deadcode pass."
+          }
+        ],
+        "notes": "Red-team (token leakage), attacked and result: (1) fetch errors carrying the request/headers: http.send never forwards a caught fetch error, it throws a fixed GithubError; (2) String(error)/error messages: every GithubError message is fixed text, GitHub's error_description and bodies are never echoed (tested); (3) logger: only unexpected errors are logged, through redactSecrets, which copies just name/message/stack/cause with the token and device code replaced and drops other properties (a request object); found and fixed a stack overflow on a cyclic cause chain (depth limit 3); (4) broadcasts: session and broadcaster rebuild {login,name} and {code,message} field by field; (5) detail: never set by GitHub results; (6) IPC args: github channels ignore renderer arguments (preload seam test checks no arguments are sent); (7) superseded attempt racing a new one: the attempt.signal.aborted check after fetchUser stops an aborted attempt storing its token. Correction: in round 1 the test I cited ('a superseded attempt never stores its token') never reached that guard (send() rejected the poll first); the review round adds 'a superseded attempt whose /user answer arrives late…', which does reach it and fails when the guard is deleted; (8) openExternal of a server-supplied URL: verification_uri must start with https://github.com/ (tested); (9) device code treated as a secret too (with the public client ID it can collect the token): never returned or broadcast, scrubbed from logs; (10) plaintext fallback: none; also treated Linux safeStorage 'basic_text' (fixed password) as unavailable [bootstrap composition, not unit-tested]; (11) leftover .tmp after an interrupted write held the encrypted token past sign-out: sign-out now deletes it too. Redirects: fixed in review — all GitHub requests use redirect: 'error'. Limits: sign-in cannot work end to end until GITHUB_OAUTH_CLIENT_ID is filled (it fails fast with sign_in_misconfigured, no network call). Review fixes: the 401 race is fixed (sign-out only while the rejected token is still stored); getAccount now decrypts once per loaded file to check the account is usable (plain token still never cached), which on macOS may touch the keychain at first read.\nDiscoveries:\n- title: Register the GitHub OAuth App and fill GITHUB_OAUTH_CLIENT_ID\n  reason: src/main/github/config.ts ships an empty client ID by the person's decision, so every sign-in ends at once with sign_in_misconfigured and criterion c5 stays unmet; DM-142's screenshot of a real code also needs it.\n  ticket: DM-141"
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m68s5j3afy98d50z848qzgt8",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "GitHub config (client ID placeholder, scopes)",
+            "location": "src/main/github/config.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Device flow",
+            "location": "src/main/github/deviceFlow.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "API client",
+            "location": "src/main/github/client.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Encrypted account store",
+            "location": "src/main/github/accountStore.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Main-side githubSession",
+            "location": "src/main/github/session.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Handlers",
+            "location": "src/main/github/handlers.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "IPC + broadcaster",
+            "location": "src/main/github/ipc.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Shared window.github contract",
+            "location": "src/shared/github/api.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Renderer FakeGithub",
+            "location": "src/renderer/src/__mocks__/fakeGithub.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Targeted test run log",
+            "location": "/tmp/sc-epic/logs/DM-141-tests.log",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "source-control-DM-141",
+        "changedFiles": [
+          "src/main/desktop/bootstrap.ts",
+          "src/main/github/accountStore.test.ts",
+          "src/main/github/accountStore.ts",
+          "src/main/github/client.test.ts",
+          "src/main/github/client.ts",
+          "src/main/github/config.test.ts",
+          "src/main/github/config.ts",
+          "src/main/github/deviceFlow.test.ts",
+          "src/main/github/deviceFlow.ts",
+          "src/main/github/errors.test.ts",
+          "src/main/github/errors.ts",
+          "src/main/github/handlers.test.ts",
+          "src/main/github/handlers.ts",
+          "src/main/github/http.ts",
+          "src/main/github/ipc.test.ts",
+          "src/main/github/ipc.ts",
+          "src/main/github/session.ts",
+          "src/preload/index.ts",
+          "src/renderer/src/__mocks__/appHarness.tsx",
+          "src/renderer/src/__mocks__/fakeGithub.test.ts",
+          "src/renderer/src/__mocks__/fakeGithub.ts",
+          "src/renderer/src/api/github.test.ts",
+          "src/renderer/src/api/github.ts",
+          "src/renderer/src/window.d.ts",
+          "src/shared/git/api.ts",
+          "src/shared/github/api.ts",
+          "src/shared/github/errors.ts",
+          "src/test/fakeHttp.ts"
+        ],
+        "commits": [
+          "fbd43c2b4ce4ec77c4b0d0f092bd6464c0af3309",
+          "1b2bca186dd00b976f867ea6491fd5349f7ce656",
+          "20bae398a813c4b39ee6948c1281a7427dee640b",
+          "dfe4e13504798adcf297fdd7617ee70e5f3385bd"
+        ],
+        "summary": "GitHub sign-in through the OAuth device flow, with the token kept safeStorage-encrypted in main. New src/main/github: config.ts (GITHUB_OAUTH_CLIENT_ID = '' placeholder per the person's decision, GITHUB_SCOPES = 'repo read:user workflow'), deviceFlow.ts (injected fetch/sleep/now/clientId; an empty client ID fails fast with sign_in_misconfigured and makes no request; pending/slow_down(+5 s)/expired/denied/misconfigured/cancel/network endings; the verification URL must be on https://github.com/), client.ts (GET /user with Bearer, GitHub JSON, API version and DarkMechanicus/<version> UA headers; X-OAuth-Scopes kept; 401 calls onUnauthorized and fails auth_required), accountStore.ts (userData/github-account.json {version:1,login,name,scopes,token=base64(encrypt)}; tmp+rename write with mode 0600; refuses secure_storage_unavailable, no plaintext fallback; decrypts only in getToken; sign-out deletes the file and any leftover tmp), session.ts (githubSession: getAccount/getToken/canStoreToken/signIn/signOut, broadcasting {login,name} only), handlers.ts (getAccount/startSignIn/cancelSignIn/signOut; background polling; a newer start aborts the previous attempt quietly; unexpected errors logged through redactSecrets with the token and device code scrubbed), ipc.ts (github:* channels with no renderer arguments; broadcaster rebuilds payloads field by field), errors.ts, http.ts. Bridge: shared/github/api.ts + errors.ts (GitResult codes now include the GitHub codes), preload window.github, renderer api/github.ts (callGithub/GithubCommandError), __mocks__/fakeGithub.ts wired into AppHarness, window.d.ts. bootstrap.ts gets startGithub (guarded registrar, net.fetch, safeStorage; Linux basic_text backend counts as unavailable) and startDesktopBridge returns { chats, github: { getAccount, getToken, client } }, where client = createSessionClient(session, …) so later tickets (DM-143/150/152) get the 401 → local sign-out (c4) for free (still within the 50-line function limit). No .tsprune-ignore entries were needed: unused interfaces were made module-private instead. Filling GITHUB_OAUTH_CLIENT_ID later is the only change needed to enable sign-in. Review round 1 (commits 20bae39 tests red, dfe4e13 fixes): (1) new test holds attempt A's GET /user in flight, starts B, releases A — no account file, no accountChanged; deleting the attempt.signal.aborted guard in handlers.ts makes it fail; (2) readJson takes the signal and reports an abort mid-body as cancelled (startDeviceFlow and pollForToken tested); (3) createSessionClient(session, { fetch, appVersion }) in client.ts: onUnauthorized now receives the rejected token and signs out only while it is still the stored one (sign-out and stale-token no-op tested), exposed from the bridge as github.client; (4) accountStore.getAccount() returns null when OS encryption is unavailable or the stored token cannot be decrypted (checked by decrypting once per loaded file and caching only a boolean; the plain token is never cached), the file is kept so a later unlocked keyring recovers it; misnamed test now asserts getAccount() is null; (5) http.send sets redirect: 'error' on every GitHub request (API and device-flow), so neither the token nor the device code is forwarded on a redirect; a redirect then fails as network_unreachable."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m4acnd85d82fg5qgy4jb4kse",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T11:18:56.883Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:3b96adb73d641cd5dfc9c1c38cb92dec86be2cf969f4edf9e5bc8bde0ac2e900",
+      "ticketId": "tk_01m43st80p3n2992va52fjx8h1",
+      "updatedAt": "2026-10-31T11:18:56.898Z",
+      "worker": {
+        "catalogRevision": "hc_01m683v6zpwtyanf40hj5gg7wd",
+        "effort": "high",
+        "hostId": "omp-mac-davidgorden",
+        "label": "omp task subagent (DM-141)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Run's host catalog (hc_01m49h2h…, Windows) was never imported, so match_capabilities returns not_found and the claim skips catalog checks. omp cannot select a worker model; its task subagents run claude-opus-5-5. Effort high, the ticket's planned effort (deep: long-lived credential). Lease 4h; orchestrator heartbeats for the worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T11:20:01.703Z",
+      "decidedAt": "2026-10-31T11:31:16.636Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Reviewed 7a3a704..145338e: renderer-only; GithubAccountProvider wraps Shell inside ToastProvider; no main change. Accepted with c4 unmet (placeholder client ID, person's decision).",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npx vitest run src/renderer/src/github src/renderer/src/sidebar src/renderer/src/components src/renderer/src/App.*.test.tsx src/renderer/src/styles.test.ts src/renderer/src/cssBalance.test.ts: 38 files, 435 tests passed",
+            "name": "unit tests (touched)",
+            "status": "passed"
+          },
+          {
+            "detail": "Red commit ac409a9: 3 test files failed to load and 2 tests failed (App footer GitHub test, Icon test) before the implementation. The late-cancel test also failed first (1 failed, 11 passed) before the fix.",
+            "name": "tests written first",
+            "status": "passed"
+          },
+          {
+            "detail": "npx oxlint src/renderer/src/github src/renderer/src/sidebar src/renderer/src/App.tsx src/renderer/src/App.footer.test.tsx src/renderer/src/components src/renderer/src/__mocks__ exited 0",
+            "name": "lint (touched)",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck: 0 errors",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run deadcode: No new dead exports found",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run build exited 0 (needed for the screenshots)",
+            "name": "build",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "full suite / fireguard / coverage",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "SidebarFooter.test.tsx both states and menu actions (Sign out, Manage access opens https://github.com/settings/applications); screenshot docs/verification/DM-142-footer-signed-out.png reviewed."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "SignInDialog.test.tsx: code + Copy, Open again, countdown, Cancel, success closes with 'Signed in as @login' toast, each failure reason with Try again; late-code-after-cancel cancels (red-team fix)."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "GithubAccount.test.tsx: SignInPrompt opens the same app-wide dialog; an accountChanged from main updates every mounted view."
+          },
+          {
+            "criterionId": "c4",
+            "met": false,
+            "note": "Signed-out footer screenshot from the built app with an isolated profile is present. The dialog screenshot shows the sign_in_misconfigured state (DM-142-sign-in-dialog-misconfigured.png, reviewed), not a real github.com code: needs the OAuth App client ID (sprint 2 entry criterion n1), per the person's placeholder decision."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Tests first (ac409a9), then 145338e; touched tests, lint, typecheck pass (worker)."
+          }
+        ],
+        "notes": "Red-team pass, attacked: (1) Cancel or Escape before startSignIn answers. The old code dropped the answer and main kept polling, so the dialog now calls cancelSignIn once if the code arrives after it closed (test added). A superseded Try-again answer is not cancelled, because that would kill the new attempt; main already cancels the old one. (2) The dialog's own 'cancelled' broadcast is ignored, so it does not flash a failure. (3) An account event that arrives before getAccount answers is not overwritten by the stale answer. (4) A getAccount rejection becomes signed out, not an endless 'not loaded' state. (5) A signOut failure is shown as an error toast. (6) An unknown failure code gets a generic 'Sign-in failed' heading and main's message. (7) A countdown past the expiry shows 0:00, never a negative time. Accepted risk: any non-null account change while the dialog is open counts as success (main only sends one after a sign-in). The footer GitHub line renders nothing until the first answer, so the UI does not flash 'signed out'. The dialog's countdown and spinner were not screenshotted with a real code (see c4); they are covered only by jsdom tests. Discoveries: none."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m68v08d73zah7gfz2d2hteea",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Signed-out footer, built app, isolated profile",
+            "location": "docs/verification/DM-142-footer-signed-out.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Sign-in dialog showing the sign_in_misconfigured failure with Try again (empty client ID), built app, isolated profile",
+            "location": "docs/verification/DM-142-sign-in-dialog-misconfigured.png",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "source-control-DM-142",
+        "changedFiles": [
+          "src/renderer/src/github/useGithubAccount.ts",
+          "src/renderer/src/github/GithubAccount.tsx",
+          "src/renderer/src/github/SignInDialog.tsx",
+          "src/renderer/src/github/SignInPrompt.tsx",
+          "src/renderer/src/github/SignInDialog.test.tsx",
+          "src/renderer/src/github/GithubAccount.test.tsx",
+          "src/renderer/src/sidebar/SidebarFooter.tsx",
+          "src/renderer/src/sidebar/SidebarFooter.test.tsx",
+          "src/renderer/src/App.tsx",
+          "src/renderer/src/App.footer.test.tsx",
+          "src/renderer/src/components/Icon.tsx",
+          "src/renderer/src/components/Icon.test.tsx",
+          "src/renderer/src/__mocks__/githubKit.tsx",
+          "src/renderer/src/__mocks__/fakeDm.ts",
+          "src/renderer/src/styles.css",
+          "docs/verification/DM-142-footer-signed-out.png",
+          "docs/verification/DM-142-sign-in-dialog-misconfigured.png"
+        ],
+        "commits": [
+          "ac409a9973a9a4bcdc061664abc1788f9871da53",
+          "145338e5b20659b6a3b2112ab5d83b9c2ac36c26"
+        ],
+        "summary": "Added the renderer GitHub account UI. useGithubAccount (github/useGithubAccount.ts) loads getAccount and subscribes to onAccountChanged; a change that arrives before the first answer wins over that answer. GithubAccountProvider/useGithub (github/GithubAccount.tsx) wraps Shell in App.tsx inside ToastProvider, holds the one account for every view, and owns the single app-wide SignInDialog, so the footer and SignInPrompt open the same dialog. SidebarFooter gets a GitHub line with the new `github` icon: signed out, it shows a 'Sign in to GitHub' button; signed in, it shows '@login' (with the name as its title) and a 'GitHub account' Menu with Sign out and 'Manage access on GitHub', which calls window.dm.openExternal('https://github.com/settings/applications'). SignInDialog calls startSignIn when it opens. It shows the user code large in --font-mono with Copy (dm.copyText), 'We opened github.com/login/device in your browser. Enter this code there.' with an Open again link, a waiting spinner and an m:ss expiry countdown driven by scheduler.every(1000). Cancel and Escape call cancelSignIn. A non-null account change closes the dialog and shows the toast 'Signed in as @login'. A failure from onSignInFailed or from startSignIn shows a short reason (expired, denied, misconfigured, network, secure storage, or a generic one) with main's message and Try again; the dialog ignores the 'cancelled' failure it causes itself. A code that arrives after the dialog closed is cancelled. SignInPrompt ('Sign in to GitHub to <purpose>', Sign in) is exported for the later tickets. FakeDm.openExternal now records URLs in `opened`. No main-process code changed, and GITHUB_OAUTH_CLIENT_ID is still ''."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m4acnd85d82fg5qgy4jb4kse",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T11:31:16.607Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:2bc755801144cd5ebcecef5413915b404d2e6643151e8f99399ae8624baf5659",
+      "ticketId": "tk_01m43st80paqp9q9mynnv0cz6g",
+      "updatedAt": "2026-10-31T11:31:16.636Z",
+      "worker": {
+        "catalogRevision": "hc_01m683v6zpwtyanf40hj5gg7wd",
+        "effort": "medium",
+        "hostId": "omp-mac-davidgorden",
+        "label": "omp task subagent (DM-142)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Run's host catalog (hc_01m49h2h…, Windows) was never imported, so match_capabilities returns not_found and the claim skips catalog checks. omp cannot select a worker model; its task subagents run claude-opus-5-5. Effort recorded as the ticket's planned effort. Lease 4h; orchestrator heartbeats for the worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T11:20:01.729Z",
+      "decidedAt": "2026-10-31T12:14:39.446Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Reviewed 7a3a704..1ed2bf8. Worker ran its own adversarial review subagent; 4 defects fixed with tests. Remaining risks recorded as discoveries: token in env of hooks/LFS, no network timeout, pull.ff=only fails a diverged pull, Windows untested. Accepted.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Commit 4b6c3c5 holds only tests. Run before the implementation: `npx vitest run src/main/git/` gave 10 files failed, 9 tests failed, 186 passed (missing modules, missing handlers, askpass/redaction/lastFetchedAt asserts). Log: /tmp/sc-epic/logs/DM-143-red.log",
+            "name": "tests first (red)",
+            "status": "passed"
+          },
+          {
+            "detail": "`npx vitest run src/main/git/ src/main/github/errors.test.ts src/renderer/src/__mocks__/ src/renderer/src/source/` gave 25 files and 361 tests passed (/tmp/sc-epic/logs/DM-143-tests.log). Note: under machine load average ~75, which other agents caused, the untouched history.test.ts 'pages past 100 commits' (120 sync git spawns) twice hit its 15 s timeout in combined runs. Run alone it passed both times (16/16, /tmp/sc-epic/logs/DM-143-history-rerun.log). The final combined run passed.",
+            "name": "unit tests (touched)",
+            "status": "passed"
+          },
+          {
+            "detail": "Each of these temporary mutations was applied and reverted, and each was caught by failing tests: dropping GIT_ASKPASS='' failed the runner askpass test and the c3 prompt test. Not clearing helpers failed 3 credential-fill tests and the c2 sync test. Dropping --no-rebase failed both pull tests. Disabling the group kill failed the real-git cancel test (the grandchild kept running). Pushing to the upstream remote instead of the push remote failed the pushDefault test.",
+            "name": "mutation checks (non-vacuous tests)",
+            "status": "passed"
+          },
+          {
+            "detail": "`npx oxlint <31 changed .ts/.tsx files>` exit 0, no findings (/tmp/sc-epic/logs/DM-143-lint.log)",
+            "name": "lint (touched files)",
+            "status": "passed"
+          },
+          {
+            "detail": "`npm run typecheck` (node, web, fireguard projects) exit 0 (/tmp/sc-epic/logs/DM-143-typecheck.log)",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "`npm run deadcode`: No new dead exports found. The new interfaces are module-private; no .tsprune-ignore changes (/tmp/sc-epic/logs/DM-143-deadcode.log)",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "full test suite",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node (sprint Fireguard ticket)",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node; no criterion needs a screenshot",
+            "name": "npm run build",
+            "status": "skipped"
+          },
+          {
+            "detail": "Adversarial reviewer subagent on the implementation commit: no token leak found. 4 should-fix findings, all fixed in 1ed2bf8 with tests (see notes).",
+            "name": "red-team review",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "sync.test.ts against local bare remotes: fetch, pull (--no-rebase merge), push, publish, progress events with percentages; state has ahead/behind and lastFetchedAt. Orchestrator re-ran src/main/git + github + renderer mocks/source: 427 passed."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "credentials.test.ts offline `git credential fill`: the env-based helper scoped to https://github.com answers, and global/system/local/path/user/wildcard helpers for github.com are cleared. Deviation accepted: the clear is scoped (`credential.https://github.com.helper=`) rather than global, so other hosts (submodules, LFS) keep the machine's credentials. Token only via env; scrubbed (raw + Basic form) from output; GIT_TRACE_REDACT=1."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "syncAuth.test.ts: signed-out HTTPS remote answering 401 fails with auth_required in <10 s, askpass never runs; GCM_INTERACTIVE=never; ssh in BatchMode unless the person configured their own."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Distinct codes for non-fast-forward push, auth failure, conflicting pull, network failure; cancel kills git's process group and returns cancelled."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "remotes.test.ts: https, scp-like and ssh URLs with/without .git; null for other hosts."
+          },
+          {
+            "criterionId": "c6",
+            "met": true,
+            "note": "Red tests first (4b6c3c5), then ce48d3e and red-team fixes 1ed2bf8; touched tests, lint, typecheck, deadcode pass (worker)."
+          }
+        ],
+        "notes": "Red-team pass: a reviewer subagent was prompted to refute the change. Attacks that held up: the token in argv or ps; helper scoping (look-alike hosts, userinfo, :443, http, other hosts, insteadOf/pushInsteadOf, redirects, multiple push URLs); approve/store into other helpers; redaction order; force push via refspec or config; shell injection through login or token; operation-registry races. Fixed in 1ed2bf8: (1) Git Credential Manager ignores GIT_TERMINAL_PROMPT and GIT_ASKPASS, so the runner now sets GCM_INTERACTIVE=never. (2) Push used `local:upstreamRef`, which put `feature` onto origin/main after `git switch -c feature origin/main`, and it ignored pushDefault/pushRemote. Push now goes to git's push remote under the branch's own name and publishes otherwise. (3) A global `credential.helper=` also cleared other hosts' helpers for submodules and LFS, and an other-host failure was blamed on the GitHub account. Both fixed (scoped reset; auth remap only when the detail names github.com). (4) Cancel killed only git, so `git pull`'s own `git fetch` kept running and the repo queue was released at once. Now there is a process-group kill on POSIX and the queue waits for exit. Also fixed: (5) remote names starting with '-' are refused (`git pull` drops `--` when it calls fetch); (8) a cancel after git finished now reports false. Accepted risks, documented in credentials.ts: the token is in the environment of everything git starts (pre-push/post-merge hooks, LFS, ssh, custom remote helpers). Those are local programs, and their output is scrubbed. A pull merge commit with commit.gpgSign=true can still wait on a pinentry dialog. macOS Keychain permission dialogs and FIDO touch prompts cannot be turned off through the environment. Network operations still have no timeout (cancel is the way out). A user pull.ff=only setting still makes a diverged pull fail (git_failed) rather than merge, because the ticket's exact pull command was kept. Tracking the upstream '.' (a local branch) falls back to origin. Not verified: Windows (taskkill path unchanged, no process groups, GCM behaviour only by source reading of GCM v2.6.1 Settings.cs via the reviewer). No real github.com call was made (offline by design), and sign-in itself still needs the GitHub OAuth App client ID (sprint 2 entry criterion n1), but no criterion here needs a real sign-in. Merge note: appHarness.tsx and the renderer RepoStatus fixtures gained `lastFetchedAt: null` (one line each). DM-142 may touch appHarness.tsx too.\n\nDiscoveries:\n- title: Keep the GitHub token out of the environment of git hooks and helpers\n  reason: credentialArgs passes DM_GITHUB_TOKEN through request.env as the ticket requires, so every process git starts (pre-push/post-merge hooks, git-lfs, custom remote helpers) inherits it. The red-team probe helper printed it. A per-run trampoline (a one-time secret handed to a helper that asks main over a local socket, as GitHub Desktop does) would keep the real token out of child environments.\n  ticket: DM-143\n- title: Give network git operations a stall timeout\n  reason: runner.ts timeoutFor returns null for kind 'network', so a fetch, pull or push on a stalled connection, or one waiting on a gpg pinentry for a pull merge commit, runs until the person cancels. http.lowSpeedLimit/lowSpeedTime or an inactivity timer on progress would end it with `timeout`.\n  ticket: DM-143\n- title: Decide how pull treats a user pull.ff=only setting\n  reason: sync.ts runs the ticket's `git pull --no-rebase --no-edit`. With pull.ff=only in the person's config, a diverged branch fails with 'Not possible to fast-forward' (git_failed) instead of merging. Passing --ff would honour 'pull merges', but it overrides the person's setting. That is a product decision for the sync UI ticket.\n  ticket: DM-143"
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m68v08e1059r7rg6xwpdzv57",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Remotes and sync remote selection",
+            "location": "src/main/git/remotes.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Scoped env credential helper and ssh batch mode",
+            "location": "src/main/git/credentials.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Progress line parser",
+            "location": "src/main/git/progress.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Fetch, pull, push, publish and cancel",
+            "location": "src/main/git/sync.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Runner: askpass/GCM off, redaction, process-group kill, queue held until exit",
+            "location": "src/main/git/runner.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Bare-remote tests (c1, c4)",
+            "location": "src/main/git/sync.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Credentials, prompts, auth, network and cancel tests (c2, c3, c4)",
+            "location": "src/main/git/syncAuth.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Offline git credential fill tests (c2)",
+            "location": "src/main/git/credentials.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Red (tests-first) run log",
+            "location": "/tmp/sc-epic/logs/DM-143-red.log",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Targeted test run log",
+            "location": "/tmp/sc-epic/logs/DM-143-tests.log",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Typecheck log",
+            "location": "/tmp/sc-epic/logs/DM-143-typecheck.log",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Lint log (touched files)",
+            "location": "/tmp/sc-epic/logs/DM-143-lint.log",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Deadcode log",
+            "location": "/tmp/sc-epic/logs/DM-143-deadcode.log",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "source-control-DM-143",
+        "changedFiles": [
+          "src/main/desktop/bootstrap.ts",
+          "src/main/git/credentials.test.ts",
+          "src/main/git/credentials.ts",
+          "src/main/git/errors.test.ts",
+          "src/main/git/errors.ts",
+          "src/main/git/handlers.test.ts",
+          "src/main/git/handlers.ts",
+          "src/main/git/handlersWrite.test.ts",
+          "src/main/git/ipc.test.ts",
+          "src/main/git/ipc.ts",
+          "src/main/git/progress.test.ts",
+          "src/main/git/progress.ts",
+          "src/main/git/remotes.test.ts",
+          "src/main/git/remotes.ts",
+          "src/main/git/runner.test.ts",
+          "src/main/git/runner.ts",
+          "src/main/git/status.test.ts",
+          "src/main/git/status.ts",
+          "src/main/git/sync.test.ts",
+          "src/main/git/sync.ts",
+          "src/main/git/syncAuth.test.ts",
+          "src/main/github/errors.ts",
+          "src/preload/index.ts",
+          "src/renderer/src/__mocks__/appHarness.tsx",
+          "src/renderer/src/__mocks__/fakeGit.test.ts",
+          "src/renderer/src/__mocks__/fakeGit.ts",
+          "src/renderer/src/source/ChangesPanel.test.tsx",
+          "src/renderer/src/source/HistoryPanel.test.tsx",
+          "src/renderer/src/source/SourceControlView.test.tsx",
+          "src/shared/git/api.ts",
+          "src/shared/git/status.ts"
+        ],
+        "commits": [
+          "4b6c3c5d78afc2e800f593bee3429cc46479b529",
+          "ce48d3e20774459706e66565983f385c9fc88a3d",
+          "1ed2bf8bb5ab8a5ba2168c7693a48a8888ce2569"
+        ],
+        "summary": "Fetch, pull (merge, never rebase), push and publish in main, with progress events, cancel by operation id and the GitHub account's credentials. New src/main/git: remotes.ts (listRemotes from `git remote -v`, pure parseGithubRemote for https / scp-like / ssh github.com URLs with or without .git, resolveSyncRemote: fetch/pull use the upstream's remote else origin, else remote_not_found; push uses git's own push remote, i.e. branch.<name>.pushRemote or remote.pushDefault, falling back to that remote), credentials.ts (credentialArgs: for an https://github.com/... remote while signed in, `-c credential.https://github.com.helper=` then `-c credential.https://github.com.helper=!f() { echo username=\"$DM_GITHUB_LOGIN\"; echo password=\"$DM_GITHUB_TOKEN\"; }; f`, with env DM_GITHUB_LOGIN/DM_GITHUB_TOKEN/GIT_TRACE_REDACT=1 and secrets [token, base64(login:token)]. It returns null when signed out, for SSH or other hosts, or when the login or token holds whitespace, a backslash or a control character. sshPromptEnv sets GIT_SSH_COMMAND='ssh -o BatchMode=yes' unless the person set GIT_SSH_COMMAND, GIT_SSH or core.sshCommand), progress.ts (pure parseProgressLine -> {phase, percent}|null; remote: prefix stripped; only git's fixed phase words are kept), sync.ts (createSync: run(operation, folder, operationId) / cancel(folder, operationId); registers before the first await; `fetch --prune --progress -- <remote>`; `pull --no-rebase --no-edit --progress -- <remote> <upstreamRef>`; push pushes the branch under its own name and publishes it with --set-upstream when it has no upstream or its upstream has another name; never forces; detached HEAD and remote names starting with '-' are refused as invalid_input; auth mapping: when signed in, a github.com rejection is auth_failed ('sign in again'); when signed out on GitHub HTTPS it is auth_required; another host's rejection keeps git's own code). The runner (runner.ts) also sets GIT_ASKPASS='' (which turns off GIT_ASKPASS, core.askPass and SSH_ASKPASS, since all three run even with GIT_TERMINAL_PROMPT=0) and GCM_INTERACTIVE=never. It takes `redact` secrets and scrubs them from stdout, stderr and progress lines before classification and before the 2000-char tail is cut. On macOS and Linux it starts each git in its own process group and kills the group, and the per-repo queue is released only once a cancelled or timed-out git has exited. status.ts: RepoStatus.lastFetchedAt is the FETCH_HEAD mtime (from `rev-parse --git-path FETCH_HEAD`, read in the same rev-parse as the in-progress markers); readRepository is now shared by handlers and sync. errors.ts: the failure message names the git command, skipping -c values. github/errors.ts: scrubSecrets is exported and reused by the runner. Bridge: GitApi.fetch/pull/push(folder, { operationId }) -> RepoState, cancelOperation(folder, operationId) -> { cancelled }, git:fetch/pull/push/cancelOperation IPC (zod: strict { operationId: 1..200 chars }), preload, FakeGit (records calls, `syncError` to script a failure; cancel is always false), handlers deps gain session + onProgress, and bootstrap wires the bridge's github.getAccount/getToken plus createProgressBroadcaster (startSourceControl starts GitHub, then git, which keeps startDesktopBridge within 50 lines). The token never leaves main: results carry RepoState only. REVIEWER NOTE, a deliberate deviation from the ticket's literal args: the ticket says first `-c credential.helper=`. A red-team subagent showed that the global reset reaches child gits through GIT_CONFIG_PARAMETERS, so it also removed machine credentials for submodules, LFS and proxies on other hosts. The URL-scoped reset `credential.https://github.com.helper=` clears every helper that applies to github.com: generic, system, global, local, path-scoped, user-scoped and wildcard. This is proven by the offline credential fill test with all of those configured and credential.useHttpPath on. Other hosts keep their helpers. c2's 'every other configured helper is cleared' holds for every github.com request."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m4acnd85d82fg5qgy4jb4kse",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T12:14:39.425Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:7ddb8d9de1021c9f0fe166b83464d0f69d38f6b961c2ec39ad390d66937905ef",
+      "ticketId": "tk_01m43st80phph8e257thvgm244",
+      "updatedAt": "2026-10-31T12:14:39.446Z",
+      "worker": {
+        "catalogRevision": "hc_01m683v6zpwtyanf40hj5gg7wd",
+        "effort": "high",
+        "hostId": "omp-mac-davidgorden",
+        "label": "omp task subagent (DM-143)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Run's host catalog (hc_01m49h2h…, Windows) was never imported, so match_capabilities returns not_found and the claim skips catalog checks. omp cannot select a worker model; its task subagents run claude-opus-5-5. Effort high, the ticket's planned effort (deep: credentials in git). Lease 4h; orchestrator heartbeats for the worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T12:16:01.091Z",
+      "decidedAt": "2026-10-31T12:30:32.657Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Reviewed 8b9ece8..7416990. Shared type change: RepoStatus.remote (required). Accepted.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Commit ef70f4f adds only the tests. The red run had 2 failing files with 3 failed tests: the SyncButton suite would not load (no module yet) and the 2 status remote tests failed. Log: /tmp/sc-epic/logs/DM-144-red.log",
+            "name": "tests first (red)",
+            "status": "passed"
+          },
+          {
+            "detail": "npx vitest run src/renderer/src/source src/main/git/status.test.ts src/renderer/src/__mocks__ src/renderer/src/App: 44 files, 506 tests passed",
+            "name": "unit tests (touched)",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck: node, web and fireguard projects passed with no errors",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npx oxlint on all 14 touched source and test files: exit 0, no findings. An earlier complexity finding in failureOf was fixed.",
+            "name": "lint (touched files)",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run deadcode: no new dead exports",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run build passed; it was needed for the c5 screenshots",
+            "name": "build",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "full suite / fireguard",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "SyncButton tests: No remote (disabled), Publish branch, Pull origin ↓N(↑M), Push origin ↑N, Fetch origin with last-fetched line; menu offers Fetch/Pull/Push. RepoStatus now carries the sync remote (name, githubHttps) from DM-143's resolver."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Progress by operationId with phase + percent, Cancel calls cancelOperation, state refreshes after; foreign operation events ignored."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Non-fast-forward offers Pull; auth_required/auth_failed show SignInPrompt (revoked hint when signed in); others show message + collapsible detail."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Injected-scheduler tests: every 10 min only while signed in (fake account) with HTTPS github.com remote; quiet failure icon; skipped during a manual op."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "docs/verification/DM-144-push-origin-ahead-2.png and DM-144-fetch-in-progress.png from the built app with an isolated profile (fetch slowed via throttled ext:: remote); orchestrator viewed the in-progress shot."
+          },
+          {
+            "criterionId": "c6",
+            "met": true,
+            "note": "Tests first (ef70f4f); orchestrator re-ran src/renderer/src/source + mocks + status.test.ts: 102 passed; worker: typecheck, oxlint, deadcode, build pass."
+          }
+        ],
+        "notes": "Red-team pass. 1) Progress from another operation or another folder: rejected (the test checks this). 2) A double click or a menu action during a run: refused by a guard on the running ref, and the button is disabled. 3) A background tick during a manual operation: skipped. A manual click during a background fetch runs at the same time; main's runner queues it, and the background run shows no UI. 4) An error that is not a GitCommandError: it becomes git_failed and shows its message. 5) A cancel is never shown as an error, and a cancelled background fetch does not set the warning. 6) Background fetch with a non-github.com HTTPS, SSH or ext remote, or while signed out: the timer is never scheduled, so no other credential helper can prompt. That depends on main's githubHttps (isGithubHttps on the fetch URL). 7) Clock skew giving a future lastFetchedAt: clamped to 'just now'. 8) Malformed lastFetchedAt: 'Never fetched'. Limits: readRepoState now runs 2 more git commands (remote -v and for-each-ref) on every 5 s refresh. The 'Repository root: /private/tmp/…' line in the screenshots comes from existing behavior: macOS /tmp is a symlink. While an operation runs, the button is disabled; for a fetch whose remote has more commits, the label stays 'Fetch origin' until the refresh after it ends.\nDiscoveries:\n- The Toolbar shows 'Repository root' for macOS /tmp versus /private/tmp because sameFolder does not resolve symlinks (out of scope).\n- RepoStatus.remote costs 2 extra git processes per 5 s poll; it could be cached per root and invalidated on .git/config mtime."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m68y6s23nfz0j0ev6a32s5zh",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Sync button",
+            "location": "src/renderer/src/source/SyncButton.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Sync state, progress, errors, background fetch",
+            "location": "src/renderer/src/source/useSync.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Tests (c1–c4)",
+            "location": "src/renderer/src/source/SyncButton.test.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Push origin ↑2, built app, isolated profile",
+            "location": "docs/verification/DM-144-push-origin-ahead-2.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Fetch in progress (Counting objects 23%, Cancel), built app, isolated profile",
+            "location": "docs/verification/DM-144-fetch-in-progress.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Scratch repo setup and slow ext:: remote",
+            "location": "/tmp/sc-epic/scratch/DM-144/setup.sh",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Screenshot script",
+            "location": "/tmp/sc-epic/scratch/DM-144/shots.mjs",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Red run log",
+            "location": "/tmp/sc-epic/logs/DM-144-red.log",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Test log",
+            "location": "/tmp/sc-epic/logs/DM-144-tests.log",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "source-control-DM-144",
+        "changedFiles": [
+          "docs/verification/DM-144-fetch-in-progress.png",
+          "docs/verification/DM-144-push-origin-ahead-2.png",
+          "src/main/git/status.test.ts",
+          "src/main/git/status.ts",
+          "src/renderer/src/__mocks__/appHarness.tsx",
+          "src/renderer/src/__mocks__/fakeGit.test.ts",
+          "src/renderer/src/__mocks__/fakeGit.ts",
+          "src/renderer/src/source/ChangesPanel.test.tsx",
+          "src/renderer/src/source/HistoryPanel.test.tsx",
+          "src/renderer/src/source/RepositoryView.tsx",
+          "src/renderer/src/source/SourceControlView.test.tsx",
+          "src/renderer/src/source/SourceControlView.tsx",
+          "src/renderer/src/source/SyncButton.test.tsx",
+          "src/renderer/src/source/SyncButton.tsx",
+          "src/renderer/src/source/source.css",
+          "src/renderer/src/source/useSync.ts",
+          "src/shared/git/status.ts"
+        ],
+        "commits": [
+          "ef70f4fd4702d0a79f87bdb74f7355ef0b39ed99",
+          "bc8757750dd74f1aa0be323cb8241022e27ab922",
+          "7416990e17aacd6057c789c4eacf97d425074837"
+        ],
+        "summary": "Added SyncButton (src/renderer/src/source/SyncButton.tsx) to the Source control toolbar, plus useSync.ts for its logic. The primary action follows the branch state: a disabled No remote with a tooltip, Publish branch, Pull <remote> ↓N (↑M when also ahead), Push <remote> ↑N, or Fetch <remote>. The remote's name replaces origin. The second line reads 'Last fetched N minutes/hours/days ago', 'just now' or 'Never fetched'. A 'More sync actions' menu offers Fetch, Pull and Push at any time. Each run gets an operationId from crypto.randomUUID(). A progress bar shows phase and percent for onProgress events with that id and folder only. Cancel calls cancelOperation, and the state refreshes after every operation. Errors: rejected_non_fast_forward shows 'The remote has commits you don’t have. Pull first.' with a Pull button. auth_required and auth_failed show SignInPrompt ('Sign in to GitHub to push and pull'); auth_failed while signed in adds 'Your GitHub sign-in may have been revoked.' merge_conflicts and cancelled only refresh. Other errors show the message, git's detail in a closed <details> block, and Dismiss. Background fetch: scheduler.every(10 min) runs only while signed in and the sync remote is HTTPS github.com, and stops on sign-out or unmount. It skips a tick while an operation is running, shows no progress or alert, and puts a warning icon with the error in its title; the icon clears after the next successful fetch. The renderer had no way to know the remote, so I added a required field to the shared type: RepoStatus.remote = { name, githubHttps } | null. main/git/status.ts fills it with DM-143's resolveSyncRemote and isGithubHttps (fetch URL); remote_not_found gives null. Every RepoStatus fixture now has remote: null. That includes fakeGit.ts, which I edited byte-exactly with a Buffer replace; its 6 NUL bytes are kept. RepositoryView.tsx was edited the same way (1 NUL kept). SourceControlView passes its scheduler down to RepositoryView. Because SyncButton uses useGithub, the ChangesPanel, HistoryPanel and SourceControlView tests are now wrapped in GithubAccountProvider with a FakeGithub. I told DM-145 about the new RepoStatus field. Any RepoStatus literal it adds must include remote: null at merge."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m4acnd85d82fg5qgy4jb4kse",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T12:30:32.635Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:8a3cced71e4bbde45f1157de79d073ea729e3d39e8786da0d97a7d28b3865b1d",
+      "ticketId": "tk_01m43st80pqq25rhh231cnd0y4",
+      "updatedAt": "2026-10-31T12:30:32.657Z",
+      "worker": {
+        "catalogRevision": "hc_01m683v6zpwtyanf40hj5gg7wd",
+        "effort": "medium",
+        "hostId": "omp-mac-davidgorden",
+        "label": "omp task subagent (DM-144)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Run's host catalog (hc_01m49h2h…, Windows) was never imported, so match_capabilities returns not_found and the claim skips catalog checks. omp cannot select a worker model; its task subagents run claude-opus-5-5. Effort recorded as the ticket's planned effort. Lease 4h; orchestrator heartbeats for the worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T12:16:01.117Z",
+      "decidedAt": "2026-10-31T12:57:48.035Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Reviewed 8b9ece8..6aef62e; worker ran a two-round adversarial review (8 defects fixed with failing-first tests). Integration: binary-flagged fakeGit.ts (NUL bytes) merged 3-way via placeholder substitution, NULs preserved; added `remote: null` to DM-145's fakeGit.test status fixture for DM-144's RepoStatus.remote. Open design notes (stash by position, remote-then-local delete ordering) go to the retro. Accepted.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Commit 0ff4f9e holds the tests before any implementation. The run in /tmp/sc-epic/logs/DM-145-red.log failed as expected: all 5 test files failed (3 with 'Cannot find module ./branches', and the handler and IPC tests on missing methods and channels).",
+            "name": "unit tests (red, tests first)",
+            "status": "passed"
+          },
+          {
+            "detail": "I swapped in the 65b03e8 versions of branches.ts, stash.ts and errors.ts and ran the suite: 9 new or tightened tests failed. I then swapped in the d8dbb30 version of branches.ts: both rebase tests failed. All files were restored afterwards. Log: /tmp/sc-epic/logs/DM-145-redteam-red.log.",
+            "name": "red-team regression tests fail on pre-fix code",
+            "status": "passed"
+          },
+          {
+            "detail": "npx vitest run src/main/git src/renderer/src/__mocks__ src/renderer/src/source src/preload: 36 files, 509 tests passed (/tmp/sc-epic/logs/DM-145-tests.log).",
+            "name": "unit tests (touched areas)",
+            "status": "passed"
+          },
+          {
+            "detail": "npx oxlint on the 21 touched .ts files: exit 0.",
+            "name": "lint (touched files)",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck (node, web and fireguard projects): exit 0.",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run deadcode: 'No new dead exports found.' after adding one baseline line for BranchInfo, which no renderer code uses yet.",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "Inside an epic these are left to the acceptance node and the sprint's Fireguard ticket. No screenshots are needed: this ticket has no UI.",
+            "name": "full npm test / fireguard / build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "branches.test.ts on temp repos with bare remotes: local + remote branches with upstream, ahead/behind, last commit time, current and default branch (symbolic-ref, else main/master); */HEAD skipped; a non-commit ref no longer breaks the list."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Switch stashes as dm-stash:<branch> or brings changes; git refusal → local_changes_would_be_overwritten with nothing changed; remote-only → --track; rollback pops only its own stash with --index; refuses mid-operation."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Create from current/default, rename, delete (refuses current, branch_not_fully_merged unless forced, optional remote delete on the branch's same-name upstream with DM-143 credentials and a lease; refuses when any worktree checks it out)."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "mergeIntoCurrent → merged or merge_conflicts; DM stashes list with files, restore (conflict returns merge_conflicts and keeps the stash), discard; works with a branch/tag named stash (refs/stash@{n})."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "branchesGuard.test.ts: names starting with -, @, @{, .., whitespace/control chars, >255 bytes refused before git runs."
+          },
+          {
+            "criterionId": "c6",
+            "met": true,
+            "note": "Red tests first (0ff4f9e); orchestrator re-ran src/main/git + mocks on the worker branch: 446 passed; after merging with DM-144 the row 3 combined check passed (typecheck, 255 files / 3459 tests, lint)."
+          }
+        ],
+        "notes": "Red-team pass: one reviewer subagent was told to refute the change and ran two rounds against git-archive copies of each commit, plus my own pass. Found and fixed, each with a regression test that fails on the earlier code:\n(1) P1: a branch tracking a base branch under another name (`checkout -b fix origin/develop`) would have had develop deleted. A different-name upstream is now refused.\n(2) for-each-ref prefix matching let a missing name `feature` resolve to `feature/a`. Now only the exact %(refname) counts.\n(3) Stashing during a resolved merge silently ended the merge. Switch and restore now return operation_in_progress.\n(4) A failing post-checkout hook made the rollback pop the stash onto the target branch. The rollback now runs only while HEAD is still on the original branch.\n(5) A branch or tag named 'stash' broke stash show, pop and drop. Git now gets refs/stash@{n}.\n(6) A branch checked out, rebased or bisected in a worktree had its remote deleted, and then the local delete failed. The code now reads each worktree's admin HEAD, rebase-merge/head-name, rebase-apply/head-name and BISECT_START, as git does.\n(7, 11) The rollback popped stash@{0} blindly and unstaged files. It now pops its own stash by commit id with --index.\n(9) A restore blocked by an untracked file was reported as nothing_to_commit.\n(10) A ref at a non-commit threw RangeError and broke the whole listing. lastCommitAt is now ''.\n(12) '(stale info)' was mapped to git_failed, and the advice to fetch for a gone remote branch was misleading.\nAttacked and held: option or revision injection through every name (leading -, @, @{, ^ ~ :, control characters, long names, derived local names such as '-x' from 'origin/-x'); names only reach git after --, as full refs or as -c/-m values; the token only goes to https://github.com push URLs and never into args; the lease; remote names starting with '-'; IPC wiring and strict schemas.\nKnown residual risks:\n(a) Finding 8, rejected for this ticket: restore and discard identify a stash by position (stash@{n}, as the ticket's API specifies). Membership in the current branch's DM list is checked, but if an outside tool reorders the stash list between listing and restoring, a different DM stash of the same branch could be hit. A stash oid in StashInfo would close this; that is an API change for the UI ticket to decide.\n(b) The rollback pop has a small race window between reading the stash list and popping.\n(c) Deleting a remote branch has no cancel button; it has a 120 s timeout instead.\n(d) deleteBranch pushes before deleting locally. If the local delete still fails for a reason not checked up front, the remote branch is already gone.\nDiscoveries:\n- The UI could show `gone` upstreams: BranchInfo has no 'gone' flag, so the renderer cannot tell in advance that deleteRemote will fail with remote_not_found.\n- sync.ts readBranchRemotes uses the same `for-each-ref -- refs/heads/<branch>` prefix pattern. It is safe for the current branch, because a branch and branch/child cannot coexist, but it would be worth the same exact-match hardening."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m68y6s2xervvq9nv24qwwd1j",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Branch/stash shared types",
+            "location": "src/shared/git/branches.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Branch operations",
+            "location": "src/main/git/branches.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "DM stash operations",
+            "location": "src/main/git/stash.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Bare-remote tests: list, create, switch, rename, delete, merge (c1-c4)",
+            "location": "src/main/git/branches.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Stash tests (c4)",
+            "location": "src/main/git/stash.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Injection and remote-credential tests (c3, c5)",
+            "location": "src/main/git/branchesGuard.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Red-team regression tests",
+            "location": "src/main/git/branchesSafety.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Handler tests",
+            "location": "src/main/git/handlersBranches.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Red (tests-first) run log",
+            "location": "/tmp/sc-epic/logs/DM-145-red.log",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Red-team regression tests failing on pre-fix code",
+            "location": "/tmp/sc-epic/logs/DM-145-redteam-red.log",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Targeted test run log",
+            "location": "/tmp/sc-epic/logs/DM-145-tests.log",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Typecheck log",
+            "location": "/tmp/sc-epic/logs/DM-145-typecheck.log",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Lint log",
+            "location": "/tmp/sc-epic/logs/DM-145-lint.log",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Deadcode log",
+            "location": "/tmp/sc-epic/logs/DM-145-deadcode.log",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "source-control-DM-145",
+        "changedFiles": [
+          ".tsprune-ignore",
+          "src/main/git/args.ts",
+          "src/main/git/branches.test.ts",
+          "src/main/git/branches.ts",
+          "src/main/git/branchesGuard.test.ts",
+          "src/main/git/branchesSafety.test.ts",
+          "src/main/git/errors.ts",
+          "src/main/git/handlers.ts",
+          "src/main/git/handlersBranches.test.ts",
+          "src/main/git/history.ts",
+          "src/main/git/ipc.test.ts",
+          "src/main/git/ipc.ts",
+          "src/main/git/refs.ts",
+          "src/main/git/stash.test.ts",
+          "src/main/git/stash.ts",
+          "src/main/git/sync.ts",
+          "src/preload/index.ts",
+          "src/renderer/src/__mocks__/fakeGit.test.ts",
+          "src/renderer/src/__mocks__/fakeGit.ts",
+          "src/shared/git/api.ts",
+          "src/shared/git/branches.ts",
+          "src/test/gitRemotes.ts"
+        ],
+        "commits": [
+          "0ff4f9e30879cbfe74293daab98f773b80149cfa",
+          "65b03e826df57b672c6093863f561692e6826b75",
+          "d8dbb3060ef1a61f1ba9d6919c24aa0e86f89d9b",
+          "6aef62e3f9c2e92d986b58dc450f9e342c8f1530"
+        ],
+        "summary": "Branch and stash operations in main, with the full bridge. Shared types in src/shared/git/branches.ts: BranchInfo, BranchList and StashInfo as the ticket specifies, plus request types and BranchNameCheck. src/main/git/branches.ts holds listBranches, createBranch, switchBranch, renameBranch, deleteBranch and mergeIntoCurrent. listBranches runs for-each-ref over refs/heads and refs/remotes, skips */HEAD, and splits remote names that contain '/' by the longest matching remote. defaultBranch comes from symbolic-ref refs/remotes/<upstream remote|origin|first>/HEAD, else main or master. createBranch runs `switch --no-track -c <name> [<local default, else remote default>]`. switchBranch stashes with `stash push --include-untracked -m dm-stash:<branch>` or brings changes along; a remote-only branch (`x` or `origin/x`) becomes `switch -c x --track refs/remotes/origin/x`. Rename and delete run `branch -m/-d/-D -- ...`. mergeIntoCurrent runs `merge --no-edit -m \"Merge branch '<name>'\" <full ref>`. src/main/git/stash.ts holds listStashes (only this branch's dm-stash: entries, with files from `stash show --name-status -z --include-untracked`), restoreStash (pop) and discardStash (drop). src/main/git/refs.ts holds repositoryRoot and currentBranch. Every name passes refArg and checkBranchName before any other git runs. checkBranchName now refuses empty names, a leading '-', '@', '@{', whitespace and control characters, and names over 255 UTF-8 bytes without running git; for anything else git's check-ref-format --branch output must equal the name exactly. Names reach git after '--', as a full ref, or as the value of -c/-m. Stash refs must match ^stash@{n}$ (at most 6 digits) and be one of the current branch's DM stashes before git runs; git gets them as refs/stash@{n}, which still works next to a branch or tag named 'stash'. Remote deletion: sync.ts now exports networkAuth (runOperation is refactored onto it with the same behavior), so `push --force-with-lease=refs/heads/<n>:<tracking oid> --delete -- <upstream remote> refs/heads/<n>` runs as a network operation. It authenticates for the upstream remote's push URL with the account token only for https://github.com, uses ssh BatchMode, redacts the token and has a 120 s timeout. It is refused for: no upstream; an upstream under another name (a shared base branch such as develop); a remote name starting with '-'; a branch checked out, rebased or bisected in any worktree; and, unless force is set, a local or remote tip that is not already in HEAD. The remote deletion runs before the local one, so a failed push changes nothing locally. Switching while a merge, rebase, cherry-pick or revert is in progress is refused as operation_in_progress before anything is stashed. If git refuses the switch after the stash, the code pops that exact stash (by commit id, with --index), but only while HEAD is still on the original branch, so a failing post-checkout hook keeps the stash. Bridge: GitApi gains 10 methods, plus handlers (zod strict schemas), git:* IPC channels, preload and FakeGit (setBranches, setStashes, branchError, name rules mirroring main). FakeGit was edited byte-preserving and keeps its 6 NUL bytes. errors.ts gains three patterns: '(stale info)' maps to rejected_non_fast_forward, 'cannot switch branch while' to operation_in_progress, and 'could not restore untracked files from stash' to local_changes_would_be_overwritten. history.ts exports parseNameStatus. .tsprune-ignore gains one line, 'src/shared/git/branches.ts - BranchInfo', because no renderer code uses it yet (the branch UI tickets will). REVIEWER NOTES: (1) Deliberate tightening beyond the ticket: deleteRemote refuses an upstream whose branch name differs from the local one. A red-team repro showed that `git checkout -b fix origin/develop` followed by deleting fix with its remote would delete the shared develop. (2) The merge message is passed explicitly because git would otherwise write \"Merge branch 'refs/heads/x'\" for the full ref. The full ref keeps a tag with the same name from being merged instead. (3) Sibling DM-144 adds a required `remote` field to RepoStatus; this ticket builds no RepoStatus literals except through spreads in FakeGit, so no merge conflict is expected there."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m4acnd85d82fg5qgy4jb4kse",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T12:57:48.015Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:81d8512ad8bf871d34feccf47e08e83cc024713115dfcfc77c70c4bc6aca31b1",
+      "ticketId": "tk_01m43st80pde20wsy9hzs8s366",
+      "updatedAt": "2026-10-31T12:57:48.035Z",
+      "worker": {
+        "catalogRevision": "hc_01m683v6zpwtyanf40hj5gg7wd",
+        "effort": "medium",
+        "hostId": "omp-mac-davidgorden",
+        "label": "omp task subagent (DM-145)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Run's host catalog (hc_01m49h2h…, Windows) was never imported, so match_capabilities returns not_found and the claim skips catalog checks. omp cannot select a worker model; its task subagents run claude-opus-5-5. Effort recorded as the ticket's planned effort. Lease 4h; orchestrator heartbeats for the worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T12:58:02.851Z",
+      "decidedAt": "2026-10-31T13:08:43.099Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Reviewed 3dc30ad..b577d31. Out-of-ticket: .dialog-actions flex-wrap (all dialogs), removed unused .source-branch style. Accepted.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Commit 908d9b2 holds only the two test files; the run failed with 2 files and 5 failed (the module was missing): /tmp/sc-epic/logs/DM-146-red.log",
+            "name": "tests first (red)",
+            "status": "passed"
+          },
+          {
+            "detail": "npx vitest run src/renderer/src/cssBalance.test.ts src/renderer/src/source/ src/renderer/src/components/Dialog.test.tsx: 9 files, 138 passed",
+            "name": "unit tests (touched)",
+            "status": "passed"
+          },
+          {
+            "detail": "npx oxlint src/renderer/src/source: exit 0",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck: exit 0",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run deadcode, with the BranchInfo baseline line removed: 'No new dead exports found.'",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run build: exit 0 (for the screenshots)",
+            "name": "build",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "full suite / fireguard / coverage",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "BranchMenu tests: filter focused on open, arrow/Enter/Escape, Default/Recent(5)/Other groups, remote-only under their remote, New branch."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Switch dialog: Leave (stash) / Bring; local_changes_would_be_overwritten keeps it open with the reason; no changes → immediate switch. Screenshot DM-146-switch-dialog.png viewed by orchestrator."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "New/Rename live checkBranchName validation; Delete offers Also delete <upstream>, asks again before forcing (checkbox locked on second ask); Merge into current from row menu and picker; merge_conflicts refreshes."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Stashed changes row in ChangesPanel lists stashed files with Restore and Discard… (confirm)."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "docs/verification/DM-146-popover-filtered.png and DM-146-switch-dialog.png from the built app with an isolated profile."
+          },
+          {
+            "criterionId": "c6",
+            "met": true,
+            "note": "Tests first (908d9b2); orchestrator re-ran src/renderer/src/{source,__mocks__,components}: 203 passed; worker: lint, typecheck, deadcode clean."
+          }
+        ],
+        "notes": "Red-team attacks: (1) A double Enter or double click on an immediate switch or merge could send two git calls; now guarded by the busy flag. (2) Stale checkBranchName answers on fast typing are dropped through a per-effect 'current' flag, and Create/Rename send the normalized name and stay disabled unless the latest check is valid; renaming to the same name is disabled. (3) A refusal while switching keeps the dialog open and calls no refresh (tested). (4) merge_conflicts from a merge or a stash restore refreshes, so DM-147's conflict view takes over; other errors are shown, not swallowed. (5) The Delete remote checkbox locks once the force ask appears, so the confirmed request matches what was asked. (6) A remote branch shadowed by a local one of the same name is not listed twice. (7) Rename and Delete are not offered for remote-only branches, and Delete and Merge are not offered for the current branch. Known limits: a switch or merge failure message in the popover persists until the next action (it is not cleared on reopen). Errors from listStashes hide the row silently, which is deliberate: the Changes list still works. The stash row shows the newest DM stash of the current branch only. Merged alongside DM-147: both edit ChangesPanel.tsx at adjacent lines (my StashedChanges line goes right after <ChangesList>), which may need a trivial textual merge.\nDiscoveries: none."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m690kqq3xqmr4e3ymrx2m333",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Branch menu",
+            "location": "src/renderer/src/source/BranchMenu.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Branch grouping/filter",
+            "location": "src/renderer/src/source/branchGroups.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Switch/New/Rename/Delete dialogs",
+            "location": "src/renderer/src/source/BranchDialogs.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Stashed changes row",
+            "location": "src/renderer/src/source/StashedChanges.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Branch menu tests",
+            "location": "src/renderer/src/source/BranchMenu.test.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Stashed changes tests",
+            "location": "src/renderer/src/source/StashedChanges.test.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Screenshot: popover with filter",
+            "location": "docs/verification/DM-146-popover-filtered.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Screenshot: switch dialog",
+            "location": "docs/verification/DM-146-switch-dialog.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Red (tests-first) run",
+            "location": "/tmp/sc-epic/logs/DM-146-red.log",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Targeted tests",
+            "location": "/tmp/sc-epic/logs/DM-146-tests.log",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Screenshot script and scratch repo",
+            "location": "/tmp/sc-epic/scratch/DM-146/shots.mjs",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "source-control-DM-146",
+        "changedFiles": [
+          ".tsprune-ignore",
+          "docs/verification/DM-146-popover-filtered.png",
+          "docs/verification/DM-146-switch-dialog.png",
+          "src/renderer/src/source/BranchDialogs.tsx",
+          "src/renderer/src/source/BranchMenu.test.tsx",
+          "src/renderer/src/source/BranchMenu.tsx",
+          "src/renderer/src/source/ChangesPanel.tsx",
+          "src/renderer/src/source/RepositoryView.tsx",
+          "src/renderer/src/source/StashedChanges.test.tsx",
+          "src/renderer/src/source/StashedChanges.tsx",
+          "src/renderer/src/source/branchGroups.ts",
+          "src/renderer/src/source/source.css",
+          "src/renderer/src/source/useGitRun.ts",
+          "src/renderer/src/styles.css"
+        ],
+        "commits": [
+          "908d9b2d66c178904c2795f73f3fdd83c9dccb52",
+          "9a1b8050ee80d531facd9aff7e603d9b2286b3c8",
+          "b577d317fee4aeb3ab98197209d59a8f9a13064e"
+        ],
+        "summary": "Added src/renderer/src/source/BranchMenu.tsx, which replaces the toolbar's branch label with a 'Current branch / <name>' button. Its popover has a filter that is focused on open, and three groups (Default branch, the 5 most recent other local branches, and the other local branches) plus one group per remote for remote-only branches. Remote-only branches are checked out by their remote name, e.g. origin/x. Up and down arrows move, Enter switches or merges, and Escape or a click outside closes. The row context menu has Rename…, Delete… and Merge into <current>; the current branch only gets Rename, and remote-only branches only get Merge. The popover also offers 'Choose a branch to merge into <current>…', a picker that uses the same filter and leaves out the current branch. Grouping and filtering are a pure function in branchGroups.ts. Dialogs are in BranchDialogs.tsx. Switch: 'You have changes on <current>' with Leave (stash) or Bring, and a refusal keeps the dialog open with git's reason; without changes the switch is immediate (uncommitted:'bring'). New branch and Rename validate live through checkBranchName ('Will be created/renamed as <normalized>', otherwise 'That is not a valid branch name.'), and New branch offers a Current/Default base. Delete has an 'Also delete <upstream>' checkbox when the branch has an upstream; branch_not_fully_merged turns the button into 'Delete anyway', which sends force:true. Merge on merge_conflicts refreshes and closes, so the conflict view takes over; other failures show in the popover. StashedChanges.tsx adds a 'Stashed changes' row under the file list in ChangesPanel, shown only when listStashes returns a stash for the current branch. Selecting it lists the stash's files with Restore (which also refreshes on merge_conflicts) and Discard… (which asks for confirmation). useGitRun.ts is a small shared busy/failure hook. The only shared-file edits are one toolbar line plus an import in RepositoryView.tsx (byte-preserving: its NUL is kept), one line plus an import in ChangesPanel.tsx (coordinated with DM147Conflicts), CSS in source.css (removing the now-unused .source-branch rule), and flex-wrap on .dialog-actions in styles.css so the three switch buttons fit. No FakeGit or GitApi changes were needed. BranchInfo now has a renderer consumer, so its .tsprune-ignore line was dropped; deadcode stays clean."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m4acnd85d82fg5qgy4jb4kse",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T13:08:43.077Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:f44736a7b8835c4ebdd70fd779cb1801235537c015565fab435aec78302a84e2",
+      "ticketId": "tk_01m43st80pyacpnw547zmdenfb",
+      "updatedAt": "2026-10-31T13:08:43.099Z",
+      "worker": {
+        "catalogRevision": "hc_01m683v6zpwtyanf40hj5gg7wd",
+        "effort": "medium",
+        "hostId": "omp-mac-davidgorden",
+        "label": "omp task subagent (DM-146)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Run's host catalog (hc_01m49h2h…, Windows) was never imported, so match_capabilities returns not_found and the claim skips catalog checks. omp cannot select a worker model; its task subagents run claude-opus-5-5. Effort recorded as the ticket's planned effort. Lease 4h; orchestrator heartbeats for the worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T12:58:02.876Z",
+      "decidedAt": "2026-10-31T13:50:03.253Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Reviewed 3dc30ad..3c65326; worker's adversarial review fixed 9 issues (literal pathspecs, launchable files refused, submodule/rebase sides, no normal commit over unmerged entries — touches DM-137's commit.ts). Unfixed findings recorded as discoveries (status.ts operation detection, commit.ts/discard.ts pathspec magic, two TOCTOU races). Accepted.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npx vitest run on conflicts, conflictsOpen, handlersConflicts, ipc, handlers, handlersBranches, handlersWrite, commit, errors, stash, sync and discard tests, src/renderer/src/source/, fakeGit.test, cssBalance and styles tests: 21 files, 285 tests passed (before the last split of a describe block). After that split, conflicts.test.ts ran again: 26 passed. Log: /tmp/sc-epic/logs/DM-147-tests.log",
+            "name": "unit tests (touched)",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 644a4e1 holds the tests only. Its run: 22 failed, 23 passed (/tmp/sc-epic/logs/DM-147-red.log). Red-team regressions: 10 failed before the fixes (/tmp/sc-epic/logs/DM-147-redteam-red.log); the phantom-row UI test was confirmed failing alone.",
+            "name": "tests written first",
+            "status": "passed"
+          },
+          {
+            "detail": "npx oxlint on all 24 touched source and test files: 0 errors (/tmp/sc-epic/logs/DM-147-lint.log)",
+            "name": "lint (touched files)",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck exit 0 (/tmp/sc-epic/logs/DM-147-typecheck.log)",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run deadcode: No new dead exports found (ConflictsModel was un-exported for this)",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run build exit 0 (/tmp/sc-epic/logs/DM-147-build.log)",
+            "name": "build (for c5 screenshots)",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "full test suite",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "fireguard",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "ConflictsPanel tests + getConflicts on real repos (all 7 kinds, marker counts, theirLabel from MERGE_MSG); banner names both sides and the count; conflicted files listed first. Screenshot DM-147-merge-one-resolved.png viewed."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "resolveWith ours/theirs (git rm when that side deleted; submodule side fixed); openInEditor via injected shell.openPath, confined to the repo and refusing launchable files/.git; markResolved refused with conflict_markers_remain."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Commit merge enabled only with nothing unresolved and creates the merge commit (also exercised in the built app); Abort merge after confirmation restores the pre-merge state."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Rebase/cherry-pick/revert banner with Abort (sides swapped correctly during rebase); conflicts from pull, merge and stash restore land in the view (real-repo tests)."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "docs/verification/DM-147-merge-one-resolved.png (+ DM-147-merge-two-conflicts.png) from the built app with an isolated profile."
+          },
+          {
+            "criterionId": "c6",
+            "met": true,
+            "note": "Red tests first (644a4e1); orchestrator re-ran src/main/git + renderer source/mocks: 588 passed; worker: lint, typecheck, deadcode, build."
+          }
+        ],
+        "notes": "Red team (reviewer subagent, 11 findings; repros in /tmp/sc-epic/scratch/DM-147-redteam/). Attacked and held: '..', 'sub/../../x', absolute POSIX and Windows paths, UNC paths, NUL, the empty string, option-like '-x'; './a', 'a//b', a trailing slash, different letter case and NFD/NFC are refused because the path must exactly equal git's unmerged path; a symlinked parent folder or file pointing outside the repo; links into .git/.GIT/.git/modules; symlink loops; FIFO (the isFile check comes before open); stale Commit merge (main re-reads status); abortOperation refuses merge/none; MERGE_MSG located via rev-parse --git-path and capped. Fixed, each with a regression test: P1 openInEditor handed executables, .app/.command and other launchable names, folders and FIFOs to shell.openPath; it now requires a plain file with no execute bit and no OS-launched extension, and refuses any '.git' segment (nested repos). P2 pathspec magic: a conflicted file named ':/foo' or ':!x' touched other files; checkout/add/rm now run with --literal-pathspecs. P2 submodule Use theirs staged our commit; it now uses update-index --cacheinfo with the chosen stage. P2 rebase sides inverted; the UI now swaps them during a rebase. P2 conflict-marker-size markers were missed; any run of 7 or more '<' followed by a space now counts. P2 a normal commit during a stash-restore conflict wiped the unmerged entries; commitFiles refuses with merge_conflicts and the commit box is hidden while conflicts last. P2 a previous operation's conflicts showed up as phantom 'Resolved' rows; the resource key now carries an activation counter. P3 the marker scan blocked main; it is now async. P3 one unreadable file failed every call; it now counts as 1 (still conflicted). Consciously not fixed: the stat-then-open and locate-then-openPath races, which need someone who can already write to the working tree; every action still rescans all conflicted files (async now). On Windows I expect fs.stat to report no execute bits (libuv), so only the extension list applies there [INFERENCE, not run on Windows]. The .js/.sh/.ps1 refusal means such conflicted files must be opened from an editor; the message says so.\nDiscoveries:\n- title: Read rebase markers before MERGE_HEAD when detecting the operation in progress\n  reason: status.ts OPERATION_MARKERS checks MERGE_HEAD first. In a 'git rebase -r' stopped at a conflicting merge (red-team e4), both MERGE_HEAD and rebase-merge/ exist, so the app shows a merge: Abort merge leaves the rebase in progress and Commit merge commits mid-rebase. A 'git am' in progress (rebase-apply) is also labelled 'rebase', and its Abort fails with 'git am is in progress'; that failure is safe.\n  ticket: DM-147\n- title: Give git literal pathspecs in commit and discard\n  reason: commit.ts (add -A -- <paths>) and discard.ts (checkout HEAD -- / rm --cached --) pass the renderer's paths through pathArgs, which adds '--' but not --literal-pathspecs. A changed file named ':/x' or ':!x' (pathspec magic, red-team e2) would make them act on other files. conflicts.ts now uses --literal-pathspecs; the older writers do not.\n  ticket: DM-147"
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m690kqqw9c940gznsd8x2bzs",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Main conflict operations",
+            "location": "src/main/git/conflicts.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Shared conflict types",
+            "location": "src/shared/git/conflicts.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Conflicts panel and useConflicts",
+            "location": "src/renderer/src/source/ConflictsPanel.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Main tests on real temp repos (every kind, markers, ours/theirs, refuse, abort, commit, rebase/cherry-pick/revert abort, pull/stash landing, red-team regressions)",
+            "location": "src/main/git/conflicts.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "openInEditor confinement tests (.., absolute, symlinks, nested .git, executables, launchable names, folders)",
+            "location": "src/main/git/conflictsOpen.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Handler tests",
+            "location": "src/main/git/handlersConflicts.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "UI tests with FakeGit",
+            "location": "src/renderer/src/source/ConflictsPanel.test.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Screenshot: merge with two conflicted files (built app, isolated profile)",
+            "location": "docs/verification/DM-147-merge-two-conflicts.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Screenshot: same merge with one resolved, diff with markers (c5)",
+            "location": "docs/verification/DM-147-merge-one-resolved.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Screenshot + end-to-end Commit merge script",
+            "location": "/tmp/sc-epic/scratch/DM-147/shots.mjs",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Screenshot run log (Commit merge made 'Merge branch 'feature/discounts'' with parents 0a3157d 9d98865)",
+            "location": "/tmp/sc-epic/logs/DM-147-shots.log",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Red (tests-first) run log",
+            "location": "/tmp/sc-epic/logs/DM-147-red.log",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Red-team regression tests failing before the fixes",
+            "location": "/tmp/sc-epic/logs/DM-147-redteam-red.log",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Targeted test run log",
+            "location": "/tmp/sc-epic/logs/DM-147-tests.log",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Typecheck log",
+            "location": "/tmp/sc-epic/logs/DM-147-typecheck.log",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Lint log",
+            "location": "/tmp/sc-epic/logs/DM-147-lint.log",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Deadcode log",
+            "location": "/tmp/sc-epic/logs/DM-147-deadcode.log",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "source-control-DM-147",
+        "changedFiles": [
+          "docs/verification/DM-147-merge-one-resolved.png",
+          "docs/verification/DM-147-merge-two-conflicts.png",
+          "src/main/desktop/bootstrap.ts",
+          "src/main/git/commit.test.ts",
+          "src/main/git/commit.ts",
+          "src/main/git/conflicts.test.ts",
+          "src/main/git/conflicts.ts",
+          "src/main/git/conflictsOpen.test.ts",
+          "src/main/git/handlers.test.ts",
+          "src/main/git/handlers.ts",
+          "src/main/git/handlersBranches.test.ts",
+          "src/main/git/handlersConflicts.test.ts",
+          "src/main/git/handlersWrite.test.ts",
+          "src/main/git/ipc.test.ts",
+          "src/main/git/ipc.ts",
+          "src/preload/index.ts",
+          "src/renderer/src/__mocks__/fakeGit.test.ts",
+          "src/renderer/src/__mocks__/fakeGit.ts",
+          "src/renderer/src/source/ChangesPanel.tsx",
+          "src/renderer/src/source/ConflictsPanel.test.tsx",
+          "src/renderer/src/source/ConflictsPanel.tsx",
+          "src/renderer/src/source/RepositoryView.tsx",
+          "src/renderer/src/source/SourceControlView.test.tsx",
+          "src/renderer/src/source/conflicts.css",
+          "src/shared/git/api.ts",
+          "src/shared/git/conflicts.ts",
+          "src/shared/git/errors.ts"
+        ],
+        "commits": [
+          "644a4e10bf778ea035bda362d1fae13498b83159",
+          "5ec726098938eeaa62d1cc1817490495344b2415",
+          "6701da63c7147d9fb18c1621e34a862bf9f67139",
+          "3c65326375e362140fd798915ad56de62163a605"
+        ],
+        "summary": "Merge conflicts from main to UI. src/main/git/conflicts.ts: getConflicts (porcelain v2 'u' entries -> 7 kinds; markers = lines starting with >=7 '<' then a space, scanned async in 1 MiB chunks; 0 when missing/not a plain file/outside; 1 when unreadable; theirLabel from MERGE_MSG's first line, 'Merge branch 'x'' -> 'x', pull keeps 'x of <url>', only while an operation is in progress), resolveWith (checkout --ours|--theirs + add; git rm when that side's stage is absent, which covers deleted_by_*/both_deleted and the rename/rename AU/UA cases; a submodule side goes in with update-index --cacheinfo), markResolved (add -A; GitError conflict_markers_remain while markers > 0), abortMerge, commitMerge (merge_conflicts while unmerged; --no-edit or -F - with summary/description), abortOperation (rebase|cherry-pick|revert --abort), openInEditor (injected shell.openPath with the real path). Every path must be exactly one git lists as unmerged, passes checkPaths, and is given to git with --literal-pathspecs. Bridge: new error code conflict_markers_remain, GitApi + handlers (zod strict schemas, tracked folder) + ipc + preload + bootstrap (openPath: shell.openPath) + FakeGit (setConflicts, derived default). UI: ConflictsPanel.tsx (useConflicts hook + panel) rendered by ChangesPanel above the Changes list: merge banner 'Merging <their> into <our>: N conflicted files' with Abort merge (confirm dialog) and Commit merge (enabled only with nothing unresolved); conflicted files first with 'N conflicts'/'Resolved' (resolved ones are remembered for the operation), Open in editor, Use mine (<our>), Use theirs (<their>), Mark resolved (disabled while markers remain); rebase/cherry-pick/revert banner with Abort; a stash-restore conflict lists the files without a banner. The commit box is hidden while conflicts or an operation last (Commit merge replaces it during a merge); selecting a conflicted file shows the working diff with the markers. Pull (SyncButton), merge and stash restore (DM-146, confirmed by that worker) refresh on merge_conflicts, so their conflicts land here. Reviewer must know: (1) commitFiles in commit.ts now refuses with merge_conflicts while any file is unmerged. The red team showed a normal commit during a conflicted stash restore ran 'git reset' and wiped the unmerged entries. (2) During a rebase the buttons swap git's sides (Use mine = git's theirs = the commit being replayed). (3) openInEditor refuses executables, OS-launched extensions (.command .app .exe .bat .cmd .js .ps1 .url ...), non-files and anything under a .git. (4) RepositoryView.tsx and fakeGit.ts were edited byte-preservingly (NUL counts 1 and 6 unchanged). (5) The sibling DM-146 also edits ChangesPanel (one line after <ChangesList>) and RepositoryView (toolbar line); our spots were agreed and do not overlap, but the merge must keep both."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m4acnd85d82fg5qgy4jb4kse",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T13:50:03.229Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:6e6e2610ae4fa31777f8608b77e6738775fdfab908eadb27ed63737337ae48bb",
+      "ticketId": "tk_01m43st80p3yhsk2s96zdhphk7",
+      "updatedAt": "2026-10-31T13:50:03.253Z",
+      "worker": {
+        "catalogRevision": "hc_01m683v6zpwtyanf40hj5gg7wd",
+        "effort": "medium",
+        "hostId": "omp-mac-davidgorden",
+        "label": "omp task subagent (DM-147)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Run's host catalog (hc_01m49h2h…, Windows) was never imported, so match_capabilities returns not_found and the claim skips catalog checks. omp cannot select a worker model; its task subagents run claude-opus-5-5. Effort recorded as the ticket's planned effort. Lease 4h; orchestrator heartbeats for the worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T13:51:56.812Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": null,
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m693pdwc4dvbzgc2xap83aa1",
+      "kind": "work",
+      "number": 1,
+      "outputs": null,
+      "reconciledAt": null,
+      "revisionId": "rv_01m4acnd85d82fg5qgy4jb4kse",
+      "state": "running",
+      "submittedAt": null,
+      "supersededAt": null,
+      "ticketContentHash": "sha256:75a72e944521e943ddc8598341d5c63d45e06cfc356116d08e10c73d4f52ebe7",
+      "ticketId": "tk_01m43st80ptgtk20bwa6ssqs82",
+      "updatedAt": "2026-10-31T13:57:14.822Z",
+      "worker": {
+        "catalogRevision": "hc_01m683v6zpwtyanf40hj5gg7wd",
+        "effort": "low",
+        "hostId": "omp-mac-davidgorden",
+        "label": "omp task subagent (DM-148)",
         "modelId": "claude-opus-5-5",
         "rationale": "Run's host catalog (hc_01m49h2h…, Windows) was never imported, so match_capabilities returns not_found and the claim skips catalog checks. omp cannot select a worker model; its task subagents run claude-opus-5-5. Effort recorded as the ticket's planned effort. Lease 4h; orchestrator heartbeats for the worker.",
         "sessionId": null
@@ -2032,6 +3665,132 @@
     }
   ],
   "revisionId": "rv_01m4acnd85d82fg5qgy4jb4kse",
+  "rowChecks": [
+    {
+      "checks": [
+        {
+          "detail": "npm run typecheck (node, web, fireguard) on source-control-sprint-2 @ 7a3a704",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "vitest: src/main/github, src/main/git, src/test, src/shared, src/main/desktop, src/renderer/src/{source,__mocks__,api,cssBalance.test.ts}, scripts, acpProcess.test.ts — 61 files, 983 passed, 6 skipped",
+          "name": "tests touching row 1 files",
+          "status": "passed"
+        },
+        {
+          "detail": "npx oxlint src scripts exit 0",
+          "name": "lint",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run deadcode: no new dead exports",
+          "name": "deadcode",
+          "status": "passed"
+        }
+      ],
+      "commit": "7a3a70450e46849e22ca1a247963162a2e9ba795",
+      "createdAt": "2026-10-31T11:19:46.092Z",
+      "id": "rk_01m68tzs5c3n3ryqx5dw3f6ef7",
+      "number": 1,
+      "recordedBy": "Claude Code",
+      "row": 1,
+      "sprintId": "sp_01m43st80ktpktzfr1x9t6bty4"
+    },
+    {
+      "checks": [
+        {
+          "detail": "npm run typecheck exit 0 @ 8b9ece8",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "vitest src/main/git src/main/github src/main/desktop src/renderer/src: 238 files, 3261 passed, 6 skipped",
+          "name": "tests touching row 2 files",
+          "status": "passed"
+        },
+        {
+          "detail": "npx oxlint src scripts exit 0",
+          "name": "lint",
+          "status": "passed"
+        },
+        {
+          "detail": "no new dead exports",
+          "name": "deadcode",
+          "status": "passed"
+        }
+      ],
+      "commit": "8b9ece8d539ba1c94ddbf6792437e3173e068c51",
+      "createdAt": "2026-10-31T12:15:54.956Z",
+      "id": "rk_01m68y6k2brtga8sjmhsb0vepj",
+      "number": 2,
+      "recordedBy": "Claude Code",
+      "row": 2,
+      "sprintId": "sp_01m43st80ktpktzfr1x9t6bty4"
+    },
+    {
+      "checks": [
+        {
+          "detail": "npm run typecheck exit 0 (after adding remote: null to DM-145's fakeGit.test fixture)",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "vitest src/main/git src/main/github src/main/desktop src/renderer/src src/shared scripts src/test: 255 files, 3459 passed, 6 skipped",
+          "name": "tests touching row 3 files",
+          "status": "passed"
+        },
+        {
+          "detail": "npx oxlint src scripts exit 0",
+          "name": "lint",
+          "status": "passed"
+        },
+        {
+          "detail": "no new dead exports",
+          "name": "deadcode",
+          "status": "passed"
+        }
+      ],
+      "commit": "3dc30adca06f3f4a55dedc45ccb50b164a275913",
+      "createdAt": "2026-10-31T12:58:02.838Z",
+      "id": "rk_01m690kqpp0vpaapf6ecdg2ezq",
+      "number": 3,
+      "recordedBy": "Claude Code",
+      "row": 3,
+      "sprintId": "sp_01m43st80ktpktzfr1x9t6bty4"
+    },
+    {
+      "checks": [
+        {
+          "detail": "npm run typecheck exit 0 after merging DM-146 + DM-147 (ChangesPanel conflict resolved: ConflictsPanel, ChangesList of non-conflicted files, StashedChanges; RepositoryView merged NUL-safe)",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "vitest src/main/git src/main/github src/main/desktop src/renderer/src src/shared scripts src/test: 261 files, 3542 passed, 6 skipped",
+          "name": "tests touching row 4 files",
+          "status": "passed"
+        },
+        {
+          "detail": "npx oxlint src scripts exit 0",
+          "name": "lint",
+          "status": "passed"
+        },
+        {
+          "detail": "no new dead exports",
+          "name": "deadcode",
+          "status": "passed"
+        }
+      ],
+      "commit": "7330e75db8f066fa2ac37adb9ab4d44d6c11d76c",
+      "createdAt": "2026-10-31T13:51:56.785Z",
+      "id": "rk_01m693pdvhhbh5h7f4r29kc4m6",
+      "number": 4,
+      "recordedBy": "Claude Code",
+      "row": 4,
+      "sprintId": "sp_01m43st80ktpktzfr1x9t6bty4"
+    }
+  ],
   "runId": "rn_01m49gyd8b5g5p67pz2awqr99n",
   "skillVersion": "1.5.1",
   "startedAt": "2026-10-06T21:14:34.059Z",

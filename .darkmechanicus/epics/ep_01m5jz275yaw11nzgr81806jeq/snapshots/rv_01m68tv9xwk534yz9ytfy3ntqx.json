@@ -1,0 +1,1878 @@
+{
+  "baseRevisionId": "rv_01m5jzdeprrrmsf56dp28yrarq",
+  "bundle": {
+    "edges": [
+      {
+        "from": "tk_01m68tv9x1bay77zhr4p3qyqej",
+        "to": "tk_01m68tv9x8sfdxh618cw46ns1m"
+      },
+      {
+        "from": "tk_01m68tv9x8kq9wvw94trd5fqrz",
+        "to": "tk_01m68tv9x8tvnn82xcqmpbg6js"
+      },
+      {
+        "from": "tk_01m68tv9x8trmgz7k6vz6j2zxg",
+        "to": "tk_01m68tv9x8tvnn82xcqmpbg6js"
+      },
+      {
+        "from": "tk_01m68tv9x1bay77zhr4p3qyqej",
+        "to": "tk_01m68tv9x8v7dh0j2ar74e5qyf"
+      },
+      {
+        "from": "tk_01m68tv9x8kq9wvw94trd5fqrz",
+        "to": "tk_01m68tv9x8v7dh0j2ar74e5qyf"
+      },
+      {
+        "from": "tk_01m68tv9x8v7dh0j2ar74e5qyf",
+        "to": "tk_01m68tv9x8tbrvs1et49hwfs25"
+      },
+      {
+        "from": "tk_01m68tv9x8tbrvs1et49hwfs25",
+        "to": "tk_01m68tv9x8trmgz7k6vz6j2zxg"
+      },
+      {
+        "from": "tk_01m68tv9x8trmgz7k6vz6j2zxg",
+        "to": "tk_01m68tv9x8yd5ytsjzga9q4rej"
+      },
+      {
+        "from": "tk_01m68tv9x8trmgz7k6vz6j2zxg",
+        "to": "tk_01m68tv9x8bzd5120s7jnw288c"
+      },
+      {
+        "from": "tk_01m68tv9x8bzd5120s7jnw288c",
+        "to": "tk_01m68tv9x8y36qa2yn377asb8p"
+      },
+      {
+        "from": "tk_01m68tv9x8bzd5120s7jnw288c",
+        "to": "tk_01m68tv9x8gd4hs117ksemxn2a"
+      },
+      {
+        "from": "tk_01m68tv9x8bzd5120s7jnw288c",
+        "to": "tk_01m68tv9x8a466zehy9vs01ebv"
+      },
+      {
+        "from": "tk_01m68tv9x8tvnn82xcqmpbg6js",
+        "to": "tk_01m68tv9x86hsnj5yfcz065037"
+      },
+      {
+        "from": "tk_01m68tv9x8yd5ytsjzga9q4rej",
+        "to": "tk_01m68tv9x86hsnj5yfcz065037"
+      },
+      {
+        "from": "tk_01m68tv9x8y36qa2yn377asb8p",
+        "to": "tk_01m68tv9x86hsnj5yfcz065037"
+      },
+      {
+        "from": "tk_01m68tv9x8gd4hs117ksemxn2a",
+        "to": "tk_01m68tv9x86hsnj5yfcz065037"
+      },
+      {
+        "from": "tk_01m68tv9x8a466zehy9vs01ebv",
+        "to": "tk_01m68tv9x86hsnj5yfcz065037"
+      },
+      {
+        "from": "tk_01m68tv9x86hsnj5yfcz065037",
+        "to": "tk_01m68tv9x849h8v3qse7cce81a"
+      },
+      {
+        "from": "tk_01m68tv9x849h8v3qse7cce81a",
+        "to": "tk_01m68tv9x8fv21pjx5a9mz53x5"
+      },
+      {
+        "from": "tk_01m68tv9x8sfdxh618cw46ns1m",
+        "to": "tk_01m68tv9x8r5qphehn0w0h53zq"
+      },
+      {
+        "from": "tk_01m68tv9x849h8v3qse7cce81a",
+        "to": "tk_01m68tv9x8r5qphehn0w0h53zq"
+      },
+      {
+        "from": "tk_01m68tv9x8sfdxh618cw46ns1m",
+        "to": "tk_01m68tv9x88htns1rzc4tg593j"
+      },
+      {
+        "from": "tk_01m68tv9x8fv21pjx5a9mz53x5",
+        "to": "tk_01m68tv9x88htns1rzc4tg593j"
+      }
+    ],
+    "epic": {
+      "intent": "Make every chat a real terminal. Clicking **New chat** in a tracked folder opens a terminal inside the app's main window. It runs in that folder, running the folder's agent CLI: Claude Code, Autonomous, Codex, Cursor or a custom CLI. It's like having Ghostty in the chat pane. The person works with the CLI directly. The CLI's own approvals, model switching, sign-in prompts and slash commands replace the app's protocol adapters, which go away.\n\n**Design.** `docs/design/chat-shells.md`, from DM-302 of the Agent CLIs epic (ep_01m61r9qjc28t4x2jpczpwk41a). The person's decisions on 2026-10-31 apply on top of it:\n- New chat is one click, with no dialog: the folder's default agent, role orchestrator, Allow save on, and the CLI's own default model.\n- The terminal lives in the existing window.\n- macOS is verified live. Windows is verified live only by an optional ticket.\n- The whole build is one sprint.\n\n**Preserve:**\n- The renderer never chooses an executable, argument, working directory or environment.\n- Every terminal is pinned to its folder's canonical path.\n- Per-chat `dm` grants are revoked when a terminal stops.\n- The quit is held until no agent process is left.\n- Human checkpoint authority.\n- Provider-neutral tickets.\n\n**Out of scope:**\n- A general shell, or a `$SHELL` fallback when the CLI exits.\n- A tab strip.\n- Moving the PTY host into a utility process.\n- Code signing.\n- Linux terminals (node-pty has no Linux prebuild).\n- Live Codex and Cursor checks (neither is installed here).\n\n**History.** This epic was first planned as \"Trustworthy completion and lighter agent orchestration\": saved revision rv_01m5jzdeprrrmsf56dp28yrarq, provenance Scrum cadence. The person repurposed it on 2026-10-31. That plan isn't part of this one, and stays readable in the revision history.\n\n**Execution.** A dedicated feature branch from `main`, which already holds Agent CLIs (022734c). One sprint:\n1. Work tickets, using TDD and targeted checks.\n2. One Fireguard ticket.\n3. The acceptance node, which runs the full Definition of Done once.",
+      "ownerRole": null,
+      "successCriteria": [
+        {
+          "id": "s1",
+          "text": "Clicking New chat in a tracked folder opens, with no dialog, a terminal in the app's main window. Its process is the folder's default agent CLI (or the first usable one), running with the folder's canonical path as its working directory and a Dark Mechanicus grant in its environment."
+        },
+        {
+          "id": "s2",
+          "text": "The terminal works like a native one. Every key, including Escape, Ctrl+C and Tab, reaches the CLI. Copy, paste and the app's shortcuts work. It resizes with the window, takes the app's theme, and draws under the production CSP with no violation."
+        },
+        {
+          "id": "s3",
+          "text": "Switching chats or reloading the window keeps each chat's CLI running and restores its screen. A CLI that exits or is idle-stopped offers Start again, which resumes the same session where the CLI supports it. Quitting leaves no agent process."
+        },
+        {
+          "id": "s4",
+          "text": "The renderer can start only the agent CLI a person chose for a chat. No attach or input message can name an executable, argument, working directory or environment, and a terminal's grant is revoked when it stops."
+        },
+        {
+          "id": "s5",
+          "text": "Start run opens the orchestrator's terminal with its guidance and kickoff. Sign-in happens in a terminal inside the app's window. Chats from before the change open as terminals, with their old transcript readable."
+        },
+        {
+          "id": "s6",
+          "text": "The protocol adapters, approval cards, streaming channels and the Claude Agent SDK dependency are gone. Custom CLIs need no protocol. The architecture doc and agents runbook describe terminal chats."
+        },
+        {
+          "id": "s7",
+          "text": "macOS is verified live on the built and packaged app. Windows code paths are unit-tested, and a live Windows run is an optional ticket that does not gate the sprint."
+        }
+      ],
+      "title": "Terminal chats: New chat opens the folder's agent CLI in a terminal inside the app"
+    },
+    "formatVersion": 1,
+    "policies": {
+      "leaseSeconds": 900,
+      "maxConcurrency": 2,
+      "onTicketFailure": "continue_independent",
+      "retryLimit": 3
+    },
+    "rationale": "## Why this replaced the earlier plan\n\nOn 2026-10-31 the person asked to switch this epic to turning chats into terminal shells, in one sprint. The earlier \"Trustworthy completion\" plan didn't touch chat. On being shown that, the person still chose to repurpose this epic rather than open a new one. That plan stays in revision rv_01m5jzdeprrrmsf56dp28yrarq. Its provenance field still names Scrum cadence, because the plan draft can't change provenance. The design source is DM-302 in Agent CLIs.\n\n## How the design's tickets map\n\n| Design | Here |\n|-|-|\n| SH-1 PTY host and packaging | PTY host; packaging (split: packaging needs its own packaged smoke) |\n| SH-2 launch spec | launch spec; Claude memory guards (split: the hook is its own security change and needs a live terminal) |\n| SH-3 channels | session manager; guarded attach and port (split: lifecycle vs. the IPC boundary) |\n| SH-4 pane | terminal pane |\n| (new) | one-click New chat (the person's direction) |\n| SH-5 lifecycle | exit, Start again and idle stop; in-window sign-in (split) |\n| SH-6 Start run | orchestrator terminal |\n| SH-7 old chats | existing chats and activity |\n| SH-8 (large) | adapter deletion; custom CLIs and migration; docs (split into three) |\n| SH-9 macOS | the acceptance node |\n| SH-9 Windows | the optional Windows ticket |\n\n## Order\n\nThe critical path:\n1. PTY host + launch spec\n2. session manager\n3. attach\n4. pane\n5. lifecycle\n6. sign-in / orchestrator / old chats\n7. adapter deletion\n8. custom CLIs\n9. docs\n10. Fireguard\n11. acceptance\n\nPackaging, memory guards and New chat hang off that path. Several tickets share the pane and the session manager, so they're chained rather than run in parallel, to avoid merge conflicts. The concurrency policy stays at 2.\n\n## Adjusted to main at 022734c (Agent CLIs merged)\n\n**Paths the design got wrong:**\n- `quitDisposal.ts` is `src/main/quitDisposal.ts`.\n- `customAgent.ts`, `folderAgentDefaults.ts` and `bootstrap.ts` are in `src/main/desktop/`.\n- `claudeMemoryFolder.ts` and `claudeProcess.ts` are in `src/main/agents/adapters/`.\n- `isSafeModelId` is in `adapters/cursorProtocol.ts`.\n\nEverything still needed is moved out of `adapters/` before that folder is deleted.\n\n**Sprint 3 changes the tickets build on:**\n- `processTree` reaps a group whose leader already exited (DM-305). The pid-based kill reuses it.\n- Status checks have per-kind limits, and Autonomous waits up to 30 s (DM-299). Attach shows a checking state rather than a blank pane.\n- The picked custom CLI path is kept (DM-304).\n- The handshake version label (DM-303) goes with the handshake.\n\n## Assumptions\n\n- **CLI only.** The terminal runs the agent CLI and never a general shell. When the CLI exits, the pane offers Start again (design question 2, for security). Dropping into a shell after the CLI exits would be a separate decision by the person.\n- **New chat defaults.** One-click New chat uses role orchestrator with Allow save, the old dialog's defaults. No per-chat role choice remains.\n- **The run machine.** The run executes on this Mac, where Claude Code and a8s are installed and Codex and Cursor aren't.\n- **Claim tokens.** They're visible in an orchestrator's terminal. The design accepted this.\n\n## Risks\n\n- The CSP violations with xterm's WebGL renderer (the pane ticket must clear them).\n- A native node-pty crash takes main down. The fix would be to move `PtyHost` into a utility process later.\n- `claude --resume` of old SDK sessions is unverified.\n- The Codex and Cursor flags are inference.\n- ConPTY and the Windows kill stay unverified unless the optional ticket runs.",
+    "relations": [],
+    "sprints": [
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": 2,
+        "entryCriteria": [
+          {
+            "id": "n1",
+            "text": "Agent CLIs is merged into main (022734c), and the epic branch starts from main."
+          }
+        ],
+        "exitCriteria": [
+          {
+            "id": "x1",
+            "text": "On the built and packaged macOS app, New chat opens the folder's agent CLI in a terminal with its canonical folder and grant, and switching, reloading, Start again and quitting behave as success criteria s1-s4 say."
+          },
+          {
+            "id": "x2",
+            "text": "Start run, in-window sign-in and chats from before the change work as terminals (s5)."
+          },
+          {
+            "id": "x3",
+            "text": "No adapter code, streaming channel or Claude Agent SDK dependency remains, and existing custom rows migrate (s6)."
+          },
+          {
+            "id": "x4",
+            "text": "Every required work ticket is accepted, Fireguard grades nothing F, and the Definition of Done passes on the combined sprint."
+          }
+        ],
+        "goal": "New chat opens the folder's agent CLI in a terminal in the main window; chats are terminals end to end on macOS, and the protocol adapters are gone.",
+        "id": "sp_01m5jz275zxpve9s276gzaw4s0",
+        "ordinal": 1,
+        "ticketIds": [
+          "tk_01m68tv9x1bay77zhr4p3qyqej",
+          "tk_01m68tv9x8sfdxh618cw46ns1m",
+          "tk_01m68tv9x8kq9wvw94trd5fqrz",
+          "tk_01m68tv9x8tvnn82xcqmpbg6js",
+          "tk_01m68tv9x8v7dh0j2ar74e5qyf",
+          "tk_01m68tv9x8tbrvs1et49hwfs25",
+          "tk_01m68tv9x8trmgz7k6vz6j2zxg",
+          "tk_01m68tv9x8yd5ytsjzga9q4rej",
+          "tk_01m68tv9x8bzd5120s7jnw288c",
+          "tk_01m68tv9x8y36qa2yn377asb8p",
+          "tk_01m68tv9x8gd4hs117ksemxn2a",
+          "tk_01m68tv9x8a466zehy9vs01ebv",
+          "tk_01m68tv9x86hsnj5yfcz065037",
+          "tk_01m68tv9x849h8v3qse7cce81a",
+          "tk_01m68tv9x8fv21pjx5a9mz53x5",
+          "tk_01m68tv9x8r5qphehn0w0h53zq",
+          "tk_01m68tv9x88htns1rzc4tg593j",
+          "tk_01m68tv9x8g0s4tjqdkx5b8gax"
+        ]
+      }
+    ],
+    "tickets": [
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "`node-pty` is pinned at exactly 1.1.0 in `dependencies`, and `scripts/ptyHelperMode.mjs` (run by `postinstall`) makes `node_modules/node-pty/prebuilds/darwin-*/spawn-helper` executable; a test fails when the bit is missing."
+          },
+          {
+            "id": "c2",
+            "text": "`src/main/terminals/ptyHost.ts` has a node-pty implementation and a fake with the same interface, and no other module imports `node-pty` (`rg` output in the evidence)."
+          },
+          {
+            "id": "c3",
+            "text": "Under vitest on macOS the real host runs the fixture CLI in a PTY, and the fixture's log shows the canonical cwd, `DM_SESSION_TOKEN` present, the exact argv, typed input echoed back and a SIGWINCH at the new size."
+          },
+          {
+            "id": "c4",
+            "text": "The pid-based tree kill ends the fixture's process group including a backgrounded grandchild, with no process left (`ps` in the test); the Windows `taskkill /t /f` path is covered with a fake runner."
+          }
+        ],
+        "body": "Size: **medium**. Design: `docs/design/chat-shells.md` (DM-302), question 1 and question 5. Paths are as of `main` at 022734c.\n\n**Tests first.** Run only this ticket's targeted tests, plus `npm run lint` and `npm run typecheck`. Fireguard and the full Definition of Done run later in the sprint.\n\n**Change**\n1. Add `node-pty` to `dependencies`, pinned exactly at `1.1.0`. electron-vite's `externalizeDeps` leaves dependencies in `node_modules`. Nothing may build node-pty from source: its N-API prebuilds load in Electron 42 and in system Node alike.\n2. Add the execute bit. The published tarball ships `prebuilds/darwin-*/spawn-helper` as `-rw-r--r--`, and without the bit every spawn fails with `posix_spawnp failed.`\n   - Write `scripts/ptyHelperMode.mjs`. It sets `+x` on `node_modules/node-pty/prebuilds/darwin-*/spawn-helper` and does nothing on other platforms.\n   - Run it from a new `postinstall` script.\n   - Add a test that fails when the bit is missing.\n   - Leave npm's allow-scripts unapproved: the prebuild needs no install script.\n3. Add `src/main/terminals/ptyHost.ts`:\n   - `PtyHost { spawn(spec: PtySpawnSpec): PtyProcess }`.\n   - `PtySpawnSpec { file; args: readonly string[] | string; cwd; env; cols; rows }`. The string form is a Windows pre-escaped command line.\n   - `PtyProcess { pid; write(data); resize(cols, rows); kill(); onData(listener); onExit(listener) }`. Each listener returns a disposer.\n   - `createNodePtyHost()` is the real implementation. On Windows it passes `useConptyDll: true`.\n   - Add a fake with the same interface, next to the tests. The repository prefers fakes over `vi.fn`.\n   - No other module may import `node-pty`.\n4. In `src/main/agents/processTree.ts`, add a pid-based tree kill for PTY children. Today `killProcessTree` takes a Node `ChildProcess`.\n   - On macOS and Linux: `process.kill(-pid, 'SIGKILL')`. `forkpty` makes the CLI a process group leader.\n   - On Windows: `taskkill /pid <pid> /t /f`, then node-pty's own `kill`.\n   - Reuse the reaping of a group whose leader already exited (DM-305).\n   - It resolves when the exit promise settles, or after its timeout.\n5. Write a fixture agent CLI, `src/main/terminals/__fixtures__/agentFixture.mjs`, a small Node script. It:\n   - prints its cwd, whether `DM_SESSION_TOKEN` is set, and its argv;\n   - echoes input, and reports SIGWINCH sizes;\n   - writes all of this to a log file in its scratch folder.\n\n   Later tickets and the acceptance round reuse it as a custom CLI.\n6. Add a real-PTY test, `ptyHost.real.test.ts`. Skip it on Linux, which has no node-pty prebuild. It runs the fixture in a temp folder and asserts:\n   - the canonical cwd: `/private/tmp/…` for a folder made under `/tmp`;\n   - the grant variable and the exact argv;\n   - the input round trip and the resize;\n   - a group kill that leaves no process, including a backgrounded grandchild.\n\n**Out of scope:** packaging and the asar (the packaging ticket), sessions and grants, the renderer.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "docs/design/chat-shells.md"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A native PTY binding, a process-group kill variant and a real-process test across platforms."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/main/terminals/ptyHost.ts",
+          "src/main/terminals/__fixtures__/agentFixture.mjs",
+          "scripts/ptyHelperMode.mjs"
+        ],
+        "id": "tk_01m68tv9x1bay77zhr4p3qyqej",
+        "key": "DM-318",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Chats as terminal shells (design)",
+            "location": "docs/design/chat-shells.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "ticket",
+            "label": "DM-302 design spike",
+            "location": "DM-302",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Add node-pty behind a PtyHost interface, with a fake and a real-PTY test"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "`package.json`'s `build` unpacks `node_modules/node-pty/**` from the asar, sets `npmRebuild: false`, and an `afterPack` hook makes `spawn-helper` executable; `ls -l` of the helper in the packaged arm64 and x64 bundles is in the evidence."
+          },
+          {
+            "id": "c2",
+            "text": "The packaged arm64 app, started with a scratch `--user-data-dir`, runs `/bin/echo ok` in a PTY through the real `PtyHost` (inspector transcript), and its `pty.node` has the same checksum as the darwin-arm64 prebuild."
+          },
+          {
+            "id": "c3",
+            "text": "With the helper's execute bit removed, starting a PTY fails with the app's own message naming the helper, not `posix_spawnp failed.` (tested)."
+          }
+        ],
+        "body": "Size: **small**. Effort is one step higher than usual, because the hard part is proving the packaged app really loads the prebuild. Design: `docs/design/chat-shells.md` § \"Native module, rebuilds and packaging\".\n\n**Tests first** for the helper check. The rest is packaging config plus a packaged smoke.\n\n**Change**\n1. In `package.json`'s `build` section (electron-builder):\n   - `asarUnpack` includes `node_modules/node-pty/**`. `spawn-helper` must be a real file to be executed, and node-pty rewrites its path to `app.asar.unpacked` itself.\n   - `npmRebuild: false`, so electron-builder never compiles node-pty.\n   - An `afterPack` hook re-applies the execute bit to `spawn-helper` inside each darwin bundle. It reuses `scripts/ptyHelperMode.mjs`'s logic.\n2. Add `src/main/terminals/ptyHelperCheck.ts`. On darwin, before the first PTY starts, it stats the helper. If the helper isn't executable, terminals refuse with the app's own message: \"The terminal helper isn't executable: <path>. Reinstall Dark Mechanicus.\" It never surfaces `posix_spawnp failed.` The real `PtyHost` factory calls it.\n3. Run the packaged smoke on this Mac:\n   - Run `npm run package:mac`.\n   - Start the arm64 app with a scratch `--user-data-dir` and `--inspect=0`.\n   - Over the inspector, spawn `/bin/echo ok` through the real `PtyHost`, and record the output.\n   - Compare `pty.node`'s checksum with `node_modules/node-pty/prebuilds/darwin-arm64/pty.node`.\n   - Show `ls -l` of `spawn-helper` in the arm64 and x64 bundles.\n\n**Out of scope:** Windows packaging (the optional Windows ticket) and code signing.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "docs/design/chat-shells.md"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "routine",
+            "rationale": "Config steps are spelled out; proving the packaged app loads the prebuild is the one hard part."
+          },
+          "skills": [
+            "electron",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/main/terminals/ptyHelperCheck.ts"
+        ],
+        "id": "tk_01m68tv9x8sfdxh618cw46ns1m",
+        "key": "DM-319",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Chats as terminal shells (design)",
+            "location": "docs/design/chat-shells.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "ticket",
+            "label": "DM-302 design spike",
+            "location": "DM-302",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [],
+        "title": "Package node-pty unpacked and prebuilt, and refuse terminals when its helper can't run"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "`terminalLaunchSpec` has a table test over Claude Code, Autonomous, Codex, Cursor and a custom CLI × new and resumed × macOS and Windows, asserting the exact `file`, `args` (or Windows command line), `cwd` and `env` keys."
+          },
+          {
+            "id": "c2",
+            "text": "cwd, `{folder}` and the launcher's `--repo` are always `resolveLaunchFolder`'s path; `{folder}` or `{instructions}` inside a longer argument is refused (tested)."
+          },
+          {
+            "id": "c3",
+            "text": "The environment holds no `ELECTRON_*` or `NODE_OPTIONS` from main (except Windows packaged `ELECTRON_RUN_AS_NODE=1`), and holds `TERM`, `COLORTERM` and the chat's `DM_SESSION_TOKEN` (tested)."
+          },
+          {
+            "id": "c4",
+            "text": "The macOS `dm` launcher, generated for folders named with `$(…)`, a backtick, both quote kinds and a space, runs `dm` with exactly the agent's arguments and `--repo` set to that folder and runs nothing else (tested by executing it with a stub runtime)."
+          },
+          {
+            "id": "c5",
+            "text": "On Windows an `.exe` gets standard quoting, a `.cmd` goes through `planShimLaunch`, a Claude `.cmd` is followed to its program, and no `.cmd` command line carries the instructions, settings or kickoff (tested)."
+          },
+          {
+            "id": "c6",
+            "text": "A model failing `isSafeModelId` or a non-UUID Claude session id is dropped and listed in `dropped` (tested), and the installed Claude Code accepts the generated `--append-system-prompt-file` start (or the macOS fallback is used and stated)."
+          }
+        ],
+        "body": "Size: **medium**. Design: `docs/design/chat-shells.md` question 2 (the security table) and question 3 (the per-agent flag table). This ticket is pure functions plus the files main writes before a start. It doesn't start any PTY.\n\n**Tests first:** table tests, plus a test that executes the launcher.\n\n**Change**\n1. Add `src/main/terminals/terminalLaunchSpec.ts`. The pure `terminalLaunchSpec(input)` returns `{ file, args | commandLine, cwd, env, dropped, pasteFirst }`. Its input:\n   - the chat: `agent`, `role`, `allowSave`, `model`, `sessionId`, `sessionStarted`, `kickoffSent`;\n   - the agent row: `kind`, `executablePath`, and stored args for a custom CLI;\n   - `folder`, the path `resolveLaunchFolder` returned;\n   - `cli`, from `buildCliConfig` in `src/main/desktop/cliConfig.ts`;\n   - `files`: the instructions file, the Claude settings file and the launcher folder;\n   - `platform`.\n2. Per-kind flags, as in the design's table:\n   - **Claude Code:**\n     - `--append-system-prompt-file <file>`. Exercise it once against the installed `~/.local/bin/claude`. If it's refused, use `--append-system-prompt <text>` on macOS only, and say so in the evidence.\n     - `--settings <file>`, only when `files.claudeSettings` is given. The memory-guard ticket writes that file and supplies its path; until then, Claude starts without `--settings`.\n     - `--model <id>`.\n     - `--session-id <uuid>` on a first start; `--resume <uuid>` once the session exists.\n   - **Autonomous:** `start <folder> --append-system-prompt <text> --approval-mode always-ask [--model …]`. A later start is `resume`.\n   - **Codex and Cursor:** the design's inferred flags. They aren't installed on this machine, so the table tests are the only check; say so.\n   - **Custom CLIs:** the stored arguments, with whole-argument `{folder}` and `{instructions}` replaced. The app adds no flags.\n3. Move `isSafeModelId` out of `src/main/agents/adapters/cursorProtocol.ts`, and `resolveClaudeExecutable` out of `src/main/agents/adapters/claudeProcess.ts`, into `src/main/terminals/`. The adapters are deleted later in this sprint. The adapters import the moved functions until then.\n4. The instructions writer puts `cliInstructions(...)` in `userData/agents/instructions/<chat id>.md`, rewritten at each start.\n5. The environment is built in layers:\n   - Start from `process.env`, minus `ELECTRON_RUN_AS_NODE`, every `ELECTRON_*` and `NODE_OPTIONS`.\n   - Add `TERM=xterm-256color` and `COLORTERM=truecolor`.\n   - For Claude, add `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`.\n   - Add the chat's `dm` environment from `chatGrants`: `DM_SESSION_TOKEN` and `DARKMECHANICUS_HOME`.\n   - On macOS, put the chat's launcher folder first on `PATH`.\n   - On Windows, a packaged app keeps today's `ELECTRON_RUN_AS_NODE=1`. This is a known limitation, recorded in the runbook ticket.\n6. The macOS `dm` launcher is `userData/agents/bin/<chat id>/dm`, mode 0700:\n   - It's a `/bin/sh` script.\n   - Every embedded path (runtime, `cli.js`, folder) is single-quoted, with `'` escaped as `'\\''`.\n   - It sets `ELECTRON_RUN_AS_NODE=1` for its own process only.\n   - It ends with `exec <runtime> <cli.js> --repo <folder> \"$@\"`.\n7. On Windows, the app builds the command line itself:\n   - an `.exe` gets the same quoting as Node's `child_process`;\n   - a `.cmd` or `.bat` goes through `planShimLaunch` (`src/main/agents/shimLaunch.ts`);\n   - a Claude `.cmd` is followed to its program.\n\n   No `.cmd` line carries the instructions, the settings or the kickoff. On an Autonomous shim the spec sets `pasteFirst` instead.\n8. Validation: a model that fails `isSafeModelId` (or is `default`) and a non-UUID Claude session id are dropped, and listed in `dropped`, so the pane can say so.\n\n**Out of scope:** starting processes, the Claude settings file's content, the renderer.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "docs/design/chat-shells.md"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "deep",
+            "rationale": "Argument, environment and shell-quoting rules decide what a compromised renderer could make main run; injection mistakes are costly and hard to see."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing",
+            "security-review"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution",
+            "network"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/main/terminals/terminalLaunchSpec.ts"
+        ],
+        "id": "tk_01m68tv9x8kq9wvw94trd5fqrz",
+        "key": "DM-320",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Chats as terminal shells (design)",
+            "location": "docs/design/chat-shells.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "ticket",
+            "label": "DM-302 design spike",
+            "location": "DM-302",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Build terminal launch specs for each agent kind and platform"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "For a Claude chat main writes a settings file holding `autoMemoryDirectory` and a `PreToolUse` command hook, and the launch spec passes it with `--settings <path>`, never inline JSON (tested)."
+          },
+          {
+            "id": "c2",
+            "text": "The hook script answers `ask` for a write into the memory folder and stays silent for other paths, under today's path rules (the moved `claudeMemoryFolder` cases pass)."
+          },
+          {
+            "id": "c3",
+            "text": "The macOS hook launcher works with a userData path and folder holding spaces and quotes (tested by running it)."
+          },
+          {
+            "id": "c4",
+            "text": "Live on this Mac, a Claude Code terminal asked to write into its memory folder shows Claude's own permission prompt (screenshot), and `ps -wwE` shows `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`."
+          }
+        ],
+        "body": "Size: **medium**. Effort is one step higher than usual: the hook command's quoting is injection-sensitive. Design: `docs/design/chat-shells.md` § \"Claude's memory guards\".\n\n**Today:** `src/main/agents/adapters/claude.ts` sets `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`, passes `autoMemoryDirectory` in an inline `--settings`, and asks before memory-folder writes with an SDK hook callback (`src/main/agents/adapters/claudeMemoryFolder.ts`). A terminal has no in-process callback.\n\n**Tests first.** Move the existing `claudeMemoryFolder.test.ts` cases with the rules.\n\n**Change**\n1. Move the path rules to `src/main/terminals/claudeMemoryGuard.ts`, keeping their behavior. The adapter imports them until it's deleted.\n2. Add a step to the session manager's pre-start sequence: before each Claude start, main writes `userData/agents/settings/<chat id>.json` and passes its path as `files.claudeSettings`. The file holds `autoMemoryDirectory` and a `PreToolUse` command hook, in Claude Code's own hooks settings format. Check the format against the installed CLI, not from memory. The launch spec passes the file with `--settings <path>`, never as inline JSON.\n3. The hook command runs the app's small script (built into `out/main/`). The script reads the hook's JSON on stdin and answers `ask` for a memory-folder target. For anything else it stays silent, so the CLI's own permission rules apply.\n4. The hook launcher:\n   - **macOS:** a launcher-style `/bin/sh` script, as in the launch-spec ticket. Every path is single-quoted, and `ELECTRON_RUN_AS_NODE=1` is set for its own process, because the PTY environment is scrubbed.\n   - **Windows:** use the launch-spec ticket's quoting rules. Unit-test it with a userData path holding a space. Its live check belongs to the optional Windows ticket.\n\n**Live (this Mac):** in a Claude Code chat terminal (built app, scratch `--user-data-dir`, scratch repo), ask Claude to write a file into its memory folder. Claude's own permission prompt must appear. Show `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` with `ps -wwE`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "docs/design/chat-shells.md"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "deep",
+            "rationale": "Replaces an in-process permission guard with a hook command whose quoting and path rules must not weaken it."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing",
+            "security-review"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution",
+            "network"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/main/terminals/claudeMemoryGuard.ts"
+        ],
+        "id": "tk_01m68tv9x8tvnn82xcqmpbg6js",
+        "key": "DM-321",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Chats as terminal shells (design)",
+            "location": "docs/design/chat-shells.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "ticket",
+            "label": "DM-302 design spike",
+            "location": "DM-302",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Carry Claude's memory guards into a settings file and a PreToolUse hook"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Concurrent attaches for one chat start one PTY, and another chat gets its own (tested with the fake host)."
+          },
+          {
+            "id": "c2",
+            "text": "A grant is issued before spawn and its id stored on the chat record, and it is revoked when the PTY exits, is killed or fails to spawn (tested)."
+          },
+          {
+            "id": "c3",
+            "text": "A moved, deleted or untracked folder is refused before any grant is issued, and a running PTY whose folder moves is stopped within 60 s with the `not_found` message (tested with a fake clock)."
+          },
+          {
+            "id": "c4",
+            "text": "Attach returns the headless screen's serialized snapshot, which reproduces the output written so far (tested with the real headless terminal)."
+          },
+          {
+            "id": "c5",
+            "text": "Quit disposal holds the quit until every PTY tree has exited, bounded at 5 s, and deleting a chat or removing its agent kills its PTY (tested)."
+          }
+        ],
+        "body": "Size: **medium**. Effort is one step higher than usual: start-once races and grant revocation on every exit path are easy to get subtly wrong. Design: `docs/design/chat-shells.md` question 1 (\"Several chats\") and question 3. Use the `PtyHost` fake for lifecycle tests.\n\n**Tests first.**\n\n**Change.** Add `src/main/terminals/terminalSessions.ts`, keyed by chat id.\n1. **Attach.** `attach(chatId)` loads the chat from `chatStore`. It starts the PTY if none runs: concurrent attaches share one start.\n2. **Before a start**, in this order:\n   - `resolveLaunchFolder` (`src/main/agents/launchFolder.ts`). A refusal returns `refused` with the `not_found` message, and nothing starts.\n   - For a built-in, `getAgentAuthStatus` (`src/main/desktop/agentAuth.ts`). `signed_out` returns `signed_out` and nothing starts. Autonomous's check takes up to 30 s (DM-299), so attach reports `checking` until it answers.\n   - Write the instructions file (the launch-spec ticket's writer), and issue the grant through `chatGrants`. Keep this a named pre-start step: the memory-guard ticket adds the Claude settings file to it.\n   - Store the grant id on the chat record (`grantIds` in `index.jsonl`), then spawn.\n   - Revoke the grant when the PTY exits, is killed, or fails to spawn.\n3. **Screen.** Feed every PTY's output through an `@xterm/headless` terminal of the same size. Add `@xterm/headless` and `@xterm/addon-serialize` to `dependencies`. Attach returns its `@xterm/addon-serialize` snapshot, and output fans out to subscribers.\n4. **Quit.** Register `busy` and `dispose` with `disposeBeforeQuit` (`src/main/quitDisposal.ts`; wired in `src/main/desktop/bootstrap.ts`). `dispose` kills every PTY tree with the pid-based kill, and resolves when every `onExit` has fired. Keep the 5 s bound. The design's prototype hung Electron when the quit wasn't held.\n5. **Delete and remove.** Deleting a chat, or removing its agent (the `endAgentSessions` path), kills its PTY.\n6. **Folder watch.** While a PTY runs, re-check `resolveLaunchFolder` every 60 s. On failure, stop the PTY and revoke its grant, with the same `not_found` message.\n\nThe adapter `sessionManager.ts` stays until the adapter-deletion ticket. Don't route terminals through it.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "docs/design/chat-shells.md"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "deep",
+            "rationale": "Start-once races, grant revocation on every exit path and the held quit are easy to get subtly wrong."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/main/terminals/terminalSessions.ts"
+        ],
+        "id": "tk_01m68tv9x8v7dh0j2ar74e5qyf",
+        "key": "DM-322",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Chats as terminal shells (design)",
+            "location": "docs/design/chat-shells.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "ticket",
+            "label": "DM-302 design spike",
+            "location": "DM-302",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Run one PTY per chat in a terminal session manager"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "`terminals:attach` goes through `guardIpc` with a strict schema, and extra keys, an unknown chat, another folder's chat, a moved or untracked folder and a disconnected agent are refused before a grant is issued (tested)."
+          },
+          {
+            "id": "c2",
+            "text": "No attach or port message can name an executable, argument, working directory or environment: for every accepted payload the spawn spec equals the one built from main's own records (tested)."
+          },
+          {
+            "id": "c3",
+            "text": "The port accepts only `input` strings up to 64 KiB and integer `resize` clamped to 20-500 × 5-200, drops anything else, and output reaches only attached ports (tested)."
+          },
+          {
+            "id": "c4",
+            "text": "`window.dm.terminals` is the only new preload surface, and the `ipcMain` scan in `src/main/ipcGuard.test.ts` still passes."
+          }
+        ],
+        "body": "Size: **medium**. Effort is one step higher than usual: this is the renderer-to-main security boundary. Design: `docs/design/chat-shells.md` question 2, \"How main keeps it to what the person chose\".\n\n**Tests first.**\n\n**Change**\n1. Add `terminals:attach { folder, chatId }`.\n   - It's a strict zod object, registered through `guardIpc` (`src/main/ipcGuard.ts`).\n   - It calls `refuseSwappedFolder` first, as the `chats:*` handlers in `src/main/agents/chatHandlers.ts` do.\n   - `folder` must equal the chat's own folder.\n   - It calls the session manager's attach, which refuses an unknown chat, a moved or untracked folder, or a disconnected agent before any grant is issued.\n   - Any extra key is refused.\n2. The answer is `{ state, snapshot?, message? }`. On `running`, main posts one end of a `MessageChannelMain` to the attaching frame (`event.senderFrame.postMessage`).\n   - The port accepts only `{ type: 'input', data: string }` (at most 64 KiB) and `{ type: 'resize', cols, rows }`, with integers clamped to 20-500 × 5-200. It drops anything else.\n   - Output and exit go out on attached ports only, never broadcast.\n3. Preload (`src/preload/index.ts`): `window.dm.terminals.attach(folder, chatId)` resolves to the state, plus a handle `{ write, resize, onOutput, onExit, close }` built from the received port. This is the only new preload surface. Shared types go in `src/shared/`.\n4. `src/main/ipcGuard.test.ts`'s scan of `src/main` for `ipcMain` must still pass. Don't register an unguarded `ipcMain.on`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "docs/design/chat-shells.md"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "deep",
+            "rationale": "This is the renderer-to-main security boundary for starting processes."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing",
+            "security-review"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m68tv9x8tbrvs1et49hwfs25",
+        "key": "DM-323",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Chats as terminal shells (design)",
+            "location": "docs/design/chat-shells.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "ticket",
+            "label": "DM-302 design spike",
+            "location": "DM-302",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Attach the renderer to terminals through a guarded channel and a message port"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Opening a chat shows its terminal in `app-main` in place of `ChatView`, in the same window, and no `BrowserWindow` is created (tested; screenshot)."
+          },
+          {
+            "id": "c2",
+            "text": "Switching chats keeps every PTY running (same pid before and after on the built app), and the shown chat's screen is restored from main's snapshot, also after a renderer reload (screenshots)."
+          },
+          {
+            "id": "c3",
+            "text": "The focused terminal receives Escape, Ctrl+C and Tab, Cmd+C and Cmd+V copy and paste, and Cmd+W and Cmd+Q still work (live)."
+          },
+          {
+            "id": "c4",
+            "text": "Resizing the window or collapsing the sidebar resizes the PTY (the fixture log shows the SIGWINCH sizes), colors come from the `:root` tokens, and `styles.test.ts` passes."
+          },
+          {
+            "id": "c5",
+            "text": "Under the production CSP the WebGL renderer draws the grid with no CSP violation in the console log, and a forced WebGL context loss recovers (live; log in the evidence)."
+          }
+        ],
+        "body": "Size: **medium**. Design: `docs/design/chat-shells.md` § \"In the app's window\" and \"CSP\".\n\n**Tests first:** test the `TerminalPane` logic against a fake terminal interface in jsdom (attach on show, dispose on switch, hydrate from the snapshot, resize debounce, theme from tokens). xterm itself isn't exercised in jsdom.\n\n**Change**\n1. Add `src/renderer/src/agents/TerminalPane.tsx` and a `useTerminal` hook. `App.tsx` renders it where `ChatPane` renders `ChatView` today.\n   - Keep the `ChatHeader` row (title, agent, role). It shows `checking`, `running`, `exited` or `stopped` in place of the model picker. For `signed_out` and `refused`, the pane shows the state's message. The sign-in ticket replaces the `signed_out` message with its card.\n   - The terminal fills the rest of `app-main`. No new `BrowserWindow`.\n2. Mount one xterm at a time. On a chat switch, dispose the old one and create the new one from main's snapshot. PTYs keep running in main. Sidebar chat rows show a dot for each live PTY.\n3. Add `@xterm/xterm` 6, `@xterm/addon-fit` and `@xterm/addon-webgl` 0.19.\n   - Fit runs on a debounced `ResizeObserver` of the pane, so it follows a sidebar collapse and a window resize.\n   - WebGL is the renderer. Handle `onContextLoss` by recreating the addon.\n4. Theme: read colors from the `:root` tokens in `styles.css` with `getComputedStyle`, so `styles.test.ts`'s no-hex-outside-`:root` rule still holds. Use the app's monospace face.\n5. Keys:\n   - Opening or clicking the pane focuses the terminal.\n   - Escape, Ctrl+C and Tab go to the CLI.\n   - Cmd+C/Cmd+V (Edit role menu), Cmd+W and Cmd+Q keep working.\n6. CSP: keep `style-src 'self'` in `PROD_CSP` (`electron.vite.config.ts`). The design saw four distinct violations even with WebGL. Find what each one blocks, and remove them.\n   - Adding `'unsafe-inline'` to `style-src` is the last resort only. If you use it, state why in the evidence, so the acceptance round reports it to the person.\n7. `ChatView` stops rendering in the main area. Its deletion belongs to the adapter-deletion ticket, and old transcripts belong to the existing-chats ticket.\n\n**Live (this Mac).** Use `npm run build`, a scratch `--user-data-dir`, a tracked scratch repo, and the fixture CLI from the PTY-host ticket registered as a custom CLI.\n- Open a chat, type, and resize.\n- Switch chats and back. `ps` shows the same pid.\n- Reload the renderer. The screen is restored.\n- The console has no CSP violation.\n\nTake screenshots.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "docs/design/chat-shells.md"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "multi_step",
+            "rationale": "xterm lifecycle, resize and theming are routine; clearing the WebGL renderer's CSP violations is the one hard part."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/agents/TerminalPane.tsx"
+        ],
+        "id": "tk_01m68tv9x8trmgz7k6vz6j2zxg",
+        "key": "DM-324",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Chats as terminal shells (design)",
+            "location": "docs/design/chat-shells.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "ticket",
+            "label": "DM-302 design spike",
+            "location": "DM-302",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Show the chat's terminal in the main window in place of ChatView"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Clicking New chat in a folder creates a chat with the folder's default agent, role orchestrator, Allow save on and no model, and opens its terminal with no dialog (tested; screenshot on the built app)."
+          },
+          {
+            "id": "c2",
+            "text": "With no connected default the first chattable agent is used, and with no connected agent the add-agent pane opens and no chat is created (tested)."
+          },
+          {
+            "id": "c3",
+            "text": "`NewChatDialog` and its tests are deleted, and the folder default card's note describes the new behavior."
+          }
+        ],
+        "body": "Size: **small**. This was the person's direction on 2026-10-31: clicking New chat opens a terminal at once, with no dialog, running the folder's agent CLI.\n\n**Tests first** in `App.chats.test.tsx`.\n\n**Change**\n1. `New chat in <folder>` in `src/renderer/src/sidebar/AgentsBlock.tsx` creates the chat through `shellActions` (`src/renderer/src/app/shellActions.ts`), then opens it:\n   - **agent:** the folder's default (`useFolderDefaultAgent`) when it's connected. Otherwise the first agent `chattableAgents` (`NewChatFields.tsx`) offers, in today's order.\n   - **role:** `orchestrator`, with `allowSave: true` (today's dialog defaults).\n   - **model:** none. The CLI uses its own default, and the person switches with the CLI's `/model`.\n2. If the chosen agent is signed out, the chat is still created, and its pane shows the session manager's `signed_out` state. If no agent is connected, the add-agent pane opens and no chat is created.\n3. Delete `NewChatDialog.tsx`, its test, and the `NewChatChoice` type. Delete `RoleChoice` if nothing else uses it. Keep `AgentChoice`, `ModelChoice` and `chattableAgents`, which `StartRunDialog.tsx` still uses.\n4. `DefaultAgentCard.tsx`'s note says: \"New chat opens this agent's CLI; Start run chooses it first.\"\n\n**Live:** on the built app, one click opens a Claude Code terminal in the scratch folder. Take a screenshot.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "docs/design/chat-shells.md"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "The body spells out the default-agent rules and what to delete."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "ui",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m68tv9x8yd5ytsjzga9q4rej",
+        "key": "DM-325",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Chats as terminal shells (design)",
+            "location": "docs/design/chat-shells.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "ticket",
+            "label": "DM-302 design spike",
+            "location": "DM-302",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [],
+        "title": "Open a terminal with one click on New chat, running the folder's agent CLI"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "When the CLI exits, the pane shows the exit and Start again, which starts the same chat with Claude's `--resume <id>` once that session exists, or a new session when it doesn't (tested)."
+          },
+          {
+            "id": "c2",
+            "text": "A resume the CLI refuses shows its output and offers a new session, which clears the stored session id (tested)."
+          },
+          {
+            "id": "c3",
+            "text": "No input and no output for 10 minutes stops the PTY and revokes its grant, the pane says so, and input or output resets the timer (tested with a fake clock)."
+          },
+          {
+            "id": "c4",
+            "text": "Live on this Mac, a Claude Code chat on haiku answers one prompt, exits with `/exit`, and Start again resumes the conversation (screenshots); the evidence says whether Claude Code and a8s write output while idle."
+          }
+        ],
+        "body": "Size: **medium**. Design: `docs/design/chat-shells.md` § \"Resume\" and \"Idle stop\".\n\n**Tests first:** use the fake `PtyHost` and a fake clock.\n\n**Change**\n1. **Exit.** When the CLI exits, the pane shows the exit code or signal, and **Start again**. Start again re-attaches:\n   - **Claude:** `--resume <uuid>` only once the session exists, else `--session-id`. Pick how main knows the session exists (Claude's session file for that cwd, or a flag set on first input), and record the choice and reason.\n   - **Autonomous:** `a8s resume` (its picker) on later starts.\n   - **Codex and Cursor:** per the launch-spec table.\n2. **Refused resume.** The pane shows the CLI's own words, and offers **New session**, which clears the stored `sessionId`.\n3. **Idle stop.** After 10 minutes with no input and no output, stop the PTY: kill its tree and revoke its grant. The pane says \"Stopped after 10 minutes idle\" and offers Start again, which resumes. Input and output reset the timer.\n   - Measure live whether Claude Code or a8s write output while idle (spinner, clock).\n   - If they do, count only output that changes the headless screen's lines.\n\n**Live (this Mac):** a Claude Code chat on haiku. Send one prompt, `/exit`, then Start again. The conversation continues. Take screenshots.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "docs/design/chat-shells.md"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Resume and idle rules span the session manager, the launch spec and the pane."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui",
+            "electron",
+            "testing",
+            "node"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution",
+            "network"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m68tv9x8bzd5120s7jnw288c",
+        "key": "DM-326",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Chats as terminal shells (design)",
+            "location": "docs/design/chat-shells.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "ticket",
+            "label": "DM-302 design spike",
+            "location": "DM-302",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Show the CLI's exit with Start again, resume its session, and idle-stop quiet terminals"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A signed-out built-in's chat shows the sign-in card instead of starting; its button runs the CLI's login in a terminal in the app's window, in the home folder with no grant, and the chat starts once the status says signed in (tested; screenshot of the view)."
+          },
+          {
+            "id": "c2",
+            "text": "Every Sign in button opens the same in-window login view with Back, and the `osascript` and console launches are removed (tested; `rg osascript src/main` in the evidence)."
+          },
+          {
+            "id": "c3",
+            "text": "An orchestrator chat's CLI exiting on its own pauses its run with `signed_out` only when the status command says signed out, and a quit, an idle stop and an ordinary `/exit` pause nothing (tested)."
+          }
+        ],
+        "body": "Size: **medium**. Design: `docs/design/chat-shells.md` § \"Sign-in detection\".\n\n**Tests first.**\n\n**Change**\n1. When the session manager returns `signed_out`, the pane shows the sign-in card instead of starting.\n   - Its button starts a PTY that runs the CLI's own login (`LOGIN_ARGS` in `src/main/desktop/agentAuth.ts`) on the registered executable.\n   - The PTY runs in the home folder, with the scrubbed environment, no grant and no instructions.\n   - When it exits, re-check the status, and start the chat if it now says signed in.\n2. Every other Sign in opens the same login terminal, as a view in `app-main` with a Back control. That covers the agent page, the add-agent pane, the run bar, the Agents section and the Start run dialog, all through `src/renderer/src/agents/SignInPrompt.tsx`.\n3. Remove the `osascript` Terminal launch and the Windows console launch from `agentAuth.ts`, with their tests. `signInFlags.ts` and `signInHooks.ts` go with the adapters, not here.\n4. **Orchestrator exit.** When an orchestrator chat's CLI exits on its own, main runs the status command. Only `signed_out` pauses a `running` or `paused` run that chat orchestrates, with reason `signed_out`. That reason keeps the run's leases; core allows it only to the desktop (`core/services/runs.ts`). A quit, an idle stop, a deleted chat, a folder stop or an ordinary `/exit` pauses nothing.\n5. Quit disposal covers login PTYs.\n\n**Live:** open the in-window sign-in from the agent page, and leave it with Back without logging in. Take a screenshot. Don't sign the person's own CLIs out.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "docs/design/chat-shells.md"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Replaces every sign-in entry point and narrows when a run pauses for sign-in."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui",
+            "electron",
+            "testing",
+            "node"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m68tv9x8y36qa2yn377asb8p",
+        "key": "DM-327",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Chats as terminal shells (design)",
+            "location": "docs/design/chat-shells.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "ticket",
+            "label": "DM-302 design spike",
+            "location": "DM-302",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Sign in inside the app's window through a login terminal"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Start run queues the run, creates the `orchestrator` chat with its `runId`, and the app shows its terminal (tested; screenshot)."
+          },
+          {
+            "id": "c2",
+            "text": "The orchestrator and worker guidance is in the chat's instructions file, and the kickoff holds fixed text and the run lines, no claim token, and goes only with the first start, never with a resume (tested)."
+          },
+          {
+            "id": "c3",
+            "text": "Claude Code receives the kickoff as its initial prompt and a8s as one bracketed paste after its first screen (live; screenshots), and a spawn that fails removes the chat and leaves the run queued with a problem (tested)."
+          }
+        ],
+        "body": "Size: **small**. Design: `docs/design/chat-shells.md` § \"The orchestrator chat Start run opens\".\n\n**Tests first.**\n\n**Change**\n1. `startOrchestratorRun` (`src/main/agents/orchestratorStart.ts`) still:\n   - queues the run;\n   - creates the `orchestrator` chat with `runId` and `allowSave` off, titled `Orchestrator · <epic>`;\n   - opens it. It now opens as a terminal.\n2. The orchestrator and worker guidance from `orchestratorKickoff.ts` moves into the chat's instructions file.\n   - The kickoff shrinks to fixed text plus the run lines: epic, branch, run id, first step. It holds no claim token.\n   - The chat record gains `kickoffSent`. The kickoff goes only with the first start, never with a resume.\n3. Delivery:\n   - Claude Code gets the kickoff as its positional initial prompt.\n   - Any other CLI, or any `.cmd` shim, gets it as one bracketed paste once its first screen settles.\n4. A spawn that fails removes the chat again and leaves the run queued with a `problem`, as today.\n\n**Live (this Mac).** On a scratch repo with a one-ticket scratch epic, Start run with Claude Code, then with Autonomous. Each shows the kickoff arriving. Take screenshots. Cancel the scratch runs afterwards.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "docs/design/chat-shells.md"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "multi_step",
+            "rationale": "Small change, but the kickoff delivery differs per CLI and must be checked live."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution",
+            "network"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m68tv9x8gd4hs117ksemxn2a",
+        "key": "DM-328",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Chats as terminal shells (design)",
+            "location": "docs/design/chat-shells.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "ticket",
+            "label": "DM-302 design spike",
+            "location": "DM-302",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [],
+        "title": "Open an orchestrator terminal from Start run"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A chat stored before the change opens as a terminal, and its old transcript is readable read-only from Earlier conversation (tested; screenshot after upgrading an old profile)."
+          },
+          {
+            "id": "c2",
+            "text": "An old Claude chat resumes its stored session with `claude --resume` (live), or the pane says it could not and starts a new one (tested)."
+          },
+          {
+            "id": "c3",
+            "text": "A ticket's Activity tab and a run's Orchestrator feed show the command layer's timelines with an Open terminal link to the chat bound by grant id, also after an app restart, and old chats still show their old bindings (tested)."
+          },
+          {
+            "id": "c4",
+            "text": "Deleting a chat kills its PTY, revokes its grant, and removes its record, transcript and bindings (tested)."
+          }
+        ],
+        "body": "Size: **medium**. Design: `docs/design/chat-shells.md` § \"Existing chats and their transcripts\".\n\n**Tests first.**\n\n**Change**\n1. Records stay in `index.jsonl` (`src/main/agents/chatStore.ts`). Old records without `grantIds`, `kickoffSent` or `sessionStarted` read as empty or false.\n2. **Earlier conversation.** A chat with a stored `<chat id>.jsonl` transcript shows this control above its terminal. It opens `ChatTranscript` read-only (no composer, no approvals), reading as `chats:read` does. Nothing new is ever appended.\n3. **Old Claude chats.** The stored `sessionId` (an SDK session id) is passed as `claude --resume <sessionId>` in the same folder. Check live first that the CLI continues an SDK session. If it refuses, the pane says so and offers a new session.\n4. **Activity panels.** `src/renderer/src/ticket/ActivityTab.tsx` and `src/renderer/src/epic/OrchestratorFeed.tsx` show the command layer's timelines (`getAttemptTimeline` and `getRunTimeline`).\n   - Each also shows an **Open terminal** link to the chat bound by grant: the `sessions` table's `grant_id` matched against the chats' stored `grantIds`.\n   - Old item-based bindings (`activityBindings.ts`, `threadBindings.ts`, `boundThreads.ts`) still show for old chats.\n5. **Deleting a chat** kills its PTY, revokes its grant, and removes its record, transcript and bindings.\n\n**Live.** Build the epic branch's start commit, and create a Claude chat with one exchange on a scratch `--user-data-dir`. Then start the combined build on the same user data. The old chat opens as a terminal with Earlier conversation, and the resume attempt's result is shown. Take screenshots.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "docs/design/chat-shells.md"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Spans the chat store, two activity panels and an upgrade path for existing records."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui",
+            "electron",
+            "testing",
+            "node"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution",
+            "network"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m68tv9x8a466zehy9vs01ebv",
+        "key": "DM-329",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Chats as terminal shells (design)",
+            "location": "docs/design/chat-shells.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "ticket",
+            "label": "DM-302 design spike",
+            "location": "DM-302",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Open existing chats as terminals, keep old transcripts readable, and link activity by grant"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "`src/main/agents/adapters/`, `adapterRegistry.ts`, `ownServerTools.ts`, `ownCliCommand.ts`, `signInFlags.ts` and `signInHooks.ts` are deleted, with no remaining import (`rg` output in the evidence)."
+          },
+          {
+            "id": "c2",
+            "text": "The `chats:send`, `stop`, `retryTurn`, `setModel`, `answerApproval`, `models` and `threadBindings` channels, their preload functions, and the composer, approval and signed-out views are gone."
+          },
+          {
+            "id": "c3",
+            "text": "`@anthropic-ai/claude-agent-sdk` is in neither `package.json` nor the lockfile, and `npm run build` succeeds."
+          },
+          {
+            "id": "c4",
+            "text": "Start run's model choice lists the curated models from `src/shared/agents/models.ts`, and `npm run deadcode` passes (any baseline refresh listed in the evidence)."
+          }
+        ],
+        "body": "Size: **medium**: a wide but mechanical deletion, given this list. Design: `docs/design/chat-shells.md` question 4.\n\n**Change**\n1. **Main.** Delete:\n   - `src/main/agents/adapters/` (everything still used was moved out by earlier tickets);\n   - `adapterRegistry.ts`, `ownServerTools.ts`, `ownCliCommand.ts`, `signInFlags.ts`, `signInHooks.ts`;\n   - the approval, streaming and turn logic of `sessionManager.ts`, or all of it if terminal sessions replaced it;\n   - item-based binding writes in `activityBindings.ts` (reads for old chats stay);\n   - transcript writing in `chatStore.ts`;\n   - `claimTokenMask.ts` if only streamed items used it;\n   - `launchSpec.ts`'s protocol presets (`CODEX_APP_SERVER_ARGS`, `BUILT_IN_LAUNCH_ARGS`).\n2. **Channels.** Delete `chats:send`, `stop`, `retryTurn`, `setModel`, `answerApproval`, `models` and `threadBindings`, with their preload functions and their renderer views: `ChatComposer.tsx`, `ApprovalCard.tsx`, `SignedOutCard.tsx`, the stream rows, and `ChatView.tsx` if nothing renders it.\n3. **Models.** Move the curated model lists to `src/shared/agents/models.ts`. `StartRunDialog`'s model choice reads them (`useAgentModels` no longer calls `chats:models`). Autonomous stays free text checked by `isSafeModelId`.\n4. **Dependency.** Remove `@anthropic-ai/claude-agent-sdk` from `package.json` and the lockfile.\n5. **Dead code.** `npm run deadcode` must pass. Run `npm run deadcode:refresh` only for intentional removals, and list them in the evidence.\n\n**Keep:** `launchFolder.ts`, `chatGrants.ts`, `cliInstructions.ts`, `processTree.ts`, `shimLaunch.ts`, `agentAuth.ts`, `customAgent.ts` (the next ticket removes its protocol), `folderAgentDefaults.ts`, `chatStore.ts`'s index and transcript reader, `quitDisposal.ts`, `orchestratorStart.ts`.\n\nRun the targeted tests of every touched module, plus `npm run lint`, `npm run typecheck` and `npm run build`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "docs/design/chat-shells.md"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A wide deletion across main, preload and renderer that must leave no dangling import or channel."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing",
+            "react"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/shared/agents/models.ts"
+        ],
+        "id": "tk_01m68tv9x86hsnj5yfcz065037",
+        "key": "DM-330",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Chats as terminal shells (design)",
+            "location": "docs/design/chat-shells.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "ticket",
+            "label": "DM-302 design spike",
+            "location": "DM-302",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Delete the protocol adapters, approval and streaming code, and the Claude Agent SDK"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Adding a custom CLI takes a name, a program from the native dialog and arguments, shows the native confirmation, and stores the row with no protocol and no handshake (tested)."
+          },
+          {
+            "id": "c2",
+            "text": "The app-database migration drops the `protocol` column, an existing ACP or Codex custom row is marked for review and won't start until its arguments are confirmed again, and a Claude-protocol row starts as is (tested from a fixture database at today's schema)."
+          },
+          {
+            "id": "c3",
+            "text": "`src/main/agents/protocolHandshake.ts` is deleted with no remaining import, and the add-custom-CLI form has no protocol choice (tested)."
+          },
+          {
+            "id": "c4",
+            "text": "Live, upgrading an old profile with one ACP row and one Claude-protocol row shows Review arguments on the ACP row and starts the Claude row (screenshots and an `app.sqlite` dump)."
+          }
+        ],
+        "body": "Size: **medium**. Effort is one step higher than usual: an app-database migration on the person's existing rows. Design: SH-8 criterion 2 in `docs/design/chat-shells.md`.\n\n**Tests first.** The migration test starts from a fixture `app.sqlite` at today's schema, with one custom row per protocol (ACP, Codex app-server, Claude Code SDK).\n\n**Change**\n1. Add a custom CLI (`src/main/desktop/customAgent.ts`) takes a name, a program from the native dialog, and arguments.\n   - The strict payload stays: at most 32 arguments, no control or formatting characters.\n   - `planCliLaunch` and the native confirmation that lists every argument stay.\n   - The picked path is kept (DM-304).\n   - The row is stored with no protocol and no handshake.\n   - Delete `src/main/agents/protocolHandshake.ts`, and the handshake-derived version label (DM-303).\n2. An app-database migration (`src/main/desktop/appDatabase.ts`):\n   - drops the `protocol` column;\n   - marks existing ACP and Codex custom rows `needs_review`. They don't start until the person confirms (and can edit) their arguments again in the native confirmation;\n   - leaves Claude-protocol rows to start as is.\n3. Renderer: the add-custom-CLI form loses its protocol choice. The agent page shows **Review arguments** for a flagged row.\n\n**Live.** On an old profile made with the epic's start commit, with one ACP custom row on `~/.local/bin/a8s` and one Claude-protocol row on `~/.local/bin/claude`, upgrade to the combined build. The ACP row asks for review, and the Claude row starts. Take screenshots and an `app.sqlite` dump.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "docs/design/chat-shells.md"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "deep",
+            "rationale": "An app-database migration on the person's existing rows, where a wrong call silently runs unreviewed arguments."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing",
+            "database",
+            "react"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m68tv9x849h8v3qse7cce81a",
+        "key": "DM-331",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Chats as terminal shells (design)",
+            "location": "docs/design/chat-shells.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "ticket",
+            "label": "DM-302 design spike",
+            "location": "DM-302",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Add custom CLIs without a protocol, and migrate existing custom rows"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "`docs/architecture.md` and `docs/runbooks/agents.md` describe terminal chats (PTY host, attach and port, launch specs, what the renderer can start), and `rg -n -i \"adapter|approval card|composer\"` over them and `README.md` finds nothing stale (output in the evidence)."
+          },
+          {
+            "id": "c2",
+            "text": "The runbook covers one-click New chat, in-window sign-in, Start again and idle stop, reviewing migrated custom rows, and the known limitations."
+          },
+          {
+            "id": "c3",
+            "text": "`docs/design/chat-shells.md` has an \"As built\" section recording the deviations, including one-click New chat."
+          }
+        ],
+        "body": "Size: **small**. Documentation only.\n\n**Change**\n1. In `docs/architecture.md`'s chat sections, describe:\n   - the PTY host and terminal sessions;\n   - `terminals:attach` and the message port;\n   - the launch spec, and what the renderer can and can't make main start (the design's security table, condensed).\n2. In `docs/runbooks/agents.md`, cover:\n   - one-click New chat;\n   - in-window sign-in;\n   - Start again, resume and idle stop;\n   - custom CLIs without a protocol, and reviewing migrated rows.\n\n   List the known limitations:\n   - on Windows, `ELECTRON_RUN_AS_NODE` reaches the CLI;\n   - claim tokens are visible in an orchestrator's terminal;\n   - Codex and Cursor flags aren't verified live;\n   - Windows isn't verified live unless the optional Windows ticket ran.\n3. In `docs/design/chat-shells.md`, add a short \"As built\" section: New chat is one click with no dialog, and any other deviation the sprint made.\n4. Search with `rg -n -i \"adapter|approval card|composer\"` over `docs/architecture.md`, `docs/runbooks/agents.md` and `README.md`, and fix every stale claim.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "docs/design/chat-shells.md"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": "low",
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "Documentation of decided behavior, listed section by section."
+          },
+          "skills": [
+            "documentation"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "documentation"
+        },
+        "expectedArtifacts": [
+          "docs/architecture.md",
+          "docs/runbooks/agents.md"
+        ],
+        "id": "tk_01m68tv9x8fv21pjx5a9mz53x5",
+        "key": "DM-332",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Chats as terminal shells (design)",
+            "location": "docs/design/chat-shells.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "ticket",
+            "label": "DM-302 design spike",
+            "location": "DM-302",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [],
+        "title": "Describe terminal chats in the architecture doc and the agents runbook"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The packaged Windows x64 app loads node-pty's prebuild and runs the fixture CLI in a chat terminal with ConPTY: canonical cwd, grant, typing, resize, and a chat switch with the same pid (screenshots)."
+          },
+          {
+            "id": "c2",
+            "text": "A `.cmd` shim custom CLI and Claude Code's `.cmd` start correctly, and quitting leaves no agent process (`tasklist` before and after)."
+          },
+          {
+            "id": "c3",
+            "text": "The evidence records the `useConptyDll` decision and every CSP violation, antivirus or SmartScreen finding, and each defect is filed as an epic comment."
+          }
+        ],
+        "body": "Size: **medium**. **Optional:** it doesn't gate the sprint. It needs a Windows 10 1809+ x64 host. Design: `docs/design/chat-shells.md` § \"Windows ConPTY\", \"Windows signing\" and question 5.\n\n**Steps**\n1. On the Windows host, run `npm ci` and `npm run package:win`. Start the packaged app with a scratch `--user-data-dir`.\n2. Register the fixture CLI from the PTY-host ticket as a custom CLI, and open a chat:\n   - canonical cwd and grant (fixture log);\n   - typing and resize;\n   - a chat switch with the same pid (`tasklist`);\n   - a reload restores the screen;\n   - quit leaves no process.\n3. Check that a `.cmd` shim custom CLI starts through `planShimLaunch`, and that Claude Code's `.cmd` is followed to its program.\n4. Decide `useConptyDll` (bundled ConPTY or the OS's), and record why.\n5. Record any CSP violation, and any antivirus or SmartScreen reaction to the unsigned helpers.\n\nFile each defect as a comment on this epic for a follow-up. Don't fix them in this ticket.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [
+              "windows"
+            ],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "docs/design/chat-shells.md"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A packaged-build verification sweep on another OS with its own process and quoting rules."
+          },
+          "skills": [
+            "electron",
+            "node",
+            "testing",
+            "windows"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m68tv9x8r5qphehn0w0h53zq",
+        "key": "DM-333",
+        "optional": true,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Chats as terminal shells (design)",
+            "location": "docs/design/chat-shells.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "ticket",
+            "label": "DM-302 design spike",
+            "location": "DM-302",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Verify terminal chats on a Windows host with ConPTY"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Fireguard ran on the combined sprint branch with `FIREGUARD_BASE_REF` set to the sprint's start commit, grading every unit test added or modified in the sprint, and the graded file list is in the evidence."
+          },
+          {
+            "id": "c2",
+            "text": "The final grade is not F, and the letter grade and score are in the evidence."
+          },
+          {
+            "id": "c3",
+            "text": "Every test graded F was rewritten and re-graded with no production code changed, so this ticket's diff touches only test files, or nothing."
+          }
+        ],
+        "body": "Size: **small**. This is the sprint's only Fireguard run. Fireguard is slow (100× flake isolation and mutation), so no other ticket runs it, and workers run only their targeted tests. The acceptance ticket takes Fireguard's grade from this ticket.\n\n1. **Wait** until every required work ticket is accepted and combined on the sprint integration branch. That branch was made from the epic branch at the sprint's start.\n2. **Grade** with `npm run fireguard -- --json` on that branch.\n   - Set `FIREGUARD_BASE_REF` to the sprint's start commit.\n   - Fireguard grades only committed changes.\n3. **Fix any F:** rewrite each test graded F, and re-grade until nothing is F.\n   - Don't change production code to raise a grade.\n   - If a finding points at a real bug in production code, fail the attempt with the finding, so the orchestrator can send it back to the ticket that owns that code.\n4. **Record** the letter grade, the score, the graded files and each finding in the evidence.\n\nOut of scope: lint, typecheck, the full test suite, deadcode and build. The acceptance ticket runs those once.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "docs/design/chat-shells.md"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": "low",
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "multi_step",
+            "rationale": "Running fireguard is mechanical, but rewriting a test graded F takes judgement about what the test should assert."
+          },
+          "skills": [
+            "typescript",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m68tv9x88htns1rzc4tg593j",
+        "key": "DM-334",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Chats as terminal shells (design)",
+            "location": "docs/design/chat-shells.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "ticket",
+            "label": "DM-302 design spike",
+            "location": "DM-302",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [],
+        "title": "Grade the sprint's unit tests with Fireguard"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "covers": "tk_01m68tv9x1bay77zhr4p3qyqej",
+            "id": "c1",
+            "text": "The real-PTY tests pass on the combined branch on this Mac (output in the report), and quitting the built app with three live terminals leaves no agent process (`ps` before and after)."
+          },
+          {
+            "covers": "tk_01m68tv9x8sfdxh618cw46ns1m",
+            "id": "c2",
+            "text": "The packaged arm64 app, on a fresh scratch `--user-data-dir`, opens a chat terminal running the fixture CLI, and `spawn-helper` is executable inside the bundle."
+          },
+          {
+            "covers": "tk_01m68tv9x8kq9wvw94trd5fqrz",
+            "id": "c3",
+            "text": "A Claude Code chat terminal runs with the scratch repo's canonical path as cwd (`lsof -d cwd`), `DM_SESSION_TOKEN` and no `ELECTRON_RUN_AS_NODE` in its environment (`ps -wwE`), and from inside it the agent runs `dm` `get_capabilities` reporting the repo's canonical path (screenshot)."
+          },
+          {
+            "covers": "tk_01m68tv9x8tvnn82xcqmpbg6js",
+            "id": "c4",
+            "text": "Asking that Claude Code chat to write into its memory folder shows Claude's own permission prompt (screenshot)."
+          },
+          {
+            "covers": "tk_01m68tv9x8v7dh0j2ar74e5qyf",
+            "id": "c5",
+            "text": "After a terminal exits, its grant is revoked (the scratch `state.sqlite` `grants` row, redacted), and a moved scratch folder stops its live terminal with the `not_found` message."
+          },
+          {
+            "covers": "tk_01m68tv9x8tbrvs1et49hwfs25",
+            "id": "c6",
+            "text": "From the built app's DevTools console, `window.dm.terminals.attach` with a made-up chat id, or with another folder's chat, starts no process (`ps` before and after)."
+          },
+          {
+            "covers": "tk_01m68tv9x8trmgz7k6vz6j2zxg",
+            "id": "c7",
+            "text": "Switching chats keeps the same pid, a renderer reload restores the screen, Escape, Ctrl+C, Tab and copy/paste work, the window resize reaches the CLI, and the console shows no CSP violation (screenshots and log)."
+          },
+          {
+            "covers": "tk_01m68tv9x8yd5ytsjzga9q4rej",
+            "id": "c8",
+            "text": "Success criterion s1: one click on New chat opens a terminal running the folder's default Claude Code in the scratch folder, with no dialog (screenshot)."
+          },
+          {
+            "covers": "tk_01m68tv9x8bzd5120s7jnw288c",
+            "id": "c9",
+            "text": "A Claude Code chat answers a prompt, exits on `/exit`, and Start again resumes the conversation (screenshots)."
+          },
+          {
+            "covers": "tk_01m68tv9x8y36qa2yn377asb8p",
+            "id": "c10",
+            "text": "The agent page's Sign in opens the in-window login terminal, and Back returns without signing anything out (screenshot)."
+          },
+          {
+            "covers": "tk_01m68tv9x8gd4hs117ksemxn2a",
+            "id": "c11",
+            "text": "Start run on a one-ticket scratch epic opens an orchestrator terminal that received the kickoff, and the run is cancelled afterwards (screenshot)."
+          },
+          {
+            "covers": "tk_01m68tv9x8a466zehy9vs01ebv",
+            "id": "c12",
+            "text": "On the upgraded old profile, the old Claude chat opens as a terminal with Earlier conversation readable, and its resume result is shown (screenshots)."
+          },
+          {
+            "covers": "tk_01m68tv9x86hsnj5yfcz065037",
+            "id": "c13",
+            "text": "`rg` finds no adapter, approval-card or Claude Agent SDK reference in `src`, and the SDK is absent from `package-lock.json` (output in the report)."
+          },
+          {
+            "covers": "tk_01m68tv9x849h8v3qse7cce81a",
+            "id": "c14",
+            "text": "On the upgraded old profile, the ACP custom row asks for review, and the Claude-protocol row starts (screenshots and an `app.sqlite` dump)."
+          },
+          {
+            "covers": "tk_01m68tv9x8fv21pjx5a9mz53x5",
+            "id": "c15",
+            "text": "The architecture doc and agents runbook describe terminal chats and their known limitations (excerpts in the report)."
+          },
+          {
+            "covers": "tk_01m68tv9x88htns1rzc4tg593j",
+            "id": "c16",
+            "text": "Fireguard's grade from the Fireguard ticket is not F."
+          },
+          {
+            "id": "c17",
+            "text": "The Definition of Done (lint, typecheck, test, coverage, deadcode, build) passes on the combined branch, and the report says whether the optional Windows ticket ran and what it found."
+          }
+        ],
+        "body": "This is the planned final round for the sprint, run once on the combined work.\n\n1. **Combine** every accepted ticket on the sprint integration branch.\n2. **Make an old profile:**\n   - Build the epic branch's start commit, and run it with a temporary `--user-data-dir`.\n   - Track a scratch Git repository in a temp folder.\n   - Create one Claude chat with a short exchange.\n   - Add one ACP custom CLI on `~/.local/bin/a8s` and one Claude-protocol custom CLI on `~/.local/bin/claude`.\n   - Quit.\n3. **Build and package:** run `npm run build`, start the combined app on the same user data, then run `npm run package:mac` and repeat the core checks on the packaged arm64 app with a fresh scratch `--user-data-dir`.\n4. **Ground rules:**\n   - Never use the person's own user data or tracked folders.\n   - No status override, and no harness change to the app's behavior.\n   - Kill only the processes you started: this machine runs other a8s and claude sessions.\n   - Installed CLIs: Claude Code (`~/.local/bin/claude`) and Autonomous (`~/.local/bin/a8s`). Codex and Cursor aren't installed: their paths are covered by table tests only, so say so.\n5. **Verify each criterion** with screenshots, `ps -o pid,pgid,args`, `ps -wwE`, `lsof -d cwd`, and `sqlite3` dumps of `app.sqlite` and the scratch `state.sqlite`.\n6. **Run the Definition of Done** on the combined branch: lint, typecheck, test, coverage, deadcode and build. Take Fireguard's grade from the Fireguard ticket. Re-run Fireguard only if test files changed after that ticket.\n7. **Report** whether the optional Windows ticket ran, and its result.\n8. **Squash** the sprint into one commit on the epic branch.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "docs/design/chat-shells.md"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A live verification sweep on the built and packaged app plus the full Definition of Done."
+          },
+          "skills": [
+            "testing",
+            "electron",
+            "node"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution",
+            "network"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m68tv9x8g0s4tjqdkx5b8gax",
+        "key": "DM-335",
+        "kind": "acceptance",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Chats as terminal shells (design)",
+            "location": "docs/design/chat-shells.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "ticket",
+            "label": "DM-302 design spike",
+            "location": "DM-302",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Sprint 1 acceptance: chats are terminals on macOS"
+      }
+    ]
+  },
+  "contentHash": "sha256:3f4ccaf6a7713ea5cb8c5497b8598b44dbe79ea9c3891d76cbce684eb0524bbc",
+  "createdAt": "2026-10-31T11:17:19.421Z",
+  "epicId": "ep_01m5jz275yaw11nzgr81806jeq",
+  "format": "darkmechanicus.plan-snapshot",
+  "formatVersion": 1,
+  "number": 2,
+  "revisionId": "rv_01m68tv9xwk534yz9ytfy3ntqx",
+  "savedAt": "2026-10-31T11:17:19.421Z"
+}

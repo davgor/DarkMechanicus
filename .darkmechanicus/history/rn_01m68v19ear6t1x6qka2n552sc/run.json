@@ -1,0 +1,1656 @@
+{
+  "activeSprintId": "sp_01m5jz275zxpve9s276gzaw4s0",
+  "attempts": [
+    {
+      "createdAt": "2026-10-31T11:21:33.095Z",
+      "decidedAt": "2026-10-31T11:42:28.457Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Reviewer verified c1-c4 on macOS (mutation checks on the helper bit and the group kill). Rejected only for the Windows CI breakage above. Linux CI: under npm 11.17, a dependency's install scripts not covered by allowScripts run with a notice, and fail only when strict-allow-scripts is set. So on the ubuntu jobs (fireguard, deadcode, security-audit, deploy), npm ci will most likely run node-pty's 'node scripts/prebuild.js || node-gyp rebuild', which builds from source because there is no Linux prebuild. It should compile on ubuntu-latest but adds time, and it contradicts the ticket's 'nothing may build node-pty from source'. Only an explicit \"allowScripts\": {\"node-pty\": false} guarantees a skip, and the ticket says to leave it unapproved, so that is your call. main's Windows test job is already red from pre-existing short-path failures in chatGrants.test.ts and launchFolder.test.ts, not this ticket's. Other unverified Windows parts of the real-PTY test: ConPTY output rewriting, how 'hello' arrives as input, the resize event under ConPTY, and running node.exe with only PATH and DM_SESSION_TOKEN (no SystemRoot). For later tickets: killPtyTree shares and remembers kills per PtyTree object, so callers must build one adapter per PTY and reuse it; a fresh object per call loses the shared kill and the remembered answer for an exited PTY. createNodePtyHost is async; await it once and treat a rejection as 'terminals unavailable'. The fixture writes agent-fixture.log into its working folder by default. Not run, per the brief: full npm test, coverage, fireguard, deadcode, build.",
+        "outcome": "rejected",
+        "reasons": [
+          "scripts/ptyHelperMode.test.mjs:41-60 asserts POSIX modes (0o755/0o644) that Windows cannot report (Node chmod only toggles read-only there); the repo pattern is it.runIf(process.platform !== \"win32\") as in agentProbeNode.test.ts:99. Guard the mode assertions so `npm test` stays green on the windows-latest pr-checks job.",
+          "src/main/terminals/ptyHost.real.test.ts runs on win32 and compares the fixture cwd against realpathSync.native(dir) while spawning with a non-canonical tmpdir (CI uses the 8.3 short path C:\\Users\\RUNNER~1\\...), so it would fail there; ConPTY behavior is also unverified. Orchestrator decision: run the real-PTY test on darwin only (Windows live PTY verification belongs to the optional Windows ticket DM-333), and pass the canonical (realpath) scratch folder as cwd so the test honors PtySpawnSpec.cwd being canonical."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npx vitest run src/main/terminals src/main/agents/processTree.test.ts src/main/agents/processTreePty.test.ts src/main/agents/processTreeReal.test.ts scripts/ptyHelperMode.test.mjs: 6 files, 71 tests passed (macOS arm64, Node 24.19). The real-PTY file passed 9 consecutive runs.",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint src scripts, exit 0",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "tsc for node, web and fireguard: no errors",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "ELECTRON_RUN_AS_NODE=1 node_modules/.bin/electron -e: require('node-pty').spawn('/bin/echo',…) printed hi-from-electron and exit {\"exitCode\":0}. Electron 42.11.9, prebuild loaded without a rebuild.",
+            "name": "Electron load check",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node; no criterion needs the built app, and nothing in the main entry imports ptyHost yet",
+            "name": "npm run build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "package.json has dependencies.node-pty \"1.1.0\" (exact) and scripts.postinstall \"node scripts/ptyHelperMode.mjs\". After npm install both darwin spawn-helpers are -rwxr-xr-x (they were -rw-r--r--). scripts/ptyHelperMode.test.mjs test \"this checkout's node-pty > has an executable spawn-helper for every macOS prebuild\" failed before postinstall and again after chmod -x (expected +0 to be 73), and passed after npm run postinstall. Unit tests cover fixing a fake install on darwin, doing nothing on linux and win32, and a missing node-pty."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "ptyHost.ts has createNodePtyHost (node-pty) and __mocks__/fakePtyHost.ts has FakePtyHost implementing the same PtyHost interface. Search across src, scripts and fireguard for (from |import(|require()'node-pty' matched only src/main/terminals/ptyHost.ts:93: import('node-pty'). ptyHost.test.ts covers the real host over a fake node-pty module (argv/cwd/env/size, useConptyDll on win32, command-line string only on Windows, write/resize/kill, disposers, load failure) and the fake host."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "ptyHost.real.test.ts 'starts it in the canonical folder with the grant variable and the exact argv, echoes input and reports a resize' passes on macOS. The log's start event equals {cwd: realpath(dir) matching ^/private/tmp/dm-pty-, sessionToken: true, argv: ['--model','haiku','two words','ünïcödé','--background-child'], cols 100, rows 30}; the input events are ['hello']; the last event is {event:'sigwinch', cols:132, rows:43}."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "ptyHost.real.test.ts 'is ended with everything in its tree…': before the kill, ps shows the group as [fixture, grandchild]; killPtyTree resolves true and ps -A -o pid=,pgid= shows no member of the group. 'ends the grandchild a fixture left running when it exited…' covers the reaping of a group whose leader already exited. Mutation check: signalling pid instead of -pid fails both tests (grandchild left alive). processTreePty.test.ts covers Windows with a fake taskkill runner: taskkill [pid] first, then node-pty's kill; exit 128 counts as gone; null or 1 means not gone but the PTY is still closed; a throwing kill is tolerated; an already-exited PTY is left alone. It also covers timeouts and shared kills."
+          }
+        ],
+        "notes": "Limits: Windows code paths are covered only by fakes. ptyHost.real.test.ts is skipped only on Linux, as the ticket says, so the windows-latest pr-checks job will run it unverified. ConPTY output rewriting and whether taskkill /t reaches the grandchild are inference, and that job may fail there. createNodePtyHost is async (lazy import) so that importing ptyHost.ts never loads the native module on Linux; later tickets must await it once and treat a rejection as 'terminals unavailable'. The fixture writes agent-fixture.log into its cwd by default (AGENT_FIXTURE_LOG overrides), which will appear as an untracked file in an acceptance scratch repo. Red-team: mutation-tested the group kill (pid instead of -pid fails the real tests) and the execute-bit test (chmod -x fails it). Found and fixed a race where the fixture could exit before its grandchild ignored SIGHUP; the fixture now waits for the grandchild to signal ready. Checked killProcessTree's behavior after the endLeftovers/endGroup refactor: its existing fake and real tests pass unchanged. Checked that no process was left after the mutation runs.\nDiscoveries:\n- title: Verify node-pty install-script handling in Linux CI\n  reason: npm 11.17 locally reports node-pty's install script (node scripts/prebuild.js || node-gyp rebuild) as not covered by allowScripts and does not run it. If the npm bundled with setup-node's Node 24 on ubuntu-latest does run install scripts, there is no Linux prebuild, so it would compile node-pty from source during npm ci in deadcode, deploy and security-audit; the ticket says nothing may build it from source. I did not check CI's npm version.\n  ticket: DM-318\n- title: Run the real-PTY test on Windows CI or skip it there until the Windows e2e\n  reason: src/main/terminals/ptyHost.real.test.ts runs on windows-latest (skipped only on Linux, per the ticket). Its ConPTY input/resize assertions and the taskkill tree check have never run on Windows, so the PR check may go red for reasons outside this change.\n  ticket: DM-318"
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m68v31n7ffq1f5edwvhw0mcb",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "PtyHost interface and node-pty implementation",
+            "location": "src/main/terminals/ptyHost.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Fake PtyHost",
+            "location": "src/main/terminals/__mocks__/fakePtyHost.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Fixture agent CLI",
+            "location": "src/main/terminals/__fixtures__/agentFixture.mjs",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "spawn-helper execute-bit script (postinstall)",
+            "location": "scripts/ptyHelperMode.mjs",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Real-PTY test",
+            "location": "src/main/terminals/ptyHost.real.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "terminal-chats-DM-318",
+        "changedFiles": [
+          "package.json",
+          "package-lock.json",
+          "scripts/ptyHelperMode.mjs",
+          "scripts/ptyHelperMode.test.mjs",
+          "src/main/agents/processTree.ts",
+          "src/main/agents/processTreePty.test.ts",
+          "src/main/terminals/__fixtures__/agentFixture.mjs",
+          "src/main/terminals/__mocks__/fakePtyHost.ts",
+          "src/main/terminals/ptyHost.real.test.ts",
+          "src/main/terminals/ptyHost.test.ts",
+          "src/main/terminals/ptyHost.ts"
+        ],
+        "commits": [
+          "5de5159188965d216fb9ac309bf697062a37f762",
+          "dab7694eee4e591beaf979e1b8439be640db0dfa"
+        ],
+        "summary": "Pinned node-pty 1.1.0 in dependencies (exact) and added a postinstall script, scripts/ptyHelperMode.mjs, that makes node_modules/node-pty/prebuilds/darwin-*/spawn-helper executable and does nothing on other platforms. npm allow-scripts is left unapproved. Added src/main/terminals/ptyHost.ts with the PtyHost, PtySpawnSpec, PtyProcess and PtyExit types and the real createNodePtyHost(). The host loads node-pty when it is created, not on import, because node-pty has no Linux prebuild; so createNodePtyHost is async and rejects when the native module cannot load. On Windows it passes useConptyDll: true and passes the pre-escaped command-line string through. A string args outside Windows throws. Each listener returns a disposer. Added the fake at src/main/terminals/__mocks__/fakePtyHost.ts (FakePtyHost and FakePty, following the repo's __mocks__ convention). In processTree.ts, added killPtyTree(pty: PtyTree) and the PtyTree interface {pid, kill(), exited: Promise, hasExited()}. On macOS and Linux it sends SIGKILL to -pid and waits for the group to empty. On Windows it runs taskkill /pid /t /f, then node-pty's kill. A PTY whose exit was already reported gets the existing leftover-group reaping (endLeftovers, now pid-based). It resolves when the exit settles and the kill completes, or after waitMs. The caching of a running or settled kill is shared with killProcessTree through sharedKill. killProcessTree's behavior is unchanged and its existing tests pass. The fixture CLI src/main/terminals/__fixtures__/agentFixture.mjs logs JSON lines to <cwd>/agent-fixture.log (or AGENT_FIXTURE_LOG): start (cwd, sessionToken bool, argv, size), input (it uses raw mode and echoes input itself), sigwinch/resize, and with --background-child a grandchild that ignores SIGHUP. Ctrl-C exits with code 130. The real-PTY test ptyHost.real.test.ts is skipped on Linux. Reviewer note: the PtyTree adapter from a PtyProcess is built in the test; a later sessions ticket should own it."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m68tv9xwk534yz9ytfy3ntqx",
+      "state": "rejected",
+      "submittedAt": "2026-10-31T11:33:17.757Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:80530bad11012d540baef8402a9990560957678f2abe2ea27af929c309740a7d",
+      "ticketId": "tk_01m68tv9x1bay77zhr4p3qyqej",
+      "updatedAt": "2026-10-31T11:42:28.457Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "medium",
+        "hostId": "omp-claude-code-darwin-arm64",
+        "label": "DM-318 worker (task subagent)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (anthropic/claude-opus-5-5, medium). This host runs every worker as a task subagent of the session model and cannot set its effort per worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T11:21:33.170Z",
+      "decidedAt": "2026-10-31T12:09:29.699Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Attempt was resubmitted through reconcile after a daemon heartbeat defect let the lease expire; work was complete on terminal-chats-DM-320. Reviewer notes: Non-blocking: (1) The kickoff guard /^-|^\\S*$/ lets whitespace-only kickoffs (' ', '\\n') through. This is harmless because Commander matches subcommand names exactly and main builds the kickoff from fixed text, but trim first if 'empty' is meant to include those. (2) withPlaceholders duplicates agents/launchSpec.ts withFolder; acceptable because the adapters are deleted in SH-8. (3) Autonomous .exe on Windows carries the whole instructions text on the command line. That is fine at today's ~2 KB, but SH-6 plans to move ~30 KB of orchestrator guidance into the instructions file, close to Windows' 32,767-character limit, so SH-6 should paste it or check its size. (4) Codex and Cursor flags are design inference checked only by table tests; Windows behaviour (cmd.exe, ConPTY, the node.exe lookup) is unit-tested only; Autonomous was not started live. (5) The chmod on the staged file is untested (it only matters under a strict umask). (6) I confirmed DM-318 merges cleanly but did not run tests on the merged tree. Worktrees left as found; mutation and scratch files removed.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npx vitest run src/main/terminals src/main/agents/adapters: 36 files, 860 tests passed. The new tests failed before the implementation existed; 17 of 18 deliberate code mutations made a test fail (the surviving one, removing the chmod on the staged file, is accepted).",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint src scripts: no findings",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "tsc for the node, web and fireguard projects: no errors",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Real darwin spec run against ~/.local/bin/claude 2.1.291 in /tmp scratch folders with a dummy grant. With -p, --no-session-persistence and model haiku it exited 0 and answered with the dm launcher path, which only the --append-system-prompt-file instructions contain. Started with exactly the spec's argv, cwd and env in a real PTY (scratch node-pty 1.1.0), it reached the folder-trust prompt with no unknown-option error; stopped after 10 s with no input, no process left. The written launcher ran `dm --list` (ok:true). Scratch folders deleted afterwards.",
+            "name": "live Claude Code check",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node. Exports that only tests import were kept (tsconfig.node.json includes test files); module-local types were unexported.",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node; no criterion needs the built app",
+            "name": "npm run build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "terminalLaunchSpec.test.ts 'every kind, new and resumed, on macOS and Windows': it.each over 20 rows (claude/autonomous/codex/cursor/custom x new/resumed x darwin/win32) asserting the exact file, args (macOS) or commandLine (Windows), cwd === folder, the sorted env keys, pasteFirst and an empty dropped list. Re-run: passed. Mutations to cwd, the PATH prepend and Autonomous shim instructions each failed it."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "cwd: input.folder; customLaunch/withPlaceholders replaces a placeholder only when it equals the whole argument and throws on any includes() match. Tests cover '--dir={folder}', '{folder}/src', '--file={instructions}', '{instructions}.bak' and 'x{folder}{instructions}'. pinnedCliScript is enforced in the spec, in writeTerminalFiles and in dmLauncherScript; the launcher's --repo is checked by executing it. Mutations that allow substrings or remove the pin check were caught."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "terminalEnv SCRUBBED=/^(?:ELECTRON_.*|NODE_OPTIONS)$/i, and dmEnv takes only DM_SESSION_TOKEN and DARKMECHANICUS_HOME, plus ELECTRON_RUN_AS_NODE=1 for packaged win32. Tests loop every kind and both platforms with ELECTRON_RUN_AS_NODE, ELECTRON_ENABLE_LOGGING, NODE_OPTIONS, electron_no_attach_console and Node_Options in main's env, and assert none survive while TERM, COLORTERM and DM_SESSION_TOKEN are present. A case-sensitive or RUN_AS_NODE-only scrub was caught."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "dmLauncher.test.ts executes the written 0700 launcher with a stub /bin/sh runtime, for folders named $(touch…), `touch…`, it's, say \"hi\", two words and a combined name, with a hostile runtime and cli.js path too. The stub records exactly [cli.js, --repo, folder, ...agent args] and ELECTRON_RUN_AS_NODE=1, and no pwned* file appears. Double-quoting, no ' escape and $* instead of \"$@\" were each caught."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "An .exe uses windowsCommandLine (libuv quote_cmd_arg semantics, a literal test, and a C-runtime round trip). Non-Claude .cmd/.bat go through planShimLaunch (exact cmd.exe line asserted for the Autonomous shim, with instructions and kickoff in pasteFirst). A Claude .cmd is followed via resolveClaudeExecutable to claude.exe, or node.exe plus cli.js. it.each over all kinds asserts no .cmd line holds the settings path, the instructions text, --append-system-prompt or the kickoff; a custom CLI's {instructions} gives the file path only, as the design offers. Bypassing planShimLaunch, not following the Claude .cmd, or putting the kickoff on a custom .cmd line were each caught."
+          },
+          {
+            "criterionId": "c6",
+            "met": true,
+            "note": "checkedModel drops 'default' and isSafeModelId failures ('a & b', '--dangerously-skip-permissions', 201 chars) for claude, autonomous, codex and cursor, listed as {field:'model'}; a non-UUID Claude session id becomes a fresh --session-id and is listed; the same for Codex and Cursor resumes. Removing either check was caught. Live: the worker's run against claude 2.1.291, plus my offline probe: `claude --append-system-prompt-file <f> --zz-unknown-flag` errors only on --zz-unknown-flag, while the misspelled --append-system-prompt-filex is rejected, so the flag is accepted and no macOS fallback was needed."
+          }
+        ],
+        "notes": "Limits: Codex and Cursor flags are the design's inferences; they are checked only by the table tests because neither CLI is installed here. Windows behaviour (cmd.exe shims, ConPTY, the Claude npm-shim node.exe lookup) was checked only by unit tests, not on Windows. Autonomous was not started live. The kickoff text itself and when main pastes pasteFirst belong to later tickets. The spec takes newSessionId and an optional shimFs as injected dependencies to stay pure and testable. Red team (reviewer subagent): fixed a bare 'node' file name that node-pty on Windows cannot start, colliding staged files when two starts write at once, one-word kickoffs that Claude would read as subcommands, and a custom .cmd test that passed without testing anything; I also refused .js programs for non-Claude kinds. Held up: 300 hostile launchers ran correctly, 200,000 random Windows quotes matched libuv and parsed back, plus the env scrub, pinning and placeholders. Accepted: removing the chmod on the staged file is not caught by any test (it only matters under an unusually strict umask). Process slip: one early edit landed in the coordinating checkout (one import line in src/main/agents/adapters/claudeProcess.test.ts); I reverted it with an edit, not git, and that file is unchanged there.\nDiscoveries:\n- title: Quote the dm command line in cliInstructions correctly when a path holds a single quote\n  reason: cliCommandLine in src/main/agents/cliInstructions.ts wraps a word in '…' without escaping an inner ', so a folder or userData path holding ' gives the agent a broken command to copy. The macOS terminal names only the launcher path, but Windows instructions include the folder.\n  ticket: DM-320\n- title: Record in chat-shells.md that --append-system-prompt-file was exercised\n  reason: docs/design/chat-shells.md question 3 marks the flag 'verified (help), not exercised'; DM-320 ran it against Claude Code 2.1.291 and the file's content reached the model.\n  ticket: DM-320"
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m68v31qjcs9swrje4kpxpx1e",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Terminal launch spec",
+            "location": "src/main/terminals/terminalLaunchSpec.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Instructions and launcher writer",
+            "location": "src/main/terminals/terminalFiles.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "macOS dm launcher",
+            "location": "src/main/terminals/dmLauncher.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Terminal environment",
+            "location": "src/main/terminals/terminalEnv.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Windows command-line quoting",
+            "location": "src/main/terminals/windowsCommandLine.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "terminal-chats-DM-320",
+        "changedFiles": [
+          "src/main/agents/adapters/autonomous.ts",
+          "src/main/agents/adapters/claude.ts",
+          "src/main/agents/adapters/claudeProcess.test.ts",
+          "src/main/agents/adapters/claudeProcess.ts",
+          "src/main/agents/adapters/cursorLaunch.ts",
+          "src/main/agents/adapters/cursorProtocol.test.ts",
+          "src/main/agents/adapters/cursorProtocol.ts",
+          "src/main/terminals/claudeExecutable.test.ts",
+          "src/main/terminals/claudeExecutable.ts",
+          "src/main/terminals/dmLauncher.test.ts",
+          "src/main/terminals/dmLauncher.ts",
+          "src/main/terminals/modelId.test.ts",
+          "src/main/terminals/modelId.ts",
+          "src/main/terminals/privateFile.ts",
+          "src/main/terminals/terminalEnv.ts",
+          "src/main/terminals/terminalFiles.test.ts",
+          "src/main/terminals/terminalFiles.ts",
+          "src/main/terminals/terminalLaunchSpec.test.ts",
+          "src/main/terminals/terminalLaunchSpec.ts",
+          "src/main/terminals/windowsCommandLine.test.ts",
+          "src/main/terminals/windowsCommandLine.ts"
+        ],
+        "commits": [
+          "0b25e1705638c7c51509891a8dde6124e9586328",
+          "fa968af0085f885b67466bf477924db278080c52",
+          "0f6f946a1bde5ad8c9e4066c5536e7f620504bc4"
+        ],
+        "summary": "Added src/main/terminals/: terminalLaunchSpec (pure; per kind x platform; returns file, args (macOS) or commandLine (Windows, node-pty's pre-escaped string form, which node-pty puts after the program), cwd, env, dropped, pasteFirst, plus sessionId for main to store), terminalEnv (layered env: main's env minus ELECTRON_*/NODE_OPTIONS in any letter case and minus any name the terminal sets; TERM/COLORTERM; Claude's CLAUDE_CODE_DISABLE_AUTO_MEMORY; DM_SESSION_TOKEN and DARKMECHANICUS_HOME only; Windows packaged ELECTRON_RUN_AS_NODE=1; macOS launcher folder first on PATH), terminalFiles (writeTerminalFiles writes userData/agents/instructions/<chat id>.md at each start with cliInstructions naming the macOS launcher by absolute path; chat id validated), dmLauncher (/bin/sh launcher, mode 0700, every path single-quoted, ELECTRON_RUN_AS_NODE only for its own process, exec <runtime> <cli.js> --repo <folder> \"$@\"; refuses a dm invocation not pinned to the folder), privateFile (atomic 0600/0700 writes under a unique staged name), windowsCommandLine (libuv quote_cmd_arg quoting). isSafeModelId (modelId.ts) and resolveClaudeExecutable/readShimFile (claudeExecutable.ts) moved into src/main/terminals; the adapters (cursorProtocol, cursorLaunch, autonomous, claude) import them from there, and their tests moved too. Reviewer notes: Claude gets --append-system-prompt-file <file>, --settings only when files.claudeSettings is given, --model, --session-id <uuid> on a first start (main's newSessionId when there is none), --resume once sessionStarted, and the kickoff as the positional prompt on the first start only. Autonomous: start <folder> --append-system-prompt <text> --approval-mode always-ask [--model]; a later start is resume, which opens a8s's own picker; on an a8s .cmd the instructions (and kickoff) go in pasteFirst. Codex (-C folder / resume <uuid>, -m) and Cursor (--resume <uuid>, -m) take the design's inferred flags, with instructions plus kickoff in pasteFirst; neither is installed here. Custom CLIs: stored args with whole-argument {folder}/{instructions} only, no app flags, kickoff pasted. On Windows a Claude .cmd is followed (an npm cli.js runs with the absolute node.exe beside the shim or on an absolute Path folder, else it is refused); other .cmd/.bat go through planShimLaunch; anything else is refused. A kickoff that is empty, one word or starts with '-' is refused."
+      },
+      "reconciledAt": "2026-10-31T11:59:45.266Z",
+      "revisionId": "rv_01m68tv9xwk534yz9ytfy3ntqx",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T11:59:45.266Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:475088f6359ba3a04b36cee800284398ca5ee959dd04f53687bf9b051b9596df",
+      "ticketId": "tk_01m68tv9x8kq9wvw94trd5fqrz",
+      "updatedAt": "2026-10-31T12:09:29.699Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "high",
+        "hostId": "omp-claude-code-darwin-arm64",
+        "label": "DM-320 worker (task subagent)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (anthropic/claude-opus-5-5, high). This host runs every worker as a task subagent of the session model and cannot set its effort per worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T11:42:32.038Z",
+      "decidedAt": "2026-10-31T11:44:16.354Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Attempt 2 fixed the Windows CI exposure from attempt 1 (POSIX mode tests guarded; real-PTY test darwin-only with canonical cwd). Discovery for retro: confirm node-pty install-script handling on Linux CI npm.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npx vitest run src/main/terminals src/main/agents/processTree.test.ts src/main/agents/processTreePty.test.ts src/main/agents/processTreeReal.test.ts scripts/ptyHelperMode.test.mjs: 6 files, 72 tests passed (macOS arm64, Node 24.19). After the run, ps found no fixture processes left.",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint src scripts, exit 0",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "tsc for node, web and fireguard: no errors",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Attempt 1: ELECTRON_RUN_AS_NODE=1 node_modules/.bin/electron -e: a node-pty spawn of /bin/echo printed hi-from-electron and exited with code 0 (Electron 42.11.9, prebuild, no rebuild).",
+            "name": "Electron load check",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node; no criterion needs the built app",
+            "name": "npm run build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "node-pty pinned at 1.1.0; postinstall runs scripts/ptyHelperMode.mjs; reviewer mutation (chmod a-x) failed the helper test, restored passes. Mode assertions now win32-guarded (6d4e865)."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Reviewer: only src/main/terminals/ptyHost.ts imports node-pty; fake in src/main/terminals/__mocks__/fakePtyHost.ts; async loading fails closed (tested)."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "ptyHost.real.test.ts (darwin) asserts canonical /private/tmp cwd passed as spawn cwd, DM_SESSION_TOKEN, exact argv, echo, SIGWINCH 132x43; re-run by orchestrator: 2 files 8 tests passed."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Reviewer mutation: pid-only signal left the grandchild alive and failed the test; real group kill leaves no process. Windows taskkill path covered by fake runner (processTreePty.test.ts)."
+          }
+        ],
+        "notes": "Limits: Windows paths are covered only by fakes. Per the orchestrator, live PTY verification on Windows belongs to the optional Windows ticket, so the real-PTY test runs only on darwin. createNodePtyHost is async (lazy import); callers should await it once and treat a rejection as 'terminals unavailable'. The fixture writes agent-fixture.log into its cwd by default (AGENT_FIXTURE_LOG overrides it). Red-team: the group kill and the execute-bit test were mutation-checked in attempt 1. A race (the fixture exiting before its grandchild ignored SIGHUP) was found and fixed. killProcessTree's existing tests pass after the refactor. In attempt 2 I checked the windows-latest exposure: no test in the touched files now asserts a POSIX mode or starts a live PTY on Windows.\nDiscoveries:\n- title: Verify node-pty install-script handling in Linux CI\n  reason: npm 11.17 locally reports node-pty's install script (node scripts/prebuild.js || node-gyp rebuild) as not covered by allowScripts and does not run it. If the npm on ubuntu-latest CI does run install scripts, there is no Linux prebuild, so npm ci would compile node-pty from source in the deadcode, deploy and security-audit jobs. I did not check CI's npm version.\n  ticket: DM-318"
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m68w9f36e0v7y6tgwatwmcbx",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "PtyHost interface and node-pty implementation",
+            "location": "src/main/terminals/ptyHost.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Fake PtyHost",
+            "location": "src/main/terminals/__mocks__/fakePtyHost.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Fixture agent CLI",
+            "location": "src/main/terminals/__fixtures__/agentFixture.mjs",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "spawn-helper execute-bit script (postinstall)",
+            "location": "scripts/ptyHelperMode.mjs",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Real-PTY test (macOS)",
+            "location": "src/main/terminals/ptyHost.real.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "terminal-chats-DM-318",
+        "changedFiles": [
+          "package.json",
+          "package-lock.json",
+          "scripts/ptyHelperMode.mjs",
+          "scripts/ptyHelperMode.test.mjs",
+          "src/main/agents/processTree.ts",
+          "src/main/agents/processTreePty.test.ts",
+          "src/main/terminals/__fixtures__/agentFixture.mjs",
+          "src/main/terminals/__mocks__/fakePtyHost.ts",
+          "src/main/terminals/ptyHost.real.test.ts",
+          "src/main/terminals/ptyHost.test.ts",
+          "src/main/terminals/ptyHost.ts"
+        ],
+        "commits": [
+          "5de5159188965d216fb9ac309bf697062a37f762",
+          "dab7694eee4e591beaf979e1b8439be640db0dfa",
+          "6d4e8658b96da1fd8dacf1ec808b110f2a41d829"
+        ],
+        "summary": "Pinned node-pty 1.1.0 (exact) in dependencies. A postinstall script, scripts/ptyHelperMode.mjs, makes node_modules/node-pty/prebuilds/darwin-*/spawn-helper executable and does nothing on other platforms. npm allow-scripts stays unapproved. Added src/main/terminals/ptyHost.ts: the PtyHost, PtySpawnSpec, PtyProcess and PtyExit types and createNodePtyHost(). The host imports node-pty lazily and is async, because there is no Linux prebuild; on Windows it passes useConptyDll and the pre-escaped string args through. Added the fake at src/main/terminals/__mocks__/fakePtyHost.ts. Added killPtyTree and PtyTree to src/main/agents/processTree.ts. On macOS and Linux it sends SIGKILL to the -pid group and waits for the group to empty. On Windows it runs taskkill /t /f and then node-pty's kill. It reuses the endLeftovers reaping and the shared-kill cache from killProcessTree, and resolves when the exit settles or after waitMs. Added the fixture CLI src/main/terminals/__fixtures__/agentFixture.mjs. Attempt 2 fixes: the POSIX mode checks in scripts/ptyHelperMode.test.mjs use it.runIf(process.platform !== 'win32'), with the return-value check split out so it still runs on Windows. ptyHost.real.test.ts runs only on darwin (describe.runIf), passes the canonical scratch folder (realpathSync.native of a folder made under /tmp) as the spawn cwd, and no longer has Windows-only branches."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m68tv9xwk534yz9ytfy3ntqx",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T11:44:05.872Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:80530bad11012d540baef8402a9990560957678f2abe2ea27af929c309740a7d",
+      "ticketId": "tk_01m68tv9x1bay77zhr4p3qyqej",
+      "updatedAt": "2026-10-31T11:44:16.354Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "high",
+        "hostId": "omp-claude-code-darwin-arm64",
+        "label": "DM-318 worker (task subagent)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (anthropic/claude-opus-5-5, high). This host runs every worker as a task subagent of the session model and cannot set its effort per worker. Attempt 1 was rejected only for Windows CI test guards; the same worker continues with the rejection reasons (no capability escalation available on this host).",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T11:44:24.885Z",
+      "decidedAt": "2026-10-31T12:04:21.066Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "c2: signed pty.node differs from the prebuild only in the ad-hoc code signature and its three size fields (byte comparison by reviewer); same Mach-O UUID; unsigned package byte-identical. Reviewer notes: Non-blocking. (1) The committed smoke driver (docs/verification/DM-319-02-packaged-smoke-driver.mjs) is flaky: Runtime.evaluate returned 'Promise was collected' in 1 of my 3 re-runs. That is evidence tooling, not product code. (2) assertPtyHelperExecutable passes if any execute bit is set (mode & 0o111). A helper whose owner bit is clear but group or other is set (e.g. 0o645) would pass the check and still fail at spawn. No known path produces that mode, since postinstall and afterPack set all three bits; accessSync(X_OK) would be exact. (3) The check reads prebuilds/<platform>-<arch>, but node-pty prefers build/Release when it exists. None exists in node_modules, and npmRebuild:false keeps it that way in packaged apps. (4) helperPath and statHelper are public optional options, like DM-318's platform and load. Nothing in the app calls createNodePtyHost yet; whichever ticket wires it in should call it without them. (5) Possible deadcode finding at the sprint checkpoint (not checked; deadcode not run): PtyHelperCheckOptions is exported but used only in its own module, like the existing NodePtyHostOptions. (6) The packaged x64 app was never started; only its ls -l was checked, which is all c1 needs. Windows packaging was not run; the hook skipping Windows was confirmed through electron-builder's own resolver. Red-team: I attacked hook resolution and the Windows skip, whether the asar copy keeps file modes (so the hook really does the chmod), whether the path rewrite matches node-pty's own, the missing-helper packaging failure, whether the check can fail open, whether the tests are vacuous, and the checksum claim. All survived apart from the edge cases in (2) and (3).",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npx vitest run scripts/ptyHelperMode.test.mjs scripts/mac-packaging.test.mjs src/main/terminals/ : 5 files, 39 tests passed (new tests seen failing first: module missing, 3 config assertions, 3 afterPack cases)",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint src scripts, no findings after splitting one over-long describe",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "no errors",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "electron-builder --mac to /tmp/dm319/release (arm64 + x64 DMGs); arm64 app inspector run printed ok; see docs/verification/DM-319-01-packaged-smoke.log",
+            "name": "packaged smoke",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run coverage",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "electron-vite build ran only as part of packaging; the full build check is left to the acceptance node",
+            "name": "npm run build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "package.json build has asarUnpack [node_modules/node-pty/**], npmRebuild:false, afterPack ./scripts/ptyHelperMode.mjs, asserted in scripts/mac-packaging.test.mjs. Loading the hook through electron-builder 26.15.3's resolveFunction finds the named afterPack export. afterPack calls setPtyHelperMode on <Resources>/app.asar.unpacked and fails packaging when it finds no helper; tested in scripts/ptyHelperMode.test.mjs, and removing the error makes the test fail. builder-util's FileCopier copies unpacked files keeping their source mode, so the worker's run with 644 helpers in node_modules producing 755 in the bundles shows the hook ran. I ran ls -l myself in /tmp/dm319/release: mac-arm64 and mac (x64) bundles both show -rwxr-xr-x spawn-helper for darwin-arm64 and darwin-x64. Builder log has 'skipped dependencies rebuild reason=npmRebuild is set to false'."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "I re-ran the inspector driver against the signed arm64 app with a scratch --user-data-dir and --inspect=0. 2 of 3 runs gave output 'ok\\r\\n', exit 0, pty.node loaded from app.asar.unpacked/.../darwin-arm64/pty.node. The third run hit a 'Promise was collected' error in the driver itself, not the app. The evaluated bundle matches current src/main/terminals/ptyHost.ts; I rebuilt it with esbuild and only the dynamic-import lowering differs. Checksum: the prebuild and the unsigned package are both sha256 e6457d66…; the signed bundle is 4dd84e55…; dwarfdump --uuid gives 333B9B8F-3DBD-3733-BBB3-BC6679A9760C for all three. I went further: otool -l shows the code signature starts at offset 84704 in both files, and cmp -l -n 84704 finds exactly 5 differing bytes, all in __LINKEDIT vmsize, __LINKEDIT filesize and the code signature datasize. The rest is the signature blob (prebuild ad-hoc linker-signed, shipped ad-hoc re-signed by identity '-'). So every code and data byte is the prebuild's: it is the prebuild, not a rebuild. An exact checksum match is impossible in a signed package under the existing mac.identity '-', and signing is out of scope. The criterion's intent is met."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "src/main/terminals/ptyHelperCheck.test.ts: on darwin, a scratch copy of the real node-pty with spawn-helper set to 644 throws 'posix_spawnp failed.' when called directly, while createNodePtyHost rejects with \"The terminal helper isn't executable: <path>. Reinstall Dark Mechanicus.\" and never loads node-pty. There are also cross-platform tests for 644, missing and folder helpers. Removing the check call from ptyHost.ts failed 3 tests; ignoring the execute bit failed 6 across both files. I restored both. The worker's committed log also shows the live packaged run with the helper set to 644 returning the app's message."
+          }
+        ],
+        "notes": "Limits: the packaged x64 app was not started (under Rosetta its inspector did not come up within 30s; I killed the process I started); only its ls -l was checked, as c1 requires. The inspector smoke ran the esbuild bundle of src/main/terminals/ptyHost.ts with the app main module's require and filename, because nothing in the app calls createNodePtyHost yet and the main bundle does not include it. The helper check reads prebuilds/<platform>-<arch>/spawn-helper; node-pty would prefer a build/Release copy if one were compiled from source, which npmRebuild:false prevents in packaged apps. The check runs once, when the host is created, not on every spawn. Packaging output went to /tmp/dm319 (nothing under release/). node_modules helper modes were set to 644 for the hook proof and restored with node scripts/ptyHelperMode.mjs. Red-team self-pass: path rewrite matches node-pty's; a missing or folder helper is refused; Windows and Ubuntu CI do not depend on real file modes; tests were seen failing before the code existed.\nDiscoveries:\n- title: Decide how to check that a signed macOS package ships the node-pty prebuild\n  reason: electron-builder ad-hoc re-signs pty.node and spawn-helper (identity \"-\"), so their sha256 in the shipped bundle never equals the prebuild's (pty.node 85496 to 103152 bytes). A byte checksum works only on an unsigned package; on signed builds, compare Mach-O UUIDs (dwarfdump --uuid) instead, which also matters once Developer ID signing arrives.\n  ticket: DM-319\n- title: Check the x64 macOS package under Rosetta, or on an Intel Mac\n  reason: The packaged x64 app started with --inspect=0 under Rosetta on this arm64 Mac printed no inspector URL within 30s, so whether the x64 bundle loads the darwin-x64 prebuild was not seen. The design (SH-1 criterion 1) asks for a smoke start of each mac architecture.\n  ticket: DM-319"
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m68wcx9n55pgmbk34bfcvjp0",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Helper check",
+            "location": "src/main/terminals/ptyHelperCheck.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Helper check tests",
+            "location": "src/main/terminals/ptyHelperCheck.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Packaged smoke transcript (ls -l, checksums, inspector runs)",
+            "location": "docs/verification/DM-319-01-packaged-smoke.log",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Inspector smoke driver",
+            "location": "docs/verification/DM-319-02-packaged-smoke-driver.mjs",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "terminal-chats-DM-319",
+        "changedFiles": [
+          "package.json",
+          "scripts/ptyHelperMode.mjs",
+          "scripts/ptyHelperMode.test.mjs",
+          "scripts/mac-packaging.test.mjs",
+          "src/main/terminals/ptyHelperCheck.ts",
+          "src/main/terminals/ptyHelperCheck.test.ts",
+          "src/main/terminals/ptyHost.ts",
+          "src/main/terminals/ptyHost.test.ts",
+          "docs/verification/DM-319-01-packaged-smoke.log",
+          "docs/verification/DM-319-02-packaged-smoke-driver.mjs"
+        ],
+        "commits": [
+          "395d719bcc511013271ca2fdf771ee8c0ff343c4",
+          "d74196756fddf7b788e706c4d85a0f8b03f7aeec"
+        ],
+        "summary": "Packaging config: build.asarUnpack node_modules/node-pty/**, npmRebuild false, afterPack ./scripts/ptyHelperMode.mjs (new named export afterPack reuses setPtyHelperMode on <Resources>/app.asar.unpacked for darwin bundles and fails packaging when no helper is found). New src/main/terminals/ptyHelperCheck.ts (assertPtyHelperExecutable, ptyHelperPath mirroring node-pty's app.asar to app.asar.unpacked rewrite, installedPtyHelperPath); createNodePtyHost calls it on darwin before loading node-pty and rejects with \"The terminal helper isn't executable: <path>. Reinstall Dark Mechanicus.\". New options helperPath/statHelper are test seams; ptyHost.test.ts hostOver passes an executable fake stat. Packaged smoke run with electron-vite build && electron-builder --mac --publish never --config.directories.output=/tmp/dm319/release (npm run package:mac's commands with a scratch output dir). Reviewer must know: the signed bundle's pty.node checksum differs from the prebuild because electron-builder ad-hoc re-signs every Mach-O (identity \"-\"); an unsigned package (mac.identity=null) has the identical sha256 and the signed one has the same Mach-O UUID."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m68tv9xwk534yz9ytfy3ntqx",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T11:57:18.941Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:4c7a3731274156f216cc607400539e239a5ef98d000b622322e815baf2032405",
+      "ticketId": "tk_01m68tv9x8sfdxh618cw46ns1m",
+      "updatedAt": "2026-10-31T12:04:21.066Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "medium",
+        "hostId": "omp-claude-code-darwin-arm64",
+        "label": "DM-319 worker (task subagent)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (anthropic/claude-opus-5-5, medium). This host runs every worker as a task subagent of the session model and cannot set its effort per worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T12:10:34.620Z",
+      "decidedAt": "2026-10-31T13:11:30.862Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Reviewer verified c1-c4 with mutation testing (19/22 mutations killed). Non-blocking: dispose not waiting on live.ended survives because the fake tree kill resolves on exit. Scope: an old chat with a stored adapter sessionId gets `claude --session-id <id>`, which Claude likely refuses. That belongs to DM-329 item 3 (old Claude chats with --resume) and DM-326 (Start again and resume), not to this ticket; the failure is visible (the PTY exits and its grant is revoked). Follow-ups for those tickets: spawnWithGrant ignores spec.sessionId, so a new Claude chat's generated --session-id is never stored and DM-326 will need it stored to resume. It also ignores spec.pasteFirst, so Codex, Cursor and a8s-through-a-shim start with no instructions until a paste is wired (DM-328), and spec.dropped. Adapter seam: one store and one grant set are safe, since updateChat patches the stored record and grants revoke by id from one held map. The adapter's disposeAll, endAgentSessions and deleteChat are unchanged, and not_found for an unknown chat is preserved through remove(). index.test.ts passes; bootstrap.ts has no test. The 'dispose does not wait on live.ended' mutation survives only because the fake tree kill resolves on exit, and removing both waits fails the quit tests. Minor: grantIds grows by one per start with no bound, and every start stamps updatedAt, which reorders the chat list. A late-grant revoke after a cancel is not tracked for quit, but issueGrant is a synchronous SQLite transaction, so in practice there is no window. TerminalAttach and TerminalListener have no external importer yet, so check deadcode at acceptance. The worktree is left clean at d467e9a.",
+        "outcome": "rejected",
+        "reasons": [
+          "c5 (agent removal half) is not actually tested: making `endAgent` a no-op, or dropping `terminals.endAgent` from the `endingTerminals` wrapper in bootstrap, fails no test, because the agent-removal test simulates the PTY exit itself and that exit alone produces the kill and revoke it checks. Add an assertion BEFORE the simulated exit that removing the agent already killed the PTY tree and revoked its grant (the reviewer confirmed this assertion passes on the real code and fails with endAgent as a no-op), and cover the endingTerminals wrapper so dropping terminals.endAgent from it fails a test."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npx vitest run src/main/terminals src/main/index.test.ts src/main/agents/chatStore.test.ts src/main/quitDisposal.test.ts: 17 files, 197 tests passed (run 3x back to back with no failures); npx vitest run src/main/agents src/main/desktop src/shared: 90 files, 2112 passed, 9 skipped",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint src scripts, exit 0",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "node, web and fireguard tsconfigs, exit 0",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "ELECTRON_RUN_AS_NODE=1 electron -e loading @xterm/headless and @xterm/addon-serialize printed 42.11.9 and a serialized screen",
+            "name": "electron smoke (xterm headless load)",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run coverage",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node; no criterion needs a live check on the built app",
+            "name": "npm run build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "terminalSessions.test.ts 'terminal sessions: one PTY per chat': 'starts one PTY for concurrent attaches of one chat, and another for another chat' (3 concurrent attaches -> 1 spawn with one pid; second chat gets its own pid and grant), 'runs one sign-in check for attaches that arrive while it runs, each answering checking', 'answers a later attach with the running PTY and starts nothing more'; fake PtyHost."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "terminalSessions.test.ts: 'writes the start files, issues the grant, stores its id on the chat record, then spawns with it' (steps auth -> grant -> spawn; index.jsonl read again by a new store already held the grant id at spawn), 'keeps every grant id issued to the chat', 'issues no grant when the start files cannot be written'; 'the grant is revoked on every way out': on exit, on kill (once), on spawn failure, and a grant arriving after cancellation. terminalSessions.folder.test.ts: revoke when the folder is untracked while the grant is issued."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "terminalSessions.folder.test.ts: moved/deleted/untracked folder refused with its not_found message before any check, file or grant; a folder moved during the sign-in check is refused before the grant; FakeClock: 59_999 ms no kill, 60_000 ms kill + revoke, exit event carries the not_found message; untrack while running stops at the next minute; attach to a running PTY whose folder moved stops it at once."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "terminalSessions.screen.test.ts on the real @xterm/headless: snapshot repainted in a fresh headless terminal matches the raw output (lines, cursor, red fg, bold), keeps scrollback (60 lines), has the PTY's 80x24 size and follows resize; a listener hears exactly the output after its snapshot and only after attach answered; fan-out to every listener; detach. terminalScreen.test.ts: no hang past xterm's 50 MB backlog."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "terminalSessions.quit.test.ts with disposeBeforeQuit and a fake app: quit held until both PTY trees exited, then quits once; bound timer set at 5000 ms and firing it quits with a PTY that never exits; quit passes straight through with nothing running; a start in its sign-in check is cancelled without waiting. Delete kills the PTY and deletes the record only after the kill settled, and nothing starts while the record is being removed; removing an agent kills only its chats' PTYs (endingTerminals, the same function bootstrap uses)."
+          }
+        ],
+        "notes": "Limits: no IPC yet, so attach is not reachable from the renderer; the bootstrap wiring is composition only (no unit test of its own, as the file states) and was not run in the built app. Pure-JS xterm packages were load-checked under Electron's Node. Every terminal start stamps updatedAt (grantIds update), which reorders the chat list. Red-team (reviewer subagent plus own pass) found and fixed: no leftovers kill after a natural exit, starts possible while a chat's record was being removed, folder swap during the 30 s sign-in check, hang on xterm's 50 MB backlog, a screen created after the spawn, unhandled kill rejections, one test that could pass without the record waiting for the kill, and two flaky timing waits. Checked and rejected: double revoke, two PTYs per chat, spawn after quit/agent removal, SessionManager spread losing methods.\nDiscoveries:\n- title: Store and use Claude's session id with a sessionStarted flag for terminal starts\n  reason: terminalSessions passes sessionStarted false and does not store spec.sessionId, so every start gets a fresh session; an existing chat with a stored UUID sessionId (adapter-era Claude chats) would start with `--session-id <existing id>`, which Claude is expected to refuse. The resume/lifecycle ticket must add sessionStarted to the chat record and store the id.\n  ticket: DM-322\n- title: Paste the launch spec's pasteFirst text and show dropped values in the pane\n  reason: terminalLaunchSpec returns pasteFirst (instructions/kickoff for CLIs without an instructions flag or behind a .cmd shim) and dropped (model/session id that failed validation); terminalSessions ignores both today, so Codex/Cursor/shimmed Autonomous starts get no instructions and the pane cannot say a model was dropped.\n  ticket: DM-322\n- title: Flow control between the PTY and the headless screen\n  reason: PtyHost has no pause/resume, so a CLI printing faster than xterm parses (over 50 MB backlog, e.g. `yes`) has output dropped from the screen and from listeners; terminalScreen.ts now drops instead of throwing, but the output is still lost.\n  ticket: DM-322"
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m68xwt7wbegw90sq0gndy0c4",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Terminal session manager",
+            "location": "src/main/terminals/terminalSessions.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Headless terminal screen",
+            "location": "src/main/terminals/terminalScreen.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Lifecycle test rig (fake host, fake clock)",
+            "location": "src/main/terminals/__mocks__/terminalSessionsRig.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "terminal-chats-DM-322",
+        "changedFiles": [
+          "package-lock.json",
+          "package.json",
+          "src/main/agents/chatStore.ts",
+          "src/main/desktop/bootstrap.ts",
+          "src/main/index.test.ts",
+          "src/main/index.ts",
+          "src/main/terminals/__mocks__/terminalSessionsRig.ts",
+          "src/main/terminals/terminalScreen.test.ts",
+          "src/main/terminals/terminalScreen.ts",
+          "src/main/terminals/terminalSessions.folder.test.ts",
+          "src/main/terminals/terminalSessions.quit.test.ts",
+          "src/main/terminals/terminalSessions.screen.test.ts",
+          "src/main/terminals/terminalSessions.test.ts",
+          "src/main/terminals/terminalSessions.ts",
+          "src/shared/agents/chat.ts"
+        ],
+        "commits": [
+          "2186c9ad8cb2079f35b14cfd8bdd41e7a7803851",
+          "a89fec11e3c314882e33c43f725ddbfa589cf711",
+          "d255a69a091fcec28941bcd4a4324193be2d2f3b",
+          "d467e9a6f622f729621d0cfc5cde15b9eee00974"
+        ],
+        "summary": "Added src/main/terminals/terminalSessions.ts: one PTY per chat id. attach(ref, listener?) loads the chat from chatStore and starts the PTY once; concurrent attaches share the start. Pre-start order: resolveLaunchFolder (refused with not_found, nothing done) -> getAgentAuthStatus for built-ins (signed_out starts nothing; attach answers `checking` while it runs and the listener hears `started`/`not_started`) -> writeStartFiles (named pre-start step wrapping writeTerminalFiles; memory-guard ticket adds the Claude settings file there) -> chatGrants.issueChatCli -> grant id appended to chat.grantIds (new optional field on chatRecordSchema, ChatPatch allows it) -> spawn through PtyHost with terminalLaunchSpec. The folder is re-checked before the grant and right before the spawn. Grant revoked on PTY exit, kill (delete/agent removal/folder/quit), spawn failure and cancelled starts (including a grant that arrives after the cancel). A natural exit also asks killPtyTree for leftovers in the process group. Output goes through terminalScreen.ts (@xterm/headless + @xterm/addon-serialize, added to dependencies); attach answers with the serialized snapshot and subscribes its listener at that point (held until the attach answered). Folder re-checked every 60 s and on attach; failure stops the PTY with the not_found message. dispose cancels starts, kills every PTY tree, resolves when every onExit fired and pending revokes/kills settled. bootstrap.ts: one shared chat store and grant set for the adapter sessions and terminals, node-pty host loaded lazily, DesktopBridge.chats is now {busy, dispose} (index.ts and index.test.ts mock updated), deleteChat/endAgentSessions routed through endingTerminals. Red-team fixes are in the last commit. Reviewer notes: no IPC yet (next ticket), so nothing calls attach in the app; sessionStarted/kickoffSent are passed as false and kickoff as null; the spec's `dropped` and `pasteFirst` are not used yet; sessionId is not stored on the chat."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m68tv9xwk534yz9ytfy3ntqx",
+      "state": "rejected",
+      "submittedAt": "2026-10-31T13:02:37.987Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:c88ad0a611e4838c09b624ac4893403291db654f3f060de6bf9157269e3eab80",
+      "ticketId": "tk_01m68tv9x8v7dh0j2ar74e5qyf",
+      "updatedAt": "2026-10-31T13:11:30.862Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "high",
+        "hostId": "omp-claude-code-darwin-arm64",
+        "label": "DM-322 worker (task subagent)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (anthropic/claude-opus-5-5, high). This host runs every worker as a task subagent of the session model and cannot set its effort per worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T13:11:30.877Z",
+      "decidedAt": "2026-10-31T13:14:56.575Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "c1-c4 verified by independent review of attempt 1 (production code unchanged in attempt 2). Discoveries for later tickets/retro: \n- title: Store and use Claude's session id with a sessionStarted flag for terminal starts\n  reason: terminalSessions passes sessionStarted false and does not store spec.sessionId, so every start gets a fresh session; an existing chat with a stored UUID sessionId (adapter-era Claude chats) would start with `--session-id <existing id>`, which Claude is expected to refuse.\n  ticket: DM-322\n- title: Paste the launch spec's pasteFirst text and show dropped values in the pane\n  reason: terminalLaunchSpec returns pasteFirst and dropped; terminalSessions ignores both today, so Codex, Cursor and shimmed Autonomous starts get no instructions, and the pane cannot say a model was dropped.\n  ticket: DM-322\n- title: Flow control between the PTY and the headless screen\n  reason: PtyHost has no pause/resume, so a CLI printing faster than xterm parses (past its 50 MB backlog) has output dropped from the screen and from listeners; terminalScreen.ts drops instead of throwing, but the output is still lost.\n  ticket: DM-322",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npx vitest run src/main/terminals src/main/index.test.ts src/main/agents/chatStore.test.ts src/main/quitDisposal.test.ts: 17 files, 198 tests passed",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "terminalSessions.quit.test.ts: endAgent no-op -> 2 failed; terminals.endAgent dropped from endingTerminals -> 1 failed; dispose awaiting kill instead of live.ended -> 1 failed; each mutation restored, terminalSessions.ts has no diff from the committed version",
+            "name": "mutation checks (c5)",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint src scripts, exit 0",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "exit 0",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run coverage",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node; no criterion needs a live check on the built app",
+            "name": "npm run build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "terminalSessions.test.ts 'starts one PTY for concurrent attaches…': 3 concurrent attaches give 1 spawn and 1 pid; the second chat gets its own pid and grant. Also tested: one sign-in check while it runs, and a later attach reusing the running PTY. Fake PtyHost. Mutation: always calling beginStart fails 4 tests."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Grant issued before spawn, and grantStoredAtSpawn [true] read from a reopened store; mutation storing the id after the spawn fails. Revoke on exit, on kill (once), on spawn failure and for a grant that arrives late: removing each revoke fails its test. Code: runStart and spawnWithGrant (terminalSessions.ts:441-477) revoke on every throw after the grant; startLive's onExit and stop() revoke through a memoized live.revoke."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "terminalSessions.folder.test.ts: a moved, deleted or untracked folder is refused with its not_found message, with no steps or files; a folder moved during the sign-in check is refused before the grant. FakeClock: no kill at 59,999 ms, kill and revoke at 60,000 ms, and the exited event carries the not_found message. Mutations killed: interval set to 61 s, watch that never stops, first check skipped, re-check before the grant removed."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "terminalSessions.screen.test.ts on the real @xterm/headless: the snapshot, repainted in a fresh Terminal, matches the raw output in lines, cursor, red foreground and bold; 60 lines of scrollback kept; 80x24 size that follows resize; a listener hears exactly the output after its snapshot. Mutations killed: empty snapshot, screen not resized, no hold for listeners."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Attempt 2 (d979551, tests only): agent removal asserts kill + revoke before the simulated exit; mutations endAgent no-op (2 fail), terminals.endAgent dropped from endingTerminals (1 fails), dispose not awaiting live.ended (1 fails). Quit bounded at 5 s; delete waits for the kill. Orchestrator re-ran src/main/terminals: 14 files, 154 passed."
+          }
+        ],
+        "notes": "Attempt 2 adds only test and rig changes (commit d979551); production code is as in attempt 1. Limit: whether bootstrap.ts routes endAgentSessions through endingTerminals is not unit-tested, because bootstrap.ts is wiring only; the wrapper itself is tested.\nDiscoveries:\n- title: Store and use Claude's session id with a sessionStarted flag for terminal starts\n  reason: terminalSessions passes sessionStarted false and does not store spec.sessionId, so every start gets a fresh session; an existing chat with a stored UUID sessionId (adapter-era Claude chats) would start with `--session-id <existing id>`, which Claude is expected to refuse.\n  ticket: DM-322\n- title: Paste the launch spec's pasteFirst text and show dropped values in the pane\n  reason: terminalLaunchSpec returns pasteFirst and dropped; terminalSessions ignores both today, so Codex, Cursor and shimmed Autonomous starts get no instructions, and the pane cannot say a model was dropped.\n  ticket: DM-322\n- title: Flow control between the PTY and the headless screen\n  reason: PtyHost has no pause/resume, so a CLI printing faster than xterm parses (past its 50 MB backlog) has output dropped from the screen and from listeners; terminalScreen.ts drops instead of throwing, but the output is still lost.\n  ticket: DM-322"
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m691ccsx6zegrxassmxab37g",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Terminal session manager",
+            "location": "src/main/terminals/terminalSessions.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Headless terminal screen",
+            "location": "src/main/terminals/terminalScreen.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Lifecycle test rig (fake host, fake clock)",
+            "location": "src/main/terminals/__mocks__/terminalSessionsRig.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Quit, delete and agent-removal tests",
+            "location": "src/main/terminals/terminalSessions.quit.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "terminal-chats-DM-322",
+        "changedFiles": [
+          "package-lock.json",
+          "package.json",
+          "src/main/agents/chatStore.ts",
+          "src/main/desktop/bootstrap.ts",
+          "src/main/index.test.ts",
+          "src/main/index.ts",
+          "src/main/terminals/__mocks__/terminalSessionsRig.ts",
+          "src/main/terminals/terminalScreen.test.ts",
+          "src/main/terminals/terminalScreen.ts",
+          "src/main/terminals/terminalSessions.folder.test.ts",
+          "src/main/terminals/terminalSessions.quit.test.ts",
+          "src/main/terminals/terminalSessions.screen.test.ts",
+          "src/main/terminals/terminalSessions.test.ts",
+          "src/main/terminals/terminalSessions.ts",
+          "src/shared/agents/chat.ts"
+        ],
+        "commits": [
+          "2186c9ad8cb2079f35b14cfd8bdd41e7a7803851",
+          "a89fec11e3c314882e33c43f725ddbfa589cf711",
+          "d255a69a091fcec28941bcd4a4324193be2d2f3b",
+          "d467e9a6f622f729621d0cfc5cde15b9eee00974",
+          "d979551be28d6f2e5fbb7e4f9e79b47a93de2e42"
+        ],
+        "summary": "Attempt 2 (c5 rework). Production code unchanged from attempt 1; one new commit changes only tests and the test rig. The agent-removal test through endingTerminals now asserts, before the simulated exit, that the removal killed the PTY tree (node-pty kill called once) and revoked its grant. A new test drives TerminalSessions.endAgent directly: immediate kill and revoke, and the call does not resolve before the PTY exits. The rig gained a killSettlesAtOnce option; the quit test uses it so dispose must wait on each PTY's own exit (live.ended), not just the tree kill. Mutations checked, each failing and then restored: endAgent as a no-op (2 tests fail), terminals.endAgent dropped from the endingTerminals wrapper (1 fails), dispose awaiting the kill instead of live.ended (1 fails). The rest of the attempt-1 summary still holds: one PTY per chat; pre-start order folder -> sign-in -> writeStartFiles -> grant -> grantIds -> spawn; grant revoked on every exit path; headless xterm snapshot; 60 s folder watch; held quit; delete and agent removal wired in bootstrap.ts through endingTerminals."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m68tv9xwk534yz9ytfy3ntqx",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T13:14:56.544Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:c88ad0a611e4838c09b624ac4893403291db654f3f060de6bf9157269e3eab80",
+      "ticketId": "tk_01m68tv9x8v7dh0j2ar74e5qyf",
+      "updatedAt": "2026-10-31T13:14:56.575Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "high",
+        "hostId": "omp-claude-code-darwin-arm64",
+        "label": "DM-322 worker (task subagent)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (anthropic/claude-opus-5-5, high). This host runs every worker as a task subagent of the session model and cannot set its effort per worker. Attempt 1 rejected for one missing test assertion (agent removal); the same worker continues with the reason.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T13:15:23.149Z",
+      "decidedAt": "2026-10-31T14:13:12.594Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Attach waits through the sign-in check instead of answering checking (the renderer shows checking while pending). Input over 64 KiB is dropped, not split: the pane ticket should chunk writes. Reviewer notes: Red-team found no blockers. (1) Frame trust: the port goes to the same senderFrame the guard checked, read when the call arrives. After the up-to-30 s sign-in wait, main does not check isTrustedSender again before postMessage. Non-app navigation is blocked (will-navigate and will-redirect guards), and the preload closes ports nobody claims after a reload, so I found no route for a non-app frame to get a port. A trust check before posting would still be cheap extra protection. (2) The wait always ends: a cancel from delete, quit or agent removal makes the session manager emit not_started, and the check is capped at 30 s. Only delete is tested in the handler tests; quit and agent removal use the same cancel path but are not tested there. Main issues no grant; a PTY that started while its frame went away keeps running, as designed. (3) A stray port held while another attach of the page is pending stays open, buffering output, until that attach answers. A renderer that never subscribes buffers output. A compromised page can pile up ports and listeners in main (the worker noted this). (4) A resize of 2^60 is dropped rather than clamped; this is safe. (5) Not run against real Electron MessagePortMain or WebFrameMain; the fakes use worker_threads ports, and the Electron shapes were checked by typecheck only.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npx vitest run src/main/terminals/terminalHandlers.test.ts src/main/terminals/terminalHandlers.port.test.ts src/preload/terminals.test.ts: 3 files, 49 tests passed",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "npx vitest run src/main/terminals src/main/agents/chatHandlers.test.ts src/main/agents/chatHandlers.folder.test.ts src/main/agents/chatIpc.test.ts src/main/ipcGuard.test.ts src/preload src/renderer/src/app/shellActions.test.ts src/renderer/src/epic: 48 files, 615 tests passed",
+            "name": "affected existing tests",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint: 0 warnings, 0 errors",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "node, web and fireguard tsconfigs clean; WebFrameMain and MessagePortMain typecheck against TerminalFrame and TerminalMainPort in bootstrap.ts",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "About 40 hand mutations of terminalHandlers.ts and preload/terminals.ts: all caught, except a few with no visible effect (a length precheck, deduped addEventListener, deleting a claimed port from the map, and two redundant guards that were then removed)",
+            "name": "hand mutation check",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run coverage",
+            "status": "skipped"
+          },
+          {
+            "detail": "No criterion needs a live check on the built app (the pane is the next ticket); not run",
+            "name": "npm run build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "terminalHandlers.ts: attachSchema = z.strictObject({folder, chatId}); registerTerminalIpc registers on the guarded registrar (bootstrap startTerminals gets the guardIpc result from index.ts). chatRef runs chatFolder (tracked, then refuseSwappedFolder) before store.getChat, then refuses chat.folder !== folder; the session manager's beginStart refuses a moved/untracked folder (resolveLaunchFolder) and a disconnected agent (agentFor null) before files or a grant. terminalHandlers.test.ts covers foreign, subframe, detached and null senders; extra keys file/executable/args/cwd/env/cols/agent -> invalid_input; unknown chat; another tracked folder's chat; a record with a different folder; untracked; symlink-swapped; moved; disconnected agent. Each asserts rig.steps == [] (no auth, files, grant or spawn) and no port posted. Mutations to z.object, removing chatFolder, and removing the own-folder check each failed tests. Re-ran: passed."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "The payload carries only folder and chatId; cwd comes from resolveLaunchFolder(chat record), not the request. Test 'spawns, for every accepted spelling of the folder, exactly what main builds from its own records' (symlink alias and trailing slash, Claude and custom CLI) compares the full PtySpawnSpec with terminalLaunchSpec built from the chat record, agent row, tracked folder and grant, and checks cwd == the tracked repo. Test 'lets no port message start, change or add a process' sends spawn/env/cwd/extra-key messages: only 'hello\\r' and [100,30] reach the PTY, and the restart's spec again equals the records. Re-ran: passed."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Main enforces this in parsePortRequest on its own end of the port (the preload checks nothing): strict input {type,data:string} with UTF-16 length and UTF-8 byte length both <= 65536; strict resize with z.int, clamped 20-500 x 5-200; anything else returns null and is dropped. Every PortLink has its own listener and posts only to its own port; on exit it posts the exit and closes; a 'close' detaches. terminalHandlers.port.test.ts covers byte bounds, non-integers, NaN, Infinity, 2^60, clamps and other types; live writes; output to every port on the chat and none to another chat or a refused attach; closed ports stop hearing; exit after the last output, then close. Removing the byte check or the clamp failed tests. Re-ran: passed."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "The diff of src/preload/index.ts adds only `terminals: createTerminalsApi(ipcRenderer)` to the existing dm object: no new exposeInMainWorld, and raw ports never cross contextBridge (the handle wraps them). DmApi.terminals is typed from src/shared/agents/terminalApi.ts. No ipcMain import or ipcMain.on was added. src/main/ipcGuard.test.ts, including the src/main ipcMain scan, passed on my re-run."
+          }
+        ],
+        "notes": "Not run on the built app: the fakes model Electron's MessagePortMain (on('message') with { data }, start(), 'close') and WebFrameMain.postMessage on real worker_threads ports. The Electron API shapes are checked by typecheck and by the red-team reviewer reading the Electron 42 sources, not run live. Decision: the attach waits out the sign-in check rather than answering 'checking', which an answer without a port could not resolve. Red-team (reviewer subagent, asked to refute the change): no blockers. Fixed: (1) a port posted after the wait to a page that had reloaded leaked; the preload now closes ports no pending attach will claim. (2) A node-pty resize during exit could throw in main; port handler errors are now reported. (3) postMessage failures are now reported as well as closing the link. (4) A preload test would have passed with its guards removed; it was strengthened, and a test title was fixed. Held up: schema strictness, folder spellings and symlinks, another folder's chat, spawn spec only from records, input never reaching a later PTY, output routing, listener detach on every path, a disposed frame failing closed, the waited snapshot being complete, claim-by-id in either order, and contextBridge proxying.\nDiscoveries:\n- title: Split or refuse large pastes before the 64 KiB port limit\n  reason: main drops an input message over 64 KiB (TERMINAL_INPUT_MAX_BYTES), so a paste larger than that from xterm's onData would vanish silently. The pane (SH-4) should split writes or tell the person.\n  ticket: DM-323\n- title: Bound the number of attached ports per chat\n  reason: each terminals:attach adds a listener and a MessagePortMain until the renderer closes its port or the PTY exits. A compromised renderer can attach repeatedly without closing and grow main's listener count; the app page closes its ports, and reload closes them.\n  ticket: DM-323\n- title: Recheck the sender frame before posting a port after the sign-in wait\n  reason: terminalHandlers.ts posts to event.senderFrame up to 30 s after the guard checked it. Navigation is limited to the app page (hardenWebContents) and the preload closes ports nobody claims, but re-running isTrustedSender just before the post would make it explicit.\n  ticket: DM-323"
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m691kfmd54ffm2m2kgxddygs",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "terminals:attach handlers and port",
+            "location": "src/main/terminals/terminalHandlers.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "preload window.dm.terminals",
+            "location": "src/preload/terminals.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "shared terminal bridge types",
+            "location": "src/shared/agents/terminalApi.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "attach tests (c1, c2)",
+            "location": "src/main/terminals/terminalHandlers.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "port tests (c3)",
+            "location": "src/main/terminals/terminalHandlers.port.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "preload tests and main round trip",
+            "location": "src/preload/terminals.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "terminal-chats-DM-323",
+        "changedFiles": [
+          "docs/architecture.md",
+          "src/main/agents/chatHandlers.ts",
+          "src/main/desktop/bootstrap.ts",
+          "src/main/terminals/__mocks__/terminalHandlersRig.ts",
+          "src/main/terminals/__mocks__/terminalPorts.ts",
+          "src/main/terminals/__mocks__/terminalSessionsRig.ts",
+          "src/main/terminals/terminalHandlers.port.test.ts",
+          "src/main/terminals/terminalHandlers.test.ts",
+          "src/main/terminals/terminalHandlers.ts",
+          "src/preload/index.ts",
+          "src/preload/terminals.test.ts",
+          "src/preload/terminals.ts",
+          "src/renderer/src/__mocks__/fakeDm.ts",
+          "src/renderer/src/__mocks__/idleTerminals.ts",
+          "src/renderer/src/epic/__mocks__/fakeBackend.ts",
+          "src/shared/agents/terminalApi.ts",
+          "src/shared/desktop/api.ts"
+        ],
+        "commits": [
+          "e6e3c65a20bdf5db8fa62d261e09a9e7009fb6ca",
+          "37afda8a25053c3d8446db59e7f85bdaffae62c6",
+          "dde3cf919dac6ab1bbba3197e09dad4124df0f29",
+          "28279b676e406cb951a996d1d1d5223ed670450f"
+        ],
+        "summary": "Added terminals:attach { folder, chatId } in src/main/terminals/terminalHandlers.ts. It is a strict zod object registered through guardIpc. It runs chatFolder first (tracked check plus refuseSwappedFolder, as chats:* do), loads the chat and refuses it unless its own folder is the requested one, then calls the session manager's attach. The answer is a CommandResult of { state, snapshot?, message? } plus an internal port id. On running, main posts one end of a MessageChannelMain to event.senderFrame with that id. Main's end accepts only { type:'input', data: string } of at most 64 KiB (UTF-8 bytes) and integer { type:'resize', cols, rows } clamped to 20-500 x 5-200, and drops anything else. It carries output and the exit only to ports attached to that chat and closes after the exit; a port the renderer closes is detached. Failures in write/resize or in posting the port are reported, never thrown. Preload: src/preload/terminals.ts builds window.dm.terminals.attach(folder, chatId), which claims its port by id in either arrival order (PortClaims), closes ports no pending attach will claim, and returns { state, snapshot?, message?, terminal: { write, resize, onOutput, onExit, close } | null }. Shared types are in src/shared/agents/terminalApi.ts; DmApi gained `terminals`, the only new preload surface. bootstrap.ts wires MessageChannelMain and docs/architecture.md documents the channel and port. For the reviewer: (1) the session manager answers 'checking' during a built-in CLI's sign-in check, but that answer carries no port and the renderer could never learn the result. The handler instead waits for the start to end (heard on its listener) and answers running with an empty snapshot plus everything since the start on the port, or the not-started state. (2) chatFolder, answer and folderSchema are now exported from chatHandlers.ts, with no behavior change. (3) The renderer fakes FakeDm and FakeBackend got idleTerminals()."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m68tv9xwk534yz9ytfy3ntqx",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T14:03:58.223Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:98a3b6b88d781999b0097a4e836993bef346f5b1f7169775c8cc5ae81f981011",
+      "ticketId": "tk_01m68tv9x8tbrvs1et49hwfs25",
+      "updatedAt": "2026-10-31T14:13:12.594Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "high",
+        "hostId": "omp-claude-code-darwin-arm64",
+        "label": "DM-323 worker (task subagent)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (anthropic/claude-opus-5-5, high). This host runs every worker as a task subagent of the session model and cannot set its effort per worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T14:13:30.813Z",
+      "decidedAt": "2026-10-31T14:57:57.380Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "c1, c2, c4, c5 verified live by the worker (screenshots DM-324-01..08; zero CSP violations; same pids across switch and reload). New --term-* palette tokens were added to docs/design/palette.md: report to the person at the checkpoint. The dropped-values notice needs the session manager to pass dropped through: retro discovery.",
+        "outcome": "rejected",
+        "reasons": [
+          "c3 is not met: Cmd+C/Cmd+V copy and paste did not work in the live run, and Cmd+W/Cmd+Q were not checked. Verify on the built app: select text in the xterm (renderer API), focus the window and webContents from the main inspector, invoke the Edit roles (webContents.copy()/paste()) and the menu accelerators, then read clipboard.readText() and the fixture log. Make sure xterm does not consume Cmd+key combos (custom key handler lets metaKey combos through to the native menu; unit-test it).",
+          "Invoking the menu Quit from the inspector did not quit the app, and app processes remained after SIGTERM. Quitting with live terminals must exit within the 5 s quit-disposal bound and leave no agent or app process (success criterion s3). Reproduce with app.quit() via the inspector and with Cmd+Q; if the cause is in the terminal quit path (src/main/terminals/terminalSessions.ts dispose, src/main/quitDisposal.ts wiring in src/main/desktop/bootstrap.ts or src/main/index.ts), fix it here with a regression test, and show `ps` before/after."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npx vitest run src/main/windows.test.ts src/renderer/src/jitlessZod.test.ts src/renderer/src/App.*.test.tsx src/renderer/src/sidebar src/renderer/src/agents src/renderer/src/styles.test.ts src/renderer/src/theme.contrast.test.ts: 63 files, 821 tests passed (an earlier run that also covered src/renderer/src/app and theme.roles.test.ts: 89 files, 1135 passed)",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint src scripts: no findings",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "node, web and fireguard tsconfigs clean",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "electron-vite build, run for the live checks",
+            "name": "npm run build",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run coverage",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node; new exports createXtermKit, XtermParts and test seams may need the baseline",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "App.terminal.test.tsx 'shows the chat's terminal in the main area in place of its transcript, in this window'; TerminalPane.test.tsx layout test; src/main/windows.test.ts (new BrowserWindow only in index.ts, none in terminals/); live: main reported BrowserWindow.getAllWindows().length 1; screenshot DM-324-01."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Live pgrep: fixture pids 9415 and 87820 were the same after the second chat, after switching back, and after Page.reload (DM-324-08 log). Screenshots DM-324-03 and DM-324-04 show the screen restored from main's snapshot. Tests: TerminalPane 'switching chats', App.terminal 'keeps one terminal mounted…' and 'paints the shown chat from main's snapshot after a reload'."
+          },
+          {
+            "criterionId": "c3",
+            "met": false,
+            "note": "Verified live: click focuses xterm's textarea; Escape (\\u001b), Tab (\\t, focus stays in the terminal) and Ctrl+C (\\u0003, the fixture exited 130 and the header shows EXITED, DM-324-07) reached the CLI per the fixture log; Cmd+C keydown sent nothing to the CLI. Menu items exist (Edit Copy/Paste with CommandOrControl+C/V, Close Window CommandOrControl+W, Quit CommandOrControl+Q). Not verified: calling the Edit role's copy and paste items from the main inspector did nothing (clipboard empty; paste text not received; likely because the window had no OS focus, unconfirmed). Calling the Quit item from the inspector did not quit the app. Cmd+W and Cmd+Q were not checked. Real OS keystrokes (osascript) were not sent, so as not to type into the person's other apps. The clipboard, which was empty, was cleared again afterwards."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Fixture log: window setSize(1200,760) gave a resize to 128x38; hiding the sidebar grid column gave 167x38, then back to 128x38 (DM-324-08; DM-324-05). The app has no sidebar collapse control, so the column was changed through CSSOM over CDP. Theme from tokens: terminalTheme.test.ts and TerminalPane.test.tsx theme test; styles.test.ts passes."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "securitypolicyviolation listener injected before load (Page.addScriptToEvaluateOnNewDocument, so also after each reload): [] after load, two chats, a reload, resize and a forced WEBGL_lose_context loss. The only console messages were the addon's 'webglcontextlost event received' and 'webgl context not restored; firing onContextLoss'. After recovery: 3 canvases and new input drawn (DM-324-06). Recovery logic is in xtermKit.test.ts. No 'unsafe-inline'."
+          }
+        ],
+        "notes": "Limits: live copy/paste and Cmd+W/Cmd+Q were not verified (see c3). The fixture was registered by writing a custom agent row directly into the scratch app.sqlite. After SIGTERM to the app, its helper processes stayed running and were killed with pkill; the fixture PTYs had already ended. A reloaded page shows a live dot only for chats attached since the reload (a main-side list is needed). Hidden chats' output still crosses the port that is kept open to hear their exit. The palette doc got a new DM-324 token table; that doc was approved, so the person should review the addition. Old App-level ChatView tests (transcript links, the chat's sign-in card) were removed because ChatView no longer renders in the main area.\nDiscoveries:\n- title: Expose the launch spec's dropped values from the terminal session manager\n  reason: terminalLaunchSpec returns dropped (an unsafe model or resume id), but terminalSessions.ts never passes it on (it uses only file/args/cwd/env at spawn) and TerminalAttach has no field for it, so the pane cannot show the one-line notice SH-2 criterion 5 asks for.\n  ticket: DM-324\n- title: Tell the renderer which chats have a live PTY\n  reason: The sidebar dot comes from ports the page holds. After a renderer reload, or for chats started by another window, the page cannot know a PTY is live until it attaches (seen live: after the reload, the other running chat's row had no dot in DM-324-06).\n  ticket: DM-324\n- title: Check that the Edit role's copy and paste reach xterm with real key presses\n  reason: Calling the menu items from the main inspector did not copy or paste in this run, likely because the window had no OS focus; a run with real key presses (or the SH-9 e2e) should confirm Cmd+C/Cmd+V work on a focused terminal.\n  ticket: DM-324\n- title: Add a sidebar collapse control, or drop it from the resize criterion\n  reason: c4 and the design mention collapsing the sidebar, but .app-shell has a fixed 272px column and no collapse control; the pane's ResizeObserver follows any width change, which was shown by changing the grid column over CDP.\n  ticket: DM-324"
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m694xxhxdm1tgjfwq5zmf2bj",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "TerminalPane",
+            "location": "src/renderer/src/agents/TerminalPane.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "useTerminal hook",
+            "location": "src/renderer/src/agents/useTerminal.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "xterm kit (WebGL, fit, context-loss recovery)",
+            "location": "src/renderer/src/agents/xtermKit.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "CSP-inert xterm styles",
+            "location": "src/renderer/src/agents/inertStyles.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Screenshot: terminal in app-main",
+            "location": "docs/verification/DM-324-01-terminal-in-app-main.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Screenshot: second chat",
+            "location": "docs/verification/DM-324-02-second-chat.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Screenshot: switched back, snapshot",
+            "location": "docs/verification/DM-324-03-switched-back-snapshot.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Screenshot: after renderer reload",
+            "location": "docs/verification/DM-324-04-after-reload-restored.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Screenshot: window resized, sidebar column hidden",
+            "location": "docs/verification/DM-324-05-resized-sidebar-hidden.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Screenshot: after forced WebGL context loss",
+            "location": "docs/verification/DM-324-06-after-context-loss.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Screenshot: Ctrl+C, exited",
+            "location": "docs/verification/DM-324-07-ctrl-c-exited.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Live log: CSP list, console, fixture log",
+            "location": "docs/verification/DM-324-08-live-log.txt",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "terminal-chats-DM-324",
+        "changedFiles": [
+          "package.json",
+          "package-lock.json",
+          "docs/design/palette.md",
+          "src/main/windows.test.ts",
+          "src/renderer/src/App.tsx",
+          "src/renderer/src/main.tsx",
+          "src/renderer/src/jitlessZod.ts",
+          "src/renderer/src/jitlessZod.test.ts",
+          "src/renderer/src/styles.css",
+          "src/renderer/src/App.chatView.test.tsx",
+          "src/renderer/src/App.terminal.test.tsx",
+          "src/renderer/src/App.chats.test.tsx",
+          "src/renderer/src/App.links.test.tsx",
+          "src/renderer/src/__mocks__/appHarness.tsx",
+          "src/renderer/src/__mocks__/fakeTerminalKit.ts",
+          "src/renderer/src/__mocks__/fakeTerminals.ts",
+          "src/renderer/src/__mocks__/rootTokens.ts",
+          "src/renderer/src/agents/ChatHeader.tsx",
+          "src/renderer/src/agents/ChatView.tsx",
+          "src/renderer/src/agents/TerminalPane.tsx",
+          "src/renderer/src/agents/TerminalPane.test.tsx",
+          "src/renderer/src/agents/terminalPane.css",
+          "src/renderer/src/agents/useTerminal.ts",
+          "src/renderer/src/agents/terminalView.ts",
+          "src/renderer/src/agents/xtermKit.ts",
+          "src/renderer/src/agents/xtermKit.test.ts",
+          "src/renderer/src/agents/inertStyles.ts",
+          "src/renderer/src/agents/inertStyles.test.ts",
+          "src/renderer/src/agents/liveTerminals.ts",
+          "src/renderer/src/agents/liveTerminals.test.tsx",
+          "src/renderer/src/agents/terminalInput.ts",
+          "src/renderer/src/agents/terminalInput.test.ts",
+          "src/renderer/src/agents/terminalTheme.ts",
+          "src/renderer/src/agents/terminalTheme.test.ts",
+          "src/renderer/src/sidebar/ChatRow.tsx",
+          "docs/verification/DM-324-01-terminal-in-app-main.png",
+          "docs/verification/DM-324-02-second-chat.png",
+          "docs/verification/DM-324-03-switched-back-snapshot.png",
+          "docs/verification/DM-324-04-after-reload-restored.png",
+          "docs/verification/DM-324-05-resized-sidebar-hidden.png",
+          "docs/verification/DM-324-06-after-context-loss.png",
+          "docs/verification/DM-324-07-ctrl-c-exited.png",
+          "docs/verification/DM-324-08-live-log.txt"
+        ],
+        "commits": [
+          "a3c4d4690bd4178850ccba80dc084e0e939f9f22",
+          "50c4837184dad1523346b863c4a8a43414e2b72b",
+          "0ac64500545314c887aaa508be8c21d43c35533e",
+          "4394156d4ac4babac305e61046e58ee4200ddfcc",
+          "fbf94cdd3ce7c0cd11b157d758c4616ed0329edb"
+        ],
+        "summary": "Added TerminalPane and useTerminal and render them in App's ChatPane in place of ChatView. One xterm is mounted at a time; on a chat switch it is disposed and the other chat's view is built from main's attach snapshot. The PTY is resized to the fitted size before the snapshot is painted. Fit runs on a ResizeObserver debounced at 80 ms through the injected Scheduler. WebGL is the renderer; onContextLoss disposes the addon and loads a new one. Theme comes from :root tokens via getComputedStyle (16 new --term-* ANSI tokens, also added to docs/design/palette.md section 3 because theme.contrast.test.ts requires it; that palette doc was approved, so the person should review the addition). Header shows Checking/Running/Exited/Stopped (plus Signed out/Refused/Failed with main's message). Sidebar rows show a live-PTY dot from a LiveTerminals registry that keeps each chat's latest port open while the chat is hidden, to hear its exit. Input is split into <=64 KiB UTF-8 chunks that never split a character. CSP: style-src 'self' kept, 'unsafe-inline' not used. Each violation's cause was found and removed: (1) xterm's DOM renderer styles, avoided by loading the WebGL addon before open(); (2) xterm's viewport scrollbar <style> (empty, then filled), made inert by having document.createElement('style') return a hidden div during open() and during the WebGL swap (inertStyles.ts), with the slider colors moved to terminalPane.css; (3) the DOM renderer briefly restored during context-loss recovery, handled the same way; (4) a pre-existing zod new Function probe (script-src), turned off with zod config({jitless:true}) imported first in main.tsx. ChatHeader now takes a fact slot; ChatView passes ModelFact. App-level ChatView tests were rewritten: App.chatView.test.tsx became App.terminal.test.tsx, transcript-link tests in App.links.test.tsx were removed as obsolete, and the sign-in-card part of one App.chats test was removed. A pending thread landing for the shown chat is consumed by ChatPane. The live run registered the fixture by inserting a custom agent row into the scratch app.sqlite (the Add custom CLI flow runs a protocol handshake the fixture cannot answer) and wrote a scratch folders.json; DARKMECHANICUS_HOME and AGENT_FIXTURE_LOG pointed under /tmp."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m68tv9xwk534yz9ytfy3ntqx",
+      "state": "rejected",
+      "submittedAt": "2026-10-31T14:57:57.353Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:64e50e810955396d212677c73aa17ed85a26ebdf8ad47f97fd611137753772b9",
+      "ticketId": "tk_01m68tv9x8trmgz7k6vz6j2zxg",
+      "updatedAt": "2026-10-31T14:57:57.380Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "high",
+        "hostId": "omp-claude-code-darwin-arm64",
+        "label": "DM-324 worker (task subagent)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (anthropic/claude-opus-5-5, high). This host runs every worker as a task subagent of the session model and cannot set its effort per worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T14:57:57.397Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npx vitest run src/main/windows.test.ts src/main/quitDisposal.test.ts src/renderer/src/jitlessZod.test.ts src/renderer/src/App.*.test.tsx src/renderer/src/sidebar src/renderer/src/agents src/renderer/src/styles.test.ts src/renderer/src/theme.contrast.test.ts: 64 files, 830 tests passed (no code changed after this run)",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint src scripts: no findings",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "node, web and fireguard tsconfigs clean",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "electron-vite build, run for the live checks",
+            "name": "npm run build",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run coverage",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Accepted in attempt 1: App.terminal.test.tsx, TerminalPane.test.tsx layout test, src/main/windows.test.ts; live: one BrowserWindow; DM-324-01."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Accepted in attempt 1: same fixture pids after switching chats and after a reload; DM-324-03 and DM-324-04."
+          },
+          {
+            "criterionId": "c3",
+            "met": false,
+            "note": "Shown: Escape, Tab and Ctrl+C reach the CLI (DM-324-08, DM-324-07). Copy and paste through webContents.copy()/paste() work live (DM-324-09, DM-324-10). xterm never takes a Cmd combination (xtermKit.test.ts 'xtermKit keys'). Quit: Menu.sendActionToFirstResponder('terminate:'), the action the role=quit (CommandOrControl+Q) item sends, exited in 217 ms with two live fixture terminals and nothing left in ps (DM-324-11). Close: win.close(), the close that CommandOrControl+W performs, took windows 1 -> 0 with the app and both PTYs alive, and quitting then exited in 338 ms with nothing left. Not shown: MenuItem.click() from JS on the role=quit and role=close items does nothing on macOS; performClose: needs a focused window, and this session cannot focus the app (getFocusedWindow() stayed null even with app.focus({steal:true})); a real Cmd+W/Cmd+Q press was not sent, because System Events did not answer within 30 s. Left met:false for the orchestrator to judge whether the native-action evidence is enough."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Accepted in attempt 1: resize events 128x38 and 167x38 in the fixture log; theme tests; styles.test.ts passes."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Accepted in attempt 1; attempt 2's copy/paste run also logged zero CSP violations."
+          }
+        ],
+        "notes": "The quit hang reported earlier came from the attached inspector client: once the socket is closed straight after the call, the app exits. No production change was needed for quit; terminal disposal ends both fixture PTYs before exit. Every process this run started was ended; none is left (ps check after the last run).\nDiscoveries:\n- title: Expose the launch spec's dropped values from the terminal session manager\n  reason: terminalSessions.ts never passes dropped (an unsafe model or resume id) to the attach answer, so the pane cannot show the notice SH-2 criterion 5 asks for.\n  ticket: DM-324\n- title: Tell the renderer which chats have a live PTY\n  reason: After a renderer reload the sidebar dot shows only chats attached since the reload (DM-324-06).\n  ticket: DM-324\n- title: Add a sidebar collapse control, or drop it from the resize criterion\n  reason: .app-shell has a fixed 272px column and no collapse control; the resize on sidebar collapse was shown by changing the grid column over CDP.\n  ticket: DM-324\n- title: Drive the native menu keys in the macOS e2e from a session that can focus the app\n  reason: From a background session the app never becomes the focused window, so Cmd+W (performClose:) and real Cmd+Q presses cannot be exercised, and MenuItem.click() on native-role items does nothing on macOS (DM-324-11). SH-9 needs System Events access or a foreground runner.\n  ticket: DM-324"
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m697f9mnpz2pkjmb35en5s5s",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "TerminalPane",
+            "location": "src/renderer/src/agents/TerminalPane.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "xterm kit (WebGL, fit, context-loss recovery, Cmd-key passthrough)",
+            "location": "src/renderer/src/agents/xtermKit.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "CSP-inert xterm styles",
+            "location": "src/renderer/src/agents/inertStyles.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Screenshots and log, attempt 1",
+            "location": "docs/verification/DM-324-01-terminal-in-app-main.png … DM-324-08-live-log.txt",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Screenshot: selection copied through the Edit role",
+            "location": "docs/verification/DM-324-09-selection-copied.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Live log: copy/paste, 70 KB paste",
+            "location": "docs/verification/DM-324-10-attempt2-live-log.txt",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Live log: quit and window close with two fixture terminals",
+            "location": "docs/verification/DM-324-11-quit-and-close-log.txt",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "terminal-chats-DM-324",
+        "changedFiles": [
+          "package.json",
+          "package-lock.json",
+          "docs/design/palette.md",
+          "src/main/windows.test.ts",
+          "src/renderer/src/App.tsx",
+          "src/renderer/src/main.tsx",
+          "src/renderer/src/jitlessZod.ts",
+          "src/renderer/src/jitlessZod.test.ts",
+          "src/renderer/src/styles.css",
+          "src/renderer/src/App.chatView.test.tsx",
+          "src/renderer/src/App.terminal.test.tsx",
+          "src/renderer/src/App.chats.test.tsx",
+          "src/renderer/src/App.links.test.tsx",
+          "src/renderer/src/__mocks__/appHarness.tsx",
+          "src/renderer/src/__mocks__/fakeTerminalKit.ts",
+          "src/renderer/src/__mocks__/fakeTerminals.ts",
+          "src/renderer/src/__mocks__/rootTokens.ts",
+          "src/renderer/src/agents/ChatHeader.tsx",
+          "src/renderer/src/agents/ChatView.tsx",
+          "src/renderer/src/agents/TerminalPane.tsx",
+          "src/renderer/src/agents/TerminalPane.test.tsx",
+          "src/renderer/src/agents/terminalPane.css",
+          "src/renderer/src/agents/useTerminal.ts",
+          "src/renderer/src/agents/terminalView.ts",
+          "src/renderer/src/agents/xtermKit.ts",
+          "src/renderer/src/agents/xtermKit.test.ts",
+          "src/renderer/src/agents/inertStyles.ts",
+          "src/renderer/src/agents/inertStyles.test.ts",
+          "src/renderer/src/agents/liveTerminals.ts",
+          "src/renderer/src/agents/liveTerminals.test.tsx",
+          "src/renderer/src/agents/terminalInput.ts",
+          "src/renderer/src/agents/terminalInput.test.ts",
+          "src/renderer/src/agents/terminalTheme.ts",
+          "src/renderer/src/agents/terminalTheme.test.ts",
+          "src/renderer/src/sidebar/ChatRow.tsx",
+          "docs/verification/DM-324-01-terminal-in-app-main.png",
+          "docs/verification/DM-324-02-second-chat.png",
+          "docs/verification/DM-324-03-switched-back-snapshot.png",
+          "docs/verification/DM-324-04-after-reload-restored.png",
+          "docs/verification/DM-324-05-resized-sidebar-hidden.png",
+          "docs/verification/DM-324-06-after-context-loss.png",
+          "docs/verification/DM-324-07-ctrl-c-exited.png",
+          "docs/verification/DM-324-08-live-log.txt",
+          "docs/verification/DM-324-09-selection-copied.png",
+          "docs/verification/DM-324-10-attempt2-live-log.txt",
+          "docs/verification/DM-324-11-quit-and-close-log.txt"
+        ],
+        "commits": [
+          "a3c4d4690bd4178850ccba80dc084e0e939f9f22",
+          "50c4837184dad1523346b863c4a8a43414e2b72b",
+          "0ac64500545314c887aaa508be8c21d43c35533e",
+          "4394156d4ac4babac305e61046e58ee4200ddfcc",
+          "fbf94cdd3ce7c0cd11b157d758c4616ed0329edb",
+          "a551dd0baa042d2010a356fef78d1a1f75f82e0f",
+          "a182441827c0dab9ad4e642157231f247c821f44",
+          "7ea86cc8f9bee30079a5788e21626e7dad4d3962"
+        ],
+        "summary": "TerminalPane and useTerminal replace ChatView in app-main. One xterm is mounted at a time and is built from main's attach snapshot, with the PTY resized before the snapshot is painted. Fit runs on a ResizeObserver debounced at 80 ms. The WebGL renderer recreates its addon after a lost context. Theme comes from :root tokens (16 new --term-* tokens, also added to docs/design/palette.md). Sidebar rows show a live-PTY dot. Renderer input is split into <=64 KiB UTF-8 chunks. The production CSP logs zero violations with style-src 'self' kept: WebGL is loaded before open, xterm's style elements are made inert, and zod runs jitless. xterm leaves every Cmd combination to the app menu. Live, two fixture terminals: Edit-role copy and paste work (copy gave 'fixture', paste delivered text, a 70,000-character paste arrived complete). Quit through the native terminate: action the Quit item sends exits in 217-466 ms with no app or fixture process left. Closing the window keeps the app and its PTYs alive. MenuItem.click() from JS does nothing for the role=quit and role=close items on macOS, so the native actions were used. The earlier quit 'hang' came from the attached inspector client, not the app; no quit code was changed."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m68tv9xwk534yz9ytfy3ntqx",
+      "state": "submitted",
+      "submittedAt": "2026-10-31T15:11:23.212Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:64e50e810955396d212677c73aa17ed85a26ebdf8ad47f97fd611137753772b9",
+      "ticketId": "tk_01m68tv9x8trmgz7k6vz6j2zxg",
+      "updatedAt": "2026-10-31T15:11:23.212Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "high",
+        "hostId": "omp-claude-code-darwin-arm64",
+        "label": "DM-324 worker (task subagent)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (anthropic/claude-opus-5-5, high). This host runs every worker as a task subagent of the session model and cannot set its effort per worker. Attempt 1 rejected for unverified copy/paste/accelerators and a quit that did not exit; same worker continues with the reasons.",
+        "sessionId": null
+      }
+    }
+  ],
+  "checkpoints": [],
+  "createdAt": "2026-10-31T11:20:35.530Z",
+  "endedAt": null,
+  "epicId": "ep_01m5jz275yaw11nzgr81806jeq",
+  "format": "darkmechanicus.run",
+  "formatVersion": 1,
+  "host": {
+    "label": "omp (Claude Code), darwin arm64",
+    "type": "omp"
+  },
+  "hostCatalogId": "hc_01m68v0x82pk75x55f75dcb3r3",
+  "number": 1,
+  "ownerMachineId": "mc_01m4912pg590r3j7r99nbcw9wz",
+  "pauseReason": null,
+  "reports": [],
+  "revisionId": "rv_01m68tv9xwk534yz9ytfy3ntqx",
+  "rowChecks": [
+    {
+      "checks": [
+        {
+          "detail": "npm run typecheck in the integration worktree (node, web, fireguard projects)",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "npx vitest run src/main/terminals src/main/agents scripts/ptyHelperMode.test.mjs scripts/mac-packaging.test.mjs: 75 files, 1534 passed, 3 skipped, on three consecutive runs. The very first run right after npm install had 7 files fail to load (cold transform); not reproducible.",
+          "name": "row tests",
+          "status": "passed"
+        }
+      ],
+      "commit": "bc0b62ff033da6478129472b5836f49c3c8c45c1",
+      "createdAt": "2026-10-31T12:10:32.355Z",
+      "id": "rk_01m68xwr133w26gt0b9q66z8nc",
+      "number": 1,
+      "recordedBy": "Claude Code",
+      "row": 1,
+      "sprintId": "sp_01m5jz275zxpve9s276gzaw4s0"
+    },
+    {
+      "checks": [
+        {
+          "detail": "npm run typecheck in the integration worktree",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "npx vitest run src/main/terminals src/main/agents src/main/desktop src/main/index.test.ts src/main/quitDisposal.test.ts src/shared scripts/ptyHelperMode.test.mjs scripts/mac-packaging.test.mjs: 108 files, 2292 passed, 9 skipped",
+          "name": "row tests",
+          "status": "passed"
+        }
+      ],
+      "commit": "bdc3491f7ede8bdfb090660a9182b4b7ea7cca3e",
+      "createdAt": "2026-10-31T13:15:23.131Z",
+      "id": "rk_01m691kfkt8ajfwxkxrb449d52",
+      "number": 2,
+      "recordedBy": "Claude Code",
+      "row": 2,
+      "sprintId": "sp_01m5jz275zxpve9s276gzaw4s0"
+    },
+    {
+      "checks": [
+        {
+          "detail": "npm run typecheck in the integration worktree",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "npx vitest run src/main/terminals chatHandlers chatIpc desktop/ipc index ipcGuard src/preload: 22 files, 283 passed",
+          "name": "row tests",
+          "status": "passed"
+        }
+      ],
+      "commit": "43e390f488d971a73a9f8f7be249f9f2f7fdd871",
+      "createdAt": "2026-10-31T14:13:30.794Z",
+      "id": "rk_01m694xxh9wp3p98m1rxftrnxp",
+      "number": 3,
+      "recordedBy": "Claude Code",
+      "row": 3,
+      "sprintId": "sp_01m5jz275zxpve9s276gzaw4s0"
+    }
+  ],
+  "runId": "rn_01m68v19ear6t1x6qka2n552sc",
+  "skillVersion": "1.5.2",
+  "startedAt": "2026-10-31T11:20:35.530Z",
+  "state": "running",
+  "updatedAt": "2026-10-31T11:20:35.530Z"
+}

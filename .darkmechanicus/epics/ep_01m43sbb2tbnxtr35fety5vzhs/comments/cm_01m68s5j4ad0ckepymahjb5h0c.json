@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "**Decision (person, relayed by orchestrator, 2026-10-31).** Sprint 2 entry criterion n1 is still open: no GitHub OAuth App client ID has been posted. The person chose to build DM-141 and its dependents now against a placeholder. `GITHUB_OAUTH_CLIENT_ID` ships empty, and sign-in fails fast with `sign_in_misconfigured` (no network call) until a person registers the OAuth App (Device Flow enabled) and posts its client ID here. c5 is reported **not met** until then, and so is sprint 2 exit criterion e1, which keeps the sprint 2 gate closed.",
+  "createdAt": "2026-10-31T10:47:58.346Z",
+  "epicId": "ep_01m43sbb2tbnxtr35fety5vzhs",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m68s5j4ad0ckepymahjb5h0c",
+  "ticketId": "tk_01m43st80p3n2992va52fjx8h1"
+}

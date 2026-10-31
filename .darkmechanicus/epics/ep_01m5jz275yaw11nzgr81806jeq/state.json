@@ -1,17 +1,21 @@
 {
-  "branch": null,
+  "branch": {
+    "name": "terminal-chats",
+    "repository": "/Users/davidgorden/Documents/GitHub/DarkMechanicus",
+    "startCommit": "022734c9d7173218705fde25fe58d581d6758834"
+  },
   "completedAt": null,
   "createdAt": "2026-10-22T23:27:42.782Z",
   "epicId": "ep_01m5jz275yaw11nzgr81806jeq",
   "format": "darkmechanicus.epic-state",
   "formatVersion": 1,
-  "generation": 1,
+  "generation": 14,
   "outcome": null,
   "provenance": {
     "note": "Harden the completion guarantees introduced by Scrum cadence and reduce its procedural orchestration burden.",
     "sourceEpicId": "ep_01m3xkn4ha934vpfpht42bh6bq"
   },
-  "status": "backlog",
+  "status": "in_progress",
   "ticketStatuses": {
     "tk_01m5jz275zs09axdf7602yvjy3": "backlog",
     "tk_01m5jz3pvwpnycst2nz7k1nzgf": "backlog",
@@ -40,8 +44,26 @@
     "tk_01m5jzc2m3qms091m043fmn2mh": "backlog",
     "tk_01m5jzc2m3wexq2jga0a3s4y0e": "backlog",
     "tk_01m5jzc2m3zc232ea3b3dz4kvk": "backlog",
-    "tk_01m5jzc2m3zrwxxq1wbwmxf0kq": "backlog"
+    "tk_01m5jzc2m3zrwxxq1wbwmxf0kq": "backlog",
+    "tk_01m68tv9x1bay77zhr4p3qyqej": "completed",
+    "tk_01m68tv9x849h8v3qse7cce81a": "backlog",
+    "tk_01m68tv9x86hsnj5yfcz065037": "backlog",
+    "tk_01m68tv9x88htns1rzc4tg593j": "backlog",
+    "tk_01m68tv9x8a466zehy9vs01ebv": "backlog",
+    "tk_01m68tv9x8bzd5120s7jnw288c": "backlog",
+    "tk_01m68tv9x8fv21pjx5a9mz53x5": "backlog",
+    "tk_01m68tv9x8g0s4tjqdkx5b8gax": "backlog",
+    "tk_01m68tv9x8gd4hs117ksemxn2a": "backlog",
+    "tk_01m68tv9x8kq9wvw94trd5fqrz": "completed",
+    "tk_01m68tv9x8r5qphehn0w0h53zq": "backlog",
+    "tk_01m68tv9x8sfdxh618cw46ns1m": "completed",
+    "tk_01m68tv9x8tbrvs1et49hwfs25": "completed",
+    "tk_01m68tv9x8trmgz7k6vz6j2zxg": "in_progress",
+    "tk_01m68tv9x8tvnn82xcqmpbg6js": "backlog",
+    "tk_01m68tv9x8v7dh0j2ar74e5qyf": "completed",
+    "tk_01m68tv9x8y36qa2yn377asb8p": "backlog",
+    "tk_01m68tv9x8yd5ytsjzga9q4rej": "backlog"
   },
-  "title": "Trustworthy completion and lighter agent orchestration",
-  "updatedAt": "2026-10-22T23:33:50.981Z"
+  "title": "Terminal chats: New chat opens the folder's agent CLI in a terminal inside the app",
+  "updatedAt": "2026-10-31T14:13:30.818Z"
 }

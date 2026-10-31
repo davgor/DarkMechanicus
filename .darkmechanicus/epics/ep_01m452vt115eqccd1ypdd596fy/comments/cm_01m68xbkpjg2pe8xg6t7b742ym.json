@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "Orchestrator: DM-176 reached its retry limit (3 of 3 attempts rejected), and the 28 tickets downstream of it are blocked.\n\n- Attempt 1 was rejected because an unended host span was scored as observed in E and counted as zero overhead in T/K.\n- Attempt 2 fixed both, but its new `unendedOverheadBuckets` rule dropped an own span begun after submit from later sprints, and it was quadratic.\n- Attempt 3 fixed both of those (pD now gives missing; 16 ms at 20,000 spans). One defect is left: `unendedOverheadBuckets` (src/core/space/efficiency.ts) indexes every delivery in `activity`. DM-172's `prepareObservations` keeps only the first delivery of each id, so a conflicting re-delivery counts as the actor's later observation, hides an unended span, and sprint 2 T scores 100 instead of missing (/tmp/dm176-probe/pH.ts). The fix: index and loop over only the first delivery of each id, and add the case to scratch/DM-176/c3-missing-limited.ts.\n\nThe branch space-DM-176 holds all three attempts' work. Everything else is verified correct across the three reviews (c1, c2 and c4 met). One more attempt needs a retry grant from a person in the desktop app.",
+  "createdAt": "2026-10-31T12:01:10.866Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m68xbkpjg2pe8xg6t7b742ym",
+  "ticketId": "tk_01m453gpadahyzv2h66bwjwxmf"
+}
