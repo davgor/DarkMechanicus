@@ -45,7 +45,7 @@ function createDesktop(repo: string, config: string): Desktop {
     openWorkspace({ repoRoot, role: 'desktop', label: 'Desktop', transport: 'desktop', clock, ids, git })
   )
   const handlers = createDesktopHandlers({
-    registry: createFolderRegistry({ file: join(config, 'folders.json'), homeDir: config }),
+    registry: createFolderRegistry({ dmHome: join(config, 'dm-home'), file: join(config, 'folders.json'), homeDir: config }),
     pool,
     pickDirectory: async () => repo,
     writeClipboard: () => undefined,

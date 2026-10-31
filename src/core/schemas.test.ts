@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { z } from 'zod'
-import { defaultCapabilityProfile, type PlanBundle, REASONING_EFFORTS, TICKET_KINDS, TICKET_SIZES } from '../shared/domain/bundle'
+import {
+  defaultCapabilityProfile,
+  type PlanBundle,
+  REASONING_EFFORTS,
+  TICKET_KINDS,
+  TICKET_SIZES,
+  TOOL_CAPABILITIES
+} from '../shared/domain/bundle'
 import { makeBundle, makeSprint, makeTicket, sid, tid } from '../test/bundles'
 import { idOf } from '../test/repoFixtures'
 import { thrownBy } from '../test/thrownBy'
@@ -1039,6 +1046,7 @@ describe('hostCatalog acceptance', () => {
   it.each([
     ['an empty catalog', CATALOG],
     ['tools', { ...CATALOG, tools: ['shell', 'browser'], canSelectWorkerModel: true }],
+    ['every tool capability a ticket profile can require', { ...CATALOG, tools: [...TOOL_CAPABILITIES] }],
     ['200 models', { ...CATALOG, models: Array.from({ length: 200 }, (_, index) => ({ ...MODEL, id: `m${index}` })) }]
   ])('accepts %s', (_label, value) => {
     expect(accepts(hostCatalog, value)).toBe(true)
@@ -1050,7 +1058,9 @@ describe('hostCatalog acceptance', () => {
     ['an empty host type', { ...CATALOG, hostType: '' }],
     ['an empty catalog revision', { ...CATALOG, catalogRevision: '' }],
     ['a missing capability flag', { ...CATALOG, canSelectWorkerModel: undefined }],
-    ['51 tools', { ...CATALOG, tools: Array.from({ length: 51 }, () => 't') }],
+    ['more tools than there are tool capabilities', { ...CATALOG, tools: [...TOOL_CAPABILITIES, 'shell'] }],
+    ['a tool name no ticket profile can require', { ...CATALOG, tools: ['repo_read', 'Bash'] }],
+    ['a tool capability in another case', { ...CATALOG, tools: ['Shell'] }],
     ['201 models', { ...CATALOG, models: Array.from({ length: 201 }, (_, index) => ({ ...MODEL, id: `m${index}` })) }],
     ['a model without an id', { ...CATALOG, models: [{ reasoningLevels: [], modalities: [] }] }],
     ['an unknown reasoning level', { ...CATALOG, models: [{ ...MODEL, reasoningLevels: ['genius'] }] }],

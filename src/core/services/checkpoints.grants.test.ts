@@ -332,3 +332,22 @@ describe('stale grants and repeated advances', () => {
     expect(refused).toMatchObject({ code: 'gate_blocked', message: expect.stringContaining('Saved revision 2 is newer than revision 1') })
   })
 })
+
+describe('a grant of a run that ended afterwards', () => {
+  it('shows nothing to approve once the approved run is canceled, and neither advances nor approves it again', () => {
+    const { agent, desktop, run, report: submitted } = finishedSprint()
+    approveCheckpoint(desktop, { runId: run.runId, reportId: submitted.id })
+    agent.db.run("UPDATE runs SET state = 'canceled' WHERE id = ?", run.runId)
+
+    const view = getCheckpoint(agent, { runId: run.runId })
+
+    expect(view.runState).toBe('canceled')
+    expect(view.conditions.at(-1)).toEqual({ id: 'approval', label: 'Advance authorized', met: false, detail: 'Run #1 is canceled; nothing to approve' })
+    expect(view.canAdvance).toBe(false)
+    expect(errorOf(() => advanceSprint(agent, { runId: run.runId }))).toMatchObject({ code: 'run_not_active' })
+    expect(errorOf(() => approveCheckpoint(desktop, { runId: run.runId, reportId: submitted.id }))).toMatchObject({
+      code: 'run_not_active',
+      message: 'Run #1 is canceled; only a run awaiting its checkpoint can be approved.'
+    })
+  })
+})

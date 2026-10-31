@@ -36,6 +36,8 @@ export class FakeChatAdapter implements ChatAdapter {
   turn: Turn = () => Promise.resolve()
   /** Makes start() fail with this error. */
   startError: Error | null = null
+  /** What `hasLiveWork` reports: a tool call or a background subagent of the fake agent is still going. */
+  liveWork = false
   private emitter: ChatAdapterEmit | null = null
   private interrupt: (() => void) | null = null
 
@@ -74,6 +76,10 @@ export class FakeChatAdapter implements ChatAdapter {
     this.disposals += 1
     this.release()
     return Promise.resolve()
+  }
+
+  hasLiveWork(): boolean {
+    return this.liveWork
   }
 
   emit(event: ChatAdapterEvent): void {

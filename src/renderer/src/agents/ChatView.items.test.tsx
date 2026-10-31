@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
-import type { ChatItem } from '../../../shared/agents/chat'
+import { IDLE_STOP_CODE, type ChatItem } from '../../../shared/agents/chat'
 import { assistantText, mountChatView, toolCall, transcript, userMessage } from '../__mocks__/chatViewKit'
 
 afterEach(cleanup)
@@ -82,6 +82,18 @@ describe('ChatView notices', () => {
     act(() => dm.chats.emitItem('chat_1', userMessage('u2', 'Try again')))
     act(() => dm.chats.emitItem('chat_1', { id: 's2', at: AT, kind: 'turn_stopped' }))
     expect(transcript().getAllByText('You stopped this turn before the agent finished.')).toHaveLength(2)
+  })
+
+  it('shows an idle stop as a notice, not an error, as stored and when it arrives while the chat is open', async () => {
+    const words = 'The agent was stopped after it sat idle with nothing running.'
+    const idle = (id: string): ChatItem => ({ id, at: AT, kind: 'error', message: words, code: IDLE_STOP_CODE })
+    const { dm } = await mountChatView([userMessage('u1', 'Run the epic'), idle('i1')])
+    const rows: HTMLElement[] = transcript().getAllByRole('listitem')
+    expect(rows.map((row) => row.textContent)).toEqual([expect.stringContaining('Run the epic'), words])
+    expect(transcript().queryByRole('article', { name: 'Error' })).toBeNull()
+
+    act(() => dm.chats.emitItem('chat_1', idle('i2')))
+    expect(transcript().getAllByText(words)).toHaveLength(2)
   })
 
   it('shows a tool call that was cancelled as Cancelled, not Running', async () => {

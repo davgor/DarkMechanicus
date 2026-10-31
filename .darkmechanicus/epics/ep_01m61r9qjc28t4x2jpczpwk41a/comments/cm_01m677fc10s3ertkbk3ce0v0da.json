@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "**Defect found while integrating sprint 2 (in accepted work, reported to the person):**\n\n**Symptom:** a Claude-protocol custom CLI pointing at `~/.local/bin/claude` (2.1.291) is refused at the handshake on this machine. `claude` exits with code 1: \"You cannot use --strict-mcp-config when an enterprise MCP config is present\".\n\n**Cause:** `src/main/agents/adapters/claude.ts` `probeModels` always sets `strictMcpConfig: true` (about line 217). DM-260's Claude handshake reuses that probe, and so does the built-in Claude model listing, which then quietly falls back to the curated list. Chats don't pass the flag, so built-in Claude chats still work.\n\n**Impact:** DM-255 c4 (\"A Claude-protocol custom CLI at `~/.local/bin/claude` connects and answers in a chat\") can't pass on a machine with an enterprise MCP config.\n\n**Found by:** DM-261 (screenshot `docs/verification/DM-261-custom-cli-refused.png`).",
+  "createdAt": "2026-10-30T20:19:30.976Z",
+  "epicId": "ep_01m61r9qjc28t4x2jpczpwk41a",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m677fc10s3ertkbk3ce0v0da",
+  "ticketId": "tk_01m61r9qvzjh2yyk89xbzd67dn"
+}

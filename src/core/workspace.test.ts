@@ -332,3 +332,37 @@ describe('Workspace open with a broken epics or history directory', () => {
   })
 })
 
+
+describe('Workspace storage modes', () => {
+  let modes: Harness
+
+  beforeEach(() => {
+    modes = createHarness()
+  })
+
+  afterEach(() => {
+    modes.cleanup()
+  })
+
+  it('keeps the repository mode by default, with the records in the checkout', async () => {
+    const agent = modes.open('orchestrator')
+    const result = await agent.initializeRepository({ name: 'tracked' })
+    expect(result.storage.mode).toBe('repo')
+    expect(existsSync(join(modes.root, '.darkmechanicus', 'project.json'))).toBe(true)
+  })
+
+  it('reports the mode and the database it opened in the storage status', async () => {
+    const agent = modes.open('orchestrator')
+    await agent.initializeRepository({ name: 'tracked' })
+    const status = await agent.getStorageStatus()
+    expect(status.storage.mode).toBe('repo')
+    expect(status.storage.projectDir).toBe(join(modes.root, '.darkmechanicus'))
+    expect(status.storage.databasePath).toBe(join(modes.root, '.darkmechanicus', 'local', 'state.sqlite'))
+  })
+
+  it('still counts uncommitted record files for a repository-backed project', async () => {
+    const agent = modes.open('orchestrator')
+    await agent.initializeRepository({ name: 'tracked' })
+    expect((await agent.getStorageStatus()).uncommittedRecordFiles).toBe(0)
+  })
+})

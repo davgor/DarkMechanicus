@@ -105,3 +105,32 @@ describe('branchWarning', () => {
     expect(branchWarning(changed('main', null))).toBe('Branch changed: main → detached HEAD')
   })
 })
+
+describe('storageFooterLine for a database-only project', () => {
+  function dbStatus(patch: Partial<StorageStatusView> = {}): StorageStatusView {
+    return storageStatus({
+      storage: {
+        mode: 'db',
+        projectDir: '/home/u/.darkmechanicus/projects/alpha-0123456789abcdef',
+        databasePath: '/home/u/.darkmechanicus/projects/alpha-0123456789abcdef/local/state.sqlite'
+      },
+      uncommittedRecordFiles: null,
+      ...patch
+    })
+  }
+
+  it('says the project is in the database rather than claiming an export', () => {
+    expect(storageFooterLine(dbStatus())).toEqual({ text: 'Database only', tone: 'ok' })
+  })
+
+  it('still reports a save that has not completed', () => {
+    expect(storageFooterLine(dbStatus({ outbox: { pending: 1, failed: 0, lastError: null } }))).toMatchObject({
+      text: 'Save pending',
+      tone: 'warn'
+    })
+  })
+
+  it('still reports an uninitialized folder', () => {
+    expect(storageFooterLine(dbStatus({ initialized: false }))).toEqual({ text: 'Not initialized', tone: 'muted' })
+  })
+})

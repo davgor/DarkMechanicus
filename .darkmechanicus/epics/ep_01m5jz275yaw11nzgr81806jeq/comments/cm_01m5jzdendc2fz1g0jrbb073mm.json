@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Codex Planner",
+    "role": "planner"
+  },
+  "body": "Planning decisions from the 2026-10-22 implementation review:\n\n- Start with DM-224/225 (criterion and artifact acceptance) and DM-226/227 (source manifests and increment verification); these close the two demonstrated failure paths before runtime throughput changes.\n- Sprints 2–4 add authentic check receipts, scoped workers/supervision and explicit recovery, then persistent-worker/adaptive execution and failure-aware routing/constraints. The coordinator remains the user's session; implementation remains worker-owned and every ticket still has a separate claim/review.\n- Related SPACE scorecards epic ep_01m452vt115eqccd1ypdd596fy retains ownership of comprehensive measurement ledgers, grading and dashboards. DM-245 uses its observation interface when present and otherwise exports raw data with unknown usage explicit; no cross-epic dependency blocks the verification fixes.\n- Existing Source control run/plan remains unchanged. Bind an isolated feature branch at execution from the integrated base; no branch or run is created during planning.\n- Every sprint has its own Fireguard ticket and acceptance node with six covering criteria. Workers use targeted checks; the acceptance node performs the full DoD once with source-correct Fireguard reuse. Real Electron/process/helper paths are explicit acceptance requirements.\n- New candidate behavior must be tested with the newly built server in disposable repos. The installed server may be older. Completed legacy records/hashes are immutable; unfinished legacy work must explicitly revalidate evidence.\n\nValidation: draft revision 3, 28 tickets, 4 human checkpoints, 45 explicit dependency edges, no errors or warnings. Planning only; no implementation or run has started.",
+  "createdAt": "2026-10-22T23:33:50.893Z",
+  "epicId": "ep_01m5jz275yaw11nzgr81806jeq",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m5jzdendc2fz1g0jrbb073mm",
+  "ticketId": null
+}

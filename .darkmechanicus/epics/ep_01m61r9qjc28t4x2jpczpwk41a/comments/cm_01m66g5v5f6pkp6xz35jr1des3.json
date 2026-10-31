@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "**Defect found during sprint 1 acceptance (orchestrator, reported by the DM-248 worker).** Quitting the combined build while a Claude chat process is live logs `Uncaught exception: Error: database is not open` from `SqliteDb.close`. `bootstrap.ts` `runLifecycle` (DM-249) closes `appDb` on every `before-quit`. `quitDisposal`'s `disposeBeforeQuit` cancels the first `before-quit` with `preventDefault`, disposes, and calls `app.quit()` again, so `appDb.close()` runs twice. The app still exits cleanly, no process is left behind, and the restart reopens `app.sqlite` normally. It is not fixed in sprint 1: the fix changes accepted work and needs a test, which would mean another Fireguard run. It is carried into the sprint 2 redraft as a discovery, for the person to decide.",
+  "createdAt": "2026-10-30T13:32:21.551Z",
+  "epicId": "ep_01m61r9qjc28t4x2jpczpwk41a",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m66g5v5f6pkp6xz35jr1des3",
+  "ticketId": "tk_01m61r9qvt4yf9wb1hpjtj0rwm"
+}

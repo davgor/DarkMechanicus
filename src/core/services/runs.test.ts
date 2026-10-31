@@ -725,6 +725,39 @@ describe('resumeRun — leases kept while paused for sign-in', () => {
   })
 })
 
+describe('resumeRun — the lease length a later heartbeat keeps', () => {
+  it('does not grow by the time given back: that time is not part of the claim', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx)
+    const claimed = claim(ctx, runId, 1, { leaseSeconds: 600 })
+    ctx.clock.advanceSeconds(60)
+    pauseSignedOut(ctx, runId)
+    ctx.clock.advanceSeconds(7200)
+    resumeSignedOut(ctx, runId)
+    ctx.clock.advanceSeconds(60)
+    const beat = heartbeatAttempt(withRole(ctx, 'worker'), { attemptId: claimed.attempt.id, claimToken: claimed.packet.claimToken })
+    expect(beat.leaseExpiresAt).toBe('2026-01-01T02:12:00.000Z')
+  })
+
+  it('does not grow for a length a heartbeat named either, even one sent during the pause', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx)
+    const claimed = claim(ctx, runId, 1)
+    const token = { attemptId: claimed.attempt.id, claimToken: claimed.packet.claimToken }
+    const worker = withRole(ctx, 'worker')
+    ctx.clock.advanceSeconds(60)
+    heartbeatAttempt(worker, { ...token, leaseSeconds: 300 })
+    pauseSignedOut(ctx, runId)
+    ctx.clock.advanceSeconds(600)
+    expect(heartbeatAttempt(worker, token).leaseExpiresAt).toBe('2026-01-01T00:16:00.000Z')
+    ctx.clock.advanceSeconds(60)
+    resumeSignedOut(ctx, runId)
+    expect(attemptRow(ctx, claimed.attempt.id).lease_expires_at).toBe('2026-01-01T00:27:00.000Z')
+    ctx.clock.advanceSeconds(60)
+    expect(heartbeatAttempt(worker, token).leaseExpiresAt).toBe('2026-01-01T00:18:00.000Z')
+  })
+})
+
 describe('resumeRun — nothing to extend', () => {
   it('records no extension event when no lease is open', () => {
     const ctx = createTestCtx()

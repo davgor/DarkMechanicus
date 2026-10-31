@@ -10,7 +10,7 @@
  * attempt's window when a thread served several, and `mergeByTime` puts the rows among the records the
  * places already list, in time order.
  */
-import type { ApprovalRequestItem, ChatItem } from '../../../shared/agents/chat'
+import { IDLE_STOP_CODE, type ApprovalRequestItem, type ChatItem } from '../../../shared/agents/chat'
 import type { BoundThread } from '../../../shared/agents/chatApi'
 import type { Tone } from '../graph/ticketStates'
 import { actionMarker, markerText } from './actionMarkers'
@@ -73,7 +73,12 @@ function bodyOf(entry: TranscriptEntry, answer: DecisionItem | null): Body | nul
     case 'thread':
       return { kind: 'thread', tone: THREAD_TONES[entry.state], label: entry.label, state: threadStateView(entry.state) }
     case 'error':
-      return { kind: 'error', tone: 'failed', message: entry.problem === undefined ? entry.message : `${problemNotice(entry.problem).title}: ${entry.message}` }
+      return {
+        kind: 'error',
+        // An idle stop failed nothing: it only says why the agent is not running.
+        tone: entry.code === IDLE_STOP_CODE ? 'neutral' : 'failed',
+        message: entry.problem === undefined ? entry.message : `${problemNotice(entry.problem).title}: ${entry.message}`
+      }
     default:
       return null
   }

@@ -16,7 +16,7 @@ Deploy/CI shape mirrored from [AI-DND-Matrix](https://github.com/davgor/AI-DND-M
 
 ## Standing rules
 
-Any work you do going forward needs to have the lint, unit test, and build confirming, everything needs to be written TDD style, and it needs to be tracked in Dark Mechanicus: either a new epic, or a ticket on the existing epic it relates to.
+Any work you do going forward needs to have the lint, unit test, and build confirming, everything needs to be written TDD style (unless the person waived it for one epic, see section 2), and it needs to be tracked in Dark Mechanicus: either a new epic, or a ticket on the existing epic it relates to.
 
 Read `README.md` and `.ai-instructions.md` for process boundaries. For tickets already in scope, also follow the shipped role guides listed in section 1.
 
@@ -64,6 +64,8 @@ For main/preload/renderer logic, shared helpers, and any code with testable beha
 3. **Refactor** — only within scope; no drive-by changes
 
 UI-only criteria: test-first when the criterion says "tested" or when extracting pure logic is natural; otherwise implement to the criterion and cover with component/logic tests when cheap. Prefer Vitest for unit/component coverage.
+
+**Owner-waived epics.** A person may waive TDD-first for one epic by recording the decision in its plan (intent or rationale), with test authoring consolidated into testing-tail tickets at the end of the sprint. In such an epic a work ticket writes no new tests and runs only its targeted checks; the testing-tail tickets write the tests, and Fireguard still runs only in the sprint's Fireguard ticket. Agents never waive it themselves.
 
 Standing code rules (never waive):
 

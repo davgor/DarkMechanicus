@@ -50,11 +50,14 @@ function previousIncrement(bundle: PlanBundle, sprint: SprintDef, attempts: Atte
   return null
 }
 
-/** Every commit the accepted, current work attempts of the sprint's work tickets recorded, once each. */
+/**
+ * Every commit the accepted, current attempts of the sprint's work tickets recorded, once each. A work ticket
+ * carried forward from an earlier run counts too: its `carry_forward` attempt holds the earlier run's commits.
+ */
 function acceptedWorkCommits(bundle: PlanBundle, sprint: SprintDef, attempts: AttemptRow[]): string[] {
   const ids = new Set(workTicketsOf(bundle, sprint.id).map((ticket) => ticket.id))
   const recorded = attempts
-    .filter((attempt) => ids.has(attempt.ticket_id) && attempt.kind === 'work')
+    .filter((attempt) => ids.has(attempt.ticket_id))
     .filter((attempt) => attempt.state === 'accepted' && attempt.superseded_at === null)
     .flatMap((attempt) => parseJson<AttemptOutputs | null>(attempt.outputs_json, null)?.commits ?? [])
   return [...new Set(recorded)]

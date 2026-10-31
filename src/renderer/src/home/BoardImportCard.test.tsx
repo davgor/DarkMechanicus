@@ -182,3 +182,33 @@ describe('BoardImportCard removal of the old workflow', () => {
     expect(within(card()).getByText(/Removed 5 files/)).toBeTruthy()
   })
 })
+
+describe('BoardImportCard for a database-only folder', () => {
+  /** A board with nothing left to import is what makes the removal panel appear. */
+  function renderFor(storageMode: 'repo' | 'db'): void {
+    dm.responses.previewBoardImport = boardImport({ open: [boardOpenEpic({ state: 'imported', epicId: EPIC_A })] })
+    dm.boardRemoval = boardRemoval()
+    render(
+      <ToastProvider scheduler={new ManualScheduler()}>
+        <BoardImportCard
+          folder={folderView({ path: '/a', name: 'alpha', storageMode })}
+          version={1}
+          onImport={() => Promise.resolve(null)}
+          onOpenEpic={() => undefined}
+        />
+      </ToastProvider>
+    )
+  }
+
+  it('offers no board removal, because that mode never changes the checkout', async () => {
+    renderFor('db')
+    await settle()
+    expect(screen.queryByRole('region', { name: 'Remove the old board workflow' })).toBeNull()
+  })
+
+  it('still offers it for a repository-backed folder', async () => {
+    renderFor('repo')
+    await settle()
+    expect(screen.queryByRole('region', { name: 'Remove the old board workflow' })).not.toBeNull()
+  })
+})

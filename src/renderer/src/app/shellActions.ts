@@ -8,7 +8,7 @@ import type {
   TrackedFolderView
 } from '../../../shared/desktop/api'
 import type { WorkStatus } from '../../../shared/domain/status'
-import type { BoardImportView, EpicDetailView } from '../../../shared/domain/views'
+import type { BoardImportView, EpicDetailView, StorageMode } from '../../../shared/domain/views'
 import type { TicketLink } from '../agents/ChatContext'
 import type { NewChatChoice } from '../agents/NewChatDialog'
 import { runCommand } from '../api/dm'
@@ -21,7 +21,9 @@ export type BusyKey = 'initialize' | 'flush' | 'reconcile'
 
 /** Choices on the onboarding screen that shape what Initialize does. */
 export interface InitializeOptions {
-  /** Also write `.mcp.json` so Claude Code can connect. */
+  /** Where the project's records live: in the repository, or only in the home-directory database. */
+  mode: StorageMode
+  /** Also write `.mcp.json` so Claude Code can connect. Never set for a database-only project. */
   writeMcpConfig: boolean
   /** Then import the open epics of an old-style `board/` as drafts; the person opts in explicitly. */
   importBoard: boolean
@@ -213,7 +215,7 @@ function repositoryActions(deps: ShellDeps): Pick<ShellActions, 'initialize' | '
     initialize: (folder, options) =>
       whileBusy(deps, 'initialize', async () => {
         const initialized = await guarded(deps, async () => {
-          await runCommand(folder.path, 'initializeRepository', {})
+          await runCommand(folder.path, 'initializeRepository', { mode: options.mode })
           await deps.folders.reload()
           deps.refresh(folder.path)
           deps.toasts.push('success', `Initialized ${folder.name}.`)

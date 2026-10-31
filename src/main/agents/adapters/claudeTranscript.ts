@@ -19,10 +19,29 @@
  * result: `done`, or `failed` when the result is an error. One the CLI starts in the background
  * answers the call at once (`tool_use_result.status` is `async_launched`) and ends with a
  * `task_notification` (`completed`, or `failed`/`stopped` as `failed`). A foreground thread whose call
- * never got an answer ends as `failed` with the turn; `endThreads` fails the rest when the process is
+ * never got an answer ends as `failed` with the turn; `processEnded` fails the rest when the process is
  * gone. The CLI names the subagent behind a permission request by the id of its `task_started` message,
  * so `threadOfRequest` finds a request's thread by that id, or else by the tool call it is about.
  * Recorded from a real session in `__mocks__/claudeSubagents.ts`.
+ *
+ * Continued subagents. `SendMessage` continues a subagent that ended (or stopped): its answer names the agent
+ * (`resumedAgentId`), the CLI runs it on in the background, and its messages name the call that first spawned
+ * it as their parent, so they land on its thread. The thread runs again from that answer (or from the first
+ * new message for one that ended without it) and is background from then on: the turn's result leaves it
+ * running, and its `task_notification`, found by the call it names (the spawn or the SendMessage) or else by
+ * the agent, ends it. A process that never saw the spawn (a resumed session) opens the thread on the first
+ * message, in the background as well, and takes it for the oldest agent a SendMessage resumed that it could not
+ * place, so that agent's notification ends it. Seen in a stored transcript of 2026-10-06, not recorded.
+ *
+ * Live work (`hasLiveWork`). What the process still runs, so it is not stopped for being idle: a call that has
+ * no answer yet, a thread still running, and a task the CLI runs in the background and has not reported ended
+ * (`task_started` with `is_backgrounded`, or a `task_updated` that moves it there, up to its
+ * `task_notification` or an update that ends it; a subagent or a command run in the background). A task in
+ * the foreground is its call's work. The CLI's `background_tasks_changed` message lists every live background
+ * task, and replaces the tasks known so far. Ambient tasks (watchers, housekeeping) are no one's work and do
+ * not count. A turn's result ends the calls of the chat's own thread and of the foreground threads it fails,
+ * whether or not their answers came; when the process is gone, its calls still running are cancelled with its
+ * threads, and nothing is live any more.
  *
  * Sign-in. A rejected login (expired, revoked, never done) arrives as a synthetic `assistant`
  * message with `error: 'authentication_failed'` and the CLI's words as its text, followed by an error
@@ -88,6 +107,8 @@ const SIGN_IN_AGAIN = 'Claude Code needs you to sign in again.'
 const FALLBACK_LABEL = 'Subagent'
 /** The tools that start a subagent. */
 const SPAWN_TOOLS: ReadonlySet<string> = new Set(['Agent', 'Task'])
+/** The tool that continues a subagent that ended. */
+const CONTINUE_TOOL = 'SendMessage'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -153,6 +174,12 @@ function isLaunch(structured: unknown): boolean {
   return isRecord(structured) && (structured.isAsync === true || structured.status === 'async_launched')
 }
 
+/** A text field of a call's structured result: the subagent an Agent call ran (`agentId`), the one a SendMessage resumed (`resumedAgentId`). */
+function structuredText(structured: unknown, key: string): string | undefined {
+  const value = isRecord(structured) ? structured[key] : undefined
+  return typeof value === 'string' && value !== '' ? value : undefined
+}
+
 interface TranscriptDeps {
   now: () => string
   newId: () => string
@@ -172,6 +199,12 @@ export class TranscriptMapper {
   private readonly callSpawns = new Map<string, string>()
   /** The spawning call each subagent belongs to, by the id the CLI gave the subagent. */
   private readonly agentSpawns = new Map<string, string>()
+  /** The subagent each SendMessage call continues, by the call's id: whom it is sent to, then whom its answer says it resumed. */
+  private readonly continuations = new Map<string, string>()
+  /** Subagents a SendMessage resumed whose spawning call this process never saw, oldest first, until their thread shows up. */
+  private readonly unplaced: string[] = []
+  /** The tasks the CLI started and has not reported ended, by task id (ambient ones left out). */
+  private readonly tasks = new Set<string>()
   /** The CLI rejected the sign-in during the turn that is running. */
   private authReported = false
   /** The CLI reported a problem with the account during the turn that is running. */
@@ -199,9 +232,20 @@ export class TranscriptMapper {
     return thread === undefined ? null : { id: thread.item.id, label: thread.item.label }
   }
 
-  /** Fails every thread still running, for a process that is gone: its subagents died with it. */
-  endThreads(): ChatAdapterEvent[] {
-    const events: ChatAdapterEvent[] = []
+  /** A call without an answer, a thread still running, or a task not reported ended. */
+  hasLiveWork(): boolean {
+    return this.calls.size > 0 || this.tasks.size > 0 || [...this.threads.values()].some((thread) => thread.item.state === 'running')
+  }
+
+  /**
+   * For a process that is gone: the calls still running are cancelled and every thread still running fails,
+   * since its subagents died with it, and none of its tasks is live any more.
+   */
+  processEnded(): ChatAdapterEvent[] {
+    const events: ChatAdapterEvent[] = [...this.calls.values()].map((call) => ({ type: 'item', item: { ...call, status: 'cancelled' } }))
+    this.calls.clear()
+    this.tasks.clear()
+    this.unplaced.length = 0
     for (const thread of this.threads.values()) {
       this.settle(thread, 'failed', events)
     }
@@ -305,31 +349,52 @@ export class TranscriptMapper {
     if (thread !== null) {
       this.callSpawns.set(block.id, thread.spawnId)
     }
+    const input = isRecord(block.input) ? block.input : {}
     if (SPAWN_TOOLS.has(block.name) && !this.threads.has(block.id)) {
-      const input = isRecord(block.input) ? block.input : {}
-      events.push(this.openThread(block.id, labelOf(input.description, input.subagent_type), idOf(thread)))
+      events.push(this.openThread(block.id, labelOf(input.description, input.subagent_type), idOf(thread), false))
+    } else if (block.name === CONTINUE_TOOL && typeof input.to === 'string') {
+      this.continuations.set(block.id, input.to)
     }
   }
 
-  /** The thread of a subagent's message; opened here for a subagent whose spawning call this process never saw (a resumed session). */
+  /**
+   * The thread of a subagent's message. A thread that ended runs again: its subagent was continued. One is opened
+   * for a subagent whose spawning call this process never saw (a resumed session), in the background, since only
+   * a subagent continued or started in the background goes on past the turn of a process that did not spawn it.
+   */
   private threadFor(parent: string, message: SDKMessage, events: ChatAdapterEvent[]): Thread {
     const known = this.threads.get(parent)
     if (known !== undefined) {
+      this.resume(known, events)
       return known
     }
     const hints = message as unknown as Record<string, unknown>
-    const event = this.openThread(parent, labelOf(hints.task_description, hints.subagent_type), undefined)
+    const event = this.openThread(parent, labelOf(hints.task_description, hints.subagent_type), undefined, true)
     events.push(event)
+    const agentId = this.unplaced.shift()
+    if (agentId !== undefined) {
+      this.agentSpawns.set(agentId, parent)
+    }
     return this.threads.get(parent) as Thread
   }
 
-  private openThread(spawnId: string, label: string, inThread: string | undefined): ChatAdapterEvent {
+  private openThread(spawnId: string, label: string, inThread: string | undefined, background: boolean): ChatAdapterEvent {
     const event = this.item(
       { id: `claude_thread_${spawnId}`, kind: 'thread', parentItemId: `claude_tool_${spawnId}`, label, state: 'running' },
       inThread
     ) as { type: 'item'; item: ThreadItem }
-    this.threads.set(spawnId, { spawnId, item: event.item, background: false })
+    this.threads.set(spawnId, { spawnId, item: event.item, background })
     return event
+  }
+
+  /** A thread that ended runs again, in the background, as its subagent was continued; a running one stays as it is. */
+  private resume(thread: Thread, events: ChatAdapterEvent[]): void {
+    if (thread.item.state === 'running') {
+      return
+    }
+    thread.background = true
+    thread.item = { ...thread.item, state: 'running' }
+    events.push({ type: 'item', item: thread.item })
   }
 
   /** Ends a thread that is still running; a thread that already ended stays as it is. */
@@ -341,11 +406,21 @@ export class TranscriptMapper {
     events.push({ type: 'item', item: thread.item })
   }
 
-  /** The turn is over, so a subagent its call was still waiting for is not coming back. */
+  /**
+   * The turn is over, so a subagent its call was still waiting for is not coming back, and the calls of the chat's
+   * own thread and of those subagents are not running any more, answered or not.
+   */
   private endForegroundThreads(events: ChatAdapterEvent[]): void {
+    const ended = new Set<string | undefined>([undefined])
     for (const thread of this.threads.values()) {
       if (!thread.background) {
         this.settle(thread, 'failed', events)
+        ended.add(thread.item.id)
+      }
+    }
+    for (const [toolUseId, call] of this.calls) {
+      if (ended.has(call.threadId)) {
+        this.calls.delete(toolUseId)
       }
     }
   }
@@ -362,7 +437,10 @@ export class TranscriptMapper {
     }
   }
 
-  /** A tool call's answer: it finishes the call and, for a call that started a subagent, decides how its thread ends. */
+  /**
+   * A tool call's answer: it finishes the call; for a call that started a subagent it decides how its thread ends,
+   * and for a SendMessage that continued one it runs the subagent's thread again.
+   */
   private answer(answer: ToolAnswer, structured: unknown, events: ChatAdapterEvent[]): void {
     const thread = this.threads.get(answer.toolUseId)
     const report = thread === undefined || answer.isError ? undefined : reportOf(structured)
@@ -371,12 +449,40 @@ export class TranscriptMapper {
       events.push(done)
     }
     if (thread === undefined) {
+      this.continued(answer, structured, events)
       return
+    }
+    const agentId = structuredText(structured, 'agentId')
+    if (agentId !== undefined) {
+      this.agentSpawns.set(agentId, thread.spawnId)
     }
     if (isLaunch(structured)) {
       thread.background = true
     } else {
       this.settle(thread, answer.isError ? 'failed' : 'done', events)
+    }
+  }
+
+  /**
+   * The answer to a SendMessage: the subagent it resumed (the answer names it; a call to a subagent this process
+   * knows counts too) runs on, so its thread runs again. One whose spawn this process never saw waits, as unplaced,
+   * for its thread to show up.
+   */
+  private continued(answer: ToolAnswer, structured: unknown, events: ChatAdapterEvent[]): void {
+    const target = this.continuations.get(answer.toolUseId)
+    if (target === undefined || answer.isError) {
+      return
+    }
+    const resumed = structuredText(structured, 'resumedAgentId')
+    const agentId = resumed ?? target
+    const spawnId = this.agentSpawns.get(agentId)
+    const thread = spawnId === undefined ? undefined : this.threads.get(spawnId)
+    if (thread !== undefined) {
+      this.continuations.set(answer.toolUseId, agentId)
+      this.resume(thread, events)
+    } else if (resumed !== undefined) {
+      this.continuations.set(answer.toolUseId, resumed)
+      this.unplaced.push(resumed)
     }
   }
 
@@ -413,15 +519,60 @@ export class TranscriptMapper {
     if (message.subtype === 'compact_boundary') {
       events.push(this.resetItem(`claude_reset_${message.uuid}`, 'compact', 'The conversation was compacted to free up room.'))
     } else if (message.subtype === 'task_started') {
+      this.taskStarted(message)
       this.subagentStarted(message)
     } else if (message.subtype === 'task_notification') {
+      this.tasks.delete(message.task_id)
       this.subagentEnded(message, events)
+    } else if (message.subtype === 'task_updated') {
+      this.taskUpdated(message)
+    } else if (message.subtype === 'background_tasks_changed') {
+      this.tasks.clear()
+      for (const task of message.tasks) {
+        if (task.ambient !== true) {
+          this.tasks.add(task.task_id)
+        }
+      }
     }
+  }
+
+  /**
+   * A task started in the background is live work until the CLI reports it ended, unless it is ambient (a watcher,
+   * housekeeping). One started in the foreground is its call's work, which counts while the call has no answer.
+   */
+  private taskStarted(message: Extract<SDKMessage, { type: 'system'; subtype: 'task_started' }>): void {
+    if (message.is_backgrounded === true && message.ambient !== true && message.skip_transcript !== true) {
+      this.tasks.add(message.task_id)
+    }
+  }
+
+  /** A foreground task moved to the background is live work from then on; a task the update says ended is not. */
+  private taskUpdated(message: Extract<SDKMessage, { type: 'system'; subtype: 'task_updated' }>): void {
+    const { status, is_backgrounded: background } = message.patch
+    if (status === 'completed' || status === 'failed' || status === 'killed') {
+      this.tasks.delete(message.task_id)
+    } else if (background === true) {
+      this.tasks.add(message.task_id)
+    }
+  }
+
+  /**
+   * The thread of a task the CLI reports on: by the call it names (the spawn, or a SendMessage that continued the
+   * subagent), else by the subagent's own id, which is the task's.
+   */
+  private threadOfTask(toolUseId: string | undefined, taskId: string): Thread | undefined {
+    const byCall = toolUseId === undefined ? undefined : (this.threads.get(toolUseId) ?? this.threadOfAgent(this.continuations.get(toolUseId)))
+    return byCall ?? this.threadOfAgent(taskId)
+  }
+
+  private threadOfAgent(agentId: string | undefined): Thread | undefined {
+    const spawnId = agentId === undefined ? undefined : this.agentSpawns.get(agentId)
+    return spawnId === undefined ? undefined : this.threads.get(spawnId)
   }
 
   /** The CLI names a subagent by its task id in permission requests; remember whose it is, and whether it runs in the background. */
   private subagentStarted(message: Extract<SDKMessage, { type: 'system'; subtype: 'task_started' }>): void {
-    const thread = message.tool_use_id === undefined ? undefined : this.threads.get(message.tool_use_id)
+    const thread = this.threadOfTask(message.tool_use_id, message.task_id)
     if (thread === undefined) {
       return
     }
@@ -433,7 +584,7 @@ export class TranscriptMapper {
 
   /** How a background subagent ended; the answer to the call of one it waited for says that instead. */
   private subagentEnded(message: Extract<SDKMessage, { type: 'system'; subtype: 'task_notification' }>, events: ChatAdapterEvent[]): void {
-    const thread = message.tool_use_id === undefined ? undefined : this.threads.get(message.tool_use_id)
+    const thread = this.threadOfTask(message.tool_use_id, message.task_id)
     if (thread?.background === true) {
       this.settle(thread, message.status === 'completed' ? 'done' : 'failed', events)
     }

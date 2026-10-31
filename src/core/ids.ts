@@ -20,7 +20,8 @@ export const ID_PREFIXES = {
   checkpoint: 'ck',
   hostCatalog: 'hc',
   comment: 'cm',
-  rowCheck: 'rk'
+  rowCheck: 'rk',
+  grant: 'gr'
 } as const
 
 export type IdKind = keyof typeof ID_PREFIXES

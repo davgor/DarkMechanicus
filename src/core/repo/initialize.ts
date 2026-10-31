@@ -15,6 +15,12 @@ interface InitDeps {
   fs: FsAdapter
   ids: IdGenerator
   clock: Clock
+  /**
+   * The project file this folder would have in the *other* storage mode. When it exists, the
+   * folder is already set up that way and initializing is refused rather than leaving one folder
+   * with two projects. Omitted when the caller has not resolved the other mode.
+   */
+  otherProjectFile?: string
 }
 
 const GITIGNORE = 'local/\n'
@@ -84,19 +90,52 @@ function writeIfMissing(deps: InitDeps, path: string, text: string): boolean {
   return true
 }
 
+/** The directories a mode actually writes: `db` mode never writes a record file, so it makes none. */
+function ownedDirs(layout: RepoLayout): string[] {
+  if (layout.mode === 'db') {
+    return [layout.localDir]
+  }
+  return [layout.epicsDir, layout.historyDir, layout.profilesDir, layout.localDir]
+}
+
 function createLayout(deps: InitDeps): void {
   const { layout, fs } = deps
   if (fs.isSymlink(layout.dmDir)) {
-    fail('unsafe_path', '.darkmechanicus must be a real directory, not a link.', { path: '.darkmechanicus' })
+    const shown = layout.mode === 'repo' ? '.darkmechanicus' : layout.dmDir
+    fail('unsafe_path', `${shown} must be a real directory, not a link.`, { path: shown })
   }
   fs.mkdirp(layout.dmDir)
-  for (const dir of [layout.epicsDir, layout.historyDir, layout.profilesDir, layout.localDir]) {
+  for (const dir of ownedDirs(layout)) {
     assertContained(layout, fs, dir)
     fs.mkdirp(dir)
   }
 }
 
+/** The modes, as a person reads them in a refusal. */
+const MODE_LABELS: Record<RepoLayout['mode'], string> = {
+  repo: 'with its records in the repository',
+  db: 'as a database-only project in the Dark Mechanicus home directory'
+}
+
+/**
+ * Refuses a second project for a folder that is already set up the other way. One folder has one
+ * project: the modes differ in where every record lives, so two would be two separate histories.
+ */
+function assertSingleProject(deps: InitDeps): void {
+  const other = deps.otherProjectFile
+  if (other === undefined || !deps.fs.exists(other)) {
+    return
+  }
+  const otherMode = deps.layout.mode === 'repo' ? 'db' : 'repo'
+  fail(
+    'conflict',
+    `${deps.layout.root} is already set up ${MODE_LABELS[otherMode]} (${other}). A folder has one project: use that one, or remove it before setting the folder up ${MODE_LABELS[deps.layout.mode]}.`,
+    { path: other, mode: deps.layout.mode, existingMode: otherMode }
+  )
+}
+
 function createProject(deps: InitDeps, input: { name?: string; keyPrefix?: string }): ProjectRecord {
+  // The name always comes from the repository folder, never from the project directory in db mode.
   const name = input.name ?? (basename(deps.layout.root).slice(0, MAX_NAME_LENGTH) || 'Project')
   const record = projectRecord.parse({
     format: 'darkmechanicus.project',
@@ -104,7 +143,9 @@ function createProject(deps: InitDeps, input: { name?: string; keyPrefix?: strin
     projectId: deps.ids.next('project'),
     name,
     keyPrefix: input.keyPrefix ?? deriveKeyPrefix(name),
-    createdAt: deps.clock.nowIso()
+    createdAt: deps.clock.nowIso(),
+    // A repo project sits inside its folder and needs no note of where that is.
+    ...(deps.layout.mode === 'db' ? { repoRoot: deps.layout.root } : {})
   })
   writeFileSafely(deps, deps.layout.projectFile, prettyJson(record))
   return record
@@ -129,21 +170,32 @@ export function ensureMachineId(deps: InitDeps): string {
 }
 
 /**
- * Explicit, repeatable initialization: creates the `.darkmechanicus/` layout, `.gitignore`
- * (`local/`), `project.json`, and `local/machine.json` when missing. An existing project is never
- * changed. Never runs git.
+ * Explicit, repeatable initialization: creates the owned layout, `project.json` and
+ * `local/machine.json` when missing, plus `.gitignore` (`local/`) in `repo` mode, where the layout
+ * sits in the repository. In `db` mode everything is created in the project's directory inside the
+ * Dark Mechanicus home directory and the repository folder is left untouched. An existing project
+ * is never changed. Never runs git.
  */
 export function initializeRepository(
   deps: InitDeps,
   input: { name?: string; keyPrefix?: string }
-): InitializeResultView & { machineId: string } {
+): Omit<InitializeResultView, 'storage'> & { machineId: string } {
   const requested = { name: requestedName(input), keyPrefix: requestedPrefix(input) }
+  // Checked before anything is created, so a refusal leaves no trace...
+  assertSingleProject(deps)
   createLayout(deps)
   const createdFiles: string[] = []
-  if (writeIfMissing(deps, deps.layout.gitignoreFile, GITIGNORE)) {
+  // `db` mode writes nothing into the repository, so it has nothing for Git to ignore.
+  if (deps.layout.mode === 'repo' && writeIfMissing(deps, deps.layout.gitignoreFile, GITIGNORE)) {
     createdFiles.push(displayPath(deps.layout, deps.layout.gitignoreFile))
   }
   const existing = readProject(deps.layout, deps.fs)
+  // ...and again right before the record is written. The two modes write into different
+  // directories, so there is no atomic way to claim both at once; re-checking here narrows the
+  // window in which two processes could each create one to almost nothing.
+  if (existing === null) {
+    assertSingleProject(deps)
+  }
   const project = existing ?? createProject(deps, requested)
   if (existing === null) {
     createdFiles.push(displayPath(deps.layout, deps.layout.projectFile))

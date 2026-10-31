@@ -59,7 +59,8 @@ async function rig(script: Step[], answers: ApprovalDecision[] = ['allow_once'])
       role: 'planner',
       allowSave: true,
       sessionId: null,
-      darkMechanicus: { command: 'node', args: ['mcp.js'] }
+      darkMechanicus: { command: 'node', args: ['cli.js'], env: { DM_SESSION_TOKEN: 'dmg_test' } },
+      instructions: 'Use the dm CLI.'
     },
     (event) => {
       events.push(event)
@@ -470,5 +471,32 @@ describe('the tools a Codex agent uses to work with its subagents', () => {
       tool(`${TURN}:t2`, 'followup_task', {}, failed),
       tool(`${TURN}:t3`, 'list_agents', {}, failed)
     ])
+  })
+})
+
+describe('live work the idle stop must leave alone', () => {
+  it('counts a subagent thread that is still running after the chat\'s own turn ended, until its turn ends', async () => {
+    const target = await rig(spawned([]))
+    expect(target.adapter.hasLiveWork()).toBe(false)
+
+    await target.adapter.send('go')
+    expect(target.adapter.hasLiveWork()).toBe(true)
+
+    target.transport.say(turnCompleted(CHILD, CHILD_TURN, 'completed'))
+    await Promise.resolve()
+
+    expect(states(target, THREAD_ID)).toEqual(['running', 'done'])
+    expect(target.adapter.hasLiveWork()).toBe(false)
+  })
+
+  it('has none once the process is gone or the chat is disposed', async () => {
+    const crashed = await rig(spawned([], [step.exit('codex crashed')]))
+    await expect(crashed.adapter.send('go')).rejects.toThrow('codex crashed')
+    expect(crashed.adapter.hasLiveWork()).toBe(false)
+
+    const disposed = await rig(spawned([]))
+    await disposed.adapter.send('go')
+    await disposed.adapter.dispose()
+    expect(disposed.adapter.hasLiveWork()).toBe(false)
   })
 })

@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "**Correction to cm_01m65kmyn9g6… (orchestrator, 2026-10-29).** That handover was posted on the wrong epic. This run was not picked up: no claims were made and nothing changed in run 2. The local `source-control` branch and the `sprint-2-integration` worktree it mentions have been removed. The host catalog gap it describes (an imported run points at a catalog row that was not imported) and the open entry criterion n1 still stand.",
+  "createdAt": "2026-10-30T05:18:02.945Z",
+  "epicId": "ep_01m43sbb2tbnxtr35fety5vzhs",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m65kwqp1z72zf99a89s1h8jc",
+  "ticketId": null
+}

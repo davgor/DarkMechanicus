@@ -15,7 +15,7 @@ import {
   DM_SERVER,
   failedLoad,
   FOLDER,
-  ACP_DM_SERVER,
+  ACP_MCP_SERVERS,
   handshake,
   loadSession,
   newSession,
@@ -71,6 +71,7 @@ function startOptions(overrides: Partial<ChatAdapterStartOptions> = {}): ChatAda
     allowSave: false,
     sessionId: null,
     darkMechanicus: DM_SERVER,
+    instructions: 'Use the dm CLI.',
     ...overrides
   }
 }
@@ -171,7 +172,7 @@ describe('starting a session', () => {
 
     const noSession = new ReplayAcpAgents([
       ...handshake(),
-      client({ id: 3, method: 'session/new', params: { cwd: FOLDER, mcpServers: [ACP_DM_SERVER] } }),
+      client({ id: 3, method: 'session/new', params: { cwd: FOLDER, mcpServers: ACP_MCP_SERVERS } }),
       agent({ id: 3, result: {} })
     ])
     const other = new Rig(noSession)
@@ -567,7 +568,7 @@ describe('resuming: without a stored session to load', () => {
   it('fails the start, rather than faking a reset, when the process itself dies while loading', async () => {
     const agents = new ReplayAcpAgents([
       ...handshake(),
-      client({ id: 3, method: 'session/load', params: { sessionId: 'sess_old', cwd: FOLDER, mcpServers: [ACP_DM_SERVER] } })
+      client({ id: 3, method: 'session/load', params: { sessionId: 'sess_old', cwd: FOLDER, mcpServers: ACP_MCP_SERVERS } })
     ])
     const rig = new Rig(agents)
 
@@ -935,5 +936,31 @@ describe('models: listing failures that say little', () => {
     const run: ProcessRunner = () => Promise.resolve(outcome)
 
     await expect(listCursorModels(PATH, makeDeps(new ReplayAcpAgents(), { scheduled: [] }, { run }))).rejects.toThrow(message)
+  })
+})
+
+describe('live work the idle stop must leave alone', () => {
+  it('is the running turn: Cursor does nothing between turns', async () => {
+    const agents = new ReplayAcpAgents(newChat(prompt(4, S, 'go')))
+    const rig = new Rig(agents)
+    await rig.start()
+    expect(rig.adapter.hasLiveWork()).toBe(false)
+
+    const turn = rig.adapter.send('go').catch((error: unknown) => error)
+    await promptWritten(agents)
+    expect(rig.adapter.hasLiveWork()).toBe(true)
+
+    await rig.adapter.dispose()
+    await turn
+    expect(rig.adapter.hasLiveWork()).toBe(false)
+  })
+
+  it('has none after a turn that ended', async () => {
+    const rig = new Rig(new ReplayAcpAgents(newChat(prompt(4, S, 'go'), say(S, 'Done.'), turnEnd(4))))
+    await rig.start()
+
+    await rig.adapter.send('go')
+
+    expect(rig.adapter.hasLiveWork()).toBe(false)
   })
 })

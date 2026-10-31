@@ -22,7 +22,7 @@ import type {
   WorkerInfo
 } from '../../shared/domain/views'
 import { contentHash } from '../canonical'
-import { isBefore } from '../clock'
+import { addSeconds, isBefore } from '../clock'
 import type { Ctx } from '../context'
 import { parseJson, toJson } from '../db/database'
 import { fail } from '../errors'
@@ -352,8 +352,12 @@ interface NewAttempt {
   state: AttemptState
   worker: WorkerInfo
   claimSecret: string | null
-  leaseExpiresAt: string | null
+  /** The lease granted from the moment the attempt is created; null for an attempt that holds none. */
+  leaseSeconds: number | null
   outputs: AttemptOutputs | null
+  evidence: AttemptEvidence | null
+  /** The `SprintIncrement` verdict the attempt stands on; null for every attempt but a carried-forward acceptance's. */
+  increment: SprintIncrement | null
   decision: AttemptDecision | null
 }
 
@@ -371,8 +375,9 @@ export function insertAttempt(ctx: Ctx, attempt: NewAttempt): AttemptRow {
     () =>
       ctx.db.run(
         `INSERT INTO attempts (id, run_id, ticket_id, number, kind, state, fencing_token, claim_secret, worker_json,
-           revision_id, ticket_content_hash, lease_expires_at, outputs_json, decision_json, created_at, updated_at, decided_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           revision_id, ticket_content_hash, lease_expires_at, outputs_json, evidence_json, increment_json, decision_json,
+           created_at, updated_at, decided_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         id,
         attempt.run.id,
         attempt.ticket.id,
@@ -384,8 +389,10 @@ export function insertAttempt(ctx: Ctx, attempt: NewAttempt): AttemptRow {
         toJson(attempt.worker),
         attempt.run.revision_id,
         contentHash(attempt.ticket),
-        attempt.leaseExpiresAt,
+        attempt.leaseSeconds === null ? null : addSeconds(now, attempt.leaseSeconds),
         attempt.outputs === null ? null : toJson(attempt.outputs),
+        attempt.evidence === null ? null : toJson(attempt.evidence),
+        attempt.increment === null ? null : toJson(attempt.increment),
         attempt.decision === null ? null : toJson(attempt.decision),
         now,
         now,
@@ -397,10 +404,12 @@ export function insertAttempt(ctx: Ctx, attempt: NewAttempt): AttemptRow {
   return loadAttempt(ctx, id)
 }
 
-/** The latest accepted outputs for the ticket from an earlier run of the same epic, if any. */
-function earlierAcceptance(ctx: Ctx, run: RunRow, ticketId: string): { outputs_json: string | null } | undefined {
-  return ctx.db.get<{ outputs_json: string | null }>(
-    `SELECT a.outputs_json FROM attempts a JOIN runs r ON r.id = a.run_id
+/** What the ticket's latest acceptance in an earlier run of the same epic recorded, if it has one. */
+type EarlierAcceptance = Pick<AttemptRow, 'outputs_json' | 'evidence_json' | 'increment_json'>
+
+function earlierAcceptance(ctx: Ctx, run: RunRow, ticketId: string): EarlierAcceptance | undefined {
+  return ctx.db.get<EarlierAcceptance>(
+    `SELECT a.outputs_json, a.evidence_json, a.increment_json FROM attempts a JOIN runs r ON r.id = a.run_id
      WHERE a.ticket_id = ? AND a.state = 'accepted' AND r.epic_id = ? AND r.number < ?
      ORDER BY r.number DESC, a.number DESC LIMIT 1`,
     ticketId,
@@ -411,7 +420,8 @@ function earlierAcceptance(ctx: Ctx, run: RunRow, ticketId: string): { outputs_j
 
 /**
  * Records a `carry_forward` attempt (accepted) for a ticket already completed earlier — by status or by
- * an accepted attempt in an earlier run — copying the earlier accepted outputs when there are any.
+ * an accepted attempt in an earlier run — copying the earlier acceptance's outputs, evidence and increment
+ * verdict when there is one, so a carried-forward acceptance node still meets the checkpoint gates that read them.
  */
 export function recordCarryForward(
   ctx: Ctx,
@@ -441,8 +451,10 @@ export function recordCarryForward(
     state: 'accepted',
     worker: { ...EMPTY_WORKER, sessionId: ctx.session.id, label: ctx.session.label },
     claimSecret: null,
-    leaseExpiresAt: null,
+    leaseSeconds: null,
     outputs: parseJson<AttemptOutputs | null>(earlier?.outputs_json, null),
+    evidence: parseJson<AttemptEvidence | null>(earlier?.evidence_json, null),
+    increment: parseJson<SprintIncrement | null>(earlier?.increment_json, null),
     decision: { outcome: 'accepted', notes: entry.note, reasons: [], decidedBy: ctx.session.label }
   })
   advanceTicketStatus(ctx, { epicId: run.epic_id, ticketId: ticket.id }, 'completed')

@@ -10,7 +10,9 @@ const ROLE_LABELS: Record<SessionRole, string> = {
   planner: 'Planner',
   orchestrator: 'Orchestrator',
   worker: 'Worker',
-  reviewer: 'Reviewer'
+  reviewer: 'Reviewer',
+  // A reader cannot write a comment, so this label only ever appears if one somehow did.
+  reader: 'Reader'
 }
 
 interface CommentItem {

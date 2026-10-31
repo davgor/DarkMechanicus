@@ -10,6 +10,7 @@ import { writeDefinitionOfDone } from '../repo/projectConfig'
 import { getStorageStatus } from '../repo/storage'
 import { COMMAND_SCHEMAS } from '../commandSchemas'
 import { appendEvent, listEvents } from '../services/events'
+import { issueGrant, listGrants, revokeGrant } from '../services/grants'
 import { searchHistory } from '../services/history'
 import { listSessions } from '../services/sessions'
 import { SKILLS_VERSION } from '../version'
@@ -129,6 +130,35 @@ const repositoryCommands = {
       const ctx = core.ctx()
       requireCapability(ctx.session, 'read')
       return listSessions({ db: ctx.db, clock: ctx.clock })
+    }
+  },
+  issueGrant: {
+    schema: COMMAND_SCHEMAS.issueGrant,
+    mutates: true,
+    run: (core, input) => {
+      const ctx = core.ctx()
+      const issued = ctx.db.tx(() => {
+        const result = issueGrant(ctx, input)
+        appendEvent(ctx, { kind: 'grant.issued', payload: { grantId: result.grant.id, role: result.grant.role } })
+        return result
+      })
+      return issued
+    }
+  },
+  listGrants: {
+    mutates: false,
+    run: (core) => listGrants(core.ctx())
+  },
+  revokeGrant: {
+    schema: COMMAND_SCHEMAS.revokeGrant,
+    mutates: true,
+    run: (core, input) => {
+      const ctx = core.ctx()
+      return ctx.db.tx(() => {
+        const grant = revokeGrant(ctx, input.grantId)
+        appendEvent(ctx, { kind: 'grant.revoked', payload: { grantId: grant.id } })
+        return grant
+      })
     }
   },
   listEvents: {

@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "**Integration fix on agent-clis-sprint-1 (orchestrator).** `src/main/agents/adapters/acpProcess.test.ts` > \"keeps only the tail of a long stderr\" failed on every run on this Mac, already at the epic start commit 98df722. Its child script exited right after a 100 KB `console.error`, and stderr to a pipe is asynchronous on macOS (synchronous on Windows and Linux), so `THE-END` was never written. Commit a517f31 makes the child exit from the write callback. It is a test-only change and touches no production code. It would have failed the Definition of Done's `npm test` on this host, and the same test fails on `main`.",
+  "createdAt": "2026-10-30T05:34:25.107Z",
+  "epicId": "ep_01m61r9qjc28t4x2jpczpwk41a",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m65mtptkjgcqz8cny7ypprx1",
+  "ticketId": null
+}

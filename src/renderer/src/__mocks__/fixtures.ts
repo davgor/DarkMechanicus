@@ -34,6 +34,7 @@ export function folderView(patch: Partial<TrackedFolderView> = {}): TrackedFolde
     name: 'alpha',
     displayPath: '~/code/alpha',
     initialized: true,
+    storageMode: 'repo',
     available: true,
     addedAt: '2026-01-01T00:00:00.000Z',
     ...patch
@@ -92,6 +93,11 @@ export function storageStatus(patch: Partial<StorageStatusView> = {}): StorageSt
   return {
     initialized: true,
     repoRoot: '/home/u/code/alpha',
+    storage: {
+      mode: 'repo',
+      projectDir: '/home/u/code/alpha/.darkmechanicus',
+      databasePath: '/home/u/code/alpha/.darkmechanicus/local/state.sqlite'
+    },
     projectId: 'pj_00000000000000000000000001',
     projectName: 'alpha',
     schemaVersion: 1,

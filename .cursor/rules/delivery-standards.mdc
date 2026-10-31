@@ -9,13 +9,13 @@ Any implementation work in this repo must follow `.cursor/skills/delivery-standa
 
 ## Required on every code change
 
-1. **TDD-first** — failing test(s) before implementation for main/preload/renderer logic, shared helpers, and other testable logic.
-2. **Verify before done** — all must pass; do not report completion otherwise:
+1. **TDD-first** — failing test(s) before implementation for main/preload/renderer logic, shared helpers, and other testable logic. The exception is an epic whose plan records the person's decision to waive it. There, work tickets write no new tests, and the epic's testing-tail tickets write them (skill, section 2).
+2. **Verify before done** — inside an epic, a ticket runs only its targeted checks (the tests it touched, plus lint and typecheck when it changed code). `npm run fireguard` runs only in the sprint's Fireguard ticket, and the full list below runs once at the sprint checkpoint (skill, section 3). Outside an epic, all of these must pass, and you do not report completion otherwise:
    - `npm run lint`
    - `npm test`
-   - `npm run fireguard` (when unit tests added/modified)
+   - `npm run fireguard` (outside an epic, when unit tests are added or modified; inside an epic, only in the sprint's Fireguard ticket)
    - `npm run typecheck`
-   - `npm run deadcode` (ts-prune vs `.tsprune-ignore`; if export moves/deletes drift the baseline, run `npm run deadcode:refresh` after confirming the new findings are intentional)
+   - `npm run deadcode` (ts-prune vs `.tsprune-ignore`; if export moves or deletes drift the baseline, run `npm run deadcode:refresh` after confirming the new findings are intentional)
    - `npm run build`
 3. **Dark Mechanicus tracking** — new work becomes a new epic, or a ticket on the related existing epic, planned as a draft through the `darkmechanicus` MCP server (see `.mcp.json`) and then saved (the person presses Save in the desktop app, unless your session may save). Records live in `.darkmechanicus/`; do not hand-edit them. Follow the role guide for your job in `skills/`: `planner.md`, `orchestrator.md`, `worker.md` or `reviewer.md`.
 

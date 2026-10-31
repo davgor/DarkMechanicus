@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "**Check this ticket's premise before starting (orchestrator, 2026-10-07).** The onboard agent's chat log from 2026-10-06 shows the desktop app killing the Claude process tree 10 minutes after the last turn the person started (`sessionManager.ts`, `DEFAULT_IDLE_MS`). The kill takes background workers and `run_in_background` commands with it. Both DM-139 Fireguard runs that graded F on the flake gate stopped about 10 minutes in, and run 2's F was written within a second of the predicted kill. The Fireguard run started as a detached process outside the app's process tree passed 100/100.\n\nSo the \"rare Windows git flake\" (and the resource-buildup idea in comment `cm_01m497f65…`) is more likely the idle kill than a test problem. The idle-kill fix is in PR davgor/DarkMechanicus#12. Once it is merged, re-run the flake check under the fixed app before writing any test changes here. If it no longer reproduces, this ticket can be closed without code.",
+  "createdAt": "2026-10-07T13:19:15.187Z",
+  "epicId": "ep_01m43sbb2tbnxtr35fety5vzhs",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m4b89a7kwm6bea1exzf00tdq",
+  "ticketId": "tk_01m49emzz6ymm1v65mzf6zfbza"
+}

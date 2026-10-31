@@ -1,0 +1,3455 @@
+{
+  "baseRevisionId": null,
+  "bundle": {
+    "edges": [
+      {
+        "from": "tk_01m5jzc2kv6c85e4za935t6kx3",
+        "to": "tk_01m5jzc2m2k2bmqcje8skpe65x"
+      },
+      {
+        "from": "tk_01m5jzc2kv6c85e4za935t6kx3",
+        "to": "tk_01m5jzc2m28thvjkvbn786w12m"
+      },
+      {
+        "from": "tk_01m5jzc2m28thvjkvbn786w12m",
+        "to": "tk_01m5jzc2m2k2bmqcje8skpe65x"
+      },
+      {
+        "from": "tk_01m5jzc2m2g10atwkqd3myhfwc",
+        "to": "tk_01m5jzc2m2k2bmqcje8skpe65x"
+      },
+      {
+        "from": "tk_01m5jzc2m2g10atwkqd3myhfwc",
+        "to": "tk_01m5jzc2m258v6w6z6qtpweh1k"
+      },
+      {
+        "from": "tk_01m5jzc2m258v6w6z6qtpweh1k",
+        "to": "tk_01m5jzc2m2k2bmqcje8skpe65x"
+      },
+      {
+        "from": "tk_01m5jzc2kv6c85e4za935t6kx3",
+        "to": "tk_01m5jzc2m2ytwefmta3efwaz3w"
+      },
+      {
+        "from": "tk_01m5jzc2m28thvjkvbn786w12m",
+        "to": "tk_01m5jzc2m2ytwefmta3efwaz3w"
+      },
+      {
+        "from": "tk_01m5jzc2m258v6w6z6qtpweh1k",
+        "to": "tk_01m5jzc2m2ytwefmta3efwaz3w"
+      },
+      {
+        "from": "tk_01m5jzc2m2ytwefmta3efwaz3w",
+        "to": "tk_01m5jzc2m2k2bmqcje8skpe65x"
+      },
+      {
+        "from": "tk_01m5jzc2m2g10atwkqd3myhfwc",
+        "to": "tk_01m5jzc2m2p3nkkwdj94p3bvdf"
+      },
+      {
+        "from": "tk_01m5jzc2m258v6w6z6qtpweh1k",
+        "to": "tk_01m5jzc2m2p3nkkwdj94p3bvdf"
+      },
+      {
+        "from": "tk_01m5jzc2m2p3nkkwdj94p3bvdf",
+        "to": "tk_01m5jzc2m3bjgmgdzgphj5ve4k"
+      },
+      {
+        "from": "tk_01m5jzc2m2p3nkkwdj94p3bvdf",
+        "to": "tk_01m5jzc2m22nzwr1gq6y0er5ah"
+      },
+      {
+        "from": "tk_01m5jzc2m22nzwr1gq6y0er5ah",
+        "to": "tk_01m5jzc2m3bjgmgdzgphj5ve4k"
+      },
+      {
+        "from": "tk_01m5jzc2m22nzwr1gq6y0er5ah",
+        "to": "tk_01m5jzc2m20zakc2swa7hr9d0q"
+      },
+      {
+        "from": "tk_01m5jzc2m20zakc2swa7hr9d0q",
+        "to": "tk_01m5jzc2m3bjgmgdzgphj5ve4k"
+      },
+      {
+        "from": "tk_01m5jzc2m20zakc2swa7hr9d0q",
+        "to": "tk_01m5jzc2m26p2az1r6fn1qjvqa"
+      },
+      {
+        "from": "tk_01m5jzc2m26p2az1r6fn1qjvqa",
+        "to": "tk_01m5jzc2m3bjgmgdzgphj5ve4k"
+      },
+      {
+        "from": "tk_01m5jzc2m26p2az1r6fn1qjvqa",
+        "to": "tk_01m5jzc2m3qgt9bgswxvwbn54y"
+      },
+      {
+        "from": "tk_01m5jzc2m3qgt9bgswxvwbn54y",
+        "to": "tk_01m5jzc2m3bjgmgdzgphj5ve4k"
+      },
+      {
+        "from": "tk_01m5jzc2m3qgt9bgswxvwbn54y",
+        "to": "tk_01m5jzc2m3qms091m043fmn2mh"
+      },
+      {
+        "from": "tk_01m5jzc2m3qms091m043fmn2mh",
+        "to": "tk_01m5jzc2m3zrwxxq1wbwmxf0kq"
+      },
+      {
+        "from": "tk_01m5jzc2m3qms091m043fmn2mh",
+        "to": "tk_01m5jzc2m3ehbjy44ekg2tfqyc"
+      },
+      {
+        "from": "tk_01m5jzc2m3ehbjy44ekg2tfqyc",
+        "to": "tk_01m5jzc2m3zrwxxq1wbwmxf0kq"
+      },
+      {
+        "from": "tk_01m5jzc2m3ehbjy44ekg2tfqyc",
+        "to": "tk_01m5jzc2m3dqc01bg22vdphqgg"
+      },
+      {
+        "from": "tk_01m5jzc2m2g10atwkqd3myhfwc",
+        "to": "tk_01m5jzc2m3dqc01bg22vdphqgg"
+      },
+      {
+        "from": "tk_01m5jzc2m3dqc01bg22vdphqgg",
+        "to": "tk_01m5jzc2m3zrwxxq1wbwmxf0kq"
+      },
+      {
+        "from": "tk_01m5jzc2m3dqc01bg22vdphqgg",
+        "to": "tk_01m5jzc2m3p85dsavxnh4j2t74"
+      },
+      {
+        "from": "tk_01m5jzc2m3p85dsavxnh4j2t74",
+        "to": "tk_01m5jzc2m3zrwxxq1wbwmxf0kq"
+      },
+      {
+        "from": "tk_01m5jzc2m3p85dsavxnh4j2t74",
+        "to": "tk_01m5jzc2m382zqf36700hyp0hc"
+      },
+      {
+        "from": "tk_01m5jzc2m382zqf36700hyp0hc",
+        "to": "tk_01m5jzc2m3zrwxxq1wbwmxf0kq"
+      },
+      {
+        "from": "tk_01m5jzc2m382zqf36700hyp0hc",
+        "to": "tk_01m5jzc2m3cx2dp8fq5mhxpvfg"
+      },
+      {
+        "from": "tk_01m5jzc2m3cx2dp8fq5mhxpvfg",
+        "to": "tk_01m5jzc2m32xtxtqs14jng7gkx"
+      },
+      {
+        "from": "tk_01m5jzc2m3ehbjy44ekg2tfqyc",
+        "to": "tk_01m5jzc2m3wexq2jga0a3s4y0e"
+      },
+      {
+        "from": "tk_01m5jzc2m3wexq2jga0a3s4y0e",
+        "to": "tk_01m5jzc2m32xtxtqs14jng7gkx"
+      },
+      {
+        "from": "tk_01m5jzc2m3ehbjy44ekg2tfqyc",
+        "to": "tk_01m5jzc2m30swrnbam6yyvr69e"
+      },
+      {
+        "from": "tk_01m5jzc2m3qms091m043fmn2mh",
+        "to": "tk_01m5jzc2m30swrnbam6yyvr69e"
+      },
+      {
+        "from": "tk_01m5jzc2m30swrnbam6yyvr69e",
+        "to": "tk_01m5jzc2m32xtxtqs14jng7gkx"
+      },
+      {
+        "from": "tk_01m5jzc2m3cx2dp8fq5mhxpvfg",
+        "to": "tk_01m5jzc2m3zc232ea3b3dz4kvk"
+      },
+      {
+        "from": "tk_01m5jzc2m3wexq2jga0a3s4y0e",
+        "to": "tk_01m5jzc2m3zc232ea3b3dz4kvk"
+      },
+      {
+        "from": "tk_01m5jzc2m30swrnbam6yyvr69e",
+        "to": "tk_01m5jzc2m3zc232ea3b3dz4kvk"
+      },
+      {
+        "from": "tk_01m5jzc2m3zc232ea3b3dz4kvk",
+        "to": "tk_01m5jzc2m32xtxtqs14jng7gkx"
+      },
+      {
+        "from": "tk_01m5jzc2m3zc232ea3b3dz4kvk",
+        "to": "tk_01m5jzc2m36gdxmyvgws1jq0gt"
+      },
+      {
+        "from": "tk_01m5jzc2m36gdxmyvgws1jq0gt",
+        "to": "tk_01m5jzc2m32xtxtqs14jng7gkx"
+      }
+    ],
+    "epic": {
+      "intent": "Make Dark Mechanicus reject unsupported completion claims and deliver exactly the source that was verified, then reduce the coordination work agents must perform. The owner should be able to trust accepted tickets and sprint increments, recover interrupted runs through explicit actions, and choose a persistent single worker or parallel workers according to task coupling.\n\nOrder: (1) acceptance, artifact and increment invariants; (2) runtime-produced check receipts and evidence freshness; (3) scoped worker authority, lifecycle supervision, integration state and direct recovery; (4) task-appropriate execution, failure-aware routing, explicit capability constraints and a reproducible comparison.\n\nPreserve human checkpoint authority, immutable historical evidence, provider neutrality, portable repository records, separate integration worktrees and existing external-host support. Each work ticket uses TDD and targeted checks; each sprint has one Fireguard ticket followed by its acceptance node running the full project Definition of Done once. Native/process/IPC changes also require a real packaged/Electron-path exercise before acceptance.\n\nDo not modify or adopt revisions of the in-flight Source control epic. Execute on a dedicated feature branch from the integrated base selected at run start. Planning creates no branch or run. Completed Scrum cadence work is provenance, not state to copy.\n\nThe existing SPACE scorecards epic (ep_01m452vt115eqccd1ypdd596fy) owns comprehensive usage/timing ingestion, grades and scorecard UI. Reuse its observation contract when present; otherwise this epic's evaluation records raw measurements with explicit unavailable fields and no claimed cost savings. Learned model routing, mandatory independent-model review, OS-level sandboxing and cross-repository automation are outside this epic.",
+      "ownerRole": null,
+      "successCriteria": [
+        {
+          "id": "s1",
+          "text": "New acceptance decisions require complete explicit reviewer results for the pinned criteria and verified expected artifacts; missing, duplicate, unknown or unmet criterion evidence cannot unlock dependent tickets, while completed historical records retain their original hashes."
+        },
+        {
+          "id": "s2",
+          "text": "Sprint delivery is verified against a durable integration manifest and tested source identity; unrelated or incomplete commits, stale evidence and post-check source changes fail closed, and the existing unrelated-commit reproduction cannot pass."
+        },
+        {
+          "id": "s3",
+          "text": "Required check results have runtime-produced, immutable receipts tied to source identity, command and outcome; forged, failed, skipped or stale receipts cannot satisfy gates, and Fireguard evidence is reused only for the verified source."
+        },
+        {
+          "id": "s4",
+          "text": "Hosted workers cannot exercise orchestrator or reviewer authority, and a deterministic supervisor renews only live worker leases, records worker/worktree lifecycle and survives interruption without duplicate work or automatic acceptance."
+        },
+        {
+          "id": "s5",
+          "text": "A concise next-actions view and explicit recovery commands resolve checkpoint leftovers and stale integration evidence without undocumented pause/resume sequences or relaxing human approval and retry limits."
+        },
+        {
+          "id": "s6",
+          "text": "Cohesive work can reuse one worker context while independent work can run in parallel; both retain ticket attempts, review and checkpoint invariants, failures are classified before escalation, and unsupported hard constraints are explicit rather than silently satisfied."
+        },
+        {
+          "id": "s7",
+          "text": "A reproducible comparison of single-worker, current orchestration and adaptive execution reports actual quality outcomes, coordination calls, elapsed time and available usage with explicit missing data; end-to-end exercises and updated guides demonstrate all guarantees without asserting unmeasured gains."
+        }
+      ],
+      "title": "Trustworthy completion and lighter agent orchestration"
+    },
+    "formatVersion": 1,
+    "policies": {
+      "leaseSeconds": 900,
+      "maxConcurrency": 2,
+      "onTicketFailure": "continue_independent",
+      "retryLimit": 3
+    },
+    "rationale": "Verification precedes throughput optimization. Four milestones separate (1) acceptance/artifact/increment invariants, (2) runtime check provenance, (3) scoped workers and deterministic supervision/recovery, and (4) adaptive execution and evaluation. Independent domain helpers can run in parallel; shared contracts and gate wiring have explicit dependencies. Every sprint has five coherent implementation tickets, one Fireguard ticket after those five, and its auto-created acceptance node. Human checkpoint approval remains mandatory. No run is started by this plan.\n\nCompatibility: new decisions use explicit versioned verification policy; preserve completed plans/reports/hashes and never silently grandfather a new acceptance from missing legacy evidence. Provide explicit revalidation/migration for active work. Keep expected artifacts and check receipts distinct from subjective semantic review. A runtime receipt is process evidence under the local-host trust boundary, not cryptographic proof against an administrator with filesystem access.\n\nSource identity: compare executable/configuration/test inputs, not an arbitrary branch name. Use a narrow versioned allowlist for generated DM bookkeeping; never blanket-exclude .darkmechanicus (profiles/project config may affect behavior). Capture source identity before and after checks, reject dirty/untracked relevant files, bind integration manifests and reused Fireguard to that identity, and invalidate on conflict resolution or source changes.\n\nPreserve the owner's standing orchestrator model: the user's session coordinates; workers implement; the lighter mode reuses a worker context and still claims/reviews each ticket. It does not authorize the orchestrator to implement tickets or hand off the run. Hosted supervision gets deterministic process control; external hosts retain an explicit supported reporting route without fabricated liveness, capabilities or receipts.\n\nRelated backlog: ep_01m452vt115eqccd1ypdd596fy owns SPACE scores and comprehensive usage/timing ledgers (DM-169/170/172/173/175). This epic exports compatible raw evaluation observations and can run with those features absent, reporting unknown usage. Do not modify that epic or the in-flight Source control epic. No existing branch is selected or created during planning; bind an isolated feature branch from the agreed integrated base at execution.\n\nFull DoD is read from the project at acceptance. Ticket workers run targeted checks only. Fireguard runs in each sprint's dedicated ticket with FIREGUARD_BASE_REF set to that sprint's start commit; full checks run once at acceptance, with rechecks only after changes invalidate evidence. Native/IPC work requires real Electron-path verification. Every phase must be exercised against its freshly built candidate in a scratch repository because the installed MCP server may predate the code being delivered.",
+    "relations": [],
+    "sprints": [
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": 2,
+        "entryCriteria": [],
+        "exitCriteria": [
+          {
+            "id": "x1",
+            "text": "The unmet-criterion and unrelated-increment reproductions are blocked by the command layer."
+          },
+          {
+            "id": "x2",
+            "text": "Evidence gaps are actionable in MCP and desktop, and historical records remain readable without rewritten hashes."
+          }
+        ],
+        "goal": "Reject unsupported acceptance and unrelated sprint increments.",
+        "id": "sp_01m5jz275zxpve9s276gzaw4s0",
+        "ordinal": 1,
+        "ticketIds": [
+          "tk_01m5jzc2kv6c85e4za935t6kx3",
+          "tk_01m5jzc2m28thvjkvbn786w12m",
+          "tk_01m5jzc2m2g10atwkqd3myhfwc",
+          "tk_01m5jzc2m258v6w6z6qtpweh1k",
+          "tk_01m5jzc2m2ytwefmta3efwaz3w",
+          "tk_01m5jzc2m2k2bmqcje8skpe65x",
+          "tk_01m5jz275zs09axdf7602yvjy3"
+        ]
+      },
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": 2,
+        "entryCriteria": [
+          {
+            "id": "n1",
+            "text": "The previous sprint's verified increment has passed its human checkpoint."
+          }
+        ],
+        "exitCriteria": [
+          {
+            "id": "x1",
+            "text": "Required checks are backed by immutable runtime receipts for the verified source; invented passed strings cannot satisfy gates."
+          },
+          {
+            "id": "x2",
+            "text": "Changed-source, failed/skipped, stale Fireguard and legacy evidence cases fail closed with a recovery path."
+          }
+        ],
+        "goal": "Bind required check results to runtime execution and the exact source delivered.",
+        "id": "sp_01m5jz3pvw6zk70axqg1yfx8hs",
+        "ordinal": 2,
+        "ticketIds": [
+          "tk_01m5jzc2m2p3nkkwdj94p3bvdf",
+          "tk_01m5jzc2m22nzwr1gq6y0er5ah",
+          "tk_01m5jzc2m20zakc2swa7hr9d0q",
+          "tk_01m5jzc2m26p2az1r6fn1qjvqa",
+          "tk_01m5jzc2m3qgt9bgswxvwbn54y",
+          "tk_01m5jzc2m3bjgmgdzgphj5ve4k",
+          "tk_01m5jz3pvwpnycst2nz7k1nzgf"
+        ]
+      },
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": 2,
+        "entryCriteria": [
+          {
+            "id": "n1",
+            "text": "The previous sprint's verified increment has passed its human checkpoint."
+          }
+        ],
+        "exitCriteria": [
+          {
+            "id": "x1",
+            "text": "Hosted worker authority and lease supervision are enforced by the runtime and exercised on real adapter/process paths."
+          },
+          {
+            "id": "x2",
+            "text": "Interrupted integration and checkpoint leftovers recover through explicit commands without duplicate work or implicit approval."
+          }
+        ],
+        "goal": "Move worker lifecycle, integration bookkeeping and recovery into deterministic runtime actions.",
+        "id": "sp_01m5jz3pw34pn41d7k0w1ajrhr",
+        "ordinal": 3,
+        "ticketIds": [
+          "tk_01m5jzc2m3qms091m043fmn2mh",
+          "tk_01m5jzc2m3ehbjy44ekg2tfqyc",
+          "tk_01m5jzc2m3dqc01bg22vdphqgg",
+          "tk_01m5jzc2m3p85dsavxnh4j2t74",
+          "tk_01m5jzc2m382zqf36700hyp0hc",
+          "tk_01m5jzc2m3zrwxxq1wbwmxf0kq",
+          "tk_01m5jz3pw38zqadf7t3srjy437"
+        ]
+      },
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": 2,
+        "entryCriteria": [
+          {
+            "id": "n1",
+            "text": "The previous sprint's verified increment has passed its human checkpoint."
+          }
+        ],
+        "exitCriteria": [
+          {
+            "id": "x1",
+            "text": "Persistent-worker and parallel execution preserve all completion guarantees while avoiding unnecessary worker launches."
+          },
+          {
+            "id": "x2",
+            "text": "A reproducible comparison and end-to-end evidence explain measured coordination overhead and quality, with unknown usage explicit."
+          }
+        ],
+        "goal": "Reduce unnecessary delegation and compare execution modes without weakening verification.",
+        "id": "sp_01m5jz3pw3snnay0pckem3pzb2",
+        "ordinal": 4,
+        "ticketIds": [
+          "tk_01m5jzc2m3cx2dp8fq5mhxpvfg",
+          "tk_01m5jzc2m3wexq2jga0a3s4y0e",
+          "tk_01m5jzc2m30swrnbam6yyvr69e",
+          "tk_01m5jzc2m3zc232ea3b3dz4kvk",
+          "tk_01m5jzc2m36gdxmyvgws1jq0gt",
+          "tk_01m5jzc2m32xtxtqs14jng7gkx",
+          "tk_01m5jz3pw37ct0vad55fa03sbv"
+        ]
+      }
+    ],
+    "tickets": [
+      {
+        "acceptanceCriteria": [
+          {
+            "covers": "tk_01m5jzc2kv6c85e4za935t6kx3",
+            "id": "c1",
+            "text": "Against the built candidate MCP server in a scratch epic, attempt the unmet-c1 reproduction and a complete legitimate review; only the latter unlocks the dependent."
+          },
+          {
+            "covers": "tk_01m5jzc2m28thvjkvbn786w12m",
+            "id": "c2",
+            "text": "Acceptance of a scratch submission fails when its expected artifact exists only in another checkout, and succeeds for a matching artifact in the submitted commit."
+          },
+          {
+            "covers": "tk_01m5jzc2m2g10atwkqd3myhfwc",
+            "id": "c3",
+            "text": "Build a two-worker scratch integration and inspect its manifest, then omit one worker and change a profile; both variants must be rejected or assigned a different source identity."
+          },
+          {
+            "covers": "tk_01m5jzc2m258v6w6z6qtpweh1k",
+            "id": "c4",
+            "text": "Run both the unrelated-commit and equivalent-squash fixtures through candidate command and checkpoint APIs; inspect the failed/passed gate details."
+          },
+          {
+            "covers": "tk_01m5jzc2m2ytwefmta3efwaz3w",
+            "id": "c5",
+            "text": "In the real Electron candidate, capture unmet-criterion and source-mismatch screens and complete a valid review without changing the historical source epic."
+          },
+          {
+            "covers": "tk_01m5jzc2m2k2bmqcje8skpe65x",
+            "id": "c6",
+            "text": "Inspect the accepted Fireguard grade/log and verified source identity; reuse it only for the same inputs, with no F and no unobserved passing result."
+          }
+        ],
+        "body": "Independently exercise the six covering criteria on the combined candidate in disposable repositories. Run the project's current Definition of Done once using its exact check names; take Fireguard only from the sprint's accepted grading result at matching source. Re-run checks only if intervening changes invalidate them. Stage 1 validates the new acceptance and source-manifest rules against the candidate build; from stage 2 onward use authentic runtime receipts and source freshness. Retain per-item evidence, manifest, actual logs and required screenshots. Land one equivalent squashed increment on the epic feature branch, verify that delivered source matches checked source, and submit a current report. At final sprint, answer every epic success criterion explicitly. Stop at the human checkpoint. Never use the older installed server or manually supplied passed strings as proof of the candidate's new behavior.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "skills/reviewer.md",
+              "skills/orchestrator.md",
+              "skills/sprint-reporter.md"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "deep",
+            "rationale": "This medium ticket has one hard trust, concurrency or compatibility boundary; use high effort to verify its failure paths."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m5jz275zs09axdf7602yvjy3",
+        "key": "DM-220",
+        "kind": "acceptance",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "size": "medium",
+        "tags": [
+          "agentic-hardening",
+          "acceptance",
+          "sprint-1"
+        ],
+        "title": "Sprint 1 acceptance: close completion gaps"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "covers": "tk_01m5jzc2m2p3nkkwdj94p3bvdf",
+            "id": "c1",
+            "text": "Attempt to forge a passed receipt through candidate MCP and import paths, then inspect an authentic receipt and its exported/reimported provenance."
+          },
+          {
+            "covers": "tk_01m5jzc2m22nzwr1gq6y0er5ah",
+            "id": "c2",
+            "text": "Run success, nonzero exit, hanging and source-mutating fixtures through the real candidate runner in Electron and the external helper; compare recorded outcomes to processes."
+          },
+          {
+            "covers": "tk_01m5jzc2m20zakc2swa7hr9d0q",
+            "id": "c3",
+            "text": "Exercise a scratch multi-row sprint: omit a row check, forge passed text, mutate a source file after checks and then provide fresh receipts; only unaffected tickets proceed early."
+          },
+          {
+            "covers": "tk_01m5jzc2m26p2az1r6fn1qjvqa",
+            "id": "c4",
+            "text": "In the Electron candidate, show a stale receipt, revalidate it, open its authentic log and verify that the checkpoint still needs human approval."
+          },
+          {
+            "covers": "tk_01m5jzc2m3qgt9bgswxvwbn54y",
+            "id": "c5",
+            "text": "Run the built-server end-to-end verification script against fresh and legacy scratch repos and retain its result for each scenario."
+          },
+          {
+            "covers": "tk_01m5jzc2m3bjgmgdzgphj5ve4k",
+            "id": "c6",
+            "text": "Inspect the accepted Fireguard grade/log and verified source identity; reuse it only for the same inputs, with no F and no unobserved passing result."
+          }
+        ],
+        "body": "Independently exercise the six covering criteria on the combined candidate in disposable repositories. Run the project's current Definition of Done once using its exact check names; take Fireguard only from the sprint's accepted grading result at matching source. Re-run checks only if intervening changes invalidate them. Stage 1 validates the new acceptance and source-manifest rules against the candidate build; from stage 2 onward use authentic runtime receipts and source freshness. Retain per-item evidence, manifest, actual logs and required screenshots. Land one equivalent squashed increment on the epic feature branch, verify that delivered source matches checked source, and submit a current report. At final sprint, answer every epic success criterion explicitly. Stop at the human checkpoint. Never use the older installed server or manually supplied passed strings as proof of the candidate's new behavior.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "skills/reviewer.md",
+              "skills/orchestrator.md",
+              "skills/sprint-reporter.md"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "deep",
+            "rationale": "This medium ticket has one hard trust, concurrency or compatibility boundary; use high effort to verify its failure paths."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m5jz3pvwpnycst2nz7k1nzgf",
+        "key": "DM-221",
+        "kind": "acceptance",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "size": "medium",
+        "tags": [
+          "agentic-hardening",
+          "acceptance",
+          "sprint-2"
+        ],
+        "title": "Sprint 2 acceptance: verify authentic evidence"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "covers": "tk_01m5jzc2m3qms091m043fmn2mh",
+            "id": "c1",
+            "text": "Use actual child reporting channels to attempt self-acceptance, another-attempt submission and post-expiry reporting; verify all fail while a legitimate worker heartbeat succeeds."
+          },
+          {
+            "covers": "tk_01m5jzc2m3ehbjy44ekg2tfqyc",
+            "id": "c2",
+            "text": "Run and kill a supervised fixture, restart the candidate app and inspect lease/child state; no duplicate launches or automatic acceptance may occur."
+          },
+          {
+            "covers": "tk_01m5jzc2m3dqc01bg22vdphqgg",
+            "id": "c3",
+            "text": "Integrate two accepted scratch workers, inject a merge conflict and interrupt an integration; replay must preserve user work, stop at conflict and invalidate stale evidence."
+          },
+          {
+            "covers": "tk_01m5jzc2m3p85dsavxnh4j2t74",
+            "id": "c4",
+            "text": "Exercise the documented required-leftover path and a crash-recovery path through public tools; verify direct recovery, fresh report requirements and human-only approval."
+          },
+          {
+            "covers": "tk_01m5jzc2m382zqf36700hyp0hc",
+            "id": "c5",
+            "text": "Resume a scratch run using only next-actions output and documented commands; capture the Electron view and trace the eliminated agent heartbeat/worktree bookkeeping."
+          },
+          {
+            "covers": "tk_01m5jzc2m3zrwxxq1wbwmxf0kq",
+            "id": "c6",
+            "text": "Inspect the accepted Fireguard grade/log and verified source identity; reuse it only for the same inputs, with no F and no unobserved passing result."
+          }
+        ],
+        "body": "Independently exercise the six covering criteria on the combined candidate in disposable repositories. Run the project's current Definition of Done once using its exact check names; take Fireguard only from the sprint's accepted grading result at matching source. Re-run checks only if intervening changes invalidate them. Stage 1 validates the new acceptance and source-manifest rules against the candidate build; from stage 2 onward use authentic runtime receipts and source freshness. Retain per-item evidence, manifest, actual logs and required screenshots. Land one equivalent squashed increment on the epic feature branch, verify that delivered source matches checked source, and submit a current report. At final sprint, answer every epic success criterion explicitly. Stop at the human checkpoint. Never use the older installed server or manually supplied passed strings as proof of the candidate's new behavior.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "skills/reviewer.md",
+              "skills/orchestrator.md",
+              "skills/sprint-reporter.md"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "deep",
+            "rationale": "This medium ticket has one hard trust, concurrency or compatibility boundary; use high effort to verify its failure paths."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m5jz3pw38zqadf7t3srjy437",
+        "key": "DM-222",
+        "kind": "acceptance",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "size": "medium",
+        "tags": [
+          "agentic-hardening",
+          "acceptance",
+          "sprint-3"
+        ],
+        "title": "Sprint 3 acceptance: demonstrate supervised recovery"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "covers": "tk_01m5jzc2m3cx2dp8fq5mhxpvfg",
+            "id": "c1",
+            "text": "Execute cohesive sequential and independent-branch scratch plans and inspect worker launch counts, separate attempts and unchanged acceptance/approval guarantees."
+          },
+          {
+            "covers": "tk_01m5jzc2m3wexq2jga0a3s4y0e",
+            "id": "c2",
+            "text": "Feed recorded auth, environment, integration, reasoning and ambiguous failures through the candidate router; compare recommendations and verify retry caps remain enforced."
+          },
+          {
+            "covers": "tk_01m5jzc2m30swrnbam6yyvr69e",
+            "id": "c3",
+            "text": "Try dispatch with missing tool, unverifiable residency and unavailable cost metering, then execute a duration-limited fixture and inspect truthful blockers and replacement records."
+          },
+          {
+            "covers": "tk_01m5jzc2m3zc232ea3b3dz4kvk",
+            "id": "c4",
+            "text": "Run all three task classes plus failure recovery through the comparison harness and inspect raw launch/tool/quality results, including an unavailable-usage case."
+          },
+          {
+            "covers": "tk_01m5jzc2m36gdxmyvgws1jq0gt",
+            "id": "c5",
+            "text": "Follow the new guide in the real Electron candidate and external helper, collect evidence for every epic success criterion and compare it with the raw evaluation report."
+          },
+          {
+            "covers": "tk_01m5jzc2m32xtxtqs14jng7gkx",
+            "id": "c6",
+            "text": "Inspect the accepted Fireguard grade/log and verified source identity; reuse it only for the same inputs, with no F and no unobserved passing result."
+          }
+        ],
+        "body": "Independently exercise the six covering criteria on the combined candidate in disposable repositories. Run the project's current Definition of Done once using its exact check names; take Fireguard only from the sprint's accepted grading result at matching source. Re-run checks only if intervening changes invalidate them. Stage 1 validates the new acceptance and source-manifest rules against the candidate build; from stage 2 onward use authentic runtime receipts and source freshness. Retain per-item evidence, manifest, actual logs and required screenshots. Land one equivalent squashed increment on the epic feature branch, verify that delivered source matches checked source, and submit a current report. At final sprint, answer every epic success criterion explicitly. Stop at the human checkpoint. Never use the older installed server or manually supplied passed strings as proof of the candidate's new behavior.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "skills/reviewer.md",
+              "skills/orchestrator.md",
+              "skills/sprint-reporter.md"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "deep",
+            "rationale": "This medium ticket has one hard trust, concurrency or compatibility boundary; use high effort to verify its failure paths."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m5jz3pw37ct0vad55fa03sbv",
+        "key": "DM-223",
+        "kind": "acceptance",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "size": "medium",
+        "tags": [
+          "agentic-hardening",
+          "acceptance",
+          "sprint-4"
+        ],
+        "title": "Sprint 4 acceptance: compare lighter execution"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Missing, partial, duplicate, unknown-ID and met:false reviewer results all refuse acceptance and leave ticket status, dependents and decision events unchanged."
+          },
+          {
+            "id": "c2",
+            "text": "An explicit complete passing reviewer result accepts once, overrides a worker claim only explicitly, and preserves idempotent replay; targeted command/API tests prove the same invariant as the service."
+          },
+          {
+            "id": "c3",
+            "text": "A zero-criterion new strict ticket is invalid; legacy active-ticket revalidation and completed-history reads are covered without changing old serialized hashes."
+          }
+        ],
+        "body": "Start with the review reproduction: submit c1 as unmet, call accept_attempt without replacement verdicts, and observe a dependent becoming ready. Enforce the structural reviewer contract against the attempt's pinned ticket, inside the same transaction as the decision. Require explicit reviewer-owned results rather than inheriting a worker's success claims. Add a versioned compatibility policy: completed history is untouched; new decisions cannot use absent legacy evidence as proof. Newly saved strict tickets need criteria; old zero-criterion active tickets need explicit revalidation or a revised ticket, with an actionable error. Reviewer notes may supersede a worker's unmet finding only by an explicit verified result. Preserve decision idempotency and unauthorized-role checks.\n\nDelivery: write failing behavioral tests before implementation, then run only the ticket's targeted checks and relevant typecheck. Never run the full suite/build/Fireguard per work ticket: Fireguard has its own ticket and the acceptance node runs the project Definition of Done once. Review against the candidate build in disposable repositories where installed-server behavior differs. Record per-criterion evidence, actual changed files/commits and any unsupported path. Preserve human checkpoints, revision pinning, retry limits and legacy serialized hashes.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/core/services/attempts.ts",
+              "src/core/services/attempts.review.test.ts",
+              "src/core/commandSchemas.ts",
+              "src/core/plan/graph.ts"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "deep",
+            "rationale": "This medium ticket has one hard trust, concurrency or compatibility boundary; use high effort to verify its failure paths."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/services/attempts.ts",
+          "src/core/services/attempts.review.test.ts"
+        ],
+        "id": "tk_01m5jzc2kv6c85e4za935t6kx3",
+        "key": "DM-224",
+        "optional": false,
+        "priority": "critical",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/attempts.ts",
+            "location": "src/core/services/attempts.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/attempts.review.test.ts",
+            "location": "src/core/services/attempts.review.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/commandSchemas.ts",
+            "location": "src/core/commandSchemas.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/plan/graph.ts",
+            "location": "src/core/plan/graph.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "agentic-hardening",
+          "sprint-1",
+          "trust-boundary"
+        ],
+        "title": "Enforce complete reviewer criteria before accepting a ticket"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Missing expected output, wrong hash, path escape and a local artifact present only in an unrelated working tree cannot be accepted; targeted repo/command tests exercise each case."
+          },
+          {
+            "id": "c2",
+            "text": "A local artifact at the named immutable revision is verifiable, while remote-only or unavailable evidence produces an explicit unverifiable result unless a supported verifier supplies proof."
+          },
+          {
+            "id": "c3",
+            "text": "Evidence survives restart/export/import and late verification cannot accept a changed or no-longer-submitted attempt; API compatibility and history-hash fixtures pass."
+          }
+        ],
+        "body": "Implement an artifact-verification adapter and evidence contract used by acceptance. Treat expectedArtifacts as exact repository-relative locations unless an explicit schema extension defines otherwise; never guess glob semantics. Verify repository artifacts from the submission's immutable source revision, not a mutable path in another worker's checkout. Enforce path containment including symlinks; compare hashes when supplied. Remote artifacts need an explicit supported verifier and receipt, otherwise report unverifiable and block the criterion that needs them. Do not fetch arbitrary remote URLs or invent proof. Keep asynchronous IO outside write transactions and recheck attempt/pinned-source identity before committing.\n\nDelivery: write failing behavioral tests before implementation, then run only the ticket's targeted checks and relevant typecheck. Never run the full suite/build/Fireguard per work ticket: Fireguard has its own ticket and the acceptance node runs the project Definition of Done once. Review against the candidate build in disposable repositories where installed-server behavior differs. Record per-criterion evidence, actual changed files/commits and any unsupported path. Preserve human checkpoints, revision pinning, retry limits and legacy serialized hashes.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/core/services/attempts.ts",
+              "src/core/commands/execution.ts",
+              "src/core/repo/fileHashes.ts",
+              "src/shared/domain/views.ts"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "This coherent change spans a contract and its adapters; verify the named behavior with targeted tests."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/services/attempts.ts",
+          "src/core/commands/execution.ts"
+        ],
+        "id": "tk_01m5jzc2m28thvjkvbn786w12m",
+        "key": "DM-225",
+        "optional": false,
+        "priority": "critical",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/attempts.ts",
+            "location": "src/core/services/attempts.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/commands/execution.ts",
+            "location": "src/core/commands/execution.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/fileHashes.ts",
+            "location": "src/core/repo/fileHashes.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/domain/views.ts",
+            "location": "src/shared/domain/views.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "agentic-hardening",
+          "sprint-1",
+          "implementation"
+        ],
+        "title": "Verify expected artifacts at the submitted source revision"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Real temporary Git tests show identical relevant source yields a stable identity across squash and allowed record-only changes, while code, tests, configuration, profile changes and relevant untracked files change or invalidate it."
+          },
+          {
+            "id": "c2",
+            "text": "Manifest creation fails for a missing required accepted input, foreign/superseded attempt, invalid base or unresolved integration; persisted accepted inputs are loaded by the server rather than trusted from request text."
+          },
+          {
+            "id": "c3",
+            "text": "Manifest and policy versions round-trip across restart and portable import; old records retain their original serialized form and cannot silently become verified manifests."
+          }
+        ],
+        "body": "Add a durable integration manifest naming run/revision/sprint, accepted attempt IDs and immutable worker commits, integration commit/tree, base and a canonical relevant-source digest. The server resolves accepted attempts and Git identities itself; client-supplied success booleans are not authoritative. Require all current required work inputs present in the integration lineage or an explicitly reviewed conflict-resolution record. Define a narrow versioned generated-bookkeeping exclusion allowlist; do not exclude profiles, project configuration, build/test inputs or all of .darkmechanicus. Reject dirty or relevant untracked source. Persist optional versioned fields without retroactively changing old hashes. This ticket establishes source/integration identity; runtime check receipts follow in sprint 2.\n\nDelivery: write failing behavioral tests before implementation, then run only the ticket's targeted checks and relevant typecheck. Never run the full suite/build/Fireguard per work ticket: Fireguard has its own ticket and the acceptance node runs the project Definition of Done once. Review against the candidate build in disposable repositories where installed-server behavior differs. Record per-criterion evidence, actual changed files/commits and any unsupported path. Preserve human checkpoints, revision pinning, retry limits and legacy serialized hashes.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/core/services/increments.ts",
+              "src/core/repo/git.ts",
+              "src/core/repo/types.ts",
+              "src/shared/domain/views.ts",
+              "src/core/repo/portable.ts"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "deep",
+            "rationale": "This medium ticket has one hard trust, concurrency or compatibility boundary; use high effort to verify its failure paths."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/services/increments.ts",
+          "src/core/repo/git.ts"
+        ],
+        "id": "tk_01m5jzc2m2g10atwkqd3myhfwc",
+        "key": "DM-226",
+        "optional": false,
+        "priority": "critical",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/increments.ts",
+            "location": "src/core/services/increments.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/git.ts",
+            "location": "src/core/repo/git.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/types.ts",
+            "location": "src/core/repo/types.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/domain/views.ts",
+            "location": "src/shared/domain/views.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/portable.ts",
+            "location": "src/core/repo/portable.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "agentic-hardening",
+          "sprint-1",
+          "trust-boundary"
+        ],
+        "title": "Capture a versioned integration manifest and canonical source identity"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A real Git fixture with worker implementation absent from an otherwise valid single-parent epic commit fails verification and cannot meet the increment gate; complete equivalent squash passes."
+          },
+          {
+            "id": "c2",
+            "text": "Wrong predecessor lineage, partial integration, changed integration source, missing manifest, moved branch and stale stored verdict cannot advance a new checkpoint; tests name the specific recovery action."
+          },
+          {
+            "id": "c3",
+            "text": "Allowed generated-record-only changes do not force source checks to rerun, while executable/configuration changes require new integration verification and never reuse a blanket .darkmechanicus exclusion."
+          }
+        ],
+        "body": "Extend increment verification to require the server-validated integration manifest and exact canonical source equivalence. Preserve useful branch checks but require each increment to follow the previous increment, not merely be outside its ancestry. Cover the unrelated-commit reproduction, partial integration and a post-verification rewrite. Recompute relevant Git/source conditions at decision/checkpoint time or invalidate the stored verdict on detected changes; a previously passing cached verdict is not permanent proof. New evidence must identify its source; completed legacy history stays readable but receives no invented provenance. Do not conflate this structural proof with independent runtime check receipts (sprint 2).\n\nDelivery: write failing behavioral tests before implementation, then run only the ticket's targeted checks and relevant typecheck. Never run the full suite/build/Fireguard per work ticket: Fireguard has its own ticket and the acceptance node runs the project Definition of Done once. Review against the candidate build in disposable repositories where installed-server behavior differs. Record per-criterion evidence, actual changed files/commits and any unsupported path. Preserve human checkpoints, revision pinning, retry limits and legacy serialized hashes.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/core/services/incrementVerify.ts",
+              "src/core/services/incrementVerify.test.ts",
+              "src/core/services/increments.ts",
+              "src/core/services/checkpoints.ts",
+              "src/core/commands/execution.ts"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "deep",
+            "rationale": "This medium ticket has one hard trust, concurrency or compatibility boundary; use high effort to verify its failure paths."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/services/incrementVerify.ts",
+          "src/core/services/incrementVerify.test.ts"
+        ],
+        "id": "tk_01m5jzc2m258v6w6z6qtpweh1k",
+        "key": "DM-227",
+        "optional": false,
+        "priority": "critical",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/incrementVerify.ts",
+            "location": "src/core/services/incrementVerify.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/incrementVerify.test.ts",
+            "location": "src/core/services/incrementVerify.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/increments.ts",
+            "location": "src/core/services/increments.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/checkpoints.ts",
+            "location": "src/core/services/checkpoints.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/commands/execution.ts",
+            "location": "src/core/commands/execution.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "agentic-hardening",
+          "sprint-1",
+          "trust-boundary"
+        ],
+        "title": "Reject increments that differ from the verified integration source"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "MCP and desktop display criterion IDs, artifact/source mismatch and explicit legacy status consistently, with actionable recovery rather than a silent acceptance override."
+          },
+          {
+            "id": "c2",
+            "text": "A reviewer can provide complete criterion results and retry verification using supported UI/API controls; failed decisions never render as completed."
+          },
+          {
+            "id": "c3",
+            "text": "Targeted adapter/component tests plus screenshots of failed and successful scratch reviews demonstrate the contract; shipped prompts describe the same behavior and existing historical views still render."
+          }
+        ],
+        "body": "Wire new completion diagnostics through shared views, MCP descriptions and desktop attempt/checkpoint views. Show the exact missing criterion/artifact, mismatched source or legacy revalidation requirement, and how to resolve it; no generic 'looks right' acceptance path should hide structural failure. Update reviewer/worker/orchestrator guides and versioned prompts to match the new contract. Make tests exercise command rejection through the desktop/MCP adapters. Keep existing run approval controls and don't migrate completed outcomes in place. Bootstrapping: validate against the freshly built candidate in a scratch repo; an older installed MCP process cannot demonstrate these new invariants.\n\nDelivery: write failing behavioral tests before implementation, then run only the ticket's targeted checks and relevant typecheck. Never run the full suite/build/Fireguard per work ticket: Fireguard has its own ticket and the acceptance node runs the project Definition of Done once. Review against the candidate build in disposable repositories where installed-server behavior differs. Record per-criterion evidence, actual changed files/commits and any unsupported path. Preserve human checkpoints, revision pinning, retry limits and legacy serialized hashes.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/mcp/tools/execution.ts",
+              "src/renderer/src",
+              "skills/reviewer.md",
+              "skills/worker.md",
+              "skills/orchestrator.md",
+              "src/mcp/skills.ts"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "This coherent change spans a contract and its adapters; verify the named behavior with targeted tests."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/mcp/tools/execution.ts",
+          "skills/reviewer.md"
+        ],
+        "id": "tk_01m5jzc2m2ytwefmta3efwaz3w",
+        "key": "DM-228",
+        "optional": false,
+        "priority": "critical",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/tools/execution.ts",
+            "location": "src/mcp/tools/execution.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src",
+            "location": "src/renderer/src",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/reviewer.md",
+            "location": "skills/reviewer.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/worker.md",
+            "location": "skills/worker.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/orchestrator.md",
+            "location": "skills/orchestrator.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/skills.ts",
+            "location": "src/mcp/skills.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "agentic-hardening",
+          "sprint-1",
+          "implementation"
+        ],
+        "title": "Expose completion failures and explicit legacy revalidation in MCP and desktop"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The combined committed sprint work is graded against its recorded start commit; the grade and complete log artifact identify the exact checked source and no test remains graded F."
+          },
+          {
+            "id": "c2",
+            "text": "Any test-only repair has targeted passing checks, refreshed source provenance and a new grade; production behavior and grading rules are not weakened."
+          },
+          {
+            "id": "c3",
+            "text": "The acceptance node can reuse this result only for the same source/check inputs; after the receipt runner lands it is an authentic runtime receipt rather than a manually asserted passed string."
+          }
+        ],
+        "body": "Run Fireguard only after the sprint's five work tickets are accepted and integrated in the managed integration worktree. Set FIREGUARD_BASE_REF to the recorded sprint-start commit and grade the combined committed source. Inspect the actual grade: an F requires targeted test repairs and regrading. Do not relax lint/mutation rules, change production code or omit a failing grade. Return the grade and logs as an execution artifact; after sprint 2, use the trusted receipt runner and bind it to the canonical source/check definition. If test repairs change that source, refresh the integration manifest and grade the repaired source. The acceptance node consumes this exact evidence, rerunning through this ticket's supported retry/repair path only after an invalidating change. This ticket does not run the entire project gate.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "fireguard/README.md",
+              "src/test"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Test grading and focused test repairs need multi-step reasoning without changing production behavior."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m5jzc2m2k2bmqcje8skpe65x",
+        "key": "DM-229",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Fireguard workflow",
+            "location": "fireguard/README.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "agentic-hardening",
+          "fireguard",
+          "sprint-1"
+        ],
+        "title": "Grade sprint 1 unit tests with Fireguard"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Receipt IDs and immutable payloads persist with referential validation; altered log hashes, foreign source/attempt IDs and duplicate conflicting receipts are rejected in targeted storage/command tests."
+          },
+          {
+            "id": "c2",
+            "text": "Only the trusted execution path can create a verified receipt; a worker or orchestrator submitting evidence.checks or a copied receipt body cannot mint one."
+          },
+          {
+            "id": "c3",
+            "text": "Legacy, unknown-origin and imported records round-trip without manufactured verification or rewritten completed-history hashes; logs and stored commands are bounded and redact claim tokens."
+          }
+        ],
+        "body": "Introduce a versioned receipt record separate from agent-authored evidence.checks. Include attempt/run/sprint/revision identity, canonical source digest and relevant environment/lockfile identity, check definition digest, exact configured command and arguments/cwd, start/end, process outcome/exit code, immutable bounded log artifact/hash and producer identity. Failed, timed-out and canceled execution are first-class results. Imported receipts retain origin/trust status, never automatically grant local execution authority. Runtime-only creation is enforced at the command boundary; agent text cannot set producer/verified fields. Preserve old serialized records and distinguish legacy reported evidence from current verified receipts.\n\nDelivery: write failing behavioral tests before implementation, then run only the ticket's targeted checks and relevant typecheck. Never run the full suite/build/Fireguard per work ticket: Fireguard has its own ticket and the acceptance node runs the project Definition of Done once. Review against the candidate build in disposable repositories where installed-server behavior differs. Record per-criterion evidence, actual changed files/commits and any unsupported path. Preserve human checkpoints, revision pinning, retry limits and legacy serialized hashes.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/shared/domain/views.ts",
+              "src/shared/domain/api.ts",
+              "src/core/db/migrations.ts",
+              "src/core/repo/portable.ts",
+              "src/core/definitionOfDone.ts"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "deep",
+            "rationale": "This medium ticket has one hard trust, concurrency or compatibility boundary; use high effort to verify its failure paths."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/shared/domain/views.ts",
+          "src/shared/domain/api.ts"
+        ],
+        "id": "tk_01m5jzc2m2p3nkkwdj94p3bvdf",
+        "key": "DM-230",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/domain/views.ts",
+            "location": "src/shared/domain/views.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/domain/api.ts",
+            "location": "src/shared/domain/api.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/db/migrations.ts",
+            "location": "src/core/db/migrations.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/portable.ts",
+            "location": "src/core/repo/portable.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/definitionOfDone.ts",
+            "location": "src/core/definitionOfDone.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "agentic-hardening",
+          "sprint-2",
+          "trust-boundary"
+        ],
+        "title": "Persist immutable check receipts with source and command provenance"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Real child-process fixtures produce passed, failed, timed-out and canceled receipts from actual exit status; forged reported status cannot replace it, and commands with spaced Windows paths work."
+          },
+          {
+            "id": "c2",
+            "text": "Changed/dirty/untracked relevant source before or during execution cannot receive a passing receipt for a different source; configured-command changes and unauthorized requested commands are rejected."
+          },
+          {
+            "id": "c3",
+            "text": "Concurrent/replayed requests do not execute a check twice for one idempotency key; interruption/cancel cleans the process tree and logs expose no claim secrets."
+          },
+          {
+            "id": "c4",
+            "text": "The desktop/Electron path and external local-helper route both execute a real benign fixture through the shared runner; unavailable hosts are explicitly unsupported rather than self-attested."
+          }
+        ],
+        "body": "Implement a shared Node runtime check runner used by desktop and a supported external-host local helper. It executes only the project's explicitly configured Definition of Done or approved targeted checks, with a pinned definition/source and existing command approval policy. No arbitrary command from ticket prose becomes trusted. Use an isolated named integration worktree, argument-safe Windows paths, bounded logs, timeout/cancel/process-tree cleanup and per-check idempotency. Capture relevant source before and after execution: checks that modify relevant inputs require an explicit generation phase and a subsequent verification on the new source, never a receipt for the old digest. A live but hung process is not a passing check. The helper must call the same trusted runtime logic rather than accept externally supplied exit codes.\n\nDelivery: write failing behavioral tests before implementation, then run only the ticket's targeted checks and relevant typecheck. Never run the full suite/build/Fireguard per work ticket: Fireguard has its own ticket and the acceptance node runs the project Definition of Done once. Review against the candidate build in disposable repositories where installed-server behavior differs. Record per-criterion evidence, actual changed files/commits and any unsupported path. Preserve human checkpoints, revision pinning, retry limits and legacy serialized hashes.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/core/workspace.ts",
+              "src/core/commands/execution.ts",
+              "src/main/agents/processTree.ts",
+              "src/main/desktop/handlers.ts",
+              "src/core/repo/git.ts"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "deep",
+            "rationale": "This medium ticket has one hard trust, concurrency or compatibility boundary; use high effort to verify its failure paths."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/workspace.ts",
+          "src/core/commands/execution.ts"
+        ],
+        "id": "tk_01m5jzc2m22nzwr1gq6y0er5ah",
+        "key": "DM-231",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/workspace.ts",
+            "location": "src/core/workspace.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/commands/execution.ts",
+            "location": "src/core/commands/execution.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/processTree.ts",
+            "location": "src/main/agents/processTree.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/handlers.ts",
+            "location": "src/main/desktop/handlers.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/git.ts",
+            "location": "src/core/repo/git.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "agentic-hardening",
+          "sprint-2",
+          "trust-boundary"
+        ],
+        "title": "Execute configured checks through a controlled receipt-producing runner"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Fake passed text, stale receipt, wrong check definition, failed/skipped result, modified source and unknown-origin receipt all leave the relevant gate unmet; valid matching receipt satisfies it."
+          },
+          {
+            "id": "c2",
+            "text": "Missing/failed/stale integration evidence holds only affected dependents, while unrelated ready work remains schedulable; missing evidence is not treated as a passing row check."
+          },
+          {
+            "id": "c3",
+            "text": "Fireguard is reused once for identical verified inputs and rerun when its inputs change; bookkeeping-only changes do not create endless revalidation."
+          },
+          {
+            "id": "c4",
+            "text": "A checkpoint/increment re-evaluation detects relevant changes after previous receipt/verdict creation and gives a legal recovery action without rewriting prior evidence."
+          }
+        ],
+        "body": "Wire receipts into required check/acceptance, Definition of Done, row integration checks and increment gating. Match exact configured check definition and source/environment identity; a passed string in an accepted attempt is insufficient. Treat missing row checks as distinct from passed: when a downstream ticket requires integrated output, require a current successful check for the actual required integrated inputs; do not impose a barrier on unrelated tickets. Reuse the dedicated Fireguard result only at matching source/check scope; after test/source changes, rerun inside the Fireguard ticket's supported repair/retry path before acceptance. Ensure acceptance-node bookkeeping does not create circular digest invalidation. Completed history is read-only; new decisions with legacy evidence request explicit revalidation.\n\nDelivery: write failing behavioral tests before implementation, then run only the ticket's targeted checks and relevant typecheck. Never run the full suite/build/Fireguard per work ticket: Fireguard has its own ticket and the acceptance node runs the project Definition of Done once. Review against the candidate build in disposable repositories where installed-server behavior differs. Record per-criterion evidence, actual changed files/commits and any unsupported path. Preserve human checkpoints, revision pinning, retry limits and legacy serialized hashes.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/core/services/checkpoints.ts",
+              "src/core/services/attempts.ts",
+              "src/core/services/incrementVerify.ts",
+              "src/core/services/rowChecks.ts",
+              "src/core/plan/readiness.ts"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "deep",
+            "rationale": "This medium ticket has one hard trust, concurrency or compatibility boundary; use high effort to verify its failure paths."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/services/checkpoints.ts",
+          "src/core/services/attempts.ts"
+        ],
+        "id": "tk_01m5jzc2m20zakc2swa7hr9d0q",
+        "key": "DM-232",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/checkpoints.ts",
+            "location": "src/core/services/checkpoints.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/attempts.ts",
+            "location": "src/core/services/attempts.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/incrementVerify.ts",
+            "location": "src/core/services/incrementVerify.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/rowChecks.ts",
+            "location": "src/core/services/rowChecks.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/plan/readiness.ts",
+            "location": "src/core/plan/readiness.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "agentic-hardening",
+          "sprint-2",
+          "trust-boundary"
+        ],
+        "title": "Require fresh runtime receipts for acceptance and checkpoint checks"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Desktop and MCP show the same receipt state/source/check identity and distinguish stale or merely reported evidence; log links cannot escape the supported artifact boundary."
+          },
+          {
+            "id": "c2",
+            "text": "Run, cancel and revalidate actions use the controlled runner and update gate state only from its immutable receipts; component/IPC tests cover denial and interrupted execution."
+          },
+          {
+            "id": "c3",
+            "text": "A real Electron scratch sprint demonstrates stale evidence, revalidation, matching Fireguard reuse and checkpoint approval still reserved for a person; screenshots and helper instructions are retained."
+          }
+        ],
+        "body": "Expose verified/reported/legacy/stale check states, tested source, command identity, outcomes and log links in attempt/checkpoint views and MCP responses. Provide explicit run/revalidate/cancel actions backed by the shared runner and normal command permissions, with no UI-created passed receipt. External hosts get documented helper invocation and receipt lookup; disabled capabilities have a readable reason. Do not add dashboards or SPACE grading. Update the acceptance and Fireguard workflow guides, preserving the project's exact check names and human approval.\n\nDelivery: write failing behavioral tests before implementation, then run only the ticket's targeted checks and relevant typecheck. Never run the full suite/build/Fireguard per work ticket: Fireguard has its own ticket and the acceptance node runs the project Definition of Done once. Review against the candidate build in disposable repositories where installed-server behavior differs. Record per-criterion evidence, actual changed files/commits and any unsupported path. Preserve human checkpoints, revision pinning, retry limits and legacy serialized hashes.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/renderer/src/checkpoint",
+              "src/renderer/src",
+              "src/mcp/tools/execution.ts",
+              "src/main/desktop/handlers.ts",
+              "src/preload",
+              "docs/runbooks"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "This coherent change spans a contract and its adapters; verify the named behavior with targeted tests."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/mcp/tools/execution.ts",
+          "src/main/desktop/handlers.ts"
+        ],
+        "id": "tk_01m5jzc2m26p2az1r6fn1qjvqa",
+        "key": "DM-233",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/checkpoint",
+            "location": "src/renderer/src/checkpoint",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src",
+            "location": "src/renderer/src",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/tools/execution.ts",
+            "location": "src/mcp/tools/execution.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/handlers.ts",
+            "location": "src/main/desktop/handlers.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/preload",
+            "location": "src/preload",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/runbooks",
+            "location": "docs/runbooks",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "agentic-hardening",
+          "sprint-2",
+          "implementation"
+        ],
+        "title": "Show verified check provenance and run or revalidate checks explicitly"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Built-server smoke fixtures reject both original reproductions through public tools, accept a valid integrated sprint with real check receipts, and reject source changes after verification."
+          },
+          {
+            "id": "c2",
+            "text": "A legacy completed fixture is byte/hash stable; an unfinished legacy fixture cannot advance on missing provenance and can recover through documented revalidation."
+          },
+          {
+            "id": "c3",
+            "text": "Targeted smoke/integration checks run in disposable repos without modifying the live Source control epic; bootstrap and recovery instructions name installed-versus-candidate versions explicitly."
+          }
+        ],
+        "body": "Add a small end-to-end regression harness using the built candidate and disposable Git repositories, not the live planning database. Cover unmet criteria, missing artifacts, unrelated increments, authentic receipts, stale sources, Fireguard reuse and real source-change rechecks. Include a legacy completed snapshot and unfinished legacy run: history remains unchanged, the unfinished run needs explicit evidence revalidation. Record the bootstrap procedure for replacing an older installed server only at a safe checkpoint with no open leases; never silently switch a running process or bless old claims. This ticket owns cross-component behavioral verification, not the full gate or Fireguard grading.\n\nDelivery: write failing behavioral tests before implementation, then run only the ticket's targeted checks and relevant typecheck. Never run the full suite/build/Fireguard per work ticket: Fireguard has its own ticket and the acceptance node runs the project Definition of Done once. Review against the candidate build in disposable repositories where installed-server behavior differs. Record per-criterion evidence, actual changed files/commits and any unsupported path. Preserve human checkpoints, revision pinning, retry limits and legacy serialized hashes.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/test",
+              "scripts/mcp-smoke.mjs",
+              "src/core/repo/legacyRecords.test.ts",
+              "src/mcp/tools/execution.test.ts",
+              "docs/runbooks"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "This coherent change spans a contract and its adapters; verify the named behavior with targeted tests."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "scripts/mcp-smoke.mjs",
+          "src/core/repo/legacyRecords.test.ts"
+        ],
+        "id": "tk_01m5jzc2m3qgt9bgswxvwbn54y",
+        "key": "DM-234",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/test",
+            "location": "src/test",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "scripts/mcp-smoke.mjs",
+            "location": "scripts/mcp-smoke.mjs",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/legacyRecords.test.ts",
+            "location": "src/core/repo/legacyRecords.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/tools/execution.test.ts",
+            "location": "src/mcp/tools/execution.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/runbooks",
+            "location": "docs/runbooks",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "agentic-hardening",
+          "sprint-2",
+          "implementation"
+        ],
+        "title": "Exercise verification migration and both original gaps end to end"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The combined committed sprint work is graded against its recorded start commit; the grade and complete log artifact identify the exact checked source and no test remains graded F."
+          },
+          {
+            "id": "c2",
+            "text": "Any test-only repair has targeted passing checks, refreshed source provenance and a new grade; production behavior and grading rules are not weakened."
+          },
+          {
+            "id": "c3",
+            "text": "The acceptance node can reuse this result only for the same source/check inputs; after the receipt runner lands it is an authentic runtime receipt rather than a manually asserted passed string."
+          }
+        ],
+        "body": "Run Fireguard only after the sprint's five work tickets are accepted and integrated in the managed integration worktree. Set FIREGUARD_BASE_REF to the recorded sprint-start commit and grade the combined committed source. Inspect the actual grade: an F requires targeted test repairs and regrading. Do not relax lint/mutation rules, change production code or omit a failing grade. Return the grade and logs as an execution artifact; after sprint 2, use the trusted receipt runner and bind it to the canonical source/check definition. If test repairs change that source, refresh the integration manifest and grade the repaired source. The acceptance node consumes this exact evidence, rerunning through this ticket's supported retry/repair path only after an invalidating change. This ticket does not run the entire project gate.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "fireguard/README.md",
+              "src/test"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Test grading and focused test repairs need multi-step reasoning without changing production behavior."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m5jzc2m3bjgmgdzgphj5ve4k",
+        "key": "DM-235",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Fireguard workflow",
+            "location": "fireguard/README.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "agentic-hardening",
+          "fireguard",
+          "sprint-2"
+        ],
+        "title": "Grade sprint 2 unit tests with Fireguard"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "An actual worker-channel caller cannot accept/reject, alter drafts, mint check receipts, approve checkpoints or report for another attempt; forged identity and reused expired/fenced credentials fail."
+          },
+          {
+            "id": "c2",
+            "text": "Each hosted adapter declares and exercises scoped-channel support or an explicit supported proxy alternative; no same-session inherited orchestrator connection is described as restricted."
+          },
+          {
+            "id": "c3",
+            "text": "Real adapter/process-path fixtures demonstrate worker reporting and review by the coordinator, with credentials revoked at lifecycle end and masked from logs/UI."
+          }
+        ],
+        "body": "Introduce a worker reporting channel bound to its attempt, fencing token, allowed tools and worker identity. Do not rely on an untrusted subagent role label or prompt to narrow an orchestrator connection. Negotiate real provider-adapter support for scoped child connections; where inherited native subagents cannot be restricted, use an isolated worker channel or a no-token/no-privileged-tools worker with orchestrator-mediated reporting and an explicit capability notice. Preserve the user's coordinator session and subagent model. Workers must not call review, planning, checkpoint or other attempts' reporting operations. Revoke credentials on submit/fail/expiry/cancel and keep secrets out of transcript/storage. This is application/tool authority, not a promise to sandbox an administrator's filesystem.\n\nDelivery: write failing behavioral tests before implementation, then run only the ticket's targeted checks and relevant typecheck. Never run the full suite/build/Fireguard per work ticket: Fireguard has its own ticket and the acceptance node runs the project Definition of Done once. Review against the candidate build in disposable repositories where installed-server behavior differs. Record per-criterion evidence, actual changed files/commits and any unsupported path. Preserve human checkpoints, revision pinning, retry limits and legacy serialized hashes.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/core/authz.ts",
+              "src/core/services/sessions.ts",
+              "src/mcp/server.ts",
+              "src/main/agents/orchestratorKickoff.ts",
+              "src/main/agents/adapters"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "deep",
+            "rationale": "This medium ticket has one hard trust, concurrency or compatibility boundary; use high effort to verify its failure paths."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/authz.ts",
+          "src/core/services/sessions.ts"
+        ],
+        "id": "tk_01m5jzc2m3qms091m043fmn2mh",
+        "key": "DM-236",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/authz.ts",
+            "location": "src/core/authz.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/sessions.ts",
+            "location": "src/core/services/sessions.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/server.ts",
+            "location": "src/mcp/server.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/orchestratorKickoff.ts",
+            "location": "src/main/agents/orchestratorKickoff.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/adapters",
+            "location": "src/main/agents/adapters",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "agentic-hardening",
+          "sprint-3",
+          "trust-boundary"
+        ],
+        "title": "Give hosted workers attempt-scoped authority instead of inherited orchestration tools"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Fake-clock tests and real child fixtures show automatic renewals only for live correctly bound work, deadlines for hung/no-progress workers, and renewal shutdown on all terminal/pause/fencing cases."
+          },
+          {
+            "id": "c2",
+            "text": "Crash points before/after launch acknowledgement and runtime restart reconcile to one owned child/attempt or needs_reconciliation, never duplicate implementation or auto-acceptance."
+          },
+          {
+            "id": "c3",
+            "text": "Sign-out preserves the existing explicit pause/re-auth/resume policy; external/manual mode stays usable and does not pretend the supervisor can observe its processes."
+          },
+          {
+            "id": "c4",
+            "text": "A real Electron adapter-path exercise runs a benign worker, interrupts it and resumes/reconciles it with no agent-issued periodic heartbeat loop."
+          }
+        ],
+        "body": "Add a deterministic supervisor around app-owned worker execution: persist launch intent and child/attempt identity, reconcile start acknowledgement, renew only a positively identified live owned worker while its run permits it, and stop on completion, hang timeout, provider failure, sign-out, pause, cancel or fencing change. Distinguish process alive, observed progress and elapsed/idle deadlines; never invent progress to extend a lease indefinitely. Preserve signed-out pause semantics and coordinate the resume handshake explicitly. Runtime restart reconciles durable claims/children before dispatch, without launching duplicates or accepting uncertain work. External hosts retain manual heartbeat support and advertise whether supervision is available; do not spawn background processes for external hosts without a supported adapter.\n\nDelivery: write failing behavioral tests before implementation, then run only the ticket's targeted checks and relevant typecheck. Never run the full suite/build/Fireguard per work ticket: Fireguard has its own ticket and the acceptance node runs the project Definition of Done once. Review against the candidate build in disposable repositories where installed-server behavior differs. Record per-criterion evidence, actual changed files/commits and any unsupported path. Preserve human checkpoints, revision pinning, retry limits and legacy serialized hashes.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/main/agents/sessionManager.ts",
+              "src/main/agents/processTree.ts",
+              "src/main/agents/orchestratorStart.ts",
+              "src/core/services/attempts.ts",
+              "src/core/services/runs.ts"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "deep",
+            "rationale": "This medium ticket has one hard trust, concurrency or compatibility boundary; use high effort to verify its failure paths."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/main/agents/sessionManager.ts",
+          "src/main/agents/processTree.ts"
+        ],
+        "id": "tk_01m5jzc2m3ehbjy44ekg2tfqyc",
+        "key": "DM-237",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/sessionManager.ts",
+            "location": "src/main/agents/sessionManager.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/processTree.ts",
+            "location": "src/main/agents/processTree.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/orchestratorStart.ts",
+            "location": "src/main/agents/orchestratorStart.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/attempts.ts",
+            "location": "src/core/services/attempts.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/runs.ts",
+            "location": "src/core/services/runs.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "agentic-hardening",
+          "sprint-3",
+          "trust-boundary"
+        ],
+        "title": "Supervise worker launches and leases from durable runtime state"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Real Git tests prove deterministic isolated branch/worktree creation and replay-safe integration for accepted attempts; the coordinating checkout and unrelated files never switch or reset."
+          },
+          {
+            "id": "c2",
+            "text": "Concurrent integration, unresolved conflicts, changed bases and interrupted operations yield explicit recoverable state; no receipt survives a relevant source change unnoticed."
+          },
+          {
+            "id": "c3",
+            "text": "Cleanup refuses outside-root, unowned, dirty or uncertain targets and preserves logs/commits needed for review; a completed safe fixture can be cleaned without losing portable provenance."
+          }
+        ],
+        "body": "Add explicit idempotent prepare-worker, integrate-accepted-result and inspect/clean-up commands for app-owned runs. Persist worktree root, base, attempt, branch and integration manifest checkpoints. Verify resolved paths are inside the managed area, serialize mutation of each integration branch, check attempt/commit identity and stop on conflicts. Do not reset, delete or move user-owned/uncommitted work; cleanup requires a verified safe owned target and preserved evidence. Integrate only reviewed accepted work, record any reviewed conflict-resolution commit, then invalidate affected row/check receipts. Detect a changed checkout or interrupted Git action and reconcile instead of guessing success. The coordinator chooses integration/conflict decisions but no longer scripts routine worktree bookkeeping.\n\nDelivery: write failing behavioral tests before implementation, then run only the ticket's targeted checks and relevant typecheck. Never run the full suite/build/Fireguard per work ticket: Fireguard has its own ticket and the acceptance node runs the project Definition of Done once. Review against the candidate build in disposable repositories where installed-server behavior differs. Record per-criterion evidence, actual changed files/commits and any unsupported path. Preserve human checkpoints, revision pinning, retry limits and legacy serialized hashes.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/core/repo/git.ts",
+              "src/core/repo/types.ts",
+              "src/core/services/increments.ts",
+              "src/main/agents/sessionManager.ts",
+              "src/shared/domain/api.ts"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "deep",
+            "rationale": "This medium ticket has one hard trust, concurrency or compatibility boundary; use high effort to verify its failure paths."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/repo/git.ts",
+          "src/core/repo/types.ts"
+        ],
+        "id": "tk_01m5jzc2m3dqc01bg22vdphqgg",
+        "key": "DM-238",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/git.ts",
+            "location": "src/core/repo/git.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/types.ts",
+            "location": "src/core/repo/types.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/increments.ts",
+            "location": "src/core/services/increments.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/sessionManager.ts",
+            "location": "src/main/agents/sessionManager.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/domain/api.ts",
+            "location": "src/shared/domain/api.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "agentic-hardening",
+          "sprint-3",
+          "trust-boundary"
+        ],
+        "title": "Manage isolated worker worktrees and integration records through runtime commands"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A disposable required-leftover scenario moves/adopts work through existing human authorization, reopens acceptance explicitly, submits a fresh report and reaches a legal checkpoint without pause/resume choreography."
+          },
+          {
+            "id": "c2",
+            "text": "Recovery refuses foreign-machine runs, open attempts, unresolved work, passed-sprint mutations, exhausted retries and stale revisions with specific reasons; retries do not duplicate transitions."
+          },
+          {
+            "id": "c3",
+            "text": "Changed report/evidence/increment invalidates the appropriate approval binding, and no agent recovery action can approve, authorize automatic continuation or relax retry limits."
+          }
+        ],
+        "body": "Model explicit reopen-sprint-verification and reconcile-execution actions. A checkpoint with failed/moved leftovers needs a valid adopted plan, no open attempts, resolved integration and clear report invalidation; provide one guarded action to return to acceptance work rather than pause/resume as a state-machine trick. Respect passed-sprint constraints, current revision, retry budgets, pending report/hash-bound human grants and run ownership. Fresh reports are required when acceptance/increment/evidence has changed; revoke only affected grants, preserve history. Repair suggestions may be recorded as drafts but no silent in-sprint scope change or extra retry authorization is granted. Execution remains bounded to the current approved plan.\n\nDelivery: write failing behavioral tests before implementation, then run only the ticket's targeted checks and relevant typecheck. Never run the full suite/build/Fireguard per work ticket: Fireguard has its own ticket and the acceptance node runs the project Definition of Done once. Review against the candidate build in disposable repositories where installed-server behavior differs. Record per-criterion evidence, actual changed files/commits and any unsupported path. Preserve human checkpoints, revision pinning, retry limits and legacy serialized hashes.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/core/services/checkpoints.ts",
+              "src/core/services/runs.ts",
+              "src/core/services/adoption.ts",
+              "src/core/services/redraft.ts",
+              "src/core/commands/checkpoints.ts"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "deep",
+            "rationale": "This medium ticket has one hard trust, concurrency or compatibility boundary; use high effort to verify its failure paths."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/services/checkpoints.ts",
+          "src/core/services/runs.ts"
+        ],
+        "id": "tk_01m5jzc2m3p85dsavxnh4j2t74",
+        "key": "DM-239",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/checkpoints.ts",
+            "location": "src/core/services/checkpoints.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/runs.ts",
+            "location": "src/core/services/runs.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/adoption.ts",
+            "location": "src/core/services/adoption.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/redraft.ts",
+            "location": "src/core/services/redraft.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/commands/checkpoints.ts",
+            "location": "src/core/commands/checkpoints.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "agentic-hardening",
+          "sprint-3",
+          "trust-boundary"
+        ],
+        "title": "Replace checkpoint pause-resume workarounds with guarded recovery commands"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Deterministic read-model tests map running, submitted, stale verification, leftover checkpoint, sign-out and restart states to legal actor-specific next actions with no secret leakage."
+          },
+          {
+            "id": "c2",
+            "text": "MCP and desktop use the same projection; attempting a stale action fails at the command layer, and a worker sees no privileged recovery/control actions."
+          },
+          {
+            "id": "c3",
+            "text": "A real Electron run demonstrates dispatch, review, integration and checkpoint recovery from the concise view; screenshots and a measured public-tool trace show routine heartbeat/worktree steps have left the agent loop."
+          }
+        ],
+        "body": "Add a bounded next-actions read model derived from authoritative state: ready dispatches, reviews, missing/expired check receipts, pending integrations, reconciliation, blocked capability decisions and human checkpoint actions. Each action has a reason, responsible actor, target IDs, command name and concurrency/version precondition; omit claim secrets. Desktop offers only legal controls; MCP provides a compact resumable view rather than requiring a full transcript or several broad reads. Show supervision/manual mode and real worker progress separately from liveness. Update recovery/runbook instructions to use runtime actions. The UI cannot create receipts or bypass capability checks.\n\nDelivery: write failing behavioral tests before implementation, then run only the ticket's targeted checks and relevant typecheck. Never run the full suite/build/Fireguard per work ticket: Fireguard has its own ticket and the acceptance node runs the project Definition of Done once. Review against the candidate build in disposable repositories where installed-server behavior differs. Record per-criterion evidence, actual changed files/commits and any unsupported path. Preserve human checkpoints, revision pinning, retry limits and legacy serialized hashes.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/core/services/runs.ts",
+              "src/shared/domain/views.ts",
+              "src/mcp/tools/execution.ts",
+              "src/renderer/src/checkpoint",
+              "src/renderer/src",
+              "skills/orchestrator.md"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "This coherent change spans a contract and its adapters; verify the named behavior with targeted tests."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/services/runs.ts",
+          "src/shared/domain/views.ts"
+        ],
+        "id": "tk_01m5jzc2m382zqf36700hyp0hc",
+        "key": "DM-240",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/runs.ts",
+            "location": "src/core/services/runs.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/domain/views.ts",
+            "location": "src/shared/domain/views.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/tools/execution.ts",
+            "location": "src/mcp/tools/execution.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/checkpoint",
+            "location": "src/renderer/src/checkpoint",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src",
+            "location": "src/renderer/src",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/orchestrator.md",
+            "location": "skills/orchestrator.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "agentic-hardening",
+          "sprint-3",
+          "implementation"
+        ],
+        "title": "Expose concise next actions and supervised execution state to agents and people"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The combined committed sprint work is graded against its recorded start commit; the grade and complete log artifact identify the exact checked source and no test remains graded F."
+          },
+          {
+            "id": "c2",
+            "text": "Any test-only repair has targeted passing checks, refreshed source provenance and a new grade; production behavior and grading rules are not weakened."
+          },
+          {
+            "id": "c3",
+            "text": "The acceptance node can reuse this result only for the same source/check inputs; after the receipt runner lands it is an authentic runtime receipt rather than a manually asserted passed string."
+          }
+        ],
+        "body": "Run Fireguard only after the sprint's five work tickets are accepted and integrated in the managed integration worktree. Set FIREGUARD_BASE_REF to the recorded sprint-start commit and grade the combined committed source. Inspect the actual grade: an F requires targeted test repairs and regrading. Do not relax lint/mutation rules, change production code or omit a failing grade. Return the grade and logs as an execution artifact; after sprint 2, use the trusted receipt runner and bind it to the canonical source/check definition. If test repairs change that source, refresh the integration manifest and grade the repaired source. The acceptance node consumes this exact evidence, rerunning through this ticket's supported retry/repair path only after an invalidating change. This ticket does not run the entire project gate.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "fireguard/README.md",
+              "src/test"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Test grading and focused test repairs need multi-step reasoning without changing production behavior."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m5jzc2m3zrwxxq1wbwmxf0kq",
+        "key": "DM-241",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Fireguard workflow",
+            "location": "fireguard/README.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "agentic-hardening",
+          "fireguard",
+          "sprint-3"
+        ],
+        "title": "Grade sprint 3 unit tests with Fireguard"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A three-ticket cohesive fixture reuses one worker context with separate fenced attempts, reviews, integrations and source-bound receipts; a rejection cannot leak into an accepted successor."
+          },
+          {
+            "id": "c2",
+            "text": "An independent-branches fixture uses separate workers within concurrency limits; a coupled or uncertain case selects conservative serial/investigation behavior with visible rationale and override."
+          },
+          {
+            "id": "c3",
+            "text": "Restart, unsupported host and stale-context/base tests reset or refuse reuse rather than silently falling back to privileged shared tools; completed legacy plan hashes remain stable."
+          }
+        ],
+        "body": "Introduce an explicit versioned execution mode for an approved plan/sprint: persistent worker for cohesive sequential tickets, parallel workers for independent branches, and conservative adaptive selection based on declared coupling/independence with recorded rationale and human override. Reuse worker context only after the prior ticket is submitted, independently reviewed and integrated; obtain a new attempt-scoped credential and bounded packet each time. Never let an orchestrator implement a ticket, merge ticket identities, skip review, relax dependency/receipt gates or reuse credentials. Hosts that cannot safely reuse worker context report the capability as unavailable. Record why exploration needs a separate investigation ticket before implementation; scope changes still follow draft/adoption rules. Avoid speculative automatic batching of unrelated work.\n\nDelivery: write failing behavioral tests before implementation, then run only the ticket's targeted checks and relevant typecheck. Never run the full suite/build/Fireguard per work ticket: Fireguard has its own ticket and the acceptance node runs the project Definition of Done once. Review against the candidate build in disposable repositories where installed-server behavior differs. Record per-criterion evidence, actual changed files/commits and any unsupported path. Preserve human checkpoints, revision pinning, retry limits and legacy serialized hashes.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/shared/domain/bundle.ts",
+              "src/core/plan/readiness.ts",
+              "src/main/agents/sessionManager.ts",
+              "src/main/agents/orchestratorKickoff.ts",
+              "skills/planner.md",
+              "skills/orchestrator.md"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "deep",
+            "rationale": "This medium ticket has one hard trust, concurrency or compatibility boundary; use high effort to verify its failure paths."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/shared/domain/bundle.ts",
+          "src/core/plan/readiness.ts"
+        ],
+        "id": "tk_01m5jzc2m3cx2dp8fq5mhxpvfg",
+        "key": "DM-242",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/domain/bundle.ts",
+            "location": "src/shared/domain/bundle.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/plan/readiness.ts",
+            "location": "src/core/plan/readiness.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/sessionManager.ts",
+            "location": "src/main/agents/sessionManager.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/orchestratorKickoff.ts",
+            "location": "src/main/agents/orchestratorKickoff.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/planner.md",
+            "location": "skills/planner.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/orchestrator.md",
+            "location": "skills/orchestrator.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "agentic-hardening",
+          "sprint-4",
+          "trust-boundary"
+        ],
+        "title": "Support persistent-worker and parallel execution with the same ticket guarantees"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Deterministic routing tests show auth/environment and stale integration failures do not automatically buy a more expensive model; reasoning failure can escalate within eligible models and recorded rationale."
+          },
+          {
+            "id": "c2",
+            "text": "Unknown/contradictory failure evidence remains uncertain and cannot grant retries or satisfy missing capabilities; retry limits and human grant permissions are unchanged."
+          },
+          {
+            "id": "c3",
+            "text": "A stronger model is not penalized solely for having a higher maximum reasoning level, and high-quality preference is handled explicitly rather than a misleading zero-effect promise; recommendation/tier facts remain explainable."
+          }
+        ],
+        "body": "Persist a bounded failure classification with evidence and uncertainty: transient/environment/auth/tool, requirement/context, integration/source freshness, implementation/reasoning, canceled and unknown. Use observed runtime failures where available rather than blindly trusting worker labels. Infrastructure problems recommend repair/re-auth with the same capable model; implementation/reasoning failures may escalate effort/model within requirements; ambiguity recommends clarification or replanning. Preserve retry caps and human grants. Remove the unconditional idea that a model's maximum supported reasoning depth alone makes it worse: rank declared hard floors first, use known cost/latency/preferences with explicit uncertainty and retain a stable fallback. Do not claim learned optimal routing; comprehensive outcome/cost learning remains future work tied to SPACE observations.\n\nDelivery: write failing behavioral tests before implementation, then run only the ticket's targeted checks and relevant typecheck. Never run the full suite/build/Fireguard per work ticket: Fireguard has its own ticket and the acceptance node runs the project Definition of Done once. Review against the candidate build in disposable repositories where installed-server behavior differs. Record per-criterion evidence, actual changed files/commits and any unsupported path. Preserve human checkpoints, revision pinning, retry limits and legacy serialized hashes.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/core/plan/recommendation.ts",
+              "src/core/services/hosts.ts",
+              "src/core/services/attempts.ts",
+              "src/core/plan/tierFacts.ts",
+              "src/shared/domain/views.ts"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "This coherent change spans a contract and its adapters; verify the named behavior with targeted tests."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/plan/recommendation.ts",
+          "src/core/services/hosts.ts"
+        ],
+        "id": "tk_01m5jzc2m3wexq2jga0a3s4y0e",
+        "key": "DM-243",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/plan/recommendation.ts",
+            "location": "src/core/plan/recommendation.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/hosts.ts",
+            "location": "src/core/services/hosts.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/attempts.ts",
+            "location": "src/core/services/attempts.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/plan/tierFacts.ts",
+            "location": "src/core/plan/tierFacts.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/domain/views.ts",
+            "location": "src/shared/domain/views.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "agentic-hardening",
+          "sprint-4",
+          "implementation"
+        ],
+        "title": "Classify failures before retrying or escalating model and effort"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Profiles with maxCostUsd, maxDurationMinutes or dataLocation cannot silently match when the host lacks proof/enforcement; tests cover unknown versus unmet and make the resolution actionable."
+          },
+          {
+            "id": "c2",
+            "text": "A real duration-limited worker is stopped by runtime policy; missing cost measurement does not become zero spend or an enforced ceiling, and data-location/tool gaps block dispatch until valid resolution."
+          },
+          {
+            "id": "c3",
+            "text": "Fallback preserves a collected pending task without consuming a pretend worker execution; verified reassignment records actual identity/rationale and never grants human-only policy permissions."
+          }
+        ],
+        "body": "Return supported, unsupported, unmet or unknown for cost, duration, data-location and tool/environment requirements. Enforce duration with the supervisor, including cancellation and truthful terminal results. Enforce cost only where authoritative usage/rates and boundary timing support it; otherwise report unenforceable and require explicit authorized plan resolution before dispatch. Data-location requirements need provider/host evidence, not the model name. Preserve the owner's fallback collection behavior as pending coordinator resolution, but never mark the hard constraint satisfied or dispatch an unqualified replacement. Record the actual replacement model/effort/host once selected; no null-model fallback should obscure who did the work. Do not implement a second usage ledger: consume SPACE input if available and remain explicitly unsupported otherwise.\n\nDelivery: write failing behavioral tests before implementation, then run only the ticket's targeted checks and relevant typecheck. Never run the full suite/build/Fireguard per work ticket: Fireguard has its own ticket and the acceptance node runs the project Definition of Done once. Review against the candidate build in disposable repositories where installed-server behavior differs. Record per-criterion evidence, actual changed files/commits and any unsupported path. Preserve human checkpoints, revision pinning, retry limits and legacy serialized hashes.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "src/core/plan/capabilities.ts",
+              "src/core/services/attempts.ts",
+              "src/core/services/hosts.ts",
+              "src/main/agents/sessionManager.ts",
+              "src/shared/domain/views.ts",
+              "src/mcp/tools/execution.ts"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "deep",
+            "rationale": "This medium ticket has one hard trust, concurrency or compatibility boundary; use high effort to verify its failure paths."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/plan/capabilities.ts",
+          "src/core/services/attempts.ts"
+        ],
+        "id": "tk_01m5jzc2m30swrnbam6yyvr69e",
+        "key": "DM-244",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/plan/capabilities.ts",
+            "location": "src/core/plan/capabilities.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/attempts.ts",
+            "location": "src/core/services/attempts.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/hosts.ts",
+            "location": "src/core/services/hosts.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/sessionManager.ts",
+            "location": "src/main/agents/sessionManager.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/domain/views.ts",
+            "location": "src/shared/domain/views.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/tools/execution.ts",
+            "location": "src/mcp/tools/execution.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "agentic-hardening",
+          "sprint-4",
+          "trust-boundary"
+        ],
+        "title": "Make unsupported hard constraints and capability fallback explicit"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The same documented fixture set runs through all three modes with independently checked acceptance/increment invariants; a mode cannot win by skipping review, tests or failed outcomes."
+          },
+          {
+            "id": "c2",
+            "text": "Reproducible process/replay cases demonstrate fewer agent-issued routine lifecycle calls than the frozen baseline while preserving total runtime-work counts; raw input/output traces and elapsed-time definitions are retained."
+          },
+          {
+            "id": "c3",
+            "text": "Tokens, cost and live AI quality results are reported only when actually observed with compatible semantics; unavailable or synthetic observations are explicitly labeled and no performance claim is fabricated."
+          },
+          {
+            "id": "c4",
+            "text": "The harness records evaluation revision/budget/config and exports raw observations compatible with the SPACE contract without requiring or modifying the existing SPACE epic."
+          }
+        ],
+        "body": "Create a reproducible disposable-repository evaluation harness for one capable worker, frozen current orchestration policy and new adaptive execution. Use at least three task classes: tiny cohesive fix, tightly coupled sequential change and independent components, including an injected failure/recovery case. Record fixtures, candidate/baseline revisions, model/effort when live, budgets, launch count, agent coordination-tool count, review/retry work, union elapsed time, quality outcomes and available tokens/cost. Replay/process fixtures may demonstrate mechanics but must be labeled synthetic; a live comparison is required before claiming AI quality/cost gains. Consume SPACE DM-169/170/172/173 observations when integrated; otherwise explicit unavailable usage and a compatible raw export. Do not build grades/dashboards. Select a deterministic coordination-overhead baseline trace before implementation-mode measurement; include runtime work in totals rather than making it disappear.\n\nDelivery: write failing behavioral tests before implementation, then run only the ticket's targeted checks and relevant typecheck. Never run the full suite/build/Fireguard per work ticket: Fireguard has its own ticket and the acceptance node runs the project Definition of Done once. Review against the candidate build in disposable repositories where installed-server behavior differs. Record per-criterion evidence, actual changed files/commits and any unsupported path. Preserve human checkpoints, revision pinning, retry limits and legacy serialized hashes.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "scripts",
+              "src/test",
+              "src/main/agents",
+              "src/core/services",
+              "docs/runbooks"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "This coherent change spans a contract and its adapters; verify the named behavior with targeted tests."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m5jzc2m3zc232ea3b3dz4kvk",
+        "key": "DM-245",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "scripts",
+            "location": "scripts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/test",
+            "location": "src/test",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents",
+            "location": "src/main/agents",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services",
+            "location": "src/core/services",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/runbooks",
+            "location": "docs/runbooks",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "agentic-hardening",
+          "sprint-4",
+          "implementation"
+        ],
+        "title": "Compare execution modes with quality guardrails and raw coordination measurements"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Shipped guides/prompts and all discovered delivery-skill copies agree on tool authority, receipts, retry/recovery and worker reuse; prompt/version regression tests pass without preserving obsolete choreography."
+          },
+          {
+            "id": "c2",
+            "text": "A real Electron scratch run and supported external helper exercise all seven epic success criteria with links to logs/screenshots/receipts, including denied worker self-review and human-only checkpoint approval."
+          },
+          {
+            "id": "c3",
+            "text": "The final review names any unsupported provider feature and any missing live-cost/quality measurement explicitly; no stub, silent fallback, synthetic performance claim or modification of the live Source control/SPACE epics is presented as complete."
+          }
+        ],
+        "body": "Update shipped prompts, runbooks, desktop assistance and mirrored delivery instructions to describe source-bound receipts, scoped workers, supervised/manual hosts, direct recovery and persistent-versus-parallel mode selection. Keep all actual delivery-skill copies byte-identical after discovery rather than assuming their capitalization/path. Remove contradictory same-session inherited-privilege and pause/resume workaround guidance; retain the user's coordinator session and mandatory worker implementation. Bump skills/API/schema versions only as the implemented contract requires. Run a real Electron candidate plus external helper smoke on scratch repos: both original gap attempts, normal completion, missing capability, worker interruption, recovery, context reuse and human checkpoint. Explain which evaluation is measured versus synthetic and what is deferred to SPACE. This ticket performs cross-surface validation; full DoD remains the acceptance node and grading the Fireguard ticket.\n\nDelivery: write failing behavioral tests before implementation, then run only the ticket's targeted checks and relevant typecheck. Never run the full suite/build/Fireguard per work ticket: Fireguard has its own ticket and the acceptance node runs the project Definition of Done once. Review against the candidate build in disposable repositories where installed-server behavior differs. Record per-criterion evidence, actual changed files/commits and any unsupported path. Preserve human checkpoints, revision pinning, retry limits and legacy serialized hashes.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "skills/planner.md",
+              "skills/graph-planner.md",
+              "skills/orchestrator.md",
+              "skills/worker.md",
+              "skills/reviewer.md",
+              "skills/sprint-reporter.md",
+              "docs/runbooks/agents.md",
+              "docs/runbooks/mcp-setup.md",
+              "README.md",
+              ".agents/skills/delivery-standards/SKILL.md"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "This coherent change spans a contract and its adapters; verify the named behavior with targeted tests."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "skills/planner.md",
+          "skills/graph-planner.md"
+        ],
+        "id": "tk_01m5jzc2m36gdxmyvgws1jq0gt",
+        "key": "DM-246",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/planner.md",
+            "location": "skills/planner.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/graph-planner.md",
+            "location": "skills/graph-planner.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/orchestrator.md",
+            "location": "skills/orchestrator.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/worker.md",
+            "location": "skills/worker.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/reviewer.md",
+            "location": "skills/reviewer.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/sprint-reporter.md",
+            "location": "skills/sprint-reporter.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/runbooks/agents.md",
+            "location": "docs/runbooks/agents.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/runbooks/mcp-setup.md",
+            "location": "docs/runbooks/mcp-setup.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "README.md",
+            "location": "README.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": ".agents/skills/delivery-standards/SKILL.md",
+            "location": ".agents/skills/delivery-standards/SKILL.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "agentic-hardening",
+          "sprint-4",
+          "implementation"
+        ],
+        "title": "Document and demonstrate the complete trustworthy low-overhead workflow"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The combined committed sprint work is graded against its recorded start commit; the grade and complete log artifact identify the exact checked source and no test remains graded F."
+          },
+          {
+            "id": "c2",
+            "text": "Any test-only repair has targeted passing checks, refreshed source provenance and a new grade; production behavior and grading rules are not weakened."
+          },
+          {
+            "id": "c3",
+            "text": "The acceptance node can reuse this result only for the same source/check inputs; after the receipt runner lands it is an authentic runtime receipt rather than a manually asserted passed string."
+          }
+        ],
+        "body": "Run Fireguard only after the sprint's five work tickets are accepted and integrated in the managed integration worktree. Set FIREGUARD_BASE_REF to the recorded sprint-start commit and grade the combined committed source. Inspect the actual grade: an F requires targeted test repairs and regrading. Do not relax lint/mutation rules, change production code or omit a failing grade. Return the grade and logs as an execution artifact; after sprint 2, use the trusted receipt runner and bind it to the canonical source/check definition. If test repairs change that source, refresh the integration manifest and grade the repaired source. The acceptance node consumes this exact evidence, rerunning through this ticket's supported retry/repair path only after an invalidating change. This ticket does not run the entire project gate.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "fireguard/README.md",
+              "src/test"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Test grading and focused test repairs need multi-step reasoning without changing production behavior."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m5jzc2m32xtxtqs14jng7gkx",
+        "key": "DM-247",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Fireguard workflow",
+            "location": "fireguard/README.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "agentic-hardening",
+          "fireguard",
+          "sprint-4"
+        ],
+        "title": "Grade sprint 4 unit tests with Fireguard"
+      }
+    ]
+  },
+  "contentHash": "sha256:5cdf4394db1de8fc84ca9102cfc27fd6457f8203ec918b2fe055aa438259f4f1",
+  "createdAt": "2026-10-22T23:33:50.937Z",
+  "epicId": "ep_01m5jz275yaw11nzgr81806jeq",
+  "format": "darkmechanicus.plan-snapshot",
+  "formatVersion": 1,
+  "number": 1,
+  "revisionId": "rv_01m5jzdeprrrmsf56dp28yrarq",
+  "savedAt": "2026-10-22T23:33:50.937Z"
+}

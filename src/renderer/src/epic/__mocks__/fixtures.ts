@@ -52,6 +52,7 @@ export function folder(patch: Partial<TrackedFolderView> = {}): TrackedFolderVie
     name: 'darkmechanicus',
     displayPath: '~/code/darkmechanicus',
     initialized: true,
+    storageMode: 'repo',
     available: true,
     addedAt: '2026-01-01T00:00:00.000Z',
     ...patch
@@ -589,6 +590,7 @@ export function reportWithRetro(retro: SprintRetro = retroView(), patch: Partial
 export function checkpointView(patch: Partial<CheckpointView> = {}): CheckpointView {
   return {
     runId: 'rn_2',
+    runState: 'awaiting_checkpoint',
     sprintId: 'sp_2',
     sprintOrdinal: 2,
     sprintCount: 3,

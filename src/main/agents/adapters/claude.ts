@@ -6,6 +6,10 @@
  * and settles when the turn's `result` message arrives. The process starts on the first message
  * (the SDK is loaded then, not at app start) and runs until `dispose`, the idle timeout in the
  * session manager, or its own death; the next message starts it again, resuming the stored session.
+ * The CLI also starts turns of its own (it answers when a background subagent it ran has ended): what the
+ * main agent says with no `send` waiting is such a turn, and its result ends it. `hasLiveWork` counts it,
+ * with the work the transcript mapper knows to be going on (see `claudeTranscript`), so the idle timeout
+ * never ends a process in the middle of it.
  *
  * Approvals. The CLI runs in its `default` permission mode and asks the host through `canUseTool`.
  * Reads and searches inside the folder are allowed at once; edits, commands and everything else
@@ -28,7 +32,7 @@
  * Subagents. What a subagent does is a nested thread of the chat (see `claudeTranscript`), and the
  * CLI is asked to forward its text as well as its tool calls. A request raised inside a subagent goes
  * through the same flow and carries its thread's id and label. When the process ends, the threads
- * still running are marked failed: their subagents died with it.
+ * still running are marked failed and the calls still running cancelled: they died with it.
  *
  * Context. The SDK session id is reported as a `session` event and passed back as `resume` when a
  * chat is reopened. A process that dies before saying anything while resuming means the session is
@@ -57,7 +61,6 @@ import type {
   ChatAdapterEmit,
   ChatAdapterEvent,
   ChatAdapterStartOptions,
-  McpServerSpec,
   ModelOption
 } from '../../../shared/agents/chat'
 import type { ChatAdapterDefinition } from '../adapterRegistry'
@@ -116,7 +119,6 @@ export const CURATED_CLAUDE_MODELS: ModelOption[] = [
   { id: 'haiku', label: 'Haiku' }
 ]
 
-const SERVER_NAME = 'darkmechanicus'
 /**
  * Claude Code's documented switch for auto-memory (https://code.claude.com/docs/en/memory#enable-or-disable-auto-memory).
  * Unlike the `autoMemoryEnabled` setting it wins over every settings layer and over a value the person has
@@ -161,11 +163,6 @@ function closeQuietly(query: ClaudeQuery | null): void {
 /** `default` is the CLI's own choice: the SDK takes no model for it. */
 function sdkModel(model: string | null): string | undefined {
   return model === null || model === 'default' ? undefined : model
-}
-
-function stdioServer(spec: McpServerSpec): Record<string, { type: 'stdio'; command: string; args: string[]; env?: Record<string, string> }> {
-  const env = spec.env === undefined ? {} : { env: spec.env }
-  return { [SERVER_NAME]: { type: 'stdio', command: spec.command, args: spec.args, ...env } }
 }
 
 // ---- Models ----
@@ -281,6 +278,8 @@ class ClaudeChatAdapter implements ChatAdapter {
   private sessionId: string | null = null
   private live: Live | null = null
   private turn: Turn | null = null
+  /** The CLI is answering in a turn it started on its own, with no `send` waiting; its result ends it. */
+  private ownTurn = false
   private disposed = false
   private readonly processes: ClaudeProcesses
   private readonly mapper: TranscriptMapper
@@ -380,6 +379,10 @@ class ClaudeChatAdapter implements ChatAdapter {
     await treeGone
   }
 
+  hasLiveWork(): boolean {
+    return !this.disposed && (this.turn !== null || this.ownTurn || this.mapper.hasLiveWork())
+  }
+
   // ---- Starting the process ----
 
   private async ensureLive(): Promise<Live> {
@@ -407,7 +410,9 @@ class ClaudeChatAdapter implements ChatAdapter {
     const options = this.options as ChatAdapterStartOptions
     const model = sdkModel(this.model)
     // A copy: the inherited environment is the process's own and stays as it was.
-    const env = { ...this.deps.env(), ...AUTO_MEMORY_OFF }
+    // The chat's grant travels in the environment: the agent runs `dm`, and nothing is registered
+    // with the CLI as an MCP server (which an enterprise MCP policy can refuse outright).
+    const env = { ...this.deps.env(), ...AUTO_MEMORY_OFF, ...options.darkMechanicus.env }
     const memory = { env, home: this.deps.homeDir(), tmp: this.deps.tempDir(), platform: this.deps.platform }
     return {
       cwd: options.folder,
@@ -423,9 +428,9 @@ class ClaudeChatAdapter implements ChatAdapter {
       includePartialMessages: true,
       // Without this the CLI sends only a subagent's tool calls; with it, its text too, so a thread holds its whole conversation.
       forwardSubagentText: true,
-      systemPrompt: { type: 'preset', preset: 'claude_code' },
+      // Appended, not replaced: the chat keeps Claude Code's own prompt and gains how to reach us.
+      systemPrompt: { type: 'preset', preset: 'claude_code', append: options.instructions },
       settingSources: ['user', 'project', 'local'],
-      mcpServers: stdioServer(options.darkMechanicus),
       ...(model === undefined ? {} : { model }),
       ...(resume === null ? {} : { resume })
     }
@@ -472,6 +477,7 @@ class ClaudeChatAdapter implements ChatAdapter {
     if (message.type !== 'result') {
       live.started = true
     }
+    this.noteOwnTurn(message)
     for (const event of events) {
       this.publish(event)
     }
@@ -480,6 +486,15 @@ class ClaudeChatAdapter implements ChatAdapter {
       if (result.authRequired) {
         this.endProcess(live)
       }
+    }
+  }
+
+  /** What the main agent says while no `send` waits belongs to a turn the CLI started on its own; a result ends it. */
+  private noteOwnTurn(message: SDKMessage): void {
+    if (message.type === 'result') {
+      this.ownTurn = false
+    } else if (this.turn === null && (message.type === 'assistant' || message.type === 'stream_event') && message.parent_tool_use_id === null) {
+      this.ownTurn = true
     }
   }
 
@@ -528,12 +543,13 @@ class ClaudeChatAdapter implements ChatAdapter {
     void this.processes.killAll()
   }
 
-  /** Lets go of a process that is done or no longer wanted; the subagents it was running are gone with it. */
+  /** Lets go of a process that is done or no longer wanted; the calls and subagents it was running are gone with it. */
   private discard(live: Live): void {
     this.live = null
+    this.ownTurn = false
     live.input.close()
     closeQuietly(live.query)
-    for (const event of this.mapper.endThreads()) {
+    for (const event of this.mapper.processEnded()) {
       this.publish(event)
     }
   }

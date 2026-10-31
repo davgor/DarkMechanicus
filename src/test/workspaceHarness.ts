@@ -1,5 +1,5 @@
 /** Temp-repository harness for Workspace integration tests. Not shipped. */
-import { cpSync, mkdtempSync, rmSync } from 'node:fs'
+import { cpSync, mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { FsAdapter, GitAdapter, GitHead } from '../core/repo/types'
@@ -29,6 +29,8 @@ export function createFakeGit(initial: GitHead | null): FakeGit {
 
 export interface Harness {
   root: string
+  /** Dark Mechanicus home directory db-mode sessions store their projects in. */
+  homeDir: string
   clock: TestClock
   git: FakeGit
   open(role: SessionRole, options?: OpenOptions): Workspace
@@ -40,6 +42,10 @@ export interface Harness {
 interface OpenOptions {
   allowSave?: boolean
   root?: string
+  /** Forces the storage mode instead of resolving it from the home directory. */
+  mode?: OpenWorkspaceOptions['mode']
+  /** A grant token, for a `cli` session. */
+  grantToken?: string
   /** Replaces the harness's fake Git, e.g. with `createGitAdapter` on a real temporary repository. */
   git?: GitAdapter
   fs?: FsAdapter
@@ -48,31 +54,55 @@ interface OpenOptions {
   autoReconcile?: boolean
 }
 
+interface HarnessEnv {
+  root: string
+  homeDir: string
+  clock: TestClock
+  ids: ReturnType<typeof createSequentialIds>
+  git: FakeGit
+}
+
+function openOptions(env: HarnessEnv, role: SessionRole, options: OpenOptions): OpenWorkspaceOptions {
+  return {
+    repoRoot: options.root ?? env.root,
+    role,
+    label: `${role} session`,
+    transport: options.transport ?? 'in_process',
+    allowSave: options.allowSave ?? true,
+    homeDir: env.homeDir,
+    ...(options.mode === undefined ? {} : { mode: options.mode }),
+    ...(options.grantToken === undefined ? {} : { grantToken: options.grantToken }),
+    clock: env.clock,
+    ids: env.ids,
+    git: options.git ?? env.git,
+    ...(options.fs ? { fs: options.fs } : {}),
+    ...(options.autoReconcile === undefined ? {} : { autoReconcile: options.autoReconcile }),
+    serverInfo: { name: 'darkmechanicus-test', version: '0.0.0-test' }
+  }
+}
+
 export function createHarness(): Harness {
-  const dirs = [mkdtempSync(join(tmpdir(), 'dm-ws-'))]
-  const root = dirs[0] ?? ''
-  const clock = createTestClock('2026-03-01T10:00:00.000Z')
-  const ids = createSequentialIds()
-  const git = createFakeGit({ branch: 'main', commit: 'a'.repeat(40), detached: false })
+  // Canonical, like the paths the desktop registry and the MCP entry point hand the workspace.
+  const dirs = [
+    realpathSync.native(mkdtempSync(join(tmpdir(), 'dm-ws-'))),
+    realpathSync.native(mkdtempSync(join(tmpdir(), 'dm-home-')))
+  ]
+  const env: HarnessEnv = {
+    root: dirs[0] ?? '',
+    homeDir: dirs[1] ?? '',
+    clock: createTestClock('2026-03-01T10:00:00.000Z'),
+    ids: createSequentialIds(),
+    git: createFakeGit({ branch: 'main', commit: 'a'.repeat(40), detached: false })
+  }
+  const { root, homeDir, clock, git } = env
   const workspaces: Workspace[] = []
   return {
     root,
+    homeDir,
     clock,
     git,
     open(role, options = {}) {
-      const workspace = openWorkspace({
-        repoRoot: options.root ?? root,
-        role,
-        label: `${role} session`,
-        transport: options.transport ?? 'in_process',
-        allowSave: options.allowSave ?? true,
-        clock,
-        ids,
-        git: options.git ?? git,
-        ...(options.fs ? { fs: options.fs } : {}),
-        ...(options.autoReconcile === undefined ? {} : { autoReconcile: options.autoReconcile }),
-        serverInfo: { name: 'darkmechanicus-test', version: '0.0.0-test' }
-      })
+      const workspace = openWorkspace(openOptions(env, role, options))
       workspaces.push(workspace)
       return workspace
     },

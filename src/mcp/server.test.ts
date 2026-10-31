@@ -98,11 +98,14 @@ const HUMAN_ONLY: CommandName[] = [
   'grantRetry',
   'backupDatabase',
   'deleteEpic',
-  'deleteTicket'
+  'deleteTicket',
+  // Delegating a role is the person's own act, so no tool offers it.
+  'issueGrant',
+  'revokeGrant'
 ]
 
 /** Read models for the desktop's activity panels: the app polls them, and no MCP tool adapts them. */
-const DESKTOP_READS: CommandName[] = ['getAttemptTimeline', 'getRunTimeline']
+const DESKTOP_READS: CommandName[] = ['getAttemptTimeline', 'getRunTimeline', 'listGrants']
 
 function kindOf(annotations: ToolAnnotations | undefined): Kind {
   if (annotations?.readOnlyHint === true) {

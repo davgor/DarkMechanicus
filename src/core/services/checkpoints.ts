@@ -437,7 +437,12 @@ function authorizationDetail(evaluation: Evaluation): string {
     : 'Automatic continuation requested by the plan but not authorized for this run'
 }
 
+/** A run that ended (canceled, failed, completed) has nothing left to approve, whatever grant or policy it had. */
 function authorizationCondition(evaluation: Evaluation): GateCondition {
+  const { run } = evaluation
+  if (!isActiveRunState(run.state)) {
+    return { id: 'approval', label: 'Advance authorized', met: false, detail: `Run #${run.number} is ${run.state}; nothing to approve` }
+  }
   const detail = evaluation.grant === null ? authorizationDetail(evaluation) : 'Approved in the desktop app'
   const met = evaluation.grant !== null || autoAuthorized(evaluation)
   return { id: 'approval', label: 'Advance authorized', met, detail }
@@ -449,6 +454,7 @@ function checkpointView(evaluation: Evaluation): CheckpointView {
   const gatesMet = evaluation.gates.every((gate) => gate.met)
   return {
     runId: run.id,
+    runState: run.state,
     sprintId: sprint.id,
     sprintOrdinal: sprint.ordinal,
     sprintCount: evaluation.sprintCount,

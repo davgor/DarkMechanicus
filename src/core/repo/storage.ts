@@ -82,12 +82,19 @@ const NO_DATABASE: Omit<DatabaseStatus, 'branch'> = {
   sessions: { active: 0, byRole: {} }
 }
 
+/** Where this project's records and database live, for the footer and `get_storage_status`. */
+function storageLocation(layout: RepoLayout): StorageStatusView['storage'] {
+  return { mode: layout.mode, projectDir: layout.dmDir, databasePath: layout.dbFile }
+}
+
 /** Storage health for the desktop footer and `get_storage_status`; works before initialization. */
 export async function getStorageStatus(deps: StorageDeps): Promise<StorageStatusView> {
   const project = projectOrNull(deps)
   const gitHead = deps.git.head()
   const head = { current: gitHead?.branch ?? null, repository: gitHead !== null }
-  const uncommittedRecordFiles = await deps.git.countUncommitted('.darkmechanicus')
+  // A db project has no record file in the checkout, so there is never one waiting to be committed.
+  const uncommittedRecordFiles =
+    deps.layout.mode === 'db' ? null : await deps.git.countUncommitted('.darkmechanicus')
   const database =
     deps.db === null
       ? { ...NO_DATABASE, branch: { current: head.current, recorded: null, changed: false, repository: head.repository } }
@@ -95,6 +102,7 @@ export async function getStorageStatus(deps: StorageDeps): Promise<StorageStatus
   return {
     initialized: project !== null,
     repoRoot: deps.layout.root,
+    storage: storageLocation(deps.layout),
     projectId: project?.projectId ?? null,
     projectName: project?.name ?? null,
     uncommittedRecordFiles,

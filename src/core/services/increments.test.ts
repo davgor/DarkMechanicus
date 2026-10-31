@@ -54,10 +54,19 @@ describe('incrementContextOf: the sprint, the epic branch and the accepted work'
     seedAttempt(ctx, run, { ticket: 2, state: 'accepted', commits: ['2'.repeat(40), '3'.repeat(40)] })
     seedAttempt(ctx, run, { ticket: 2, state: 'rejected', commits: ['4'.repeat(40)] })
     seedAttempt(ctx, run, { ticket: 1, state: 'accepted', superseded: true, commits: ['5'.repeat(40)] })
-    seedAttempt(ctx, run, { ticket: 1, state: 'accepted', kind: 'carry_forward', commits: ['6'.repeat(40)] })
     seedAttempt(ctx, run, { ticket: 4, state: 'accepted', commits: ['7'.repeat(40)] })
     const node = seedAttempt(ctx, run, { ticket: 3, state: 'running', commits: ['8'.repeat(40)] })
     expect(incrementContextOf(ctx, node)?.workCommits).toEqual(['1'.repeat(40), '2'.repeat(40), '3'.repeat(40)])
+  })
+
+  it('collects the commits the sprint\'s carried-forward work brings from the earlier run', () => {
+    const { ctx, run } = setup()
+    seedAttempt(ctx, run, { ticket: 1, state: 'accepted', kind: 'carry_forward', superseded: true, commits: ['5'.repeat(40)] })
+    seedAttempt(ctx, run, { ticket: 1, state: 'accepted', kind: 'carry_forward', commits: ['1'.repeat(40)] })
+    seedAttempt(ctx, run, { ticket: 2, state: 'accepted', kind: 'carry_forward', commits: ['2'.repeat(40)] })
+    seedAttempt(ctx, run, { ticket: 4, state: 'accepted', kind: 'carry_forward', commits: ['7'.repeat(40)] })
+    const node = seedAttempt(ctx, run, { ticket: 3, state: 'running' })
+    expect(incrementContextOf(ctx, node)?.workCommits).toEqual(['1'.repeat(40), '2'.repeat(40)])
   })
 })
 

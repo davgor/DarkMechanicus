@@ -400,6 +400,46 @@ describe('acceptance node readiness in the tool descriptions', () => {
   })
 })
 
+describe('register_host tool names', () => {
+  it('refuses a tool name no ticket capability profile can require, with invalid_input naming it', async () => {
+    const api = createCannedApi({ registerHost: MARKER })
+    await inRig(api, async (rig) => {
+      const outcome = await callTool(rig, 'register_host', { ...HOST, tools: ['repo_read', 'Bash'] })
+      expect(outcome.isError).toBe(true)
+      expect(outcome.payload).toMatchObject({
+        ok: false,
+        error: { code: 'invalid_input', details: { tool: 'register_host', issues: [{ path: 'tools.1' }] } }
+      })
+      expect(api.calls).toEqual([])
+    })
+  })
+
+  it('accepts every tool capability a profile can require, and the description lists them', async () => {
+    const api = createCannedApi({ registerHost: MARKER })
+    const tools = ['repo_read', 'repo_write', 'shell', 'browser', 'test_execution', 'network']
+    await inRig(api, async (rig) => {
+      expect((await callTool(rig, 'register_host', { ...HOST, tools })).isError).toBe(false)
+      expect(api.calls).toEqual([{ name: 'registerHost', input: { ...HOST, tools } }])
+      const { tools: listed } = await rig.client.listTools()
+      const description = listed.find((tool) => tool.name === 'register_host')?.description ?? ''
+      expect(description).toContain('repo_read, repo_write, shell, browser, test_execution, network')
+    })
+  })
+})
+
+describe('the lease a heartbeat extends, in the heartbeat_attempt description', () => {
+  it('tells workers that leaving out leaseSeconds keeps the length of the lease the claim holds', async () => {
+    await inRig(createCannedApi({}), async (rig) => {
+      const { tools } = await rig.client.listTools()
+      const heartbeat = tools.find((tool) => tool.name === 'heartbeat_attempt')
+      expect(heartbeat?.description).toContain('Without leaseSeconds, the lease is extended by the length of the lease the claim holds')
+      expect(heartbeat?.inputSchema.properties?.['leaseSeconds']).toMatchObject({
+        description: expect.stringContaining('omit to keep the length of the lease the claim holds')
+      })
+    })
+  })
+})
+
 describe('sprint increments in the tool descriptions', () => {
   it('tells workers and orchestrators how an acceptance node names its increment and what is checked', async () => {
     await inRig(createCannedApi({}), async (rig) => {

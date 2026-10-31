@@ -29,7 +29,7 @@ async function run(recording: Frame[]): Promise<{ events: ChatAdapterEvent[]; ag
   }
   const events: ChatAdapterEvent[] = []
   const adapter = createCursorAdapter('/opt/cursor/agent', deps)
-  await adapter.start({ chatId: 'chat_1', folder: FOLDER, model: null, role: 'planner', allowSave: false, sessionId: null, darkMechanicus: DM_SERVER }, (event) => events.push(event))
+  await adapter.start({ chatId: 'chat_1', folder: FOLDER, model: null, role: 'planner', allowSave: false, sessionId: null, darkMechanicus: DM_SERVER, instructions: 'Use the dm CLI.' }, (event) => events.push(event))
   await adapter.send('Where is authentication handled?')
   return { events, agents }
 }

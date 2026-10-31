@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ChatItem } from '../../../shared/agents/chat'
+import { IDLE_STOP_CODE, type ChatItem } from '../../../shared/agents/chat'
 import type { TranscriptEntry } from './chatViewModel'
 import { chooseBoundThread, clipRows, mergeByTime, streamRows, type StreamRow } from './threadStream'
 
@@ -109,6 +109,14 @@ describe('streamRows of the chat main thread: what is said and run', () => {
       { id: 'p', at: AT, tone: 'failed', kind: 'error', message: 'Account on hold: Your account is on hold.' },
       { id: 'e', at: AT, tone: 'failed', kind: 'error', message: 'It broke' }
     ])
+  })
+})
+
+describe('streamRows of the chat main thread: an agent stopped for sitting idle', () => {
+  it('shows an idle stop with its words, as nothing that failed', () => {
+    const entries: TranscriptEntry[] = [{ id: 'i', at: AT, kind: 'error', message: 'The agent was stopped after it sat idle.', code: IDLE_STOP_CODE }]
+
+    expect(streamRows(entries, null)).toEqual([{ id: 'i', at: AT, tone: 'neutral', kind: 'error', message: 'The agent was stopped after it sat idle.' }])
   })
 })
 

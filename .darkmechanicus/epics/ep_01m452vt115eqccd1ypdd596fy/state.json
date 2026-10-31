@@ -5,7 +5,7 @@
   "epicId": "ep_01m452vt115eqccd1ypdd596fy",
   "format": "darkmechanicus.epic-state",
   "formatVersion": 1,
-  "generation": 1,
+  "generation": 2,
   "outcome": null,
   "provenance": {
     "note": "Extends the completed Scrum cadence epic with measured SPACE scorecards and evidence-led corrective sprints across personal repositories.",
@@ -47,8 +47,17 @@
     "tk_01m453gpaekaydhp5ee5e5qmfb": "backlog",
     "tk_01m453gpafjr1k8kmyra0nw8k7": "backlog",
     "tk_01m453gpafp4z3m6axtatfrt33": "backlog",
-    "tk_01m453gpafxqgjfwg9v08gmwg2": "backlog"
+    "tk_01m453gpafxqgjfwg9v08gmwg2": "backlog",
+    "tk_01m65yencnmcbmdg2gtcj3te9d": "backlog",
+    "tk_01m65yencs00qzd911s6pbf4tp": "backlog",
+    "tk_01m65yencscthn2cb0q090zkqv": "backlog",
+    "tk_01m65yenct0k48amzn4y6ac5tb": "backlog",
+    "tk_01m65yenct4mq6w6rzqj29ty4c": "backlog",
+    "tk_01m65yencth80g61jy026rv05n": "backlog",
+    "tk_01m65yenctwcrwzkdqz21e6e3j": "backlog",
+    "tk_01m65yenctx5ptxk16d444z9zr": "backlog",
+    "tk_01m65yenctzm9p4y9j9r24htjq": "backlog"
   },
   "title": "SPACE scorecards: balanced grades, token and time accounting, and corrective retrospectives",
-  "updatedAt": "2026-10-05T04:01:17.735Z"
+  "updatedAt": "2026-10-30T08:22:36.258Z"
 }

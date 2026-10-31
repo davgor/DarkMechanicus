@@ -16,7 +16,7 @@ import {
 } from '../../core/schemas'
 import { SKILLS_VERSION } from '../../core/version'
 import type { CommandApi } from '../../shared/domain/api'
-import { REASONING_EFFORTS } from '../../shared/domain/bundle'
+import { REASONING_EFFORTS, TOOL_CAPABILITIES } from '../../shared/domain/bundle'
 import { defineTool, registerTools } from './define'
 import {
   attemptId,
@@ -98,6 +98,10 @@ const HEARTBEAT_PROGRESS = z
   })
   .describe('Optional progress note that shows what you are doing; it is stored with this attempt.')
 
+const HEARTBEAT_LEASE = leaseSeconds.describe(
+  'Lease length in seconds from now; omit to keep the length of the lease the claim holds (what claim_ticket or your last heartbeat granted).'
+)
+
 const RUN_CONTROL_TOOLS = [
   defineTool({
     name: 'pause_run',
@@ -145,7 +149,7 @@ const SETUP_TOOLS = [
   defineTool({
     name: 'register_host',
     description:
-      'Registers the models and tools this host can really use, so ticket capability profiles can be matched. Returns the catalog id to pass as hostCatalogId to start_run. Call it before start_run, and again with a new catalogRevision when the catalog changes. Do not list models you cannot use. A model may list the efforts (low, medium, high) it can run at in efforts; a claim at an effort the model does not list is refused, and a model that lists none accepts any effort.',
+      `Registers the models and tools this host can really use, so ticket capability profiles can be matched. List tools by the names capability profiles require: ${TOOL_CAPABILITIES.join(', ')}; any other name is refused with \`invalid_input\`. Returns the catalog id to pass as hostCatalogId to start_run. Call it before start_run, and again with a new catalogRevision when the catalog changes. Do not list models you cannot use. A model may list the efforts (low, medium, high) it can run at in efforts; a claim at an effort the model does not list is refused, and a model that lists none accepts any effort.`,
     kind: 'write',
     input: hostCatalog.shape,
     run: (api, input) => api.registerHost(input)
@@ -196,9 +200,9 @@ const ATTEMPT_TOOLS = [
   defineTool({
     name: 'heartbeat_attempt',
     description:
-      'Extends the lease of your claim while work continues; call it at the packet\'s heartbeatIntervalSeconds. Add `progress` { note, step? } to show your work: a short note (at most 280 characters) with an optional step label such as "testing". Notes are local working data: the server keeps the last 200 per attempt, never exports them with the run history, and masks anything shaped like a claim token before storing a note. A refused heartbeat stores no note. Writes from an expired or superseded claim fail with `expired_claim` or `stale_claim`.',
+      'Extends the lease of your claim while work continues; call it at the packet\'s heartbeatIntervalSeconds. Without leaseSeconds, the lease is extended by the length of the lease the claim holds (what claim_ticket or your last heartbeat granted, not the plan default), so a long claim stays long; pass leaseSeconds to change that length. Add `progress` { note, step? } to show your work: a short note (at most 280 characters) with an optional step label such as "testing". Notes are local working data: the server keeps the last 200 per attempt, never exports them with the run history, and masks anything shaped like a claim token before storing a note. A refused heartbeat stores no note. Writes from an expired or superseded claim fail with `expired_claim` or `stale_claim`.',
     kind: 'idempotent',
-    input: { attemptId, claimToken, leaseSeconds: leaseSeconds.optional(), progress: HEARTBEAT_PROGRESS.optional() },
+    input: { attemptId, claimToken, leaseSeconds: HEARTBEAT_LEASE.optional(), progress: HEARTBEAT_PROGRESS.optional() },
     run: (api, input) => api.heartbeatAttempt(input)
   }),
   defineTool({

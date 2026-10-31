@@ -165,3 +165,40 @@ describe('StorageCard branch row', () => {
     expect(row('Branch')).toBe('Not a Git repository')
   })
 })
+
+describe('StorageCard for a database-only project', () => {
+  const PROJECT_DIR = '/home/u/.darkmechanicus/projects/alpha-0123456789abcdef'
+
+  function dbStatus(patch: Partial<StorageStatusView> = {}): StorageStatusView {
+    return storageStatus({
+      storage: { mode: 'db', projectDir: PROJECT_DIR, databasePath: `${PROJECT_DIR}/local/state.sqlite` },
+      uncommittedRecordFiles: null,
+      ...patch
+    })
+  }
+
+  it('names the mode and where the database is, so the person can find it', () => {
+    renderCard(dbStatus())
+    expect(screen.getByRole('region', { name: 'Storage' }).textContent).toContain('Database only')
+    expect(screen.getByText(`${PROJECT_DIR}/local/state.sqlite`)).toBeDefined()
+  })
+
+  it('offers neither Flush nor Reconcile, which only move repository files', () => {
+    renderCard(dbStatus())
+    expect(screen.queryByRole('button', { name: 'Flush' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Reconcile' })).toBeNull()
+  })
+
+  it('says nothing is written into the repository rather than explaining exports', () => {
+    renderCard(dbStatus())
+    const card = screen.getByRole('region', { name: 'Storage' })
+    expect(card.textContent).toMatch(/nothing is written into the repository/i)
+    expect(card.textContent).not.toMatch(/Flush writes pending changes/)
+  })
+
+  it('keeps Flush and Reconcile for a repository-backed project', () => {
+    renderCard(storageStatus())
+    expect(screen.getByRole('button', { name: 'Flush' })).toBeDefined()
+    expect(screen.getByRole('button', { name: 'Reconcile' })).toBeDefined()
+  })
+})

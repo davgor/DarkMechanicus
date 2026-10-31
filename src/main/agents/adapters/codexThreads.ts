@@ -145,6 +145,11 @@ export class CodexThreads {
     return events
   }
 
+  /** A subagent's thread is still running: its subagent may work on after the chat's own turn ended. */
+  anyRunning(): boolean {
+    return [...this.items.values()].some((item) => item.state === 'running')
+  }
+
   /** The process is gone and its subagents with it: every thread still running failed. */
   end(): ChatAdapterEvent[] {
     const events: ChatAdapterEvent[] = []

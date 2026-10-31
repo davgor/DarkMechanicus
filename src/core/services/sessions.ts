@@ -11,9 +11,11 @@ export const SESSION_ACTIVE_WINDOW_MS = 60_000
 interface SessionRegistration {
   role: SessionRole
   label: string
-  transport: 'stdio' | 'desktop' | 'in_process'
+  transport: 'stdio' | 'desktop' | 'in_process' | 'cli'
   pid: number | null
   capabilities: Capability[]
+  /** The grant this session's role came from, for a `cli` session that presented one. */
+  grantId?: string | null
 }
 
 interface SessionRow {
@@ -23,6 +25,7 @@ interface SessionRow {
   capabilities_json: string
   transport: string
   pid: number | null
+  grant_id: string | null
   started_at: string
   last_seen_at: string
   ended_at: string | null
@@ -36,14 +39,15 @@ export function registerSession(
   const now = deps.clock.nowIso()
   deps.db.tx(() => {
     deps.db.run(
-      `INSERT INTO sessions (id, role, label, capabilities_json, transport, pid, started_at, last_seen_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO sessions (id, role, label, capabilities_json, transport, pid, grant_id, started_at, last_seen_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       registration.role,
       registration.label,
       toJson(registration.capabilities),
       registration.transport,
       registration.pid,
+      registration.grantId ?? null,
       now,
       now
     )
@@ -79,6 +83,7 @@ function toSessionView(row: SessionRow, nowMs: number): SessionView {
     label: row.label,
     transport: row.transport,
     pid: row.pid,
+    grantId: row.grant_id,
     startedAt: row.started_at,
     lastSeenAt: row.last_seen_at,
     active: isActive(row, nowMs)

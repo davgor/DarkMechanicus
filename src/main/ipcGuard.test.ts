@@ -170,6 +170,7 @@ const FOLDER_VIEW: TrackedFolderView = {
   name: 'demo',
   displayPath: FOLDER,
   initialized: true,
+  storageMode: 'repo',
   available: true,
   addedAt: '2026-01-01T00:00:00.000Z'
 }
@@ -183,7 +184,8 @@ function trustingDesktop() {
       list: () => [FOLDER_VIEW],
       track: () => ({ folder: FOLDER_VIEW, added: false }),
       untrack: () => [],
-      resolve: (path) => path
+      resolve: (path) => path,
+      storageMode: () => 'repo' as const
     },
     pool: {
       get: (path) => {
