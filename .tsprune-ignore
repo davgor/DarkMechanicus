@@ -32,7 +32,7 @@ src/preload/index.ts:25 - AutoUpdateApi
 src/preload/index.ts:26 - AppInfoApi
 src/renderer/src/epic/__mocks__/transferBackend.ts:15 - TransferSetup
 src/renderer/src/epic/transferActions.ts:18 - TransferActionDeps
-src/renderer/src/epic/transferView.ts:51 - TransferStripView
+src/renderer/src/epic/transferView.ts:44 - TransferStripView
 src/shared/agents/chat.ts:198 - ApprovalCategory
 src/shared/agents/chat.ts:209 - McpServerSpec
 src/shared/agents/chat.ts:216 - ChatAdapterStartOptions

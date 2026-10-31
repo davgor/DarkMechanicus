@@ -1,0 +1,6 @@
+$ npm run typecheck  (worktree linear-sprint-2 @ 9060a9f, 2026-10-31T11:21:22Z)
+
+> dark-mechanicus@0.19.0 typecheck
+> tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p fireguard/tsconfig.json
+
+exit: 0

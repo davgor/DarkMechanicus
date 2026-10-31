@@ -34,6 +34,9 @@ type TransferApi = Pick<CommandApi, 'getCapabilities' | 'getTransfer' | 'startTr
 /** What planning a fixture epic asks of Dark Mechanicus. */
 export type PlanApi = Pick<CommandApi, 'createEpic' | 'getPlan' | 'updatePlanDraft' | 'savePlan'>
 
+/** What completing a ticket in Dark Mechanicus asks of it: a run, an accepted attempt, and stopping the run. */
+type RunApi = Pick<CommandApi, 'getPlan' | 'startRun' | 'claimTicket' | 'submitAttempt' | 'acceptAttempt' | 'cancelRun'>
+
 // ---------------------------------------------------------------------------------------------------------
 // Fixture epics
 
@@ -99,6 +102,21 @@ export async function planOneSprintEpic(api: PlanApi): Promise<string> {
   return epic.id
 }
 
+/**
+ * Completes the saved epic's ticket titled `title` the way Dark Mechanicus does, by an accepted attempt in a run,
+ * then cancels the run, since a transfer is queued only while no run is active. Returns the ticket id.
+ */
+export async function completeTicket(api: RunApi, epicId: string, title: string): Promise<string> {
+  const { bundle } = await api.getPlan({ epicId, view: 'saved' })
+  const ticketId = bundle.tickets.find((ticket) => ticket.title === title)?.id ?? fail(`The fixture has no ticket ${title}.`)
+  const run = await api.startRun({ epicId })
+  const claim = await api.claimTicket({ runId: run.id, ticketId, worker: { label: 'fixture-worker' } })
+  await api.submitAttempt({ attemptId: claim.attempt.id, claimToken: claim.packet.claimToken, outputs: { summary: `Delivered ${title}.` } })
+  await api.acceptAttempt({ attemptId: claim.attempt.id })
+  await api.cancelRun({ runId: run.id, reason: 'The rest of the epic moves to Linear.' })
+  return ticketId
+}
+
 // ---------------------------------------------------------------------------------------------------------
 // The driver
 
@@ -126,6 +144,8 @@ interface DriverOptions {
   pageSize?: number
   /** Called after each create and each record; true stops the driver there. */
   interrupt?: (step: DriverStep) => boolean
+  /** Creates the issues the packet marks completed in the default state, as an agent that skipped that step would. */
+  leaveCompletedOpen?: boolean
 }
 
 interface TransferLog {
@@ -381,7 +401,7 @@ export class TransferDriver {
       priority: issue.priority,
       labels: issue.labels,
       sortOrder: issue.position,
-      ...(issue.state === 'completed' ? { state: this.stateName('completed') } : {})
+      ...(issue.state === 'completed' && this.options.leaveCompletedOpen !== true ? { state: this.stateName('completed') } : {})
     })
     return { linearId: created.id, identifier: created.identifier, url: created.url }
   }

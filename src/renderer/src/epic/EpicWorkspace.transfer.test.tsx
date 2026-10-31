@@ -5,7 +5,7 @@ import type { TransferView } from '../../../shared/domain/transfer'
 import { chatRecord } from '../__mocks__/fixtures'
 import { settle } from '../__mocks__/settle'
 import { installDomShims } from './__mocks__/domShims'
-import { epicDetail, transferOutcome, transferPacket, transferView } from './__mocks__/fixtures'
+import { draftPlan, epicDetail, transferOutcome, transferPacket, transferView } from './__mocks__/fixtures'
 import { renderWorkspace } from './__mocks__/renderWorkspace'
 import { allowSlowRendering } from './__mocks__/testTiming'
 import { TRANSFER_PROMPT, transferSetup } from './__mocks__/transferBackend'
@@ -149,6 +149,40 @@ describe('the transfer strip: Cancel transfer', () => {
     expect(screen.queryByRole('alertdialog')).toBeNull()
     expect(backend.inputs('cancelTransfer')).toEqual([])
     expect(screen.getByLabelText('Linear transfer')).toBeTruthy()
+  })
+})
+
+describe('the Draft view while a transfer is open', () => {
+  const SAVE_NOTICE = 'Save is unavailable while the Linear transfer is open. Cancel the transfer to save.'
+
+  for (const status of ['queued', 'in_progress'] as const) {
+    it(`hides Save and names the open transfer in its place while it is ${status}, keeping Discard draft and edits`, async () => {
+      const { backend, host } = transferSetup({ epic: epicDetail({ hasDraft: true }), transfer: transferView(status) })
+      backend.state.draft = draftPlan()
+      renderWorkspace(backend, { orchestration: host })
+
+      fireEvent.click(await screen.findByRole('button', { name: 'View draft' }))
+      await screen.findByText('DRAFT REV 5 · UNSAVED')
+      // Both Save places (header and the validation panel's save box) show the notice instead.
+      expect(screen.getAllByText(SAVE_NOTICE)).toHaveLength(2)
+      expect(screen.queryByRole('button', { name: /^Save rev/ })).toBeNull()
+      expect(screen.getByRole('button', { name: 'Discard draft' })).toBeTruthy()
+      expect((await screen.findAllByRole('button', { name: '+ Ticket' })).length).toBeGreaterThan(0)
+    })
+  }
+
+  it('offers Save again once the transfer is canceled', async () => {
+    const { backend, host } = transferSetup({ epic: epicDetail({ hasDraft: true }), transfer: midTransfer() })
+    backend.state.draft = draftPlan()
+    renderWorkspace(backend, { orchestration: host })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'View draft' }))
+    expect(await screen.findAllByText(SAVE_NOTICE)).toHaveLength(2)
+    fireEvent.click((await strip()).getByRole('button', { name: 'Cancel transfer' }))
+    fireEvent.click(within(await screen.findByRole('alertdialog', { name: 'Cancel transfer' })).getByRole('button', { name: 'Cancel transfer' }))
+
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /^Save rev 5$/ })).toHaveLength(2))
+    expect(screen.queryByText(SAVE_NOTICE)).toBeNull()
   })
 })
 

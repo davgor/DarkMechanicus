@@ -69,6 +69,11 @@ function DraftButtons({ ws, actions }: { ws: WorkspaceHandle; actions: HeaderAct
           Discard draft
         </button>
       ) : null}
+      {actions.saveUnavailable === null ? null : (
+        <span className="ew-header-notice" role="status">
+          {actions.saveUnavailable}
+        </span>
+      )}
       {actions.save === null ? null : (
         <button type="button" className="btn btn-primary" disabled={busy || blocked} onClick={() => void ws.actions.saveDraft()}>
           {actions.save}

@@ -21,7 +21,7 @@ import {
   LIMITS,
   linearId,
   linearIdentifier,
-  linearReadback,
+  linearReadbackPart,
   linearUrl,
   profileName,
   rowCheckEntries,
@@ -250,6 +250,7 @@ export const COMMAND_SCHEMAS = {
   }),
   getTransfer: epicRef,
   // No idempotencyKey: the service must run its own two transactions, never inside a wrapper's (see the service).
-  submitTransferReadback: z.strictObject({ epicId: stableId, readback: linearReadback, final: z.boolean() })
+  // The part's size is checked here, before the service merges anything.
+  submitTransferReadback: z.strictObject({ epicId: stableId, readback: linearReadbackPart, final: z.boolean() })
 }
 

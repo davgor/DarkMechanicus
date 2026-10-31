@@ -1,0 +1,21 @@
+$ sqlite3 -readonly /Users/davidgorden/Documents/GitHub/DarkMechanicus/.darkmechanicus/local/state.sqlite 'PRAGMA user_version'  (2026-10-31T11:28:53Z)
+10
+$ sqlite3 -readonly <same> "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('transfers','transfer_items')"
+(no rows: the Linear handoff's transfer tables are absent)
+$ git -C /Users/davidgorden/Documents/GitHub/DarkMechanicus branch --show-current; git log -1 --format='%h %ci %s'
+main
+022734c 2026-10-31 05:59:16 -0500 Merge branch 'main' into agent-clis
+$ git -C <coordinating checkout> show main:src/core/db/migrations.ts | grep -n 'SCHEMA_VERSION =\|v10 changes'
+6:export const SCHEMA_VERSION = 10
+428: * v10 changes no schema: it scrubs the secrets that stored idempotent responses kept before
+$ git -C <worktree> show HEAD:src/core/db/migrations.ts | grep -n 'SCHEMA_VERSION =\|V10:'
+5:export const SCHEMA_VERSION = 10
+425: * V10: a person-authorized transfer of a saved epic to Linear, the Linear items it has created so far, and the
+$ ls -l <coordinating checkout>/out/main/mcp.js; ps -o pid,lstart,command for the processes lsof lists on state.sqlite
+-rw-r--r-- 1 davidgorden staff 68315 Oct 31 06:02 /Users/davidgorden/Documents/GitHub/DarkMechanicus/out/main/mcp.js
+  PID STARTED                  COMMAND
+20781 Fri Oct 30 23:08:00 2026 node /Users/davidgorden/Documents/GitHub/DarkMechanicus/out/main/mcp.js --repo /Users/davidgorden/Documents/GitHub/DarkMechanicus --role orchestrator --allow-save --labe
+66494 Sat Oct 31 06:21:24 2026 node /Users/davidgorden/Documents/GitHub/DarkMechanicus/out/main/mcp.js --repo /Users/davidgorden/Documents/GitHub/DarkMechanicus --role orchestrator --allow-save --labe
+73725 Fri Oct 30 23:37:14 2026 node /Users/davidgorden/Documents/GitHub/DarkMechanicus/out/main/mcp.js --repo /Users/davidgorden/Documents/GitHub/DarkMechanicus --role orchestrator --allow-save --labe
+92046 Sat Oct 31 06:02:05 2026 /Users/davidgorden/Documents/GitHub/DarkMechanicus/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron .
+94783 Sat Oct 31 00:42:25 2026 node /Users/davidgorden/Documents/GitHub/DarkMechanicus/out/main/mcp.js --repo /Users/davidgorden/Documents/GitHub/DarkMechanicus --role orchestrator --allow-save --labe

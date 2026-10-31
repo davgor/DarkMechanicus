@@ -1,13 +1,6 @@
 /** Pure view model of an epic's Linear transfer: whether one is open, its progress and the last read-back's mismatches. */
 import type { LinearTransferPacket, TransferMismatch, TransferMismatchField, TransferStatus, TransferView } from '../../../shared/domain/transfer'
 
-/** The Linear MCP setup an agent's CLI needs once, as the transfer guide and `dm transfer` give it. */
-export const LINEAR_SETUP_LINES: readonly { cli: string; setup: string }[] = [
-  { cli: 'Claude Code', setup: 'claude mcp add --transport http linear-server https://mcp.linear.app/mcp, then /mcp to sign in' },
-  { cli: 'Codex', setup: 'codex mcp add linear --url https://mcp.linear.app/mcp' },
-  { cli: 'Cursor', setup: "add https://mcp.linear.app/mcp in Cursor's MCP settings" }
-]
-
 /** A transfer the person authorized that is not verified or canceled yet: it locks runs and Save. */
 export function isOpenTransfer(status: TransferStatus | null): boolean {
   return status === 'queued' || status === 'in_progress'

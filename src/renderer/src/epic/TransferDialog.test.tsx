@@ -105,9 +105,9 @@ describe('TransferDialog: the explanations and one action per opening', () => {
     expect(dialog().getByText('Runs and Save are locked until the transfer is verified or canceled.')).toBeTruthy()
     expect(dialog().getByText(/its own Linear MCP server/)).toBeTruthy()
     const setup = within(dialog().getByRole('list', { name: 'Linear MCP setup' }))
-    expect(setup.getByText('claude mcp add --transport http linear-server https://mcp.linear.app/mcp, then /mcp to sign in')).toBeTruthy()
+    expect(setup.getByText('claude mcp add --transport http linear-server https://mcp.linear.app/mcp, then /mcp to sign in.')).toBeTruthy()
     expect(setup.getByText('codex mcp add linear --url https://mcp.linear.app/mcp')).toBeTruthy()
-    expect(setup.getByText("add https://mcp.linear.app/mcp in Cursor's MCP settings")).toBeTruthy()
+    expect(setup.getByText('add https://mcp.linear.app/mcp in its MCP settings.')).toBeTruthy()
     expect(dialog().getByText(/sign-in may open in your browser, and the agent asks in the chat which Linear team to use/)).toBeTruthy()
   })
 

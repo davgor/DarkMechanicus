@@ -7,7 +7,8 @@
  * in one transaction (per-item savepoints), so a rejected epic or run never changes what the
  * database already holds, and drafts are never touched. Named profiles are scanned and applied by
  * `profileImport.ts` inside the same transaction. Comment and profile files whose stamp is unchanged
- * since this workspace last read them with a synced hash are not read again (`fileHashes.ts`).
+ * since this workspace last read them with a synced hash are not read again (`fileHashes.ts`). An epic whose
+ * local Linear transfer is open takes no other saved revision and no run from the files (`planTransferHolds`).
  */
 import { join } from 'node:path'
 import type { PlanBundle } from '../../shared/domain/bundle'
@@ -22,6 +23,7 @@ import { validatePlan } from '../plan/graph'
 import { retroSearchParts } from '../plan/retro'
 import { LIMITS } from '../schemas'
 import { indexComment, indexDocument } from '../services/searchIndex'
+import { findOpenTransfer, type OpenTransfer, TRANSFER_HOLD_PREFIX } from '../services/transferGuard'
 import { type FileHashCache, readUnlessSynced } from './fileHashes'
 import { readProject } from './initialize'
 import { assertContained, displayPath, ownedPaths } from './paths'
@@ -534,9 +536,77 @@ function epicConflictMessage(epicId: string): string {
   return `Tracked records for epic ${epicId} changed while local changes are waiting to be exported. Flush or resolve the local changes before importing.`
 }
 
-function planEpics(db: Db, scan: Scan, plan: Plan): Set<string> {
-  const skipped = new Set(scan.rejectedEpics)
+interface TransferHold {
+  transfer: OpenTransfer
+  revisionIds: string[]
+  runIds: string[]
+}
+
+function transferHoldMessage(epicId: string, hold: TransferHold): string {
+  const held = [
+    hold.revisionIds.length > 0 ? `saved revision ${hold.revisionIds.join(', ')}` : null,
+    hold.runIds.length > 0 ? `run ${hold.runIds.join(', ')}` : null
+  ].filter((part) => part !== null)
+  const status = hold.transfer.status === 'in_progress' ? 'in progress' : 'queued'
+  return (
+    `${TRANSFER_HOLD_PREFIX}${epicId}: tracked records bring ${held.join(' and ')} while its Linear transfer of revision ` +
+    `${hold.transfer.revisionId} is ${status}, so the epic's tracked plan, state and run changes were not imported. ` +
+    'Cancel the transfer, then reconcile again.'
+  )
+}
+
+/**
+ * `transfers` is local only, so another machine can save a plan or start a run while this one transfers the
+ * epic to Linear. For an epic whose transfer is queued or in progress, any incoming saved revision this
+ * database lacks, a pointer off the transferred revision, or any incoming run holds back every tracked change
+ * of that epic (one conflict each); the first reconcile after the transfer is canceled imports them. While the
+ * hold stands, the epic state export and the transfer's completion are refused (`hasTransferHold`).
+ * Saving is refused here while the transfer is open, so the transferred revision is the newest saved one: an
+ * unknown revision is a newer save from elsewhere, including one numbered like the transferred revision
+ * because two machines saved from the same base.
+ */
+function planTransferHolds(db: Db, scan: Scan, plan: Plan): Set<string> {
+  const holds = new Map<string, TransferHold>()
+  const holdFor = (epicId: string): TransferHold | null => {
+    const known = holds.get(epicId)
+    if (known !== undefined) {
+      return known
+    }
+    const transfer = findOpenTransfer(db, epicId)
+    if (transfer === null) {
+      return null
+    }
+    const hold: TransferHold = { transfer, revisionIds: [], runIds: [] }
+    holds.set(epicId, hold)
+    return hold
+  }
   for (const files of scan.epics) {
+    const hold = holdFor(files.epicId)
+    if (hold === null) {
+      continue
+    }
+    const added = files.snapshots
+      .filter((snapshot) => db.get("SELECT id FROM plan_revisions WHERE id = ? AND state = 'saved'", snapshot.revisionId) === undefined)
+      .map((snapshot) => snapshot.revisionId)
+    const moved = files.pointer.revisionId !== hold.transfer.revisionId && !added.includes(files.pointer.revisionId)
+    hold.revisionIds.push(...added, ...(moved ? [files.pointer.revisionId] : []))
+  }
+  for (const run of scan.runs) {
+    holdFor(run.record.epicId)?.runIds.push(run.runId)
+  }
+  const held = new Set<string>()
+  for (const [epicId, hold] of holds) {
+    if (hold.revisionIds.length > 0 || hold.runIds.length > 0) {
+      held.add(epicId)
+      plan.conflicts.push({ kind: 'epic', entityId: epicId, epicId, message: transferHoldMessage(epicId, hold) })
+    }
+  }
+  return held
+}
+
+function planEpics(db: Db, scan: Scan, plan: Plan, held: Set<string>): Set<string> {
+  const skipped = new Set([...scan.rejectedEpics, ...held])
+  for (const files of scan.epics.filter((item) => !held.has(item.epicId))) {
     if (hasPendingEpicChanges(db, files.epicId)) {
       skipped.add(files.epicId)
       plan.conflicts.push({ kind: 'epic', entityId: files.epicId, epicId: files.epicId, message: epicConflictMessage(files.epicId) })
@@ -608,7 +678,7 @@ function planImport(db: Db, scan: Scan): Plan {
     conflicts: [],
     rejected: [...scan.rejected]
   }
-  planRuns(db, scan, plan, planEpics(db, scan, plan))
+  planRuns(db, scan, plan, planEpics(db, scan, plan, planTransferHolds(db, scan, plan)))
   planComments(db, scan, plan)
   return plan
 }
@@ -968,7 +1038,17 @@ function pauseActiveRuns(deps: ImporterDeps, now: string): string[] {
   return runs.map((run) => run.id)
 }
 
+/**
+ * Transfer holds are worked out afresh on every reconcile, so one whose transfer closed (or whose held
+ * records are gone) is dropped before this reconcile's conflicts are stored.
+ */
 function storeConflicts(db: Db, conflicts: Conflict[], now: string): void {
+  db.run(
+    "UPDATE sync_state SET conflict = NULL, updated_at = ? WHERE kind = 'epic' AND substr(conflict, 1, ?) = ?",
+    now,
+    TRANSFER_HOLD_PREFIX.length,
+    TRANSFER_HOLD_PREFIX
+  )
   for (const conflict of conflicts) {
     db.run(
       `INSERT INTO sync_state (kind, entity_id, generation, conflict, updated_at) VALUES (?, ?, 0, ?, ?)

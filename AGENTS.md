@@ -9,4 +9,4 @@
 
 Use the `planner` role only when you're asked to *plan* an epic.
 
-Details: [`.Codex/skills/delivery-standards/SKILL.md`](.Codex/skills/delivery-standards/SKILL.md), [`skills/orchestrator.md`](skills/orchestrator.md), [`docs/runbooks/mcp-setup.md`](docs/runbooks/mcp-setup.md).
+Details: [`.agents/skills/delivery-standards/SKILL.md`](.agents/skills/delivery-standards/SKILL.md), [`skills/orchestrator.md`](skills/orchestrator.md), [`docs/runbooks/mcp-setup.md`](docs/runbooks/mcp-setup.md).

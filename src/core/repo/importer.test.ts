@@ -17,16 +17,18 @@ import {
 import { isWithin } from '../../test/memoryFs'
 import { createSaveHook } from '../../test/repoFixtures'
 import { createTempRepo, type TempRepo } from '../../test/tempRepo'
-import { createSequentialIds, createTestClock, createTestDb } from '../../test/testContext'
+import { createSequentialIds, createTestClock, createTestCtx, createTestDb, type TestCtx, withRole } from '../../test/testContext'
 import { contentHash, prettyJson } from '../canonical'
 import { getMeta, setMeta } from '../meta'
+import { cancelTransfer, queueTransfer, startTransfer } from '../services/transfers'
 import { createFileHashCache } from './fileHashes'
 import { flushOutbox } from './finalizer'
-import { branchState, reconcileRepository } from './importer'
+import { branchState, type ImporterDeps, reconcileRepository } from './importer'
 import { initializeRepository } from './initialize'
 import { resolveLayout } from './layout'
 import { nodeFs } from './nodeFs'
 import { ownedPaths } from './paths'
+import { getStorageStatus } from './storage'
 import { buildEpicStateRecord, trackedCommentHash, trackedEpicHash, trackedRunHash } from './portable'
 
 const EPIC = idOf('epic', 1)
@@ -319,6 +321,218 @@ describe('reconcileRepository conflicts', () => {
     expect(result.conflicts).toEqual([{ epicId: EPIC, message: expect.stringContaining(RUN) }])
     expect(target.db.get('SELECT state FROM runs WHERE id = ?', RUN)).toEqual({ state: 'running' })
     expect(target.db.all("SELECT seq FROM events WHERE kind = 'repository.reconciled'")).toHaveLength(2)
+  })
+})
+
+type OpenStatus = 'queued' | 'in_progress'
+
+interface Transferring {
+  source: RepoEnv
+  target: RepoEnv
+  deps: ImporterDeps
+  ctx: TestCtx
+}
+
+/** A clone that imported R1 and R2 (no run), then authorized a transfer of R2 and, optionally, started it. */
+function transferring(status: OpenStatus | null): Transferring {
+  const source = createRepoEnv({ root: '/source' })
+  initProject(source)
+  saveRevision(source, { epicId: EPIC, revisionId: R1, number: 1, bundle: BUNDLE_1 })
+  saveRevision(source, { epicId: EPIC, revisionId: R2, number: 2, bundle: BUNDLE_2, baseRevisionId: R1 })
+  const target = cloneOf(source)
+  const deps = importerDeps(target, createStubGit('main'))
+  expect(reconcileRepository(deps).imported).toEqual([EPIC])
+  const ctx = createTestCtx({ db: target.db, clock: target.clock, role: 'desktop' })
+  if (status !== null) {
+    queueTransfer(ctx, { epicId: EPIC })
+  }
+  if (status === 'in_progress') {
+    startTransfer(withRole(ctx, 'orchestrator'), { epicId: EPIC })
+  }
+  return { source, target, deps, ctx }
+}
+
+/** Another machine saves R3 and pulls it in. */
+function pullNewerRevision(env: Transferring): void {
+  saveRevision(env.source, { epicId: EPIC, revisionId: R3, number: 3, bundle: BUNDLE_3, baseRevisionId: R2 })
+  copyTracked(env.source, env.target)
+}
+
+/** Another machine starts a run on `revisionId` and pulls it in. */
+function pullRun(env: Transferring, revisionId: string): void {
+  insertRun(env.source.db, { id: RUN, epicId: EPIC, revisionId, ownerMachineId: SOURCE_MACHINE })
+  insertOutbox(env.source.db, { kind: 'run_history', epicId: EPIC, runId: RUN })
+  flush(env.source)
+  copyTracked(env.source, env.target)
+}
+
+function transferRow(env: Transferring): unknown {
+  return env.target.db.get('SELECT * FROM transfers WHERE epic_id = ?', EPIC)
+}
+
+function epicConflict(env: Transferring): unknown {
+  return env.target.db.get('SELECT conflict FROM sync_state WHERE kind = ? AND entity_id = ?', 'epic', EPIC)
+}
+
+async function storageConflicts(env: Transferring): Promise<unknown> {
+  const { db, layout, fs, clock } = env.target
+  return (await getStorageStatus({ db, layout, fs, git: createStubGit('main'), clock })).conflicts
+}
+
+const STATUS_WORDS: Record<OpenStatus, string> = { queued: 'is queued', in_progress: 'is in progress' }
+
+describe('reconcileRepository while a Linear transfer is open', () => {
+  it.each<OpenStatus>(['queued', 'in_progress'])('reports a newer saved revision as a conflict while the transfer is %s, and applies nothing', async (status) => {
+    const env = transferring(status)
+    pullNewerRevision(env)
+    const before = dumpDomain(env.target.db)
+    const transfer = transferRow(env)
+    const result = reconcileRepository(env.deps)
+    const message = expect.stringMatching(new RegExp(`${EPIC}.*saved revision ${R3}.*revision ${R2} ${STATUS_WORDS[status]}`))
+    expect(result).toMatchObject({ imported: [], conflicts: [{ epicId: EPIC, message }], rejected: [] })
+    expect(dumpDomain(env.target.db)).toEqual(before)
+    expect(env.target.db.get('SELECT current_revision_id FROM epics WHERE id = ?', EPIC)).toEqual({ current_revision_id: R2 })
+    expect(env.target.db.get('SELECT id FROM plan_revisions WHERE id = ?', R3)).toBeUndefined()
+    expect(transferRow(env)).toEqual(transfer)
+    expect(epicConflict(env)).toEqual({ conflict: message })
+    expect(await storageConflicts(env)).toEqual([{ epicId: EPIC, message }])
+    // A heartbeat later the hold is still reported, and still nothing is applied.
+    expect(reconcileRepository(env.deps).conflicts).toEqual([{ epicId: EPIC, message }])
+    expect(dumpDomain(env.target.db)).toEqual(before)
+  })
+
+  it.each<OpenStatus>(['queued', 'in_progress'])('reports and refuses an incoming run while the transfer is %s', async (status) => {
+    const env = transferring(status)
+    pullRun(env, R2)
+    const before = dumpDomain(env.target.db)
+    const transfer = transferRow(env)
+    const result = reconcileRepository(env.deps)
+    const message = expect.stringMatching(new RegExp(`${EPIC}.*run ${RUN}.*revision ${R2} ${STATUS_WORDS[status]}`))
+    expect(result).toMatchObject({ imported: [], unchanged: [EPIC], conflicts: [{ epicId: EPIC, message }], rejected: [] })
+    expect(dumpDomain(env.target.db)).toEqual(before)
+    expect(env.target.db.all('SELECT id FROM runs')).toEqual([])
+    expect(transferRow(env)).toEqual(transfer)
+    expect(await storageConflicts(env)).toEqual([{ epicId: EPIC, message }])
+  })
+
+  it('names both a newer revision and a run that arrive together, in one conflict for the epic', () => {
+    const env = transferring('queued')
+    pullNewerRevision(env)
+    pullRun(env, R3)
+    const result = reconcileRepository(env.deps)
+    expect(result.conflicts).toEqual([{ epicId: EPIC, message: expect.stringContaining(`saved revision ${R3} and run ${RUN}`) }])
+    expect(result.imported).toEqual([])
+  })
+})
+
+describe('reconcileRepository and other revisions during a Linear transfer', () => {
+  it('holds a revision another machine saved from the same base, numbered like the transferred one', () => {
+    const env = transferring('queued')
+    saveRevision(env.source, { epicId: EPIC, revisionId: R3, number: 2, bundle: BUNDLE_3, baseRevisionId: R1 })
+    copyTracked(env.source, env.target)
+    const before = dumpDomain(env.target.db)
+    const result = reconcileRepository(env.deps)
+    expect(result).toMatchObject({ imported: [], conflicts: [{ epicId: EPIC, message: expect.stringContaining(`saved revision ${R3} `) }] })
+    expect(dumpDomain(env.target.db)).toEqual(before)
+  })
+
+  it('holds a pointer that moves the current revision off the transferred one', () => {
+    const env = transferring('queued')
+    env.source.db.run('UPDATE epics SET current_revision_id = ? WHERE id = ?', R1, EPIC)
+    insertOutbox(env.source.db, { kind: 'epic_state', epicId: EPIC })
+    flush(env.source)
+    copyTracked(env.source, env.target)
+    const result = reconcileRepository(env.deps)
+    expect(result).toMatchObject({ imported: [], conflicts: [{ epicId: EPIC, message: expect.stringContaining(`saved revision ${R1} `) }] })
+    expect(env.target.db.get('SELECT current_revision_id FROM epics WHERE id = ?', EPIC)).toEqual({ current_revision_id: R2 })
+  })
+})
+
+describe('reconcileRepository after a held Linear transfer is canceled', () => {
+  it('imports the held revision and run once the transfer is canceled, and clears the conflict', async () => {
+    const env = transferring('in_progress')
+    pullNewerRevision(env)
+    pullRun(env, R3)
+    expect(reconcileRepository(env.deps).conflicts).toHaveLength(1)
+    cancelTransfer(env.ctx, { epicId: EPIC })
+    const result = reconcileRepository(env.deps)
+    expect(result).toMatchObject({ imported: [EPIC, RUN], conflicts: [], rejected: [] })
+    expect(env.target.db.get('SELECT current_revision_id FROM epics WHERE id = ?', EPIC)).toEqual({ current_revision_id: R3 })
+    expect(env.target.db.get('SELECT revision_id, state FROM runs WHERE id = ?', RUN)).toEqual({ revision_id: R3, state: 'running' })
+    expect(epicConflict(env)).toEqual({ conflict: null })
+    expect(await storageConflicts(env)).toEqual([])
+  })
+
+  it('clears the conflict of a held run once it imports after a cancel, though the epic files never changed', async () => {
+    const env = transferring('queued')
+    pullRun(env, R2)
+    expect(reconcileRepository(env.deps).conflicts).toHaveLength(1)
+    cancelTransfer(env.ctx, { epicId: EPIC })
+    expect(reconcileRepository(env.deps)).toMatchObject({ imported: [RUN], unchanged: [EPIC], conflicts: [] })
+    expect(epicConflict(env)).toEqual({ conflict: null })
+    expect(await storageConflicts(env)).toEqual([])
+  })
+})
+
+describe('a transfer hold and local exports of the epic', () => {
+  it('refuses to write the epic state over held records, so the hold stays visible', () => {
+    const env = transferring('queued')
+    pullNewerRevision(env)
+    const held = reconcileRepository(env.deps).conflicts
+    expect(held).toHaveLength(1)
+    const paths = ownedPaths(env.target.layout)
+    const files = (): unknown[] => [env.target.fs.get(paths.epicPointerFile(EPIC)), env.target.fs.get(paths.epicStateFile(EPIC))]
+    const before = files()
+    env.target.db.run("UPDATE ticket_status SET status = 'completed' WHERE ticket_id = ?", tid(1))
+    insertOutbox(env.target.db, { kind: 'epic_state', epicId: EPIC })
+    expect(flush(env.target)).toMatchObject({ flushed: 0, failed: 1, errors: [expect.stringContaining('waiting for its Linear transfer')] })
+    expect(files()).toEqual(before)
+    expect(epicConflict(env)).toEqual({ conflict: held[0]?.message })
+    expect(reconcileRepository(env.deps).conflicts).toEqual(held)
+    // After a cancel the local change and the pulled records meet in the ordinary pending-export conflict.
+    cancelTransfer(env.ctx, { epicId: EPIC })
+    expect(reconcileRepository(env.deps).conflicts).toEqual([{ epicId: EPIC, message: expect.stringContaining('waiting to be exported') }])
+    expect(env.target.db.get('SELECT current_revision_id FROM epics WHERE id = ?', EPIC)).toEqual({ current_revision_id: R2 })
+  })
+})
+
+describe('reconcileRepository and Linear transfers that hold nothing', () => {
+  it('still imports epic state that adds no newer revision while the transfer is open', () => {
+    const env = transferring('queued')
+    env.source.db.run("UPDATE ticket_status SET status = 'completed' WHERE ticket_id = ?", tid(1))
+    insertOutbox(env.source.db, { kind: 'epic_state', epicId: EPIC })
+    flush(env.source)
+    copyTracked(env.source, env.target)
+    expect(reconcileRepository(env.deps)).toMatchObject({ imported: [EPIC], conflicts: [], rejected: [] })
+    expect(env.target.db.get('SELECT status FROM ticket_status WHERE ticket_id = ?', tid(1))).toEqual({ status: 'completed' })
+  })
+
+  it.each([
+    ['no transfer', (): Transferring => transferring(null)],
+    [
+      'a canceled transfer',
+      (): Transferring => {
+        const env = transferring('queued')
+        cancelTransfer(env.ctx, { epicId: EPIC })
+        return env
+      }
+    ],
+    [
+      'a verified transfer',
+      (): Transferring => {
+        const env = transferring('in_progress')
+        env.target.db.run("UPDATE transfers SET status = 'verified' WHERE epic_id = ?", EPIC)
+        return env
+      }
+    ]
+  ])('imports a newer revision and a run as before for an epic with %s', (_label, setup) => {
+    const env = setup()
+    pullNewerRevision(env)
+    pullRun(env, R3)
+    expect(reconcileRepository(env.deps)).toMatchObject({ imported: [EPIC, RUN], conflicts: [], rejected: [] })
+    expect(env.target.db.get('SELECT current_revision_id FROM epics WHERE id = ?', EPIC)).toEqual({ current_revision_id: R3 })
+    expect(env.target.db.get('SELECT id FROM runs WHERE id = ?', RUN)).toEqual({ id: RUN })
+    expect(epicConflict(env)).toEqual({ conflict: null })
   })
 })
 

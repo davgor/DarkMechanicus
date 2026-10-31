@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { linearId, linearIdentifier, linearReadback, linearUrl, transferRef } from '../../core/schemas'
+import { linearId, linearIdentifier, linearReadbackPart, linearUrl, READBACK_LIMITS, transferRef } from '../../core/schemas'
 import type { CommandApi } from '../../shared/domain/api'
 import { defineTool, registerTools } from './define'
 import { epicId, idempotencyKey } from './params'
@@ -49,8 +49,8 @@ const TRANSFER_TOOLS = [
     kind: 'write',
     input: {
       epicId,
-      readback: linearReadback.describe(
-        'One part of the read-back. Each item needs every field (an issue sortOrder only when your Linear tools report one); milestoneId is null for an issue without a milestone.'
+      readback: linearReadbackPart.describe(
+        `One part of the read-back, at most ${READBACK_LIMITS.partChars} characters of JSON. Each item needs every field (an issue sortOrder only when your Linear tools report one); milestoneId is null for an issue without a milestone.`
       ),
       final: z.boolean().describe('True on the last part: compare the whole read-back and complete the epic on a full match.')
     },

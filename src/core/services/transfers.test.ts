@@ -14,10 +14,12 @@ import { idOf, insertRevision, insertRun } from '../../test/repoFixtures'
 import { createTestCtx, type TestCtx, withRole } from '../../test/testContext'
 import { fail } from '../errors'
 import { buildEpicStateRecord } from '../repo/portable'
+import { READBACK_LIMITS } from '../schemas'
 import { listComments } from './comments'
 import { openDraft, updatePlanDraft } from './drafts'
 import { getEpic } from './epics'
 import { startRun } from './runs'
+import { TRANSFER_HOLD_PREFIX } from './transferGuard'
 import {
   cancelTransfer,
   getTransfer,
@@ -687,6 +689,77 @@ describe('submitTransferReadback parts', () => {
   })
 })
 
+type ReadbackList = 'milestones' | 'issues' | 'relations'
+
+/** `count` items of `list`, each its own Linear item, so none replaces another (or one of `tag`'s siblings) when merged. */
+function distinctItems(readback: Required<LinearReadback>, list: ReadbackList, count: number, tag: string): LinearReadback {
+  const ids = Array.from({ length: count }, (_, at) => `lin-${tag}-${at}`)
+  switch (list) {
+    case 'milestones':
+      return { milestones: ids.map((linearId) => ({ ...milestoneOf(readback, 1), linearId })) }
+    case 'issues':
+      return { issues: ids.map((linearId) => ({ ...issueOf(readback, 3), linearId })) }
+    case 'relations':
+      return { relations: ids.map((fromId) => ({ kind: 'blocks', fromId, toId: lin(tid(3)) })) }
+  }
+}
+
+describe('submitTransferReadback merged limits', () => {
+  it('pins the read-back limits: the packet limit of each list plus 100 unexpected items, and 8,000,000 characters a part', () => {
+    expect(READBACK_LIMITS).toEqual({ partChars: 8_000_000, milestones: 200, issues: 1_100, relations: 15_100 })
+  })
+
+  it.each(['milestones', 'issues', 'relations'] as const)(
+    'refuses a part that takes the merged %s past the limit, naming it, and keeps the parts sent before',
+    (list) => {
+      const fixture = recordedTransfer()
+      const readback = readbackOf(fixture.packet)
+      const max = READBACK_LIMITS[list]
+      submit(fixture, { project: readback.project }, false)
+      expect(submit(fixture, distinctItems(readback, list, max - 1, 'a'), false).received[list]).toBe(max - 1)
+      fixture.ctx.clock.advanceSeconds(60)
+      const stored = fixture.ctx.db.get('SELECT readback_json, updated_at FROM transfers')
+      const events = eventKinds(fixture.ctx, 'transfer.')
+
+      const error = domainError(() => submit(fixture, distinctItems(readback, list, 2, 'b'), false))
+      expect(error.code).toBe('invalid_input')
+      expect(error.message).toContain(`at most ${max} ${list}`)
+      expect(error.details).toEqual({ limit: list, max, count: max + 1 })
+      expect(fixture.ctx.db.get('SELECT readback_json, updated_at FROM transfers')).toEqual(stored)
+      expect(eventKinds(fixture.ctx, 'transfer.')).toEqual(events)
+
+      // Exactly at the limit is accepted, and items sent again replace their copies instead of counting twice.
+      expect(submit(fixture, distinctItems(readback, list, 1, 'b'), false).received[list]).toBe(max)
+      expect(submit(fixture, distinctItems(readback, list, max - 1, 'a'), false).received[list]).toBe(max)
+    }
+  )
+
+  it('refuses non-final issue parts past the limit and keeps the earlier parts', () => {
+    const fixture = recordedTransfer()
+    const readback = readbackOf(fixture.packet)
+    submit(fixture, { project: readback.project, milestones: readback.milestones }, false)
+    submit(fixture, distinctItems(readback, 'issues', 1_000, 'a'), false)
+    const stored = fixture.ctx.db.get('SELECT readback_json FROM transfers')
+    expect(domainError(() => submit(fixture, distinctItems(readback, 'issues', 101, 'b'), false)).code).toBe('invalid_input')
+    expect(fixture.ctx.db.get('SELECT readback_json FROM transfers')).toEqual(stored)
+    expect(submit(fixture, { issues: readback.issues }, false).received).toEqual({ project: true, milestones: 2, issues: 1_003, relations: 0 })
+  })
+
+  it('refuses a final part past a limit with invalid_input, and still ends the read-back', () => {
+    const fixture = recordedTransfer()
+    const readback = readbackOf(fixture.packet)
+    submit(fixture, { ...readback, issues: [] }, false)
+    submit(fixture, distinctItems(readback, 'issues', READBACK_LIMITS.issues, 'a'), false)
+    const error = domainError(() => submit(fixture, { issues: readback.issues }))
+    expect(error).toMatchObject({ code: 'invalid_input', details: { limit: 'issues', max: READBACK_LIMITS.issues } })
+    expect(error.message).toContain('read the project back again from the start')
+    expect(fixture.ctx.db.get('SELECT readback_json FROM transfers')).toEqual({ readback_json: null })
+    expect(getTransfer(fixture.ctx, { epicId: fixture.epicId })).toMatchObject({ status: 'in_progress', lastMismatches: [] })
+    expect(getEpic(fixture.ctx, { epicId: fixture.epicId }).status).toBe('backlog')
+    expect(submit(fixture, readback).status).toBe('verified')
+  })
+})
+
 describe('submitTransferReadback full match', () => {
   it('completes the epic with the transfer outcome, a summary comment, the event and a verified transfer', () => {
     const fixture = recordedTransfer()
@@ -748,6 +821,17 @@ const RECHECK_CASES: [string, string, Arrange][] = [
     'a save still pending',
     'save_pending',
     ({ ctx, epicId }) => insertRevision(ctx.db, { id: idOf('revision', 900), epicId, number: 2, bundle: readbackBundle(), state: 'pending' })
+  ],
+  [
+    'records another machine wrote held back by a reconcile',
+    'conflict',
+    ({ ctx, epicId }) =>
+      ctx.db.run(
+        "INSERT INTO sync_state (kind, entity_id, generation, conflict, updated_at) VALUES ('epic', ?, 0, ?, ?)",
+        epicId,
+        `${TRANSFER_HOLD_PREFIX}${epicId}: tracked records bring a saved revision`,
+        ctx.clock.nowIso()
+      )
   ]
 ]
 

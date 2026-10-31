@@ -6,7 +6,8 @@ import { dropAcceptanceNodes } from '../../test/acceptanceNodes'
 import { idOf, insertRun } from '../../test/repoFixtures'
 import { createHarness, type Harness } from '../../test/workspaceHarness'
 import { openDatabase } from '../db/database'
-import { DomainError } from '../errors'
+import { DomainError, fail } from '../errors'
+import { READBACK_LIMITS } from '../schemas'
 import type { Workspace } from '../workspace'
 
 /** Sprint 1: First. Sprint 2: Second, which requires First. */
@@ -270,5 +271,28 @@ describe('transfer command input', () => {
     ]
     expect(await Promise.all(bad.map(codeOf))).toEqual(bad.map(() => 'invalid_input'))
     expect((await agent.getTransfer({ epicId })).recorded).toEqual([])
+  })
+})
+
+describe('transfer command part size', () => {
+  it('rejects a read-back part over the size limit before anything is merged, final or not, and keeps the parts sent before', async () => {
+    const { agent, epicId, packet } = await recordedTransfer()
+    const { project, milestones, issues } = readbackOf(packet)
+    const template = issues[0] ?? fail('internal', 'The packet has no issue.')
+    // Seventeen issues with the longest description allowed: every field is in bounds, the whole part is not.
+    const big = Array.from({ length: 17 }, (_, at) => ({ ...template, linearId: `lin-big-${at}`, description: 'x'.repeat(500_000) }))
+    const refusal = { code: 'invalid_input', message: expect.stringContaining(`at readback: A read-back part is at most ${READBACK_LIMITS.partChars} characters`) }
+
+    expect(await failureOf(agent.submitTransferReadback({ epicId, readback: { issues: big }, final: false }))).toMatchObject(refusal)
+    expect(storedReadback(epicId)).toBeNull()
+
+    await agent.submitTransferReadback({ epicId, readback: { project, milestones }, final: false })
+    const stored = storedReadback(epicId)
+    expect(stored).not.toBeNull()
+    for (const final of [false, true]) {
+      expect(await failureOf(agent.submitTransferReadback({ epicId, readback: { issues: big }, final }))).toMatchObject(refusal)
+      expect(storedReadback(epicId)).toBe(stored)
+    }
+    expect(await agent.submitTransferReadback({ epicId, readback: { issues: big.slice(0, 15) }, final: false })).toMatchObject({ status: 'partial' })
   })
 })

@@ -10,7 +10,7 @@ description: >-
 
 # Delivery standards (all implementation work)
 
-This skill exists as two identical copies, `.Codex/skills/delivery-standards/SKILL.md` and `.cursor/skills/delivery-standards/SKILL.md`. Keep them byte-identical when changing workflow rules.
+This skill exists as two identical copies, `.claude/skills/delivery-standards/SKILL.md` and `.cursor/skills/delivery-standards/SKILL.md`. Keep them byte-identical when changing workflow rules.
 
 Deploy/CI shape mirrored from [AI-DND-Matrix](https://github.com/davgor/AI-DND-Matrix).
 

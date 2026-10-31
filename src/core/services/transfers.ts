@@ -27,7 +27,7 @@ import type { Ctx } from '../context'
 import { parseJson, toJson } from '../db/database'
 import { fail } from '../errors'
 import { epicOutcome } from '../repo/portable'
-import { parseInput } from '../schemas'
+import { parseInput, READBACK_LIMITS } from '../schemas'
 import { buildLinearPacket } from '../transfer/linearPacket'
 import { compareReadback, mergeReadback, type ReadbackComparison, readbackCounts } from '../transfer/linearReadback'
 import { addComment } from './comments'
@@ -36,6 +36,7 @@ import { appendEvent } from './events'
 import { requestWithoutKey, withIdempotency } from './idempotency'
 import { enqueueOutbox } from './outbox'
 import { assertNoPendingSave, changedDraftRevision, currentSavedBundle, revisionNumberOf } from './plans'
+import { hasTransferHold } from './transferGuard'
 
 type StoredStatus = Exclude<TransferStatus, 'not_started'>
 
@@ -375,6 +376,10 @@ export function getTransfer(ctx: Ctx, input: { epicId: string }): TransferView {
  * whole read-back with the stored packet and the recorded items: any mismatch is stored and returned and the
  * epic stays open; a full match completes the epic in one transaction.
  *
+ * The merged read-back holds at most `READBACK_LIMITS` milestones, issues and relations. A part that is not final
+ * and would take it past one is refused before anything is written, so the parts sent before stay as they were.
+ * A final part past one is refused after its clear commits, so it still ends the accumulation.
+ *
  * Never call it inside a transaction (an idempotency wrapper included): the final part's clear would become a
  * savepoint that a failed completion rolls back, and the stale parts could then verify a later read-back.
  */
@@ -387,6 +392,7 @@ export function submitTransferReadback(ctx: Ctx, input: SubmitTransferReadbackIn
   if (!input.final) {
     return { status: 'partial', received: readbackCounts(readback), mismatches: [], warnings: [] }
   }
+  assertWithinReadbackLimits(readback, true)
   return ctx.db.tx(() => {
     // Read again: another session may have changed the epic or the transfer since the part was taken.
     const epic = loadEpicRow(ctx, input.epicId)
@@ -410,6 +416,9 @@ function acceptReadbackPart(ctx: Ctx, input: SubmitTransferReadbackInput): Linea
   assertEpicOpen(epic)
   const row = requireStartedTransfer(ctx, epic.id, 'submitting its read-back')
   const readback = mergeReadback(parseJson<LinearReadback>(row.readback_json, {}), input.readback)
+  if (!input.final) {
+    assertWithinReadbackLimits(readback, false)
+  }
   ctx.db.run(
     'UPDATE transfers SET readback_json = ?, updated_at = ?, session_id = ? WHERE epic_id = ?',
     input.final ? null : toJson(readback),
@@ -421,6 +430,23 @@ function acceptReadbackPart(ctx: Ctx, input: SubmitTransferReadbackInput): Linea
     appendEvent(ctx, { kind: 'transfer.readback_received', epicId: epic.id, payload: { ...readbackCounts(input.readback) } })
   }
   return readback
+}
+
+const READBACK_LISTS = ['milestones', 'issues', 'relations'] as const
+
+/** Refuses a merged read-back past a `READBACK_LIMITS` list limit; `ended` when a final part already ended it. */
+function assertWithinReadbackLimits(readback: LinearReadback, ended: boolean): void {
+  const counts = readbackCounts(readback)
+  for (const limit of READBACK_LISTS) {
+    const max = READBACK_LIMITS[limit]
+    const count = counts[limit]
+    if (count > max) {
+      const next = ended
+        ? 'This final part still ended the read-back. Move the items that do not belong out of the project, then read the project back again from the start.'
+        : 'Nothing from this part was stored, and the parts sent before are kept. Move the items that do not belong out of the project, call start_transfer with a fresh idempotencyKey to discard this read-back, then read the project back again from the start.'
+      fail('invalid_input', `A transfer read-back holds at most ${max} ${limit}; with this part it would hold ${count}. ${next}`, { limit, max, count })
+    }
+  }
 }
 
 function rejectReadback(ctx: Ctx, epicId: string, readback: LinearReadback, comparison: ReadbackComparison): TransferReadbackResult {
@@ -466,6 +492,12 @@ function assertStillTransferable(ctx: Ctx, epic: EpicRow, row: TransferRow): voi
       epicId: epic.id,
       revisionId: row.revision_id,
       currentRevisionId: epic.current_revision_id
+    })
+  }
+  // A reconcile held back another machine's revision or run for this transfer; completing would bury them.
+  if (hasTransferHold(ctx.db, epic.id)) {
+    fail('conflict', 'Changes pulled from another machine are held for this epic. Cancel the transfer and reconcile before it completes.', {
+      epicId: epic.id
     })
   }
   assertNoPendingSave(ctx, epic.id)

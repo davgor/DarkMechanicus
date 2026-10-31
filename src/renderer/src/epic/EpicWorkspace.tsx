@@ -300,7 +300,7 @@ function WorkspaceView({ ws }: { ws: WorkspaceHandle }): JSX.Element {
         <Stage ws={ws} />
         <SidePanel ws={ws} />
       </div>
-      {draft ? <ValidationPanel ws={ws} /> : <AttemptsStrip ws={ws} />}
+      {draft ? <ValidationPanel ws={ws} saveUnavailable={header.actions.saveUnavailable} /> : <AttemptsStrip ws={ws} />}
       <Toast ws={ws} />
       <StartRunHost ws={ws} />
       <TransferHost ws={ws} />

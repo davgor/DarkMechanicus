@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { EpicDetailView } from '../../../shared/domain/views'
 import { epicDetail, runView } from './__mocks__/fixtures'
-import { confirmCopy, headerView, nextRevisionNumber, READ_ONLY_MESSAGE, type HeaderView } from './headerView'
+import { confirmCopy, headerView, nextRevisionNumber, READ_ONLY_MESSAGE, SAVE_UNAVAILABLE_MESSAGE, type HeaderView } from './headerView'
 
 interface Situation {
   folderName?: string
@@ -39,13 +39,13 @@ describe('header badge and breadcrumb', () => {
 describe('header actions', () => {
   it('offers Edit draft, Start run and Transfer to Linear in the Saved view', () => {
     const view = header(epicDetail())
-    expect(view.actions).toEqual({ editDraft: 'edit', viewSaved: false, discard: false, save: null, startRun: true, transfer: true })
+    expect(view.actions).toEqual({ editDraft: 'edit', viewSaved: false, discard: false, save: null, saveUnavailable: null, startRun: true, transfer: true })
     expect(view.readOnly).toBe(null)
   })
 
   it('offers View draft when a draft exists and hides Start run and Transfer to Linear during an active run', () => {
     const view = header(epicDetail({ hasDraft: true }), { hasActiveRun: true })
-    expect(view.actions).toEqual({ editDraft: 'view', viewSaved: false, discard: false, save: null, startRun: false, transfer: false })
+    expect(view.actions).toEqual({ editDraft: 'view', viewSaved: false, discard: false, save: null, saveUnavailable: null, startRun: false, transfer: false })
   })
 
   it('cannot start a run or transfer without a saved revision', () => {
@@ -55,13 +55,14 @@ describe('header actions', () => {
 
   it('offers Discard and Save (distinct from starting a run) in the Draft view', () => {
     const view = header(epicDetail({ hasDraft: true }), { view: 'draft' })
-    expect(view.actions).toEqual({ editDraft: null, viewSaved: true, discard: true, save: 'Save rev 5', startRun: false, transfer: false })
+    expect(view.actions).toEqual({ editDraft: null, viewSaved: true, discard: true, save: 'Save rev 5', saveUnavailable: null, startRun: false, transfer: false })
     const unsaved = epicDetail({ currentRevisionId: null, currentRevisionNumber: null, hasDraft: true })
     expect(header(unsaved, { view: 'draft' }).actions).toEqual({
       editDraft: null,
       viewSaved: false,
       discard: true,
       save: 'Save rev 1',
+      saveUnavailable: null,
       startRun: false,
       transfer: false
     })
@@ -70,10 +71,37 @@ describe('header actions', () => {
   it('makes completed epics read-only with no reopen, edit, run or transfer actions', () => {
     const epic = epicDetail({ status: 'completed' })
     const view = header(epic)
-    expect(view.actions).toEqual({ editDraft: null, viewSaved: false, discard: false, save: null, startRun: false, transfer: false })
+    expect(view.actions).toEqual({ editDraft: null, viewSaved: false, discard: false, save: null, saveUnavailable: null, startRun: false, transfer: false })
     expect(view.readOnly).toBe(READ_ONLY_MESSAGE)
     expect(READ_ONLY_MESSAGE).toBe('Completed epics are read-only. Create a new epic to extend this work.')
     expect(view.breadcrumb).toBe('dm / Completed')
+  })
+})
+
+describe('Save in the Draft view while a transfer is open', () => {
+  it('hides Save in the Draft view while a transfer is queued or in progress, and offers it again after cancel', () => {
+    const draft = epicDetail({ hasDraft: true, draftChanged: true })
+    // Queued and in progress both count as open: the workspace passes hasOpenTransfer for either status.
+    expect(header(draft, { view: 'draft', hasOpenTransfer: true }).actions).toEqual({
+      editDraft: null,
+      viewSaved: true,
+      discard: true,
+      save: null,
+      saveUnavailable: 'Save is unavailable while the Linear transfer is open. Cancel the transfer to save.',
+      startRun: false,
+      transfer: false
+    })
+    expect(SAVE_UNAVAILABLE_MESSAGE).toContain('Linear transfer')
+    // After cancel the transfer is no longer open.
+    expect(header(draft, { view: 'draft', hasOpenTransfer: false }).actions).toEqual({
+      editDraft: null,
+      viewSaved: true,
+      discard: true,
+      save: 'Save rev 5',
+      saveUnavailable: null,
+      startRun: false,
+      transfer: false
+    })
   })
 })
 

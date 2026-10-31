@@ -107,6 +107,16 @@ const INVALID: [string, string, Record<string, unknown>, string][] = [
     'an unknown readback list',
     { epicId: EPIC, readback: { cycles: [] }, final: false },
     'cycles'
+  ],
+  [
+    'submit_transfer_readback',
+    'a part over the size limit whose every field is in bounds',
+    {
+      epicId: EPIC,
+      readback: { issues: Array.from({ length: 17 }, (_, at) => ({ ...ISSUE, linearId: `lin-${at}`, description: 'x'.repeat(500_000) })) },
+      final: true
+    },
+    'A read-back part is at most 8000000 characters of JSON'
   ]
 ]
 

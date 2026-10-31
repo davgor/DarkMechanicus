@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import type { AgentAuthStatus, AgentKind, AgentView } from '../../../shared/desktop/api'
+import { LINEAR_SETUP_LINES } from '../../../shared/domain/linearSetup'
 import { AgentChoice, ModelChoice } from '../agents/NewChatFields'
 import type { AgentStatuses } from '../agents/useAgents'
 import { useAgentModelChoice } from '../agents/useAgentModelChoice'
@@ -7,7 +8,6 @@ import type { AgentModelChoice } from '../agents/useAgentModelChoice'
 import { Button } from '../components/Button'
 import { Dialog } from '../components/Dialog'
 import type { StartRunChoice } from './orchestration'
-import { LINEAR_SETUP_LINES } from './transferView'
 import type { TransferDialogMode } from './workspaceState'
 
 interface TransferDialogProps {

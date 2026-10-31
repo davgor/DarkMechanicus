@@ -37,6 +37,7 @@ import {
   planBundle,
   policiesPatch,
   profileName,
+  READBACK_LIMITS,
   sprintDef,
   sprintInput,
   sprintReportInput,
@@ -1461,5 +1462,54 @@ describe('heartbeat progress note', () => {
     ['an unknown key', { note: 'n', detail: 'x' }]
   ])('rejects %s', (_label, progress) => {
     expect(accepts(COMMAND_SCHEMAS.heartbeatAttempt, { ...heartbeat, progress })).toBe(false)
+  })
+})
+
+describe('submitTransferReadback part size', () => {
+  const { partChars } = READBACK_LIMITS
+  /** Every character JSON escapes or counts twice: a quote, a backslash, a newline, a control character, non-ASCII, a surrogate pair. */
+  const escaped = 'a"b\\c\nd\u0001é😀'.repeat(30_000)
+
+  function issue(at: number, description: string): object {
+    return {
+      linearId: `lin-${at}`,
+      identifier: `ENG-${at}`,
+      milestoneId: at === 0 ? null : 'lin-m',
+      title: 'Say "hi"\\now',
+      description,
+      priority: 2,
+      labels: ['ünï', 'tab\there'],
+      stateType: 'unstarted',
+      ...(at === 1 ? {} : { sortOrder: at === 0 ? 1e21 : -0 })
+    }
+  }
+
+  /** A part whose JSON is `partChars + extra` characters long; the last issue's description makes up the difference. */
+  function partOf(extra: number): object {
+    const issues = Array.from({ length: 14 }, (_, at) => issue(at, escaped))
+    const part = {
+      project: { linearId: 'p', url: 'https://linear.app/p', name: 'P', summary: 'S', content: '' },
+      issues: [...issues, issue(14, '')],
+      relations: [{ kind: 'blocks', fromId: 'lin-0', toId: 'lin-1' }]
+    }
+    const pad = partChars - JSON.stringify(part).length + extra
+    return { ...part, issues: [...issues, issue(14, 'x'.repeat(pad))] }
+  }
+
+  it('accepts a part of exactly the limit in characters of JSON, escapes counted, and refuses one character more', () => {
+    const exact = partOf(0)
+    expect(JSON.stringify(exact)).toHaveLength(partChars)
+    expect(accepts(COMMAND_SCHEMAS.submitTransferReadback, { epicId: idOf('epic', 1), readback: exact, final: false })).toBe(true)
+
+    const over = partOf(1)
+    expect(JSON.stringify(over)).toHaveLength(partChars + 1)
+    const error = thrownBy(() =>
+      parseInput(COMMAND_SCHEMAS.submitTransferReadback, { epicId: idOf('epic', 1), readback: over, final: true }, 'submitTransferReadback input')
+    )
+    expect(error).toBeInstanceOf(DomainError)
+    expect(error).toMatchObject({
+      code: 'invalid_input',
+      message: expect.stringContaining(`at readback: A read-back part is at most ${partChars} characters`)
+    })
   })
 })

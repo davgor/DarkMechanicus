@@ -128,7 +128,31 @@ final. Dark Mechanicus then compares the read-back with the stored packet and th
 recorded.
 
 A final part always ends the read-back, whatever the result. After a refusal, the agent reads the
-whole project back again from the start.
+whole project back again from the start. A part refused as malformed or too large (see below)
+changes nothing, final or not.
+
+### Size limits
+
+Dark Mechanicus bounds the read-back. The limits are `READBACK_LIMITS` in `src/core/schemas.ts`.
+
+| Limit | Value | Counts |
+|-------|-------|--------|
+| Part size | 8,000,000 characters | The JSON of one `submit_transfer_readback` part. |
+| Milestones | 200 | Distinct milestones across all the parts sent so far. |
+| Issues | 1,100 | Distinct issues across all the parts sent so far. |
+| Relations | 15,100 | Distinct relations across all the parts sent so far. |
+
+Each item limit is the most a plan can hold (100 sprints, 1,000 tickets, 15,000 blocking edges and
+related relations) plus 100 unexpected items, so the comparison can still report items that do not
+belong. An item sent again replaces its earlier copy and does not count twice.
+
+- A part over the size limit is refused with `invalid_input` before anything is merged, final or
+  not. The parts sent before stay as they were. The agent sends the same items in smaller parts.
+- A part that is not final and would take the read-back past an item limit is refused with
+  `invalid_input` naming the limit. Nothing from it is stored, and the parts sent before stay as
+  they were. The agent moves the items that do not belong out of the project, discards the
+  read-back with `start_transfer` and a fresh idempotency key, and reads back from the start.
+- A final part past an item limit is refused the same way, but it still ends the read-back.
 
 ### Mismatches
 
@@ -200,6 +224,18 @@ While a transfer is queued or in progress, the plan it sends must stay put:
   has unsaved changes: discard them, or cancel the transfer.
 
 A refused run or save says: "Finish or cancel the Linear transfer of this epic first."
+
+The transfer lives only in this machine's database; it is not in the tracked records. So another
+machine can still save a plan or start a run for the epic, and you can pull it in. When a reconcile
+finds a saved revision this machine does not have, a current revision other than the transferred
+one, or a run, for an epic whose transfer is queued or in progress, it imports none of that epic's
+tracked plan, state or run changes. It reports a storage conflict for the epic instead, in
+`get_storage_status` and `reconcile_repository`, naming the epic and the transferred revision. Your
+saved plan, runs and the transfer stay as they are. While the conflict stands, a matching read-back
+cannot complete the epic, and a change you make to the epic's state (such as a ticket status) is kept
+but not written to the tracked records, so it cannot overwrite what was pulled. To bring the changes
+in, cancel the transfer and reconcile again. If you changed the epic's state meanwhile, that
+reconcile reports the usual conflict between your unexported change and the pulled records instead.
 
 ## What completion records
 

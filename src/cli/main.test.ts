@@ -257,6 +257,7 @@ describe('dm transfer linear', () => {
     expect(text).toContain('1. DM-1 First ticket')
     expect(text).toContain('claude mcp add --transport http linear-server https://mcp.linear.app/mcp')
     expect(text).toContain('codex mcp add linear --url https://mcp.linear.app/mcp')
+    expect(text).toContain('- Cursor: add https://mcp.linear.app/mcp in its MCP settings.')
     expect(text).toContain('Agent access card')
     expect(text).toContain('DM_SESSION_TOKEN')
     expect(() => JSON.parse(text) as unknown).toThrow()

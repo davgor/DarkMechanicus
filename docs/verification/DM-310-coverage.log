@@ -1,0 +1,24 @@
+$ npm run coverage  (worktree linear-sprint-2 @ 9060a9f, 2026-10-31T11:22:49Z)
+
+> dark-mechanicus@0.19.0 coverage
+> vitest run --coverage
+
+
+ RUN  v4.1.11 /Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/linear-sprint-2
+      Coverage enabled with v8
+
+
+ Test Files  423 passed (423)
+      Tests  8222 passed | 9 skipped (8231)
+   Start at  06:22:50
+   Duration  80.31s (transform 22.37s, setup 0ms, import 150.23s, tests 344.96s, environment 168.00s)
+
+ % Coverage report from v8
+
+=============================== Coverage summary ===============================
+Statements   : 97.68% ( 16958/17359 )
+Branches     : 95.26% ( 10440/10959 )
+Functions    : 96.37% ( 5720/5935 )
+Lines        : 97.83% ( 15790/16140 )
+================================================================================
+exit: 0

@@ -1,0 +1,17 @@
+$ git grep '.Codex/skills/delivery-standards'
+exit: 1
+$ git grep -i '.codex/skills/delivery-standards'
+exit: 1
+$ cmp .claude/skills/delivery-standards/SKILL.md .cursor/skills/delivery-standards/SKILL.md
+exit: 0
+$ diff .agents/skills/delivery-standards/SKILL.md .claude/skills/delivery-standards/SKILL.md
+exit: 0
+$ git grep -n delivery-standards/SKILL.md -- AGENTS.md .agents/skills/delivery-standards/SKILL.md
+.agents/skills/delivery-standards/SKILL.md:13:This skill exists as two identical copies, `.claude/skills/delivery-standards/SKILL.md` and `.cursor/skills/delivery-standards/SKILL.md`. Keep them byte-identical when changing workflow rules.
+AGENTS.md:12:Details: [`.agents/skills/delivery-standards/SKILL.md`](.agents/skills/delivery-standards/SKILL.md), [`skills/orchestrator.md`](skills/orchestrator.md), [`docs/runbooks/mcp-setup.md`](docs/runbooks/mcp-setup.md).
+exit: 0
+$ ls .agents/skills/delivery-standards/SKILL.md .claude/skills/delivery-standards/SKILL.md .cursor/skills/delivery-standards/SKILL.md
+.agents/skills/delivery-standards/SKILL.md
+.claude/skills/delivery-standards/SKILL.md
+.cursor/skills/delivery-standards/SKILL.md
+exit: 0

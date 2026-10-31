@@ -150,6 +150,18 @@
   flex-shrink: 0;
 }
 
+.ew-header-notice,
+.ew-save-unavailable {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+/* Wraps to two lines so the title keeps its room in the header. */
+.ew-header-notice {
+  max-width: 280px;
+  line-height: 1.35;
+}
+
 .ew-delete {
   position: relative;
 }

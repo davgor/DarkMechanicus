@@ -16,6 +16,7 @@ import { COMMAND_CAPABILITIES } from '../core/commands/capabilities'
 import { COMMANDS } from '../core/commands/index'
 import { DomainError, toErrorShape } from '../core/errors'
 import type { CommandName } from '../shared/domain/api'
+import { LINEAR_SETUP_LINES } from '../shared/domain/linearSetup'
 import type { LinearTransferPacket, TransferView } from '../shared/domain/transfer'
 import type { EpicDetailView } from '../shared/domain/views'
 import { openWorkspace, type OpenWorkspaceOptions, type Workspace } from '../core/workspace'
@@ -169,9 +170,7 @@ const LINEAR_SETUP = [
   '=== Linear setup ===',
   '',
   "The agent needs Linear's MCP tools. Set them up once for the CLI it runs in:",
-  '- Claude Code: claude mcp add --transport http linear-server https://mcp.linear.app/mcp, then /mcp to sign in.',
-  '- Codex: codex mcp add linear --url https://mcp.linear.app/mcp',
-  "- Cursor: add https://mcp.linear.app/mcp in Cursor's MCP settings."
+  ...LINEAR_SETUP_LINES.map((line) => `- ${line.cli}: ${line.setup}`)
 ]
 
 const GRANT_HELP = [

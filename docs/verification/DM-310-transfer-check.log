@@ -1,0 +1,31 @@
+$ node docs/verification/DM-310-transfer-check.mjs  (worktree linear-sprint-2 @ 29cf13f, built out/main/mcp.js, 2026-10-31T11:26:11Z)
+## c1 (DM-311): a pulled revision and run for an epic with an open transfer
+machine A: /Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/linear-sprint-2/out/main/mcp.js (darkmechanicus 0.19.0, schema 10) on /private/var/folders/sp/ypkkq76s3ks08w8cyxv712000000gn/T/dm310-machine-a-repo-yyntg4
+machine A: saved epic ep_01m68vbjksrxbs5bgvscxzy5z4: {"savedRevision":{"id":"rv_01m68vbjm6391s2n7ctkhmr90c","number":1},"workTickets":["Prepare","Deliver"],"epicStatus":"backlog","run":null,"conflict":null}
+pull A -> B: copied [".gitignore","epics","history","profiles","project.json"]
+machine B reconcile_repository: imported [], conflicts []
+machine B holds: {"savedRevision":{"id":"rv_01m68vbjm6391s2n7ctkhmr90c","number":1},"workTickets":["Prepare","Deliver"],"epicStatus":"backlog","run":null,"conflict":null}
+machine B desktop queueTransfer (the person): ok -> "queued"
+machine A save_plan: saved
+machine A start_run: run rn_01m68vbk2mkkct1xcrc3rhq2aj; machine A holds: {"savedRevision":{"id":"rv_01m68vbk20hg4nyb2ngdtf5nby","number":2},"workTickets":["Prepare (edited on A)","Deliver"],"epicStatus":"in_progress","run":{"id":"rn_01m68vbk2mkkct1xcrc3rhq2aj","state":"running"},"conflict":null}
+pull A -> B: copied [".gitignore","epics","history","profiles","project.json"]
+machine B reconcile_repository with the transfer queued: imported [], unchanged [], rejected []
+  conflicts: [{"epicId":"ep_01m68vbjksrxbs5bgvscxzy5z4","message":"Linear transfer open for epic ep_01m68vbjksrxbs5bgvscxzy5z4: tracked records bring saved revision rv_01m68vbk20hg4nyb2ngdtf5nby and run rn_01m68vbk2mkkct1xcrc3rhq2aj while its Linear transfer of revision rv_01m68vbjm6391s2n7ctkhmr90c is queued, so the epic's tracked plan, state and run changes were not imported. Cancel the transfer, then reconcile again."}]
+machine B holds: {"savedRevision":{"id":"rv_01m68vbjm6391s2n7ctkhmr90c","number":1},"workTickets":["Prepare","Deliver"],"epicStatus":"backlog","run":null,"conflict":"Linear transfer open for epic ep_01m68vbjksrxbs5bgvscxzy5z4: tracked records bring saved revision rv_01m68vbk20hg4nyb2ngdtf5nby and run rn_01m68vbk2mkkct1xcrc3rhq2aj while its Linear transfer of revision rv_01m68vbjm6391s2n7ctkhmr90c is queued, so the epic's tracked plan, state and run changes were not imported. Cancel the transfer, then reconcile again."}
+machine B get_storage_status conflicts for the epic: [{"epicId":"ep_01m68vbjksrxbs5bgvscxzy5z4","message":"Linear transfer open for epic ep_01m68vbjksrxbs5bgvscxzy5z4: tracked records bring saved revision rv_01m68vbk20hg4nyb2ngdtf5nby and run rn_01m68vbk2mkkct1xcrc3rhq2aj while its Linear transfer of revision rv_01m68vbjm6391s2n7ctkhmr90c is queued, so the epic's tracked plan, state and run changes were not imported. Cancel the transfer, then reconcile again."}]
+machine B get_transfer: ok -> "queued"
+machine B desktop cancelTransfer (the person): ok -> "canceled"
+machine B reconcile_repository after cancel: imported ["ep_01m68vbjksrxbs5bgvscxzy5z4","rn_01m68vbk2mkkct1xcrc3rhq2aj"], conflicts []
+machine B holds: {"savedRevision":{"id":"rv_01m68vbk20hg4nyb2ngdtf5nby","number":2},"workTickets":["Prepare (edited on A)","Deliver"],"epicStatus":"in_progress","run":{"id":"rn_01m68vbk2mkkct1xcrc3rhq2aj","state":"running"},"conflict":null}
+machine B get_storage_status conflicts for the epic: []
+
+## c2 (DM-312): read-back size caps
+desktop queueTransfer: ok -> "queued"
+start_transfer: transfer now in_progress
+oversized part: 17 issues with 500,000-character descriptions, 8502569 characters of JSON (cap 8,000,000)
+submit_transfer_readback (oversized part): error invalid_input: Invalid arguments for submit_transfer_readback: readback: A read-back part is at most 8000000 characters of JSON. Send the read-back in more, smaller parts. {"tool":"submit_transfer_readback","issues":[{"path":"readback","message":"A read-back part is at most 8000000 characters of JSON. Send the read-back in more, smaller parts."}]}
+submit_transfer_readback part 1 (600 issues, not final): ok -> "partial"
+submit_transfer_readback part 2 (600 more issues, not final; cap 1,100): error invalid_input: A transfer read-back holds at most 1100 issues; with this part it would hold 1200. Nothing from this part was stored, and the parts sent before are kept. Move the items that do not belong out of the project, call start_transfer with a fresh idempotencyKey to discard this read-back, then read the project back again from the start. {"limit":"issues","max":1100,"count":1200}
+
+all assertions passed
+exit: 0

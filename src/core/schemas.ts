@@ -52,6 +52,21 @@ export const LIMITS = {
   progressStep: 64
 } as const
 
+/** Unexpected items a whole read-back may hold beyond the packet's limit for a list, so the comparison can report them. */
+const READBACK_UNEXPECTED_ITEMS = 100
+
+/**
+ * Size limits on a Linear transfer's read-back: the JSON of one `submitTransferReadback` part, and the distinct
+ * items all the parts may hold once merged, each list at the packet's limit plus `READBACK_UNEXPECTED_ITEMS`.
+ */
+export const READBACK_LIMITS = {
+  /** Characters in the JSON of one read-back part. */
+  partChars: 8_000_000,
+  milestones: LIMITS.sprints + READBACK_UNEXPECTED_ITEMS,
+  issues: LIMITS.tickets + READBACK_UNEXPECTED_ITEMS,
+  relations: LIMITS.edges + LIMITS.relations + READBACK_UNEXPECTED_ITEMS
+} as const
+
 export const stableId = z.string().regex(STABLE_ID_PATTERN, 'Expected a stable id such as tk_…')
 /** A stable id, a ticket key, or a client-local ref declared in the same request. */
 export const entityRef = z.string().min(1).max(64).regex(/^[A-Za-z0-9_.:-]+$/)
@@ -459,7 +474,7 @@ const readbackText = z.string().max(5 * LIMITS.markdown)
  * One part of what an agent read back from Linear. Every field of an item is required (only an issue's sortOrder
  * is optional), and each list is bounded by the most a packet can hold, so a larger project is sent in parts.
  */
-export const linearReadback = z.strictObject({
+const linearReadback = z.strictObject({
   project: z
     .strictObject({ linearId, url: linearUrl, name: readbackName, summary: shortText, content: readbackText })
     .optional(),
@@ -488,6 +503,42 @@ export const linearReadback = z.strictObject({
     .max(LIMITS.edges + LIMITS.relations)
     .optional()
 })
+
+/**
+ * Whether `JSON.stringify(value)` would be longer than `max` characters, counted without building that string, so
+ * an oversized part is refused without first being copied whole. A value JSON cannot hold counts as `null`: it
+ * reaches here only beside another problem that refuses the part anyway.
+ */
+function jsonLongerThan(value: unknown, max: number): boolean {
+  let length = 0
+  const exceeds = (item: unknown): boolean => {
+    if (Array.isArray(item)) {
+      length += Math.max(2, item.length + 1)
+      return length > max || item.some(exceeds)
+    }
+    if (item !== null && typeof item === 'object') {
+      const entries = Object.entries(item).filter(([, entry]) => entry !== undefined)
+      length += Math.max(2, entries.length + 1)
+      return (
+        length > max ||
+        entries.some(([key, entry]) => {
+          length += JSON.stringify(key).length + 1
+          return length > max || exceeds(entry)
+        })
+      )
+    }
+    const plain = typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean'
+    length += plain ? JSON.stringify(item).length : 'null'.length
+    return length > max
+  }
+  return exceeds(value)
+}
+
+/** One `submitTransferReadback` part: a `linearReadback` whose JSON is at most `READBACK_LIMITS.partChars` long. */
+export const linearReadbackPart = linearReadback.refine(
+  (part) => !jsonLongerThan(part, READBACK_LIMITS.partChars),
+  `A read-back part is at most ${READBACK_LIMITS.partChars} characters of JSON. Send the read-back in more, smaller parts.`
+)
 
 /** Parses untrusted input or throws a structured `invalid_input` error naming the first problem. */
 export function parseInput<T>(schema: z.ZodType<T>, value: unknown, what: string): T {

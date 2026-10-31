@@ -5,6 +5,7 @@ import type { Workspace } from '../core/workspace'
 import type { LinearTransferPacket } from '../shared/domain/transfer'
 import { callLinear, createFakeLinear, type FakeIssue, type FakeLinear } from '../test/fakeLinearMcp'
 import {
+  completeTicket,
   type DriverStep,
   type PlanApi,
   planOneSprintEpic,
@@ -43,17 +44,30 @@ interface Queued {
   epicId: string
 }
 
-/** A saved fixture epic whose transfer the person queued in the desktop app, and an orchestrator with Linear's tools. */
-async function queued(plan: (api: PlanApi) => Promise<string>): Promise<Queued> {
+/**
+ * A saved fixture epic whose transfer the person queued in the desktop app, and an orchestrator with Linear's
+ * tools. `before` runs as that orchestrator ahead of the queue, as work done in Dark Mechanicus first.
+ */
+async function queued(plan: (api: PlanApi) => Promise<string>, before?: (agent: Workspace, epicId: string) => Promise<unknown>): Promise<Queued> {
   const desktop = harness.open('desktop')
   await desktop.initializeRepository({ name: 'linear-transfer-repo' })
   const epicId = await plan(desktop)
+  const agent = harness.open('orchestrator')
+  await before?.(agent, epicId)
   expect(await desktop.queueTransfer({ epicId })).toMatchObject({ status: 'queued' })
-  return { desktop, agent: harness.open('orchestrator'), linear: await fake.connect(), epicId }
+  return { desktop, agent, linear: await fake.connect(), epicId }
 }
 
-function driver(setup: Queued, session: string, interrupt?: (step: DriverStep) => boolean): TransferDriver {
-  return new TransferDriver({ dm: setup.agent, linear: setup.linear, epicId: setup.epicId, teamKey: 'ENG', session, ...(interrupt ? { interrupt } : {}) })
+function driver(setup: Queued, session: string, interrupt?: (step: DriverStep) => boolean, leaveCompletedOpen?: boolean): TransferDriver {
+  return new TransferDriver({
+    dm: setup.agent,
+    linear: setup.linear,
+    epicId: setup.epicId,
+    teamKey: 'ENG',
+    session,
+    ...(interrupt ? { interrupt } : {}),
+    ...(leaveCompletedOpen ? { leaveCompletedOpen } : {})
+  })
 }
 
 /** Stops right after creating the fourth issue, before recording it: three issues are recorded then. */
@@ -180,5 +194,62 @@ describe('a Linear transfer canceled and queued again', () => {
     const verified = await driver(setup, 'verifier').verify()
     expect(verified.results.map((result) => result.status)).toEqual(['verified'])
     expect(fake.layout()).toContain('Project Cancel path fixture')
+  })
+})
+
+describe('a Linear transfer of an epic with a ticket completed in Dark Mechanicus', () => {
+  interface WithCompleted extends Queued {
+    packet: LinearTransferPacket
+    completed: LinearTransferPacket['issues'][number]
+    stateOf: (ref: string) => Promise<string | undefined>
+  }
+
+  /** The one-sprint fixture with Prepare accepted in a run that was then canceled, queued for transfer. */
+  async function withCompleted(): Promise<WithCompleted> {
+    const setup = await queued(planOneSprintEpic, (agent, epicId) => completeTicket(agent, epicId, 'Prepare'))
+    const packet = (await setup.agent.getTransfer({ epicId: setup.epicId })).packet ?? expect.fail('the queued transfer has a packet')
+    expect(packet.issues.map((issue) => [issue.title, issue.state])).toEqual([
+      ['Prepare', 'completed'],
+      ['Deliver', 'default'],
+      [expect.any(String), 'default']
+    ])
+    const completed = packet.issues[0] ?? expect.fail('the packet has Prepare')
+    const stateOf = async (ref: string) => {
+      const recorded = (await setup.agent.getTransfer({ epicId: setup.epicId })).recorded.find((item) => item.ref === ref)
+      return fake.dump().issues.find((issue) => issue.id === recorded?.linearId)?.stateType
+    }
+    return { ...setup, packet, completed, stateOf }
+  }
+
+  it('creates its issue in a completed state, and the read-back verifies and completes the epic', async () => {
+    const setup = await withCompleted()
+    const { desktop, epicId, packet, completed, stateOf } = setup
+    await driver(setup, 'first').transfer()
+    expect(await Promise.all(packet.issues.map((issue) => stateOf(issue.ref)))).toEqual(['completed', 'unstarted', 'unstarted'])
+
+    const verified = await driver(setup, 'verifier').verify()
+    expect(verified.results.map((result) => [result.status, result.mismatches])).toEqual([['verified', []]])
+    expect(await stateOf(completed.ref)).toBe('completed')
+    expect(await desktop.getEpic({ epicId })).toMatchObject({ status: 'completed', outcome: { transfer: { target: 'linear' } } })
+  })
+
+  it('rejects its issue left open with a state mismatch naming its key, and verifies once the driver sets the state', async () => {
+    const setup = await withCompleted()
+    const { desktop, agent, epicId, completed, stateOf } = setup
+    await driver(setup, 'first', undefined, true).transfer()
+    expect(await stateOf(completed.ref)).toBe('unstarted')
+
+    const first = await driver(setup, 'verifier').verify(1)
+    expect(first.results.map((result) => [result.status, result.mismatches])).toEqual([
+      ['rejected', [{ ref: completed.ref, key: completed.key, field: 'state', expected: 'completed', actual: 'unstarted' }]]
+    ])
+    expect(first.fixes).toEqual([`updated the state of ${completed.key}`])
+    expect(await stateOf(completed.ref)).toBe('completed')
+    expect(await desktop.getEpic({ epicId })).toMatchObject({ outcome: null })
+    expect((await agent.getTransfer({ epicId })).lastMismatches).toHaveLength(1)
+
+    const second = await driver(setup, 'verifier-2').verify()
+    expect(second.results.map((result) => [result.status, result.mismatches])).toEqual([['verified', []]])
+    expect(await desktop.getEpic({ epicId })).toMatchObject({ status: 'completed', outcome: { transfer: { target: 'linear' } } })
   })
 })

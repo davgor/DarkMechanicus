@@ -17,6 +17,7 @@ import type { Db } from '../db/database'
 import { fail } from '../errors'
 import { META_KEYS, setMeta } from '../meta'
 import type { OutboxKind } from '../services/outbox'
+import { hasTransferHold } from '../services/transferGuard'
 import type { StorageMode } from './storageMode'
 import { assertContained, displayPath, ownedPaths } from './paths'
 import {
@@ -168,7 +169,11 @@ function recordExport(deps: FinalizerDeps, entry: { kind: ExportKind; entityId: 
   )
 }
 
-/** Rewrites state.json, then current.json (last), for an epic's current saved revision. */
+/**
+ * Rewrites state.json, then current.json (last), for an epic's current saved revision. Refused while the importer
+ * holds incoming records of the epic for its open Linear transfer: writing over them would drop another machine's
+ * revision or run without a trace, so the entry waits (and is retried) until the person cancels and reconciles.
+ */
 function exportEpic(deps: FinalizerDeps, epicId: string): void {
   const epic = deps.db.get<{ current_revision_id: string | null }>('SELECT current_revision_id FROM epics WHERE id = ?', epicId)
   if (epic === undefined) {
@@ -176,6 +181,9 @@ function exportEpic(deps: FinalizerDeps, epicId: string): void {
   }
   if (epic.current_revision_id === null) {
     return
+  }
+  if (hasTransferHold(deps.db, epicId)) {
+    fail('conflict', `Epic ${epicId}'s tracked records hold changes waiting for its Linear transfer. Cancel the transfer and reconcile first.`)
   }
   const snapshot = buildSnapshotRecord(deps.db, epic.current_revision_id)
   writeSnapshot(deps, snapshot)

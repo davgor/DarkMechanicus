@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import architecture from '../../docs/architecture.md?raw'
+import linearTransferSource from '../../skills/linear-transfer.md?raw'
 import { SKILLS_VERSION } from '../core/version'
+import { LINEAR_SETUP_LINES } from '../shared/domain/linearSetup'
 import { SKILLS, skillBody, splitSkillSource } from './skills'
 
 const EXPECTED = [
@@ -57,6 +59,14 @@ describe('SKILLS', () => {
     for (const item of SKILLS) {
       expect(VENDOR_WORDS.test(withoutLinearSetup(item.body))).toBe(false)
       expect(VENDOR_WORDS.test(item.description)).toBe(false)
+    }
+  })
+
+  it('gives each Linear setup line of dm transfer and the app verbatim in the transfer guide', () => {
+    const guideLines = linearTransferSource.split('\n')
+    expect(LINEAR_SETUP_LINES.map((entry) => entry.cli)).toEqual(['Claude Code', 'Codex', 'Cursor'])
+    for (const entry of LINEAR_SETUP_LINES) {
+      expect(guideLines.filter((guideLine) => guideLine.includes(entry.guide)), entry.cli).toHaveLength(1)
     }
   })
 
