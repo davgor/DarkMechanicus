@@ -31,7 +31,8 @@ const READ_TOOLS = [
   'list_comments',
   'list_profiles',
   'get_profile',
-  'preview_board_import'
+  'preview_board_import',
+  'get_transfer'
 ]
 
 /** Every role may comment. */
@@ -82,7 +83,11 @@ const ORCHESTRATOR_TOOLS = [
   'record_row_check',
   'submit_sprint_report',
   'redraft_next_sprint',
-  'advance_sprint'
+  'advance_sprint',
+  // epic.transfer: carrying out a transfer the person queued.
+  'start_transfer',
+  'record_transfer_item',
+  'submit_transfer_readback'
 ]
 
 const WORKER_TOOLS = [...READ_TOOLS, ...COMMENT_TOOLS, 'heartbeat_attempt', 'submit_attempt', 'fail_attempt']

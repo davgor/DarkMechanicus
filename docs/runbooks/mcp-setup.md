@@ -175,13 +175,13 @@ Roles are fixed at launch. Nothing a tool call says can change them.
 | Role | Can do |
 |------|--------|
 | `planner` | Read, create epics, edit drafts, comment, save named capability profiles (`save_profile`), set the project's Definition of Done (`set_definition_of_done`). `save_plan` only with `--allow-save`. |
-| `orchestrator` (default) | Everything a planner can except set the Definition of Done (it reads it with `get_project`, and holds work to it when it accepts), plus register hosts, start and control runs, claim tickets, review attempts, submit sprint reports, redraft the next sprint from a retro (`redraft_next_sprint`), and advance sprints. Never approves. |
+| `orchestrator` (default) | Everything a planner can except set the Definition of Done (it reads it with `get_project`, and holds work to it when it accepts), plus register hosts, start and control runs, claim tickets, review attempts, submit sprint reports, redraft the next sprint from a retro (`redraft_next_sprint`), advance sprints, and carry out a Linear transfer the person queued (`epic.transfer`; see [Linear transfer](#linear-transfer)). Never approves. |
 | `worker` | Heartbeat, submit, and fail for the claim it holds; comment. |
 | `reviewer` | Accept or reject submitted attempts; comment. |
 
 Every role can read and add comments (`list_comments`, `add_comment`): append-only Markdown notes on an epic or one of its tickets, signed with the session's role and label. Completed epics refuse new comments.
 
-Some actions exist only in the desktop app and are not available over MCP for any role: approving a checkpoint, authorizing auto-continue, granting a retry, and queueing a run.
+Some actions exist only in the desktop app and are not available over MCP for any role: approving a checkpoint, authorizing auto-continue, granting a retry, queueing a run, and queueing or canceling a Linear transfer.
 
 Suggested setup: connect the agent session you work with as `orchestrator`. Add `--allow-save` when you want it to save plans without you pressing Save. Use `planner` only for a session that must never run anything.
 
@@ -206,7 +206,7 @@ A session lists only the tools its role may call. Each tool adapts one command, 
 
 | Tools | planner | orchestrator | worker | reviewer |
 |-------|:-------:|:------------:|:------:|:--------:|
-| Read-only (24): `get_capabilities`, `get_project`, `list_projects`, `get_storage_status`, `search_history`, `list_branch_epics`, `list_sessions`, `list_epics`, `get_epic`, `list_tickets`, `get_ticket`, `get_plan`, `validate_plan`, `list_revisions`, `match_capabilities`, `get_run`, `get_ready_tickets`, `get_sprint_report`, `get_checkpoint`, `get_run_events`, `list_comments`, `list_profiles`, `get_profile`, `preview_board_import` | yes | yes | yes | yes |
+| Read-only (25): `get_capabilities`, `get_project`, `list_projects`, `get_storage_status`, `search_history`, `list_branch_epics`, `list_sessions`, `list_epics`, `get_epic`, `list_tickets`, `get_ticket`, `get_plan`, `validate_plan`, `list_revisions`, `match_capabilities`, `get_run`, `get_ready_tickets`, `get_sprint_report`, `get_checkpoint`, `get_run_events`, `list_comments`, `list_profiles`, `get_profile`, `preview_board_import`, `get_transfer` | yes | yes | yes | yes |
 | Comments: `add_comment` | yes | yes | yes | yes |
 | Profiles: `save_profile` | yes | yes | | |
 | Definition of Done: `set_definition_of_done` | yes | | | |
@@ -219,9 +219,23 @@ A session lists only the tools its role may call. Each tool adapts one command, 
 | `heartbeat_attempt`, `submit_attempt`, `fail_attempt` | | yes | yes | |
 | `accept_attempt`, `reject_attempt` | | yes | | yes |
 | Checkpoints: `submit_sprint_report`, `redraft_next_sprint`, `advance_sprint` | | yes | | |
-| **Total** | 36 (37 with `--allow-save`) | 58 (59 with `--allow-save`) | 28 | 27 |
+| Linear transfer (`epic.transfer`): `start_transfer`, `record_transfer_item`, `submit_transfer_readback` | | yes | | |
+| **Total** | 37 (38 with `--allow-save`) | 62 (63 with `--allow-save`) | 29 | 28 |
 
 `--allow-save` has no effect for `worker` and `reviewer`. No role lists a tool for the desktop-only actions.
+
+### Linear transfer
+
+Moving a saved epic to a Linear project is the person's decision: they queue the transfer, or cancel it, in the desktop app (`queueTransfer`, `cancelTransfer`, capability `transfer.queue`, which only the desktop holds). No MCP tool, grant or `dm` session can queue or cancel one. Carrying out a queued transfer needs `epic.transfer`, which only the `orchestrator` role (and the desktop) holds; every role can follow it with `get_transfer`.
+
+| Tool | Kind | What it does |
+|------|------|--------------|
+| `get_transfer` | read | Status (`not_started`, `queued`, `in_progress`, `verified`, `canceled`), the packet, the recorded items, the refs still to create, and the last read-back's mismatches. |
+| `start_transfer` | idempotent | Starts the queued transfer or resumes one in progress, and returns the packet with what is recorded and what remains. Fails unless the person queued it. |
+| `record_transfer_item` | idempotent | Records the Linear item created for one packet ref. The same values again change nothing; a different Linear id needs `replace`. |
+| `submit_transfer_readback` | write | One part of the read-back from Linear; parts accumulate until `final: true`, which completes the epic on a full match or returns the mismatches. It takes no `idempotencyKey`: sending a part again is harmless, and a final part always ends the accumulation, so after a refusal the agent reads Linear back again from the start. |
+
+The whole flow, from the app's Transfer to Linear button to what completion records, is in [Transfer an epic to Linear](linear-transfer.md).
 
 ## Tool results and errors
 
@@ -241,6 +255,8 @@ Arguments that do not match a tool's input schema fail with `invalid_input` befo
 ```
 
 Nested fields use dotted paths such as `ops.0.ticket.title`. Omitted `arguments` count as an empty object.
+
+A message on stdin longer than 32,000,000 bytes (`MCP_MESSAGE_MAX_BYTES`) is not read or parsed. The server answers it with a JSON-RPC error, code `-32600`, and keeps serving the next message. See [Message size](linear-transfer.md#message-size).
 
 ## Skills
 

@@ -1,0 +1,19 @@
+$ grep -n "linear-transfer.md" README.md docs/runbooks/mcp-setup.md
+README.md:11:- Handing a saved epic to Linear: [`docs/runbooks/linear-transfer.md`](docs/runbooks/linear-transfer.md)
+README.md:27:10. **Hand off to Linear** — instead of running an epic here, press **Transfer to Linear** to move its saved plan, once, to a Linear project in execution order. An agent with Linear's own MCP server creates the project, milestones and issues and reads them back; a read-back that matches the plan completes the epic. Runs and Save are locked while the transfer is open. See [Transfer an epic to Linear](docs/runbooks/linear-transfer.md).
+docs/runbooks/mcp-setup.md:238:The whole flow, from the app's Transfer to Linear button to what completion records, is in [Transfer an epic to Linear](linear-transfer.md).
+
+# Relative links in docs/runbooks/linear-transfer.md (target file exists; #anchor matches a heading slug)
+OK   #start-it-with-an-external-agent
+OK   mcp-setup.md
+OK   cli.md
+OK   cli.md#hand-an-epic-to-linear-dm-transfer-linear
+OK   ../../skills/linear-transfer.md
+OK   ../../skills/linear-transfer.md
+OK   mcp-setup.md#linear-transfer
+OK   ../verification/linear-transfer-smoke.md
+OK   ../architecture.md#decisions-taken-during-implementation
+OK   README.md -> docs/runbooks/linear-transfer.md
+OK   README.md -> docs/runbooks/linear-transfer.md
+OK   docs/runbooks/mcp-setup.md -> #linear-transfer
+OK   docs/runbooks/mcp-setup.md -> linear-transfer.md

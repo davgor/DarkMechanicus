@@ -17,6 +17,15 @@ import type {
 } from './bundle'
 import type { AttemptTimelineView, RunTimelineView, TimelineWindow } from './activity'
 import type { SprintRetroInput } from './retro'
+import type {
+  RecordTransferItemInput,
+  StartedTransferView,
+  SubmitTransferReadbackInput,
+  TransferActionInput,
+  TransferItemView,
+  TransferReadbackResult,
+  TransferView
+} from './transfer'
 import type { WorkStatus } from './status'
 import type {
   ApprovalView,
@@ -35,6 +44,7 @@ import type {
   CriterionResult,
   DeleteEpicResultView,
   DraftUpdateResultView,
+  EpicConflictChoice,
   EpicDetailView,
   EpicSummaryView,
   EventsPage,
@@ -48,6 +58,7 @@ import type {
   ReadinessView,
   RedraftResultView,
   ReconcileResultView,
+  ResolveEpicConflictView,
   RevisionSummaryView,
   RowCheckView,
   RunView,
@@ -243,6 +254,15 @@ export interface CommandApi {
   getStorageStatus(): Promise<StorageStatusView>
   flushPortableState(): Promise<FlushResultView>
   reconcileRepository(): Promise<ReconcileResultView>
+  /**
+   * Desktop only; no MCP tool offers it. Settles an epic whose tracked records changed (another machine's save or
+   * state change, pulled or checked out) while this machine's changes to it wait to be exported, which neither a
+   * reconcile nor a flush will apply over the other. `tracked` drops the epic's waiting state export and any waiting
+   * save (its revision is marked failed; the draft stays), then imports the tracked records; `local` writes this
+   * machine's records over them. Refused (`conflict`) when there is no such conflict, during a Linear transfer hold,
+   * or when the chosen side cannot be applied, leaving everything as it was. Never commits.
+   */
+  resolveEpicConflict(input: { epicId: string; keep: EpicConflictChoice }): Promise<ResolveEpicConflictView>
   searchHistory(input: { query: string; limit?: number; epicId?: string }): Promise<SearchResultView[]>
   listBranchEpics(): Promise<BranchEpicView[]>
   backupDatabase(input: { targetPath?: string }): Promise<{ path: string }>
@@ -453,6 +473,26 @@ export interface CommandApi {
   getAttemptTimeline(input: { attemptId: string } & TimelineWindow): Promise<AttemptTimelineView>
   /** A run's story grouped by the session that did each thing; paged with `sinceSeq` like an attempt timeline. */
   getRunTimeline(input: { runId: string } & TimelineWindow): Promise<RunTimelineView>
+
+  // Linear transfer of a saved epic
+  /**
+   * Desktop only: the person authorizes the transfer of the epic's current saved revision to a Linear project.
+   * Refused for a completed epic, an active run, a never-saved plan, unsaved draft changes and an open transfer.
+   */
+  queueTransfer(input: TransferActionInput): Promise<TransferView>
+  /** Desktop only: withdraws the authorization; the recorded items are cleared, what is in Linear stays. */
+  cancelTransfer(input: TransferActionInput): Promise<TransferView>
+  /** Starts a queued transfer or resumes one in progress: the stored packet, what is recorded and what remains. */
+  startTransfer(input: TransferActionInput): Promise<StartedTransferView>
+  /** Records the Linear item created (or adopted) for one packet ref; the same values again change nothing. */
+  recordTransferItem(input: RecordTransferItemInput): Promise<TransferItemView>
+  /** Where the epic's transfer stands; `not_started` with the packet the saved revision builds when none exists. */
+  getTransfer(input: { epicId: string }): Promise<TransferView>
+  /**
+   * One part of the Linear read-back; parts accumulate until `final`, which compares them with the packet and
+   * completes the epic on a full match or stores and returns the mismatches.
+   */
+  submitTransferReadback(input: SubmitTransferReadbackInput): Promise<TransferReadbackResult>
 }
 
 export type CommandName = keyof CommandApi

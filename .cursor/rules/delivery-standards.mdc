@@ -9,11 +9,11 @@ Any implementation work in this repo must follow `.cursor/skills/delivery-standa
 
 ## Required on every code change
 
-1. **TDD-first** — failing test(s) before implementation for main/preload/renderer logic, shared helpers, and other testable logic. The exception is an epic whose plan records the person's decision to waive it. There, work tickets write no new tests, and the epic's testing-tail tickets write them (skill, section 2).
-2. **Verify before done** — inside an epic, a ticket runs only its targeted checks (the tests it touched, plus lint and typecheck when it changed code). `npm run fireguard` runs only in the sprint's Fireguard ticket, and the full list below runs once at the sprint checkpoint (skill, section 3). Outside an epic, all of these must pass, and you do not report completion otherwise:
+1. **TDD-first** — outside an epic, failing test(s) before implementation for main/preload/renderer logic, shared helpers, and other testable logic. Inside an epic, tests-first applies only when the epic's plan states it; each ticket lists its tests in its **Tests** section, and its worker writes and runs them in that ticket (skill, section 2).
+2. **Verify before done** — inside an epic, a ticket runs only its targeted checks (the tests it touched, plus lint and typecheck when it changed code). `npm run fireguard` runs only when the epic's plan states it, once on the combined work in the place the plan names, and the full list below runs once at the sprint checkpoint (skill, section 3). Outside an epic, all of these must pass, and you do not report completion otherwise:
    - `npm run lint`
    - `npm test`
-   - `npm run fireguard` (outside an epic, when unit tests are added or modified; inside an epic, only in the sprint's Fireguard ticket)
+   - `npm run fireguard` (outside an epic, when unit tests are added or modified; inside an epic, only when its plan states it)
    - `npm run typecheck`
    - `npm run deadcode` (ts-prune vs `.tsprune-ignore`; if export moves or deletes drift the baseline, run `npm run deadcode:refresh` after confirming the new findings are intentional)
    - `npm run build`

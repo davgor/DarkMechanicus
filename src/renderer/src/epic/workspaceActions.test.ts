@@ -3,6 +3,8 @@ import type { StartOrchestratorResult } from '../../../shared/agents/chatApi'
 import type { AgentView } from '../../../shared/desktop/api'
 import { agentView, chatRecord } from '../__mocks__/fixtures'
 import { FakeBackend, scenario } from './__mocks__/fakeBackend'
+import { noTransferChats } from './__mocks__/fakeOrchestration'
+import type { TransferChats } from './orchestration'
 import { checkpointView, draftPlan, epicDetail, runView, savedPlan, validation } from './__mocks__/fixtures'
 import { CommandError } from '../api/dm'
 import { buildGraphModel } from '../graph/graphModel'
@@ -26,6 +28,7 @@ function data(patch: Partial<WorkspaceData> = {}): WorkspaceData {
     savedTickets: [],
     draftTickets: [],
     validation: validation(),
+    transfer: null,
     ...patch
   }
 }
@@ -36,7 +39,7 @@ let orchestrator = (): StartOrchestratorResult => ({ run: runView({ state: 'queu
 /** The connected agents the workspace names an orchestrator by. */
 let connected: AgentView[] = []
 
-function harness(patch: Partial<WorkspaceData> = {}, backend = new FakeBackend(scenario({ draft: draftPlan() }))) {
+function harness(patch: Partial<WorkspaceData> = {}, backend = new FakeBackend(scenario({ draft: draftPlan() })), transferChats: TransferChats = noTransferChats()) {
   const dispatched: WorkspaceAction[] = []
   const counts = { reloads: 0, changes: 0, chats: 0 }
   const orchestrated: unknown[] = []
@@ -55,6 +58,8 @@ function harness(patch: Partial<WorkspaceData> = {}, backend = new FakeBackend(s
     onChatsChanged: () => {
       counts.chats += 1
     },
+    transferChats,
+    onOpenChat: () => undefined,
     agents: () => connected,
     getState: () => current,
     dispatch,
@@ -198,6 +203,21 @@ describe('start a run with an agent', () => {
     expect(h.state().banner).toBe('This epic already has an active run.')
     expect(h.counts).toEqual({ reloads: 1, changes: 0, chats: 0 })
     expect(h.state().startRunOpen).toBe(false)
+  })
+})
+
+describe('transfer with an agent', () => {
+  it('names a connected custom agent carrying out a transfer by its display name, and one no longer connected generically', async () => {
+    const custom = agentView({ kind: 'custom', displayName: 'My Claude' })
+    const started: TransferChats = { ...noTransferChats(), start: async () => ({ chat: chatRecord(), problem: null }) }
+    connected = [custom]
+    const h = harness({ run: null }, undefined, started)
+    await h.actions.transferWithAgent({ agent: custom.id, model: null }, 'resume')
+    expect(h.state().toast).toBe('My Claude is carrying out the transfer.')
+    connected = []
+    const gone = harness({ run: null }, undefined, started)
+    await gone.actions.transferWithAgent({ agent: custom.id, model: null }, 'resume')
+    expect(gone.state().toast).toBe('Custom agent is carrying out the transfer.')
   })
 })
 

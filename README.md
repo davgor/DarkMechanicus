@@ -8,6 +8,7 @@ An agent helps you shape an epic, decomposes it into tickets with acceptance cri
 - Implementation architecture: [`docs/architecture.md`](docs/architecture.md)
 - Connecting an agent host: [`docs/runbooks/mcp-setup.md`](docs/runbooks/mcp-setup.md)
 - Agents the app hosts (Claude Code, Codex, Cursor): [`docs/runbooks/agents.md`](docs/runbooks/agents.md)
+- Handing a saved epic to Linear: [`docs/runbooks/linear-transfer.md`](docs/runbooks/linear-transfer.md)
 - Agent skills (provider-neutral, also served as MCP prompts): [`skills/`](skills/)
 
 ## Using it
@@ -23,12 +24,13 @@ An agent helps you shape an epic, decomposes it into tickets with acceptance cri
 7. **Run** — press **Start run**, then either **Run with an agent** (one of the agents from step 4, signed in, with a model: it starts as the run's orchestrator in a chat you can follow, and it cannot save plans) or **Leave pending** (an external orchestrator, such as the session from step 3, picks the run up). If an agent's login expires, its run pauses and keeps its open leases until you sign in and resume ([details](docs/runbooks/agents.md#a-run-paused-for-sign-in)). An orchestrator can also start a run itself. Runs pin a saved revision; tickets become ready when their prerequisites are accepted.
 8. **Checkpoint** — at the end of each sprint the orchestrator files a report; you review it and **Approve & advance**. The final checkpoint completes the epic, which then becomes read-only history that agents can search.
 9. **Comment** — people and agents leave Markdown notes on tickets (the ticket panel's **Comments** tab, or `add_comment` over MCP): blockers, decisions, review notes. Comments travel with the repository and show up in history search.
+10. **Hand off to Linear** — instead of running an epic here, press **Transfer to Linear** to move its saved plan, once, to a Linear project in execution order. An agent with Linear's own MCP server creates the project, milestones and issues and reads them back; a read-back that matches the plan completes the epic. Runs and Save are locked while the transfer is open. See [Transfer an epic to Linear](docs/runbooks/linear-transfer.md).
 
 CI/CD mirrored from [CapitalGains](https://github.com/davgor/CapitalGains) (itself aligned with [AI-DND-Matrix](https://github.com/davgor/AI-DND-Matrix) packaging/deploy).
 
 ## Engineering process
 
-- **TDD-first.** Tests are written before the implementation that satisfies them for main/preload/renderer logic, shared helpers, and anything else with testable behavior. See `.cursor/skills/delivery-standards/SKILL.md`.
+- **TDD-first.** Outside an epic, tests are written before the implementation that satisfies them for main/preload/renderer logic, shared helpers, and anything else with testable behavior. Inside an epic, tests-first applies only when the epic's plan states it; each ticket lists its tests, and its worker writes and runs them in that ticket. See `.cursor/skills/delivery-standards/SKILL.md`.
 - **Strict lint.** oxlint with zero warnings. Rules are never relaxed to make code pass — fix the code. After edits: follow [`.ai-instructions.md`](.ai-instructions.md).
 - **TypeScript strict mode.** No `any` escapes used to dodge a type problem.
 - **No secrets committed.** `.env` stays gitignored.
@@ -44,7 +46,7 @@ This repository is planned and run in Dark Mechanicus itself. Its epics, tickets
 - **The agent session you work with is the orchestrator.** Connect it with `--role orchestrator --allow-save`. When you ask it to run an epic, it runs it in that session: it claims each ready ticket, spins up a subagent as the worker, reviews the result, and stops at each sprint checkpoint for your approval. It never does a ticket itself, and it doesn't hand the run to another session.
 - **People** review each draft plan in the desktop app and press **Save**, then approve every sprint checkpoint there.
 
-Implementation follows the engineering process above: tests first (unless the person waived it for an epic in its plan), then lint, typecheck, unit tests, fireguard, deadcode, and build. Inside an epic a ticket runs only its targeted checks; fireguard runs only in the sprint's Fireguard ticket, and the full gate once at the sprint checkpoint.
+Implementation follows the engineering process above: tests first (outside an epic, or when the epic's plan states it), then lint, typecheck, unit tests, fireguard, deadcode, and build. Inside an epic a ticket writes and runs the tests its **Tests** section lists and runs only its targeted checks; fireguard runs only when the epic's plan states it, and the full gate once at the sprint checkpoint.
 
 ## Stack
 

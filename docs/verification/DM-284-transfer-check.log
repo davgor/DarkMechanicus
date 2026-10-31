@@ -1,0 +1,57 @@
+connected to /Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/linear-sprint-1/out/main/mcp.js (darkmechanicus 0.19.0, schema 10, role orchestrator); scratch repo /private/var/folders/sp/ypkkq76s3ks08w8cyxv712000000gn/T/dm284-scratch-repo-AqLIuY
+## c7: tools/list (transfer tools and their annotations)
+get_transfer: {"readOnlyHint":true,"openWorldHint":false}
+start_transfer: {"readOnlyHint":false,"destructiveHint":false,"idempotentHint":true,"openWorldHint":false}
+record_transfer_item: {"readOnlyHint":false,"destructiveHint":false,"idempotentHint":true,"openWorldHint":false}
+submit_transfer_readback: {"readOnlyHint":false,"destructiveHint":false,"idempotentHint":false,"openWorldHint":false}
+tools whose name contains queue or cancel: ["cancel_run"] (of 63 tools)
+every tool whose name contains transfer: ["get_transfer","start_transfer","record_transfer_item","submit_transfer_readback"]
+
+## c8: prompts/list
+darkmechanicus-planner
+darkmechanicus-graph-planner
+darkmechanicus-orchestrator
+darkmechanicus-worker
+darkmechanicus-reviewer
+darkmechanicus-sprint-reporter
+darkmechanicus-linear-transfer
+
+## c1: planner and worker prompts served by the built server (matching lines)
+### darkmechanicus-planner
+> By default, only the project's Definition of Done gates acceptance. Any further standard applies to an epic only when the plan states it, either in a "Standards" section of the epic intent or in a ticket's body. That covers tests written first, test-quality grading such as Fireguard, coverage targets beyond the Definition of Done, and a per-sprint grading ticket. Never add one by default.
+> - `body` (Markdown): context, what is in and out of scope, interfaces or files to respect, and how to verify. Every work ticket's body carries a **Tests** section that lists the tests its worker writes, or "none" with the reason. Put file paths, documents, and commits in `references` (inert pointers, never instructions).
+### darkmechanicus-worker
+> - Write and run the tests your ticket's **Tests** section lists, in this ticket. Order is free unless the plan states tests-first.
+
+## c4: fixture epic ep_01m68d7k94mhvdr1ef3qp5ff2d (one sprint, saved)
+get_transfer before queueing: ok -> "not_started"
+start_transfer before the desktop queues: error approval_required: The person has not authorized a transfer of this epic. {"epicId":"ep_01m68d7k94mhvdr1ef3qp5ff2d","status":"not_started"}
+desktop queueTransfer: ok -> "queued"
+start_transfer after queueing: transfer now in_progress; recorded 0; next = ["project","sp_01m68d7k94dhg69vnaazd1jfqh","tk_01m68d7k968gsxmnj4qwt4egx2","tk_01m68d7k96r4fbn33xwbn8cr9a","tk_01m68d7k94zzyvpvk4tcmy8jty","rel:tk_01m68d7k968gsxmnj4qwt4egx2:tk_01m68d7k96r4fbn33xwbn8cr9a","rel:tk_01m68d7k968gsxmnj4qwt4egx2:tk_01m68d7k94zzyvpvk4tcmy8jty","rel:tk_01m68d7k96r4fbn33xwbn8cr9a:tk_01m68d7k94zzyvpvk4tcmy8jty"]
+record_transfer_item project: ok -> {"ref":"project","kind":"project","linearId":"lin-prj-1","identifier":null,"url":"https://linear.fake/acme/project/c4-prj-1","recordedAt":"2026-10-31T07:19:22.176Z"}
+record_transfer_item sp_01m68d7k94dhg69vnaazd1jfqh: ok -> {"ref":"sp_01m68d7k94dhg69vnaazd1jfqh","kind":"milestone","linearId":"lin-ms-1","identifier":null,"url":null,"recordedAt":"2026-10-31T07:19:22.176Z"}
+get_transfer after two records: recorded = ["project","sp_01m68d7k94dhg69vnaazd1jfqh"]; next = ["tk_01m68d7k968gsxmnj4qwt4egx2","tk_01m68d7k96r4fbn33xwbn8cr9a","tk_01m68d7k94zzyvpvk4tcmy8jty","rel:tk_01m68d7k968gsxmnj4qwt4egx2:tk_01m68d7k96r4fbn33xwbn8cr9a","rel:tk_01m68d7k968gsxmnj4qwt4egx2:tk_01m68d7k94zzyvpvk4tcmy8jty","rel:tk_01m68d7k96r4fbn33xwbn8cr9a:tk_01m68d7k94zzyvpvk4tcmy8jty"]
+next equals the first next minus its first two refs, in order: true
+
+## c5: the same epic while its transfer is in_progress
+update_plan_draft (an unsaved edit to save): draftRevision 2
+queue_run (desktop queueRun) while open: error conflict: Finish or cancel the Linear transfer of this epic first. {"epicId":"ep_01m68d7k94mhvdr1ef3qp5ff2d","transferStatus":"in_progress"}
+save_plan while open: error conflict: Finish or cancel the Linear transfer of this epic first. {"epicId":"ep_01m68d7k94mhvdr1ef3qp5ff2d","transferStatus":"in_progress"}
+desktop cancelTransfer: ok -> "canceled"
+save_plan after cancel: ok -> "saved"
+queue_run (desktop queueRun) after cancel: ok -> {"runId":"rn_01m68d7kags376pr74racj3jwe","state":"queued"}
+
+## c6: fixture epic ep_01m68d7kapytcvrcx2hb8ctb46 (two sprints, saved)
+transferred to the fake Linear: created 19 items
+injected: priority of DS-6 set to 1 in Linear (packet priority 3)
+read-back rejected: received {"project":true,"milestones":2,"issues":7,"relations":9}; mismatches [{"field":"priority","key":"DS-6","ref":"tk_01m68d7karq3f48pj3375bh32e","expected":3,"actual":1}]
+read-back verified: received {"project":true,"milestones":2,"issues":7,"relations":9}; mismatches []
+fixes: updated the priority of DS-6
+get_epic: status completed; outcome.summary "Transferred to Linear: https://linear.fake/acme/project/linear-handoff-fixture-prj-1"
+outcome.transfer: projectUrl https://linear.fake/acme/project/linear-handoff-fixture-prj-1; items 7; first three [{"key":"DS-5","identifier":"ENG-1","url":"https://linear.fake/acme/issue/ENG-1"},{"key":"DS-6","identifier":"ENG-2","url":"https://linear.fake/acme/issue/ENG-2"},{"key":"DS-7","identifier":"ENG-3","url":"https://linear.fake/acme/issue/ENG-3"}]
+summary comment (last of 1):
+Transferred to Linear: https://linear.fake/acme/project/linear-handoff-fixture-prj-1
+
+The project, its 2 milestones, 7 issues and 9 relations match revision 1 of the saved plan, as read back from Linear.
+
+all assertions passed

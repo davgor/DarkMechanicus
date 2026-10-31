@@ -310,6 +310,59 @@ describe('buildEpicStateRecord', () => {
   })
 })
 
+const TRANSFER = {
+  target: 'linear',
+  projectUrl: 'https://linear.app/acme/project/demo-1a2b',
+  revisionId: REV,
+  packetHash: contentHash({ packet: 'demo' }),
+  items: [
+    { key: 'DM-1', identifier: 'ENG-1', url: 'https://linear.app/acme/issue/ENG-1' },
+    { key: 'DM-2', identifier: 'ENG-2', url: null }
+  ]
+}
+
+const TRANSFERRED = {
+  summary: 'Transferred to Linear: https://linear.app/acme/project/demo-1a2b',
+  successCriteria: [],
+  recordedAt: T0,
+  runId: null,
+  transfer: TRANSFER
+}
+
+describe('epic state outcome.transfer', () => {
+  it('exports outcome.transfer and parses it back to the same record and bytes', () => {
+    const db = createTestDb()
+    insertEpic(db, { id: EPIC, status: 'completed', outcome: TRANSFERRED, completedAt: T0 })
+    const record = buildEpicStateRecord(db, EPIC, { generation: 2, updatedAt: T0 })
+    expect(record.outcome).toEqual(TRANSFERRED)
+    const text = prettyJson(record)
+    const parsed = parseRecord(epicStateRecord, text, 'state.json')
+    expect(parsed).toEqual(record)
+    expect(prettyJson(parsed)).toBe(text)
+  })
+
+  it('adds no transfer key to an outcome without one, so it re-exports byte for byte', () => {
+    const text = prettyJson(buildEpicStateRecord(seededDb(), EPIC, { generation: 3, updatedAt: T0 }))
+    expect(text).not.toContain('transfer')
+    const parsed = parseRecord(epicStateRecord, text, 'state.json')
+    expect(Object.keys(parsed.outcome ?? {})).toEqual(['summary', 'successCriteria', 'recordedAt', 'runId'])
+    expect(prettyJson(parsed)).toBe(text)
+  })
+
+  it.each([
+    ['an unknown key', { ...TRANSFER, extra: 1 }],
+    ['another target', { ...TRANSFER, target: 'jira' }],
+    ['an empty project URL', { ...TRANSFER, projectUrl: '' }],
+    ['an identifier without a team key', { ...TRANSFER, items: [{ key: 'DM-1', identifier: '12', url: null }] }],
+    ['an item without its url', { ...TRANSFER, items: [{ key: 'DM-1', identifier: 'ENG-1' }] }],
+    ['more items than an epic has tickets', { ...TRANSFER, items: Array.from({ length: LIMITS.tickets + 1 }, () => TRANSFER.items[1]) }]
+  ])('rejects a transfer with %s', (_label, transfer) => {
+    const state = { ...(stateWith({}) as Record<string, unknown>), status: 'completed', outcome: { ...TRANSFERRED, transfer } }
+    expect(epicStateRecord.safeParse(state).success).toBe(false)
+    expect(epicStateRecord.safeParse({ ...state, outcome: TRANSFERRED }).success).toBe(true)
+  })
+})
+
 function seedRunHistory(db: Db): void {
   insertRun(db, { id: RUN, epicId: EPIC, revisionId: REV, autoContinue: true, host: { label: 'Host', type: 'test' }, activeSprintId: sid(1) })
   insertAttempt(db, {

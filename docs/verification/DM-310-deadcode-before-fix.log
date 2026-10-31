@@ -1,0 +1,8 @@
+$ npm run deadcode  (worktree linear-sprint-2 @ 9060a9f, 2026-10-31T11:24:10Z)
+
+> dark-mechanicus@0.19.0 deadcode
+> node scripts/deadcode-check.mjs
+
+New dead exports detected:
+src/renderer/src/epic/transferView.ts:44 - TransferStripView
+exit: 1

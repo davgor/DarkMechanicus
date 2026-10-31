@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react'
-import type { StorageStatusView } from '../../../shared/domain/views'
+import { type ReactNode, useState } from 'react'
+import type { EpicConflictChoice, StorageStatusView } from '../../../shared/domain/views'
 import { Button } from '../components/Button'
 import { Icon } from '../components/Icon'
 import { formatShortDate } from '../sidebar/epicStatusLine'
@@ -12,7 +12,11 @@ interface StorageCardProps {
   busy: { flush: boolean; reconcile: boolean }
   onFlush(): void
   onReconcile(): void
+  /** Keeps one side of an epic records conflict; settles once the outcome has been reported. */
+  onResolveConflict(epicId: string, keep: EpicConflictChoice): Promise<void>
 }
+
+type ResolveConflict = StorageCardProps['onResolveConflict']
 
 function branchLabel(branch: StorageStatusView['branch']): string {
   if (!branch.repository) {
@@ -41,7 +45,47 @@ const MODE_LABELS: Record<StorageStatusView['storage']['mode'], string> = {
   db: 'Database only'
 }
 
-function Details({ status, titles }: { status: StorageStatusView; titles: Readonly<Record<string, string>> }): JSX.Element {
+/**
+ * The person's two ways out of an epic records conflict. Each drops one side, so the labels name what survives and
+ * the title what is lost; one choice runs at a time.
+ */
+function ConflictChoice({ epicId, onResolve }: { epicId: string; onResolve: ResolveConflict }): JSX.Element {
+  const [running, setRunning] = useState<EpicConflictChoice | null>(null)
+  const choose = (keep: EpicConflictChoice): void => {
+    setRunning(keep)
+    void onResolve(epicId, keep).finally(() => setRunning(null))
+  }
+  return (
+    <span className="button-row">
+      <Button
+        size="sm"
+        busy={running === 'tracked'}
+        disabled={running !== null}
+        title="Imports the tracked records and drops this machine's changes to the epic that wait to be exported"
+        onClick={() => choose('tracked')}
+      >
+        Keep tracked records
+      </Button>
+      <Button
+        size="sm"
+        busy={running === 'local'}
+        disabled={running !== null}
+        title="Writes this machine's records of the epic over the tracked ones, which are then no longer current"
+        onClick={() => choose('local')}
+      >
+        Write local
+      </Button>
+    </span>
+  )
+}
+
+interface DetailsProps {
+  status: StorageStatusView
+  titles: Readonly<Record<string, string>>
+  onResolveConflict: ResolveConflict
+}
+
+function Details({ status, titles, onResolveConflict }: DetailsProps): JSX.Element {
   const exported = storageFooterLine(status)
   const databaseOnly = status.storage.mode === 'db'
   return (
@@ -71,6 +115,7 @@ function Details({ status, titles }: { status: StorageStatusView; titles: Readon
           {status.conflicts.map((conflict, index) => (
             <div key={`${index}:${conflict.epicId}:${conflict.message}`}>
               {titles[conflict.epicId] ?? conflict.epicId}: {conflict.message}
+              {conflict.resolvable ? <ConflictChoice epicId={conflict.epicId} onResolve={onResolveConflict} /> : null}
             </div>
           ))}
           {status.profileConflicts.map((conflict) => (
@@ -85,14 +130,18 @@ function Details({ status, titles }: { status: StorageStatusView; titles: Readon
 }
 
 /** Where the folder's records stand: export state, branch, save queue, and Flush/Reconcile. */
-export function StorageCard({ status, titles, busy, onFlush, onReconcile }: StorageCardProps): JSX.Element {
+export function StorageCard({ status, titles, busy, onFlush, onReconcile, onResolveConflict }: StorageCardProps): JSX.Element {
   const warning = branchWarning(status)
   // Flush and Reconcile move repository record files, which a db project does not have.
   const databaseOnly = status?.storage.mode === 'db'
   return (
     <section className="card" aria-label="Storage">
       <h2 className="card-title">Storage</h2>
-      {status === null ? <p className="muted">Loading storage status…</p> : <Details status={status} titles={titles} />}
+      {status === null ? (
+        <p className="muted">Loading storage status…</p>
+      ) : (
+        <Details status={status} titles={titles} onResolveConflict={onResolveConflict} />
+      )}
       {warning === null || databaseOnly ? null : (
         <p className="inline-warning">
           <Icon name="warning" />

@@ -3,6 +3,8 @@ import { WORK_STATUS_LABELS } from '../../../shared/domain/status'
 import type { EpicDetailView, RunView } from '../../../shared/domain/views'
 import { runLabel } from './runBarView'
 
+export const SAVE_UNAVAILABLE_MESSAGE = 'Save is unavailable while the Linear transfer is open. Cancel the transfer to save.'
+
 export const READ_ONLY_MESSAGE = 'Completed epics are read-only. Create a new epic to extend this work.'
 
 interface HeaderInput {
@@ -10,6 +12,8 @@ interface HeaderInput {
   epic: EpicDetailView
   view: 'saved' | 'draft'
   hasActiveRun: boolean
+  /** A Linear transfer is queued or in progress: it locks runs until it is verified or canceled. */
+  hasOpenTransfer: boolean
 }
 
 export interface HeaderActions {
@@ -20,7 +24,11 @@ export interface HeaderActions {
   discard: boolean
   /** Save button label, e.g. "Save rev 5". */
   save: string | null
+  /** Draft view: why Save is hidden, shown in its place (an open Linear transfer refuses save_plan). */
+  saveUnavailable: string | null
   startRun: boolean
+  /** Saved view: authorize a Linear transfer of the saved plan (Transfer to Linear). */
+  transfer: boolean
 }
 
 export interface HeaderView {
@@ -31,7 +39,7 @@ export interface HeaderView {
   notices: string[]
 }
 
-const NO_ACTIONS: HeaderActions = { editDraft: null, viewSaved: false, discard: false, save: null, startRun: false }
+const NO_ACTIONS: HeaderActions = { editDraft: null, viewSaved: false, discard: false, save: null, saveUnavailable: null, startRun: false, transfer: false }
 
 /** The display number the draft receives when saved. */
 export function nextRevisionNumber(epic: EpicDetailView): number {
@@ -47,18 +55,33 @@ function badgeFor(epic: EpicDetailView, view: 'saved' | 'draft'): HeaderView['ba
     : { label: `REV ${epic.currentRevisionNumber} · SAVED`, tone: 'saved' }
 }
 
+/** Draft view: save_plan refuses while a transfer is open, so Save gives way to its reason; draft edits and Discard draft stay allowed. */
+function draftActions(input: HeaderInput): HeaderActions {
+  const epic = input.epic
+  return {
+    ...NO_ACTIONS,
+    viewSaved: epic.currentRevisionId !== null,
+    discard: true,
+    save: input.hasOpenTransfer ? null : `Save rev ${nextRevisionNumber(epic)}`,
+    saveUnavailable: input.hasOpenTransfer ? SAVE_UNAVAILABLE_MESSAGE : null
+  }
+}
+
 function actionsFor(input: HeaderInput): HeaderActions {
   const epic = input.epic
   if (epic.status === 'completed') {
     return NO_ACTIONS
   }
   if (input.view === 'draft') {
-    return { ...NO_ACTIONS, viewSaved: epic.currentRevisionId !== null, discard: true, save: `Save rev ${nextRevisionNumber(epic)}` }
+    return draftActions(input)
   }
+  const saved = epic.currentRevisionId !== null
   return {
     ...NO_ACTIONS,
     editDraft: epic.hasDraft ? 'view' : 'edit',
-    startRun: epic.currentRevisionId !== null && !input.hasActiveRun
+    startRun: saved && !input.hasActiveRun && !input.hasOpenTransfer,
+    // The same refusals queueTransfer makes: a saved plan, no active run, no open transfer, no unsaved draft changes.
+    transfer: saved && !input.hasActiveRun && !input.hasOpenTransfer && !epic.draftChanged
   }
 }
 
@@ -85,14 +108,25 @@ interface ConfirmCopy {
   keep: string
 }
 
+/** What the inline confirmation strip asks about. */
+export type ConfirmKind = 'discard' | 'cancel_run' | 'cancel_transfer'
+
 /** Inline confirmation for destructive actions (Electron has no window.prompt; dialogs stay in-page). */
-export function confirmCopy(kind: 'discard' | 'cancel_run', epic: EpicDetailView, run: RunView | null): ConfirmCopy {
+export function confirmCopy(kind: ConfirmKind, epic: EpicDetailView, run: RunView | null): ConfirmCopy {
   if (kind === 'discard') {
     return {
       title: 'Discard draft',
       text: `Discard draft rev ${nextRevisionNumber(epic)}? Its changes are lost; the saved plan stays as it is.`,
       confirm: 'Discard draft',
       keep: 'Keep editing'
+    }
+  }
+  if (kind === 'cancel_transfer') {
+    return {
+      title: 'Cancel transfer',
+      text: 'Cancel the Linear transfer? What is recorded here is cleared and runs and Save unlock; what was already created in Linear stays there.',
+      confirm: 'Cancel transfer',
+      keep: 'Keep transferring'
     }
   }
   const name = run === null ? 'the run' : runLabel(run)

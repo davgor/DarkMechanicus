@@ -79,7 +79,11 @@ const TOOLS: Record<string, { method: CommandName; kind: Kind }> = {
   get_sprint_report: { method: 'getSprintReport', kind: 'read' },
   get_checkpoint: { method: 'getCheckpoint', kind: 'read' },
   advance_sprint: { method: 'advanceSprint', kind: 'write' },
-  get_run_events: { method: 'listEvents', kind: 'read' }
+  get_run_events: { method: 'listEvents', kind: 'read' },
+  get_transfer: { method: 'getTransfer', kind: 'read' },
+  start_transfer: { method: 'startTransfer', kind: 'idempotent' },
+  record_transfer_item: { method: 'recordTransferItem', kind: 'idempotent' },
+  submit_transfer_readback: { method: 'submitTransferReadback', kind: 'write' }
 }
 
 /** Tools only a planner (or the desktop) holds the capability for: an orchestrator session does not list them. */
@@ -101,7 +105,12 @@ const HUMAN_ONLY: CommandName[] = [
   'deleteTicket',
   // Delegating a role is the person's own act, so no tool offers it.
   'issueGrant',
-  'revokeGrant'
+  'revokeGrant',
+  // Sending a plan out to Linear, and withdrawing that, is the person's decision; an agent only carries it out.
+  'queueTransfer',
+  'cancelTransfer',
+  // Which side of an epic records conflict survives drops the other side's changes: the person's call.
+  'resolveEpicConflict'
 ]
 
 /** Read models for the desktop's activity panels: the app polls them, and no MCP tool adapts them. */
@@ -135,7 +144,7 @@ describe('tool inventory', () => {
     await withRig(build, createStubApi(), async (rig) => {
       const { tools } = await rig.client.listTools()
       expect(tools.map((tool) => tool.name).sort()).toEqual(Object.keys(ORCHESTRATOR_TOOLS).sort())
-      expect(tools).toHaveLength(59)
+      expect(tools).toHaveLength(63)
     })
   })
 
@@ -280,7 +289,8 @@ describe('server metadata', () => {
         'list_comments',
         'isError',
         'darkmechanicus-planner',
-        'darkmechanicus-sprint-reporter'
+        'darkmechanicus-sprint-reporter',
+        'darkmechanicus-linear-transfer'
       ]) {
         expect(instructions).toContain(phrase)
       }
@@ -289,11 +299,11 @@ describe('server metadata', () => {
 })
 
 describe('skills as prompts', () => {
-  it('lists the six skills and returns their bodies', async () => {
+  it('lists the seven skills and returns their bodies', async () => {
     await withRig(build, createStubApi(), async (rig) => {
       const { prompts } = await rig.client.listPrompts()
       expect(prompts.map((prompt) => prompt.name)).toEqual(SKILLS.map((skill) => promptName(skill.name)))
-      expect(prompts).toHaveLength(6)
+      expect(prompts).toHaveLength(7)
       const planner = await rig.client.getPrompt({ name: 'darkmechanicus-planner' })
       expect(planner.messages[0]?.content).toEqual({ type: 'text', text: SKILLS[0]?.body })
     })

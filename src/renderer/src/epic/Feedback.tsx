@@ -48,6 +48,10 @@ export function ConfirmStrip({ ws }: { ws: WorkspaceHandle }): JSX.Element | nul
       void ws.actions.discardDraft()
       return
     }
+    if (kind === 'cancel_transfer') {
+      void ws.actions.cancelTransfer()
+      return
+    }
     ws.dispatch({ type: 'confirm', kind: null })
     void ws.actions.runCommand('cancel')
   }

@@ -1,0 +1,10 @@
+$ npm run deadcode
+# HEAD b23a9c90c6551544b3cdfd204551f701fabf631f
+
+> dark-mechanicus@0.20.0 deadcode
+> node scripts/deadcode-check.mjs
+
+No new dead exports found.
+(node:51380) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+# exit 0

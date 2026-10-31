@@ -150,6 +150,18 @@
   flex-shrink: 0;
 }
 
+.ew-header-notice,
+.ew-save-unavailable {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+/* Wraps to two lines so the title keeps its room in the header. */
+.ew-header-notice {
+  max-width: 280px;
+  line-height: 1.35;
+}
+
 .ew-delete {
   position: relative;
 }
@@ -639,4 +651,128 @@
   align-self: stretch;
   padding-top: 14px;
   border-top: 1px solid var(--line-soft);
+}
+
+/* ---------- Linear transfer ---------- */
+
+/* The dialog's explanations: the handoff points, then one row per CLI with its Linear MCP setup command. */
+.transfer-points,
+.transfer-setup {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.transfer-explain {
+  gap: 8px;
+}
+
+.transfer-setup {
+  padding-left: 0;
+  list-style: none;
+}
+
+.transfer-setup li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.transfer-setup-cli {
+  flex: none;
+  width: 88px;
+  color: var(--muted);
+}
+
+.transfer-setup code {
+  min-width: 0;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--code-bg);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+}
+
+/* The open transfer's strip: the created count beside the status, the last mismatches below it. */
+.ew-transferbar {
+  border-left: 3px solid var(--accent);
+}
+
+.ew-transfer-created {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.ew-transfer-mismatches ul {
+  max-height: 96px;
+  margin: 4px 0 2px;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+
+.ew-transfer-mismatches li {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.ew-transfer-subject {
+  font-family: var(--font-mono);
+  color: var(--st-blocked);
+}
+
+/* A transferred epic: the handoff and the Linear project link above its (read-only) plan. */
+.ew-transferred {
+  flex-shrink: 0;
+  margin: 16px 24px 0;
+  padding: 14px 18px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--st-accepted);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.ew-transferred-title {
+  margin: 0 0 6px;
+  color: var(--ink-display);
+  font-family: var(--font-serif);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.ew-transferred-text {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.ew-transferred-link {
+  margin: 8px 0 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.ew-transferred-url {
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
 }

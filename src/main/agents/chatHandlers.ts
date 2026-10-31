@@ -12,7 +12,7 @@ import { z } from 'zod'
 import { DomainError, toErrorShape } from '../../core/errors'
 import { LIMITS, parseInput, stableId } from '../../core/schemas'
 import { APPROVAL_DECISIONS, CHAT_ROLES, chatIdSchema, type ChatItem, type ChatRecord, type ModelOption } from '../../shared/agents/chat'
-import type { BoundThread, ChatOpenView, ChatPushEvent, ChatSummary, StartOrchestratorResult, ThreadBinding } from '../../shared/agents/chatApi'
+import type { BoundThread, ChatOpenView, ChatPushEvent, ChatSummary, StartOrchestratorResult, StartTransferChatResult, ThreadBinding } from '../../shared/agents/chatApi'
 import { agentIdSchema } from '../../shared/desktop/agentKinds'
 import type { CommandResult } from '../../shared/desktop/api'
 import { connectedAgent } from '../desktop/agentHandlers'
@@ -23,6 +23,7 @@ import type { ChatRef } from './chatStore'
 import { refuseSwappedFolder } from './launchFolder'
 import { startOrchestratorRun, type OrchestratorRuns } from './orchestratorStart'
 import type { SessionManager } from './sessionManager'
+import { findTransferChat, startTransferChat, transferPrompt, type TransferReads } from './transferStart'
 
 /** Windows long-path maximum; bounds path strings from the renderer. */
 const MAX_PATH_LENGTH = 32_767
@@ -41,13 +42,14 @@ const createSchema = z.strictObject({
   allowSave: z.boolean().optional(),
   title: z.string().max(LIMITS.title).optional()
 })
-/** Only an epic, an agent and its model: the role, Allow save, title and kickoff message are decided in main. */
+/** Only an epic, an agent and its model, for an orchestrator or a transfer chat: the role, Allow save, title, kickoff message and what the chat records are decided in main. */
 const startOrchestratorSchema = z.strictObject({
   folder: folderSchema,
   epicId: stableId,
   agent: agentIdSchema,
   model: modelSchema.nullable().optional()
 })
+const transferChatSchema = z.strictObject({ folder: folderSchema, epicId: stableId })
 const refSchema = z.strictObject(refShape)
 /** A whole id of the kind: a claim token (`<attempt id>.<secret>`) or any other text is not one. */
 const attemptIdSchema = stableId.regex(/^at_/)
@@ -70,6 +72,8 @@ interface ChatHandlerDeps {
   sessions: SessionManager
   /** The desktop's run commands, for starting an orchestrator. */
   runs: OrchestratorRuns
+  /** The desktop's transfer reads, for starting a transfer chat and for its prompt. */
+  transfers: TransferReads
   /** The bindings of a chat's threads to runs and attempts, resolved as far as the folder's store allows; without it a chat has none. */
   threadBindings?: (chat: ChatRef) => Promise<ThreadBinding[]>
   /** The threads bound to an attempt or a run among the chats of a (canonical) folder; without it nothing is bound. */
@@ -85,6 +89,9 @@ export interface ChatHandlers {
   list(folder: unknown): Promise<CommandResult<ChatSummary[]>>
   create(request: unknown): Promise<CommandResult<ChatRecord>>
   startOrchestrator(request: unknown): Promise<CommandResult<StartOrchestratorResult>>
+  startTransferChat(request: unknown): Promise<CommandResult<StartTransferChatResult>>
+  findTransferChat(request: unknown): Promise<CommandResult<ChatSummary | null>>
+  transferPrompt(request: unknown): Promise<CommandResult<string>>
   open(request: unknown): Promise<CommandResult<ChatOpenView>>
   /** The same view as `open`, read-only: no agent is started and nothing is stored, for panels that follow a chat. */
   read(request: unknown): Promise<CommandResult<ChatOpenView>>
@@ -136,6 +143,25 @@ async function startOrchestrator(deps: ChatHandlerDeps, input: unknown): Promise
     chatsChanged(deps, { folder: started.chat.folder, id: started.chat.id })
   }
   return started
+}
+
+/** Validates the request and the folder before the transfer is read; see `startTransferChat` for what happens after. */
+async function startTransfer(deps: ChatHandlerDeps, input: unknown): Promise<StartTransferChatResult> {
+  const request = parseInput(startOrchestratorSchema, input, 'transfer chat request')
+  connectedAgent(deps.agents, request.agent)
+  const folder = chatFolder(deps, request.folder)
+  const { transfers, sessions, onUnexpectedError } = deps
+  const started = await startTransferChat({ transfers, sessions, ...(onUnexpectedError === undefined ? {} : { onError: onUnexpectedError }) }, { ...request, folder })
+  if (started.chat !== null) {
+    chatsChanged(deps, { folder: started.chat.folder, id: started.chat.id })
+  }
+  return started
+}
+
+/** A transfer request, validated, with the canonical path of its tracked folder. */
+function transferRequest(deps: ChatHandlerDeps, input: unknown): { folder: string; epicId: string } {
+  const request = parseInput(transferChatSchema, input, 'transfer request')
+  return { folder: chatFolder(deps, request.folder), epicId: request.epicId }
 }
 
 /** The chat's thread bindings; the request is validated even when the app wired none. */
@@ -196,6 +222,17 @@ export function createChatHandlers(deps: ChatHandlerDeps): ChatHandlers {
     list: (folder) => answer(deps, () => sessions.listChats(chatFolder(deps, parseInput(folderSchema, folder, 'folder')))),
     create: (input) => answer(deps, () => createChat(deps, input)),
     startOrchestrator: (input) => answer(deps, () => startOrchestrator(deps, input)),
+    startTransferChat: (input) => answer(deps, () => startTransfer(deps, input)),
+    findTransferChat: (input) =>
+      answer(deps, () => {
+        const { folder, epicId } = transferRequest(deps, input)
+        return findTransferChat(sessions, folder, epicId)
+      }),
+    transferPrompt: (input) =>
+      answer(deps, () => {
+        const { folder, epicId } = transferRequest(deps, input)
+        return transferPrompt(deps.transfers, folder, epicId)
+      }),
     open: (input) => answer(deps, () => sessions.openChat(chatRequest(deps, refSchema, input).ref)),
     read: (input) => answer(deps, () => sessions.readChat(chatRequest(deps, refSchema, input).ref)),
     send: (input) =>

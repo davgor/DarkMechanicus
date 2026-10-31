@@ -384,3 +384,15 @@ describe('ticket kind and covers tool validation', () => {
     })
   })
 })
+
+describe('epic completion in the set_epic_status description', () => {
+  it('names both completion paths: the final checkpoint and a verified Linear transfer', async () => {
+    await inRig(createCannedApi({}), async (rig) => {
+      const { tools } = await rig.client.listTools()
+      const description = tools.find((tool) => tool.name === 'set_epic_status')?.description ?? ''
+      expect(description).toContain('an epic completes when its final checkpoint advances (advance_sprint)')
+      expect(description).toContain('or when a verified Linear transfer completes it')
+      expect(description).toContain('completed is refused here')
+    })
+  })
+})

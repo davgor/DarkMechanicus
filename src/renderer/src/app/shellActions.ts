@@ -8,13 +8,19 @@ import type {
   TrackedFolderView
 } from '../../../shared/desktop/api'
 import type { WorkStatus } from '../../../shared/domain/status'
-import type { BoardImportView, EpicDetailView, StorageMode } from '../../../shared/domain/views'
+import type { BoardImportView, EpicConflictChoice, EpicDetailView, StorageMode } from '../../../shared/domain/views'
 import type { TicketLink } from '../agents/ChatContext'
 import type { NewChatChoice } from '../agents/NewChatDialog'
 import { runCommand } from '../api/dm'
 import type { Landing } from './landing'
 import type { Selection } from './selection'
-import { describeBoardImport, describeClaudeConnect, describeFlush, describeReconcile } from './shellMessages'
+import {
+  describeBoardImport,
+  describeClaudeConnect,
+  describeEpicConflictChoice,
+  describeFlush,
+  describeReconcile
+} from './shellMessages'
 import type { ToastTone } from './toastState'
 
 export type BusyKey = 'initialize' | 'flush' | 'reconcile'
@@ -93,6 +99,8 @@ export interface ShellActions {
   importBoard(folder: TrackedFolderView): Promise<BoardImportView | null>
   flush(): Promise<void>
   reconcile(): Promise<void>
+  /** Keeps one side of an epic records conflict in the folder, then refreshes it; failures are reported. */
+  resolveEpicConflict(folder: TrackedFolderView, epicId: string, keep: EpicConflictChoice): Promise<void>
   /** Resolves with the new epic, or null after reporting why it could not be created. */
   createEpic(folder: TrackedFolderView, input: CreateEpicInput): Promise<EpicDetailView | null>
 }
@@ -210,7 +218,9 @@ function importBoard(deps: ShellDeps, folder: TrackedFolderView): Promise<BoardI
   })
 }
 
-function repositoryActions(deps: ShellDeps): Pick<ShellActions, 'initialize' | 'importBoard' | 'flush' | 'reconcile'> {
+function repositoryActions(
+  deps: ShellDeps
+): Pick<ShellActions, 'initialize' | 'importBoard' | 'flush' | 'reconcile' | 'resolveEpicConflict'> {
   return {
     initialize: (folder, options) =>
       whileBusy(deps, 'initialize', async () => {
@@ -247,7 +257,15 @@ function repositoryActions(deps: ShellDeps): Pick<ShellActions, 'initialize' | '
           deps.toasts.push(notice.tone, notice.message)
           deps.refresh(path)
         })
-      )
+      ),
+    resolveEpicConflict: async (folder, epicId, keep) => {
+      await guarded(deps, async () => {
+        const result = await runCommand(folder.path, 'resolveEpicConflict', { epicId, keep })
+        const notice = describeEpicConflictChoice(result)
+        deps.toasts.push(notice.tone, notice.message)
+        deps.refresh(folder.path)
+      })
+    }
   }
 }
 

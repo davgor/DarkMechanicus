@@ -330,6 +330,11 @@ function startChats(ipc: Pick<IpcMain, 'handle'>, services: ChatServices): void 
       getEpic: (folder, epicId) => workspaces.get(folder).getEpic({ epicId }),
       queueRun: (folder, epicId) => workspaces.get(folder).queueRun({ epicId })
     },
+    // The transfer the Transfer to Linear button authorized, read through the folder's own workspace.
+    transfers: {
+      getEpic: (folder, epicId) => workspaces.get(folder).getEpic({ epicId }),
+      getTransfer: (folder, epicId) => workspaces.get(folder).getTransfer({ epicId })
+    },
     onUnexpectedError: (error) => {
       logger.error('Chat request failed:', error)
     }

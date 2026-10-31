@@ -73,4 +73,4 @@ Write each part from evidence the server or an attempt recorded, never from impr
 - Call `advance_sprint` only when `canAdvance` is true. For a human-gated sprint that needs a person's approval of this exact report. For an `auto` sprint it happens only if the person authorized auto-continue on the run. You cannot enable either, and plan edits cannot relax them.
 - A person can approve the retro and the redraft in one step in the desktop app, which saves the draft, adopts it, approves, and advances together. Only a person can; you never do.
 - On `approval_required` or `gate_blocked`, read the reasons and wait. Do not retry in a loop.
-- After advancing, confirm with `get_run`. Advancing the final sprint completes the run and the epic.
+- After advancing, confirm with `get_run`. Advancing the final sprint completes the run and the epic. An epic completes when its final checkpoint advances, or when a verified Linear transfer completes it; only a person can authorize a transfer.

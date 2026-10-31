@@ -39,7 +39,9 @@ export function ownedPaths(layout: RepoLayout) {
     profileFile: (name: string): string => join(layout.profilesDir, `${checkedProfileName(name)}.json`),
     commentsDir,
     commentFile: (epicId: string, commentId: string): string =>
-      join(commentsDir(epicId), `${checkedId(commentId, 'comment')}.json`)
+      join(commentsDir(epicId), `${checkedId(commentId, 'comment')}.json`),
+    /** Machine-local (under `local/`, never committed): what this machine's latest export of the epic was about to write. */
+    exportIntentFile: (epicId: string): string => join(layout.localDir, 'exports', `${checkedId(epicId, 'epic')}.json`)
   }
 }
 

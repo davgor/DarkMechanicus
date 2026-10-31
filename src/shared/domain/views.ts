@@ -15,6 +15,7 @@ import type {
   ToolCapability
 } from './bundle'
 import type { SprintRetro, TicketTierFacts } from './retro'
+import type { EpicTransferOutcome } from './transfer'
 import type {
   AttemptKind,
   AttemptState,
@@ -102,6 +103,8 @@ export interface EpicOutcome {
   successCriteria: CriterionResult[]
   recordedAt: string
   runId: string | null
+  /** Present when a verified Linear transfer completed the epic (then `runId` is null). */
+  transfer?: EpicTransferOutcome
 }
 
 export interface EpicDetailView extends EpicSummaryView {
@@ -681,7 +684,11 @@ export interface StorageStatusView {
   branch: { current: string | null; recorded: string | null; changed: boolean; repository: boolean }
   /** Uncommitted record files in the checkout; null outside Git, and always null in `db` mode. */
   uncommittedRecordFiles: number | null
-  conflicts: { epicId: string; message: string }[]
+  /**
+   * `resolvable` marks an epic whose tracked records changed while its local changes wait to be exported: neither
+   * side is applied until the person picks one with `resolveEpicConflict`.
+   */
+  conflicts: { epicId: string; message: string; resolvable: boolean }[]
   /** Named profiles whose tracked file changed while a local save waits to be exported. */
   profileConflicts: { name: string; message: string }[]
   sessions: { active: number; byRole: Record<string, number> }
@@ -881,6 +888,21 @@ export interface DeleteEpicResultView {
   removedRuns: number
   /** Repository-relative folders that were deleted from the checkout (left for the person to commit). */
   removedPaths: string[]
+}
+
+/** The side a person keeps when an epic's tracked records changed while its local changes wait to be exported. */
+export type EpicConflictChoice = 'tracked' | 'local'
+
+export interface ResolveEpicConflictView {
+  epicId: string
+  kept: EpicConflictChoice
+  /** Saves that were still waiting to be written, dropped by keeping the tracked records (marked `failed`; the draft stays). */
+  abandonedRevisionIds: string[]
+  /**
+   * `local` only: why this machine's records are not written yet (null once they are). The choice stands: every
+   * flush retries the write over exactly the tracked records the person chose to replace.
+   */
+  error: string | null
 }
 
 export interface DraftUpdateResultView {

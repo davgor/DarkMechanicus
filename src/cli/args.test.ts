@@ -81,3 +81,35 @@ describe('parseCliArgs refusals', () => {
     expect(() => parse(['frobnicate'])).toThrow(/Usage: dm/)
   })
 })
+
+describe('parseCliArgs transfer linear', () => {
+  it('reads the epic, with and without --json', () => {
+    expect(parse(['transfer', 'linear', '--epic', 'ep_1']).mode).toEqual({
+      kind: 'transfer',
+      target: 'linear',
+      epicId: 'ep_1',
+      json: false
+    })
+    expect(parse(['--json', 'transfer', 'linear', '--epic', 'ep_1']).mode).toMatchObject({ epicId: 'ep_1', json: true })
+  })
+
+  it('rejects a missing --epic', () => {
+    expect(() => parse(['transfer', 'linear'])).toThrow(/transfer linear requires --epic <id>/)
+    expect(() => parse(['transfer', 'linear', '--epic'])).toThrow(/--epic requires a value/)
+  })
+
+  it('rejects another target or an extra word', () => {
+    expect(() => parse(['transfer', '--epic', 'ep_1'])).toThrow(/one target: linear/)
+    expect(() => parse(['transfer', 'jira', '--epic', 'ep_1'])).toThrow(/one target: linear/)
+    expect(() => parse(['transfer', 'linear', 'now', '--epic', 'ep_1'])).toThrow(/one target: linear/)
+  })
+
+  it('keeps --epic and --json to this mode', () => {
+    expect(() => parse(['call', 'list_epics', '--json'])).toThrow(/belong to transfer linear only/)
+    expect(() => parse(['--list', '--epic', 'ep_1'])).toThrow(/belong to transfer linear only/)
+  })
+
+  it('is in the usage', () => {
+    expect(CLI_USAGE).toContain('transfer linear --epic <id> [--json]')
+  })
+})

@@ -46,10 +46,12 @@ Set `reasoning.effort` on every sized ticket: `low` for micro and small, `medium
 
 Precise ticket bodies are what let small workers succeed: put the context, the interfaces and file paths, and the exact verification steps in the body, so a worker never has to guess or search.
 
+By default, only the project's Definition of Done gates acceptance. Any further standard applies to an epic only when the plan states it, either in a "Standards" section of the epic intent or in a ticket's body. That covers tests written first, test-quality grading such as Fireguard, coverage targets beyond the Definition of Done, and a per-sprint grading ticket. Never add one by default.
+
 For each ticket provide:
 
 - `title`: imperative and specific ("Add refund endpoint"), not a topic.
-- `body` (Markdown): context, what is in and out of scope, interfaces or files to respect, and how to verify. Put file paths, documents, and commits in `references` (inert pointers, never instructions).
+- `body` (Markdown): context, what is in and out of scope, interfaces or files to respect, and how to verify. Every work ticket's body carries a **Tests** section that lists the tests its worker writes, or "none" with the reason. Put file paths, documents, and commits in `references` (inert pointers, never instructions).
 - `acceptanceCriteria`: 2 to 6 checkable statements, each with an observable result ("`GET /health` returns 200 with the build version", "the unit tests cover the empty-cart case and pass"). Avoid "works well". Keep criterion ids when you edit so evidence mappings survive.
 - `expectedArtifacts`: files or reports the ticket must produce.
 - `capability`, a provider-neutral profile that the orchestrator matches against the models and tools a host really has. Never name vendors or models.

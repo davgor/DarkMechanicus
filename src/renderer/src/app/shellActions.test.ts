@@ -370,6 +370,25 @@ describe('reconcile', () => {
   })
 })
 
+describe('resolveEpicConflict', () => {
+  it("sends the person's choice for the folder's epic, says what survived and refreshes", async () => {
+    dm.responses.resolveEpicConflict = { epicId: 'ep_1', kept: 'tracked', abandonedRevisionIds: ['rv_1'], error: null }
+    await recorder.actions(null).resolveEpicConflict(alpha, 'ep_1', 'tracked')
+    expect(dm.callsOf('resolveEpicConflict').map((call) => [call.folder, call.input])).toEqual([['/a', { epicId: 'ep_1', keep: 'tracked' }]])
+    expect(recorder.toasts).toEqual([
+      ['success', 'Imported the tracked records of the epic and dropped its local changes. 1 unwritten save dropped; the draft stays.']
+    ])
+    expect(recorder.refreshed).toEqual(['/a'])
+  })
+
+  it('reports a refusal and leaves the folder as it is', async () => {
+    dm.failures.resolveEpicConflict = { code: 'conflict', message: 'Linear transfer open' }
+    await recorder.actions().resolveEpicConflict(alpha, 'ep_1', 'local')
+    expect(recorder.errors).toEqual(['Linear transfer open'])
+    expect([recorder.toasts, recorder.refreshed]).toEqual([[], []])
+  })
+})
+
 describe('createEpic', () => {
   it('creates the epic, refreshes, opens it and returns it', async () => {
     const created = epicDetail({ id: 'ep_new', title: 'Ship' })

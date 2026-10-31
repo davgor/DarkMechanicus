@@ -52,20 +52,25 @@ function ChangeList({ heading, rows }: { heading: string; rows: ChangeRow[] }): 
   )
 }
 
-function SaveBox({ ws }: { ws: WorkspaceHandle }): JSX.Element {
+/** `saveUnavailable` (an open Linear transfer) replaces the Save button with its reason, as in the header. */
+function SaveBox({ ws, saveUnavailable }: { ws: WorkspaceHandle; saveUnavailable: string | null }): JSX.Element {
   const next = nextRevisionNumber(ws.data.epic)
   const blocked = saveBlocked(ws.state.validation)
   const notice = ws.state.saveNotice
   return (
     <div className="ew-savebox">
-      <button
-        type="button"
-        className="btn btn-primary ew-save"
-        disabled={ws.state.busy || blocked !== null}
-        onClick={() => void ws.actions.saveDraft()}
-      >
-        Save rev {next}
-      </button>
+      {saveUnavailable === null ? (
+        <button
+          type="button"
+          className="btn btn-primary ew-save"
+          disabled={ws.state.busy || blocked !== null}
+          onClick={() => void ws.actions.saveDraft()}
+        >
+          Save rev {next}
+        </button>
+      ) : (
+        <p className="ew-save-unavailable">{saveUnavailable}</p>
+      )}
       <p className="ew-muted">{saveNote(ws.data.run, next)}</p>
       {blocked === null ? null : <p className="ew-save-blocked">{blocked}</p>}
       {notice === null ? null : (
@@ -78,7 +83,7 @@ function SaveBox({ ws }: { ws: WorkspaceHandle }): JSX.Element {
 }
 
 /** Draft view footer: validation results, changes since the base revision, and Save. */
-export function ValidationPanel({ ws }: { ws: WorkspaceHandle }): JSX.Element | null {
+export function ValidationPanel({ ws, saveUnavailable }: { ws: WorkspaceHandle; saveUnavailable: string | null }): JSX.Element | null {
   const draft = ws.data.draft
   if (draft === null || draft.readOnly) {
     return null
@@ -88,7 +93,7 @@ export function ValidationPanel({ ws }: { ws: WorkspaceHandle }): JSX.Element | 
     <section className="ew-vpanel" aria-label="Draft validation">
       <ValidationList heading={summary.heading} items={summary.items} />
       <ChangeList heading={changesHeading(draft)} rows={changeRows(draft.changes)} />
-      <SaveBox ws={ws} />
+      <SaveBox ws={ws} saveUnavailable={saveUnavailable} />
     </section>
   )
 }

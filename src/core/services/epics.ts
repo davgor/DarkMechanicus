@@ -97,7 +97,7 @@ function epicSourceSql(columns: string, where: string): string {
 }
 
 const COMPLETION_RULE =
-  'Epics complete when the final sprint checkpoint advances (advance_sprint); status tools cannot bypass completion rules.'
+  'An epic completes when its final sprint checkpoint advances (advance_sprint), or when a verified Linear transfer completes it; status tools cannot bypass completion rules.'
 
 export function loadEpicRow(ctx: Ctx, epicId: string): EpicRow {
   const row = ctx.db.get<EpicRow>('SELECT * FROM epics WHERE id = ?', epicId)

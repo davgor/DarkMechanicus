@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { REASONING_EFFORTS } from '../../shared/domain/bundle'
 import { TIER_VERDICTS } from '../../shared/domain/retro'
 import { ATTEMPT_STATES, OPEN_ATTEMPT_STATES, RUN_STATES } from '../../shared/domain/status'
+import { LINEAR_IDENTIFIER_PATTERN } from '../../shared/domain/transfer'
 import type { SessionRole } from '../../shared/domain/views'
 import { contentHash } from '../canonical'
 import { type Db, parseJson } from '../db/database'
@@ -25,6 +26,7 @@ import {
   planBundle,
   profileName,
   rowCheckEntries,
+  ticketKey,
   workStatus
 } from '../schemas'
 import { assertContained, displayPath } from './paths'
@@ -87,11 +89,30 @@ export const epicPointerRecord = z.strictObject({
 })
 export type EpicPointerRecord = z.infer<typeof epicPointerRecord>
 
-const epicOutcome = z.strictObject({
+/** The verified Linear transfer that completed an epic: where it went and the Linear identifier of every issue. */
+const transferOutcome = z.strictObject({
+  target: z.literal('linear'),
+  projectUrl: z.string().min(1).max(LIMITS.shortText),
+  revisionId: idOf('revision'),
+  packetHash: sha256,
+  items: z
+    .array(
+      z.strictObject({
+        key: ticketKey,
+        identifier: z.string().regex(LINEAR_IDENTIFIER_PATTERN),
+        url: z.string().max(LIMITS.shortText).nullable()
+      })
+    )
+    .max(LIMITS.tickets)
+})
+
+export const epicOutcome = z.strictObject({
   summary: markdown,
   successCriteria: criterionResults,
   recordedAt: isoTime.nullable().default(null),
-  runId: idOf('run').nullable().default(null)
+  runId: idOf('run').nullable().default(null),
+  // No default: an outcome recorded before Linear transfers must parse and re-export byte for byte.
+  transfer: transferOutcome.optional()
 })
 
 export const epicStateRecord = z.strictObject({

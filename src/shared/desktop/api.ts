@@ -294,6 +294,7 @@ const DESKTOP_COMMANDS = [
   'getStorageStatus',
   'flushPortableState',
   'reconcileRepository',
+  'resolveEpicConflict',
   'searchHistory',
   'listBranchEpics',
   'backupDatabase',
@@ -347,7 +348,11 @@ const DESKTOP_COMMANDS = [
   'grantRetry',
   'listEvents',
   'getAttemptTimeline',
-  'getRunTimeline'
+  'getRunTimeline',
+  // The person authorizes or withdraws a Linear transfer; an agent carries it out, so the rest are not here.
+  'getTransfer',
+  'queueTransfer',
+  'cancelTransfer'
 ] as const satisfies readonly CommandName[]
 
 export type DesktopCommandName = (typeof DESKTOP_COMMANDS)[number]

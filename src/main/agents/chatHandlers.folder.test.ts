@@ -8,6 +8,7 @@ import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync
 import { tmpdir } from 'node:os'
 import { join, relative } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import type { TransferView } from '../../shared/domain/transfer'
 import type { EpicDetailView, RunView } from '../../shared/domain/views'
 import type { CommandResult } from '../../shared/desktop/api'
 import { createFolderRegistry, type FolderRegistry } from '../desktop/folderRegistry'
@@ -15,6 +16,7 @@ import { connectedAgents, fakeAdapters } from './__mocks__/fakeChatAdapter'
 import { createChatHandlers, type ChatHandlers } from './chatHandlers'
 import { createChatStore, type ChatStore } from './chatStore'
 import { createSessionManager } from './sessionManager'
+import type { TransferReads } from './transferStart'
 
 const AGAIN = 'Track the folder again to keep using this chat.'
 const EPIC_ID = 'ep_01m418epbg8qkqa2e2krvdkqk5'
@@ -56,7 +58,12 @@ function rig(): { handlers: ChatHandlers; registry: FolderRegistry; store: ChatS
     getEpic: () => Promise.resolve({ id: EPIC_ID, title: 'Agent chats', branch: null } as EpicDetailView),
     queueRun: () => Promise.resolve({ id: RUN_ID, number: 2, epicId: EPIC_ID, state: 'queued' } as RunView)
   }
-  return { handlers: createChatHandlers({ registry, agents: { get: connectedAgents() }, sessions, runs }), registry, store }
+  // A queued transfer the reads would answer for: only the folder refusal stops a transfer request.
+  const transfers: TransferReads = {
+    getEpic: runs.getEpic,
+    getTransfer: (_folder, epicId) => Promise.resolve({ epicId, status: 'queued', packet: null, recorded: [], lastMismatches: [], next: [] } as TransferView)
+  }
+  return { handlers: createChatHandlers({ registry, agents: { get: connectedAgents() }, sessions, runs, transfers }), registry, store }
 }
 
 /** Every file under the chats root, by relative path, with its bytes. */
@@ -104,7 +111,10 @@ async function everyFolderRequest(handlers: ChatHandlers, folder: string, chatId
     await handlers.setModel({ ...ref, model: 'small' }),
     await handlers.rename({ ...ref, title: 'Renamed' }),
     await handlers.delete(ref),
-    await handlers.answerApproval({ ...ref, requestId: 'q1', decision: 'allow_once' })
+    await handlers.answerApproval({ ...ref, requestId: 'q1', decision: 'allow_once' }),
+    await handlers.startTransferChat({ folder, epicId: EPIC_ID, agent: 'claude' }),
+    await handlers.findTransferChat({ folder, epicId: EPIC_ID }),
+    await handlers.transferPrompt({ folder, epicId: EPIC_ID })
   ]
 }
 
@@ -119,7 +129,7 @@ describe('chat handlers: a chat whose folder was replaced by a symlink', () => {
 
     const results = await everyFolderRequest(handlers, repo, chatId)
 
-    expect(results).toHaveLength(14)
+    expect(results).toHaveLength(17)
     for (const result of results) {
       expect(refusal(result)).toEqual({ code: 'not_found', message: `The folder ${repo} now leads to ${elsewhere}, not to the folder this chat was created in. ${AGAIN}` })
     }

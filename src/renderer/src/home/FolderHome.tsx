@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { AgentView, TrackedFolderView } from '../../../shared/desktop/api'
 import type { CreateEpicInput } from '../../../shared/domain/api'
-import type { BoardImportView, EpicDetailView, StorageStatusView } from '../../../shared/domain/views'
+import type { BoardImportView, EpicConflictChoice, EpicDetailView, StorageStatusView } from '../../../shared/domain/views'
 import type { EpicListState } from '../app/useEpicLists'
 import { Button } from '../components/Button'
 import { BoardImportCard } from './BoardImportCard'
@@ -26,6 +26,8 @@ interface FolderHomeProps {
   onCreateEpic(input: CreateEpicInput): Promise<EpicDetailView | null>
   onFlush(): void
   onReconcile(): void
+  /** Keeps one side of an epic records conflict; settles once the outcome has been reported. */
+  onResolveConflict(epicId: string, keep: EpicConflictChoice): Promise<void>
   /** Imports the folder's old-style board; resolves with the result, or null once a failure was reported. */
   onImportBoard(): Promise<BoardImportView | null>
 }
@@ -51,6 +53,7 @@ function SecondaryColumn(props: FolderHomeProps & { titles: Readonly<Record<stri
         busy={props.busy}
         onFlush={props.onFlush}
         onReconcile={props.onReconcile}
+        onResolveConflict={props.onResolveConflict}
       />
       <McpCard folder={folder} status={props.status} />
       <DefaultAgentCard folder={folder} agents={props.agents} />

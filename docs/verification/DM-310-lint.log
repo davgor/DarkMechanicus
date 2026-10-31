@@ -1,0 +1,6 @@
+$ npm run lint  (worktree linear-sprint-2 @ 9060a9f, 2026-10-31T11:21:21Z)
+
+> dark-mechanicus@0.19.0 lint
+> oxlint src scripts
+
+exit: 0

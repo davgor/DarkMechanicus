@@ -89,6 +89,26 @@ Without it the agent prepares a draft and you press Save.
 authorize it lives in the database that initializing is about to create. Set a folder up in the
 desktop app, issue a grant there, then use the CLI. Running it anyway changes nothing and says why.
 
+## Hand an epic to Linear: `dm transfer linear`
+
+```sh
+node out/main/cli.js transfer linear --epic ep_…
+node out/main/cli.js transfer linear --epic ep_… --json
+```
+
+It prints the kickoff for the agent that moves a saved epic to a Linear project: the same text as
+the in-app chat and Copy prompt, with the darkmechanicus-linear-transfer guide. After it come a
+summary of the packet (issues per milestone and the first issues in order), the setup lines for
+Linear's MCP server in each CLI, and how to give the agent an orchestrator grant (the Agent access
+card, then `$DM_SESSION_TOKEN`). When the person has not pressed Transfer to Linear yet, the first
+line says the transfer is not authorized.
+
+`--json` prints the packet itself. `--epic` and `--json` belong to this mode only.
+
+It is read-only and always runs as a reader, so it needs no grant and presents none. It is the one
+mode that prints text instead of the `{"ok":…}` envelope. An unknown epic, or one with no saved
+plan, prints the error on stderr and exits `1`.
+
 ## What this is, and is not
 
 It is a boundary of intent, not of force. Anything that can run `dm` can also open

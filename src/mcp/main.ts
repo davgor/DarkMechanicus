@@ -7,7 +7,6 @@
 import { readFileSync, realpathSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { capabilitiesForRole } from '../core/authz'
 import { DomainError } from '../core/errors'
@@ -15,6 +14,7 @@ import { MCP_SERVER_NAME } from '../core/version'
 import { openWorkspace, type OpenWorkspaceOptions, type Workspace } from '../core/workspace'
 import { MCP_USAGE, parseMcpArgs, type McpOptions } from './args'
 import { createMcpServer } from './server'
+import { BoundedStdioServerTransport } from './transport'
 
 /** A session that stops heartbeating drops out of the desktop's active list after 60 seconds. */
 const HEARTBEAT_INTERVAL_MS = 15_000
@@ -307,7 +307,7 @@ function nodeHost(script: string): McpHost {
     version: readPackageVersion(script, (path) => readFileSync(path, 'utf8')),
     open: (options) =>
       openWorkspace({ ...options, repoRoot: canonicalRepoRoot(options.repoRoot, realpathSync) }),
-    createTransport: () => new StdioServerTransport(),
+    createTransport: () => new BoundedStdioServerTransport(),
     writeStdout: (text) => {
       process.stdout.write(text)
     },
