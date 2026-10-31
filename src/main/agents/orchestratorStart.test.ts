@@ -108,6 +108,21 @@ describe('start an orchestrator for a run', () => {
 
     expect(result.chat?.model).toBeNull()
   })
+
+  it("lists each repository's epic branch in the kickoff of a folder of repositories", async () => {
+    const folderEpic = {
+      ...EPIC,
+      repositoryBranches: [
+        { repository: 'api', name: 'epic/agent-chats', startCommit: 'a'.repeat(40) },
+        { repository: 'web', name: 'epic/agent-chats', startCommit: 'b'.repeat(40) }
+      ]
+    } as EpicDetailView
+    const { fakes, manager, runs } = rig({ getEpic: () => Promise.resolve(folderEpic) })
+
+    await startOrchestratorRun({ runs, sessions: manager }, REQUEST)
+
+    expect(fakes.of('claude')[0]?.sent[0]).toContain('- api → epic/agent-chats\n- web → epic/agent-chats\n')
+  })
 })
 
 describe('start an orchestrator: failures', () => {

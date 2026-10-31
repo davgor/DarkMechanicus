@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code orchestrator (multi-repo folders)",
+    "role": "orchestrator"
+  },
+  "body": "Orchestrator note (attempt 3): the orchestrator kernel restarted right after this claim and the claim token was lost before dispatch. Attempts 1 and 2 were already freed with fail_attempt for the same cause (token read from the wrong response field), so failing attempt 3 would use the last try. Instead a worker is dispatched now on the pinned ticket content in its own worktree; when the lease expires, the orchestrator inspects the worktree and reconciles attempt 3 with `resubmit` and the worker's outputs and evidence, or `abandon` if the work did not finish.",
+  "createdAt": "2026-10-31T20:08:45.904Z",
+  "epicId": "ep_01m68w2edvsnjrvj7w56hxrmt8",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m69s8d2gqs6smybnz7t54pqz",
+  "ticketId": "tk_01m68w2eevcqq11z7s343qf6nv"
+}

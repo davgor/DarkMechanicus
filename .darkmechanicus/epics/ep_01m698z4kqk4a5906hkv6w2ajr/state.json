@@ -9,7 +9,7 @@
   "epicId": "ep_01m698z4kqk4a5906hkv6w2ajr",
   "format": "darkmechanicus.epic-state",
   "formatVersion": 1,
-  "generation": 5,
+  "generation": 18,
   "outcome": null,
   "provenance": {
     "note": "Follow-ups recorded in the Sprint 3 report (rp_01m693j420drfgpy8ygv9bctc1) of the Linear handoff epic.",
@@ -17,15 +17,15 @@
   },
   "status": "in_progress",
   "ticketStatuses": {
-    "tk_01m698z4krxek4e2sxp8mzdg8s": "backlog",
-    "tk_01m6995z1ygn9t104c18qnpfw2": "backlog",
-    "tk_01m6995z2m5pfxk8z0jn694wda": "backlog",
-    "tk_01m6995z2ma78j1qqb2vyvmvzn": "backlog",
-    "tk_01m6995z2mbk5pfdkjxwabar6z": "backlog",
-    "tk_01m6995z2md6anq7etq84yfs2p": "in_progress",
-    "tk_01m6995z2mtsfw08a8wph9sg0n": "backlog",
-    "tk_01m6995z2mx1bz11ze30zy4ha6": "in_progress"
+    "tk_01m698z4krxek4e2sxp8mzdg8s": "in_progress",
+    "tk_01m6995z1ygn9t104c18qnpfw2": "completed",
+    "tk_01m6995z2m5pfxk8z0jn694wda": "completed",
+    "tk_01m6995z2ma78j1qqb2vyvmvzn": "completed",
+    "tk_01m6995z2mbk5pfdkjxwabar6z": "completed",
+    "tk_01m6995z2md6anq7etq84yfs2p": "completed",
+    "tk_01m6995z2mtsfw08a8wph9sg0n": "completed",
+    "tk_01m6995z2mx1bz11ze30zy4ha6": "completed"
   },
   "title": "Linear handoff follow-ups: no pulled run history or profile overwritten, stale conflicts cleared, oversized transfers refused at queue, MCP transport wiring tested, error text intact",
-  "updatedAt": "2026-10-31T20:00:55.111Z"
+  "updatedAt": "2026-10-31T21:20:42.763Z"
 }
