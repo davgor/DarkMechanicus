@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-175 review (orchestrator): also pin the same-call ordering of escaped-defect reports. A report plus its fix or withdrawal in one call must read in call order, not id order. With random ids today it can read as counted or open. The scratch/DM-175 c2 batch-fix check passes only because the harness uses sequential ids.",
+  "createdAt": "2026-10-31T09:56:11.216Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m68p6qtg5em0mb7qpjy6x2jj",
+  "ticketId": "tk_01m65yenctwcrwzkdqz21e6e3j"
+}

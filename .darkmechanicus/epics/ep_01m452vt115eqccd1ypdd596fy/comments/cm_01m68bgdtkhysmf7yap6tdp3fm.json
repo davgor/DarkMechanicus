@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-171 review (orchestrator): `usageTotal` reports `observed` over recorded entries even when executing attempts reported nothing. `get_run_metrics` exposes the gap only in `coverage.attempts.unreported`. Treat unreported attempts as missing data when you compute resource efficiency, or a run total will look complete.",
+  "createdAt": "2026-10-31T06:49:14.323Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m68bgdtkhysmf7yap6tdp3fm",
+  "ticketId": "tk_01m453gpadahyzv2h66bwjwxmf"
+}

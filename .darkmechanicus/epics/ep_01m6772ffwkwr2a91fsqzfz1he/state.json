@@ -1,0 +1,41 @@
+{
+  "branch": {
+    "name": "linear-handoff",
+    "repository": "/Users/davidgorden/Documents/GitHub/DarkMechanicus",
+    "startCommit": "88c212f1edd98c6054a66e9d853e78208de74724"
+  },
+  "completedAt": null,
+  "createdAt": "2026-10-30T20:12:28.540Z",
+  "epicId": "ep_01m6772ffwkwr2a91fsqzfz1he",
+  "format": "darkmechanicus.epic-state",
+  "formatVersion": 1,
+  "generation": 30,
+  "outcome": null,
+  "provenance": null,
+  "status": "in_progress",
+  "ticketStatuses": {
+    "tk_01m6772ffw7g0zd5kz42brhp8z": "completed",
+    "tk_01m6772fg91dsy3716fa3gq227": "completed",
+    "tk_01m6772fge0xcfzt6bqb0zn6y9": "completed",
+    "tk_01m6772fge52e1xm1sqaqwrse6": "completed",
+    "tk_01m6772fge87e5ktvwekybkqk7": "completed",
+    "tk_01m6772fge8x5kf6kqc4dsng2b": "completed",
+    "tk_01m6772fgec2prcd1nzk93c4m1": "completed",
+    "tk_01m6772fged12ycec2898473va": "completed",
+    "tk_01m6772fgedx8fdm2xxw9h5rfn": "completed",
+    "tk_01m6772fgee0k5hkamr08znsvn": "completed",
+    "tk_01m6772fgen0tqgp39mgahnctk": "completed",
+    "tk_01m6772fget96mdb0dxv4tygh9": "completed",
+    "tk_01m6772fgeztxwzehczabspkeg": "completed",
+    "tk_01m68dpc02n5x6b5fj143vbchs": "backlog",
+    "tk_01m68dpc081yvkz7m9gfyk7nst": "backlog",
+    "tk_01m68dpc082gspaxv89z2xm19v": "backlog",
+    "tk_01m68dpc0850cbf38att5taef0": "backlog",
+    "tk_01m68dpc086t3tc17m2kj8zjcr": "backlog",
+    "tk_01m68dpc08nzp247t97y9eekcy": "backlog",
+    "tk_01m68dpc08y4w7cqj105sd6cs9": "backlog",
+    "tk_01m68dpc08z3gh8ferv0mfezfv": "backlog"
+  },
+  "title": "Linear handoff: transfer a saved plan to a Linear project in execution order, verify it, and complete the epic",
+  "updatedAt": "2026-10-31T10:42:44.098Z"
+}

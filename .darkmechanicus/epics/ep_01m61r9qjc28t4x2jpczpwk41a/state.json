@@ -1,33 +1,96 @@
 {
-  "branch": null,
-  "completedAt": null,
+  "branch": {
+    "name": "agent-clis",
+    "repository": "/Users/davidgorden/Documents/GitHub/DarkMechanicus",
+    "startCommit": "98df7226c9a8e19588de974f36414bcb4f65cbe0"
+  },
+  "completedAt": "2026-10-31T10:42:35.805Z",
   "createdAt": "2026-10-28T17:18:05.388Z",
   "epicId": "ep_01m61r9qjc28t4x2jpczpwk41a",
   "format": "darkmechanicus.epic-state",
   "formatVersion": 1,
-  "generation": 1,
-  "outcome": null,
+  "generation": 86,
+  "outcome": {
+    "recordedAt": "2026-10-31T10:42:35.805Z",
+    "runId": "rn_01m65kwqqeyajbj5bnq81gngrb",
+    "successCriteria": [
+      {
+        "criterionId": "s1",
+        "met": true,
+        "note": "Agents and folder defaults live in app.sqlite (DM-249, DM-250, DM-258). The upgrade import and the removal of agents.json were verified in sprint 1 (DM-248). DM-303's v2 migration adds a column and keeps every row (appDatabase tests)."
+      },
+      {
+        "criterionId": "s2",
+        "met": true,
+        "note": "DM-298 c1, c2 and c12, with no override. Find connects a8s as Autonomous Signed in, New chat offers it with its model list, and a Haiku chat answers. Approvals (Deny, then Allow), resume after a restart, and the dm CLI reporting the canonical folder all work."
+      },
+      {
+        "criterionId": "s3",
+        "met": true,
+        "note": "Sprint 2's DM-255 (c3, c4, c6, c7, c20) and DM-298 (c5, c6, c7): custom CLIs are stored only after the native confirmation and a passing handshake. They are offered in the sidebar, New chat and Start run, labelled with the reported agent name, and stored at the link path the person picked. A script that exits is refused."
+      },
+      {
+        "criterionId": "s4",
+        "met": true,
+        "note": "Sprint 2's DM-255 c5 and c7 and DM-262: the default is stored in app.sqlite, preselected by New chat and Start run, and cleared when the CLI is removed or the folder is untracked. Sprint 3 left this code unchanged, and its tests pass in DM-298's run."
+      },
+      {
+        "criterionId": "s5",
+        "met": true,
+        "note": "DM-255 c3, c11, c12 and c13 (canonical cwd; moved, symlink-swapped and untracked folders are refused) and DM-298 c12 (Autonomous's dm reports /private/tmp/dm298/repos/s2). DM-300 and DM-307 changed only the listing folder and sign-in detection."
+      },
+      {
+        "criterionId": "s6",
+        "met": true,
+        "note": "The renderer can't send a path: addCustomAgent refuses executablePath (DM-255 c4), and the program comes only from main's native dialog, now with noResolveAliases (DM-304). Arguments are validated in main and passed without a shell (DM-260, which had an independent security review; DM-257 tests)."
+      }
+    ],
+    "summary": "The epic is complete on agent-clis (027f042, bc01afd, c4a8aaf). Agents and folder defaults are stored in app.sqlite. Autonomous is a built-in agent that works end to end on this machine with no override. Custom CLIs for ACP, Codex app-server and Claude Code SDK are added with main-side validation, a native confirmation and a handshake. Each folder has a default CLI, and every chat is pinned to its canonical folder. Sprint 3 also designed the next step, chats as terminal panes in the app's main window. The branch is not merged into main or pushed."
+  },
   "provenance": null,
-  "status": "backlog",
+  "status": "completed",
   "ticketStatuses": {
-    "tk_01m61r9qjdbwy52ytqkx119dyn": "backlog",
-    "tk_01m61r9qvt4yf9wb1hpjtj0rwm": "backlog",
-    "tk_01m61r9qvz0e8090tfw2bbyd6d": "backlog",
-    "tk_01m61r9qvz1g826jmjdkvwyres": "backlog",
-    "tk_01m61r9qvz31hss46xw17k7gcz": "backlog",
-    "tk_01m61r9qvz47ez425t8jxtw8c0": "backlog",
-    "tk_01m61r9qvz6rf23jhb13y9926e": "backlog",
-    "tk_01m61r9qvz970qhrtt5vcwwpb7": "backlog",
-    "tk_01m61r9qvzawsxderyck3w4mgy": "backlog",
-    "tk_01m61r9qvzcg9f9qqk1z3v7wtq": "backlog",
-    "tk_01m61r9qvzcjmpq4d4x6j4m6y7": "backlog",
-    "tk_01m61r9qvzckhthd0feem68v13": "backlog",
-    "tk_01m61r9qvzhd787c0t1q8jq8h7": "backlog",
-    "tk_01m61r9qvzjh2yyk89xbzd67dn": "backlog",
-    "tk_01m61r9qvzrband4bpxsw8rnpq": "backlog",
+    "tk_01m61r9qjdbwy52ytqkx119dyn": "completed",
+    "tk_01m61r9qvt4yf9wb1hpjtj0rwm": "completed",
+    "tk_01m61r9qvz0e8090tfw2bbyd6d": "completed",
+    "tk_01m61r9qvz1g826jmjdkvwyres": "completed",
+    "tk_01m61r9qvz31hss46xw17k7gcz": "completed",
+    "tk_01m61r9qvz47ez425t8jxtw8c0": "completed",
+    "tk_01m61r9qvz6rf23jhb13y9926e": "completed",
+    "tk_01m61r9qvz970qhrtt5vcwwpb7": "completed",
+    "tk_01m61r9qvzawsxderyck3w4mgy": "completed",
+    "tk_01m61r9qvzcg9f9qqk1z3v7wtq": "completed",
+    "tk_01m61r9qvzcjmpq4d4x6j4m6y7": "completed",
+    "tk_01m61r9qvzckhthd0feem68v13": "completed",
+    "tk_01m61r9qvzhd787c0t1q8jq8h7": "completed",
+    "tk_01m61r9qvzjh2yyk89xbzd67dn": "completed",
+    "tk_01m61r9qvzrband4bpxsw8rnpq": "completed",
     "tk_01m61r9qvzs7j3hm111qjmrgbx": "backlog",
-    "tk_01m61r9qvzvkvv2bt1hcf2cpqs": "backlog"
+    "tk_01m61r9qvzvkvv2bt1hcf2cpqs": "completed",
+    "tk_01m66h1ez0y7wecam19ct5mket": "completed",
+    "tk_01m66h1ez615prxmjtkmfs9kgv": "completed",
+    "tk_01m66h1ez69pd1cq21amh41fak": "completed",
+    "tk_01m66h1ez69w622aqenfetqekr": "completed",
+    "tk_01m66h1ez6crr1vh0w8eda8c8b": "completed",
+    "tk_01m66h1ez6eq6zdmk7rtk8znsa": "completed",
+    "tk_01m66h1ez6etz80191vyp8k1wm": "completed",
+    "tk_01m66h1ez6kejcbvxxva648ady": "completed",
+    "tk_01m66h1ez6sn975ybk8h4c07j3": "completed",
+    "tk_01m66h1ez6w01mwfxhtggnprqb": "completed",
+    "tk_01m678gnz5n2b31p0qk1kqwwcs": "completed",
+    "tk_01m67cgk99g4nqcxr20wdnmbm8": "completed",
+    "tk_01m67cgk9j4r4ntsdxq552gzd5": "completed",
+    "tk_01m67cgk9j6xtbsr49rfaw0bpv": "completed",
+    "tk_01m67cgk9j919vmgszxktbjzyb": "completed",
+    "tk_01m67cgk9jfbxzpey05wxkv3nd": "completed",
+    "tk_01m67cgk9jfvv13wqvmch6f82z": "completed",
+    "tk_01m67cgk9jh8s984dbyd575n5b": "completed",
+    "tk_01m67cgk9jk8krq1npt4rbx2rg": "completed",
+    "tk_01m67cgk9jkeza20f478knpnwd": "completed",
+    "tk_01m67cgk9jmtgtee98ftvqjtkm": "completed",
+    "tk_01m67cgk9jv2ks61j751xb33m9": "completed",
+    "tk_01m67cgk9jv4c8c40wtxae5cyy": "completed"
   },
   "title": "Agent CLIs: run Autonomous, Claude, Codex or a custom CLI in the app, stored in SQL and pinned to the folder",
-  "updatedAt": "2026-10-28T17:18:58.678Z"
+  "updatedAt": "2026-10-31T10:42:35.832Z"
 }

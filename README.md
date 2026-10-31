@@ -44,7 +44,7 @@ This repository is planned and run in Dark Mechanicus itself. Its epics, tickets
 - **The agent session you work with is the orchestrator.** Connect it with `--role orchestrator --allow-save`. When you ask it to run an epic, it runs it in that session: it claims each ready ticket, spins up a subagent as the worker, reviews the result, and stops at each sprint checkpoint for your approval. It never does a ticket itself, and it doesn't hand the run to another session.
 - **People** review each draft plan in the desktop app and press **Save**, then approve every sprint checkpoint there.
 
-Implementation follows the engineering process above: tests first, then lint, typecheck, unit tests, fireguard, deadcode, and build before a ticket is accepted.
+Implementation follows the engineering process above: tests first (unless the person waived it for an epic in its plan), then lint, typecheck, unit tests, fireguard, deadcode, and build. Inside an epic a ticket runs only its targeted checks; fireguard runs only in the sprint's Fireguard ticket, and the full gate once at the sprint checkpoint.
 
 ## Stack
 
@@ -93,7 +93,6 @@ Also mirrored:
 
 - `.github/workflows/deadcode.yml` — `ts-prune`; fails on new findings not listed in `.tsprune-ignore`
 - `.github/workflows/security-audit.yml` — `npm audit`, fails PRs on moderate+ vulnerabilities
-- `.github/workflows/auto-revert.yml` — reverts `main` when CI Checks fails (skips if HEAD is already a revert)
 - `.github/workflows/deploy.yml` — after successful CI Checks on `main`, bumps minor version, packages Win + Mac, publishes a GitHub Release
 
 Commits with `[skip ci]` in the message skip the push-triggered CI Checks / deadcode jobs and the deploy gate (used by version-bump commits so deploy does not loop).

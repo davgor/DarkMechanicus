@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "**Two defects found by the sprint 2 acceptance round (DM-255). The person moved both to sprint 3.**\n\n1. **Sign-in check times out.**\n   - `src/main/desktop/agentAuth.ts` has `STATUS_TIMEOUT_MS = 10_000`, but `time a8s doctor` took 11.99 s on this machine.\n   - `agentStatus('autonomous')` returned 'Autonomous did not answer in time' three times.\n   - So the agent is never `signed_in`: New chat and Start run offer no Autonomous chat. The live checks passed only with a status override.\n2. **Model list fails.**\n   - The listing starts a8s in `os.tmpdir()` itself.\n   - a8s's repository capture check there fails: `scandir: EPERM` on `…/T/…/TemporaryItems`.\n   - So New chat and Start run show 'Could not list this agent's models', and chats fall back to the default model (Opus).\n   - Fix: list from a fresh empty `mkdtemp` subfolder, as the custom handshake does.",
+  "createdAt": "2026-10-30T21:39:33.828Z",
+  "epicId": "ep_01m61r9qjc28t4x2jpczpwk41a",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m67c1ya4gqf0w97xcdtqrn4q",
+  "ticketId": "tk_01m61r9qvz47ez425t8jxtw8c0"
+}

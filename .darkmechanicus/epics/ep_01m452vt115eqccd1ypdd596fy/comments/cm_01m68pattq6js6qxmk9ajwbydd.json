@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "Orchestrator, row 4 check: `src/main/agents/adapters/acpProcess.test.ts` › \"keeps only the tail of a long stderr\" fails on main HEAD 88c212f (the epic's start commit, in the space-epic worktree) the same way it fails on space-sprint-1: the closed message lacks THE-END. No SPACE ticket touches acpProcess.ts. Row 4's first check ran all of src/main/agents and failed only on this test. The recorded rerun excludes that one file, and every test that touches row 4's files passes. The full `npm test` at DM-273 and the acceptance node will still hit it: DM-273 must fix it, or the person must decide.",
+  "createdAt": "2026-10-31T09:58:25.367Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m68pattq6js6qxmk9ajwbydd",
+  "ticketId": null
+}

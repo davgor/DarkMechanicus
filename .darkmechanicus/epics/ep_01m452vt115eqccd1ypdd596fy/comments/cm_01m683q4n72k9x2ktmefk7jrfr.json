@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-169 review (orchestrator): baseline inflation protection in `src/core/space/baselines.ts` relies on `BudgetBaseline.frozenAt` and the dispatch time being authoritative. Assign frozenAt from the server clock and keep the baseline ledger append-only; never accept a caller-supplied frozenAt.",
+  "createdAt": "2026-10-31T04:33:05.703Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m683q4n72k9x2ktmefk7jrfr",
+  "ticketId": "tk_01m453gpadqvk72bw1cy08bkm7"
+}
