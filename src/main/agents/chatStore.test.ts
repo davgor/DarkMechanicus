@@ -189,6 +189,18 @@ describe('chat store run link', () => {
     expect(reopened.getChat(orchestrator)).toMatchObject({ title: 'Renamed', runId: 'rn_1' })
     expect(reopened.getChat(plain)).not.toHaveProperty('runId')
   })
+
+  it('keeps the epic a transfer chat moves to Linear across a reopen, and a chat without one has none', () => {
+    const fs = memoryFs()
+    const store = openStore(fs)
+    const transfer = store.createChat({ ...NEW_CHAT, role: 'orchestrator', transferEpicId: 'ep_1' })
+    const plain = store.createChat(NEW_CHAT)
+    store.updateChat(transfer, { sessionId: 'session_1' })
+
+    const reopened = openStore(fs)
+    expect(reopened.getChat(transfer)).toMatchObject({ role: 'orchestrator', transferEpicId: 'ep_1', sessionId: 'session_1' })
+    expect(reopened.getChat(plain)).not.toHaveProperty('transferEpicId')
+  })
 })
 
 describe('chat store item replacement', () => {

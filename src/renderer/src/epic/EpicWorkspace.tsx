@@ -19,11 +19,14 @@ import { deleteTicketFromPlan } from './deletion'
 import { DraftBar } from './DraftBar'
 import { Banner, ConfirmStrip, Notices, Toast } from './Feedback'
 import { headerView } from './headerView'
+import { TransferredPanel, TransferStrip } from './LinearTransfer'
 import { listSections } from './listSections'
 import { ListView } from './ListView'
 import type { OrchestrationHost } from './orchestration'
 import { RunBar } from './RunBar'
 import { StartRunDialog } from './StartRunDialog'
+import { TransferDialog } from './TransferDialog'
+import { isOpenTransfer } from './transferView'
 import { useLanding } from './useLanding'
 import { useWorkspace, type WorkspaceHandle } from './useWorkspace'
 import { ValidationPanel } from './ValidationPanel'
@@ -128,11 +131,8 @@ function reviewStage(ws: WorkspaceHandle): JSX.Element | null {
   return overview === null ? null : <OverviewStage ws={ws} overview={overview} run={run} />
 }
 
-function StageContent({ ws, input }: { ws: WorkspaceHandle; input: GraphInput | null }): JSX.Element {
-  const review = reviewStage(ws)
-  if (review !== null) {
-    return review
-  }
+/** The plan of the shown view: the graph or the list. */
+function PlanContent({ ws, input }: { ws: WorkspaceHandle; input: GraphInput | null }): JSX.Element {
   if (input === null) {
     return <p className="ew-empty">This epic has no plan yet.</p>
   }
@@ -147,6 +147,20 @@ function StageContent({ ws, input }: { ws: WorkspaceHandle; input: GraphInput | 
     )
   }
   return <GraphStage ws={ws} input={input} />
+}
+
+/** The checkpoint review or overview while open; otherwise the plan, under the Linear handoff of an epic a transfer completed. */
+function StageContent({ ws, input }: { ws: WorkspaceHandle; input: GraphInput | null }): JSX.Element {
+  const review = reviewStage(ws)
+  if (review !== null) {
+    return review
+  }
+  return (
+    <>
+      <TransferredPanel ws={ws} />
+      <PlanContent ws={ws} input={input} />
+    </>
+  )
 }
 
 function Stage({ ws }: { ws: WorkspaceHandle }): JSX.Element {
@@ -238,6 +252,33 @@ function StartRunHost({ ws }: { ws: WorkspaceHandle }): JSX.Element | null {
   )
 }
 
+/** The Transfer to Linear dialog, to authorize a transfer or to start an agent on the open one again. */
+function TransferHost({ ws }: { ws: WorkspaceHandle }): JSX.Element | null {
+  const host = ws.orchestration
+  const mode = ws.state.transferDialog
+  if (mode === null) {
+    return null
+  }
+  const close = (): void => ws.dispatch({ type: 'transfer_dialog', mode: null })
+  return (
+    <TransferDialog
+      epicTitle={ws.data.epic.title}
+      mode={mode}
+      agents={host.agents}
+      statuses={host.statuses}
+      busy={ws.state.busy}
+      onTransferWithAgent={(choice) => void ws.actions.transferWithAgent(choice, mode)}
+      onCopyPrompt={() => void ws.actions.copyTransferPrompt(mode)}
+      onAddAgent={() => {
+        close()
+        host.onAddAgent()
+      }}
+      onAgentStatus={host.onAgentStatus}
+      onClose={close}
+    />
+  )
+}
+
 function WorkspaceView({ ws }: { ws: WorkspaceHandle }): JSX.Element {
   const draft = ws.state.view === 'draft'
   const run = ws.data.run
@@ -245,13 +286,15 @@ function WorkspaceView({ ws }: { ws: WorkspaceHandle }): JSX.Element {
     folderName: ws.folder.name,
     epic: ws.data.epic,
     view: ws.state.view,
-    hasActiveRun: run !== null && isActiveRunState(run.state)
+    hasActiveRun: run !== null && isActiveRunState(run.state),
+    hasOpenTransfer: isOpenTransfer(ws.data.transfer?.status ?? null)
   })
   return (
     <section className="ew" aria-label="Epic workspace">
       <WorkspaceHeader ws={ws} header={header} />
       <Notices header={header} loadError={ws.state.loadError} />
       {draft ? <DraftBar ws={ws} /> : <RunBar ws={ws} />}
+      <TransferStrip ws={ws} />
       <ConfirmStrip ws={ws} />
       <div className={ws.state.selectedTicketId === null ? 'ew-main' : 'ew-main has-panel'}>
         <Stage ws={ws} />
@@ -260,6 +303,7 @@ function WorkspaceView({ ws }: { ws: WorkspaceHandle }): JSX.Element {
       {draft ? <ValidationPanel ws={ws} /> : <AttemptsStrip ws={ws} />}
       <Toast ws={ws} />
       <StartRunHost ws={ws} />
+      <TransferHost ws={ws} />
     </section>
   )
 }
@@ -287,7 +331,8 @@ function WorkspaceBody(props: EpicWorkspaceProps): JSX.Element {
     epicId: props.epicId,
     refreshToken: props.refreshToken,
     onChanged: props.onChanged,
-    onChatsChanged: props.orchestration.onChatsChanged
+    onChatsChanged: props.orchestration.onChatsChanged,
+    onOpenChat: props.orchestration.onOpenChat
   })
   const now = useNow()
   const { state } = controller

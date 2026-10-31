@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { FakeBackend, scenario } from './__mocks__/fakeBackend'
+import { noTransferChats } from './__mocks__/fakeOrchestration'
 import { checkpointView, draftPlan, epicDetail, runView, savedPlan, validation } from './__mocks__/fixtures'
 import { createWorkspaceActions } from './workspaceActions'
 import {
@@ -21,6 +22,7 @@ function data(patch: Partial<WorkspaceData> = {}): WorkspaceData {
     savedTickets: [],
     draftTickets: [],
     validation: validation(),
+    transfer: null,
     ...patch
   }
 }
@@ -40,7 +42,9 @@ function harness(patch: Partial<WorkspaceData> = {}, backend = new FakeBackend(s
     dispatch,
     reload: () => undefined,
     onChanged: () => undefined,
-    onChatsChanged: () => undefined
+    onChatsChanged: () => undefined,
+    transferChats: noTransferChats(),
+    onOpenChat: () => undefined
   })
   return { actions, backend, dispatched, dispatch, state: () => current }
 }

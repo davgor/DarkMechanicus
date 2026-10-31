@@ -1,0 +1,13 @@
+
+> dark-mechanicus@0.19.0 test:fireguard
+> vitest run --config fireguard/vitest.config.ts
+
+
+ RUN  v4.1.11 /Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/linear-sprint-1/fireguard
+
+
+ Test Files  20 passed (20)
+      Tests  105 passed (105)
+   Start at  02:13:14
+   Duration  2.64s (transform 726ms, setup 0ms, import 2.62s, tests 2.71s, environment 1ms)
+

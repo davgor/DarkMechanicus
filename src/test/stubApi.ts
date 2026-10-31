@@ -88,7 +88,13 @@ const COMMAND_FLAGS: Record<CommandName, true> = {
   grantRetry: true,
   listEvents: true,
   getAttemptTimeline: true,
-  getRunTimeline: true
+  getRunTimeline: true,
+  queueTransfer: true,
+  cancelTransfer: true,
+  startTransfer: true,
+  recordTransferItem: true,
+  getTransfer: true,
+  submitTransferReadback: true
 }
 
 export const COMMAND_NAMES = Object.keys(COMMAND_FLAGS) as CommandName[]

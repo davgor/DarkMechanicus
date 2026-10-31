@@ -35,6 +35,7 @@ import {
 import { requestWithoutKey, withIdempotency } from './idempotency'
 import { sprintIncrementViews } from './increments'
 import { enqueueOutbox } from './outbox'
+import { assertNoOpenTransfer } from './transferGuard'
 
 interface EpicRow {
   id: string
@@ -202,6 +203,7 @@ export function queueRun(ctx: Ctx, input: { epicId: string }): RunView {
   requireCapability(ctx.session, 'run.queue')
   return ctx.db.tx(() => {
     const epic = requireOpenEpic(ctx, input.epicId)
+    assertNoOpenTransfer(ctx, epic.id)
     const revisionId = savedRevisionId(ctx, epic)
     const active = activeRunOf(ctx, epic.id)
     if (active) {
@@ -298,6 +300,7 @@ export function startRun(ctx: Ctx, input: StartRunInput): RunView {
   ctx.assertBranch()
   return withIdempotency(ctx, { command: 'startRun', key: input.idempotencyKey, request: requestWithoutKey(input) }, () => {
     const epic = requireOpenEpic(ctx, input.epicId)
+    assertNoOpenTransfer(ctx, epic.id)
     const run = pickUpRun(ctx, epic)
     activateRun(ctx, run, input)
     bindEpicBranch(ctx, epic, input.branch ?? null)

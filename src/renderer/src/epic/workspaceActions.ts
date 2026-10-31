@@ -14,8 +14,9 @@ import type { NextSprintPlan } from '../checkpoint/nextSprint'
 import { redraftRefusal, type RedraftRefusal } from '../checkpoint/redraftView'
 import { dropTarget, type GraphModel } from '../graph/graphModel'
 import { agentName } from '../agents/agentText'
-import type { StartOrchestrator, StartRunChoice } from './orchestration'
+import type { StartOrchestrator, StartRunChoice, TransferChats } from './orchestration'
 import { failureOf, type Failure, type Runner } from './runner'
+import { createTransferActions, type TransferActions } from './transferActions'
 import { saveOutcome } from './validationView'
 import type { WorkspaceAction, WorkspaceState } from './workspaceState'
 
@@ -28,6 +29,10 @@ interface ActionDeps {
   startOrchestrator: StartOrchestrator
   /** A chat was created for a run: the shell fetches the folder's chats again. */
   onChatsChanged(): void
+  /** The epic's Linear transfer chat bridge. */
+  transferChats: TransferChats
+  /** Shows a chat (a transfer chat once it is started). */
+  onOpenChat(chatId: string): void
   getState(): WorkspaceState
   dispatch(action: WorkspaceAction): void
   reload(): void
@@ -41,7 +46,7 @@ export type ReviewInput =
   | { attemptId: string; decision: 'reject'; reason: string }
   | { attemptId: string; decision: 'abandon' }
 
-export interface WorkspaceActions {
+export interface WorkspaceActions extends TransferActions {
   perform<T>(task: () => Promise<T>): Promise<Result<T>>
   applyOps(ops: DraftOp[]): Promise<Result<DraftUpdateResultView>>
   editDraft(): Promise<void>
@@ -414,6 +419,7 @@ export function createWorkspaceActions(deps: ActionDeps): WorkspaceActions {
     ...runActions(deps),
     ...graphActions(deps, applyOps),
     ...checkpointActions(deps),
+    ...createTransferActions({ ...deps, perform: (task) => perform(deps, task) }),
     addFollowUp: (proposal, ordinal) => addFollowUp(deps, proposal, ordinal),
     async review(input) {
       const result = await perform(deps, () => reviewCommand(deps, input))

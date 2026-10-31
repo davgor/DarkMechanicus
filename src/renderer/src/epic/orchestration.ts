@@ -5,7 +5,7 @@
  * add-agent pane only when the person follows a link.
  */
 import type { ChatRecord } from '../../../shared/agents/chat'
-import type { StartOrchestratorResult } from '../../../shared/agents/chatApi'
+import type { ChatSummary, StartOrchestratorResult, StartTransferChatResult } from '../../../shared/agents/chatApi'
 import type { AgentAuthStatus, AgentKind, AgentView } from '../../../shared/desktop/api'
 import type { RunView } from '../../../shared/domain/views'
 import type { AgentStatuses } from '../agents/useAgents'
@@ -18,6 +18,21 @@ export interface StartRunChoice {
 
 /** Queues the run and starts the chosen agent as its orchestrator; throws a `CommandError` when nothing was queued. */
 export type StartOrchestrator = (choice: StartRunChoice) => Promise<StartOrchestratorResult>
+
+/**
+ * The chat bridge of the epic's Linear transfer, bound to its folder and epic. Each throws a `CommandError` when
+ * main refuses: starting a chat before the person authorized the transfer, or reading a prompt for none.
+ */
+export interface TransferChats {
+  /** Starts the chosen agent on the authorized transfer in a chat of this folder. */
+  start(choice: StartRunChoice): Promise<StartTransferChatResult>
+  /** The newest chat started for the epic's transfer, or null. */
+  find(): Promise<ChatSummary | null>
+  /** The transfer kickoff, for an agent the person starts elsewhere. */
+  prompt(): Promise<string>
+  /** Puts text on the clipboard. */
+  copy(text: string): Promise<void>
+}
 
 export interface OrchestrationHost {
   /** The connected agents with their sign-in states, as the Agents screens show them. */

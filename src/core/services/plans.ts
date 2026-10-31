@@ -14,6 +14,7 @@ import { requestWithoutKey, withIdempotency } from './idempotency'
 import { enqueueOutbox } from './outbox'
 import { withRunWarnings } from './runWarnings'
 import { indexDocument } from './searchIndex'
+import { assertNoOpenTransfer } from './transferGuard'
 
 type RevisionState = 'pending' | 'saved' | 'failed'
 
@@ -242,7 +243,7 @@ function savableBundle(epic: EpicRow, draft: DraftRow): PlanBundle {
   return bundle
 }
 
-function assertNoPendingSave(ctx: Ctx, epicId: string): void {
+export function assertNoPendingSave(ctx: Ctx, epicId: string): void {
   const pending = ctx.db.get<{ id: string; number: number }>(
     "SELECT id, number FROM plan_revisions WHERE epic_id = ? AND state = 'pending'",
     epicId
@@ -283,6 +284,7 @@ function insertPendingRevision(ctx: Ctx, save: { epic: EpicRow; bundle: PlanBund
 function saveDraft(ctx: Ctx, input: { epicId: string; expectedDraftRevision: number }): SaveRequestResult {
   const epic = loadEpicRow(ctx, input.epicId)
   assertEpicOpen(epic)
+  assertNoOpenTransfer(ctx, epic.id)
   const draft = loadDraftRow(ctx, epic.id) ?? fail('not_found', 'There is no draft to save.', { epicId: epic.id })
   assertDraftRevision(draft, input.expectedDraftRevision)
   const bundle = savableBundle(epic, draft)

@@ -24,7 +24,10 @@ const AGENT_ONLY_COMMANDS = [
   'failAttempt',
   'carryForwardTicket',
   'recordRowCheck',
-  'submitSprintReport'
+  'submitSprintReport',
+  'startTransfer',
+  'recordTransferItem',
+  'submitTransferReadback'
 ]
 
 const NOT_TRACKED = 'That folder is not tracked by Dark Mechanicus.'

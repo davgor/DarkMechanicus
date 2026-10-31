@@ -15,6 +15,7 @@ import type {
   ToolCapability
 } from './bundle'
 import type { SprintRetro, TicketTierFacts } from './retro'
+import type { EpicTransferOutcome } from './transfer'
 import type {
   AttemptKind,
   AttemptState,
@@ -102,6 +103,8 @@ export interface EpicOutcome {
   successCriteria: CriterionResult[]
   recordedAt: string
   runId: string | null
+  /** Present when a verified Linear transfer completed the epic (then `runId` is null). */
+  transfer?: EpicTransferOutcome
 }
 
 export interface EpicDetailView extends EpicSummaryView {

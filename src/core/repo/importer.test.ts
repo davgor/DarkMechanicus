@@ -18,7 +18,7 @@ import { isWithin } from '../../test/memoryFs'
 import { createSaveHook } from '../../test/repoFixtures'
 import { createTempRepo, type TempRepo } from '../../test/tempRepo'
 import { createSequentialIds, createTestClock, createTestDb } from '../../test/testContext'
-import { contentHash } from '../canonical'
+import { contentHash, prettyJson } from '../canonical'
 import { getMeta, setMeta } from '../meta'
 import { createFileHashCache } from './fileHashes'
 import { flushOutbox } from './finalizer'
@@ -27,7 +27,7 @@ import { initializeRepository } from './initialize'
 import { resolveLayout } from './layout'
 import { nodeFs } from './nodeFs'
 import { ownedPaths } from './paths'
-import { trackedCommentHash, trackedEpicHash, trackedRunHash } from './portable'
+import { buildEpicStateRecord, trackedCommentHash, trackedEpicHash, trackedRunHash } from './portable'
 
 const EPIC = idOf('epic', 1)
 const R1 = idOf('revision', 1)
@@ -134,6 +134,43 @@ describe('reconcileRepository reconstruction', () => {
     expect(target.db.all('SELECT report_id, approval_id FROM checkpoints')).toEqual([{ report_id: REPORT, approval_id: null }])
   })
 
+})
+
+describe('reconcileRepository and outcome.transfer', () => {
+  it('imports an epic a Linear transfer completed with its outcome.transfer, and exports it back byte for byte', () => {
+    const source = createRepoEnv({ root: '/source' })
+    initProject(source)
+    saveRevision(source, { epicId: EPIC, revisionId: R1, number: 1, bundle: BUNDLE_1 })
+    const outcome = {
+      summary: 'Transferred to Linear: https://linear.app/acme/project/demo-1a2b',
+      successCriteria: [],
+      recordedAt: T0,
+      runId: null,
+      transfer: {
+        target: 'linear',
+        projectUrl: 'https://linear.app/acme/project/demo-1a2b',
+        revisionId: R1,
+        packetHash: contentHash({ packet: 'demo' }),
+        items: [
+          { key: 'DM-1', identifier: 'ENG-1', url: 'https://linear.app/acme/issue/ENG-1' },
+          { key: 'DM-2', identifier: 'ENG-2', url: null }
+        ]
+      }
+    }
+    source.db.run("UPDATE epics SET status = 'completed', completed_at = ?, outcome_json = ? WHERE id = ?", T0, JSON.stringify(outcome), EPIC)
+    insertOutbox(source.db, { kind: 'epic_state', epicId: EPIC })
+    flush(source)
+    const exported = source.fs.get(ownedPaths(source.layout).epicStateFile(EPIC)) ?? ''
+    const state = JSON.parse(exported) as { outcome: unknown; generation: number; updatedAt: string }
+    expect(state.outcome).toEqual(outcome)
+
+    const target = cloneOf(source)
+    expect(reconcileRepository(importerDeps(target, createStubGit('main')))).toMatchObject({ imported: [EPIC], rejected: [] })
+    const row = target.db.get<{ status: string; outcome_json: string }>('SELECT status, outcome_json FROM epics WHERE id = ?', EPIC)
+    expect(row?.status).toBe('completed')
+    expect(JSON.parse(row?.outcome_json ?? 'null')).toEqual(outcome)
+    expect(prettyJson(buildEpicStateRecord(target.db, EPIC, { generation: state.generation, updatedAt: state.updatedAt }))).toBe(exported)
+  })
 })
 
 describe('reconcileRepository bookkeeping', () => {

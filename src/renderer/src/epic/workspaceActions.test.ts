@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { StartOrchestratorResult } from '../../../shared/agents/chatApi'
 import { chatRecord } from '../__mocks__/fixtures'
 import { FakeBackend, scenario } from './__mocks__/fakeBackend'
+import { noTransferChats } from './__mocks__/fakeOrchestration'
 import { checkpointView, draftPlan, epicDetail, runView, savedPlan, validation } from './__mocks__/fixtures'
 import { CommandError } from '../api/dm'
 import { buildGraphModel } from '../graph/graphModel'
@@ -25,6 +26,7 @@ function data(patch: Partial<WorkspaceData> = {}): WorkspaceData {
     savedTickets: [],
     draftTickets: [],
     validation: validation(),
+    transfer: null,
     ...patch
   }
 }
@@ -51,6 +53,8 @@ function harness(patch: Partial<WorkspaceData> = {}, backend = new FakeBackend(s
     onChatsChanged: () => {
       counts.chats += 1
     },
+    transferChats: noTransferChats(),
+    onOpenChat: () => undefined,
     getState: () => current,
     dispatch,
     reload: () => {

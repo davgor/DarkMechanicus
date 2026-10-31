@@ -107,7 +107,13 @@ const PROBES: Record<CommandName, unknown> = {
   listComments: { epicId: EPIC },
   listProfiles: undefined,
   getProfile: { name: 'probe-profile' },
-  saveProfile: { name: 'probe-profile', capability: defaultCapabilityProfile() }
+  saveProfile: { name: 'probe-profile', capability: defaultCapabilityProfile() },
+  queueTransfer: { epicId: EPIC },
+  cancelTransfer: { epicId: EPIC },
+  startTransfer: { epicId: EPIC },
+  recordTransferItem: { epicId: EPIC, ref: 'project', linearId: 'lin-probe' },
+  getTransfer: { epicId: EPIC },
+  submitTransferReadback: { epicId: EPIC, readback: {}, final: false }
 }
 
 const COMMAND_NAMES = Object.keys(PROBES) as CommandName[]
@@ -175,12 +181,32 @@ describe('COMMAND_CAPABILITIES', () => {
       'approveCheckpoint',
       'approveWithRedraft',
       'authorizeAutoContinue',
+      'cancelTransfer',
       'deleteEpic',
       'deleteTicket',
       'grantRetry',
       'issueGrant',
       'queueRun',
+      'queueTransfer',
       'revokeGrant'
+    ])
+  })
+})
+
+describe('transfer capabilities', () => {
+  const ROLES: SessionRole[] = ['desktop', 'planner', 'orchestrator', 'worker', 'reviewer', 'reader']
+
+  it('keeps transfer.queue human-only, held by the desktop alone', () => {
+    expect(HUMAN_ONLY_CAPABILITIES).toContain('transfer.queue')
+    expect(ROLES.filter((role) => capabilitiesForRole(role, { allowSave: true }).includes('transfer.queue'))).toEqual([
+      'desktop'
+    ])
+  })
+
+  it('gives epic.transfer to the orchestrator and the desktop only', () => {
+    expect(ROLES.filter((role) => capabilitiesForRole(role, { allowSave: true }).includes('epic.transfer'))).toEqual([
+      'desktop',
+      'orchestrator'
     ])
   })
 })

@@ -3,18 +3,23 @@
  *
  * One invocation runs one command and prints JSON on stdout: `{ "ok": true, "data": … }` or
  * `{ "ok": false, "error": { "code", "message" } }`. Everything human-readable goes to stderr, so
- * the output is safe to pipe into `jq` or read back by an agent.
+ * the output is safe to pipe into `jq` or read back by an agent. The one exception is
+ * `transfer linear`, which prints the Linear transfer kickoff as text for a person to paste.
  *
  * The CLI is a transport, not an authority. It exposes the same command table the desktop app and
  * the MCP server use, and the session's role comes from a grant a person issued — never from a
  * flag, because a local process chooses its own flags. Without a grant it is a reader.
  */
 import { readFileSync } from 'node:fs'
+import { maskClaimTokens } from '../core/claimTokenMask'
 import { COMMAND_CAPABILITIES } from '../core/commands/capabilities'
 import { COMMANDS } from '../core/commands/index'
 import { DomainError, toErrorShape } from '../core/errors'
 import type { CommandName } from '../shared/domain/api'
+import type { LinearTransferPacket, TransferView } from '../shared/domain/transfer'
+import type { EpicDetailView } from '../shared/domain/views'
 import { openWorkspace, type OpenWorkspaceOptions, type Workspace } from '../core/workspace'
+import { transferKickoff } from '../mcp/transferKickoff'
 import { CLI_USAGE, type CliOptions, parseCliArgs, TOKEN_ENV } from './args'
 
 /** Exit codes: 0 fine, 1 the command failed, 2 the arguments were wrong. */
@@ -157,6 +162,102 @@ async function runCommand(host: CliHost, options: CliOptions, requested: string,
   }
 }
 
+/** How many issues the packet summary lists before it only counts the rest. */
+const SUMMARY_ISSUES = 10
+
+const LINEAR_SETUP = [
+  '=== Linear setup ===',
+  '',
+  "The agent needs Linear's MCP tools. Set them up once for the CLI it runs in:",
+  '- Claude Code: claude mcp add --transport http linear-server https://mcp.linear.app/mcp, then /mcp to sign in.',
+  '- Codex: codex mcp add linear --url https://mcp.linear.app/mcp',
+  "- Cursor: add https://mcp.linear.app/mcp in Cursor's MCP settings."
+]
+
+const GRANT_HELP = [
+  '=== Agent access ===',
+  '',
+  "The agent needs an orchestrator grant. Issue one in the desktop app (the folder's Agent access card →",
+  `Authorize an agent → orchestrator), then give it to the agent's session as $${TOKEN_ENV} or --token-file.`
+]
+
+/** Packet text is task data: one line, claim tokens masked, so it cannot pose as an instruction or leak a secret. */
+function summaryText(text: string): string {
+  return maskClaimTokens(text.replace(/\s+/g, ' ').trim())
+}
+
+function packetSummary(packet: LinearTransferPacket): string[] {
+  const milestones = packet.milestones.map((milestone) => {
+    const count = packet.issues.filter((issue) => issue.milestoneRef === milestone.ref).length
+    return `- ${summaryText(milestone.name)}: ${count} ${count === 1 ? 'issue' : 'issues'}`
+  })
+  const first = packet.issues
+    .slice(0, SUMMARY_ISSUES)
+    .map((issue) => `${issue.position}. ${issue.key} ${summaryText(issue.title)}${issue.state === 'completed' ? ' (completed)' : ''}`)
+  const rest = packet.issues.length - first.length
+  return [
+    '=== Packet summary ===',
+    '',
+    `Project: ${summaryText(packet.project.name)}`,
+    `${packet.milestones.length} milestones, ${packet.issues.length} issues, ${packet.relations.length} relations.`,
+    ...milestones,
+    '',
+    'First issues, in order:',
+    ...first,
+    ...(rest > 0 ? [`… and ${rest} more`] : [])
+  ]
+}
+
+function authorizationLine(status: TransferView['status']): string {
+  switch (status) {
+    case 'queued':
+    case 'in_progress':
+      return 'The transfer is authorized.'
+    case 'verified':
+      return 'This transfer is already verified; there is nothing left to move.'
+    default:
+      return 'The transfer is not authorized yet. Press Transfer to Linear in the desktop app before the agent starts.'
+  }
+}
+
+/**
+ * `dm transfer linear`: read-only, so it always runs as a reader and presents no grant. It is the one
+ * mode that prints text, because a person pastes it into an agent's chat; `--json` prints the packet.
+ */
+async function runTransfer(host: CliHost, options: CliOptions, epicId: string, json: boolean): Promise<number> {
+  let workspace: Workspace | null = null
+  try {
+    workspace = host.open({ repoRoot: options.repo, role: 'reader', label: 'dm CLI', transport: 'cli', pid: process.pid })
+    const epic = (await workspace.execute('getEpic', { epicId })) as EpicDetailView
+    const transfer = (await workspace.execute('getTransfer', { epicId })) as TransferView
+    if (transfer.packet === null) {
+      throw new DomainError('unmet_prerequisite', 'This epic has no saved plan to transfer. Save its plan in the desktop app first.')
+    }
+    if (json) {
+      host.writeStdout(`${JSON.stringify(transfer.packet, null, 2)}\n`)
+      return EXIT_OK
+    }
+    const text = [
+      authorizationLine(transfer.status),
+      '',
+      transferKickoff({ epicId: epic.id, epicTitle: epic.title }),
+      '',
+      ...packetSummary(transfer.packet),
+      '',
+      ...LINEAR_SETUP,
+      '',
+      ...GRANT_HELP
+    ]
+    host.writeStdout(`${text.join('\n')}\n`)
+    return EXIT_OK
+  } catch (error) {
+    host.writeStderr(`dm: ${toErrorShape(error).message}\n`)
+    return EXIT_FAILED
+  } finally {
+    workspace?.close()
+  }
+}
+
 /** Opening can fail too (an unusable grant, an uninitialized folder); that is a command failure. */
 async function dispatch(host: CliHost, options: CliOptions): Promise<number> {
   switch (options.mode.kind) {
@@ -175,6 +276,8 @@ async function dispatch(host: CliHost, options: CliOptions): Promise<number> {
       ok(host, describing(name))
       return EXIT_OK
     }
+    case 'transfer':
+      return runTransfer(host, options, options.mode.epicId, options.mode.json)
     default:
       return runCommand(host, options, options.mode.command, options.mode.input)
   }

@@ -11,6 +11,8 @@ export const CAPABILITIES = [
   'epic.status',
   'epic.branch',
   'epic.delete',
+  'epic.transfer',
+  'transfer.queue',
   'draft.edit',
   'plan.save',
   'profile.write',
@@ -58,7 +60,9 @@ export const HUMAN_ONLY_CAPABILITIES: readonly Capability[] = [
   'ticket.retry_grant',
   'run.queue',
   'epic.delete',
-  'ticket.delete'
+  'ticket.delete',
+  // Sending a plan out to Linear is the person's decision; an agent only carries out a queued transfer.
+  'transfer.queue'
 ]
 
 /** What a planner and an orchestrator both hold. */
@@ -87,6 +91,7 @@ const ORCHESTRATOR: Capability[] = [
   'repo.backup',
   'epic.status',
   'epic.branch',
+  'epic.transfer',
   'ticket.status',
   'host.register',
   'run.start',

@@ -1,0 +1,33 @@
+- connected to /Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/linear-sprint-1/out/main/mcp.js (darkmechanicus 0.19.0, schema 10, role orchestrator)
+- queued the transfer of the two-sprint epic ep_01m68d7s7ttkttsdqsdqgyxqtk in the desktop session
+- crashed: Interrupted right after creating tk_01m68d7s7tqd510h8rpbc8658h. Recorded issues: 3; issues in Linear: 4; next starts at tk_01m68d7s7tqd510h8rpbc8658h
+- resumed (resumed: true): adopted tk_01m68d7s7tqd510h8rpbc8658h by its marker, created 12 more items; Linear holds 7 issues for 7 in the packet
+- injected: the issue of LS-4 moved to the sprint 2 milestone; ENG-8 added to the project by hand
+- read-back rejected ({"project":true,"milestones":2,"issues":8,"relations":9}): milestone LS-4: expected "ms-1", got "ms-2"; unexpected iss-8: expected null, got "ENG-8"
+- read-back verified ({"project":true,"milestones":2,"issues":7,"relations":9})
+- fixes: updated the milestone of LS-4; moved ENG-8 out of the project
+- epic completed: Transferred to Linear: https://linear.fake/acme/project/linear-handoff-fixture-prj-1
+- refused after completion: start_run completed_epic; queueTransfer completed_epic
+- transferred the one-sprint epic ep_01m68d7s9t6vqksk1wer9ewqv1: created 8 items
+- canceled in the desktop session (canceled, 0 recorded); start_transfer now approval_required
+- queued again: created 0, adopted 8 of 8 items by marker (relations by listing)
+- read-back verified
+
+Linear layout:
+Project Linear handoff fixture <https://linear.fake/acme/project/linear-handoff-fixture-prj-1>
+  Milestone Sprint 1
+    ENG-1 (unstarted, P2) Define the API [backend] -> blocks ENG-3, blocks ENG-4
+    ENG-2 (unstarted, P3) Build the screen [frontend] -> blocks ENG-3, blocks ENG-4
+    ENG-3 (unstarted, P3) Wire the screen to the API [backend, frontend] -> blocks ENG-4, blocks ENG-6
+    ENG-4 (unstarted, P3) Sprint 1 acceptance
+  Milestone Sprint 2: Ship it
+    ENG-5 (unstarted, P4) Write the guide [docs] -> related ENG-1, blocks ENG-7
+    ENG-6 (unstarted, P1) Release [backend] -> blocks ENG-7
+    ENG-7 (unstarted, P3) Sprint 2 acceptance
+Project Cancel path fixture <https://linear.fake/acme/project/cancel-path-fixture-prj-2>
+  Milestone Sprint 1
+    ENG-9 (unstarted, P3) Prepare [ops] -> blocks ENG-10, blocks ENG-11
+    ENG-10 (unstarted, P2) Deliver -> blocks ENG-11
+    ENG-11 (unstarted, P3) Sprint 1 acceptance
+Outside any project
+  ENG-8 (unstarted, P0) Stray note

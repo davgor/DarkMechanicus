@@ -46,6 +46,29 @@ export interface StartOrchestratorResult {
   problem: string | null
 }
 
+/** Starts a connected agent on an authorized Linear transfer of an epic; the role, Allow save and the chat title are decided in main. */
+export interface StartTransferChatRequest {
+  folder: string
+  epicId: string
+  agent: AgentKind
+  /** Null (or left out) lets the agent use its default model. */
+  model?: string | null
+}
+
+/** What starting a transfer chat left behind. The transfer stays authorized either way; the chat exists only when its agent was started. */
+export interface StartTransferChatResult {
+  /** The transfer chat, with its kickoff message already sent; null when no agent is carrying out the transfer. */
+  chat: ChatRecord | null
+  /** Why `chat` is null (or what went wrong with a chat that was kept). Null when it started. */
+  problem: string | null
+}
+
+/** Names the epic of a tracked folder whose Linear transfer is asked about. */
+export interface TransferChatRequest {
+  folder: string
+  epicId: string
+}
+
 export interface SendChatRequest extends ChatRequestRef {
   text: string
 }
@@ -131,6 +154,16 @@ export interface ChatsApi {
    * result (the run is still queued); a failure before it is an error and nothing was created.
    */
   startOrchestrator(request: StartOrchestratorRequest): Promise<CommandResult<StartOrchestratorResult>>
+  /**
+   * Creates an orchestrator chat for the epic's Linear transfer with Allow save off, records the epic's id on
+   * the chat and sends the transfer kickoff. Refused, with nothing started, unless the person authorized the
+   * transfer (queued) or it is in progress. A failure once the chat is asked for is reported in the result.
+   */
+  startTransferChat(request: StartTransferChatRequest): Promise<CommandResult<StartTransferChatResult>>
+  /** The most recently updated chat started for the epic's transfer, across idle stops and app restarts; null when there is none. */
+  findTransferChat(request: TransferChatRequest): Promise<CommandResult<ChatSummary | null>>
+  /** The transfer kickoff, the same first message a transfer chat gets, for an agent the person starts elsewhere. */
+  transferPrompt(request: TransferChatRequest): Promise<CommandResult<string>>
   /** The transcript and pending approvals; starts the agent when its vendor needs it running. */
   open(request: ChatRequestRef): Promise<CommandResult<ChatOpenView>>
   /**

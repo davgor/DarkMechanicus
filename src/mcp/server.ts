@@ -12,6 +12,7 @@ import { registerDiscoveryTools } from './tools/discovery'
 import { registerExecutionTools } from './tools/execution'
 import { registerPlanningTools } from './tools/planning'
 import { registerProfileTools } from './tools/profiles'
+import { registerTransferTools } from './tools/transfers'
 
 function buildInstructions(): string {
   return [
@@ -53,6 +54,7 @@ export function createMcpServer(
   registerExecutionTools(server, api)
   registerCheckpointTools(server, api)
   registerCommentTools(server, api)
+  registerTransferTools(server, api)
   registerPrompts(server)
   return server
 }

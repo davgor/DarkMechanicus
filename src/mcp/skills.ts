@@ -1,4 +1,5 @@
 import graphPlannerSource from '../../skills/graph-planner.md?raw'
+import linearTransferSource from '../../skills/linear-transfer.md?raw'
 import orchestratorSource from '../../skills/orchestrator.md?raw'
 import plannerSource from '../../skills/planner.md?raw'
 import reviewerSource from '../../skills/reviewer.md?raw'
@@ -45,7 +46,8 @@ export const SKILLS: SkillDefinition[] = [
   defineSkill('orchestrator', 'Orchestrator', orchestratorSource),
   defineSkill('worker', 'Worker', workerSource),
   defineSkill('reviewer', 'Reviewer', reviewerSource),
-  defineSkill('sprint-reporter', 'Sprint reporter', sprintReporterSource)
+  defineSkill('sprint-reporter', 'Sprint reporter', sprintReporterSource),
+  defineSkill('linear-transfer', 'Linear transfer', linearTransferSource)
 ]
 
 /**

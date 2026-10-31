@@ -82,5 +82,11 @@ export const COMMAND_CAPABILITIES: Readonly<Record<CommandName, Capability>> = {
   listComments: 'read',
   listProfiles: 'read',
   getProfile: 'read',
-  saveProfile: 'profile.write'
+  saveProfile: 'profile.write',
+  queueTransfer: 'transfer.queue',
+  cancelTransfer: 'transfer.queue',
+  startTransfer: 'epic.transfer',
+  recordTransferItem: 'epic.transfer',
+  getTransfer: 'read',
+  submitTransferReadback: 'epic.transfer'
 }

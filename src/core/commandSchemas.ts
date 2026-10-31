@@ -19,10 +19,15 @@ import {
   idempotencyKey,
   incrementRef,
   LIMITS,
+  linearId,
+  linearIdentifier,
+  linearReadback,
+  linearUrl,
   profileName,
   rowCheckEntries,
   sprintReportInput,
   stableId,
+  transferRef,
   workStatus
 } from './schemas'
 
@@ -36,6 +41,7 @@ const note = z.string().max(LIMITS.shortText)
 const claimToken = z.string().min(1).max(300)
 const leaseSeconds = z.number().int().min(30).max(86_400)
 const epicRef = z.strictObject({ epicId: stableId })
+const transferAction = z.strictObject({ epicId: stableId, idempotencyKey })
 const runRef = z.strictObject({ runId: stableId })
 /** The paging of a timeline: entries after the previous page's cursor, at most `limit` of them. */
 const timelineWindow = {
@@ -229,6 +235,21 @@ export const COMMAND_SCHEMAS = {
     runId: stableId.optional()
   }),
   getAttemptTimeline: z.strictObject({ attemptId: stableId, ...timelineWindow }),
-  getRunTimeline: z.strictObject({ runId: stableId, ...timelineWindow })
+  getRunTimeline: z.strictObject({ runId: stableId, ...timelineWindow }),
+  queueTransfer: transferAction,
+  cancelTransfer: transferAction,
+  startTransfer: transferAction,
+  recordTransferItem: z.strictObject({
+    epicId: stableId,
+    ref: transferRef,
+    linearId,
+    identifier: linearIdentifier.optional(),
+    url: linearUrl.optional(),
+    replace: z.boolean().optional(),
+    idempotencyKey
+  }),
+  getTransfer: epicRef,
+  // No idempotencyKey: the service must run its own two transactions, never inside a wrapper's (see the service).
+  submitTransferReadback: z.strictObject({ epicId: stableId, readback: linearReadback, final: z.boolean() })
 }
 

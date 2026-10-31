@@ -1,0 +1,34 @@
+
+> dark-mechanicus@0.19.0 test
+> vitest run && vitest run --config fireguard/vitest.config.ts
+
+
+ RUN  v4.1.11 /Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/linear-sprint-1
+
+ ❯ src/main/agents/adapters/acpProcess.test.ts (8 tests | 1 failed) 300ms
+     × keeps only the tail of a long stderr 50ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/main/agents/adapters/acpProcess.test.ts > nodeTransport: how the process ended > keeps only the tail of a long stderr
+AssertionError: expected 'exit code 1: xxxxxxxxxxxxxxxxxxxxxxxx…' to contain 'THE-END'
+
+Expected: "THE-END"
+Received: "exit code 1: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+ ❯ src/main/agents/adapters/acpProcess.test.ts:119:29
+    117|
+    118|     expect(heard.closed[0]?.length).toBeLessThan(1000)
+    119|     expect(heard.closed[0]).toContain('THE-END')
+       |                             ^
+    120|   })
+    121|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 422 passed (423)
+      Tests  1 failed | 8190 passed | 9 skipped (8200)
+   Start at  02:11:55
+   Duration  32.17s (transform 13.26s, setup 0ms, import 67.98s, tests 141.34s, environment 82.78s)
+

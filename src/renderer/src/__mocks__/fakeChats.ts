@@ -17,6 +17,10 @@
  * Starting an orchestrator needs `orchestration` (how to queue the run and what the epic is called):
  * it then queues the run, stores an orchestrator chat with Allow save off that records the run's id
  * and answers both, as main does, unless `orchestrationProblem` says the chat could not be started.
+ * Starting a transfer chat needs `transfer` (the epic's title, where its transfer stands and its prompt): it
+ * is refused unless the transfer is queued or in progress, as in main, and otherwise stores an orchestrator
+ * chat with Allow save off that records the epic's id, unless `transferProblem` says it could not be started.
+ * `findTransferChat` answers the newest such chat of the folder, `transferPrompt` the transfer's prompt.
  * A create, a rename and a delete that succeed push `chats_changed` to every subscriber (the originating
  * window too), as main does, so a second subscriber stands for a second window.
  */
@@ -35,10 +39,14 @@ import type {
   SetChatModelRequest,
   StartOrchestratorRequest,
   StartOrchestratorResult,
-  ThreadBinding
+  StartTransferChatRequest,
+  StartTransferChatResult,
+  ThreadBinding,
+  TransferChatRequest
 } from '../../../shared/agents/chatApi'
 import type { AgentKind, CommandResult } from '../../../shared/desktop/api'
 import type { DomainErrorShape } from '../../../shared/domain/errors'
+import type { TransferStatus } from '../../../shared/domain/transfer'
 import type { RunView } from '../../../shared/domain/views'
 import { chatRecord } from './fixtures'
 import { deferred } from './deferred'
@@ -48,6 +56,9 @@ type Method =
   | 'list'
   | 'create'
   | 'startOrchestrator'
+  | 'startTransferChat'
+  | 'findTransferChat'
+  | 'transferPrompt'
   | 'rename'
   | 'delete'
   | 'models'
@@ -67,6 +78,14 @@ interface FakeOrchestration {
   queueRun(folder: string, epicId: string): Promise<RunView>
 }
 
+/** What main reads for a transfer chat that the fake cannot: the epic's title, its transfer's status and the kickoff. */
+interface FakeTransfer {
+  epicTitle: string
+  status: TransferStatus
+  /** What `transferPrompt` answers. */
+  prompt: string
+}
+
 const NOT_FOUND: DomainErrorShape = { code: 'not_found', message: 'Chat not found.' }
 
 export class FakeChats implements ChatsApi {
@@ -82,6 +101,10 @@ export class FakeChats implements ChatsApi {
   orchestration: FakeOrchestration | null = null
   /** When set, `startOrchestrator` queues the run but starts no chat and answers with this problem. */
   orchestrationProblem: string | null = null
+  /** What `startTransferChat` and `transferPrompt` read of the epic's transfer; without it both are refused as unavailable. */
+  transfer: FakeTransfer | null = null
+  /** When set, `startTransferChat` starts no chat and answers with this problem. */
+  transferProblem: string | null = null
   /** Each chat's stored transcript, as `open` returns it. */
   transcripts: Record<string, ChatItem[]> = {}
   /** Each chat's thread bindings, as `threadBindings` answers them; a chat with no entry has none. */
@@ -172,6 +195,50 @@ export class FakeChats implements ChatsApi {
       this.changed(chat)
       return { ok: true, data: { run, chat, problem: null } }
     })
+  }
+
+  startTransferChat(request: StartTransferChatRequest): Promise<CommandResult<StartTransferChatResult>> {
+    return this.call<StartTransferChatResult>('startTransferChat', [request], () => {
+      const transfer = this.transfer
+      if (transfer === null) {
+        return { ok: false, error: { code: 'unsupported_capability', message: 'Transfers are not part of this test.' } }
+      }
+      if (transfer.status !== 'queued' && transfer.status !== 'in_progress') {
+        return { ok: false, error: { code: 'unmet_prerequisite', message: 'The transfer is not authorized. Press Transfer to Linear before starting a transfer chat.' } }
+      }
+      if (this.transferProblem !== null) {
+        return { ok: true, data: { chat: null, problem: this.transferProblem } }
+      }
+      this.created += 1
+      const chat = chatRecord({
+        id: `chat_new_${this.created}`,
+        folder: request.folder,
+        agent: request.agent,
+        role: 'orchestrator',
+        model: request.model ?? null,
+        allowSave: false,
+        title: `Linear transfer · ${transfer.epicTitle}`,
+        transferEpicId: request.epicId,
+        createdAt: this.tick(),
+        updatedAt: this.tick()
+      })
+      this.chats.push(chat)
+      this.changed(chat)
+      return { ok: true, data: { chat, problem: null } }
+    })
+  }
+
+  findTransferChat(request: TransferChatRequest): Promise<CommandResult<ChatSummary | null>> {
+    return this.call('findTransferChat', [request], () => ({
+      ok: true,
+      data: this.inFolder(request.folder).find((chat) => chat.transferEpicId === request.epicId) ?? null
+    }))
+  }
+
+  transferPrompt(request: TransferChatRequest): Promise<CommandResult<string>> {
+    return this.call('transferPrompt', [request], () =>
+      this.transfer === null ? { ok: false, error: { code: 'unsupported_capability', message: 'Transfers are not part of this test.' } } : { ok: true, data: this.transfer.prompt }
+    )
   }
 
   rename(request: { folder: string; chatId: string; title: string }): Promise<CommandResult<ChatRecord>> {

@@ -56,6 +56,8 @@ export const chatRecordSchema = z.object({
   sessionId: z.string().min(1).nullable(),
   /** The run this chat orchestrates, when Dark Mechanicus started it for one; absent for every other chat and for chats stored before runs were recorded. */
   runId: z.string().min(1).optional(),
+  /** The epic this chat moves to Linear, when Dark Mechanicus started it as a transfer chat; absent for every other chat and for chats stored before transfers. */
+  transferEpicId: z.string().min(1).optional(),
   /**
    * The id of the user message whose turn an expired sign-in cut short, so it can be sent again once
    * the agent is signed in (`chats:retryTurn`). Null or absent when no turn is waiting to be retried.

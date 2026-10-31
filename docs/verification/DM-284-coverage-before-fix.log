@@ -1,0 +1,22 @@
+
+> dark-mechanicus@0.19.0 coverage
+> vitest run --coverage
+
+
+ RUN  v4.1.11 /Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/linear-sprint-1
+      Coverage enabled with v8
+
+
+ Test Files  423 passed (423)
+      Tests  8191 passed | 9 skipped (8200)
+   Start at  02:13:17
+   Duration  38.42s (transform 13.29s, setup 0ms, import 75.53s, tests 162.76s, environment 85.64s)
+
+ % Coverage report from v8
+
+=============================== Coverage summary ===============================
+Statements   : 97.67% ( 16880/17281 )
+Branches     : 95.23% ( 10383/10902 )
+Functions    : 96.36% ( 5702/5917 )
+Lines        : 97.82% ( 15714/16064 )
+================================================================================

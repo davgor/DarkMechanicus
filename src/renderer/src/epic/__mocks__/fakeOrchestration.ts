@@ -6,7 +6,13 @@
 import type { ChatRecord } from '../../../../shared/agents/chat'
 import type { AgentAuthStatus, AgentKind, AgentView } from '../../../../shared/desktop/api'
 import { agentView } from '../../__mocks__/fixtures'
-import type { OrchestrationHost } from '../orchestration'
+import type { OrchestrationHost, TransferChats } from '../orchestration'
+
+/** A transfer chat bridge for tests that do not transfer: every call is refused. */
+export function noTransferChats(): TransferChats {
+  const refused = (): Promise<never> => Promise.reject(new Error('Transfers are not part of this test.'))
+  return { start: refused, find: refused, prompt: refused, copy: refused }
+}
 
 export interface FakeOrchestration extends OrchestrationHost {
   /** Times the add-agent pane was asked for. */

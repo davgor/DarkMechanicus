@@ -186,7 +186,7 @@ describe('startMcpServer tool list', () => {
     const planner = await listedTools(['--role', 'planner'])
     const saver = await listedTools(['--role', 'planner', '--allow-save'])
 
-    expect([worker.length, planner.length, saver.length]).toEqual([28, 37, 38])
+    expect([worker.length, planner.length, saver.length]).toEqual([29, 38, 39])
     expect([worker.includes('submit_attempt'), planner.includes('submit_attempt')]).toEqual([true, false])
     expect([worker.includes('set_definition_of_done'), planner.includes('set_definition_of_done')]).toEqual([false, true])
     expect(saver.filter((name) => !planner.includes(name))).toEqual(['save_plan'])

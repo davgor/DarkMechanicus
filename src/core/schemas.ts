@@ -438,6 +438,57 @@ export const hostCatalog = z.strictObject({
     .max(LIMITS.models)
 })
 
+/** A Linear id, as the agent's Linear tools report it. */
+export const linearId = z.string().min(1).max(LIMITS.label)
+/** A Linear URL, bounded like the transfer outcome's `projectUrl`. */
+export const linearUrl = z.string().min(1).max(LIMITS.shortText)
+/** A Linear issue identifier such as `ENG-12`; the read-back comparison reports one that names no team. */
+export const linearIdentifier = z.string().min(1).max(LIMITS.label)
+/** A transfer packet ref: `project`, a sprint or ticket id, or `rel:` / `see:` followed by two ticket ids. */
+export const transferRef = z.string().min(1).max(LIMITS.label).regex(/^[A-Za-z0-9_.:-]+$/)
+
+/** A read-back name or title. The packet's longest is a milestone's `Sprint N: ` and a sprint goal line. */
+const readbackName = z.string().max(LIMITS.shortText + LIMITS.label)
+/**
+ * A read-back description. The packet's join a Markdown body with up to `LIMITS.criteria` criteria of
+ * `LIMITS.shortText`, the references and the marker, so a faithful copy can exceed `LIMITS.markdown`.
+ */
+const readbackText = z.string().max(5 * LIMITS.markdown)
+
+/**
+ * One part of what an agent read back from Linear. Every field of an item is required (only an issue's sortOrder
+ * is optional), and each list is bounded by the most a packet can hold, so a larger project is sent in parts.
+ */
+export const linearReadback = z.strictObject({
+  project: z
+    .strictObject({ linearId, url: linearUrl, name: readbackName, summary: shortText, content: readbackText })
+    .optional(),
+  milestones: z
+    .array(z.strictObject({ linearId, name: readbackName, description: readbackText }))
+    .max(LIMITS.sprints)
+    .optional(),
+  issues: z
+    .array(
+      z.strictObject({
+        linearId,
+        identifier: linearIdentifier,
+        milestoneId: linearId.nullable(),
+        title: readbackName,
+        description: readbackText,
+        priority: z.number().int().min(0).max(4),
+        labels: z.array(z.string().max(LIMITS.label)).max(LIMITS.tags),
+        stateType: z.string().max(LIMITS.label),
+        sortOrder: z.number().optional()
+      })
+    )
+    .max(LIMITS.tickets)
+    .optional(),
+  relations: z
+    .array(z.strictObject({ kind: z.string().min(1).max(LIMITS.label), fromId: linearId, toId: linearId }))
+    .max(LIMITS.edges + LIMITS.relations)
+    .optional()
+})
+
 /** Parses untrusted input or throws a structured `invalid_input` error naming the first problem. */
 export function parseInput<T>(schema: z.ZodType<T>, value: unknown, what: string): T {
   const result = schema.safeParse(value)

@@ -32,6 +32,7 @@ const ORCHESTRATOR: Capability[] = [
   'repo.backup',
   'epic.status',
   'epic.branch',
+  'epic.transfer',
   'ticket.status',
   'host.register',
   'run.start',
@@ -66,6 +67,8 @@ const DESKTOP: Capability[] = [
   'epic.status',
   'epic.branch',
   'epic.delete',
+  'epic.transfer',
+  'transfer.queue',
   'draft.edit',
   'plan.save',
   'profile.write',
@@ -118,12 +121,12 @@ function sessionWith(role: SessionRole, capabilities: Capability[]): SessionCont
 
 describe('capability vocabulary', () => {
   it('lists every capability exactly once', () => {
-    expect(CAPABILITIES).toHaveLength(40)
-    expect(new Set(CAPABILITIES).size).toBe(40)
+    expect(CAPABILITIES).toHaveLength(42)
+    expect(new Set(CAPABILITIES).size).toBe(42)
     expect(sorted(CAPABILITIES)).toEqual(sorted([...DESKTOP, ...AGENT_ONLY]))
   })
 
-  it('marks approval, auto-continue, retry grants, run queueing, deletion, granting roles and the sign-in pause and resume as human-only', () => {
+  it('marks approval, auto-continue, retry grants, run queueing, deletion, granting roles, the sign-in pause and resume and transfer queueing as human-only', () => {
     expect(sorted(HUMAN_ONLY_CAPABILITIES)).toEqual(
       sorted([
         'checkpoint.approve',
@@ -135,7 +138,8 @@ describe('capability vocabulary', () => {
         'ticket.retry_grant',
         'run.queue',
         'epic.delete',
-        'ticket.delete'
+        'ticket.delete',
+        'transfer.queue'
       ])
     )
   })
@@ -197,6 +201,20 @@ describe('redrafting the next sprint from a retro', () => {
     const holders = ALL_ROLES.filter((role) => capabilitiesForRole(role, { allowSave: true }).includes('run.redraft'))
     expect(holders).toEqual(['desktop', 'orchestrator'])
     expect(HUMAN_ONLY_CAPABILITIES).not.toContain('run.redraft')
+  })
+})
+
+describe('transferring an epic to Linear', () => {
+  it('lets only the desktop queue a transfer, as a human-only capability', () => {
+    const holders = ALL_ROLES.filter((role) => capabilitiesForRole(role, { allowSave: true }).includes('transfer.queue'))
+    expect(holders).toEqual(['desktop'])
+    expect(HUMAN_ONLY_CAPABILITIES).toContain('transfer.queue')
+  })
+
+  it('lets the orchestrator and the desktop carry a transfer out, and no other role', () => {
+    const holders = ALL_ROLES.filter((role) => capabilitiesForRole(role, { allowSave: true }).includes('epic.transfer'))
+    expect(holders).toEqual(['desktop', 'orchestrator'])
+    expect(HUMAN_ONLY_CAPABILITIES).not.toContain('epic.transfer')
   })
 })
 

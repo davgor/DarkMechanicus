@@ -35,6 +35,11 @@ function SavedButtons({ ws, actions }: { ws: WorkspaceHandle; actions: HeaderAct
           {actions.editDraft === 'view' ? 'View draft' : 'Edit draft'}
         </button>
       )}
+      {actions.transfer ? (
+        <button type="button" className="btn" disabled={busy} onClick={() => ws.dispatch({ type: 'transfer_dialog', mode: 'queue' })}>
+          Transfer to Linear
+        </button>
+      ) : null}
       {actions.startRun ? (
         <button type="button" className="btn btn-primary" disabled={busy} onClick={() => ws.dispatch({ type: 'start_run_dialog', open: true })}>
           Start run

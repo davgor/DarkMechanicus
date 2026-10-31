@@ -13,7 +13,8 @@ import {
   reportView,
   runView,
   savedPlan,
-  sprint
+  sprint,
+  transferView
 } from './__mocks__/fixtures'
 import { loadWorkspace } from './workspaceLoad'
 
@@ -29,7 +30,8 @@ describe('loadWorkspace (1)', () => {
       'getCheckpoint',
       'listTickets',
       'listTickets',
-      'validatePlan'
+      'validatePlan',
+      'getTransfer'
     ])
     expect(backend.inputs('getPlan')).toEqual([
       { epicId: 'ep_1', view: 'saved' },
@@ -37,6 +39,8 @@ describe('loadWorkspace (1)', () => {
     ])
     expect(backend.inputs('getCheckpoint')).toEqual([{ runId: 'rn_2' }])
     expect(backend.inputs('validatePlan')).toEqual([{ epicId: 'ep_1', view: 'draft' }])
+    expect(backend.inputs('getTransfer')).toEqual([{ epicId: 'ep_1' }])
+    expect(data.transfer?.status).toBe('not_started')
     expect(data.saved?.revisionNumber).toBe(4)
     expect(data.draft?.draftRevision).toBe(7)
     expect(data.run?.id).toBe('rn_2')
@@ -54,7 +58,7 @@ describe('loadWorkspace (1)', () => {
     expect([data.saved, data.run, data.checkpoint, data.savedTickets]).toEqual([null, null, null, []])
     const plain = new FakeBackend(scenario({ run: runView({ state: 'completed' }) }))
     const saved = await loadWorkspace(plain.runner, 'ep_1')
-    expect(plain.names()).toEqual(['getEpic', 'getPlan', 'getRun', 'listTickets', 'getSprintReport', 'getSprintReport', 'getSprintReport'])
+    expect(plain.names()).toEqual(['getEpic', 'getPlan', 'getRun', 'listTickets', 'getTransfer', 'getSprintReport', 'getSprintReport', 'getSprintReport'])
     expect([saved.draft, saved.checkpoint, saved.validation, saved.draftTickets]).toEqual([null, null, null, []])
     expect(saved.overview?.reports).toEqual([])
   })
@@ -77,6 +81,20 @@ describe('loadWorkspace (2)', () => {
     const backend = new FakeBackend()
     backend.fail('getEpic', 'not_found', 'Epic ep_1 not found.')
     await expect(loadWorkspace(backend.runner, 'ep_1')).rejects.toThrow('Epic ep_1 not found.')
+  })
+
+  it('reads the transfer only when one can exist: a saved plan of an epic that is not completed', async () => {
+    const open = new FakeBackend(scenario({ run: null, checkpoint: null, transfer: transferView('in_progress', 3) }))
+    expect((await loadWorkspace(open.runner, 'ep_1')).transfer).toEqual(transferView('in_progress', 3))
+    const completed = new FakeBackend(scenario({ epic: epicDetail({ status: 'completed' }), run: null }))
+    expect((await loadWorkspace(completed.runner, 'ep_1')).transfer).toBe(null)
+    expect(completed.names().includes('getTransfer')).toBe(false)
+  })
+
+  it('fails the load when the transfer cannot be read, so Start run is never offered over an open transfer', async () => {
+    const backend = new FakeBackend(scenario({ run: null }))
+    backend.fail('getTransfer', 'internal', 'Database is locked.')
+    await expect(loadWorkspace(backend.runner, 'ep_1')).rejects.toThrow('Database is locked.')
   })
 })
 

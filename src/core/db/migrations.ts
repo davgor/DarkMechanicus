@@ -2,7 +2,7 @@ import { fail } from '../errors'
 import type { Db } from './database'
 
 /** Highest schema version this build understands. Newer databases are refused, never downgraded. */
-export const SCHEMA_VERSION = 9
+export const SCHEMA_VERSION = 10
 
 interface Migration {
   version: number
@@ -421,6 +421,41 @@ DROP TABLE sessions;
 ALTER TABLE sessions_v2 RENAME TO sessions;
 `
 
+/**
+ * V10: a person-authorized transfer of a saved epic to Linear, the Linear items it has created so far, and the
+ * read-back an agent is sending in parts (`readback_json`, cleared as soon as a final part arrives).
+ */
+const V10 = `
+CREATE TABLE transfers (
+  epic_id TEXT PRIMARY KEY REFERENCES epics(id),
+  target TEXT NOT NULL CHECK (target IN ('linear')),
+  status TEXT NOT NULL CHECK (status IN ('queued','in_progress','verified','canceled')),
+  revision_id TEXT NOT NULL REFERENCES plan_revisions(id),
+  packet_hash TEXT NOT NULL,
+  packet_json TEXT NOT NULL,
+  project_id TEXT,
+  project_url TEXT,
+  last_mismatches_json TEXT,
+  readback_json TEXT,
+  queued_by TEXT NOT NULL,
+  queued_at TEXT NOT NULL,
+  started_at TEXT,
+  updated_at TEXT NOT NULL,
+  session_id TEXT
+);
+
+CREATE TABLE transfer_items (
+  epic_id TEXT NOT NULL REFERENCES transfers(epic_id),
+  ref TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('project','milestone','issue','relation')),
+  linear_id TEXT NOT NULL,
+  identifier TEXT,
+  url TEXT,
+  recorded_at TEXT NOT NULL,
+  PRIMARY KEY (epic_id, ref)
+);
+`
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, sql: V1 },
   { version: 2, sql: V2 },
@@ -430,7 +465,8 @@ export const MIGRATIONS: Migration[] = [
   { version: 6, sql: V6 },
   { version: 7, sql: V7 },
   { version: 8, sql: V8 },
-  { version: 9, sql: V9 }
+  { version: 9, sql: V9 },
+  { version: 10, sql: V10 }
 ]
 
 export function readSchemaVersion(db: Db): number {

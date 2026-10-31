@@ -111,7 +111,7 @@ describe('nodeTransport: how the process ended', () => {
   })
 
   it('keeps only the tail of a long stderr', async () => {
-    const { heard } = open(node(`console.error('x'.repeat(100000) + 'THE-END'); process.exit(1)`), scratch)
+    const { heard } = open(node(`require('node:fs').writeSync(2, 'x'.repeat(100000) + 'THE-END\\n'); process.exit(1)`), scratch)
 
     await heard.whenClosed()
 

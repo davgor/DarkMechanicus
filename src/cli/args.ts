@@ -13,6 +13,7 @@ type CliMode =
   | { kind: 'list' }
   | { kind: 'describe'; command: string }
   | { kind: 'call'; command: string; input: string }
+  | { kind: 'transfer'; target: 'linear'; epicId: string; json: boolean }
 
 export interface CliOptions {
   repo: string
@@ -34,6 +35,8 @@ export const CLI_USAGE = [
   '  --list                   Every command, with the capability it needs',
   '  --describe <command>     One command: what it needs and its input schema',
   '  call <command> [json]    Run <command> with a JSON object of arguments (default {})',
+  '  transfer linear --epic <id> [--json]',
+  '                           The Linear transfer kickoff for an epic, as text; --json prints its packet',
   '  --help                   Show this help',
   '',
   'Options:',
@@ -54,14 +57,17 @@ function usageError(message: string): Error {
 interface Parsed {
   repo?: string
   tokenFile?: string
+  epic?: string
+  json: boolean
   rest: string[]
   help: boolean
 }
 
 /** Flags that take a value, and where that value is kept. */
-const VALUE_FLAGS: Readonly<Record<string, 'repo' | 'tokenFile'>> = {
+const VALUE_FLAGS: Readonly<Record<string, 'repo' | 'tokenFile' | 'epic'>> = {
   '--repo': 'repo',
-  '--token-file': 'tokenFile'
+  '--token-file': 'tokenFile',
+  '--epic': 'epic'
 }
 
 /** Flags that are modes rather than options, so they travel with the positional words. */
@@ -76,7 +82,7 @@ function takeValue(argv: readonly string[], index: number, name: string): string
 }
 
 function readFlags(argv: readonly string[]): Parsed {
-  const parsed: Parsed = { rest: [], help: false }
+  const parsed: Parsed = { rest: [], help: false, json: false }
   let index = 0
   while (index < argv.length) {
     const token = argv[index] ?? ''
@@ -90,6 +96,11 @@ function readFlags(argv: readonly string[]): Parsed {
       index += 2
       continue
     }
+    if (token === '--json') {
+      parsed.json = true
+      index += 1
+      continue
+    }
     // An unrecognized flag is a mistake, not a positional: `--role` must never be read as data.
     if (token.startsWith('--') && !MODE_FLAGS.includes(token)) {
       throw usageError(`Unknown option "${token}".`)
@@ -100,7 +111,29 @@ function readFlags(argv: readonly string[]): Parsed {
   return parsed
 }
 
-function modeOf(rest: readonly string[]): CliMode {
+/** `transfer linear --epic <id> [--json]`: the only mode that takes `--epic` and `--json`. */
+function transferMode(flags: Parsed): CliMode {
+  const [, target, extra] = flags.rest
+  if (target !== 'linear' || extra !== undefined) {
+    throw usageError('transfer takes one target: linear.')
+  }
+  if (flags.epic === undefined) {
+    throw usageError('transfer linear requires --epic <id>.')
+  }
+  return { kind: 'transfer', target: 'linear', epicId: flags.epic, json: flags.json }
+}
+
+function modeOf(flags: Parsed): CliMode {
+  if (flags.rest[0] === 'transfer') {
+    return transferMode(flags)
+  }
+  if (flags.epic !== undefined || flags.json) {
+    throw usageError('--epic and --json belong to transfer linear only.')
+  }
+  return commandMode(flags.rest)
+}
+
+function commandMode(rest: readonly string[]): CliMode {
   const [first, second, third] = rest
   if (first === undefined) {
     throw usageError('Give a command.')
@@ -137,7 +170,7 @@ export function parseCliArgs(
   if (flags.help) {
     return { repo, tokenFile, mode: { kind: 'help' } }
   }
-  return { repo, tokenFile, mode: modeOf(flags.rest) }
+  return { repo, tokenFile, mode: modeOf(flags) }
 }
 
 function nonBlank(value: string | undefined): string | undefined {

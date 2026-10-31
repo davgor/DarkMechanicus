@@ -1,7 +1,8 @@
 /** Pure state for the epic workspace: loaded data, the shown view, selection, and feedback. */
 import type { PlanBundle } from '../../../shared/domain/bundle'
+import type { TransferView } from '../../../shared/domain/transfer'
 import type { GraphInput } from '../graph/graphModel'
-import { nextRevisionNumber } from './headerView'
+import { nextRevisionNumber, type ConfirmKind } from './headerView'
 import type {
   CheckpointView,
   EpicDetailView,
@@ -13,6 +14,9 @@ import type {
 } from '../../../shared/domain/views'
 
 export type PlanViewKind = 'saved' | 'draft'
+
+/** The Transfer to Linear dialog: authorizing a new transfer, or starting an agent on the open one again. */
+export type TransferDialogMode = 'queue' | 'resume'
 
 /** What a completed run leaves for the epic overview, read from the run history. */
 export interface OverviewData {
@@ -33,6 +37,8 @@ export interface WorkspaceData {
   savedTickets: TicketSummaryView[]
   draftTickets: TicketSummaryView[]
   validation: ValidationReport | null
+  /** Where the epic's Linear transfer stands; null when none can exist (no saved plan, or a completed epic). */
+  transfer: TransferView | null
 }
 
 interface Notice {
@@ -64,9 +70,11 @@ export interface WorkspaceState {
   /** Save feedback shown in the validation panel. */
   saveNotice: Notice | null
   busy: boolean
-  confirm: 'discard' | 'cancel_run' | null
+  confirm: ConfirmKind | null
   /** The Start run dialog is open. */
   startRunOpen: boolean
+  /** The Transfer to Linear dialog is open, and for what; null while it is closed. */
+  transferDialog: TransferDialogMode | null
   validation: ValidationReport | null
 }
 
@@ -88,8 +96,9 @@ export type WorkspaceAction =
   | { type: 'banner'; text: string | null; rejected?: { from: string; to: string } | null }
   | { type: 'toast'; text: string | null }
   | { type: 'save_notice'; notice: Notice | null }
-  | { type: 'confirm'; kind: 'discard' | 'cancel_run' | null }
+  | { type: 'confirm'; kind: ConfirmKind | null }
   | { type: 'start_run_dialog'; open: boolean }
+  | { type: 'transfer_dialog'; mode: TransferDialogMode | null }
   | { type: 'validation'; report: ValidationReport | null }
 
 export function initialWorkspaceState(chosenView: PlanViewKind | null = null): WorkspaceState {
@@ -111,6 +120,7 @@ export function initialWorkspaceState(chosenView: PlanViewKind | null = null): W
     busy: false,
     confirm: null,
     startRunOpen: false,
+    transferDialog: null,
     validation: null
   }
 }
@@ -185,6 +195,7 @@ const HANDLERS: Handlers = {
   save_notice: (state, action) => ({ ...state, saveNotice: action.notice }),
   confirm: (state, action) => ({ ...state, confirm: action.kind }),
   start_run_dialog: (state, action) => ({ ...state, startRunOpen: action.open }),
+  transfer_dialog: (state, action) => ({ ...state, transferDialog: action.mode }),
   validation: (state, action) => ({ ...state, validation: action.report })
 }
 

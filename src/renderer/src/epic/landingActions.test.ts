@@ -15,6 +15,7 @@ function data(patch: Partial<WorkspaceData> = {}): WorkspaceData {
     savedTickets: [],
     draftTickets: [],
     validation: validation(),
+    transfer: null,
     ...patch
   }
 }

@@ -7,6 +7,7 @@ import { deletionCommands } from './deletion'
 import { executionCommands } from './execution'
 import { profileCommands } from './profiles'
 import { repositoryCommands } from './repository'
+import { transferCommands } from './transfers'
 import type { CommandTable } from './types'
 
 /** Every CommandApi method: input schema, mutation flag, and the service call it maps to. */
@@ -19,5 +20,6 @@ export const COMMANDS: CommandTable = {
   ...checkpointCommands,
   ...commentCommands,
   ...activityCommands,
-  ...deletionCommands
+  ...deletionCommands,
+  ...transferCommands
 }

@@ -10,6 +10,8 @@ interface HeaderInput {
   epic: EpicDetailView
   view: 'saved' | 'draft'
   hasActiveRun: boolean
+  /** A Linear transfer is queued or in progress: it locks runs until it is verified or canceled. */
+  hasOpenTransfer: boolean
 }
 
 export interface HeaderActions {
@@ -21,6 +23,8 @@ export interface HeaderActions {
   /** Save button label, e.g. "Save rev 5". */
   save: string | null
   startRun: boolean
+  /** Saved view: authorize a Linear transfer of the saved plan (Transfer to Linear). */
+  transfer: boolean
 }
 
 export interface HeaderView {
@@ -31,7 +35,7 @@ export interface HeaderView {
   notices: string[]
 }
 
-const NO_ACTIONS: HeaderActions = { editDraft: null, viewSaved: false, discard: false, save: null, startRun: false }
+const NO_ACTIONS: HeaderActions = { editDraft: null, viewSaved: false, discard: false, save: null, startRun: false, transfer: false }
 
 /** The display number the draft receives when saved. */
 export function nextRevisionNumber(epic: EpicDetailView): number {
@@ -55,10 +59,13 @@ function actionsFor(input: HeaderInput): HeaderActions {
   if (input.view === 'draft') {
     return { ...NO_ACTIONS, viewSaved: epic.currentRevisionId !== null, discard: true, save: `Save rev ${nextRevisionNumber(epic)}` }
   }
+  const saved = epic.currentRevisionId !== null
   return {
     ...NO_ACTIONS,
     editDraft: epic.hasDraft ? 'view' : 'edit',
-    startRun: epic.currentRevisionId !== null && !input.hasActiveRun
+    startRun: saved && !input.hasActiveRun && !input.hasOpenTransfer,
+    // The same refusals queueTransfer makes: a saved plan, no active run, no open transfer, no unsaved draft changes.
+    transfer: saved && !input.hasActiveRun && !input.hasOpenTransfer && !epic.draftChanged
   }
 }
 
@@ -85,14 +92,25 @@ interface ConfirmCopy {
   keep: string
 }
 
+/** What the inline confirmation strip asks about. */
+export type ConfirmKind = 'discard' | 'cancel_run' | 'cancel_transfer'
+
 /** Inline confirmation for destructive actions (Electron has no window.prompt; dialogs stay in-page). */
-export function confirmCopy(kind: 'discard' | 'cancel_run', epic: EpicDetailView, run: RunView | null): ConfirmCopy {
+export function confirmCopy(kind: ConfirmKind, epic: EpicDetailView, run: RunView | null): ConfirmCopy {
   if (kind === 'discard') {
     return {
       title: 'Discard draft',
       text: `Discard draft rev ${nextRevisionNumber(epic)}? Its changes are lost; the saved plan stays as it is.`,
       confirm: 'Discard draft',
       keep: 'Keep editing'
+    }
+  }
+  if (kind === 'cancel_transfer') {
+    return {
+      title: 'Cancel transfer',
+      text: 'Cancel the Linear transfer? What is recorded here is cleared and runs and Save unlock; what was already created in Linear stays there.',
+      confirm: 'Cancel transfer',
+      keep: 'Keep transferring'
     }
   }
   const name = run === null ? 'the run' : runLabel(run)

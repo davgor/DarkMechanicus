@@ -434,7 +434,7 @@ describe('setEpicStatus completion rules', () => {
     expect(captureError(() => setEpicStatus(ctx, { epicId: epic.id, status: 'completed' }))).toEqual({
       code: 'unauthorized_transition',
       message:
-        'Epics complete when the final sprint checkpoint advances (advance_sprint); status tools cannot bypass completion rules.',
+        'An epic completes when its final sprint checkpoint advances (advance_sprint), or when a verified Linear transfer completes it; status tools cannot bypass completion rules.',
       details: undefined
     })
   })

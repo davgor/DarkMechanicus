@@ -9,10 +9,19 @@ const EXPECTED = [
   ['orchestrator', 'Orchestrator'],
   ['worker', 'Worker'],
   ['reviewer', 'Reviewer'],
-  ['sprint-reporter', 'Sprint reporter']
+  ['sprint-reporter', 'Sprint reporter'],
+  ['linear-transfer', 'Linear transfer']
 ]
 
 const VENDOR_WORDS = /claude|anthropic|openai|gpt|gemini|llama|mistral|copilot|codex|sonnet|opus|haiku/i
+
+/** The Linear transfer guide gives each CLI's setup line; nothing else in a skill may name a vendor. */
+function withoutLinearSetup(body: string): string {
+  return body
+    .split('\n')
+    .filter((line) => !line.includes('https://mcp.linear.app/mcp'))
+    .join('\n')
+}
 
 function skill(name: string) {
   const found = SKILLS.find((candidate) => candidate.name === name)
@@ -23,7 +32,7 @@ function skill(name: string) {
 }
 
 describe('SKILLS', () => {
-  it('ships the six skills in a stable order with their titles', () => {
+  it('ships the seven skills in a stable order with their titles', () => {
     expect(SKILLS.map((item) => [item.name, item.title])).toEqual(EXPECTED)
   })
 
@@ -44,9 +53,9 @@ describe('SKILLS', () => {
     }
   })
 
-  it('keeps bodies provider neutral', () => {
+  it('keeps bodies provider neutral, apart from the Linear setup lines', () => {
     for (const item of SKILLS) {
-      expect(VENDOR_WORDS.test(item.body)).toBe(false)
+      expect(VENDOR_WORDS.test(withoutLinearSetup(item.body))).toBe(false)
       expect(VENDOR_WORDS.test(item.description)).toBe(false)
     }
   })
@@ -305,7 +314,42 @@ const REQUIRED: [string, string[]][] = [
       'a title and a reason',
       'the acceptance node never moves',
       '`plan_current`',
-      'submit a new report revision'
+      'submit a new report revision',
+      'An epic completes when its final checkpoint advances, or when a verified Linear transfer completes it'
+    ]
+  ],
+  [
+    'linear-transfer',
+    [
+      '`get_capabilities`',
+      'has not authorized the transfer',
+      'press Transfer to Linear in the app',
+      '`claude mcp add --transport http linear-server https://mcp.linear.app/mcp`, then `/mcp` to sign in',
+      '`codex mcp add linear --url https://mcp.linear.app/mcp`',
+      'Cursor',
+      'complete it in the browser',
+      'ask the person which team to use',
+      '## 4. Labels before issues',
+      'Reuse a label of the same name',
+      'then the milestones in `position` order, then the issues strictly in `position` order, one at a time',
+      "search Linear for the item's `marker`",
+      'Call `record_transfer_item` right after each creation',
+      'Record the project with its `url`',
+      'a project recorded without a URL fails verification',
+      "list the blocked issue's existing relations, so none is added twice",
+      'Set the sort order when a tool allows it',
+      '`submit_transfer_readback`',
+      '`final: true` on the last part only',
+      'triage, backlog, unstarted, started, completed or canceled',
+      'None of the others may be completed or canceled',
+      'A final part always ends the read-back, whatever the result',
+      'Never delete anything',
+      'read the whole project back again from the start',
+      'Never complete the epic any other way',
+      '`get_transfer`',
+      'call `start_transfer` again with a fresh `idempotencyKey` before you send any read-back part',
+      'It discards an unfinished read-back',
+      'Continue from `next`'
     ]
   ]
 ]

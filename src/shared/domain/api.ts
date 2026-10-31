@@ -17,6 +17,15 @@ import type {
 } from './bundle'
 import type { AttemptTimelineView, RunTimelineView, TimelineWindow } from './activity'
 import type { SprintRetroInput } from './retro'
+import type {
+  RecordTransferItemInput,
+  StartedTransferView,
+  SubmitTransferReadbackInput,
+  TransferActionInput,
+  TransferItemView,
+  TransferReadbackResult,
+  TransferView
+} from './transfer'
 import type { WorkStatus } from './status'
 import type {
   ApprovalView,
@@ -453,6 +462,26 @@ export interface CommandApi {
   getAttemptTimeline(input: { attemptId: string } & TimelineWindow): Promise<AttemptTimelineView>
   /** A run's story grouped by the session that did each thing; paged with `sinceSeq` like an attempt timeline. */
   getRunTimeline(input: { runId: string } & TimelineWindow): Promise<RunTimelineView>
+
+  // Linear transfer of a saved epic
+  /**
+   * Desktop only: the person authorizes the transfer of the epic's current saved revision to a Linear project.
+   * Refused for a completed epic, an active run, a never-saved plan, unsaved draft changes and an open transfer.
+   */
+  queueTransfer(input: TransferActionInput): Promise<TransferView>
+  /** Desktop only: withdraws the authorization; the recorded items are cleared, what is in Linear stays. */
+  cancelTransfer(input: TransferActionInput): Promise<TransferView>
+  /** Starts a queued transfer or resumes one in progress: the stored packet, what is recorded and what remains. */
+  startTransfer(input: TransferActionInput): Promise<StartedTransferView>
+  /** Records the Linear item created (or adopted) for one packet ref; the same values again change nothing. */
+  recordTransferItem(input: RecordTransferItemInput): Promise<TransferItemView>
+  /** Where the epic's transfer stands; `not_started` with the packet the saved revision builds when none exists. */
+  getTransfer(input: { epicId: string }): Promise<TransferView>
+  /**
+   * One part of the Linear read-back; parts accumulate until `final`, which compares them with the packet and
+   * completes the epic on a full match or stores and returns the mismatches.
+   */
+  submitTransferReadback(input: SubmitTransferReadbackInput): Promise<TransferReadbackResult>
 }
 
 export type CommandName = keyof CommandApi
