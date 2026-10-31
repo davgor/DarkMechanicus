@@ -23,6 +23,7 @@ const TOOLS: Record<string, { method: CommandName; kind: Kind }> = {
   get_capabilities: { method: 'getCapabilities', kind: 'read' },
   get_project: { method: 'getProject', kind: 'read' },
   set_definition_of_done: { method: 'setDefinitionOfDone', kind: 'idempotent' },
+  rescan_repositories: { method: 'rescanRepositories', kind: 'idempotent' },
   list_projects: { method: 'getProject', kind: 'read' },
   initialize_repository: { method: 'initializeRepository', kind: 'idempotent' },
   get_storage_status: { method: 'getStorageStatus', kind: 'read' },
@@ -132,7 +133,8 @@ const PROJECT: ProjectView = {
   keyPrefix: 'DM',
   repoRoot: '/repo',
   createdAt: '2026-01-01T00:00:00.000Z',
-  definitionOfDone: [{ name: 'lint', command: 'npm run lint', description: 'oxlint' }]
+  definitionOfDone: [{ name: 'lint', command: 'npm run lint', description: 'oxlint' }],
+  repositories: null
 }
 
 /** An orchestrator allowed to save holds every capability an MCP tool needs except the planner-only ones. */
@@ -144,7 +146,7 @@ describe('tool inventory', () => {
     await withRig(build, createStubApi(), async (rig) => {
       const { tools } = await rig.client.listTools()
       expect(tools.map((tool) => tool.name).sort()).toEqual(Object.keys(ORCHESTRATOR_TOOLS).sort())
-      expect(tools).toHaveLength(63)
+      expect(tools).toHaveLength(64)
     })
   })
 

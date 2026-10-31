@@ -1,0 +1,138 @@
+# DM-342 c14: the gate names beta: test (not reported), and passes once it is reported
+# Excerpt of one run of a throwaway in-process script (openWorkspace from multirepo-accept src/core/workspace.ts at 7a3c80f, roles desktop/planner/orchestrator, DARKMECHANICUS_HOME=/private/tmp/multirepo-run/evidence/core/home) on the scratch folder fixtures/exec-parent holding the real Git repositories alpha and beta.
+# $ DARKMECHANICUS_HOME=<evidence>/core/home npx tsx exec.mts all   (lines quoted with their line numbers in the full output)
+
+## Scene E: the node reports every check except beta: test
+######## Scene E: epic on feature-e, the node leaves "beta: test" unreported ########
+
+$ submit_attempt on EP-13: increments [{"repo":"alpha","branch":"feature-e","commit":"93a386ce76c04b2d1f53910aae0c3272ef425a72"},{"repo":"beta","branch":"feature-e","commit":"1beb7fac7eca1ef6ed046168ad883d18e437c065"}]; evidence.checks passed: alpha: lint, alpha: test, beta: build
+attempt.state=submitted; attempt.increments => [
+  {
+    "repo": "alpha",
+    "branch": "feature-e",
+    "commit": "93a386ce76c04b2d1f53910aae0c3272ef425a72",
+    "parent": "810e0fda2faa549c4bcbb4a9367c4cb6f1139200",
+    "base": {
+      "kind": "epic_start",
+      "commit": "810e0fda2faa549c4bcbb4a9367c4cb6f1139200"
+    },
+    "passed": true,
+    "reasons": [],
+    "checks": [
+      {
+        "name": "Epic branch",
+        "status": "passed",
+        "detail": "Names the epic branch feature-e."
+      },
+      {
+        "name": "Commit exists",
+        "status": "passed",
+        "detail": "Commit 93a386c exists."
+      },
+      {
+        "name": "One parent",
+        "status": "passed",
+        "detail": "Commit 93a386c has one parent, 810e0fd."
+      },
+      {
+        "name": "On the epic branch",
+        "status": "passed",
+        "detail": "Commit 93a386c is reachable from feature-e."
+      },
+      {
+        "name": "After the base commit",
+        "status": "passed",
+        "detail": "Commit 93a386c comes after the epic's start commit 810e0fd."
+      },
+      {
+        "name": "Squashed, not merged",
+        "status": "passed",
+        "detail": "None of the 2 commits recorded by this sprint's accepted work is reachable from feature-e."
+      }
+    ],
+    "verifiedAt": "2026-10-31T22:18:10.840Z"
+  },
+  {
+    "repo": "beta",
+    "branch": "feature-e",
+    "commit": "1beb7fac7eca1ef6ed046168ad883d18e437c065",
+    "parent": "13cfbc2acba7da21b0dbc49295972b2b477cc462",
+    "base": {
+      "kind": "epic_start",
+      "commit": "13cfbc2acba7da21b0dbc49295972b2b477cc462"
+    },
+    "passed": true,
+    "reasons": [],
+    "checks": [
+      {
+        "name": "Epic branch",
+        "status": "passed",
+        "detail": "Names the epic branch feature-e."
+      },
+      {
+        "name": "Commit exists",
+        "status": "passed",
+        "detail": "Commit 1beb7fa exists."
+      },
+      {
+        "name": "One parent",
+        "status": "passed",
+        "detail": "Commit 1beb7fa has one parent, 13cfbc2."
+      },
+      {
+        "name": "On the epic branch",
+        "status": "passed",
+        "detail": "Commit 1beb7fa is reachable from feature-e."
+      },
+      {
+        "name": "After the base commit",
+        "status": "passed",
+        "detail": "Commit 1beb7fa comes after the epic's start commit 13cfbc2."
+      },
+      {
+        "name": "Squashed, not merged",
+        "status": "passed",
+        "detail": "None of the 2 commits recorded by this sprint's accepted work is reachable from feature-e."
+      }
+    ],
+    "verifiedAt": "2026-10-31T22:18:10.840Z"
+  }
+]
+
+## get_checkpoint gates (Scene E after accepting the node without beta: test):
+  acceptance_accepted: met=true detail="EP-13 accepted"
+  increment_merged: met=true detail="Increments in alpha, beta are each one squashed commit on the repository's epic branch"
+  definition_of_done: met=false detail="EP-13's accepted attempt does not report these checks as passed: beta: test (not reported)"
+
+## Scene B: the same plan and flow, with beta: test reported as passed
+$ submit_attempt on EP-4: increments [{"repo":"alpha","branch":"feature-b","commit":"91d4fde43c4128d17ea5ead1ac52c2e8398eb566"},{"repo":"beta","branch":"feature-b","commit":"e201f27c466547aaad2f8051dff10fc6aefe6304"}]; evidence.checks passed: alpha: lint, alpha: test, beta: build, beta: test
+...
+$ accept_attempt on the node
+
+## get_checkpoint gates (Scene B after accepting the node):
+  acceptance_accepted: met=true detail="EP-4 accepted"
+  increment_merged: met=true detail="Increments in alpha, beta are each one squashed commit on the repository's epic branch"
+  definition_of_done: met=true detail="EP-4 reports all 4 Definition of Done checks as passed"
+
+## Scene F: one run in the same project ($ DARKMECHANICUS_HOME=<evidence>/core/home npx tsx exec.mts c14f): first node attempt without beta: test is rejected, the next reports it
+getProject().repositories => [{"name":"alpha","missing":false,"definitionOfDone":[{"name":"lint","command":"npm run lint","description":"The linter"},{"name":"test","command":"npm test","description":"The unit tests"}]},{"name":"beta","missing":false,"definitionOfDone":[{"name":"build","command":"make build","description":"The client build"},{"name":"test","command":"make test","description":"The client tests"}]}]
+
+######## Scene F: epic on feature-f, one run: beta: test first unreported, then reported ########
+
+$ submit_attempt on EP-16: increments [{"repo":"alpha","branch":"feature-f","commit":"c364b3d8306bc2a3ed890c8fb76a12b04aff60ff"},{"repo":"beta","branch":"feature-f","commit":"a7c487a18f9f0373e2f56ae0427ef506665c9fc2"}]; evidence.checks passed: alpha: lint, alpha: test, beta: build
+...
+## get_checkpoint gates (Scene F, first node attempt submitted without beta: test):
+  acceptance_accepted: met=false detail="EP-16 is awaiting review"
+  increment_merged: met=true detail="Increments in alpha, beta are each one squashed commit on the repository's epic branch"
+  definition_of_done: met=false detail="EP-16 has no accepted attempt yet; it must report these checks as passed: alpha: lint, alpha: test, beta: build, beta: test"
+
+$ reject_attempt on the first node attempt: reasons ["beta: test not reported"]
+
+$ submit_attempt on EP-16: increments [{"repo":"alpha","branch":"feature-f","commit":"c364b3d8306bc2a3ed890c8fb76a12b04aff60ff"},{"repo":"beta","branch":"feature-f","commit":"a7c487a18f9f0373e2f56ae0427ef506665c9fc2"}]; evidence.checks passed: alpha: lint, alpha: test, beta: build, beta: test
+...
+$ accept_attempt on the second node attempt
+
+## get_checkpoint gates (Scene F after accepting the attempt that reports beta: test):
+  acceptance_accepted: met=true detail="EP-16 accepted"
+  increment_merged: met=true detail="Increments in alpha, beta are each one squashed commit on the repository's epic branch"
+  definition_of_done: met=true detail="EP-16 reports all 4 Definition of Done checks as passed"

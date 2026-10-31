@@ -1,8 +1,11 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { FakeDm } from '../__mocks__/fakeDm'
 import { FakeExpansion } from '../__mocks__/fakeExpansion'
 import { EPIC_A, EPIC_B, EPIC_C, chatSummary, epicSummary, folderView } from '../__mocks__/fixtures'
+import { settle } from '../__mocks__/settle'
+import { projectView } from '../epic/__mocks__/fixtures'
 import type { TrackedFolderView } from '../../../shared/desktop/api'
 import type { AgentStatuses } from '../agents/useAgents'
 import type { ChatListState } from '../agents/useChats'
@@ -333,5 +336,39 @@ describe('FolderRow chat actions', () => {
   it('does not highlight a chat of another folder', () => {
     renderRow({ chats: chats(), selection: { folderPath: '/other', epicId: null, chatId: 'chat_new' } })
     expect(screen.getByRole('button', { name: /^Newest run/ }).getAttribute('aria-current')).toBeNull()
+  })
+})
+
+describe('FolderRow repository count', () => {
+  let dm: FakeDm
+  beforeEach(() => {
+    dm = new FakeDm()
+    window.dm = dm
+  })
+
+  it('shows how many repositories a folder of repositories holds', async () => {
+    dm.responses.getProject = projectView({
+      repositories: [
+        { name: 'api', missing: false },
+        { name: 'web', missing: true }
+      ]
+    })
+    renderRow()
+    await settle()
+    expect(dm.callsOf('getProject').map((call) => call.folder)).toEqual(['/a'])
+    expect(screen.getByText('2 repositories')).toBeTruthy()
+  })
+
+  it('shows no count for a single repository', async () => {
+    dm.responses.getProject = projectView({ repositories: null })
+    renderRow()
+    await settle()
+    expect(screen.queryByText(/repositor/)).toBeNull()
+  })
+
+  it('does not read the project of a folder that is not set up', async () => {
+    renderRow({ folder: folderView({ path: '/a', name: 'alpha', initialized: false }) })
+    await settle()
+    expect(dm.callsOf('getProject')).toEqual([])
   })
 })

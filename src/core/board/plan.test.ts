@@ -40,7 +40,8 @@ function draftAfterImport(epic: BoardEpic): PlanBundle {
       created += 1
       return `${kind === 'ticket' ? 'tk' : 'sp'}_new${created}`
     },
-    nextKey: () => `DM-${created}`
+    nextKey: () => `DM-${created}`,
+    repositories: () => null
   }
   return applyDraftOps(initial, ops, deps).bundle
 }

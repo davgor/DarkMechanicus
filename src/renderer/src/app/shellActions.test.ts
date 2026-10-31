@@ -187,6 +187,13 @@ describe('initialize', () => {
     expect(dm.claudeConnects).toEqual([])
   })
 
+  it('passes the multi-repository layout through', async () => {
+    await recorder.actions().initialize(alpha, { mode: 'db', layout: 'multi_repo', writeMcpConfig: false, importBoard: false })
+    expect(dm.callsOf('initializeRepository').map((call) => [call.folder, call.input])).toEqual([
+      ['/a', { mode: 'db', layout: 'multi_repo' }]
+    ])
+  })
+
   it('marks the initialization busy only while it runs', async () => {
     await recorder.actions().initialize(alpha, INIT_AND_CONNECT)
     expect(recorder.busy).toEqual(['initialize:true', 'initialize:false'])

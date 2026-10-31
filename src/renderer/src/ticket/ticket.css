@@ -43,6 +43,11 @@
   color: var(--ink-2);
 }
 
+.tp-repo {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
 .tp-title {
   margin: 0;
   color: var(--ink-display);
@@ -540,6 +545,22 @@
   color: var(--ink);
   font: inherit;
   font-size: 13.5px;
+}
+
+.tp-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.tp-title-prefix {
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.tp-title-row .tp-title-input {
+  flex: 1;
+  min-width: 0;
 }
 
 .tp-title-input {

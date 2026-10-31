@@ -53,6 +53,10 @@ Write each part from evidence the server or an attempt recorded, never from impr
 
 `redraft_next_sprint` reads this retro to rewrite the next sprint of the draft, so a leftover or discovery you leave out is never planned, and one you invent becomes a ticket.
 
+### Folders of repositories
+
+In a folder of repositories, list each repository's increment commit in `changes` (name the repository with it), and its Definition of Done checks in `checks` under their `<repo>: <check>` names. `increment_merged` and `definition_of_done` are met only when every touched repository passes, and their `detail` names what is missing: each repository whose increment failed or was not named, and each `<repo>: <check>` not reported as passed.
+
 ## 3. Submit and wait
 
 1. Call `submit_sprint_report` with the run id, the active sprint id, and the report. The run now waits at the checkpoint and takes no new claims.

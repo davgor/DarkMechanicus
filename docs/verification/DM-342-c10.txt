@@ -1,0 +1,35 @@
+# DM-342 c10: start_run prints repositoryBranches with each repository start commit; queue_run without a branch name is refused
+# Excerpt of one run of a throwaway in-process script (openWorkspace from multirepo-accept src/core/workspace.ts at 7a3c80f, roles desktop/planner/orchestrator, DARKMECHANICUS_HOME=/private/tmp/multirepo-run/evidence/core/home) on the scratch folder fixtures/exec-parent holding the real Git repositories alpha and beta.
+# $ DARKMECHANICUS_HOME=<evidence>/core/home npx tsx exec.mts all   (lines quoted with their line numbers in the full output)
+
+initializeRepository({ layout: "multi_repo" }) => {
+  "mode": "db",
+  "projectDir": "/private/tmp/multirepo-run/evidence/core/home/projects/exec-parent-b179d8c2494abda7"
+}
+getProject().repositories => [{"name":"alpha","missing":false,"definitionOfDone":[{"name":"lint","command":"npm run lint","description":"The linter"},{"name":"test","command":"npm test","description":"The unit tests"}]},{"name":"beta","missing":false,"definitionOfDone":[{"name":"build","command":"make build","description":"The client build"},{"name":"test","command":"make test","description":"The client tests"}]}]
+
+######## c10a: an epic without a branch name ########
+saved: saved; getEpic.branch => null
+
+$ queue_run { epicId: ep_01m6a0n6n6j77f2ajwxmbfr8nf }
+REFUSED: code=invalid_input message="Set the epic branch first: a folder of repositories has no checkout to take the branch name from." details={"epicId":"ep_01m6a0n6n6j77f2ajwxmbfr8nf"}
+
+######## Scene B: epic on feature-b, both repositories squashed ########
+feature-b tips before start_run: {
+  "alpha": "fca0b8897f6c43d61e0bd6be4ce3aa98b954ad42",
+  "beta": "9f4955475c9adbfa0bac849627295f9d57059cbf"
+}
+
+$ start_run { epicId } => run rn_01m6a0n6r4z1w787fwdyk81hmn state=running
+get_epic.repositoryBranches => [
+  {
+    "repository": "alpha",
+    "name": "feature-b",
+    "startCommit": "fca0b8897f6c43d61e0bd6be4ce3aa98b954ad42"
+  },
+  {
+    "repository": "beta",
+    "name": "feature-b",
+    "startCommit": "9f4955475c9adbfa0bac849627295f9d57059cbf"
+  }
+]

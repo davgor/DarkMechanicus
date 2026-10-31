@@ -89,7 +89,8 @@ describe('createFolderRegistry tracking', () => {
           initialized: false,
           storageMode: 'repo',
           available: true,
-          addedAt: '2026-01-01T00:00:01.000Z'
+          addedAt: '2026-01-01T00:00:01.000Z',
+          childRepositories: []
         }
       })
       expect(registry.list()).toEqual([result.folder])
@@ -481,7 +482,9 @@ function createMemoryFs(): MemoryFs {
       return path
     },
     exists: (path) => files.has(path) || dirs.has(path),
-    isDirectory: (path) => dirs.has(path)
+    isDirectory: (path) => dirs.has(path),
+    readdir: () => [],
+    isSymlink: () => false
   }
 }
 
@@ -491,6 +494,57 @@ const HOME = join(sep, 'home', 'u')
 function memoryRegistry(fs: MemoryFs, homeDir = HOME) {
   return createFolderRegistry({ file: REGISTRY_FILE, homeDir, dmHome: join(homeDir, '.darkmechanicus'), fs, now: counterNow() })
 }
+
+describe('createFolderRegistry child repositories', () => {
+  it('lists the child repositories of a folder that is not set up and not inside a repository', () => {
+    withSandbox(({ file, home }) => {
+      const parent = makeFolder(home, 'code')
+      makeFolder(parent, 'beta', '.git')
+      makeFolder(parent, 'alpha', '.git')
+      makeFolder(parent, 'notes')
+      const registry = createFolderRegistry({ file, homeDir: home, dmHome: dmHomeFor(home) })
+
+      expect(registry.track(parent).folder.childRepositories).toEqual(['alpha', 'beta'])
+    })
+  })
+
+  it('gives null for a repository folder', () => {
+    withSandbox(({ file, home }) => {
+      const repo = makeFolder(home, 'repo')
+      makeFolder(repo, '.git')
+      makeFolder(repo, 'vendored', '.git')
+      const registry = createFolderRegistry({ file, homeDir: home, dmHome: dmHomeFor(home) })
+
+      expect(registry.track(repo).folder.childRepositories).toBeNull()
+    })
+  })
+
+  it('gives null for a folder that is already set up', () => {
+    withSandbox(({ file, home }) => {
+      const parent = makeFolder(home, 'code')
+      makeFolder(parent, 'alpha', '.git')
+      mkdirSync(dbProjectDir(parent, dmHomeFor(home)), { recursive: true })
+      writeFileSync(join(dbProjectDir(parent, dmHomeFor(home)), 'project.json'), '{}')
+      const registry = createFolderRegistry({ file, homeDir: home, dmHome: dmHomeFor(home) })
+
+      const view = registry.track(parent).folder
+      expect(view.initialized).toBe(true)
+      expect(view.childRepositories).toBeNull()
+    })
+  })
+
+  it('gives null for a folder that is no longer available', () => {
+    withSandbox(({ file, home }) => {
+      const parent = makeFolder(home, 'code')
+      makeFolder(parent, 'alpha', '.git')
+      const registry = createFolderRegistry({ file, homeDir: home, dmHome: dmHomeFor(home) })
+      registry.track(parent)
+      rmSync(parent, { recursive: true, force: true })
+
+      expect(registry.list()[0]?.childRepositories).toBeNull()
+    })
+  })
+})
 
 describe('createFolderRegistry persistence boundary', () => {
   it('writes a temp file next to the registry, then renames it into place', () => {

@@ -52,7 +52,8 @@ const PLANNER_SHARED_TOOLS = [
   'open_plan_draft',
   'update_plan_draft',
   'discard_plan_draft',
-  'save_profile'
+  'save_profile',
+  'rescan_repositories'
 ]
 
 /** Only a planner (and the desktop) sets the Definition of Done: the orchestrator accepts work against it. */

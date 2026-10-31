@@ -27,7 +27,8 @@ function drafted(...ops: DraftOp[]): PlanBundle {
   let counter = 0
   const deps = {
     newId: (kind: 'ticket' | 'sprint') => `${kind === 'ticket' ? 'tk' : 'sp'}_new${(counter += 1)}`,
-    nextKey: () => `DM-${(key += 1)}`
+    nextKey: () => `DM-${(key += 1)}`,
+    repositories: () => null
   }
   return applyDraftOps(bundle, ops, deps).bundle
 }
@@ -152,7 +153,7 @@ describe('inserting a sprint before the active one', () => {
     const draft = applyDraftOps(
       run,
       [{ op: 'add_sprint', sprint: { goal: 'Squeezed in' }, position: 1 }],
-      { newId: (kind) => `${kind === 'ticket' ? 'tk' : 'sp'}_new1`, nextKey: () => 'DM-90' }
+      { newId: (kind) => `${kind === 'ticket' ? 'tk' : 'sp'}_new1`, nextKey: () => 'DM-90', repositories: () => null }
     ).bundle
     expect(draft.tickets.find((ticket) => ticket.id === tid(1))?.title).toBe('Sprint 2 acceptance')
     expect(warningsFor(draft, { run }).map((warning) => warning.code)).toEqual(['sprint_before_active'])

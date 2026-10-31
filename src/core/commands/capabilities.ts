@@ -15,6 +15,7 @@ export const COMMAND_CAPABILITIES: Readonly<Record<CommandName, Capability>> = {
   getCapabilities: 'read',
   getProject: 'read',
   setDefinitionOfDone: 'project.definition_of_done',
+  rescanRepositories: 'project.repositories',
   initializeRepository: 'repo.init',
   getStorageStatus: 'read',
   flushPortableState: 'repo.flush',

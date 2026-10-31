@@ -20,6 +20,8 @@ export interface EpicRow {
   status: WorkStatus
   current_revision_id: string | null
   branch_json: string | null
+  /** The epic branch as bound in each repository of a folder of repositories (schema v12); null otherwise. */
+  repository_branches_json: string | null
   provenance_json: string | null
   outcome_json: string | null
   revision: number
@@ -70,7 +72,7 @@ interface RunSummaryRow {
 
 const ACTIVE_RUN_SQL = `('queued','running','awaiting_checkpoint','paused')`
 
-const SUMMARY_COLUMNS = `s.id, s.title, s.status, s.current_revision_id, s.branch_json, s.provenance_json,
+const SUMMARY_COLUMNS = `s.id, s.title, s.status, s.current_revision_id, s.branch_json, s.repository_branches_json, s.provenance_json,
   s.outcome_json, s.revision, s.created_at, s.updated_at, s.completed_at, s.current_number, s.draft_revision,
   s.draft_match, s.pending_save, s.conflict, json_extract(s.bundle_json, '$.epic.title') AS content_title,
   json_array_length(s.bundle_json, '$.tickets') AS ticket_count,
@@ -214,6 +216,9 @@ function toSummary(ctx: Ctx, row: EpicSourceRow): EpicSummaryView {
     sprintCount: row.sprint_count ?? 0,
     run: runSummary(ctx, row.id),
     branch: parseJson<EpicBranch | null>(row.branch_json, null),
+    ...(row.repository_branches_json === null
+      ? {}
+      : { repositoryBranches: parseJson<EpicBranch[]>(row.repository_branches_json, []) }),
     pendingSave: row.pending_save === 1,
     conflict: row.conflict,
     createdAt: row.created_at,

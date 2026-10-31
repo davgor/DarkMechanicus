@@ -164,6 +164,16 @@ describe('requestSave plan checks', () => {
     expect(revisionCount(ctx)).toBe(0)
   })
 
+  it('rejects a plan whose work ticket has no repository in a folder of repositories', () => {
+    const ctx = createTestCtx({ repositories: ['api', 'web'] })
+    const epicId = newEpicWithTickets(ctx)
+    const error = captureError(() => requestSave(ctx, { epicId, expectedDraftRevision: 2 }))
+    expect(error.code).toBe('invalid_plan')
+    const errors = (error.details as { errors: { code: string }[] }).errors
+    expect(errors.map((issue) => issue.code)).toEqual(['missing_repo', 'missing_repo'])
+    expect(revisionCount(ctx)).toBe(0)
+  })
+
   it('allows one pending save per epic', () => {
     const ctx = createTestCtx()
     const epicId = newEpicWithTickets(ctx)

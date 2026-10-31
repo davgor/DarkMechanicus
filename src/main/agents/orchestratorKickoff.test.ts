@@ -43,6 +43,32 @@ function handoffOf(text: string): string {
 }
 
 describe('orchestrator kickoff run lines and steps', () => {
+  it('lists each repository and its branch for a folder of repositories', () => {
+    const text = orchestratorKickoff({
+      ...INPUT,
+      repositoryBranches: [
+        { repository: 'api', name: 'epic/agent-chats' },
+        { repository: 'web', name: 'epic/agent-chats-web' }
+      ]
+    })
+    const runSpecific = text.slice(0, text.indexOf('=== '))
+    expect(runSpecific).toContain('Branch: epic/agent-chats\nRepository branches')
+    expect(runSpecific).toContain('- api → epic/agent-chats\n- web → epic/agent-chats-web\nRun: ')
+  })
+
+  it('is unchanged for a single repository, with or without an empty list of repository branches', () => {
+    const single = orchestratorKickoff(INPUT)
+    expect(single).not.toContain('Repository branches')
+    expect(single).toContain('Branch: epic/agent-chats\nRun: rn_01m44m0qnd0nn90p29a12041js')
+    expect(orchestratorKickoff({ ...INPUT, repositoryBranches: [] })).toBe(single)
+  })
+
+  it('masks a claim token in a repository or branch name', () => {
+    const text = orchestratorKickoff({ ...INPUT, repositoryBranches: [{ repository: CLAIM_TOKEN, name: `epic/${CLAIM_TOKEN}` }] })
+    expect(text).not.toContain(CLAIM_TOKEN)
+    expect(text).toContain(CLAIM_TOKEN_MASK)
+  })
+
   it('names the epic id, its title, its branch and the run', () => {
     const text = orchestratorKickoff(INPUT)
     expect(text).toContain('Epic: Agent chats (ep_01m418epbg8qkqa2e2krvdkqk5)')

@@ -97,7 +97,8 @@ export function createStubGit(initial: string | null = 'main'): StubGit {
     listFiles: async () => [],
     showFile: async () => null,
     isAncestor: async () => null,
-    commitParents: async () => null
+    commitParents: async () => null,
+    branchCommit: () => null
   }
 }
 

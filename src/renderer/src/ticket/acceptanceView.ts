@@ -5,7 +5,7 @@
 import { workTicketsOf } from '../../../core/plan/acceptance'
 import { unmetChecks } from '../../../core/definitionOfDone'
 import type { PlanBundle, TicketContent } from '../../../shared/domain/bundle'
-import type { AttemptView, DefinitionOfDoneCheck } from '../../../shared/domain/views'
+import type { AttemptView, DefinitionOfDoneCheck, RepositoryView } from '../../../shared/domain/views'
 import { criteriaChecklist, evidenceView, type CriterionItem } from './ticketView'
 
 /** The criteria that cover one ticket; `ticketId` is null for the criteria that cover none (the sprint as a whole). */
@@ -80,4 +80,39 @@ export function definitionOfDoneRows(
   }
   const unmet = new Map(unmetChecks(definition, evidence.checks).map((item) => [item.name, item.reason]))
   return definition.map((check) => ({ ...check, status: unmet.get(check.name) ?? 'passed' }))
+}
+
+/** One touched repository's Definition of Done on an acceptance node in a folder of repositories; `rows` empty when it has none. */
+export interface RepositoryDefinitionGroup {
+  repo: string
+  rows: DefinitionOfDoneRow[]
+}
+
+/** The repositories the node's sprint's work tickets target, in name order (a folder of repositories only). */
+function sprintRepositories(ticket: TicketContent, bundle: PlanBundle): string[] {
+  const sprint = bundle.sprints.find((item) => item.ticketIds.includes(ticket.id))
+  const repos = sprint === undefined ? [] : workTicketsOf(bundle, sprint.id).flatMap((item) => (item.repo === undefined ? [] : [item.repo]))
+  return [...new Set(repos)].sort()
+}
+
+/**
+ * In a folder of repositories: each repository the node's sprint touches, with its own Definition of Done and how the
+ * node's latest evidence reports each check, matched by `<repo>: <check>` like the server. Row names stay the bare check names.
+ */
+export function repositoryDefinitionGroups(
+  repositories: readonly RepositoryView[],
+  ticket: TicketContent,
+  attempts: AttemptView[],
+  bundle: PlanBundle
+): RepositoryDefinitionGroup[] {
+  const lists = new Map(repositories.map((repository) => [repository.name, repository.definitionOfDone ?? []]))
+  return sprintRepositories(ticket, bundle).map((repo) => {
+    const checks = lists.get(repo) ?? []
+    const named = definitionOfDoneRows(
+      checks.map((check) => ({ ...check, name: `${repo}: ${check.name}` })),
+      ticket,
+      attempts
+    )
+    return { repo, rows: named.map((row, index) => ({ ...row, name: checks[index].name })) }
+  })
 }

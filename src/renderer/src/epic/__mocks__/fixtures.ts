@@ -64,6 +64,7 @@ export function folder(patch: Partial<TrackedFolderView> = {}): TrackedFolderVie
     storageMode: 'repo',
     available: true,
     addedAt: '2026-01-01T00:00:00.000Z',
+    childRepositories: null,
     ...patch
   }
 }
@@ -459,6 +460,7 @@ export function projectView(patch: Partial<ProjectView> = {}): ProjectView {
       { name: 'Unit tests', command: 'npm test', description: 'Every unit test passes.' },
       { name: 'Typecheck', command: 'npm run typecheck', description: 'No type errors in any project.' }
     ],
+    repositories: null,
     ...patch
   }
 }

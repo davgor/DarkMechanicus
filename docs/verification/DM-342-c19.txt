@@ -1,0 +1,81 @@
+$ git -C <home>/Documents/GitHub/DarkMechanicus-worktrees/multirepo-accept diff --name-only e0e7e07f4c72700660b5ff30bf0a9910d9b58f6f HEAD -- *.md
+README.md
+docs/architecture.md
+docs/decisions/0003-multi-repo-folders.md
+docs/product-plan.md
+docs/runbooks/mcp-setup.md
+docs/runbooks/multi-repo-folders.md
+skills/graph-planner.md
+skills/orchestrator.md
+skills/planner.md
+skills/reviewer.md
+skills/sprint-reporter.md
+skills/worker.md
+
+## Relative links in the changed docs (file:line target => result)
+README.md:7 docs/product-plan.md => exists
+README.md:8 docs/architecture.md => exists
+README.md:9 docs/runbooks/mcp-setup.md => exists
+README.md:10 docs/runbooks/agents.md => exists
+README.md:11 docs/runbooks/linear-transfer.md => exists
+README.md:12 docs/runbooks/multi-repo-folders.md => exists
+README.md:13 skills/ => exists
+README.md:20 docs/decisions/0002-storage-modes.md => exists
+README.md:21 docs/runbooks/cli.md => exists
+README.md:22 docs/runbooks/mcp-setup.md#working-model-your-session-is-the-orchestrator => exists, anchor found
+README.md:23 docs/runbooks/agents.md => exists
+README.md:25 docs/runbooks/agents.md#a-run-paused-for-sign-in => exists, anchor found
+README.md:28 docs/runbooks/linear-transfer.md => exists
+README.md:35 .ai-instructions.md => exists
+README.md:39 .ai-instructions.md => exists
+README.md:40 .claude/skills/delivery-standards/SKILL.md => exists
+README.md:44 .darkmechanicus/ => exists
+README.md:46 docs/runbooks/mcp-setup.md => exists
+README.md:46 skills/ => exists
+README.md:64 docs/runbooks/offline-development.md => exists
+README.md:111 docs/runbooks/auto-update.md#first-launch-on-macos => exists, anchor found
+README.md:113 docs/runbooks/auto-update.md => exists
+docs/architecture.md:3 product-plan.md => exists
+docs/architecture.md:18 #hosted-agents => exists, anchor found
+docs/architecture.md:19 #hosted-agents => exists, anchor found
+docs/architecture.md:29 decisions/0001-sqlite-driver.md => exists
+docs/architecture.md:61 #comments => exists, anchor found
+docs/architecture.md:226 #hosted-agents => exists, anchor found
+docs/architecture.md:231 product-plan.md#agents-hosted-in-the-desktop-app => exists, anchor found
+docs/architecture.md:231 runbooks/agents.md => exists
+docs/architecture.md:289 reports/agents-fixes-e2e.md => exists
+docs/architecture.md:289 runbooks/agents.md => exists
+docs/architecture.md:289 reports/agents-fixes-e2e.md => exists
+docs/architecture.md:297 runbooks/mcp-setup.md => exists
+docs/architecture.md:301 #runs-readiness-and-attempts => exists, anchor found
+docs/architecture.md:311 #bridge-hardening => exists, anchor found
+docs/architecture.md:371 #hosted-agents => exists, anchor found
+docs/architecture.md:373 runbooks/linear-transfer.md => exists
+docs/decisions/0003-multi-repo-folders.md:14 0002-storage-modes.md => exists
+docs/decisions/0003-multi-repo-folders.md:53 ../../skills/orchestrator.md => exists
+docs/product-plan.md:3 #agents-hosted-in-the-desktop-app => exists, anchor found
+docs/product-plan.md:16 decisions/0003-multi-repo-folders.md => exists
+docs/product-plan.md:24 architecture.md#hosted-agents => exists, anchor found
+docs/product-plan.md:24 runbooks/agents.md => exists
+docs/runbooks/mcp-setup.md:5 ../decisions/0002-storage-modes.md => exists
+docs/runbooks/mcp-setup.md:10 #roles-and---allow-save => exists, anchor found
+docs/runbooks/mcp-setup.md:10 #tools-per-role => exists, anchor found
+docs/runbooks/mcp-setup.md:40 #working-model-your-session-is-the-orchestrator => exists, anchor found
+docs/runbooks/mcp-setup.md:81 #roles-and---allow-save => exists, anchor found
+docs/runbooks/mcp-setup.md:178 #linear-transfer => exists, anchor found
+docs/runbooks/mcp-setup.md:195 ../../skills/worker.md => exists
+docs/runbooks/mcp-setup.md:195 claude-code-host.md => exists
+docs/runbooks/mcp-setup.md:199 ../architecture.md#runs-readiness-and-attempts => exists, anchor found
+docs/runbooks/mcp-setup.md:199 ../../skills/orchestrator.md => exists
+docs/runbooks/mcp-setup.md:238 linear-transfer.md => exists
+docs/runbooks/mcp-setup.md:259 linear-transfer.md#message-size => exists, anchor found
+docs/runbooks/mcp-setup.md:267 multi-repo-folders.md => exists
+docs/runbooks/mcp-setup.md:295 #tools-per-role => exists, anchor found
+docs/runbooks/multi-repo-folders.md:5 ../decisions/0003-multi-repo-folders.md => exists
+docs/runbooks/multi-repo-folders.md:49 ../../skills/orchestrator.md#folders-of-repositories => exists, anchor found
+
+60 relative links checked, 0 broken.
+
+## The runbook docs/runbooks/multi-repo-folders.md is linked from README.md and docs/runbooks/mcp-setup.md
+README.md:12: - Working across a folder of Git repositories: [`docs/runbooks/multi-repo-folders.md`](docs/runbooks/multi-repo-folders.md)
+docs/runbooks/mcp-setup.md:267: For a folder of Git repositories (one project over several repositories, set up with `initialize_repository` and `layout: "multi_repo"`), see [Work across a folder of repositories](multi-repo-folders.md).

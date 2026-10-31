@@ -22,7 +22,8 @@ const PLANNER_SHARED: Capability[] = [
   'epic.create',
   'draft.edit',
   'comment.write',
-  'profile.write'
+  'profile.write',
+  'project.repositories'
 ]
 
 const PLANNER: Capability[] = [...PLANNER_SHARED, ...PLANNER_ONLY]
@@ -74,6 +75,7 @@ const DESKTOP: Capability[] = [
   'plan.save',
   'profile.write',
   'project.definition_of_done',
+  'project.repositories',
   'ticket.status',
   'ticket.retry_grant',
   'ticket.delete',
@@ -122,8 +124,8 @@ function sessionWith(role: SessionRole, capabilities: Capability[]): SessionCont
 
 describe('capability vocabulary', () => {
   it('lists every capability exactly once', () => {
-    expect(CAPABILITIES).toHaveLength(43)
-    expect(new Set(CAPABILITIES).size).toBe(43)
+    expect(CAPABILITIES).toHaveLength(44)
+    expect(new Set(CAPABILITIES).size).toBe(44)
     expect(sorted(CAPABILITIES)).toEqual(sorted([...DESKTOP, ...AGENT_ONLY]))
   })
 

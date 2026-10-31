@@ -36,6 +36,10 @@ If something needed is missing or contradictory, do not guess: report it (see Bl
 - A sprint acceptance node is the one ticket that does run the sweep. Its packet lists the project's `definitionOfDone`. Run each check in the integration worktree you are handed and report it in `evidence.checks` under its exact name. Then verify each item the node's criteria cover. A check you take from another ticket's accepted result goes under its name too, with that ticket in the detail. Never report a check `passed` that you neither ran nor took from an accepted result. Return the evidence to the orchestrator, which lands the sprint as one squashed commit and submits the node with that increment.
 - For every acceptance criterion, decide honestly whether it is met and where that is shown (a test, a command output, a file). Do not mark a criterion met that you did not verify.
 
+### Folders of repositories
+
+When your packet carries a `repository` (`name`, `path`, `branch`), the project is a folder of Git repositories and your ticket targets that one repository. Work only in a worktree of `repository.path`, branched from that repository's sprint integration branch, and run Git as `git -C <worktree>`. Never switch the branch of the repository's own checkout, and never change another repository. On an acceptance node the packet lists the touched repositories under `repositories`: run each repository's Definition of Done checks in its own integration worktree and report each check as `<repo>: <check>`, for example `api: npm test`.
+
 ## Discoveries
 
 Record discoveries as structured notes the reporter can lift into the sprint retro. A discovery is work outside your ticket that someone should do: a defect you did not cause, missing coverage, a design problem, a risk to a later ticket. Each one needs a title and a reason, because the retro turns it into a ticket in the next sprint and a ticket with no reason cannot be planned. Put them at the end of `evidence.notes`, under a `Discoveries:` line, one item per discovery:

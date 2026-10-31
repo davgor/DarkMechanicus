@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createMemoryFs, type MemoryFs } from '../../test/memoryFs'
@@ -268,5 +269,98 @@ describe('the project record of a database-only project', () => {
     initializeRepository({ layout, fs, ids: createSequentialIds(), clock: createTestClock() }, {})
     const record = parseRecord(projectRecord, fs.get(layout.projectFile) ?? '', 'project')
     expect(record.repoRoot).toBeUndefined()
+  })
+})
+
+let multiDirs: string[] = []
+
+afterEach(() => {
+  for (const dir of multiDirs) {
+    rmSync(dir, { recursive: true, force: true })
+  }
+  multiDirs = []
+})
+
+function tempDir(prefix: string): string {
+  const dir = realpathSync.native(mkdtempSync(join(tmpdir(), prefix)))
+  multiDirs.push(dir)
+  return dir
+}
+
+/** A parent folder holding Git repositories `alpha` and `beta` and one plain folder. */
+function folderOfRepos(): string {
+  const parent = join(tempDir('dm-multi-'), 'workspace')
+  for (const name of ['beta', 'alpha']) {
+    mkdirSync(join(parent, name, '.git'), { recursive: true })
+  }
+  mkdirSync(join(parent, 'notes'))
+  return parent
+}
+
+/** Every entry under `dir` (recursively) with its modification time. */
+function snapshot(dir: string): Record<string, number> {
+  const out: Record<string, number> = { '.': statSync(dir).mtimeMs }
+  for (const entry of readdirSync(dir, { encoding: 'utf8', recursive: true })) {
+    out[entry] = statSync(join(dir, entry)).mtimeMs
+  }
+  return out
+}
+
+function multiDeps(root: string, mode: 'db' | 'repo'): Parameters<typeof initializeRepository>[0] {
+  return {
+    layout: resolveLayout(root, { mode, homeDir: tempDir('dm-home-') }),
+    fs: nodeFs,
+    ids: createSequentialIds(),
+    clock: createTestClock()
+  }
+}
+
+describe('initializeRepository for a folder of repositories', () => {
+  it('records the child repositories in db mode and leaves the parent and every child untouched', () => {
+    const parent = folderOfRepos()
+    const before = snapshot(parent)
+    expect(Object.keys(before).sort()).toEqual(['.', 'alpha', 'alpha/.git', 'beta', 'beta/.git', 'notes'])
+    const d = multiDeps(parent, 'db')
+    initializeRepository(d, { layout: 'multi_repo' })
+    expect(readProject(d.layout, nodeFs)?.repositories).toEqual([{ name: 'alpha' }, { name: 'beta' }])
+    expect(snapshot(parent)).toEqual(before)
+  })
+
+  it('records no repositories for a single-repository set-up', () => {
+    const d = multiDeps(folderOfRepos(), 'db')
+    initializeRepository(d, {})
+    expect(readProject(d.layout, nodeFs)).not.toHaveProperty('repositories')
+  })
+})
+
+describe('initializeRepository refusing a folder of repositories', () => {
+  it('refuses repo mode, writing nothing', () => {
+    const parent = folderOfRepos()
+    const before = snapshot(parent)
+    const error = domainErrorOf(() => initializeRepository(multiDeps(parent, 'repo'), { layout: 'multi_repo' }))
+    expect(error.code).toBe('invalid_input')
+    expect(snapshot(parent)).toEqual(before)
+  })
+
+  it('refuses a parent inside a Git repository, naming the folder', () => {
+    const outer = tempDir('dm-outer-')
+    mkdirSync(join(outer, '.git'))
+    const parent = join(outer, 'workspace')
+    mkdirSync(join(parent, 'alpha', '.git'), { recursive: true })
+    const d = multiDeps(parent, 'db')
+    const error = domainErrorOf(() => initializeRepository(d, { layout: 'multi_repo' }))
+    expect(error.code).toBe('invalid_input')
+    expect(error.message).toContain(parent)
+    expect(nodeFs.exists(d.layout.projectFile)).toBe(false)
+  })
+
+  it('refuses a parent without child repositories, naming the folder', () => {
+    const parent = join(tempDir('dm-empty-'), 'workspace')
+    mkdirSync(join(parent, 'notes'), { recursive: true })
+    const d = multiDeps(parent, 'db')
+    const error = domainErrorOf(() => initializeRepository(d, { layout: 'multi_repo' }))
+    expect(error.code).toBe('invalid_input')
+    expect(error.message).toContain(parent)
+    expect(nodeFs.exists(d.layout.projectFile)).toBe(false)
   })
 })

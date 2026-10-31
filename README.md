@@ -9,6 +9,7 @@ An agent helps you shape an epic, decomposes it into tickets with acceptance cri
 - Connecting an agent host: [`docs/runbooks/mcp-setup.md`](docs/runbooks/mcp-setup.md)
 - Agents the app hosts (Claude Code, Codex, Cursor): [`docs/runbooks/agents.md`](docs/runbooks/agents.md)
 - Handing a saved epic to Linear: [`docs/runbooks/linear-transfer.md`](docs/runbooks/linear-transfer.md)
+- Working across a folder of Git repositories: [`docs/runbooks/multi-repo-folders.md`](docs/runbooks/multi-repo-folders.md)
 - Agent skills (provider-neutral, also served as MCP prompts): [`skills/`](skills/)
 
 ## Using it

@@ -49,7 +49,10 @@ export interface AttemptRow {
   evidence_json: string | null
   failure_json: string | null
   decision_json: string | null
-  /** The `SprintIncrement` verdict of a submission that named an increment; null for every other attempt. */
+  /**
+   * The `SprintIncrement` verdict of a submission that named an increment (in a folder of repositories, an array of
+   * them, one per touched repository, each with its `repo`); null for every other attempt.
+   */
   increment_json: string | null
   created_at: string
   updated_at: string
@@ -120,7 +123,8 @@ const EMPTY_WORKER: WorkerInfo = {
 }
 
 export function attemptView(row: AttemptRow): AttemptView {
-  const increment = parseJson<SprintIncrement | null>(row.increment_json, null)
+  // A folder of repositories stores one verdict per touched repository as an array; a single repository, one verdict.
+  const increment = parseJson<SprintIncrement | SprintIncrement[] | null>(row.increment_json, null)
   return {
     id: row.id,
     runId: row.run_id,
@@ -139,7 +143,7 @@ export function attemptView(row: AttemptRow): AttemptView {
     evidence: parseJson<AttemptEvidence | null>(row.evidence_json, null),
     failure: parseJson<AttemptFailure | null>(row.failure_json, null),
     decision: parseJson<AttemptDecision | null>(row.decision_json, null),
-    ...(increment === null ? {} : { increment }),
+    ...(increment === null ? {} : Array.isArray(increment) ? { increments: increment } : { increment }),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     submittedAt: row.submitted_at,
@@ -356,8 +360,11 @@ interface NewAttempt {
   leaseSeconds: number | null
   outputs: AttemptOutputs | null
   evidence: AttemptEvidence | null
-  /** The `SprintIncrement` verdict the attempt stands on; null for every attempt but a carried-forward acceptance's. */
-  increment: SprintIncrement | null
+  /**
+   * The verdict the attempt stands on, copied as stored (a folder of repositories' array of per-repository verdicts
+   * too); null for every attempt but a carried-forward acceptance's.
+   */
+  increment: SprintIncrement | SprintIncrement[] | null
   decision: AttemptDecision | null
 }
 
@@ -454,7 +461,7 @@ export function recordCarryForward(
     leaseSeconds: null,
     outputs: parseJson<AttemptOutputs | null>(earlier?.outputs_json, null),
     evidence: parseJson<AttemptEvidence | null>(earlier?.evidence_json, null),
-    increment: parseJson<SprintIncrement | null>(earlier?.increment_json, null),
+    increment: parseJson<SprintIncrement | SprintIncrement[] | null>(earlier?.increment_json, null),
     decision: { outcome: 'accepted', notes: entry.note, reasons: [], decidedBy: ctx.session.label }
   })
   advanceTicketStatus(ctx, { epicId: run.epic_id, ticketId: ticket.id }, 'completed')

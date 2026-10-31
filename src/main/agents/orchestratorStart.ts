@@ -83,7 +83,16 @@ export async function startOrchestratorRun(deps: OrchestratorStartDeps, request:
   }
 
   try {
-    await deps.sessions.send(chat, orchestratorKickoff({ epicId: epic.id, epicTitle: epic.title, branch: epic.branch?.name ?? null, runId: run.id }))
+    await deps.sessions.send(
+      chat,
+      orchestratorKickoff({
+        epicId: epic.id,
+        epicTitle: epic.title,
+        branch: epic.branch?.name ?? null,
+        repositoryBranches: epic.repositoryBranches,
+        runId: run.id
+      })
+    )
   } catch (error) {
     logUnexpected(deps, error)
     const removed = await removeChat(deps, chat)

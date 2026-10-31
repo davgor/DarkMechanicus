@@ -18,6 +18,7 @@ export const CAPABILITIES = [
   'plan.save',
   'profile.write',
   'project.definition_of_done',
+  'project.repositories',
   'ticket.status',
   'ticket.retry_grant',
   'ticket.delete',
@@ -77,7 +78,9 @@ const PLANNER_SHARED: Capability[] = [
   'epic.create',
   'draft.edit',
   'comment.write',
-  'profile.write'
+  'profile.write',
+  // Re-detecting a folder's repositories only records what is on disk, so both planning roles may do it.
+  'project.repositories'
 ]
 
 /**

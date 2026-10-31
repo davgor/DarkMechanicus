@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { PlanBundle } from '../../shared/domain/bundle'
 import type { RunView } from '../../shared/domain/views'
 import { makeBundle, sid, tid } from '../../test/bundles'
 import {
@@ -19,12 +20,16 @@ import {
   seedRevision,
   startedRun
 } from '../../test/execution'
+import { createStubGit } from '../../test/repoEnv'
 import { createTestCtx, type TestCtx, withRole } from '../../test/testContext'
 import { DomainError } from '../errors'
-import { buildRunHistoryRecord } from '../repo/portable'
+import { buildEpicStateRecord, buildRunHistoryRecord } from '../repo/portable'
+import type { GitAdapter } from '../repo/types'
 import { SKILLS_VERSION } from '../version'
 import type { Ctx } from '../context'
+import { adoptRevision } from './adoption'
 import { acceptAttempt, failAttempt, heartbeatAttempt, submitAttempt } from './attempts'
+import { getEpic } from './epics'
 import { expireLeases, runExecution } from './execution'
 import { registerHost } from './hosts'
 import { cancelRun, getRun, pauseRun, queueRun, requireOwnedRun, resumeRun, startRun, takeoverRun } from './runs'
@@ -243,6 +248,221 @@ describe('startRun — branch binding', () => {
     startRun(ctx, { epicId })
     expect(epicRow(ctx, epicId).branch_json).toBeNull()
     expect(eventKinds(ctx, 'epic.branch_set')).toEqual([])
+  })
+})
+
+const API_BRANCH_TIP = '1'.repeat(40)
+const API_HEAD = '2'.repeat(40)
+const WEB_HEAD = '3'.repeat(40)
+const DOCS_HEAD = '4'.repeat(40)
+const EPIC_BRANCH = 'epic/multi'
+
+interface FakeRepo {
+  head: string
+  branches: Record<string, string>
+}
+
+/** A test context for a folder of repositories whose adapters read `repos` live, recording each repository opened. */
+function folderCtx(repos: Record<string, FakeRepo>, role: 'orchestrator' | 'desktop' = 'orchestrator'): { ctx: TestCtx; opened: string[] } {
+  const opened: string[] = []
+  const gitFor = (repo: string | null): GitAdapter => {
+    const fake = repo === null ? undefined : repos[repo]
+    if (repo === null || fake === undefined) {
+      throw new Error(`No repository ${String(repo)}`)
+    }
+    opened.push(repo)
+    return {
+      ...createStubGit(),
+      head: () => ({ branch: 'main', commit: fake.head, detached: false }),
+      branchCommit: (name) => fake.branches[name] ?? null
+    }
+  }
+  return { ctx: createTestCtx({ role, repositories: Object.keys(repos), gitFor }), opened }
+}
+
+/** One sprint whose ticket n targets `repos[n - 1]` (none for undefined), plus whatever else `makeBundle` adds. */
+function repoBundle(repos: (string | undefined)[]): PlanBundle {
+  const bundle = makeBundle([repos.map((_, index) => index + 1)])
+  return {
+    ...bundle,
+    tickets: bundle.tickets.map((ticket, index) => {
+      const repo = repos[index]
+      return repo === undefined ? ticket : { ...ticket, repo, title: `${repo} - ${ticket.title}` }
+    })
+  }
+}
+
+function repositoryBranchesOf(ctx: Ctx, epicId: string): unknown {
+  const row = ctx.db.get<{ repository_branches_json: string | null }>('SELECT repository_branches_json FROM epics WHERE id = ?', epicId)
+  return row?.repository_branches_json === null || row === undefined ? null : JSON.parse(row.repository_branches_json)
+}
+
+describe('startRun — branch binding in a folder of repositories', () => {
+  it('binds the shared name in every repository the plan names, each with its own start commit', () => {
+    const { ctx, opened } = folderCtx({
+      api: { head: API_HEAD, branches: { [EPIC_BRANCH]: API_BRANCH_TIP } },
+      web: { head: WEB_HEAD, branches: {} },
+      docs: { head: DOCS_HEAD, branches: {} }
+    })
+    const { epicId } = seedEpic(ctx, { bundle: repoBundle(['web', 'api', undefined, 'api']) })
+    // Only the name is taken: the folder's own branch has no repository and no start commit.
+    startRun(ctx, { epicId, branch: { repository: 'elsewhere', name: EPIC_BRANCH, startCommit: 'f'.repeat(40) } })
+    const branch = { repository: null, name: EPIC_BRANCH, startCommit: null }
+    const repositoryBranches = [
+      { repository: 'api', name: EPIC_BRANCH, startCommit: API_BRANCH_TIP },
+      { repository: 'web', name: EPIC_BRANCH, startCommit: WEB_HEAD }
+    ]
+    expect(JSON.parse(epicRow(ctx, epicId).branch_json ?? 'null')).toEqual(branch)
+    expect(repositoryBranchesOf(ctx, epicId)).toEqual(repositoryBranches)
+    expect(opened.sort()).toEqual(['api', 'web'])
+    expect(eventKinds(ctx, 'epic.branch_set')).toEqual(['epic.branch_set'])
+    expect(lastEventPayload(ctx, 'epic.branch_set')).toEqual({ branch, repositoryBranches })
+    expect(getEpic(ctx, { epicId })).toMatchObject({ branch, repositoryBranches })
+    const record = buildEpicStateRecord(ctx.db, epicId, { generation: 1, updatedAt: ctx.clock.nowIso() })
+    expect(record).toMatchObject({ branch, repositoryBranches })
+    expect(pendingOutbox(ctx)).toContain(`epic_state:${epicId}:`)
+  })
+
+  it("uses the epic's own branch name without one in the request, and keeps that branch", () => {
+    const { ctx } = folderCtx({ api: { head: API_HEAD, branches: {} } })
+    const own = { repository: null, name: 'epic/own', startCommit: null }
+    const { epicId } = seedEpic(ctx, { bundle: repoBundle(['api']), branch: own })
+    startRun(ctx, { epicId, branch: { repository: null, name: 'epic/ignored', startCommit: null } })
+    expect(JSON.parse(epicRow(ctx, epicId).branch_json ?? 'null')).toEqual(own)
+    expect(repositoryBranchesOf(ctx, epicId)).toEqual([{ repository: 'api', name: 'epic/own', startCommit: API_HEAD }])
+    expect(lastEventPayload(ctx, 'epic.branch_set')).toEqual({
+      branch: own,
+      repositoryBranches: [{ repository: 'api', name: 'epic/own', startCommit: API_HEAD }]
+    })
+  })
+})
+
+describe('queueRun and startRun — a folder of repositories needs a branch name', () => {
+  it('refuses to queue a run for an epic without a branch name', () => {
+    const { ctx } = folderCtx({ api: { head: API_HEAD, branches: {} } }, 'desktop')
+    const { epicId } = seedEpic(ctx, { bundle: repoBundle(['api']) })
+    const error = domainError(() => queueRun(ctx, { epicId }))
+    expect([error.code, error.message]).toEqual([
+      'invalid_input',
+      'Set the epic branch first: a folder of repositories has no checkout to take the branch name from.'
+    ])
+    expect(ctx.db.get<{ n: number }>('SELECT COUNT(*) AS n FROM runs')?.n).toBe(0)
+    ctx.db.run('UPDATE epics SET branch_json = ? WHERE id = ?', JSON.stringify({ repository: null, name: EPIC_BRANCH, startCommit: null }), epicId)
+    expect(queueRun(ctx, { epicId }).state).toBe('queued')
+  })
+
+  it('refuses to start a run without a branch name, binding and creating nothing', () => {
+    const { ctx, opened } = folderCtx({ api: { head: API_HEAD, branches: {} } })
+    const { epicId } = seedEpic(ctx, { bundle: repoBundle(['api']) })
+    expect(errorCode(() => startRun(ctx, { epicId }))).toBe('invalid_input')
+    expect(ctx.db.get<{ n: number }>('SELECT COUNT(*) AS n FROM runs')?.n).toBe(0)
+    expect([epicRow(ctx, epicId).branch_json, repositoryBranchesOf(ctx, epicId), opened]).toEqual([null, null, []])
+    expect(eventKinds(ctx, 'epic.branch_set')).toEqual([])
+  })
+
+  it('refuses to start a queued run without a branch name too', () => {
+    const { ctx } = folderCtx({ api: { head: API_HEAD, branches: {} } })
+    const { epicId } = seedEpic(ctx, { bundle: repoBundle(['api']), branch: { repository: null, name: EPIC_BRANCH, startCommit: null } })
+    queueRun(withRole(ctx, 'desktop'), { epicId })
+    ctx.db.run('UPDATE epics SET branch_json = NULL WHERE id = ?', epicId)
+    expect(errorCode(() => startRun(ctx, { epicId }))).toBe('invalid_input')
+    expect(runRow(ctx, getRun(ctx, { epicId })?.id ?? '').state).toBe('queued')
+  })
+})
+
+describe('startRun and adoptRevision — repositories bound later', () => {
+  it('binds a repository an adopted revision names first, and never rebinds a bound one', () => {
+    const repos = {
+      api: { head: API_HEAD, branches: {} as Record<string, string> },
+      web: { head: WEB_HEAD, branches: {} as Record<string, string> }
+    }
+    const { ctx, opened } = folderCtx(repos)
+    const { epicId } = seedEpic(ctx, { bundle: repoBundle(['api']) })
+    const runId = startRun(ctx, { epicId, branch: { repository: null, name: EPIC_BRANCH, startCommit: null } }).id
+    const apiBound = { repository: 'api', name: EPIC_BRANCH, startCommit: API_HEAD }
+    expect(repositoryBranchesOf(ctx, epicId)).toEqual([apiBound])
+    // The api repository moves on and gains the epic branch: its binding must not change.
+    repos.api.branches[EPIC_BRANCH] = API_BRANCH_TIP
+    repos.api.head = API_BRANCH_TIP
+    repos.web.branches[EPIC_BRANCH] = '5'.repeat(40)
+    pauseRun(ctx, { runId })
+    opened.length = 0
+    adoptRevision(ctx, { runId, revisionId: seedRevision(ctx, epicId, repoBundle(['api', 'web'])) })
+    const webBound = { repository: 'web', name: EPIC_BRANCH, startCommit: '5'.repeat(40) }
+    expect(repositoryBranchesOf(ctx, epicId)).toEqual([apiBound, webBound])
+    expect(opened).toEqual(['web'])
+    expect(lastEventPayload(ctx, 'epic.branch_set')).toEqual({
+      branch: { repository: null, name: EPIC_BRANCH, startCommit: null },
+      repositoryBranches: [webBound]
+    })
+    // Adopting a revision that names no new repository binds nothing more.
+    adoptRevision(ctx, { runId, revisionId: seedRevision(ctx, epicId, repoBundle(['web', 'api'])) })
+    expect(repositoryBranchesOf(ctx, epicId)).toEqual([apiBound, webBound])
+    expect(eventKinds(ctx, 'epic.branch_set')).toEqual(['epic.branch_set', 'epic.branch_set'])
+  })
+
+  it('keeps bound repositories across runs and binds only the new ones', () => {
+    const repos = { api: { head: API_HEAD, branches: {} }, web: { head: WEB_HEAD, branches: {} } }
+    const { ctx } = folderCtx(repos)
+    const { epicId } = seedEpic(ctx, { bundle: repoBundle(['api']) })
+    const first = startRun(ctx, { epicId, branch: { repository: null, name: EPIC_BRANCH, startCommit: null } }).id
+    cancelRun(ctx, { runId: first })
+    repos.api.head = API_BRANCH_TIP
+    seedRevision(ctx, epicId, repoBundle(['api', 'web']))
+    startRun(ctx, { epicId })
+    expect(repositoryBranchesOf(ctx, epicId)).toEqual([
+      { repository: 'api', name: EPIC_BRANCH, startCommit: API_HEAD },
+      { repository: 'web', name: EPIC_BRANCH, startCommit: WEB_HEAD }
+    ])
+  })
+})
+
+describe('startRun and adoptRevision — edge cases of binding in a folder of repositories', () => {
+  it("binds only the epic's own branch when the plan names no repository", () => {
+    const { ctx, opened } = folderCtx({ api: { head: API_HEAD, branches: {} } })
+    const { epicId } = seedEpic(ctx, { bundle: repoBundle([undefined, undefined]) })
+    startRun(ctx, { epicId, branch: { repository: null, name: EPIC_BRANCH, startCommit: null } })
+    const branch = { repository: null, name: EPIC_BRANCH, startCommit: null }
+    expect(JSON.parse(epicRow(ctx, epicId).branch_json ?? 'null')).toEqual(branch)
+    expect(repositoryBranchesOf(ctx, epicId)).toBeNull()
+    expect(opened).toEqual([])
+    expect(lastEventPayload(ctx, 'epic.branch_set')).toEqual({ branch, repositoryBranches: [] })
+  })
+
+  it('binds a repository with no commits yet without a start commit', () => {
+    const gitFor = (): GitAdapter => ({ ...createStubGit(), head: () => null, branchCommit: () => null })
+    const ctx = createTestCtx({ repositories: ['empty'], gitFor })
+    const { epicId } = seedEpic(ctx, { bundle: repoBundle(['empty']) })
+    startRun(ctx, { epicId, branch: { repository: null, name: EPIC_BRANCH, startCommit: null } })
+    expect(repositoryBranchesOf(ctx, epicId)).toEqual([{ repository: 'empty', name: EPIC_BRANCH, startCommit: null }])
+  })
+
+  it('binds nothing when an adopted revision names a new repository but the epic has lost its branch name', () => {
+    const { ctx, opened } = folderCtx({ api: { head: API_HEAD, branches: {} }, web: { head: WEB_HEAD, branches: {} } })
+    const { epicId } = seedEpic(ctx, { bundle: repoBundle(['api']) })
+    const runId = startRun(ctx, { epicId, branch: { repository: null, name: EPIC_BRANCH, startCommit: null } }).id
+    const apiBound = [{ repository: 'api', name: EPIC_BRANCH, startCommit: API_HEAD }]
+    ctx.db.run('UPDATE epics SET branch_json = NULL WHERE id = ?', epicId)
+    pauseRun(ctx, { runId })
+    opened.length = 0
+    adoptRevision(ctx, { runId, revisionId: seedRevision(ctx, epicId, repoBundle(['api', 'web'])) })
+    expect(repositoryBranchesOf(ctx, epicId)).toEqual(apiBound)
+    expect(epicRow(ctx, epicId).branch_json).toBeNull()
+    expect(opened).toEqual([])
+    expect(eventKinds(ctx, 'epic.branch_set')).toEqual(['epic.branch_set'])
+  })
+})
+
+describe('startRun — a single repository has no repository branches', () => {
+  it('leaves single-repository epics without repository branches, in the view and in the epic state', () => {
+    const ctx = createTestCtx({ checkout: { branch: 'feature/x', commit: 'c0ffee1' } })
+    const { epicId } = seedEpic(ctx)
+    startRun(ctx, { epicId })
+    expect(repositoryBranchesOf(ctx, epicId)).toBeNull()
+    expect(getEpic(ctx, { epicId })).not.toHaveProperty('repositoryBranches')
+    expect(lastEventPayload(ctx, 'epic.branch_set')).toEqual({ branch: { repository: null, name: 'feature/x', startCommit: 'c0ffee1' } })
+    const record = buildEpicStateRecord(ctx.db, epicId, { generation: 1, updatedAt: ctx.clock.nowIso() })
+    expect(record).not.toHaveProperty('repositoryBranches')
   })
 })
 

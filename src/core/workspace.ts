@@ -1,4 +1,5 @@
 import { homedir } from 'node:os'
+import { dirname, join } from 'node:path'
 import type { CommandApi, CommandName } from '../shared/domain/api'
 import type {
   DefinitionOfDoneCheck,
@@ -22,7 +23,7 @@ import { createFileHashCache } from './repo/fileHashes'
 import { flushOutbox, type FlushScope } from './repo/finalizer'
 import { createGitAdapter } from './repo/git'
 import { reconcileRepository } from './repo/importer'
-import { ensureMachineId, initializeRepository, readProject } from './repo/initialize'
+import { ensureMachineId, initializeRepository, type ProjectLayout, readProject } from './repo/initialize'
 import { resolveLayout } from './repo/layout'
 import { nodeFs } from './repo/nodeFs'
 import type { ProjectRecord } from './repo/portable'
@@ -60,6 +61,11 @@ export interface OpenWorkspaceOptions {
   ids?: IdGenerator
   fs?: FsAdapter
   git?: GitAdapter
+  /**
+   * Builds the adapter for a child repository of a folder of repositories, given its checked real path
+   * (default `createGitAdapter` with this session's filesystem). For tests, as `git` is for the root.
+   */
+  gitAt?: (root: string) => GitAdapter
   /** Reconcile tracked records on open and on heartbeat (default true). */
   autoReconcile?: boolean
   serverInfo?: { name: string; version: string }
@@ -123,7 +129,8 @@ function bindProject(db: Db, layout: RepoLayout, project: ProjectRecord): void {
   })
 }
 
-class RepositoryWorkspace implements WorkspaceCore {
+/** Exported for tests that need the core itself (e.g. `gitFor`); everything else opens a `Workspace`. */
+export class RepositoryWorkspace implements WorkspaceCore {
   readonly repoRoot: string
   readonly homeDir: string
   /** Re-resolved when `initialize` sets the folder up in a mode other than the one it resolved to. */
@@ -138,6 +145,8 @@ class RepositoryWorkspace implements WorkspaceCore {
   private granted: RedeemedGrant | null = null
   /** Comment and profile files read by earlier reconciles, so unchanged ones are not read again. */
   private readonly fileHashes = createFileHashCache()
+  /** Adapters `gitFor` opened, by child repository name. */
+  private readonly childGits = new Map<string, GitAdapter>()
 
   constructor(options: OpenWorkspaceOptions) {
     this.options = options
@@ -310,9 +319,13 @@ class RepositoryWorkspace implements WorkspaceCore {
       session,
       machineId,
       projectId: project.projectId,
+      projectRoot: this.repoRoot,
       assertBranch: () => this.assertBranch(),
       checkout: () => this.checkout(),
-      definitionOfDone: () => this.definitionOfDone()
+      gitFor: (repo) => this.gitFor(repo),
+      definitionOfDone: () => this.definitionOfDone(),
+      repositories: () => readProject(this.layout, this.fs)?.repositories?.map((entry) => entry.name) ?? null,
+      repositoryEntries: () => readProject(this.layout, this.fs)?.repositories ?? null
     }
     return { db, project, ctx }
   }
@@ -325,6 +338,70 @@ class RepositoryWorkspace implements WorkspaceCore {
   checkout(): { branch: string | null; commit: string | null } {
     const head = this.git.head()
     return { branch: head?.branch ?? null, commit: head?.commit ?? null }
+  }
+
+  /**
+   * The Git adapter for `repo`, a child repository of this folder of repositories, or the root adapter for null.
+   * The name is checked on every call, cached adapter or not, before any adapter is built or Git runs.
+   */
+  gitFor(repo: string | null): GitAdapter {
+    if (repo === null) {
+      return this.git
+    }
+    const path = this.childRepositoryPath(repo)
+    let git = this.childGits.get(repo)
+    if (git === undefined) {
+      git = this.options.gitAt?.(path) ?? createGitAdapter(path, { fs: this.fs })
+      this.childGits.set(repo, git)
+    }
+    return git
+  }
+
+  /** Refuses `repo` unless `project.json`, as it is now (so a rescan behind this session applies), lists it present. */
+  private assertListedRepository(repo: string): void {
+    const entry = readProject(this.layout, this.fs)?.repositories?.find((candidate) => candidate.name === repo)
+    if (entry === undefined) {
+      fail('invalid_input', `${JSON.stringify(repo)} is not a repository of this project.`, { repository: repo })
+    }
+    if (entry.missing === true) {
+      fail('invalid_input', `Repository ${JSON.stringify(repo)} is missing from ${this.repoRoot}.`, { repository: repo })
+    }
+  }
+
+  /**
+   * The real path of child repository `repo`: listed and present, and `<root>/<repo>` a directory that is not a
+   * link and whose real parent is the real project root, so nothing reaches outside the folder through `..`,
+   * separators or links.
+   */
+  private childRepositoryPath(repo: string): string {
+    this.assertListedRepository(repo)
+    const shown = JSON.stringify(repo)
+    const path = join(this.repoRoot, repo)
+    if (this.fs.isSymlink(path)) {
+      fail('unsafe_path', `Repository ${shown} is a link, not a folder inside ${this.repoRoot}.`, { repository: repo })
+    }
+    if (!this.fs.exists(path)) {
+      fail('invalid_input', `Repository ${shown} is missing from ${this.repoRoot}.`, { repository: repo })
+    }
+    const real = this.realPathOf(path)
+    if (real === null || dirname(real) !== this.realPathOf(this.repoRoot)) {
+      fail('unsafe_path', `Repository ${shown} does not resolve to a folder directly inside ${this.repoRoot}.`, {
+        repository: repo
+      })
+    }
+    // Without its own `.git`, Git would search upward from the child and could open a repository around the folder.
+    if (!this.fs.isDirectory(real) || !this.fs.exists(join(real, '.git'))) {
+      fail('invalid_input', `Repository ${shown} is not a Git repository folder.`, { repository: repo })
+    }
+    return real
+  }
+
+  private realPathOf(path: string): string | null {
+    try {
+      return this.fs.realpath(path)
+    } catch {
+      return null
+    }
   }
 
   /** Only asked once the store is open (open, heartbeat, and the branch guard). */
@@ -353,8 +430,10 @@ class RepositoryWorkspace implements WorkspaceCore {
    * session that was working on the project it already had still working on it, rather than closed
    * and pointing at a project that was never created.
    */
-  initialize(input: { name?: string; keyPrefix?: string; mode?: StorageMode }): InitializeResultView {
-    const target = input.mode === undefined ? this.layout : this.layoutFor(input.mode)
+  initialize(input: { name?: string; keyPrefix?: string; mode?: StorageMode; layout?: ProjectLayout }): InitializeResultView {
+    // A folder of repositories is stored in the database only, so that is its default mode.
+    const mode = input.mode ?? (input.layout === 'multi_repo' ? 'db' : undefined)
+    const target = mode === undefined ? this.layout : this.layoutFor(mode)
     const result = initializeRepository(
       {
         layout: target,

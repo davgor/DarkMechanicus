@@ -1,0 +1,19 @@
+$ DARKMECHANICUS_HOME=<evidence>/core/home npx tsx exec.mts c9   # RepositoryWorkspace from src/core/workspace.ts on fixtures/parent
+project repositories: [{"name":"alpha"},{"name":"beta","missing":true},{"name":"gamma"},{"name":"beta-renamed"},{"name":"delta"}]
+git -C alpha branch/commit: main 28a1d62563a0550a8453dc7dd2dc072cf313fc8f
+gitFor('alpha').head() => {
+  "branch": "main",
+  "commit": "28a1d62563a0550a8453dc7dd2dc072cf313fc8f",
+  "detached": false
+}
+gitFor('gamma').head()  (worktree checkout, .git file) => {
+  "branch": "gamma-wt",
+  "commit": "37a002db86da127d793c93ab559a73f6c8c1c4b7",
+  "detached": false
+}
+gitFor('../alpha') => REFUSED code=invalid_input message="\"../alpha\" is not a repository of this project."
+gitFor('alpha-link')  (symlink to alpha in the parent, never listed) => REFUSED code=invalid_input message="\"alpha-link\" is not a repository of this project."
+
+replaced the listed child delta with a symlink: lrwxr-xr-x  1 <user>  wheel  5 Oct 31 17:19 /private/tmp/multirepo-run/evidence/core/fixtures/parent/delta -> alpha
+gitFor('delta')  (listed, now a symlink to alpha) => REFUSED code=unsafe_path message="Repository \"delta\" is a link, not a folder inside /private/tmp/multirepo-run/evidence/core/fixtures/parent."
+gitFor('beta')  (listed, missing since the rename) => REFUSED code=invalid_input message="Repository \"beta\" is missing from /private/tmp/multirepo-run/evidence/core/fixtures/parent."

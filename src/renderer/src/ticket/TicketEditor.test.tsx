@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-libra
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { installDomShims } from '../epic/__mocks__/domShims'
 import { FakeBackend, scenario } from '../epic/__mocks__/fakeBackend'
-import { draftPlan, epicDetail } from '../epic/__mocks__/fixtures'
+import { bundle as planBundle, draftPlan, epicDetail, projectView } from '../epic/__mocks__/fixtures'
 import { renderWorkspace, type WorkspaceHarness } from '../epic/__mocks__/renderWorkspace'
 import { allowSlowRendering } from '../epic/__mocks__/testTiming'
 
@@ -237,5 +237,53 @@ describe('ticket editor: header', () => {
     const editor = await screen.findByLabelText('Edit ticket DM-305')
     expect(within(editor).getByText('NEW IN REV 5').textContent).toBe('NEW IN REV 5')
     expect(within(editor).getByText('No prerequisites.').textContent).toBe('No prerequisites.')
+  })
+})
+
+describe('ticket editor: repository', () => {
+  const REPOSITORIES = [
+    { name: 'alpha', missing: false },
+    { name: 'beta', missing: false }
+  ]
+
+  function repoDraft(repo: string | undefined, title: string): ReturnType<typeof draftPlan> {
+    const plan = draftPlan()
+    const tickets = plan.bundle.tickets.map((item) => (item.id === 'tk_202' ? { ...item, title, ...(repo === undefined ? {} : { repo }) } : item))
+    return { ...plan, bundle: planBundle({ ...plan.bundle, tickets }) }
+  }
+
+  async function openRepoEditor(draft: ReturnType<typeof draftPlan>, title: string): Promise<{ h: WorkspaceHarness; editor: HTMLElement }> {
+    const backend = new FakeBackend(scenario({ epic: epicDetail({ hasDraft: true }), draft, project: projectView({ repositories: REPOSITORIES }) }))
+    const h = renderWorkspace(backend)
+    fireEvent.click(await screen.findByRole('button', { name: 'View draft' }))
+    fireEvent.click(await screen.findByText(title))
+    const editor = await screen.findByLabelText('Edit ticket DM-202')
+    await within(editor).findByLabelText('Repository')
+    return { h, editor }
+  }
+
+  it('edits the description beside the prefix and applies a new repository with update_ticket', async () => {
+    const { h, editor } = await openRepoEditor(repoDraft('alpha', 'alpha - Import'), 'alpha - Import')
+    expect(within(editor).getByLabelText('Title prefix').textContent).toBe('alpha - ')
+    expect(field(editor, 'Title').value).toBe('Import')
+    fireEvent.change(field(editor, 'Repository'), { target: { value: 'beta' } })
+    expect(within(editor).getByLabelText('Title prefix').textContent).toBe('beta - ')
+    fireEvent.click(within(editor).getByRole('button', { name: 'Apply' }))
+    expect(await within(editor).findByText('Applied to the draft.')).toBeTruthy()
+    expect(opsOf(h)).toEqual([[{ op: 'update_ticket', ticket: 'tk_202', patch: { repo: 'beta', title: 'Import' } }]])
+  })
+
+  it('refuses to apply a work ticket without a repository', async () => {
+    const { h, editor } = await openRepoEditor(repoDraft(undefined, 'New ticket'), 'New ticket')
+    fireEvent.change(field(editor, 'Title'), { target: { value: 'Import' } })
+    fireEvent.click(within(editor).getByRole('button', { name: 'Apply' }))
+    expect((await within(editor).findByRole('alert')).textContent).toBe('Choose a repository.')
+    expect(opsOf(h)).toEqual([])
+  })
+
+  it('shows no repository select for a single-repository project', async () => {
+    const { editor } = await openEditor()
+    expect(within(editor).queryByLabelText('Repository')).toBe(null)
+    expect(within(editor).queryByLabelText('Title prefix')).toBe(null)
   })
 })

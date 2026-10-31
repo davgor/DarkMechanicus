@@ -3,6 +3,7 @@
  * review decisions, failures with the plan's failure policy, reconciliation of expired leases, and
  * carry-forward of work completed earlier.
  */
+import { join } from 'node:path'
 import type { ClaimTicketInput, HeartbeatAttemptInput, SubmitAttemptInput } from '../../shared/domain/api'
 import type { EpicBranch, ReasoningEffort, TicketContent } from '../../shared/domain/bundle'
 import type { DomainErrorCode } from '../../shared/domain/errors'
@@ -25,6 +26,7 @@ import type {
   CriterionResult,
   ExecutionPacket,
   HostCatalog,
+  PacketRepository,
   SprintIncrement,
   TicketExecutionView,
   WorkerInfo
@@ -59,7 +61,9 @@ import {
   type RunRow,
   ticketOf
 } from './execution'
+import { isRepositoryFolder } from './epicBranches'
 import { requestWithoutKey, withIdempotency } from './idempotency'
+import { incrementRefusal, touchedRepositories } from './increments'
 import { enqueueOutbox } from './outbox'
 import { failRunRow, leaseTimeGivenBack, PAUSABLE_STATES, pauseRunRow, requireOwnedRun } from './runs'
 import { indexDocument } from './searchIndex'
@@ -103,6 +107,10 @@ const REPORTING: ExecutionPacket['reporting'] = {
 /** Added to an acceptance node's reporting instructions when the project has a Definition of Done. */
 const DEFINITION_OF_DONE_INSTRUCTIONS =
   'This is a sprint acceptance node: run every check in definitionOfDone and report each one in the evidence.checks of submit_attempt under its exact name, with status passed, failed or skipped. The definition_of_done gate of the checkpoint is met only when the accepted attempt reports every one of them as passed.'
+
+/** In a folder of repositories, added instead when a touched repository has a Definition of Done. */
+const REPOSITORY_DEFINITION_OF_DONE_INSTRUCTIONS =
+  'This is a sprint acceptance node: in each entry of repositories, run every check in its definitionOfDone in that repository and report each one in the evidence.checks of submit_attempt as "<repository name>: <check name>" (for example "api: lint"), with status passed, failed or skipped. The definition_of_done gate of the checkpoint is met only when the accepted attempt reports every one of them as passed.'
 
 const EMPTY_EVIDENCE: AttemptEvidence = { checks: [], criteria: [], notes: '' }
 
@@ -278,17 +286,86 @@ interface PacketParts {
   secret: string
   leaseSeconds: number
   effort: ReasoningEffort | null
+  /** The packet's repository fields: from `repositoryPart`, computed before the attempt is made. */
+  repositories: RepositoryPart | undefined
 }
 
-/** What a sprint acceptance node's packet adds when the project has a Definition of Done; nothing for any other ticket. */
-function definitionOfDonePart(ctx: Ctx, ticket: TicketContent): Pick<ExecutionPacket, 'definitionOfDone' | 'reporting'> | undefined {
-  const definition = isAcceptanceTicket(ticket) ? ctx.definitionOfDone() : []
-  if (definition.length === 0) {
+type RepositoryPart = Pick<ExecutionPacket, 'repository' | 'repositories'>
+
+/** Repository `name` of the folder with its path and bound epic branch, refusing a claim when it is missing or unbound. */
+function packetRepository(ctx: Ctx, bound: EpicBranch[], name: string, ticketKey: string): PacketRepository {
+  const entry = ctx.repositoryEntries()?.find((candidate) => candidate.name === name)
+  if (entry === undefined || entry.missing === true) {
+    fail('invalid_input', `${ticketKey} targets repository ${JSON.stringify(name)}, which is missing from this project.`, {
+      ticketKey,
+      repository: name
+    })
+  }
+  const branch =
+    bound.find((candidate) => candidate.repository === name) ??
+    fail('invalid_input', `${ticketKey} targets repository ${JSON.stringify(name)}, which has no epic branch bound.`, {
+      ticketKey,
+      repository: name
+    })
+  return { name, path: join(ctx.projectRoot, name), branch }
+}
+
+/** The touched repositories of an acceptance node's sprint, each with its own Definition of Done when it has one. */
+function acceptanceRepositories(ctx: Ctx, bound: EpicBranch[], sprintId: string, ticketKey: string): PacketRepository[] {
+  const entries = ctx.repositoryEntries() ?? []
+  return touchedRepositories(ctx, sprintId).map((name) => {
+    const repository = packetRepository(ctx, bound, name, ticketKey)
+    const definitionOfDone = entries.find((entry) => entry.name === name)?.definitionOfDone ?? []
+    return definitionOfDone.length === 0 ? repository : { ...repository, definitionOfDone }
+  })
+}
+
+/**
+ * In a folder of repositories, the repository a work ticket targets, or the touched repositories of an acceptance
+ * node's sprint; nothing for a single repository. Refuses (`invalid_input`) a work ticket that names no repository,
+ * or whose repository is missing or unbound, so no packet goes out without a path.
+ */
+function repositoryPart(ctx: Ctx, epicId: string, ticket: TicketContent, sprintId: string): RepositoryPart | undefined {
+  if (!isRepositoryFolder(ctx)) {
     return undefined
   }
+  const row = ctx.db.get<{ repository_branches_json: string | null }>('SELECT repository_branches_json FROM epics WHERE id = ?', epicId)
+  const bound = parseJson<EpicBranch[]>(row?.repository_branches_json, [])
+  if (isAcceptanceTicket(ticket)) {
+    return { repositories: acceptanceRepositories(ctx, bound, sprintId, ticket.key) }
+  }
+  if (ticket.repo === undefined) {
+    fail('invalid_input', `${ticket.key} names no repository; a work ticket in a folder of repositories must target one.`, {
+      ticketKey: ticket.key
+    })
+  }
+  return { repository: packetRepository(ctx, bound, ticket.repo, ticket.key) }
+}
+
+/** The instruction for the Definition of Done an acceptance node carries: the project's, its repositories', or none. */
+function definitionOfDoneLines(definitionOfDone: readonly unknown[], repositories: PacketRepository[] | undefined): string[] {
+  if (definitionOfDone.length > 0) {
+    return [DEFINITION_OF_DONE_INSTRUCTIONS]
+  }
+  return repositories?.some((repository) => repository.definitionOfDone !== undefined) === true ? [REPOSITORY_DEFINITION_OF_DONE_INSTRUCTIONS] : []
+}
+
+/**
+ * The worker's reporting text, plus what an acceptance node's Definition of Done or a work ticket's repository
+ * adds, and the project's Definition of Done for the packet. That list belongs to a single repository's sprint
+ * acceptance node only: a folder of repositories (`repositories` defined) has none of its own, and its node's
+ * `repositories` entries carry theirs instead.
+ */
+function reportingPart(ctx: Ctx, ticket: TicketContent, repositories: RepositoryPart | undefined): Pick<ExecutionPacket, 'reporting' | 'definitionOfDone'> {
+  const definitionOfDone = isAcceptanceTicket(ticket) && repositories === undefined ? ctx.definitionOfDone() : []
+  const lines = [REPORTING.instructions, ...definitionOfDoneLines(definitionOfDone, repositories?.repositories)]
+  const repository = repositories?.repository
+  if (repository !== undefined) {
+    lines.push(`Work only in a worktree of repository.path (${repository.path}), on that repository's branch ${repository.branch.name}.`)
+  }
   return {
-    definitionOfDone: definition,
-    reporting: { ...REPORTING, instructions: `${REPORTING.instructions} ${DEFINITION_OF_DONE_INSTRUCTIONS}` }
+    reporting: lines.length === 1 ? REPORTING : { ...REPORTING, instructions: lines.join(' ') },
+    ...(definitionOfDone.length === 0 ? {} : { definitionOfDone })
   }
 }
 
@@ -315,8 +392,8 @@ function executionPacket(ctx: Ctx, parts: PacketParts): ExecutionPacket {
     ticketContentHash: row.ticket_content_hash,
     effort: parts.effort,
     predecessors: predecessorsOf(context, view),
-    reporting: REPORTING,
-    ...definitionOfDonePart(ctx, ticket)
+    ...reportingPart(ctx, ticket, parts.repositories),
+    ...parts.repositories
   }
 }
 
@@ -324,6 +401,7 @@ function claimReadyTicket(ctx: Ctx, context: RunContext, input: ClaimTicketInput
   const { run, bundle } = context
   const ticket = ticketOf(bundle, input.ticketId)
   const view = claimableView(executionOf(context), ticket)
+  const repositories = repositoryPart(ctx, run.epic_id, ticket, view.sprintId)
   const catalog = runCatalog(ctx, run)
   const fallback = assignmentFallback(ticket, catalog, input.worker.modelId)
   if (fallback === null) {
@@ -353,7 +431,7 @@ function claimReadyTicket(ctx: Ctx, context: RunContext, input: ClaimTicketInput
     kind: 'attempt.claimed',
     payload: { number: row.number, worker: worker.label, modelId: worker.modelId, ...(fallback === null ? {} : { fallback }) }
   })
-  const packetParts = { context, row, view, secret, leaseSeconds, effort: worker.effort ?? null }
+  const packetParts = { context, row, view, secret, leaseSeconds, effort: worker.effort ?? null, repositories }
   const packet = executionPacket(ctx, packetParts)
   return { attempt: attemptView(row), packet: fallback === null ? packet : { ...packet, fallback } }
 }
@@ -492,7 +570,7 @@ export function heartbeatAttempt(ctx: Ctx, input: HeartbeatAttemptInput): Attemp
 function storeSubmission(
   ctx: Ctx,
   row: AttemptRow,
-  submission: { outputs: OutputsInput; evidence?: Partial<AttemptEvidence>; increment?: SprintIncrement }
+  submission: { outputs: OutputsInput; evidence?: Partial<AttemptEvidence>; increment?: SubmittedIncrement }
 ): void {
   const now = ctx.clock.nowIso()
   ctx.db.run(
@@ -507,12 +585,16 @@ function storeSubmission(
   )
 }
 
+/** What a submission stores in `increment_json`: one verdict for a single repository, one per touched repository for a folder. */
+type SubmittedIncrement = SprintIncrement | SprintIncrement[]
+
 /**
- * The verdict to store with a submission that names an increment. Only a sprint's acceptance node names one,
- * and the command layer must already have verified it: an unverified increment is never stored as if it passed.
+ * The verdict to store with a submission that names an increment (or a folder of repositories' increments). Only a
+ * sprint's acceptance node names one, in the shape the project takes (`incrementRefusal`), and the command layer must
+ * already have verified it: an unverified increment is never stored as if it passed.
  */
-function verdictOf(ctx: Ctx, row: AttemptRow, input: SubmitAttemptInput, verified: SprintIncrement | undefined): SprintIncrement | undefined {
-  if (input.increment === undefined) {
+function verdictOf(ctx: Ctx, row: AttemptRow, input: SubmitAttemptInput, verified: SubmittedIncrement | undefined): SubmittedIncrement | undefined {
+  if (input.increment === undefined && input.increments === undefined) {
     return undefined
   }
   const bundle = loadBundle(ctx, requireRun(ctx, row.run_id).revision_id)
@@ -522,15 +604,48 @@ function verdictOf(ctx: Ctx, row: AttemptRow, input: SubmitAttemptInput, verifie
       ticketId: ticket.id
     })
   }
-  return verified ?? fail('internal', 'The increment was not verified before it was stored.', { attemptId: row.id })
+  const sprint = bundle.sprints.find((item) => item.ticketIds.includes(ticket.id))
+  const refusal = sprint === undefined ? null : incrementRefusal(ctx, sprint.id, input)
+  if (refusal !== null) {
+    fail('invalid_input', `${ticket.key}: ${refusal.message}`, { ticketId: ticket.id, ...refusal.details })
+  }
+  return verifiedAsNamed(input, verified) ?? fail('internal', 'The increment was not verified before it was stored.', { attemptId: row.id })
+}
+
+/**
+ * `verified` when it answers what the submission named: a single repository's one verdict, or a verdict for every
+ * named repository and only those, in name order. Undefined otherwise.
+ */
+function verifiedAsNamed(input: SubmitAttemptInput, verified: SubmittedIncrement | undefined): SubmittedIncrement | undefined {
+  if (input.increments === undefined) {
+    return Array.isArray(verified) ? undefined : verified
+  }
+  const repos = input.increments.map((item) => item.repo).sort()
+  const matches = Array.isArray(verified) && verified.length === repos.length && verified.every((verdict, index) => verdict.repo === repos[index])
+  return matches ? verified : undefined
+}
+
+/** The submitted event's summary of the stored verdict: each repository's commit and outcome for a folder of repositories. */
+function submittedPayload(increment: SubmittedIncrement | undefined): Record<string, unknown> | undefined {
+  if (increment === undefined) {
+    return undefined
+  }
+  if (!Array.isArray(increment)) {
+    return { increment: { commit: increment.commit, passed: increment.passed } }
+  }
+  return {
+    increments: increment.map((verdict) => ({ repo: verdict.repo, commit: verdict.commit, passed: verdict.passed })),
+    passed: increment.every((verdict) => verdict.passed)
+  }
 }
 
 /**
  * Worker (or orchestrator) reports results with the claim token. Submission never unlocks dependents.
- * `verified` is the server's verdict on the increment the submission names (an acceptance node's); it is
- * stored whether it passed or not, so a failed one keeps the sprint's gate unmet and says why.
+ * `verified` is the server's verdict on the increment the submission names (an acceptance node's), or each touched
+ * repository's in a folder of repositories; it is stored whether it passed or not, so a failed one keeps the sprint's
+ * gate unmet and says why (one failed repository fails the node's increment).
  */
-export function submitAttempt(ctx: Ctx, input: SubmitAttemptInput, verified?: SprintIncrement): AttemptView {
+export function submitAttempt(ctx: Ctx, input: SubmitAttemptInput, verified?: SubmittedIncrement): AttemptView {
   requireCapability(ctx.session, 'attempt.submit')
   settleLeases(ctx, input.attemptId)
   return withIdempotency(ctx, { command: 'submitAttempt', key: input.idempotencyKey, request: requestWithoutKey(input) }, () => {
@@ -539,8 +654,7 @@ export function submitAttempt(ctx: Ctx, input: SubmitAttemptInput, verified?: Sp
     const increment = verdictOf(ctx, row, input, verified)
     storeSubmission(ctx, row, { ...input, increment })
     const run = requireRun(ctx, row.run_id)
-    const payload = increment === undefined ? undefined : { increment: { commit: increment.commit, passed: increment.passed } }
-    recordAttempt(ctx, row, run.epic_id, { kind: 'attempt.submitted', payload })
+    recordAttempt(ctx, row, run.epic_id, { kind: 'attempt.submitted', payload: submittedPayload(increment) })
     return attemptView(indexAttempt(ctx, run, row.id))
   })
 }

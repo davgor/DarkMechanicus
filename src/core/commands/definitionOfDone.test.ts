@@ -1,5 +1,5 @@
 /** The project's Definition of Done through the command layer: read with getProject, set with setDefinitionOfDone. */
-import { readFileSync } from 'node:fs'
+import { mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createHarness, type Harness } from '../../test/workspaceHarness'
@@ -120,5 +120,89 @@ describe('setDefinitionOfDone refused', () => {
     const planner = harness.open('planner') as unknown as { setDefinitionOfDone(input: unknown): Promise<unknown> }
     expect(await codeOf(planner.setDefinitionOfDone(input))).toBe('invalid_input')
     expect(projectText()).toBe(original)
+  })
+})
+
+describe('setDefinitionOfDone in a single repository', () => {
+  it('refuses a repo, and project.json stays as it was', async () => {
+    const original = projectText()
+    expect(await codeOf(harness.open('planner').setDefinitionOfDone({ checks: [LINT], repo: 'alpha' }))).toBe('invalid_input')
+    expect(projectText()).toBe(original)
+  })
+})
+
+function addRepo(name: string): void {
+  mkdirSync(join(harness.root, name, '.git'), { recursive: true })
+}
+
+/** Replaces the single repository the outer beforeEach set up with a folder of alpha and beta. */
+async function setUpFolder(): Promise<void> {
+  harness.cleanup()
+  harness = createHarness()
+  addRepo('alpha')
+  addRepo('beta')
+  await harness.open('desktop').initializeRepository({ layout: 'multi_repo' })
+}
+
+describe('setDefinitionOfDone in a folder of repositories', () => {
+  beforeEach(setUpFolder)
+
+  it('sets the named repository\'s checks only, and the folder has no list of its own', async () => {
+    const planner = harness.open('planner')
+    await planner.setDefinitionOfDone({ checks: [LINT, BUILD], repo: 'beta' })
+    const view = await planner.setDefinitionOfDone({ checks: [BUILD], repo: 'alpha' })
+    expect(view.repositories).toEqual([
+      { name: 'alpha', missing: false, definitionOfDone: [BUILD] },
+      { name: 'beta', missing: false, definitionOfDone: [LINT, BUILD] }
+    ])
+    expect(view.definitionOfDone).toEqual([])
+    expect(await harness.open('reader').getProject()).toEqual(view)
+  })
+
+  it('clears a repository\'s checks with an empty list', async () => {
+    const planner = harness.open('planner')
+    await planner.setDefinitionOfDone({ checks: [LINT], repo: 'alpha' })
+    const view = await planner.setDefinitionOfDone({ checks: [], repo: 'alpha' })
+    expect(view.repositories).toEqual([
+      { name: 'alpha', missing: false },
+      { name: 'beta', missing: false }
+    ])
+  })
+
+  it('records which repository changed and the checks it now names', async () => {
+    const planner = harness.open('planner')
+    await planner.setDefinitionOfDone({ checks: [LINT, BUILD], repo: 'beta' })
+    const { events } = await planner.listEvents({})
+    const changed = events.filter((event) => event.kind === 'project.definition_of_done_set')
+    expect(changed.map((event) => event.payload)).toEqual([{ repository: 'beta', names: ['lint', 'build'] }])
+  })
+
+  it('keeps each repository\'s checks through a rescan', async () => {
+    await harness.open('planner').setDefinitionOfDone({ checks: [LINT], repo: 'beta' })
+    addRepo('gamma')
+    expect(await harness.open('orchestrator').rescanRepositories()).toEqual([
+      { name: 'alpha', missing: false },
+      { name: 'beta', missing: false, definitionOfDone: [LINT] },
+      { name: 'gamma', missing: false }
+    ])
+  })
+})
+
+describe('setDefinitionOfDone in a folder of repositories refused', () => {
+  beforeEach(setUpFolder)
+
+  it.each([
+    ['without repo', { checks: [LINT] }],
+    ['for a repository the folder does not hold', { checks: [LINT], repo: 'gamma' }],
+    ['for a repo that is not one folder name', { checks: [LINT], repo: '../alpha' }]
+  ])('is refused %s, and nothing changes', async (_label, input) => {
+    const planner = harness.open('planner')
+    const before = await planner.getProject()
+    expect(await codeOf(planner.setDefinitionOfDone(input))).toBe('invalid_input')
+    expect(await planner.getProject()).toEqual(before)
+  })
+
+  it('is unauthorized for a worker', async () => {
+    expect(await codeOf(harness.open('worker').setDefinitionOfDone({ checks: [LINT], repo: 'alpha' }))).toBe('unauthorized')
   })
 })

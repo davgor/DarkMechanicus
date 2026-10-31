@@ -58,6 +58,39 @@ const textList = z.array(shortText).max(LIMITS.listItems)
 const positiveInt = z.number().int().min(1)
 const criterionResults = z.array(criterionResult).max(LIMITS.criteria)
 
+/** A child repository's folder name: one path segment, never `.` or `..`. */
+export const repositoryName = z
+  .string()
+  .min(1)
+  .max(255)
+  .refine((name) => !/[/\\\0]/.test(name) && name !== '.' && name !== '..', {
+    message: 'A repository name is one folder name, without "/", "\\" or NUL, and not "." or ".."'
+  })
+
+/**
+ * One child repository. `definitionOfDone` is that repository's own checks (absent when it has none): a folder of
+ * repositories has no folder-level list, and a sprint's acceptance node reports each touched repository's checks.
+ */
+const repositoryEntry = z.strictObject({
+  name: repositoryName,
+  missing: z.literal(true).optional(),
+  definitionOfDone: definitionOfDoneChecks.optional()
+})
+export type RepositoryEntry = z.infer<typeof repositoryEntry>
+
+const repositoryEntries = z
+  .array(repositoryEntry)
+  .refine((entries) => new Set(entries.map((entry) => entry.name)).size === entries.length, {
+    message: 'Repository names must be unique'
+  })
+
+/** The epic branch as bound in each repository of a folder of repositories: one entry per repository. */
+const repositoryBranches = z
+  .array(epicBranch.extend({ repository: repositoryName }))
+  .refine((branches) => new Set(branches.map((branch) => branch.repository)).size === branches.length, {
+    message: 'Each repository is bound once'
+  })
+
 export const projectRecord = z.strictObject({
   format: z.literal('darkmechanicus.project'),
   formatVersion: z.literal(1),
@@ -73,7 +106,12 @@ export const projectRecord = z.strictObject({
    */
   repoRoot: z.string().min(1).max(4096).optional(),
   // No default: a project record written before the Definition of Done existed must parse and re-serialize unchanged.
-  definitionOfDone: definitionOfDoneChecks.optional()
+  definitionOfDone: definitionOfDoneChecks.optional(),
+  /**
+   * The child repositories of a folder of repositories, in the order they were found. Present (even when every
+   * one is missing) only for such a folder; no default, so a single-repository record re-serializes unchanged.
+   */
+  repositories: repositoryEntries.optional()
 })
 export type ProjectRecord = z.infer<typeof projectRecord>
 
@@ -122,6 +160,8 @@ export const epicStateRecord = z.strictObject({
   title: z.string().min(1).max(LIMITS.title),
   status: workStatus,
   branch: epicBranch.nullable(),
+  // No default: an epic state written before repositories were bound (or of a single repository) re-serializes unchanged.
+  repositoryBranches: repositoryBranches.optional(),
   provenance: z.strictObject({ sourceEpicId: anyStableId, note: shortText }).nullable(),
   outcome: epicOutcome.nullable(),
   createdAt: isoTime,
@@ -194,8 +234,12 @@ const attemptDecision = z.strictObject({
   criteria: criterionResults.optional()
 })
 
-/** The server's verdict on the increment an acceptance node named; written once, with the submission. */
+/**
+ * The server's verdict on the increment an acceptance node named; written once, with the submission. `repo` (no
+ * default) names the child repository in a folder of repositories, first as the server writes it.
+ */
 const sprintIncrementRecord = z.strictObject({
+  repo: repositoryName.optional(),
   branch: epicBranch.shape.name,
   commit: commitHash,
   parent: commitHash.nullable(),
@@ -222,6 +266,8 @@ const attemptRecord = z.strictObject({
   decision: attemptDecision.nullable(),
   // No default: run history written before increments existed must parse and re-export byte for byte.
   increment: sprintIncrementRecord.optional(),
+  // A folder of repositories' node: one verdict per touched repository, each with its `repo`. No default either.
+  increments: z.array(sprintIncrementRecord.extend({ repo: repositoryName })).max(LIMITS.listItems).optional(),
   createdAt: isoTime,
   updatedAt: isoTime,
   submittedAt: isoTime.nullable(),
@@ -229,6 +275,9 @@ const attemptRecord = z.strictObject({
   reconciledAt: isoTime.nullable(),
   supersededAt: isoTime.nullable()
 })
+  .refine((attempt) => attempt.increment === undefined || attempt.increments === undefined, {
+    message: 'An attempt names either increment or increments, not both'
+  })
 
 /** A sprint report's retro as stored: every list present, every ticket a stable id. */
 const retroContent = z.strictObject({
@@ -539,6 +588,7 @@ interface EpicRow {
   title: string
   status: string
   branch_json: string | null
+  repository_branches_json: string | null
   provenance_json: string | null
   outcome_json: string | null
   created_at: string
@@ -565,6 +615,9 @@ export function buildEpicStateRecord(
     title: epic.title,
     status: epic.status,
     branch: parseJson<unknown>(epic.branch_json, null),
+    ...(epic.repository_branches_json === null
+      ? {}
+      : { repositoryBranches: parseJson<unknown>(epic.repository_branches_json, null) }),
     provenance: parseJson<unknown>(epic.provenance_json, null),
     outcome: parseJson<unknown>(epic.outcome_json, null),
     createdAt: epic.created_at,
@@ -688,6 +741,14 @@ function runFields(run: RunRow): Record<string, unknown> {
   }
 }
 
+/** The record field for an attempt's stored verdict: `increments` for a folder of repositories' array, else `increment`. */
+function incrementFields(stored: unknown): Record<string, unknown> {
+  if (stored === null) {
+    return {}
+  }
+  return Array.isArray(stored) ? { increments: stored } : { increment: stored }
+}
+
 /** Claim secrets, leases, and heartbeats are machine-local and never leave the database. */
 function attemptEntry(row: AttemptRow): Record<string, unknown> {
   return {
@@ -705,8 +766,9 @@ function attemptEntry(row: AttemptRow): Record<string, unknown> {
     evidence: parseJson<unknown>(row.evidence_json, null),
     failure: parseJson<unknown>(row.failure_json, null),
     decision: parseJson<unknown>(row.decision_json, null),
-    // Left out when the attempt named no increment, so a record without one keeps its bytes.
-    ...(row.increment_json === null ? {} : { increment: parseJson<unknown>(row.increment_json, null) }),
+    // Left out when the attempt named no increment, so a record without one keeps its bytes. A folder of
+    // repositories' node stored an array of verdicts, which goes under `increments`.
+    ...incrementFields(parseJson<unknown>(row.increment_json, null)),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     submittedAt: row.submitted_at,

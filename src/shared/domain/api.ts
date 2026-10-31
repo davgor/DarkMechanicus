@@ -58,6 +58,7 @@ import type {
   ReadinessView,
   RedraftResultView,
   ReconcileResultView,
+  RepositoryView,
   ResolveEpicConflictView,
   RevisionSummaryView,
   RowCheckView,
@@ -102,6 +103,11 @@ export interface TicketInput {
   priority?: TicketPriority
   /** `null` in a patch clears the size (the ticket then has no `size` key). */
   size?: TicketSize | null
+  /**
+   * The repository of a folder of repositories the ticket targets; the server keeps the title prefixed with
+   * `<repo> - `. `null` in a patch clears it (the title then keeps only its description).
+   */
+  repo?: string | null
   capability?: CapabilityPatch
   references?: TicketReference[]
   expectedArtifacts?: string[]
@@ -170,11 +176,12 @@ export interface ClaimTicketInput {
 /**
  * The increment a sprint's acceptance node names: the commit that landed the sprint on the epic branch,
  * and the branch it landed on (which must be the epic's integration branch). `commit` is a hash of 7 to 64
- * hex digits.
+ * hex digits. In a folder of repositories, `repo` names the child repository the commit is in.
  */
 export interface IncrementRef {
   branch: string
   commit: string
+  repo?: string
 }
 
 export interface HeartbeatAttemptInput {
@@ -192,9 +199,15 @@ export interface SubmitAttemptInput {
   evidence?: Partial<AttemptEvidence>
   /**
    * Acceptance nodes only. The server verifies the increment when the submission arrives and stores
-   * the verdict, whether it passed or not; a work ticket that names one is refused.
+   * the verdict, whether it passed or not; a work ticket that names one is refused. A single repository only.
    */
   increment?: IncrementRef
+  /**
+   * Acceptance nodes of a folder of repositories only, instead of `increment`: one increment per repository the
+   * sprint touched, each with its `repo`. Each is verified against that repository's history and stored with its
+   * verdict; one that fails fails the node's increment.
+   */
+  increments?: IncrementRef[]
   idempotencyKey?: string
 }
 
@@ -240,17 +253,29 @@ export interface CommandApi {
   getProject(): Promise<ProjectView>
   /**
    * Replaces the project's Definition of Done in `.darkmechanicus/project.json` (an empty list removes it)
-   * and answers with the project as getProject shows it. Planner and desktop only; never commits.
+   * and answers with the project as getProject shows it. Planner and desktop only; never commits. In a folder
+   * of repositories `repo` is required and names the repository whose checks these are; a single repository refuses it.
    */
   setDefinitionOfDone(input: {
     checks: { name: string; command: string; description?: string }[]
+    repo?: string
   }): Promise<ProjectView>
   initializeRepository(input: {
     name?: string
     keyPrefix?: string
     /** `repo` (default) keeps records in the repository; `db` keeps them only in the home directory. */
     mode?: 'repo' | 'db'
+    /**
+     * `multi_repo` sets up a folder whose immediate children are Git repositories: db mode only (the default for
+     * it), refused when the folder sits inside a Git repository or holds none. The children are recorded.
+     */
+    layout?: 'single' | 'multi_repo'
   }): Promise<InitializeResultView>
+  /**
+   * Re-detects the child repositories of a folder of repositories: appends new ones, marks vanished ones missing
+   * (never removing them), and answers with the whole list. Refused for a single-repository project.
+   */
+  rescanRepositories(): Promise<RepositoryView[]>
   getStorageStatus(): Promise<StorageStatusView>
   flushPortableState(): Promise<FlushResultView>
   reconcileRepository(): Promise<ReconcileResultView>

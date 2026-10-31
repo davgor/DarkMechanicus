@@ -57,6 +57,17 @@ The sprint's combined work lives on a sprint integration branch in a separate wo
   5. Submit the node yourself with `increment { branch, commit }`: the epic branch and that commit. Only the submission carries the increment. The server checks it against the repository and stores the verdict, which `submit_attempt` returns.
   6. Never accept an acceptance node whose increment failed or that named no increment. Reject it with the verdict's reasons, fix the cause, claim the node again, and resubmit. Accepting it would not help: the gate reads the accepted attempt's increment, and an accepted ticket cannot be claimed again in the run.
 
+### Folders of repositories
+
+When the project is a folder of Git repositories, each work ticket targets one repository (its `repo`), and everything above happens per repository. The single-repository text still applies to each repository on its own.
+
+- **The epic branch per repository.** `start_run` binds the epic branch in each repository the plan names; `get_epic` lists them under `repositoryBranches`, each with its `startCommit`. When a repository has no epic branch yet, create it at that repository's `startCommit`: `git -C <path> branch <name> <startCommit>`.
+- **Never switch the branch of a child repository's own checkout.** A folder of repositories has no branch guard, so nothing pauses the run if you do; leave every child checkout where the person left it. Keep the sprint integration branch, the workers' worktrees and the landing on the epic branch in worktrees, one set per touched repository, and run every command as `git -C <worktree>`.
+- **Workers.** Give each worker a worktree of its packet's `repository.path`, branched from that repository's sprint integration branch. The acceptance node's packet lists the sprint's touched repositories under `repositories`.
+- **Landing.** Squash each touched repository's sprint work onto its epic branch, in a worktree of that repository on the epic branch, as one commit with one parent. Submit the acceptance node with `increments`, one `{ repo, branch, commit }` per touched repository, instead of a single `increment`. The server verifies each one in its own repository, and the gate needs every touched repository's verdict to pass.
+- **Definition of Done.** Each repository has its own checks. The node's worker reports each as `<repo>: <check>`.
+- **The redraft.** Give every ticket added in a retro redraft its `repo` before you save the draft.
+
 ## 4. Failures, retries, and escalation
 
 - A ticket is rejected: escalate one tier or one effort step at a time. `match_capabilities` already recommends the next step: the cheapest eligible model one tier above the last attempt's (tier is cost tier, then the highest reasoning level), or the same model at the next effort when nothing sits above it. Claim at that step and put the reason in the claim `rationale` (for example "attempt 1 rejected on the low-cost model; escalating one tier"). Never jump straight to the most capable worker: small steps show what the ticket needs, and whether repeated failures come from the ticket or the model. A failed attempt gets the same recommendation, but a blocker such as missing access is not a capability problem, so fix it first.

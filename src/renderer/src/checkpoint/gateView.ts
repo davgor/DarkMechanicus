@@ -11,6 +11,7 @@ import type {
   GateCondition,
   RunView,
   SprintIncrement,
+  SprintIncrementView,
   SprintReportView
 } from '../../../shared/domain/views'
 import { formatAgo } from '../epic/time'
@@ -69,6 +70,8 @@ export interface ReportCheck {
 /** The commit that landed a sprint on the epic branch, as the server verified it when the acceptance node was submitted. */
 export interface IncrementSection {
   heading: string
+  /** In a folder of repositories: the repository this increment was verified in; null for a single repository. */
+  repo: string | null
   /** The acceptance node that named it. */
   key: string
   /** The commit as 7 characters of its hash (exactly as named when git did not resolve it). */
@@ -91,8 +94,8 @@ export interface ReportSections {
   failed: ReportRow[]
   blocked: ReportRow[]
   changes: { files: string[]; commits: string[] }
-  /** The sprint's increment; null when its acceptance node named none. */
-  increment: IncrementSection | null
+  /** The sprint's increment (one per repository in a folder of repositories); empty when its acceptance node named none. */
+  increments: IncrementSection[]
   checks: ReportCheck[]
   risks: string[]
   exitCriteria: CriterionLine[]
@@ -248,14 +251,11 @@ function baseText(base: SprintIncrement['base']): string {
   }
 }
 
-function incrementSection(report: SprintReportView): IncrementSection | null {
-  const view = report.increment
-  if (view === undefined) {
-    return null
-  }
+function incrementSection(view: SprintIncrementView): IncrementSection {
   const { increment } = view
   return {
-    heading: `INCREMENT · SPRINT ${view.sprintOrdinal}`,
+    heading: view.repo === undefined ? `INCREMENT · SPRINT ${view.sprintOrdinal}` : `INCREMENT · SPRINT ${view.sprintOrdinal} · ${view.repo}`,
+    repo: view.repo ?? null,
     key: view.key,
     commit: shortHash(increment.commit),
     fullCommit: increment.commit,
@@ -346,7 +346,7 @@ export function reportView(report: SprintReportView, context: ReportContext): Re
       files: content.changes.files,
       commits: content.changes.commits.map(shortHash)
     },
-    increment: incrementSection(report),
+    increments: (report.increments ?? (report.increment === undefined ? [] : [report.increment])).map(incrementSection),
     checks: content.checks.map((check) => ({ ...check, icon: CHECK_ICONS[check.status] })),
     risks: content.risks,
     exitCriteria: criterionLines(content.exitCriteria, exit),

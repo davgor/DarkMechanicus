@@ -72,6 +72,34 @@ function padTo(text: string, length: number): string {
   return text + ' '.repeat(length - text.length)
 }
 
+describe('project record repositories', () => {
+  it('parses a project.json without repositories and re-serializes it byte-identical', () => {
+    const text = prettyJson({ ...PROJECT, repoRoot: '/work/demo' })
+    const parsed = parseRecord(projectRecord, text, PATH)
+    expect(parsed).not.toHaveProperty('repositories')
+    expect(prettyJson(parsed)).toBe(text)
+  })
+
+  it('keeps a folder of repositories even when every one is missing', () => {
+    const record = { ...PROJECT, repositories: [{ name: 'alpha', missing: true }] }
+    expect(parseRecord(projectRecord, prettyJson(record), PATH)).toEqual(record)
+  })
+
+  it.each([
+    ['an empty name', [{ name: '' }]],
+    ['a slash', [{ name: 'a/b' }]],
+    ['a backslash', [{ name: 'a\\b' }]],
+    ['a NUL', [{ name: 'a\0b' }]],
+    ['a dot', [{ name: '.' }]],
+    ['two dots', [{ name: '..' }]],
+    ['a name over 255 characters', [{ name: 'a'.repeat(256) }]],
+    ['a repeated name', [{ name: 'alpha' }, { name: 'alpha' }]],
+    ['missing other than true', [{ name: 'alpha', missing: false }]]
+  ])('rejects %s', (_label, repositories) => {
+    expect(projectRecord.safeParse({ ...PROJECT, repositories }).success).toBe(false)
+  })
+})
+
 describe('parseRecord size and markers', () => {
   it('parses a valid record written with prettyJson', () => {
     expect(parseRecord(projectRecord, prettyJson(PROJECT), PATH)).toEqual(PROJECT)
@@ -1002,5 +1030,35 @@ describe('the project record and the repository it belongs to', () => {
     expect(rejection(() => parseRecord(projectRecord, prettyJson({ ...PROJECT, repoRoot }), PATH)).code).toBe(
       'import_rejected'
     )
+  })
+})
+
+describe('run history per-repository increments', () => {
+  const INCREMENTS = [
+    { repo: 'alpha', ...INCREMENT },
+    { repo: 'beta', ...INCREMENT, commit: 'd'.repeat(40), passed: true, reasons: [], checks: [] }
+  ]
+
+  it('exports a folder of repositories\' verdicts under increments and parses them back', () => {
+    const record = buildRunHistoryRecord(runWithIncrement(INCREMENTS), RUN)
+    const named = record.attempts.find((item) => item.id === idOf('attempt', 1))
+    expect(named?.increments).toEqual(INCREMENTS)
+    expect(named).not.toHaveProperty('increment')
+    const text = prettyJson(record)
+    expect(prettyJson(parseRecord(runHistoryRecord, text, 'run.json'))).toBe(text)
+  })
+
+  it('re-serializes a single repository\'s record byte for byte, without an increments key', () => {
+    const text = prettyJson(buildRunHistoryRecord(runWithIncrement(INCREMENT), RUN))
+    expect(text).not.toContain('"increments"')
+    expect(text).not.toContain('"repo"')
+    expect(prettyJson(parseRecord(runHistoryRecord, text, 'run.json'))).toBe(text)
+  })
+
+  it('refuses a verdict without its repository, and an attempt that names both shapes', () => {
+    const withoutRepo = runRecord([{ ...(attempt(1, 1, 'submitted') as object), increments: [INCREMENT] }])
+    expect(domainErrorOf(() => parseRecord(runHistoryRecord, prettyJson(withoutRepo), 'run.json')).code).toBe('import_rejected')
+    const both = runRecord([{ ...(attempt(1, 1, 'submitted') as object), increment: INCREMENT, increments: INCREMENTS }])
+    expect(domainErrorOf(() => parseRecord(runHistoryRecord, prettyJson(both), 'run.json')).code).toBe('import_rejected')
   })
 })

@@ -172,7 +172,8 @@ const FOLDER_VIEW: TrackedFolderView = {
   initialized: true,
   storageMode: 'repo',
   available: true,
-  addedAt: '2026-01-01T00:00:00.000Z'
+  addedAt: '2026-01-01T00:00:00.000Z',
+  childRepositories: null
 }
 
 /** Desktop handlers over a registry that tracks every folder and a pool that records what it opens. */

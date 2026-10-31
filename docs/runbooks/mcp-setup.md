@@ -210,7 +210,7 @@ A session lists only the tools its role may call. Each tool adapts one command, 
 | Comments: `add_comment` | yes | yes | yes | yes |
 | Profiles: `save_profile` | yes | yes | | |
 | Definition of Done: `set_definition_of_done` | yes | | | |
-| Repository and drafts: `initialize_repository`, `flush_portable_state`, `reconcile_repository`, `create_epic`, `import_board`, `create_ticket`, `update_ticket`, `open_plan_draft`, `update_plan_draft`, `discard_plan_draft` | yes | yes | | |
+| Repository and drafts: `initialize_repository`, `rescan_repositories`, `flush_portable_state`, `reconcile_repository`, `create_epic`, `import_board`, `create_ticket`, `update_ticket`, `open_plan_draft`, `update_plan_draft`, `discard_plan_draft` | yes | yes | | |
 | `save_plan` | with `--allow-save` | with `--allow-save` | | |
 | Epic and ticket status: `set_epic_status`, `set_epic_branch`, `set_ticket_status` | | yes | | |
 | Runs: `register_host`, `start_run`, `pause_run`, `resume_run`, `cancel_run`, `takeover_run`, `adopt_revision` | | yes | | |
@@ -263,6 +263,8 @@ A message on stdin longer than 32,000,000 bytes (`MCP_MESSAGE_MAX_BYTES`) is not
 The six shipped skills are served as MCP prompts: `darkmechanicus-planner`, `darkmechanicus-graph-planner`, `darkmechanicus-orchestrator`, `darkmechanicus-worker`, `darkmechanicus-reviewer`, and `darkmechanicus-sprint-reporter`. Load the one that matches the job before starting. `get_capabilities` reports the skills version, and runs record it.
 
 `heartbeat_attempt` takes an optional `progress` field: a note (at most 280 characters) and an optional step label (at most 64 characters) showing what work is in progress. The worker and orchestrator skills tell agents to send one with each heartbeat. The server stores the last 200 notes per attempt as local working data, never exports them with run history, and masks anything shaped like a claim token before storing. A refused heartbeat stores no note.
+
+For a folder of Git repositories (one project over several repositories, set up with `initialize_repository` and `layout: "multi_repo"`), see [Work across a folder of repositories](multi-repo-folders.md).
 
 ## Working with the desktop closed
 

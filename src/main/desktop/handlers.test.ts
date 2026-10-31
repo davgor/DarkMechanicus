@@ -56,7 +56,8 @@ function view(path: string): TrackedFolderView {
     initialized: true,
     storageMode: dbFolders.has(path) ? 'db' : 'repo',
     available: true,
-    addedAt: '2026-01-01T00:00:00.000Z'
+    addedAt: '2026-01-01T00:00:00.000Z',
+    childRepositories: null
   }
 }
 

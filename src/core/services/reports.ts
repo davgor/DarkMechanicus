@@ -96,13 +96,14 @@ function factAttempt(row: AttemptRow): TierFactsAttempt {
 /**
  * A report as read: its stored content (a report saved before retros reads with `retro: null`), plus what is
  * computed from the run each time it is read and is not part of the content hash: the increment its sprint's
- * acceptance node named, and the tier facts of the sprint's tickets.
+ * acceptance node named (`increment` in a single repository, `increments` per repository in a folder), and the tier facts of the sprint's tickets.
  */
 function reportView(ctx: Ctx, row: ReportRow): SprintReportView {
   const run = requireRun(ctx, row.run_id)
   const bundle = loadBundle(ctx, run.revision_id)
   const attempts = ctx.db.all<AttemptRow>('SELECT * FROM attempts WHERE run_id = ? ORDER BY rowid', run.id)
-  const increment = sprintIncrementViews(bundle, attempts).find((view) => view.sprintId === row.sprint_id)
+  const views = sprintIncrementViews(bundle, attempts).filter((view) => view.sprintId === row.sprint_id)
+  const folder = ctx.repositoryEntries() !== null
   const stored = JSON.parse(row.content_json) as StoredReportContent
   return {
     id: row.id,
@@ -111,7 +112,7 @@ function reportView(ctx: Ctx, row: ReportRow): SprintReportView {
     reportRevision: row.report_revision,
     contentHash: row.content_hash,
     report: { ...stored, retro: stored.retro ?? null },
-    ...(increment === undefined ? {} : { increment }),
+    ...(views.length === 0 ? {} : folder ? { increments: views } : { increment: views[0] }),
     tierFacts: computeTierFacts({
       bundle,
       sprintId: row.sprint_id,

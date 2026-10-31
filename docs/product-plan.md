@@ -13,7 +13,7 @@ The supplied sketch establishes the intended hierarchy and branching execution s
 ## Proposed first-version scope
 
 - Local, single-user application; multiple agent sessions and the desktop may access it concurrently.
-- Each repository owns its database, plans, tickets, and execution history. The desktop's optional project registry only remembers which repositories to open.
+- Each project owns its database, plans, tickets, and execution history. A project is one repository, or a folder of repositories: the Git repositories in a folder's immediate subfolders, kept in one database, with each work ticket targeting one of them ([0003](decisions/0003-multi-repo-folders.md)). The desktop's optional project registry only remembers which folders to open.
 - Confirmed: the existing agent app runs the orchestrator and its own subagents. Dark Mechanicus stores plans and execution order, and supplies data to help the app execute them. That app can be an external host that connects over MCP, or, since 2026-10-04, one of the agent CLIs the desktop app hosts itself.
 - One host/provider environment per run; no cross-provider agent dispatch in the first version.
 - Headless MCP operation must work with the desktop closed.
@@ -100,6 +100,8 @@ Model profiles, host capability catalogs, worker registrations, Markdown comment
 ## Epic feature branches
 
 Confirmed: each epic has its own feature branch. Store its repository identity, branch name, and starting commit. Cloud spin-ups and isolated workers target that branch for integration, not the default branch. The orchestrator coordinates merges, resolves conflicts, and records outcomes; a dedicated integration ticket represents substantial integration work. Merging the epic into the default branch is a separate repository workflow, not an automatic consequence of changing its status.
+
+In a folder of repositories the epic has one branch name, bound in each repository its work tickets name with that repository's own start commit; each sprint lands one squashed increment per touched repository.
 
 Use a dedicated coordinating checkout/worktree for the epic where practical. Worker code branches may differ, but their assignments identify the epic target branch. Dark Mechanicus must verify the coordinating repository and branch before saving/exporting or dispatching work; an unexpected branch change pauses those operations and preserves drafts for reconciliation. Per-epic branches reduce normal branch switching but do not make filesystem/database writes atomic with external Git commands.
 

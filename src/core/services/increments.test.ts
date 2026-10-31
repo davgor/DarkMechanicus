@@ -6,7 +6,7 @@ import { acceptTickets, incrementVerdict, seedAttempt, seedRun, type SeededRun, 
 import { createTestCtx, type TestCtx } from '../../test/testContext'
 import { contentHash } from '../canonical'
 import { attemptView, loadAttempt } from './execution'
-import { incrementContextOf } from './increments'
+import { incrementContextOf, incrementRefusal } from './increments'
 import { getCheckpoint } from './checkpoints'
 import { getSprintReport, submitSprintReport } from './reports'
 import { getRun } from './runs'
@@ -68,6 +68,14 @@ describe('incrementContextOf: the sprint, the epic branch and the accepted work'
     const node = seedAttempt(ctx, run, { ticket: 3, state: 'running' })
     expect(incrementContextOf(ctx, node)?.workCommits).toEqual(['1'.repeat(40), '2'.repeat(40)])
   })
+
+  it('counts an accepted work attempt that recorded no outputs as bringing no commits', () => {
+    const { ctx, run } = setup()
+    seedAttempt(ctx, run, { ticket: 1, state: 'accepted' })
+    seedAttempt(ctx, run, { ticket: 2, state: 'accepted', commits: ['2'.repeat(40)] })
+    const node = seedAttempt(ctx, run, { ticket: 3, state: 'running' })
+    expect(incrementContextOf(ctx, node)?.workCommits).toEqual(['2'.repeat(40)])
+  })
 })
 
 describe('incrementContextOf: the previous increment', () => {
@@ -99,6 +107,50 @@ describe('incrementContextOf: the previous increment', () => {
     seedAttempt(ctx, run, { ticket: 3, state: 'accepted', superseded: true, increment: {} })
     const node = seedAttempt(ctx, run, { ticket: 6, state: 'running' })
     expect(incrementContextOf(ctx, node)?.previous).toBeNull()
+  })
+
+  it('passes over an earlier sprint that has no acceptance node', () => {
+    const bundle = makeBundle([[1, 2, 3], [4, 5], [6, 7]])
+    bundle.tickets = bundle.tickets.map((ticket) => ([tid(3), tid(7)].includes(ticket.id) ? { ...ticket, kind: 'acceptance' as const } : ticket))
+    const ctx = createTestCtx()
+    const run = seedRun(ctx, { bundle, branch: BRANCH })
+    seedAttempt(ctx, run, { ticket: 3, state: 'accepted', increment: { commit: '1'.repeat(40) } })
+    const node = seedAttempt(ctx, run, { ticket: 7, state: 'running' })
+    expect(incrementContextOf(ctx, node)?.previous).toEqual({ sprintId: sid(1), commit: '1'.repeat(40) })
+  })
+})
+
+describe("incrementContextOf: a repository's own epic branch in a folder of repositories", () => {
+  it("is that repository's bound branch, and null for a repository with none bound", () => {
+    const ctx = createTestCtx({ repositories: ['alpha', 'beta'] })
+    const run = seedRun(ctx, { bundle: plan(), branch: { repository: null, name: 'epic/x', startCommit: null } })
+    const alpha: EpicBranch = { repository: 'alpha', name: 'epic/x', startCommit: '1'.repeat(40) }
+    ctx.db.run('UPDATE epics SET repository_branches_json = ? WHERE id = ?', JSON.stringify([alpha]), run.epicId)
+    const node = seedAttempt(ctx, run, { ticket: 3, state: 'running' })
+    expect(incrementContextOf(ctx, node, 'alpha')?.epicBranch).toEqual(alpha)
+    expect(incrementContextOf(ctx, node, 'beta')?.epicBranch).toBeNull()
+  })
+})
+
+describe('incrementRefusal in a folder of repositories', () => {
+  /** A folder whose plan's work tickets name no repository, with sprint 1's work accepted. */
+  function folderWithoutTargets(): TestCtx {
+    const ctx = createTestCtx({ repositories: ['alpha'] })
+    const run = seedRun(ctx, { bundle: plan(), branch: { repository: null, name: 'epic/x', startCommit: null } })
+    seedAttempt(ctx, run, { ticket: 1, state: 'accepted' })
+    seedAttempt(ctx, run, { ticket: 2, state: 'accepted' })
+    return ctx
+  }
+
+  it('takes a submission that names no increment at all', () => {
+    expect(incrementRefusal(folderWithoutTargets(), sid(1), {})).toBeNull()
+  })
+
+  it('refuses an empty increments list for a sprint whose accepted work targets no repository', () => {
+    expect(incrementRefusal(folderWithoutTargets(), sid(1), { increments: [] })).toEqual({
+      message: 'the sprint touched no repository (no accepted work ticket targets one), so it has no increment to name.',
+      details: { touched: [] }
+    })
   })
 })
 
@@ -167,5 +219,66 @@ describe('the sprint report view: its sprint\'s increment', () => {
     acceptTickets(ctx, run, [1, 2])
     const submitted = submitSprintReport(ctx, { runId: run.runId, sprintId: sid(1), report: { summary: 'Done.' } })
     expect(Object.keys(submitted)).not.toContain('increment')
+  })
+})
+
+describe('the run view in a folder of repositories: one increment per repository', () => {
+  it('lists each repository\'s verdict as its own view, in repository name order', () => {
+    const { ctx, run } = setup()
+    const node = seedAttempt(ctx, run, { ticket: 3, state: 'submitted' })
+    const beta = incrementVerdict({ repo: 'beta', commit: '2'.repeat(40) })
+    const alpha = incrementVerdict({ repo: 'alpha', commit: '1'.repeat(40), passed: false, reasons: ['not squashed'] })
+    ctx.db.run('UPDATE attempts SET increment_json = ? WHERE id = ?', JSON.stringify([beta, alpha]), node)
+    const base = { sprintId: sid(1), sprintOrdinal: 1, ticketId: tid(3), key: 'DM-3', attemptId: node, attemptState: 'submitted' }
+    expect(getRun(ctx, { runId: run.runId })?.increments).toEqual([
+      { ...base, repo: 'alpha', increment: alpha },
+      { ...base, repo: 'beta', increment: beta }
+    ])
+  })
+
+  it('sorts stored verdicts by repository whatever their stored order, and shows one stored without a repository first, unnamed', () => {
+    const { ctx, run } = setup()
+    const node = seedAttempt(ctx, run, { ticket: 3, state: 'submitted' })
+    const gamma = incrementVerdict({ repo: 'gamma', commit: '3'.repeat(40) })
+    const alpha = incrementVerdict({ repo: 'alpha', commit: '1'.repeat(40) })
+    const beta = incrementVerdict({ repo: 'beta', commit: '2'.repeat(40) })
+    const unnamed = incrementVerdict({ commit: '4'.repeat(40) })
+    ctx.db.run('UPDATE attempts SET increment_json = ? WHERE id = ?', JSON.stringify([gamma, alpha, unnamed, beta]), node)
+    const views = getRun(ctx, { runId: run.runId })?.increments ?? []
+    expect(views.map((view) => [view.repo, view.increment.commit])).toEqual([
+      [undefined, '4'.repeat(40)],
+      ['alpha', '1'.repeat(40)],
+      ['beta', '2'.repeat(40)],
+      ['gamma', '3'.repeat(40)]
+    ])
+    expect(views[0]).not.toHaveProperty('repo')
+  })
+})
+
+describe('the sprint report view: increment in a single repository, increments in a folder', () => {
+  it('sets increment and leaves increments out for a single repository', () => {
+    const { ctx, run } = setup()
+    acceptTickets(ctx, run, [1, 2, 3])
+    const report = submitSprintReport(ctx, { runId: run.runId, sprintId: sid(1), report: { summary: 'Done.' } })
+    expect(report.increment).toMatchObject({ key: 'DM-3', increment: { commit: 'c'.repeat(40) } })
+    expect(report.increments).toBeUndefined()
+    expect(getCheckpoint(ctx, { runId: run.runId }).report?.increments).toBeUndefined()
+  })
+
+  it('sets increments, one per repository in name order, and leaves increment out for a folder', () => {
+    const ctx = createTestCtx({ repositories: ['alpha', 'beta'] })
+    const run = seedRun(ctx, { bundle: plan(), branch: BRANCH })
+    acceptTickets(ctx, run, [1, 2])
+    const node = seedAttempt(ctx, run, { ticket: 3, state: 'accepted' })
+    const beta = incrementVerdict({ repo: 'beta', commit: '2'.repeat(40) })
+    const alpha = incrementVerdict({ repo: 'alpha', commit: '1'.repeat(40) })
+    ctx.db.run('UPDATE attempts SET increment_json = ? WHERE id = ?', JSON.stringify([beta, alpha]), node)
+    const report = submitSprintReport(ctx, { runId: run.runId, sprintId: sid(1), report: { summary: 'Done.' } })
+    expect(report.increment).toBeUndefined()
+    expect(report.increments?.map((view) => [view.repo, view.increment.commit])).toEqual([
+      ['alpha', '1'.repeat(40)],
+      ['beta', '2'.repeat(40)]
+    ])
+    expect(getSprintReport(ctx, { runId: run.runId })).toEqual(report)
   })
 })

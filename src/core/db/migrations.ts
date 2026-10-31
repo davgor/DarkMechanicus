@@ -3,7 +3,7 @@ import { redactedJson } from '../storedSecrets'
 import type { Db } from './database'
 
 /** Highest schema version this build understands. Newer databases are refused, never downgraded. */
-export const SCHEMA_VERSION = 11
+export const SCHEMA_VERSION = 12
 
 export interface Migration {
   version: number
@@ -484,6 +484,16 @@ CREATE TABLE transfer_items (
 );
 `
 
+/**
+ * v12 records, for an epic of a folder of repositories, the epic branch as bound in each repository its runs'
+ * saved plans name (`repository_branches_json`: a JSON array of `EpicBranch`, one per repository, each with its
+ * own start commit). `branch_json` keeps the epic's own branch, so its readers are unchanged. NULL for every epic
+ * before this version and for every single-repository epic. Exported with the epic state as `repositoryBranches`.
+ */
+const V12 = `
+ALTER TABLE epics ADD COLUMN repository_branches_json TEXT;
+`
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, sql: V1 },
   { version: 2, sql: V2 },
@@ -495,7 +505,8 @@ export const MIGRATIONS: Migration[] = [
   { version: 8, sql: V8 },
   { version: 9, sql: V9 },
   { version: 10, sql: '', data: scrubStoredResponses },
-  { version: 11, sql: V11 }
+  { version: 11, sql: V11 },
+  { version: 12, sql: V12 }
 ]
 
 export function readSchemaVersion(db: Db): number {

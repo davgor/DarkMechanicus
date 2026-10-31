@@ -1,0 +1,30 @@
+$ DARKMECHANICUS_HOME=<evidence>/core/home npx tsx c3c4.mts c3
+getProject().repositories => [{"name":"alpha","missing":false},{"name":"beta","missing":true},{"name":"gamma","missing":false},{"name":"beta-renamed","missing":false},{"name":"delta","missing":false}]
+epic ep_01m6a0gqvkxfcvnrwqdg0jbmj4; draft starts with acceptance node PAR-3 (Sprint 1 acceptance)
+
+$ update_plan_draft add_ticket { repo: 'alpha', title: 'Add refund endpoint' }
+stored: {
+  "id": "tk_01m6a0gqvvy80rfb4qkfpw80zk",
+  "key": "PAR-4",
+  "kind": "work",
+  "repo": "alpha",
+  "title": "alpha - Add refund endpoint"
+}
+
+$ update_plan_draft update_ticket { ticket, patch: { repo: 'gamma' } }
+stored: {
+  "id": "tk_01m6a0gqvvy80rfb4qkfpw80zk",
+  "key": "PAR-4",
+  "kind": "work",
+  "repo": "gamma",
+  "title": "gamma - Add refund endpoint"
+}
+
+$ update_plan_draft update_ticket { ticket: PAR-3 (acceptance node), patch: { repo: 'alpha' } }
+REFUSED: code=invalid_input message="PAR-3 is an acceptance node, which covers the whole sprint and can't target one repository." details={"opIndex":0,"op":"update_ticket"}
+acceptance node after the refused op: {
+  "id": "tk_01m6a0gqvkasds9wt6kdnaeaqv",
+  "key": "PAR-3",
+  "kind": "acceptance",
+  "title": "Sprint 1 acceptance"
+}

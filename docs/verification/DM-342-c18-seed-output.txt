@@ -1,0 +1,29 @@
+validation errors []
+save saved
+run rn_01m6a07wswrmcjtr71r6ke8zh0 running
+claimed alpha alpha - Build the API {"name":"alpha","path":"/private/tmp/multirepo-run/evidence/ui/fx/runpar/alpha","branch":{"repository":"alpha","name":"feature","startCommit":"918626df1d5232cc077bf9163c0abc84a6bdea4e"}}
+claimed beta beta - Build the client {"name":"beta","path":"/private/tmp/multirepo-run/evidence/ui/fx/runpar/beta","branch":{"repository":"beta","name":"feature","startCommit":"3f0f6bdc305d500cfff26048dfb930fef96b0241"}}
+node increments [["alpha","adaf61431510726d9275f42c31aa2c82a4153f9b",true],["beta","4db52bf600dd5ba653796e35b62412b5d6f73007",true]]
+gate report_submitted false No report for Sprint 1 yet
+gate no_active_leases true All claims released or expired
+gate required_accepted true 2 of 2 required tickets accepted
+gate acceptance_accepted true RUN-1 accepted
+gate increment_merged true Increments in alpha, beta are each one squashed commit on the repository's epic branch
+gate definition_of_done true RUN-1 reports all 3 Definition of Done checks as passed
+gate retro false No Sprint 1 report yet, so no retro
+gate exit_criteria true This sprint has no exit criteria
+gate epic_outcome false The final sprint report must include the epic outcome
+gate plan_current true The run executes revision 1, the saved plan, and no draft holds unsaved changes
+gate approval false A person must approve this checkpoint in the desktop app
+epic ep_01m6a07wrm7hpxmd49zj67tdsj node tk_01m6a07wrmyzcp6spxwgfv253n (claim tokens [redacted])
+gate report_submitted true Required by checkpoint policy
+gate no_active_leases true All claims released or expired
+gate required_accepted true 2 of 2 required tickets accepted
+gate acceptance_accepted true RUN-1 accepted
+gate increment_merged true Increments in alpha, beta are each one squashed commit on the repository's epic branch
+gate definition_of_done true RUN-1 reports all 3 Definition of Done checks as passed
+gate retro false The Sprint 1 report has no retro; resubmit it with retro { delivered, wentWell, wentPoorly, actions, discoveries, leftovers, tierFit }
+gate exit_criteria true This sprint has no exit criteria
+gate epic_outcome true 1 of 1 success criteria met
+gate plan_current true The run executes revision 1, the saved plan, and no draft holds unsaved changes
+gate approval false A person must approve this checkpoint in the desktop app

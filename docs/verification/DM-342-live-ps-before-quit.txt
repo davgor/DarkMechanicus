@@ -1,0 +1,7 @@
+ 6055 68738       10:21 <home>/.local/share/claude/versions/2.1.316 --output-format stream-json --verbose --input-format stream-json --model claude-haiku-4-5-20251001 --permission-prompt-tool stdio --setting-sources=us
+62796 44609       11:39 /bin/zsh -l -c DARKMECHANICUS_HOME=/private/tmp/multirepo-run/evidence/live/home DISABLE_AUTO_UPDATE=1 exec <home>/Documents/GitHub/DarkMechanicus-worktrees/multirepo-accept/node_modules/.bin/el
+68483 62796       11:30 node <home>/Documents/GitHub/DarkMechanicus-worktrees/multirepo-accept/node_modules/.bin/electron --inspect=9631 <home>/Documents/GitHub/DarkMechanicus-worktrees/multirepo-accept --u
+68738 68483       11:29 <home>/Documents/GitHub/DarkMechanicus-worktrees/multirepo-accept/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron --inspect=9631 <home>/Documents/GitHub/DarkMechanicu
+69241 68738       11:29 <home>/Documents/GitHub/DarkMechanicus-worktrees/multirepo-accept/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper.app/Contents/MacOS/Electron Helper --type=gpu-proces
+69242 68738       11:29 <home>/Documents/GitHub/DarkMechanicus-worktrees/multirepo-accept/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper.app/Contents/MacOS/Electron Helper --type=utility --
+69266 68738       11:28 <home>/Documents/GitHub/DarkMechanicus-worktrees/multirepo-accept/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper (Renderer).app/Contents/MacOS/Electron Helper (Rende

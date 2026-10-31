@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { REASONING_EFFORTS } from '../shared/domain/bundle'
+import { repositoryName } from './repo/portable'
 import { STORAGE_MODES } from './repo/storageMode'
 import { MAX_GRANT_MINUTES, MIN_GRANT_MINUTES } from './services/grants'
 import {
@@ -18,6 +19,7 @@ import {
   hostCatalog,
   idempotencyKey,
   incrementRef,
+  incrementRefs,
   LIMITS,
   linearId,
   linearIdentifier,
@@ -50,12 +52,15 @@ const timelineWindow = {
 }
 
 export const COMMAND_SCHEMAS = {
-  setDefinitionOfDone: z.strictObject({ checks: definitionOfDoneChecks }),
+  /** `repo`: in a folder of repositories, the repository whose checks these are (required there, refused otherwise). */
+  setDefinitionOfDone: z.strictObject({ checks: definitionOfDoneChecks, repo: repositoryName.optional() }),
   initializeRepository: z.strictObject({
     name: z.string().min(1).max(200).optional(),
     keyPrefix: z.string().regex(/^[A-Z][A-Z0-9]{0,11}$/).optional(),
     /** Where the project's records live: in the repository (default), or in the home directory only. */
-    mode: z.enum(STORAGE_MODES).optional()
+    mode: z.enum(STORAGE_MODES).optional(),
+    /** `multi_repo`: the folder holds Git repositories as its immediate children (db mode only). */
+    layout: z.enum(['single', 'multi_repo']).optional()
   }),
   issueGrant: z.strictObject({
     role: z.enum(['planner', 'orchestrator', 'worker', 'reviewer', 'reader']),
@@ -161,6 +166,7 @@ export const COMMAND_SCHEMAS = {
     outputs: attemptOutputsInput,
     evidence: attemptEvidenceInput.optional(),
     increment: incrementRef.optional(),
+    increments: incrementRefs.optional(),
     idempotencyKey
   }),
   acceptAttempt: z.strictObject({

@@ -8,6 +8,7 @@ import {
   type TicketContent
 } from '../../shared/domain/bundle'
 import { makeBundle, makeSprint, makeTicket, tid } from '../../test/bundles'
+import { contentHash } from '../canonical'
 import {
   buildAcceptanceTicket,
   buildSprint,
@@ -748,5 +749,43 @@ describe('clearing a ticket size and reasoning effort with null', () => {
     const ticket = buildTicket({ title: 'Plain', size: null, capability: { reasoning: { effort: null } } }, IDENTITY)
     expect(Object.keys(ticket)).not.toContain('size')
     expect(Object.keys(ticket.capability.reasoning)).not.toContain('effort')
+  })
+})
+
+describe('a ticket without a repository', () => {
+  it('builds with no repo key and the same keys as before repositories existed', () => {
+    const ticket = buildTicket({ title: '  Plain  ' }, IDENTITY)
+    expect(ticket.title).toBe('Plain')
+    expect(Object.keys(ticket)).toEqual([
+      'id',
+      'key',
+      'title',
+      'body',
+      'acceptanceCriteria',
+      'tags',
+      'priority',
+      'capability',
+      'references',
+      'expectedArtifacts',
+      'optional'
+    ])
+    expect(buildTicket({ title: 'Plain', repo: null }, IDENTITY)).toEqual(buildTicket({ title: 'Plain' }, IDENTITY))
+  })
+
+  it('keeps its exact shape and content hash through patches that do not name a repository', () => {
+    const saved = makeTicket(1, { title: 'alpha - Looks prefixed' })
+    const hash = contentHash(saved)
+    for (const patch of [{ body: 'More' }, { title: 'alpha - Looks prefixed' }, { repo: null }, {}]) {
+      const patched = patchTicket(saved, patch)
+      expect(Object.keys(patched)).toEqual(Object.keys(saved))
+      expect(patched.title).toBe('alpha - Looks prefixed')
+    }
+    expect(contentHash(patchTicket(saved, { repo: null }))).toBe(hash)
+    expect(contentHash(patchTicket(saved, {}))).toBe(hash)
+  })
+
+  it('keeps a targeted ticket untouched by a patch that names neither its title nor its repository', () => {
+    const targeted = makeTicket(1, { title: 'alpha - Fix', repo: 'alpha' })
+    expect(patchTicket(targeted, { body: 'More' })).toEqual({ ...targeted, body: 'More' })
   })
 })

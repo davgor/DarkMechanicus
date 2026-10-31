@@ -211,3 +211,77 @@ describe('definition_of_done gate: the Definition of Done changes', () => {
     expect(gate(none, run)).toBeUndefined()
   })
 })
+
+/**
+ * Sprint 1 = {DM-1 alpha, DM-2 beta, DM-3 node, DM-4 gamma (optional)}, sprint 2 = {DM-5}. Only DM-1 and DM-2
+ * are accepted, so alpha and beta are touched and gamma is not.
+ */
+function folderPlan(): PlanBundle {
+  const bundle = makeBundle([[1, 2, 3, 4], [5]])
+  const repos: Record<string, string> = { [tid(1)]: 'alpha', [tid(2)]: 'beta', [tid(4)]: 'gamma' }
+  bundle.tickets = bundle.tickets.map((ticket) => {
+    if (ticket.id === tid(3)) {
+      return { ...ticket, kind: 'acceptance' as const }
+    }
+    const repo = repos[ticket.id]
+    return repo === undefined ? ticket : { ...ticket, repo, title: `${repo} - ${ticket.title}`, optional: ticket.id === tid(4) }
+  })
+  return bundle
+}
+
+function folderSetup(
+  lists: Record<string, DefinitionOfDoneCheck[]> = { alpha: [check('lint')], beta: [check('lint'), check('test')], gamma: [check('test')] }
+): { ctx: TestCtx; run: SeededRun } {
+  // A stray folder-level list (only a hand edit could leave one) is not the folder's Definition of Done.
+  const ctx = createTestCtx({ repositories: ['alpha', 'beta', 'gamma'], repositoryDefinitionOfDone: lists, definitionOfDone: [check('build')] })
+  const run = seedRun(ctx, { bundle: folderPlan() })
+  acceptTickets(ctx, run, [1, 2])
+  return { ctx, run }
+}
+
+describe('definition_of_done gate in a folder of repositories', () => {
+  it('asks for every touched repository\'s checks as "<repo>: <check>" while the node has no accepted attempt', () => {
+    const { ctx, run } = folderSetup()
+    expect(gate(ctx, run)?.detail).toBe('DM-3 has no accepted attempt yet; it must report these checks as passed: alpha: lint, beta: lint, beta: test')
+  })
+
+  it('names an unmet check by its repository', () => {
+    const { ctx, run } = folderSetup()
+    seedAttempt(ctx, run, { ticket: 3, state: 'accepted', increment: {}, checks: passed('alpha: lint', 'beta: lint', 'test') })
+    expect(gate(ctx, run)).toEqual({
+      id: 'definition_of_done',
+      label: 'Definition of Done passed',
+      met: false,
+      detail: "DM-3's accepted attempt does not report these checks as passed: beta: test (not reported)"
+    })
+  })
+
+  it('says which repository\'s check failed', () => {
+    const { ctx, run } = folderSetup()
+    const checks: CheckResult[] = [...passed('alpha: lint', 'beta: test'), { name: 'beta: lint', status: 'failed', detail: '' }]
+    seedAttempt(ctx, run, { ticket: 3, state: 'accepted', increment: {}, checks })
+    expect(gate(ctx, run)?.detail).toBe("DM-3's accepted attempt does not report these checks as passed: beta: lint (failed)")
+  })
+
+  it('is met once every touched repository\'s checks pass, without the untouched repository\'s or the folder-level list', () => {
+    const { ctx, run } = folderSetup()
+    seedAttempt(ctx, run, { ticket: 3, state: 'accepted', increment: {}, checks: passed('alpha: lint', 'beta: lint', 'beta: test') })
+    expect(gate(ctx, run)).toEqual({
+      id: 'definition_of_done',
+      label: 'Definition of Done passed',
+      met: true,
+      detail: 'DM-3 reports all 3 Definition of Done checks as passed'
+    })
+  })
+
+  it('adds no check for a touched repository without a list', () => {
+    const { ctx, run } = folderSetup({ beta: [check('test')] })
+    seedAttempt(ctx, run, { ticket: 3, state: 'accepted', increment: {}, checks: passed('beta: test') })
+    expect(gate(ctx, run)).toMatchObject({ met: true, detail: 'DM-3 reports all 1 Definition of Done check as passed' })
+  })
+
+  it('is left out when no touched repository has a list', () => {
+    const { ctx, run } = folderSetup({ gamma: [check('test')] })
+    expect(gate(ctx, run)).toBeUndefined()
+  })
+})

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import type { SprintIncrement } from '../../shared/domain/views'
 import { createGitRepo, type GitRepo } from '../../test/gitRepo'
 import { createGitAdapter } from '../repo/git'
-import { type IncrementContext, verifyIncrement } from './incrementVerify'
+import { type IncrementContext, verifyIncrement, verifyRepositoryIncrements } from './incrementVerify'
 
 const NOW = '2026-03-01T10:00:00.000Z'
 const EPIC = 'epic/x'
@@ -239,6 +239,44 @@ describe('verifyIncrement: coming after the base', () => {
   })
 })
 
+describe('verifyIncrement: a base or an answer git does not have', () => {
+  const scene = useScene()
+
+  it("fails when the epic's start commit is not in the repository, and names it", async () => {
+    const { repo, context } = scene()
+    work(repo, 'w1', ['one'])
+    const squashed = repo.squash('w1', 'sprint 1')
+    context.epicBranch = { repository: null, name: EPIC, startCommit: 'f'.repeat(40) }
+    const result = await verify(scene(), squashed)
+    expect(result.passed).toBe(false)
+    expect(result.reasons).toEqual(["The epic's start commit fffffff was not found in the repository."])
+  })
+
+  it("fails when the previous sprint's increment is not in the repository, instead of passing it", async () => {
+    const { repo, context } = scene()
+    work(repo, 'w1', ['one'])
+    const squashed = repo.squash('w1', 'sprint 2')
+    context.previous = { sprintId: 'sp_zero', commit: 'e'.repeat(40) }
+    const result = await verify(scene(), squashed)
+    expect(result.passed).toBe(false)
+    expect(result.reasons).toEqual([
+      `Commit ${squashed.slice(0, 7)} cannot be compared with the previous sprint's increment eeeeeee: git does not have it.`
+    ])
+  })
+
+  it('fails the reachability check when git cannot answer, rather than passing it', async () => {
+    const { repo, context } = scene()
+    work(repo, 'w1', ['one'])
+    const squashed = repo.squash('w1', 'sprint 1')
+    const real = createGitAdapter(repo.root)
+    const undecided = { ...real, isAncestor: () => Promise.resolve(null) }
+    const result = await verifyIncrement(undecided, context, { branch: EPIC, commit: squashed }, NOW)
+    expect(result.passed).toBe(false)
+    const reachable = result.checks.find((check) => check.name === 'On the epic branch')
+    expect(reachable).toMatchObject({ status: 'failed', detail: `Git could not tell whether commit ${squashed.slice(0, 7)} is on ${EPIC}.` })
+  })
+})
+
 describe('verifyIncrement: an epic branch without a start commit', () => {
   const scene = useScene(() => ({ epicBranch: { repository: null, name: EPIC, startCommit: null } }))
 
@@ -287,6 +325,35 @@ describe('verifyIncrement: the commits the sprint recorded', () => {
     expect(check?.status).toBe('passed')
     expect(check?.detail).toContain('1 recorded commit is not in this repository')
   })
+})
+
+describe('verifyIncrement: how the recorded commits are counted and listed', () => {
+  const scene = useScene()
+
+  it('counts several recorded commits the repository does not have in the plural', async () => {
+    const { repo, context } = scene()
+    context.workCommits = [...work(repo, 'w1', ['one']), 'f'.repeat(40), 'e'.repeat(40)]
+    const squashed = repo.squash('w1', 'sprint 1')
+    const result = await verify(scene(), squashed)
+    expect(result.passed).toBe(true)
+    const check = result.checks.find((item) => item.name === 'Squashed, not merged')
+    expect(check?.detail).toContain('2 recorded commits are not in this repository and were not checked.')
+  })
+
+  it('lists the first five merged commits and counts the rest', async () => {
+    const { repo, context } = scene()
+    const recorded = work(repo, 'w1', ['one', 'two', 'three', 'four', 'five', 'six', 'seven'])
+    repo.git('merge', '--ff-only', '-q', 'w1')
+    context.workCommits = recorded
+    const result = await verify(scene(), repo.rev(EPIC))
+    const shown = recorded
+      .slice(0, 5)
+      .map((commit) => commit.slice(0, 7))
+      .join(', ')
+    expect(result.reasons).toHaveLength(1)
+    expect(result.reasons[0]).toContain(`7 commits recorded by this sprint's accepted work are reachable`)
+    expect(result.reasons[0]).toContain(`${shown} and 2 more.`)
+  })
 
   it('looks at each recorded commit once and finds one anywhere in the list', async () => {
     const { repo, context } = scene()
@@ -296,5 +363,86 @@ describe('verifyIncrement: the commits the sprint recorded', () => {
     const result = await verify(scene(), repo.rev(EPIC))
     expect(result.reasons).toHaveLength(1)
     expect(result.reasons[0]).toContain('2 commits')
+  })
+})
+
+interface Folder {
+  alpha: Scene
+  beta: Scene
+}
+
+/** Two real repositories, alpha and beta, each with the epic branch at its own start commit; removed after each test. */
+function useFolder(): () => Folder {
+  let opened: Folder | undefined
+  afterEach(() => {
+    opened?.alpha.repo.cleanup()
+    opened?.beta.repo.cleanup()
+    opened = undefined
+  })
+  return () => {
+    opened ??= { alpha: newScene(), beta: newScene() }
+    return opened
+  }
+}
+
+/** Verifies `alphaCommit` in alpha and `betaCommit` in beta, each with its repository's adapter and context. */
+function verifyBoth({ alpha, beta }: Folder, alphaCommit: string, betaCommit: string): Promise<SprintIncrement[]> {
+  const gitFor = (repo: string) => createGitAdapter((repo === 'alpha' ? alpha : beta).repo.root)
+  return verifyRepositoryIncrements(
+    gitFor,
+    [
+      { repo: 'alpha', named: { repo: 'alpha', branch: EPIC, commit: alphaCommit }, context: alpha.context },
+      { repo: 'beta', named: { repo: 'beta', branch: EPIC, commit: betaCommit }, context: beta.context }
+    ],
+    NOW
+  )
+}
+
+describe('verifyRepositoryIncrements: one increment per repository of a folder', () => {
+  const folder = useFolder()
+
+  it('passes both squashed increments, each verified in its own repository and named by it', async () => {
+    const both = folder()
+    const { alpha, beta } = both
+    alpha.context.workCommits = work(alpha.repo, 'w1', ['a one', 'a two'])
+    beta.context.workCommits = work(beta.repo, 'w2', ['b one'])
+    const alphaSquash = alpha.repo.squash('w1', 'sprint 1')
+    const betaSquash = beta.repo.squash('w2', 'sprint 1')
+    const verdicts = await verifyBoth(both, alphaSquash, betaSquash)
+    expect(verdicts).toMatchObject([
+      { repo: 'alpha', commit: alphaSquash, parent: alpha.start, base: { kind: 'epic_start', commit: alpha.start }, passed: true },
+      { repo: 'beta', commit: betaSquash, parent: beta.start, base: { kind: 'epic_start', commit: beta.start }, passed: true }
+    ])
+    expect(verdicts.flatMap((verdict) => verdict.checks.map((check) => check.status))).toEqual(Array(12).fill('passed'))
+  })
+
+  it("fails a merge commit in beta, naming beta, while alpha's squashed increment still passes", async () => {
+    const both = folder()
+    const { alpha, beta } = both
+    alpha.context.workCommits = work(alpha.repo, 'w1', ['a one'])
+    beta.context.workCommits = work(beta.repo, 'w2', ['b one'])
+    const alphaSquash = alpha.repo.squash('w1', 'sprint 1')
+    beta.repo.commit('beta moves on')
+    const betaMerge = beta.repo.merge('w2')
+    const verdicts = await verifyBoth(both, alphaSquash, betaMerge)
+    expect(verdicts.map((verdict) => [verdict.repo, verdict.passed])).toEqual([
+      ['alpha', true],
+      ['beta', false]
+    ])
+    expect(verdicts.filter((verdict) => !verdict.passed).map((verdict) => verdict.repo)).toEqual(['beta'])
+    expect(verdicts[1]?.reasons[0]).toContain('2 parents')
+    expect(verdicts[1]?.reasons[1]).toContain('merged rather than squashed')
+  })
+
+  it("asks each repository's own Git: alpha's commit named for beta is not found there", async () => {
+    const both = folder()
+    const { alpha, beta } = both
+    work(alpha.repo, 'w1', ['a one'])
+    work(beta.repo, 'w2', ['b one'])
+    const alphaSquash = alpha.repo.squash('w1', 'sprint 1')
+    beta.repo.squash('w2', 'sprint 1')
+    const verdicts = await verifyBoth(both, alphaSquash, alphaSquash)
+    expect(verdicts.map((verdict) => verdict.passed)).toEqual([true, false])
+    expect(verdicts[1]?.reasons[0]).toContain('was not found in the repository')
   })
 })

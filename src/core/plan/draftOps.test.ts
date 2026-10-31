@@ -3,7 +3,7 @@ import type { DraftOp } from '../../shared/domain/api'
 import type { PlanBundle } from '../../shared/domain/bundle'
 import { makeBundle, makeSprint, makeTicket, sid, tid } from '../../test/bundles'
 import { DomainError } from '../errors'
-import { applyDraftOps, type DraftOpsResult } from './draftOps'
+import { applyDraftOps, type DraftDeps, type DraftOpsResult } from './draftOps'
 import { validatePlan } from './graph'
 import { maxKeyNumber } from './normalize'
 
@@ -14,8 +14,11 @@ function baseBundle(): PlanBundle {
   return makeBundle([[1, 2], [3]], [[1, 3]])
 }
 
-/** Readable, deterministic ids (`tk_new1`, `sp_new1`) and keys continuing after the bundle's own. */
-function makeDeps(bundle: PlanBundle): { newId(kind: 'ticket' | 'sprint'): string; nextKey(): string } {
+/**
+ * Readable, deterministic ids (`tk_new1`, `sp_new1`) and keys continuing after the bundle's own, in a project with
+ * `repositories` (default: a single repository).
+ */
+function makeDeps(bundle: PlanBundle, repositories: string[] | null = null): DraftDeps {
   const counters = { ticket: 0, sprint: 0 }
   let key = maxKeyNumber(bundle.tickets.map((ticket) => ticket.key))
   return {
@@ -26,7 +29,8 @@ function makeDeps(bundle: PlanBundle): { newId(kind: 'ticket' | 'sprint'): strin
     nextKey: () => {
       key += 1
       return `DM-${key}`
-    }
+    },
+    repositories: () => repositories
   }
 }
 
@@ -118,7 +122,8 @@ describe('applyDraftOps failures', () => {
       newId: (): string => {
         throw new Error('id source exhausted')
       },
-      nextKey: () => 'DM-4'
+      nextKey: () => 'DM-4',
+      repositories: () => null
     }
     const attempt = (): DraftOpsResult =>
       applyDraftOps(baseBundle(), [{ op: 'add_ticket', sprint: '1', ticket: { title: 'x' } }], deps)
@@ -892,5 +897,155 @@ describe('set_epic title', () => {
       message: 'The epic needs a title.',
       details: { opIndex: 0, op: 'set_epic' }
     })
+  })
+})
+
+const REPOSITORIES = ['alpha', 'beta', 'foo - bar']
+
+function inFolder(bundle: PlanBundle, ...ops: DraftOp[]): DraftOpsResult {
+  return applyDraftOps(bundle, ops, makeDeps(bundle, REPOSITORIES))
+}
+
+function refusal(bundle: PlanBundle, repositories: string[] | null, ...ops: DraftOp[]): Rejection | undefined {
+  try {
+    applyDraftOps(bundle, ops, makeDeps(bundle, repositories))
+  } catch (error: unknown) {
+    if (error instanceof DomainError) {
+      return { code: error.code, message: error.message, details: error.details }
+    }
+    throw error
+  }
+  return undefined
+}
+
+/** The bundle after adding `DM-4` to sprint 1 targeting `alpha`. */
+function withAlphaTicket(): PlanBundle {
+  return inFolder(baseBundle(), { op: 'add_ticket', sprint: '1', ticket: { title: 'Add refund endpoint', repo: 'alpha' } })
+    .bundle
+}
+
+function dm4(bundle: PlanBundle): PlanBundle['tickets'][number] | undefined {
+  return bundle.tickets.find((ticket) => ticket.key === 'DM-4')
+}
+
+function updatedDm4(patch: Extract<DraftOp, { op: 'update_ticket' }>['patch']): PlanBundle['tickets'][number] | undefined {
+  return dm4(inFolder(withAlphaTicket(), { op: 'update_ticket', ticket: 'DM-4', patch }).bundle)
+}
+
+describe('add_ticket with a repository', () => {
+  const addedTitle = (title: string, repo: string): string | undefined =>
+    dm4(inFolder(baseBundle(), { op: 'add_ticket', sprint: '1', ticket: { title, repo } }).bundle)?.title
+
+  it('stores the repository and prefixes the title', () => {
+    expect(dm4(withAlphaTicket())).toMatchObject({ repo: 'alpha', title: 'alpha - Add refund endpoint' })
+  })
+
+  it('does not double a prefix the title already carries, after trimming it', () => {
+    expect(addedTitle('  alpha - Add refund endpoint ', 'alpha')).toBe('alpha - Add refund endpoint')
+  })
+
+  it("keeps another repository's prefix as part of the description", () => {
+    expect(addedTitle('beta - Shared fix', 'alpha')).toBe('alpha - beta - Shared fix')
+  })
+
+  it('handles a repository whose name contains the separator', () => {
+    const added = inFolder(baseBundle(), { op: 'add_ticket', sprint: '1', ticket: { title: 'Fix', repo: 'foo - bar' } })
+    expect(dm4(added.bundle)?.title).toBe('foo - bar - Fix')
+    const moved = inFolder(added.bundle, { op: 'update_ticket', ticket: 'DM-4', patch: { repo: 'alpha' } })
+    expect(dm4(moved.bundle)).toMatchObject({ repo: 'alpha', title: 'alpha - Fix' })
+  })
+
+  it('never asks for the repositories when no op names one', () => {
+    const deps = {
+      ...makeDeps(baseBundle()),
+      repositories: (): string[] | null => {
+        throw new Error('project.json was read')
+      }
+    }
+    const ops: DraftOp[] = [{ op: 'add_ticket', sprint: '1', ticket: { title: 'Plain', repo: null } }]
+    expect(() => applyDraftOps(baseBundle(), ops, deps)).not.toThrow()
+  })
+})
+
+describe('update_ticket with a repository', () => {
+  it('updates the title only and keeps the prefix, without doubling a prefix the new title carries', () => {
+    expect(updatedDm4({ title: 'Refund twice' })).toMatchObject({ repo: 'alpha', title: 'alpha - Refund twice' })
+    expect(updatedDm4({ title: 'alpha - Refund twice' })?.title).toBe('alpha - Refund twice')
+  })
+
+  it('updates the repository only and swaps the prefix', () => {
+    expect(updatedDm4({ repo: 'beta' })).toMatchObject({ repo: 'beta', title: 'beta - Add refund endpoint' })
+  })
+
+  it('updates both the title and the repository', () => {
+    expect(updatedDm4({ title: 'Refund in cents', repo: 'beta' })).toMatchObject({ repo: 'beta', title: 'beta - Refund in cents' })
+    expect(updatedDm4({ title: 'beta - Refund in cents', repo: 'beta' })?.title).toBe('beta - Refund in cents')
+  })
+
+  it('clears the repository and leaves the bare description, with no repo key', () => {
+    const cleared = updatedDm4({ repo: null })
+    expect(cleared?.title).toBe('Add refund endpoint')
+    expect(Object.keys(cleared ?? {})).not.toContain('repo')
+  })
+
+  it('targets an existing ticket that had no repository', () => {
+    const { bundle } = inFolder(baseBundle(), { op: 'update_ticket', ticket: 'DM-1', patch: { repo: 'alpha' } })
+    expect(bundle.tickets[0]).toMatchObject({ repo: 'alpha', title: 'alpha - Ticket 1' })
+  })
+
+  it('keeps the title and repository of a targeted ticket through unrelated updates', () => {
+    expect(updatedDm4({ body: 'More' })).toMatchObject({ repo: 'alpha', title: 'alpha - Add refund endpoint', body: 'More' })
+  })
+})
+
+describe('ticket repositories that are refused', () => {
+  it('refuses a repository on a new acceptance node', () => {
+    const op: DraftOp = { op: 'add_ticket', sprint: '1', ticket: { title: 'Check', kind: 'acceptance', repo: 'alpha' } }
+    expect(refusal(baseBundle(), REPOSITORIES, op)?.code).toBe('invalid_input')
+  })
+
+  it('refuses a repository on an existing acceptance node, and turning a targeted ticket into one', () => {
+    const bundle = makeBundle([[1, 2]])
+    bundle.tickets[1] = makeTicket(2, { kind: 'acceptance', title: 'Sprint 1 acceptance' })
+    const onNode = refusal(bundle, REPOSITORIES, { op: 'update_ticket', ticket: 'DM-2', patch: { repo: 'alpha' } })
+    expect(onNode?.code).toBe('invalid_input')
+    expect(onNode?.message).toContain('acceptance node')
+    const becoming = refusal(withAlphaTicket(), REPOSITORIES, { op: 'update_ticket', ticket: 'DM-4', patch: { kind: 'acceptance' } })
+    expect(becoming?.code).toBe('invalid_input')
+  })
+
+  it('refuses a repository in a single-repository project', () => {
+    const refused = refusal(baseBundle(), null, { op: 'add_ticket', sprint: '1', ticket: { title: 'Fix', repo: 'alpha' } })
+    expect(refused?.code).toBe('invalid_input')
+    expect(refused?.message).toContain('single repository')
+    const onUpdate = refusal(baseBundle(), null, { op: 'update_ticket', ticket: 'DM-1', patch: { repo: 'alpha' } })
+    expect(onUpdate?.code).toBe('invalid_input')
+  })
+
+  it('refuses a repository the project does not list, naming the listed ones', () => {
+    const refused = refusal(baseBundle(), REPOSITORIES, { op: 'add_ticket', sprint: '1', ticket: { title: 'Fix', repo: 'gamma' } })
+    expect(refused?.code).toBe('invalid_input')
+    expect(refused?.message).toContain('"gamma"')
+    expect(refused?.message).toContain('alpha, beta, foo - bar')
+    const onUpdate = refusal(withAlphaTicket(), REPOSITORIES, { op: 'update_ticket', ticket: 'DM-4', patch: { repo: 'Alpha' } })
+    expect(onUpdate?.code).toBe('invalid_input')
+  })
+
+  it('refuses a prefixed title longer than the title limit, on add and on update', () => {
+    const longest = 'x'.repeat(300)
+    const add: DraftOp = { op: 'add_ticket', sprint: '1', ticket: { title: longest, repo: 'alpha' } }
+    expect(refusal(baseBundle(), REPOSITORIES, add)?.code).toBe('invalid_input')
+    const update: DraftOp = { op: 'update_ticket', ticket: 'DM-1', patch: { title: longest, repo: 'beta' } }
+    expect(refusal(baseBundle(), REPOSITORIES, update)?.code).toBe('invalid_input')
+    const fits = 'x'.repeat(300 - 'alpha - '.length)
+    const added = inFolder(baseBundle(), { op: 'add_ticket', sprint: '1', ticket: { title: fits, repo: 'alpha' } })
+    expect(dm4(added.bundle)?.title).toHaveLength(300)
+  })
+
+  it('leaves the draft unchanged when a refusal stops the batch', () => {
+    const base = withAlphaTicket()
+    const before = structuredClone(base)
+    refusal(base, REPOSITORIES, { op: 'update_ticket', ticket: 'DM-4', patch: { repo: 'gamma' } })
+    expect(base).toEqual(before)
   })
 })

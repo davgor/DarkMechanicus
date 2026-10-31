@@ -3,6 +3,7 @@ import './ticket.css'
 import { useCallback, useEffect, useState } from 'react'
 import type { DraftOp } from '../../../shared/domain/api'
 import type { PlanBundle } from '../../../shared/domain/bundle'
+import type { RepositoryView } from '../../../shared/domain/views'
 import type { Runner } from '../epic/runner'
 import { StatePill } from '../epic/StatePill'
 import type { Result } from '../epic/workspaceActions'
@@ -25,6 +26,8 @@ interface TicketEditorProps {
   /** Reads and saves named capability profiles for this folder. */
   runner: Runner
   bundle: PlanBundle
+  /** The folder's repositories, or null for a single repository (or while they load). */
+  repositories: RepositoryView[] | null
   ticketId: string
   badge: TicketBadge
   busy: boolean
@@ -49,7 +52,7 @@ function useEditor(props: TicketEditorProps): Editor {
   const update = useCallback((form: TicketForm) => setState((current) => editForm(current, form)), [])
   const ops = state.form === null ? [] : formToOps(state.form, bundle, ticketId)
   const apply = async (): Promise<void> => {
-    const invalid = state.form === null ? null : formErrors(state.form)
+    const invalid = state.form === null ? null : formErrors(state.form, props.repositories)
     if (invalid !== null) {
       setState((current) => rejectForm(current, invalid))
       return
@@ -151,7 +154,7 @@ export function TicketEditor(props: TicketEditorProps): JSX.Element {
       <div className="tp-body tp-form">
         <BasicFields form={form} update={editor.update} />
         <CriteriaFields form={form} update={editor.update} />
-        <DetailFields form={form} update={editor.update} bundle={props.bundle} />
+        <DetailFields form={form} update={editor.update} bundle={props.bundle} repositories={props.repositories} />
         <PrerequisiteFields form={form} update={editor.update} bundle={props.bundle} ticketId={props.ticketId} />
         <CapabilityFields form={form} update={editor.update}>
           <ProfileBar runner={props.runner} form={form} update={editor.update} />

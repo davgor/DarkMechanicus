@@ -1,10 +1,12 @@
-import { execFile } from 'node:child_process'
+import { execFile, execFileSync } from 'node:child_process'
 import { join, resolve } from 'node:path'
 import { fail } from '../errors'
 import { nodeFs } from './nodeFs'
 import type { FsAdapter, GitAdapter, GitHead } from './types'
 
 type RunGit = (args: string[]) => Promise<{ code: number; stdout: string }>
+/** The same, synchronously: for the few reads a database transaction needs (e.g. binding an epic branch). */
+type RunGitSync = (args: string[]) => { code: number; stdout: string }
 
 const HEADS_PREFIX = 'refs/heads/'
 const SHA_PATTERN = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/
@@ -132,6 +134,26 @@ function defaultRunGit(root: string): RunGit {
     })
 }
 
+function defaultRunGitSync(root: string): RunGitSync {
+  return (args) => {
+    try {
+      const stdout = execFileSync('git', ['-C', root, ...args], {
+        encoding: 'utf8',
+        timeout: GIT_TIMEOUT_MS,
+        maxBuffer: GIT_MAX_BUFFER,
+        env: gitEnv(),
+        windowsHide: true,
+        stdio: ['ignore', 'pipe', 'ignore']
+      })
+      return { code: 0, stdout }
+    } catch (error: unknown) {
+      // execFileSync throws with the exit status in `status` (null when git could not run or was killed).
+      const status = error !== null && typeof error === 'object' && 'status' in error ? error.status : null
+      return { code: typeof status === 'number' ? status : GIT_FAILED, stdout: '' }
+    }
+  }
+}
+
 /** Refs and paths become git arguments: refuse anything git could read as an option. */
 function safeArg(value: string): string {
   if (value.startsWith('-') || value.includes('\u0000')) {
@@ -156,9 +178,13 @@ function parseCommitLine(text: string): { commit: string; parents: string[] } | 
  * Git access for one repository root. `head()` reads `.git` files directly (worktrees included);
  * the other methods run the git CLI and degrade to null/empty results when git is unavailable.
  */
-export function createGitAdapter(root: string, options: { fs?: FsAdapter; runGit?: RunGit } = {}): GitAdapter {
+export function createGitAdapter(
+  root: string,
+  options: { fs?: FsAdapter; runGit?: RunGit; runGitSync?: RunGitSync } = {}
+): GitAdapter {
   const fs = options.fs ?? nodeFs
   const run = options.runGit ?? defaultRunGit(root)
+  const runSync = options.runGitSync ?? defaultRunGitSync(root)
   const output = async (args: string[]): Promise<string | null> => {
     const result = await run(args)
     return result.code === 0 ? result.stdout : null
@@ -183,6 +209,18 @@ export function createGitAdapter(root: string, options: { fs?: FsAdapter; runGit
       const resolved = (await output(['rev-parse', '--verify', '--quiet', `${safeArg(ref)}^{commit}`]))?.trim() ?? ''
       const text = SHA_PATTERN.test(resolved) ? await output(['rev-list', '--parents', '-n', '1', resolved, '--']) : null
       return text === null ? null : parseCommitLine(text)
+    },
+    branchCommit: (name) => {
+      const ref = `${HEADS_PREFIX}${safeArg(name)}`
+      const result = runSync(['rev-parse', '--verify', '--quiet', `${safeArg(ref)}^{commit}`])
+      if (result.code !== 0 && result.code !== 1) {
+        // Git could not answer (exit 1 is a clean "no such branch"): read the ref the way `head()` does, so an
+        // existing branch is never mistaken for a missing one.
+        const gitDir = resolveGitDir(fs, root)
+        return gitDir !== null && isBranchRef(ref) ? resolveRef(fs, gitDir, ref) : null
+      }
+      const resolved = result.code === 0 ? result.stdout.trim() : ''
+      return SHA_PATTERN.test(resolved) ? resolved : null
     }
   }
 }

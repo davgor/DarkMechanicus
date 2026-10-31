@@ -166,6 +166,11 @@ function PanelHead(props: { panel: TicketPanelProps; detail: TicketDetailView; t
     <div className="tp-head">
       <div className="tp-head-row">
         <span className="ew-mono tp-key">{detail.ticket.key}</span>
+        {detail.ticket.repo === undefined ? null : (
+          <span className="ew-mono tp-repo" aria-label="Repository">
+            {detail.ticket.repo}
+          </span>
+        )}
         <StatePill tone={pill.tone} label={pill.label} />
         <span className="tp-head-actions">
           {panel.canEdit ? (
