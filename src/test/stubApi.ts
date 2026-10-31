@@ -25,6 +25,7 @@ const COMMAND_FLAGS: Record<CommandName, true> = {
   getStorageStatus: true,
   flushPortableState: true,
   reconcileRepository: true,
+  resolveEpicConflict: true,
   searchHistory: true,
   listBranchEpics: true,
   backupDatabase: true,

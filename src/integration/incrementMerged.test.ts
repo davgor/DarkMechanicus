@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createGitAdapter } from '../core/repo/git'
 import type { Workspace } from '../core/workspace'
 import type { AttemptView, CheckpointView, GateCondition, RunView } from '../shared/domain/views'
+import { issued } from '../test/execution'
 import { createGitRepo, type GitRepo } from '../test/gitRepo'
 import { createHarness, type Harness } from '../test/workspaceHarness'
 
@@ -88,7 +89,7 @@ async function planSprint(agent: Workspace): Promise<Planned> {
 
 /** The worker commits on its own branch, submits those commits, and the orchestrator accepts. */
 async function deliverWork(scene: Scene, runId: string, workId: string, branch: string): Promise<string> {
-  const claim = await scene.orchestrator.claimTicket({ runId, ticketId: workId, worker: { label: 'worker-1' } })
+  const claim = issued(await scene.orchestrator.claimTicket({ runId, ticketId: workId, worker: { label: 'worker-1' } }))
   scene.repo.branch(branch)
   const commit = scene.repo.commit(`work on ${branch}`)
   scene.repo.switchTo(EPIC_BRANCH)
@@ -108,7 +109,7 @@ async function submitNode(
   commit: string | null,
   branch = EPIC_BRANCH
 ): Promise<AttemptView> {
-  const claim = await scene.orchestrator.claimTicket({ runId: run.runId, ticketId: run.nodeId, worker: { label: 'acceptor' } })
+  const claim = issued(await scene.orchestrator.claimTicket({ runId: run.runId, ticketId: run.nodeId, worker: { label: 'acceptor' } }))
   return scene.orchestrator.submitAttempt({
     attemptId: claim.attempt.id,
     claimToken: claim.packet.claimToken,
@@ -249,7 +250,7 @@ describe('naming an increment', () => {
   it('is refused on a work ticket, which keeps its claim', async () => {
     const { orchestrator, repo } = scene()
     const { planned, run } = await started(scene())
-    const claim = await orchestrator.claimTicket({ runId: run.id, ticketId: planned.workId, worker: { label: 'w' } })
+    const claim = issued(await orchestrator.claimTicket({ runId: run.id, ticketId: planned.workId, worker: { label: 'w' } }))
     const submit = orchestrator.submitAttempt({
       attemptId: claim.attempt.id,
       claimToken: claim.packet.claimToken,
@@ -262,7 +263,7 @@ describe('naming an increment', () => {
   it('is refused for a malformed commit or branch before git is asked anything', async () => {
     const { orchestrator } = scene()
     const { planned, run } = await started(scene())
-    const claim = await orchestrator.claimTicket({ runId: run.id, ticketId: planned.workId, worker: { label: 'w' } })
+    const claim = issued(await orchestrator.claimTicket({ runId: run.id, ticketId: planned.workId, worker: { label: 'w' } }))
     const base = { attemptId: claim.attempt.id, claimToken: claim.packet.claimToken, outputs: { summary: 'x' } }
     expect(await codeOf(orchestrator.submitAttempt({ ...base, increment: { branch: EPIC_BRANCH, commit: 'HEAD' } }))).toBe('invalid_input')
     expect(await codeOf(orchestrator.submitAttempt({ ...base, increment: { branch: '--all', commit: 'abc1234' } }))).toBe('invalid_input')

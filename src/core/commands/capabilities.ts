@@ -19,6 +19,7 @@ export const COMMAND_CAPABILITIES: Readonly<Record<CommandName, Capability>> = {
   getStorageStatus: 'read',
   flushPortableState: 'repo.flush',
   reconcileRepository: 'repo.reconcile',
+  resolveEpicConflict: 'repo.resolve_conflict',
   searchHistory: 'read',
   listBranchEpics: 'read',
   backupDatabase: 'repo.backup',

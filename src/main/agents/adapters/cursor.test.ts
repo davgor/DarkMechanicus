@@ -1,3 +1,6 @@
+import { mkdtempSync, realpathSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import type {
   ApprovalDecision,
@@ -12,8 +15,10 @@ import {
   askToRun,
   cancelled,
   CLIENT_VERSION,
+  DM_INSTRUCTIONS,
   DM_SERVER,
   failedLoad,
+  firstPrompt,
   FOLDER,
   ACP_MCP_SERVERS,
   handshake,
@@ -26,8 +31,11 @@ import {
   update
 } from '../__mocks__/cursorRecordings'
 import { agent, client, ReplayAcpAgents, type Frame } from '../__mocks__/replayAcpAgent'
+import { buildCliConfig } from '../../desktop/cliConfig'
 import { CHAT_ADAPTERS } from '../adapterRegistry'
-import { createCursorAdapter, cursorAdapterDefinition, listCursorModels, type CursorDeps } from './cursor'
+import type { AcpDeps as CursorDeps } from './acp/acpAdapter'
+import { builtInSpec, customSpec } from '../__mocks__/launchSpecs'
+import { createCursorAdapter, listCursorModels } from './cursor'
 
 const AT = '2026-01-01T00:00:00.000Z'
 const S = 'sess_1'
@@ -66,12 +74,13 @@ function startOptions(overrides: Partial<ChatAdapterStartOptions> = {}): ChatAda
   return {
     chatId: 'chat_1',
     folder: FOLDER,
+    checkFolder: () => {},
     model: null,
     role: 'planner',
     allowSave: false,
     sessionId: null,
     darkMechanicus: DM_SERVER,
-    instructions: 'Use the dm CLI.',
+    instructions: DM_INSTRUCTIONS,
     ...overrides
   }
 }
@@ -125,7 +134,7 @@ function newChat(...rest: Frame[]): Frame[] {
 /** A turn that stops to ask permission, the person answers, and the agent carries on. */
 function approvalTurn(optionId: string, toolStatus: string): Frame[] {
   return newChat(
-    prompt(4, S, 'clean up'),
+    firstPrompt(4, S, 'clean up'),
     update(S, { sessionUpdate: 'tool_call', toolCallId: 'call_2', title: 'Run `rm -rf build`', kind: 'execute', status: 'pending' }),
     askToRun(S, 7, 'call_2', 'rm -rf build'),
     selected(7, optionId),
@@ -201,7 +210,7 @@ describe('a turn', () => {
     const rig = new Rig(
       new ReplayAcpAgents(
         newChat(
-          prompt(4, S, 'List the files'),
+          firstPrompt(4, S, 'List the files'),
           update(S, { sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: 'Let me look.' } }),
           say(S, "I'll check "),
           say(S, 'the folder.'),
@@ -246,7 +255,8 @@ describe('a turn', () => {
 
 describe('turns in sequence and turns that end badly', () => {
   it('runs one turn after another on the same session', async () => {
-    const rig = new Rig(new ReplayAcpAgents(newChat(prompt(4, S, 'one'), say(S, 'first'), turnEnd(4), prompt(5, S, 'two'), say(S, 'second'), turnEnd(5))))
+    // Only the first prompt of a process carries the chat's instructions.
+    const rig = new Rig(new ReplayAcpAgents(newChat(firstPrompt(4, S, 'one'), say(S, 'first'), turnEnd(4), prompt(5, S, 'two'), say(S, 'second'), turnEnd(5))))
     await rig.start()
 
     await rig.adapter.send('one')
@@ -261,7 +271,7 @@ describe('turns in sequence and turns that end badly', () => {
     ['max_turn_requests', /too many steps/],
     ['refusal', /declined/]
   ])('rejects the turn when the agent ends it with %s', async (stopReason, message) => {
-    const rig = new Rig(new ReplayAcpAgents(newChat(prompt(4, S, 'x'), say(S, 'partial'), turnEnd(4, stopReason))))
+    const rig = new Rig(new ReplayAcpAgents(newChat(firstPrompt(4, S, 'x'), say(S, 'partial'), turnEnd(4, stopReason))))
     await rig.start()
 
     await expect(rig.adapter.send('x')).rejects.toThrow(message)
@@ -270,7 +280,7 @@ describe('turns in sequence and turns that end badly', () => {
   })
 
   it('rejects the turn with the agent\'s own message when the prompt fails', async () => {
-    const rig = new Rig(new ReplayAcpAgents(newChat(prompt(4, S, 'x'), agent({ id: 4, error: { code: -32603, message: 'Model not available' } }))))
+    const rig = new Rig(new ReplayAcpAgents(newChat(firstPrompt(4, S, 'x'), agent({ id: 4, error: { code: -32603, message: 'Model not available' } }))))
     await rig.start()
 
     await expect(rig.adapter.send('x')).rejects.toThrow('Model not available')
@@ -286,8 +296,8 @@ describe('turns in sequence and turns that end badly', () => {
 describe('a turn the agent dies in', () => {
   it('rejects a turn the agent dies in, then restarts the process and resumes the session for the next one', async () => {
     const agents = new ReplayAcpAgents(
-      newChat(prompt(4, S, 'one'), say(S, 'half an ans')),
-      [...handshake(), ...loadSession(3, S), prompt(4, S, 'two'), say(S, 'back'), turnEnd(4)]
+      newChat(firstPrompt(4, S, 'one'), say(S, 'half an ans')),
+      [...handshake(), ...loadSession(3, S), firstPrompt(4, S, 'two'), say(S, 'back'), turnEnd(4)]
     )
     const rig = new Rig(agents)
     await rig.start()
@@ -301,6 +311,68 @@ describe('a turn the agent dies in', () => {
     rig.expectReplayed()
     expect(agents.launches).toHaveLength(2)
     expect(rig.items.some((item) => item.kind === 'context_reset')).toBe(false)
+  })
+})
+
+describe('the folder every Cursor process runs in', () => {
+  it('spawns the process, opens and loads the session, and pins the dm command in the one canonical folder', async () => {
+    const folder = realpathSync(mkdtempSync(join(tmpdir(), 'dm-cursor-folder-')))
+    try {
+      const cli = { ...buildCliConfig({ packaged: false, execPath: '/bin/electron', appPath: '/app', repoPath: folder }), env: { DM_SESSION_TOKEN: 'dmg_test' } }
+      const opened = new Rig(
+        new ReplayAcpAgents([
+          ...handshake(),
+          client({ id: 3, method: 'session/new', params: { cwd: folder, mcpServers: [] } }),
+          agent({ id: 3, result: { sessionId: S } })
+        ])
+      )
+      const loaded = new Rig(
+        new ReplayAcpAgents([...handshake(), client({ id: 3, method: 'session/load', params: { sessionId: S, cwd: folder, mcpServers: [] } }), agent({ id: 3, result: null })])
+      )
+
+      await opened.start({ folder, darkMechanicus: cli })
+      await loaded.start({ folder, darkMechanicus: cli, sessionId: S })
+
+      for (const rig of [opened, loaded]) {
+        rig.expectReplayed()
+        expect(rig.agents.launches.map((launch) => launch.cwd)).toEqual([folder])
+      }
+      expect(cli.args.slice(-2)).toEqual(['--repo', folder])
+    } finally {
+      rmSync(folder, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('the folder a Cursor process is started again in', () => {
+  it.each([
+    ['a crash', 'crash'],
+    ['a model change', 'model']
+  ] as const)('checks the folder before it starts the process again after %s, and starts none in a folder that is gone', async (_why, restart) => {
+    let checks = 0
+    let gone = false
+    const checkFolder = (): void => {
+      checks += 1
+      if (gone) {
+        throw new Error(`The folder ${FOLDER} is gone: it was moved or deleted. Track the folder again to keep using this chat.`)
+      }
+    }
+    const agents = new ReplayAcpAgents(newChat(firstPrompt(4, S, 'one'), turnEnd(4)))
+    const rig = new Rig(agents)
+    await rig.start({ checkFolder })
+    await rig.adapter.send('one')
+    expect(checks).toBe(1)
+    if (restart === 'crash') {
+      agents.processes[0]?.exit('exit code 1: out of memory')
+    } else {
+      await rig.adapter.setModel('gpt-5.3-codex')
+    }
+    gone = true
+
+    await expect(rig.adapter.send('two')).rejects.toThrow(FOLDER)
+
+    expect(checks).toBe(2)
+    expect(agents.launches).toHaveLength(1)
   })
 })
 
@@ -376,7 +448,7 @@ describe('approvals: several requests and missing details', () => {
       }
     })
     const rig = new Rig(
-      new ReplayAcpAgents(newChat(prompt(4, S, 'go'), askToRun(S, 7, 'call_2', 'ls'), edit, selected(8, 'reject-once'), selected(7, 'allow-once'), turnEnd(4)))
+      new ReplayAcpAgents(newChat(firstPrompt(4, S, 'go'), askToRun(S, 7, 'call_2', 'ls'), edit, selected(8, 'reject-once'), selected(7, 'allow-once'), turnEnd(4)))
     )
     await rig.start()
 
@@ -398,7 +470,7 @@ describe('approvals: several requests and missing details', () => {
       method: 'session/request_permission',
       params: { sessionId: S, toolCall: { toolCallId: 'c', title: 'Run', kind: 'execute' }, options: [{ optionId: 'ok', name: 'OK', kind: 'allow_once' }] }
     })
-    const rig = new Rig(new ReplayAcpAgents(newChat(prompt(4, S, 'go'), onlyAllow, cancelled(7), turnEnd(4))))
+    const rig = new Rig(new ReplayAcpAgents(newChat(firstPrompt(4, S, 'go'), onlyAllow, cancelled(7), turnEnd(4))))
     await rig.start()
 
     const turn = rig.adapter.send('go')
@@ -414,7 +486,7 @@ describe('approvals: several requests and missing details', () => {
 describe('approvals: requests Cursor adds to ACP', () => {
   it('still asks, and answers, when the request names no tool call and no options', async () => {
     const bare = agent({ id: 7, method: 'session/request_permission', params: { sessionId: S } })
-    const rig = new Rig(new ReplayAcpAgents(newChat(prompt(4, S, 'go'), bare, selected(7, 'allow-once'), turnEnd(4))))
+    const rig = new Rig(new ReplayAcpAgents(newChat(firstPrompt(4, S, 'go'), bare, selected(7, 'allow-once'), turnEnd(4))))
     await rig.start()
 
     const turn = rig.adapter.send('go')
@@ -430,7 +502,7 @@ describe('approvals: requests Cursor adds to ACP', () => {
     const rig = new Rig(
       new ReplayAcpAgents(
         newChat(
-          prompt(4, S, 'plan it'),
+          firstPrompt(4, S, 'plan it'),
           agent({ id: 11, method: 'cursor/ask_question', params: { toolCallId: 'q', title: 'Need input', questions: [{ id: 'q1', prompt: 'Which mode?', options: [] }] } }),
           client({ id: 11, result: { outcome: { outcome: 'cancelled' } } }),
           agent({ id: 12, method: 'cursor/create_plan', params: { toolCallId: 'p', name: 'Plan', plan: '1. Do it', todos: [] } }),
@@ -461,7 +533,7 @@ describe('stopping', () => {
     const rig = new Rig(
       new ReplayAcpAgents(
         newChat(
-          prompt(4, S, 'go'),
+          firstPrompt(4, S, 'go'),
           askToRun(S, 7, 'call_2', 'sleep 100'),
           client({ method: 'session/cancel', params: { sessionId: S } }),
           cancelled(7),
@@ -496,8 +568,8 @@ describe('stopping', () => {
 describe('stopping: an agent that ignores the cancel', () => {
   it('ends an agent that ignores the cancel after a grace period, settles the turn and resumes the session for the next one', async () => {
     const agents = new ReplayAcpAgents(
-      newChat(prompt(4, S, 'go'), client({ method: 'session/cancel', params: { sessionId: S } })),
-      [...handshake(), ...loadSession(3, S), prompt(4, S, 'again'), turnEnd(4)]
+      newChat(firstPrompt(4, S, 'go'), client({ method: 'session/cancel', params: { sessionId: S } })),
+      [...handshake(), ...loadSession(3, S), firstPrompt(4, S, 'again'), turnEnd(4)]
     )
     const rig = new Rig(agents)
     await rig.start()
@@ -522,7 +594,7 @@ describe('resuming', () => {
       say(S, 'earlier answer'),
       update(S, { sessionUpdate: 'tool_call', toolCallId: 'old', title: 'Run `ls`', kind: 'execute', status: 'completed' })
     ]
-    const rig = new Rig(new ReplayAcpAgents([...handshake(), ...loadSession(3, 'sess_old', history), prompt(4, 'sess_old', 'next'), say('sess_old', 'new answer'), turnEnd(4)]))
+    const rig = new Rig(new ReplayAcpAgents([...handshake(), ...loadSession(3, 'sess_old', history), firstPrompt(4, 'sess_old', 'next'), say('sess_old', 'new answer'), turnEnd(4)]))
 
     await rig.start({ sessionId: 'sess_old' })
     await rig.adapter.send('next')
@@ -584,8 +656,8 @@ describe('resuming: without a stored session to load', () => {
 describe('models', () => {
   it('applies a model change from the next turn by restarting `agent --model <id> acp` on the same session', async () => {
     const agents = new ReplayAcpAgents(
-      newChat(prompt(4, S, 'one'), turnEnd(4)),
-      [...handshake(), ...loadSession(3, S), prompt(4, S, 'two'), turnEnd(4)]
+      newChat(firstPrompt(4, S, 'one'), turnEnd(4)),
+      [...handshake(), ...loadSession(3, S), firstPrompt(4, S, 'two'), turnEnd(4)]
     )
     const rig = new Rig(agents)
     await rig.start()
@@ -606,7 +678,7 @@ describe('models', () => {
   })
 
   it('starts a new session with a context reset when the session cannot be loaded under the new model', async () => {
-    const agents = new ReplayAcpAgents(newChat(), [...handshake(), ...failedLoad(3, S), ...newSession(4, 'sess_2'), prompt(5, 'sess_2', 'hi'), turnEnd(5)])
+    const agents = new ReplayAcpAgents(newChat(), [...handshake(), ...failedLoad(3, S), ...newSession(4, 'sess_2'), firstPrompt(5, 'sess_2', 'hi'), turnEnd(5)])
     const rig = new Rig(agents)
     await rig.start()
 
@@ -624,7 +696,7 @@ describe('models', () => {
 
 describe('models: changing the model and its id', () => {
   it('does not restart for the model it already runs, nor for the one chosen back before the next turn', async () => {
-    const agents = new ReplayAcpAgents(newChat(prompt(4, S, 'one'), turnEnd(4)))
+    const agents = new ReplayAcpAgents(newChat(firstPrompt(4, S, 'one'), turnEnd(4)))
     const rig = new Rig(agents)
     await rig.start({ model: 'auto' })
     await rig.adapter.setModel('auto')
@@ -637,7 +709,7 @@ describe('models: changing the model and its id', () => {
   })
 
   it.each(['x" & calc & "', 'a&b', '%PATH%', '--yolo', ''])('rejects the model id %j and keeps the running one', async (model) => {
-    const agents = new ReplayAcpAgents(newChat(prompt(4, S, 'one'), turnEnd(4)))
+    const agents = new ReplayAcpAgents(newChat(firstPrompt(4, S, 'one'), turnEnd(4)))
     const rig = new Rig(agents)
     await rig.start()
 
@@ -711,7 +783,7 @@ describe('models: listing', () => {
 
 describe('ending the session', () => {
   it('kills the process (tree) and reports nothing after that', async () => {
-    const agents = new ReplayAcpAgents(newChat(prompt(4, S, 'go')))
+    const agents = new ReplayAcpAgents(newChat(firstPrompt(4, S, 'go')))
     const rig = new Rig(agents)
     await rig.start()
     const turn = rig.adapter.send('go').catch((error: unknown) => error)
@@ -729,7 +801,7 @@ describe('ending the session', () => {
   })
 
   it('resolves dispose only once the process tree is gone, so quitting waits for it', async () => {
-    const agents = new ReplayAcpAgents(newChat(prompt(4, S, 'go')))
+    const agents = new ReplayAcpAgents(newChat(firstPrompt(4, S, 'go')))
     agents.holdKills = true
     const rig = new Rig(agents)
     await rig.start()
@@ -770,7 +842,7 @@ describe('ending the session', () => {
 
 describe('approvals that cannot reach the person', () => {
   it('still answers the agent when handing the request on fails', async () => {
-    const agents = new ReplayAcpAgents(newChat(prompt(4, S, 'go'), askToRun(S, 7, 'call_2', 'ls'), cancelled(7), turnEnd(4)))
+    const agents = new ReplayAcpAgents(newChat(firstPrompt(4, S, 'go'), askToRun(S, 7, 'call_2', 'ls'), cancelled(7), turnEnd(4)))
     const rig = new Rig(agents)
     await rig.adapter.start(startOptions(), (event) => {
       if (event.type === 'approval_request') {
@@ -789,12 +861,10 @@ describe('approvals that cannot reach the person', () => {
 })
 
 describe('the registry entry', () => {
-  it('registers Cursor chats to start on the first message, with the adapter and the model list', () => {
-    expect(CHAT_ADAPTERS.cursor).toBe(cursorAdapterDefinition)
-    expect(cursorAdapterDefinition.startOnOpen).toBe(false)
-    const adapter = cursorAdapterDefinition.create(PATH)
-    expect(adapter.kind).toBe('cursor')
-    expect(typeof cursorAdapterDefinition.listModels).toBe('function')
+  it('runs Cursor on its own flavor for ACP chats, started on the first message, and a custom ACP CLI on the generic one', () => {
+    expect(CHAT_ADAPTERS.acp.startOnOpen).toBe(false)
+    expect(CHAT_ADAPTERS.acp.create(builtInSpec('cursor', PATH)).kind).toBe('cursor')
+    expect(CHAT_ADAPTERS.acp.create(customSpec('acp', PATH, [])).kind).toBe('custom')
   })
 })
 
@@ -809,7 +879,7 @@ describe('Cursor extensions with details missing', () => {
     const rig = new Rig(
       new ReplayAcpAgents(
         newChat(
-          prompt(4, S, 'go'),
+          firstPrompt(4, S, 'go'),
           ...asked(11, { toolCallId: 'q' }),
           ...asked(12, { toolCallId: 'q', questions: [{ id: 'q1' }, 'junk', { id: 'q2', prompt: 7 }] }),
           ...asked(13, { toolCallId: 'q', questions: [{ prompt: 'One?' }, { prompt: 'Two?' }] }),
@@ -830,7 +900,7 @@ describe('Cursor extensions with details missing', () => {
     const rig = new Rig(
       new ReplayAcpAgents(
         newChat(
-          prompt(4, S, 'go'),
+          firstPrompt(4, S, 'go'),
           agent({ id: 14, method: 'cursor/update_todos', params: { toolCallId: 't' } }),
           client({ id: 14, result: { outcome: { outcome: 'accepted', todos: [] } } }),
           agent({ id: 15, method: 'cursor/task', params: { toolCallId: 'k', agentId: 'agent-7', durationMs: 1200 } }),
@@ -857,7 +927,7 @@ describe('Cursor extensions with details missing', () => {
 
 describe('turns and updates with details missing', () => {
   it('ends a turn whose answer names no stop reason as an ordinary end', async () => {
-    const rig = new Rig(new ReplayAcpAgents(newChat(prompt(4, S, 'go'), agent({ id: 4, result: {} }))))
+    const rig = new Rig(new ReplayAcpAgents(newChat(firstPrompt(4, S, 'go'), agent({ id: 4, result: {} }))))
     await rig.start()
 
     await expect(rig.adapter.send('go')).resolves.toBeUndefined()
@@ -867,7 +937,7 @@ describe('turns and updates with details missing', () => {
 
   it('files an update that names no session under the chat session', async () => {
     const nameless = agent({ method: 'session/update', params: { update: { sessionUpdate: 'tool_call', toolCallId: 'c1', title: 'Read', kind: 'read', status: 'completed' } } })
-    const rig = new Rig(new ReplayAcpAgents(newChat(prompt(4, S, 'go'), nameless, turnEnd(4))))
+    const rig = new Rig(new ReplayAcpAgents(newChat(firstPrompt(4, S, 'go'), nameless, turnEnd(4))))
     await rig.start()
 
     await rig.adapter.send('go')
@@ -893,7 +963,7 @@ describe('stopping and ending at awkward moments', () => {
   })
 
   it('answers the agent once when the request is handed on, answered and then fails', async () => {
-    const agents = new ReplayAcpAgents(newChat(prompt(4, S, 'go'), askToRun(S, 7, 'call_2', 'ls'), selected(7, 'allow-once'), turnEnd(4)))
+    const agents = new ReplayAcpAgents(newChat(firstPrompt(4, S, 'go'), askToRun(S, 7, 'call_2', 'ls'), selected(7, 'allow-once'), turnEnd(4)))
     const rig = new Rig(agents)
     await rig.adapter.start(startOptions(), (event) => {
       if (event.type === 'approval_request') {
@@ -912,7 +982,7 @@ describe('stopping and ending at awkward moments', () => {
   })
 
   it('drops the text it was still holding when the chat is disposed in the middle of a turn', async () => {
-    const agents = new ReplayAcpAgents(newChat(prompt(4, S, 'go'), say(S, 'half an answer')))
+    const agents = new ReplayAcpAgents(newChat(firstPrompt(4, S, 'go'), say(S, 'half an answer')))
     const rig = new Rig(agents)
     await rig.start()
     const turn = rig.adapter.send('go').catch((error: unknown) => error)
@@ -941,7 +1011,7 @@ describe('models: listing failures that say little', () => {
 
 describe('live work the idle stop must leave alone', () => {
   it('is the running turn: Cursor does nothing between turns', async () => {
-    const agents = new ReplayAcpAgents(newChat(prompt(4, S, 'go')))
+    const agents = new ReplayAcpAgents(newChat(firstPrompt(4, S, 'go')))
     const rig = new Rig(agents)
     await rig.start()
     expect(rig.adapter.hasLiveWork()).toBe(false)
@@ -956,7 +1026,7 @@ describe('live work the idle stop must leave alone', () => {
   })
 
   it('has none after a turn that ended', async () => {
-    const rig = new Rig(new ReplayAcpAgents(newChat(prompt(4, S, 'go'), say(S, 'Done.'), turnEnd(4))))
+    const rig = new Rig(new ReplayAcpAgents(newChat(firstPrompt(4, S, 'go'), say(S, 'Done.'), turnEnd(4))))
     await rig.start()
 
     await rig.adapter.send('go')

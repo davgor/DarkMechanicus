@@ -10,7 +10,7 @@ description: >-
 
 # Delivery standards (all implementation work)
 
-This skill exists as two identical copies, `.claude/skills/delivery-standards/SKILL.md` and `.cursor/skills/delivery-standards/SKILL.md`. Keep them byte-identical when changing workflow rules.
+This skill exists as three identical copies, `.agents/skills/delivery-standards/SKILL.md`, `.claude/skills/delivery-standards/SKILL.md` and `.cursor/skills/delivery-standards/SKILL.md`. Keep all three byte-identical when changing workflow rules. `.cursor/rules/delivery-standards.mdc` is a shorter Cursor rule that summarizes these standards and points here; it is not a copy of this file.
 
 Deploy/CI shape mirrored from [AI-DND-Matrix](https://github.com/davgor/AI-DND-Matrix).
 

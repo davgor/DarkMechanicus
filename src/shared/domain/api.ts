@@ -44,6 +44,7 @@ import type {
   CriterionResult,
   DeleteEpicResultView,
   DraftUpdateResultView,
+  EpicConflictChoice,
   EpicDetailView,
   EpicSummaryView,
   EventsPage,
@@ -57,6 +58,7 @@ import type {
   ReadinessView,
   RedraftResultView,
   ReconcileResultView,
+  ResolveEpicConflictView,
   RevisionSummaryView,
   RowCheckView,
   RunView,
@@ -252,6 +254,15 @@ export interface CommandApi {
   getStorageStatus(): Promise<StorageStatusView>
   flushPortableState(): Promise<FlushResultView>
   reconcileRepository(): Promise<ReconcileResultView>
+  /**
+   * Desktop only; no MCP tool offers it. Settles an epic whose tracked records changed (another machine's save or
+   * state change, pulled or checked out) while this machine's changes to it wait to be exported, which neither a
+   * reconcile nor a flush will apply over the other. `tracked` drops the epic's waiting state export and any waiting
+   * save (its revision is marked failed; the draft stays), then imports the tracked records; `local` writes this
+   * machine's records over them. Refused (`conflict`) when there is no such conflict, during a Linear transfer hold,
+   * or when the chosen side cannot be applied, leaving everything as it was. Never commits.
+   */
+  resolveEpicConflict(input: { epicId: string; keep: EpicConflictChoice }): Promise<ResolveEpicConflictView>
   searchHistory(input: { query: string; limit?: number; epicId?: string }): Promise<SearchResultView[]>
   listBranchEpics(): Promise<BranchEpicView[]>
   backupDatabase(input: { targetPath?: string }): Promise<{ path: string }>

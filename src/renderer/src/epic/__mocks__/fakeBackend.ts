@@ -11,6 +11,7 @@ import type {
   AgentAuthStatus,
   AgentDownloadResult,
   AgentFindResult,
+  AgentId,
   AgentSignInResult,
   AgentView,
   ClaudeCodeConnectResult,
@@ -215,6 +216,14 @@ export class FakeBackend implements DmApi {
     return Promise.resolve([])
   }
 
+  addCustomAgent(): Promise<AgentFindResult> {
+    return Promise.resolve({ outcome: 'cancelled' })
+  }
+
+  updateCustomAgent(): Promise<AgentFindResult> {
+    return Promise.resolve({ outcome: 'cancelled' })
+  }
+
   downloadAgent(): Promise<AgentDownloadResult> {
     return Promise.resolve({ outcome: 'cancelled' })
   }
@@ -228,7 +237,15 @@ export class FakeBackend implements DmApi {
   }
 
   signInAgent(): Promise<AgentSignInResult> {
-    return Promise.resolve({ outcome: 'not_connected', reason: 'Not connected yet.' })
+    return Promise.resolve({ outcome: 'failed', reason: 'Not connected yet.' })
+  }
+
+  folderDefaultAgent(): Promise<AgentId | null> {
+    return Promise.resolve(null)
+  }
+
+  setFolderDefaultAgent(): Promise<AgentId | null> {
+    return Promise.resolve(null)
   }
 }
 

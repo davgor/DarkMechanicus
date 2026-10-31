@@ -10,6 +10,7 @@
  * entry pending for an idempotent retry.
  */
 import { dirname } from 'node:path'
+import { z } from 'zod'
 import type { FlushResultView } from '../../shared/domain/views'
 import { contentHash, prettyJson } from '../canonical'
 import type { Clock } from '../clock'
@@ -38,6 +39,7 @@ import {
   trackedProfileHash,
   trackedRunHash
 } from './portable'
+import { matchesSync } from './syncState'
 import type { FsAdapter, RepoLayout } from './types'
 
 export interface FinalizerDeps {
@@ -169,12 +171,153 @@ function recordExport(deps: FinalizerDeps, entry: { kind: ExportKind; entityId: 
   )
 }
 
+/** An epic's tracked pointer and state texts as they are in the checkout; null for a missing file. */
+interface TrackedEpicTexts {
+  pointer: string | null
+  state: string | null
+}
+
+type RecordsEnv = Pick<FinalizerDeps, 'db' | 'layout' | 'fs'>
+
+function readTrackedEpic(env: WriteEnv, epicId: string): TrackedEpicTexts {
+  const paths = ownedPaths(env.layout)
+  return { pointer: readOwnedText(env, paths.epicPointerFile(epicId)), state: readOwnedText(env, paths.epicStateFile(epicId)) }
+}
+
+/** The epic's `sync_state` hashes and generation; a missing row reads as the one `storeConflicts` inserts. */
+const syncedRow = z.strictObject({ exportedHash: z.string().nullable(), importedHash: z.string().nullable(), generation: z.number() })
+type SyncedRow = z.infer<typeof syncedRow>
+
 /**
- * Rewrites state.json, then current.json (last), for an epic's current saved revision. Refused while the importer
- * holds incoming records of the epic for its open Linear transfer: writing over them would drop another machine's
- * revision or run without a trace, so the entry waits (and is retried) until the person cancels and reconciles.
+ * The outbox entry whose export wrote it, the row it was written against, and at most the three tracked states an
+ * export can leave behind: the new state over the old pointer, both new, or the new pointer over the old state (a
+ * restore that failed half way).
  */
-function exportEpic(deps: FinalizerDeps, epicId: string): void {
+const exportIntent = z.strictObject({ entryId: z.number().int(), row: syncedRow, hashes: z.array(z.string()).max(3) })
+
+function epicSyncedRow(db: Db, epicId: string): SyncedRow {
+  const row = db.get<{ exported_hash: string | null; imported_hash: string | null; generation: number }>(
+    "SELECT exported_hash, imported_hash, generation FROM sync_state WHERE kind = 'epic' AND entity_id = ?",
+    epicId
+  )
+  return { exportedHash: row?.exported_hash ?? null, importedHash: row?.imported_hash ?? null, generation: row?.generation ?? 0 }
+}
+
+function readIntentFile(env: WriteEnv, epicId: string): z.infer<typeof exportIntent> | null {
+  try {
+    const text = readOwnedText(env, ownedPaths(env.layout).exportIntentFile(epicId))
+    const parsed = text === null ? null : exportIntent.safeParse(JSON.parse(text))
+    return parsed?.success === true ? parsed.data : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The tracked hashes an export of the epic by this machine was about to leave on disk and never committed, noted
+ * (machine-local, never committed) before it replaced anything. A process that dies between replacing the files and
+ * committing their `sync_state` row leaves one of them behind; it is this machine's own write, not another machine's.
+ *
+ * The note covers only that uncommitted export. It counts only while the outbox entry that wrote it still waits: the
+ * commit marks the entry done in the same transaction as the export's `sync_state` row, so a note left behind after
+ * a commit (its removal failed, the app quit) is inert, however the row moves later. It also counts only while the
+ * epic's row is still the one it was written against. An unreadable note counts as none.
+ */
+function readExportIntent(env: RecordsEnv, epicId: string): string[] {
+  const intent = readIntentFile(env, epicId)
+  if (intent === null) {
+    return []
+  }
+  const entry = env.db.get<{ state: string }>(
+    "SELECT state FROM outbox WHERE id = ? AND epic_id = ? AND kind IN ('snapshot', 'epic_state')",
+    intent.entryId,
+    epicId
+  )
+  const waiting = entry !== undefined && (entry.state === 'pending' || entry.state === 'failed')
+  return waiting && contentHash(intent.row) === contentHash(epicSyncedRow(env.db, epicId)) ? intent.hashes : []
+}
+
+/**
+ * Tidying only, after the export's entry committed: a note left behind is inert, since its entry is done. Only the
+ * note of this entry is removed, so a note another process just wrote for its own export of the epic stays.
+ */
+function spendExportIntent(env: WriteEnv, epicId: string, entryId: number): void {
+  try {
+    const path = ownedPaths(env.layout).exportIntentFile(epicId)
+    assertContained(env.layout, env.fs, path)
+    if (readIntentFile(env, epicId)?.entryId === entryId) {
+      env.fs.remove(path)
+    }
+  } catch {
+    // Inert either way: the entry that wrote it is done.
+  }
+}
+
+/**
+ * The hash of an epic's tracked pointer and state when they hold records this machine neither exported nor imported,
+ * or null when they hold exactly what it last exported or imported, or no file at all. A file this machine wrote has
+ * the exported hash (`recordExport` stores the hash of the very texts written), or, if the process died before that
+ * row committed, a hash its export intent names; so only records written elsewhere and not yet imported here
+ * (another machine's save or state change, pulled or checked out) count. A checkout with the files but no
+ * `sync_state` row for the epic never read them, so they count too; a checkout without them has nothing to lose.
+ */
+function unimportedHash(env: RecordsEnv, epicId: string, texts: TrackedEpicTexts): string | null {
+  if (texts.pointer === null && texts.state === null) {
+    return null
+  }
+  const hash = trackedEpicHash(texts.pointer ?? '', texts.state ?? '')
+  return matchesSync(env.db, 'epic', epicId, hash) || readExportIntent(env, epicId).includes(hash) ? null : hash
+}
+
+/** The hash of the epic's tracked records when this machine has not imported them (`unimportedHash`), else null. */
+export function unimportedEpicRecords(env: RecordsEnv, epicId: string): string | null {
+  return unimportedHash(env, epicId, readTrackedEpic(env, epicId))
+}
+
+/**
+ * Refuses, with `conflict`, to write an epic's tracked records while the importer holds incoming ones for its open
+ * Linear transfer (checked first, as before), or while they hold records this machine has not imported; returns
+ * their texts otherwise. The entry waits and is retried until the person cancels the transfer, or chooses which
+ * records to keep (`resolveEpicConflict`): writing over them would drop another machine's revision or state change.
+ */
+function requireWritableRecords(env: RecordsEnv, epicId: string): TrackedEpicTexts {
+  if (hasTransferHold(env.db, epicId)) {
+    fail('conflict', `Epic ${epicId}'s tracked records hold changes waiting for its Linear transfer. Cancel the transfer and reconcile first.`)
+  }
+  const texts = readTrackedEpic(env, epicId)
+  if (unimportedHash(env, epicId, texts) !== null) {
+    fail(
+      'conflict',
+      `Epic ${epicId}'s tracked state and pointer hold records this machine has not imported, so its local changes ` +
+        "were not written over them. Reconcile, then choose which to keep in the desktop app's Storage card: keep " +
+        'the tracked records or write local. Tracked files the reconcile rejects must be fixed in Git first.'
+    )
+  }
+  return texts
+}
+
+/** Best effort: the write's own failure is what the caller reports. */
+function restoreFile(env: WriteEnv, path: string, text: string | null): void {
+  if (text === null) {
+    discard(env.fs, path)
+    return
+  }
+  try {
+    writeFileSafely(env, path, text)
+  } catch {
+    // The entry stays pending; the next flush reads what the file holds then.
+  }
+}
+
+/**
+ * Rewrites state.json, then current.json (last), for an epic's current saved revision, unless the tracked records
+ * are held for a Linear transfer or hold records this machine has not imported (`requireWritableRecords`).
+ *
+ * Before anything is replaced, the hashes the files may pass through are noted (`readExportIntent`), so a process
+ * that dies before the row commits does not lock itself out. When a write or its record fails, both files are put
+ * back as they were, so the checkout again holds the records this machine last synced.
+ */
+function exportEpic(deps: FinalizerDeps, epicId: string, entryId: number): void {
   const epic = deps.db.get<{ current_revision_id: string | null }>('SELECT current_revision_id FROM epics WHERE id = ?', epicId)
   if (epic === undefined) {
     fail('not_found', `Epic ${epicId} does not exist.`)
@@ -182,18 +325,29 @@ function exportEpic(deps: FinalizerDeps, epicId: string): void {
   if (epic.current_revision_id === null) {
     return
   }
-  if (hasTransferHold(deps.db, epicId)) {
-    fail('conflict', `Epic ${epicId}'s tracked records hold changes waiting for its Linear transfer. Cancel the transfer and reconcile first.`)
-  }
+  const before = requireWritableRecords(deps, epicId)
   const snapshot = buildSnapshotRecord(deps.db, epic.current_revision_id)
   writeSnapshot(deps, snapshot)
   const meta = { generation: nextGeneration(deps.db, 'epic', epicId), updatedAt: deps.clock.nowIso() }
   const stateText = prettyJson(buildEpicStateRecord(deps.db, epicId, meta))
   const pointerText = prettyJson(buildEpicPointerRecord(snapshot, meta))
   const paths = ownedPaths(deps.layout)
-  writeFileSafely(deps, paths.epicStateFile(epicId), stateText)
-  writeFileSafely(deps, paths.epicPointerFile(epicId), pointerText)
-  recordExport(deps, { kind: 'epic', entityId: epicId, hash: trackedEpicHash(pointerText, stateText), generation: meta.generation })
+  const hashes = [
+    trackedEpicHash(before.pointer ?? '', stateText),
+    trackedEpicHash(pointerText, stateText),
+    trackedEpicHash(pointerText, before.state ?? '')
+  ]
+  const intent = { entryId, row: epicSyncedRow(deps.db, epicId), hashes }
+  writeFileSafely(deps, paths.exportIntentFile(epicId), JSON.stringify(intent))
+  try {
+    writeFileSafely(deps, paths.epicStateFile(epicId), stateText)
+    writeFileSafely(deps, paths.epicPointerFile(epicId), pointerText)
+    recordExport(deps, { kind: 'epic', entityId: epicId, hash: trackedEpicHash(pointerText, stateText), generation: meta.generation })
+  } catch (error: unknown) {
+    restoreFile(deps, paths.epicStateFile(epicId), before.state)
+    restoreFile(deps, paths.epicPointerFile(epicId), before.pointer)
+    throw error
+  }
 }
 
 /** Writes a comment file once and returns the text on disk; an existing file must hold the same comment. */
@@ -257,11 +411,13 @@ const FILE_HANDLERS: Record<OutboxKind, EntryHandler> = {
   snapshot: (deps, hooks, entry) => {
     const revisionId = required(entry.revision_id, 'revision id')
     const record = buildSnapshotRecord(deps.db, revisionId)
+    // Checked before the snapshot is written too, so a save refused for held or unimported records leaves no file behind.
+    requireWritableRecords(deps, record.epicId)
     writeSnapshot(deps, record)
     hooks.onSnapshotSaved(revisionId)
-    exportEpic(deps, record.epicId)
+    exportEpic(deps, record.epicId, entry.id)
   },
-  epic_state: (deps, _hooks, entry) => exportEpic(deps, required(entry.epic_id, 'epic id')),
+  epic_state: (deps, _hooks, entry) => exportEpic(deps, required(entry.epic_id, 'epic id'), entry.id),
   run_history: (deps, _hooks, entry) => {
     const runId = required(entry.run_id, 'run id')
     const text = prettyJson(buildRunHistoryRecord(deps.db, runId))
@@ -389,6 +545,11 @@ function flushEntry(deps: FinalizerDeps, hooks: FinalizerHooks, entry: OutboxRow
   }
   try {
     noteSuccess(state.outcome, entry, deps.db.tx(() => processEntry(deps, hooks, entry)))
+    // Only a top-level commit is final: inside an outer transaction the row binding still covers a rollback.
+    const exportsEpic = entry.kind === 'snapshot' || entry.kind === 'epic_state'
+    if (exportsEpic && entry.epic_id !== null && deps.layout.mode === 'repo' && !deps.db.inTransaction()) {
+      spendExportIntent(deps, entry.epic_id, entry.id)
+    }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error)
     recordFailure(deps, entry, message)
@@ -397,29 +558,39 @@ function flushEntry(deps: FinalizerDeps, hooks: FinalizerHooks, entry: OutboxRow
   }
 }
 
-function queuedAfter(db: Db, afterId: number): OutboxRow[] {
-  return db.all<OutboxRow>(
+/** Limits a flush to one epic's entries, and to some kinds of them when `kinds` is given. */
+export interface FlushScope {
+  epicId: string
+  kinds?: readonly OutboxKind[]
+}
+
+function queuedAfter(db: Db, afterId: number, scope: FlushScope | undefined): OutboxRow[] {
+  const rows = db.all<OutboxRow>(
     "SELECT id, kind, epic_id, run_id, revision_id, entity_id FROM outbox WHERE state IN ('pending', 'failed') AND id > ? ORDER BY id",
     afterId
   )
+  if (scope === undefined) {
+    return rows
+  }
+  return rows.filter((row) => row.epic_id === scope.epicId && (scope.kinds === undefined || scope.kinds.includes(row.kind)))
 }
 
 /**
  * Flushes pending (and previously failed) outbox entries in id order, through the handlers of the
- * project's storage mode (`db` writes no file). A failed entry blocks later
+ * project's storage mode (`db` writes no file), all of them or those in `scope`. A failed entry blocks later
  * entries of the same epic, run, or keyed record (such as a profile) so their records are never
  * written out of order; other entities continue. Entries queued by the flush itself are picked up
  * by a further pass (bounded). Flush failures never throw: they are counted, and the entry keeps
  * its last error.
  */
-export function flushOutbox(deps: FinalizerDeps, hooks: FinalizerHooks): FlushOutcome {
+export function flushOutbox(deps: FinalizerDeps, hooks: FinalizerHooks, scope?: FlushScope): FlushOutcome {
   const state: FlushState = {
     outcome: { flushed: 0, failed: 0, errors: [], savedRevisionIds: [], failedRevisionIds: [] },
     blocked: new Set<string>()
   }
   let afterId = 0
   for (let pass = 0; pass < MAX_FLUSH_PASSES; pass += 1) {
-    const entries = queuedAfter(deps.db, afterId)
+    const entries = queuedAfter(deps.db, afterId, scope)
     if (entries.length === 0) {
       break
     }

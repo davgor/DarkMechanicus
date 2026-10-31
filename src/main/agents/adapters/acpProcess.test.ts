@@ -1,16 +1,22 @@
+import type { ChildProcess } from 'node:child_process'
 import { mkdtempSync, realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { createEventLog } from '../../../test/eventLog'
+import { goneWithin } from '../../../test/goneWithin'
 import { removeScratch } from '../../../test/removeScratch'
 import type { ProbeLaunch } from '../../desktop/agentProbe'
-import { nodeTransport } from './acpProcess'
+import { endAgentTree, nodeTransport } from './acpProcess'
+
+/** A tree that outlives the kill under load must not write to the person's real app log. */
+vi.mock('../../logger', () => ({ logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() } }))
 
 /**
  * These tests start and kill real processes. They wait on what the process does (a line, its close, the end of a
- * tree kill), never on a timer, a poll or a retry, so a slow start or kill only makes a test slower. The long limit
- * is for a Windows start or kill that stalls under load; a hang still fails once it passes.
+ * tree kill), never on a timer, a poll or a retry, so a slow start or kill only makes a test slower; the one poll is
+ * `goneWithin`, for a process that holds no pipe of ours. The long limit is for a Windows start or kill that stalls
+ * under load; a hang still fails once it passes.
  */
 vi.setConfig({ testTimeout: 60_000 })
 
@@ -56,6 +62,19 @@ function alive(pid: number): boolean {
     return false
   }
 }
+
+/** Pids a test learned of but did not start itself, ended by their own pid so a failed assertion leaves none running. */
+const leftover: number[] = []
+
+afterEach(() => {
+  for (const pid of leftover.splice(0)) {
+    try {
+      process.kill(pid)
+    } catch {
+      // Already gone, which is what the tests want.
+    }
+  }
+})
 
 let scratch = ''
 
@@ -111,7 +130,7 @@ describe('nodeTransport: how the process ended', () => {
   })
 
   it('keeps only the tail of a long stderr', async () => {
-    const { heard } = open(node(`require('node:fs').writeSync(2, 'x'.repeat(100000) + 'THE-END\\n'); process.exit(1)`), scratch)
+    const { heard } = open(node(`process.stderr.write('x'.repeat(100000) + 'THE-END\\n', () => process.exit(1))`), scratch)
 
     await heard.whenClosed()
 
@@ -150,9 +169,10 @@ describe('nodeTransport: how the process ended', () => {
   })
 
   it('kills the whole process tree, not only the process it started', async () => {
+    // The grandchild shares stdout; the close is heard only once every holder of that pipe has exited.
     const script = `
       const { spawn } = require('node:child_process')
-      const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' })
+      const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: ['ignore', 'inherit', 'ignore'] })
       console.log('child:' + child.pid)
       setInterval(() => {}, 1000)
     `
@@ -160,11 +180,41 @@ describe('nodeTransport: how the process ended', () => {
     await heard.linesHeard(1)
     const grandchild = Number((heard.lines[0] ?? '').replace('child:', ''))
     expect(alive(grandchild)).toBe(true)
-
     await handle.kill()
-
-    // No waiting: kill resolves only once the whole tree has exited.
-    expect(alive(grandchild)).toBe(false)
     await heard.whenClosed()
+    expect(heard.closed[0]).toBe('signal SIGKILL')
+  })
+})
+
+describe.skipIf(process.platform === 'win32')('nodeTransport: what a program leaves behind (process groups)', () => {
+  it('ends a child the program started in the background with its pipes closed, once the program exits', async () => {
+    const launch: ProbeLaunch = { file: '/bin/sh', args: ['-c', 'sleep 600 </dev/null >/dev/null 2>&1 & echo $!; exit 3'], verbatimArguments: false }
+    const { heard, handle } = open(launch, scratch)
+    await heard.linesHeard(1)
+    const grandchild = Number(heard.lines[0])
+    leftover.push(grandchild)
+
+    await heard.whenClosed()
+
+    expect(heard.closed[0]).toBe('exit code 3')
+    expect(await goneWithin(grandchild)).toBe(true)
+    await expect(handle.kill()).resolves.toBeUndefined()
+  })
+})
+
+describe('endAgentTree: a tree that outlives the kill', () => {
+  const child = { pid: 4321 } as unknown as ChildProcess
+
+  it('logs one line naming the process id when the tree outlived the wait', async () => {
+    const warn = vi.fn()
+    await endAgentTree(child, { killProcessTree: () => Promise.resolve(false), warn })
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(String(warn.mock.calls[0]?.[0])).toContain('4321')
+  })
+
+  it('logs nothing when the tree is gone', async () => {
+    const warn = vi.fn()
+    await endAgentTree(child, { killProcessTree: () => Promise.resolve(true), warn })
+    expect(warn).not.toHaveBeenCalled()
   })
 })

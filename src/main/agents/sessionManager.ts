@@ -3,7 +3,10 @@
  *
  * Lifecycle. A chat's process starts on its first message, or when the chat is opened if its
  * vendor needs it running (`startOnOpen`). It runs in the chat's folder with the chat's Dark
- * Mechanicus MCP server. Stop interrupts the running turn and keeps the process. A process with no
+ * Mechanicus MCP server. Every start checks the folder on disk first (`resolveLaunchFolder`): one that
+ * was moved, deleted, untracked or replaced by a symlink refuses the start before a grant is issued or
+ * an adapter created, and the adapter runs the same check before each process it starts. Stop
+ * interrupts the running turn and keeps the process. A process with no
  * running turn and no waiting approval is disposed once it has sent nothing for `idleMs` (every event it
  * sends starts the wait again) and its adapter reports no live work (`hasLiveWork`: a call still running, a
  * background subagent or command, a turn the agent started on its own); while it does, the wait starts
@@ -33,7 +36,7 @@
  * starts nothing and writes nothing, and shows the settled state without storing it.
  *
  * Signed-out agents. When an adapter reports `auth_required` (its CLI's login expired or was revoked
- * while the app ran), the item is stored, the agent kind is flagged signed out (see `signInFlags`), the
+ * while the app ran), the item is stored, the agent is flagged signed out by id (see `signInFlags`), the
  * message of the turn that was cut short is remembered on the chat (`cutShortMessageId`; the item says
  * whether there is one, `cutShort`, so a chat showing it live offers Retry only then), and, when the
  * chat orchestrates a run that is running or paused, that run is paused (or marked paused) with the reason
@@ -71,8 +74,8 @@ import type {
 } from '../../shared/agents/chat'
 import { canSavePlans, IDLE_STOP_CODE } from '../../shared/agents/chat'
 import type { ChatOpenView, ChatPushEvent, ChatSummary, CreateChatRequest } from '../../shared/agents/chatApi'
-import { AGENT_DEFINITIONS } from '../../shared/desktop/agentKinds'
-import type { AgentAuthStatus, AgentKind } from '../../shared/desktop/api'
+import { AGENT_DEFINITIONS, isBuiltInAgentKind } from '../../shared/desktop/agentKinds'
+import type { AgentAuthStatus, AgentId, AgentProtocol, AgentView } from '../../shared/desktop/api'
 import { SIGNED_OUT_PAUSE_REASON } from '../../shared/domain/status'
 import type { RunView } from '../../shared/domain/views'
 import type { ActivityBindings } from './activityBindings'
@@ -80,6 +83,8 @@ import type { ChatAdapterDefinition, ChatAdapterDefinitions } from './adapterReg
 import type { ChatRef, ChatStore } from './chatStore'
 import { createStreamMasker, type StreamMasker } from './claimTokenMask'
 import { cliInstructions } from './cliInstructions'
+import { resolveLaunchFolder, type LaunchFolderDeps } from './launchFolder'
+import { launchSpecFor } from './launchSpec'
 import { isOwnServerCall } from './ownServerTools'
 import { createSignInFlags, type SignInFlags } from './signInFlags'
 
@@ -102,8 +107,10 @@ export interface SignedOutRuns {
 export interface SessionManagerDeps {
   store: ChatStore
   adapters: ChatAdapterDefinitions
-  /** The connected executable for a kind (agent registry); null when the agent is not connected. */
-  executablePath: (kind: AgentKind) => string | null
+  /** The connected agent with this id (agent registry); null when it is not connected. */
+  agentFor: (id: AgentId) => AgentView | null
+  /** The tracked folders (and the disk) every start checks the chat's folder against; see `resolveLaunchFolder`. */
+  folders: LaunchFolderDeps
   /**
    * Issues the chat the grant its role needs and returns the `dm` invocation carrying it. The
    * chat's authority comes from this grant, not from anything the agent can pass: it is the
@@ -113,8 +120,11 @@ export interface SessionManagerDeps {
     folder: string,
     grant: { role: ChatRole; allowSave: boolean; label: string }
   ) => Promise<{ cli: DarkMechanicusCli; grantId: string }>
-  /** Revokes a chat's grant when its session ends, so a token outlives nothing. */
-  revokeChatGrant: (folder: string, grantId: string) => Promise<void>
+  /**
+   * Revokes a chat's grant when its session ends, so a token outlives nothing. By grant id alone: it
+   * is revoked where it was issued, even when the chat's folder has since moved (see `chatGrants.ts`).
+   */
+  revokeChatGrant: (grantId: string) => Promise<void>
   /** Delivers an event to the renderer. */
   push: (event: ChatPushEvent) => void
   /** Lets a signed-out orchestrator chat pause its run; without it no run is touched. */
@@ -170,14 +180,21 @@ export interface SessionManager {
    * while a chat has found the sign-in gone, until the CLI says signed in, however the person signed in
    * (which also tells the opened chats). Anything else is the CLI's answer as it was.
    */
-  reconcileAuthStatus(kind: AgentKind, status: AgentAuthStatus): AgentAuthStatus
+  reconcileAuthStatus(id: AgentId, status: AgentAuthStatus): AgentAuthStatus
   setModel(ref: ChatRef, model: string): Promise<ChatRecord>
   answerApproval(ref: ChatRef, answer: ApprovalAnswer): void
-  listModels(kind: AgentKind): Promise<ModelOption[]>
+  listModels(id: AgentId): Promise<ModelOption[]>
+  /** The agent's display name: the connected agent's, else the built-in kind's, else a generic one. */
+  agentName(id: AgentId): string
   /** Chats with a live agent process (starting or started). */
   liveCount(): number
   /** Disposes every process and refuses to start more (app quit). */
   disposeAll(): Promise<void>
+  /**
+   * Disposes the live processes of every chat with this agent, which was just removed. The chats stay; their
+   * next message is refused as not connected, since the agent is no longer in the registry.
+   */
+  endAgentSessions(id: AgentId): Promise<void>
 }
 
 interface WaitingApproval {
@@ -194,6 +211,8 @@ interface TextStream {
 interface Session {
   chat: ChatRecord
   adapter: ChatAdapter
+  /** The protocol of the agent the session runs; it decides how the agent names its own server's tools. */
+  protocol: AgentProtocol
   /** The grant this session runs on; revoked when it ends. */
   grantId: string
   ready: Promise<void>
@@ -221,7 +240,7 @@ interface Manager extends Required<Omit<SessionManagerDeps, 'runs' | 'activity'>
   /** Which agents a chat found signed out. */
   flags: SignInFlags
   /** Chats opened or written to since the app started, with their agent: the ones to tell when a sign-in changes. */
-  seen: Map<string, AgentKind>
+  seen: Map<string, AgentId>
   /** Live sessions by chat id. */
   sessions: Map<string, Session>
   /** Starts in flight by chat id, so racing callers share one agent rather than starting two. */
@@ -306,17 +325,17 @@ function cancelRunningCalls(manager: Manager, chat: ChatRef, inScope: (threadId:
 
 // ---- Adapters and the Dark Mechanicus server ----
 
-function adapterFor(manager: Manager, kind: AgentKind): { definition: ChatAdapterDefinition; executablePath: string } {
-  const name = AGENT_DEFINITIONS[kind].displayName
-  const definition = manager.adapters[kind]
-  if (definition === undefined) {
-    throw new DomainError('unsupported_capability', `${name} chats are not available in this version.`)
+function agentName(manager: Pick<Manager, 'agentFor'>, id: AgentId): string {
+  return manager.agentFor(id)?.displayName ?? (isBuiltInAgentKind(id) ? AGENT_DEFINITIONS[id].displayName : 'This agent')
+}
+
+/** The connected agent with this id and the adapter definition of its protocol. */
+function adapterFor(manager: Manager, id: AgentId): { definition: ChatAdapterDefinition; agent: AgentView } {
+  const agent = manager.agentFor(id)
+  if (agent === null) {
+    throw new DomainError('not_found', `${agentName(manager, id)} is not connected. Connect it under Agents first.`)
   }
-  const executablePath = manager.executablePath(kind)
-  if (executablePath === null) {
-    throw new DomainError('not_found', `${name} is not connected. Connect it under Agents first.`)
-  }
-  return { definition, executablePath }
+  return { definition: manager.adapters[agent.protocol], agent }
 }
 
 function savesPlans(chat: ChatRecord): boolean {
@@ -324,19 +343,23 @@ function savesPlans(chat: ChatRecord): boolean {
 }
 
 /** The chat's grant: its role, whether it may save, and the label "<Agent> · <title>". */
-function chatGrant(chat: ChatRecord): { role: ChatRole; allowSave: boolean; label: string } {
+function chatGrant(manager: Manager, chat: ChatRecord): { role: ChatRole; allowSave: boolean; label: string } {
   return {
     role: chat.role,
     allowSave: savesPlans(chat),
-    label: `${AGENT_DEFINITIONS[chat.agent].displayName} · ${chat.title}`
+    label: `${agentName(manager, chat.agent)} · ${chat.title}`
   }
 }
 
-function startOptions(chat: ChatRecord, cli: DarkMechanicusCli): ChatAdapterStartOptions {
+/** `folder` is the chat's folder as `resolveLaunchFolder` returned it; `checkFolder` runs that check again. */
+function startOptions(manager: Manager, chat: ChatRecord, folder: string, cli: DarkMechanicusCli): ChatAdapterStartOptions {
   const allowSave = savesPlans(chat)
   return {
     chatId: chat.id,
-    folder: chat.folder,
+    folder,
+    checkFolder: () => {
+      resolveLaunchFolder(chat, manager.folders)
+    },
     model: chat.model,
     role: chat.role,
     allowSave,
@@ -427,7 +450,7 @@ async function disposeSession(manager: Manager, session: Session, reason: Dispos
     settleDisposed(manager, session, reason)
   }
   try {
-    await manager.revokeChatGrant(session.chat.folder, session.grantId)
+    await manager.revokeChatGrant(session.grantId)
   } catch (error) {
     manager.onError(error)
   }
@@ -438,19 +461,21 @@ async function disposeSession(manager: Manager, session: Session, reason: Dispos
   }
 }
 
-function createSession(manager: Manager, chat: ChatRecord, cli: DarkMechanicusCli, grantId: string): Session {
+/** Starts the chat's session in `folder` (as `resolveLaunchFolder` returned it) on the grant `issued` for it. */
+function createSession(manager: Manager, chat: ChatRecord, folder: string, issued: { cli: DarkMechanicusCli; grantId: string }): Session {
   if (manager.closing) {
     throw new DomainError('conflict', 'Dark Mechanicus is quitting, so no agent can start.')
   }
-  const { definition, executablePath } = adapterFor(manager, chat.agent)
+  const { definition, agent } = adapterFor(manager, chat.agent)
   // Everything that can throw happens before the session is registered, so a failure leaves no trace.
-  const options = startOptions(chat, cli)
+  const options = startOptions(manager, chat, folder, issued.cli)
   // What an agent that ended undisposed (a crash) left running cannot finish; settled before this one adds its own work.
   safely(manager, () => settleEnded(manager, chat))
   const session: Session = {
     chat,
-    grantId,
-    adapter: definition.create(executablePath),
+    grantId: issued.grantId,
+    adapter: definition.create(launchSpecFor(agent)),
+    protocol: agent.protocol,
     ready: Promise.resolve(),
     turn: null,
     waiting: new Map(),
@@ -468,17 +493,18 @@ function createSession(manager: Manager, chat: ChatRecord, cli: DarkMechanicusCl
 }
 
 /**
- * Issues the chat's grant, then starts its session. Separate from `createSession` because issuing
- * is the one part that waits: everything after it must stay synchronous so a racing caller cannot
- * find a half-registered session.
+ * Checks the chat's folder, issues the chat's grant for it, then starts its session in it. Separate from
+ * `createSession` because issuing is the one part that waits: everything after it must stay synchronous so a
+ * racing caller cannot find a half-registered session. A folder that is gone throws here, before anything exists.
  */
 async function startedSession(manager: Manager, chat: ChatRecord): Promise<Session> {
-  const { cli, grantId } = await manager.issueChatCli(chat.folder, chatGrant(chat))
+  const folder = resolveLaunchFolder(chat, manager.folders)
+  const issued = await manager.issueChatCli(folder, chatGrant(manager, chat))
   try {
-    return createSession(manager, chat, cli, grantId)
+    return createSession(manager, chat, folder, issued)
   } catch (error) {
     // The session never started, so its grant must not outlive the attempt.
-    void manager.revokeChatGrant(chat.folder, grantId).catch((failure: unknown) => manager.onError(failure))
+    void manager.revokeChatGrant(issued.grantId).catch((failure: unknown) => manager.onError(failure))
     throw error
   }
 }
@@ -537,8 +563,8 @@ function onItem(manager: Manager, session: Session, item: ChatItem): void {
 // ---- Signed-out agents ----
 
 /** What a refused turn says when the CLI's own words were not kept. */
-function signedOutWords(kind: AgentKind): string {
-  return `${AGENT_DEFINITIONS[kind].displayName} is signed out. Sign in, then retry.`
+function signedOutWords(manager: Manager, id: AgentId): string {
+  return `${agentName(manager, id)} is signed out. Sign in, then retry.`
 }
 
 /** Remembers which message the sign-in cut short, so `retryTurn` can send it again. */
@@ -547,9 +573,9 @@ function markCutShort(manager: Manager, chat: ChatRef, messageId: string | null)
 }
 
 /** Tells every chat of the agent that was opened since the app started. */
-function tellChats(manager: Manager, agent: AgentKind, state: 'signed_out' | 'signed_in'): void {
-  for (const [chatId, kind] of manager.seen) {
-    if (kind === agent) {
+function tellChats(manager: Manager, agent: AgentId, state: 'signed_out' | 'signed_in'): void {
+  for (const [chatId, id] of manager.seen) {
+    if (id === agent) {
       manager.push({ type: 'agent_auth', chatId, agent, state })
     }
   }
@@ -578,7 +604,7 @@ async function pauseRunOf(manager: Manager, chat: ChatRecord): Promise<void> {
 /**
  * The adapter's CLI said the sign-in is gone: keep the message of the turn it cut short for retry, store the item once
  * per turn (saying whether a turn waits to be retried, so a chat that shows it live offers Retry only then), flag the
- * agent, pause the run. A sign-in lost while no turn ran cuts nothing short.
+ * agent when the app can check its sign-in (not a custom CLI), pause the run. A sign-in lost while no turn ran cuts nothing short.
  */
 function onAuthRequired(manager: Manager, session: Session, item: AuthRequiredItem): void {
   if (session.authReported) {
@@ -590,15 +616,19 @@ function onAuthRequired(manager: Manager, session: Session, item: AuthRequiredIt
   }
   const cutShort = manager.store.getChat(session.chat)?.cutShortMessageId != null
   const stored = record(manager, session.chat, { ...item, agent: session.chat.agent, cutShort }) as AuthRequiredItem
-  manager.flags.markSignedOut(session.chat.agent, stored.message)
-  tellChats(manager, session.chat.agent, 'signed_out')
+  // Only an agent whose status the app can check is held as signed out: a check that says signed in lifts
+  // the hold. A custom CLI has no such check, so its next message simply starts it again.
+  if (manager.agentFor(session.chat.agent)?.kind !== 'custom') {
+    manager.flags.markSignedOut(session.chat.agent, stored.message)
+    tellChats(manager, session.chat.agent, 'signed_out')
+  }
   session.pausing = pauseRunOf(manager, session.chat)
 }
 
 /** A turn in a chat whose agent is signed out: the message is stored, and answered with the CLI's words, without starting the CLI. */
 async function refuseTurn(manager: Manager, chat: ChatRecord, text: string): Promise<ChatItem> {
   const message = record(manager, chat, { ...stamp(manager), kind: 'user_message', text })
-  const words = manager.flags.message(chat.agent) ?? signedOutWords(chat.agent)
+  const words = manager.flags.message(chat.agent) ?? signedOutWords(manager, chat.agent)
   record(manager, chat, { ...stamp(manager), kind: 'auth_required', agent: chat.agent, message: words, cutShort: true })
   markCutShort(manager, chat, message.id)
   await pauseRunOf(manager, chat)
@@ -637,17 +667,17 @@ const OWN_SERVER_SCOPE = 'server\u0000darkmechanicus'
  * Dark Mechanicus server, which covers the whole server (the server limits its tools by the chat's role).
  * `server` is no request category, so this scope never equals the scope of another request.
  */
-function scopeOf(agent: AgentKind, request: ApprovalRequestItem): string {
-  return isOwnServerCall(agent, request) ? OWN_SERVER_SCOPE : `${request.category}\u0000${request.tool}`
+function scopeOf(protocol: AgentProtocol, request: ApprovalRequestItem): string {
+  return isOwnServerCall(protocol, request) ? OWN_SERVER_SCOPE : `${request.category}\u0000${request.tool}`
 }
 
 function isAllowedForChat(manager: Manager, session: Session, request: ApprovalRequestItem): boolean {
-  return manager.allowances.get(session.chat.id)?.has(scopeOf(session.chat.agent, request)) ?? false
+  return manager.allowances.get(session.chat.id)?.has(scopeOf(session.protocol, request)) ?? false
 }
 
 /** The request as stored: a call to a tool of the chat's own server is marked, so its card can say what Allow for this chat covers. */
 function markedRequest(session: Session, request: ApprovalRequestItem): ApprovalRequestItem {
-  return isOwnServerCall(session.chat.agent, request) ? { ...request, ownServer: true } : request
+  return isOwnServerCall(session.protocol, request) ? { ...request, ownServer: true } : request
 }
 
 function onApproval(manager: Manager, session: Session, request: ApprovalRequestItem, respond: WaitingApproval['respond']): void {
@@ -763,6 +793,26 @@ function startTurn(manager: Manager, session: Session, message: { id: string }, 
   session.turn = playTurn(manager, session, text)
 }
 
+/**
+ * A live agent's folder may have been moved, deleted or untracked since it started, while the process kept its
+ * old cwd. Every turn checks the folder as a start does; when it fails, the agent is stopped as an idle stop
+ * stops it (process tree ended, grant revoked), nothing is sent, and the turn ends with the check's error.
+ * Returns the error message when it stopped the agent, null otherwise; a session with a turn running is left alone.
+ */
+async function stoppedForFolder(manager: Manager, chat: ChatRecord): Promise<string | null> {
+  const session = manager.sessions.get(chat.id)
+  if (session === undefined || session.disposed || session.turn !== null) {
+    return null
+  }
+  try {
+    resolveLaunchFolder(session.chat, manager.folders)
+    return null
+  } catch (error) {
+    await disposeSession(manager, session)
+    return errorMessage(error)
+  }
+}
+
 async function send(manager: Manager, ref: ChatRef, text: string): Promise<ChatItem> {
   const chat = requireChat(manager, ref)
   see(manager, chat)
@@ -771,6 +821,12 @@ async function send(manager: Manager, ref: ChatRef, text: string): Promise<ChatI
       throw new DomainError('conflict', STILL_ANSWERING)
     }
     return refuseTurn(manager, chat, text)
+  }
+  const gone = await stoppedForFolder(manager, chat)
+  if (gone !== null) {
+    const message = record(manager, chat, { ...stamp(manager), kind: 'user_message', text })
+    record(manager, chat, { ...stamp(manager), kind: 'error', message: gone })
+    return message
   }
   const session = await ensureSession(manager, chat)
   if (session.turn !== null) {
@@ -795,10 +851,15 @@ function cutShortMessage(manager: Manager, chat: ChatRecord): Extract<ChatItem, 
 async function retryTurn(manager: Manager, ref: ChatRef): Promise<ChatItem> {
   const chat = requireChat(manager, ref)
   if (manager.flags.message(chat.agent) !== null) {
-    throw new DomainError('conflict', `${AGENT_DEFINITIONS[chat.agent].displayName} is still signed out. Sign in first.`)
+    throw new DomainError('conflict', `${agentName(manager, chat.agent)} is still signed out. Sign in first.`)
   }
   const message = cutShortMessage(manager, chat)
   see(manager, chat)
+  const gone = await stoppedForFolder(manager, chat)
+  if (gone !== null) {
+    record(manager, chat, { ...stamp(manager), kind: 'error', message: gone })
+    return message
+  }
   const session = await ensureSession(manager, chat)
   if (session.turn !== null) {
     throw new DomainError('conflict', STILL_ANSWERING)
@@ -811,10 +872,10 @@ async function retryTurn(manager: Manager, ref: ChatRef): Promise<ChatItem> {
   return message
 }
 
-function reconcileAuthStatus(manager: Manager, kind: AgentKind, status: AgentAuthStatus): AgentAuthStatus {
-  const reconciled = manager.flags.reconcile(kind, status)
+function reconcileAuthStatus(manager: Manager, id: AgentId, status: AgentAuthStatus): AgentAuthStatus {
+  const reconciled = manager.flags.reconcile(id, status)
   if (reconciled.cleared) {
-    tellChats(manager, kind, 'signed_in')
+    tellChats(manager, id, 'signed_in')
   }
   return reconciled.status
 }
@@ -872,9 +933,9 @@ function answerApproval(manager: Manager, ref: ChatRef, answer: ApprovalAnswer):
   }
   settleApproval(manager, session, { requestId: answer.requestId, decision: answer.decision })
   if (answer.decision === 'allow_chat') {
-    const scope = scopeOf(chat.agent, waiting.request)
+    const scope = scopeOf(session.protocol, waiting.request)
     allowancesOf(manager, chat.id).add(scope)
-    for (const other of [...session.waiting.values()].filter((item) => scopeOf(chat.agent, item.request) === scope)) {
+    for (const other of [...session.waiting.values()].filter((item) => scopeOf(session.protocol, item.request) === scope)) {
       settleApproval(manager, session, { requestId: other.request.requestId, decision: 'allow_chat', automatic: true })
     }
   }
@@ -911,7 +972,8 @@ function settleEnded(manager: Manager, chat: ChatRef): void {
 }
 
 async function startOnOpen(manager: Manager, chat: ChatRecord): Promise<void> {
-  if (manager.adapters[chat.agent]?.startOnOpen !== true || manager.flags.message(chat.agent) !== null) {
+  const agent = manager.agentFor(chat.agent)
+  if (agent === null || !manager.adapters[agent.protocol].startOnOpen || manager.flags.message(chat.agent) !== null) {
     return
   }
   try {
@@ -1056,7 +1118,7 @@ export function createSessionManager(deps: SessionManagerDeps): SessionManager {
     ...deps,
     runs: deps.runs,
     activity: deps.activity,
-    flags: createSignInFlags(),
+    flags: createSignInFlags((id) => agentName(deps, id)),
     seen: new Map(),
     sessions: new Map(),
     starting: new Map(),
@@ -1073,16 +1135,21 @@ export function createSessionManager(deps: SessionManagerDeps): SessionManager {
     send: (ref, text) => send(manager, ref, text),
     stop: (ref) => stop(manager, ref),
     retryTurn: (ref) => retryTurn(manager, ref),
-    reconcileAuthStatus: (kind, status) => reconcileAuthStatus(manager, kind, status),
+    reconcileAuthStatus: (id, status) => reconcileAuthStatus(manager, id, status),
     setModel: (ref, model) => setModel(manager, ref, model),
     answerApproval: (ref, answer) => {
       answerApproval(manager, ref, answer)
     },
-    listModels: async (kind) => {
-      const { definition, executablePath } = adapterFor(manager, kind)
-      return definition.listModels(executablePath)
+    listModels: async (id) => {
+      const { definition, agent } = adapterFor(manager, id)
+      return definition.listModels(launchSpecFor(agent))
     },
+    agentName: (id) => agentName(manager, id),
     liveCount: () => manager.sessions.size,
-    disposeAll: () => disposeAll(manager)
+    disposeAll: () => disposeAll(manager),
+    endAgentSessions: async (id) => {
+      const ending = [...manager.sessions.values()].filter((session) => session.chat.agent === id)
+      await Promise.all(ending.map((session) => disposeSession(manager, session)))
+    }
   }
 }

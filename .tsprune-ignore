@@ -1,12 +1,13 @@
 # Baseline ignore for ts-prune (one pattern per line)
 # Generated from tsconfig.node.json + tsconfig.web.json
 # Refresh after export moves/deletes: npm run deadcode:refresh
-# Refreshed 2026-10-31 (119 entries)
+# Refreshed 2026-10-31 (120 entries)
 
 electron.vite.config.ts:37 - default
 src/core/canonical.ts:18 - canonicalJson
 src/core/canonical.ts:23 - prettyJson
 src/core/canonical.ts:27 - sha256Hex
+src/core/claimTokenMask.ts:115 - maskWholeClaimTokens
 src/core/claimTokenMask.ts:35 - CLAIM_TOKEN_MASK
 src/core/claimTokenMask.ts:46 - clipMasked
 src/core/claimTokenMask.ts:73 - maskClaimTokensDeep
@@ -31,17 +32,17 @@ src/mcp/transferKickoff.ts:15 - TransferKickoffInput
 src/preload/index.ts:25 - AutoUpdateApi
 src/preload/index.ts:26 - AppInfoApi
 src/renderer/src/epic/__mocks__/transferBackend.ts:15 - TransferSetup
-src/renderer/src/epic/transferActions.ts:18 - TransferActionDeps
+src/renderer/src/epic/transferActions.ts:19 - TransferActionDeps
 src/renderer/src/epic/transferView.ts:44 - TransferStripView
-src/shared/agents/chat.ts:198 - ApprovalCategory
-src/shared/agents/chat.ts:209 - McpServerSpec
-src/shared/agents/chat.ts:216 - ChatAdapterStartOptions
-src/shared/agents/chat.ts:241 - DarkMechanicusCli
-src/shared/agents/chat.ts:250 - ChatAdapterEvent
-src/shared/agents/chat.ts:263 - ChatAdapterEmit
-src/shared/agents/chat.ts:270 - ChatAdapter
+src/shared/agents/chat.ts:199 - ApprovalCategory
+src/shared/agents/chat.ts:210 - McpServerSpec
+src/shared/agents/chat.ts:217 - ChatAdapterStartOptions
+src/shared/agents/chat.ts:251 - DarkMechanicusCli
+src/shared/agents/chat.ts:260 - ChatAdapterEvent
+src/shared/agents/chat.ts:273 - ChatAdapterEmit
+src/shared/agents/chat.ts:280 - ChatAdapter
 src/shared/agents/chat.ts:39 - chatIdSchema
-src/shared/agents/chat.ts:90 - APPROVAL_DECISIONS
+src/shared/agents/chat.ts:91 - APPROVAL_DECISIONS
 src/shared/agents/chatApi.ts:117 - BoundThreadsRequest
 src/shared/agents/chatApi.ts:15 - ChatRequestRef
 src/shared/agents/chatApi.ts:67 - TransferChatRequest
@@ -49,24 +50,24 @@ src/shared/agents/chatApi.ts:72 - SendChatRequest
 src/shared/agents/chatApi.ts:76 - SetChatModelRequest
 src/shared/agents/chatApi.ts:85 - AnswerApprovalRequest
 src/shared/autoUpdate/types.ts:17 - AUTO_UPDATE_EVENT_CHANNEL
-src/shared/desktop/api.ts:125 - CommandInput
-src/shared/desktop/api.ts:129 - CommandOutput
-src/shared/desktop/api.ts:289 - DesktopCommandName
-src/shared/desktop/api.ts:291 - DESKTOP_COMMANDS
-src/shared/desktop/api.ts:38 - AgentRefusalCode
-src/shared/desktop/api.ts:59 - AgentDownloadFailureCode
-src/shared/desktop/api.ts:88 - AgentDownloadPhase
-src/shared/domain/api.ts:109 - SprintInput
-src/shared/domain/api.ts:152 - ClaimTicketInput
-src/shared/domain/api.ts:173 - IncrementRef
-src/shared/domain/api.ts:178 - HeartbeatAttemptInput
-src/shared/domain/api.ts:186 - SubmitAttemptInput
-src/shared/domain/api.ts:199 - StartRunInput
-src/shared/domain/api.ts:210 - SprintReportInput
-src/shared/domain/api.ts:217 - RecordRowCheckInput
-src/shared/domain/api.ts:226 - AddCommentInput
-src/shared/domain/api.ts:76 - API_VERSION
-src/shared/domain/api.ts:89 - TicketCriterionInput
+src/shared/desktop/api.ts:102 - AgentDownloadFailureCode
+src/shared/desktop/api.ts:131 - AgentDownloadPhase
+src/shared/desktop/api.ts:167 - CommandInput
+src/shared/desktop/api.ts:171 - CommandOutput
+src/shared/desktop/api.ts:358 - DesktopCommandName
+src/shared/desktop/api.ts:360 - DESKTOP_COMMANDS
+src/shared/desktop/api.ts:59 - AgentRefusalCode
+src/shared/domain/api.ts:111 - SprintInput
+src/shared/domain/api.ts:154 - ClaimTicketInput
+src/shared/domain/api.ts:175 - IncrementRef
+src/shared/domain/api.ts:180 - HeartbeatAttemptInput
+src/shared/domain/api.ts:188 - SubmitAttemptInput
+src/shared/domain/api.ts:201 - StartRunInput
+src/shared/domain/api.ts:212 - SprintReportInput
+src/shared/domain/api.ts:219 - RecordRowCheckInput
+src/shared/domain/api.ts:228 - AddCommentInput
+src/shared/domain/api.ts:78 - API_VERSION
+src/shared/domain/api.ts:91 - TicketCriterionInput
 src/shared/domain/bundle.ts:117 - REFERENCE_KINDS
 src/shared/domain/bundle.ts:150 - CHECKPOINT_MODES
 src/shared/domain/bundle.ts:16 - TicketCriterion
@@ -115,10 +116,10 @@ src/shared/domain/views.ts:444 - FollowUpProposal
 src/shared/domain/views.ts:486 - GateConditionId
 src/shared/domain/views.ts:582 - AssignmentFallback
 src/shared/domain/views.ts:587 - ExecutionPacket
-src/shared/domain/views.ts:834 - StorageLocationView
-src/shared/domain/views.ts:893 - RedraftMovedView
-src/shared/domain/views.ts:901 - RedraftDependentView
-src/shared/domain/views.ts:909 - RedraftAddedView
-src/shared/domain/views.ts:917 - RedraftSkipCode
-src/shared/domain/views.ts:930 - RedraftSkippedView
-src/shared/domain/views.ts:939 - RedraftChangesView
+src/shared/domain/views.ts:842 - StorageLocationView
+src/shared/domain/views.ts:916 - RedraftMovedView
+src/shared/domain/views.ts:924 - RedraftDependentView
+src/shared/domain/views.ts:932 - RedraftAddedView
+src/shared/domain/views.ts:940 - RedraftSkipCode
+src/shared/domain/views.ts:953 - RedraftSkippedView
+src/shared/domain/views.ts:962 - RedraftChangesView

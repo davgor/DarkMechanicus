@@ -1,9 +1,9 @@
 import type { ChatRecord } from '../../../shared/agents/chat'
-import { AGENT_KINDS } from '../../../shared/desktop/agentKinds'
-import type { AgentKind, AgentView, TrackedFolderView } from '../../../shared/desktop/api'
+import { agentIdSchema } from '../../../shared/desktop/agentKinds'
+import type { AgentId, AgentView, TrackedFolderView } from '../../../shared/desktop/api'
 
-/** The agents screens that take over the main area: the add-agent pane, or one agent's page. */
-export type AgentPane = { kind: 'add' } | { kind: 'agent'; agent: AgentKind }
+/** The agents screens that take over the main area: the add-agent pane, or one agent's page by its id. */
+export type AgentPane = { kind: 'add' } | { kind: 'agent'; agent: AgentId }
 
 /** What the main area shows: a tracked folder and, optionally, one of its epics or an agents screen. */
 export interface Selection {
@@ -20,14 +20,13 @@ export const EMPTY_SELECTION: Selection = { folderPath: null, epicId: null }
 const isNullableString = (value: unknown): value is string | null =>
   value === null || typeof value === 'string'
 
-const isAgentKind = (value: unknown): value is AgentKind => AGENT_KINDS.some((kind) => kind === value)
 
 function isAgentPane(value: unknown): value is AgentPane {
   if (typeof value !== 'object' || value === null) {
     return false
   }
   const candidate = value as { kind?: unknown; agent?: unknown }
-  return candidate.kind === 'add' || (candidate.kind === 'agent' && isAgentKind(candidate.agent))
+  return candidate.kind === 'add' || (candidate.kind === 'agent' && agentIdSchema.safeParse(candidate.agent).success)
 }
 
 /** Guards a selection read back from localStorage. */
@@ -81,7 +80,7 @@ function resolvePane(pane: AgentPane | undefined, agents: readonly AgentView[] |
   if (pane === undefined || pane.kind === 'add' || agents === null) {
     return pane
   }
-  return agents.some((agent) => agent.kind === pane.agent) ? pane : undefined
+  return agents.some((agent) => agent.id === pane.agent) ? pane : undefined
 }
 
 /** What a stored selection is checked against besides the folders; each is null (or absent) until it has loaded. */

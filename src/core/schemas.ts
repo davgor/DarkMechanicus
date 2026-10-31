@@ -56,12 +56,21 @@ export const LIMITS = {
 const READBACK_UNEXPECTED_ITEMS = 100
 
 /**
- * Size limits on a Linear transfer's read-back: the JSON of one `submitTransferReadback` part, and the distinct
- * items all the parts may hold once merged, each list at the packet's limit plus `READBACK_UNEXPECTED_ITEMS`.
+ * Size limits on a Linear transfer's read-back: the JSON of one `submitTransferReadback` part, the JSON of all the
+ * parts once merged, and the distinct items they may hold, each list at the packet's limit plus
+ * `READBACK_UNEXPECTED_ITEMS`.
  */
 export const READBACK_LIMITS = {
   /** Characters in the JSON of one read-back part. */
   partChars: 8_000_000,
+  /**
+   * Characters in the JSON of the merged read-back. A typical issue reads back in about 3,000 characters, so a
+   * 1,000-ticket plan (the largest) needs about 3,000,000; this leaves its issues room to average just under
+   * 100,000 each, about thirty times typical. A plan with a full `LIMITS.markdown` body on every ticket does not
+   * fit. The stored JSON stays far below the engine's longest string (about 536,000,000) and, even at three UTF-8
+   * bytes a character, SQLite's longest value (1,000,000,000 bytes).
+   */
+  totalChars: 100_000_000,
   milestones: LIMITS.sprints + READBACK_UNEXPECTED_ITEMS,
   issues: LIMITS.tickets + READBACK_UNEXPECTED_ITEMS,
   relations: LIMITS.edges + LIMITS.relations + READBACK_UNEXPECTED_ITEMS
@@ -506,10 +515,10 @@ const linearReadback = z.strictObject({
 
 /**
  * Whether `JSON.stringify(value)` would be longer than `max` characters, counted without building that string, so
- * an oversized part is refused without first being copied whole. A value JSON cannot hold counts as `null`: it
- * reaches here only beside another problem that refuses the part anyway.
+ * an oversized value is refused without first being copied whole. A value JSON cannot hold counts as `null`: it
+ * reaches here only beside another problem that refuses the value anyway.
  */
-function jsonLongerThan(value: unknown, max: number): boolean {
+export function jsonLongerThan(value: unknown, max: number): boolean {
   let length = 0
   const exceeds = (item: unknown): boolean => {
     if (Array.isArray(item)) {

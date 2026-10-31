@@ -1,0 +1,267 @@
+# DM-298 sprint 3 acceptance: sanitized command outputs
+Worktree: <home>/Documents/GitHub/DarkMechanicus-worktrees/agent-clis-sprint-3, branch agent-clis-sprint-3 @ 5c3509c
+
+## Definition of Done (each run to completion)
+npm run lint -> exit 0
+npm run typecheck -> exit 0
+npm run test -> exit 0
+npm run coverage -> exit 0
+npm run deadcode -> exit 0
+npm run build -> exit 0
+-- test:
+ Test Files  436 passed (436)
+      Tests  8359 passed | 9 skipped (8368)
+ Test Files  20 passed (20)
+      Tests  105 passed (105)
+-- coverage:
+ Test Files  436 passed (436)
+      Tests  8359 passed | 9 skipped (8368)
+Statements   : 97.61% ( 16971/17385 )
+Branches     : 95.32% ( 10425/10936 )
+Functions    : 96.26% ( 5718/5940 )
+Lines        : 97.73% ( 15818/16185 )
+thresholds (vitest.config.ts): statements 97, branches 95, functions 96, lines 97 -> held (exit 0)
+-- deadcode:
+No new dead exports found.
+-- build:
+✓ built in 1.45s
+
+## c1: time a8s doctor (sanitized)
+a8s doctor
+  ✓ Node                    24.19.0
+  ✓ Bun                     1.4.2
+  ✓ git                     2.46.0
+  ✓ Python                  3.9.6
+  ✓ Release                 0.79.0 darwin-arm64 · OMP 18.11.2 · <home>/.local/opt/a8s
+  ✓ Profile                 <home>/.config/a8s/profile.json · personal · key from $ONEBRIEF_MODEL_KEY, stored key
+  ! Gateway MCP             No gateway MCP clients are enabled in the profile.
+      fix: Configure mcp.enabledServers and mcp.connectors for the harness key.
+  - Oasis                   not enabled
+  ✓ Okta                    signed in as <email>
+  ✓ Model route             Claude subscription · anthropic/claude-opus-5-5 · signed in
+  ✓ Linear MCP              Authorization is cached locally; use /mcp to test access or reauthorize after revocation.
+  ! Notion MCP              Optional connection is not signed in; model use is unaffected.
+      fix: Run /mcp add notion --scope user --url https://mcp.notion.com/mcp in a session to authorize.
+  ✓ Multiplayer             signed in as <email>
+  ✓ gh github.com           signed in as <account>
+  ✓ gh git.onebrief.tools   signed in as <account>
+  ✓ Usage export            sends to eng-signals-collector
+  ✓ MCP and company policy  Personal MCP: claude_ai_Linear: configured · user/claude · <home>/.claude/mcp.json; Personal MCP: playwright: configured · user/claude · <home>/.claude/mcp.json; Personal MCP: node_repl: configured · user/codex · <home>/.codex/config.toml; Personal MCP: computer-use: disabled · user/codex · <home>/.codex/config.toml; Personal MCP: notion: disabled · user/onebrief-mcp · <home>/.local/opt/a8s.versions/0.79.0-2a4dac3cc247ea6b706946d8213a2c595f71bbe9/dist/omp/personal-mcp/defaults.js
+  ✓ Factory                 signed in as <email> (okta)
+  ✓ semgrep                 1.172.0 · <home>/.local/share/a8s/runtime/bin/semgrep
+  ! Spud                    Spud CLI is missing required review options.
+                            fix: Run a8s setup to install the current Spud CLI.
+  ✓ Interface experience    built-in Autonomous
+  ✓ Captures                <home>/.local/state/a8s/captures · writable · 170 GiB free
+  ✓ Workspace               /private/tmp/dm298
+  ✓ Updates                 0.80.0 (ca10df7d) downloaded; run a8s update
+0 problems, 3 warnings. a8s doctor --fix repairs permissions and the cached key.
+
+real	0m8.560s
+user	0m31.609s
+sys	0m4.249s
+
+## c2: run main.log (<userdata>=/tmp/dm298/userdata/logs/main.log, both app runs)
+[2026-10-31 00:19:03.923] [info]  Auto-update disabled (dev build or DISABLE_AUTO_UPDATE=1)
+[2026-10-31 00:24:15.270] [info]  Auto-update disabled (dev build or DISABLE_AUTO_UPDATE=1)
+[2026-10-31 00:25:20.420] [info]  Claude Code refused --strict-mcp-config because an enterprise MCP config is present; asking for its models again without it
+New chat model select options: anthropic/claude-fable-5-1, anthropic/claude-haiku-5-5 (picked), anthropic/claude-opus-5-5, anthropic/claude-sonnet-5-5. Chat answered: pong
+
+## c3: runbook custom CLI paragraph (docs/runbooks/agents.md:95)
+**Claude Code SDK custom CLIs on machines with an enterprise MCP config.** The handshake's model probe passes `--strict-mcp-config`, so nothing of your MCP setup starts. Claude Code refuses that flag when an enterprise (managed) MCP configuration is present. Only when the probe exits with code 1 and Claude's exact refusal (`You cannot use --strict-mcp-config when an enterprise MCP config is present`) does the app end that process tree and ask once more without the flag; any other failure is reported as it is. Both tries share the one 20-second limit. During the retry the managed MCP servers the enterprise config names may start for those few seconds; they run in the probe's process tree (its process group on macOS and Linux) and are killed with it when the handshake ends.
+
+## c4: docs/design/chat-shells.md headings
+1:# Chats as terminal shells
+9:## Decisions at a glance
+19:## What the app does today
+34:## The prototype
+55:## 1. Terminal
+61:### In the app's window
+72:### Native module, rebuilds and packaging
+81:### Windows ConPTY
+89:## 2. What the shell runs, and security
+95:### What a compromised renderer can make main start through a terminal
+129:## 3. What carries over, and how
+131:### Folder pinning
+135:### The `dm` grant and the instructions
+152:### Resume
+156:### Approvals
+160:### Per-folder default
+164:### Sign-in detection
+170:### The orchestrator chat Start run opens
+174:### Idle stop
+178:### Quit disposal
+182:### Existing chats and their transcripts
+189:## 4. What the adapters still do
+201:## 5. Testing
+211:## Risks and open questions
+220:## Proposed build tickets
+224:### SH-1 PTY host and node-pty packaging
+233:### SH-2 Terminal launch spec per agent
+244:### SH-3 Terminal channels, preload and ports
+253:### SH-4 Terminal pane in the main window
+263:### SH-5 Terminal lifecycle: exit, start again, idle stop, sign-in
+273:### SH-6 Start run opens an orchestrator terminal
+282:### SH-7 Existing chats, transcripts and activity panels
+291:### SH-8 Remove the adapters and protocols
+299:### SH-9 End-to-end on the built app, macOS and Windows
+prototype screenshot: docs/verification/DM-302-01-pty-prototype.png (exists, referenced at chat-shells.md:38)
+
+## c6: sqlite3 <userdata>/app.sqlite 'SELECT * FROM agents'
+id|kind|protocol|display_name|executable_path|args_json|version|connected_via|connected_at|last_probed|reported_name
+autonomous|autonomous|acp|Autonomous|<home>/.local/bin/a8s|[]|0.79.0|found|2026-10-31T05:19:28.767Z|2026-10-31T05:19:28.767Z|
+cu_01m686pbtvrd1kyj0q5fdp2faa|custom|acp|a8s ACP|<home>/.local/bin/a8s|["{folder}","--mode","acp","--approval-mode","always-ask"]|18.11.2|custom|2026-10-31T05:25:06.011Z|2026-10-31T05:25:06.011Z|Autonomous
+cu_01m686pvw416qtjk1n13fnan42|custom|claude|Claude link|<home>/.local/bin/claude|[]||custom|2026-10-31T05:25:22.436Z|2026-10-31T05:25:22.436Z|
+ls -la ~/.local/bin/claude:
+lrwxr-xr-x <home>/.local/bin/claude -> <home>/.local/share/claude/versions/2.1.291
+
+## c7: npx vitest run src/main/agents/processTreeReal.test.ts
+ RUN  v4.1.11 <home>/Documents/GitHub/DarkMechanicus-worktrees/agent-clis-sprint-3
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  00:17:51
+   Duration  423ms (transform 39ms, setup 0ms, import 52ms, tests 238ms, environment 0ms)
+
+## c7 manual repro
+#!/bin/sh
+sleep 600 </dev/null >/dev/null 2>&1 &
+echo $! > /tmp/dm298/bg.pid
+exit 3
+== in-app handshake (app-launched): bg.pid=36281, mtime 2026-10-31 00:25:35.830812494 -0500
+ps -o pid,ppid,pgid,args -p 36281 right after the refusal:
+PID PPID PGID COMMAND
+(exit 1: no such process)
+
+== control: same script run directly from a shell, no app reaping
+script exit 3
+  PID PPID  PGID COMMAND
+41526    1 41476 sleep 600
+-> alive; killing PID 41526
+PID PPID PGID COMMAND
+(exit 1: gone)
+== in-app repro 2 (built app, ACP custom CLI 'bg script' = /tmp/dm298/bg-cli.sh)
+previous run's pid 50862 now:
+  PID  PPID  PGID ARGS
+
+bg.pid=15695, first seen 2026-10-31T05:26:40.132Z:
+  PID  PPID  PGID ARGS
+
+3 s after the handshake was refused:
+  PID  PPID  PGID ARGS
+
+UI: ot connected
+
+It stopped before it finished the ACP handshake: bg script stopped: exit code 3
+
+Choose executable…
+Cancel
+
+## c8: docs/reports/autonomous-acp.md lines 162-186
+#### Does `session/close` remove the listing session? (DM-306)
+
+**No.** Recorded on 2026-10-30 (US Central, 23:48) with the same a8s 0.79.0 and personal profile. One model listing was run by a throwaway Node client in `/tmp` (deleted afterwards) that followed `readModelsIn` in `autonomous.ts`: a fresh `mkdtemp` folder (not a Git repository), `a8s start <folder> --mode acp --approval-mode always-ask` spawned with `shell: false` in its own process group, `initialize` (protocol 1, no fs or terminal capabilities), `authenticate {methodId: "agent"}` (answered `{}`), `session/new` (4 model options), `session/close` (answered `{}`), then SIGTERM to the group and removal of the folder. No prompt was sent. The whole run took about 5 s.
+
+`a8s sessions --help` documents only `[list] [--json]` for listing, plus `show`, `search`, `changes`, `export`, `verify` and `sent`, each taking `--capture-dir PATH`. There is no flag to filter by folder or to delete a session. Recordings live under `--capture-dir`, default `<home>/.local/state/a8s/captures` (the new one was `native-omp/sessions/<timestamp>_<acp session id>.jsonl`); they were only listed, never edited or deleted.
+
+- **Before** (`a8s sessions --json`): 17 sessions, none in a `DM-306-list-*` folder (all 17 are the person's own sessions in other folders, not shown).
+- **After:** 18 sessions. The one new row, from `a8s sessions` (the other 17 unchanged, not shown):
+
+  ```
+  a8d534df  today 23:48  DM-306-list-6mt8Av         claude-opus-5-5
+  ```
+
+  Its `--json` row, trimmed: `cwd` `/private/var/folders/<tmp>/T/DM-306-list-6mt8Av` (already deleted), `events: 14`, `endedEarly: false`, `coverage.state: "incomplete"` with the gaps "Personal session: recorded on this machine only and not delivered to the company." and "Native host stopped: sigterm". The recording file is named after the ACP session id `session/new` returned; the a8s session id (`a8d534df-…`) differs from it.
+- `a8s sessions show a8d534df` printed "Nothing was said in this session." and "Usage export: not exported: it closed before any prompt or model call."
+
+So every listing leaves one empty session in the person's `a8s sessions` list, with the temp folder name, plus a recording of about 14 events. `session/close` ends the session but does not remove its record. The app lists once per executable per app run (`listings` in `autonomous.ts`), so it is one stray row per app start that opens an Autonomous chat, not one per chat.
+
+**Proposed fix (not implemented):**
+
+1. **Don't open a session just to list.** Take the model options from the chat's own `session/new`: the chat already gets `configOptions[id=model]` there, so the picker can fill from the first real session and cache that per executable. Before the first chat, show only the profile default (`a8s status` prints `Default model`) or the last cached list (persisted in the app's settings), and refresh it from each chat's `session/new`. This removes the stray session entirely.
+2. If a list is needed before any chat, keep today's one listing per app run but persist its result across runs, so the stray session appears once per a8s update rather than once per app start (re-list when `a8s --version` changes).
+3. Ask a8s upstream for either a listing that opens no session (e.g. `a8s omp --list-models` or a `models` field on `initialize`), or for `session/close` on a session with no prompt to discard its recording. a8s already knows the session is empty ("closed before any prompt or model call").
+
+Option 1 is the recommended one: no upstream change and no stray records. Deleting the record from the app is not proposed: a8s offers no delete command, and the app must not edit a8s's recordings.
+
+## c9: docs/reports/autonomous-acp.md lines 196-217
+### Signed out
+
+**How it was run** (DM-307, 2026-10-30, same install). The person's own sign-ins were never touched: no login, logout, `init`, `auth` or credential command ran in any environment, and only a profile that had never signed in was observed.
+
+- **Isolation.** A temporary HOME under `/tmp` with `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME`, `XDG_CACHE_HOME`, `TMPDIR` and `PI_CODING_AGENT_DIR` inside it, started through `env -i` with only those, HOME, PATH, USER, LOGNAME, TERM, NO_COLOR and the locale, so no `ANTHROPIC_*`, `ONEBRIEF_*`, `OMP_PROFILE`/`PI_PROFILE` or other credential variable reached a8s. The shell had no credential variable set either.
+- **Keychain.** The model sign-in is OMP's own stored login, a SQLite store at `<agent dir>/agent.db` under the HOME (`~/.omp/agent`), read through its `AuthStorage`. Neither OMP 18.11.2's sources nor a8s's read it from the Keychain: a8s calls `/usr/bin/security` only for the optional Bifrost key (service `onebrief`, which the person's `a8s status` shows as none), and the commands run here could at most look that entry up, never write it. So a temporary HOME isolates the model sign-in.
+- **Proof.** `a8s doctor` in that environment printed every profile, capture, workspace and tool path under the temporary HOME (only the install's own paths, `~/.local/opt/a8s`, are outside it), and its `Model route`, `Okta`, `gh`, `Factory` and `Multiplayer` lines all said not signed in, where the person's own `a8s doctor` says signed in to the model and Okta.
+- **Profiles.** Two: a copy of the person's personal `profile.json` (schema 1, `subscriptionProvider: anthropic`, no secret in it), the case of someone who set a8s up and is signed out of the model; and none at all, someone who never ran `a8s init`.
+- **ACP.** A throwaway Node client under `/tmp`, like DM-281's, spawned `a8s start <scratch repo> --mode acp --approval-mode always-ask` in its own process group in a scratch Git repository (one empty commit) under the temporary HOME, with this adapter's `initialize` (`fs` false, `terminal` false, `elicitation.form`). It would then have sent `authenticate`, `session/new` and `session/prompt` "ok". Three launches: the personal profile twice (the second with `--model anthropic/claude-haiku-5-5`), and no profile. The client, the temporary HOME and the scratch repository were deleted afterwards. The sanitized outputs are `src/main/agents/adapters/__mocks__/autonomousSignedOut.ts`.
+
+**What a8s does with no model sign-in:** it answers no ACP request. It stops at launch, before answering `initialize`, writes one sentence on stderr, and exits. Nothing is written to stdout, so there is no `authenticate`, `session/new` or `session/prompt` error, and no `authMethods` to compare.
+
+| Launch | Exit | After | stderr, last line |
+|---|---|---|---|
+| Personal profile, first launch | 1 | 1.5 s | `Autonomous stopped: Your selected subscription is signed out. Run a8s init --force; no other billing route was selected.` |
+| Personal profile, `--model anthropic/claude-haiku-5-5` | 1 | 7 s | the same |
+| No profile | 2 | 0.8 s | `Profile not found: <home>/.config/a8s/profile.json. Run a8s init to create it, or pass --profile FILE.` |
+
+- The first launch of a profile writes a one-time metrics notice (22 lines, "What Autonomous collects · please help us improve!") on stderr before the stop; the next launch wrote `Checking for restricted repositories…` and `✓ No restricted repositories · 1 folder · 1 repository · 1s` instead. Either way the stop is the last line.
+- Per the source (`dist/omp/host.js`), the subscription stop comes from the launch-default check: a personal profile whose `subscriptionProvider` default has no OAuth sign-in stops there. Its other signed-out `Model route` wordings in `dist/omp/route-step.js` also say "is not ready" ("Codex subscription is not ready", "<model> is not ready"); they were not observed.
+- **What the app makes of it:** the connection sees the process end as `Autonomous stopped: exit code 1: <last 500 characters of stderr>` (`acpProcess.ts`). The Autonomous flavor reads either sentence at its end as a missing sign-in and reports it as one `auth_required` item with a8s's sentence; both are fixed by `a8s init`, which is what the app runs to sign Autonomous in. `agentAuth.ts` reads a `Model route` line that says "is not ready" or "not signed in" as signed out.
+- Not observed: a process that was signed in when it started and loses its sign-in mid-session (that needs the person's sign-in removed), and a signed-in profile whose OAuth token was refused by Anthropic.
+
+## c9: npx vitest run src/main/desktop/agentAuth.test.ts src/main/agents/adapters/autonomous.test.ts
+ Test Files  2 passed (2)
+      Tests  113 passed (113)
+
+## c10: rg -n -i "mcp server" docs/architecture.md docs/runbooks/agents.md src/main/agents/adapters/cursor.ts
+docs/architecture.md:17:| `src/mcp` | Node child process launched by an agent host | Stdio MCP server; each tool validates input and calls one `CommandApi` method |
+docs/architecture.md:217:## MCP server (`src/mcp`)
+docs/architecture.md:276:| `src/main/agents/ownServerTools.ts` | Which approval requests are for a tool of a `darkmechanicus` MCP server the vendor loaded from the person's own configuration (the app passes none), in each vendor's own spelling; what Allow for this chat uses to cover the whole server |
+docs/architecture.md:287:**Adapters.** Each adapter implements `ChatAdapter` (`start`, `send`, `setModel`, `stop`, `listModels`, `dispose`) and reports everything through events: transcript items, assistant text deltas, approval requests (the adapter holds the vendor until `respond` is called) and the vendor's session id. The session manager hands it the connected executable (from the registry, never the renderer), the chat's folder as the working directory, the model, the vendor session to resume, and the chat's `dm` invocation (`DarkMechanicusCli`, still named `server` in the adapter context: the `dm` command pinned to the folder with `--repo`, and an environment holding the chat's grant in `DM_SESSION_TOKEN`). No adapter gives the vendor an MCP server: Claude gets no `mcpServers`, Codex no `mcp_servers` for the thread, and ACP `session/new`/`session/load` send `mcpServers: []`; each adapter puts the invocation's environment on the process it starts and states the exact command in the chat's instructions (`cliInstructions.ts`: appended to Claude's system prompt, Codex's `developerInstructions`, the head of an ACP agent's first prompt). Nothing is written to the vendor's own configuration (Claude chats do read the person's own Claude Code settings, `user`, `project` and `local`, so their permission rules still apply). Claude and Cursor start their process on the first message; Codex's (`startOnOpen`) starts when the chat is opened. Reads and searches inside the folder never ask; edits, commands and anything else become approval requests. Claude Code's own auto-memory would write notes under `~/.claude/projects/<project>/memory/` without ever reaching the approval path, so `claude.ts` gives every process it starts `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` (`AUTO_MEMORY_OFF`, laid over a copy of the inherited environment, so it beats a value of the person's own, and no settings file is read, written or changed for it). This was checked live on Windows against a real Claude Code ([`agents-fixes-e2e.md`](reports/agents-fixes-e2e.md)): unprompted memory writes stop. A write the agent is asked to make still reached no `canUseTool`, because the CLI exempts its memory folder from asking before it calls the host, for the file tools and for a shell redirect alike (`echo hi >> <memory file>` ran with no request; seen again against Claude Code 2.1.281 and Agent SDK 0.3.289). Two more things in the options of every process the adapter starts close that; both are per process and neither writes a settings file. **A `PreToolUse` hook** (`memoryWriteMatcher` in `claudeMemoryFolder.ts`) on Write, Edit, MultiEdit and NotebookEdit answers `permissionDecision: 'ask'` when the target resolves into a memory folder, or when it cannot read the call. Source: the Agent SDK's `Options.hooks`, `HookCallbackMatcher` and `PreToolUseHookSpecificOutput.permissionDecision` (`'allow' | 'deny' | 'ask'`) in `@anthropic-ai/claude-agent-sdk` 0.3.289 (`sdk.d.ts`), and https://code.claude.com/docs/en/hooks (PreToolUse). The CLI runs the hook before its own permission check, and an `ask` was shown live to reach `canUseTool` (also over a blanket allow rule), so the request is an ordinary `file_edit` approval with the person's Allow, Allow for this chat or Deny. The target is resolved before it is compared with `<config dir>/projects/*/memory/`: `~`; a relative path from the chat folder and from the `cwd` the CLI reports; `..`; either slash; letter case and Unicode form (folded on every platform: an extra question is harmless, a miss is not); on Windows `\\?\`, trailing dots and spaces and stream suffixes; the config dir is `CLAUDE_CONFIG_DIR` from the environment handed to the CLI, and always also `~/.claude`; links and junctions are followed with `realpath`, for a file that does not exist yet through its nearest existing folder. **An inline `autoMemoryDirectory`** (`Options.settings`, sent as `--settings` JSON and never as a file; `Settings.autoMemoryDirectory` in `sdk.d.ts`; https://code.claude.com/docs/en/memory, which says it is read from any settings scope, `--settings` included) points the CLI's exempt folder at `dark-mechanicus-unused-memory` in the temp folder (`pinnedMemoryFolder`), which nothing reads (auto-memory is off) and which does not exist. The CLI's own rules then ask about a command that writes into any real memory folder, which a hook cannot do (it cannot tell which commands the CLI counts as read-only); a redirect into the pinned folder finds no folder to write to, and the hook asks for a Write there too (checked live: it asked, and the folder was not created). A command-line setting outranks the person's local, project and user settings and only managed settings outrank it (https://code.claude.com/docs/en/settings, Settings precedence); this was not tested against a real user-level value, because the person's settings files are not touched. Checked live on Windows with the real adapter against the real CLI: absolute, `~`, relative, forward-slash, upper-case and junction paths, an edit of an existing file and shell redirects all raised a card, and on Deny the folder was unchanged; without the two additions the absolute, `~` and relative writes and the redirect ran silently; on Allow the write happened, and an ordinary write in the chat folder still asked ([`runbooks/agents.md`](runbooks/agents.md), What was and was not verified). The acceptance round then repeated the absolute, `~` and shell-redirect cases through the running app's own chat view: one card each (file edit, file edit, command), the memory folder unchanged on Deny, the absolute write made on Allow once ([`agents-fixes-e2e.md`](reports/agents-fixes-e2e.md), Sprint 4). Not checked live: MultiEdit, NotebookEdit, the PowerShell tool, macOS and Linux. **Allow for this chat** (the session manager's category-and-tool allowance) covers a memory write like any other write by that tool.
+docs/architecture.md:295:**The session manager.** A process with no running turn and no waiting approval for ten minutes is disposed, and the next message starts a new one that resumes the vendor session. Stop interrupts the turn and keeps the process. Approval requests are stored and pushed as transcript items and then wait in main, so closing the window loses nothing. Allow for this chat remembers the request's category and tool for that chat until the app quits and answers matching requests itself, recorded as automatic; a chat's `dm` runs are command requests (the vendor's shell tool, such as Claude's `Bash` or Codex's `shell`), so allowing one allows later commands of that tool in the chat. The app gives a chat no MCP server, but a vendor can still load one named `darkmechanicus` from the person's own configuration (Claude chats read the person's Claude Code settings, which may hold the project-level server from [`runbooks/mcp-setup.md`](runbooks/mcp-setup.md)); on a call to a tool of such a server (`mcp__darkmechanicus__<tool>` for Claude, `mcp:darkmechanicus` for Codex, `darkmechanicus:<tool>` for Cursor, matched whole and only in that vendor's spelling) it remembers the whole server, and the stored request is marked so its card says so. Stop, quitting and failed storage cancel waiting requests (stored as `cancelled`, and the adapter is told `deny`), and the tool calls running in the thread a cancelled request was raised in are rewritten, by the same id, as `cancelled`; a request a crash left unanswered is recorded as `cancelled` the next time its chat is opened. When a turn ends because the person pressed Stop, a `turn_stopped` item is stored after whatever the agent had written, and a stopped or failed turn's calls still running in the chat's own thread become `cancelled`. Disposing an agent emits nothing, so `openChat` on a chat with no live agent settles what its transcript still says is running (calls `cancelled`, threads `failed`) and stores that; a live agent's work is never touched there. `readChat` (`chats:read`) returns the same settled view without starting an agent, storing, binding or pushing anything. Assistant text deltas are pushed but not stored; the whole text is stored once.
+docs/runbooks/agents.md:95:**Claude Code SDK custom CLIs on machines with an enterprise MCP config.** The handshake's model probe passes `--strict-mcp-config`, so nothing of your MCP setup starts. Claude Code refuses that flag when an enterprise (managed) MCP configuration is present. Only when the probe exits with code 1 and Claude's exact refusal (`You cannot use --strict-mcp-config when an enterprise MCP config is present`) does the app end that process tree and ask once more without the flag; any other failure is reported as it is. Both tries share the one 20-second limit. During the retry the managed MCP servers the enterprise config names may start for those few seconds; they run in the probe's process tree (its process group on macOS and Linux) and are killed with it when the handshake ends.
+docs/runbooks/agents.md:166:| **Allow for this chat** | This request, and later requests of the same category and the same tool in the same chat, until the app quits. A chat reaches Dark Mechanicus by running `dm`, which is a command, so allowing one `dm` run allows later commands of the same tool (for example Claude's `Bash`) in the chat. The app gives a chat no Dark Mechanicus MCP server, but an agent can load one you configured yourself (Claude Code chats read your Claude Code settings, which may include the project-level server from [`mcp-setup.md`](mcp-setup.md)); on a tool of a server named `darkmechanicus` it covers every tool of that server in the chat, and the card says "Allow for this chat covers all Dark Mechanicus tools in this chat." (that server still limits each tool by its own role); other MCP servers and file edits stay per tool. Each automatic answer is recorded in the transcript as automatic |
+docs/runbooks/agents.md:288:- **A Cursor chat says it cannot reach Dark Mechanicus.** The chat has no Dark Mechanicus MCP tools by design: the ACP session is opened with no MCP servers, and the agent runs the `dm` command given at the head of its first prompt, with its grant in `DM_SESSION_TOKEN`. An agent that looks for `darkmechanicus` MCP tools instead finds none; point it at that command.
+src/main/agents/adapters/cursor.ts:8: * and no MCP servers (`mcpServers: []`), or `session/load` with the stored session
+src/main/agents/adapters/cursor.ts:42: * Dark Mechanicus. No MCP server is passed to Cursor and nothing is written to Cursor's config: the
+
+## c11: scratch repo /tmp/dm298/repos/c11, this branch's MCP server (out/main/mcp.js --role orchestrator --allow-save)
+darkmechanicus 0.19.0 ready: repo=/private/tmp/dm298/repos/c11 role=orchestrator save=allowed session=none
+### initialize_repository
+### create_epic
+### sprint
+### update_plan_draft
+### validate
+### save_plan
+### start_run
+### ready
+darkmechanicus 0.19.0 ready: repo=/private/tmp/dm298/repos/c11 role=orchestrator save=allowed session=ss_01m686awx3zs497c42f31te7az
+### claim1 top keys attempt,packet | claimToken type string length 62
+### replay claimToken = null | replay attemptId equal to first: true
+sqlite3 state.sqlite 'SELECT command, response_json FROM idempotency' (full, tokens none to redact):
+claimTicket|{"attempt":{"id":"at_01m686awxjqztf0n7gxkkejq78","runId":"rn_01m686anj90em4q52gb8wd48xk","ticketId":"tk_01m686anh9w99wyv7v1b0hp7d3","number":1,"kind":"work","state":"claimed","fencingToken":1,"worker":{"sessionId":"ss_01m686awx3zs497c42f31te7az","label":"dm298 worker","modelId":null,"hostId":null,"catalogRevision":null,"rationale":null,"effort":null},"revisionId":"rv_01m686anhd2s08txx8va4j50kc","ticketContentHash":"sha256:8d69b7caae44c6d710a08d9e211c86ec456e4b2e190535b2feb628bad7120e61","leaseExpiresAt":"2026-10-31T05:33:50.290Z","heartbeatAt":null,"outputs":null,"evidence":null,"failure":null,"decision":null,"createdAt":"2026-10-31T05:18:50.290Z","updatedAt":"2026-10-31T05:18:50.290Z","submittedAt":null,"decidedAt":null,"reconciledAt":null,"superseded":false},"packet":{"runId":"rn_01m686anj90em4q52gb8wd48xk","attemptId":"at_01m686awxjqztf0n7gxkkejq78","claimToken":null,"fencingToken":1,"leaseExpiresAt":"2026-10-31T05:33:50.290Z","heartbeatIntervalSeconds":300,"epic":{"id":"ep_01m686anh3hhzj4zaf3fn9cg2r","title":"DM-298 c11 scratch epic","branch":{"repository":null,"name":"master","startCommit":"d3187b5daa7b3e1c643f008ad73169e740630dcb"}},"revisionId":"rv_01m686anhd2s08txx8va4j50kc","sprint":{"id":"sp_01m686anh3mz1yjp3et6s2y6zs","ordinal":1,"goal":""},"ticket":{"id":"tk_01m686anh9w99wyv7v1b0hp7d3","key":"SC-2","title":"Scratch work ticket","body":"Do nothing.","acceptanceCriteria":[{"id":"c1","text":"nothing to do"}],"tags":[],"priority":"normal","capability":{"workType":"implementation","reasoning":{"level":"multi_step","rationale":""},"skills":[],"modalities":["text"],"tools":["repo_read","repo_write"],"context":{"estimatedInputTokens":null,"requiredArtifacts":[]},"constraints":{"environments":[],"dataLocation":null,"maxDurationMinutes":null,"maxCostUsd":null},"preferences":{"quality":null,"latency":null,"cost":null,"autonomy":null,"modelOverride":null}},"references":[],"expectedArtifacts":[],"optional":false},"ticketContentHash":"sha256:8d69b7caae44c6d710a08d9e211c86ec456e4b2e190535b2feb628bad7120e61","effort":null,"predecessors":[],"reporting":{"heartbeatTool":"heartbeat_attempt","submitTool":"submit_attempt","failTool":"fail_attempt","instructions":"Work only on this ticket and stay within its acceptance criteria. Call heartbeat_attempt with the claim token at least every heartbeatIntervalSeconds, or the lease expires. When finished, call submit_attempt with outputs (summary, artifacts, commits, changed files, branch) and evidence for each acceptance criterion. If you cannot finish, call fail_attempt with the reason. Submitting does not accept the work: a reviewer decides."}}}
+first claim returned a claimToken string of length 62 (not printed); occurrences of that token in state.sqlite, -wal, -shm and the idempotency dump: 0
+
+## c12 / quit
+41443 45641 41443 node --use-system-ca <home>/.local/opt/a8s/dist/main.js start /private/tmp/dm298/repos/s2 --mode acp --approval-mode always-ask --model anthropic/claude-haiku-5-5
+42092 41443 41443 bun --no-env-file --config=/dev/null --no-install --no-macros <home>/.local/opt/a8s.versions/0.79.0-2a4dac3cc247ea6b706946d8213a2c595f71bbe9/dist/omp/host.js
+  PID  PPID  PGID COMMAND
+40803 44609 40803 node ./node_modules/.bin/electron . --user-data-dir=/tmp/dm298/userdata --inspect=9431 --remote-debugging-port=9432
+41443 45641 41443 node --use-system-ca <home>/.local/opt/a8s/dist/main.js start /private/tmp/dm298/repos/s2 --mode acp --approval-mode always-ask --model anthropic/claude-haiku-5-5
+45641 40803 40803 <home>/Documents/GitHub/DarkMechanicus-worktrees/agent-clis-sprint-3/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron . --user-data-dir=/tmp/dm298/userdata --inspect=9
+after quit (app.quit via short inspector session; Cmd+Q via CDP key event did not reach the menu):
+  PID  PPID  PGID COMMAND
+
+## c10: each hit explained
+- architecture.md:17 and :217: the repository's own stdio MCP server process (src/mcp) for agents the person connects; not a server given to chats.
+- architecture.md:276: ownServerTools.ts recognises a `darkmechanicus` MCP server the vendor loads from the person's own config, and says the app passes none.
+- architecture.md:287: "No adapter gives the vendor an MCP server"; chats reach DM through the `dm` CLI with DM_SESSION_TOKEN.
+- architecture.md:295: "The app gives a chat no MCP server", only a vendor-loaded one from the person's config.
+- agents.md:95: Claude Code's enterprise (managed) MCP servers during the custom CLI probe retry; not a DM server.
+- agents.md:166: "The app gives a chat no Dark Mechanicus MCP server"; Allow for this chat covers a person-configured `darkmechanicus` server.
+- agents.md:288: Cursor chat "has no Dark Mechanicus MCP tools by design ... opened with no MCP servers".
+- cursor.ts:8 and :42: session/new with `mcpServers: []`; "No MCP server is passed to Cursor".
+None claims that chats get a Dark Mechanicus MCP server.
+
+## Harness stubs (main inspector, both app runs)
+dialog.showOpenDialog -> {canceled:false, filePaths:[<path the real dialog would return>]}: Find Autonomous (<home>/.local/bin/a8s), Track a folder (/tmp/dm298/repos/s2), custom CLIs (<home>/.local/bin/a8s, <home>/.local/bin/claude unresolved link, /tmp/dm298/bg-cli.sh). Recorded dialog properties for custom CLIs: ["openFile","showHiddenFiles","noResolveAliases"].
+dialog.showMessageBox -> {response:0, checkboxChecked:true}. No other override.
+Quit: Cmd+Q sent as a CDP key event did not reach the app menu; quit by app.quit() from a fresh short inspector session (renderer CDP and inspector disconnected first). Run 1 exited within 12 s; run 2 within ~22 s; both exit code 0, no agent process left (ps above and a final `ps -A | grep dm298` empty).

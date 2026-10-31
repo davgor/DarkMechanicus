@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-171 review (orchestrator): docs/architecture.md still says metric_observations is schema v10 and does not mention v11 delivery identities, ticket budgets, `record_attempt_metrics`, `record_run_metrics`, `get_run_metrics` or `get_planned_baselines`. The worker and orchestrator skills and the server instructions do not teach metric reporting yet. In `src/mcp/tools/metrics.ts` the observations parameter says an agent-sourced human_rating fails with unauthorized, but it fails with invalid_input.",
+  "createdAt": "2026-10-31T06:49:14.338Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m68bgdv2mmx3mhm64csv7r9x",
+  "ticketId": "tk_01m453gpadszmpfvveph0zjtg5"
+}

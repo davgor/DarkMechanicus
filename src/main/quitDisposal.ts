@@ -1,10 +1,12 @@
 /**
- * Disposes agent processes before the app exits. Electron's `before-quit` cannot wait for async
- * work, so while processes are live the first quit is prevented, they are disposed (each adapter
- * kills its process tree with `killProcessTree` and resolves once the tree is gone; bounded by
- * `timeoutMs` so a stuck one cannot keep the app open), and the quit is then repeated. With
- * nothing live the quit goes straight through; `dispose` still runs so nothing new starts. Free of
- * Electron runtime imports so it can be unit tested.
+ * Disposes agent processes before the app exits, then releases what the app holds open. Electron's
+ * `before-quit` cannot wait for async work, so while processes are live the first quit is
+ * prevented, they are disposed (each adapter kills its process tree with `killProcessTree` and
+ * resolves once the tree is gone; bounded by `timeoutMs` so a stuck one cannot keep the app open),
+ * `release` runs, and the quit is then repeated. With nothing live the quit goes straight through:
+ * `dispose` still runs so nothing new starts, then `release`. Either way `release` runs exactly
+ * once, and later `before-quit`s do nothing. Free of Electron runtime imports so it can be unit
+ * tested.
  */
 
 /** What this needs of Electron's `app`. */
@@ -17,6 +19,8 @@ interface QuitDisposalOptions {
   /** True while there are processes to dispose. */
   busy: () => boolean
   dispose: () => Promise<void>
+  /** Closes what the app holds open (workspaces, `app.sqlite`); runs once, after `dispose`. */
+  release: () => void
   /** The longest the quit waits for `dispose`. */
   timeoutMs: number
   timer?: { set(callback: () => void, ms: number): unknown }
@@ -31,13 +35,22 @@ function waitAtMost(work: Promise<void>, options: QuitDisposalOptions): Promise<
   return Promise.race([work, timeout])
 }
 
-/** Disposes, then quits again; `app.quit()` emits before-quit at once, so `letQuit` must run first. */
+function releaseReportingErrors(options: QuitDisposalOptions): void {
+  try {
+    options.release()
+  } catch (error) {
+    options.onError?.(error)
+  }
+}
+
+/** Disposes, releases, then quits again; `app.quit()` emits before-quit at once, so `letQuit` must run first. */
 async function disposeThenQuit(app: QuitApp, options: QuitDisposalOptions, letQuit: () => void): Promise<void> {
   try {
     await waitAtMost(options.dispose(), options)
   } catch (error) {
     options.onError?.(error)
   }
+  releaseReportingErrors(options)
   letQuit()
   app.quit()
 }
@@ -51,6 +64,7 @@ export function disposeBeforeQuit(app: QuitApp, options: QuitDisposalOptions): v
     if (state === 'running' && !options.busy()) {
       state = 'done'
       options.dispose().catch((error: unknown) => options.onError?.(error))
+      releaseReportingErrors(options)
       return
     }
     event.preventDefault()

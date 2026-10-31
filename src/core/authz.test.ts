@@ -63,6 +63,7 @@ const DESKTOP: Capability[] = [
   'repo.flush',
   'repo.reconcile',
   'repo.backup',
+  'repo.resolve_conflict',
   'epic.create',
   'epic.status',
   'epic.branch',
@@ -121,12 +122,12 @@ function sessionWith(role: SessionRole, capabilities: Capability[]): SessionCont
 
 describe('capability vocabulary', () => {
   it('lists every capability exactly once', () => {
-    expect(CAPABILITIES).toHaveLength(42)
-    expect(new Set(CAPABILITIES).size).toBe(42)
+    expect(CAPABILITIES).toHaveLength(43)
+    expect(new Set(CAPABILITIES).size).toBe(43)
     expect(sorted(CAPABILITIES)).toEqual(sorted([...DESKTOP, ...AGENT_ONLY]))
   })
 
-  it('marks approval, auto-continue, retry grants, run queueing, deletion, granting roles, the sign-in pause and resume and transfer queueing as human-only', () => {
+  it('marks approval, auto-continue, retry grants, run queueing, deletion, granting roles, the sign-in pause and resume, transfer queueing and epic records conflict choices as human-only', () => {
     expect(sorted(HUMAN_ONLY_CAPABILITIES)).toEqual(
       sorted([
         'checkpoint.approve',
@@ -139,7 +140,8 @@ describe('capability vocabulary', () => {
         'run.queue',
         'epic.delete',
         'ticket.delete',
-        'transfer.queue'
+        'transfer.queue',
+        'repo.resolve_conflict'
       ])
     )
   })

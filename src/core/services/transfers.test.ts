@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import type { PlanBundle, TicketContent } from '../../shared/domain/bundle'
 import type {
@@ -705,8 +706,8 @@ function distinctItems(readback: Required<LinearReadback>, list: ReadbackList, c
 }
 
 describe('submitTransferReadback merged limits', () => {
-  it('pins the read-back limits: the packet limit of each list plus 100 unexpected items, and 8,000,000 characters a part', () => {
-    expect(READBACK_LIMITS).toEqual({ partChars: 8_000_000, milestones: 200, issues: 1_100, relations: 15_100 })
+  it('pins the read-back limits: the packet limit of each list plus 100 unexpected items, 8,000,000 characters a part and 100,000,000 merged', () => {
+    expect(READBACK_LIMITS).toEqual({ partChars: 8_000_000, totalChars: 100_000_000, milestones: 200, issues: 1_100, relations: 15_100 })
   })
 
   it.each(['milestones', 'issues', 'relations'] as const)(
@@ -759,6 +760,71 @@ describe('submitTransferReadback merged limits', () => {
     expect(submit(fixture, readback).status).toBe('verified')
   })
 })
+
+describe('submitTransferReadback merged size', () => {
+  it('refuses a part that takes the merged JSON past totalChars, naming the limit, and keeps the parts sent before', () => {
+    const fixture = recordedTransfer()
+    const { totalChars } = READBACK_LIMITS
+    const padded = fillToTotalChars(fixture)
+    expect(submit(fixture, padded(0), false).received.issues).toBeLessThan(READBACK_LIMITS.issues)
+    expect(storedReadback(fixture).chars).toBe(totalChars)
+    fixture.ctx.clock.advanceSeconds(60)
+    const stored = storedReadback(fixture)
+    const events = eventKinds(fixture.ctx, 'transfer.')
+
+    const error = domainError(() => submit(fixture, padded(1), false))
+    expect(error.code).toBe('invalid_input')
+    expect(error.message).toContain(`A transfer read-back is at most ${totalChars} characters of JSON`)
+    expect(error.message).toContain('the parts sent before are kept')
+    expect(error.details).toEqual({ limit: 'totalChars', max: totalChars })
+    expect(storedReadback(fixture)).toEqual(stored)
+    expect(eventKinds(fixture.ctx, 'transfer.')).toEqual(events)
+  })
+
+  it('compares a final part that brings the merged JSON to exactly totalChars, and refuses one past it after ending the read-back', () => {
+    const atLimit = recordedTransfer()
+    const result = submit(atLimit, fillToTotalChars(atLimit)(0))
+    expect(result.status).toBe('rejected')
+    expect(getTransfer(atLimit.ctx, { epicId: atLimit.epicId }).lastMismatches).not.toEqual([])
+
+    const fixture = recordedTransfer()
+    const padded = fillToTotalChars(fixture)
+    const error = domainError(() => submit(fixture, padded(1)))
+    expect(error).toMatchObject({ code: 'invalid_input', details: { limit: 'totalChars', max: READBACK_LIMITS.totalChars } })
+    expect(error.message).toContain('This final part still ended the read-back')
+    expect(fixture.ctx.db.get('SELECT readback_json FROM transfers')).toEqual({ readback_json: null })
+    expect(getTransfer(fixture.ctx, { epicId: fixture.epicId })).toMatchObject({ status: 'in_progress', lastMismatches: [] })
+    expect(getEpic(fixture.ctx, { epicId: fixture.epicId }).status).toBe('backlog')
+    expect(submit(fixture, readbackOf(fixture.packet)).status).toBe('verified')
+  })
+})
+
+/** The stored read-back's length in characters, a digest of it and when it was written, cheap to compare when it is large. */
+function storedReadback(fixture: RecordedTransfer): { chars: number; sha256: string; updatedAt: string } {
+  const row = fixture.ctx.db.get<{ readback_json: string | null; updated_at: string }>('SELECT readback_json, updated_at FROM transfers')
+  const json = row?.readback_json ?? ''
+  return { chars: json.length, sha256: createHash('sha256').update(json).digest('hex'), updatedAt: row?.updated_at ?? '' }
+}
+
+/**
+ * Stores a read-back of exactly `READBACK_LIMITS.totalChars` characters of JSON, short of the last padding issue's
+ * description, and returns the part that sends that issue `extra` characters past the limit. About 250 issues of
+ * 400,000 characters fill it, far below the issue limit. The service sits behind the part-size check, so one part
+ * carries them all here: the merged size is what is under test.
+ */
+function fillToTotalChars(fixture: RecordedTransfer): (extra: number) => LinearReadback {
+  const readback = readbackOf(fixture.packet)
+  const issue = (linearId: string, description: string): LinearReadbackIssue => ({ ...issueOf(readback, 3), linearId, description })
+  const pad = (length: number): LinearReadback => ({ issues: [issue('lin-pad', 'x'.repeat(length))] })
+  submit(fixture, { project: readback.project, milestones: readback.milestones, ...pad(0) }, false)
+  const description = 'x'.repeat(400_000)
+  // Ids of one width, so every issue adds the same characters, its comma included.
+  const each = JSON.stringify(issue('lin-big-000', description)).length + 1
+  const count = Math.floor((READBACK_LIMITS.totalChars - storedReadback(fixture).chars) / each)
+  submit(fixture, { issues: Array.from({ length: count }, (_, at) => issue(`lin-big-${String(at).padStart(3, '0')}`, description)) }, false)
+  const room = READBACK_LIMITS.totalChars - storedReadback(fixture).chars
+  return (extra) => pad(room + extra)
+}
 
 describe('submitTransferReadback full match', () => {
   it('completes the epic with the transfer outcome, a summary comment, the event and a verified transfer', () => {

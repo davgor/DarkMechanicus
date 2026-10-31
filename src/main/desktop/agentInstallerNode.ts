@@ -11,7 +11,7 @@ import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { killProcessTree, startsOwnGroup } from '../agents/processTree'
 import type { InstallerFiles, InstallerHttp, InstallOutcome, InstallRunner } from './agentInstaller'
-import type { InstallEnvironment } from './agentInstallRecipes'
+import type { InstallEnvironment, InstallLaunch } from './agentInstallRecipes'
 
 /** Installer scripts are a few tens of kilobytes; anything near this is not one. */
 const DEFAULT_MAX_BYTES = 5 * 1024 * 1024
@@ -107,10 +107,24 @@ function spawnFailure(error: unknown): InstallOutcome {
   }
 }
 
+function startInstaller(launch: InstallLaunch): ChildProcess {
+  return spawn(launch.file, [...launch.args], {
+    shell: false,
+    windowsHide: true,
+    // A group of its own is what lets a timeout reach what the installer started (macOS and Linux).
+    detached: startsOwnGroup(),
+    // No stdin: an installer that asks a question sees end-of-file instead of waiting out the timeout.
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env, ...launch.env }
+  })
+}
+
 /**
  * Starts the installer without a shell and resolves with how it ended, never rejecting. Output is
  * stdout and stderr together, keeping the end; the process tree is killed when `timeoutMs` passes, and
- * the timeout is reported once it is gone.
+ * the timeout is reported once it is gone. An installer that already exited by then (something else
+ * holds its pipes) is not killed: asked that late, a process group found under its pid may be another
+ * program's.
  */
 export const runInstallerProcess: InstallRunner = (launch, timeoutMs) =>
   new Promise<InstallOutcome>((resolve) => {
@@ -125,22 +139,18 @@ export const runInstallerProcess: InstallRunner = (launch, timeoutMs) =>
     }
     let child: ChildProcess
     try {
-      child = spawn(launch.file, [...launch.args], {
-        shell: false,
-        windowsHide: true,
-        // A group of its own is what lets a timeout reach what the installer started (macOS and Linux).
-        detached: startsOwnGroup(),
-        // No stdin: an installer that asks a question sees end-of-file instead of waiting out the timeout.
-        stdio: ['ignore', 'pipe', 'pipe'],
-        env: { ...process.env, ...launch.env }
-      })
+      child = startInstaller(launch)
     } catch (error) {
       finish(spawnFailure(error))
       return
     }
+    let exited = false
+    child.once('exit', () => {
+      exited = true
+    })
     const timer = setTimeout(() => {
       timedOut = true
-      void killProcessTree(child).then(() => {
+      void (exited ? Promise.resolve(true) : killProcessTree(child)).then(() => {
         finish({ kind: 'timed_out', output: tail })
       })
     }, timeoutMs)

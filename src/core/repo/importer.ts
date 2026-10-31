@@ -48,6 +48,7 @@ import {
   trackedEpicHash,
   trackedRunHash
 } from './portable'
+import { hasPendingEpicChanges, matchesSync } from './syncState'
 import type { FsAdapter, GitAdapter, RepoLayout } from './types'
 
 export interface ImporterDeps {
@@ -447,26 +448,6 @@ function scanRepository(deps: ImporterDeps): Scan {
   return scan
 }
 
-function matchesSync(db: Db, kind: 'epic' | 'run', entityId: string, hash: string): boolean {
-  const row = db.get<{ exported_hash: string | null; imported_hash: string | null }>(
-    'SELECT exported_hash, imported_hash FROM sync_state WHERE kind = ? AND entity_id = ?',
-    kind,
-    entityId
-  )
-  return row !== undefined && (row.exported_hash === hash || row.imported_hash === hash)
-}
-
-/** Unexported plan or state changes; a comment waiting for export never touches those files. */
-function hasPendingEpicChanges(db: Db, epicId: string): boolean {
-  const row = db.get<{ pending: number }>(
-    `SELECT EXISTS (SELECT 1 FROM outbox WHERE epic_id = ? AND kind <> 'comment' AND state IN ('pending', 'failed'))
-         OR EXISTS (SELECT 1 FROM plan_revisions WHERE epic_id = ? AND state = 'pending') AS pending`,
-    epicId,
-    epicId
-  )
-  return row?.pending === 1
-}
-
 function hasPendingRunChanges(db: Db, runId: string): boolean {
   const row = db.get<{ pending: number }>(
     "SELECT EXISTS (SELECT 1 FROM outbox WHERE run_id = ? AND state IN ('pending', 'failed')) AS pending",
@@ -532,8 +513,19 @@ function runClash(db: Db, record: RunHistoryRecord, staged: Map<string, EpicFile
   return foreignChild(db, record)
 }
 
+/** Starts the conflict of an epic whose tracked records changed while its local changes wait to be exported. */
+export const EPIC_RECORDS_CONFLICT_PREFIX = 'Tracked records for epic '
+
+/**
+ * Neither side is applied, and the finalizer will not write over the tracked records either (`exportEpic`), so only
+ * the person's choice (`resolveEpicConflict`) settles it.
+ */
 function epicConflictMessage(epicId: string): string {
-  return `Tracked records for epic ${epicId} changed while local changes are waiting to be exported. Flush or resolve the local changes before importing.`
+  return (
+    `${EPIC_RECORDS_CONFLICT_PREFIX}${epicId} changed while local changes are waiting to be exported, so neither was ` +
+    "applied. Choose which to keep in the desktop app's Storage card: keep the tracked records (the epic's local " +
+    "changes are dropped) or write local (this machine's records of the epic replace them)."
+  )
 }
 
 interface TransferHold {

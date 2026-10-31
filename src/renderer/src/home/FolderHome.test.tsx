@@ -41,6 +41,7 @@ function renderHome(create: () => Promise<EpicDetailView | null> = () => Promise
     <ToastProvider scheduler={new ManualScheduler()}>
       <FolderHome
         folder={folder}
+        agents={[]}
         list={list}
         status={storageStatus()}
         busy={{ flush: false, reconcile: false }}
@@ -55,6 +56,7 @@ function renderHome(create: () => Promise<EpicDetailView | null> = () => Promise
         onReconcile={() => {
           calls.reconcile += 1
         }}
+        onResolveConflict={() => Promise.resolve()}
         onImportBoard={() => {
           calls.boardImports += 1
           return Promise.resolve<BoardImportView | null>(IMPORTED)

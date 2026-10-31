@@ -1,0 +1,7 @@
+$ npm run lint
+# HEAD b23a9c90c6551544b3cdfd204551f701fabf631f
+
+> dark-mechanicus@0.20.0 lint
+> oxlint src scripts
+
+# exit 0

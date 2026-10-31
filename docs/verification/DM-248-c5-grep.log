@@ -1,0 +1,21 @@
+$ bash docs/verification/DM-248-c5-grep.sh
+commit: 796b5af1a49bee655e57cd2820c19f3d6834fb6f
+exists: src/main/agents/adapters/__mocks__/autonomousRecordings.ts (18025 bytes)
+exists: docs/reports/autonomous-acp.md (14960 bytes)
+grep -c -i -F <value> src/main/agents/adapters/__mocks__/autonomousRecordings.ts
+  <user name (whoami)>: 0 matching line(s)
+  <git user.name>: 0 matching line(s)
+  <email>: 0 matching line(s)
+  <email local part>: 0 matching line(s)
+  <home path>: 0 matching line(s)
+grep -c -i -F <value> docs/reports/autonomous-acp.md
+  <user name (whoami)>: 0 matching line(s)
+  <git user.name>: 0 matching line(s)
+  <email>: 0 matching line(s)
+  <email local part>: 0 matching line(s)
+  <home path>: 0 matching line(s)
+positive control: a copy of the recording with one planted value each, same grep
+  <user name> in planted-user.ts: 1 matching line(s)
+  <email> in planted-email.ts: 1 matching line(s)
+  <home path> in planted-home.ts: 1 matching line(s)
+(exit 0)

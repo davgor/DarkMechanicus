@@ -48,7 +48,7 @@ Read the whole project back from Linear and call `submit_transfer_readback`.
 
 - Send it in parts when it is large, with `final: true` on the last part only.
 - Report each issue's `stateType` as Linear's state type: triage, backlog, unstarted, started, completed or canceled. Issues the packet marks completed must be `completed`. None of the others may be completed or canceled.
-- A final part always ends the read-back, whatever the result. A submission may ask the person for approval.
+- An accepted final part ends the read-back: it is verified, or its mismatches are reported and the stored parts are cleared. A final part that takes the merged read-back past an item limit or the total size is refused, but the stored parts are still cleared. A part refused as malformed or over the per-part size changes nothing, final or not: fix it and send it again. A submission may ask the person for approval.
 - After a refusal or a mismatch, fix each mismatch by updating the Linear item, or move an unexpected item out of the project. Never delete anything.
 - Then read the whole project back again from the start and submit again.
 

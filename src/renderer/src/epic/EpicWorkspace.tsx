@@ -237,6 +237,7 @@ function StartRunHost({ ws }: { ws: WorkspaceHandle }): JSX.Element | null {
   return (
     <StartRunDialog
       epicTitle={ws.data.epic.title}
+      folderPath={ws.folder.path}
       agents={host.agents}
       statuses={host.statuses}
       busy={ws.state.busy}
@@ -332,7 +333,8 @@ function WorkspaceBody(props: EpicWorkspaceProps): JSX.Element {
     refreshToken: props.refreshToken,
     onChanged: props.onChanged,
     onChatsChanged: props.orchestration.onChatsChanged,
-    onOpenChat: props.orchestration.onOpenChat
+    onOpenChat: props.orchestration.onOpenChat,
+    agents: props.orchestration.agents
   })
   const now = useNow()
   const { state } = controller

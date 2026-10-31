@@ -7,7 +7,7 @@ import type { EpicDetailView, RunView } from '../../shared/domain/views'
 import type { ChatPushEvent, ThreadBinding } from '../../shared/agents/chatApi'
 import type { CommandResult } from '../../shared/desktop/api'
 import { transferKickoff } from '../../mcp/transferKickoff'
-import { AT, MODELS, REPO } from './__mocks__/fakeChatAdapter'
+import { AT, connectedAgents, MODELS, REPO } from './__mocks__/fakeChatAdapter'
 import { createChatHandlers, type ChatHandlers } from './chatHandlers'
 import type { OrchestratorRuns } from './orchestratorStart'
 import type { SessionManager } from './sessionManager'
@@ -30,6 +30,10 @@ const MESSAGE = { id: 'm1', at: AT, kind: 'user_message', text: 'hi' } as const
 
 /** Another spelling of the tracked folder, which the registry resolves to REPO. */
 const SPELLING = `${REPO}${sep}`
+
+/** Claude, Codex and Cursor are connected; no custom agent is. */
+const AGENTS = { get: connectedAgents() }
+const UNKNOWN_AGENT = 'cu_01m65kwqqeyajbj5bnq81gngrb'
 
 /** A session manager that records [method, ...args] and answers with fixed values. */
 function recordingSessions(): { sessions: SessionManager; calls: unknown[][] } {
@@ -54,8 +58,12 @@ function recordingSessions(): { sessions: SessionManager; calls: unknown[][] } {
       calls.push(['answerApproval', ...args])
     },
     listModels: async (...args) => (calls.push(['listModels', ...args]), MODELS),
+    agentName: (id) => id,
     liveCount: () => 0,
-    disposeAll: async () => {}
+    disposeAll: async () => {},
+    endAgentSessions: async (...args) => {
+      calls.push(['endAgentSessions', ...args])
+    }
   }
   return { sessions, calls }
 }
@@ -84,6 +92,7 @@ function recordingTransfers(calls: string[] = [], status: TransferStatus = 'queu
 function handlersOver(sessions: SessionManager, errors: unknown[] = [], runs: OrchestratorRuns = recordingRuns(), push?: (event: ChatPushEvent) => void): ChatHandlers {
   return createChatHandlers({
     registry: { resolve: (path) => (path === REPO || path === SPELLING ? REPO : null) },
+    agents: AGENTS,
     sessions,
     runs,
     transfers: recordingTransfers(),
@@ -94,7 +103,7 @@ function handlersOver(sessions: SessionManager, errors: unknown[] = [], runs: Or
 
 /** Handlers over `sessions` whose transfer reads are `transfers`. */
 function handlersReading(sessions: SessionManager, transfers: TransferReads): ChatHandlers {
-  return createChatHandlers({ registry: { resolve: (path) => (path === REPO || path === SPELLING ? REPO : null) }, sessions, runs: recordingRuns(), transfers })
+  return createChatHandlers({ registry: { resolve: (path) => (path === REPO || path === SPELLING ? REPO : null) }, agents: AGENTS, sessions, runs: recordingRuns(), transfers })
 }
 
 const REF = { folder: SPELLING, chatId: 'chat_1' }
@@ -161,6 +170,8 @@ describe('chat handlers: refusals', () => {
     ]
 
     expect(results.map((result) => (result.ok ? 'ok' : result.error.code))).toEqual(Array(results.length).fill('unauthorized'))
+    const named = `The folder ${elsewhere} is not tracked by Dark Mechanicus. Track the folder again to keep using this chat.`
+    expect(results.map((result) => (result.ok ? 'ok' : result.error.message))).toEqual(Array(results.length).fill(named))
     expect(calls).toEqual([])
   })
 
@@ -194,7 +205,41 @@ describe('chat handlers: refusals', () => {
     expect(results.map((result) => (result.ok ? 'ok' : result.error.code))).toEqual(Array(results.length).fill('invalid_input'))
     expect(calls).toEqual([])
   })
+})
 
+describe('chat handlers: agents named by id', () => {
+  it('refuses an agent id that is not connected with not_found, before anything runs', async () => {
+    const { sessions, calls } = recordingSessions()
+    const queue: string[] = []
+    const handlers = handlersOver(sessions, [], recordingRuns(queue))
+
+    const results = [
+      await handlers.create({ folder: REPO, agent: UNKNOWN_AGENT, role: 'planner' }),
+      await handlers.startOrchestrator({ folder: REPO, epicId: EPIC_ID, agent: UNKNOWN_AGENT }),
+      await handlers.models(UNKNOWN_AGENT)
+    ]
+
+    expect(results.map((result) => (result.ok ? 'ok' : result.error.code))).toEqual(['not_found', 'not_found', 'not_found'])
+    expect(queue).toEqual([])
+    expect(calls).toEqual([])
+  })
+
+  it('refuses a transfer chat for a built-in agent that is not connected or an unknown agent id, reading no transfer', async () => {
+    const { sessions, calls } = recordingSessions()
+    const reads: string[] = []
+    const handlers = handlersReading(sessions, recordingTransfers(reads))
+
+    const results = [
+      await handlers.startTransferChat({ folder: REPO, epicId: EPIC_ID, agent: 'autonomous' }),
+      await handlers.startTransferChat({ folder: REPO, epicId: EPIC_ID, agent: UNKNOWN_AGENT }),
+      await handlers.startTransferChat({ folder: REPO, epicId: EPIC_ID, agent: 'cu_../../../etc' })
+    ]
+
+    expect(results.map((result) => (result.ok ? 'ok' : result.error.code))).toEqual(['not_found', 'not_found', 'invalid_input'])
+    expect(results[1]).toMatchObject({ error: { message: `No connected agent has the id ${UNKNOWN_AGENT}. Connect it under Agents first.` } })
+    expect(reads).toEqual([])
+    expect(calls).toEqual([])
+  })
 })
 
 describe('chat handlers: start an orchestrator', () => {
@@ -367,6 +412,7 @@ const BINDINGS: ThreadBinding[] = [
 function handlersWithBindings(asked: unknown[]): ChatHandlers {
   return createChatHandlers({
     registry: { resolve: (path) => (path === REPO || path === SPELLING ? REPO : null) },
+    agents: AGENTS,
     sessions: recordingSessions().sessions,
     runs: recordingRuns(),
     transfers: recordingTransfers(),
@@ -411,6 +457,7 @@ describe('chat handlers: thread bindings', () => {
     const errors: unknown[] = []
     const failing = createChatHandlers({
       registry: { resolve: () => REPO },
+      agents: AGENTS,
       sessions: recordingSessions().sessions,
       runs: recordingRuns(),
       transfers: recordingTransfers(),
@@ -431,6 +478,7 @@ const FOUND = [{ folder: REPO, chatId: 'chat_1', threadId: 'thread_a', role: 'wo
 function handlersWithBound(asked: unknown[][]): ChatHandlers {
   return createChatHandlers({
     registry: { resolve: (path) => (path === REPO || path === SPELLING ? REPO : null) },
+    agents: AGENTS,
     sessions: recordingSessions().sessions,
     runs: recordingRuns(),
     transfers: recordingTransfers(),
@@ -488,6 +536,7 @@ describe('chat handlers: bound threads', () => {
     const errors: unknown[] = []
     const failing = createChatHandlers({
       registry: { resolve: () => REPO },
+      agents: AGENTS,
       sessions: recordingSessions().sessions,
       runs: recordingRuns(),
       transfers: recordingTransfers(),

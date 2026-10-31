@@ -9,6 +9,7 @@ import type { Capability } from '../authz'
 import type { Clock } from '../clock'
 import type { Ctx } from '../context'
 import type { Db } from '../db/database'
+import type { FlushScope } from '../repo/finalizer'
 import type { ProjectRecord } from '../repo/portable'
 import type { StorageMode } from '../repo/storageMode'
 import type { FsAdapter, GitAdapter, RepoLayout } from '../repo/types'
@@ -31,7 +32,8 @@ export interface WorkspaceCore {
   ctx(): Ctx
   initialize(input: { name?: string; keyPrefix?: string; mode?: StorageMode }): InitializeResultView
   reconcile(): ReconcileResultView
-  flush(): FlushResultView
+  /** Flushes every waiting entry, or only those in `scope`. */
+  flush(scope?: FlushScope): FlushResultView
   safeFlush(): void
 }
 

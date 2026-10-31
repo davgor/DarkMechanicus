@@ -7,7 +7,8 @@
  * `TerminateProcess` leaves what that program started running). The SDK lets the host start the
  * process, so this module does, remembers every child, and ends the whole tree through the shared
  * `killProcessTree` (`taskkill /t` on Windows, the child's own process group elsewhere, where the
- * child is started detached to get one). `killAll` resolves once every tree is gone.
+ * child is started detached to get one). `killAll` resolves once every tree is gone. A child that exits
+ * on its own has what it left running in its group ended as it exits, and is then forgotten.
  *
  * A `.cmd` shim is not launched here: the SDK's arguments hold JSON and quotes, which the shim
  * launcher refuses, so `resolveClaudeExecutable` follows the shim to the script or program it runs.
@@ -17,6 +18,7 @@ import { readFileSync } from 'node:fs'
 import { win32 } from 'node:path'
 import type { Readable, Writable } from 'node:stream'
 import type { SpawnedProcess, SpawnOptions } from '@anthropic-ai/claude-agent-sdk'
+import { logger } from '../../logger'
 import { killProcessTree, startsOwnGroup } from '../processTree'
 
 /** How much of the program's stderr is kept to explain a failure with. */
@@ -55,6 +57,10 @@ const realDeps: ProcessDeps = {
   killTree: killProcessTree
 }
 
+function warnTreeAlive(child: PipedChild): void {
+  logger.warn(`Claude Code process ${child.pid ?? 'unknown'}: its process tree was still alive after the kill wait`)
+}
+
 export function createClaudeProcesses(overrides: Partial<ProcessDeps> = {}): ClaudeProcesses {
   const deps: ProcessDeps = { ...realDeps, ...overrides }
   const children = new Set<PipedChild>()
@@ -77,16 +83,46 @@ export function createClaudeProcesses(overrides: Partial<ProcessDeps> = {}): Cla
         stderr = `${stderr}${String(chunk)}`.slice(-STDERR_CHARS)
       })
       children.add(child)
-      child.once('exit', () => children.delete(child))
+      child.once('exit', () => {
+        children.delete(child)
+        // Asked as it exits, while its process group's id can only be its own (see `killProcessTree`).
+        // Logged here: killAll no longer counts this child.
+        void deps.killTree(child).then((gone) => {
+          if (!gone) {
+            warnTreeAlive(child)
+          }
+        })
+      })
       return child
     },
     killAll: async () => {
       // Every kill is sent here, before the first await.
-      const gone = [...children].map((child) => deps.killTree(child))
+      const gone = [...children].map(async (child) => {
+        // A child that exited meanwhile is logged by its exit, which got the same answer.
+        if (!(await deps.killTree(child)) && children.has(child)) {
+          warnTreeAlive(child)
+        }
+      })
       await Promise.all(gone)
     },
     stderrTail: () => stderr
   }
+}
+
+/**
+ * The SDK's spawn options with the launch spec's arguments (`{folder}` already replaced) put right after
+ * `program`, before the SDK's own flags. The SDK runs a native `program` as the command, and a script
+ * as an argument of `node`; anything else is refused rather than guessed at.
+ */
+export function withSpecArgs(options: SpawnOptions, program: string, specArgs: readonly string[]): SpawnOptions {
+  if (options.command === program) {
+    return { ...options, args: [...specArgs, ...options.args] }
+  }
+  const at = options.args.indexOf(program)
+  if (at === -1) {
+    throw new Error('The Claude Code process was not started with the connected program, so its arguments cannot be added.')
+  }
+  return { ...options, args: [...options.args.slice(0, at + 1), ...specArgs, ...options.args.slice(at + 1)] }
 }
 
 // ---- Finding the program ----

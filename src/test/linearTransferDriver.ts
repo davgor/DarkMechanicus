@@ -111,7 +111,7 @@ export async function completeTicket(api: RunApi, epicId: string, title: string)
   const ticketId = bundle.tickets.find((ticket) => ticket.title === title)?.id ?? fail(`The fixture has no ticket ${title}.`)
   const run = await api.startRun({ epicId })
   const claim = await api.claimTicket({ runId: run.id, ticketId, worker: { label: 'fixture-worker' } })
-  await api.submitAttempt({ attemptId: claim.attempt.id, claimToken: claim.packet.claimToken, outputs: { summary: `Delivered ${title}.` } })
+  await api.submitAttempt({ attemptId: claim.attempt.id, claimToken: claim.packet.claimToken ?? fail(`The claim of ${title} carries no token.`), outputs: { summary: `Delivered ${title}.` } })
   await api.acceptAttempt({ attemptId: claim.attempt.id })
   await api.cancelRun({ runId: run.id, reason: 'The rest of the epic moves to Linear.' })
   return ticketId

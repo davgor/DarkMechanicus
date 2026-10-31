@@ -9,7 +9,7 @@
   "epicId": "ep_01m43sbb2tbnxtr35fety5vzhs",
   "format": "darkmechanicus.epic-state",
   "formatVersion": 1,
-  "generation": 26,
+  "generation": 37,
   "outcome": null,
   "provenance": null,
   "status": "in_progress",
@@ -42,13 +42,13 @@
     "tk_01m43szh82q4hrw4fkwweteqrb": "backlog",
     "tk_01m43szh82swqnayakvhj5bf0v": "backlog",
     "tk_01m43szh82y865rfb7rg8yhcxr": "backlog",
-    "tk_01m49emzz6ymm1v65mzf6zfbza": "backlog",
-    "tk_01m49emzzd6456fvbbz01q47ay": "backlog",
-    "tk_01m49emzzdtey174hwsn8xgyb5": "backlog",
-    "tk_01m49emzzdv0btvzkkreypdg6t": "backlog",
-    "tk_01m49emzzdvqzsew86286dc695": "backlog",
-    "tk_01m49emzzdwv2qxvaq6zhhe12w": "backlog"
+    "tk_01m49emzz6ymm1v65mzf6zfbza": "in_progress",
+    "tk_01m49emzzd6456fvbbz01q47ay": "completed",
+    "tk_01m49emzzdtey174hwsn8xgyb5": "completed",
+    "tk_01m49emzzdv0btvzkkreypdg6t": "completed",
+    "tk_01m49emzzdvqzsew86286dc695": "completed",
+    "tk_01m49emzzdwv2qxvaq6zhhe12w": "completed"
   },
   "title": "Source control: a GitHub Desktop-style Git view in every folder",
-  "updatedAt": "2026-10-07T05:19:11.193Z"
+  "updatedAt": "2026-10-31T04:45:13.869Z"
 }

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
+import { AGENT_DEFINITIONS, isBuiltInAgentKind } from '../../shared/desktop/agentKinds'
 import type { AgentAuthStatus } from '../../shared/desktop/api'
-import { createSignInFlags } from './signInFlags'
+import { createSignInFlags as createFlags, type SignInFlags } from './signInFlags'
+
+function createSignInFlags(): SignInFlags {
+  return createFlags((id) => (isBuiltInAgentKind(id) ? AGENT_DEFINITIONS[id].displayName : id))
+}
 
 const SIGNED_IN: AgentAuthStatus = { state: 'signed_in', reason: 'Claude Code reports it is signed in.' }
 const SIGNED_OUT: AgentAuthStatus = { state: 'signed_out', reason: 'Claude Code reports it is not signed in.' }

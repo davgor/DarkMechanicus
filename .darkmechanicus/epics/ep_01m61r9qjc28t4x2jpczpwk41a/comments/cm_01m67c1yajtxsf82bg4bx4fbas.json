@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "**Stale after DM-297:** `docs/runbooks/agents.md` (about line 94) still lists a 'Known limitation' that a Claude Code SDK custom CLI can't be added with an enterprise MCP config. DM-297's fallback makes that work (DM-255 c20). Found by the sprint 2 acceptance round; the correction moves to sprint 3.",
+  "createdAt": "2026-10-30T21:39:33.842Z",
+  "epicId": "ep_01m61r9qjc28t4x2jpczpwk41a",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m67c1yajtxsf82bg4bx4fbas",
+  "ticketId": "tk_01m61r9qvzvkvv2bt1hcf2cpqs"
+}

@@ -69,6 +69,7 @@ export const COMMAND_SCHEMAS = {
     limit: z.number().int().min(1).max(100).optional(),
     epicId: stableId.optional()
   }),
+  resolveEpicConflict: z.strictObject({ epicId: stableId, keep: z.enum(['tracked', 'local']) }),
   backupDatabase: z.strictObject({
     targetPath: z
       .string()

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { Workspace } from '../core/workspace'
 import type { RunView } from '../shared/domain/views'
+import { issued } from '../test/execution'
 import { createHarness, type Harness } from '../test/workspaceHarness'
 
 interface Planned {
@@ -48,7 +49,7 @@ async function planSprint(agent: Workspace): Promise<Planned> {
 }
 
 async function claimSubmitAccept(agent: Workspace, runId: string, ticketId: string): Promise<string[]> {
-  const claim = await agent.claimTicket({ runId, ticketId, worker: { label: 'worker-1' } })
+  const claim = issued(await agent.claimTicket({ runId, ticketId, worker: { label: 'worker-1' } }))
   await agent.submitAttempt({
     attemptId: claim.attempt.id,
     claimToken: claim.packet.claimToken,

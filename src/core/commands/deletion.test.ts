@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { DraftOp } from '../../shared/domain/api'
 import { dropAcceptanceNodes } from '../../test/acceptanceNodes'
+import { issued } from '../../test/execution'
 import { createHarness, type Harness } from '../../test/workspaceHarness'
 import { openDatabase } from '../db/database'
 import { encodeBase32, ID_PREFIXES } from '../ids'
@@ -33,7 +34,7 @@ async function savedEpic(agent: Workspace, title: string, ops: DraftOp[]): Promi
 }
 
 async function deliver(agent: Workspace, runId: string, ticketId: string): Promise<void> {
-  const claim = await agent.claimTicket({ runId, ticketId, worker: { label: 'worker-1' } })
+  const claim = issued(await agent.claimTicket({ runId, ticketId, worker: { label: 'worker-1' } }))
   await agent.submitAttempt({ attemptId: claim.attempt.id, claimToken: claim.packet.claimToken, outputs: { summary: 'done' } })
   await agent.acceptAttempt({ attemptId: claim.attempt.id })
 }

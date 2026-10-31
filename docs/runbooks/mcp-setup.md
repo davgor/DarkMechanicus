@@ -256,6 +256,8 @@ Arguments that do not match a tool's input schema fail with `invalid_input` befo
 
 Nested fields use dotted paths such as `ops.0.ticket.title`. Omitted `arguments` count as an empty object.
 
+A message on stdin longer than 32,000,000 bytes (`MCP_MESSAGE_MAX_BYTES`) is not read or parsed. The server answers it with a JSON-RPC error, code `-32600`, and keeps serving the next message. See [Message size](linear-transfer.md#message-size).
+
 ## Skills
 
 The six shipped skills are served as MCP prompts: `darkmechanicus-planner`, `darkmechanicus-graph-planner`, `darkmechanicus-orchestrator`, `darkmechanicus-worker`, `darkmechanicus-reviewer`, and `darkmechanicus-sprint-reporter`. Load the one that matches the job before starting. `get_capabilities` reports the skills version, and runs record it.

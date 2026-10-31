@@ -3,8 +3,9 @@ import { DomainError } from '../../core/errors'
 import { transferKickoff } from '../../mcp/transferKickoff'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { TransferStatus, TransferView } from '../../shared/domain/transfer'
+import type { AgentView } from '../../shared/desktop/api'
 import type { EpicDetailView } from '../../shared/domain/views'
-import { AT, fakeAdapters, memoryChatFs, memoryChatStore, REPO, type FakeAdapters } from './__mocks__/fakeChatAdapter'
+import { AT, builtInAgent, connectedAgents, fakeAdapters, memoryChatFs, memoryChatStore, REPO, trackedFolders, type FakeAdapters } from './__mocks__/fakeChatAdapter'
 import type { ChatStore, ChatStoreFs } from './chatStore'
 import { createSessionManager, type SessionManager } from './sessionManager'
 import { findTransferChat, startTransferChat, transferPrompt, type TransferReads } from './transferStart'
@@ -14,6 +15,8 @@ const EPIC = { id: EPIC_ID, title: 'Linear handoff', branch: null } as EpicDetai
 const KICKOFF = transferKickoff({ epicId: EPIC_ID, epicTitle: 'Linear handoff' })
 const DM_CLI = { command: 'node', args: ['/app/out/main/cli.js', '--repo', REPO], env: { DM_SESSION_TOKEN: 'dmg_test' } }
 const REQUEST = { folder: REPO, epicId: EPIC_ID, agent: 'claude', model: 'big' } as const
+/** A connected custom CLI, named only by the registry: the built-in table knows nothing of it. */
+const CUSTOM: AgentView = builtInAgent('cursor', { id: 'cu_01m65kwqqeyajbj5bnq81gngrb', kind: 'custom', displayName: 'My ACP agent', executablePath: '/opt/my-acp' })
 
 interface Rig {
   store: ChatStore
@@ -27,11 +30,13 @@ interface Rig {
   errors: unknown[]
 }
 
-function managerOver(store: ChatStore, fakes: FakeAdapters, grants: Rig['grants'], errors: unknown[]): SessionManager {
+function managerOver(store: ChatStore, fakes: FakeAdapters, seen: Pick<Rig, 'grants' | 'errors'>, agents?: readonly AgentView[]): SessionManager {
+  const { grants, errors } = seen
   return createSessionManager({
     store,
     adapters: fakes.definitions,
-    executablePath: (kind) => `/bin/${kind}`,
+    agentFor: connectedAgents(agents),
+    folders: trackedFolders(),
     issueChatCli: async (_folder, grant) => {
       grants.push({ role: grant.role, allowSave: grant.allowSave })
       return { cli: DM_CLI, grantId: 'gr_00000000000000000000000001' }
@@ -43,7 +48,7 @@ function managerOver(store: ChatStore, fakes: FakeAdapters, grants: Rig['grants'
   })
 }
 
-function rig(status: TransferStatus = 'queued', fs: ChatStoreFs = memoryChatFs()): Rig {
+function rig(status: TransferStatus = 'queued', fs: ChatStoreFs = memoryChatFs(), agents?: readonly AgentView[]): Rig {
   const store = memoryChatStore(fs)
   const fakes = fakeAdapters()
   const errors: unknown[] = []
@@ -54,7 +59,7 @@ function rig(status: TransferStatus = 'queued', fs: ChatStoreFs = memoryChatFs()
     getTransfer: (_folder, epicId) =>
       (calls.push(`getTransfer ${epicId}`), Promise.resolve({ epicId, status, packet: null, recorded: [], lastMismatches: [], next: [] } as TransferView))
   }
-  return { store, fakes, manager: managerOver(store, fakes, grants, errors), transfers, calls, grants, errors }
+  return { store, fakes, manager: managerOver(store, fakes, { grants, errors }, agents), transfers, calls, grants, errors }
 }
 
 function chatsOf(store: ChatStore): ChatRecord[] {
@@ -178,6 +183,23 @@ describe('start a transfer chat: failures once the chat is asked for', () => {
     expect(result.problem).toContain('claude exited with code 1')
     expect(chatsOf(store)).toHaveLength(1)
     expect(errors.map((error) => (error as Error).message)).toEqual(['claude exited with code 1', 'disk is read-only'])
+  })
+})
+
+describe('start a transfer chat: a custom agent', () => {
+  it("names a custom agent that cannot start by the registry's display name", async () => {
+    const { store, fakes, manager, transfers, errors } = rig('queued', memoryChatFs(), [CUSTOM])
+    fakes.prepare = (adapter) => {
+      adapter.startError = new Error('my-acp exited with code 1')
+    }
+
+    const result = await startTransferChat({ transfers, sessions: manager, onError: (error) => errors.push(error) }, { ...REQUEST, agent: CUSTOM.id })
+
+    expect(result.chat).toBeNull()
+    expect(result.problem).toBe(
+      'The transfer is authorized, but My ACP agent could not be started: my-acp exited with code 1. Start the transfer chat again, or copy the prompt for an agent of your own.'
+    )
+    expect(chatsOf(store)).toEqual([])
   })
 })
 

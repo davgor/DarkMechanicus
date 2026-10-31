@@ -108,7 +108,9 @@ const HUMAN_ONLY: CommandName[] = [
   'revokeGrant',
   // Sending a plan out to Linear, and withdrawing that, is the person's decision; an agent only carries it out.
   'queueTransfer',
-  'cancelTransfer'
+  'cancelTransfer',
+  // Which side of an epic records conflict survives drops the other side's changes: the person's call.
+  'resolveEpicConflict'
 ]
 
 /** Read models for the desktop's activity panels: the app polls them, and no MCP tool adapts them. */

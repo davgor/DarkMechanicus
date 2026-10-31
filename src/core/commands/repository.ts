@@ -9,6 +9,7 @@ import { listBranchEpics } from '../repo/branchEpics'
 import { writeDefinitionOfDone } from '../repo/projectConfig'
 import { getStorageStatus } from '../repo/storage'
 import { COMMAND_SCHEMAS } from '../commandSchemas'
+import { resolveEpicConflict } from '../services/epicConflict'
 import { appendEvent, listEvents } from '../services/events'
 import { issueGrant, listGrants, revokeGrant } from '../services/grants'
 import { searchHistory } from '../services/history'
@@ -101,6 +102,11 @@ const repositoryCommands = {
       requireCapability(core.ctx().session, 'repo.reconcile')
       return core.reconcile()
     }
+  },
+  resolveEpicConflict: {
+    schema: COMMAND_SCHEMAS.resolveEpicConflict,
+    mutates: true,
+    run: (core, input) => resolveEpicConflict(core.ctx(), input, core)
   },
   searchHistory: {
     schema: COMMAND_SCHEMAS.searchHistory,

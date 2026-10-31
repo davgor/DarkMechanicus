@@ -2,9 +2,11 @@ import { spawn } from 'node:child_process'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FakeChild } from '../__mocks__/fakeChild'
 import { killProcessTree } from '../processTree'
+import { logger } from '../../logger'
 import { spawnCodexTransport } from './codexProcess'
 
 vi.mock('node:child_process', () => ({ spawn: vi.fn() }))
+vi.mock('../../logger', () => ({ logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() } }))
 vi.mock('../../desktop/agentProbeNode', () => ({ inspectExecutable: (): 'ok' => 'ok' }))
 vi.mock('../processTree', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../processTree')>()),
@@ -101,15 +103,39 @@ describe('after the program ended', () => {
     expect(late).toEqual(['Codex exited with code 2.'])
   })
 
-  it('does not write any more and has nothing left to kill', async () => {
+  it('has the tree killer end what the program left in its process group as soon as it exits', () => {
+    const { child } = start()
+
+    child.emit('exit', 3, null)
+
+    expect(killProcessTree).toHaveBeenCalledTimes(1)
+    expect(killProcessTree).toHaveBeenCalledWith(child)
+  })
+
+  it('does not write any more, and a stop still goes through the tree killer and waits for it', async () => {
     const { child, transport } = start()
     child.emit('close', 0, null)
+    let treeGone: () => void = () => {}
+    vi.mocked(killProcessTree).mockReturnValue(
+      new Promise<boolean>((resolve) => {
+        treeGone = () => {
+          resolve(true)
+        }
+      })
+    )
+    let done = false
 
     transport.write('{"late":true}')
-    await transport.kill()
+    const stopping = transport.kill().then(() => {
+      done = true
+    })
+    await settle()
+    expect(killProcessTree).toHaveBeenCalledWith(child)
+    expect(done).toBe(false)
+    treeGone()
+    await stopping
 
     expect(child.written).toEqual([])
-    expect(killProcessTree).not.toHaveBeenCalled()
   })
 })
 
@@ -191,5 +217,33 @@ describe('while the program is stopped', () => {
 
     const detached = vi.mocked(spawn).mock.calls.map((call) => (call[2] as { detached: boolean }).detached)
     expect(detached).toEqual([true, false])
+  })
+})
+
+describe('a stop whose tree outlives the kill wait', () => {
+  it('logs one line naming the process id', async () => {
+    const child = new FakeChild(4242)
+    vi.mocked(spawn).mockReturnValue(child.asChild())
+    const transport = spawnCodexTransport(process.execPath, '/work/folder')
+    vi.mocked(killProcessTree).mockResolvedValue(false)
+    vi.mocked(logger.warn).mockClear()
+
+    await transport.kill()
+
+    expect(vi.mocked(logger.warn).mock.calls).toEqual([[expect.stringContaining('4242')]])
+  })
+
+  it('logs it once however often it is stopped, as the tree killer repeats its answer for a program that ended', async () => {
+    const child = new FakeChild(4242)
+    vi.mocked(spawn).mockReturnValue(child.asChild())
+    const transport = spawnCodexTransport(process.execPath, '/work/folder')
+    vi.mocked(killProcessTree).mockResolvedValue(false)
+    vi.mocked(logger.warn).mockClear()
+
+    await transport.kill()
+    child.emit('close', null, 'SIGKILL')
+    await transport.kill()
+
+    expect(vi.mocked(logger.warn)).toHaveBeenCalledTimes(1)
   })
 })

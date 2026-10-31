@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import architecture from '../../docs/architecture.md?raw'
 import linearTransferSource from '../../skills/linear-transfer.md?raw'
+import linearRunbook from '../../docs/runbooks/linear-transfer.md?raw'
 import { SKILLS_VERSION } from '../core/version'
 import { LINEAR_SETUP_LINES } from '../shared/domain/linearSetup'
 import { SKILLS, skillBody, splitSkillSource } from './skills'
@@ -86,6 +87,15 @@ describe('SKILLS', () => {
   })
 })
 
+describe('the Linear transfer runbook', () => {
+  it('gives each Linear setup line verbatim in its setup table, once', () => {
+    const runbookLines = linearRunbook.split('\n')
+    for (const entry of LINEAR_SETUP_LINES) {
+      expect(runbookLines.filter((runbookLine) => runbookLine.includes(`| ${entry.cli} | ${entry.guide} |`)), entry.cli).toHaveLength(1)
+    }
+  })
+})
+
 describe('SKILLS_VERSION', () => {
   it('uses a semantic skills version', () => {
     expect(SKILLS_VERSION).toMatch(/^\d+\.\d+\.\d+$/)
@@ -104,6 +114,11 @@ describe('SKILLS_VERSION', () => {
   it('moved past 1.4.0 when the retro and the redraft loop was added', () => {
     const [major = 0, minor = 0] = SKILLS_VERSION.split('.').map(Number)
     expect(major > 1 || (major === 1 && minor >= 5)).toBe(true)
+  })
+
+  it('moved past 1.6.1 when the Linear guide reworded the final read-back part', () => {
+    const [major = 0, minor = 0, patch = 0] = SKILLS_VERSION.split('.').map(Number)
+    expect(major > 1 || (major === 1 && (minor > 6 || (minor === 6 && patch >= 2)))).toBe(true)
   })
 })
 
@@ -239,7 +254,13 @@ const REQUIRED: [string, string[]][] = [
       'Adoption is allowed at a checkpoint with no open attempts',
       'Run the acceptance node over what remains',
       'submit a new report revision',
-      '`plan_current`'
+      '`plan_current`',
+      'A lost claim response',
+      '`claimToken: null`',
+      'no replay, not even yours, can recover it',
+      'no `claimToken`, and a reason such as "claim response lost"',
+      'claim it again with a new `idempotencyKey`; the old key keeps replaying the lost claim',
+      'fails with `already_claimed` while its lease is live, `needs_reconciliation` once it has expired, and `run_not_active` while the run is paused'
     ]
   ],
   [
@@ -352,7 +373,9 @@ const REQUIRED: [string, string[]][] = [
       '`final: true` on the last part only',
       'triage, backlog, unstarted, started, completed or canceled',
       'None of the others may be completed or canceled',
-      'A final part always ends the read-back, whatever the result',
+      'An accepted final part ends the read-back',
+      'the stored parts are still cleared',
+      'over the per-part size changes nothing, final or not',
       'Never delete anything',
       'read the whole project back again from the start',
       'Never complete the epic any other way',

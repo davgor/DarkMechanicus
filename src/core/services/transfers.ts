@@ -27,7 +27,7 @@ import type { Ctx } from '../context'
 import { parseJson, toJson } from '../db/database'
 import { fail } from '../errors'
 import { epicOutcome } from '../repo/portable'
-import { parseInput, READBACK_LIMITS } from '../schemas'
+import { jsonLongerThan, parseInput, READBACK_LIMITS } from '../schemas'
 import { buildLinearPacket } from '../transfer/linearPacket'
 import { compareReadback, mergeReadback, type ReadbackComparison, readbackCounts } from '../transfer/linearReadback'
 import { addComment } from './comments'
@@ -376,9 +376,10 @@ export function getTransfer(ctx: Ctx, input: { epicId: string }): TransferView {
  * whole read-back with the stored packet and the recorded items: any mismatch is stored and returned and the
  * epic stays open; a full match completes the epic in one transaction.
  *
- * The merged read-back holds at most `READBACK_LIMITS` milestones, issues and relations. A part that is not final
- * and would take it past one is refused before anything is written, so the parts sent before stay as they were.
- * A final part past one is refused after its clear commits, so it still ends the accumulation.
+ * The merged read-back holds at most `READBACK_LIMITS` milestones, issues and relations, in at most
+ * `READBACK_LIMITS.totalChars` characters of JSON. A part that is not final and would take it past one is refused
+ * before anything is written, so the parts sent before stay as they were. A final part past one is refused after
+ * its clear commits, so it still ends the accumulation.
  *
  * Never call it inside a transaction (an idempotency wrapper included): the final part's clear would become a
  * savepoint that a failed completion rolls back, and the stale parts could then verify a later read-back.
@@ -434,18 +435,28 @@ function acceptReadbackPart(ctx: Ctx, input: SubmitTransferReadbackInput): Linea
 
 const READBACK_LISTS = ['milestones', 'issues', 'relations'] as const
 
-/** Refuses a merged read-back past a `READBACK_LIMITS` list limit; `ended` when a final part already ended it. */
+/**
+ * Refuses a merged read-back past a `READBACK_LIMITS` list limit or its total size, measured without building the
+ * JSON; `ended` when a final part already ended it.
+ */
 function assertWithinReadbackLimits(readback: LinearReadback, ended: boolean): void {
+  const kept = ended ? 'This final part still ended the read-back.' : 'Nothing from this part was stored, and the parts sent before are kept.'
+  const restart = ended
+    ? 'then read the project back again from the start.'
+    : 'call start_transfer with a fresh idempotencyKey to discard this read-back, then read the project back again from the start.'
   const counts = readbackCounts(readback)
   for (const limit of READBACK_LISTS) {
     const max = READBACK_LIMITS[limit]
     const count = counts[limit]
     if (count > max) {
-      const next = ended
-        ? 'This final part still ended the read-back. Move the items that do not belong out of the project, then read the project back again from the start.'
-        : 'Nothing from this part was stored, and the parts sent before are kept. Move the items that do not belong out of the project, call start_transfer with a fresh idempotencyKey to discard this read-back, then read the project back again from the start.'
+      const next = `${kept} Move the items that do not belong out of the project, ${restart}`
       fail('invalid_input', `A transfer read-back holds at most ${max} ${limit}; with this part it would hold ${count}. ${next}`, { limit, max, count })
     }
+  }
+  const max = READBACK_LIMITS.totalChars
+  if (jsonLongerThan(readback, max)) {
+    const next = `${kept} Move the items that do not belong out of the project and give each item back the text the packet sent it, ${restart} A faithful read-back this large means the plan is too large to transfer.`
+    fail('invalid_input', `A transfer read-back is at most ${max} characters of JSON; with this part it would be longer. ${next}`, { limit: 'totalChars', max })
   }
 }
 

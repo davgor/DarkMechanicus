@@ -1,14 +1,17 @@
-import type { AgentAuthStatus, AgentKind, AgentView } from '../../../shared/desktop/api'
+import type { AgentAuthStatus, AgentId, AgentView } from '../../../shared/desktop/api'
 import { AgentChoice, ModelChoice } from '../agents/NewChatFields'
 import type { AgentStatuses } from '../agents/useAgents'
 import { useAgentModelChoice } from '../agents/useAgentModelChoice'
 import type { AgentModelChoice } from '../agents/useAgentModelChoice'
+import { useFolderDefaultAgent } from '../agents/useFolderDefaultAgent'
 import { Button } from '../components/Button'
 import { Dialog } from '../components/Dialog'
 import type { StartRunChoice } from './orchestration'
 
 interface StartRunDialogProps {
   epicTitle: string
+  /** The epic's folder; its default agent is chosen first when it can chat. */
+  folderPath: string
   /** The connected agents and their sign-in states. */
   agents: readonly AgentView[]
   statuses: AgentStatuses
@@ -21,7 +24,7 @@ interface StartRunDialogProps {
   /** Opens the add-agent pane (the dialog closes). */
   onAddAgent(): void
   /** A sign-in prompt in the dialog asked an agent's state itself: the shell shows what it found, and the agent can be chosen once it is signed in. */
-  onAgentStatus(kind: AgentKind, status: AgentAuthStatus): void
+  onAgentStatus(id: AgentId, status: AgentAuthStatus): void
   onClose(): void
 }
 
@@ -61,9 +64,10 @@ function RunWithAgentSection({ props, choice }: { props: DialogProps; choice: Ag
  * agent the first choice links to where one is added, and Leave pending still works.
  */
 export function StartRunDialog(props: StartRunDialogProps): JSX.Element {
-  const choice = useAgentModelChoice(props.agents, props.statuses)
+  const preferred = useFolderDefaultAgent(props.folderPath)
+  const choice = useAgentModelChoice(props.agents, props.statuses, preferred.agentId)
   const { agent } = choice
-  const canRun = agent !== null && choice.settled && !props.busy
+  const canRun = agent !== null && preferred.loaded && choice.settled && !props.busy
   return (
     <Dialog
       title="Start run"

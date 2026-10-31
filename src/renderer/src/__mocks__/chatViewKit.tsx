@@ -4,7 +4,7 @@ import type { ChatItem, ChatRecord } from '../../../shared/agents/chat'
 import type { ThreadBinding } from '../../../shared/agents/chatApi'
 import type { ThreadLanding, TicketLink } from '../agents/ChatContext'
 import { ChatView } from '../agents/ChatView'
-import type { AgentAuthStatus, AgentKind } from '../../../shared/desktop/api'
+import type { AgentAuthStatus, AgentId } from '../../../shared/desktop/api'
 import type { DomainErrorShape } from '../../../shared/domain/errors'
 import type { Deferred } from './deferred'
 import { FakeDm } from './fakeDm'
@@ -53,6 +53,8 @@ interface MountOptions {
   landing?: ThreadLanding
   /** Leaves the chat's links unwired, as in a view that has nowhere to go. */
   noNavigation?: boolean
+  /** The connected agent's display name, as the shell passes it (a custom agent's name is known only from its connection). */
+  agentDisplayName?: string
 }
 
 export interface Mounted {
@@ -62,7 +64,7 @@ export interface Mounted {
   /** Lets a held agent status answer; null unless `holdAgentStatus` was set. */
   statusGate: Deferred | null
   /** The statuses the chat's sign-in prompt reported to the shell, oldest first. */
-  reported: [AgentKind, AgentAuthStatus][]
+  reported: [AgentId, AgentAuthStatus][]
   /** What the chat's links asked the shell to open, oldest first. */
   links: { tickets: TicketLink[]; epics: string[]; landed: number }
 }
@@ -102,12 +104,13 @@ export async function mountChatView(items: ChatItem[] = [], options: MountOption
   seedDesktop(dm, chat, items, options)
   const gate = options.holdOpen === true ? dm.chats.hold('open') : null
   const statusGate = options.holdAgentStatus === true ? dm.holdAgent('agentStatus') : null
-  const reported: [AgentKind, AgentAuthStatus][] = []
+  const reported: [AgentId, AgentAuthStatus][] = []
   const links: Mounted['links'] = { tickets: [], epics: [], landed: 0 }
   const navigation = options.noNavigation === true ? undefined : { openTicket: (link: TicketLink) => links.tickets.push(link), openEpic: (epicId: string) => links.epics.push(epicId) }
   render(
     <ChatView
       chat={chat}
+      {...(options.agentDisplayName === undefined ? {} : { agentDisplayName: options.agentDisplayName })}
       onAgentStatus={(kind, status) => reported.push([kind, status])}
       {...(navigation === undefined ? {} : { navigation })}
       landing={options.landing ?? null}

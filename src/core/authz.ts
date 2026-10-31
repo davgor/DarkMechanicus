@@ -7,6 +7,7 @@ export const CAPABILITIES = [
   'repo.flush',
   'repo.reconcile',
   'repo.backup',
+  'repo.resolve_conflict',
   'epic.create',
   'epic.status',
   'epic.branch',
@@ -62,7 +63,9 @@ export const HUMAN_ONLY_CAPABILITIES: readonly Capability[] = [
   'epic.delete',
   'ticket.delete',
   // Sending a plan out to Linear is the person's decision; an agent only carries out a queued transfer.
-  'transfer.queue'
+  'transfer.queue',
+  // Settling an epic records conflict drops one side's changes: which survive is the person's call.
+  'repo.resolve_conflict'
 ]
 
 /** What a planner and an orchestrator both hold. */

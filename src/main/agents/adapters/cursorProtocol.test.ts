@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { chooseOptionId, isSafeModelId, parseModelList, permissionDetails, summarizeInput, toolNameOf } from './cursorProtocol'
+import { chooseOptionId } from './acp/acpPermissions'
+import { summarizeInput, toolNameOf } from './acp/acpToolCalls'
+import { isSafeModelId, parseModelList, permissionDetails } from './cursorProtocol'
 
 const OPTIONS = [
   { optionId: 'allow-once', name: 'Allow', kind: 'allow_once' },

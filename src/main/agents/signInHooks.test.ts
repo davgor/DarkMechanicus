@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { createAgentAuthHandlers, type AgentAuthHandlers } from '../desktop/agentAuth'
 import type { ChatPushEvent } from '../../shared/agents/chatApi'
-import type { AgentAuthStatus, AgentKind, AgentSignInResult, AgentView } from '../../shared/desktop/api'
-import { AT, fakeAdapters, memoryChatStore, REPO, type FakeAdapters } from './__mocks__/fakeChatAdapter'
+import type { AgentAuthStatus, AgentSignInResult, BuiltInAgentKind } from '../../shared/desktop/api'
+import { AT, builtInAgent, connectedAgents, fakeAdapters, memoryChatStore, REPO, trackedFolders, type FakeAdapters } from './__mocks__/fakeChatAdapter'
 import { createSessionManager, type SessionManager } from './sessionManager'
 import { trackChatSignIn } from './signInHooks'
 
@@ -10,9 +10,7 @@ const SIGNED_IN: AgentAuthStatus = { state: 'signed_in', reason: 'Claude Code re
 const SIGNED_OUT: AgentAuthStatus = { state: 'signed_out', reason: 'Claude Code reports it is not signed in.' }
 const UNKNOWN: AgentAuthStatus = { state: 'unknown', reason: 'Claude Code did not answer in time.' }
 
-function connectedAgent(kind: AgentKind): AgentView {
-  return { kind, executablePath: `/bin/${kind}`, version: '1.0.0', connectedVia: 'found', connectedAt: AT, lastProbed: AT }
-}
+const AGENTS = [builtInAgent('claude'), builtInAgent('codex')]
 
 interface World {
   sessions: SessionManager
@@ -34,7 +32,8 @@ function world(): World {
   const sessions = createSessionManager({
     store: memoryChatStore(),
     adapters: fakes.definitions,
-    executablePath: (kind) => `/bin/${kind}`,
+    agentFor: connectedAgents(AGENTS),
+    folders: trackedFolders(),
     issueChatCli: async (folder: string) => ({
       cli: {
         command: 'node',
@@ -49,11 +48,11 @@ function world(): World {
   })
   const state: World = { sessions, fakes, handlers: undefined as never, cliStatus: SIGNED_IN, signInResult: { outcome: 'started' }, signIns: [], pushed }
   state.handlers = createAgentAuthHandlers(
-    { list: () => [connectedAgent('claude'), connectedAgent('codex')] },
+    { get: connectedAgents(AGENTS) },
     trackChatSignIn(
       {
         checkAuth: () => Promise.resolve(state.cliStatus),
-        signIn: (kind) => (state.signIns.push(kind), Promise.resolve(state.signInResult))
+        signIn: (agent) => (state.signIns.push(agent.id), Promise.resolve(state.signInResult))
       },
       sessions
     )
@@ -62,7 +61,7 @@ function world(): World {
 }
 
 /** A chat of `kind` whose turn ends because the CLI says its sign-in is gone. */
-async function signedOutChat(state: World, kind: AgentKind = 'claude'): Promise<void> {
+async function signedOutChat(state: World, kind: BuiltInAgentKind = 'claude'): Promise<void> {
   state.fakes.prepare = (adapter) => {
     adapter.turn = (self) => {
       self.emit({ type: 'item', item: { id: 'a1', at: AT, kind: 'auth_required', agent: kind === 'codex' ? 'codex' : 'claude', message: 'Please sign in again.' } })
@@ -150,7 +149,7 @@ describe('the status the app shows, when the person signs in from the app', () =
     await signedOutChat(state)
     state.cliStatus = SIGNED_OUT
 
-    expect(await state.handlers.signInAgent('cursor')).toMatchObject({ outcome: 'not_connected' })
+    await expect(state.handlers.signInAgent('cursor')).rejects.toMatchObject({ code: 'not_found' })
 
     expect(await state.handlers.agentStatus('claude')).toMatchObject({ state: 'signed_out' })
     expect(state.signIns).toEqual([])

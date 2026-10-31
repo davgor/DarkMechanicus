@@ -31,6 +31,7 @@ const PROBES: Record<CommandName, unknown> = {
   getStorageStatus: undefined,
   flushPortableState: undefined,
   reconcileRepository: undefined,
+  resolveEpicConflict: { epicId: EPIC, keep: 'tracked' },
   searchHistory: { query: 'probe' },
   listBranchEpics: undefined,
   backupDatabase: {},
@@ -188,6 +189,7 @@ describe('COMMAND_CAPABILITIES', () => {
       'issueGrant',
       'queueRun',
       'queueTransfer',
+      'resolveEpicConflict',
       'revokeGrant'
     ])
   })

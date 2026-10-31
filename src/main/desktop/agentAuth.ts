@@ -8,7 +8,7 @@
  * - Sign in opens a terminal window that runs the CLI's own login command (a constant per kind). The
  *   vendor's flow opens its own browser page, and prompts (such as a pasted code) happen in that
  *   window. This app never shows a password or key field and never reads or stores a credential:
- *   the only input any channel takes is the agent kind.
+ *   the only input any channel takes is the agent id.
  *
  * What each status command prints, and where that is known from:
  * - Claude Code `auth status`: a JSON document with a boolean `loggedIn` (exit 1 when signed out).
@@ -18,31 +18,52 @@
  * - Cursor `agent status`: the vendor documents the command but not its wording, so the match is
  *   tolerant: a "not logged in / not authenticated" style message is signed out, and a "logged in" /
  *   "authenticated" message with exit 0 is signed in. Anything else is `unknown`.
+ * - Autonomous `a8s doctor` (docs/reports/autonomous-acp.md, the only command that showed a sign-in
+ *   state): its `Model route` line. Signed in: `✓ Model route  Claude subscription · <model> · signed in`.
+ *   Signed out, recorded with an isolated profile (DM-307): `✗ Model route  Claude subscription is not
+ *   ready` with a personal profile, `! Model route  not signed in to Claude, so sessions open without a
+ *   default model` with none; a8s's other signed-out wordings also say "is not ready" ("Codex
+ *   subscription is not ready", "<model> is not ready"). So a `Model route` line that says "is not ready"
+ *   or "not signed in" / "signed out" is signed out; any other line, or none (the `Okta` line is the
+ *   company sign-in, not the model's, and `gh` and the MCP lines say "not signed in" of their own), is
+ *   `unknown`. It exits 1 on any failed check (a missing profile is one), so the exit code is not read. Its
+ *   output holds the account email and local paths, which are dropped like every status output. The
+ *   model sign-in is `a8s init`; `a8s login` is the company Okta sign-in and is never run.
  */
 import { z } from 'zod'
-import { parseInput } from '../../core/schemas'
+import { DomainError } from '../../core/errors'
 import { AGENT_DEFINITIONS } from '../../shared/desktop/agentKinds'
-import type { AgentAuthState, AgentAuthStatus, AgentKind, AgentSignInResult } from '../../shared/desktop/api'
-import { agentKindSchema } from './agentHandlers'
+import type { AgentAuthState, AgentAuthStatus, AgentSignInResult, AgentView, BuiltInAgentKind } from '../../shared/desktop/api'
+import { connectedAgent } from './agentHandlers'
 import { planShimLaunch } from '../agents/shimLaunch'
 import { checkFile, planCliLaunch, windowsProgramKind, type AgentProbeDeps, type ProcessOutcome } from './agentProbe'
 import type { AgentRegistry } from './agentRegistry'
 
-/** The status command can be slow on a cold start or a slow network, but a person is waiting for it. */
-const STATUS_TIMEOUT_MS = 10_000
+/**
+ * The status command can be slow on a cold start or a slow network, but a person is waiting for it.
+ * `a8s doctor` checks Okta, the model route and tools in one go and takes about 12 s, so it gets longer.
+ */
+const STATUS_TIMEOUT_MS: Readonly<Record<BuiltInAgentKind, number>> = {
+  claude: 10_000,
+  codex: 10_000,
+  cursor: 10_000,
+  autonomous: 30_000
+}
 
 /** Constant arguments only: on Windows they go through the shared shim launcher's command line, so no user text ever goes here. */
-const STATUS_ARGS: Readonly<Record<AgentKind, readonly string[]>> = {
+const STATUS_ARGS: Readonly<Record<BuiltInAgentKind, readonly string[]>> = {
   claude: ['auth', 'status'],
   codex: ['login', 'status'],
-  cursor: ['status']
+  cursor: ['status'],
+  autonomous: ['doctor']
 }
 
 /** Each CLI's own login command: no key, token, email, or password option. */
-const LOGIN_ARGS: Readonly<Record<AgentKind, readonly string[]>> = {
+const LOGIN_ARGS: Readonly<Record<BuiltInAgentKind, readonly string[]>> = {
   claude: ['auth', 'login'],
   codex: ['login'],
-  cursor: ['login']
+  cursor: ['login'],
+  autonomous: ['init']
 }
 
 const ANSI_ESCAPE = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*[A-Za-z]`, 'g')
@@ -101,17 +122,33 @@ function classifyCursor(exitCode: number, text: string): Verdict {
   return exitCode === 0 && CURSOR_SIGNED_IN.test(text) ? 'signed_in' : null
 }
 
-const CLASSIFIERS: Readonly<Record<AgentKind, Classifier>> = {
+const A8S_MODEL_ROUTE = /^\W*Model route\b/i
+const A8S_SIGNED_OUT = /\b(?:not (?:logged|signed) in|signed out|logged out|is not ready)\b/i
+
+function classifyAutonomous(_exitCode: number, text: string): Verdict {
+  const route = outputLines(text).find((line) => A8S_MODEL_ROUTE.test(line))
+  if (route === undefined) {
+    return null
+  }
+  if (A8S_SIGNED_OUT.test(route)) {
+    return 'signed_out'
+  }
+  // A passed check (✓) that says signed in; a failed one with other words is not a verdict.
+  return route.startsWith('✓') && /\bsigned in\b/i.test(route) ? 'signed_in' : null
+}
+
+const CLASSIFIERS: Readonly<Record<BuiltInAgentKind, Classifier>> = {
   claude: classifyClaude,
   codex: classifyCodex,
-  cursor: classifyCursor
+  cursor: classifyCursor,
+  autonomous: classifyAutonomous
 }
 
 function unknown(reason: string): AgentAuthStatus {
   return { state: 'unknown', reason }
 }
 
-function statusFor(state: Exclude<AgentAuthState, 'unknown'>, kind: AgentKind): AgentAuthStatus {
+function statusFor(state: Exclude<AgentAuthState, 'unknown'>, kind: BuiltInAgentKind): AgentAuthStatus {
   const name = AGENT_DEFINITIONS[kind].displayName
   return {
     state,
@@ -119,7 +156,7 @@ function statusFor(state: Exclude<AgentAuthState, 'unknown'>, kind: AgentKind): 
   }
 }
 
-function interpretStatus(kind: AgentKind, outcome: ProcessOutcome): AgentAuthStatus {
+function interpretStatus(kind: BuiltInAgentKind, outcome: ProcessOutcome): AgentAuthStatus {
   const name = AGENT_DEFINITIONS[kind].displayName
   if (outcome.kind === 'timed_out') {
     return unknown(`${name} did not answer in time.`)
@@ -140,7 +177,7 @@ function interpretStatus(kind: AgentKind, outcome: ProcessOutcome): AgentAuthSta
 
 /** Runs the kind's own status command on its registered executable and classifies the answer. */
 export async function getAgentAuthStatus(
-  kind: AgentKind,
+  kind: BuiltInAgentKind,
   executablePath: string,
   deps: AgentProbeDeps
 ): Promise<AgentAuthStatus> {
@@ -148,7 +185,7 @@ export async function getAgentAuthStatus(
   if ('ok' in plan) {
     return unknown(plan.reason)
   }
-  return interpretStatus(kind, await deps.run(plan.launch, deps.timeoutMs ?? STATUS_TIMEOUT_MS))
+  return interpretStatus(kind, await deps.run(plan.launch, deps.timeoutMs ?? STATUS_TIMEOUT_MS[kind]))
 }
 
 /** One terminal program to start. Like a probe launch there is no shell option: the path is one argument. */
@@ -227,7 +264,7 @@ function planLinux(path: string, loginArgs: readonly string[]): SignInPlan {
 
 /** The terminal launches (in the order to try them) that run `kind`'s own login command on its executable. */
 export function planSignIn(
-  kind: AgentKind,
+  kind: BuiltInAgentKind,
   executablePath: string,
   deps: Pick<AgentProbeDeps, 'platform' | 'inspect' | 'comspec'>
 ): SignInPlan {
@@ -271,7 +308,7 @@ async function launchFirstTerminal(
 
 /** Opens a terminal window running the kind's own login command on its registered executable. */
 export async function signInAgent(
-  kind: AgentKind,
+  kind: BuiltInAgentKind,
   executablePath: string,
   deps: AgentSignInDeps
 ): Promise<AgentSignInResult> {
@@ -279,39 +316,46 @@ export async function signInAgent(
   return plan.ok ? launchFirstTerminal(plan.launches, deps.launch) : failed(plan.reason)
 }
 
+/** A connected built-in agent: the only kind whose status and login commands the app knows. */
+type BuiltInAgentView = AgentView & { kind: BuiltInAgentKind }
+
 /** What main wires in: the real runner and terminal launcher, bound to the platform. */
 export interface AgentAuthHooks {
-  checkAuth: (kind: AgentKind, executablePath: string) => Promise<AgentAuthStatus>
-  signIn: (kind: AgentKind, executablePath: string) => Promise<AgentSignInResult>
+  checkAuth: (agent: BuiltInAgentView) => Promise<AgentAuthStatus>
+  signIn: (agent: BuiltInAgentView) => Promise<AgentSignInResult>
 }
 
 /** Arguments are `unknown` because they come straight from IPC. */
 export interface AgentAuthHandlers {
-  agentStatus(kind: unknown): Promise<AgentAuthStatus>
-  signInAgent(kind: unknown): Promise<AgentSignInResult>
+  agentStatus(id: unknown): Promise<AgentAuthStatus>
+  signInAgent(id: unknown): Promise<AgentSignInResult>
+}
+
+function isBuiltIn(agent: AgentView): agent is BuiltInAgentView {
+  return agent.kind !== 'custom'
 }
 
 /**
- * The behavior behind `agents:status` and `agents:signIn`. The only input is the kind (anything else,
- * such as an object carrying a key or a path, is rejected before anything runs); the executable
- * comes from the registry entry, never from the renderer.
+ * The behavior behind `agents:status` and `agents:signIn`. The only input is the agent id: anything
+ * else (such as an object carrying a key or a path) is refused with `invalid_input`, and an id that is
+ * not connected with `not_found`, before anything runs. The executable comes from the registry entry,
+ * never from the renderer. A custom agent has no known status or login command, so nothing runs for it:
+ * its status is `unchecked` and signing it in is refused with `invalid_input`.
  */
-export function createAgentAuthHandlers(agents: Pick<AgentRegistry, 'list'>, hooks: AgentAuthHooks): AgentAuthHandlers {
-  const connected = (input: unknown): { kind: AgentKind; executablePath: string | null } => {
-    const kind = parseInput(agentKindSchema, input, 'agent kind')
-    return { kind, executablePath: agents.list().find((agent) => agent.kind === kind)?.executablePath ?? null }
-  }
-  const notConnected = (kind: AgentKind): string => `${AGENT_DEFINITIONS[kind].displayName} is not connected yet.`
+export function createAgentAuthHandlers(agents: Pick<AgentRegistry, 'get'>, hooks: AgentAuthHooks): AgentAuthHandlers {
   return {
     agentStatus: async (input) => {
-      const { kind, executablePath } = connected(input)
-      return executablePath === null ? unknown(notConnected(kind)) : hooks.checkAuth(kind, executablePath)
+      const agent = connectedAgent(agents, input)
+      return isBuiltIn(agent)
+        ? hooks.checkAuth(agent)
+        : { state: 'unchecked', reason: `The app cannot check whether ${agent.displayName} is signed in; sign it in from a terminal if it needs that.` }
     },
     signInAgent: async (input) => {
-      const { kind, executablePath } = connected(input)
-      return executablePath === null
-        ? { outcome: 'not_connected', reason: notConnected(kind) }
-        : hooks.signIn(kind, executablePath)
+      const agent = connectedAgent(agents, input)
+      if (!isBuiltIn(agent)) {
+        throw new DomainError('invalid_input', `${agent.displayName} is a custom CLI; the app has no sign-in command for it. Sign it in from a terminal.`)
+      }
+      return hooks.signIn(agent)
     }
   }
 }

@@ -27,10 +27,18 @@ describe('planShimLaunch: the one parse', () => {
     })
   })
 
-  it('finds cmd.exe on the path when no command interpreter is given', () => {
-    const plan = planShimLaunch('C:\\Tools\\codex.cmd', ['login'])
+  it('runs the System32 cmd.exe by its full path when no command interpreter is given, never one found from the folder', () => {
+    const plan = planShimLaunch('C:\\Tools\\codex.cmd', ['login'], { env: { SystemRoot: 'D:\\Win' } })
+    const fallback = planShimLaunch('C:\\Tools\\codex.cmd', ['login'], { env: {} })
 
-    expect(plan).toMatchObject({ ok: true, launch: { file: 'cmd.exe' } })
+    expect(plan).toMatchObject({ ok: true, launch: { file: 'D:\\Win\\System32\\cmd.exe' } })
+    expect(fallback).toMatchObject({ ok: true, launch: { file: 'C:\\Windows\\System32\\cmd.exe' } })
+  })
+
+  it('ignores %ComSpec%, so a check and a chat start run the same interpreter', () => {
+    const plan = planShimLaunch('C:\\Tools\\codex.cmd', ['login'], { env: { SystemRoot: 'C:\\Windows', ComSpec: 'C:\\evil\\cmd.exe' } })
+
+    expect(plan).toMatchObject({ ok: true, launch: { file: 'C:\\Windows\\System32\\cmd.exe' } })
   })
 
   it('keeps the window open for a terminal with /k instead of /c', () => {

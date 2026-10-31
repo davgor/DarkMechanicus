@@ -21,6 +21,7 @@ import {
 } from '../../shared/desktop/api'
 import { createAgentAuthHandlers, type AgentAuthHandlers, type AgentAuthHooks } from './agentAuth'
 import { createAgentHandlers, type AgentHandlerDeps, type AgentHandlers } from './agentHandlers'
+import { createFolderDefaultHandlers, type FolderDefaultHandlerDeps, type FolderDefaultHandlers } from './folderAgentDefaults'
 import type { FolderRegistry } from './folderRegistry'
 import { normalizeExternalUrl } from './navigation'
 import type { WorkspacePool } from './workspacePool'
@@ -46,7 +47,7 @@ const claudeCodeRequestSchema = z.strictObject({
   replace: z.boolean()
 })
 
-export interface DesktopHandlerDeps extends AgentHandlerDeps, AgentAuthHooks {
+export interface DesktopHandlerDeps extends AgentHandlerDeps, AgentAuthHooks, FolderDefaultHandlerDeps {
   registry: Pick<FolderRegistry, 'list' | 'track' | 'untrack' | 'resolve' | 'storageMode'>
   pool: Pick<WorkspacePool, 'get' | 'close'>
   /** Native folder picker; null when the person cancels. */
@@ -66,7 +67,7 @@ export interface DesktopHandlerDeps extends AgentHandlerDeps, AgentAuthHooks {
 }
 
 /** Arguments are `unknown` because they come straight from IPC. */
-export interface DesktopHandlers extends AgentHandlers, AgentAuthHandlers {
+export interface DesktopHandlers extends AgentHandlers, AgentAuthHandlers, FolderDefaultHandlers {
   listFolders(): Promise<TrackedFolderView[]>
   pickFolder(): Promise<FolderPickResult>
   untrackFolder(path: unknown): Promise<TrackedFolderView[]>
@@ -160,6 +161,7 @@ async function untrackFolder(deps: DesktopHandlerDeps, path: unknown): Promise<T
     return deps.registry.list()
   }
   const remaining = deps.registry.untrack(tracked)
+  deps.folderDefaults.set(tracked, null)
   deps.pool.close(tracked)
   return remaining
 }
@@ -210,6 +212,7 @@ export function createDesktopHandlers(deps: DesktopHandlerDeps): DesktopHandlers
   return {
     ...createAgentHandlers(deps),
     ...createAgentAuthHandlers(deps.agents, deps),
+    ...createFolderDefaultHandlers(deps, (folder) => requireTracked(deps.registry, folder)),
     listFolders: async () => deps.registry.list(),
     pickFolder: () => pickFolder(deps),
     untrackFolder: (path) => untrackFolder(deps, path),

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { ChatRecord } from '../../../shared/agents/chat'
 import type { ChatSummary } from '../../../shared/agents/chatApi'
+import type { AgentView } from '../../../shared/desktop/api'
 import { agentName } from '../agents/agentText'
 import { chatMeta } from '../agents/chatList'
 import { classNames } from '../components/classNames'
@@ -8,6 +9,8 @@ import { Menu } from '../components/Menu'
 
 interface ChatRowProps {
   chat: ChatSummary
+  /** The connected agents: a custom agent's chat is called by its display name while it is connected. */
+  agents: readonly AgentView[]
   /** A lost sign-in cut a turn short and its agent is still signed out. */
   signInWaiting: boolean
   selected: boolean
@@ -17,7 +20,7 @@ interface ChatRowProps {
 }
 
 /** The badge of a chat that waits on the person: for an approval, or for its agent to be signed in. */
-function WaitingBadge({ chat, signInWaiting }: Pick<ChatRowProps, 'chat' | 'signInWaiting'>): JSX.Element | null {
+function WaitingBadge({ chat, agents, signInWaiting }: Pick<ChatRowProps, 'chat' | 'agents' | 'signInWaiting'>): JSX.Element | null {
   if (chat.pending > 0) {
     return (
       <span className="waiting-badge" title="This chat is waiting for your approval">
@@ -26,14 +29,14 @@ function WaitingBadge({ chat, signInWaiting }: Pick<ChatRowProps, 'chat' | 'sign
     )
   }
   return signInWaiting ? (
-    <span className="waiting-badge" title={`This chat is waiting for you to sign in to ${agentName(chat.agent)}`}>
+    <span className="waiting-badge" title={`This chat is waiting for you to sign in to ${agentName(chat.agent, agents)}`}>
       Needs sign-in
     </span>
   ) : null
 }
 
 /** One chat in the sidebar: its title (with a badge while it waits for an approval or a sign-in), then its agent and model; opens the chat, and has a menu to rename or delete it. */
-export function ChatRow({ chat, signInWaiting, selected, onOpen, onRename, onDelete }: ChatRowProps): JSX.Element {
+export function ChatRow({ chat, agents, signInWaiting, selected, onOpen, onRename, onDelete }: ChatRowProps): JSX.Element {
   const [menuOpen, setMenuOpen] = useState(false)
   return (
     <div
@@ -53,9 +56,9 @@ export function ChatRow({ chat, signInWaiting, selected, onOpen, onRename, onDel
           <span className="chat-row-title" title={chat.title}>
             {chat.title}
           </span>
-          <WaitingBadge chat={chat} signInWaiting={signInWaiting} />
+          <WaitingBadge chat={chat} agents={agents} signInWaiting={signInWaiting} />
         </span>{' '}
-        <span className="chat-row-meta">{chatMeta(chat)}</span>
+        <span className="chat-row-meta">{chatMeta(chat, agents)}</span>
       </button>
       <Menu
         label={`Actions for ${chat.title}`}

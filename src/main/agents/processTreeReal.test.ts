@@ -1,13 +1,14 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { once } from 'node:events'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { goneWithin } from '../../test/goneWithin'
 import { killProcessTree, startsOwnGroup } from './processTree'
 
 /**
  * These tests start and kill real processes, on whatever platform runs them (taskkill on Windows,
- * a process group elsewhere). They wait on process events, never on timers: the child's `exit`, and
+ * a process group elsewhere). They wait on process events, not on timers: the child's `exit`, and
  * the close of the pipe the grandchild inherited, which only happens once every process that held it
- * has ended.
+ * has ended. The one exception is `goneWithin`, for a process that holds no pipe of ours.
  */
 vi.setConfig({ testTimeout: 60_000 })
 
@@ -93,5 +94,26 @@ describe('killProcessTree with a real process tree', () => {
 
     expect(results).toEqual([true, true])
     expect(alive(grandchildPid)).toBe(false)
+  })
+})
+
+/** A program that starts a child in the background with its pipes closed, prints that child's pid and exits. */
+const BACKGROUNDS_AND_EXITS = 'sleep 600 </dev/null >/dev/null 2>&1 & echo $!; exit 3'
+
+describe.skipIf(process.platform === 'win32')('killProcessTree for a program that has already exited (process groups)', () => {
+  it('ends the child it started in the background with its pipes closed', async () => {
+    const child = spawn('sh', ['-c', BACKGROUNDS_AND_EXITS], { stdio: ['ignore', 'pipe', 'ignore'], detached: startsOwnGroup() })
+    const exited = once(child, 'exit')
+    const [chunk] = (await once(child.stdout as NonNullable<ChildProcess['stdout']>, 'data')) as [Buffer]
+    const grandchildPid = Number(String(chunk).trim())
+    started.push(grandchildPid)
+    await exited
+    expect(child.exitCode).toBe(3)
+    expect(alive(grandchildPid)).toBe(true)
+
+    // Asked right after the exit (the agent process wrappers ask from their `exit` listener).
+    expect(await killProcessTree(child)).toBe(true)
+
+    expect(await goneWithin(grandchildPid)).toBe(true)
   })
 })

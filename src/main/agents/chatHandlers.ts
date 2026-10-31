@@ -1,8 +1,11 @@
 /**
  * The behavior behind the `chats:*` IPC channels, as a pure factory over injected dependencies (no
  * Electron imports). Every argument arrives from the renderer and is untrusted: it is validated
- * here, folders must be tracked, and requests are strict objects, so a renderer can name chats,
- * kinds, models, roles, text and decisions but never an executable or MCP arguments. Answers are
+ * here, folders must be tracked and still lead to the folder that was tracked (one replaced by a
+ * symlink to another directory is refused before any chat is looked up), and requests are strict
+ * objects, so a renderer can name chats, agent ids, models, roles, text and decisions but never an
+ * executable or MCP arguments. Agent ids are
+ * checked against the agent registry (`not_found` for one that is not connected) before anything runs. Answers are
  * `CommandResult`s, like `dm:command`, so the UI gets the error code and message.
  */
 import { z } from 'zod'
@@ -10,12 +13,14 @@ import { DomainError, toErrorShape } from '../../core/errors'
 import { LIMITS, parseInput, stableId } from '../../core/schemas'
 import { APPROVAL_DECISIONS, CHAT_ROLES, chatIdSchema, type ChatItem, type ChatRecord, type ModelOption } from '../../shared/agents/chat'
 import type { BoundThread, ChatOpenView, ChatPushEvent, ChatSummary, StartOrchestratorResult, StartTransferChatResult, ThreadBinding } from '../../shared/agents/chatApi'
-import { AGENT_KINDS } from '../../shared/desktop/agentKinds'
+import { agentIdSchema } from '../../shared/desktop/agentKinds'
 import type { CommandResult } from '../../shared/desktop/api'
-import { agentKindSchema } from '../desktop/agentHandlers'
+import { connectedAgent } from '../desktop/agentHandlers'
+import type { AgentRegistry } from '../desktop/agentRegistry'
 import type { FolderRegistry } from '../desktop/folderRegistry'
 import type { BoundTarget } from './boundThreads'
 import type { ChatRef } from './chatStore'
+import { refuseSwappedFolder } from './launchFolder'
 import { startOrchestratorRun, type OrchestratorRuns } from './orchestratorStart'
 import type { SessionManager } from './sessionManager'
 import { findTransferChat, startTransferChat, transferPrompt, type TransferReads } from './transferStart'
@@ -31,7 +36,7 @@ const refShape = { folder: folderSchema, chatId: chatIdSchema }
 
 const createSchema = z.strictObject({
   folder: folderSchema,
-  agent: z.enum(AGENT_KINDS),
+  agent: agentIdSchema,
   role: z.enum(CHAT_ROLES),
   model: modelSchema.nullable().optional(),
   allowSave: z.boolean().optional(),
@@ -41,7 +46,7 @@ const createSchema = z.strictObject({
 const startOrchestratorSchema = z.strictObject({
   folder: folderSchema,
   epicId: stableId,
-  agent: z.enum(AGENT_KINDS),
+  agent: agentIdSchema,
   model: modelSchema.nullable().optional()
 })
 const transferChatSchema = z.strictObject({ folder: folderSchema, epicId: stableId })
@@ -62,6 +67,8 @@ const answerSchema = z.strictObject({
 
 interface ChatHandlerDeps {
   registry: Pick<FolderRegistry, 'resolve'>
+  /** The connected agents; a request naming any other agent is refused before anything runs. */
+  agents: Pick<AgentRegistry, 'get'>
   sessions: SessionManager
   /** The desktop's run commands, for starting an orchestrator. */
   runs: OrchestratorRuns
@@ -97,28 +104,39 @@ export interface ChatHandlers {
   rename(request: unknown): Promise<CommandResult<ChatRecord>>
   delete(request: unknown): Promise<CommandResult<null>>
   answerApproval(request: unknown): Promise<CommandResult<null>>
-  models(kind: unknown): Promise<CommandResult<ModelOption[]>>
+  models(agent: unknown): Promise<CommandResult<ModelOption[]>>
 }
 
-/** The canonical path of a tracked folder; anything else is unauthorized. */
+/** The canonical path of a tracked folder; anything else is unauthorized, with a refusal naming the folder like `launchFolder`'s. */
 function trackedFolder(deps: ChatHandlerDeps, folder: string): string {
   const tracked = deps.registry.resolve(folder)
   if (tracked === null) {
-    throw new DomainError('unauthorized', 'That folder is not tracked by Dark Mechanicus.')
+    throw new DomainError(
+      'unauthorized',
+      `The folder ${folder} is not tracked by Dark Mechanicus. Track the folder again to keep using this chat.`
+    )
   }
+  return tracked
+}
+
+/** A tracked folder's canonical path, as its chats are stored under it; one replaced by a symlink to another directory is refused. */
+function chatFolder(deps: ChatHandlerDeps, folder: string): string {
+  const tracked = trackedFolder(deps, folder)
+  refuseSwappedFolder(tracked)
   return tracked
 }
 
 /** Validates a request naming one chat and resolves its folder; returns the chat ref and the rest. */
 function chatRequest<T extends { folder: string; chatId: string }>(deps: ChatHandlerDeps, schema: z.ZodType<T>, input: unknown): { ref: ChatRef; request: T } {
   const request = parseInput(schema, input, 'chat request')
-  return { ref: { folder: trackedFolder(deps, request.folder), id: request.chatId }, request }
+  return { ref: { folder: chatFolder(deps, request.folder), id: request.chatId }, request }
 }
 
 /** Validates the request and the folder before anything is queued; see `startOrchestratorRun` for what happens after. */
 async function startOrchestrator(deps: ChatHandlerDeps, input: unknown): Promise<StartOrchestratorResult> {
   const request = parseInput(startOrchestratorSchema, input, 'orchestrator request')
-  const folder = trackedFolder(deps, request.folder)
+  connectedAgent(deps.agents, request.agent)
+  const folder = chatFolder(deps, request.folder)
   const { runs, sessions, onUnexpectedError } = deps
   const started = await startOrchestratorRun({ runs, sessions, ...(onUnexpectedError === undefined ? {} : { onError: onUnexpectedError }) }, { ...request, folder })
   if (started.chat !== null) {
@@ -130,7 +148,8 @@ async function startOrchestrator(deps: ChatHandlerDeps, input: unknown): Promise
 /** Validates the request and the folder before the transfer is read; see `startTransferChat` for what happens after. */
 async function startTransfer(deps: ChatHandlerDeps, input: unknown): Promise<StartTransferChatResult> {
   const request = parseInput(startOrchestratorSchema, input, 'transfer chat request')
-  const folder = trackedFolder(deps, request.folder)
+  connectedAgent(deps.agents, request.agent)
+  const folder = chatFolder(deps, request.folder)
   const { transfers, sessions, onUnexpectedError } = deps
   const started = await startTransferChat({ transfers, sessions, ...(onUnexpectedError === undefined ? {} : { onError: onUnexpectedError }) }, { ...request, folder })
   if (started.chat !== null) {
@@ -142,7 +161,7 @@ async function startTransfer(deps: ChatHandlerDeps, input: unknown): Promise<Sta
 /** A transfer request, validated, with the canonical path of its tracked folder. */
 function transferRequest(deps: ChatHandlerDeps, input: unknown): { folder: string; epicId: string } {
   const request = parseInput(transferChatSchema, input, 'transfer request')
-  return { folder: trackedFolder(deps, request.folder), epicId: request.epicId }
+  return { folder: chatFolder(deps, request.folder), epicId: request.epicId }
 }
 
 /** The chat's thread bindings; the request is validated even when the app wired none. */
@@ -154,7 +173,7 @@ async function threadBindings(deps: ChatHandlerDeps, input: unknown): Promise<Th
 /** The threads bound to the attempt or run the request names; the request and the folder are validated even when the app wired no lookup. */
 function boundThreads(deps: ChatHandlerDeps, input: unknown): BoundThread[] {
   const request = parseInput(boundThreadsSchema, input, 'bound threads request')
-  const folder = trackedFolder(deps, request.folder)
+  const folder = chatFolder(deps, request.folder)
   const target: BoundTarget = 'attemptId' in request ? { attemptId: request.attemptId } : { runId: request.runId }
   return deps.boundThreads?.(folder, target) ?? []
 }
@@ -177,7 +196,8 @@ function chatsChanged(deps: ChatHandlerDeps, chat: ChatRef): void {
 
 function createChat(deps: ChatHandlerDeps, input: unknown): ChatRecord {
   const request = parseInput(createSchema, input, 'new chat')
-  const chat = deps.sessions.createChat({ ...request, folder: trackedFolder(deps, request.folder) })
+  connectedAgent(deps.agents, request.agent)
+  const chat = deps.sessions.createChat({ ...request, folder: chatFolder(deps, request.folder) })
   chatsChanged(deps, { folder: chat.folder, id: chat.id })
   return chat
 }
@@ -199,7 +219,7 @@ async function deleteChat(deps: ChatHandlerDeps, input: unknown): Promise<null> 
 export function createChatHandlers(deps: ChatHandlerDeps): ChatHandlers {
   const { sessions } = deps
   return {
-    list: (folder) => answer(deps, () => sessions.listChats(trackedFolder(deps, parseInput(folderSchema, folder, 'folder')))),
+    list: (folder) => answer(deps, () => sessions.listChats(chatFolder(deps, parseInput(folderSchema, folder, 'folder')))),
     create: (input) => answer(deps, () => createChat(deps, input)),
     startOrchestrator: (input) => answer(deps, () => startOrchestrator(deps, input)),
     startTransferChat: (input) => answer(deps, () => startTransfer(deps, input)),
@@ -241,6 +261,6 @@ export function createChatHandlers(deps: ChatHandlerDeps): ChatHandlers {
         sessions.answerApproval(ref, { requestId: request.requestId, decision: request.decision })
         return null
       }),
-    models: (kind) => answer(deps, () => sessions.listModels(parseInput(agentKindSchema, kind, 'agent kind')))
+    models: (agent) => answer(deps, () => sessions.listModels(connectedAgent(deps.agents, agent).id))
   }
 }

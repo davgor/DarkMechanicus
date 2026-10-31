@@ -1,7 +1,7 @@
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { ChatItem, ChatRecord } from '../../shared/agents/chat'
-import { AT, fakeAdapters, memoryChatFs, memoryChatStore, REPO, type FakeAdapters, type MemoryChatFs } from './__mocks__/fakeChatAdapter'
+import { AT, connectedAgents, fakeAdapters, memoryChatFs, memoryChatStore, REPO, trackedFolders, type FakeAdapters, type MemoryChatFs } from './__mocks__/fakeChatAdapter'
 import { ATTEMPT_A, ORCHESTRATOR_CHAT_ITEMS, RUN_ID, THREAD_A } from './__mocks__/orchestratorChat'
 import { createActivityBindings, type ActivityBindings } from './activityBindings'
 import type { ChatStore } from './chatStore'
@@ -29,7 +29,8 @@ function rig(fs: MemoryChatFs = memoryChatFs()): Rig {
   const manager = createSessionManager({
     store,
     adapters: fakes.definitions,
-    executablePath: (kind) => `/bin/${kind}`,
+    agentFor: connectedAgents(),
+    folders: trackedFolders(),
     issueChatCli: async (folder: string) => ({
       cli: {
         command: 'node',

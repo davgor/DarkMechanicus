@@ -17,7 +17,6 @@
 import { DomainError } from '../../core/errors'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { ChatSummary, StartTransferChatRequest, StartTransferChatResult } from '../../shared/agents/chatApi'
-import { AGENT_DEFINITIONS } from '../../shared/desktop/agentKinds'
 import type { TransferView } from '../../shared/domain/transfer'
 import type { EpicDetailView } from '../../shared/domain/views'
 import { transferKickoff, transferTitle } from '../../mcp/transferKickoff'
@@ -31,7 +30,7 @@ export interface TransferReads {
 
 interface TransferStartDeps {
   transfers: TransferReads
-  sessions: Pick<SessionManager, 'createChat' | 'send' | 'deleteChat'>
+  sessions: Pick<SessionManager, 'createChat' | 'send' | 'deleteChat' | 'agentName'>
   /** Told about failures that are not DomainErrors and about a chat that could not be removed, so main can log them. */
   onError?: (error: unknown) => void
 }
@@ -72,7 +71,7 @@ export async function startTransferChat(deps: TransferStartDeps, request: StartT
       ? new DomainError('conflict', 'This transfer is already verified; there is nothing left to move.')
       : new DomainError('unmet_prerequisite', 'The transfer is not authorized. Press Transfer to Linear before starting a transfer chat.')
   }
-  const agentName = AGENT_DEFINITIONS[agent].displayName
+  const agentName = deps.sessions.agentName(agent)
 
   let chat: ChatRecord
   try {

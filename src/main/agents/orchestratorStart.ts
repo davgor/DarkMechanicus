@@ -16,7 +16,6 @@
 import { DomainError } from '../../core/errors'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { StartOrchestratorRequest, StartOrchestratorResult } from '../../shared/agents/chatApi'
-import { AGENT_DEFINITIONS } from '../../shared/desktop/agentKinds'
 import type { EpicDetailView, RunView } from '../../shared/domain/views'
 import { orchestratorKickoff, orchestratorTitle } from './orchestratorKickoff'
 import type { SessionManager } from './sessionManager'
@@ -30,7 +29,7 @@ export interface OrchestratorRuns {
 
 interface OrchestratorStartDeps {
   runs: OrchestratorRuns
-  sessions: Pick<SessionManager, 'createChat' | 'send' | 'deleteChat'>
+  sessions: Pick<SessionManager, 'createChat' | 'send' | 'deleteChat' | 'agentName'>
   /** Told about failures that are not DomainErrors and about a chat that could not be removed, so main can log them. */
   onError?: (error: unknown) => void
 }
@@ -65,7 +64,7 @@ export async function startOrchestratorRun(deps: OrchestratorStartDeps, request:
   const { folder, epicId, agent } = request
   const epic = await deps.runs.getEpic(folder, epicId)
   const run = await deps.runs.queueRun(folder, epicId)
-  const agentName = AGENT_DEFINITIONS[agent].displayName
+  const agentName = deps.sessions.agentName(agent)
 
   let chat: ChatRecord
   try {

@@ -1,0 +1,7 @@
+$ npm run typecheck
+# HEAD b23a9c90c6551544b3cdfd204551f701fabf631f
+
+> dark-mechanicus@0.20.0 typecheck
+> tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p fireguard/tsconfig.json
+
+# exit 0

@@ -1,13 +1,40 @@
-import { AGENT_DEFINITIONS } from '../../../shared/desktop/agentKinds'
-import type { AgentAuthStatus, AgentDownloadProgress, AgentKind, AgentView } from '../../../shared/desktop/api'
+import { AGENT_DEFINITIONS, isBuiltInAgentKind } from '../../../shared/desktop/agentKinds'
+import type { AgentAuthStatus, AgentDownloadProgress, AgentId, AgentProtocol, AgentView, BuiltInAgentKind } from '../../../shared/desktop/api'
 
-export const agentName = (kind: AgentKind): string => AGENT_DEFINITIONS[kind].displayName
+/**
+ * What to call an agent by its id (a chat's agent, which can outlive its connection): the connected
+ * agent's `displayName` when it is among `connected`, otherwise the built-in kind's name, or a generic one for a custom agent.
+ */
+export function agentName(id: AgentId, connected: readonly Pick<AgentView, 'id' | 'displayName'>[] = []): string {
+  const agent = connected.find((candidate) => candidate.id === id)
+  if (agent !== undefined) {
+    return agent.displayName
+  }
+  return isBuiltInAgentKind(id) ? AGENT_DEFINITIONS[id].displayName : 'Custom agent'
+}
 
 /** One line per agent on its card in the add-agent pane. */
-export const AGENT_BLURBS: Readonly<Record<AgentKind, string>> = {
+export const AGENT_BLURBS: Readonly<Record<BuiltInAgentKind, string>> = {
   claude: 'Anthropic’s coding agent, run from the terminal.',
   codex: 'OpenAI’s coding agent, run from the terminal.',
-  cursor: 'Cursor’s coding agent, run from the terminal.'
+  cursor: 'Cursor’s coding agent, run from the terminal.',
+  autonomous: 'The Autonomous coding agent (a8s). Install it with its own installer, then find it here.'
+}
+
+/** The Custom CLI card's line in the add-agent pane. */
+export const CUSTOM_AGENT_BLURB = 'Any other coding agent CLI that speaks ACP, Codex app-server or Claude Code SDK.'
+
+interface ProtocolText {
+  label: string
+  /** One line on what the protocol is, shown beside its choice. */
+  hint: string
+}
+
+/** What each protocol a custom CLI can speak is called, in the order the form offers them. */
+export const PROTOCOL_TEXT: Readonly<Record<AgentProtocol, ProtocolText>> = {
+  acp: { label: 'ACP', hint: 'Agent Client Protocol over standard input and output, as Cursor and Autonomous speak it.' },
+  codex: { label: 'Codex app-server', hint: 'The JSON-RPC server Codex runs with its app-server command.' },
+  claude: { label: 'Claude Code SDK', hint: 'Claude Code’s streaming JSON mode; the app adds its own flags after your arguments.' }
 }
 
 interface SignInLabel {
@@ -28,11 +55,31 @@ export function signInLabel(status: AgentAuthStatus | undefined): SignInLabel {
       return { text: 'Signed out', tone: 'warn' }
     case 'unknown':
       return { text: 'Sign-in unknown', tone: 'muted' }
+    case 'unchecked':
+      return { text: 'Sign-in not checked', tone: 'muted' }
   }
 }
 
+const CONNECTED_VIA_TEXT: Readonly<Record<AgentView['connectedVia'], string>> = {
+  found: 'Found on this computer',
+  downloaded: 'Downloaded by Dark Mechanicus',
+  custom: 'Added as a custom CLI'
+}
+
 export function connectedViaText(via: AgentView['connectedVia']): string {
-  return via === 'found' ? 'Found on this computer' : 'Downloaded by Dark Mechanicus'
+  return CONNECTED_VIA_TEXT[via]
+}
+
+/**
+ * An agent's version as the agent page, the sidebar and the pickers show it: "<name> <version>" with the
+ * agent name a custom CLI's handshake reported (`omp 18.11.2`), the version alone otherwise (`v2.1.4`),
+ * or "Version unknown".
+ */
+export function agentVersionLabel(agent: Pick<AgentView, 'version' | 'reportedName'>): string {
+  if (agent.version === null) {
+    return 'Version unknown'
+  }
+  return agent.reportedName === null ? `v${agent.version}` : `${agent.reportedName} ${agent.version}`
 }
 
 /** What the running download is doing, from the progress the main process reports. */

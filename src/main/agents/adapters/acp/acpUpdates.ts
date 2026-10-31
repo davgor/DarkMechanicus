@@ -7,8 +7,9 @@
  * Not shown: the agent's thoughts, plans, the echo of the user's own message, mode and command
  * updates. The history `session/load` replays is never fed to this class.
  */
-import type { ChatAdapterEmit, ChatItem } from '../../../shared/agents/chat'
-import { clip, objectOf, summarizeInput, toolNameOf, type Json } from './cursorProtocol'
+import type { ChatAdapterEmit, ChatItem } from '../../../../shared/agents/chat'
+import { clip, objectOf, type Json } from './acpJson'
+import { summarizeInput, toolNameOf } from './acpToolCalls'
 
 interface UpdateIds {
   newId(): string
@@ -65,6 +66,8 @@ export class UpdateTranslator {
   private readonly tools = new Map<string, ToolState>()
   /** Calls whose permission the person refused, by item id: their failure is a refusal. */
   private readonly denied = new Set<string>()
+  /** The item id of the latest call the agent reported as `pending`, while it still is. */
+  private pending: string | null = null
 
   constructor(
     private readonly ids: UpdateIds,
@@ -98,6 +101,13 @@ export class UpdateTranslator {
     this.denied.add(itemIdOf(sessionId, toolCallId))
   }
 
+  /** The person refused the latest call still pending (for a request that names no call). */
+  denyPending(): void {
+    if (this.pending !== null) {
+      this.denied.add(this.pending)
+    }
+  }
+
   private onMessage(body: Record<string, unknown>): void {
     const text = textOf(body.content)
     if (text === null) {
@@ -120,6 +130,11 @@ export class UpdateTranslator {
     }
     this.flush()
     const id = itemIdOf(sessionId, toolCallId)
+    if (body.status === 'pending') {
+      this.pending = id
+    } else if (typeof body.status === 'string' && this.pending === id) {
+      this.pending = null
+    }
     const before = this.tools.get(id)
     const after = this.merge(id, before, body)
     this.tools.set(id, after)

@@ -111,7 +111,8 @@ function ChatPane({ shell, folder, chat }: ChatPaneProps): JSX.Element {
     [actions, folder.path]
   )
   const onLanded = useCallback(() => actions.current.landed(), [actions])
-  return <ChatView chat={chat} onAgentStatus={shell.agents.recordStatus} navigation={navigation} landing={threadLandingFor(shell.landing, chat.id)} onLanded={onLanded} />
+  const agentDisplayName = shell.agents.agents.find((agent) => agent.id === chat.agent)?.displayName
+  return <ChatView chat={chat} agentDisplayName={agentDisplayName} onAgentStatus={shell.agents.recordStatus} navigation={navigation} landing={threadLandingFor(shell.landing, chat.id)} onLanded={onLanded} />
 }
 
 /** An open folder: either one of its epics, or the folder home. */
@@ -128,6 +129,7 @@ function FolderPane({ shell, EpicView }: PaneProps): JSX.Element | null {
     <FolderHome
       key={folder.path}
       folder={folder}
+      agents={shell.agents.agents}
       list={listFor(shell.lists, folder.path)}
       status={shell.status}
       busy={shell.busy}
@@ -135,6 +137,7 @@ function FolderPane({ shell, EpicView }: PaneProps): JSX.Element | null {
       onCreateEpic={(input) => actions.createEpic(folder, input)}
       onFlush={() => void actions.flush()}
       onReconcile={() => void actions.reconcile()}
+      onResolveConflict={(epicId, keep) => actions.resolveEpicConflict(folder, epicId, keep)}
       onImportBoard={() => actions.importBoard(folder)}
     />
   )
@@ -151,7 +154,7 @@ function MainPane(props: PaneProps): JSX.Element | null {
     case 'add-agent':
       return <AddAgentPane agents={shell.agents} />
     case 'agent':
-      return <AgentPage key={view.agent.kind} agent={view.agent} agents={shell.agents} />
+      return <AgentPage key={view.agent.id} agent={view.agent} agents={shell.agents} />
     case 'chat':
       return <ChatPane key={view.chat.id} shell={shell} folder={view.folder} chat={view.chat} />
     case 'unavailable':

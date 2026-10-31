@@ -44,7 +44,7 @@ import type {
   ThreadBinding,
   TransferChatRequest
 } from '../../../shared/agents/chatApi'
-import type { AgentKind, CommandResult } from '../../../shared/desktop/api'
+import type { AgentId, CommandResult } from '../../../shared/desktop/api'
 import type { DomainErrorShape } from '../../../shared/domain/errors'
 import type { TransferStatus } from '../../../shared/domain/transfer'
 import type { RunView } from '../../../shared/domain/views'
@@ -91,10 +91,10 @@ const NOT_FOUND: DomainErrorShape = { code: 'not_found', message: 'Chat not foun
 export class FakeChats implements ChatsApi {
   /** Every stored chat, across folders. */
   chats: ChatRecord[] = []
-  /** The models each agent kind offers; a kind with no entry offers none. */
-  modelLists: Partial<Record<AgentKind, ModelOption[]>> = {}
-  /** A kind listed here answers `models` with this error. */
-  modelFailures: Partial<Record<AgentKind, DomainErrorShape>> = {}
+  /** The models each agent id offers; an id with no entry offers none. */
+  modelLists: Partial<Record<AgentId, ModelOption[]>> = {}
+  /** An id listed here answers `models` with this error. */
+  modelFailures: Partial<Record<AgentId, DomainErrorShape>> = {}
   /** A method listed here answers with this error instead of doing its work. */
   failures: Partial<Record<Method, DomainErrorShape>> = {}
   /** How `startOrchestrator` queues the run; without it the call is refused as unavailable. */
@@ -267,7 +267,7 @@ export class FakeChats implements ChatsApi {
     })
   }
 
-  models(kind: AgentKind): Promise<CommandResult<ModelOption[]>> {
+  models(kind: AgentId): Promise<CommandResult<ModelOption[]>> {
     return this.call('models', [kind], () => {
       const failure = this.modelFailures[kind]
       return failure === undefined ? { ok: true, data: this.modelLists[kind] ?? [] } : { ok: false, error: failure }

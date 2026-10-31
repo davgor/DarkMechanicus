@@ -20,9 +20,9 @@ You need:
 
   | CLI | Setup |
   |-----|-------|
-  | Claude Code | `claude mcp add --transport http linear-server https://mcp.linear.app/mcp`, then `/mcp` to sign in |
+  | Claude Code | `claude mcp add --transport http linear-server https://mcp.linear.app/mcp`, then `/mcp` to sign in. |
   | Codex | `codex mcp add linear --url https://mcp.linear.app/mcp` |
-  | Cursor | Add `https://mcp.linear.app/mcp` in Cursor's MCP settings |
+  | Cursor | add `https://mcp.linear.app/mcp` in its MCP settings. |
 
 - **An orchestrator session.** Only the `orchestrator` role can carry out a transfer. The in-app
   chat gets it for you. An external agent needs it too; see
@@ -127,9 +127,11 @@ Dark Mechanicus (`submit_transfer_readback`), in parts if it is large. The last 
 final. Dark Mechanicus then compares the read-back with the stored packet and the items the agent
 recorded.
 
-A final part always ends the read-back, whatever the result. After a refusal, the agent reads the
-whole project back again from the start. A part refused as malformed or too large (see below)
-changes nothing, final or not.
+An accepted final part ends the read-back: it is verified, or its mismatches are reported and the
+stored parts are cleared. A final part past an item limit or the total size is refused, but the
+stored parts are still cleared (see below). A part refused as malformed or over the part size
+changes nothing, final or not; the agent fixes it and sends it again. After any other refusal or a
+mismatch, the agent reads the whole project back again from the start.
 
 ### Size limits
 
@@ -138,6 +140,7 @@ Dark Mechanicus bounds the read-back. The limits are `READBACK_LIMITS` in `src/c
 | Limit | Value | Counts |
 |-------|-------|--------|
 | Part size | 8,000,000 characters | The JSON of one `submit_transfer_readback` part. |
+| Total size | 100,000,000 characters | The JSON of all the parts sent so far, once merged (`totalChars`). |
 | Milestones | 200 | Distinct milestones across all the parts sent so far. |
 | Issues | 1,100 | Distinct issues across all the parts sent so far. |
 | Relations | 15,100 | Distinct relations across all the parts sent so far. |
@@ -146,13 +149,40 @@ Each item limit is the most a plan can hold (100 sprints, 1,000 tickets, 15,000 
 related relations) plus 100 unexpected items, so the comparison can still report items that do not
 belong. An item sent again replaces its earlier copy and does not count twice.
 
+The total size comes from the largest plan, 1,000 tickets. A typical ticket reads back in about
+3,000 characters of JSON (this repository's own tickets average 2,600 characters of title, body,
+criteria and references, 8,000 at most), so a 1,000-ticket plan reads back in about 3,000,000. The
+limit leaves room for its issues to average just under 100,000 characters each, about thirty times
+the typical size. A plan with a full Markdown body (`LIMITS.markdown`, 100,000 characters) on every
+one of 1,000 tickets does not fit, and its read-back is refused. The limit stays far below the
+longest string the JavaScript engine holds (about 536,000,000 characters), which the merged
+read-back is stored as, and below SQLite's longest value (1,000,000,000 bytes) even if every
+character takes three UTF-8 bytes. The size is counted without building the JSON.
+
 - A part over the size limit is refused with `invalid_input` before anything is merged, final or
   not. The parts sent before stay as they were. The agent sends the same items in smaller parts.
-- A part that is not final and would take the read-back past an item limit is refused with
-  `invalid_input` naming the limit. Nothing from it is stored, and the parts sent before stay as
-  they were. The agent moves the items that do not belong out of the project, discards the
-  read-back with `start_transfer` and a fresh idempotency key, and reads back from the start.
-- A final part past an item limit is refused the same way, but it still ends the read-back.
+- A part that is not final and would take the read-back past an item limit or the total size is
+  refused with `invalid_input` naming the limit. Nothing from it is stored, and the parts sent
+  before stay as they were. The agent moves the items that do not belong out of the project (and
+  gives back the packet's text to any item that grew), discards the read-back with
+  `start_transfer` and a fresh idempotency key, and reads back from the start.
+- A final part past an item limit or the total size is refused the same way, after it ends the
+  read-back and before anything is compared.
+
+### Message size
+
+The MCP server also bounds each message it reads on stdin: at most 32,000,000 bytes
+(`MCP_MESSAGE_MAX_BYTES` in `src/mcp/transport.ts`), counting everything before the newline, a
+`\r` included. That is four times the part size, so a part fits even if every character takes
+three UTF-8 bytes, with room for the call around it. (A client that escapes non-ASCII text as
+`\uXXXX` spends six bytes a character and needs smaller parts for such text.) A longer message is
+not read or parsed: the server drops its bytes as they arrive, answers with a JSON-RPC error (code
+`-32600`, with the message's id when the start or the end of the line shows it, else without an
+id), and keeps serving the next message. The agent sends less in one call, a read-back in more,
+smaller parts.
+
+The desktop app's IPC has no such cap. Its renderer is part of the app and trusted, and every
+command it sends is still checked against that command's input schema.
 
 ### Mismatches
 
@@ -236,6 +266,9 @@ cannot complete the epic, and a change you make to the epic's state (such as a t
 but not written to the tracked records, so it cannot overwrite what was pulled. To bring the changes
 in, cancel the transfer and reconcile again. If you changed the epic's state meanwhile, that
 reconcile reports the usual conflict between your unexported change and the pulled records instead.
+A flush does not settle it: it never writes over tracked records this machine has not imported.
+Choose in the folder's Storage card: **Keep tracked records** imports what was pulled and drops your
+unexported change, and **Write local** writes your records of the epic over the pulled ones.
 
 ## What completion records
 

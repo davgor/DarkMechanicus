@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-174 review (orchestrator): the `record_attempt_metrics` and `record_run_metrics` descriptions in src/mcp/tools/metrics.ts should say that `handoff_check` is server-derived and refused, and that `coordination_defect` must cite a run record. docs/architecture.md says checks are recorded when a submission is accepted or rejected; failAttempt on a submitted attempt records them too. Derived checks take 4 of the 2,000-entry per-run cap for each reviewed submission.",
+  "createdAt": "2026-10-31T08:34:12.188Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m68hgm2w64dd92vp86vnnf3t",
+  "ticketId": "tk_01m453gpadszmpfvveph0zjtg5"
+}

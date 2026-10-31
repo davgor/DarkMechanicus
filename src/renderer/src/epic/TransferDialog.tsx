@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import type { AgentAuthStatus, AgentKind, AgentView } from '../../../shared/desktop/api'
+import type { AgentAuthStatus, AgentId, AgentView } from '../../../shared/desktop/api'
 import { LINEAR_SETUP_LINES } from '../../../shared/domain/linearSetup'
 import { AgentChoice, ModelChoice } from '../agents/NewChatFields'
 import type { AgentStatuses } from '../agents/useAgents'
@@ -26,7 +26,7 @@ interface TransferDialogProps {
   /** Opens the add-agent pane (the dialog closes). */
   onAddAgent(): void
   /** A sign-in prompt in the dialog asked an agent's state itself: the shell shows what it found. */
-  onAgentStatus(kind: AgentKind, status: AgentAuthStatus): void
+  onAgentStatus(id: AgentId, status: AgentAuthStatus): void
   onClose(): void
 }
 

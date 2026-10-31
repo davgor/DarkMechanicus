@@ -5,12 +5,35 @@
  *
  * Tree kill. `kill` goes through the shared `killProcessTree`: on Windows `taskkill /t /f`, which also
  * ends what a `.cmd` shim started; elsewhere the agent is started as its own process group
- * (`startsOwnGroup`) and the group is killed, so a shell wrapper's children do not outlive it. It
- * resolves once the tree is gone. Tests run it against Node itself.
+ * (`startsOwnGroup`) and the group is killed, so a shell wrapper's children do not outlive it. What the
+ * agent leaves running in its group when it exits on its own is ended as it exits, and a `kill` after
+ * that waits for the same kill. It resolves once the tree is gone or `killProcessTree`'s wait has passed;
+ * a tree still alive then is not killed again, only logged with its process id. Tests run it against
+ * Node itself.
  */
 import { spawn, type ChildProcess } from 'node:child_process'
+import { logger } from '../../logger'
 import { killProcessTree, startsOwnGroup } from '../processTree'
 import type { TransportFactory, TransportHandle, TransportSink } from './acpClient'
+
+interface EndTreeDeps {
+  killProcessTree: (child: ChildProcess) => Promise<boolean>
+  warn: (message: string) => void
+}
+
+const realEndTreeDeps: EndTreeDeps = {
+  killProcessTree: (child) => killProcessTree(child),
+  warn: (message) => {
+    logger.warn(message)
+  }
+}
+
+/** Ends `child`'s tree once, and logs one line naming its process id if the tree outlived the wait. */
+export async function endAgentTree(child: ChildProcess, deps: EndTreeDeps = realEndTreeDeps): Promise<void> {
+  if (!(await deps.killProcessTree(child))) {
+    deps.warn(`agent process ${child.pid ?? 'unknown'}: its process tree was still alive after the kill wait`)
+  }
+}
 
 /** What is kept of stderr to explain an exit. */
 const STDERR_TAIL_CHARS = 500
@@ -101,6 +124,10 @@ export const nodeTransport: TransportFactory = (launch, cwd, sink, env = {}) => 
     return NOTHING
   }
   wire(child, sink)
+  // Asked as it exits, while its process group's id can only be its own (see `killProcessTree`).
+  child.once('exit', () => {
+    void killProcessTree(child)
+  })
   return {
     write(line) {
       if (child.stdin?.writable === true) {
@@ -108,7 +135,7 @@ export const nodeTransport: TransportFactory = (launch, cwd, sink, env = {}) => 
       }
     },
     async kill() {
-      await killProcessTree(child)
+      await endAgentTree(child)
     }
   }
 }

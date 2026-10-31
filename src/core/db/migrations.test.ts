@@ -37,8 +37,8 @@ afterEach(() => {
 })
 
 describe('migrate on a fresh database', () => {
-  it('starts at schema version 0 and targets SCHEMA_VERSION 10', () => {
-    expect(SCHEMA_VERSION).toBe(10)
+  it('starts at schema version 0 and targets SCHEMA_VERSION 11', () => {
+    expect(SCHEMA_VERSION).toBe(11)
     expect(readSchemaVersion(freshDb())).toBe(0)
   })
 
@@ -46,7 +46,7 @@ describe('migrate on a fresh database', () => {
     const db = freshDb()
     expect(migrate(db)).toEqual({ from: 0, to: SCHEMA_VERSION })
     expect(readSchemaVersion(db)).toBe(SCHEMA_VERSION)
-    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(10)
+    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(11)
   })
 })
 
@@ -100,8 +100,8 @@ describe('the schema a fresh database ends up with', () => {
 describe('migrate when already current', () => {
   it('is a no-op the second time', () => {
     const db = migratedDb()
-    expect(migrate(db)).toEqual({ from: 10, to: 10 })
-    expect(readSchemaVersion(db)).toBe(10)
+    expect(migrate(db)).toEqual({ from: 11, to: 11 })
+    expect(readSchemaVersion(db)).toBe(11)
   })
 
   it('keeps existing data', () => {
@@ -120,19 +120,19 @@ describe('migrate refuses newer databases', () => {
     expect(error).toBeInstanceOf(DomainError)
     expect((error as DomainError).code).toBe('incompatible_schema')
     expect((error as DomainError).message).toBe(
-      'Database schema v11 is newer than this build supports (v10). Update Dark Mechanicus.'
+      'Database schema v12 is newer than this build supports (v11). Update Dark Mechanicus.'
     )
-    expect((error as DomainError).details).toEqual({ found: 11, supported: 10 })
-    expect(readSchemaVersion(db)).toBe(11)
+    expect((error as DomainError).details).toEqual({ found: 12, supported: 11 })
+    expect(readSchemaVersion(db)).toBe(12)
     expect(objectNames(db, 'table')).toEqual([])
   })
 
   it('refuses a migrated database that a newer build has upgraded', () => {
     const db = migratedDb()
-    db.exec('PRAGMA user_version = 11')
+    db.exec('PRAGMA user_version = 12')
     const error = thrownBy(() => migrate(db))
     expect((error as DomainError).code).toBe('incompatible_schema')
-    expect((error as DomainError).details).toEqual({ found: 11, supported: 10 })
+    expect((error as DomainError).details).toEqual({ found: 12, supported: 11 })
     expect(objectNames(db, 'table')).toContain('epics')
   })
 
@@ -159,7 +159,7 @@ describe('migrate a v1 database to v2', () => {
       `INSERT INTO outbox (kind, epic_id, run_id, revision_id, state, attempts, last_error, created_at)
        VALUES ('snapshot', 'ep1', NULL, 'rv1', 'done', 1, NULL, 't'), ('run_history', 'ep1', 'rn1', NULL, 'failed', 3, 'disk full', 't')`
     )
-    expect(migrate(db)).toEqual({ from: 1, to: 10 })
+    expect(migrate(db)).toEqual({ from: 1, to: 11 })
     expect(outboxRows(db)).toEqual([
       { id: 1, kind: 'snapshot', epic_id: 'ep1', run_id: null, revision_id: 'rv1', entity_id: null, state: 'done', attempts: 1, last_error: null },
       { id: 2, kind: 'run_history', epic_id: 'ep1', run_id: 'rn1', revision_id: null, entity_id: null, state: 'failed', attempts: 3, last_error: 'disk full' }
@@ -286,7 +286,7 @@ describe('schema v4 named profiles', () => {
   it('upgrades a v2 database to the latest version, keeping its rows and adding an empty profiles table', () => {
     const db = v2Db()
     db.run("INSERT INTO outbox (kind, entity_id, state, created_at) VALUES ('profile', 'deep-review', 'pending', 't')")
-    expect(migrate(db)).toEqual({ from: 2, to: 10 })
+    expect(migrate(db)).toEqual({ from: 2, to: 11 })
     expect(db.all('SELECT kind, entity_id, state FROM outbox')).toEqual([{ kind: 'profile', entity_id: 'deep-review', state: 'pending' }])
     expect(db.all('SELECT * FROM profiles')).toEqual([])
   })
@@ -381,7 +381,7 @@ describe('migrate failure handling', () => {
     const db = freshDb()
     thrownBy(() => migrate(db, [{ version: 1, sql: 'NOT SQL' }]))
     expect(db.inTransaction()).toBe(false)
-    expect(migrate(db)).toEqual({ from: 0, to: 10 })
+    expect(migrate(db)).toEqual({ from: 0, to: 11 })
   })
 })
 
@@ -657,7 +657,7 @@ describe('schema v5 row checks', () => {
     insertEpic(db, 'ep1')
     insertRevision(db, 'rv1', 'ep1')
     insertRun(db, { id: 'rn1', state: 'running' })
-    expect(migrate(db)).toEqual({ from: 4, to: 10 })
+    expect(migrate(db)).toEqual({ from: 4, to: 11 })
     expect(db.all('SELECT id FROM runs')).toEqual([{ id: 'rn1' }])
     expect(db.all('SELECT * FROM row_checks')).toEqual([])
   })
@@ -708,7 +708,7 @@ describe('schema v6 sprint increments', () => {
     insertRevision(db, 'rv1', 'ep1')
     insertRun(db, { id: 'rn1', state: 'running' })
     insertAttempt(db, { id: 'at1', state: 'accepted', number: 1 })
-    expect(migrate(db)).toEqual({ from: 5, to: 10 })
+    expect(migrate(db)).toEqual({ from: 5, to: 11 })
     expect(db.all('SELECT id, state, increment_json FROM attempts')).toEqual([{ id: 'at1', state: 'accepted', increment_json: null }])
   })
 
@@ -735,7 +735,7 @@ describe('schema v7 report plan revisions', () => {
       `INSERT INTO sprint_reports (id, run_id, sprint_id, report_revision, content_json, content_hash, created_at)
        VALUES ('rp1', 'rn1', 'sp1', 1, '{}', 'h', 't')`
     )
-    expect(migrate(db)).toEqual({ from: 6, to: 10 })
+    expect(migrate(db)).toEqual({ from: 6, to: 11 })
     expect(db.all('SELECT id, revision_id FROM sprint_reports')).toEqual([{ id: 'rp1', revision_id: null }])
   })
 
@@ -756,7 +756,7 @@ describe('schema v8 run pause time', () => {
     insertEpic(db, 'ep1')
     insertRevision(db, 'rv1', 'ep1')
     insertRun(db, { id: 'rn1', state: 'paused' })
-    expect(migrate(db)).toEqual({ from: 7, to: 10 })
+    expect(migrate(db)).toEqual({ from: 7, to: 11 })
     expect(db.all('SELECT id, state, paused_at FROM runs')).toEqual([{ id: 'rn1', state: 'paused', paused_at: null }])
   })
 
@@ -767,7 +767,7 @@ describe('schema v8 run pause time', () => {
   })
 })
 
-describe('schema v10 Linear transfers', () => {
+describe('schema v11 Linear transfers', () => {
   function insertTransfer(db: Db, status = 'queued'): void {
     db.run(
       `INSERT INTO transfers (epic_id, target, status, revision_id, packet_hash, packet_json, queued_by, queued_at, updated_at)
@@ -776,12 +776,14 @@ describe('schema v10 Linear transfers', () => {
     )
   }
 
-  it('upgrades a v9 database, keeping its epics and adding empty transfer tables', () => {
+  it('upgrades a v9 database through the v10 scrub, keeping its epics and adding empty transfer tables', () => {
     const db = freshDb()
     migrate(db, MIGRATIONS.filter((migration) => migration.version <= 9))
     insertEpic(db, 'ep1')
     insertRevision(db, 'rv1', 'ep1')
-    expect(migrate(db)).toEqual({ from: 9, to: 10 })
+    db.run("INSERT INTO idempotency (command, key, request_hash, response_json, created_at) VALUES ('claimTicket', 'claim-1', 'h', ?, 't')", '{"packet":{"claimToken":"at_1.secret-1"}}')
+    expect(migrate(db)).toEqual({ from: 9, to: 11 })
+    expect(db.get('SELECT response_json FROM idempotency')).toEqual({ response_json: '{"packet":{"claimToken":null}}' })
     expect(db.all('SELECT id FROM epics')).toEqual([{ id: 'ep1' }])
     expect(db.all('SELECT * FROM transfers')).toEqual([])
     expect(db.all('SELECT * FROM transfer_items')).toEqual([])
@@ -801,5 +803,74 @@ describe('schema v10 Linear transfers', () => {
     expect(() => db.run(item, 'ep1', 'project')).toThrow(/UNIQUE constraint failed: transfer_items.epic_id, transfer_items.ref/)
     expect(() => db.run(item.replace("'project'", "'other'"), 'ep1', 'comment')).toThrow(/CHECK constraint failed/)
     expect(() => db.run(item, 'ep_missing', 'project')).toThrow(/FOREIGN KEY constraint failed/)
+  })
+})
+
+describe('schema v11 on top of the v10 scrub', () => {
+  it("upgrades a database main's v10 scrub left, adding the transfer tables and leaving stored responses untouched", () => {
+    const db = freshDb()
+    migrate(db, MIGRATIONS.filter((migration) => migration.version <= 10))
+    expect(readSchemaVersion(db)).toBe(10)
+    expect(objectNames(db, 'table')).not.toContain('transfers')
+    const stored = '{ "packet": {"claimToken": "at_1.secret-1"} }'
+    db.run("INSERT INTO idempotency (command, key, request_hash, response_json, created_at) VALUES ('claimTicket', 'claim-1', 'h', ?, 't')", stored)
+    expect(migrate(db)).toEqual({ from: 10, to: 11 })
+    expect(objectNames(db, 'table')).toEqual(expect.arrayContaining(['transfers', 'transfer_items']))
+    expect(db.get('SELECT response_json FROM idempotency')).toEqual({ response_json: stored })
+  })
+
+  it('brings a fresh database straight to v11 with the transfer tables', () => {
+    const db = freshDb()
+    expect(migrate(db)).toEqual({ from: 0, to: 11 })
+    expect(SCHEMA_VERSION).toBe(11)
+    expect(readSchemaVersion(db)).toBe(11)
+    expect(objectNames(db, 'table')).toEqual(expect.arrayContaining(['transfers', 'transfer_items']))
+  })
+})
+
+describe('schema v10 scrubs secrets from stored responses', () => {
+  const token = 'at_01j8z3k5m7n9p2q4r6s8t0v1w2.Zk9_aB3dEf7-Hj2LmN5pQr8TuVw0XyZa'
+
+  function v9Db(rows: [command: string, key: string, response: string][]): Db {
+    const db = freshDb()
+    migrate(db, MIGRATIONS.filter((migration) => migration.version <= 9))
+    for (const [command, key, response] of rows) {
+      db.run("INSERT INTO idempotency (command, key, request_hash, response_json, created_at) VALUES (?, ?, 'h', ?, 't')", command, key, response)
+    }
+    return db
+  }
+
+  function storedResponses(db: Db): Record<string, string> {
+    const rows = db.all<{ key: string; response_json: string }>('SELECT key, response_json FROM idempotency ORDER BY key')
+    return Object.fromEntries(rows.map((row) => [row.key, row.response_json]))
+  }
+
+  it('nulls the claim token a stored claim kept in plaintext and masks tokens pasted into other responses', () => {
+    const claim = JSON.stringify({ attempt: { id: 'at_1', fencingToken: 1 }, packet: { claimToken: 'at_1.secret-1', fencingToken: 1 } })
+    const db = v9Db([
+      ['claimTicket', 'claim-1', claim],
+      ['submitAttempt', 'submit-1', JSON.stringify({ outputs: { summary: `token ${token}` } })]
+    ])
+    expect(migrate(db)).toEqual({ from: 9, to: 11 })
+    expect(storedResponses(db)).toEqual({
+      'claim-1': '{"attempt":{"id":"at_1","fencingToken":1},"packet":{"claimToken":null,"fencingToken":1}}',
+      'submit-1': '{"outputs":{"summary":"token [claim token masked]"}}'
+    })
+  })
+
+  it('leaves responses with no secret byte for byte as they were', () => {
+    const plain = '{ "epicId": "ep_1",  "list": [1, 2] }'
+    const db = v9Db([['createEpic', 'create-1', plain]])
+    migrate(db)
+    expect(storedResponses(db)).toEqual({ 'create-1': plain })
+  })
+
+  it('drops a stored response it cannot read, rather than keep what it cannot check', () => {
+    const db = v9Db([
+      ['claimTicket', 'broken', '{"packet":{"claimToken":"at_1.secret-1"'],
+      ['createEpic', 'create-1', '{"epicId":"ep_1"}']
+    ])
+    migrate(db)
+    expect(storedResponses(db)).toEqual({ 'create-1': '{"epicId":"ep_1"}' })
   })
 })

@@ -24,11 +24,12 @@ import type {
   AgentDownloadPhase,
   AgentDownloadProgress,
   AgentDownloadResult,
-  AgentKind
+  BuiltInAgentKind
 } from '../../shared/desktop/api'
 import {
   installerLaunch,
   resolveRecipe,
+  type DownloadableAgentKind,
   type InstallEnvironment,
   type InstallLaunch,
   type InstallRecipe,
@@ -68,7 +69,7 @@ export interface InstallerFiles {
 
 /** What the person is asked to approve, taken from the recipe so the question and the action cannot differ. */
 export interface InstallConfirmation {
-  kind: AgentKind
+  kind: BuiltInAgentKind
   displayName: string
   /** Where the installer script is fetched from. */
   sourceUrl: string
@@ -90,7 +91,7 @@ export interface InstallerDeps {
   files: InstallerFiles
   inspect: (path: string) => FileCheck
   /** The Find probe (`probeAgent`, wired in main). */
-  probeAgent: (kind: AgentKind, executablePath: string) => Promise<AgentProbeResult>
+  probeAgent: (kind: BuiltInAgentKind, executablePath: string) => Promise<AgentProbeResult>
   agents: Pick<AgentRegistry, 'list' | 'upsert'>
   report: (progress: AgentDownloadProgress) => void
   /** How long the installer may run; defaults to ten minutes. */
@@ -98,7 +99,7 @@ export interface InstallerDeps {
 }
 
 export interface AgentInstaller {
-  download(kind: AgentKind): Promise<AgentDownloadResult>
+  download(kind: DownloadableAgentKind): Promise<AgentDownloadResult>
 }
 
 /** A step that failed for a reason worth telling the person; carries the installer output when it ran. */
@@ -332,7 +333,7 @@ function failed(code: AgentDownloadFailureCode, reason: string): AgentDownloadRe
   return { outcome: 'failed', code, reason, output: [] }
 }
 
-async function confirmAndInstall(deps: InstallerDeps, kind: AgentKind): Promise<AgentDownloadResult> {
+async function confirmAndInstall(deps: InstallerDeps, kind: DownloadableAgentKind): Promise<AgentDownloadResult> {
   const recipe = resolveRecipe(kind, deps.environment)
   if (recipe === null) {
     const { platform, arch } = deps.environment
@@ -350,7 +351,7 @@ async function confirmAndInstall(deps: InstallerDeps, kind: AgentKind): Promise<
 }
 
 export function createAgentInstaller(deps: InstallerDeps): AgentInstaller {
-  const running = new Set<AgentKind>()
+  const running = new Set<DownloadableAgentKind>()
   return {
     async download(kind) {
       if (running.has(kind)) {

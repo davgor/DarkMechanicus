@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { ChatRecord } from '../../../shared/agents/chat'
-import type { TrackedFolderView } from '../../../shared/desktop/api'
+import type { AgentView, TrackedFolderView } from '../../../shared/desktop/api'
 import { waitingCount, waitingReason } from '../agents/chatList'
 import type { AgentStatuses } from '../agents/useAgents'
 import type { ChatListState } from '../agents/useChats'
@@ -24,6 +24,8 @@ interface FolderRowProps {
   chats: ChatListState
   /** The connected agents' sign-in states: a chat whose agent is signed out and whose turn it cut short waits on a sign-in. */
   statuses: AgentStatuses
+  /** The connected agents, so a custom agent's chats show its display name. */
+  agents: readonly AgentView[]
   onSelectFolder(path: string): void
   onSelectEpic(path: string, epicId: string): void
   onStopTracking(folder: TrackedFolderView): void
@@ -153,6 +155,7 @@ function Agents(props: FolderRowProps): JSX.Element {
       folder={folder}
       list={props.chats}
       statuses={props.statuses}
+      agents={props.agents}
       expanded={expansion.isAgentsExpanded(folder.path)}
       selectedChatId={selection.folderPath === folder.path ? (selection.chatId ?? null) : null}
       onToggle={() => expansion.toggleAgents(folder.path)}

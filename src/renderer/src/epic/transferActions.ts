@@ -9,6 +9,7 @@
  * offers Resume and Copy prompt to recover. Nothing is queued twice.
  */
 import type { StartTransferChatResult } from '../../../shared/agents/chatApi'
+import type { AgentView } from '../../../shared/desktop/api'
 import { agentName } from '../agents/agentText'
 import type { StartRunChoice, TransferChats } from './orchestration'
 import type { Runner } from './runner'
@@ -25,6 +26,8 @@ export interface TransferActionDeps {
   onChatsChanged(): void
   /** Shows a chat (the shell leaves the epic for it). */
   onOpenChat(chatId: string): void
+  /** The connected agents, so the toast calls a custom agent by its display name. */
+  agents(): readonly AgentView[]
 }
 
 export interface TransferActions {
@@ -60,7 +63,7 @@ function chatFeedback(deps: TransferActionDeps, result: Result<StartTransferChat
     return
   }
   const { chat, problem } = result.value
-  deps.dispatch(problem === null ? { type: 'toast', text: `${agentName(choice.agent)} is carrying out the transfer.` } : { type: 'banner', text: problem })
+  deps.dispatch(problem === null ? { type: 'toast', text: `${agentName(choice.agent, deps.agents())} is carrying out the transfer.` } : { type: 'banner', text: problem })
   if (chat !== null) {
     deps.onChatsChanged()
     deps.onOpenChat(chat.id)

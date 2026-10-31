@@ -19,7 +19,7 @@ import { createIdGenerator, type IdGenerator } from './ids'
 import { getMeta, META_KEYS, setMeta } from './meta'
 import { findRepositoryRoot } from './repo/discovery'
 import { createFileHashCache } from './repo/fileHashes'
-import { flushOutbox } from './repo/finalizer'
+import { flushOutbox, type FlushScope } from './repo/finalizer'
 import { createGitAdapter } from './repo/git'
 import { reconcileRepository } from './repo/importer'
 import { ensureMachineId, initializeRepository, readProject } from './repo/initialize'
@@ -398,13 +398,14 @@ class RepositoryWorkspace implements WorkspaceCore {
     return result
   }
 
-  flush(): FlushResultView {
+  flush(scope?: FlushScope): FlushResultView {
     const store = this.requireStore()
     // Pending exports belong to the recorded branch; never write them into another checkout.
     this.assertBranch()
     const outcome = flushOutbox(
       { db: store.db, layout: this.layout, fs: this.fs, clock: this.clock },
-      { onSnapshotSaved: (revisionId) => completeSavedRevision(store.ctx, revisionId) }
+      { onSnapshotSaved: (revisionId) => completeSavedRevision(store.ctx, revisionId) },
+      scope
     )
     return { flushed: outcome.flushed, failed: outcome.failed, errors: outcome.errors }
   }

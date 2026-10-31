@@ -102,20 +102,129 @@ describe('startsOwnGroup', () => {
   })
 })
 
-describe('killProcessTree: a process that is already gone', () => {
-  it('signals nothing and says it is gone, for a process that exited or was ended by a signal', async () => {
+/** A child that had already ended before anything asked to kill it, the way Node reports it. */
+function ended(pid: number | undefined, how: { exitCode?: number; signalCode?: NodeJS.Signals } = { exitCode: 0 }): FakeProcess {
+  const child = new FakeProcess(pid)
+  child.exitCode = how.exitCode ?? null
+  child.signalCode = how.signalCode ?? null
+  return child
+}
+
+describe('killProcessTree on macOS and Linux: a process that already ended', () => {
+  it('leaves its group alone when no member is left, and says the tree is gone', async () => {
     const w = world('linux')
-    const exited = new FakeProcess(10)
-    exited.exitCode = 0
-    const signalled = new FakeProcess(11)
-    signalled.signalCode = 'SIGTERM'
+    const exited = ended(10)
+    const signalled = ended(11, { signalCode: 'SIGTERM' })
 
     expect(await killProcessTree(exited.asChild(), w.deps)).toBe(true)
     expect(await killProcessTree(signalled.asChild(), w.deps)).toBe(true)
 
-    expect(w.signals).toEqual([])
-    expect(w.taskkills).toEqual([])
+    // Only asked whether a member is left (signal 0); no signal was sent.
+    expect(w.signals).toEqual([
+      [10, 0],
+      [11, 0]
+    ])
     expect(exited.kill).not.toHaveBeenCalled()
+  })
+
+  it('ends what it left running in its group: SIGKILL to the group, then checks until the group is empty', async () => {
+    const w = world('darwin', { groupLives: 2 })
+    const child = ended(4242, { exitCode: 3 })
+
+    expect(await killProcessTree(child.asChild(), w.deps)).toBe(true)
+
+    expect(w.signals).toEqual([
+      [4242, 0],
+      [4242, 'SIGKILL'],
+      [4242, 0],
+      [4242, 0]
+    ])
+    expect(w.sleeps).toEqual([10])
+    expect(child.kill).not.toHaveBeenCalled()
+  })
+
+  it('says the tree is not gone when what it left does not go, after a bounded number of checks', async () => {
+    const w = world('linux', { groupLives: Number.POSITIVE_INFINITY })
+
+    expect(await killProcessTree(ended(4242).asChild(), w.deps)).toBe(false)
+    expect(w.sleeps).toHaveLength(100)
+  })
+})
+
+describe('killProcessTree on macOS and Linux: a process that already ended, at the edges', () => {
+  it('says the tree is gone when the last member ends between the check and the signal', async () => {
+    const w = world('linux', { groupLives: 1 })
+    const check = w.deps.signalGroup
+    w.deps.signalGroup = (pgid, signal) => {
+      check?.(pgid, signal)
+      if (signal === 'SIGKILL') {
+        throw Object.assign(new Error('no such process'), { code: 'ESRCH' })
+      }
+    }
+
+    expect(await killProcessTree(ended(4242).asChild(), w.deps)).toBe(true)
+    expect(w.signals).toEqual([
+      [4242, 0],
+      [4242, 'SIGKILL'],
+      [4242, 0]
+    ])
+  })
+
+  it('has no group to look for when the child never got a pid (it failed to start)', async () => {
+    const w = world('linux', { groupLives: 5 })
+
+    expect(await killProcessTree(ended(undefined, { exitCode: -2 }).asChild(), w.deps)).toBe(true)
+    expect(w.signals).toEqual([])
+  })
+})
+
+describe('killProcessTree on macOS and Linux: an ended process is checked once', () => {
+  it('repeats the first answer when asked again, and never looks at the group again', async () => {
+    const w = world('linux')
+    const child = ended(4242)
+
+    expect(await killProcessTree(child.asChild(), w.deps)).toBe(true)
+    expect(await killProcessTree(child.asChild(), w.deps)).toBe(true)
+
+    expect(w.signals).toEqual([[4242, 0]])
+  })
+
+  it('does not look at the group again after a kill that ended the child', async () => {
+    const w = world('linux')
+    const child = new FakeProcess(4242)
+    const first = killProcessTree(child.asChild(), w.deps)
+    child.end()
+    expect(await first).toBe(true)
+    const seen = w.signals.length
+
+    expect(await killProcessTree(child.asChild(), w.deps)).toBe(true)
+
+    expect(w.signals).toHaveLength(seen)
+  })
+})
+
+describe('killProcessTree on Windows: a process that already ended', () => {
+  it('runs no taskkill and checks no group, and says the tree is gone', async () => {
+    const w = world('win32', { groupLives: 5 })
+    const child = ended(10)
+
+    expect(await killProcessTree(child.asChild(), w.deps)).toBe(true)
+
+    expect(w.taskkills).toEqual([])
+    expect(w.signals).toEqual([])
+    expect(child.kill).not.toHaveBeenCalled()
+  })
+
+  it('answers a later ask as it always has, without another taskkill, even after a kill whose taskkill failed', async () => {
+    const w = world('win32', { taskkillResult: Promise.resolve(1) })
+    const child = new FakeProcess(4242)
+    const first = killProcessTree(child.asChild(), w.deps)
+    child.end()
+    expect(await first).toBe(false)
+
+    expect(await killProcessTree(child.asChild(), w.deps)).toBe(true)
+
+    expect(w.taskkills).toEqual([4242])
   })
 })
 
