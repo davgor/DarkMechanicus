@@ -1,5 +1,5 @@
 {
-  "activeSprintId": "sp_01m68w2edvv407084313gndc31",
+  "activeSprintId": null,
   "attempts": [
     {
       "createdAt": "2026-10-31T20:04:52.701Z",
@@ -2634,23 +2634,218 @@
     },
     {
       "createdAt": "2026-10-31T22:05:56.301Z",
-      "decidedAt": null,
-      "decision": null,
-      "evidence": null,
+      "decidedAt": "2026-10-31T22:54:46.087Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (multi-repo folders)",
+        "notes": "Definition of Done: all six checks passed (lint, typecheck, test, coverage, deadcode, build) after integration fixes recorded as comments on DM-356, DM-361, DM-348 and the epic. Increment 30416d1 verified: one parent, on multi-repo-folders, squashed. Caveats and discoveries are in docs/verification/DM-342-acceptance.md.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "`npm run lint` (oxlint src scripts) exit 0, no findings at 7aa7c70; `oxlint src scripts` exit 0 again at 605273e.",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "`npm run typecheck` exit 0 (node, web, Fireguard) at 7aa7c70 and again at 605273e.",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "`npm test` at 7aa7c70: Test Files 453 passed; Tests 8890 passed, 9 skipped; Fireguard 21 files, 129 tests passed. The coverage run at 957fffb (source tree identical to the landed commit) ran the suite with the 19 added tests: 8909 passed, 9 skipped.",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "`npm run coverage` exit 0 at 957fffb (source tree identical to sprint tip 605273e/0249071): Statements 97.57%, Branches 95.18% (threshold 95), Functions 96.28%, Lines 97.70%. The earlier run at 7aa7c70 failed branches 94.97%; fixed by behavioural tests merged in 605273e.",
+            "name": "coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "`npm run deadcode`: No new dead exports found, at 7aa7c70 and again at 605273e.",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "`npm run build` exit 0 at 7aa7c70 and again at 605273e (it failed at ea6a814; fixed in 7a3c80f).",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Orchestrator reviewed the helper evidence for c1 against the criterion text (docs/verification/DM-342-acceptance.md) and found it shows what the criterion names."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Orchestrator reviewed the helper evidence for c2 against the criterion text (docs/verification/DM-342-acceptance.md) and found it shows what the criterion names."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Orchestrator reviewed the helper evidence for c3 against the criterion text (docs/verification/DM-342-acceptance.md) and found it shows what the criterion names."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Orchestrator reviewed the helper evidence for c4 against the criterion text (docs/verification/DM-342-acceptance.md) and found it shows what the criterion names."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Orchestrator reviewed the helper evidence for c5 against the criterion text (docs/verification/DM-342-acceptance.md) and found it shows what the criterion names."
+          },
+          {
+            "criterionId": "c6",
+            "met": true,
+            "note": "Orchestrator reviewed the helper evidence for c6 against the criterion text (docs/verification/DM-342-acceptance.md) and found it shows what the criterion names."
+          },
+          {
+            "criterionId": "c7",
+            "met": true,
+            "note": "Orchestrator viewed DM-342-c7-rescan-beta-missing.png: the Repositories card lists 4 repositories with beta MISSING and the toast names the change; the sidebar shows a repository count (stale at 3 until reload, DM-342-c7-after-reload.png shows 4). Met as worded; the stale count is a discovery."
+          },
+          {
+            "criterionId": "c8",
+            "met": true,
+            "note": "Orchestrator reviewed the helper evidence for c8 against the criterion text (docs/verification/DM-342-acceptance.md) and found it shows what the criterion names."
+          },
+          {
+            "criterionId": "c9",
+            "met": true,
+            "note": "Orchestrator reviewed the helper evidence for c9 against the criterion text (docs/verification/DM-342-acceptance.md) and found it shows what the criterion names."
+          },
+          {
+            "criterionId": "c10",
+            "met": true,
+            "note": "Orchestrator reviewed the helper evidence for c10 against the criterion text (docs/verification/DM-342-acceptance.md) and found it shows what the criterion names."
+          },
+          {
+            "criterionId": "c11",
+            "met": true,
+            "note": "Orchestrator reviewed the helper evidence for c11 against the criterion text (docs/verification/DM-342-acceptance.md) and found it shows what the criterion names."
+          },
+          {
+            "criterionId": "c12",
+            "met": true,
+            "note": "Orchestrator reviewed the helper evidence for c12 against the criterion text (docs/verification/DM-342-acceptance.md) and found it shows what the criterion names."
+          },
+          {
+            "criterionId": "c13",
+            "met": true,
+            "note": "Orchestrator reviewed the helper evidence for c13 against the criterion text (docs/verification/DM-342-acceptance.md) and found it shows what the criterion names."
+          },
+          {
+            "criterionId": "c14",
+            "met": true,
+            "note": "Orchestrator reviewed the helper evidence for c14 against the criterion text (docs/verification/DM-342-acceptance.md) and found it shows what the criterion names."
+          },
+          {
+            "criterionId": "c15",
+            "met": true,
+            "note": "Orchestrator reviewed the helper evidence for c15 against the criterion text (docs/verification/DM-342-acceptance.md) and found it shows what the criterion names."
+          },
+          {
+            "criterionId": "c16",
+            "met": true,
+            "note": "Orchestrator read the evidence summary: a real Claude Code (Haiku) orchestrator chat started from the built app claimed both work tickets; each worker commit sits on epic/live-fixture in its own repository only (git logs). Met as worded with a caveat: the workers committed in the repository's own checkout (its main worktree) after the approval rule denied /tmp worktrees, which is weaker than the guide's separate-worktree rule."
+          },
+          {
+            "criterionId": "c17",
+            "met": true,
+            "note": "Orchestrator reviewed the helper evidence for c17 against the criterion text (docs/verification/DM-342-acceptance.md) and found it shows what the criterion names."
+          },
+          {
+            "criterionId": "c18",
+            "met": true,
+            "note": "Orchestrator viewed DM-342-c18-dod-by-repository.png: Definition of Done grouped under alpha (lint, test PASSED) and beta (build PASSED); the checkpoint screenshots show one increment section per repository."
+          },
+          {
+            "criterionId": "c19",
+            "met": true,
+            "note": "Orchestrator reviewed the helper evidence for c19 against the criterion text (docs/verification/DM-342-acceptance.md) and found it shows what the criterion names."
+          }
+        ],
+        "notes": "Caveats: c7 sidebar count stale until reload; c16 workers committed in each repository's own checkout after the approval rule denied /tmp worktrees; c4 needed a hand edit of the scratch project.json; c13 used an optional ticket accepted after the node.\n\n## Discoveries\n\n- **Sidebar count after Rescan** (DM-351): the sidebar row reads the project once per mount, so its repository count is stale after Rescan until a reload.\n- **Validation lists missing repositories as choices** (DM-348): the `missing_repo` message names repositories a rescan marked missing.\n- **An optional ticket accepted after the acceptance node** (DM-356, DM-357, DM-358): it adds a touched repository the node's increments did not name, so `increment_merged` and `definition_of_done` become unmet, and an accepted node cannot be claimed again in the run. Not exercised past the gate.\n- **Touched repositories are read from the epic's active or latest run** (DM-355, DM-358), not from the run being evaluated.\n- **Packet path vs `gitFor` path** (DM-355): the packet joins the project root and the name, while `gitFor` resolves real paths; they differ behind a symlinked root.\n- **Where orchestrator agents put worktrees** (c16): the live agent asked for worker and integration worktrees under `/tmp`; the guides could name a location next to the folder so a scratch-only approval policy does not push workers into the child checkout.\n- **`multi_repo` on an already set-up single repository** (DM-346): returns the existing project with no error saying the layout was ignored.\n- **First-run kickoff** (DM-360): repository branches are bound at `start_run`, after the kickoff is sent, so a first-run kickoff lists only the epic branch.\n- **Panel grouping** (DM-362): the acceptance panel groups Definition of Done rows by targeted repositories; the gate uses repositories with accepted tickets.\n"
+      },
       "failure": null,
       "fencingToken": 1,
       "id": "at_01m69zyypdwvrmtfm1wqv2wcr9",
+      "increment": {
+        "base": {
+          "commit": "e0e7e07f4c72700660b5ff30bf0a9910d9b58f6f",
+          "kind": "epic_start"
+        },
+        "branch": "multi-repo-folders",
+        "checks": [
+          {
+            "detail": "Names the epic branch multi-repo-folders.",
+            "name": "Epic branch",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 30416d1 exists.",
+            "name": "Commit exists",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 30416d1 has one parent, e0e7e07.",
+            "name": "One parent",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 30416d1 is reachable from multi-repo-folders.",
+            "name": "On the epic branch",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 30416d1 comes after the epic's start commit e0e7e07.",
+            "name": "After the base commit",
+            "status": "passed"
+          },
+          {
+            "detail": "None of the 21 commits recorded by this sprint's accepted work is reachable from multi-repo-folders.",
+            "name": "Squashed, not merged",
+            "status": "passed"
+          }
+        ],
+        "commit": "30416d1d5f844dd020c989caeab85d25e74656e5",
+        "parent": "e0e7e07f4c72700660b5ff30bf0a9910d9b58f6f",
+        "passed": true,
+        "reasons": [],
+        "verifiedAt": "2026-10-31T22:54:34.980Z"
+      },
       "kind": "work",
       "number": 1,
-      "outputs": null,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Acceptance evidence",
+            "location": "docs/verification/DM-342-acceptance.md",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "multi-repo-folders",
+        "changedFiles": [],
+        "commits": [
+          "30416d1d5f844dd020c989caeab85d25e74656e5"
+        ],
+        "summary": "Sprint 1 acceptance: the Definition of Done ran on the combined work (all six checks passed after integration fixes 7a3c80f, 7aa7c70 and the coverage tests in 605273e), every covered item c1-c19 was verified on scratch fixtures with script output, built-app screenshots and a live Claude Code orchestrator run, and the sprint landed on multi-repo-folders as one squashed commit 30416d1. Evidence: docs/verification/DM-342-acceptance.md."
+      },
       "reconciledAt": null,
       "revisionId": "rv_01m69rxk6atk24v4d9szqx45np",
-      "state": "running",
-      "submittedAt": null,
+      "state": "accepted",
+      "submittedAt": "2026-10-31T22:54:35.467Z",
       "supersededAt": null,
       "ticketContentHash": "sha256:4d505f4a8d5c391c23833731fc6dc7fafa11baced3812e75c6116cf4ef3423f7",
       "ticketId": "tk_01m68w2edvmdw2h8063ch16s6q",
-      "updatedAt": "2026-10-31T22:06:08.467Z",
+      "updatedAt": "2026-10-31T22:54:46.087Z",
       "worker": {
         "catalogRevision": "multi-repo-1",
         "effort": "medium",
@@ -2662,9 +2857,19 @@
       }
     }
   ],
-  "checkpoints": [],
+  "checkpoints": [
+    {
+      "decidedAt": "2026-10-31T22:59:33.046Z",
+      "decidedBy": "ss_01m69yymgy27z2yy2adgwaz40n",
+      "id": "ck_01m6a3141pn67d3mwzytec2g8n",
+      "outcome": "completed",
+      "policy": "human",
+      "reportId": "rp_01m6a2vg6g857gp4cwm8dx7ywq",
+      "sprintId": "sp_01m68w2edvv407084313gndc31"
+    }
+  ],
   "createdAt": "2026-10-31T20:04:15.598Z",
-  "endedAt": null,
+  "endedAt": "2026-10-31T22:59:33.046Z",
   "epicId": "ep_01m68w2edvsnjrvj7w56hxrmt8",
   "format": "darkmechanicus.run",
   "formatVersion": 1,
@@ -2676,7 +2881,1042 @@
   "number": 1,
   "ownerMachineId": "mc_01m4912pg590r3j7r99nbcw9wz",
   "pauseReason": null,
-  "reports": [],
+  "reports": [
+    {
+      "content": {
+        "accepted": [
+          "DM-345 Detect a folder's child Git repositories: detectChildRepos and isInsideGitRepository with real-directory tests.",
+          "DM-346 Set up a folder of repositories and record its repositories on the project: initialize_repository layout multi_repo (db mode), project.json repositories, rescan_repositories.",
+          "DM-347 Give each ticket a target repository and keep its title prefixed: ticket repo field with the server-kept `<repo> - ` prefix; saved hashes unchanged without repo.",
+          "DM-348 Report missing and unknown ticket repositories in validate_plan and at save: validate_plan and save report missing_repo, unknown_repo, repo_not_allowed; warning repo_missing_on_disk.",
+          "DM-349 Teach the planner guides to target one repository per ticket: planner and graph planner guides state the repository rules.",
+          "DM-350 Offer 'Folder of repositories' set-up in the desktop app: desktop set-up offers Folder of repositories and lists the children.",
+          "DM-351 List a folder's repositories on its page and rescan them: Repositories card with Rescan and the sidebar repository count.",
+          "DM-352 Choose a ticket's repository in the editor and show it on the ticket: Repository select, prefix label and repository on the ticket panel.",
+          "DM-353 Open a Git adapter per child repository: WorkspaceCore.gitFor with realpath and symlink containment.",
+          "DM-354 Bind the epic branch in every repository the run names: epic branch bound per repository (schema V12, repositoryBranches), refused without a name.",
+          "DM-355 Put the target repository's path and branch in execution packets: work packets carry repository {name, path, branch}; acceptance packets list touched repositories.",
+          "DM-356 Verify one squashed increment per touched repository: submit_attempt increments verified per repository against each repository's history.",
+          "DM-357 Gate, export and show per-repository increments: per-repository increment gate, get_run views and run-history export/import.",
+          "DM-358 Give each repository its own Definition of Done: per-repository Definition of Done with `<repo>: <check>` evidence names and gate.",
+          "DM-359 Run a two-repository epic end to end in an integration test: two-repository end-to-end integration test (squashed passes, merged beta fails).",
+          "DM-360 Teach the orchestrator, worker, reviewer and reporter guides and the kickoff about folders of repositories: orchestrator, worker, reviewer and reporter guides plus kickoff repository branches.",
+          "DM-361 Ask for the epic branch name when starting a run in a folder of repositories: Start run dialog asks for the epic branch in a folder of repositories (accepted on attempt 2).",
+          "DM-362 Show Definition of Done checks and increments per repository: Definition of Done and increments shown per repository (accepted on attempt 2).",
+          "DM-363 Document folders of repositories: decision record 0003, runbook, architecture and product-plan updates.",
+          "DM-342 Sprint 1 acceptance: Definition of Done passed; c1-c19 verified on scratch fixtures, built-app screenshots and a live Claude Code run; increment 30416d1 verified."
+        ],
+        "blocked": [],
+        "changes": {
+          "commits": [
+            "30416d1d5f844dd020c989caeab85d25e74656e5",
+            "111a0750fd90cad925cbe53f57c2ebe2064e0ced",
+            "2573bd86567ee2b7b133d513568a5549b9fe9f42",
+            "024dabc5ef174f2c73b1e93928e71c8022977fa2",
+            "cee49b564b78ba8210d70c2ed6b0fbfc69f02de7",
+            "fe47bb095631332e634b1d6021bd8b8e1274639b",
+            "959e6cbdd061e858af08950e6e1ab9e86e1a9460",
+            "1d37e22cbfc90a4a88b1acf317a5fe5deaa510d2",
+            "04c5fd8e2cd63791a307b86e35c23fcf6168057e",
+            "b4692653528a01d80deee63131ce64523fff6d33",
+            "cb4c26237152ef4505ef9280a50a4c9b5811e32d",
+            "0ab4cc27a14c54384f778d64d12f268d16a60548",
+            "47c093ad741405b64da30217a4830d5404de826c",
+            "b3539cf7add85db3f6c8f62f815dd15dfc3fd295",
+            "f9c7086153d2014450f7c49ab241285839d05e9f",
+            "e55248a376399daec64d185432092e77a2fa20dd",
+            "ada698828a7ca5dde31d2ce173ffee7a4a35598f",
+            "5bc751b71cc5d0368d5f41cb38433c19bdc18086",
+            "bd8a13d500ec4bc4fa5a54ac4a042727c188f1dc",
+            "64ef3b537878f8341735ba3c38036fff8457cad7",
+            "f3f42bec469fdfffaca36e2fcbe3e128c3e5e3e4",
+            "8645e01e449e01db693428a4b11b9c23d06173b7",
+            "d7f19a69edcb5d436381bb4c8565bfda1320eef4",
+            "7a3c80f79efb1d594a5d5a8a916b50dbd102ff1b",
+            "7aa7c706089225118d51bd6822827b633424528c",
+            "957fffb673af78078c6112acdec83a875f4bff99",
+            "0249071b7818b89106671dd8ccb5b67735a6d2b2",
+            "30416d1d5f844dd020c989caeab85d25e74656e5"
+          ],
+          "files": [
+            ".tsprune-ignore",
+            "README.md",
+            "docs/architecture.md",
+            "docs/decisions/0003-multi-repo-folders.md",
+            "docs/product-plan.md",
+            "docs/runbooks/mcp-setup.md",
+            "docs/runbooks/multi-repo-folders.md",
+            "docs/verification/DM-342-acceptance.md",
+            "skills/graph-planner.md",
+            "skills/orchestrator.md",
+            "skills/planner.md",
+            "skills/reviewer.md",
+            "skills/sprint-reporter.md",
+            "skills/worker.md",
+            "src/core/authz.test.ts",
+            "src/core/authz.ts",
+            "src/core/board/plan.test.ts",
+            "src/core/commandSchemas.ts",
+            "src/core/commands/capabilities.test.ts",
+            "src/core/commands/capabilities.ts",
+            "src/core/commands/definitionOfDone.test.ts",
+            "src/core/commands/execution.ts",
+            "src/core/commands/repositories.test.ts",
+            "src/core/commands/repository.ts",
+            "src/core/commands/types.ts",
+            "src/core/context.ts",
+            "src/core/db/migrations.test.ts",
+            "src/core/db/migrations.ts",
+            "src/core/plan/diff.test.ts",
+            "src/core/plan/diff.ts",
+            "src/core/plan/draftOps.test.ts",
+            "src/core/plan/draftOps.ts",
+            "src/core/plan/draftOpsAcceptance.test.ts",
+            "src/core/plan/graph.ts",
+            "src/core/plan/normalize.test.ts",
+            "src/core/plan/normalize.ts",
+            "src/core/plan/redraft.test.ts",
+            "src/core/plan/repoTitles.test.ts",
+            "src/core/plan/repoTitles.ts",
+            "src/core/plan/repositoryRules.test.ts",
+            "src/core/plan/runWarnings.test.ts",
+            "src/core/repo/branchEpics.test.ts",
+            "src/core/repo/childRepos.test.ts",
+            "src/core/repo/childRepos.ts",
+            "src/core/repo/discovery.ts",
+            "src/core/repo/git.test.ts",
+            "src/core/repo/git.ts",
+            "src/core/repo/importer.test.ts",
+            "src/core/repo/importer.ts",
+            "src/core/repo/initialize.test.ts",
+            "src/core/repo/initialize.ts",
+            "src/core/repo/portable.test.ts",
+            "src/core/repo/portable.ts",
+            "src/core/repo/projectConfig.ts",
+            "src/core/repo/types.ts",
+            "src/core/schemas.ts",
+            "src/core/services/adoption.ts",
+            "src/core/services/attempts.test.ts",
+            "src/core/services/attempts.ts",
+            "src/core/services/attemptsDefinitionOfDone.test.ts",
+            "src/core/services/attemptsIncrement.test.ts",
+            "src/core/services/checkpoints.ts",
+            "src/core/services/checkpointsDefinitionOfDone.test.ts",
+            "src/core/services/checkpointsIncrement.test.ts",
+            "src/core/services/draftDeps.ts",
+            "src/core/services/drafts.ts",
+            "src/core/services/epicBranches.ts",
+            "src/core/services/epics.ts",
+            "src/core/services/execution.ts",
+            "src/core/services/incrementVerify.test.ts",
+            "src/core/services/incrementVerify.ts",
+            "src/core/services/increments.test.ts",
+            "src/core/services/increments.ts",
+            "src/core/services/plans.test.ts",
+            "src/core/services/plans.ts",
+            "src/core/services/redraft.ts",
+            "src/core/services/reports.ts",
+            "src/core/services/runs.test.ts",
+            "src/core/services/runs.ts",
+            "src/core/workspace.gitFor.test.ts",
+            "src/core/workspace.ts",
+            "src/integration/multiRepo.test.ts",
+            "src/main/agents/chatStore.test.ts",
+            "src/main/agents/orchestratorKickoff.test.ts",
+            "src/main/agents/orchestratorKickoff.ts",
+            "src/main/agents/orchestratorStart.test.ts",
+            "src/main/agents/orchestratorStart.ts",
+            "src/main/desktop/folderRegistry.test.ts",
+            "src/main/desktop/folderRegistry.ts",
+            "src/main/desktop/handlers.test.ts",
+            "src/main/ipcGuard.test.ts",
+            "src/mcp/main.test.ts",
+            "src/mcp/roles.test.ts",
+            "src/mcp/server.test.ts",
+            "src/mcp/skills.test.ts",
+            "src/mcp/tools/checkpoints.ts",
+            "src/mcp/tools/define.test.ts",
+            "src/mcp/tools/discovery.test.ts",
+            "src/mcp/tools/discovery.ts",
+            "src/mcp/tools/execution.ts",
+            "src/mcp/validation.test.ts",
+            "src/renderer/src/__mocks__/fixtures.ts",
+            "src/renderer/src/app/shellActions.test.ts",
+            "src/renderer/src/app/shellActions.ts",
+            "src/renderer/src/app/useRepositories.ts",
+            "src/renderer/src/checkpoint/CheckpointScreen.test.tsx",
+            "src/renderer/src/checkpoint/CheckpointScreen.tsx",
+            "src/renderer/src/checkpoint/gateView.test.ts",
+            "src/renderer/src/checkpoint/gateView.ts",
+            "src/renderer/src/epic/EpicWorkspace.startRun.test.tsx",
+            "src/renderer/src/epic/EpicWorkspace.tsx",
+            "src/renderer/src/epic/StartRunDialog.test.tsx",
+            "src/renderer/src/epic/StartRunDialog.tsx",
+            "src/renderer/src/epic/__mocks__/fixtures.ts",
+            "src/renderer/src/epic/workspaceActions.ts",
+            "src/renderer/src/home/FolderHome.test.tsx",
+            "src/renderer/src/home/FolderHome.tsx",
+            "src/renderer/src/home/RepositoriesCard.tsx",
+            "src/renderer/src/onboarding/OnboardingView.test.tsx",
+            "src/renderer/src/onboarding/OnboardingView.tsx",
+            "src/renderer/src/sidebar/FolderRow.test.tsx",
+            "src/renderer/src/sidebar/FolderRow.tsx",
+            "src/renderer/src/styles.css",
+            "src/renderer/src/ticket/AcceptanceSections.tsx",
+            "src/renderer/src/ticket/TicketEditor.test.tsx",
+            "src/renderer/src/ticket/TicketEditor.tsx",
+            "src/renderer/src/ticket/TicketPanel.test.tsx",
+            "src/renderer/src/ticket/TicketPanel.tsx",
+            "src/renderer/src/ticket/acceptanceView.test.ts",
+            "src/renderer/src/ticket/acceptanceView.ts",
+            "src/renderer/src/ticket/editorFields.tsx",
+            "src/renderer/src/ticket/panelTabs.tsx",
+            "src/renderer/src/ticket/ticket.css",
+            "src/renderer/src/ticket/ticketForm.test.ts",
+            "src/renderer/src/ticket/ticketForm.ts",
+            "src/shared/desktop/api.ts",
+            "src/shared/domain/api.ts",
+            "src/shared/domain/branchName.ts",
+            "src/shared/domain/bundle.ts",
+            "src/shared/domain/views.ts",
+            "src/test/gitRepo.ts",
+            "src/test/repoEnv.ts",
+            "src/test/stubApi.test.ts",
+            "src/test/stubApi.ts",
+            "src/test/testContext.ts",
+            "src/test/workspaceHarness.ts"
+          ]
+        },
+        "checks": [
+          {
+            "detail": "typecheck plus the tests touching the row's files in the integration worktree",
+            "name": "row 1 check",
+            "status": "passed"
+          },
+          {
+            "detail": "typecheck plus the tests touching the row's files in the integration worktree",
+            "name": "row 2 check",
+            "status": "passed"
+          },
+          {
+            "detail": "typecheck plus the tests touching the row's files in the integration worktree",
+            "name": "row 3 check",
+            "status": "passed"
+          },
+          {
+            "detail": "typecheck plus the tests touching the row's files in the integration worktree",
+            "name": "row 4 check",
+            "status": "passed"
+          },
+          {
+            "detail": "typecheck plus the tests touching the row's files in the integration worktree",
+            "name": "row 5 check",
+            "status": "passed"
+          },
+          {
+            "detail": "typecheck plus the tests touching the row's files in the integration worktree (the first row 6 check at a8e1c32 failed on a stale submit_attempt schema fingerprint; passed at d7f19a6)",
+            "name": "row 6 check",
+            "status": "passed"
+          },
+          {
+            "detail": "typecheck plus the tests touching the row's files in the integration worktree",
+            "name": "row 7 check",
+            "status": "passed"
+          },
+          {
+            "detail": "typecheck plus the tests touching the row's files in the integration worktree",
+            "name": "row 8 check",
+            "status": "passed"
+          },
+          {
+            "detail": "typecheck plus the tests touching the row's files in the integration worktree",
+            "name": "row 9 check",
+            "status": "passed"
+          },
+          {
+            "detail": "acceptance node DM-342: oxlint src scripts exit 0",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "acceptance node DM-342: node, web, Fireguard projects",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "acceptance node DM-342: 453 files, 8890 passed, 9 skipped; Fireguard 129 passed",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "acceptance node DM-342: branches 95.18% (threshold 95) after the coverage tests; 94.97% before",
+            "name": "coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "acceptance node DM-342: no new dead exports after un-exports and a baseline refresh",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "acceptance node DM-342: electron-vite build; it failed at ea6a814 before the branch-name rule moved to src/shared",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "epicOutcome": {
+          "successCriteria": [
+            {
+              "criterionId": "s1",
+              "met": true,
+              "note": "DM-342 c6, c7 and c2: Folder of repositories offered for a non-repository parent, children listed by exact name, nothing written into the parent or children."
+            },
+            {
+              "criterionId": "s2",
+              "met": true,
+              "note": "DM-342 c3 and c8 with scratch repositories named alpha and gamma (the prefix is the exact folder name, so DarkMechanicus would read `DarkMechanicus - Add refund endpoint`): stored as `alpha - Add refund endpoint`, retitled on a repository change, acceptance node refused a repo."
+            },
+            {
+              "criterionId": "s3",
+              "met": true,
+              "note": "DM-342 c4 (missing_repo, unknown_repo); DM-347/DM-348 tests: repo in a single-repository project is refused (invalid_input on edit, repo_not_allowed in validation)."
+            },
+            {
+              "criterionId": "s4",
+              "met": true,
+              "note": "DM-342 c11 (absolute path and branch per packet), c12-c14 and c15 (integration test): a sprint passes only with every touched repository's squashed increment verified and its checks reported."
+            },
+            {
+              "criterionId": "s5",
+              "met": true,
+              "note": "npm test passes (453 files, 8890 tests) with single-repository tests unchanged; reviewers checked single-repository packets, increments, report shape and titles on each ticket."
+            },
+            {
+              "criterionId": "s6",
+              "met": true,
+              "note": "DM-349 and DM-360 guides, the kickoff repository branches (DM-360), decision record 0003 and the runbook (DM-363), checked in DM-342 c5 and c19."
+            }
+          ],
+          "summary": "The epic delivered folders of repositories: set-up, a repository per ticket with the exact-folder-name prefix, per-repository branches, packets, increments and Definition of Done, the desktop surfaces, guides and docs, all landed on multi-repo-folders as 30416d1. Merging it into main is a separate step for a person."
+        },
+        "exitCriteria": [
+          {
+            "criterionId": "x1",
+            "met": true,
+            "note": "DM-342 c6 (set-up screen), c7 (Repositories card after Rescan), c2 (listings show nothing written into the parent or children)."
+          },
+          {
+            "criterionId": "x2",
+            "met": true,
+            "note": "DM-342 c3 (commands keep the prefix and refuse repo on the node), c8 (editor), c4 (validate_plan missing_repo/unknown_repo)."
+          },
+          {
+            "criterionId": "x3",
+            "met": true,
+            "note": "DM-342 c10 (repositoryBranches with per-repository start commits), c11 (packets with path and branch)."
+          },
+          {
+            "criterionId": "x4",
+            "met": true,
+            "note": "DM-342 c12, c13, c14 and the integration test c15: a merged repository or an unreported `<repo>: <check>` blocks the gate."
+          },
+          {
+            "criterionId": "x5",
+            "met": true,
+            "note": "DM-342 c16: a Claude Code orchestrator started from the built app claimed both tickets and each commit is on the epic branch only in its repository. Caveat: the workers committed in each repository's own checkout after the approval rule denied worktrees under /tmp."
+          },
+          {
+            "criterionId": "x6",
+            "met": true,
+            "note": "DM-342 c18 (Definition of Done grouped by repository, per-repository increments), c19 (docs and runbook links)."
+          },
+          {
+            "criterionId": "x7",
+            "met": true,
+            "note": "Full suite passes with single-repository tests unchanged; DM-361 and DM-362 were rejected once each for single-repository regressions and fixed; single-repository packets, increments, report shape and project.json round-trip are asserted unchanged."
+          }
+        ],
+        "failed": [],
+        "followUps": [
+          {
+            "body": "A person merges the epic branch (one squashed commit 30416d1) into main, renumbering the V12 migration if another epic landed one first.",
+            "title": "Merge multi-repo-folders into main"
+          }
+        ],
+        "retro": {
+          "actions": [
+            "Workers and reviewers on tickets that touch renderer imports of src/core or src/shared run `npm run build` (renderer bundle) as a targeted check.",
+            "Workers and reviewers run `npx vitest run src/mcp` whenever a tool, command schema or shared API type changes.",
+            "Tickets that add shared or core exports run `npm run deadcode` as a targeted check.",
+            "Orchestrator helpers persist claim tokens in a private file and long cells always set a timeout, so a kernel restart cannot lose a claim."
+          ],
+          "delivered": [
+            {
+              "demo": "Desktop: add a parent folder of Git repositories; the set-up screen offers Folder of repositories and lists them.",
+              "evidence": "docs/verification/DM-342-c6-parent-setup.png; src/core/repo/initialize.test.ts",
+              "ticket": "tk_01m68w2eevfh6hxrjp1p1qpd55"
+            },
+            {
+              "demo": "Folder page Repositories card; rename a child and press Rescan.",
+              "evidence": "docs/verification/DM-342-c7-rescan-beta-missing.png",
+              "ticket": "tk_01m68w2eevdqc3y140fmmce9v0"
+            },
+            {
+              "demo": "Ticket editor Repository select with the prefix label.",
+              "evidence": "docs/verification/DM-342-c8-editor-repository-select.png",
+              "ticket": "tk_01m68w2eevrn99q2wv57s1s1a1"
+            },
+            {
+              "demo": "Start run dialog in a folder of repositories asks for the epic branch.",
+              "evidence": "docs/verification/DM-342-c17-start-run-dialog.png",
+              "ticket": "tk_01m68w2eew9a25bh94vqq9kjg0"
+            },
+            {
+              "demo": "Acceptance node panel and checkpoint show checks and increments per repository.",
+              "evidence": "docs/verification/DM-342-c18-dod-by-repository.png",
+              "ticket": "tk_01m68w2eewkj36297tmtknt90t"
+            },
+            {
+              "demo": "npx vitest run src/integration/multiRepo.test.ts",
+              "evidence": "src/integration/multiRepo.test.ts; DM-342 c15",
+              "ticket": "tk_01m68w2eew0en5nsvgz7wk4rht"
+            },
+            {
+              "demo": "docs/runbooks/multi-repo-folders.md and docs/decisions/0003-multi-repo-folders.md",
+              "evidence": "DM-342 c19 link check",
+              "ticket": "tk_01m68w2eewr27g9s46gt1ma30q"
+            }
+          ],
+          "discoveries": [
+            {
+              "body": "useRepositories reads the project once per mount, so the sidebar row keeps the old count after Rescan until a reload (DM-342 c7, DM-342-c7-after-reload.png).",
+              "ticket": "tk_01m68w2eevdqc3y140fmmce9v0",
+              "title": "Refresh the sidebar repository count after Rescan"
+            },
+            {
+              "body": "The validation message lists repositories a rescan marked missing as choices (seen in DM-342 c4 and the UI run).",
+              "ticket": "tk_01m68w2eevhkm0zj67e34eag1c",
+              "title": "Leave missing repositories out of the missing_repo message"
+            },
+            {
+              "body": "Accepting an optional ticket for a repository the node's increments did not name makes increment_merged and definition_of_done unmet, and an accepted node cannot be claimed again in the run (DM-342 c13 scene D).",
+              "ticket": "tk_01m68w2eew20w1cskjbnky5zy2",
+              "title": "Handle an optional ticket accepted after the acceptance node in a folder of repositories"
+            },
+            {
+              "body": "touchedRepositories reads the epic's active or latest run, not the run whose gate or packet is computed (reviewers of DM-355 and DM-358).",
+              "ticket": "tk_01m68w2eevh32qzespfmw6xs2v",
+              "title": "Read touched repositories from the run being evaluated"
+            },
+            {
+              "body": "In the live run the orchestrator asked for worker and integration worktrees under /tmp; when denied, workers switched the child repository's own checkout to the epic branch (DM-342 c16).",
+              "ticket": "tk_01m68w2eewqm3qz9awecfrgy29",
+              "title": "Name a worktree location for agents in a folder of repositories"
+            },
+            {
+              "body": "initialize_repository with layout multi_repo on a folder already set up as one repository returns the existing project with no error saying the layout was ignored (DM-346 worker).",
+              "ticket": "tk_01m68w2eevfh6hxrjp1p1qpd55",
+              "title": "Refuse or explain multi_repo on an already set-up single repository"
+            }
+          ],
+          "leftovers": [],
+          "tierFit": [],
+          "wentPoorly": [
+            "DM-345 used three attempts: the orchestrator read the claim token from the wrong response field twice and then lost the third token in a kernel restart; the third attempt was reconciled with resubmit after its lease expired.",
+            "Per-ticket checks never ran the build or deadcode, so the combined sweep found a renderer build break (DM-361 imported core/schemas, which pulls node:crypto) and ~140 deadcode findings (DM-348 imported portable.ts into graph.ts, which the renderer imports).",
+            "Coverage fell below the 95% branch threshold on the combined work (94.97%) and needed a tests-only fix before landing; a DM-356 test also timed out under coverage on a loaded machine.",
+            "DM-356 changed the submit_attempt schema without updating the pinned fingerprint in src/mcp/validation.test.ts; neither its worker nor its reviewer ran that file.",
+            "The live check (c16) showed agents committing in a child repository's own checkout when the worktree location they wanted was denied."
+          ],
+          "wentWell": [
+            "All 19 work tickets were accepted, 17 on their first attempt, with independent reviewers re-running each ticket's targeted checks.",
+            "Row checks caught a stale schema fingerprint (row 6) before the acceptance round, and merge conflicts (workspace.ts, testContext.ts) were additive and resolved at merge time.",
+            "Reviewers caught two single-repository regressions (DM-361 dialog gated on getProject; DM-362 report field shape) and each was fixed on the second attempt.",
+            "The acceptance round verified every covered item on scratch fixtures, including a live Claude Code orchestrator run from the built app."
+          ]
+        },
+        "risks": [
+          "Schema migration V12 (epics.repository_branches_json) is on multi-repo-folders; other open epics that add a migration need renumbering when they merge to main.",
+          "A folder of repositories has no branch guard; the guides forbid switching a child checkout, but the live run (c16) shows an agent will do it when its preferred worktree location is denied.",
+          "An optional ticket accepted after the acceptance node can leave the increment and Definition of Done gates unmet with no way to re-claim the node (seen in a scratch run, not fixed).",
+          "Coverage clears the 95% branch threshold by 0.18 points; the multi-repository code still has about 40 untested branches, most judged unreachable.",
+          "The orchestrator fixed integration problems on the sprint branch (build, deadcode, coverage, a schema fingerprint); they were not reviewed by a separate reviewer."
+        ],
+        "summary": "Sprint 1 (the whole epic, compressed from three sprints) delivered multi-repo folders end to end: set-up and rescan of a folder of repositories, a repository per ticket with a server-kept title prefix and validation, per-repository epic branches, packets, increments and Definition of Done, the desktop surfaces, guides, kickoff and docs. All 19 work tickets and the acceptance node DM-342 were accepted; two tickets needed a second attempt (DM-361, DM-362, both for single-repository regressions). The combined sweep found a renderer build break, a deadcode drift and a branch-coverage shortfall, fixed on the sprint branch before landing; the sprint landed as one squashed commit 30416d1 on multi-repo-folders. Every Definition of Done check passed. DM-345 used three attempts because the orchestrator lost two claim tokens before dispatch; no worker ran under them."
+      },
+      "contentHash": "sha256:90f33461786d8f998300cb3f817065360fd467a1a799fdab25040dfc88a5f1f1",
+      "createdAt": "2026-10-31T22:56:15.242Z",
+      "id": "rp_01m6a2v2wadhns3nbmrn1hp00g",
+      "reportRevision": 1,
+      "sprintId": "sp_01m68w2edvv407084313gndc31",
+      "submittedBy": "Claude Code orchestrator (multi-repo folders)"
+    },
+    {
+      "content": {
+        "accepted": [
+          "DM-345 Detect a folder's child Git repositories: detectChildRepos and isInsideGitRepository with real-directory tests.",
+          "DM-346 Set up a folder of repositories and record its repositories on the project: initialize_repository layout multi_repo (db mode), project.json repositories, rescan_repositories.",
+          "DM-347 Give each ticket a target repository and keep its title prefixed: ticket repo field with the server-kept `<repo> - ` prefix; saved hashes unchanged without repo.",
+          "DM-348 Report missing and unknown ticket repositories in validate_plan and at save: validate_plan and save report missing_repo, unknown_repo, repo_not_allowed; warning repo_missing_on_disk.",
+          "DM-349 Teach the planner guides to target one repository per ticket: planner and graph planner guides state the repository rules.",
+          "DM-350 Offer 'Folder of repositories' set-up in the desktop app: desktop set-up offers Folder of repositories and lists the children.",
+          "DM-351 List a folder's repositories on its page and rescan them: Repositories card with Rescan and the sidebar repository count.",
+          "DM-352 Choose a ticket's repository in the editor and show it on the ticket: Repository select, prefix label and repository on the ticket panel.",
+          "DM-353 Open a Git adapter per child repository: WorkspaceCore.gitFor with realpath and symlink containment.",
+          "DM-354 Bind the epic branch in every repository the run names: epic branch bound per repository (schema V12, repositoryBranches), refused without a name.",
+          "DM-355 Put the target repository's path and branch in execution packets: work packets carry repository {name, path, branch}; acceptance packets list touched repositories.",
+          "DM-356 Verify one squashed increment per touched repository: submit_attempt increments verified per repository against each repository's history.",
+          "DM-357 Gate, export and show per-repository increments: per-repository increment gate, get_run views and run-history export/import.",
+          "DM-358 Give each repository its own Definition of Done: per-repository Definition of Done with `<repo>: <check>` evidence names and gate.",
+          "DM-359 Run a two-repository epic end to end in an integration test: two-repository end-to-end integration test (squashed passes, merged beta fails).",
+          "DM-360 Teach the orchestrator, worker, reviewer and reporter guides and the kickoff about folders of repositories: orchestrator, worker, reviewer and reporter guides plus kickoff repository branches.",
+          "DM-361 Ask for the epic branch name when starting a run in a folder of repositories: Start run dialog asks for the epic branch in a folder of repositories (accepted on attempt 2).",
+          "DM-362 Show Definition of Done checks and increments per repository: Definition of Done and increments shown per repository (accepted on attempt 2).",
+          "DM-363 Document folders of repositories: decision record 0003, runbook, architecture and product-plan updates.",
+          "DM-342 Sprint 1 acceptance: Definition of Done passed; c1-c19 verified on scratch fixtures, built-app screenshots and a live Claude Code run; increment 30416d1 verified."
+        ],
+        "blocked": [],
+        "changes": {
+          "commits": [
+            "30416d1d5f844dd020c989caeab85d25e74656e5",
+            "111a0750fd90cad925cbe53f57c2ebe2064e0ced",
+            "2573bd86567ee2b7b133d513568a5549b9fe9f42",
+            "024dabc5ef174f2c73b1e93928e71c8022977fa2",
+            "cee49b564b78ba8210d70c2ed6b0fbfc69f02de7",
+            "fe47bb095631332e634b1d6021bd8b8e1274639b",
+            "959e6cbdd061e858af08950e6e1ab9e86e1a9460",
+            "1d37e22cbfc90a4a88b1acf317a5fe5deaa510d2",
+            "04c5fd8e2cd63791a307b86e35c23fcf6168057e",
+            "b4692653528a01d80deee63131ce64523fff6d33",
+            "cb4c26237152ef4505ef9280a50a4c9b5811e32d",
+            "0ab4cc27a14c54384f778d64d12f268d16a60548",
+            "47c093ad741405b64da30217a4830d5404de826c",
+            "b3539cf7add85db3f6c8f62f815dd15dfc3fd295",
+            "f9c7086153d2014450f7c49ab241285839d05e9f",
+            "e55248a376399daec64d185432092e77a2fa20dd",
+            "ada698828a7ca5dde31d2ce173ffee7a4a35598f",
+            "5bc751b71cc5d0368d5f41cb38433c19bdc18086",
+            "bd8a13d500ec4bc4fa5a54ac4a042727c188f1dc",
+            "64ef3b537878f8341735ba3c38036fff8457cad7",
+            "f3f42bec469fdfffaca36e2fcbe3e128c3e5e3e4",
+            "8645e01e449e01db693428a4b11b9c23d06173b7",
+            "d7f19a69edcb5d436381bb4c8565bfda1320eef4",
+            "7a3c80f79efb1d594a5d5a8a916b50dbd102ff1b",
+            "7aa7c706089225118d51bd6822827b633424528c",
+            "957fffb673af78078c6112acdec83a875f4bff99",
+            "0249071b7818b89106671dd8ccb5b67735a6d2b2",
+            "30416d1d5f844dd020c989caeab85d25e74656e5"
+          ],
+          "files": [
+            ".tsprune-ignore",
+            "README.md",
+            "docs/architecture.md",
+            "docs/decisions/0003-multi-repo-folders.md",
+            "docs/product-plan.md",
+            "docs/runbooks/mcp-setup.md",
+            "docs/runbooks/multi-repo-folders.md",
+            "docs/verification/DM-342-acceptance.md",
+            "skills/graph-planner.md",
+            "skills/orchestrator.md",
+            "skills/planner.md",
+            "skills/reviewer.md",
+            "skills/sprint-reporter.md",
+            "skills/worker.md",
+            "src/core/authz.test.ts",
+            "src/core/authz.ts",
+            "src/core/board/plan.test.ts",
+            "src/core/commandSchemas.ts",
+            "src/core/commands/capabilities.test.ts",
+            "src/core/commands/capabilities.ts",
+            "src/core/commands/definitionOfDone.test.ts",
+            "src/core/commands/execution.ts",
+            "src/core/commands/repositories.test.ts",
+            "src/core/commands/repository.ts",
+            "src/core/commands/types.ts",
+            "src/core/context.ts",
+            "src/core/db/migrations.test.ts",
+            "src/core/db/migrations.ts",
+            "src/core/plan/diff.test.ts",
+            "src/core/plan/diff.ts",
+            "src/core/plan/draftOps.test.ts",
+            "src/core/plan/draftOps.ts",
+            "src/core/plan/draftOpsAcceptance.test.ts",
+            "src/core/plan/graph.ts",
+            "src/core/plan/normalize.test.ts",
+            "src/core/plan/normalize.ts",
+            "src/core/plan/redraft.test.ts",
+            "src/core/plan/repoTitles.test.ts",
+            "src/core/plan/repoTitles.ts",
+            "src/core/plan/repositoryRules.test.ts",
+            "src/core/plan/runWarnings.test.ts",
+            "src/core/repo/branchEpics.test.ts",
+            "src/core/repo/childRepos.test.ts",
+            "src/core/repo/childRepos.ts",
+            "src/core/repo/discovery.ts",
+            "src/core/repo/git.test.ts",
+            "src/core/repo/git.ts",
+            "src/core/repo/importer.test.ts",
+            "src/core/repo/importer.ts",
+            "src/core/repo/initialize.test.ts",
+            "src/core/repo/initialize.ts",
+            "src/core/repo/portable.test.ts",
+            "src/core/repo/portable.ts",
+            "src/core/repo/projectConfig.ts",
+            "src/core/repo/types.ts",
+            "src/core/schemas.ts",
+            "src/core/services/adoption.ts",
+            "src/core/services/attempts.test.ts",
+            "src/core/services/attempts.ts",
+            "src/core/services/attemptsDefinitionOfDone.test.ts",
+            "src/core/services/attemptsIncrement.test.ts",
+            "src/core/services/checkpoints.ts",
+            "src/core/services/checkpointsDefinitionOfDone.test.ts",
+            "src/core/services/checkpointsIncrement.test.ts",
+            "src/core/services/draftDeps.ts",
+            "src/core/services/drafts.ts",
+            "src/core/services/epicBranches.ts",
+            "src/core/services/epics.ts",
+            "src/core/services/execution.ts",
+            "src/core/services/incrementVerify.test.ts",
+            "src/core/services/incrementVerify.ts",
+            "src/core/services/increments.test.ts",
+            "src/core/services/increments.ts",
+            "src/core/services/plans.test.ts",
+            "src/core/services/plans.ts",
+            "src/core/services/redraft.ts",
+            "src/core/services/reports.ts",
+            "src/core/services/runs.test.ts",
+            "src/core/services/runs.ts",
+            "src/core/workspace.gitFor.test.ts",
+            "src/core/workspace.ts",
+            "src/integration/multiRepo.test.ts",
+            "src/main/agents/chatStore.test.ts",
+            "src/main/agents/orchestratorKickoff.test.ts",
+            "src/main/agents/orchestratorKickoff.ts",
+            "src/main/agents/orchestratorStart.test.ts",
+            "src/main/agents/orchestratorStart.ts",
+            "src/main/desktop/folderRegistry.test.ts",
+            "src/main/desktop/folderRegistry.ts",
+            "src/main/desktop/handlers.test.ts",
+            "src/main/ipcGuard.test.ts",
+            "src/mcp/main.test.ts",
+            "src/mcp/roles.test.ts",
+            "src/mcp/server.test.ts",
+            "src/mcp/skills.test.ts",
+            "src/mcp/tools/checkpoints.ts",
+            "src/mcp/tools/define.test.ts",
+            "src/mcp/tools/discovery.test.ts",
+            "src/mcp/tools/discovery.ts",
+            "src/mcp/tools/execution.ts",
+            "src/mcp/validation.test.ts",
+            "src/renderer/src/__mocks__/fixtures.ts",
+            "src/renderer/src/app/shellActions.test.ts",
+            "src/renderer/src/app/shellActions.ts",
+            "src/renderer/src/app/useRepositories.ts",
+            "src/renderer/src/checkpoint/CheckpointScreen.test.tsx",
+            "src/renderer/src/checkpoint/CheckpointScreen.tsx",
+            "src/renderer/src/checkpoint/gateView.test.ts",
+            "src/renderer/src/checkpoint/gateView.ts",
+            "src/renderer/src/epic/EpicWorkspace.startRun.test.tsx",
+            "src/renderer/src/epic/EpicWorkspace.tsx",
+            "src/renderer/src/epic/StartRunDialog.test.tsx",
+            "src/renderer/src/epic/StartRunDialog.tsx",
+            "src/renderer/src/epic/__mocks__/fixtures.ts",
+            "src/renderer/src/epic/workspaceActions.ts",
+            "src/renderer/src/home/FolderHome.test.tsx",
+            "src/renderer/src/home/FolderHome.tsx",
+            "src/renderer/src/home/RepositoriesCard.tsx",
+            "src/renderer/src/onboarding/OnboardingView.test.tsx",
+            "src/renderer/src/onboarding/OnboardingView.tsx",
+            "src/renderer/src/sidebar/FolderRow.test.tsx",
+            "src/renderer/src/sidebar/FolderRow.tsx",
+            "src/renderer/src/styles.css",
+            "src/renderer/src/ticket/AcceptanceSections.tsx",
+            "src/renderer/src/ticket/TicketEditor.test.tsx",
+            "src/renderer/src/ticket/TicketEditor.tsx",
+            "src/renderer/src/ticket/TicketPanel.test.tsx",
+            "src/renderer/src/ticket/TicketPanel.tsx",
+            "src/renderer/src/ticket/acceptanceView.test.ts",
+            "src/renderer/src/ticket/acceptanceView.ts",
+            "src/renderer/src/ticket/editorFields.tsx",
+            "src/renderer/src/ticket/panelTabs.tsx",
+            "src/renderer/src/ticket/ticket.css",
+            "src/renderer/src/ticket/ticketForm.test.ts",
+            "src/renderer/src/ticket/ticketForm.ts",
+            "src/shared/desktop/api.ts",
+            "src/shared/domain/api.ts",
+            "src/shared/domain/branchName.ts",
+            "src/shared/domain/bundle.ts",
+            "src/shared/domain/views.ts",
+            "src/test/gitRepo.ts",
+            "src/test/repoEnv.ts",
+            "src/test/stubApi.test.ts",
+            "src/test/stubApi.ts",
+            "src/test/testContext.ts",
+            "src/test/workspaceHarness.ts"
+          ]
+        },
+        "checks": [
+          {
+            "detail": "typecheck plus the tests touching the row's files in the integration worktree",
+            "name": "row 1 check",
+            "status": "passed"
+          },
+          {
+            "detail": "typecheck plus the tests touching the row's files in the integration worktree",
+            "name": "row 2 check",
+            "status": "passed"
+          },
+          {
+            "detail": "typecheck plus the tests touching the row's files in the integration worktree",
+            "name": "row 3 check",
+            "status": "passed"
+          },
+          {
+            "detail": "typecheck plus the tests touching the row's files in the integration worktree",
+            "name": "row 4 check",
+            "status": "passed"
+          },
+          {
+            "detail": "typecheck plus the tests touching the row's files in the integration worktree",
+            "name": "row 5 check",
+            "status": "passed"
+          },
+          {
+            "detail": "typecheck plus the tests touching the row's files in the integration worktree (the first row 6 check at a8e1c32 failed on a stale submit_attempt schema fingerprint; passed at d7f19a6)",
+            "name": "row 6 check",
+            "status": "passed"
+          },
+          {
+            "detail": "typecheck plus the tests touching the row's files in the integration worktree",
+            "name": "row 7 check",
+            "status": "passed"
+          },
+          {
+            "detail": "typecheck plus the tests touching the row's files in the integration worktree",
+            "name": "row 8 check",
+            "status": "passed"
+          },
+          {
+            "detail": "typecheck plus the tests touching the row's files in the integration worktree",
+            "name": "row 9 check",
+            "status": "passed"
+          },
+          {
+            "detail": "acceptance node DM-342: oxlint src scripts exit 0",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "acceptance node DM-342: node, web, Fireguard projects",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "acceptance node DM-342: 453 files, 8890 passed, 9 skipped; Fireguard 129 passed",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "acceptance node DM-342: branches 95.18% (threshold 95) after the coverage tests; 94.97% before",
+            "name": "coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "acceptance node DM-342: no new dead exports after un-exports and a baseline refresh",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "acceptance node DM-342: electron-vite build; it failed at ea6a814 before the branch-name rule moved to src/shared",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "epicOutcome": {
+          "successCriteria": [
+            {
+              "criterionId": "s1",
+              "met": true,
+              "note": "DM-342 c6, c7 and c2: Folder of repositories offered for a non-repository parent, children listed by exact name, nothing written into the parent or children."
+            },
+            {
+              "criterionId": "s2",
+              "met": true,
+              "note": "DM-342 c3 and c8 with scratch repositories named alpha and gamma (the prefix is the exact folder name, so DarkMechanicus would read `DarkMechanicus - Add refund endpoint`): stored as `alpha - Add refund endpoint`, retitled on a repository change, acceptance node refused a repo."
+            },
+            {
+              "criterionId": "s3",
+              "met": true,
+              "note": "DM-342 c4 (missing_repo, unknown_repo); DM-347/DM-348 tests: repo in a single-repository project is refused (invalid_input on edit, repo_not_allowed in validation)."
+            },
+            {
+              "criterionId": "s4",
+              "met": true,
+              "note": "DM-342 c11 (absolute path and branch per packet), c12-c14 and c15 (integration test): a sprint passes only with every touched repository's squashed increment verified and its checks reported."
+            },
+            {
+              "criterionId": "s5",
+              "met": true,
+              "note": "npm test passes (453 files, 8890 tests) with single-repository tests unchanged; reviewers checked single-repository packets, increments, report shape and titles on each ticket."
+            },
+            {
+              "criterionId": "s6",
+              "met": true,
+              "note": "DM-349 and DM-360 guides, the kickoff repository branches (DM-360), decision record 0003 and the runbook (DM-363), checked in DM-342 c5 and c19."
+            }
+          ],
+          "summary": "The epic delivered folders of repositories: set-up, a repository per ticket with the exact-folder-name prefix, per-repository branches, packets, increments and Definition of Done, the desktop surfaces, guides and docs, all landed on multi-repo-folders as 30416d1. Merging it into main is a separate step for a person."
+        },
+        "exitCriteria": [
+          {
+            "criterionId": "x1",
+            "met": true,
+            "note": "DM-342 c6 (set-up screen), c7 (Repositories card after Rescan), c2 (listings show nothing written into the parent or children)."
+          },
+          {
+            "criterionId": "x2",
+            "met": true,
+            "note": "DM-342 c3 (commands keep the prefix and refuse repo on the node), c8 (editor), c4 (validate_plan missing_repo/unknown_repo)."
+          },
+          {
+            "criterionId": "x3",
+            "met": true,
+            "note": "DM-342 c10 (repositoryBranches with per-repository start commits), c11 (packets with path and branch)."
+          },
+          {
+            "criterionId": "x4",
+            "met": true,
+            "note": "DM-342 c12, c13, c14 and the integration test c15: a merged repository or an unreported `<repo>: <check>` blocks the gate."
+          },
+          {
+            "criterionId": "x5",
+            "met": true,
+            "note": "DM-342 c16: a Claude Code orchestrator started from the built app claimed both tickets and each commit is on the epic branch only in its repository. Caveat: the workers committed in each repository's own checkout after the approval rule denied worktrees under /tmp."
+          },
+          {
+            "criterionId": "x6",
+            "met": true,
+            "note": "DM-342 c18 (Definition of Done grouped by repository, per-repository increments), c19 (docs and runbook links)."
+          },
+          {
+            "criterionId": "x7",
+            "met": true,
+            "note": "Full suite passes with single-repository tests unchanged; DM-361 and DM-362 were rejected once each for single-repository regressions and fixed; single-repository packets, increments, report shape and project.json round-trip are asserted unchanged."
+          }
+        ],
+        "failed": [],
+        "followUps": [
+          {
+            "body": "A person merges the epic branch (one squashed commit 30416d1) into main, renumbering the V12 migration if another epic landed one first.",
+            "title": "Merge multi-repo-folders into main"
+          }
+        ],
+        "retro": {
+          "actions": [
+            "Workers and reviewers on tickets that touch renderer imports of src/core or src/shared run `npm run build` (renderer bundle) as a targeted check.",
+            "Workers and reviewers run `npx vitest run src/mcp` whenever a tool, command schema or shared API type changes.",
+            "Tickets that add shared or core exports run `npm run deadcode` as a targeted check.",
+            "Orchestrator helpers persist claim tokens in a private file and long cells always set a timeout, so a kernel restart cannot lose a claim."
+          ],
+          "delivered": [
+            {
+              "demo": "Desktop: add a parent folder of Git repositories; the set-up screen offers Folder of repositories and lists them.",
+              "evidence": "docs/verification/DM-342-c6-parent-setup.png; src/core/repo/initialize.test.ts",
+              "ticket": "tk_01m68w2eevfh6hxrjp1p1qpd55"
+            },
+            {
+              "demo": "Folder page Repositories card; rename a child and press Rescan.",
+              "evidence": "docs/verification/DM-342-c7-rescan-beta-missing.png",
+              "ticket": "tk_01m68w2eevdqc3y140fmmce9v0"
+            },
+            {
+              "demo": "Ticket editor Repository select with the prefix label.",
+              "evidence": "docs/verification/DM-342-c8-editor-repository-select.png",
+              "ticket": "tk_01m68w2eevrn99q2wv57s1s1a1"
+            },
+            {
+              "demo": "Start run dialog in a folder of repositories asks for the epic branch.",
+              "evidence": "docs/verification/DM-342-c17-start-run-dialog.png",
+              "ticket": "tk_01m68w2eew9a25bh94vqq9kjg0"
+            },
+            {
+              "demo": "Acceptance node panel and checkpoint show checks and increments per repository.",
+              "evidence": "docs/verification/DM-342-c18-dod-by-repository.png",
+              "ticket": "tk_01m68w2eewkj36297tmtknt90t"
+            },
+            {
+              "demo": "npx vitest run src/integration/multiRepo.test.ts",
+              "evidence": "src/integration/multiRepo.test.ts; DM-342 c15",
+              "ticket": "tk_01m68w2eew0en5nsvgz7wk4rht"
+            },
+            {
+              "demo": "docs/runbooks/multi-repo-folders.md and docs/decisions/0003-multi-repo-folders.md",
+              "evidence": "DM-342 c19 link check",
+              "ticket": "tk_01m68w2eewr27g9s46gt1ma30q"
+            }
+          ],
+          "discoveries": [
+            {
+              "body": "useRepositories reads the project once per mount, so the sidebar row keeps the old count after Rescan until a reload (DM-342 c7, DM-342-c7-after-reload.png).",
+              "ticket": "tk_01m68w2eevdqc3y140fmmce9v0",
+              "title": "Refresh the sidebar repository count after Rescan"
+            },
+            {
+              "body": "The validation message lists repositories a rescan marked missing as choices (seen in DM-342 c4 and the UI run).",
+              "ticket": "tk_01m68w2eevhkm0zj67e34eag1c",
+              "title": "Leave missing repositories out of the missing_repo message"
+            },
+            {
+              "body": "Accepting an optional ticket for a repository the node's increments did not name makes increment_merged and definition_of_done unmet, and an accepted node cannot be claimed again in the run (DM-342 c13 scene D).",
+              "ticket": "tk_01m68w2eew20w1cskjbnky5zy2",
+              "title": "Handle an optional ticket accepted after the acceptance node in a folder of repositories"
+            },
+            {
+              "body": "touchedRepositories reads the epic's active or latest run, not the run whose gate or packet is computed (reviewers of DM-355 and DM-358).",
+              "ticket": "tk_01m68w2eevh32qzespfmw6xs2v",
+              "title": "Read touched repositories from the run being evaluated"
+            },
+            {
+              "body": "In the live run the orchestrator asked for worker and integration worktrees under /tmp; when denied, workers switched the child repository's own checkout to the epic branch (DM-342 c16).",
+              "ticket": "tk_01m68w2eewqm3qz9awecfrgy29",
+              "title": "Name a worktree location for agents in a folder of repositories"
+            },
+            {
+              "body": "initialize_repository with layout multi_repo on a folder already set up as one repository returns the existing project with no error saying the layout was ignored (DM-346 worker).",
+              "ticket": "tk_01m68w2eevfh6hxrjp1p1qpd55",
+              "title": "Refuse or explain multi_repo on an already set-up single repository"
+            }
+          ],
+          "leftovers": [],
+          "tierFit": [
+            {
+              "note": "Accepted on attempt 1 at the planned medium effort (medium, multi_step).",
+              "ticket": "tk_01m68w2eevfh6hxrjp1p1qpd55",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Accepted on attempt 1 at the planned medium effort (medium, multi_step).",
+              "ticket": "tk_01m68w2eevqc0kjxnxm6t9rcgc",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Accepted on attempt 1 at the planned low effort (small, routine).",
+              "ticket": "tk_01m68w2eevhkm0zj67e34eag1c",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Accepted on attempt 1 at the planned low effort (small, routine).",
+              "ticket": "tk_01m68w2eev0yytk74ney7jrar1",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Accepted on attempt 1 at the planned medium effort (medium, multi_step).",
+              "ticket": "tk_01m68w2eev1zhz01vc0d4r9573",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Accepted on attempt 1 at the planned low effort (small, routine).",
+              "ticket": "tk_01m68w2eevdqc3y140fmmce9v0",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Accepted on attempt 1 at the planned medium effort (medium, multi_step).",
+              "ticket": "tk_01m68w2eevrn99q2wv57s1s1a1",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Accepted on attempt 1 at the planned medium effort (small, multi_step).",
+              "ticket": "tk_01m68w2eevav0n4d8wt3tx6aqv",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Accepted on attempt 1 at the planned high effort (medium, deep).",
+              "ticket": "tk_01m68w2eevna1z93ez2fmwzfw2",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Accepted on attempt 1 at the planned medium effort (medium, multi_step).",
+              "ticket": "tk_01m68w2eevh32qzespfmw6xs2v",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Accepted on attempt 1 at the planned high effort (medium, deep).",
+              "ticket": "tk_01m68w2eewcrfw8k96bx5x75yc",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Accepted on attempt 1 at the planned medium effort (medium, multi_step).",
+              "ticket": "tk_01m68w2eew20w1cskjbnky5zy2",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Accepted on attempt 1 at the planned medium effort (medium, multi_step).",
+              "ticket": "tk_01m68w2eewk63d66xtzmva25da",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Accepted on attempt 1 at the planned medium effort (medium, multi_step).",
+              "ticket": "tk_01m68w2eew0en5nsvgz7wk4rht",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Accepted on attempt 1 at the planned medium effort (medium, multi_step).",
+              "ticket": "tk_01m68w2eewqm3qz9awecfrgy29",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Rejected 1 time(s) at low effort, accepted on attempt 2 at medium (escalated). The host runs every worker on one fixed model and effort, so the recorded effort is the planned step, not an applied setting. The rejection was a missed single-repository regression.",
+              "ticket": "tk_01m68w2eew9a25bh94vqq9kjg0",
+              "verdict": "undersized"
+            },
+            {
+              "note": "Rejected 1 time(s) at medium effort, accepted on attempt 2 at high (escalated). The host runs every worker on one fixed model and effort, so the recorded effort is the planned step, not an applied setting. The rejection was a missed single-repository regression.",
+              "ticket": "tk_01m68w2eewkj36297tmtknt90t",
+              "verdict": "undersized"
+            },
+            {
+              "note": "Accepted on attempt 1 at the planned low effort (small, routine).",
+              "ticket": "tk_01m68w2eewr27g9s46gt1ma30q",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Accepted on attempt 1 at the planned medium effort (acceptance, multi_step).",
+              "ticket": "tk_01m68w2edvmdw2h8063ch16s6q",
+              "verdict": "right_sized"
+            }
+          ],
+          "wentPoorly": [
+            "DM-345 used three attempts: the orchestrator read the claim token from the wrong response field twice and then lost the third token in a kernel restart; the third attempt was reconciled with resubmit after its lease expired.",
+            "Per-ticket checks never ran the build or deadcode, so the combined sweep found a renderer build break (DM-361 imported core/schemas, which pulls node:crypto) and ~140 deadcode findings (DM-348 imported portable.ts into graph.ts, which the renderer imports).",
+            "Coverage fell below the 95% branch threshold on the combined work (94.97%) and needed a tests-only fix before landing; a DM-356 test also timed out under coverage on a loaded machine.",
+            "DM-356 changed the submit_attempt schema without updating the pinned fingerprint in src/mcp/validation.test.ts; neither its worker nor its reviewer ran that file.",
+            "The live check (c16) showed agents committing in a child repository's own checkout when the worktree location they wanted was denied."
+          ],
+          "wentWell": [
+            "All 19 work tickets were accepted, 17 on their first attempt, with independent reviewers re-running each ticket's targeted checks.",
+            "Row checks caught a stale schema fingerprint (row 6) before the acceptance round, and merge conflicts (workspace.ts, testContext.ts) were additive and resolved at merge time.",
+            "Reviewers caught two single-repository regressions (DM-361 dialog gated on getProject; DM-362 report field shape) and each was fixed on the second attempt.",
+            "The acceptance round verified every covered item on scratch fixtures, including a live Claude Code orchestrator run from the built app."
+          ]
+        },
+        "risks": [
+          "Schema migration V12 (epics.repository_branches_json) is on multi-repo-folders; other open epics that add a migration need renumbering when they merge to main.",
+          "A folder of repositories has no branch guard; the guides forbid switching a child checkout, but the live run (c16) shows an agent will do it when its preferred worktree location is denied.",
+          "An optional ticket accepted after the acceptance node can leave the increment and Definition of Done gates unmet with no way to re-claim the node (seen in a scratch run, not fixed).",
+          "Coverage clears the 95% branch threshold by 0.18 points; the multi-repository code still has about 40 untested branches, most judged unreachable.",
+          "The orchestrator fixed integration problems on the sprint branch (build, deadcode, coverage, a schema fingerprint); they were not reviewed by a separate reviewer."
+        ],
+        "summary": "Sprint 1 (the whole epic, compressed from three sprints) delivered multi-repo folders end to end: set-up and rescan of a folder of repositories, a repository per ticket with a server-kept title prefix and validation, per-repository epic branches, packets, increments and Definition of Done, the desktop surfaces, guides, kickoff and docs. All 19 work tickets and the acceptance node DM-342 were accepted; two tickets needed a second attempt (DM-361, DM-362, both for single-repository regressions). The combined sweep found a renderer build break, a deadcode drift and a branch-coverage shortfall, fixed on the sprint branch before landing; the sprint landed as one squashed commit 30416d1 on multi-repo-folders. Every Definition of Done check passed. DM-345 used three attempts because the orchestrator lost two claim tokens before dispatch; no worker ran under them."
+      },
+      "contentHash": "sha256:2e10b58f0bf5189407460507ace1bcf6fe8a9d9cb3597937fea4f769d50b9a3a",
+      "createdAt": "2026-10-31T22:56:28.880Z",
+      "id": "rp_01m6a2vg6g857gp4cwm8dx7ywq",
+      "reportRevision": 2,
+      "sprintId": "sp_01m68w2edvv407084313gndc31",
+      "submittedBy": "Claude Code orchestrator (multi-repo folders)"
+    }
+  ],
   "revisionId": "rv_01m69rxk6atk24v4d9szqx45np",
   "rowChecks": [
     {
@@ -2903,6 +4143,6 @@
   "runId": "rn_01m69s053eg2rqvbke4sntm1b1",
   "skillVersion": "1.6.2",
   "startedAt": "2026-10-31T20:04:15.599Z",
-  "state": "running",
-  "updatedAt": "2026-10-31T20:04:15.599Z"
+  "state": "completed",
+  "updatedAt": "2026-10-31T22:59:33.046Z"
 }

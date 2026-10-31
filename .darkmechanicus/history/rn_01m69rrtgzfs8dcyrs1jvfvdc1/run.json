@@ -1135,8 +1135,13 @@
     },
     {
       "createdAt": "2026-10-31T22:22:33.664Z",
-      "decidedAt": null,
-      "decision": null,
+      "decidedAt": "2026-10-31T22:40:41.774Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "Accepted after an adversarial review (verdict correct, 0.85). Notes carried forward: DM-374's export intent must cover an interrupted first export with no sync_state row; DM-372 checks a rejected pulled profile with no row on the merged branch (needs DM-375).",
+        "outcome": "accepted",
+        "reasons": []
+      },
       "evidence": {
         "checks": [
           {
@@ -1159,22 +1164,22 @@
           {
             "criterionId": "c1",
             "met": true,
-            "note": "finalizer.test.ts 'flushOutbox of a pulled profile this machine has no sync_state row for (the first sync)' > 'refuses to write over a pulled profile this machine has no sync_state row for, leaving it byte-identical' (failed before: flushed 1); 'writes over a file with no sync_state row that already holds exactly the text to write' and 'writes as before when the tracked file is missing, even when the profile has no sync_state row' guard the allowed writes (these pass before and after: preservation guards, not new behavior)."
+            "note": "finalizer.ts unimportedProfile drops the no-row exemption; finalizer.test.ts refusal test leaves the file byte-identical; identical-text and missing-file still write. Reviewer reran on reverted copies: refusal test fails on base."
           },
           {
             "criterionId": "c2",
             "met": true,
-            "note": "profileImport.test.ts 'a pulled profile this machine saved its own of before it ever synced it': 'offers the choice, and keeping the tracked records imports the pulled profile' (getStorageStatus profileConflicts resolvable:true; Keep tracked imports source description, file unchanged, no waiting export) and 'writing local inserts the missing sync_state row and writes the local profile' (deletes the row after reconcile; Write local writes Local edit, row has exported_hash, conflict null). Both failed before the finalizer change (flush wrote, flushed 1); the Write-local test also failed with only the finalizer fixed and the old UPDATE-only keepLocal (verified by reverting profileConflict.ts)."
+            "note": "profileImport.test.ts first-sync tests: reconcile stores a resolvable conflict; Write local inserts the missing sync_state row (INSERT … ON CONFLICT) and writes; Keep tracked imports. Reviewer scratch T1/T2/T2b confirmed the real flows (with the reconcile's conflict row present, and with no reconcile)."
           },
           {
             "criterionId": "c3",
             "met": true,
-            "note": "finalizer.test.ts old 'writes as before when ... or the profile has no sync_state row' now only covers the missing file; the no-row pulled case asserts refusal. docs/architecture.md 'Unimported profiles are never overwritten' states profiles with no row are not exempt (first sync) and Write local adds the row."
+            "note": "The overwrite test now covers only a missing file; docs/architecture.md profile rule states the first-sync case and the row insert."
           },
           {
             "criterionId": "c4",
             "met": true,
-            "note": "Red run before implementation: 3 failed (finalizer refusal test, both profileImport first-sync tests) with 'expected { flushed: 1, failed: 0 } to match { flushed: 0, failed: 1 }'; Write-local insert test failed separately with keepLocal reverted. All 204 targeted tests pass after."
+            "note": "Typecheck, oxlint on touched files, targeted vitest (204 passed) by the worker; reviewer ran the full suite (8742 passed) and showed the 3 new refusal/first-sync tests fail without finalizer.ts and the Write local test fails without profileConflict.ts. The two allowed-write tests guard unchanged behaviour by design."
           }
         ],
         "notes": "No profileImport.ts change needed: scanProfiles already inserts the conflict row via ON CONFLICT. No exports added/removed, so deadcode not run. Ported red-team case 1 as firstSyncOverPulledProfile fixture."
@@ -1208,12 +1213,12 @@
       },
       "reconciledAt": null,
       "revisionId": "rv_01m6a0q906z5xpzcfe8zfyd9kp",
-      "state": "submitted",
+      "state": "accepted",
       "submittedAt": "2026-10-31T22:29:25.581Z",
       "supersededAt": null,
       "ticketContentHash": "sha256:35deac07c3909878dcf08e3bd3cf01600b290bae9a9e769193070c58ccf2b62f",
       "ticketId": "tk_01m69zre5wwbq31kj3xmvsperk",
-      "updatedAt": "2026-10-31T22:29:25.581Z",
+      "updatedAt": "2026-10-31T22:40:41.774Z",
       "worker": {
         "catalogRevision": "1",
         "effort": "medium",
@@ -1226,8 +1231,16 @@
     },
     {
       "createdAt": "2026-10-31T22:22:33.729Z",
-      "decidedAt": null,
-      "decision": null,
+      "decidedAt": "2026-10-31T22:42:49.426Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "Adversarial review verdict: correct-with-minor-issues (0.85); behaviour is right, c1-c4 met. Rejected for the untested guard condition and the now-misleading refusal text, both introduced by this ticket's change. Retry continues on branch linear-DM-375 with a new commit on top of fe5c03b.",
+        "outcome": "rejected",
+        "reasons": [
+          "Untested guard: the 'tracked file not yet imported' condition (importer.ts:650-671 holdsUnimportedHistory, profileImport.ts:150-161 unimportedProfile !== null) has no test. An adversarial review replaced both with true and every repo/services test still passed. Add a test where this machine's OWN rejected file (its own run.json over 8 MiB; its own profile over 256 KiB) has a waiting export and the reconcile records NO conflict, and the next flush writes.",
+          "Truthful text: the finalizer's refusal still says 'A tracked file the reconcile rejects must be fixed in Git first', but the Storage card now offers Write local for it; and the storeConflicts comment says unread records 'are not planned at all', no longer true for rejected runs. Make both say what now happens (small hunks; finalizer.ts is also being edited by DM-374)."
+        ]
+      },
       "evidence": {
         "checks": [
           {
@@ -1337,12 +1350,12 @@
       },
       "reconciledAt": null,
       "revisionId": "rv_01m6a0q906z5xpzcfe8zfyd9kp",
-      "state": "submitted",
+      "state": "rejected",
       "submittedAt": "2026-10-31T22:29:25.619Z",
       "supersededAt": null,
       "ticketContentHash": "sha256:512b0bb703a745122bdd3a0e9d7ed1e8c7c6cd14464f8f945a610bf3322fd52f",
       "ticketId": "tk_01m69zre5wv5wwffvz2mvew3yp",
-      "updatedAt": "2026-10-31T22:29:25.619Z",
+      "updatedAt": "2026-10-31T22:42:49.426Z",
       "worker": {
         "catalogRevision": "1",
         "effort": "medium",
@@ -1355,12 +1368,159 @@
     },
     {
       "createdAt": "2026-10-31T22:29:25.635Z",
+      "decidedAt": "2026-10-31T22:52:59.027Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "Adversarial review: correct-with-minor-issues (0.8). Drop/collision/lease logic verified with mutations; the approvals/retry-grant discovery needs no fix in DM-376 (approvals of dropped reports can never authorize; retry grants only loosen the limit) and stays a follow-up. Rejected for the signed-out pause lease case (c2) and one untested branch. Retry continues on linear-DM-376 with a new commit on top of e8173b7.",
+        "outcome": "rejected",
+        "reasons": [
+          "c2 not met for a run paused for sign-in: requireNoLiveLease (runConflict.ts:54-71) only checks lease_expires_at > now, but a run paused with pause_reason 'signed_out' keeps its claimed/running attempts leased regardless of lease time (expireLeases skips it, execution.ts:250-262; heartbeats still accepted, runs.test.ts:621; resume extends leases, runs.ts:439). Keep tracked then deletes a local-only attempt and strips a tracked attempt's claim (reviewer repro /tmp/dm-review/DM-376/head probe376.test.ts PROBE1/1b). Treat such attempts as live (e.g. join runs: lease_expires_at > now OR run paused with SIGNED_OUT pause reason) and make the refusal message right for that case (no past 'runs until' time).",
+          "Untested branch: deleting a dropped sprint report's search entry (importer.ts:526-532, doc_type 'report') — renaming the branch passes all 86 tests. Add a local-only report with a search entry to the drop test and assert it is gone."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npm run typecheck (node, web, fireguard tsconfigs) clean",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npx oxlint on all 10 touched source/test files: exit 0, after splitting a too-long describe (max-lines-per-function)",
+            "name": "oxlint (touched files)",
+            "status": "passed"
+          },
+          {
+            "detail": "importer.test.ts 86/86, StorageCard.test.tsx + shellMessages.test.ts (132 total with importer), profileImport.test.ts, shellActions.test.ts, commands/capabilities.test.ts, authz.test.ts: 148/148",
+            "name": "vitest targeted",
+            "status": "passed"
+          },
+          {
+            "detail": "With runConflict.ts reverted to HEAD (a9b0cea), 3 new keep-tracked tests fail: drop (record text differs, local-only A3/report/checkpoint/row check kept), same ticket+number (UNIQUE constraint failed: attempts.run_id, attempts.ticket_id, attempts.number), live lease (Expected a DomainError, but the action succeeded). Restored afterwards.",
+            "name": "tests fail without the change",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found (new export dropRunRowsTrackedLacks is used by runConflict.ts)",
+            "name": "npm run deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test (full suite)",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run build",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run lint (whole tree)",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "importer.test.ts 'drops the local-only attempt, report, checkpoint and row check of a finished run, so the run's rows equal the tracked record' asserts prettyJson(buildRunHistoryRecord(db, RUN)) === the pulled run.json byte for byte, only tracked ids remain in attempts/sprint_reports/checkpoints/row_checks, and A3's search entry is gone. 'same ticket and number' covers a local-only attempt that collides on a unique key. 'puts the dropped rows back when the import then refuses' shows the transaction rolls back the drop (dumpDomain, outbox and search_index unchanged)."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "'is refused, changing nothing, while an attempt of the run on this machine holds a live lease, and allowed once it expires': refused for a running local-only A3 and for a claimed tracked A1 with lease > now. The message names the attempt and run and says Write local. dumpDomain, outbox (still pending), sync_state and run.json are unchanged. Once the clock reaches lease_expires_at, Keep tracked succeeds and the rows equal the record."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "'writing local instead keeps every one of this machine's rows of the run and writes them all': attempts/reports/checkpoints/row_checks rows are unchanged, the run.json written equals the local record with every local row, and the search entry is kept. Docs updated: runConflict.ts module doc, recordConflict.ts module doc, api.ts resolveRecordConflict (epic, run, profile; what tracked and local do for each; the lease refusal), the authz.ts comment (epics, runs, profiles), StorageCard run titles (asserted in StorageCard.test.tsx), the shellMessages run toast (asserted in shellMessages.test.ts), and the docs/architecture.md run rule (what Keep tracked drops, what stays, the lease refusal, Write local keeps every row). The epic and profile rules in architecture.md already described their choices and are unchanged."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "All listed tests pass. With runConflict.ts reverted, the drop test, the collision test and the lease test fail. The Write local test and the rollback test pass both before and after: Write local was not changed and the rollback test guards the new drop, so neither can fail before the change. The renderer copy assertions fail against the old strings."
+          }
+        ],
+        "notes": "The rows are deleted before the import, not after, inside the same transaction; see the summary for why (unique-key collisions). The live-lease predicate is state IN LEASED_ATTEMPT_STATES AND lease_expires_at > clock.nowIso(). A claimed or running attempt with a NULL or expired lease does not block. A submitted attempt holds no lease and does not block, though a local-only submitted attempt is dropped. Rows the run record never carries stay: retry_grants, approvals (including any approval linked to a dropped checkpoint), events, outbox, sync_state. A local approval that pointed at a dropped local-only checkpoint therefore becomes an orphan text reference with no foreign key. Out of scope, recorded below.\nDiscoveries:\n- title: Decide what Keep tracked does with a run's machine-local approvals and retry grants\n  reason: dropRunRowsTrackedLacks deletes only what the run record carries (attempts, reports, checkpoints, row checks). approvals.run_id, checkpoints.approval_id and retry_grants.run_id are machine-local and not exported (portable.ts buildRunHistoryRecord), so after Keep tracked a pending approval or a retry grant can refer to a checkpoint or attempt that no longer exists here. No foreign key breaks, because neither column is declared as one in migrations.ts, but the run's gates may still read them.\n  ticket: DM-376"
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m6a19z03k61ye5rsbmzn43jd",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Keep tracked lease guard and drop",
+            "location": "src/core/services/runConflict.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "dropRunRowsTrackedLacks",
+            "location": "src/core/repo/importer.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Tests",
+            "location": "src/core/repo/importer.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "linear-DM-376",
+        "changedFiles": [
+          "docs/architecture.md",
+          "src/core/authz.ts",
+          "src/core/repo/importer.test.ts",
+          "src/core/repo/importer.ts",
+          "src/core/services/recordConflict.ts",
+          "src/core/services/runConflict.ts",
+          "src/renderer/src/app/shellMessages.test.ts",
+          "src/renderer/src/app/shellMessages.ts",
+          "src/renderer/src/home/StorageCard.test.tsx",
+          "src/renderer/src/home/StorageCard.tsx",
+          "src/shared/domain/api.ts"
+        ],
+        "commits": [
+          "e8173b7cce795115d12b3f25ea4e1a76fe6201d9"
+        ],
+        "summary": "Keep tracked for a run now keeps only the other machine's run. Inside the keepTracked transaction, after requireConflict, a new lease guard refuses (conflict, nothing changed) while any attempt of the run on this machine is claimed/running with lease_expires_at > now, tracked or local-only, because the drop deletes local-only attempts and the import (upsertAttempt) takes the lease of tracked ones. The message names the attempt and run and says to wait for it to finish or expire, or choose Write local. Then the new importer.dropRunRowsTrackedLacks reads and validates the tracked run.json, the same way readRunFiles does, and deletes this machine's attempts, sprint_reports, checkpoints and row_checks of the run whose ids the record lacks, children first (reverse of RUN_CHILD_TABLES), plus the search_index attempt/report entries of the dropped rows. After that the waiting exports are marked done and the tracked history is imported. A rejected file becomes the existing 'tracked history was not imported' conflict. After the import, a hash check (matchesSync with the hash that was read) refuses if the file changed in between. A throw rolls back the whole transaction. Design note for the reviewer: the ticket says 'after the import', but the rows are deleted BEFORE the reconcile in the same transaction. Deleting after fails whenever a local-only row shares a unique key with a tracked one (attempts UNIQUE(run_id,ticket_id,number), the one-open-attempt index, row_checks UNIQUE(run_id,number), sprint_reports UNIQUE(run_id,sprint_id,report_revision)). The test 'same ticket and number' shows this: the pre-change code fails with 'UNIQUE constraint failed: attempts.run_id, attempts.ticket_id, attempts.number'. The end state is the one the ticket asks for: after the import, the run's rows equal the tracked record. retry_grants, approvals, events and outbox are not carried by the run record, so they are not deleted. Docs and copy updated: runConflict.ts and recordConflict.ts module docs; the api.ts resolveRecordConflict doc (now names epics, runs and profiles and what each choice does); the authz.ts comment (epics, runs, profiles); the Storage card run button titles; the run toast in shellMessages.ts; the docs/architecture.md run rule."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6a0q906z5xpzcfe8zfyd9kp",
+      "state": "rejected",
+      "submittedAt": "2026-10-31T22:42:21.010Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:074f0c9b6f80a08636fd7c206a4f65c390bc0f27e6dc3208caddff6921fe12ed",
+      "ticketId": "tk_01m69zre5w4rddzrm0txqbf8qr",
+      "updatedAt": "2026-10-31T22:52:59.027Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "high",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-376)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (high). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'high' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T22:40:49.512Z",
       "decidedAt": null,
       "decision": null,
       "evidence": null,
       "failure": null,
       "fencingToken": 1,
-      "id": "at_01m6a19z03k61ye5rsbmzn43jd",
+      "id": "at_01m6a1ytv825bc3ap1x6szzxtp",
       "kind": "work",
       "number": 1,
       "outputs": null,
@@ -1369,9 +1529,303 @@
       "state": "running",
       "submittedAt": null,
       "supersededAt": null,
+      "ticketContentHash": "sha256:5c90bdd9f6cbf0b87185d53b6afed90d874a0602d8d96001df6447175e381daf",
+      "ticketId": "tk_01m69zre5wr7vq2demde8q01zy",
+      "updatedAt": "2026-10-31T22:58:33.819Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "high",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-374)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (high). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'high' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T22:42:49.461Z",
+      "decidedAt": "2026-10-31T22:49:16.525Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "Attempt 2 accepted after a second adversarial pass (correct, 0.9). Attempt 1 was rejected for an untested guard and stale refusal text; both fixed in d290ff6. Out-of-scope edge for the report: a rejected run whose epic is also rejected gets no card choice although the refusal mentions Write local (planRejectedRuns skips runs of rejected epics, as planRuns does).",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "attempt 2: exit 0",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "attempt 2: importer.ts, finalizer.ts, importer.test.ts, profileImport.test.ts, exit 0. An earlier run flagged max-lines-per-function on the two test describes; I fixed it by moving the new tests into their own describes.",
+            "name": "npx oxlint (touched files)",
+            "status": "passed"
+          },
+          {
+            "detail": "attempt 2: 4 files, 190 tests passed",
+            "name": "npx vitest run importer.test.ts profileImport.test.ts storage.test.ts finalizer.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "With holdsUnimportedHistory returning true and the profile check set to `if (true)`, importer.test.ts and profileImport.test.ts showed 2 failed | 106 passed. The failures were the two new own-rejected-record tests ('expected [ {…} ] to deeply equal []'). The guards were restored afterwards.",
+            "name": "guard mutation (attempt 2)",
+            "status": "passed"
+          },
+          {
+            "detail": "Without the implementation, all 7 attempt-1 tests failed (7 failed | 99 skipped).",
+            "name": "new tests before the change (attempt 1)",
+            "status": "passed"
+          },
+          {
+            "detail": "no exports added, removed or moved",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run lint / npm test / build / fireguard",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "importer.ts planRejectedRuns records the 'Tracked history for run …' conflict under the run's local epic for a rejected pulled run.json with a waiting run_history export and an unimported file; importer.test.ts asserts it and Storage marks it resolvable. Reviewer probes confirmed."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "profileImport.ts scanProfiles rejection path records the profile conflict for a rejected pulled profile (over 256 KiB) with a waiting export; profileImport.test.ts asserts the resolvable Storage row."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Write local writes this machine's record (including a local run over 8 MiB); Keep tracked refuses naming the rejection and changes nothing; no waiting export means no conflict, and (attempt 2) this machine's own rejected file with a waiting export gets no conflict and flushes. Run/profile refusal text now says Write local is offered."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Worker: typecheck, oxlint touched files, vitest importer/profileImport/storage/finalizer (190 passed). Reviewer: 7 new attempt-1 tests fail on the old code; each attempt-2 test fails when its guard is replaced with true; core/services + repo suites 1251 tests pass on HEAD."
+          }
+        ],
+        "notes": "The finalizer hunks are only the two refusal string lines, in exportRunHistory and exportProfile, which DM-374 is also editing. I left the epic refusal text (requireWritableRecords: 'Tracked files the reconcile rejects must be fixed in Git first.') unchanged. A rejected epic record gets no planned conflict, so the Storage card offers no Write local for it, and that text stays true. docs/verification/DM-364-ui-page.txt quotes the old profile text as a recorded capture, so I did not change it. Red team: no duplicate conflicts (a rejected run is never in scan.runs). A run or profile with no local row or sync_state row gets no conflict. Invalid names and link paths are caught and skipped. Keep tracked rolls back with the rejection message. This machine's own oversized file gets no conflict, and its export writes."
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m6a22fznd7b4e237ay7vwg2z",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Rejected-run conflict planning",
+            "location": "src/core/repo/importer.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Rejected-profile conflict",
+            "location": "src/core/repo/profileImport.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Refusal texts",
+            "location": "src/core/repo/finalizer.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Run tests",
+            "location": "src/core/repo/importer.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Profile tests",
+            "location": "src/core/repo/profileImport.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "linear-DM-375",
+        "changedFiles": [
+          "docs/architecture.md",
+          "src/core/repo/finalizer.ts",
+          "src/core/repo/importer.ts",
+          "src/core/repo/importer.test.ts",
+          "src/core/repo/profileImport.ts",
+          "src/core/repo/profileImport.test.ts"
+        ],
+        "commits": [
+          "fe5c03b12b2d42270b848860d21e8709d33cc702",
+          "d290ff6e83eb682e325a079572a7e61fdcd06cee"
+        ],
+        "summary": "A tracked run.json or profile that the reconcile rejects now gets a conflict when its local export waits over a file this machine has not imported. Rejections include a file over the 8 MiB run record limit or the 256 KiB profile limit, a newer format, and bad JSON.\n\nRuns: the new planRejectedRuns in importer.ts covers a rejected run that exists locally, has a waiting run_history export, and whose tracked file unimportedRunHistory reports (a throwing path counts as nothing to lose). The run's conflict is filed under its local epic with the 'Tracked history for run …' prefix, so DM-365's storeConflicts clear/keep rules apply. A run whose epic was skipped for its own conflict or a transfer hold gets nothing.\n\nProfiles: scanProfiles' rejection path records the usual profile conflict when hasPendingProfileChanges holds and unimportedProfile is non-null.\n\nstorage.ts needed no change: it already marks conflicts resolvable under the choice's own rule. Write local writes this machine's record, and Keep tracked refuses with the rejection text.\n\nAttempt 2 makes two fixes the review asked for. (1) New tests cover the unimported-file guard: this machine's own rejected run.json over 8 MiB, or own profile over 256 KiB, with a new waiting export gets no conflict, and the next flush writes it. Both tests fail when the guard is replaced with `true`. (2) The run and profile refusal texts in finalizer.ts now say that a rejected tracked file can still be replaced with write local, or fixed in Git first to keep the tracked side. The storeConflicts comment no longer says unread records are 'not planned at all'."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6a0q906z5xpzcfe8zfyd9kp",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T22:46:11.462Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:512b0bb703a745122bdd3a0e9d7ed1e8c7c6cd14464f8f945a610bf3322fd52f",
+      "ticketId": "tk_01m69zre5wv5wwffvz2mvew3yp",
+      "updatedAt": "2026-10-31T22:49:16.525Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "high",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-375)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (high). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'high' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T22:52:59.077Z",
+      "decidedAt": "2026-10-31T22:59:51.905Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "Attempt 2 accepted after two adversarial passes (final verdict correct). Attempt 1 rejected for the signed-out pause lease case and an untested search-entry branch; fixed in 1b53b9b with a shared isOverdue rule. Follow-up (discovery): Keep tracked leaves machine-local approvals and retry grants pointing at dropped rows; reviewer showed approvals can never authorize a tracked report and grants only loosen the retry limit.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npm run typecheck (node, web and fireguard tsconfigs) passed, exit 0, at 1b53b9b",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Attempt 2: npx oxlint on execution.ts, runConflict.ts, importer.test.ts and api.ts exit 0. Attempt 1: exit 0 on all 10 files it touched.",
+            "name": "oxlint (touched files)",
+            "status": "passed"
+          },
+          {
+            "detail": "Run 1 (importer.test.ts, runs, execution, checkpoints and attempts services tests, src/core/commands): 16 files, 363 passed; importer.test.ts alone 87/87. Run 2 (every other test importing services/execution: legacyRecords, attemptsIncrement, increments, attempts.review, rowChecks, adoptionFreshBudget, mcp/tools/execution; plus the StorageCard and shellMessages tests): 10 files, 236 passed.",
+            "name": "vitest targeted",
+            "status": "passed"
+          },
+          {
+            "detail": "Attempt 2: with runConflict.ts at e8173b7, the new sign-in test fails ('Expected a DomainError, but the action succeeded'). With the importer.ts report branch disabled (doc_type 'report' renamed to 'reportX'), the drop test fails (expected one report search entry, got two). Both files were restored. Attempt 1: with runConflict.ts at a9b0cea, the drop, shared-key and live-lease tests fail.",
+            "name": "tests fail without the change",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found (liveLeases is used by runConflict.ts; LeaseRow is not exported)",
+            "name": "npm run deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test (full suite)",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run build",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run lint (whole tree)",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "runConflict.ts keepTracked calls importer.ts dropRunRowsTrackedLacks, deleting this machine's attempts, sprint reports, checkpoints and row checks of the run the tracked record lacks (plus their search entries) before the import, in one transaction. importer.test.ts compares buildRunHistoryRecord byte for byte with the tracked run.json afterwards; the collision test covers shared unique keys. Reviewer mutations (guard off, search delete off, drop after import) are each caught."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Refused, changing nothing, while any attempt of the run on this machine holds a live lease, using execution.ts liveLeases (same isOverdue rule as expireLeases), including a run paused for sign-in whose lease time passed (attempt 2). Reviewer probes PROBE1/1b/1c refuse; 120-case matrix shows expireLeases unchanged and liveLeases its exact complement."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Write local keeps every local row (test). runConflict.ts and recordConflict.ts module docs, api.ts resolveRecordConflict doc (epics, runs, profiles), authz.ts comment, StorageCard tooltips, the run toast and docs/architecture.md describe each choice, including the sign-in refusal."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Worker: typecheck, oxlint touched files, deadcode, vitest importer 87/87 plus services/commands 363 and execution importers 236. New drop/collision/lease/sign-in/report-search tests fail on the older code (verified by worker and reviewer); reviewer ran 538 related tests on HEAD, all passing."
+          }
+        ],
+        "notes": "Attempt 2 fixes the review's findings: the sign-in pause gap in c2, and the untested report search-entry branch. Behaviour note: the guard now treats a lease ending exactly now, and a claimed/running attempt with a NULL lease, as held. This matches expireLeases, which expires neither.\nDiscoveries:\n- title: Decide what Keep tracked does with a run's machine-local approvals and retry grants\n  reason: dropRunRowsTrackedLacks deletes only what the run record carries (attempts, reports, checkpoints, row checks). approvals.run_id, checkpoints.approval_id and retry_grants.run_id are machine-local and not exported (portable.ts buildRunHistoryRecord). After Keep tracked, a pending approval or a retry grant can therefore refer to a checkpoint or attempt that no longer exists here. No foreign key breaks, because migrations.ts declares neither column as one, but the run's gates may still read them.\n  ticket: DM-376"
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m6a2n3a5ktnhzgraqeyjpxvw",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Keep tracked lease guard and drop",
+            "location": "src/core/services/runConflict.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Shared lease rule (liveLeases, isOverdue, expireLeases)",
+            "location": "src/core/services/execution.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "dropRunRowsTrackedLacks",
+            "location": "src/core/repo/importer.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Tests",
+            "location": "src/core/repo/importer.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "linear-DM-376",
+        "changedFiles": [
+          "docs/architecture.md",
+          "src/core/authz.ts",
+          "src/core/repo/importer.test.ts",
+          "src/core/repo/importer.ts",
+          "src/core/services/execution.ts",
+          "src/core/services/recordConflict.ts",
+          "src/core/services/runConflict.ts",
+          "src/renderer/src/app/shellMessages.test.ts",
+          "src/renderer/src/app/shellMessages.ts",
+          "src/renderer/src/home/StorageCard.test.tsx",
+          "src/renderer/src/home/StorageCard.tsx",
+          "src/shared/domain/api.ts"
+        ],
+        "commits": [
+          "e8173b7cce795115d12b3f25ea4e1a76fe6201d9",
+          "1b53b9bbb81fae9ac5073f4d754948cd9ffbfe4d"
+        ],
+        "summary": "Attempt 2 builds on attempt 1 (e8173b7) with a new commit, 1b53b9b, that fixes the review's two findings.\n(1) The Keep tracked lease guard now uses the same rule as lease expiry. In execution.ts the claimed/running query became leasedAttempts, which also returns whether the run is paused for sign-in (state 'paused' and pause_reason SIGNED_OUT_PAUSE_REASON). The overdue rule became isOverdue: not paused for sign-in, has a lease, and the lease ended before now. expireLeases expires the attempts isOverdue picks, with the same behaviour as before. The new export liveLeases(ctx, runId) returns the claimed/running attempts that are not overdue. runConflict.requireNoLiveLease uses liveLeases, so it now also refuses on a run paused for sign-in whatever its lease time. That case's message says the run is paused for sign-in and its workers keep their claims until it resumes, and asks to resume the run and wait, or choose Write local; it prints no 'runs until' time. Because the guard now follows isOverdue exactly, a lease that ends exactly now still counts as held (isBefore is strict), and a claimed/running attempt with a NULL lease counts as held too.\n(2) The drop test now gives the local-only report a search entry and asserts that only the tracked report's entry is left.\nThe runConflict module doc, the api.ts resolveRecordConflict doc and the docs/architecture.md run rule now describe the sign-in case.\nUnchanged from attempt 1: Keep tracked deletes this machine's rows of the run the tracked run.json lacks (attempts, sprint reports, checkpoints, row checks and their search entries, children first) BEFORE the reconcile, in the same transaction. That order avoids unique-key collisions; after the import the run's rows equal the tracked record. Any refusal rolls everything back. Write local keeps every local row."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6a0q906z5xpzcfe8zfyd9kp",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T22:57:00.704Z",
+      "supersededAt": null,
       "ticketContentHash": "sha256:074f0c9b6f80a08636fd7c206a4f65c390bc0f27e6dc3208caddff6921fe12ed",
       "ticketId": "tk_01m69zre5w4rddzrm0txqbf8qr",
-      "updatedAt": "2026-10-31T22:30:33.786Z",
+      "updatedAt": "2026-10-31T22:59:51.905Z",
       "worker": {
         "catalogRevision": "1",
         "effort": "high",
