@@ -20,6 +20,7 @@ import {
   pick,
   prerequisiteOptions,
   removeCriterion,
+  repositoryOptions,
   splitList,
   sprintOptions,
   toggleValue,
@@ -50,6 +51,8 @@ describe('ticket form from the draft bundle', () => {
   it('copies every editable field', () => {
     expect(form()).toEqual({
       title: 'Transactional bundle import',
+      repo: '',
+      acceptance: false,
       body: '`save_plan_draft` accepts one bundle of tickets.',
       criteria: [
         { key: 'c1', id: 'c1', text: 'Bundle with client-local refs returns stable IDs' },
@@ -423,10 +426,10 @@ describe('ticket form membership and dependencies', () => {
 
 describe('ticket form helpers', () => {
   it('validates the title and token estimate', () => {
-    expect(formErrors(form())).toBe(null)
-    expect(formErrors({ ...form(), title: '   ' })).toBe('Title is required.')
-    expect(formErrors({ ...form(), tokens: '12k' })).toBe('Estimated tokens must be a whole number.')
-    expect(formErrors({ ...form(), tokens: '' })).toBe(null)
+    expect(formErrors(form(), null)).toBe(null)
+    expect(formErrors({ ...form(), title: '   ' }, null)).toBe('Title is required.')
+    expect(formErrors({ ...form(), tokens: '12k' }, null)).toBe('Estimated tokens must be a whole number.')
+    expect(formErrors({ ...form(), tokens: '' }, null)).toBe(null)
   })
 
   it('edits, removes and moves criteria within bounds', () => {
@@ -626,5 +629,82 @@ describe('pick', () => {
   it('returns the matching option or the fallback', () => {
     expect(pick(['low', 'high'] as const, 'high', 'low')).toBe('high')
     expect(pick(['low', 'high'] as const, 'nope', 'low')).toBe('low')
+  })
+})
+
+const REPOSITORIES = [
+    { name: 'alpha', missing: false },
+    { name: 'beta', missing: false },
+    { name: 'gone', missing: true }
+  ]
+
+  function repoBundle(repo: string | undefined, title: string, kind?: 'acceptance'): typeof BUNDLE {
+    const tickets = BUNDLE.tickets.map((item) =>
+      item.id === 'tk_202' ? { ...item, title, ...(repo === undefined ? {} : { repo }), ...(kind === undefined ? {} : { kind }) } : item
+    )
+    return { ...BUNDLE, tickets }
+  }
+
+  function loaded(bundle: typeof BUNDLE): TicketForm {
+    const value = formFromBundle(bundle, 'tk_202')
+    if (!value) {
+      throw new Error('missing ticket')
+    }
+    return value
+  }
+
+describe('ticket form repository title', () => {
+  it('edits the description without the server-kept prefix and sends only the description back', () => {
+    const bundle = repoBundle('alpha', 'alpha - Add refund endpoint')
+    const value = loaded(bundle)
+    expect([value.repo, value.title]).toEqual(['alpha', 'Add refund endpoint'])
+    expect(formToOps(value, bundle, 'tk_202')).toEqual([])
+    expect(formToOps({ ...value, title: 'Add refunds' }, bundle, 'tk_202')).toEqual([
+      { op: 'update_ticket', ticket: 'tk_202', patch: { title: 'Add refunds' } }
+    ])
+  })
+
+  it('sends the changed repository with the description, and loads the re-prefixed title back', () => {
+    const bundle = repoBundle('alpha', 'alpha - Add refund endpoint')
+    expect(formToOps({ ...loaded(bundle), repo: 'beta' }, bundle, 'tk_202')).toEqual([
+      { op: 'update_ticket', ticket: 'tk_202', patch: { repo: 'beta', title: 'Add refund endpoint' } }
+    ])
+    const stored = loaded(repoBundle('beta', 'beta - Add refund endpoint'))
+    expect([stored.repo, stored.title]).toEqual(['beta', 'Add refund endpoint'])
+    const unset = repoBundle(undefined, 'New ticket')
+    expect(formToOps({ ...loaded(unset), repo: 'alpha' }, unset, 'tk_202')).toEqual([
+      { op: 'update_ticket', ticket: 'tk_202', patch: { repo: 'alpha', title: 'New ticket' } }
+    ])
+  })
+
+})
+
+describe('ticket form repository choice', () => {
+  it('asks for a repository for a work ticket of a folder of repositories', () => {
+    const unset = loaded(repoBundle(undefined, 'New ticket'))
+    expect(formErrors(unset, REPOSITORIES)).toBe('Choose a repository.')
+    expect(formErrors({ ...unset, repo: 'alpha' }, REPOSITORIES)).toBe(null)
+    expect(formErrors(unset, null)).toBe(null)
+  })
+
+  it('offers present repositories, keeps a missing one only while it is the current choice', () => {
+    const unset = loaded(repoBundle(undefined, 'New ticket'))
+    expect(repositoryOptions(unset, REPOSITORIES)).toEqual([
+      { name: 'alpha', label: 'alpha' },
+      { name: 'beta', label: 'beta' }
+    ])
+    expect(repositoryOptions({ ...unset, repo: 'gone' }, REPOSITORIES)?.map((item) => item.label)).toEqual([
+      'alpha',
+      'beta',
+      'gone (missing)'
+    ])
+  })
+
+  it('has no repository field for a single-repository project or an acceptance node', () => {
+    expect(repositoryOptions(form(), null)).toBe(null)
+    const node = loaded(repoBundle(undefined, 'Sprint 2 acceptance', 'acceptance'))
+    expect(node.acceptance).toBe(true)
+    expect(repositoryOptions(node, REPOSITORIES)).toBe(null)
+    expect(formErrors(node, REPOSITORIES)).toBe(null)
   })
 })

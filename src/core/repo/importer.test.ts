@@ -177,6 +177,43 @@ describe('reconcileRepository and outcome.transfer', () => {
   })
 })
 
+describe('reconcileRepository and a folder epic with repository branches and provenance', () => {
+  it("imports each repository's bound branch and the provenance, and exports them back byte for byte", () => {
+    const source = createRepoEnv({ root: '/source' })
+    initProject(source)
+    saveRevision(source, { epicId: EPIC, revisionId: R1, number: 1, bundle: BUNDLE_1 })
+    const branch = { repository: null, name: 'epic/multi', startCommit: null }
+    const repositoryBranches = [
+      { repository: 'api', name: 'epic/multi', startCommit: 'a'.repeat(40) },
+      { repository: 'web', name: 'epic/multi', startCommit: null }
+    ]
+    const provenance = { sourceEpicId: idOf('epic', 7), note: 'Split from the platform epic' }
+    source.db.run(
+      'UPDATE epics SET branch_json = ?, repository_branches_json = ?, provenance_json = ? WHERE id = ?',
+      JSON.stringify(branch),
+      JSON.stringify(repositoryBranches),
+      JSON.stringify(provenance),
+      EPIC
+    )
+    insertOutbox(source.db, { kind: 'epic_state', epicId: EPIC })
+    flush(source)
+    const exported = source.fs.get(ownedPaths(source.layout).epicStateFile(EPIC)) ?? ''
+    const state = JSON.parse(exported) as { repositoryBranches: unknown; generation: number; updatedAt: string }
+    expect(state.repositoryBranches).toEqual(repositoryBranches)
+
+    const target = cloneOf(source)
+    expect(reconcileRepository(importerDeps(target, createStubGit('main')))).toMatchObject({ imported: [EPIC], rejected: [] })
+    const row = target.db.get<{ branch_json: string; repository_branches_json: string; provenance_json: string }>(
+      'SELECT branch_json, repository_branches_json, provenance_json FROM epics WHERE id = ?',
+      EPIC
+    )
+    expect(JSON.parse(row?.branch_json ?? 'null')).toEqual(branch)
+    expect(JSON.parse(row?.repository_branches_json ?? 'null')).toEqual(repositoryBranches)
+    expect(JSON.parse(row?.provenance_json ?? 'null')).toEqual(provenance)
+    expect(prettyJson(buildEpicStateRecord(target.db, EPIC, { generation: state.generation, updatedAt: state.updatedAt }))).toBe(exported)
+  })
+})
+
 describe('reconcileRepository bookkeeping', () => {
   it('records sync hashes, project identity, the branch, and a reconciled event', () => {
     const source = buildSource()

@@ -25,6 +25,10 @@ You decide whether a submitted attempt meets its ticket. Acceptance completes th
 - Check scope: are the changed files consistent with the ticket? Unrelated edits, missing expected artifacts, and secrets or credentials in the diff are findings.
 - If you cannot verify something (no way to run it, missing access), say so. Never accept on assumption.
 
+### Folders of repositories
+
+When the ticket targets a repository of a folder of repositories (its `repo`, and the packet's `repository`), read the diff against the sprint integration branch in that repository, not in the folder. On an acceptance node expect one increment verdict per touched repository (`get_run` lists each with its `repo`), and one set of Definition of Done checks per touched repository, each reported as `<repo>: <check>`. A touched repository with no passing verdict, or with a check missing, is a reason to reject.
+
 ## Decide
 
 - Accept only when every acceptance criterion is met, required expected artifacts exist, and the checks that matter passed. Call `accept_attempt` with `criteria` (one entry per criterion: `criterionId`, `met`, and a `note` saying what you checked) and short `notes`.

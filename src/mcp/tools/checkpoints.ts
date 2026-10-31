@@ -25,7 +25,7 @@ const CHECKPOINT_TOOLS = [
   defineTool({
     name: 'get_sprint_report',
     description:
-      'Returns the latest submitted report for the run\'s active sprint, or for sprintId when given, with the increment that sprint\'s acceptance node named (increment: the commit, its parent, and whether verification passed; absent when none was named). The report holds its retro (null when it has none, as for every report saved before retros) and tierFacts, which the server computes from the attempts and the reporter does not write: for each ticket of the sprint its size, planned level and effort, each attempt\'s model and effort, the attempt and rejection counts, and whether it escalated (a later attempt used a higher model tier or a higher effort than an earlier one). Data is null if none was submitted.',
+      'Returns the latest submitted report for the run\'s active sprint, or for sprintId when given, with the increment that sprint\'s acceptance node named (increment: the commit, its parent, and whether verification passed; absent when none was named; in a folder of repositories increments instead: one per repository, in name order, and increment is absent). The report holds its retro (null when it has none, as for every report saved before retros) and tierFacts, which the server computes from the attempts and the reporter does not write: for each ticket of the sprint its size, planned level and effort, each attempt\'s model and effort, the attempt and rejection counts, and whether it escalated (a later attempt used a higher model tier or a higher effort than an earlier one). Data is null if none was submitted.',
     kind: 'read',
     input: { runId, sprintId: sprintId.optional() },
     run: (api, input) => api.getSprintReport(input)

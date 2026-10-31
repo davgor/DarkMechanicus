@@ -5,6 +5,7 @@ import { FakeDm } from '../__mocks__/fakeDm'
 import { boardImport, boardOpenEpic, EPIC_A, epicDetail, epicSummary, folderView, storageStatus } from '../__mocks__/fixtures'
 import { ManualScheduler } from '../__mocks__/manualScheduler'
 import { settle } from '../__mocks__/settle'
+import { projectView } from '../epic/__mocks__/fixtures'
 import type { CreateEpicInput } from '../../../shared/domain/api'
 import type { BoardImportView, EpicDetailView } from '../../../shared/domain/views'
 import { ToastProvider } from '../app/toasts'
@@ -168,5 +169,121 @@ describe('FolderHome old-style board', () => {
     expect(calls.boardImports).toBe(1)
     fireEvent.click(within(card).getByRole('button', { name: 'Open epic' }))
     expect(calls.opened).toEqual([EPIC_A])
+  })
+})
+
+describe('FolderHome repositories', () => {
+  it('shows no repositories card for a single repository', async () => {
+    dm.responses.getProject = projectView({ repositories: null })
+    renderHome()
+    await settle()
+    expect(dm.callsOf('getProject').map((call) => call.folder)).toEqual(['/a'])
+    expect(screen.queryByRole('region', { name: 'Repositories' })).toBeNull()
+  })
+
+  it('lists each repository with its path and tags the missing ones', async () => {
+    dm.responses.getProject = projectView({
+      repositories: [
+        { name: 'api', missing: false },
+        { name: 'web app', missing: true }
+      ]
+    })
+    renderHome()
+    await settle()
+    const card = screen.getByRole('region', { name: 'Repositories' })
+    const rows = within(card).getAllByRole('listitem')
+    expect(rows.map((row) => row.textContent)).toEqual(['api/a/apiNo Definition of Done', 'web app/a/web appNo Definition of DoneMissing'])
+    expect(within(rows[0]).queryByText('Missing')).toBeNull()
+    expect(within(rows[1]).getByText('Missing')).toBeTruthy()
+  })
+
+  it("shows each repository's number of Definition of Done checks", async () => {
+    const check = { name: 'test', command: 'npm test', description: '' }
+    dm.responses.getProject = projectView({
+      repositories: [
+        { name: 'api', missing: false, definitionOfDone: [check, { ...check, name: 'lint' }] },
+        { name: 'cli', missing: false, definitionOfDone: [check] },
+        { name: 'web', missing: false }
+      ]
+    })
+    renderHome()
+    await settle()
+    const rows = within(screen.getByRole('region', { name: 'Repositories' })).getAllByRole('listitem')
+    expect(rows.map((row) => within(row).getByText(/Definition of Done/).textContent)).toEqual([
+      '2 Definition of Done checks',
+      '1 Definition of Done check',
+      'No Definition of Done'
+    ])
+  })
+
+  it('shows a read error in the card when the project cannot be read', async () => {
+    dm.failures.getProject = { code: 'internal', message: 'The project file is unreadable.' }
+    renderHome()
+    await settle()
+    const card = screen.getByRole('region', { name: 'Repositories' })
+    expect(within(card).getByText('Could not read the repositories.')).toBeTruthy()
+    expect(within(card).queryByRole('button', { name: 'Rescan' })).toBeNull()
+  })
+})
+
+describe('FolderHome repository rescan', () => {
+  it('rescans, reports what was added and went missing, and shows the new list', async () => {
+    dm.responses.getProject = projectView({ repositories: [{ name: 'api', missing: false }] })
+    dm.responses.rescanRepositories = [
+      { name: 'api', missing: true },
+      { name: 'worker', missing: false }
+    ]
+    renderHome()
+    await settle()
+    const card = screen.getByRole('region', { name: 'Repositories' })
+    fireEvent.click(within(card).getByRole('button', { name: 'Rescan' }))
+    await settle()
+    expect(dm.callsOf('rescanRepositories').map((call) => call.folder)).toEqual(['/a'])
+    expect(screen.getByText('Rescanned. Added worker. Missing api.')).toBeTruthy()
+    expect(within(card).getByText('/a/worker')).toBeTruthy()
+    expect(within(card).getByText('Missing')).toBeTruthy()
+  })
+})
+
+describe('FolderHome repository rescan messages', () => {
+  it('says nothing changed when a rescan adds nothing and a missing repository stays missing', async () => {
+    dm.responses.getProject = projectView({
+      repositories: [
+        { name: 'api', missing: false },
+        { name: 'web', missing: true }
+      ]
+    })
+    dm.responses.rescanRepositories = [
+      { name: 'api', missing: false },
+      { name: 'web', missing: true }
+    ]
+    renderHome()
+    await settle()
+    fireEvent.click(within(screen.getByRole('region', { name: 'Repositories' })).getByRole('button', { name: 'Rescan' }))
+    await settle()
+    expect(screen.getByText('Rescanned. No repositories were added or went missing.')).toBeTruthy()
+  })
+
+  it('reports only the newly missing repositories when nothing was added', async () => {
+    dm.responses.getProject = projectView({ repositories: [{ name: 'api', missing: false }] })
+    dm.responses.rescanRepositories = [{ name: 'api', missing: true }]
+    renderHome()
+    await settle()
+    fireEvent.click(within(screen.getByRole('region', { name: 'Repositories' })).getByRole('button', { name: 'Rescan' }))
+    await settle()
+    expect(screen.getByText('Rescanned. Missing api.')).toBeTruthy()
+  })
+
+  it('shows a failed rescan in the card and keeps the list', async () => {
+    dm.responses.getProject = projectView({ repositories: [{ name: 'api', missing: false }] })
+    dm.failures.rescanRepositories = { code: 'invalid_input', message: 'The folder is gone.' }
+    renderHome()
+    await settle()
+    const card = screen.getByRole('region', { name: 'Repositories' })
+    fireEvent.click(within(card).getByRole('button', { name: 'Rescan' }))
+    await settle()
+    expect(within(card).getByText('Could not rescan the repositories.')).toBeTruthy()
+    expect(screen.getByText('The folder is gone.')).toBeTruthy()
+    expect(within(card).getByText('/a/api')).toBeTruthy()
   })
 })

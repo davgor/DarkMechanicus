@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { PlanBundle } from '../../../shared/domain/bundle'
 import { attempt, bundle, sprint, ticket } from '../epic/__mocks__/fixtures'
-import { coverageView, definitionOfDoneRows } from './acceptanceView'
+import { coverageView, definitionOfDoneRows, repositoryDefinitionGroups } from './acceptanceView'
 
 const DEFINITION = [
   { name: 'Unit tests', command: 'npm test', description: 'Every unit test passes.' },
@@ -167,5 +167,60 @@ describe('definitionOfDoneRows', () => {
 
   it('is empty for a project without a Definition of Done', () => {
     expect(definitionOfDoneRows([], node(), [])).toEqual([])
+  })
+})
+
+/** Sprint 1 of a folder: DM-1 targets web, DM-2 and DM-4 target api, DM-3 targets docs; DM-5 (sprint 2) targets cli. */
+function folderPlan(): PlanBundle {
+  const plan = planWithNode()
+  const repos: Record<string, string> = { 'DM-1': 'web', 'DM-2': 'api', 'DM-3': 'docs', 'DM-4': 'api', 'DM-5': 'cli' }
+  return { ...plan, tickets: plan.tickets.map((item) => (repos[item.key] === undefined ? item : { ...item, repo: repos[item.key] })) }
+}
+const REPOSITORIES = [
+  { name: 'api', missing: false, definitionOfDone: DEFINITION.slice(0, 2) },
+  { name: 'cli', missing: false, definitionOfDone: DEFINITION },
+  { name: 'docs', missing: false },
+  { name: 'web', missing: false, definitionOfDone: [DEFINITION[0]] }
+]
+
+describe('repositoryDefinitionGroups', () => {
+  it("groups each touched repository's checks under its name, in name order, with no status before evidence", () => {
+    const plan = folderPlan()
+    expect(repositoryDefinitionGroups(REPOSITORIES, node(plan), [], plan)).toEqual([
+      { repo: 'api', rows: DEFINITION.slice(0, 2).map((check) => ({ ...check, status: null })) },
+      { repo: 'docs', rows: [] },
+      { repo: 'web', rows: [{ ...DEFINITION[0], status: null }] }
+    ])
+  })
+
+  it('matches evidence by `<repo>: <check>`, so a bare or other-repository name does not count', () => {
+    const plan = folderPlan()
+    const reported = attempt('DM-91', 1, 'submitted', {
+      evidence: {
+        checks: [
+          { name: 'api: unit tests', status: 'passed', detail: '' },
+          { name: 'api: Typecheck', status: 'failed', detail: '1 error' },
+          { name: 'Unit tests', status: 'passed', detail: 'bare name' },
+          { name: 'cli: Unit tests', status: 'passed', detail: 'not web' }
+        ],
+        criteria: [],
+        notes: ''
+      }
+    })
+    const groups = repositoryDefinitionGroups(REPOSITORIES, node(plan), [reported], plan)
+    expect(groups.map((group) => [group.repo, group.rows.map((row) => [row.name, row.status])])).toEqual([
+      ['api', [['Unit tests', 'passed'], ['Typecheck', 'failed']]],
+      ['docs', []],
+      ['web', [['Unit tests', 'not reported']]]
+    ])
+  })
+
+  it('lists a touched repository the folder no longer holds as having no checks', () => {
+    const plan = folderPlan()
+    expect(repositoryDefinitionGroups([], node(plan), [], plan).map((group) => [group.repo, group.rows])).toEqual([
+      ['api', []],
+      ['docs', []],
+      ['web', []]
+    ])
   })
 })

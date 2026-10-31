@@ -457,7 +457,9 @@ function registryFsOver(fs: MemoryFs): RegistryFs {
     mkdirp() {},
     realpath: (path) => fs.realpath(path),
     exists: (path) => fs.files.has(path),
-    isDirectory: (path) => fs.dirs.has(path)
+    isDirectory: (path) => fs.dirs.has(path),
+    readdir: () => [],
+    isSymlink: () => false
   }
 }
 

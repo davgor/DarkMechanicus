@@ -57,6 +57,12 @@ export interface GitAdapter {
    * Null when `ref` names no commit. Read-only.
    */
   commitParents(ref: string): Promise<{ commit: string; parents: string[] } | null>
+  /**
+   * The commit local branch `name` (`refs/heads/<name>`) points at, or null when the repository has no such branch.
+   * Asks `git rev-parse`; when git cannot run, reads the ref from the files under `.git` like `head()`. Synchronous,
+   * so a database transaction can read it. Throws `unsafe_path` for a name git could read as an option. Read-only.
+   */
+  branchCommit(name: string): string | null
 }
 
 export interface RepoLayout {

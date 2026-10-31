@@ -291,12 +291,13 @@ describe('sprint report increment', () => {
     reportView(reportFixture({ increment: incrementView(patch) }), NO_RUN_CONTEXT)
 
   it('is absent when the sprint named no increment', () => {
-    expect(reportView(reportFixture(), NO_RUN_CONTEXT).increment).toBe(null)
+    expect(reportView(reportFixture(), NO_RUN_CONTEXT).increments).toEqual([])
   })
 
   it('shows the commit as 7 characters with its branch, the commit it follows and the checks made', () => {
-    expect(withIncrement().increment).toEqual({
+    expect(withIncrement().increments).toEqual([{
       heading: 'INCREMENT · SPRINT 2',
+      repo: null,
       key: 'DM-290',
       commit: '5d3e1f0',
       fullCommit: '5d3e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e',
@@ -309,7 +310,7 @@ describe('sprint report increment', () => {
         { name: 'One commit on the epic branch', status: 'passed', detail: 'epic/planning is at 5d3e1f0', icon: '✓' },
         { name: 'Parent is the previous increment', status: 'passed', detail: '9f8e7d6', icon: '✓' }
       ]
-    })
+    }])
   })
 
   it('says why an increment did not pass', () => {
@@ -322,14 +323,26 @@ describe('sprint report increment', () => {
         checks: [{ name: 'Single parent', status: 'failed', detail: '2 parents' }]
       }
     })
-    expect(view.increment).toMatchObject({
+    expect(view.increments[0]).toMatchObject({
       passed: false,
       verdict: 'NOT VERIFIED',
       reasons: ['The commit has 2 parents; a sprint lands as one squashed commit.'],
       checks: [{ name: 'Single parent', status: 'failed', detail: '2 parents', icon: '✗' }]
     })
   })
+})
 
+describe('sprint report increments in a folder of repositories', () => {
+  it('gives each repository of a folder its own section, named in its heading, in the order given', () => {
+    const view = reportView(
+      reportFixture({ increments: [incrementView({ repo: 'api' }), incrementView({ repo: 'web', increment: { ...incrementView().increment, passed: false } })] }),
+      NO_RUN_CONTEXT
+    )
+    expect(view.increments.map((section) => [section.repo, section.heading, section.verdict])).toEqual([
+      ['api', 'INCREMENT · SPRINT 2 · api', 'VERIFIED'],
+      ['web', 'INCREMENT · SPRINT 2 · web', 'NOT VERIFIED']
+    ])
+  })
 })
 
 describe('sprint report increment base', () => {
@@ -339,7 +352,7 @@ describe('sprint report increment base', () => {
   it('names what the commit had to follow: the previous increment, the epic start, or nothing yet', () => {
     const base = incrementView().increment
     const after = (kind: 'previous_increment' | 'epic_start' | 'none', commit: string | null): string | undefined =>
-      withIncrement({ increment: { ...base, base: { kind, commit } } }).increment?.base
+      withIncrement({ increment: { ...base, base: { kind, commit } } }).increments[0]?.base
     expect(after('epic_start', '1234567890abcdef')).toBe('1234567 · epic start commit')
     expect(after('previous_increment', null)).toBe("the previous sprint's increment")
     expect(after('none', null)).toBe('no earlier increment or epic start commit to follow')
@@ -348,7 +361,7 @@ describe('sprint report increment base', () => {
   it('keeps a commit that git did not resolve exactly as the submission named it', () => {
     const base = incrementView().increment
     const view = withIncrement({ increment: { ...base, commit: 'not-a-commit', parent: null } })
-    expect(view.increment).toMatchObject({ commit: 'not-a-commit', fullCommit: 'not-a-commit' })
+    expect(view.increments[0]).toMatchObject({ commit: 'not-a-commit', fullCommit: 'not-a-commit' })
   })
 })
 

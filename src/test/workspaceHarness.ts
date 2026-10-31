@@ -23,7 +23,8 @@ export function createFakeGit(initial: GitHead | null): FakeGit {
     listFiles: async () => [],
     showFile: async () => null,
     isAncestor: async () => null,
-    commitParents: async () => null
+    commitParents: async () => null,
+    branchCommit: () => null
   }
 }
 

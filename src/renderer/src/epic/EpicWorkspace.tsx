@@ -6,6 +6,7 @@ import { isActiveRunState } from '../../../shared/domain/status'
 import type { CheckpointView, PlanView, RunView } from '../../../shared/domain/views'
 import type { TicketLanding } from '../app/landing'
 import { browserScheduler, type Scheduler } from '../app/scheduler'
+import { useRepositories } from '../app/useRepositories'
 import { CheckpointScreen } from '../checkpoint/CheckpointScreen'
 import { EpicOverview } from '../checkpoint/EpicOverview'
 import { badgeResolver, buildGraphModel, type GraphInput } from '../graph/graphModel'
@@ -24,6 +25,7 @@ import { listSections } from './listSections'
 import { ListView } from './ListView'
 import type { OrchestrationHost } from './orchestration'
 import { RunBar } from './RunBar'
+import { failureOf } from './runner'
 import { StartRunDialog } from './StartRunDialog'
 import { TransferDialog } from './TransferDialog'
 import { isOpenTransfer } from './transferView'
@@ -179,11 +181,13 @@ function DraftEditorPanel(props: { ws: WorkspaceHandle; plan: PlanView; ticketId
   const input = graphInputFor(ws.state)
   const badge = input === null ? { label: 'DRAFT', tone: 'neutral' as const, dashed: false } : badgeResolver(input)(ticketId)
   const close = (): void => ws.dispatch({ type: 'select_ticket', ticketId: null })
+  const repositories = useRepositories(ws.folder.path, (error) => ws.dispatch({ type: 'banner', text: failureOf(error).message }))
   return (
     <TicketEditor
       key={ticketId}
       runner={ws.runner}
       bundle={plan.bundle}
+      repositories={repositories.status === 'ready' ? repositories.value : null}
       ticketId={ticketId}
       badge={badge}
       busy={ws.state.busy}
@@ -230,6 +234,9 @@ function SidePanel({ ws }: { ws: WorkspaceHandle }): JSX.Element | null {
 /** The Start run dialog: Run with an agent, or Leave pending. The add-agent link closes it first; signing in does not. */
 function StartRunHost({ ws }: { ws: WorkspaceHandle }): JSX.Element | null {
   const host = ws.orchestration
+  // A pending or failed getProject must not block the dialog: it opens at once, and the branch field appears once the
+  // project shows a folder of repositories. The server's queue_run refusal stays the guard meanwhile.
+  const repositories = useRepositories(ws.state.startRunOpen ? ws.folder.path : null, () => undefined)
   if (!ws.state.startRunOpen) {
     return null
   }
@@ -240,6 +247,9 @@ function StartRunHost({ ws }: { ws: WorkspaceHandle }): JSX.Element | null {
       folderPath={ws.folder.path}
       agents={host.agents}
       statuses={host.statuses}
+      multiRepo={repositories.status === 'ready' && repositories.value !== null}
+      branchName={ws.data.epic.branch?.name ?? null}
+      onSetBranch={(name) => ws.actions.setEpicBranch(name)}
       busy={ws.state.busy}
       onLeavePending={() => void ws.actions.startRun()}
       onRunWithAgent={(choice) => void ws.actions.startRunWithAgent(choice)}

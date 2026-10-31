@@ -33,6 +33,13 @@ export interface InitializeOptions {
   writeMcpConfig: boolean
   /** Then import the open epics of an old-style `board/` as drafts; the person opts in explicitly. */
   importBoard: boolean
+  /** `multi_repo`: set the folder up over its child repositories (database only). Omitted for a single repository. */
+  layout?: 'multi_repo'
+}
+
+/** The `initializeRepository` input for the onboarding choices; `layout` only for a folder of repositories. */
+function initializeInput(options: InitializeOptions): { mode: StorageMode; layout?: 'multi_repo' } {
+  return options.layout === undefined ? { mode: options.mode } : { mode: options.mode, layout: options.layout }
 }
 
 /** Onboarding connects Claude Code as an orchestrator (it plans and runs epics) that may save, and never replaces an existing entry. */
@@ -225,7 +232,7 @@ function repositoryActions(
     initialize: (folder, options) =>
       whileBusy(deps, 'initialize', async () => {
         const initialized = await guarded(deps, async () => {
-          await runCommand(folder.path, 'initializeRepository', { mode: options.mode })
+          await runCommand(folder.path, 'initializeRepository', initializeInput(options))
           await deps.folders.reload()
           deps.refresh(folder.path)
           deps.toasts.push('success', `Initialized ${folder.name}.`)

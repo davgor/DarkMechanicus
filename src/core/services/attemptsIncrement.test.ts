@@ -1,12 +1,18 @@
 /** Submitting an acceptance node: the verdict the command layer verified is stored with the submission. */
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
+import type { IncrementRef } from '../../shared/domain/api'
 import type { PlanBundle } from '../../shared/domain/bundle'
 import { makeBundle, tid } from '../../test/bundles'
-import { incrementVerdict } from '../../test/checkpointSeed'
+import { incrementVerdict, seedAttempt, seedRun, type SeededRun } from '../../test/checkpointSeed'
 import { attemptRow, claim, domainError, lastEventPayload, startedRun } from '../../test/execution'
+import { createGitRepo, type GitRepo } from '../../test/gitRepo'
 import { createTestCtx, type TestCtx } from '../../test/testContext'
+import { DomainError } from '../errors'
+import { createGitAdapter } from '../repo/git'
 import { acceptAttempt, reconcileAttempt, rejectAttempt, submitAttempt } from './attempts'
 import { attemptView } from './execution'
+import { incrementContextOf, repositoryIncrementsOf } from './increments'
+import { verifyIncrement, verifyRepositoryIncrements } from './incrementVerify'
 
 const NAMED = { branch: 'epic/x', commit: 'c'.repeat(40) }
 
@@ -102,6 +108,15 @@ describe('submitAttempt without an increment, or with one it must refuse', () =>
     expect(attemptRow(ctx, node.attempt.id).state).toBe('claimed')
   })
 
+  it("refuses to store a folder's per-repository verdicts for a single repository's increment", () => {
+    const ctx = createTestCtx()
+    const { node } = nodeClaim(ctx)
+    const input = { attemptId: node.attempt.id, claimToken: node.packet.claimToken, outputs: { summary: 'Merged.' }, increment: NAMED }
+    const error = domainError(() => submitAttempt(ctx, input, [{ ...incrementVerdict(), repo: 'alpha' }]))
+    expect([error.code, error.message]).toEqual(['internal', 'The increment was not verified before it was stored.'])
+    expect(attemptRow(ctx, node.attempt.id)).toMatchObject({ state: 'claimed', increment_json: null })
+  })
+
   it('checks the claim token before anything about the increment', () => {
     const ctx = createTestCtx()
     const { node } = nodeClaim(ctx)
@@ -141,5 +156,269 @@ describe('reconcileAttempt resubmitting an acceptance node', () => {
     })
     expect(view.state).toBe('submitted')
     expect(Object.keys(view)).not.toContain('increment')
+  })
+})
+
+const EPIC = 'epic/multi'
+const REPOS = ['alpha', 'beta', 'gamma'] as const
+/** The repository each work ticket targets; DM-3 and DM-6 are the acceptance nodes. */
+const REPO_OF: Record<number, string> = { 1: 'alpha', 2: 'beta', 4: 'alpha', 5: 'gamma' }
+
+/** Sprint 1 = {DM-1 alpha, DM-2 beta, DM-3}; sprint 2 = {DM-4 alpha, DM-5 gamma, DM-6}; gamma is untouched in sprint 1. */
+function folderPlan(): PlanBundle {
+  const bundle = makeBundle([
+    [1, 2, 3],
+    [4, 5, 6]
+  ])
+  bundle.tickets = bundle.tickets.map((ticket, index) => {
+    const repo = REPO_OF[index + 1]
+    if (repo !== undefined) {
+      return { ...ticket, repo, title: `${repo} - ${ticket.title}` }
+    }
+    return { ...ticket, kind: 'acceptance' as const }
+  })
+  return bundle
+}
+
+type RepoName = (typeof REPOS)[number]
+
+interface Folder {
+  ctx: TestCtx
+  run: SeededRun
+  repos: Record<RepoName, GitRepo>
+  /** Each repository's epic branch start commit, as bound for the run. */
+  start: Record<RepoName, string>
+}
+
+/** A worker's commits on `branch` off the epic branch, squashed onto the epic branch as the sprint's increment. */
+function land(repo: GitRepo, branch: string, messages: string[]): { commits: string[]; squash: string } {
+  repo.branch(branch)
+  const commits = messages.map((message) => repo.commit(message))
+  repo.switchTo(EPIC)
+  return { commits, squash: repo.squash(branch, `sprint: ${branch}`) }
+}
+
+/** The acceptance node's attempt, live and claimed, with its claim token. */
+function liveNode(folder: Folder, ticket: number): { attemptId: string; claimToken: string } {
+  const attemptId = seedAttempt(folder.ctx, folder.run, { ticket, state: 'running' })
+  folder.ctx.db.run("UPDATE attempts SET claim_secret = 'secret', lease_expires_at = ? WHERE id = ?", '2999-01-01T00:00:00.000Z', attemptId)
+  return { attemptId, claimToken: `${attemptId}.secret` }
+}
+
+/** What `submit_attempt` does with `increments`: verify each touched repository's increment in it, then submit. */
+async function submitIncrements(folder: Folder, node: { attemptId: string; claimToken: string }, increments: IncrementRef[]) {
+  const { ctx } = folder
+  const entries = repositoryIncrementsOf(ctx, node.attemptId, increments)
+  const verified = entries === null ? undefined : await verifyRepositoryIncrements((repo) => ctx.gitFor(repo), entries, ctx.clock.nowIso())
+  return submitAttempt(ctx, { ...node, outputs: { summary: 'Landed.' }, increments }, verified)
+}
+
+function named(repo: string, commit: string): IncrementRef {
+  return { repo, branch: EPIC, commit }
+}
+
+/** alpha, beta and gamma as real repositories, each with the epic branch bound at its own start commit. */
+function createFolder(): Folder {
+  const repos: Record<RepoName, GitRepo> = { alpha: createGitRepo(), beta: createGitRepo(), gamma: createGitRepo() }
+  for (const name of REPOS) {
+    repos[name].commit(`${name} history`)
+    repos[name].branch(EPIC)
+  }
+  const gitFor = (repo: string | null) => {
+    const found = REPOS.find((name) => name === repo)
+    if (found === undefined) {
+      throw new Error(`No repository ${String(repo)}`)
+    }
+    return createGitAdapter(repos[found].root)
+  }
+  const ctx = createTestCtx({ repositories: [...REPOS], gitFor })
+  const run = seedRun(ctx, { bundle: folderPlan(), branch: { repository: null, name: EPIC, startCommit: null } })
+  const start: Record<RepoName, string> = { alpha: repos.alpha.rev(EPIC), beta: repos.beta.rev(EPIC), gamma: repos.gamma.rev(EPIC) }
+  const bound = REPOS.map((name) => ({ repository: name, name: EPIC, startCommit: start[name] }))
+  ctx.db.run('UPDATE epics SET repository_branches_json = ? WHERE id = ?', JSON.stringify(bound), run.epicId)
+  return { ctx, run, repos, start }
+}
+
+/** A fresh folder per test (`createFolder`), its repositories removed after the test. */
+function useFolder(): () => Folder {
+  let opened: Folder | undefined
+  afterEach(() => {
+    for (const repo of opened === undefined ? [] : Object.values(opened.repos)) {
+      repo.cleanup()
+    }
+    opened = undefined
+  })
+  return () => {
+    opened ??= createFolder()
+    return opened
+  }
+}
+
+/** Sprint 1's work landed in alpha (squashed) and beta (squashed, or merged), each work ticket accepted; DM-3 claimed. */
+function sprintOne(folder: Folder, beta: 'squash' | 'merge' = 'squash') {
+  const { repos } = folder
+  const alpha = land(repos.alpha, 'w1', ['alpha one', 'alpha two'])
+  let betaWork: { commits: string[]; squash: string }
+  if (beta === 'squash') {
+    betaWork = land(repos.beta, 'w2', ['beta one'])
+  } else {
+    repos.beta.branch('w2')
+    const commits = [repos.beta.commit('beta one')]
+    repos.beta.switchTo(EPIC)
+    repos.beta.commit('beta moves on')
+    betaWork = { commits, squash: repos.beta.merge('w2') }
+  }
+  seedAttempt(folder.ctx, folder.run, { ticket: 1, state: 'accepted', commits: alpha.commits })
+  seedAttempt(folder.ctx, folder.run, { ticket: 2, state: 'accepted', commits: betaWork.commits })
+  return { alpha, beta: betaWork, node: liveNode(folder, 3) }
+}
+
+describe('submitAttempt in a folder of repositories: one verified increment per touched repository', () => {
+  const openFolder = useFolder()
+
+  it('verifies both squashed increments, each in its own repository, and stores the verdicts with their repositories', async () => {
+    const folder = openFolder()
+    const { alpha, beta, node } = sprintOne(folder)
+    // Named out of order: the verdicts come back in repository name order.
+    const view = await submitIncrements(folder, node, [named('beta', beta.squash), named('alpha', alpha.squash)])
+    expect(view.state).toBe('submitted')
+    expect(Object.keys(view)).not.toContain('increment')
+    expect(view.increments).toMatchObject([
+      { repo: 'alpha', branch: EPIC, commit: alpha.squash, base: { kind: 'epic_start', commit: folder.start.alpha }, passed: true },
+      { repo: 'beta', branch: EPIC, commit: beta.squash, base: { kind: 'epic_start', commit: folder.start.beta }, passed: true }
+    ])
+    expect(JSON.parse(attemptRow(folder.ctx, node.attemptId).increment_json ?? 'null')).toEqual(view.increments)
+    expect(lastEventPayload(folder.ctx, 'attempt.submitted')).toMatchObject({
+      increments: [
+        { repo: 'alpha', commit: alpha.squash, passed: true },
+        { repo: 'beta', commit: beta.squash, passed: true }
+      ],
+      passed: true
+    })
+  })
+
+  it("fails the node's increment when beta's is a merge commit, and names beta", async () => {
+    const folder = openFolder()
+    const { alpha, beta, node } = sprintOne(folder, 'merge')
+    const view = await submitIncrements(folder, node, [named('alpha', alpha.squash), named('beta', beta.squash)])
+    expect(view.state).toBe('submitted')
+    expect(view.increments?.map((verdict) => [verdict.repo, verdict.passed])).toEqual([
+      ['alpha', true],
+      ['beta', false]
+    ])
+    const failed = view.increments?.find((verdict) => !verdict.passed)
+    expect(failed?.repo).toBe('beta')
+    expect(failed?.reasons.join(' ')).toContain('2 parents')
+    expect(lastEventPayload(folder.ctx, 'attempt.submitted')).toMatchObject({ passed: false })
+  })
+})
+
+/** Two sprints across two real repositories run many Git commands; leave room for a loaded machine and coverage. */
+const TWO_SPRINT_TIMEOUT = { timeout: 60_000 }
+
+describe('submitAttempt in a folder of repositories: a later sprint, measured per repository', TWO_SPRINT_TIMEOUT, () => {
+  const openFolder = useFolder()
+
+  it("checks a second sprint's increment against that repository's previous increment, and an untouched one against its start", async () => {
+    const folder = openFolder()
+    const first = sprintOne(folder)
+    await submitIncrements(folder, first.node, [named('alpha', first.alpha.squash), named('beta', first.beta.squash)])
+    folder.ctx.db.run("UPDATE attempts SET state = 'accepted' WHERE id = ?", first.node.attemptId)
+    const alpha = land(folder.repos.alpha, 'w4', ['alpha three'])
+    const gamma = land(folder.repos.gamma, 'w5', ['gamma one'])
+    seedAttempt(folder.ctx, folder.run, { ticket: 4, state: 'accepted', commits: alpha.commits })
+    seedAttempt(folder.ctx, folder.run, { ticket: 5, state: 'accepted', commits: gamma.commits })
+    const node = liveNode(folder, 6)
+    // alpha's own context: its sprint 1 increment, and only the commits of the work tickets that target alpha.
+    const alphaContext = incrementContextOf(folder.ctx, node.attemptId, 'alpha')
+    expect(alphaContext).toMatchObject({
+      epicBranch: { repository: 'alpha', name: EPIC, startCommit: folder.start.alpha },
+      previous: { commit: first.alpha.squash },
+      workCommits: alpha.commits
+    })
+    const view = await submitIncrements(folder, node, [named('alpha', alpha.squash), named('gamma', gamma.squash)])
+    expect(view.increments).toMatchObject([
+      { repo: 'alpha', parent: first.alpha.squash, base: { kind: 'previous_increment', commit: first.alpha.squash }, passed: true },
+      { repo: 'gamma', base: { kind: 'epic_start', commit: folder.start.gamma }, passed: true }
+    ])
+    // Naming sprint 1's alpha increment again fails: it is already part of alpha's previous increment.
+    if (alphaContext === null) {
+      throw new Error('alpha has no increment context')
+    }
+    const repeated = await verifyIncrement(folder.ctx.gitFor('alpha'), alphaContext, named('alpha', first.alpha.squash), 'now')
+    expect(repeated.passed).toBe(false)
+    expect(repeated.reasons.join(' ')).toContain("already part of the previous sprint's increment")
+  })
+
+  it('measures against the start commit when the earlier sprint failed in any one repository', async () => {
+    const folder = openFolder()
+    const first = sprintOne(folder, 'merge')
+    await submitIncrements(folder, first.node, [named('alpha', first.alpha.squash), named('beta', first.beta.squash)])
+    folder.ctx.db.run("UPDATE attempts SET state = 'accepted' WHERE id = ?", first.node.attemptId)
+    seedAttempt(folder.ctx, folder.run, { ticket: 4, state: 'accepted', commits: [] })
+    const node = liveNode(folder, 6)
+    expect(incrementContextOf(folder.ctx, node.attemptId, 'alpha')?.previous).toBeNull()
+  })
+})
+
+describe('submitAttempt in a folder of repositories: refusals', () => {
+  const openFolder = useFolder()
+
+  it.each<[string, (alpha: string, beta: string) => IncrementRef[], string]>([
+    ['a touched repository left out', (alpha) => [named('alpha', alpha)], 'no increment names "beta"'],
+    ['an untouched repository', (alpha, beta) => [named('alpha', alpha), named('beta', beta), named('gamma', alpha)], '"gamma", which this sprint did not touch'],
+    ['an unknown repository', (alpha, beta) => [named('alpha', alpha), named('beta', beta), named('delta', alpha)], '"delta", which is not a repository'],
+    ['a duplicate repository', (alpha, beta) => [named('alpha', alpha), named('alpha', alpha), named('beta', beta)], 'more than one increment names "alpha"'],
+    ['an increment without its repository', (alpha, beta) => [named('alpha', alpha), { branch: EPIC, commit: beta }], 'names no repository']
+  ])('refuses %s with invalid_input, before git is asked, leaving the claim open', async (_label, increments, message) => {
+    const folder = openFolder()
+    const { alpha, beta, node } = sprintOne(folder)
+    const refs = increments(alpha.squash, beta.squash)
+    expect(repositoryIncrementsOf(folder.ctx, node.attemptId, refs)).toBeNull()
+    const error = await submitIncrements(folder, node, refs).catch((caught: unknown) => caught)
+    expect(error).toBeInstanceOf(DomainError)
+    expect(error).toMatchObject({ code: 'invalid_input' })
+    expect((error as DomainError).message).toContain('DM-3')
+    expect((error as DomainError).message).toContain(message)
+    expect(attemptRow(folder.ctx, node.attemptId)).toMatchObject({ state: 'running', increment_json: null })
+  })
+
+  it('refuses a singular increment with invalid_input', () => {
+    const folder = openFolder()
+    const { alpha, node } = sprintOne(folder)
+    const input = { ...node, outputs: { summary: 'Landed.' }, increment: { branch: EPIC, commit: alpha.squash } }
+    const error = domainError(() => submitAttempt(folder.ctx, input, incrementVerdict()))
+    expect([error.code, error.message]).toEqual([
+      'invalid_input',
+      'DM-3: this project is a folder of repositories: name increments, one { repo, branch, commit } per repository the sprint touched, not a single increment.'
+    ])
+    expect(attemptRow(folder.ctx, node.attemptId).increment_json).toBeNull()
+  })
+
+  it('refuses to store verdicts that do not cover every named repository', async () => {
+    const folder = openFolder()
+    const { alpha, beta, node } = sprintOne(folder)
+    const increments = [named('alpha', alpha.squash), named('beta', beta.squash)]
+    const input = { ...node, outputs: { summary: 'Landed.' }, increments }
+    expect(domainError(() => submitAttempt(folder.ctx, input, [{ ...incrementVerdict(), repo: 'alpha' }])).code).toBe('internal')
+    expect(domainError(() => submitAttempt(folder.ctx, input, incrementVerdict())).code).toBe('internal')
+    expect(attemptRow(folder.ctx, node.attemptId).increment_json).toBeNull()
+  })
+})
+
+describe('submitAttempt in a single repository refuses the folder shapes', () => {
+  it('refuses increments, and an increment that names a repository, with invalid_input', () => {
+    const ctx = createTestCtx()
+    const { node } = nodeClaim(ctx)
+    const base = { attemptId: node.attempt.id, claimToken: node.packet.claimToken, outputs: { summary: 'Merged.' } }
+    const plural = domainError(() => submitAttempt(ctx, { ...base, increments: [NAMED] }, [incrementVerdict()]))
+    expect([plural.code, plural.message]).toEqual([
+      'invalid_input',
+      'DM-2: this project is a single repository: name the increment as increment { branch, commit }, not increments.'
+    ])
+    const withRepo = domainError(() => submitAttempt(ctx, { ...base, increment: { ...NAMED, repo: 'alpha' } }, incrementVerdict()))
+    expect(withRepo.code).toBe('invalid_input')
+    expect(withRepo.message).toContain('"alpha"')
+    expect(attemptRow(ctx, node.attempt.id)).toMatchObject({ state: 'claimed', increment_json: null })
   })
 })

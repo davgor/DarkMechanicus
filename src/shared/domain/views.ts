@@ -53,6 +53,14 @@ export interface DefinitionOfDoneCheck {
   description: string
 }
 
+/** One child repository of a folder of repositories; `missing` when its folder was not found at the last scan. */
+export interface RepositoryView {
+  name: string
+  missing: boolean
+  /** This repository's own Definition of Done, in order; absent when it has none. */
+  definitionOfDone?: DefinitionOfDoneCheck[]
+}
+
 export interface ProjectView {
   projectId: string
   name: string
@@ -61,6 +69,8 @@ export interface ProjectView {
   createdAt: string
   /** The project's Definition of Done, in order; empty when the project has none. */
   definitionOfDone: DefinitionOfDoneCheck[]
+  /** The child repositories of a folder of repositories, in recorded order; null for a single repository. */
+  repositories: RepositoryView[] | null
 }
 
 export interface RunSummaryView {
@@ -91,6 +101,11 @@ export interface EpicSummaryView {
   sprintCount: number
   run: RunSummaryView | null
   branch: EpicBranch | null
+  /**
+   * A folder of repositories only: the epic branch as bound in each repository its runs' saved plans named, each
+   * with its own start commit. Absent for a single-repository epic and before any repository was bound.
+   */
+  repositoryBranches?: EpicBranch[]
   pendingSave: boolean
   conflict: string | null
   createdAt: string
@@ -336,9 +351,12 @@ type IncrementBaseKind = 'previous_increment' | 'epic_start' | 'none'
 /**
  * The server's verdict on the increment a sprint's acceptance node named: whether it is one squashed
  * commit on the epic branch. Written when the node's submission arrives; the `increment_merged` gate
- * reads it, and it is never edited afterwards.
+ * reads it, and it is never edited afterwards. In a folder of repositories the node stores one per touched
+ * repository (an array in `attempts.increment_json`), each with its `repo`.
  */
 export interface SprintIncrement {
+  /** In a folder of repositories only: the child repository the increment was verified in. */
+  repo?: string
   /** The branch the submission named; it must be the epic's integration branch. */
   branch: string
   /** The full commit id when git resolved it, otherwise exactly as named. */
@@ -355,10 +373,12 @@ export interface SprintIncrement {
   verifiedAt: string
 }
 
-/** A sprint's increment with the acceptance-node attempt that named it. */
+/** A sprint's increment with the acceptance-node attempt that named it; in a folder of repositories, one per repository. */
 export interface SprintIncrementView {
   sprintId: string
   sprintOrdinal: number
+  /** In a folder of repositories only: the child repository this increment was verified in. */
+  repo?: string
   /** The sprint's acceptance node. */
   ticketId: string
   key: string
@@ -386,6 +406,11 @@ export interface AttemptView {
   decision: AttemptDecision | null
   /** Present only on a submission that named a sprint increment (an acceptance node), with the server's verdict. */
   increment?: SprintIncrement
+  /**
+   * Present only on an acceptance node's submission in a folder of repositories: the verdict of each touched
+   * repository's increment, in name order. The node's increment passed only when every one passed.
+   */
+  increments?: SprintIncrement[]
   createdAt: string
   updatedAt: string
   submittedAt: string | null
@@ -471,9 +496,15 @@ export interface SprintReportView {
   /**
    * The sprint's increment as verified when its acceptance node was submitted; read when the report is
    * read, so it is not part of `report` and does not change `contentHash`. Absent when the sprint's
-   * acceptance node named no increment.
+   * acceptance node named no increment, and always absent in a folder of repositories (see `increments`).
    */
   increment?: SprintIncrementView
+  /**
+   * In a folder of repositories only (never set for a single repository): the sprint's increments, one per
+   * repository its acceptance node verified, in repository name order. Read like `increment`, outside `report`
+   * and the content hash; absent when the node named none.
+   */
+  increments?: SprintIncrementView[]
   /**
    * What each ticket of the sprint was planned at and what it took, computed from the run's attempts when
    * the report is read (not written by the reporter, not part of `report` or `contentHash`).
@@ -584,6 +615,19 @@ export interface AssignmentFallback {
   reasons: string[]
 }
 
+/** A repository of a folder of repositories as an execution packet names it: where it is and its bound epic branch. */
+export interface PacketRepository {
+  name: string
+  /** The absolute path `<project root>/<name>`. */
+  path: string
+  branch: EpicBranch
+  /**
+   * On an acceptance node's `repositories` only: this repository's Definition of Done, each check reported as
+   * `<name>: <check name>`. Absent when the repository has none, and on a work ticket's `repository`.
+   */
+  definitionOfDone?: DefinitionOfDoneCheck[]
+}
+
 export interface ExecutionPacket {
   runId: string
   attemptId: string
@@ -609,6 +653,13 @@ export interface ExecutionPacket {
    * the checks its worker must run and report, each by name, as `passed` in the evidence.
    */
   definitionOfDone?: DefinitionOfDoneCheck[]
+  /** In a folder of repositories, on a work ticket only: the repository it targets. Absent for a single repository. */
+  repository?: PacketRepository
+  /**
+   * In a folder of repositories, on a sprint acceptance node only: the sprint's touched repositories (those its
+   * accepted work tickets target), in name order. Absent for a single repository.
+   */
+  repositories?: PacketRepository[]
   predecessors: {
     ticketId: string
     key: string

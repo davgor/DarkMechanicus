@@ -14,6 +14,7 @@ import {
   TOOL_CAPABILITIES,
   WORK_TYPES
 } from '../shared/domain/bundle'
+import { epicBranchName } from '../shared/domain/branchName'
 import { TIER_VERDICTS } from '../shared/domain/retro'
 import { WORK_STATUSES } from '../shared/domain/status'
 import { DomainError } from './errors'
@@ -188,6 +189,9 @@ export const ticketInput = z.strictObject({
   priority: z.enum(TICKET_PRIORITIES).optional(),
   // `null` in a patch clears the size; saved ticket content never holds null (see ticketContent).
   size: z.enum(TICKET_SIZES).nullable().optional(),
+  // The repository a ticket in a folder of repositories targets; `null` in a patch clears it. Checked against the
+  // project's repositories when the ticket is added or updated, never here.
+  repo: z.string().min(1).max(255).nullable().optional(),
   capability: capabilityPatch.optional(),
   references: z.array(ticketReference).max(LIMITS.references).optional(),
   expectedArtifacts: z.array(z.string().max(LIMITS.label)).max(LIMITS.references).optional(),
@@ -253,6 +257,8 @@ export const ticketContent = z.strictObject({
   priority: z.enum(TICKET_PRIORITIES),
   // No default, like `capability.reasoning.effort`: an unsized ticket keeps its saved shape and hash.
   size: z.enum(TICKET_SIZES).optional(),
+  // No default, like `size`: a ticket without a repository keeps its saved shape and hash.
+  repo: z.string().min(1).max(255).optional(),
   capability: capabilityProfile,
   references: z.array(ticketReference).max(LIMITS.references),
   expectedArtifacts: z.array(z.string().max(LIMITS.label)).max(LIMITS.references),
@@ -298,13 +304,7 @@ export const planBundle = z.strictObject({
 
 export const epicBranch = z.strictObject({
   repository: z.string().max(LIMITS.shortText).nullable(),
-  // A subset of git check-ref-format: no whitespace or ~^:?*[\, no leading dash, "..", "@{",
-  // trailing "/", "." or ".lock".
-  name: z
-    .string()
-    .min(1)
-    .max(255)
-    .regex(/^(?!-)(?!.*\.\.)(?!.*@\{)(?!.*(?:\/|\.|\.lock)$)[^\s~^:?*[\\]+$/, 'Not a valid branch name'),
+  name: epicBranchName,
   startCommit: z.string().regex(/^[0-9a-f]{7,64}$/).nullable()
 })
 
@@ -361,9 +361,18 @@ export const rowCheckEntries = z.array(checkResult).min(1).max(LIMITS.listItems)
 
 /**
  * The increment a sprint's acceptance node names: the epic branch and the commit that landed the sprint on
- * it. The branch follows the same naming rules as an epic's; the server compares it with the epic's own.
+ * it. The branch follows the same naming rules as an epic's; the server compares it with the epic's own. In a
+ * folder of repositories `repo` names the child repository (checked against the sprint's touched repositories
+ * when the submission arrives, like a ticket's `repo`).
  */
-export const incrementRef = z.strictObject({ branch: epicBranch.shape.name, commit: commitHash })
+export const incrementRef = z.strictObject({
+  branch: epicBranch.shape.name,
+  commit: commitHash,
+  repo: z.string().min(1).max(255).optional()
+})
+
+/** One increment per repository a sprint touched, for an acceptance node of a folder of repositories. */
+export const incrementRefs = z.array(incrementRef).max(100)
 
 export const artifactRef = z.strictObject({
   label: z.string().max(LIMITS.label),

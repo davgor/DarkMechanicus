@@ -254,3 +254,27 @@ export async function verifyIncrement(
     verifiedAt
   }
 }
+
+/** One increment of a folder of repositories to verify: the repository, what the submission named there, and its context. */
+export interface RepositoryIncrement {
+  repo: string
+  named: IncrementRef
+  context: IncrementContext
+}
+
+/**
+ * Verifies each repository's increment with that repository's Git adapter and context, one repository at a time, and
+ * returns the verdicts in the order given, each with its `repo`. The node's increment passes only when every verdict
+ * did; an empty list verifies nothing, so callers refuse it before asking.
+ */
+export async function verifyRepositoryIncrements(
+  gitFor: (repo: string) => GitAdapter,
+  increments: RepositoryIncrement[],
+  verifiedAt: string
+): Promise<SprintIncrement[]> {
+  const verdicts: SprintIncrement[] = []
+  for (const { repo, named, context } of increments) {
+    verdicts.push({ repo, ...(await verifyIncrement(gitFor(repo), context, named, verifiedAt)) })
+  }
+  return verdicts
+}

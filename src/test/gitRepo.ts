@@ -1,6 +1,6 @@
 /** A real temporary Git repository, for tests that need real history (ancestry, merges, squashes). Not shipped. */
 import { execFileSync } from 'node:child_process'
-import { writeFileSync } from 'node:fs'
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createTempRepo } from './tempRepo'
 
@@ -41,10 +41,16 @@ const CONFIG = [
   'core.autocrlf=false'
 ]
 
-/** A repository whose `main` branch holds one initial commit. */
-export function createGitRepo(): GitRepo {
-  const temp = createTempRepo()
-  const root = temp.root
+/**
+ * A repository whose `main` branch holds one initial commit: in a temporary directory of its own, or at `root`
+ * (created here, and removed by `cleanup`), e.g. a child of a folder of repositories.
+ */
+export function createGitRepo(options: { root?: string } = {}): GitRepo {
+  const temp = options.root === undefined ? createTempRepo() : null
+  const root = options.root ?? temp?.root ?? ''
+  if (temp === null) {
+    mkdirSync(root)
+  }
   let counter = 0
   const git = (...args: string[]): string =>
     execFileSync('git', ['-C', root, ...CONFIG, ...args], { encoding: 'utf8', env: gitEnv(), stdio: ['ignore', 'pipe', 'pipe'] }).trim()
@@ -78,6 +84,6 @@ export function createGitRepo(): GitRepo {
       git('commit', '-q', '-m', message)
       return git('rev-parse', 'HEAD')
     },
-    cleanup: temp.cleanup
+    cleanup: temp?.cleanup ?? (() => rmSync(root, { recursive: true, force: true }))
   }
 }

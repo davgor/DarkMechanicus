@@ -5,9 +5,17 @@ import { prettyJson } from '../canonical'
 import type { Clock } from '../clock'
 import { fail } from '../errors'
 import { type IdGenerator, isStableId } from '../ids'
+import { detectChildRepos, isInsideGitRepository } from './childRepos'
 import { writeFileSafely } from './finalizer'
 import { assertContained, displayPath } from './paths'
-import { KEY_PREFIX_PATTERN, type ProjectRecord, projectRecord, readOwnedRecord } from './portable'
+import {
+  KEY_PREFIX_PATTERN,
+  type ProjectRecord,
+  projectRecord,
+  readOwnedRecord,
+  type RepositoryEntry,
+  repositoryName
+} from './portable'
 import type { FsAdapter, RepoLayout } from './types'
 
 interface InitDeps {
@@ -134,7 +142,47 @@ function assertSingleProject(deps: InitDeps): void {
   )
 }
 
-function createProject(deps: InitDeps, input: { name?: string; keyPrefix?: string }): ProjectRecord {
+/** How a folder is set up: one repository, or a folder whose immediate children are the repositories. */
+export type ProjectLayout = 'single' | 'multi_repo'
+
+/**
+ * The child repositories of `root` that can be recorded: `detectChildRepos`, less any folder whose name is not
+ * a valid repository name (it could never be addressed as one).
+ */
+export function detectRepositories(root: string, fs: FsAdapter): string[] {
+  return detectChildRepos(root, fs).filter((name) => repositoryName.safeParse(name).success)
+}
+
+/**
+ * The repositories a `multi_repo` set-up records, or a refusal: such a folder is stored in the database only,
+ * must not itself sit inside a Git repository, and must hold at least one child repository.
+ */
+function repositoriesToRecord(deps: InitDeps): RepositoryEntry[] {
+  const { layout, fs } = deps
+  if (layout.mode === 'repo') {
+    fail('invalid_input', `A folder of repositories is stored in the database only: set ${layout.root} up in db mode.`, {
+      mode: layout.mode
+    })
+  }
+  if (isInsideGitRepository(layout.root, fs)) {
+    fail(
+      'invalid_input',
+      `${layout.root} is inside a Git repository. A folder of repositories must not itself be part of one.`,
+      { path: layout.root }
+    )
+  }
+  const names = detectRepositories(layout.root, fs)
+  if (names.length === 0) {
+    fail('invalid_input', `${layout.root} holds no Git repositories in its immediate folders.`, { path: layout.root })
+  }
+  return names.map((name) => ({ name }))
+}
+
+function createProject(
+  deps: InitDeps,
+  input: { name?: string; keyPrefix?: string },
+  repositories: RepositoryEntry[] | undefined
+): ProjectRecord {
   // The name always comes from the repository folder, never from the project directory in db mode.
   const name = input.name ?? (basename(deps.layout.root).slice(0, MAX_NAME_LENGTH) || 'Project')
   const record = projectRecord.parse({
@@ -145,7 +193,8 @@ function createProject(deps: InitDeps, input: { name?: string; keyPrefix?: strin
     keyPrefix: input.keyPrefix ?? deriveKeyPrefix(name),
     createdAt: deps.clock.nowIso(),
     // A repo project sits inside its folder and needs no note of where that is.
-    ...(deps.layout.mode === 'db' ? { repoRoot: deps.layout.root } : {})
+    ...(deps.layout.mode === 'db' ? { repoRoot: deps.layout.root } : {}),
+    ...(repositories === undefined ? {} : { repositories })
   })
   writeFileSafely(deps, deps.layout.projectFile, prettyJson(record))
   return record
@@ -174,13 +223,16 @@ export function ensureMachineId(deps: InitDeps): string {
  * `local/machine.json` when missing, plus `.gitignore` (`local/`) in `repo` mode, where the layout
  * sits in the repository. In `db` mode everything is created in the project's directory inside the
  * Dark Mechanicus home directory and the repository folder is left untouched. An existing project
- * is never changed. Never runs git.
+ * is never changed. Never runs git. With `layout: 'multi_repo'` the folder is a folder of repositories: only
+ * `db` mode is allowed, so neither the folder nor any child repository is written to, and the detected child
+ * repositories are recorded on the project.
  */
 export function initializeRepository(
   deps: InitDeps,
-  input: { name?: string; keyPrefix?: string }
+  input: { name?: string; keyPrefix?: string; layout?: ProjectLayout }
 ): Omit<InitializeResultView, 'storage'> & { machineId: string } {
   const requested = { name: requestedName(input), keyPrefix: requestedPrefix(input) }
+  const repositories = input.layout === 'multi_repo' ? repositoriesToRecord(deps) : undefined
   // Checked before anything is created, so a refusal leaves no trace...
   assertSingleProject(deps)
   createLayout(deps)
@@ -196,7 +248,7 @@ export function initializeRepository(
   if (existing === null) {
     assertSingleProject(deps)
   }
-  const project = existing ?? createProject(deps, requested)
+  const project = existing ?? createProject(deps, requested, repositories)
   if (existing === null) {
     createdFiles.push(displayPath(deps.layout, deps.layout.projectFile))
   }

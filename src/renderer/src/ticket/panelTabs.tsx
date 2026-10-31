@@ -87,7 +87,7 @@ function Criteria({ detail, bundle, runner, onSelect }: OverviewTabProps): JSX.E
   return (
     <>
       <CoverageCriteria detail={detail} bundle={bundle} onSelect={onSelect} />
-      <DefinitionOfDone runner={runner} detail={detail} />
+      <DefinitionOfDone runner={runner} detail={detail} bundle={bundle} />
     </>
   )
 }

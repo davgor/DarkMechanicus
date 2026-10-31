@@ -95,7 +95,7 @@ export function updatePlanDraft(
     const result = applyDraftOps(JSON.parse(draft.bundle_json) as PlanBundle, input.ops, draftDeps(ctx))
     const draftRevision = writeDraft(ctx, draft, result.bundle)
     appendEvent(ctx, { kind: 'draft.updated', epicId: epic.id, payload: { draftRevision, ops: input.ops.length } })
-    const validation = withRunWarnings(ctx, epic.id, result.bundle, validatePlan(result.bundle))
+    const validation = withRunWarnings(ctx, epic.id, result.bundle, validatePlan(result.bundle, { repositories: ctx.repositoryEntries() }))
     return { epicId: epic.id, draftRevision, refMap: result.refMap, validation }
   })
 }

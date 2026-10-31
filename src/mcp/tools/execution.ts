@@ -10,6 +10,7 @@ import {
   heartbeatProgress,
   hostCatalog,
   incrementRef,
+  incrementRefs,
   LIMITS,
   rowCheckEntries,
   stableId
@@ -217,7 +218,12 @@ const ATTEMPT_TOOLS = [
       evidence: attemptEvidenceInput.optional(),
       increment: incrementRef
         .optional()
-        .describe('Acceptance nodes only. The epic branch and the commit (7 to 64 hex digits) that landed the sprint on it as one squashed commit.'),
+        .describe('Acceptance nodes of a single repository only. The epic branch and the commit (7 to 64 hex digits) that landed the sprint on it as one squashed commit.'),
+      increments: incrementRefs
+        .optional()
+        .describe(
+          'Acceptance nodes of a folder of repositories only, instead of increment: one { repo, branch, commit } per repository the sprint touched (the packet\'s repositories), each verified against that repository\'s history. One failed repository fails the increment; a missing, untouched, unknown or duplicate repository is refused with `invalid_input`.'
+        ),
       idempotencyKey
     },
     run: (api, input) => api.submitAttempt(input)

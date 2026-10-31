@@ -153,6 +153,11 @@ const REQUIRED: [string, string[]][] = [
       'Never edit a sprint the run has passed',
       'A run does not redo a sprint it has passed',
       '`get_run`',
+      'set `repo` on every work ticket',
+      'One ticket changes one repository',
+      'one ticket per repository',
+      'give the title without it',
+      'Acceptance nodes take no `repo`',
       'redraft'
     ]
   ],
@@ -174,7 +179,8 @@ const REQUIRED: [string, string[]][] = [
       'only for work that must combine mid-sprint',
       '`set_definition_of_done`',
       'its own ticket',
-      'row'
+      'row',
+      'each covering criterion names the repository its check runs in'
     ]
   ],
   [
@@ -260,7 +266,16 @@ const REQUIRED: [string, string[]][] = [
       'no replay, not even yours, can recover it',
       'no `claimToken`, and a reason such as "claim response lost"',
       'claim it again with a new `idempotencyKey`; the old key keeps replaying the lost claim',
-      'fails with `already_claimed` while its lease is live, `needs_reconciliation` once it has expired, and `run_not_active` while the run is paused'
+      'fails with `already_claimed` while its lease is live, `needs_reconciliation` once it has expired, and `run_not_active` while the run is paused',
+      '### Folders of repositories',
+      "create it at that repository's `startCommit`: `git -C <path> branch <name> <startCommit>`",
+      "Never switch the branch of a child repository's own checkout",
+      'has no branch guard',
+      'one set per touched repository',
+      "a worktree of its packet's `repository.path`",
+      "Squash each touched repository's sprint work onto its epic branch",
+      '`increments`, one `{ repo, branch, commit }` per touched repository',
+      'Give every ticket added in a retro redraft its `repo`'
     ]
   ],
   [
@@ -288,7 +303,11 @@ const REQUIRED: [string, string[]][] = [
       'structured notes',
       'a title and a reason',
       'the reporter can lift',
-      'Discoveries:'
+      'Discoveries:',
+      '### Folders of repositories',
+      'Work only in a worktree of `repository.path`',
+      'run Git as `git -C <worktree>`',
+      'report each check as `<repo>: <check>`'
     ]
   ],
   [
@@ -303,7 +322,10 @@ const REQUIRED: [string, string[]][] = [
       'Do not run the full sweep',
       'no per-ticket merge commit on the epic branch',
       'increment',
-      'Never accept an acceptance node whose increment failed'
+      'Never accept an acceptance node whose increment failed',
+      'in that repository, not in the folder',
+      'one increment verdict per touched repository',
+      'one set of Definition of Done checks per touched repository'
     ]
   ],
   [
@@ -321,6 +343,8 @@ const REQUIRED: [string, string[]][] = [
       '`get_checkpoint`',
       '`advance_sprint`',
       'cannot approve',
+      "each repository's increment commit",
+      '`<repo>: <check>` names',
       '`report_submitted`, `no_active_leases`, `required_accepted`, `acceptance_accepted`, `increment_merged`, `definition_of_done`, `retro`, `exit_criteria`, `epic_outcome` (final sprint), `plan_current`, and `approval`, in that order',
       'Definition of Done',
       'increment',

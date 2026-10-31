@@ -65,6 +65,8 @@ For each ticket provide:
   - When the same requirements recur across tickets or epics, save them with `save_profile`: a short lowercase name (letters, digits, hyphens, such as `ui-implementation`), a one-line description of when to use it, and the complete capability. Omit `expectedRevision` to create; to change a profile, pass the `revision` you read, and on `conflict` read it again. Profiles are provider-neutral like tickets: never put vendor or model names in them.
 - `priority`, `tags`, and `optional: true` for work that must not gate a sprint or the epic.
 
+**Folders of repositories.** When `get_project` returns `repositories`, set `repo` on every work ticket to the repository it changes. One ticket changes one repository, so split a cross-repository change into one ticket per repository and wire them with dependencies. The server writes the `<repo> - ` prefix, so give the title without it. Acceptance nodes take no `repo`.
+
 ## 5. Edit through the draft
 
 - `get_plan` with `view: "draft"` shows the working copy and its `draftRevision`. The saved plan (`view: "saved"`) does not change until save.

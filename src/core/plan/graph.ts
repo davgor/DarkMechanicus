@@ -499,9 +499,79 @@ function acceptanceWarnings(bundle: PlanBundle, index: BundleIndex): ValidationI
   ]
 }
 
-/** Validates the whole plan as a DAG with sprint ordering; errors block Save, warnings do not. */
-export function validatePlan(bundle: PlanBundle): ValidationReport {
+/**
+ * What validation reads of a project repository: its name and whether a rescan marked it missing. Structural, so this
+ * module (which the renderer imports) does not pull the Node-only `project.json` record code into its program.
+ */
+interface RepositoryRef {
+  name: string
+  missing?: true
+}
+
+/** The project's repositories a plan is checked against: entries for a folder of repositories, `null` for one repository. */
+interface PlanValidationOptions {
+  repositories: readonly RepositoryRef[] | null
+}
+
+interface RepositoryIssues {
+  errors: ValidationIssue[]
+  warnings: ValidationIssue[]
+}
+
+function repoIssue(code: string, ticket: TicketContent, message: string): ValidationIssue {
+  return { code, message, ticketIds: [ticket.id] }
+}
+
+/** The error a ticket's repository breaks, or null when the project allows it. */
+function repoError(ticket: TicketContent, repositories: readonly RepositoryRef[] | null): ValidationIssue | null {
+  const { repo } = ticket
+  if (isAcceptanceTicket(ticket)) {
+    return repo === undefined
+      ? null
+      : repoIssue('repo_not_allowed', ticket, `${ticket.key} is an acceptance node and can't target the repository "${repo}".`)
+  }
+  if (repositories === null) {
+    return repo === undefined
+      ? null
+      : repoIssue('repo_not_allowed', ticket, `This project is a single repository: ${ticket.key} can't target the repository "${repo}".`)
+  }
+  if (repo === undefined) {
+    const listed = repositories.length === 0 ? 'none' : repositories.map((entry) => entry.name).join(', ')
+    return repoIssue('missing_repo', ticket, `${ticket.key} needs a repository; this folder's repositories: ${listed}.`)
+  }
+  if (!repositories.some((entry) => entry.name === repo)) {
+    return repoIssue('unknown_repo', ticket, `${ticket.key} targets the repository "${repo}", which this project does not list.`)
+  }
+  return null
+}
+
+/** Ticket repositories against the project's: missing, unknown or not allowed ones are errors, ones missing on disk warnings. */
+function repositoryIssues(bundle: PlanBundle, repositories: readonly RepositoryRef[] | null): RepositoryIssues {
+  const errors: ValidationIssue[] = []
+  const warnings: ValidationIssue[] = []
+  for (const ticket of bundle.tickets) {
+    const error = repoError(ticket, repositories)
+    if (error) {
+      errors.push(error)
+      continue
+    }
+    const entry = repositories?.find((candidate) => candidate.name === ticket.repo)
+    if (entry?.missing === true) {
+      warnings.push(
+        repoIssue('repo_missing_on_disk', ticket, `${ticket.key} targets the repository "${entry.name}", which a rescan marked missing.`)
+      )
+    }
+  }
+  return { errors, warnings }
+}
+
+/**
+ * Validates the whole plan as a DAG with sprint ordering; errors block Save, warnings do not. With `options` it
+ * also checks each ticket's repository against the project's; without them it skips that check.
+ */
+export function validatePlan(bundle: PlanBundle, options?: PlanValidationOptions): ValidationReport {
   const index = indexBundle(bundle)
+  const repos = options ? repositoryIssues(bundle, options.repositories) : { errors: [], warnings: [] }
   const errors = [
     ...identityIssues(bundle),
     ...ordinalIssues(bundle),
@@ -510,13 +580,15 @@ export function validatePlan(bundle: PlanBundle): ValidationReport {
     ...relationIssues(bundle, index),
     ...criterionIssues(bundle),
     ...policyIssues(bundle),
-    ...acceptanceErrors(bundle, index)
+    ...acceptanceErrors(bundle, index),
+    ...repos.errors
   ]
   const warnings = [
     ...isolationWarnings(bundle),
     ...contentWarnings(bundle, index),
     ...sizeWarnings(bundle),
-    ...acceptanceWarnings(bundle, index)
+    ...acceptanceWarnings(bundle, index),
+    ...repos.warnings
   ]
   return { valid: errors.length === 0, errors, warnings }
 }

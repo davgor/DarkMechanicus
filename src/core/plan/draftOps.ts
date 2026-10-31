@@ -1,6 +1,7 @@
 import type { DraftOp, TicketInput } from '../../shared/domain/api'
 import type { PlanBundle, SprintDef, TicketContent } from '../../shared/domain/bundle'
 import { DomainError } from '../errors'
+import { LIMITS } from '../schemas'
 import { acceptanceNodesOf, acceptanceTitle, isAcceptanceTicket } from './acceptance'
 import { checkEdgeAddition, indexBundle, ticketLabel, validatePlan } from './graph'
 import {
@@ -17,6 +18,11 @@ export interface DraftDeps {
   newId(kind: 'ticket' | 'sprint'): string
   /** Allocates the next ticket display key (e.g. `DM-13`). */
   nextKey(): string
+  /**
+   * The names of the project's repositories when it is a folder of repositories, or `null` for a single
+   * repository. Asked only when an op names a ticket's `repo`.
+   */
+  repositories(): string[] | null
 }
 
 export interface DraftOpsResult {
@@ -184,6 +190,30 @@ const removeSprint: Handler<'remove_sprint'> = (state, op) => {
   renumberSprints(state.bundle, orderedSprints(state.bundle).filter((item) => item.id !== sprint.id))
 }
 
+/**
+ * Refuses a ticket whose repository the project cannot hold: a repository on an acceptance node, any repository
+ * in a single-repository project, a repository the project does not list, or a prefixed title over the limit.
+ * `requested` is the `repo` the op named; only a named repository is checked against the project.
+ */
+function checkRepo(state: OpState, ticket: TicketContent, requested: string | null | undefined): void {
+  if (ticket.repo !== undefined && isAcceptanceTicket(ticket)) {
+    reject(`${ticket.key} is an acceptance node, which covers the whole sprint and can't target one repository.`)
+  }
+  if (typeof requested === 'string') {
+    const repositories = state.deps.repositories()
+    if (repositories === null) {
+      reject(`This project is a single repository: ${ticket.key} can't target the repository "${requested}".`)
+    }
+    if (!repositories.includes(requested)) {
+      const listed = repositories.length === 0 ? 'none' : repositories.join(', ')
+      reject(`"${requested}" is not a repository of this folder. Its repositories: ${listed}.`)
+    }
+  }
+  if (ticket.title.length > LIMITS.title) {
+    reject(`${ticket.key}'s title with its repository prefix is longer than ${LIMITS.title} characters.`)
+  }
+}
+
 const addTicket: Handler<'add_ticket'> = (state, op) => {
   const sprint = resolveSprint(state, op.sprint)
   if (op.ticket.title.trim() === '') {
@@ -192,6 +222,7 @@ const addTicket: Handler<'add_ticket'> = (state, op) => {
   const id = state.deps.newId('ticket')
   declareRef(state, op.ref, id)
   const ticket = buildTicket(resolveCovers(state, op.ticket), { id, key: state.deps.nextKey() })
+  checkRepo(state, ticket, op.ticket.repo)
   sprint.ticketIds = insertAt(sprint.ticketIds, id, defaultPosition(state.bundle, sprint, ticket))
   state.bundle.tickets.push(ticket)
 }
@@ -201,8 +232,9 @@ const updateTicket: Handler<'update_ticket'> = (state, op) => {
   if (op.patch.title !== undefined && op.patch.title.trim() === '') {
     reject(`${ticket.key} needs a title.`)
   }
-  const patch = resolveCovers(state, op.patch)
-  state.bundle.tickets = state.bundle.tickets.map((item) => (item.id === ticket.id ? patchTicket(item, patch) : item))
+  const patched = patchTicket(ticket, resolveCovers(state, op.patch))
+  checkRepo(state, patched, op.patch.repo)
+  state.bundle.tickets = state.bundle.tickets.map((item) => (item.id === ticket.id ? patched : item))
 }
 
 /** The criterion without its covers: the key is removed, never set to undefined. */

@@ -39,6 +39,10 @@ interface Setup {
   agents?: AgentView[]
   statuses?: Partial<Record<AgentId, AgentAuthStatus>>
   busy?: boolean
+  multiRepo?: boolean
+  branchName?: string | null
+  /** What recording the branch comes to; true when unset. */
+  branchAccepted?: boolean
 }
 
 interface Calls {
@@ -46,6 +50,8 @@ interface Calls {
   pending: number
   closed: number
   addAgent: number
+  /** The order of branch recordings and run starts. */
+  order: string[]
 }
 
 /** The dialog over statuses it is told about, as the shell tells it: a status a sign-in prompt finds is kept. */
@@ -58,9 +64,20 @@ function Harness({ setup, calls }: { setup: Setup; calls: Calls }): JSX.Element 
       agents={setup.agents ?? [claude, codex]}
       statuses={statuses}
       busy={setup.busy ?? false}
-      onRunWithAgent={(choice) => calls.agent.push(choice)}
+      multiRepo={setup.multiRepo ?? false}
+      branchName={setup.branchName ?? null}
+      onSetBranch={async (name) => {
+        await Promise.resolve()
+        calls.order.push(`setEpicBranch:${name}`)
+        return setup.branchAccepted ?? true
+      }}
+      onRunWithAgent={(choice) => {
+        calls.agent.push(choice)
+        calls.order.push('queueRun')
+      }}
       onLeavePending={() => {
         calls.pending += 1
+        calls.order.push('queueRun')
       }}
       onAddAgent={() => {
         calls.addAgent += 1
@@ -74,7 +91,7 @@ function Harness({ setup, calls }: { setup: Setup; calls: Calls }): JSX.Element 
 }
 
 async function open(setup: Setup = {}): Promise<Calls> {
-  const calls: Calls = { agent: [], pending: 0, closed: 0, addAgent: 0 }
+  const calls: Calls = { agent: [], pending: 0, closed: 0, addAgent: 0, order: [] }
   render(<Harness setup={setup} calls={calls} />)
   await settle()
   return calls
@@ -293,5 +310,57 @@ describe('StartRunDialog: busy and closing', () => {
     fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
 
     expect(calls.closed).toBe(2)
+  })
+})
+
+describe('StartRunDialog: the epic branch in a folder of repositories', () => {
+  const branchField = (): HTMLInputElement | null => dialog().queryByRole('textbox', { name: 'Epic branch' }) as HTMLInputElement | null
+
+  it('asks for the branch only in a folder of repositories without one, prefilled with a slug of the title', async () => {
+    await open({ multiRepo: true })
+    expect(branchField()?.value).toBe('agent-chats')
+    expect(branchField()?.required).toBe(true)
+  })
+
+  it('shows a set branch read-only', async () => {
+    await open({ multiRepo: true, branchName: 'feature/chats' })
+    expect(branchField()).toBeNull()
+    expect(dialog().getByRole('region', { name: 'Epic branch' }).textContent).toContain('feature/chats')
+  })
+
+  it('has no branch field in a single repository', async () => {
+    const calls = await open({ branchName: null })
+    expect(dialog().queryByRole('region', { name: 'Epic branch' })).toBeNull()
+    fireEvent.click(leavePending())
+    expect(calls.order).toEqual(['queueRun'])
+  })
+
+  it('refuses an invalid name', async () => {
+    const calls = await open({ multiRepo: true })
+    fireEvent.change(branchField() as HTMLInputElement, { target: { value: 'bad..name' } })
+    expect(dialog().getByRole('alert').textContent).toBe('Not a valid branch name')
+    expect([leavePending().disabled, runWithAgent().disabled]).toEqual([true, true])
+    fireEvent.change(branchField() as HTMLInputElement, { target: { value: '' } })
+    expect(leavePending().disabled).toBe(true)
+    fireEvent.click(leavePending())
+    await settle()
+    expect(calls.order).toEqual([])
+  })
+
+  it('records the branch before the run is queued, both ways', async () => {
+    const calls = await open({ multiRepo: true })
+    fireEvent.change(branchField() as HTMLInputElement, { target: { value: 'feature/chats' } })
+    fireEvent.click(leavePending())
+    await settle()
+    fireEvent.click(runWithAgent())
+    await settle()
+    expect(calls.order).toEqual(['setEpicBranch:feature/chats', 'queueRun', 'setEpicBranch:feature/chats', 'queueRun'])
+  })
+
+  it('does not queue the run when recording the branch is refused', async () => {
+    const calls = await open({ multiRepo: true, branchAccepted: false })
+    fireEvent.click(leavePending())
+    await settle()
+    expect(calls.order).toEqual(['setEpicBranch:agent-chats'])
   })
 })

@@ -1,0 +1,52 @@
+$ DARKMECHANICUS_HOME=<evidence>/core/home npx tsx c3c4.mts c4
+getProject().repositories => [{"name":"alpha","missing":false},{"name":"beta","missing":true},{"name":"gamma","missing":false},{"name":"beta-renamed","missing":false},{"name":"delta","missing":false}]
+rescan with zeta present => [{"name":"alpha","missing":false},{"name":"beta","missing":true},{"name":"gamma","missing":false},{"name":"beta-renamed","missing":false},{"name":"delta","missing":false},{"name":"zeta","missing":false}]
+draft tickets: [
+  {
+    "id": "tk_01m6a0gy2rfhz06as7eqman9vh",
+    "key": "PAR-5",
+    "kind": "acceptance",
+    "title": "Sprint 1 acceptance"
+  },
+  {
+    "id": "tk_01m6a0gy2ztyb4tz481efp9yee",
+    "key": "PAR-6",
+    "kind": "work",
+    "title": "Ticket without a repository"
+  },
+  {
+    "id": "tk_01m6a0gy30yfcvxp7chhfwyf55",
+    "key": "PAR-7",
+    "kind": "work",
+    "repo": "zeta",
+    "title": "zeta - Ticket naming zeta"
+  }
+]
+dropped zeta from /private/tmp/multirepo-run/evidence/core/home/projects/parent-2c8ba912cf8c85fd/project.json and removed the zeta folder; getProject().repositories => [{"name":"alpha","missing":false},{"name":"beta","missing":true},{"name":"gamma","missing":false},{"name":"beta-renamed","missing":false},{"name":"delta","missing":false}]
+
+$ validate_plan { epicId: ep_01m6a0gy2qbh61bj2tag4e79np, view: 'draft' }
+{
+  "valid": false,
+  "errors": [
+    {
+      "code": "missing_repo",
+      "message": "PAR-6 needs a repository; this folder's repositories: alpha, beta, gamma, beta-renamed, delta.",
+      "ticketIds": [
+        "tk_01m6a0gy2ztyb4tz481efp9yee"
+      ],
+      "keys": [
+        "PAR-6"
+      ]
+    },
+    {
+      "code": "unknown_repo",
+      "message": "PAR-7 targets the repository \"zeta\", which this project does not list.",
+      "ticketIds": [
+        "tk_01m6a0gy30yfcvxp7chhfwyf55"
+      ],
+      "keys": [
+        "PAR-7"
+      ]
+    }
+  ]
+}

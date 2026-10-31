@@ -72,7 +72,8 @@ describe('list_projects', () => {
       keyPrefix: 'DM',
       repoRoot: '/repo',
       createdAt: '2026-01-01T00:00:00.000Z',
-      definitionOfDone: [{ name: 'lint', command: 'npm run lint', description: 'oxlint' }]
+      definitionOfDone: [{ name: 'lint', command: 'npm run lint', description: 'oxlint' }],
+      repositories: null
     }
     const api = createCannedApi({ getProject: project })
     await withRig(areaServer(registerDiscoveryTools), api, async (rig) => {

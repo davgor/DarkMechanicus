@@ -213,6 +213,32 @@ describe('checkpoint report increment', () => {
     expect(within(section).getByText('The commit has 2 parents; a sprint lands as one squashed commit.')).toBeTruthy()
     expect(within(screen.getByLabelText('Increment checks')).getAllByRole('listitem').map((item) => item.className)).toEqual(['is-failed'])
   })
+})
+
+describe('checkpoint report increments in a folder of repositories', () => {
+  it('shows one increment per repository of a folder, each with its commit and verdict', () => {
+    const base = incrementView().increment
+    renderScreen({
+      checkpoint: checkpointView({
+        report: reportView({
+          increments: [
+            incrementView({ repo: 'api' }),
+            incrementView({ repo: 'web', increment: { ...base, commit: 'abcdef0123456789abcdef0123456789abcdef01', passed: false } })
+          ]
+        })
+      })
+    })
+    expect(screen.queryByLabelText('INCREMENT')).toBeNull()
+    const commitRow = (repo: string): string[][] => {
+      const section = screen.getByLabelText(`INCREMENT ${repo}`)
+      const row = within(section).getAllByRole('listitem').filter((item) => item.className.startsWith('cp-row'))[0]
+      return [[within(section).getByRole('heading').textContent ?? ''], cells(row, '.cp-row-title'), cells(row, '.cp-row-detail')]
+    }
+    expect([commitRow('api'), commitRow('web')]).toEqual([
+      [['INCREMENT · SPRINT 2 · api'], ['5d3e1f0'], ['✓ VERIFIED']],
+      [['INCREMENT · SPRINT 2 · web'], ['abcdef0'], ['✗ NOT VERIFIED']]
+    ])
+  })
 
   it('shows no increment section for a sprint that named none', () => {
     renderScreen()

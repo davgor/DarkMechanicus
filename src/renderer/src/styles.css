@@ -1792,6 +1792,13 @@ textarea.input {
   flex-direction: column;
 }
 
+.onboarding-repositories {
+  margin: 4px 0 8px;
+  padding-left: 20px;
+  color: var(--ink);
+  font-size: 13px;
+}
+
 .created-row {
   display: grid;
   grid-template-columns: minmax(150px, 220px) minmax(0, 1fr);

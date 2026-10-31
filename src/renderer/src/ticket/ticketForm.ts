@@ -23,7 +23,9 @@ import {
   type ToolCapability,
   type WorkType
 } from '../../../shared/domain/bundle'
-import type { ProfileView } from '../../../shared/domain/views'
+import type { ProfileView, RepositoryView } from '../../../shared/domain/views'
+import { isAcceptanceTicket } from '../../../core/plan/acceptance'
+import { descriptionOf } from '../../../core/plan/repoTitles'
 
 /** The values of the quality and cost preferences, each of which the editor can also clear. */
 export const QUALITIES = ['standard', 'high'] as const
@@ -41,7 +43,12 @@ interface CriterionField {
 }
 
 export interface TicketForm {
+  /** The title's description: the title without its `<repo> - ` prefix, which the server keeps. */
   title: string
+  /** The repository of a folder of repositories the ticket targets ('' = none). */
+  repo: string
+  /** Whether the ticket is a sprint's acceptance node, which never targets a repository. */
+  acceptance: boolean
   body: string
   criteria: CriterionField[]
   nextKey: number
@@ -132,7 +139,9 @@ export function formFromBundle(bundle: PlanBundle, ticketId: string): TicketForm
     return null
   }
   return {
-    title: ticket.title,
+    title: descriptionOf(ticket.repo, ticket.title),
+    repo: ticket.repo ?? '',
+    acceptance: isAcceptanceTicket(ticket),
     body: ticket.body,
     criteria: ticket.acceptanceCriteria.map((criterion) => ({ key: criterion.id, id: criterion.id, text: criterion.text })),
     nextKey: 1,
@@ -203,9 +212,31 @@ function parseTokens(text: string): number | null {
   return /^\d+$/.test(trimmed) ? Number.parseInt(trimmed, 10) : null
 }
 
-export function formErrors(form: TicketForm): string | null {
+/** A choice of the Repository select; a missing repository is offered only while the ticket already targets it. */
+interface RepositoryOption {
+  name: string
+  label: string
+}
+
+/**
+ * The choices of the Repository select, or null when the editor shows no such field: a single-repository
+ * project (`repositories` null) or an acceptance node.
+ */
+export function repositoryOptions(form: TicketForm, repositories: RepositoryView[] | null): RepositoryOption[] | null {
+  if (repositories === null || form.acceptance) {
+    return null
+  }
+  return repositories
+    .filter((repository) => !repository.missing || repository.name === form.repo)
+    .map((repository) => ({ name: repository.name, label: repository.missing ? `${repository.name} (missing)` : repository.name }))
+}
+
+export function formErrors(form: TicketForm, repositories: RepositoryView[] | null): string | null {
   if (form.title.trim() === '') {
     return 'Title is required.'
+  }
+  if (repositoryOptions(form, repositories) !== null && form.repo === '') {
+    return 'Choose a repository.'
   }
   const tokens = form.tokens.trim()
   return tokens === '' || /^\d+$/.test(tokens) ? null : 'Estimated tokens must be a whole number.'
@@ -397,7 +428,11 @@ function contentPatch(form: TicketForm, ticket: TicketContent): Partial<TicketIn
   const title = form.title.trim()
   const criteria = criteriaInput(form)
   const tags = splitList(form.tags)
-  if (title !== ticket.title) {
+  const retargeted = form.repo !== (ticket.repo ?? '')
+  if (retargeted) {
+    patch.repo = form.repo === '' ? null : form.repo
+  }
+  if (retargeted || title !== descriptionOf(ticket.repo, ticket.title)) {
     patch.title = title
   }
   if (form.body !== ticket.body) {

@@ -161,12 +161,9 @@ function IncrementReasons({ reasons }: { reasons: string[] }): JSX.Element | nul
  * The commit that landed the sprint on the epic branch and what the server checked about it: the same rows as the
  * changes below, then the checks and, if it did not pass, the reasons.
  */
-function Increment({ increment }: { increment: IncrementSection | null }): JSX.Element | null {
-  if (increment === null) {
-    return null
-  }
+function Increment({ increment }: { increment: IncrementSection }): JSX.Element {
   return (
-    <section className="cp-section" aria-label="INCREMENT">
+    <section className="cp-section" aria-label={increment.repo === null ? 'INCREMENT' : `INCREMENT ${increment.repo}`}>
       <h3 className="ew-eyebrow">{increment.heading}</h3>
       <ul className="cp-rows">
         <li className={increment.passed ? 'cp-row' : 'cp-row is-failed'}>
@@ -294,7 +291,9 @@ export function SprintReport(props: SprintReportProps): JSX.Element {
       <Rows title="ACCEPTED" rows={report.accepted} failed={false} onSelect={props.onSelectTicket} />
       <Rows title="FAILED" rows={report.failed} failed onSelect={props.onSelectTicket} />
       <Rows title="BLOCKED" rows={report.blocked} failed={false} onSelect={props.onSelectTicket} />
-      <Increment increment={report.increment} />
+      {report.increments.map((increment) => (
+        <Increment key={increment.repo ?? ''} increment={increment} />
+      ))}
       <Changes changes={report.changes} />
       <Checks report={report} />
       <Criteria title="EXIT CRITERIA" lines={report.exitCriteria} />

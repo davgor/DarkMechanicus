@@ -15,6 +15,7 @@ import {
 } from '../../shared/domain/bundle'
 import type { CriterionInput, SprintInput, TicketCriterionInput, TicketInput } from '../../shared/domain/api'
 import { acceptanceTitle } from './acceptance'
+import { descriptionOf, withRepoPrefix } from './repoTitles'
 
 export const CRITERION_ID_PATTERN = /^[a-z][0-9]{1,4}$/
 
@@ -133,12 +134,22 @@ function startingCapability(input: TicketInput): CapabilityProfile {
   return mergeCapability(input.kind === 'acceptance' ? { ...base, workType: 'testing' } : base, input.capability)
 }
 
+/**
+ * The title and `repo` key of a new ticket. A ticket targeting a repository carries its prefix once, even when
+ * the given title already has it; a ticket without one has no `repo` key, so its saved shape is unchanged.
+ */
+function targetedTitle(input: TicketInput): { title: string; repo?: string } {
+  const title = input.title.trim()
+  const repo = input.repo ?? undefined
+  return repo === undefined ? { title } : { title: withRepoPrefix(repo, descriptionOf(repo, title)), repo }
+}
+
 export function buildTicket(input: TicketInput, identity: { id: string; key: string }): TicketContent {
   return {
     id: identity.id,
     key: identity.key,
     ...kindKey(input.kind),
-    title: input.title.trim(),
+    ...targetedTitle(input),
     body: input.body ?? '',
     acceptanceCriteria: normalizeTicketCriteria(input.acceptanceCriteria ?? [], []),
     tags: normalizeTags(input.tags ?? []),
@@ -162,6 +173,27 @@ function resized(ticket: TicketContent, size: TicketSize | null | undefined): Ti
   return next
 }
 
+/**
+ * Retargets a copy of the ticket: the title keeps its description (the title without the old repository's
+ * prefix) and carries the new repository's prefix, or none once `repo` is null. A patched title that already
+ * carries the new repository's prefix is not prefixed twice. Neither `repo` nor `title` patched: unchanged.
+ */
+function retargeted(ticket: TicketContent, patch: Partial<TicketInput>): TicketContent {
+  if (patch.repo === undefined && patch.title === undefined) {
+    return ticket
+  }
+  const repo = patch.repo === undefined ? ticket.repo : (patch.repo ?? undefined)
+  const described = descriptionOf(ticket.repo, (patch.title ?? ticket.title).trim())
+  const description = patch.title !== undefined && repo !== ticket.repo ? descriptionOf(repo, described) : described
+  const next = { ...ticket, title: repo === undefined ? description : withRepoPrefix(repo, description) }
+  if (repo === undefined) {
+    delete next.repo
+  } else {
+    next.repo = repo
+  }
+  return next
+}
+
 /** Sets the kind of a copy of the ticket: `work` removes the key (it is never stored), undefined keeps it. */
 function withKind(ticket: TicketContent, kind: TicketKind | undefined): TicketContent {
   if (kind === undefined) {
@@ -177,13 +209,12 @@ function withKind(ticket: TicketContent, kind: TicketKind | undefined): TicketCo
 }
 
 /**
- * Applies a patch to a ticket; a null `size` or `capability.reasoning.effort` removes that key, and
- * a `kind` of `work` removes the kind.
+ * Applies a patch to a ticket; a null `size`, `repo` or `capability.reasoning.effort` removes that key, and
+ * a `kind` of `work` removes the kind. The title follows the ticket's repository (see `retargeted`).
  */
 export function patchTicket(ticket: TicketContent, patch: Partial<TicketInput>): TicketContent {
   const patched: TicketContent = {
     ...ticket,
-    title: patch.title === undefined ? ticket.title : patch.title.trim(),
     body: patch.body ?? ticket.body,
     acceptanceCriteria:
       patch.acceptanceCriteria === undefined
@@ -196,7 +227,7 @@ export function patchTicket(ticket: TicketContent, patch: Partial<TicketInput>):
     expectedArtifacts: patch.expectedArtifacts ?? ticket.expectedArtifacts,
     optional: patch.optional ?? ticket.optional
   }
-  return withKind(resized(patched, patch.size), patch.kind)
+  return withKind(resized(retargeted(patched, patch), patch.size), patch.kind)
 }
 
 /** The acceptance node of a sprint: required, for testing, and with criteria still to fill in. */

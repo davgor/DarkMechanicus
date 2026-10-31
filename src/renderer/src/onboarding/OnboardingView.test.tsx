@@ -30,12 +30,12 @@ interface Calls {
   different: number
 }
 
-function renderView(busy = false): Calls {
+function renderView(busy = false, view = folder): Calls {
   const calls: Calls = { initialize: [], different: 0 }
   render(
     <ToastProvider scheduler={new ManualScheduler()}>
       <OnboardingView
-        folder={folder}
+        folder={view}
         busy={busy}
         onInitialize={(options) => {
           calls.initialize.push(options)
@@ -335,6 +335,62 @@ describe('OnboardingView storage mode', () => {
     const calls = renderView()
     chooseDbMode()
     fireEvent.click(screen.getByRole('radio', { name: /in this repository/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Initialize folder' }))
+    expect(calls.initialize).toEqual([{ mode: 'repo', writeMcpConfig: true, importBoard: false }])
+  })
+})
+
+describe('OnboardingView folder of repositories', () => {
+  const parent = folderView({
+    path: '/home/u/code/services',
+    name: 'services',
+    displayPath: '~/code/services',
+    initialized: false,
+    childRepositories: ['alpha', 'beta']
+  })
+
+  function radioNames(): string[] {
+    const group = screen.getByRole('radiogroup', { name: /where .* stored/i })
+    return within(group)
+      .getAllByRole('radio')
+      .map((radio) => radio.closest('label')?.querySelector('.onboarding-mode-label')?.textContent ?? '')
+  }
+
+  it('is not offered without child repositories', () => {
+    renderView(false, folderView({ ...folder, childRepositories: [] }))
+    expect(radioNames()).toEqual(['In this repository', 'Database only'])
+    cleanup()
+    renderView(false, folderView({ ...folder, childRepositories: null }))
+    expect(radioNames()).toEqual(['In this repository', 'Database only'])
+    expect((screen.getByRole('radio', { name: /in this repository/i }) as HTMLInputElement).checked).toBe(true)
+  })
+
+  it('is offered and preselected with child repositories, listing them', () => {
+    renderView(false, parent)
+    expect(radioNames()).toEqual(['Folder of repositories', 'In this repository', 'Database only'])
+    expect((screen.getByRole('radio', { name: /folder of repositories/i }) as HTMLInputElement).checked).toBe(true)
+    const list = screen.getByRole('list', { name: 'Detected repositories' })
+    expect(within(list).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['alpha', 'beta'])
+    const panel = screen.getByRole('region', { name: 'What initializing creates' })
+    expect(panel.textContent).toMatch(/this computer’s Dark Mechanicus database/)
+    expect(panel.textContent).toMatch(/Nothing is written into services or its repositories/)
+  })
+
+  it('hides the .mcp.json option', () => {
+    renderView(false, parent)
+    expect(screen.queryByRole('checkbox', { name: /mcp\.json/i })).toBeNull()
+  })
+
+  it('submits a database-only multi-repository set-up', () => {
+    const calls = renderView(false, parent)
+    fireEvent.click(screen.getByRole('button', { name: 'Initialize folder' }))
+    expect(calls.initialize).toEqual([{ mode: 'db', layout: 'multi_repo', writeMcpConfig: false, importBoard: false }])
+  })
+
+  it('still allows a single-repository set-up when another choice is made', () => {
+    const calls = renderView(false, parent)
+    fireEvent.click(screen.getByRole('radio', { name: /in this repository/i }))
+    expect(screen.queryByRole('list', { name: 'Detected repositories' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Initialize folder' }))
     expect(calls.initialize).toEqual([{ mode: 'repo', writeMcpConfig: true, importBoard: false }])
   })

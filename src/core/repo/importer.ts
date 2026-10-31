@@ -695,11 +695,12 @@ function markSynced(db: Db, entry: { kind: Conflict['kind']; entityId: string; h
 function upsertEpic(db: Db, files: EpicFiles): void {
   const { state, pointer } = files
   db.run(
-    `INSERT INTO epics (id, title, status, current_revision_id, branch_json, provenance_json, outcome_json, revision,
-       created_at, updated_at, completed_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+    `INSERT INTO epics (id, title, status, current_revision_id, branch_json, repository_branches_json, provenance_json,
+       outcome_json, revision, created_at, updated_at, completed_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET title = excluded.title, status = excluded.status,
        current_revision_id = excluded.current_revision_id, branch_json = excluded.branch_json,
+       repository_branches_json = excluded.repository_branches_json,
        provenance_json = excluded.provenance_json, outcome_json = excluded.outcome_json, revision = epics.revision + 1,
        updated_at = excluded.updated_at, completed_at = excluded.completed_at`,
     files.epicId,
@@ -707,6 +708,7 @@ function upsertEpic(db: Db, files: EpicFiles): void {
     state.status,
     pointer.revisionId,
     state.branch === null ? null : toJson(state.branch),
+    state.repositoryBranches === undefined ? null : toJson(state.repositoryBranches),
     state.provenance === null ? null : toJson(state.provenance),
     state.outcome === null ? null : toJson(state.outcome),
     state.createdAt,
@@ -818,6 +820,12 @@ function nullableJson(value: unknown): string | null {
   return value === null ? null : toJson(value)
 }
 
+/** What `increment_json` holds: a folder of repositories' array of verdicts, the single verdict, or NULL for neither. */
+function incrementJson(attempt: AttemptRecord): string | null {
+  const stored = attempt.increments ?? attempt.increment
+  return stored === undefined ? null : toJson(stored)
+}
+
 function upsertAttempt(db: Db, runId: string, attempt: AttemptRecord): void {
   db.run(
     `INSERT INTO attempts (id, run_id, ticket_id, number, kind, state, fencing_token, claim_secret, worker_json,
@@ -847,7 +855,7 @@ function upsertAttempt(db: Db, runId: string, attempt: AttemptRecord): void {
     nullableJson(attempt.evidence),
     nullableJson(attempt.failure),
     nullableJson(attempt.decision),
-    attempt.increment === undefined ? null : toJson(attempt.increment),
+    incrementJson(attempt),
     attempt.createdAt,
     attempt.updatedAt,
     attempt.submittedAt,

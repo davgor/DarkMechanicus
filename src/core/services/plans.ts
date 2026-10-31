@@ -222,10 +222,10 @@ export function validatePlanView(ctx: Ctx, input: { epicId: string; view: 'saved
   requireCapability(ctx.session, 'read')
   const epic = loadEpicRow(ctx, input.epicId)
   const { bundle } = readPlanBundle(ctx, epic, input.view)
-  return withRunWarnings(ctx, epic.id, bundle, validatePlan(bundle))
+  return withRunWarnings(ctx, epic.id, bundle, validatePlan(bundle, { repositories: ctx.repositoryEntries() }))
 }
 
-function savableBundle(epic: EpicRow, draft: DraftRow): PlanBundle {
+function savableBundle(ctx: Ctx, epic: EpicRow, draft: DraftRow): PlanBundle {
   if (draft.base_revision_id !== epic.current_revision_id) {
     fail('stale_draft', STALE_DRAFT, {
       baseRevisionId: draft.base_revision_id,
@@ -233,7 +233,7 @@ function savableBundle(epic: EpicRow, draft: DraftRow): PlanBundle {
     })
   }
   const bundle = parseBundle(draft.bundle_json)
-  const report = validatePlan(bundle)
+  const report = validatePlan(bundle, { repositories: ctx.repositoryEntries() })
   const [first] = report.errors
   if (first) {
     fail('invalid_plan', `The plan has ${report.errors.length} error(s) that block saving. ${first.message}`, {
@@ -287,7 +287,7 @@ function saveDraft(ctx: Ctx, input: { epicId: string; expectedDraftRevision: num
   assertNoOpenTransfer(ctx, epic.id)
   const draft = loadDraftRow(ctx, epic.id) ?? fail('not_found', 'There is no draft to save.', { epicId: epic.id })
   assertDraftRevision(draft, input.expectedDraftRevision)
-  const bundle = savableBundle(epic, draft)
+  const bundle = savableBundle(ctx, epic, draft)
   assertNoPendingSave(ctx, epic.id)
   const hash = contentHash(bundle)
   const current = ctx.db.get<RevisionRow>('SELECT * FROM plan_revisions WHERE id = ?', epic.current_revision_id)

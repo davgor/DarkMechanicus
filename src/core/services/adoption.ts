@@ -4,6 +4,7 @@ import { contentHash } from '../canonical'
 import type { Ctx } from '../context'
 import { fail } from '../errors'
 import { indexBundle, sortedSprints, ticketLabel } from '../plan/graph'
+import { bindRepositoryBranches } from './epicBranches'
 import { appendEvent } from './events'
 import { enqueueOutbox } from './outbox'
 import { loadBundle, loadRun, requireOwnedRun, type RunRow } from './reports'
@@ -193,7 +194,8 @@ function chooseActiveSprint(activeSprintId: string | null, current: PlanBundle, 
 
 /**
  * Switches a run to the epic's newer saved revision at a checkpoint (or while paused) with no open
- * attempts. Grants bound to the old revision stop matching because their binding names it.
+ * attempts. Grants bound to the old revision stop matching because their binding names it. In a folder of
+ * repositories, a repository the adopted revision names for the first time is bound to the epic branch now.
  */
 export function adoptRevision(
   ctx: Ctx,
@@ -226,6 +228,7 @@ export function adoptRevision(
       payload: { from: run.revision_id, to: input.revisionId, kept, superseded, freshBudget }
     })
     enqueueOutbox(ctx, { kind: 'run_history', epicId: run.epic_id, runId: run.id })
+    bindRepositoryBranches(ctx, run.epic_id, input.revisionId, null)
     if (superseded.length > 0) {
       enqueueOutbox(ctx, { kind: 'epic_state', epicId: run.epic_id })
     }

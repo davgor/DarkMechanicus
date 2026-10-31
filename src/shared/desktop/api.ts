@@ -20,6 +20,11 @@ export interface TrackedFolderView {
   /** False when the folder no longer exists or is unreadable. */
   available: boolean
   addedAt: string
+  /**
+   * Names of the child Git repositories, for a folder that is not set up and not inside a Git
+   * repository (possibly empty); null otherwise.
+   */
+  childRepositories: string[] | null
 }
 
 /** The agents the app knows how to find and sign in (and, all but Autonomous, download); vendor maps are keyed by these. */
@@ -290,6 +295,7 @@ const DESKTOP_COMMANDS = [
   'getCapabilities',
   'getProject',
   'setDefinitionOfDone',
+  'rescanRepositories',
   'initializeRepository',
   'getStorageStatus',
   'flushPortableState',

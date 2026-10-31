@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { PlanBundle, TicketContent } from '../../shared/domain/bundle'
 import type { EventView } from '../../shared/domain/views'
 import { makeBundle, sid, tid } from '../../test/bundles'
 import {
@@ -21,13 +22,14 @@ import {
   tempDatabasePath,
   ticketStatus
 } from '../../test/execution'
-import { createSequentialIds, createTestClock, createTestCtx, createTestDb, withRole } from '../../test/testContext'
+import { createStubGit } from '../../test/repoEnv'
+import { createSequentialIds, createTestClock, createTestCtx, createTestDb, type TestCtx, withRole } from '../../test/testContext'
 import { contentHash } from '../canonical'
 import type { Ctx } from '../context'
 import { openDatabase } from '../db/database'
 import { DomainError } from '../errors'
 import { buildRunHistoryRecord, buildSnapshotRecord } from '../repo/portable'
-import { failAttempt, heartbeatAttempt, reconcileAttempt, submitAttempt } from './attempts'
+import { acceptAttempt, failAttempt, heartbeatAttempt, reconcileAttempt, submitAttempt } from './attempts'
 import { listEvents, MAX_EVENT_PAGE } from './events'
 import { attemptView } from './execution'
 import { registerHost } from './hosts'
@@ -695,5 +697,124 @@ describe('submitAttempt — replays and expiry', () => {
     const claimed = claim(ctx, runId, 1, { leaseSeconds: 60 })
     ctx.clock.advanceSeconds(61)
     expect(errorCode(() => submitClaim(ctx, claimed))).toBe('expired_claim')
+  })
+})
+
+const API_HEAD = '2'.repeat(40)
+const WEB_HEAD = '3'.repeat(40)
+const DOCS_HEAD = '4'.repeat(40)
+const FOLDER_BRANCH = 'epic/multi'
+const HEADS: Record<string, string> = { api: API_HEAD, web: WEB_HEAD, docs: DOCS_HEAD }
+
+/** A folder of repositories at `/folder` holding api, web and docs, each on its own HEAD. */
+function folderCtx(missingRepositories: string[] = []): TestCtx {
+  return createTestCtx({
+    projectRoot: '/folder',
+    repositories: Object.keys(HEADS),
+    missingRepositories,
+    gitFor: (repo) => {
+      const head = repo === null ? undefined : HEADS[repo]
+      if (head === undefined) {
+        throw new Error(`No repository ${String(repo)}`)
+      }
+      return { ...createStubGit(), head: () => ({ branch: 'main', commit: head, detached: false }), branchCommit: () => null }
+    }
+  })
+}
+
+/** One sprint whose ticket n is `tickets[n - 1]` applied to the default ticket; the epic branch is `FOLDER_BRANCH`. */
+function folderRun(ctx: TestCtx, tickets: Partial<TicketContent>[]): string {
+  const base = makeBundle([tickets.map((_, index) => index + 1)])
+  const bundle: PlanBundle = {
+    ...base,
+    tickets: base.tickets.map((ticket, index) => {
+      const patch = tickets[index] ?? {}
+      return { ...ticket, ...patch, title: patch.repo === undefined ? ticket.title : `${patch.repo} - ${ticket.title}` }
+    })
+  }
+  return startedRun(ctx, { bundle, branch: { repository: null, name: FOLDER_BRANCH, startCommit: null } }).runId
+}
+
+function bound(repository: string): { repository: string; name: string; startCommit: string } {
+  return { repository, name: FOLDER_BRANCH, startCommit: HEADS[repository] ?? '' }
+}
+
+describe('claimTicket — packets in a folder of repositories', () => {
+  it('gives each work ticket its own repository path and bound branch, and tells the worker to stay there', () => {
+    const ctx = folderCtx()
+    const runId = folderRun(ctx, [{ repo: 'api' }, { repo: 'web' }])
+    const api = claim(ctx, runId, 1).packet
+    const web = claim(ctx, runId, 2).packet
+    expect(api.repository).toEqual({ name: 'api', path: '/folder/api', branch: bound('api') })
+    expect(web.repository).toEqual({ name: 'web', path: '/folder/web', branch: bound('web') })
+    expect(api.reporting.instructions).toContain(`Work only in a worktree of repository.path (/folder/api), on that repository's branch ${FOLDER_BRANCH}.`)
+    expect(web.reporting.instructions).toContain('/folder/web')
+    expect(Object.keys(api)).not.toContain('repositories')
+  })
+
+  it('lists only the touched repositories on the acceptance node, in name order', () => {
+    const ctx = folderCtx()
+    // web and api are required and accepted; docs is optional and never claimed, so it is not touched.
+    const runId = folderRun(ctx, [{ repo: 'web' }, { repo: 'api' }, { repo: 'api' }, { repo: 'docs', optional: true }, { kind: 'acceptance' }])
+    for (const ticket of [1, 2, 3]) {
+      const claimed = claim(ctx, runId, ticket)
+      submitClaim(ctx, claimed)
+      acceptAttempt(ctx, { attemptId: claimed.attempt.id })
+    }
+    const node = claim(ctx, runId, 5).packet
+    expect(node.repositories).toEqual([
+      { name: 'api', path: '/folder/api', branch: bound('api') },
+      { name: 'web', path: '/folder/web', branch: bound('web') }
+    ])
+    expect(Object.keys(node)).not.toContain('repository')
+  })
+
+  it('refuses a work ticket whose repository is missing, and makes no attempt', () => {
+    const ctx = folderCtx(['web'])
+    const runId = folderRun(ctx, [{ repo: 'api' }, { repo: 'web' }])
+    const error = domainError(() => claim(ctx, runId, 2))
+    expect([error.code, error.message]).toEqual(['invalid_input', 'DM-2 targets repository "web", which is missing from this project.'])
+    expect(openAttemptIds(ctx, runId)).toEqual([])
+  })
+
+  it('refuses a work ticket whose repository has no bound epic branch', () => {
+    const ctx = folderCtx()
+    const runId = folderRun(ctx, [{ repo: 'api' }, { repo: 'web' }])
+    ctx.db.run('UPDATE epics SET repository_branches_json = ?', JSON.stringify([bound('api')]))
+    expect(domainError(() => claim(ctx, runId, 2)).message).toBe('DM-2 targets repository "web", which has no epic branch bound.')
+    expect(claim(ctx, runId, 1).packet.repository?.name).toBe('api')
+  })
+
+  it('refuses a work ticket that names no repository', () => {
+    const ctx = folderCtx()
+    const runId = folderRun(ctx, [{ repo: 'api' }, {}])
+    expect(errorCode(() => claim(ctx, runId, 2))).toBe('invalid_input')
+  })
+})
+
+describe('claimTicket — packets in a single repository', () => {
+  it('keep their previous shape: no repository fields and the plain reporting text', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx)
+    const { packet } = claim(ctx, runId, 1)
+    expect(Object.keys(packet).sort()).toEqual(
+      [
+        'runId',
+        'attemptId',
+        'claimToken',
+        'fencingToken',
+        'leaseExpiresAt',
+        'heartbeatIntervalSeconds',
+        'epic',
+        'revisionId',
+        'sprint',
+        'ticket',
+        'ticketContentHash',
+        'effort',
+        'predecessors',
+        'reporting'
+      ].sort()
+    )
+    expect(packet.reporting.instructions).not.toContain('worktree')
   })
 })

@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useId, useState } from 'react'
 import {
   MODALITIES,
   REASONING_EFFORTS,
@@ -9,6 +9,8 @@ import {
   WORK_TYPES,
   type PlanBundle
 } from '../../../shared/domain/bundle'
+import type { RepositoryView } from '../../../shared/domain/views'
+import { repoPrefix } from '../../../core/plan/repoTitles'
 import { Markdown } from '../markdown/Markdown'
 import {
   addCriterion,
@@ -19,6 +21,7 @@ import {
   prerequisiteOptions,
   QUALITIES,
   removeCriterion,
+  repositoryOptions,
   sprintOptions,
   toggleValue,
   type TicketForm
@@ -34,12 +37,25 @@ const PRIORITY_LABELS = { low: 'Low', normal: 'Normal', high: 'High', critical: 
 
 export function BasicFields({ form, update }: FieldProps): JSX.Element {
   const [preview, setPreview] = useState(false)
+  const titleId = useId()
   return (
     <>
-      <label className="tp-field">
-        <span>Title</span>
-        <input className="tp-input tp-title-input" value={form.title} onChange={(event) => update({ ...form, title: event.target.value })} />
-      </label>
+      <div className="tp-field">
+        <label htmlFor={titleId}>Title</label>
+        <div className="tp-title-row">
+          {form.repo === '' ? null : (
+            <span className="ew-mono tp-title-prefix" aria-label="Title prefix">
+              {repoPrefix(form.repo)}
+            </span>
+          )}
+          <input
+            id={titleId}
+            className="tp-input tp-title-input"
+            value={form.title}
+            onChange={(event) => update({ ...form, title: event.target.value })}
+          />
+        </div>
+      </div>
       <div className="tp-field">
         <div className="tp-field-head">
           <span>Description</span>
@@ -133,10 +149,37 @@ function OptionalSelect<T extends string>(props: {
   )
 }
 
-export function DetailFields({ form, update, bundle }: FieldProps & { bundle: PlanBundle }): JSX.Element {
+/** The repository a ticket of a folder of repositories targets; absent for a single repository and acceptance nodes. */
+function RepositorySelect({ form, update, repositories }: FieldProps & { repositories: RepositoryView[] | null }): JSX.Element | null {
+  const options = repositoryOptions(form, repositories)
+  if (options === null) {
+    return null
+  }
+  return (
+    <label className="tp-field">
+      <span>Repository</span>
+      <select value={form.repo} onChange={(event) => update({ ...form, repo: event.target.value })}>
+        {form.repo === '' ? (
+          <option value="" disabled>
+            Choose…
+          </option>
+        ) : null}
+        {options.map((option) => (
+          <option key={option.name} value={option.name}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+}
+
+export function DetailFields(props: FieldProps & { bundle: PlanBundle; repositories: RepositoryView[] | null }): JSX.Element {
+  const { form, update, bundle } = props
   return (
     <fieldset className="tp-fieldset tp-grid">
       <legend className="ew-eyebrow">DETAILS</legend>
+      <RepositorySelect form={form} update={update} repositories={props.repositories} />
       <label className="tp-field">
         <span>Sprint</span>
         <select value={form.sprintId} onChange={(event) => update({ ...form, sprintId: event.target.value })}>

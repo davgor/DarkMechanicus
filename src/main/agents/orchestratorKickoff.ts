@@ -19,8 +19,19 @@ export interface KickoffInput {
   epicTitle: string
   /** The epic's integration branch; null while none is recorded. */
   branch: string | null
+  /**
+   * A folder of repositories only: the epic branch as bound in each repository. Absent (or empty) for a single
+   * repository and before any repository was bound, and then the kickoff names the epic branch alone.
+   */
+  repositoryBranches?: readonly KickoffRepositoryBranch[]
   /** The run the desktop queued for this agent to pick up. */
   runId: string
+}
+
+/** One repository's epic branch, as the epic records it. */
+interface KickoffRepositoryBranch {
+  repository: string | null
+  name: string
 }
 
 const TITLE_PREFIX = 'Orchestrator · '
@@ -37,6 +48,17 @@ export function orchestratorTitle(epicTitle: string): string {
 
 function branchLine(branch: string | null): string {
   return branch === null ? 'Branch: no branch is recorded for this epic yet' : `Branch: ${oneLine(branch)}`
+}
+
+/** The epic branch line, followed in a folder of repositories by one `repository → branch` line per bound repository. */
+function branchLines(input: KickoffInput): string[] {
+  const bound = input.repositoryBranches ?? []
+  if (bound.length === 0) return [branchLine(input.branch)]
+  return [
+    branchLine(input.branch),
+    'Repository branches (a folder of repositories: work in a worktree of each repository, never switch its own checkout):',
+    ...bound.map((entry) => `- ${oneLine(entry.repository ?? '(unnamed repository)')} → ${oneLine(entry.name)}`)
+  ]
 }
 
 /** Each worker's subagent runs in the orchestrator's own session, so it can report for itself. */
@@ -63,7 +85,7 @@ export function orchestratorKickoff(input: KickoffInput): string {
     'Run this Dark Mechanicus epic as its orchestrator.',
     '',
     `Epic: ${oneLine(input.epicTitle)} (${input.epicId})`,
-    branchLine(input.branch),
+    ...branchLines(input),
     `Run: ${input.runId}, queued from the desktop app`,
     '',
     '1. Call get_capabilities first and confirm your role is orchestrator.',

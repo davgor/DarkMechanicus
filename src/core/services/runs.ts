@@ -19,6 +19,7 @@ import { parseJson, toJson } from '../db/database'
 import { fail } from '../errors'
 import { sortedSprints } from '../plan/graph'
 import { SKILLS_VERSION } from '../version'
+import { bindRepositoryBranches, isRepositoryFolder, requireFolderBranchName } from './epicBranches'
 import { appendEvent } from './events'
 import {
   type AttemptRow,
@@ -204,6 +205,7 @@ export function queueRun(ctx: Ctx, input: { epicId: string }): RunView {
   return ctx.db.tx(() => {
     const epic = requireOpenEpic(ctx, input.epicId)
     assertNoOpenTransfer(ctx, epic.id)
+    requireFolderBranchName(ctx, epic, null)
     const revisionId = savedRevisionId(ctx, epic)
     const active = activeRunOf(ctx, epic.id)
     if (active) {
@@ -262,7 +264,10 @@ function checkoutBranch(ctx: Ctx): EpicBranch | null {
   return checkout.branch === null ? null : { repository: null, name: checkout.branch, startCommit: checkout.commit }
 }
 
-/** Binds the epic's feature branch once: the explicit branch, else the coordinating checkout's branch + HEAD. */
+/**
+ * Binds a single repository's epic feature branch once: the explicit branch, else the coordinating checkout's
+ * branch + HEAD. A folder of repositories binds through `bindRepositoryBranches` instead.
+ */
 function bindEpicBranch(ctx: Ctx, epic: EpicRow, requested: EpicBranch | null): void {
   if (epic.branch_json !== null) {
     return
@@ -294,16 +299,25 @@ function markEpicStarted(ctx: Ctx, epic: EpicRow): void {
   enqueueOutbox(ctx, { kind: 'epic_state', epicId: epic.id })
 }
 
-/** Orchestrator: starts the queued run or a new one, binds the epic branch, and activates sprint 1. */
+/**
+ * Orchestrator: starts the queued run or a new one, binds the epic branch, and activates sprint 1. In a folder of
+ * repositories the epic needs a branch name (its own, else `input.branch.name`), and every repository the run's
+ * saved plan names is bound to it.
+ */
 export function startRun(ctx: Ctx, input: StartRunInput): RunView {
   requireCapability(ctx.session, 'run.start')
   ctx.assertBranch()
   return withIdempotency(ctx, { command: 'startRun', key: input.idempotencyKey, request: requestWithoutKey(input) }, () => {
     const epic = requireOpenEpic(ctx, input.epicId)
     assertNoOpenTransfer(ctx, epic.id)
+    requireFolderBranchName(ctx, epic, input.branch ?? null)
     const run = pickUpRun(ctx, epic)
     activateRun(ctx, run, input)
-    bindEpicBranch(ctx, epic, input.branch ?? null)
+    if (isRepositoryFolder(ctx)) {
+      bindRepositoryBranches(ctx, epic.id, run.revision_id, input.branch?.name ?? null)
+    } else {
+      bindEpicBranch(ctx, epic, input.branch ?? null)
+    }
     markEpicStarted(ctx, epic)
     const context = loadRunContext(ctx, run.id)
     for (const entry of input.carryForward ?? []) {

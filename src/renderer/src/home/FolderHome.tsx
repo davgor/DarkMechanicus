@@ -12,6 +12,7 @@ import { HistorySearch } from './HistorySearch'
 import { GrantsCard } from './GrantsCard'
 import { McpCard } from './McpCard'
 import { NewEpicDialog } from './NewEpicDialog'
+import { RepositoriesCard } from './RepositoriesCard'
 import { StorageCard } from './StorageCard'
 
 interface FolderHomeProps {
@@ -47,6 +48,7 @@ function SecondaryColumn(props: FolderHomeProps & { titles: Readonly<Record<stri
         onImport={props.onImportBoard}
         onOpenEpic={props.onOpenEpic}
       />
+      <RepositoriesCard folder={folder} />
       <StorageCard
         status={props.status}
         titles={props.titles}

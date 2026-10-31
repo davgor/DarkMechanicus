@@ -1,0 +1,28 @@
+$ git -C <scratch>/alpha log --oneline epic/live-fixture
+352a840 Create a.txt with hello
+0cb2e85 init alpha
+$ git -C <scratch>/alpha log --oneline --all --stat
+352a840 Create a.txt with hello
+ a.txt | 1 +
+ 1 file changed, 1 insertion(+)
+0cb2e85 init alpha
+$ git -C <scratch>/alpha worktree list
+/private/tmp/multirepo-run/evidence/live/parent/alpha  352a840 [epic/live-fixture]
+$ git -C <scratch>/alpha branch -a -v
+* epic/live-fixture 352a840 Create a.txt with hello
+  main              0cb2e85 init alpha
+
+$ git -C <scratch>/beta log --oneline epic/live-fixture
+b1ffb0f Create b.txt with content world
+d2bf8a3 init beta
+$ git -C <scratch>/beta log --oneline --all --stat
+b1ffb0f Create b.txt with content world
+ b.txt | 1 +
+ 1 file changed, 1 insertion(+)
+d2bf8a3 init beta
+$ git -C <scratch>/beta worktree list
+/private/tmp/multirepo-run/evidence/live/parent/beta  b1ffb0f [epic/live-fixture]
+$ git -C <scratch>/beta branch -a -v
+* epic/live-fixture b1ffb0f Create b.txt with content world
+  main              d2bf8a3 init beta
+

@@ -21,6 +21,7 @@ const COMMAND_FLAGS: Record<CommandName, true> = {
   getCapabilities: true,
   getProject: true,
   setDefinitionOfDone: true,
+  rescanRepositories: true,
   initializeRepository: true,
   getStorageStatus: true,
   flushPortableState: true,

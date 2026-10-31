@@ -27,6 +27,7 @@ const PROBES: Record<CommandName, unknown> = {
   getCapabilities: undefined,
   getProject: undefined,
   setDefinitionOfDone: { checks: [] },
+  rescanRepositories: undefined,
   initializeRepository: {},
   getStorageStatus: undefined,
   flushPortableState: undefined,
@@ -170,7 +171,9 @@ describe('declared command capabilities match what the services enforce', () => 
     const refused = COMMAND_NAMES.filter((name) => outcomes.get(name) === 'unauthorized')
     const lacking = COMMAND_NAMES.filter((name) => !held.has(COMMAND_CAPABILITIES[name]))
     expect(refused).toEqual(lacking)
-    expect(COMMAND_NAMES.filter((name) => outcomes.get(name) === 'invalid_input')).toEqual([])
+    // The probe project is a single repository, which an authorized rescan refuses as having nothing to rescan.
+    const invalid = COMMAND_NAMES.filter((name) => outcomes.get(name) === 'invalid_input')
+    expect(invalid).toEqual(held.has('project.repositories') ? ['rescanRepositories'] : [])
   })
 })
 

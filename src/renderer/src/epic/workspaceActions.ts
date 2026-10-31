@@ -55,6 +55,8 @@ export interface WorkspaceActions extends TransferActions {
   editDraft(): Promise<void>
   discardDraft(): Promise<void>
   saveDraft(): Promise<void>
+  /** A folder of repositories: records the epic branch name before a run starts; false (with a banner) when refused. */
+  setEpicBranch(name: string): Promise<boolean>
   /** Leave pending: queues the run for an external orchestrator, and closes the Start run dialog. */
   startRun(): Promise<void>
   /** Run with an agent: queues the run and starts the agent as its orchestrator in a chat, and closes the Start run dialog. */
@@ -210,9 +212,16 @@ function orchestratorFeedback(deps: ActionDeps, result: Result<StartOrchestrator
   }
 }
 
-function runActions(deps: ActionDeps): Pick<WorkspaceActions, 'startRun' | 'startRunWithAgent' | 'runCommand' | 'adopt'> {
+function runActions(deps: ActionDeps): Pick<WorkspaceActions, 'setEpicBranch' | 'startRun' | 'startRunWithAgent' | 'runCommand' | 'adopt'> {
   const closeDialog = (): void => deps.dispatch({ type: 'start_run_dialog', open: false })
   return {
+    async setEpicBranch(name) {
+      const expectedRevision = deps.getState().data?.epic.revision
+      const branch = { repository: null, name, startCommit: null }
+      const result = await perform(deps, () => deps.runner('setEpicBranch', { epicId: deps.epicId, branch, expectedRevision }))
+      if (!result.ok) deps.dispatch({ type: 'banner', text: result.failure.message })
+      return result.ok
+    },
     async startRun() {
       const result = await perform(deps, () => deps.runner('queueRun', { epicId: deps.epicId }))
       closeDialog()

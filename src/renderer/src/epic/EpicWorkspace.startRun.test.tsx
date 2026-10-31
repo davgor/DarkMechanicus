@@ -273,3 +273,33 @@ describe('Run bar: who orchestrates', () => {
     expect(within(bar).queryByText(/Orchestrated by/)).toBeNull()
   })
 })
+
+describe('Start run: the epic branch field through the workspace', () => {
+  const branchField = (dialog: ReturnType<typeof within>): HTMLElement | null => dialog.queryByRole('textbox', { name: 'Epic branch' })
+
+  it('opens the dialog in a single repository even when the project cannot be read', async () => {
+    const { backend } = idleBackend()
+    backend.handlers.getProject = () => {
+      throw new Error('project unreadable')
+    }
+    renderWorkspace(backend, { orchestration: withClaude() })
+
+    const dialog = await openDialog()
+
+    await waitFor(() => expect(backend.inputs('getProject').length).toBeGreaterThan(0))
+    expect(branchField(dialog)).toBeNull()
+    fireEvent.click(dialog.getByRole('button', { name: 'Leave pending' }))
+    await waitFor(() => expect(backend.inputs('queueRun')).toEqual([{ epicId: 'ep_1' }]))
+  })
+
+  it('shows the Epic branch field in a folder of repositories', async () => {
+    const { backend } = idleBackend()
+    backend.state.project = { ...backend.state.project, repositories: [{ name: 'api', missing: false }] }
+    renderWorkspace(backend, { orchestration: withClaude() })
+
+    const dialog = await openDialog()
+
+    const field = (await dialog.findByRole('textbox', { name: 'Epic branch' })) as HTMLInputElement
+    expect(field.value).toBe('planning-vertical-slice')
+  })
+})
