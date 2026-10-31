@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-172 review (orchestrator): `projectRunTiming` (src/core/services/timing.ts) has no caller yet; you wire it in. `actorKeyOf` treats a handle-less span as a separate actor for each attempt, so an orchestrator reporting without a handle is counted twice (60m of overhead in a 30m run). Have the host feed always send actor handles, or key handle-less orchestrator spans by role. Sprint `time` follows plan membership while effort and wall clock follow the sprint active at claim; label them so consumers are not misled.",
+  "createdAt": "2026-10-31T08:18:48.622Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m68gme5ewb3mzndat6a5rytn",
+  "ticketId": "tk_01m453gpads5cm5ah9pyqk7qtw"
+}

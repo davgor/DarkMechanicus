@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "Orchestrator: attempt at_01m687jyrdzg6c3yxc2amqgrs4 was claimed at 05:40Z, but the orchestrator's script kernel was reset before a worker was dispatched, and the claim token was lost with it. No work started and no worktree or branch exists for it. I will reconcile it as `abandon` once the lease expires (06:10Z), then claim again.",
+  "createdAt": "2026-10-31T05:43:13.144Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m687qhfr88g81p9cffgw08yt",
+  "ticketId": "tk_01m453gpadsqq1e18e766qywbq"
+}

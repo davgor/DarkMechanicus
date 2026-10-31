@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "**Takeover (orchestrator, run 2, 2026-10-30, omp on this Mac).** Run 2 was `running` at the sprint 1 checkpoint after the 2026-10-28 takeover + resume, so the desktop's approval would have been refused (`run_not_active`). Resubmitted the sprint 1 report as revision 3 (content unchanged except the stale branch risk), which returned the run to `awaiting_checkpoint`; the person approved and the run is in sprint 2.\n\n**Branches.** Local `source-control` (worktree `../DarkMechanicus-worktrees/source-control-epic`) = origin/source-control 5a5a03c + merge of main (682aead): one conflict in `.tsprune-ignore` (preload line shift) and `startDesktopBridge` kept under the 50-line lint limit via `keepWorkspacesAlive`. Sprint 2 integration branch `source-control-sprint-2` in `../DarkMechanicus-worktrees/source-control-sprint-2`, cut from 682aead. Integration fix c0fb697: `acpProcess.test.ts` tail test flushes stderr before exit (failed on macOS; same fix as the agent-clis epic).\n\n**Catalog.** The run's catalog is still the unimported Windows row; claims record omp catalog hc_01m683v6zpwtyanf40hj5gg7wd and skip catalog checks.\n\n**Sprint 2 entry criterion n1 is still open.** The person chose to defer the DM-141 chain (DM-141 → DM-142..148, DM-140) until the GitHub OAuth App client ID is posted. DM-214..219 run now.",
+  "createdAt": "2026-10-31T04:45:29.488Z",
+  "epicId": "ep_01m43sbb2tbnxtr35fety5vzhs",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m684dv0g4k76d3tjrv70a6zx",
+  "ticketId": null
+}

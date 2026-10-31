@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-171 review (orchestrator): usage totals read `observed` while some attempts are unreported (see `coverage.attempts.unreported` from `getRunMetrics`). The grader must count those as missing, never as complete.",
+  "createdAt": "2026-10-31T06:49:14.332Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m68bgdtwwqg8jxpejm2kfa06",
+  "ticketId": "tk_01m453gpadvwpdnfr0d818n39p"
+}

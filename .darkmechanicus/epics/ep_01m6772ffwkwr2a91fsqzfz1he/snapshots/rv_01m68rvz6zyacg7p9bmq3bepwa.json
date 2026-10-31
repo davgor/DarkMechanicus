@@ -1,0 +1,1721 @@
+{
+  "baseRevisionId": "rv_01m6772fgn6eeaehbrmf0xt9cx",
+  "bundle": {
+    "edges": [
+      {
+        "from": "tk_01m6772fgee0k5hkamr08znsvn",
+        "to": "tk_01m6772fge52e1xm1sqaqwrse6"
+      },
+      {
+        "from": "tk_01m6772fge52e1xm1sqaqwrse6",
+        "to": "tk_01m6772fge0xcfzt6bqb0zn6y9"
+      },
+      {
+        "from": "tk_01m6772fge52e1xm1sqaqwrse6",
+        "to": "tk_01m6772fged12ycec2898473va"
+      },
+      {
+        "from": "tk_01m6772fge0xcfzt6bqb0zn6y9",
+        "to": "tk_01m6772fgen0tqgp39mgahnctk"
+      },
+      {
+        "from": "tk_01m6772fged12ycec2898473va",
+        "to": "tk_01m6772fgen0tqgp39mgahnctk"
+      },
+      {
+        "from": "tk_01m6772fgen0tqgp39mgahnctk",
+        "to": "tk_01m6772fgeztxwzehczabspkeg"
+      },
+      {
+        "from": "tk_01m6772fg91dsy3716fa3gq227",
+        "to": "tk_01m6772fgeztxwzehczabspkeg"
+      },
+      {
+        "from": "tk_01m6772fgeztxwzehczabspkeg",
+        "to": "tk_01m6772fget96mdb0dxv4tygh9"
+      },
+      {
+        "from": "tk_01m6772fgen0tqgp39mgahnctk",
+        "to": "tk_01m6772fget96mdb0dxv4tygh9"
+      },
+      {
+        "from": "tk_01m6772fgeztxwzehczabspkeg",
+        "to": "tk_01m6772fgec2prcd1nzk93c4m1"
+      },
+      {
+        "from": "tk_01m6772fgen0tqgp39mgahnctk",
+        "to": "tk_01m6772fgec2prcd1nzk93c4m1"
+      },
+      {
+        "from": "tk_01m6772fgec2prcd1nzk93c4m1",
+        "to": "tk_01m6772fge87e5ktvwekybkqk7"
+      },
+      {
+        "from": "tk_01m6772fge87e5ktvwekybkqk7",
+        "to": "tk_01m6772fge8x5kf6kqc4dsng2b"
+      },
+      {
+        "from": "tk_01m6772fget96mdb0dxv4tygh9",
+        "to": "tk_01m6772fge8x5kf6kqc4dsng2b"
+      },
+      {
+        "from": "tk_01m6772fgedx8fdm2xxw9h5rfn",
+        "to": "tk_01m6772fge8x5kf6kqc4dsng2b"
+      },
+      {
+        "from": "tk_01m68dpc08nzp247t97y9eekcy",
+        "to": "tk_01m68dpc08y4w7cqj105sd6cs9"
+      }
+    ],
+    "epic": {
+      "intent": "Plan in Dark Mechanicus, work in Linear. A person authorizes the transfer of a saved DM epic. An orchestrator agent then carries it out once, through its own connection to Linear's hosted MCP server, into a Linear project:\n\n- **DM epic → Linear project.** The name is the epic title. The summary (255 characters at most) is the back-link and the item's marker. The content is the intent and the success criteria.\n- **DM sprint → project milestone**, in sprint order (\"Sprint N: goal\").\n- **DM ticket → issue** in its sprint's milestone, created in execution order: sprint, then dependency row, then the sprint's own order. Identifiers therefore rise in execution order, and the manual sort order matches when Linear's MCP lets it be set.\n- **Each sprint's acceptance node → the last issue of its milestone**, blocked by every required work issue of that sprint.\n- **Links:** dependency edges → \"blocks\" relations; `related_to` → \"related\"; `duplicate_of` is named in the description.\n- **Fields:**\n  - acceptance criteria → a Markdown checklist in the description;\n  - priority → Linear priority (critical Urgent, high High, normal Medium, low Low);\n  - tags → labels (an existing label of the same name is reused, otherwise one is created);\n  - the DM key, epic id, references and a `dm:<epicId>/<ref>` marker stay in the description;\n  - no estimates.\n- **State:** DM tickets already completed → a completed-type Linear state; the rest → the team's default state.\n\nThe transfer is a one-time handoff: Linear becomes the board.\n- **Recording and resume:** DM records each DM → Linear id as the agent creates it. Before creating anything, the agent searches Linear for the item's marker. An interrupted transfer therefore resumes without duplicates, even after a crash between a create and its record.\n- **Verification:** when everything is created, the agent reads the project back through Linear's MCP and submits that read-back. DM compares it with the stored transfer packet. Only an exact match completes the DM epic. The transfer record holds the Linear project URL and every DM key → Linear identifier.\n- **Locking:** while a transfer is open, the epic cannot be run or its plan saved. The person can cancel the transfer. A completed epic is read-only, so it can be neither run nor transferred again.\n\n**Authorization and start.** An agent can never start a transfer on its own: the person authorizes each one in the desktop app, as queuing a run works today. There are two ways to start:\n- **Transfer to Linear** in the epic workspace authorizes the transfer and starts an orchestrator agent in an in-app chat.\n- **Copy prompt** in the same dialog (or `dm transfer linear --epic <id>` once the transfer is authorized) gives the same prompt to an agent started elsewhere.\n\n**Linear connection.** The agent uses the Linear MCP server configured in its own CLI. The dialog and the prompt give the exact setup commands, and the person completes Linear's browser sign-in and picks the team in the chat.\n\nLinear only: no tracker abstraction, and Jira is a later epic.\n\n**Planning change first.** The epic starts with a DM-wide planning change, at the owner's request: standards beyond a project's Definition of Done apply to an epic only when its planner states them in the plan. That covers tests written first, test-quality grading such as Fireguard, and per-sprint grading tickets. Every ticket lists its tests, and its worker writes and runs them in that ticket.\n\n### Standards for this epic (planner statement)\n\n- Each work ticket's **Tests** section lists the tests to write. The worker writes and runs them in that ticket, in any order; tests-first is not required.\n- No Fireguard ticket or run inside this epic. CI still grades the merge PR. The acceptance node runs the project's Definition of Done once, on the combined work; Fireguard is out of that Definition of Done before the run starts (entry criterion n2).\n- Work tickets run only their targeted checks: typecheck, lint on touched files, the listed tests and the existing tests of touched files.",
+      "ownerRole": null,
+      "successCriteria": [
+        {
+          "id": "s1",
+          "text": "A saved epic becomes a Linear project with one milestone per sprint in sprint order and one issue per ticket created in execution order. Each acceptance node is last in its milestone, dependencies are blocks relations, and every issue carries the criteria checklist, priority, labels, DM back-link and marker."
+        },
+        {
+          "id": "s2",
+          "text": "DM completes the epic only after the submitted read-back matches the stored packet. Any mismatch keeps the transfer open and names each difference by DM key and field, including extra or duplicate items in Linear."
+        },
+        {
+          "id": "s3",
+          "text": "An interrupted transfer resumes from the recorded mapping and the markers, and creates nothing twice."
+        },
+        {
+          "id": "s4",
+          "text": "A verified transfer leaves the epic completed with a transfer record (Linear project URL, revision, and every DM key → Linear identifier). The epic then refuses runs, plan edits and further transfers."
+        },
+        {
+          "id": "s5",
+          "text": "Only a person can authorize a transfer, from the desktop app. It then runs in an in-app orchestrator chat or in an agent started elsewhere with the copied prompt or `dm transfer linear`, and runs and plan saves are refused until it is verified or canceled."
+        },
+        {
+          "id": "s6",
+          "text": "Planning defaults: the role guides and this repository's rules apply tests-first and Fireguard only when a plan states them, and every ticket lists the tests its worker writes."
+        }
+      ],
+      "title": "Linear handoff: transfer a saved plan to a Linear project in execution order, verify it, and complete the epic"
+    },
+    "formatVersion": 1,
+    "policies": {
+      "leaseSeconds": 900,
+      "maxConcurrency": 2,
+      "onTicketFailure": "continue_independent",
+      "retryLimit": 3
+    },
+    "rationale": "## Decisions\n\nThe owner set these on 2026-10-30:\n- **One-time handoff, not sync.** Transfer, verify, then complete the DM epic. There is no re-export, no status pull-back and no two-way sync. Linear becomes the board.\n- **The orchestrator agent writes to Linear** through Linear's hosted MCP server (`https://mcp.linear.app/mcp`, OAuth in the browser), with the person's help to sign in. DM holds no Linear credential. DM's part is deterministic: the stored, ordered packet, the id mapping, the read-back comparison and the completion.\n- **Order:** creation order, manual sort order, \"blocks\" relations and clean titles.\n- **Fields:** criteria checklist, priority, labels, the DM key and back-link. No estimates.\n- **Acceptance node** → the last issue of its milestone.\n- **Partial transfers** resume and get fixed; nothing in Linear is deleted.\n- **Completion** → the epic is completed, with a transfer record.\n- **Linear only**, with no tracker abstraction.\n- **Standards:** the DM-wide default change lands first, in this epic. One sprint. Tests are listed and written in each ticket. No Fireguard.\n\nThe planner added these after review:\n- **A person authorizes each transfer.** This is a human-only `transfer.queue`, mirroring `run.queue`. Without it, any orchestrator session could submit a read-back and permanently complete an epic. After authorization, completion on an exact match needs no second approval.\n- **The agent's own Linear connection.** The in-app adapters deliberately attach no extra MCP server, because managed policies refuse dynamically configured ones. In-app chats already load the person's own servers, so DM supplies the setup commands rather than a bundled bridge.\n- **Identifier order is a warning, not a mismatch.** It cannot be repaired without deleting issues. All identifiers must share one team key.\n- **The mapping lives in `outcome.transfer.items`.** A comment is capped at 20,000 characters, and an epic can hold 1,000 tickets.\n\n## Shape\n\nOne sprint. Row 1 lands the standards change (role guides and repository rules) next to the pure packet builder. The core then runs in order:\n1. the progress store with authorization and cancel;\n2. verification and completion, alongside the run and save locks;\n3. the commands and tools;\n4. the guide, the kickoff and the CLI;\n5. the fake-Linear end-to-end test, alongside the in-app chat start;\n6. the workspace UI;\n7. the docs.\n\nThe acceptance node runs the project's Definition of Done once.\n\n## Risks\n\n- **Verification trusts the agent's read-back.** DM cannot read Linear itself. The read-back carries Linear's own ids. DM checks it structurally against the stored packet and the recorded mapping, covering text, membership, extras, duplicates and relations. It cannot prove that the agent did not invent a read-back. The human authorization bounds who can try.\n- **Linear MCP coverage is unverified here** (no sandbox workspace; mock only). The guide discovers tool names at run time. Sort order and identifier order are warnings.\n- **Fireguard leaves the project Definition of Done before the run** (entry criterion n2). That needs a planner `set_definition_of_done` plus the matching `src/core/repo/repoProject.test.ts` update, committed together on main.",
+    "relations": [],
+    "sprints": [
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": 2,
+        "entryCriteria": [
+          {
+            "id": "n1",
+            "text": "The epic plan is saved and the epic branch is recorded."
+          },
+          {
+            "id": "n2",
+            "text": "The project Definition of Done no longer lists fireguard, and src/core/repo/repoProject.test.ts pins the remaining six checks. Both are committed on main before the run starts."
+          }
+        ],
+        "exitCriteria": [
+          {
+            "id": "x1",
+            "text": "Every work ticket is accepted and every row check passed."
+          },
+          {
+            "id": "x2",
+            "text": "The project Definition of Done passes once on the combined work. No Fireguard ticket or run is part of this sprint."
+          },
+          {
+            "id": "x3",
+            "text": "Against the fake Linear MCP server, a fixture epic transfers end to end, resumes after an interruption (including one between a create and its record) without duplicates, reports an injected mismatch, and completes only after the fix."
+          },
+          {
+            "id": "x4",
+            "text": "While a transfer is open the epic refuses queue_run, start_run and Save. A transferred epic is completed with its transfer record and refuses runs, plan edits and a second transfer."
+          },
+          {
+            "id": "x5",
+            "text": "The role guides and the repository rules state that tests-first and Fireguard apply only when a plan states them, and that each ticket lists its tests."
+          }
+        ],
+        "goal": "Plan-stated standards are the default. A person-authorized transfer moves a saved epic once to a Linear project in execution order, is verified against a read-back, and completes the epic in DM.",
+        "id": "sp_01m6772ffw9phf9rbwvfntpbed",
+        "ordinal": 1,
+        "ticketIds": [
+          "tk_01m6772fg91dsy3716fa3gq227",
+          "tk_01m6772fgedx8fdm2xxw9h5rfn",
+          "tk_01m6772fgee0k5hkamr08znsvn",
+          "tk_01m6772fge52e1xm1sqaqwrse6",
+          "tk_01m6772fged12ycec2898473va",
+          "tk_01m6772fge0xcfzt6bqb0zn6y9",
+          "tk_01m6772fgen0tqgp39mgahnctk",
+          "tk_01m6772fgeztxwzehczabspkeg",
+          "tk_01m6772fget96mdb0dxv4tygh9",
+          "tk_01m6772fgec2prcd1nzk93c4m1",
+          "tk_01m6772fge87e5ktvwekybkqk7",
+          "tk_01m6772fge8x5kf6kqc4dsng2b",
+          "tk_01m6772ffw7g0zd5kz42brhp8z"
+        ]
+      },
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": null,
+        "entryCriteria": [
+          {
+            "id": "n1",
+            "text": "Sprint 1 is approved and its increment c24cf5e is on linear-handoff."
+          }
+        ],
+        "exitCriteria": [
+          {
+            "id": "x1",
+            "text": "Every required work ticket is accepted and every row check passed."
+          },
+          {
+            "id": "x2",
+            "text": "The project Definition of Done passes once on the combined work. No Fireguard ticket or run is part of this sprint."
+          },
+          {
+            "id": "x3",
+            "text": "An import that would add a run or a saved revision for an epic with an open transfer is reported as a conflict, and read-back parts or accumulations beyond the caps are refused."
+          },
+          {
+            "id": "x4",
+            "text": "Save is not offered while a transfer is open, the Linear setup lines have one source, and the fake-Linear test covers a completed ticket."
+          },
+          {
+            "id": "x5",
+            "text": "No tracked file links .Codex/skills/delivery-standards."
+          }
+        ],
+        "goal": "Harden the Linear transfer: guard portable imports, bound read-backs, close the UI and test gaps Sprint 1 found, and prove the guide against Linear's hosted MCP server when a person provides a workspace.",
+        "id": "sp_01m68dpc02a9kt73nvef8ajpn4",
+        "ordinal": 2,
+        "ticketIds": [
+          "tk_01m68dpc0850cbf38att5taef0",
+          "tk_01m68dpc081yvkz7m9gfyk7nst",
+          "tk_01m68dpc086t3tc17m2kj8zjcr",
+          "tk_01m68dpc08nzp247t97y9eekcy",
+          "tk_01m68dpc08z3gh8ferv0mfezfv",
+          "tk_01m68dpc08y4w7cqj105sd6cs9",
+          "tk_01m68dpc082gspaxv89z2xm19v",
+          "tk_01m68dpc02n5x6b5fj143vbchs"
+        ]
+      }
+    ],
+    "tickets": [
+      {
+        "acceptanceCriteria": [
+          {
+            "covers": "tk_01m6772fg91dsy3716fa3gq227",
+            "id": "c1",
+            "text": "The planner and worker prompts served by the built MCP server state the plan-stated standards rule and the per-ticket Tests section (quote the lines)."
+          },
+          {
+            "covers": "tk_01m6772fgedx8fdm2xxw9h5rfn",
+            "id": "c2",
+            "text": "`grep -rn 'Fireguard ticket'` over the rule files prints nothing, and `cmp` shows the .claude and .cursor delivery-standards skills identical."
+          },
+          {
+            "covers": "tk_01m6772fgee0k5hkamr08znsvn",
+            "id": "c3",
+            "text": "`dm transfer linear --epic <this epic> --json`, run against a copy of the database, lists this epic's issues in the order planRows gives, each acceptance node last. Print the key sequence."
+          },
+          {
+            "covers": "tk_01m6772fge52e1xm1sqaqwrse6",
+            "id": "c4",
+            "text": "In a scratch repository with a fixture epic, start_transfer fails before the desktop queues the transfer. After queueing, record_transfer_item for two refs leaves next as the remaining refs in order (command output)."
+          },
+          {
+            "covers": "tk_01m6772fged12ycec2898473va",
+            "id": "c5",
+            "text": "In that scratch repository, queue_run and save_plan return the transfer conflict while the transfer is open, and succeed after cancel (command output)."
+          },
+          {
+            "covers": "tk_01m6772fge0xcfzt6bqb0zn6y9",
+            "id": "c6",
+            "text": "In that scratch repository, a read-back with one wrong priority is rejected naming that key and field. The corrected read-back completes the fixture epic with outcome.transfer.items and the summary comment (command output)."
+          },
+          {
+            "covers": "tk_01m6772fgen0tqgp39mgahnctk",
+            "id": "c7",
+            "text": "tools/list of the built MCP server lists get_transfer, start_transfer, record_transfer_item and submit_transfer_readback with their kinds, and no queue or cancel tool."
+          },
+          {
+            "covers": "tk_01m6772fgeztxwzehczabspkeg",
+            "id": "c8",
+            "text": "prompts/list of the built server includes darkmechanicus-linear-transfer. `dm transfer linear --epic <this epic>`, against a copy of the database, prints the kickoff and packet summary as a reader."
+          },
+          {
+            "covers": "tk_01m6772fget96mdb0dxv4tygh9",
+            "id": "c9",
+            "text": "The fake-Linear integration test passes in the full suite, and the smoke record shows the resumed and corrected run."
+          },
+          {
+            "covers": "tk_01m6772fgec2prcd1nzk93c4m1",
+            "id": "c10",
+            "text": "A screenshot from the built app shows a transfer chat's kickoff on a scratch fixture epic; the chat was stopped before the agent acted."
+          },
+          {
+            "covers": "tk_01m6772fge87e5ktvwekybkqk7",
+            "id": "c11",
+            "text": "Screenshots: the Transfer to Linear button, the dialog, the progress strip with a mismatch, and a transferred epic with its link."
+          },
+          {
+            "covers": "tk_01m6772fge8x5kf6kqc4dsng2b",
+            "id": "c12",
+            "text": "The runbook is linked from the README and mcp-setup.md, and its links resolve."
+          }
+        ],
+        "body": "Run the project's Definition of Done once on the combined sprint work in the integration worktree. Fireguard is not part of this epic (entry criterion n2 removed it from the Definition of Done). Then verify each covered item with the evidence its criterion names, land the sprint as one squashed commit on the epic branch, and submit that increment. Run commands that open a repository against a copy of the database or a scratch repository, never the live state.sqlite of the main checkout: the new build migrates it to V10.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": ""
+          },
+          "skills": [],
+          "tools": [
+            "repo_read",
+            "repo_write"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m6772ffw7g0zd5kz42brhp8z",
+        "key": "DM-284",
+        "kind": "acceptance",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "tags": [],
+        "title": "Sprint 1 acceptance"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "planner.md and graph-planner.md state that standards beyond the project Definition of Done apply only when the plan states them, and that every work ticket lists its tests in a Tests section."
+          },
+          {
+            "id": "c2",
+            "text": "worker.md tells the worker to write and run the listed tests in its ticket, and names test-quality grading as part of the sweep only when the Definition of Done or the plan names it."
+          },
+          {
+            "id": "c3",
+            "text": "reviewer.md makes missing or failing listed tests a rejection reason."
+          },
+          {
+            "id": "c4",
+            "text": "SKILLS_VERSION is bumped one minor, and skills.test.ts, prompts.test.ts and server.test.ts pass."
+          }
+        ],
+        "body": "**Change**\n- `skills/planner.md` and `skills/graph-planner.md`:\n  - By default, only the project's Definition of Done gates acceptance.\n  - Any further standard applies to an epic only when the plan states it, either in a \"Standards\" section of the epic intent or in a ticket's body. That covers tests written first, test-quality grading such as Fireguard, coverage targets beyond the DoD, and a per-sprint grading ticket. Never add one by default.\n  - Every work ticket's body carries a **Tests** section that lists the tests its worker writes, or \"none\" with the reason.\n  - Keep the \"slow Definition of Done check gets its own ticket\" rule for checks the DoD actually lists.\n- `skills/worker.md`: write and run the tests your ticket's Tests section lists, in the same ticket. Order is free unless the plan states tests-first. Reword line 34 so test-quality grading is part of the sweep only when the Definition of Done or the plan names it.\n- `skills/reviewer.md`: reject an attempt whose listed tests are missing or not passing.\n- Bump `SKILLS_VERSION` in `src/core/version.ts` to the next minor. This is the only bump in the epic; the guide ticket adds a skill without bumping again.\n\n**Tests** (write and run in this ticket)\n- No new tests: guidance text only.\n- Run `src/mcp/skills.test.ts`, `src/mcp/prompts.test.ts` and `src/mcp/server.test.ts`. Every backticked snake_case token must still be a known tool or in `VOCABULARY`.\n\n**Checks:** typecheck; `npx oxlint` on the files you touched; the tests listed above plus the existing tests of the files you touched. Do not run the full suite, coverage, whole-tree lint, a build (unless a criterion needs one) or Fireguard.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": ""
+          },
+          "skills": [],
+          "tools": [
+            "repo_read",
+            "repo_write"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m6772fg91dsy3716fa3gq227",
+        "key": "DM-285",
+        "optional": false,
+        "priority": "high",
+        "references": [],
+        "size": "small",
+        "tags": [
+          "standards",
+          "skills"
+        ],
+        "title": "Apply only the standards a plan states, in the role guides"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "`grep -rn 'Fireguard ticket'` over AGENTS.md, CLAUDE.md, README.md, .ai-instructions.md, .cursor, .claude and .agents prints nothing."
+          },
+          {
+            "id": "c2",
+            "text": "`cmp` reports the .claude and .cursor delivery-standards skills identical, and `diff` shows the .agents copy differing only at line 13."
+          },
+          {
+            "id": "c3",
+            "text": "Each rule file says tests-first and Fireguard apply in an epic only when its plan states them, and that each ticket lists the tests its worker writes. The outside-an-epic rules are unchanged."
+          }
+        ],
+        "body": "**Change**\nInside an epic, this repository's rules apply tests-first and Fireguard only when the epic's plan states them. Each ticket lists its tests, and its worker writes and runs them in that ticket. Outside an epic, the rules stay as they are.\n- `AGENTS.md` item 4 (line 8) and `CLAUDE.md` item 4 (line 8).\n- `.claude/skills/delivery-standards/SKILL.md` and `.cursor/skills/delivery-standards/SKILL.md`, which stay byte-identical. The lines that state tests-first or Fireguard are 4 (description), 19, 54 (\"Every sprint gets a Fireguard ticket\"), 58–68 (section 2 and the \"Owner-waived epics\" paragraph), 80, 87, 97, 123 and 126. Replace them with the plan-stated rule.\n- `.agents/skills/delivery-standards/SKILL.md`: the same text, keeping its own line 13.\n- `.cursor/rules/delivery-standards.mdc` items 1–2.\n- `README.md` lines 31 and 47.\n- `.ai-instructions.md` item 5 (line 31) and the TDD line (55).\n- Leave CI (`.github/workflows`) unchanged; the PR's Fireguard check stays.\n\n**Tests** (write and run in this ticket)\n- No new tests: rule text only. Check with the grep in c1 and `cmp` in c2.\n\n**Checks:** typecheck; `npx oxlint` on the files you touched; the tests listed above plus the existing tests of the files you touched. Do not run the full suite, coverage, whole-tree lint, a build (unless a criterion needs one) or Fireguard.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": ""
+          },
+          "skills": [],
+          "tools": [
+            "repo_read",
+            "repo_write"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m6772fgedx8fdm2xxw9h5rfn",
+        "key": "DM-286",
+        "optional": false,
+        "priority": "high",
+        "references": [],
+        "size": "small",
+        "tags": [
+          "standards",
+          "docs"
+        ],
+        "title": "Make this repository's rules follow plan-stated standards"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "buildLinearPacket orders issues by sprint ordinal, then planRows row, then the sprint's ticket order, with each acceptance node last in its milestone."
+          },
+          {
+            "id": "c2",
+            "text": "Relations hold every dependency edge, each acceptance node blocked by its sprint's required work tickets, and related_to as related, with no duplicates."
+          },
+          {
+            "id": "c3",
+            "text": "Issues carry the Linear priority number, tags as labels, the completed state for completed tickets, and a description with the criteria checklist, the DM key back-link and the marker as its last line. The project summary is at most 255 characters."
+          },
+          {
+            "id": "c4",
+            "text": "packetHash is deterministic and changes with content."
+          },
+          {
+            "id": "c5",
+            "text": "The listed tests in linearPacket.test.ts pass."
+          }
+        ],
+        "body": "**Change**\nAdd the pure function `buildLinearPacket(input)` in `src/core/transfer/linearPacket.ts` (no I/O). Its input is the epic, a saved `PlanBundle`, the revision id and number, and the ticket statuses. Its output is a `LinearTransferPacket`, with the types in `src/shared/domain/transfer.ts`.\n\nThe packet is `{ format: 'darkmechanicus.linear-transfer', version: 1, epicId, revisionId, packetHash, project, milestones, issues, relations }`.\n- **marker:** every project, milestone and issue carries `marker: 'dm:<epicId>/<ref>'`. It is written as the last line of the item's text, and the agent searches for it before creating.\n- **project:** `{ ref: 'project', marker, name, summary, content }`.\n  - `name`: the epic title.\n  - `summary`: 255 characters at most, \"From Dark Mechanicus: epic <id>, revision <n>\" followed by the marker.\n  - `content`: the intent and the success criteria.\n- **milestones:** one per sprint by `ordinal`: `{ ref: sprintId, marker, position, name: 'Sprint N: <first line of goal>', description }`. The description holds the goal, the exit criteria and the marker.\n- **issues**, in execution order: by `sortedSprints`, then `planRows` row, then the sprint's `ticketIds` order, with the acceptance node last in its milestone. Each is `{ ref: ticketId, key, marker, position (1-based across the epic), milestoneRef, title, description, priority, labels, state, blockedBy }`:\n  - `priority`: Linear's numbers (critical 1, high 2, normal 3, low 4).\n  - `labels`: the tags.\n  - `state`: 'completed' for a completed ticket, 'default' otherwise.\n  - `description`, in order:\n    - the body;\n    - \"Acceptance criteria\" as a `- [ ] c1 …` checklist (an acceptance node's items name the covered key);\n    - the references, and any `duplicate_of`;\n    - \"DM key DM-123 · epic <id> · revision <n>\";\n    - the marker.\n    Optional tickets say so.\n- **relations:** `{ ref: 'rel:<blockerId>:<blockedId>', kind: 'blocks', blockerRef, blockedRef }` (the ref fits the 64-character `entityRef` limit).\n  - There is one per dependency edge.\n  - Each acceptance node is also blocked by `implicitPrerequisitesOf` (`src/core/plan/acceptance.ts`).\n  - Each `related_to` gives a `kind: 'related'` relation.\n  - Deduplicated, in issue order.\n- **packetHash:** the `contentHash` of the canonical packet, computed without the hash itself.\n\n**Tests** (write and run in this ticket), in `src/core/transfer/linearPacket.test.ts`:\n- Execution order across two sprints, with three rows and an in-row order that differs from the ids. The acceptance node comes last and is blocked by exactly its sprint's required (non-optional) work tickets.\n- Relations:\n  - edges become blocks relations in the right direction;\n  - an explicit edge that repeats an acceptance prerequisite adds no duplicate;\n  - `related_to` becomes related;\n  - a `duplicate_of` appears in the description.\n- Fields: each priority maps to its number; tags become labels; a completed ticket gets state 'completed'.\n- Text: the issue description ends with the back-link and the marker; the project summary is at most 255 characters; milestone names follow \"Sprint N: …\".\n- The hash is stable for the same input and changes when a title changes.\n\n**Checks:** typecheck; `npx oxlint` on the files you touched; the tests listed above plus the existing tests of the files you touched. Do not run the full suite, coverage, whole-tree lint, a build (unless a criterion needs one) or Fireguard.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": ""
+          },
+          "skills": [],
+          "tools": [
+            "repo_read",
+            "repo_write"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m6772fgee0k5hkamr08znsvn",
+        "key": "DM-287",
+        "optional": false,
+        "priority": "high",
+        "references": [],
+        "size": "medium",
+        "tags": [
+          "linear",
+          "core"
+        ],
+        "title": "Build the ordered Linear transfer packet from a saved plan"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "V10 creates transfers and transfer_items, and a V9 database upgrades in the migrations test."
+          },
+          {
+            "id": "c2",
+            "text": "queueTransfer refuses a completed epic (completed_epic), an active run (active_run_exists), no saved revision (invalid_plan), an unsaved draft change and an open transfer (conflict)."
+          },
+          {
+            "id": "c3",
+            "text": "startTransfer fails unless the person queued the transfer. After some records, next lists the remaining refs in packet order, and a changed linearId conflicts unless replace is set."
+          },
+          {
+            "id": "c4",
+            "text": "transfer.queue is human-only. epic.transfer is held by the orchestrator and the desktop only."
+          },
+          {
+            "id": "c5",
+            "text": "Deleting an epic with a transfer succeeds, and the listed tests pass."
+          }
+        ],
+        "body": "**Change**\n- **Migration V10** in `src/core/db/migrations.ts`; bump `SCHEMA_VERSION`.\n  - `transfers` (primary key epic_id): target 'linear', status queued|in_progress|verified|canceled, revision_id, packet_hash, packet_json, project_id, project_url, last_mismatches_json, queued_by, queued_at, started_at, updated_at, session_id.\n  - `transfer_items`: epic_id, ref, kind project|milestone|issue|relation, linear_id, identifier, url, recorded_at; primary key (epic_id, ref).\n- **Capabilities.** `transfer.queue` is human-only (add it to `HUMAN_ONLY_CAPABILITIES`; the desktop holds it). `epic.transfer` goes to the orchestrator and the desktop. Update the role and human-only lists that `src/core/authz.test.ts` and `src/core/commands/capabilities.test.ts` pin.\n- **Services** in `src/core/services/transfers.ts`:\n  - `queueTransfer(ctx, { epicId })` (transfer.queue): build the packet from the current saved revision and store it with its hash. Refusals:\n    - a completed epic: `completed_epic`;\n    - an active run: `active_run_exists`;\n    - no saved revision: `invalid_plan`;\n    - an unsaved draft change: `conflict`, as `changedDraftRevision` does;\n    - an open transfer: `conflict`.\n  - `cancelTransfer(ctx, { epicId })` (transfer.queue): mark it canceled and clear its items. The Linear items stay; a later transfer adopts them by marker.\n  - `startTransfer(ctx, { epicId })` (epic.transfer): move a queued transfer to in_progress, or resume an in_progress one. Return `{ packet, recorded, next }` from the stored packet. Without an open transfer it fails: \"The person has not authorized a transfer of this epic.\"\n  - `recordTransferItem(ctx, { epicId, ref, linearId, identifier?, url? })` (epic.transfer) works only while in_progress. The ref must be in the packet. Re-recording the same values is a no-op. A different linearId for a recorded ref is a `conflict` unless `replace: true`.\n  - `getTransfer(ctx, { epicId })` (read) returns the status (`not_started` when none exists), the packet (stored, or built from the current saved revision when none exists), the recorded items, `lastMismatches` and `next` (the unrecorded refs in packet order). It never writes.\n- Each mutation appends its event in the same transaction: `transfer.queued`, `transfer.canceled`, `transfer.started` or `transfer.item_recorded`.\n- Add `DELETE FROM transfer_items` and `DELETE FROM transfers` to `DELETE_STATEMENTS` (`src/core/services/epicDeletion.ts`), before `epics`.\n\n**Tests** (write and run in this ticket):\n- `src/core/services/transfers.test.ts`:\n  - each refusal with its code;\n  - start without a queued transfer fails;\n  - resume returns the stored packet, and `next` skips what was recorded;\n  - a changed linearId conflicts, and succeeds with replace;\n  - cancel clears the items;\n  - the packet stays fixed when a ticket status changes after queuing.\n- `authz.test.ts` and `capabilities.test.ts`: transfer.queue is human-only, and epic.transfer is held by the orchestrator and the desktop.\n- The migrations test: V10 upgrades a V9 database.\n- `src/core/commands/deletion.test.ts`: deleting an epic with a transfer succeeds.\n\n**Checks:** typecheck; `npx oxlint` on the files you touched; the tests listed above plus the existing tests of the files you touched. Do not run the full suite, coverage, whole-tree lint, a build (unless a criterion needs one) or Fireguard.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": ""
+          },
+          "skills": [],
+          "tools": [
+            "repo_read",
+            "repo_write"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m6772fge52e1xm1sqaqwrse6",
+        "key": "DM-288",
+        "optional": false,
+        "priority": "high",
+        "references": [],
+        "size": "medium",
+        "tags": [
+          "linear",
+          "core",
+          "database"
+        ],
+        "title": "Store authorized transfers and their progress so an interrupted transfer resumes"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "queue_run, start_run and save_plan return conflict with the transfer message while a transfer is queued or in progress."
+          },
+          {
+            "id": "c2",
+            "text": "After cancelTransfer, the same calls succeed."
+          },
+          {
+            "id": "c3",
+            "text": "The listed tests pass."
+          }
+        ],
+        "body": "**Change**\n- Add `assertNoOpenTransfer(ctx, epicId)` in a new `src/core/services/transferGuard.ts`. An open transfer is one that is queued or in_progress. It refuses with `conflict` and the message \"Finish or cancel the Linear transfer of this epic first.\"\n- Call it in `queueRun` and `startRun` (`src/core/services/runs.ts`) and in the plan Save path (`requestSave` / `savePlan` in `src/core/services/plans.ts`). Draft edits stay allowed; only Save is refused.\n\n**Tests** (write and run in this ticket):\n- `transferGuard.test.ts`, or the existing runs and plans tests: queueRun, startRun and Save are refused while a transfer is queued and while it is in progress.\n- They are allowed again after a cancel.\n\n**Checks:** typecheck; `npx oxlint` on the files you touched; the tests listed above plus the existing tests of the files you touched. Do not run the full suite, coverage, whole-tree lint, a build (unless a criterion needs one) or Fireguard.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "routine",
+            "rationale": ""
+          },
+          "skills": [],
+          "tools": [
+            "repo_read",
+            "repo_write"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m6772fged12ycec2898473va",
+        "key": "DM-289",
+        "optional": false,
+        "priority": "high",
+        "references": [],
+        "size": "small",
+        "tags": [
+          "linear",
+          "core"
+        ],
+        "title": "Refuse runs and plan saves while a transfer is open"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Each mismatch kind (missing ref, project name, milestone name or order, milestone membership, title, priority, labels, description lines, state, relations, unexpected, duplicate, team) is reported with its ref, key and field, and leaves the epic open."
+          },
+          {
+            "id": "c2",
+            "text": "Identifier order and sort order produce warnings that do not block completion."
+          },
+          {
+            "id": "c3",
+            "text": "A full match completes the epic in one transaction with outcome.transfer.items, a summary comment, the epic.transferred event and a verified transfer row. A 1,000-ticket fixture completes."
+          },
+          {
+            "id": "c4",
+            "text": "A transferred epic refuses start_run, plan edits and a new transfer. outcome.transfer round-trips through export and import, and an outcome without it re-exports unchanged."
+          },
+          {
+            "id": "c5",
+            "text": "COMPLETION_RULE, the set_epic_status description and sprint-reporter.md name both completion paths, and the listed tests pass."
+          }
+        ],
+        "body": "**Change**\nAdd `submitTransferReadback(ctx, { epicId, readback, final })` in `src/core/services/transfers.ts` (capability epic.transfer, while in_progress).\n\n**Read-back shape.** Parts accumulate until `final: true`, so a large project can be sent in pages. It holds:\n- the project: `{ linearId, url, name, summary, content }`;\n- the milestones: `{ linearId, name, description }`;\n- the issues: `{ linearId, identifier, milestoneId, title, description, priority, labels, stateType, sortOrder? }`;\n- the relations: `{ kind, fromId, toId }`.\n\n**Comparison** against the stored packet and the recorded mapping, on the final part. A mismatch is `{ ref, key?, field, expected, actual }`.\n- Every packet ref is recorded and present in the read-back.\n- The project name matches, and the marker is in its summary.\n- Milestone names match, in position order.\n- Each issue:\n  - is in its milestone;\n  - has its title and priority;\n  - has its labels, compared as a case-insensitive set;\n  - has a description containing its checklist lines, back-link and marker;\n  - has a completed stateType for a completed ticket, and neither completed nor canceled for any other.\n- The blocks and related relations match as sets.\n- `unexpected`: a read-back issue or milestone whose id is not recorded.\n- `duplicate`: two items with the same marker.\n- `team`: identifiers with different team keys.\n\n**Warnings**, not mismatches:\n- `identifier_order`: identifier numbers not rising in position;\n- `sort_order_unreported`, or `sort_order` when the reported sortOrder does not rise.\n\n**No mismatch: one transaction.**\n- Recheck: no active run, the saved revision is still the transfer's, and no unsaved draft change.\n- Add the comment through `addComment` (nested transactions are supported) before the status changes. It holds the Linear project link and the counts.\n- Set the epic completed (`completed_at`, revision + 1). Its outcome is `{ summary: 'Transferred to Linear: <url>', successCriteria: [], recordedAt, runId: null, transfer: { target: 'linear', projectUrl, revisionId, packetHash, items: [{ key, identifier, url }] } }`.\n- Mark the transfer verified and append `epic.transferred`; the epic_state and comment exports follow.\n\n**Any mismatch:** store the mismatches in `last_mismatches_json`, append `transfer.readback_rejected` and return them. The epic stays open.\n\n**Outcome type and record.** `EpicOutcome` (`src/shared/domain/views.ts`) gains an optional `transfer`. The strict `epicOutcome` in `src/core/repo/portable.ts` accepts it as `.optional()`, with no default, so an outcome without it re-exports byte for byte. Older app versions show such an epic as rejected until they update.\n\n**Completion wording.** Update `COMPLETION_RULE` (`src/core/services/epics.ts:99`) and its pin at `epics.test.ts:437`, the `set_epic_status` description (`src/core/commands/authoring.ts`) and `skills/sprint-reporter.md`. Each should read: an epic completes when its final checkpoint advances, or when a verified Linear transfer completes it.\n\n**Tests** (write and run in this ticket):\n- In `transfers.test.ts`:\n  - one mismatch test per field, plus unexpected, duplicate and team;\n  - the warnings do not block;\n  - paged parts accumulate;\n  - a full match completes the epic with the outcome, the comment and the event;\n  - a failure injected inside the transaction leaves the epic open;\n  - after completion, start_run, update_plan_draft and queueTransfer are refused.\n- A 1,000-ticket fixture completes.\n- A portable or importer test: outcome.transfer round-trips, and an outcome without it re-exports unchanged.\n\n**Checks:** typecheck; `npx oxlint` on the files you touched; the tests listed above plus the existing tests of the files you touched. Do not run the full suite, coverage, whole-tree lint, a build (unless a criterion needs one) or Fireguard.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "deep",
+            "rationale": ""
+          },
+          "skills": [],
+          "tools": [
+            "repo_read",
+            "repo_write"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m6772fge0xcfzt6bqb0zn6y9",
+        "key": "DM-290",
+        "optional": false,
+        "priority": "high",
+        "references": [],
+        "size": "medium",
+        "tags": [
+          "linear",
+          "core"
+        ],
+        "title": "Verify the Linear read-back and complete the epic with a transfer record"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The six commands are callable through the command table. The four MCP tools appear in tools/list with the right kinds, and queueTransfer and cancelTransfer have no tool."
+          },
+          {
+            "id": "c2",
+            "text": "server.test.ts, capabilities.test.ts and the stub API are updated, and they pass with the new tool count and human-only list."
+          },
+          {
+            "id": "c3",
+            "text": "mcp-setup.md lists the four tools and the role that holds epic.transfer."
+          },
+          {
+            "id": "c4",
+            "text": "The listed tests pass."
+          }
+        ],
+        "body": "**Change**\n- **Commands:** `queueTransfer`, `cancelTransfer`, `startTransfer`, `recordTransferItem`, `getTransfer` and `submitTransferReadback`. Each goes into `COMMAND_CAPABILITIES`, `COMMAND_SCHEMAS`, `CommandApi` and a new `src/core/commands/transfers.ts` table spread into `COMMANDS`. Mutating commands take an `idempotencyKey`.\n- **MCP tools**, in `src/mcp/tools/transfers.ts`, registered like the other areas:\n  - `get_transfer` (read);\n  - `start_transfer` and `record_transfer_item` (idempotent);\n  - `submit_transfer_readback` (write).\n  `queueTransfer` and `cancelTransfer` are human-only and get no tool; list them in `HUMAN_ONLY` in `src/mcp/server.test.ts`.\n- **Tests to update:** `src/mcp/server.test.ts` (`TOOLS`, `HUMAN_ONLY`, the tool count), the probe table and the human-only command list in `src/core/commands/capabilities.test.ts`, and `COMMAND_FLAGS` in `src/test/stubApi.ts`.\n- **Desktop:** add `getTransfer`, `queueTransfer` and `cancelTransfer` to `DESKTOP_COMMANDS` (`src/shared/desktop/api.ts`).\n- **Docs:** add the tool rows and the role that holds epic.transfer to `docs/runbooks/mcp-setup.md`.\n\n**Tests** (write and run in this ticket):\n- `src/mcp/tools/transfers.test.ts`:\n  - each tool's input validation;\n  - roles: an orchestrator can start and record; a worker and a reviewer can get but cannot start or record. MCP has no reader role.\n- The `capabilities.test.ts` probe rows for the six commands.\n\n**Checks:** typecheck; `npx oxlint` on the files you touched; the tests listed above plus the existing tests of the files you touched. Do not run the full suite, coverage, whole-tree lint, a build (unless a criterion needs one) or Fireguard.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": ""
+          },
+          "skills": [],
+          "tools": [
+            "repo_read",
+            "repo_write"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m6772fgen0tqgp39mgahnctk",
+        "key": "DM-291",
+        "optional": false,
+        "priority": "high",
+        "references": [],
+        "size": "medium",
+        "tags": [
+          "linear",
+          "mcp",
+          "core"
+        ],
+        "title": "Expose the transfer through commands and MCP tools"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The MCP server lists the darkmechanicus-linear-transfer prompt. It holds the authorization check, the Linear setup lines, labels before issues, the creation order, search-by-marker before each create, record after each create, relations without duplicates, the paged read-back and fix loop, and resume from next."
+          },
+          {
+            "id": "c2",
+            "text": "transferKickoff contains the epic id and the guide text, and masks claim tokens in titles."
+          },
+          {
+            "id": "c3",
+            "text": "`dm transfer linear --epic <id>` prints, as a reader, the kickoff, the packet summary, the Linear setup lines, the grant instructions and whether the transfer is authorized. `--json` prints the packet, and an unknown epic errors."
+          },
+          {
+            "id": "c4",
+            "text": "The skill, prompt, server, kickoff and CLI tests pass, and docs/runbooks/cli.md describes the new mode."
+          }
+        ],
+        "body": "**Change**\n- Add `skills/linear-transfer.md`. Its first line is the description and its body starts with `# Linear transfer`. It is the guide the orchestrator follows:\n  1. Call `get_capabilities` and confirm the role is orchestrator. Then call `start_transfer`. If it says the person has not authorized the transfer, stop and ask them to press Transfer to Linear in the app.\n  2. Check that Linear's MCP tools are available.\n     - If they are not, stop and give the person the setup for your CLI: `claude mcp add --transport http linear-server https://mcp.linear.app/mcp` then `/mcp` to sign in; `codex mcp add linear --url https://mcp.linear.app/mcp`; Cursor's MCP settings. Wait until they are done.\n     - If a sign-in is pending, ask the person to complete it in the browser.\n  3. List the teams and ask the person which team to use.\n  4. Find each label or create it, reusing one of the same name.\n  5. Create the project, then the milestones in position order, then the issues strictly in `position` order, one at a time.\n     - Before each create, search Linear for the item's `marker`. If you find it, record that item instead of creating a new one.\n     - Call `record_transfer_item` right after each creation.\n  6. Set the completed state where the packet says so.\n     - Add the relations, after listing the blocked issue's existing relations so none is added twice.\n     - Set the sort order when a tool allows it.\n  7. Read the project back and call `submit_transfer_readback`. Send it in parts when it is large, with `final: true` on the last. A submission may ask the person for approval.\n     - Fix each mismatch by updating the Linear item, or by moving an unexpected one out of the project; never delete.\n     - Then submit again.\n  8. After an interruption, continue from `get_transfer` `next`. Never complete the epic any other way.\n- Register it in `SKILLS` (`src/mcp/skills.ts`). That serves it as the `darkmechanicus-linear-transfer` prompt and installs it through `skillInstall`.\n  - Update `EXPECTED` in `src/mcp/skills.test.ts` and the prompt count in `src/mcp/server.test.ts`.\n  - Add the Linear words to `VOCABULARY` where needed.\n  - Do not bump `SKILLS_VERSION` again.\n- Add `transferKickoff(input)` and `transferTitle` (\"Linear transfer · <epic>\"), mirroring `orchestratorKickoff`. Put them in a module the main process and the CLI bundle can both import.\n  - The kickoff holds the epic title (one line, masked), the epic id, the steps, and the guide text from `skillBody('linear-transfer')`.\n  - The in-app chat, Copy prompt and the CLI all print this same text.\n- CLI `dm transfer linear --epic <id> [--json]`:\n  - Add a `{ kind: 'transfer', target: 'linear', epicId, json }` mode to `modeOf` in `src/cli/args.ts`, `--epic` to `VALUE_FLAGS`, and `--json` as a switch for this mode only. Update `CLI_USAGE`.\n  - Output: the kickoff and a summary of the packet (counts per milestone, the first issues in order), the Linear setup lines, and how to give the agent an orchestrator grant (the Agent access card, `DM_SESSION_TOKEN`). When the transfer is not authorized yet, it says so first.\n  - `--json` prints the packet.\n  - It is read-only, works for a reader, and is the only mode that prints text instead of the JSON envelope; say so in `docs/runbooks/cli.md`.\n\n**Tests** (write and run in this ticket):\n- Update the skill and prompt tests: names, count, vocabulary.\n- The kickoff test: it names the epic id, includes the guide body, masks a claim-token-like title, and the title is cut to `LIMITS.title`.\n- `src/cli/args.test.ts` and `src/cli/main.test.ts`:\n  - `transfer linear` rejects a missing `--epic`;\n  - it prints the kickoff for a known epic, as a reader;\n  - it errors for an unknown epic;\n  - it says when the transfer is not authorized;\n  - `--json` is the packet.\n\n**Checks:** typecheck; `npx oxlint` on the files you touched; the tests listed above plus the existing tests of the files you touched. Do not run the full suite, coverage, whole-tree lint, a build (unless a criterion needs one) or Fireguard.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": ""
+          },
+          "skills": [],
+          "tools": [
+            "repo_read",
+            "repo_write"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m6772fgeztxwzehczabspkeg",
+        "key": "DM-292",
+        "optional": false,
+        "priority": "high",
+        "references": [],
+        "size": "medium",
+        "tags": [
+          "linear",
+          "skills",
+          "agents",
+          "cli"
+        ],
+        "title": "Add the Linear transfer guide, its kickoff and `dm transfer linear`"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The integration test transfers the fixture epic. The fake then holds identifiers rising in execution order, one milestone per sprint, the acceptance issues last and correctly blocked, and the related link."
+          },
+          {
+            "id": "c2",
+            "text": "After an interruption, including one between a create and its record, the resumed transfer creates nothing twice, and the fake's issue count equals the packet's."
+          },
+          {
+            "id": "c3",
+            "text": "The injected mismatches are reported and fixed without deleting. Only then is the epic completed, and start_run and queueTransfer are then refused. The cancel and re-queue path adopts every item by marker."
+          },
+          {
+            "id": "c4",
+            "text": "docs/verification/linear-transfer-smoke.md records the smoke run's output against the built MCP server."
+          }
+        ],
+        "body": "**Change**\n- `src/test/fakeLinearMcp.ts`: an in-memory MCP server with a minimal Linear-like toolset:\n  - list teams;\n  - create a project (name, summary, content), a milestone, an issue (with sequential identifiers `ENG-1…`), a label, a blocks or related relation;\n  - update an issue (milestone, state, fields) and move an issue out of a project;\n  - list a project's milestones and issues, with their milestone, labels, priority, state type, description and relations;\n  - search projects, milestones and issues by text (for the marker).\n- `src/integration/linearTransfer.test.ts`: a scripted driver, deterministic and not an LLM, that follows the guide's steps. It runs through the real Workspace command table (with a desktop session for queue and cancel) and the fake Linear server:\n  - It queues a transfer and transfers a fixture epic with two sprints, rows, a related_to link and an acceptance node per sprint.\n  - It stops after three recorded issues. It then creates a fourth in the fake without recording it, as if it had crashed between the create and the record. It resumes from `next`, finds the fourth by its marker and records it, and finishes with no duplicate in the fake.\n  - It injects a wrong milestone and an unexpected extra issue, sees both mismatches, fixes them with an update and a move, and completes.\n  - It then sees start_run and a new queueTransfer refused.\n  - A second fixture covers the cancel path: cancel, re-queue, and every existing item adopted by marker.\n- `scripts/linear-transfer-smoke.mjs`: the same flow against a built `out/main/mcp.js` over stdio, in a temporary repository, printing the resulting Linear layout. Record its output in `docs/verification/linear-transfer-smoke.md`.\n\n**Tests** (write and run in this ticket)\n- `src/integration/linearTransfer.test.ts` as above.\n- Run the smoke script once after `npm run build`.\n\n**Checks:** typecheck; `npx oxlint` on the files you touched; the tests listed above plus the existing tests of the files you touched. Do not run the full suite, coverage, whole-tree lint, a build (unless a criterion needs one) or Fireguard.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": ""
+          },
+          "skills": [],
+          "tools": [
+            "repo_read",
+            "repo_write"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m6772fget96mdb0dxv4tygh9",
+        "key": "DM-293",
+        "optional": false,
+        "priority": "high",
+        "references": [],
+        "size": "medium",
+        "tags": [
+          "linear",
+          "integration",
+          "verification"
+        ],
+        "title": "Exercise a full, interrupted and resumed transfer against a fake Linear MCP server"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "startTransferChat refuses an epic without a queued or in-progress transfer before starting anything."
+          },
+          {
+            "id": "c2",
+            "text": "A transfer chat stores transferEpicId, is found again after a restart, and resumes as an orchestrator."
+          },
+          {
+            "id": "c3",
+            "text": "The adapters launch transfer chats with the same MCP options as any other chat."
+          },
+          {
+            "id": "c4",
+            "text": "A screenshot from the dev app shows a transfer chat's kickoff on a scratch fixture epic."
+          },
+          {
+            "id": "c5",
+            "text": "The listed tests pass."
+          }
+        ],
+        "body": "**Change**\n- **Starting the chat.** Add `startTransferChat(deps, { folder, epicId, agent, model })` in `src/main/agents/transferStart.ts`, mirroring `startOrchestratorRun`.\n  - It needs a queued or in-progress transfer, and refuses otherwise before starting anything.\n  - It opens a chat titled `transferTitle(epic)` with an orchestrator session, holding the grant and `DM_SESSION_TOKEN` the way orchestrator chats get them, and sends the `transferKickoff` message.\n- **Chat record.** Add an optional `transferEpicId` to `chatRecordSchema` (`src/shared/agents/chat.ts`, next to `runId`), so a transfer chat is found again after an idle stop or an app restart, and resumes with the same session role.\n- **Linear connection.** Leave the adapters' MCP options unchanged: DM attaches no server, and the agent uses the Linear server configured in its own CLI, which in-app chats already load. The kickoff's step 2 handles a missing server.\n- **Bridge.** Expose `startTransferChat`, `findTransferChat` and `transferPrompt` (the kickoff text for an agent started elsewhere) on the chats bridge the renderer uses for Start run: preload, IPC, and the `FakeChats`/`idleChats` test doubles in `src/renderer/src/agents/__mocks__`.\n\n**Tests** (write and run in this ticket):\n- `transferStart.test.ts`: it refuses without a queued transfer, and passes the chat title and kickoff through.\n- The chat record round-trips `transferEpicId`, and `findTransferChat` returns the chat after a simulated restart.\n- `transferPrompt` equals the kickoff.\n\n**Checks:** typecheck; `npx oxlint` on the files you touched; the tests listed above plus the existing tests of the files you touched. Do not run the full suite, coverage, whole-tree lint, a build (unless a criterion needs one) or Fireguard. In the dev app, on a scratch folder with a fixture epic, authorize a transfer and start a transfer chat. Screenshot its first message, then stop the chat before the agent acts.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "multi_step",
+            "rationale": ""
+          },
+          "skills": [],
+          "tools": [
+            "repo_read",
+            "repo_write"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m6772fgec2prcd1nzk93c4m1",
+        "key": "DM-294",
+        "optional": false,
+        "priority": "high",
+        "references": [],
+        "size": "medium",
+        "tags": [
+          "linear",
+          "agents",
+          "main"
+        ],
+        "title": "Start an in-app transfer chat for an authorized transfer"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Transfer to Linear shows only for an epic with a saved plan, no active run, no open transfer, no changed draft and not completed. Start run hides while a transfer is open."
+          },
+          {
+            "id": "c2",
+            "text": "Both dialog actions queue the transfer. Transfer with agent starts the transfer chat, and Copy prompt copies the kickoff."
+          },
+          {
+            "id": "c3",
+            "text": "While a transfer is open the workspace shows the created count and the last mismatches by DM key and field, with Resume and Cancel transfer."
+          },
+          {
+            "id": "c4",
+            "text": "A transferred epic with no run shows Transferred to Linear with its project link."
+          },
+          {
+            "id": "c5",
+            "text": "The listed tests pass, and screenshots of the four states are attached."
+          }
+        ],
+        "body": "**Change**\n- **Header.** `headerView` (`src/renderer/src/epic/headerView.ts`) gets `actions.transfer`. It shows when the epic has a saved plan, no active run, no open transfer, no `draftChanged`, and is not completed; Start run hides while a transfer is open. Update the exact actions objects in `headerView.test.ts`. `WorkspaceHeader` renders a **Transfer to Linear** button beside Start run.\n- **Dialog.** `TransferDialog` is modelled on `StartRunDialog` and chooses the agent and model with `useAgentModelChoice`. It explains:\n  - the transfer is a one-way handoff;\n  - the epic completes after verification;\n  - runs and Save are locked meanwhile;\n  - the agent uses its own Linear MCP server, with the setup lines;\n  - Linear's sign-in may open in the browser, and the team is picked in the chat.\n\n  It has two actions, each calling `queueTransfer` first:\n  - **Transfer with agent**: `startTransferChat`, then open the chat.\n  - **Copy prompt**: copy `transferPrompt`.\n- **Progress strip.** While a transfer is open (`getTransfer`), a strip shows the status, \"n of m created\" and the last mismatches by DM key and field. It has three actions:\n  - **Resume**: `findTransferChat`, or a new `startTransferChat`.\n  - **Copy prompt**.\n  - **Cancel transfer**: `cancelTransfer`, after a confirmation.\n- **Transferred epic.** An epic whose `outcome.transfer` is set shows a \"Transferred to Linear\" panel with the project link, opened through `window.dm.openExternal`. Render it from the epic itself, without a run: in `StageContent` or the header notices, not `EpicOverview`.\n- **Styles.** Add the styles to `epic.css` with the existing tokens.\n\n**Tests** (write and run in this ticket), with Testing Library, `FakeBackend` and `FakeChats`:\n- `headerView.test.ts`: the transfer and Start run visibility for each state.\n- `TransferDialog.test.tsx`: the agent choice, and that each action queues first and then calls the right bridge.\n- An `EpicWorkspace` transfer test: the progress strip, its mismatches, Resume and Cancel.\n- The transferred panel with no run, and its link.\n\n**Checks:** typecheck; `npx oxlint` on the files you touched; the tests listed above plus the existing tests of the files you touched. Do not run the full suite, coverage, whole-tree lint, a build (unless a criterion needs one) or Fireguard. Take screenshots of the button, the dialog, the progress strip with a mismatch and the transferred epic in the dev app.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": ""
+          },
+          "skills": [],
+          "tools": [
+            "repo_read",
+            "repo_write"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m6772fge87e5ktvwekybkqk7",
+        "key": "DM-295",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "size": "medium",
+        "tags": [
+          "linear",
+          "renderer",
+          "ui"
+        ],
+        "title": "Add Transfer to Linear to the epic workspace, with progress and the result"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "docs/runbooks/linear-transfer.md covers the prerequisites, authorization, sign-in, mapping, order, verification, resume, cancel, lock, completion and limits, and both ways to start."
+          },
+          {
+            "id": "c2",
+            "text": "README.md and mcp-setup.md link to it, and architecture.md records the human authorization and the trust limit of the read-back."
+          },
+          {
+            "id": "c3",
+            "text": "Every relative link in the changed docs resolves."
+          }
+        ],
+        "body": "**Change**\n- New `docs/runbooks/linear-transfer.md`, covering:\n  - the prerequisites: a saved plan, no active run, and an agent with Linear's MCP server set up (the commands per CLI);\n  - authorization in the app, and Linear sign-in and team choice;\n  - the mapping table (epic, sprint, ticket, acceptance node, edges, related links, criteria, priority, tags, state, marker);\n  - the order rules, verification with its mismatches and warnings, resume, cancel and the run/Save lock;\n  - what completion records;\n  - the limits: one-time, no sync, no estimates, Linear only.\n  Include both starts: the workspace button, and Copy prompt or `dm transfer linear` with an external agent.\n- Link it from `README.md` (features) and `docs/runbooks/mcp-setup.md`.\n- Add a decision note to `docs/architecture.md`: the agent-executed transfer, the human authorization, DM's read-back check and its trust limit.\n\n**Tests** (write and run in this ticket)\n- None: documentation. Check that every relative link in the changed docs resolves.\n\n**Checks:** a link check by hand or script; no code checks are needed.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": ""
+          },
+          "skills": [],
+          "tools": [
+            "repo_read",
+            "repo_write"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m6772fge8x5kf6kqc4dsng2b",
+        "key": "DM-296",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "size": "small",
+        "tags": [
+          "linear",
+          "docs"
+        ],
+        "title": "Document the Linear transfer"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "covers": "tk_01m68dpc0850cbf38att5taef0",
+            "id": "c1",
+            "text": "In a scratch repository, an import that brings a saved revision and a run for an epic with an open transfer is reported as a conflict and not applied, and imports after cancel (command output)."
+          },
+          {
+            "covers": "tk_01m68dpc081yvkz7m9gfyk7nst",
+            "id": "c2",
+            "text": "An oversized read-back part and an over-cap accumulation are refused with invalid_input, and the 1,000-ticket paged read-back still verifies (command output and test)."
+          },
+          {
+            "covers": "tk_01m68dpc086t3tc17m2kj8zjcr",
+            "id": "c3",
+            "text": "A screenshot from an isolated dev app shows the Draft view with an open transfer: no Save, and the notice."
+          },
+          {
+            "covers": "tk_01m68dpc08nzp247t97y9eekcy",
+            "id": "c4",
+            "text": "grep shows src/cli/main.ts and transferView.ts importing the shared setup-lines constant, and the guide pin test passes."
+          },
+          {
+            "covers": "tk_01m68dpc08z3gh8ferv0mfezfv",
+            "id": "c5",
+            "text": "The fake-Linear integration test with a completed ticket passes in the full suite."
+          },
+          {
+            "covers": "tk_01m68dpc082gspaxv89z2xm19v",
+            "id": "c6",
+            "text": "`git grep '.Codex/skills/delivery-standards'` prints nothing and the delivery-standards copies compare as required."
+          }
+        ],
+        "body": "Run the project's Definition of Done once on the combined sprint work in the integration worktree. Fireguard is not part of this epic. Then verify each covered item with the evidence its criterion names, land the sprint as one squashed commit on the epic branch, and submit that increment. Run commands that open a repository against a scratch repository or a backup copy of the database, never the live state.sqlite of the main checkout. DM-316 is optional and not covered here.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": ""
+          },
+          "skills": [],
+          "tools": [
+            "repo_read",
+            "repo_write"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m68dpc02n5x6b5fj143vbchs",
+        "key": "DM-310",
+        "kind": "acceptance",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "tags": [],
+        "title": "Sprint 2 acceptance"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Importing a saved revision for an epic with a queued or in-progress transfer reports a storage conflict naming the epic, and leaves the local revision and transfer unchanged."
+          },
+          {
+            "id": "c2",
+            "text": "Importing a run for such an epic is reported and refused the same way."
+          },
+          {
+            "id": "c3",
+            "text": "After cancelTransfer, reconciling imports the revision and the run."
+          },
+          {
+            "id": "c4",
+            "text": "Epics with no transfer, or a canceled or verified one, import as before, and the listed tests pass."
+          }
+        ],
+        "body": "**Context**\n`src/core/repo/importer.ts` inserts saved `plan_revisions` and `runs` from portable state without `assertNoOpenTransfer` (`src/core/services/transferGuard.ts`), and the `transfers` table is local only. Another machine can save a plan or start a run while a transfer is open here, and a pull imports it, leaving a run and an open transfer on one epic (found in DM-289).\n\n**Change**\n- When an import would add a saved revision newer than the open transfer's `revision_id`, or a run, for an epic whose local transfer is `queued` or `in_progress`, do not apply it silently. Report a storage conflict for that epic through the existing conflict path that `get_storage_status` and `reconcile_repository` already use, naming the epic and the open transfer, and leave the local revision, run and transfer unchanged.\n- The person resolves it by canceling the transfer and reconciling again. Imports for epics with no transfer, or a canceled or verified one, behave as before.\n- Do not make transfers portable in this ticket.\n\n**Tests** (write and run in this ticket)\n- `src/core/repo/importer.test.ts`: an incoming saved revision while a transfer is queued, and while it is in progress, is reported as a conflict and not applied; an incoming run likewise; after `cancelTransfer`, reconciling imports both.\n- An epic without a transfer imports exactly as before (existing tests stay green).\n\n**Checks:** typecheck; `npx oxlint` on the files you touched; the tests listed above plus the existing tests of the files you touched. Do not run the full suite, coverage, whole-tree lint, a build (unless a criterion needs one) or Fireguard.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": ""
+          },
+          "skills": [],
+          "tools": [
+            "repo_read",
+            "repo_write"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m68dpc0850cbf38att5taef0",
+        "key": "DM-311",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "ticket",
+            "label": "DM-289",
+            "location": "DM-289",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "linear",
+          "core",
+          "portable"
+        ],
+        "title": "Guard portable imports against an open Linear transfer"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A read-back part whose serialized size exceeds the cap is refused with invalid_input before it is merged."
+          },
+          {
+            "id": "c2",
+            "text": "Non-final parts whose merged totals would exceed a cap are refused naming the limit, and the stored parts stay as they were."
+          },
+          {
+            "id": "c3",
+            "text": "The 1,000-ticket paged read-back test still completes the epic."
+          },
+          {
+            "id": "c4",
+            "text": "The limits are named constants and documented in the runbook, and the listed tests pass."
+          }
+        ],
+        "body": "**Context**\n`linearReadback` (`src/core/schemas.ts`) bounds each field and list, but one part can still be hundreds of MB (1,000 issues x 500,000-character descriptions), and `acceptReadbackPart` (`src/core/services/transfers.ts`) merges any number of non-final parts into `transfers.readback_json` without a cap (found in DM-291).\n\n**Change**\n- Cap the serialized size of one `readback` part at the command boundary (the `submitTransferReadback` command schema or handler), and refuse a larger part with `invalid_input` before it is merged.\n- Cap the merged totals in `acceptReadbackPart`: milestones, issues and relations each at most their packet-side limit plus a fixed allowance for unexpected items. A part that would exceed a cap is refused with `invalid_input` naming the limit, and the stored parts stay as they were.\n- Keep `submitTransferReadback` outside any outer transaction (its runtime guard stays).\n- Name the limits as constants next to `LIMITS` and state them in `docs/runbooks/linear-transfer.md`.\n\n**Tests** (write and run in this ticket)\n- An oversized part is refused with `invalid_input` and nothing is stored.\n- Non-final parts whose merged issues exceed the cap are refused, and the earlier parts remain.\n- The existing 1,000-ticket paged read-back still verifies.\n\n**Checks:** typecheck; `npx oxlint` on the files you touched; the tests listed above plus the existing tests of the files you touched. Do not run the full suite, coverage, whole-tree lint, a build (unless a criterion needs one) or Fireguard.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": ""
+          },
+          "skills": [],
+          "tools": [
+            "repo_read",
+            "repo_write"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m68dpc081yvkz7m9gfyk7nst",
+        "key": "DM-312",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "ticket",
+            "label": "DM-291",
+            "location": "DM-291",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "linear",
+          "core",
+          "mcp"
+        ],
+        "title": "Bound the Linear read-back's total size, per part and accumulated"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Save is hidden in the Draft view while a transfer is queued or in progress, with a notice naming the open transfer."
+          },
+          {
+            "id": "c2",
+            "text": "Save is offered again after the transfer is canceled, and draft edits stay allowed throughout."
+          },
+          {
+            "id": "c3",
+            "text": "The listed tests pass, and a screenshot from an isolated dev app shows the Draft view with an open transfer."
+          }
+        ],
+        "body": "**Context**\nIn the Draft view the header still offers Save while a transfer is queued or in progress; `save_plan` then fails with the transfer conflict and the person only sees a banner (`DraftButtons` in `src/renderer/src/epic/WorkspaceHeader.tsx`; found in DM-295).\n\n**Change**\n- In `headerView` (`src/renderer/src/epic/headerView.ts`), hide Save while the epic's transfer is queued or in progress, the same way Start run hides, and show a one-line notice in its place that names the open transfer.\n- Draft edits stay allowed.\n\n**Tests** (write and run in this ticket)\n- `headerView.test.ts`: Save is hidden while a transfer is queued and while it is in progress, and offered again after cancel; the exact actions objects are updated.\n- An `EpicWorkspace` test: the Draft view with an open transfer shows the notice and no Save.\n\n**Checks:** typecheck; `npx oxlint` on the files you touched; the tests listed above plus the existing tests of the files you touched. Do not run the full suite, coverage, whole-tree lint, a build (unless a criterion needs one) or Fireguard. Take a screenshot of the Draft view with an open transfer in an isolated dev app.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": ""
+          },
+          "skills": [],
+          "tools": [
+            "repo_read",
+            "repo_write"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m68dpc086t3tc17m2kj8zjcr",
+        "key": "DM-313",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "ticket",
+            "label": "DM-295",
+            "location": "DM-295",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "linear",
+          "renderer",
+          "ui"
+        ],
+        "title": "Hide or disable Save while a Linear transfer is open"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The CLI and the app import the same exported setup-lines constant, and neither keeps its own copy."
+          },
+          {
+            "id": "c2",
+            "text": "A test fails when a setup line of the constant is missing from skills/linear-transfer.md."
+          },
+          {
+            "id": "c3",
+            "text": "The listed tests and the existing CLI and transfer view tests pass."
+          }
+        ],
+        "body": "**Context**\nThe same three Linear MCP setup commands live in `src/cli/main.ts` (`LINEAR_SETUP`), `skills/linear-transfer.md` and `src/renderer/src/epic/transferView.ts` (`LINEAR_SETUP_LINES`); a change to Linear's MCP URL or CLI syntax must be made in three places (found in DM-295).\n\n**Change**\n- Export one constant with the per-CLI setup lines from a module the CLI bundle and the renderer can both import (for example under `src/shared/`), and use it in `src/cli/main.ts` and `transferView.ts`.\n- Keep the guide's text as it is, and pin it: a test fails if any line of the constant is missing from `skills/linear-transfer.md`.\n- Do not bump `SKILLS_VERSION`.\n\n**Tests** (write and run in this ticket)\n- The pin test in `src/mcp/skills.test.ts` (or a new test next to the constant).\n- The existing CLI and transfer view tests stay green.\n\n**Checks:** typecheck; `npx oxlint` on the files you touched; the tests listed above plus the existing tests of the files you touched. Do not run the full suite, coverage, whole-tree lint, a build (unless a criterion needs one) or Fireguard.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": ""
+          },
+          "skills": [],
+          "tools": [
+            "repo_read",
+            "repo_write"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m68dpc08nzp247t97y9eekcy",
+        "key": "DM-314",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "ticket",
+            "label": "DM-295",
+            "location": "DM-295",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "linear",
+          "cli",
+          "renderer"
+        ],
+        "title": "Share the Linear MCP setup lines between the CLI, the guide and the app"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A fixture epic with a DM-completed ticket transfers end to end, and that issue is in a completed-type state in the fake."
+          },
+          {
+            "id": "c2",
+            "text": "Leaving that issue open yields a state mismatch naming its key, and fixing the state then verifies."
+          },
+          {
+            "id": "c3",
+            "text": "The listed tests pass."
+          }
+        ],
+        "body": "**Context**\nThe fake-Linear integration test (`src/integration/linearTransfer.test.ts`) and the smoke fixtures leave every ticket open, so setting a completed state on issues of completed DM tickets, and the read-back state check for them, are covered only by DM-290's unit tests, not end to end (found in DM-293).\n\n**Change**\n- Give one fixture epic a ticket that is completed in DM before the transfer is queued.\n- The scripted driver (`src/test/linearTransferDriver.ts`) sets that issue to a completed-type state, as the guide says.\n- Extend `scripts/linear-transfer-smoke.mjs` only if it shares the fixture.\n\n**Tests** (write and run in this ticket)\n- The integration test: the completed ticket's issue ends in a completed state and the read-back verifies.\n- A variant that leaves it open is rejected with a `state` mismatch naming its key, and verifies after the driver fixes the state.\n\n**Checks:** typecheck; `npx oxlint` on the files you touched; the tests listed above plus the existing tests of the files you touched. Do not run the full suite, coverage, whole-tree lint, a build (unless a criterion needs one) or Fireguard.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": ""
+          },
+          "skills": [],
+          "tools": [
+            "repo_read",
+            "repo_write"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m68dpc08z3gh8ferv0mfezfv",
+        "key": "DM-315",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "ticket",
+            "label": "DM-293",
+            "location": "DM-293",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "linear",
+          "integration",
+          "verification"
+        ],
+        "title": "Cover completed tickets in the fake-Linear transfer test"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "docs/verification/linear-hosted-dry-run.md lists each guide step with the Linear MCP tool used and its result against a throwaway workspace."
+          },
+          {
+            "id": "c2",
+            "text": "The guide is corrected wherever the hosted tools differ, and skills.test.ts passes."
+          },
+          {
+            "id": "c3",
+            "text": "The fixture epic's transfer is verified in the scratch repository, or the exact blocking gap is recorded as a discovery."
+          }
+        ],
+        "body": "**Needs a person:** a throwaway Linear workspace (or team) and its browser sign-in. Optional: without one, this ticket waits and does not gate the sprint.\n\n**Context**\nOnly the fake Linear server proves the flow. `skills/linear-transfer.md` assumes Linear's hosted MCP can search items by marker text, list and add issue relations, move an issue out of a project and optionally set sort order (found in DM-292).\n\n**Change**\n- In a scratch repository (never the live checkout's database), with a small fixture epic, queue a transfer in an isolated dev app and run it with an agent CLI configured with Linear's hosted MCP server, against the person's throwaway workspace.\n- Record each guide step with the Linear MCP tool used and its result in `docs/verification/linear-hosted-dry-run.md`.\n- Where the real tools differ, correct the guide (and the read-back field mapping in the guide, not the comparison code) and say so in the record. A gap that needs code goes back as a discovery.\n\n**Tests** (write and run in this ticket)\n- None new: an investigation. Re-run `src/mcp/skills.test.ts` if the guide changes.\n\n**Checks:** `src/mcp/skills.test.ts` when the guide changes. Do not run the full suite, coverage, whole-tree lint, a build or Fireguard.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": ""
+          },
+          "skills": [],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "network"
+          ],
+          "workType": "investigation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m68dpc08y4w7cqj105sd6cs9",
+        "key": "DM-316",
+        "optional": true,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "ticket",
+            "label": "DM-292",
+            "location": "DM-292",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "linear",
+          "verification",
+          "investigation"
+        ],
+        "title": "Dry-run the transfer guide against Linear's hosted MCP server"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "`git grep -n '.Codex/skills/delivery-standards'` prints nothing."
+          },
+          {
+            "id": "c2",
+            "text": "`cmp` reports the .claude and .cursor delivery-standards skills identical, and `diff` shows the .agents copy differing only at line 13."
+          },
+          {
+            "id": "c3",
+            "text": "Every relative link in the changed files resolves."
+          }
+        ],
+        "body": "**Context**\n`AGENTS.md` ('Details') and `.agents/skills/delivery-standards/SKILL.md` line 13 point at `.Codex/skills/delivery-standards/SKILL.md`, which is not tracked (`.codex/` holds only `config.toml`; found in DM-286).\n\n**Change**\n- Point both references at a tracked copy (`.agents/skills/delivery-standards/SKILL.md` for AGENTS.md, and the matching wording on `.agents` line 13).\n- Keep `.claude` and `.cursor` copies byte-identical, and the `.agents` copy differing from them only at line 13.\n\n**Tests** (write and run in this ticket)\n- None: rule text only. Check with the grep and `cmp` in the criteria and a relative-link check over the changed files.\n\n**Checks:** the grep, `cmp` and link check in the criteria; no code checks.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": ""
+          },
+          "skills": [],
+          "tools": [
+            "repo_read",
+            "repo_write"
+          ],
+          "workType": "documentation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m68dpc082gspaxv89z2xm19v",
+        "key": "DM-317",
+        "optional": false,
+        "priority": "low",
+        "references": [
+          {
+            "hash": null,
+            "kind": "ticket",
+            "label": "DM-286",
+            "location": "DM-286",
+            "remoteOnly": false
+          }
+        ],
+        "size": "micro",
+        "tags": [
+          "docs",
+          "standards"
+        ],
+        "title": "Fix the dangling .Codex delivery-standards link"
+      }
+    ]
+  },
+  "contentHash": "sha256:3762b8ac3637deaa3f0a1db7d28037d4a52a5405dbc5a89f06ca5b547505321f",
+  "createdAt": "2026-10-31T10:42:44.063Z",
+  "epicId": "ep_01m6772ffwkwr2a91fsqzfz1he",
+  "format": "darkmechanicus.plan-snapshot",
+  "formatVersion": 1,
+  "number": 2,
+  "revisionId": "rv_01m68rvz6zyacg7p9bmq3bepwa",
+  "savedAt": "2026-10-31T10:42:44.063Z"
+}

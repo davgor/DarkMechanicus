@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-172 review (orchestrator): the timing fixtures in src/core/space/fixtures/timing/ and scratch/DM-172/*.ts become tests here. Also pin these boundaries: (1) a span starting at the exact instant a pause begins is not cut (`pause.start > start.ms`); (2) a span starting inside a pause runs to the first observation after resume; (3) after an adoption that renames the active sprint, the time a ticket waited under the old sprint id lands in no window; (4) coverage reads 1 on some missing measures (#18). Also note that scratch/DM-170/c1-migration.ts hard-codes schema v10: target SCHEMA_VERSION.",
+  "createdAt": "2026-10-31T08:18:48.633Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m68gme5sppn236703jq65sfs",
+  "ticketId": "tk_01m65yenctwcrwzkdqz21e6e3j"
+}

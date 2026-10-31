@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-175 review (orchestrator): when you expose `recordEscapedDefects` (src/core/services/escapedDefects.ts), note two things. Reports recorded in one call share the millisecond, and the read model orders them by observationId, not call order. So a report and its withdrawal sent in one call can read as still counted. And retrying a batch that holds an attributed report followed by an unattributed one, with descending caller ids, fails with a spurious `conflict`. Use server-allocated, monotonically ordered ids, or reuse the stored row's attribution on a retry.",
+  "createdAt": "2026-10-31T09:56:11.202Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m68p6qt2578hyw5ywfdk2js9",
+  "ticketId": "tk_01m453gpadp6xxdy96bhmqnqyq"
+}
