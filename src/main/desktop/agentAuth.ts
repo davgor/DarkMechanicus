@@ -19,12 +19,16 @@
  *   tolerant: a "not logged in / not authenticated" style message is signed out, and a "logged in" /
  *   "authenticated" message with exit 0 is signed in. Anything else is `unknown`.
  * - Autonomous `a8s doctor` (docs/reports/autonomous-acp.md, the only command that showed a sign-in
- *   state): its `Model route` line, `✓ Model route  Claude subscription · <model> · signed in` when
- *   signed in to a model. The signed-out wording was not observed, so only a `Model route` line that
- *   says "not signed in" / "signed out" is signed out; any other line, or none (the `Okta` line is the
- *   company sign-in, not the model's), is `unknown`. Its output holds the account email and local
- *   paths, which are dropped like every status output. The model sign-in is `a8s init`; `a8s login`
- *   is the company Okta sign-in and is never run.
+ *   state): its `Model route` line. Signed in: `✓ Model route  Claude subscription · <model> · signed in`.
+ *   Signed out, recorded with an isolated profile (DM-307): `✗ Model route  Claude subscription is not
+ *   ready` with a personal profile, `! Model route  not signed in to Claude, so sessions open without a
+ *   default model` with none; a8s's other signed-out wordings also say "is not ready" ("Codex
+ *   subscription is not ready", "<model> is not ready"). So a `Model route` line that says "is not ready"
+ *   or "not signed in" / "signed out" is signed out; any other line, or none (the `Okta` line is the
+ *   company sign-in, not the model's, and `gh` and the MCP lines say "not signed in" of their own), is
+ *   `unknown`. It exits 1 on any failed check (a missing profile is one), so the exit code is not read. Its
+ *   output holds the account email and local paths, which are dropped like every status output. The
+ *   model sign-in is `a8s init`; `a8s login` is the company Okta sign-in and is never run.
  */
 import { z } from 'zod'
 import { DomainError } from '../../core/errors'
@@ -35,8 +39,16 @@ import { planShimLaunch } from '../agents/shimLaunch'
 import { checkFile, planCliLaunch, windowsProgramKind, type AgentProbeDeps, type ProcessOutcome } from './agentProbe'
 import type { AgentRegistry } from './agentRegistry'
 
-/** The status command can be slow on a cold start or a slow network, but a person is waiting for it. */
-const STATUS_TIMEOUT_MS = 10_000
+/**
+ * The status command can be slow on a cold start or a slow network, but a person is waiting for it.
+ * `a8s doctor` checks Okta, the model route and tools in one go and takes about 12 s, so it gets longer.
+ */
+const STATUS_TIMEOUT_MS: Readonly<Record<BuiltInAgentKind, number>> = {
+  claude: 10_000,
+  codex: 10_000,
+  cursor: 10_000,
+  autonomous: 30_000
+}
 
 /** Constant arguments only: on Windows they go through the shared shim launcher's command line, so no user text ever goes here. */
 const STATUS_ARGS: Readonly<Record<BuiltInAgentKind, readonly string[]>> = {
@@ -111,7 +123,7 @@ function classifyCursor(exitCode: number, text: string): Verdict {
 }
 
 const A8S_MODEL_ROUTE = /^\W*Model route\b/i
-const A8S_SIGNED_OUT = /\b(?:not (?:logged|signed) in|signed out|logged out)\b/i
+const A8S_SIGNED_OUT = /\b(?:not (?:logged|signed) in|signed out|logged out|is not ready)\b/i
 
 function classifyAutonomous(_exitCode: number, text: string): Verdict {
   const route = outputLines(text).find((line) => A8S_MODEL_ROUTE.test(line))
@@ -173,7 +185,7 @@ export async function getAgentAuthStatus(
   if ('ok' in plan) {
     return unknown(plan.reason)
   }
-  return interpretStatus(kind, await deps.run(plan.launch, deps.timeoutMs ?? STATUS_TIMEOUT_MS))
+  return interpretStatus(kind, await deps.run(plan.launch, deps.timeoutMs ?? STATUS_TIMEOUT_MS[kind]))
 }
 
 /** One terminal program to start. Like a probe launch there is no shell option: the path is one argument. */

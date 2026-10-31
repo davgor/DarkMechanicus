@@ -43,6 +43,12 @@ export interface AgentView {
   /** Arguments passed before the app's own; empty for built-ins. */
   args: readonly string[]
   version: string | null
+  /**
+   * The agent name a custom CLI's handshake reported with `version` (ACP `agentInfo.name`, Codex's user
+   * agent product), so the version is shown as "<name> <version>". Null for a built-in (its version is its
+   * own CLI's), and when the handshake reported none or no version.
+   */
+  reportedName: string | null
   /** `custom`: a custom CLI the person added, with a program they picked and arguments they typed. */
   connectedVia: 'found' | 'downloaded' | 'custom'
   connectedAt: string

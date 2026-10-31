@@ -70,6 +70,18 @@ export function connectedViaText(via: AgentView['connectedVia']): string {
   return CONNECTED_VIA_TEXT[via]
 }
 
+/**
+ * An agent's version as the agent page, the sidebar and the pickers show it: "<name> <version>" with the
+ * agent name a custom CLI's handshake reported (`omp 18.11.2`), the version alone otherwise (`v2.1.4`),
+ * or "Version unknown".
+ */
+export function agentVersionLabel(agent: Pick<AgentView, 'version' | 'reportedName'>): string {
+  if (agent.version === null) {
+    return 'Version unknown'
+  }
+  return agent.reportedName === null ? `v${agent.version}` : `${agent.reportedName} ${agent.version}`
+}
+
 /** What the running download is doing, from the progress the main process reports. */
 export function phaseText(progress: Pick<AgentDownloadProgress, 'phase' | 'percent'>): string {
   switch (progress.phase) {

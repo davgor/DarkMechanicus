@@ -584,7 +584,11 @@ export interface AssignmentFallback {
 export interface ExecutionPacket {
   runId: string
   attemptId: string
-  claimToken: string
+  /**
+   * The claim token, `<attemptId>.<secret>`, returned once: null when the claim is an idempotent replay,
+   * because no copy of it is kept to return again. A lost token is gone; the attempt is failed or reconciled.
+   */
+  claimToken: string | null
   fencingToken: number
   leaseExpiresAt: string
   heartbeatIntervalSeconds: number

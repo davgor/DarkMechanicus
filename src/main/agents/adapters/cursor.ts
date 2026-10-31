@@ -5,7 +5,7 @@
  * starting `agent --model <id> acp`, and the sign-in sentence of a stale process.
  *
  * Session. `initialize`, `authenticate` (Cursor's stored login), then `session/new` with the folder
- * and the chat's Dark Mechanicus server in `mcpServers`, or `session/load` with the stored session
+ * and no MCP servers (`mcpServers: []`), or `session/load` with the stored session
  * id to resume. A session that cannot be loaded becomes a `context_reset` item and a new session.
  * A process that dies between turns is started again and resumes the same way on the next message.
  *
@@ -39,16 +39,10 @@
  * killed (the next message resumes the session in a new one). `dispose` kills the whole tree and resolves
  * once it is gone.
  *
- * Dark Mechanicus MCP. The server is passed in `session/new`/`session/load` as `darkmechanicus`;
- * nothing is enabled and nothing is written to Cursor's config. `--approve-mcps` is not wired into
- * ACP (Cursor staff, March 2026), and `agent mcp enable <id>` approves servers from the user's own
- * `mcp.json` files by writing under `~/.cursor`, which could approve a same-named server the person
- * wrote themselves. The same forum thread (https://forum.cursor.com/t/153823) has a staff post
- * dated 2026-10-04 saying that since June 2026 servers passed in `session/new` are no longer
- * blocked by the file-based approval step, and an ACP client's notes (erebusdev/vscode-cursor-agent
- * PR 2) say such servers are not gated and replace same-name config entries. Not verified against a
- * real CLI (none is installed here): if an older Cursor still gates the server, the Dark Mechanicus
- * tools are simply missing from that chat; the adapter cannot see that and does not work around it.
+ * Dark Mechanicus. No MCP server is passed to Cursor and nothing is written to Cursor's config: the
+ * agent runs the `dm` CLI, authorized by the chat's grant in `DM_SESSION_TOKEN` in the process
+ * environment (the context's `server`, a `DarkMechanicusCli`, supplies only that environment), and
+ * is told the exact command at the head of its first prompt (`cliInstructions.ts`).
  */
 import type { ChatAdapter, ChatItem, ModelOption } from '../../../shared/agents/chat'
 import type { ProcessOutcome } from '../../desktop/agentProbe'

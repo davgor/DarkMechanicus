@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { DraftOp } from '../shared/domain/api'
 import type { RunView } from '../shared/domain/views'
 import { dropAcceptanceNodes } from '../test/acceptanceNodes'
+import { issued } from '../test/execution'
 import { createHarness, type Harness } from '../test/workspaceHarness'
 import type { Workspace } from '../core/workspace'
 
@@ -57,7 +58,7 @@ async function planForkJoin(agent: Workspace): Promise<Planned> {
 }
 
 async function claimSubmitAccept(agent: Workspace, runId: string, ticketId: string): Promise<void> {
-  const claim = await agent.claimTicket({ runId, ticketId, worker: { label: 'worker-1', modelId: null } })
+  const claim = issued(await agent.claimTicket({ runId, ticketId, worker: { label: 'worker-1', modelId: null } }))
   await agent.submitAttempt({
     attemptId: claim.attempt.id,
     claimToken: claim.packet.claimToken,
@@ -75,7 +76,7 @@ async function readyIds(agent: Workspace, runId: string): Promise<string[]> {
 async function forkAfterAcceptance(agent: Workspace, runId: string, planned: Planned): Promise<void> {
   const { a, b, c } = planned.ids
   expect(await readyIds(agent, runId)).toEqual([a])
-  const claim = await agent.claimTicket({ runId, ticketId: a, worker: { label: 'w1' } })
+  const claim = issued(await agent.claimTicket({ runId, ticketId: a, worker: { label: 'w1' } }))
   expect(await codeOf(agent.claimTicket({ runId, ticketId: a, worker: { label: 'w2' } }))).toBe('already_claimed')
   await agent.submitAttempt({ attemptId: claim.attempt.id, claimToken: claim.packet.claimToken, outputs: { summary: 'schema done' } })
   expect(await readyIds(agent, runId)).toEqual([])
@@ -85,12 +86,12 @@ async function forkAfterAcceptance(agent: Workspace, runId: string, planned: Pla
 
 /** A lost worker's lease expires; the ticket needs reconciliation and the stale token stops working. */
 async function recoverLostWorker(harness: Harness, agent: Workspace, runId: string, ticketId: string): Promise<void> {
-  const lost = await agent.claimTicket({ runId, ticketId, worker: { label: 'flaky' }, leaseSeconds: 60 })
+  const lost = issued(await agent.claimTicket({ runId, ticketId, worker: { label: 'flaky' }, leaseSeconds: 60 }))
   harness.clock.advanceSeconds(120)
   expect(await codeOf(agent.heartbeatAttempt({ attemptId: lost.attempt.id, claimToken: lost.packet.claimToken }))).toBe('expired_claim')
   expect(await codeOf(agent.claimTicket({ runId, ticketId, worker: { label: 'w3' } }))).toBe('needs_reconciliation')
   await agent.reconcileAttempt({ attemptId: lost.attempt.id, resolution: 'abandon', notes: 'worker vanished' })
-  const retry = await agent.claimTicket({ runId, ticketId, worker: { label: 'w3' } })
+  const retry = issued(await agent.claimTicket({ runId, ticketId, worker: { label: 'w3' } }))
   const late = agent.submitAttempt({ attemptId: lost.attempt.id, claimToken: lost.packet.claimToken, outputs: { summary: 'late' } })
   expect(await codeOf(late)).toMatch(/stale_claim|expired_claim/)
   await agent.submitAttempt({ attemptId: retry.attempt.id, claimToken: retry.packet.claimToken, outputs: { summary: 'ui done' } })

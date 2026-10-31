@@ -9,8 +9,14 @@
  * - macOS and Linux: SIGKILL goes to the child's own process group, which exists when the child was
  *   started with `detached: startsOwnGroup()`. The group is then checked until no member is left.
  *
- * Callers keep their own bookkeeping; this only kills. A child that already ended is left alone: its
- * pid may by now belong to something else.
+ * Callers keep their own bookkeeping; this only kills. A child that already ended can still have left
+ * something running in its process group (a program that starts a child in the background with its
+ * pipes closed, then exits): on macOS and Linux that is ended too, when the group still has a member
+ * (see `endLeftovers`). The group of an ended child is checked once, by the first call after it ended,
+ * and that answer is repeated after. So a caller asks for an ended child only from its `exit`, while the
+ * group's id can still only be the child's (the agent process wrappers do), or not at all (the probe and
+ * installer runners kill only a program that is still running). On Windows an ended child is left
+ * alone: taskkill would look for the tree by a pid that may by now belong to something else.
  */
 import { spawn, type ChildProcess } from 'node:child_process'
 import { win32 } from 'node:path'
@@ -108,6 +114,31 @@ async function waitForGroupToEmpty(pgid: number, deps: TreeKillDeps): Promise<bo
   return false
 }
 
+/**
+ * Ends what an ended child left running in its process group, when anything is left.
+ *
+ * A group that still has a member is the child's own, not a reused id: a group's id is its leader's
+ * pid, and the system keeps that id allocated while any member of the group lives, so it is not handed
+ * to a new process, and a new group (whose id is always its own leader's pid) cannot take it. From the
+ * moment the child ends, a group that keeps a member therefore stays the child's.
+ *
+ * A group with no member left is not signalled: its id was freed with the child, and a group found under
+ * it later could be anyone's. A check long after the end could not tell the two apart (the group may have
+ * emptied and its id been reused in between), which is why the check is made once, as the child ends.
+ */
+function endLeftovers(child: ChildProcess, deps: TreeKillDeps): Promise<boolean> {
+  const { pid } = child
+  if (pid === undefined || deps.platform === 'win32' || !groupHasMembers(pid, deps)) {
+    return Promise.resolve(true)
+  }
+  try {
+    deps.signalGroup(pid, 'SIGKILL')
+  } catch {
+    // The last member ended between the check and the signal; the wait below finds the group empty.
+  }
+  return waitForGroupToEmpty(pid, deps)
+}
+
 /** Resolves true when the whole tree was ended, false when only the child could be (taskkill failed). */
 async function endWindowsTree(child: ChildProcess, pid: number, deps: TreeKillDeps): Promise<boolean> {
   const code = await deps.taskkill(pid)
@@ -157,10 +188,9 @@ async function within<T>(work: Promise<T>, ms: number): Promise<T | null> {
   }
 }
 
-async function stopTree(child: ChildProcess, overrides: Partial<TreeKillDeps>): Promise<boolean> {
-  const deps: TreeKillDeps = { ...realDeps(), ...overrides }
+async function stopTree(child: ChildProcess, deps: TreeKillDeps): Promise<boolean> {
   if (hasEnded(child)) {
-    return true
+    return endLeftovers(child, deps)
   }
   const ended = whenEnded(child)
   const reached = endTree(child, deps)
@@ -168,26 +198,35 @@ async function stopTree(child: ChildProcess, overrides: Partial<TreeKillDeps>): 
   return settled !== null && settled[1]
 }
 
-/** The kill that is running for each child. Two taskkills racing over one tree can fail each other. */
-const running = new WeakMap<ChildProcess, Promise<boolean>>()
+/**
+ * The kill for each child. One that is running is shared: two taskkills racing over one tree can fail
+ * each other. On macOS and Linux one that settled after the child ended is kept, so asking again repeats
+ * its answer instead of checking a group id that may since have been handed on. (Windows checks nothing
+ * for an ended child, so there a later ask is answered afresh, as before.)
+ */
+const kills = new WeakMap<ChildProcess, Promise<boolean>>()
 
 /**
  * Ends `child` and everything it started, and resolves with whether that tree is gone: true once the
  * child has exited and nothing could be found of what it started, false when the limit passed first or
  * the tree could not be reached (taskkill failed, or there was no process group to signal). The kill is
- * sent before this returns. Asking again while a kill is running shares it (the later call's overrides
- * are ignored); asking after it settled starts a new one.
+ * sent before this returns. Asking again while a kill is running, or on macOS and Linux after the child
+ * has ended, gets the same answer (the later call's overrides are ignored); asking after a kill settled
+ * with the child still running starts a new one.
  */
 export function killProcessTree(child: ChildProcess, overrides: Partial<TreeKillDeps> = {}): Promise<boolean> {
-  const shared = running.get(child)
-  if (shared !== undefined) {
-    return shared
+  const known = kills.get(child)
+  if (known !== undefined) {
+    return known
   }
-  const kill = stopTree(child, overrides)
-  running.set(child, kill)
-  const forget = (): void => {
-    running.delete(child)
+  const deps: TreeKillDeps = { ...realDeps(), ...overrides }
+  const kill = stopTree(child, deps)
+  kills.set(child, kill)
+  const settle = (): void => {
+    if (deps.platform === 'win32' || !hasEnded(child)) {
+      kills.delete(child)
+    }
   }
-  kill.then(forget, forget)
+  kill.then(settle, settle)
   return kill
 }

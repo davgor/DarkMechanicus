@@ -7,7 +7,8 @@
  * in one pair of quotes. The arguments are the launch spec's (`app-server` for the built-in), with
  * `{folder}` already replaced; any the launcher refuses stop the start. Stopping uses the shared
  * `killProcessTree`, so the shim's child (Node, or the Codex binary) goes with it, and a stop
- * resolves once the whole tree is gone.
+ * resolves once the whole tree is gone. What the program leaves running in its process group when it
+ * exits on its own is ended as it exits, and a stop after that waits for the same kill.
  */
 import { spawn, type ChildProcess } from 'node:child_process'
 import { planCliLaunch, type AgentProbeDeps, type LaunchPlan, type ProbeLaunch } from '../../desktop/agentProbe'
@@ -73,6 +74,8 @@ class CodexProcess implements RpcTransport {
   private closeListener: (reason: string) => void = () => {}
   private closedWith: string | null = null
   private stopped = false
+  /** Set once a tree that outlived the kill wait is logged; later stops log nothing more (once the program has ended they all get that same answer). */
+  private reportedAlive = false
   private stderr = ''
   private readonly lines = createLineSplitter((line) => {
     this.lineListener(line)
@@ -103,6 +106,10 @@ class CodexProcess implements RpcTransport {
     child.on('error', (error) => {
       this.close(`Codex could not start: ${error.message}`)
     })
+    // Asked as it exits, while its process group's id can only be its own (see `killProcessTree`).
+    child.once('exit', () => {
+      void killProcessTree(child)
+    })
     child.on('close', (code, signal) => {
       this.close(describeExit(code, signal, this.stderr, this.stopped))
     })
@@ -127,11 +134,9 @@ class CodexProcess implements RpcTransport {
   }
 
   async kill(): Promise<void> {
-    if (this.closedWith !== null) {
-      return
-    }
     this.stopped = true
-    if (!(await killProcessTree(this.child))) {
+    if (!(await killProcessTree(this.child)) && !this.reportedAlive) {
+      this.reportedAlive = true
       logger.warn(`Codex process ${this.child.pid ?? 'unknown'}: its process tree was still alive after the kill wait`)
     }
   }

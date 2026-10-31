@@ -18,6 +18,11 @@ describe('findOutcome', () => {
     expect(outcome?.title).toBe('Connected Codex')
   })
 
+  it('names the version of a custom CLI with the agent name its handshake reported', () => {
+    const agent = agentView({ kind: 'custom', displayName: 'a8s custom', version: '18.11.2', reportedName: 'Autonomous' })
+    expect(findOutcome('a8s custom', { outcome: 'connected', agent })?.title).toBe('Connected a8s custom (Autonomous 18.11.2)')
+  })
+
   it('says nothing when the file dialog was closed', () => {
     expect(findOutcome('Codex', { outcome: 'cancelled' })).toBeNull()
   })

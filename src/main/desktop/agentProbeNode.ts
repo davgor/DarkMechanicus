@@ -2,7 +2,9 @@
  * The Node side of probing an agent executable: the real process runner and file check that
  * `probeAgent` takes as injected dependencies. Tests exercise them against Node itself; the probe's
  * own tests use fakes. A program that runs past its time is stopped with the shared
- * `killProcessTree`, and the timeout is reported once its whole tree is gone.
+ * `killProcessTree`, and the timeout is reported once its whole tree is gone. One that already exited
+ * by then (something else holds its pipes) is not killed: asked that late, a process group found under
+ * its pid may be another program's.
  */
 import { spawn, type ChildProcess } from 'node:child_process'
 import { accessSync, constants, statSync } from 'node:fs'
@@ -56,9 +58,13 @@ export const runProcess: ProcessRunner = (launch, timeoutMs) =>
       finish(spawnFailure(error))
       return
     }
+    let exited = false
+    child.once('exit', () => {
+      exited = true
+    })
     const timer = setTimeout(() => {
       timedOut = true
-      void killProcessTree(child).then(() => {
+      void (exited ? Promise.resolve(true) : killProcessTree(child)).then(() => {
         finish({ kind: 'timed_out' })
       })
     }, timeoutMs)

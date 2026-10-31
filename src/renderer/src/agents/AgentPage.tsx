@@ -7,7 +7,7 @@ import { formatShortDate } from '../sidebar/epicStatusLine'
 import { ActivityNote } from './ActivityNote'
 import { describeActivity, IDLE_ACTIVITY } from './agentActivity'
 import type { AgentOutcome } from './agentOutcomes'
-import { connectedViaText, PROTOCOL_TEXT, signInLabel } from './agentText'
+import { agentVersionLabel, connectedViaText, PROTOCOL_TEXT, signInLabel } from './agentText'
 import { CustomAgentEdit } from './CustomAgentEdit'
 import { CheckAgain, SignInPrompt } from './SignInPrompt'
 import type { AgentsModel } from './useAgents'
@@ -71,7 +71,7 @@ function Details({ agent, agents }: AgentPageProps): JSX.Element {
         {agent.kind === 'custom' ? (
           <Row label="Arguments">{agent.args.length === 0 ? 'None' : <span className="mono">{agent.args.join(' ')}</span>}</Row>
         ) : null}
-        <Row label="Version">{agent.version ?? 'Unknown'}</Row>
+        <Row label="Version">{agentVersionLabel(agent)}</Row>
         <Row label="Connected">
           {connectedViaText(agent.connectedVia)} · {formatShortDate(agent.connectedAt)}
         </Row>

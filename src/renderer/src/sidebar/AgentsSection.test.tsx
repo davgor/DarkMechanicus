@@ -136,3 +136,16 @@ describe('AgentsSection list', () => {
     expect(calls.selected).toEqual([custom.id])
   })
 })
+
+describe('AgentsSection versions', () => {
+  it('labels a custom agent’s version with the agent name its handshake reported, the version alone, or Version unknown', () => {
+    const named = agentView({ kind: 'custom', id: 'cu_1', displayName: 'a8s custom', version: '18.11.2', reportedName: 'omp' })
+    const bare = agentView({ kind: 'custom', id: 'cu_2', displayName: 'Bare', version: '0.3.1', reportedName: null })
+    const unknown = agentView({ kind: 'custom', id: 'cu_3', displayName: 'Quiet', version: null, reportedName: null })
+    renderSection([named, bare, unknown])
+    const [first, second, third] = within(screen.getByRole('list')).getAllByRole('listitem') as HTMLElement[]
+    expect(within(first as HTMLElement).getByText('omp 18.11.2')).toBeTruthy()
+    expect(within(second as HTMLElement).getByText('v0.3.1')).toBeTruthy()
+    expect(within(third as HTMLElement).getByText('Version unknown')).toBeTruthy()
+  })
+})

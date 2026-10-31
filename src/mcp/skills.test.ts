@@ -220,7 +220,13 @@ const REQUIRED: [string, string[]][] = [
       'Adoption is allowed at a checkpoint with no open attempts',
       'Run the acceptance node over what remains',
       'submit a new report revision',
-      '`plan_current`'
+      '`plan_current`',
+      'A lost claim response',
+      '`claimToken: null`',
+      'no replay, not even yours, can recover it',
+      'no `claimToken`, and a reason such as "claim response lost"',
+      'claim it again with a new `idempotencyKey`; the old key keeps replaying the lost claim',
+      'fails with `already_claimed` while its lease is live, `needs_reconciliation` once it has expired, and `run_not_active` while the run is paused'
     ]
   ],
   [

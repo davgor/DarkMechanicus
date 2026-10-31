@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { DomainError } from '../../core/errors'
 import { AGENT_KINDS } from '../../shared/desktop/agentKinds'
 import type { AgentAuthStatus, AgentView, BuiltInAgentKind } from '../../shared/desktop/api'
+import { DOCTOR_NO_PROFILE, DOCTOR_SIGNED_OUT } from '../agents/adapters/__mocks__/autonomousSignedOut'
 import { builtInAgent } from '../agents/__mocks__/fakeChatAdapter'
 import {
   createAgentAuthHandlers,
@@ -52,11 +53,12 @@ const CURSOR_NOT_AUTHENTICATED = 'Not authenticated\n'
 const CURSOR_ERROR = 'Error: could not reach api2.cursor.sh\n'
 /**
  * Autonomous `a8s doctor`: the signed-in lines are the report's recording (docs/reports/autonomous-acp.md),
- * with the email replaced. The signed-out `Model route` line was not observed; it is an assumed shape.
+ * with the email replaced. The signed-out outputs are recorded too (`autonomousSignedOut.ts`, DM-307): an
+ * isolated profile with no model sign-in, with the person's personal profile (a failed "Claude subscription
+ * is not ready") and with none (a warning "not signed in to Claude").
  */
 const A8S_SIGNED_IN =
   '✓ Okta  signed in as dev@example.com\n✓ Model route  Claude subscription · anthropic/claude-opus-5-5 · signed in\n! gh  not found\n0 problems, 3 warnings.\n'
-const A8S_SIGNED_OUT = '✓ Okta  signed in as dev@example.com\n✗ Model route  Claude subscription · not signed in\n  fix: a8s init\n1 problem, 3 warnings.\n'
 const A8S_OKTA_ONLY = '✓ Okta  signed in as dev@example.com\n0 problems, 0 warnings.\n'
 const A8S_ROUTE_FAILED = '✗ Model route  Claude subscription · anthropic/claude-opus-5-5 · signed in · token refresh failed\n'
 
@@ -111,7 +113,8 @@ describe('status maps each CLI output to signed_in, signed_out or unknown', () =
     ['cursor', 1, CURSOR_SIGNED_OUT, 'signed_out'],
     ['cursor', 0, CURSOR_NOT_AUTHENTICATED, 'signed_out'],
     ['autonomous', 0, A8S_SIGNED_IN, 'signed_in'],
-    ['autonomous', 1, A8S_SIGNED_OUT, 'signed_out']
+    ['autonomous', DOCTOR_SIGNED_OUT.exitCode, DOCTOR_SIGNED_OUT.output, 'signed_out'],
+    ['autonomous', DOCTOR_NO_PROFILE.exitCode, DOCTOR_NO_PROFILE.output, 'signed_out']
   ] as const)('%s exit %i with a recorded output is %s', async (kind, exitCode, output, state) => {
     expect((await statusOf(kind, exited(exitCode, output))).state).toBe(state)
   })
@@ -133,6 +136,17 @@ describe('status maps each CLI output to signed_in, signed_out or unknown', () =
 
     expect(status.state).toBe('unknown')
     expect(status.reason).not.toBe('')
+  })
+
+  // The other signed-out wordings of a8s 0.79.0's `Model route` check (`dist/omp/route-step.js`, reason
+  // `signed-out`), not observed; and a failure that signing in does not fix (reason `policy-restricted`).
+  it.each([
+    ['✗ Model route             Codex subscription is not ready\n', 'signed_out'],
+    ['✗ Model route             Claude subscription is not ready; an API key is not subscription authentication\n', 'signed_out'],
+    ['✗ Model route             anthropic/claude-opus-5-5 is not ready\n', 'signed_out'],
+    ["✗ Model route             company sessions can't start: $ONEBRIEF_MODEL_KEY is unset\n", 'unknown']
+  ] as const)('autonomous: the route line %j is %s', async (output, state) => {
+    expect((await statusOf('autonomous', exited(1, output))).state).toBe(state)
   })
 
 })
@@ -233,6 +247,51 @@ describe('status runs only the CLI own status command, with a timeout', () => {
     expect(direct.run.launches).toEqual([{ file: 'C:\\Tools\\agent.exe', args: ['status'], verbatimArguments: false }])
     expect(refused.state).toBe('unknown')
     expect(unsafe.run.launches).toEqual([])
+  })
+})
+
+describe('status gives each CLI its own time limit', () => {
+  /** A fake runner whose CLI answers after `answerAfterMs`: past the runner's limit it times out, like the real one. */
+  function slowWorld(answerAfterMs: number, output: string): { timeouts: number[]; deps: Parameters<typeof getAgentAuthStatus>[2] } {
+    const timeouts: number[] = []
+    const deps = statusWorld(exited(0, output)).deps
+    deps.run = (_launch, timeoutMs) => {
+      timeouts.push(timeoutMs)
+      return Promise.resolve(answerAfterMs > timeoutMs ? { kind: 'timed_out' } : exited(0, output))
+    }
+    return { timeouts, deps }
+  }
+
+  it('waits up to 30 s for Autonomous, so a signed-in a8s doctor answering after 12 s is signed_in', async () => {
+    const { timeouts, deps } = slowWorld(12_000, A8S_SIGNED_IN)
+
+    const status = await getAgentAuthStatus('autonomous', POSIX_PATHS.autonomous, deps)
+
+    expect(timeouts).toEqual([30_000])
+    expect(status.state).toBe('signed_in')
+  })
+
+  it('reports unknown with the timeout message when a8s doctor answers after 30 s', async () => {
+    const { deps } = slowWorld(30_001, A8S_SIGNED_IN)
+
+    expect(await getAgentAuthStatus('autonomous', POSIX_PATHS.autonomous, deps)).toEqual({
+      state: 'unknown',
+      reason: 'Autonomous did not answer in time.'
+    })
+  })
+
+  it.each([
+    ['claude', CLAUDE_SIGNED_IN],
+    ['codex', CODEX_CHATGPT],
+    ['cursor', CURSOR_SIGNED_IN]
+  ] as const)('%s keeps the 10 s limit: answering after 12 s is unknown with the timeout message', async (kind, output) => {
+    const { timeouts, deps } = slowWorld(12_000, output)
+
+    const status = await getAgentAuthStatus(kind, POSIX_PATHS[kind], deps)
+
+    expect(timeouts).toEqual([10_000])
+    expect(status.state).toBe('unknown')
+    expect(status.reason).toMatch(/ did not answer in time\.$/)
   })
 })
 

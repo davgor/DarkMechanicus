@@ -4,7 +4,8 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { Workspace } from '../core/workspace'
-import type { CheckResult, ClaimResultView, GateCondition } from '../shared/domain/views'
+import type { CheckResult, GateCondition } from '../shared/domain/views'
+import { issued, type IssuedClaim } from '../test/execution'
 import { createHarness, type Harness } from '../test/workspaceHarness'
 
 const DEFINITION = [
@@ -35,8 +36,8 @@ async function planSprint(agent: Workspace): Promise<Planned> {
   return { epicId: epic.id, nodeId, workId: update.refMap['build'] ?? '' }
 }
 
-async function claimAndAccept(agent: Workspace, runId: string, ticketId: string, checks: CheckResult[] = []): Promise<ClaimResultView> {
-  const claim = await agent.claimTicket({ runId, ticketId, worker: { label: 'worker-1' } })
+async function claimAndAccept(agent: Workspace, runId: string, ticketId: string, checks: CheckResult[] = []): Promise<IssuedClaim> {
+  const claim = issued(await agent.claimTicket({ runId, ticketId, worker: { label: 'worker-1' } }))
   await agent.submitAttempt({
     attemptId: claim.attempt.id,
     claimToken: claim.packet.claimToken,
@@ -104,7 +105,7 @@ describe('a project with a Definition of Done: what the acceptance node is told'
     const agent = harness.open('orchestrator')
     const run = await agent.startRun({ epicId: planned.epicId })
     await claimAndAccept(agent, run.id, planned.workId)
-    const node = await agent.claimTicket({ runId: run.id, ticketId: planned.nodeId, worker: { label: 'worker-2' } })
+    const node = issued(await agent.claimTicket({ runId: run.id, ticketId: planned.nodeId, worker: { label: 'worker-2' } }))
     await agent.submitAttempt({
       attemptId: node.attempt.id,
       claimToken: node.packet.claimToken,

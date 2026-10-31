@@ -63,7 +63,11 @@ export interface AcpConnection {
   respond(id: RpcId, result: unknown): void
   fail(id: RpcId, code: number, message: string): void
   isClosed(): boolean
-  /** Ends the process tree; waiting requests are rejected at once and `closed` is not reported. Resolves once the tree is gone. */
+  /**
+   * Ends the process tree, once; waiting requests are rejected at once and `closed` is not reported. After
+   * the process ended on its own the transport is still told, for what it left running. Resolves once the
+   * tree is gone.
+   */
   kill(): Promise<void>
 }
 
@@ -91,6 +95,7 @@ function errorOf(value: unknown): AcpError {
 class Connection implements AcpConnection {
   private handle: TransportHandle | null = null
   private closed = false
+  private killed = false
   private nextId = 1
   private readonly waiting = new Map<RpcId, Waiting>()
 
@@ -149,9 +154,10 @@ class Connection implements AcpConnection {
   }
 
   async kill(): Promise<void> {
-    if (this.closed) {
+    if (this.killed) {
       return
     }
+    this.killed = true
     this.closed = true
     const treeGone = this.handle?.kill()
     this.rejectAll(new AcpError(`${this.agentName} was stopped.`))

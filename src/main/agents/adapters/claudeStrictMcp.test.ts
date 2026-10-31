@@ -163,7 +163,7 @@ describe('the Claude Code SDK handshake under an enterprise MCP config', () => {
     const folders: string[] = []
     const world = probeWorld([refused(), answers()])
 
-    expect(await runHandshake(CLAUDE_SPEC, handshakeDeps(world, folders))).toEqual({ ok: true, version: null })
+    expect(await runHandshake(CLAUDE_SPEC, handshakeDeps(world, folders))).toEqual({ ok: true, version: null, reportedName: null })
 
     expect(world.launches.map((options) => options.cwd)).toEqual([FOLDER, FOLDER])
     expect(world.launches[0]?.strictMcpConfig).toBe(true)
@@ -182,7 +182,7 @@ describe('the Claude Code SDK handshake under an enterprise MCP config', () => {
     const outcome = runHandshake(CLAUDE_SPEC, handshakeDeps(world, []))
     await vi.advanceTimersByTimeAsync(19_000)
 
-    expect(await outcome).toEqual({ ok: true, version: null })
+    expect(await outcome).toEqual({ ok: true, version: null, reportedName: null })
     expect(world.created.map((processes) => processes.killed)).toEqual([1, 1])
   })
 })

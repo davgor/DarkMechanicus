@@ -96,27 +96,29 @@ afterEach(() => {
 })
 
 describe('the ACP handshake', () => {
-  it('starts the spec in the temp folder (as {folder} and the cwd) and takes the protocolVersion and agent version', async () => {
+  it('starts the spec in the temp folder (as {folder} and the cwd) and takes the protocolVersion and the agent name and version', async () => {
     const world = createWorld()
     const exchange = acp(world.cli, (message, say) => {
       say({ jsonrpc: '2.0', id: message.id, result: { protocolVersion: 1, agentInfo: { name: 'mine', version: '0.3.1' } } })
     })
 
-    expect(await runHandshake(ACP_SPEC, world.deps({ acp: exchange }))).toEqual({ ok: true, version: '0.3.1' })
+    expect(await runHandshake(ACP_SPEC, world.deps({ acp: exchange }))).toEqual({ ok: true, version: '0.3.1', reportedName: 'mine' })
 
+    // The handshake is the only thing run: one start, of the confirmed program and arguments, and no `--version`.
     expect(world.cli.starts).toEqual([{ file: PROGRAM, args: ['--acp', FOLDER], cwd: FOLDER }])
     expect(world.cli.received[0]).toMatchObject({ method: 'initialize', params: { protocolVersion: 1, clientInfo: { version: '9.9.9' } } })
     expect(world.cli.kills).toBe(1)
     expect(world.folders).toEqual([`made ${FOLDER}`, `removed ${FOLDER}`])
   })
 
-  it('reports no version when the agent names none, or one that is not plain version text', async () => {
-    for (const agentInfo of [undefined, { version: 3 }, { version: '1.0\u202E' }, { version: 'x'.repeat(100) }]) {
+  it('reports no version or name when the agent names no version, or one that is not plain version text', async () => {
+    const infos = [undefined, { version: 3 }, { version: '1.0\u202E' }, { version: 'x'.repeat(100) }, { name: 'mine' }, { name: 'mine', version: null }]
+    for (const agentInfo of infos) {
       const world = createWorld()
       const exchange = acp(world.cli, (message, say) => {
         say({ jsonrpc: '2.0', id: message.id, result: { protocolVersion: 1, agentInfo } })
       })
-      expect(await runHandshake(ACP_SPEC, world.deps({ acp: exchange }))).toEqual({ ok: true, version: null })
+      expect(await runHandshake(ACP_SPEC, world.deps({ acp: exchange }))).toEqual({ ok: true, version: null, reportedName: null })
     }
   })
 
@@ -134,6 +136,29 @@ describe('the ACP handshake', () => {
     expect(await runHandshake(ACP_SPEC, world.deps({ acp: exchange }))).toMatchObject({ ok: false, code: 'wrong_program' })
     expect(world.cli.kills).toBe(1)
     expect(world.folders.at(-1)).toBe(`removed ${FOLDER}`)
+  })
+})
+
+describe('the ACP handshake: the agent name', () => {
+  it('keeps the version alone when the agent names itself with no name, or one that is not plain text', async () => {
+    const names = [undefined, 3, '', '   ', ' mine', 'mine ', 'mi\u202Ene', 'mi\nne', 'x'.repeat(65)]
+    for (const name of names) {
+      const world = createWorld()
+      const exchange = acp(world.cli, (message, say) => {
+        say({ jsonrpc: '2.0', id: message.id, result: { protocolVersion: 1, agentInfo: { name, version: '0.3.1' } } })
+      })
+      expect(await runHandshake(ACP_SPEC, world.deps({ acp: exchange }))).toEqual({ ok: true, version: '0.3.1', reportedName: null })
+    }
+  })
+
+  it('keeps a name of words, digits and version punctuation, such as Autonomous or claude-code-acp', async () => {
+    for (const name of ['Autonomous', 'claude-code-acp', 'Gemini CLI', '@zed/agent', 'x'.repeat(64)]) {
+      const world = createWorld()
+      const exchange = acp(world.cli, (message, say) => {
+        say({ jsonrpc: '2.0', id: message.id, result: { protocolVersion: 1, agentInfo: { name, version: '18.11.2' } } })
+      })
+      expect(await runHandshake(ACP_SPEC, world.deps({ acp: exchange }))).toEqual({ ok: true, version: '18.11.2', reportedName: name })
+    }
   })
 })
 
@@ -258,15 +283,32 @@ const codexServer: Script = (message, say) => {
 }
 
 describe('the Codex handshake', () => {
-  it('runs initialize, initialized and model/list in the temp folder and takes the version from the user agent', async () => {
+  it('runs initialize, initialized and model/list in the temp folder and takes the name and version from the user agent', async () => {
     const world = createWorld()
 
-    expect(await runHandshake(CODEX_SPEC, world.deps({ codex: codex(world.cli, codexServer) }))).toEqual({ ok: true, version: '0.46.0' })
+    expect(await runHandshake(CODEX_SPEC, world.deps({ codex: codex(world.cli, codexServer) }))).toEqual({
+      ok: true,
+      version: '0.46.0',
+      reportedName: 'codex_cli_rs'
+    })
 
     expect(world.cli.starts).toEqual([{ file: PROGRAM, args: ['app-server', '--cd', FOLDER], cwd: FOLDER }])
     expect(world.cli.received.map((message) => message.method)).toEqual(['initialize', 'initialized', 'model/list'])
     expect(world.cli.kills).toBe(1)
     expect(world.folders).toEqual([`made ${FOLDER}`, `removed ${FOLDER}`])
+  })
+
+  it.each([
+    ['a user agent with no product name', '0.46.0 (Mac OS 15.0; arm64)', '0.46.0', null],
+    ['a user agent with no version', 'codex_cli_rs (Mac OS 15.0; arm64)', null, null],
+    ['no user agent', undefined, null, null]
+  ])('reads %s as the version alone or neither', async (_label, userAgent, version, reportedName) => {
+    const world = createWorld()
+    const server: Script = (message, say) => {
+      say({ id: message.id, result: message.method === 'initialize' ? { userAgent } : { data: [] } })
+    }
+
+    expect(await runHandshake(CODEX_SPEC, world.deps({ codex: codex(world.cli, server) }))).toEqual({ ok: true, version, reportedName })
   })
 
   it.each([
@@ -382,7 +424,7 @@ describe('the Claude Code SDK handshake', () => {
     const world = createWorld()
     const rig = claudeRig(() => Promise.resolve(MODELS))
 
-    expect(await runHandshake(CLAUDE_SPEC, world.deps({ claude: rig.exchange }))).toEqual({ ok: true, version: null })
+    expect(await runHandshake(CLAUDE_SPEC, world.deps({ claude: rig.exchange }))).toEqual({ ok: true, version: null, reportedName: null })
 
     expect(rig.options[0]).toMatchObject({ cwd: FOLDER, pathToClaudeCodeExecutable: PROGRAM, settingSources: [], persistSession: false })
     expect(rig.processes.killed).toBe(1)
@@ -461,7 +503,7 @@ describe('what a refusal says', () => {
       stop: () => Promise.reject(new Error('kill failed'))
     })
 
-    expect(await runHandshake(ACP_SPEC, world.deps({ acp: failingStop }))).toEqual({ ok: true, version: null })
+    expect(await runHandshake(ACP_SPEC, world.deps({ acp: failingStop }))).toEqual({ ok: true, version: null, reportedName: null })
     expect(world.folders.at(-1)).toBe(`removed ${FOLDER}`)
   })
 })

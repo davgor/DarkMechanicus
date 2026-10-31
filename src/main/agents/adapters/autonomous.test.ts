@@ -5,16 +5,18 @@
  * (`instructed`); DM-253's two processes were recorded with Cursor's capabilities, so their
  * `initialize` is replaced by run 5's, which adds `elicitation.form` as this flavor does.
  */
-import { realpathSync } from 'node:fs'
+import { existsSync, readdirSync, realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { describe, expect, it, vi } from 'vitest'
 import type { ApprovalDecision, ApprovalRequestItem, ChatAdapter, ChatAdapterEvent, ChatAdapterStartOptions, ChatItem } from '../../../shared/agents/chat'
 import { DM_INSTRUCTIONS, DM_SERVER, instructionsBlock } from '../__mocks__/cursorRecordings'
 import { agent, client, ReplayAcpAgents, type Frame } from '../__mocks__/replayAcpAgent'
 import { BUILT_IN_LAUNCH_ARGS, launchSpecFor } from '../launchSpec'
+import { createHandshakeFolders } from '../protocolHandshake'
 import { createAcpAdapter, type AcpDeps } from './acp/acpAdapter'
 import { autonomousFlavor } from './autonomous'
 import { AUTONOMOUS_RECORDINGS as R } from './__mocks__/autonomousRecordings'
+import { PROFILE_NOT_FOUND, SIGNED_OUT_EXITS, SUBSCRIPTION_SIGNED_OUT } from './__mocks__/autonomousSignedOut'
 
 const AT = '2026-01-01T00:00:00.000Z'
 const PATH = '/Users/me/.local/bin/a8s'
@@ -211,6 +213,7 @@ function autonomousRow(): Parameters<typeof launchSpecFor>[0] {
     executablePath: PATH,
     args: [],
     version: '0.79.0',
+    reportedName: null,
     connectedVia: 'found',
     connectedAt: AT,
     lastProbed: AT
@@ -366,8 +369,58 @@ describe('Autonomous: cancel, resume and the model (DM-253)', () => {
   })
 })
 
-describe('Autonomous: signed out', () => {
-  it('reports an authentication-required answer as auth_required (shape from the ACP schema; a8s’s own was not observed)', async () => {
+/**
+ * Processes that each write `initialize` and then stop as the recorded signed-out a8s did (DM-307), before
+ * any answer: the first one is started by `start`, the next ones by messages.
+ */
+async function stopping(...details: string[]): Promise<Rig> {
+  const initialize = HANDSHAKE[0] as Frame
+  const agents = new ReplayAcpAgents(...details.map(() => [initialize]))
+  agents.exits.push(...details)
+  const events: ChatAdapterEvent[] = []
+  const adapter = createAcpAdapter(autonomousFlavor, PATH, testDeps(agents), BUILT_IN_LAUNCH_ARGS.autonomous)
+  await adapter.start(startOptions(), (event) => events.push(event))
+  return rigFor(adapter, agents, events)
+}
+
+function authRequired(message: string): ChatItem {
+  return { id: expect.any(String) as unknown as string, at: AT, kind: 'auth_required', agent: 'autonomous', message }
+}
+
+describe('Autonomous: signed out (recorded with an isolated profile, DM-307)', () => {
+  it('holds a launch a8s stops for a signed-out subscription, and reports the next one as one auth_required item with a8s’s sentence', async () => {
+    const rig = await stopping(SIGNED_OUT_EXITS.firstLaunch, SIGNED_OUT_EXITS.laterLaunch)
+
+    expect(rig.items()).toEqual([])
+    await expect(rig.adapter.send(promptText())).resolves.toBeUndefined()
+
+    rig.expectReplayed()
+    expect(rig.items()).toEqual([authRequired(SUBSCRIPTION_SIGNED_OUT)])
+  })
+
+  it('reads the stop the same way when the one-time metrics notice fills the stderr tail', async () => {
+    const rig = await stopping(SIGNED_OUT_EXITS.laterLaunch, SIGNED_OUT_EXITS.firstLaunch)
+
+    await rig.adapter.send(promptText())
+
+    expect(rig.items()).toEqual([authRequired(SUBSCRIPTION_SIGNED_OUT)])
+  })
+
+  it('reports a launch with no profile as auth_required: its fix, a8s init, is the sign-in the card runs', async () => {
+    const rig = await stopping(SIGNED_OUT_EXITS.noProfile, SIGNED_OUT_EXITS.noProfile)
+
+    await rig.adapter.send(promptText())
+
+    rig.expectReplayed()
+    expect(rig.items()).toEqual([authRequired(PROFILE_NOT_FOUND)])
+  })
+
+  it('keeps any other stop an error, not a sign-in', async () => {
+    const crash = 'exit code 1: Autonomous stopped: The workspace check failed.'
+    await expect(stopping(crash)).rejects.toThrow('Autonomous stopped: exit code 1: Autonomous stopped: The workspace check failed.')
+  })
+
+  it('still reports the ACP schema’s authentication-required answer as auth_required', async () => {
     const rig = await started([
       [
         ...HANDSHAKE,
@@ -380,28 +433,97 @@ describe('Autonomous: signed out', () => {
     await rig.adapter.send(promptText())
 
     rig.expectReplayed()
-    expect(rig.items()).toEqual([{ id: expect.any(String), at: AT, kind: 'auth_required', agent: 'autonomous', message: 'Authentication required' }])
+    expect(rig.items()).toEqual([authRequired('Authentication required')])
+  })
+})
+
+/** The fresh temp subfolder the listing tests hand out. */
+const folder = '/private/var/folders/xy/T/dm-agent-handshake-list1'
+/** Run 5's session/new, in a fresh temp subfolder, then session/close. */
+const listing: Frame[] = [
+  ...HANDSHAKE,
+  client({ id: 3, method: 'session/new', params: { cwd: folder, mcpServers: [] } }),
+  R.writeTurn[1] as Frame,
+  R.writeTurn[2] as Frame,
+  client({ id: 4, method: 'session/close', params: { sessionId: R.writeSessionId } }),
+  agent({ id: 4, result: {} })
+]
+
+/** Deps whose temp folders are recorded: each made one is `folder`, and removals are listed. */
+function listingDeps(agents: ReplayAcpAgents): AcpDeps & { made: string[]; removed: string[] } {
+  const made: string[] = []
+  const removed: string[] = []
+  const tempFolders = {
+    makeTempDir: () => {
+      made.push(folder)
+      return folder
+    },
+    removeDir: (path: string) => {
+      removed.push(path)
+    }
+  }
+  return { ...testDeps(agents), tempFolders, made, removed }
+}
+
+describe('Autonomous: the temp folder its model listing runs in (DM-300)', () => {
+  it('runs a8s in a fresh temp subfolder, never the temp root, and removes it after success', async () => {
+    const agents = new ReplayAcpAgents(listing)
+    const deps = listingDeps(agents)
+
+    await autonomousFlavor.listModels('/opt/list-fresh/a8s', deps)
+
+    expect(agents.launches[0]?.cwd).toBe(folder)
+    expect(agents.launches[0]?.cwd).not.toBe(realpathSync(tmpdir()))
+    expect(deps.made).toEqual([folder])
+    expect(deps.removed).toEqual([folder])
+  })
+
+  it('removes the temp subfolder after a failed listing', async () => {
+    const refused = [...HANDSHAKE.slice(0, 3), agent({ id: 2, error: { code: -32000, message: 'Authentication required' } })]
+    const agents = new ReplayAcpAgents(refused)
+    const deps = listingDeps(agents)
+
+    await expect(autonomousFlavor.listModels('/opt/list-fail/a8s', deps)).rejects.toThrow('Authentication required')
+
+    expect(deps.removed).toEqual([folder])
+  })
+
+  it('kills a8s and removes the temp subfolder when the listing times out', async () => {
+    const agents = new ReplayAcpAgents(HANDSHAKE.slice(0, 1))
+    let fire: () => void = () => {}
+    const base = listingDeps(agents)
+    const deps = { ...base, timers: { set: (callback: () => void) => ((fire = callback), 1), clear: () => {} } }
+
+    const listed = autonomousFlavor.listModels('/opt/list-slow/a8s', deps)
+    await vi.waitFor(() => expect(agents.launches).toHaveLength(1), { interval: 1 })
+    fire()
+
+    await expect(listed).rejects.toThrow('did not answer when asked for its models')
+    expect(agents.processes[0]?.killed).toBe(true)
+    expect(base.removed).toEqual([folder])
+  })
+
+  it('makes temp subfolders by default: a new, empty, canonical folder under the temp root', () => {
+    const folders = createHandshakeFolders()
+    const made = folders.makeTempDir()
+    try {
+      expect(made).toBe(realpathSync(made))
+      expect(made.startsWith(`${realpathSync(tmpdir())}/`)).toBe(true)
+      expect(readdirSync(made)).toEqual([])
+    } finally {
+      folders.removeDir(made)
+    }
+    expect(existsSync(made)).toBe(false)
   })
 })
 
 describe('Autonomous: the models it offers, without a chat', () => {
-  const folder = realpathSync(tmpdir())
-  /** Run 5's session/new, in the temp folder, then session/close. */
-  const listing: Frame[] = [
-    ...HANDSHAKE,
-    client({ id: 3, method: 'session/new', params: { cwd: folder, mcpServers: [] } }),
-    R.writeTurn[1] as Frame,
-    R.writeTurn[2] as Frame,
-    client({ id: 4, method: 'session/close', params: { sessionId: R.writeSessionId } }),
-    agent({ id: 4, result: {} })
-  ]
-
   it('lists the model config option of a session opened only to ask, once per executable, with no prompt', async () => {
     const agents = new ReplayAcpAgents(listing)
     const path = '/opt/list-once/a8s'
 
-    const models = await autonomousFlavor.listModels(path, testDeps(agents))
-    const again = await autonomousFlavor.listModels(path, testDeps(agents))
+    const models = await autonomousFlavor.listModels(path, listingDeps(agents))
+    const again = await autonomousFlavor.listModels(path, listingDeps(agents))
 
     expect(agents.problems).toEqual([])
     expect(agents.finished()).toBe(true)
@@ -421,8 +543,8 @@ describe('Autonomous: the models it offers, without a chat', () => {
     const agents = new ReplayAcpAgents(refused, listing)
     const path = '/opt/list-twice/a8s'
 
-    await expect(autonomousFlavor.listModels(path, testDeps(agents))).rejects.toThrow('Authentication required')
-    expect(await autonomousFlavor.listModels(path, testDeps(agents))).toHaveLength(4)
+    await expect(autonomousFlavor.listModels(path, listingDeps(agents))).rejects.toThrow('Authentication required')
+    expect(await autonomousFlavor.listModels(path, listingDeps(agents))).toHaveLength(4)
 
     expect(agents.problems).toEqual([])
     expect(agents.launches).toHaveLength(2)

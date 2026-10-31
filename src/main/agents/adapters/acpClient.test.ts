@@ -192,6 +192,18 @@ describe('openAcpConnection: the end of the process', () => {
     expect(t.closures).toEqual([])
   })
 
+  it('still has the transport end the tree, once, when killed after the process ended on its own', async () => {
+    const t = rig()
+    const connection = t.open()
+    t.sink().closed('exit code 3')
+
+    await connection.kill()
+    await connection.kill()
+
+    expect(t.kills).toBe(1)
+    expect(t.closures).toEqual(['exit code 3'])
+  })
+
 })
 
 describe('openAcpConnection: waiting for the tree', () => {

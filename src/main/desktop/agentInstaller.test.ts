@@ -230,6 +230,7 @@ describe('a confirmed install of a vendor installer', () => {
         args: [],
         executablePath: CLAUDE_EXE,
         version: '2.1.281',
+        reportedName: null,
         connectedVia: 'downloaded',
         connectedAt: '2026-01-01T00:00:00.000Z',
         lastProbed: '2026-01-01T00:00:00.000Z'

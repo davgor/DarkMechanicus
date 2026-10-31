@@ -58,6 +58,7 @@ describe('createAgentRegistry upsert', () => {
       args: [],
       executablePath: '/bin/claude',
       version: '1.0.0',
+      reportedName: null,
       connectedVia: 'found',
       connectedAt: '2026-01-01T00:00:00.000Z',
       lastProbed: '2026-01-01T00:00:00.000Z'
@@ -134,12 +135,13 @@ function customEntry(overrides: Partial<CustomAgentEntry> = {}): CustomAgentEntr
     executablePath: '/opt/mine',
     args: ['--acp', '{folder}'],
     version: '0.3.1',
+    reportedName: 'mine',
     ...overrides
   }
 }
 
 describe('createAgentRegistry custom agents', () => {
-  it('adds a custom row: kind and connected_via custom, its own args and display name', () => {
+  it('adds a custom row: kind and connected_via custom, its own args and display name, and the reported agent name', () => {
     const db = appDb()
     const registry = createAgentRegistry({ db, now: () => '2026-01-01T00:00:00.000Z' })
 
@@ -153,24 +155,34 @@ describe('createAgentRegistry custom agents', () => {
       executablePath: '/opt/mine',
       args: ['--acp', '{folder}'],
       version: '0.3.1',
+      reportedName: 'mine',
       connectedVia: 'custom',
       connectedAt: '2026-01-01T00:00:00.000Z',
       lastProbed: '2026-01-01T00:00:00.000Z'
     })
-    expect(db.get<AgentRow>('SELECT id, kind, protocol, display_name, args_json FROM agents')).toEqual({
+    expect(db.get<AgentRow>('SELECT id, kind, protocol, display_name, args_json, reported_name FROM agents')).toEqual({
       id: CUSTOM_ID,
       kind: 'custom',
       protocol: 'acp',
       display_name: 'My agent',
-      args_json: '["--acp","{folder}"]'
+      args_json: '["--acp","{folder}"]',
+      reported_name: 'mine'
     })
   })
+})
 
-  it('updates the name, program, args and version of a custom row in place, never its protocol or connectedAt', () => {
+describe('createAgentRegistry custom agent edits', () => {
+  it('updates the name, program, args, version and reported name of a custom row in place, never its protocol or connectedAt', () => {
     const registry = createAgentRegistry({ db: appDb(), now: counterNow() })
     const added = registry.addCustom(customEntry())
 
-    const updated = registry.updateCustom(CUSTOM_ID, { displayName: 'Renamed', executablePath: '/opt/other', args: [], version: null })
+    const updated = registry.updateCustom(CUSTOM_ID, {
+      displayName: 'Renamed',
+      executablePath: '/opt/other',
+      args: [],
+      version: null,
+      reportedName: null
+    })
 
     expect(updated).toEqual({
       ...added,
@@ -178,6 +190,7 @@ describe('createAgentRegistry custom agents', () => {
       executablePath: '/opt/other',
       args: [],
       version: null,
+      reportedName: null,
       lastProbed: '2026-01-01T00:00:01.000Z'
     })
     expect(registry.list()).toEqual([updated])
@@ -186,10 +199,16 @@ describe('createAgentRegistry custom agents', () => {
   it('updates nothing and answers null for an id with no custom row, built-ins included', () => {
     const registry = createAgentRegistry({ db: appDb() })
     registry.upsert(connection('codex'))
-    const fields = { displayName: 'X', executablePath: '/bin/sh', args: [], version: null }
+    const fields = { displayName: 'X', executablePath: '/bin/sh', args: [], version: null, reportedName: null }
 
     expect(registry.updateCustom(CUSTOM_ID, fields)).toBeNull()
     expect(registry.updateCustom('codex', fields)).toBeNull()
     expect(registry.get('codex')?.executablePath).toBe('/bin/codex')
+  })
+
+  it('reads a built-in row as reporting no agent name', () => {
+    const registry = createAgentRegistry({ db: appDb() })
+
+    expect(registry.upsert(connection('autonomous', { version: '0.79.0' }))).toMatchObject({ version: '0.79.0', reportedName: null })
   })
 })

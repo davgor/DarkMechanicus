@@ -166,6 +166,16 @@ describe('NewChatDialog: a custom agent', () => {
     await settle()
     expect(calls.created).toEqual([{ agent: custom.id, model: null, role: 'orchestrator', allowSave: true }])
   })
+
+  it('labels each agent’s version with the agent name its handshake reported, the version alone, or Version unknown', async () => {
+    const named = agentView({ kind: 'custom', id: 'cu_1', displayName: 'a8s custom', version: '18.11.2', reportedName: 'omp' })
+    const unknown = agentView({ kind: 'custom', id: 'cu_2', displayName: 'Quiet', version: null, reportedName: null })
+    await open({ agents: [named, codex, unknown], statuses: { cu_1: SIGNED_IN, codex: SIGNED_IN, cu_2: SIGNED_IN } })
+    const hint = (name: string): string | null | undefined => agentRadio(name).closest('label')?.querySelector('.field-hint')?.textContent
+    expect(hint('a8s custom')).toBe('omp 18.11.2')
+    expect(hint('Codex')).toBe('v0.9.1')
+    expect(hint('Quiet')).toBe('Version unknown')
+  })
 })
 
 describe('NewChatDialog: the agent', () => {

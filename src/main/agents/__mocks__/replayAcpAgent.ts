@@ -31,6 +31,13 @@ interface Launched {
   cwd: string
 }
 
+interface ProcessEnd {
+  /** A kill stays pending until `releaseKill` is called. */
+  holdKill: boolean
+  /** How the process ends on its own once its whole recording was exchanged; null: it keeps running. */
+  exitDetail: string | null
+}
+
 class Replay implements TransportHandle {
   killed = false
   /** Resolves a held kill; set while one is held. */
@@ -38,12 +45,13 @@ class Replay implements TransportHandle {
   /** Every line the client wrote, as written. */
   readonly writes: string[] = []
   private next = 0
+  private exited = false
 
   constructor(
     private readonly frames: readonly Frame[],
     private readonly sink: TransportSink,
     private readonly problems: string[],
-    private readonly holdKill: boolean
+    private readonly end: ProcessEnd
   ) {
     this.deliver()
   }
@@ -63,11 +71,12 @@ class Replay implements TransportHandle {
       this.problems.push(`Expected ${JSON.stringify(expected.message)} but the client wrote ${line}`)
     }
     this.deliver()
+    this.exitWhenDone()
   }
 
   kill(): Promise<void> {
     this.killed = true
-    if (!this.holdKill) {
+    if (!this.end.holdKill) {
       return Promise.resolve()
     }
     return new Promise<void>((resolve) => {
@@ -91,6 +100,19 @@ class Replay implements TransportHandle {
       })
     }
   }
+
+  private exitWhenDone(): void {
+    const detail = this.end.exitDetail
+    if (detail !== null && !this.exited && this.finished()) {
+      this.exited = true
+      // After the agent's last messages, which are delivered as microtasks too.
+      queueMicrotask(() => {
+        if (!this.killed) {
+          this.exit(detail)
+        }
+      })
+    }
+  }
 }
 
 /** Hands one recording to each process the adapter starts, in order. */
@@ -101,6 +123,8 @@ export class ReplayAcpAgents {
   readonly processes: Replay[] = []
   /** When set, a process's kill stays pending until its `releaseKill` is called. */
   holdKills = false
+  /** How each process (by start order) ends on its own once its recording was exchanged, like an agent that stops; none: it keeps running. */
+  readonly exits: (string | undefined)[] = []
   private readonly recordings: Frame[][]
 
   constructor(...recordings: Frame[][]) {
@@ -113,7 +137,7 @@ export class ReplayAcpAgents {
     if (frames === undefined) {
       this.problems.push(`A process was started that no recording covers: ${JSON.stringify(launch.args)}`)
     }
-    const replay = new Replay(frames ?? [], sink, this.problems, this.holdKills)
+    const replay = new Replay(frames ?? [], sink, this.problems, { holdKill: this.holdKills, exitDetail: this.exits[this.processes.length] ?? null })
     this.processes.push(replay)
     return replay
   }

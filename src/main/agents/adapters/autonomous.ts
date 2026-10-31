@@ -14,21 +14,25 @@
  *
  * Sign-in. `authenticate` with the method `initialize` lists (`agent`, "use existing local
  * credentials", in every recorded process), and none when it lists none, as the report advises.
- * What a8s answers when the model sign-in is missing was not observed; an error answer that says so is
- * reported as `auth_required` by the generic adapter.
+ * Without a model sign-in a8s answers no request: it stops at launch, before answering `initialize`,
+ * with a sentence on stderr (recorded with an isolated profile, DM-307, `__mocks__/autonomousSignedOut.ts`).
+ * That stop is reported as `auth_required` with a8s's sentence (`readSignedOut`); an ACP
+ * authentication-required answer still is too, by the generic adapter.
  *
  * Models. No command lists them: they are the `model` config option `session/new` returns. So the list
- * comes from a short-lived a8s in the temp folder (`initialize`, `authenticate`, `session/new`,
- * `session/close`, no prompt), once per executable while the app runs: starting a8s takes about 11 s.
+ * comes from a short-lived a8s in a fresh, empty, canonical subfolder of the temp folder (`initialize`,
+ * `authenticate`, `session/new`, `session/close`, no prompt), removed afterwards, once per executable
+ * while the app runs: starting a8s takes about 11 s. Never the temp root itself: a8s's repository
+ * check fails there (`scandir: EPERM` on macOS's `TemporaryItems`, DM-300).
  * A running chat switches with `session/set_config_option`, and a chat resumed with `session/load`
  * (which reports the model the session was created with) is switched back to its model the same way.
  */
-import { realpathSync } from 'node:fs'
-import { tmpdir } from 'node:os'
 import type { ModelOption } from '../../../shared/agents/chat'
 import { AGENT_DEFINITIONS } from '../../../shared/desktop/agentKinds'
 import { planCliLaunch } from '../../desktop/agentProbe'
 import { BUILT_IN_LAUNCH_ARGS, withFolder } from '../launchSpec'
+import { createHandshakeFolders } from '../protocolHandshake'
+import type { AcpError } from './acpClient'
 import type { AcpDeps, AcpFlavor } from './acp/acpAdapter'
 import { AcpSession, LISTED_AUTH_METHOD } from './acp/acpSession'
 import { answerElicitation } from './autonomousApprovals'
@@ -38,6 +42,20 @@ const NAME = AGENT_DEFINITIONS.autonomous.displayName
 
 /** a8s answers `initialize` in 11 to 17 s; the listing gives up well after that. */
 const LIST_MODELS_TIMEOUT_MS = 60_000
+
+/**
+ * The last stderr line of the two stops a8s 0.79.0 made at launch with no model sign-in, as the process's
+ * end reaches the connection (`Autonomous stopped: exit code N: <stderr tail>`): a profile whose
+ * subscription has no sign-in ("Autonomous stopped: Your selected subscription is signed out. Run a8s
+ * init --force; ...") and no profile at all ("Profile not found: <path>. Run a8s init to create it, ...").
+ * Both are fixed by `a8s init`, the sign-in the app runs for Autonomous.
+ */
+const SIGNED_OUT_STOP = /(?:^|: )(Your selected subscription is signed out\. Run a8s init\b[^\n]*|Profile not found: [^\n]*\. Run a8s init\b[^\n]*)$/
+
+/** a8s's sentence when its process stopped for want of a model sign-in; null for any other error. */
+function readSignedOut(error: AcpError): string | null {
+  return SIGNED_OUT_STOP.exec(error.message)?.[1] ?? null
+}
 
 function launchArgs(model: string | null): readonly string[] {
   if (model === null) {
@@ -49,9 +67,8 @@ function launchArgs(model: string | null): readonly string[] {
   return ['--model', model]
 }
 
-/** The models a8s offers, from the `session/new` of a process started only to ask. */
-async function readModels(executablePath: string, deps: AcpDeps): Promise<ModelOption[]> {
-  const folder = realpathSync(tmpdir())
+/** The models a8s offers, from the `session/new` of a process started only to ask, in `folder`. */
+async function readModelsIn(executablePath: string, deps: AcpDeps, folder: string): Promise<ModelOption[]> {
   const plan = planCliLaunch(executablePath, withFolder(BUILT_IN_LAUNCH_ARGS.autonomous, folder), deps)
   if ('ok' in plan) {
     throw new Error(plan.reason)
@@ -79,6 +96,21 @@ async function readModels(executablePath: string, deps: AcpDeps): Promise<ModelO
   return models
 }
 
+/** Lists in a fresh temp subfolder, removed after success, failure and timeout alike. */
+async function readModels(executablePath: string, deps: AcpDeps): Promise<ModelOption[]> {
+  const folders = deps.tempFolders ?? createHandshakeFolders()
+  const folder = folders.makeTempDir()
+  try {
+    return await readModelsIn(executablePath, deps, folder)
+  } finally {
+    try {
+      folders.removeDir(folder)
+    } catch {
+      // A temp folder left behind (a file still held open on Windows) is the system's to clean up.
+    }
+  }
+}
+
 /** One listing per executable while the app runs; a failed one is asked again next time. */
 const listings = new Map<string, Promise<ModelOption[]>>()
 
@@ -101,6 +133,7 @@ export const autonomousFlavor: AcpFlavor = {
   authMethodId: LISTED_AUTH_METHOD,
   clientCapabilities: { elicitation: { form: {} } },
   extensions: { 'elicitation/create': answerElicitation },
+  readSignedOut,
   launchArgs,
   listModels: listAutonomousModels,
   switchModel: 'config_option'

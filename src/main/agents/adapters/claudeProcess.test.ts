@@ -298,16 +298,17 @@ describe('createClaudeProcesses: what killing waits for', () => {
     expect(h.treeKills).toEqual([])
   })
 
-  it('forgets a child once it has exited, and still ends the others', () => {
+  it('ends what a child left in its process group as soon as it exits, then forgets it and still ends the others', () => {
     const h = harness('linux')
     const processes = createClaudeProcesses(h.deps)
     processes.spawn(spawnOptions())
     processes.spawn(spawnOptions())
     h.children[0]?.emit('exit', 0, null)
+    expect(h.treeKills).toEqual([h.children[0]])
 
     void processes.killAll()
 
-    expect(h.treeKills).toEqual([h.children[1]])
+    expect(h.treeKills).toEqual([h.children[0], h.children[1]])
   })
 })
 
@@ -380,5 +381,40 @@ describe('createClaudeProcesses: a tree that outlives the kill wait', () => {
     await processes.killAll()
 
     expect(vi.mocked(logger.warn).mock.calls).toEqual([[expect.stringContaining('1000')]])
+  })
+
+  it('logs what an exited child left that outlives the wait, once', async () => {
+    const h = harness('linux', { killTree: () => Promise.resolve(false) })
+    const processes = createClaudeProcesses(h.deps)
+    processes.spawn(spawnOptions())
+    vi.mocked(logger.warn).mockClear()
+
+    h.children[0]?.emit('exit', 0, null)
+    await new Promise((resolve) => setImmediate(resolve))
+    await processes.killAll()
+
+    expect(vi.mocked(logger.warn).mock.calls).toEqual([[expect.stringContaining('1000')]])
+  })
+
+  it('logs a tree once when the child exits while killAll is ending it', async () => {
+    // One kill, shared by every ask while it runs, as `killProcessTree` does.
+    let finish: () => void = () => {}
+    const held = new Promise<boolean>((resolve) => {
+      finish = () => {
+        resolve(false)
+      }
+    })
+    const h = harness('linux', { killTree: () => held })
+    const processes = createClaudeProcesses(h.deps)
+    processes.spawn(spawnOptions())
+    vi.mocked(logger.warn).mockClear()
+
+    const killing = processes.killAll()
+    h.children[0]?.emit('exit', null, 'SIGKILL')
+    finish()
+    await killing
+    await new Promise((resolve) => setImmediate(resolve))
+
+    expect(vi.mocked(logger.warn)).toHaveBeenCalledTimes(1)
   })
 })

@@ -5,6 +5,7 @@ import {
   attemptRow,
   bundleWith,
   claim,
+  claimOrReplay,
   clearOutbox,
   completeTicket,
   domainError,
@@ -230,12 +231,12 @@ describe('claimTicket — competing claims', () => {
 })
 
 describe('claimTicket — idempotency', () => {
-  it('replays the original claim for a repeated key', () => {
+  it('replays the original claim for a repeated key, without its claim token', () => {
     const ctx = createTestCtx()
     const { runId } = startedRun(ctx)
     const first = claim(ctx, runId, 1, { idempotencyKey: 'claim-1' })
     ctx.clock.advanceSeconds(3)
-    expect(claim(ctx, runId, 1, { idempotencyKey: 'claim-1' })).toEqual(first)
+    expect(claimOrReplay(ctx, runId, 1, { idempotencyKey: 'claim-1' })).toEqual({ ...first, packet: { ...first.packet, claimToken: null } })
     expect(openAttemptIds(ctx, runId)).toEqual([first.attempt.id])
     expect(eventKinds(ctx, 'attempt.claimed')).toEqual(['attempt.claimed'])
     expect(errorCode(() => claim(ctx, runId, 2, { idempotencyKey: 'claim-1' }))).toBe('idempotency_mismatch')
@@ -348,11 +349,12 @@ describe('claimTicket — reasoning effort edge cases', () => {
     expect([attempt.worker.effort, packet.effort]).toEqual([null, null])
   })
 
-  it('replays the same claim for a repeated idempotency key, effort included', () => {
+  it('replays the same claim for a repeated idempotency key, effort included and token withheld', () => {
     const ctx = createTestCtx()
     const { runId } = startedRun(ctx)
     const first = claim(ctx, runId, 1, { worker: { label: 'w', effort: 'medium' }, idempotencyKey: 'k1' })
-    expect(claim(ctx, runId, 1, { worker: { label: 'w', effort: 'medium' }, idempotencyKey: 'k1' })).toEqual(first)
+    const replay = claimOrReplay(ctx, runId, 1, { worker: { label: 'w', effort: 'medium' }, idempotencyKey: 'k1' })
+    expect(replay).toEqual({ ...first, packet: { ...first.packet, claimToken: null } })
     expect(errorCode(() => claim(ctx, runId, 1, { worker: { label: 'w', effort: 'high' }, idempotencyKey: 'k1' }))).toBe(
       'idempotency_mismatch'
     )

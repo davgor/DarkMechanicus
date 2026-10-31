@@ -39,11 +39,11 @@ afterEach(() => {
 })
 
 describe('openAppDatabase', () => {
-  it('creates app.sqlite at user_version 1 with the three tables', () => {
+  it('creates app.sqlite at user_version 2 with the three tables', () => {
     const dir = tempDir()
     const db = open(dir)
     expect(existsSync(join(dir, 'app.sqlite'))).toBe(true)
-    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(1)
+    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(2)
     const tables = db
       .all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
       .map((row) => row.name)
@@ -55,17 +55,31 @@ describe('openAppDatabase', () => {
     open(dir).close()
     openDbs.length = 0
     const db = open(dir)
-    expect(migrate(db, APP_MIGRATIONS)).toEqual({ from: 1, to: 1 })
+    expect(migrate(db, APP_MIGRATIONS)).toEqual({ from: 2, to: 2 })
   })
 
   it('refuses a database at a newer user_version with incompatible_schema', () => {
     const dir = tempDir()
     const raw = openDatabase(join(dir, 'app.sqlite'))
-    raw.exec('PRAGMA user_version = 2')
+    raw.exec('PRAGMA user_version = 3')
     raw.close()
     const error = thrownBy(() => open(dir))
     expect(error).toBeInstanceOf(DomainError)
     expect((error as DomainError).code).toBe('incompatible_schema')
+  })
+
+  it('upgrades a v1 file, keeping its agent rows, which report no agent name', () => {
+    const dir = tempDir()
+    const raw = openDatabase(join(dir, 'app.sqlite'))
+    migrate(raw, APP_MIGRATIONS.filter((migration) => migration.version === 1))
+    raw.run(
+      `INSERT INTO agents (id, kind, protocol, display_name, executable_path, args_json, version, connected_via, connected_at, last_probed)
+       VALUES ('cu_1', 'custom', 'acp', 'a8s custom', '/bin/a8s', '["{folder}"]', '18.11.2', 'custom', 't', 't')`
+    )
+    raw.close()
+    const db = open(dir)
+    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(2)
+    expect(db.get('SELECT id, version, reported_name FROM agents')).toEqual({ id: 'cu_1', version: '18.11.2', reported_name: null })
   })
 })
 

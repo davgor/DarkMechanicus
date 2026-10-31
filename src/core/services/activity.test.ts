@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ActivityEntry, AttemptTimelineView, RunTimelineView } from '../../shared/domain/activity'
-import type { ClaimResultView } from '../../shared/domain/views'
 import { makeBundle, sid, tid } from '../../test/bundles'
-import { claim, completeTicket, errorCode, seedEpic, startedRun } from '../../test/execution'
+import { claim, completeTicket, errorCode, type IssuedClaim, seedEpic, startedRun } from '../../test/execution'
 import { createTestCtx, type TestCtx, withRole } from '../../test/testContext'
 import { getAttemptTimeline, getRunTimeline } from './activity'
 import {
@@ -55,7 +54,7 @@ function tick(ctx: TestCtx, seconds = 10): void {
   ctx.clock.advanceSeconds(seconds)
 }
 
-function beat(rigged: Rig, claimed: ClaimResultView, progress?: { note: string; step?: string }): void {
+function beat(rigged: Rig, claimed: IssuedClaim, progress?: { note: string; step?: string }): void {
   heartbeatAttempt(rigged.worker, {
     attemptId: claimed.attempt.id,
     claimToken: claimed.packet.claimToken,
@@ -63,7 +62,7 @@ function beat(rigged: Rig, claimed: ClaimResultView, progress?: { note: string; 
   })
 }
 
-function submit(rigged: Rig, claimed: ClaimResultView, summary = 'Added the schema'): void {
+function submit(rigged: Rig, claimed: IssuedClaim, summary = 'Added the schema'): void {
   submitAttempt(rigged.worker, {
     attemptId: claimed.attempt.id,
     claimToken: claimed.packet.claimToken,
@@ -79,12 +78,12 @@ function kinds(entries: ActivityEntry[]): string[] {
   return entries.map((entry) => entry.kind)
 }
 
-function timeline(rigged: Rig, claimed: ClaimResultView, window: { sinceSeq?: number; limit?: number } = {}): AttemptTimelineView {
+function timeline(rigged: Rig, claimed: IssuedClaim, window: { sinceSeq?: number; limit?: number } = {}): AttemptTimelineView {
   return getAttemptTimeline(rigged.ctx, { attemptId: claimed.attempt.id, ...window })
 }
 
 /** Claim, three heartbeats (two with notes), two comments around a submission, then acceptance: the c1 story. */
-function fullStory(rigged: Rig): ClaimResultView {
+function fullStory(rigged: Rig): IssuedClaim {
   const { ctx, desktop } = rigged
   comment(desktop, rigged, 1, 'Before the claim: not part of the attempt.')
   tick(ctx)

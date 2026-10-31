@@ -53,7 +53,7 @@ describe('AgentPage details', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Claude Code' })).toBeTruthy()
     expect(screen.getByText('C:\\Users\\dev\\.local\\bin\\claude.exe')).toBeTruthy()
     const version = screen.getByText('Version').nextElementSibling
-    expect(version?.textContent).toBe('2.1.4')
+    expect(version?.textContent).toBe('v2.1.4')
   })
 
   it('says how it was connected', async () => {
@@ -68,7 +68,7 @@ describe('AgentPage details', () => {
 
   it('shows a version that could not be read as unknown', async () => {
     await mount(agentView({ kind: 'claude', version: null }))
-    expect(screen.getByText('Version').nextElementSibling?.textContent).toBe('Unknown')
+    expect(screen.getByText('Version').nextElementSibling?.textContent).toBe('Version unknown')
   })
 
   it('shows the sign-in state in words with the reason the CLI gave', async () => {

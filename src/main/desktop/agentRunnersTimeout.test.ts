@@ -100,3 +100,18 @@ describe.each(RUNNERS)('%s: a program that runs past its time', (_name, run) => 
     expect(detached).toEqual([true, false])
   })
 })
+
+describe.each(RUNNERS)('%s: a program that exits but does not close', (_name, run) => {
+  it('kills nothing once its time runs out, as a group found under its pid by then may be another program\'s', async () => {
+    // Something outside its process group can hold its pipes open after it exited.
+    const child = new FakeChild(4242)
+    vi.mocked(spawn).mockReturnValue(child.asChild())
+
+    const running = run(1000)
+    child.emit('exit', 0, null)
+    await vi.advanceTimersByTimeAsync(1000)
+
+    expect(await running).toEqual(expect.objectContaining({ kind: 'timed_out' }))
+    expect(killProcessTree).not.toHaveBeenCalled()
+  })
+})

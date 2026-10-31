@@ -156,8 +156,34 @@ It asks. With `a8s start <scratch> --mode acp` and no `--approval-mode`, `pwd` r
 
 ### Models
 
-- **Listing without a chat:** no CLI command lists them. `a8s omp --help` takes only `--version`, `--mode`, `--cwd`, `--resume`, `--continue`, `--model`, `--provider`, `--thinking`, `--approval-mode`, `--append-system-prompt`, `--config`, `--tools` and `--profile`, and says "Other OMP commands and flags are refused". `a8s omp --list-models` exited 2 with `Unknown option '--list-models'. See a8s omp --help for the OMP flags it takes.` `a8s status` prints only the default (`Default model  anthropic/claude-opus-5-5 on your Claude subscription`). The list the profile allows comes from ACP: `initialize` plus `session/new`, which return `configOptions[id=model].options` with no model turn. [INFERENCE] That `session/new` opens a session that a8s records; whether `session/close` cleans it up is untested.
+- **Listing without a chat:** no CLI command lists them. `a8s omp --help` takes only `--version`, `--mode`, `--cwd`, `--resume`, `--continue`, `--model`, `--provider`, `--thinking`, `--approval-mode`, `--append-system-prompt`, `--config`, `--tools` and `--profile`, and says "Other OMP commands and flags are refused". `a8s omp --list-models` exited 2 with `Unknown option '--list-models'. See a8s omp --help for the OMP flags it takes.` `a8s status` prints only the default (`Default model  anthropic/claude-opus-5-5 on your Claude subscription`). The list the profile allows comes from ACP: `initialize` plus `session/new`, which return `configOptions[id=model].options` with no model turn. That `session/new` opens a session that a8s records, and `session/close` does not remove it (DM-306, below).
 - **Switching:** an ACP method works. `session/set_config_option {sessionId, configId: "model", value: "anthropic/claude-haiku-5-5"}` on the loaded session answered `{configOptions}` with `model.currentValue` Haiku, after a `config_option_update` notification. The next turn ran on the new model: `usage_update.size` went from 1,000,000 (Opus) to 100,000. `thinking` and `mode` are config options of the same kind but were not switched (**unverified**), and neither was `session/set_mode`. A `--model` relaunch plus `session/load` was not tried (**unverified**). `session/load` reported the model the session was created with (`anthropic/claude-opus-5-5`) as current.
+
+#### Does `session/close` remove the listing session? (DM-306)
+
+**No.** Recorded on 2026-10-30 (US Central, 23:48) with the same a8s 0.79.0 and personal profile. One model listing was run by a throwaway Node client in `/tmp` (deleted afterwards) that followed `readModelsIn` in `autonomous.ts`: a fresh `mkdtemp` folder (not a Git repository), `a8s start <folder> --mode acp --approval-mode always-ask` spawned with `shell: false` in its own process group, `initialize` (protocol 1, no fs or terminal capabilities), `authenticate {methodId: "agent"}` (answered `{}`), `session/new` (4 model options), `session/close` (answered `{}`), then SIGTERM to the group and removal of the folder. No prompt was sent. The whole run took about 5 s.
+
+`a8s sessions --help` documents only `[list] [--json]` for listing, plus `show`, `search`, `changes`, `export`, `verify` and `sent`, each taking `--capture-dir PATH`. There is no flag to filter by folder or to delete a session. Recordings live under `--capture-dir`, default `<home>/.local/state/a8s/captures` (the new one was `native-omp/sessions/<timestamp>_<acp session id>.jsonl`); they were only listed, never edited or deleted.
+
+- **Before** (`a8s sessions --json`): 17 sessions, none in a `DM-306-list-*` folder (all 17 are the person's own sessions in other folders, not shown).
+- **After:** 18 sessions. The one new row, from `a8s sessions` (the other 17 unchanged, not shown):
+
+  ```
+  a8d534df  today 23:48  DM-306-list-6mt8Av         claude-opus-5-5
+  ```
+
+  Its `--json` row, trimmed: `cwd` `/private/var/folders/<tmp>/T/DM-306-list-6mt8Av` (already deleted), `events: 14`, `endedEarly: false`, `coverage.state: "incomplete"` with the gaps "Personal session: recorded on this machine only and not delivered to the company." and "Native host stopped: sigterm". The recording file is named after the ACP session id `session/new` returned; the a8s session id (`a8d534df-…`) differs from it.
+- `a8s sessions show a8d534df` printed "Nothing was said in this session." and "Usage export: not exported: it closed before any prompt or model call."
+
+So every listing leaves one empty session in the person's `a8s sessions` list, with the temp folder name, plus a recording of about 14 events. `session/close` ends the session but does not remove its record. The app lists once per executable per app run (`listings` in `autonomous.ts`), so it is one stray row per app start that opens an Autonomous chat, not one per chat.
+
+**Proposed fix (not implemented):**
+
+1. **Don't open a session just to list.** Take the model options from the chat's own `session/new`: the chat already gets `configOptions[id=model]` there, so the picker can fill from the first real session and cache that per executable. Before the first chat, show only the profile default (`a8s status` prints `Default model`) or the last cached list (persisted in the app's settings), and refresh it from each chat's `session/new`. This removes the stray session entirely.
+2. If a list is needed before any chat, keep today's one listing per app run but persist its result across runs, so the stray session appears once per a8s update rather than once per app start (re-list when `a8s --version` changes).
+3. Ask a8s upstream for either a listing that opens no session (e.g. `a8s omp --list-models` or a `models` field on `initialize`), or for `session/close` on a session with no prompt to discard its recording. a8s already knows the session is empty ("closed before any prompt or model call").
+
+Option 1 is the recommended one: no upstream change and no stray records. Deleting the record from the app is not proposed: a8s offers no delete command, and the app must not edit a8s's recordings.
 
 ### Sign-in
 
@@ -165,11 +191,30 @@ It asks. With `a8s start <scratch> --mode acp` and no `--approval-mode`, `pwd` r
 - `a8s status` (exit 0) shows the profile, gateway, `Model key  none (optional) · a8s login --key adds Bifrost models`, `Default model  anthropic/claude-opus-5-5 on your Claude subscription`, captures and version. It does not say signed in or signed out.
 - `a8s doctor --readiness --cwd <dir>` checks Node, Bun, git, Python, the workspace, Semgrep and the Factory CLI "without sign-in", and ended `Installation readiness passed.` with exit 0. It says nothing about sign-in. It is the check for "installed and usable in this folder".
 - **Signing in:** per `a8s --help`, the model sign-in is `a8s init [--force] [--yes]` ("Choose Claude or Codex and save an authenticated default") or `/login` inside a session. `a8s setup` opens onboarding. `a8s login` with no flag is the **company Okta** sign-in and `a8s login --key` stores the optional Bifrost key; neither is the model sign-in. `a8s init --help` and `a8s login --help` both printed the general `a8s --help` text and exited 0; neither was run without `--help`.
-- **Signed out:** the signed-out output of `a8s doctor` and `a8s status` was not observed (**unverified**).
+- **Signed out:** recorded with an isolated profile (DM-307, below). With a personal profile, `a8s doctor` prints `✗ Model route             Claude subscription is not ready` and `fix: a8s init --force`, and exits 1. With no profile it prints `! Model route             not signed in to Claude, so sessions open without a default model` (a warning) and `fix: run /login in a session and choose Anthropic, or a8s init --force`, and exits 1 because of the failed `Profile` check. `a8s status` (exit 0) says `Default model  none until you sign in to Claude: /login in a session, choose Anthropic`.
 
-### Signed-out error
+### Signed out
 
-**Unverified.** A real refusal needs the model sign-in gone, and removing or hiding the person's credentials was out of bounds. Not observed: the error `authenticate` or `session/prompt` returns when the model sign-in is missing, and whether `authMethods` changes then.
+**How it was run** (DM-307, 2026-10-30, same install). The person's own sign-ins were never touched: no login, logout, `init`, `auth` or credential command ran in any environment, and only a profile that had never signed in was observed.
+
+- **Isolation.** A temporary HOME under `/tmp` with `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME`, `XDG_CACHE_HOME`, `TMPDIR` and `PI_CODING_AGENT_DIR` inside it, started through `env -i` with only those, HOME, PATH, USER, LOGNAME, TERM, NO_COLOR and the locale, so no `ANTHROPIC_*`, `ONEBRIEF_*`, `OMP_PROFILE`/`PI_PROFILE` or other credential variable reached a8s. The shell had no credential variable set either.
+- **Keychain.** The model sign-in is OMP's own stored login, a SQLite store at `<agent dir>/agent.db` under the HOME (`~/.omp/agent`), read through its `AuthStorage`. Neither OMP 18.11.2's sources nor a8s's read it from the Keychain: a8s calls `/usr/bin/security` only for the optional Bifrost key (service `onebrief`, which the person's `a8s status` shows as none), and the commands run here could at most look that entry up, never write it. So a temporary HOME isolates the model sign-in.
+- **Proof.** `a8s doctor` in that environment printed every profile, capture, workspace and tool path under the temporary HOME (only the install's own paths, `~/.local/opt/a8s`, are outside it), and its `Model route`, `Okta`, `gh`, `Factory` and `Multiplayer` lines all said not signed in, where the person's own `a8s doctor` says signed in to the model and Okta.
+- **Profiles.** Two: a copy of the person's personal `profile.json` (schema 1, `subscriptionProvider: anthropic`, no secret in it), the case of someone who set a8s up and is signed out of the model; and none at all, someone who never ran `a8s init`.
+- **ACP.** A throwaway Node client under `/tmp`, like DM-281's, spawned `a8s start <scratch repo> --mode acp --approval-mode always-ask` in its own process group in a scratch Git repository (one empty commit) under the temporary HOME, with this adapter's `initialize` (`fs` false, `terminal` false, `elicitation.form`). It would then have sent `authenticate`, `session/new` and `session/prompt` "ok". Three launches: the personal profile twice (the second with `--model anthropic/claude-haiku-5-5`), and no profile. The client, the temporary HOME and the scratch repository were deleted afterwards. The sanitized outputs are `src/main/agents/adapters/__mocks__/autonomousSignedOut.ts`.
+
+**What a8s does with no model sign-in:** it answers no ACP request. It stops at launch, before answering `initialize`, writes one sentence on stderr, and exits. Nothing is written to stdout, so there is no `authenticate`, `session/new` or `session/prompt` error, and no `authMethods` to compare.
+
+| Launch | Exit | After | stderr, last line |
+|---|---|---|---|
+| Personal profile, first launch | 1 | 1.5 s | `Autonomous stopped: Your selected subscription is signed out. Run a8s init --force; no other billing route was selected.` |
+| Personal profile, `--model anthropic/claude-haiku-5-5` | 1 | 7 s | the same |
+| No profile | 2 | 0.8 s | `Profile not found: <home>/.config/a8s/profile.json. Run a8s init to create it, or pass --profile FILE.` |
+
+- The first launch of a profile writes a one-time metrics notice (22 lines, "What Autonomous collects · please help us improve!") on stderr before the stop; the next launch wrote `Checking for restricted repositories…` and `✓ No restricted repositories · 1 folder · 1 repository · 1s` instead. Either way the stop is the last line.
+- Per the source (`dist/omp/host.js`), the subscription stop comes from the launch-default check: a personal profile whose `subscriptionProvider` default has no OAuth sign-in stops there. Its other signed-out `Model route` wordings in `dist/omp/route-step.js` also say "is not ready" ("Codex subscription is not ready", "<model> is not ready"); they were not observed.
+- **What the app makes of it:** the connection sees the process end as `Autonomous stopped: exit code 1: <last 500 characters of stderr>` (`acpProcess.ts`). The Autonomous flavor reads either sentence at its end as a missing sign-in and reports it as one `auth_required` item with a8s's sentence; both are fixed by `a8s init`, which is what the app runs to sign Autonomous in. `agentAuth.ts` reads a `Model route` line that says "is not ready" or "not signed in" as signed out.
+- Not observed: a process that was signed in when it started and loses its sign-in mid-session (that needs the person's sign-in removed), and a signed-in profile whose OAuth token was refused by Anthropic.
 
 ## For the adapter
 
@@ -184,7 +229,8 @@ It asks. With `a8s start <scratch> --mode acp` and no `--approval-mode`, `pwd` r
   - Both requests take ids from the same counter.
   - [INFERENCE from the source] An `elicitation/create` of another shape (skills and extensions can also ask through it) should be answered `{action: "decline"}`, which a8s reads as no answer.
 - **Models:** list from `configOptions` (`id: "model"`) on `session/new`/`session/load`, and switch with `session/set_config_option {configId: "model", value}`. There is no CLI listing.
-- **Status and login commands:** use `a8s doctor` and its `Model route` line for "signed in"; this is the only command that showed a sign-in state, and its signed-out wording is unverified. Use `a8s doctor --readiness --cwd <folder>` for installed-and-ready. Send people to `a8s init` (or `/login` in a session) to sign in to a model, not to `a8s login`.
+- **Status and login commands:** use `a8s doctor` and its `Model route` line: "signed in" on a passed check is signed in, and "is not ready" or "not signed in" is signed out (both recorded, see Signed out). Its exit code says nothing about the model: it is 1 for any failed check. Use `a8s doctor --readiness --cwd <folder>` for installed-and-ready. Send people to `a8s init` (or `/login` in a session) to sign in to a model, not to `a8s login`.
+- **Signed out:** expect no ACP error. a8s exits before answering `initialize`, and the last stderr line says why: `Autonomous stopped: Your selected subscription is signed out. Run a8s init --force; …`, or `Profile not found: <path>. Run a8s init to create it, …`. Report either as a sign-in to do (`a8s init`), with that sentence, and start a new process for the next message.
 - **Find probe:** run `<a8s path> --version`. It prints one line on stdout and exits 0:
   `Autonomous <version> · <os>-<arch> · OMP <omp version>`, for example `Autonomous 0.79.0 · darwin-arm64 · OMP 18.11.2`. The separators are U+00B7 MIDDLE DOT with one space on each side. A matching pattern: `^Autonomous (\S+) · (\S+) · OMP (\S+)$`. Use the first group as the CLI version, not `agentInfo.version` (which is OMP's). `a8s omp --version` prints `omp/18.11.2`.
 
@@ -193,7 +239,7 @@ It asks. With `a8s start <scratch> --mode acp` and no `--approval-mode`, `pwd` r
 - For writes: `elicitation/create` answered `accept` with `Deny`, `{action: "cancel"}` or an error; `session/cancel` while one is open; a second write in the same session (the form has no "always allow"); the elicitation `message` for long file content.
 - How `edit` (changing an existing file), `delete` and `move` ask. Per the source: `delete`, `move`, and an `edit` that deletes or moves a file use `session/request_permission`, and other edits use `elicitation/create`. None was run.
 - Where the profile's default approval mode (no `--approval-mode`) comes from.
-- The signed-out output of `a8s doctor` and `a8s status`, and the ACP error shape when the model sign-in is missing.
+- A sign-in lost while a process runs, and a stored OAuth token Anthropic refuses: what a8s answers then (an ACP error, a stop or assistant text). Only a profile that never signed in was observed (Signed out).
 - Switching models with a `--model` relaunch plus `session/load`; switching `thinking` or `mode`; `session/set_mode`.
 - `session/list`, `session/fork`, `session/resume`; the error from `session/load` of an unknown id. `session/close` answered `{}` in DM-259's live handshake (no prompt, a non-Git temp folder, whose `session/new` also worked); whether it removes the session from a8s's records was not checked.
 - Cancelling while a command is already running, rather than at its permission prompt.

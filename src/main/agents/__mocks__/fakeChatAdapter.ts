@@ -42,6 +42,7 @@ export function builtInAgent(kind: BuiltInAgentKind, overrides: Partial<AgentVie
     executablePath: `/bin/${kind}`,
     args: [],
     version: '1.0.0',
+    reportedName: null,
     connectedVia: 'found',
     connectedAt: AT,
     lastProbed: AT,

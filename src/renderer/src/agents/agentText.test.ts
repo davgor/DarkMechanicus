@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { agentName, AGENT_BLURBS, connectedViaText, phaseText, signInLabel } from './agentText'
+import { agentView } from '../__mocks__/fixtures'
+import { agentName, agentVersionLabel, AGENT_BLURBS, connectedViaText, phaseText, signInLabel } from './agentText'
 
 describe('agentName', () => {
   it('uses a connected custom agent\'s display name, and a generic one once it is no longer connected', () => {
@@ -14,6 +15,21 @@ describe('agentName', () => {
     expect(agentName('claude')).toBe('Claude Code')
     expect(agentName('codex')).toBe('Codex')
     expect(agentName('cursor')).toBe('Cursor')
+  })
+})
+
+describe('agentVersionLabel', () => {
+  it('names the version with the agent name the handshake reported', () => {
+    expect(agentVersionLabel(agentView({ kind: 'custom', version: '18.11.2', reportedName: 'omp' }))).toBe('omp 18.11.2')
+  })
+
+  it('shows the version alone without a reported name, as for every built-in', () => {
+    expect(agentVersionLabel(agentView({ version: '2.1.4', reportedName: null }))).toBe('v2.1.4')
+  })
+
+  it('says Version unknown without a version, whatever name was reported', () => {
+    expect(agentVersionLabel(agentView({ version: null, reportedName: null }))).toBe('Version unknown')
+    expect(agentVersionLabel(agentView({ kind: 'custom', version: null, reportedName: 'omp' }))).toBe('Version unknown')
   })
 })
 

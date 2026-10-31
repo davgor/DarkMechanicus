@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { ReadinessView, TicketExecutionView } from '../../shared/domain/views'
 import { dropAcceptanceNodes } from '../../test/acceptanceNodes'
+import { issued } from '../../test/execution'
 import { createHarness, type Harness } from '../../test/workspaceHarness'
 import { encodeBase32, ID_PREFIXES } from '../ids'
 import type { Workspace } from '../workspace'
@@ -87,7 +88,7 @@ describe('ready tickets as work moves through the active sprint', () => {
       split(await agent.getReadyTickets({ runId: run.id }), plan)
     expect(await view()).toEqual({ ready: ['first', 'side'], blocked: ['later'], inFlight: [] })
 
-    const claim = await agent.claimTicket({ runId: run.id, ticketId: plan.ticket('first'), worker: { label: 'w' } })
+    const claim = issued(await agent.claimTicket({ runId: run.id, ticketId: plan.ticket('first'), worker: { label: 'w' } }))
     expect(await view()).toEqual({ ready: ['side'], blocked: ['later'], inFlight: ['first'] })
 
     await agent.submitAttempt({ attemptId: claim.attempt.id, claimToken: claim.packet.claimToken, outputs: { summary: 'done' } })

@@ -202,6 +202,16 @@ describe('updatePlanDraft idempotency', () => {
     )
     expect(mismatch.code).toBe('idempotency_mismatch')
   })
+
+  it('replays refs named like secrets with their ticket ids, since refs are data and not field names', () => {
+    const ctx = createTestCtx()
+    const epic = createEpic(ctx, { title: 'Auth' })
+    const ops: DraftOp[] = ['refresh-token', 'api_key', 'token'].map((ref) => ({ ...addTicket(ref), ref }))
+    const first = updatePlanDraft(ctx, { epicId: epic.id, ops, idempotencyKey: 'edit-1' })
+    expect(Object.keys(first.refMap)).toEqual(['refresh-token', 'api_key', 'token'])
+    expect(Object.values(first.refMap).every((id) => isStableId(id, 'ticket'))).toBe(true)
+    expect(updatePlanDraft(ctx, { epicId: epic.id, ops, idempotencyKey: 'edit-1' })).toEqual(first)
+  })
 })
 
 describe('openDraft', () => {

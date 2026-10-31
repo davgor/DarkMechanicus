@@ -1,3 +1,6 @@
+import { chmodSync, mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { type Db, openDatabase } from '../../core/db/database'
 import { migrate } from '../../core/db/migrations'
@@ -6,7 +9,9 @@ import type { AgentFindResult, AgentProtocol } from '../../shared/desktop/api'
 import type { AgentLaunchSpec } from '../agents/launchSpec'
 import type { HandshakeOutcome } from '../agents/protocolHandshake'
 import type { FileCheck } from './agentProbe'
+import { removeScratch } from '../../test/removeScratch'
 import { createAgentRegistry, type AgentRegistry } from './agentRegistry'
+import { inspectExecutable } from './agentProbeNode'
 import { APP_MIGRATIONS } from './appDatabase'
 import {
   createCustomAgents,
@@ -79,7 +84,7 @@ function createWorld(options: WorldOptions = {}): World {
     handshake: async (spec) => {
       world.log.push('handshake')
       world.handshakes.push(spec)
-      return (await shakes.shift()) ?? { ok: true, version: '1.2.3' }
+      return (await shakes.shift()) ?? { ok: true, version: '1.2.3', reportedName: 'mine' }
     },
     launch: { platform: options.platform ?? 'linux', inspect: options.inspect ?? (() => 'ok') }
   })
@@ -113,11 +118,12 @@ async function expectRefusedBeforeAnything(world: World, payload: unknown): Prom
 }
 
 describe('adding a custom CLI stores it only after the pick, the confirmation and the handshake', () => {
-  it('stores a cu_ row with its args, protocol and the handshake version, connected as custom', async () => {
+  it('stores a cu_ row with its args, protocol and the agent name and version the handshake reported, connected as custom', async () => {
     const world = createWorld()
 
     const agent = connected(await world.custom.add(addRequest()))
 
+    // The handshake is the only thing run: no version command or other probe is started.
     expect(world.log).toEqual(['pick', 'confirm', 'handshake'])
     expect(agent).toEqual({
       id: expect.stringMatching(CUSTOM_ID),
@@ -127,16 +133,20 @@ describe('adding a custom CLI stores it only after the pick, the confirmation an
       executablePath: PROGRAM,
       args: ['--acp', '{folder}'],
       version: '1.2.3',
+      reportedName: 'mine',
       connectedVia: 'custom',
       connectedAt: STAMP,
       lastProbed: STAMP
     })
-    expect(world.db.get('SELECT kind, protocol, connected_via, args_json, version FROM agents WHERE id = ?', agent.id)).toEqual({
+    expect(
+      world.db.get('SELECT kind, protocol, connected_via, args_json, version, reported_name FROM agents WHERE id = ?', agent.id)
+    ).toEqual({
       kind: 'custom',
       protocol: 'acp',
       connected_via: 'custom',
       args_json: '["--acp","{folder}"]',
-      version: '1.2.3'
+      version: '1.2.3',
+      reported_name: 'mine'
     })
   })
 
@@ -153,13 +163,13 @@ describe('adding a custom CLI stores it only after the pick, the confirmation an
     ])
   })
 
-  it('stores a null version when the handshake reports none, and gives each agent its own id', async () => {
-    const world = createWorld({ picks: [PROGRAM, PROGRAM], handshakes: [{ ok: true, version: null }] })
+  it('stores a null version and name when the handshake reports neither, and gives each agent its own id', async () => {
+    const world = createWorld({ picks: [PROGRAM, PROGRAM], handshakes: [{ ok: true, version: null, reportedName: null }] })
 
     const first = connected(await world.custom.add(addRequest({ protocol: 'claude', args: [] })))
     const second = connected(await world.custom.add(addRequest({ name: 'Other agent' })))
 
-    expect(first.version).toBeNull()
+    expect(first).toMatchObject({ version: null, reportedName: null })
     expect(first.id).not.toBe(second.id)
     expect(world.registry.list().map((agent) => agent.displayName)).toEqual(['My agent', 'Other agent'])
   })
@@ -405,13 +415,18 @@ function editRequest(id: string, overrides: Record<string, unknown> = {}): Recor
 
 describe('editing a custom CLI', () => {
   it('keeps the program and protocol without repick, and stores the new name and arguments after confirming and a handshake', async () => {
-    const { world, id } = await addedWorld({ handshakes: [{ ok: true, version: '1.2.3' }, { ok: true, version: '2.0.0' }] })
+    const { world, id } = await addedWorld({
+      handshakes: [
+        { ok: true, version: '1.2.3', reportedName: 'mine' },
+        { ok: true, version: '2.0.0', reportedName: 'theirs' }
+      ]
+    })
 
     const agent = connected(await world.custom.update(editRequest(id)))
 
     expect(world.log).toEqual(['confirm', 'handshake'])
     expect(world.confirmations).toEqual([{ action: 'edit', name: 'Renamed', protocol: 'acp', executablePath: PROGRAM, args: ['--acp'] }])
-    expect(agent).toMatchObject({ id, kind: 'custom', protocol: 'acp', displayName: 'Renamed', executablePath: PROGRAM, args: ['--acp'], version: '2.0.0' })
+    expect(agent).toMatchObject({ id, kind: 'custom', protocol: 'acp', displayName: 'Renamed', executablePath: PROGRAM, args: ['--acp'], version: '2.0.0', reportedName: 'theirs' })
     expect(world.registry.list()).toEqual([agent])
   })
 
@@ -428,7 +443,7 @@ describe('editing a custom CLI', () => {
     const { world, id } = await addedWorld({
       picks: [null],
       answers: [true, false],
-      handshakes: [{ ok: true, version: '1.2.3' }, { ok: false, code: 'wrong_program', reason: 'no' }]
+      handshakes: [{ ok: true, version: '1.2.3', reportedName: 'mine' }, { ok: false, code: 'wrong_program', reason: 'no' }]
     })
     const before = world.registry.list()
 
@@ -447,6 +462,30 @@ describe('editing a custom CLI', () => {
     }
     expect(world.log).toEqual([])
     expect(world.registry.list()).toEqual(before)
+  })
+})
+
+describe('the version and agent name a custom CLI’s handshake reported', () => {
+  it('stores the version alone when the handshake reports no agent name', async () => {
+    const world = createWorld({ handshakes: [{ ok: true, version: '0.46.0', reportedName: null }] })
+
+    const agent = connected(await world.custom.add(addRequest({ protocol: 'codex', args: ['app-server'] })))
+
+    expect(agent).toMatchObject({ version: '0.46.0', reportedName: null })
+    expect(world.db.get('SELECT version, reported_name FROM agents WHERE id = ?', agent.id)).toEqual({ version: '0.46.0', reported_name: null })
+  })
+
+  it('clears the agent name an earlier handshake reported when the new one reports none', async () => {
+    const { world, id } = await addedWorld({
+      handshakes: [
+        { ok: true, version: '1.2.3', reportedName: 'mine' },
+        { ok: true, version: '2.0.0', reportedName: null }
+      ]
+    })
+
+    const agent = connected(await world.custom.update(editRequest(id)))
+
+    expect(agent).toMatchObject({ version: '2.0.0', reportedName: null })
   })
 })
 
@@ -533,8 +572,9 @@ describe('the native dialogs', () => {
     expect(options.title).toMatch(/edit/i)
   })
 
-  it('opens files only, with hidden folders reachable and Windows programs listed first', () => {
-    expect(customExecutableDialogOptions('darwin').properties).toEqual(['openFile', 'showHiddenFiles'])
+  it('opens files only, with hidden folders reachable, links kept as picked and Windows programs listed first', () => {
+    // noResolveAliases: macOS would otherwise hand back ~/.local/bin/claude as its versioned target.
+    expect(customExecutableDialogOptions('darwin').properties).toEqual(['openFile', 'showHiddenFiles', 'noResolveAliases'])
     expect(customExecutableDialogOptions('win32').filters[0]).toEqual({ name: 'Programs', extensions: ['exe', 'cmd'] })
   })
 
@@ -558,5 +598,30 @@ describe('the native dialogs', () => {
     expect(customAgentApproved({ response: 0, checkboxChecked: false })).toBe(false)
     expect(customAgentApproved({ response: 1, checkboxChecked: true })).toBe(false)
     expect(customAgentApproved({ response: 1, checkboxChecked: false })).toBe(false)
+  })
+})
+
+describe.runIf(process.platform !== 'win32')('a custom CLI picked through a symlink', () => {
+  it('stores, confirms and hands over the link as picked, not its target, and the real file check accepts it', async () => {
+    const scratch = mkdtempSync(join(tmpdir(), 'dm-custom-link-'))
+    try {
+      const target = join(scratch, 'versions', '2.1.291')
+      mkdirSync(join(scratch, 'versions'))
+      writeFileSync(target, '#!/bin/sh\n')
+      chmodSync(target, 0o755)
+      const link = join(scratch, 'claude')
+      symlinkSync(target, link)
+      const world = createWorld({ picks: [link], inspect: inspectExecutable })
+
+      const agent = connected(await world.custom.add(addRequest({ protocol: 'claude', args: [] })))
+
+      expect(agent.executablePath).toBe(link)
+      expect(world.confirmations[0]?.executablePath).toBe(link)
+      expect(customAgentDialogOptions(world.confirmations[0]!).detail).toContain(`Program: ${link}`)
+      expect(world.handshakes[0]?.executablePath).toBe(link)
+      expect(world.registry.get(agent.id)?.executablePath).toBe(link)
+    } finally {
+      removeScratch(scratch)
+    }
   })
 })

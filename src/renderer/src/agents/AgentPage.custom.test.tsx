@@ -32,6 +32,7 @@ const custom = agentView({
   executablePath: '/opt/tools/codex',
   args: ['app-server', '{folder}'],
   version: '0.9.1',
+  reportedName: 'codex_cli_rs',
   connectedVia: 'custom'
 })
 
@@ -56,14 +57,22 @@ const argumentValues = (form: Scope): string[] =>
   form.queryAllByRole('textbox', { name: /^Argument \d+$/ }).map((input) => (input as HTMLInputElement).value)
 
 describe('AgentPage: a custom agent’s details', () => {
-  it('shows its name, protocol, executable, arguments and version', async () => {
+  it('shows its name, protocol, executable, arguments and the agent name and version its handshake reported', async () => {
     await mount()
     expect(screen.getByRole('heading', { level: 1, name: 'My Codex' })).toBeTruthy()
     expect(valueOf('Protocol')).toBe('Codex app-server')
     expect(valueOf('Executable')).toBe('/opt/tools/codex')
     expect(valueOf('Arguments')).toBe('app-server {folder}')
-    expect(valueOf('Version')).toBe('0.9.1')
+    expect(valueOf('Version')).toBe('codex_cli_rs 0.9.1')
     expect(valueOf('Connected')).toMatch(/^Added as a custom CLI/)
+  })
+
+  it('shows the version alone when the handshake named no agent, and Version unknown when it reported no version', async () => {
+    await mount({ ...custom, reportedName: null })
+    expect(valueOf('Version')).toBe('v0.9.1')
+    cleanup()
+    await mount({ ...custom, version: null, reportedName: null })
+    expect(valueOf('Version')).toBe('Version unknown')
   })
 
   it('says when it has no arguments', async () => {
@@ -106,7 +115,7 @@ describe('AgentPage: editing a custom agent', () => {
     expect(dm.agentCallsOf('updateCustomAgent')).toEqual([[{ id: custom.id, name: 'Codex (work)', args: ['app-server'], repick: false }]])
     expect(screen.queryByRole('form', { name: /^Edit/ })).toBeNull()
     expect(screen.getByRole('heading', { level: 1, name: 'Codex (work)' })).toBeTruthy()
-    expect(screen.getByText('Saved Codex (work) 0.9.1')).toBeTruthy()
+    expect(screen.getByText('Saved Codex (work) (codex_cli_rs 0.9.1)')).toBeTruthy()
   })
 
   it('asks main to pick another executable when that is ticked', async () => {

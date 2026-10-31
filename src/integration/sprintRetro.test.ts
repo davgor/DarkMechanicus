@@ -9,7 +9,7 @@ import type { Workspace } from '../core/workspace'
 import type { GateCondition, SprintReportView } from '../shared/domain/views'
 import type { SprintRetroInput } from '../shared/domain/retro'
 import { ORCHESTRATOR_FALLBACK_LABEL } from '../shared/domain/status'
-import { hostCatalog, hostModel } from '../test/execution'
+import { hostCatalog, hostModel, issued } from '../test/execution'
 import { createHarness, type Harness } from '../test/workspaceHarness'
 
 const EFFORTS = ['low', 'medium', 'high'] as const
@@ -67,7 +67,7 @@ async function startRun(orchestrator: Workspace, planned: Planned): Promise<Star
 }
 
 async function claimAndSubmit(agent: Workspace, run: Started, ticketId: string, worker: { modelId?: string; effort?: (typeof EFFORTS)[number] }) {
-  const claim = await agent.claimTicket({ runId: run.runId, ticketId, worker: { label: 'Claude Code', ...worker } })
+  const claim = issued(await agent.claimTicket({ runId: run.runId, ticketId, worker: { label: 'Claude Code', ...worker } }))
   await agent.submitAttempt({ attemptId: claim.attempt.id, claimToken: claim.packet.claimToken, outputs: { summary: 'Done.' } })
   return claim
 }

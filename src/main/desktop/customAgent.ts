@@ -15,10 +15,11 @@
  * 4. A native confirmation shows the exact program, each argument (as a JSON string) and the protocol.
  *    Only Run and save with the checkbox ticked goes on. A Claude Code SDK protocol program must be the
  *    program itself: the SDK would follow a Windows shim, or run a script with `node`, instead.
- * 5. The protocol's handshake runs in an empty temp folder (`runHandshake`, wired in main).
+ * 5. The protocol's handshake runs in an empty temp folder (`runHandshake`, wired in main). It is the only
+ *    thing run: the version and agent name are what the handshake reported, never a `--version` run.
  * 6. The row is written: `cu_` and a ULID, kind and `connected_via` `custom`, the arguments, the version
- *    the handshake reported. An edit never changes the protocol, and fails `not_found` if the agent was
- *    removed meanwhile. The name is checked again in the same synchronous step that writes it.
+ *    and agent name the handshake reported. An edit never changes the protocol, and fails `not_found` if
+ *    the agent was removed meanwhile. The name is checked again in the same synchronous step that writes it.
  *
  * Two adds or edits that would end with the same name are not run side by side: the second is refused
  * with `conflict` while the first is open, as is a second edit of the same agent.
@@ -38,7 +39,7 @@ import type {
   CustomAgentUpdate
 } from '../../shared/desktop/api'
 import { withFolder, type AgentLaunchSpec } from '../agents/launchSpec'
-import { HANDSHAKE_TIMEOUT_MS, type HandshakeOutcome } from '../agents/protocolHandshake'
+import { HANDSHAKE_TIMEOUT_MS, type HandshakeOutcome, type ReportedVersion } from '../agents/protocolHandshake'
 import { planCliLaunch, windowsProgramKind, type AgentProbeDeps } from './agentProbe'
 import type { AgentRegistry } from './agentRegistry'
 
@@ -181,7 +182,7 @@ function launchRefusal(confirmation: CustomAgentConfirmation, launch: CustomAgen
   return 'ok' in plan ? refused(plan.code, plan.reason) : null
 }
 
-type Store = (version: string | null) => AgentView
+type Store = (reported: ReportedVersion) => AgentView
 
 /** Launch rules, the confirmation and the handshake; `store` runs only once all of them said yes. */
 async function confirmAndStore(deps: CustomAgentDeps, confirmation: CustomAgentConfirmation, store: Store): Promise<AgentFindResult> {
@@ -194,7 +195,7 @@ async function confirmAndStore(deps: CustomAgentDeps, confirmation: CustomAgentC
   }
   const { name, protocol, executablePath, args } = confirmation
   const outcome = await deps.handshake({ kind: 'custom', displayName: name, protocol, executablePath, args: [...args] })
-  return outcome.ok ? { outcome: 'connected', agent: store(outcome.version) } : refused(outcome.code, outcome.reason)
+  return outcome.ok ? { outcome: 'connected', agent: store(outcome) } : refused(outcome.code, outcome.reason)
 }
 
 /** Runs `work` holding `keys`; a key already held is refused with `conflict`, and every key is let go afterwards. */
@@ -218,10 +219,10 @@ async function addAgent(deps: CustomAgentDeps, held: Set<string>, input: unknown
     if (executablePath === null) {
       return CANCELLED
     }
-    return confirmAndStore(deps, { action: 'add', name, protocol, executablePath, args }, (version) => {
+    return confirmAndStore(deps, { action: 'add', name, protocol, executablePath, args }, ({ version, reportedName }) => {
       assertNameFree(deps.agents, name, null)
       const id = deps.newId?.() ?? `cu_${newUlid()}`
-      return deps.agents.addCustom({ id, protocol, displayName: name, executablePath, args, version })
+      return deps.agents.addCustom({ id, protocol, displayName: name, executablePath, args, version, reportedName })
     })
   })
 }
@@ -244,9 +245,9 @@ async function updateAgent(deps: CustomAgentDeps, held: Set<string>, input: unkn
       return CANCELLED
     }
     const confirmation: CustomAgentConfirmation = { action: 'edit', name, protocol: existing.protocol, executablePath, args }
-    return confirmAndStore(deps, confirmation, (version) => {
+    return confirmAndStore(deps, confirmation, ({ version, reportedName }) => {
       assertNameFree(deps.agents, name, id)
-      const updated = deps.agents.updateCustom(id, { displayName: name, executablePath, args, version })
+      const updated = deps.agents.updateCustom(id, { displayName: name, executablePath, args, version, reportedName })
       if (updated === null) {
         throw new DomainError('not_found', `The custom CLI ${JSON.stringify(name)} was removed while it was being edited; nothing was saved.`)
       }
@@ -317,16 +318,20 @@ export function customAgentDialogOptions(confirmation: CustomAgentConfirmation):
 /** The shape of the native open dialog for a custom CLI's program (assignable to Electron's options). */
 interface ExecutableDialogOptions {
   title: string
-  properties: ('openFile' | 'showHiddenFiles')[]
+  properties: ('openFile' | 'showHiddenFiles' | 'noResolveAliases')[]
   filters: { name: string; extensions: string[] }[]
 }
 
-/** Files only, hidden folders such as `~/.local/bin` reachable; Windows lists its programs first. */
+/**
+ * Files only, hidden folders such as `~/.local/bin` reachable; Windows lists its programs first.
+ * Links are kept as picked (`noResolveAliases`, macOS): `~/.local/bin/claude` is stored, not the
+ * versioned file it points to today, so an update that replaces the target keeps the CLI working.
+ */
 export function customExecutableDialogOptions(platform: string): ExecutableDialogOptions {
   const all = { name: 'All files', extensions: ['*'] }
   return {
     title: 'Choose the program of the custom CLI',
-    properties: ['openFile', 'showHiddenFiles'],
+    properties: ['openFile', 'showHiddenFiles', 'noResolveAliases'],
     filters: platform === 'win32' ? [{ name: 'Programs', extensions: ['exe', 'cmd'] }, all] : [all]
   }
 }

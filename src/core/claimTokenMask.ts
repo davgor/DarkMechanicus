@@ -103,3 +103,15 @@ export function createStreamMasker(): StreamMasker {
     }
   }
 }
+
+/** A whole token only: an attempt id, its dot, and 16 or more secret characters. */
+const WHOLE_CLAIM_TOKEN = new RegExp(`${TOKEN_START}${OWN_SECRET_CHAR}{16,}`, 'g')
+
+/**
+ * Masks whole claim tokens only, for text that is stored as it was given and never cut: there a
+ * token cannot have been cut short, so an attempt id at the end of a text (`Retry of at_<id>.`,
+ * `docs/at_<id>.json`) is an id, and is kept.
+ */
+export function maskWholeClaimTokens(text: string): string {
+  return text.replace(WHOLE_CLAIM_TOKEN, CLAIM_TOKEN_MASK)
+}

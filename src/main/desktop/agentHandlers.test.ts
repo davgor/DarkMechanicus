@@ -113,6 +113,7 @@ describe('findAgent connects a verified pick', () => {
       args: [],
       executablePath: '/home/me/.local/bin/claude',
       version: '2.1.281',
+      reportedName: null,
       connectedVia: 'found',
       connectedAt: '2026-01-01T00:00:00.000Z',
       lastProbed: '2026-01-01T00:00:00.000Z'
@@ -252,7 +253,8 @@ describe('custom agents', () => {
       displayName: 'My agent',
       executablePath: '/opt/mine',
       args: ['{folder}'],
-      version: null
+      version: null,
+      reportedName: null
     })
     defaults.set('/repos/a', agent.id)
 

@@ -54,9 +54,9 @@ const CODEX = {
   lastProbed: '2025-06-02T10:00:00.000Z'
 }
 
-/** What the registry lists for an imported entry: its id, protocol, display name and (no) arguments follow from its kind. */
-const CLAUDE_VIEW = { ...CLAUDE, id: 'claude', protocol: 'claude', displayName: 'Claude Code', args: [] }
-const CODEX_VIEW = { ...CODEX, id: 'codex', protocol: 'codex', displayName: 'Codex', args: [] }
+/** What the registry lists for an imported entry: its id, protocol, display name, (no) arguments and (no) reported name follow from its kind. */
+const CLAUDE_VIEW = { ...CLAUDE, id: 'claude', protocol: 'claude', displayName: 'Claude Code', args: [], reportedName: null }
+const CODEX_VIEW = { ...CODEX, id: 'codex', protocol: 'codex', displayName: 'Codex', args: [], reportedName: null }
 
 const legacyFile = (agents: unknown[]): string => JSON.stringify({ version: 1, agents })
 

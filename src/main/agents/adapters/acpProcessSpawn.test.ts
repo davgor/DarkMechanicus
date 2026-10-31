@@ -172,6 +172,18 @@ describe('nodeTransport: stopping the process', () => {
   })
 })
 
+describe('nodeTransport: a process that exits on its own', () => {
+  it('has the shared tree killer end what the process left in its group as soon as it exits', () => {
+    const child = new FakeChild(4242)
+    open(child)
+
+    child.emit('exit', 3, null)
+
+    expect(killProcessTree).toHaveBeenCalledTimes(1)
+    expect(killProcessTree).toHaveBeenCalledWith(child)
+  })
+})
+
 describe('nodeTransport: writing', () => {
   it('writes each message as one line while stdin is open and nothing after it is closed', () => {
     const child = new FakeChild()

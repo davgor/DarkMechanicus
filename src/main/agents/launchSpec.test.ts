@@ -54,6 +54,7 @@ function row(overrides: Partial<AgentView>): AgentView {
     executablePath: '/bin/codex',
     args: [],
     version: null,
+    reportedName: null,
     connectedVia: 'found',
     connectedAt: 'then',
     lastProbed: 'then',

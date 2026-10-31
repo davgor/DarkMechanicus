@@ -2,8 +2,9 @@ import type { ChildProcess } from 'node:child_process'
 import { mkdtempSync, realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { createEventLog } from '../../../test/eventLog'
+import { goneWithin } from '../../../test/goneWithin'
 import { removeScratch } from '../../../test/removeScratch'
 import type { ProbeLaunch } from '../../desktop/agentProbe'
 import { endAgentTree, nodeTransport } from './acpProcess'
@@ -13,8 +14,9 @@ vi.mock('../../logger', () => ({ logger: { warn: vi.fn(), error: vi.fn(), info: 
 
 /**
  * These tests start and kill real processes. They wait on what the process does (a line, its close, the end of a
- * tree kill), never on a timer, a poll or a retry, so a slow start or kill only makes a test slower. The long limit
- * is for a Windows start or kill that stalls under load; a hang still fails once it passes.
+ * tree kill), never on a timer, a poll or a retry, so a slow start or kill only makes a test slower; the one poll is
+ * `goneWithin`, for a process that holds no pipe of ours. The long limit is for a Windows start or kill that stalls
+ * under load; a hang still fails once it passes.
  */
 vi.setConfig({ testTimeout: 60_000 })
 
@@ -60,6 +62,19 @@ function alive(pid: number): boolean {
     return false
   }
 }
+
+/** Pids a test learned of but did not start itself, ended by their own pid so a failed assertion leaves none running. */
+const leftover: number[] = []
+
+afterEach(() => {
+  for (const pid of leftover.splice(0)) {
+    try {
+      process.kill(pid)
+    } catch {
+      // Already gone, which is what the tests want.
+    }
+  }
+})
 
 let scratch = ''
 
@@ -168,6 +183,22 @@ describe('nodeTransport: how the process ended', () => {
     await handle.kill()
     await heard.whenClosed()
     expect(heard.closed[0]).toBe('signal SIGKILL')
+  })
+})
+
+describe.skipIf(process.platform === 'win32')('nodeTransport: what a program leaves behind (process groups)', () => {
+  it('ends a child the program started in the background with its pipes closed, once the program exits', async () => {
+    const launch: ProbeLaunch = { file: '/bin/sh', args: ['-c', 'sleep 600 </dev/null >/dev/null 2>&1 & echo $!; exit 3'], verbatimArguments: false }
+    const { heard, handle } = open(launch, scratch)
+    await heard.linesHeard(1)
+    const grandchild = Number(heard.lines[0])
+    leftover.push(grandchild)
+
+    await heard.whenClosed()
+
+    expect(heard.closed[0]).toBe('exit code 3')
+    expect(await goneWithin(grandchild)).toBe(true)
+    await expect(handle.kill()).resolves.toBeUndefined()
   })
 })
 

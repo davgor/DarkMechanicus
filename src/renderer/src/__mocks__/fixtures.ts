@@ -205,6 +205,7 @@ export function agentView(patch: Partial<AgentView> = {}): AgentView {
     executablePath: '/usr/local/bin/claude',
     args: [],
     version: '2.1.4',
+    reportedName: null,
     connectedVia: 'found',
     connectedAt: '2026-02-03T10:00:00.000Z',
     lastProbed: '2026-02-03T10:00:00.000Z',

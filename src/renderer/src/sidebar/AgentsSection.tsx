@@ -1,5 +1,5 @@
 import type { AgentAuthStatus, AgentId, AgentView } from '../../../shared/desktop/api'
-import { signInLabel } from '../agents/agentText'
+import { agentVersionLabel, signInLabel } from '../agents/agentText'
 import { SignInOffer } from '../agents/SignInPrompt'
 import type { AgentStatuses } from '../agents/useAgents'
 import { Button } from '../components/Button'
@@ -40,7 +40,7 @@ function AgentRow({ agent, statuses, selected, onSelect, onStatus }: AgentRowPro
         <span className="agent-text">
           <span className="agent-name">{agent.displayName}</span>
           <span className="agent-meta">
-            <span className="mono">{agent.version === null ? 'Version unknown' : `v${agent.version}`}</span>
+            <span className="mono">{agentVersionLabel(agent)}</span>
             <span className={`agent-state tone-${state.tone}`}>
               <span className="agent-state-dot" aria-hidden="true" />
               {state.text}

@@ -16,8 +16,13 @@ const outcome = (tone: AgentOutcome['tone'], title: string, detail: string | nul
   output
 })
 
-const withVersion = (verb: string, name: string, agent: AgentView): string =>
-  agent.version === null ? `${verb} ${name}` : `${verb} ${name} ${agent.version}`
+/** A built-in's version follows its name; a custom CLI's is labelled with the agent name its handshake reported. */
+function withVersion(verb: string, name: string, agent: AgentView): string {
+  if (agent.version === null) {
+    return `${verb} ${name}`
+  }
+  return agent.reportedName === null ? `${verb} ${name} ${agent.version}` : `${verb} ${name} (${agent.reportedName} ${agent.version})`
+}
 
 /** Null when the person closed the file dialog: nothing happened, so there is nothing to say. */
 export function findOutcome(name: string, result: AgentFindResult): AgentOutcome | null {

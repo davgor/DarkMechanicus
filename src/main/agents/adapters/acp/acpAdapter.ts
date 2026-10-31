@@ -20,7 +20,8 @@
  *
  * Sign-in. A login the agent rejects is reported as one `auth_required` item and the turn ends cleanly,
  * with the process killed so none runs on the old login: an error answer for `authenticate`,
- * `session/new`, `session/load` or `session/prompt` (see `acpAuth.ts`), or a turn whose whole answer is
+ * `session/new`, `session/load` or `session/prompt` (see `acpAuth.ts`), an error the flavor reads as a
+ * missing login (Autonomous: a process that stops at launch saying so), or a turn whose whole answer is
  * the flavor's sign-in sentence. A refusal while the chat is being started is held until the first
  * message, which starts a new process and tries again.
  *
@@ -42,9 +43,10 @@ import { planCliLaunch, type AgentProbeDeps, type ProcessRunner } from '../../..
 import { inspectExecutable, runProcess } from '../../../desktop/agentProbeNode'
 import type { ChatAdapterDefinition } from '../../adapterRegistry'
 import { withFolder, type AgentLaunchSpec } from '../../launchSpec'
+import type { HandshakeFolders } from '../../protocolHandshake'
 import type { TransportFactory } from '../acpClient'
 import { nodeTransport } from '../acpProcess'
-import { isAuthRequired } from './acpAuth'
+import { signInRefusal, type SignedOutReader } from './acpAuth'
 import { AcpSession, type SessionFlavor } from './acpSession'
 
 /** Everything the adapter needs from the outside, so tests can run it against recordings. */
@@ -58,6 +60,8 @@ export interface AcpDeps extends Pick<AgentProbeDeps, 'platform' | 'inspect' | '
   /** How long the agent may take to end a cancelled turn before its process is killed. */
   cancelGraceMs: number
   clientVersion: string
+  /** Where a flavor's short-lived processes run (Autonomous's model listing); defaults to fresh system temp subfolders. */
+  tempFolders?: HandshakeFolders
 }
 
 /** What sets one ACP agent apart from another. */
@@ -74,6 +78,8 @@ export interface AcpFlavor extends SessionFlavor {
   switchModel: 'relaunch' | 'config_option' | 'none'
   /** True when a turn's whole answer is the sentence the agent gives instead of an error once its login went stale. */
   isSignInPrompt?(text: string): boolean
+  /** Reads an error the agent words its own way (such as a process that stops at launch) for a missing login. */
+  readSignedOut?: SignedOutReader
 }
 
 type ResetReason = Extract<ChatItem, { kind: 'context_reset' }>['reason']
@@ -126,7 +132,7 @@ class AcpAdapter implements ChatAdapter {
       await this.connect(options, 'session_lost')
     } catch (error) {
       // A login the agent refuses is reported by the first message, which tries again; the process is already gone.
-      if (!isAuthRequired(error)) {
+      if (signInRefusal(error, this.flavor.readSignedOut) === null) {
         throw error
       }
     }
@@ -219,12 +225,13 @@ class AcpAdapter implements ChatAdapter {
     }
   }
 
-  /** Reports an error answer that says the login is gone as the turn's end; false for any other error. */
+  /** Reports an error that says the login is gone as the turn's end; false for any other error. */
   private reportRefusal(error: unknown): boolean {
-    if (!isAuthRequired(error)) {
+    const message = signInRefusal(error, this.flavor.readSignedOut)
+    if (message === null) {
       return false
     }
-    this.reportSignedOut(error.message)
+    this.reportSignedOut(message)
     return true
   }
 

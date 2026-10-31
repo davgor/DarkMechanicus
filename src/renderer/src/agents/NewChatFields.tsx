@@ -4,7 +4,7 @@ import type { ChatRole } from '../../../shared/agents/chat'
 import { AGENT_DEFINITIONS, AGENT_KINDS } from '../../../shared/desktop/agentKinds'
 import type { AgentAuthStatus, AgentId, AgentView } from '../../../shared/desktop/api'
 import { Button } from '../components/Button'
-import { agentName, signInLabel } from './agentText'
+import { agentName, agentVersionLabel, signInLabel } from './agentText'
 import { ROLE_LABELS } from './chatList'
 import { SignInOffer } from './SignInPrompt'
 import type { ModelsState } from './useAgentModels'
@@ -104,7 +104,7 @@ export function AgentChoice(props: AgentChoiceProps): JSX.Element {
               onChange={() => props.onChange(agent.id)}
             />
             <span>{agent.displayName}</span>
-            {agent.version === null ? null : <span className="field-hint mono">{`v${agent.version}`}</span>}
+            <span className="field-hint mono">{agentVersionLabel(agent)}</span>
           </label>
         ))
       )}

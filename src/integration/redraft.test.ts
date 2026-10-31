@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { Workspace } from '../core/workspace'
 import type { RedraftResultView, SprintReportView } from '../shared/domain/views'
 import { dropAcceptanceNodes } from '../test/acceptanceNodes'
+import { issued } from '../test/execution'
 import { createHarness, type Harness } from '../test/workspaceHarness'
 
 interface Planned {
@@ -50,13 +51,13 @@ async function planSprint(agent: Workspace): Promise<Planned> {
 }
 
 async function acceptTicket(agent: Workspace, run: Started, ticketId: string): Promise<void> {
-  const claim = await agent.claimTicket({ runId: run.runId, ticketId, worker: { label: 'Claude Code' } })
+  const claim = issued(await agent.claimTicket({ runId: run.runId, ticketId, worker: { label: 'Claude Code' } }))
   await agent.submitAttempt({ attemptId: claim.attempt.id, claimToken: claim.packet.claimToken, outputs: { summary: 'Done.' } })
   await agent.acceptAttempt({ attemptId: claim.attempt.id })
 }
 
 async function failTicket(agent: Workspace, run: Started, ticketId: string): Promise<void> {
-  const claim = await agent.claimTicket({ runId: run.runId, ticketId, worker: { label: 'Claude Code' } })
+  const claim = issued(await agent.claimTicket({ runId: run.runId, ticketId, worker: { label: 'Claude Code' } }))
   await agent.failAttempt({ attemptId: claim.attempt.id, claimToken: claim.packet.claimToken, failure: { reason: 'The signing identity is missing' } })
 }
 

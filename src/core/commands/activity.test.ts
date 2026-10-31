@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { issued } from '../../test/execution'
 import { createHarness, type Harness } from '../../test/workspaceHarness'
 import type { Workspace } from '../workspace'
 
@@ -17,11 +18,13 @@ async function startedAttempt(orchestrator: Workspace): Promise<Started> {
   })
   await orchestrator.savePlan({ epicId: epic.id, expectedDraftRevision: draft.draftRevision })
   const run = await orchestrator.startRun({ epicId: epic.id })
-  const claimed = await orchestrator.claimTicket({
-    runId: run.id,
-    ticketId: draft.refMap['one'] ?? '',
-    worker: { label: 'impl-1' }
-  })
+  const claimed = issued(
+    await orchestrator.claimTicket({
+      runId: run.id,
+      ticketId: draft.refMap['one'] ?? '',
+      worker: { label: 'impl-1' }
+    })
+  )
   return { runId: run.id, attemptId: claimed.attempt.id, claimToken: claimed.packet.claimToken }
 }
 

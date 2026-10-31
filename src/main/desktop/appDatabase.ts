@@ -28,8 +28,20 @@ CREATE TABLE app_meta (
 );
 `
 
+/**
+ * v2 stores the agent name a custom CLI's handshake reported with its version (`reported_name`), so it is
+ * shown as "<name> <version>". NULL for every built-in row, and for every custom row written before this
+ * version, which keeps its version and shows it alone until an edit runs the handshake again.
+ */
+const V2 = `
+ALTER TABLE agents ADD COLUMN reported_name TEXT;
+`
+
 /** Schema of the app-wide database in user data. Separate from the per-folder `MIGRATIONS`. */
-export const APP_MIGRATIONS: Migration[] = [{ version: 1, sql: V1 }]
+export const APP_MIGRATIONS: Migration[] = [
+  { version: 1, sql: V1 },
+  { version: 2, sql: V2 }
+]
 
 /**
  * Opens `<userDataDir>/app.sqlite` and brings it to the latest app schema. A file written by a
