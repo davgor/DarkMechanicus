@@ -2135,23 +2135,182 @@
     },
     {
       "createdAt": "2026-10-31T16:04:39.586Z",
-      "decidedAt": null,
-      "decision": null,
-      "evidence": null,
+      "decidedAt": "2026-10-31T16:51:57.604Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Integration follow-up handled by the orchestrator at merge: conflicts with DM-325 (App.tsx, App.chats.test.tsx and two more) and deadcode findings (checkFile leftover export; local-only exported types from DM-321 and DM-327). Reviewer notes: 1) Dead export: src/main/desktop/agentProbe.ts:169 `checkFile` lost its only outside caller (planSignIn); remove its `export` before the sprint deadcode gate. LoginAgent and LoginTerminalsDeps (loginTerminals.ts:36,54), TerminalLoginSpec (terminalLaunchSpec.ts:362) and SignInTerminalModel (useSignInTerminal.ts:33) are new types exported but used only in their own file; un-export them or add them to the baseline. deadcode already fails on terminal-chats-sprint-1 because of DM-321's MemoryHookAnswer, ClaudeSettingsPaths and ClaudeSettingsOptions, so the checkpoint needs a refresh anyway. 2) Merge into terminal-chats-sprint-1 has 4 mechanical conflicts: App.tsx (imports and Shell: keep DM-325's startNewChat via ShellSidebar onNewChat plus SignInContext/SignInView/main-view, drop NewChatHost, newChatIn and the NewChatDialog import), App.chats.test.tsx (drop DM-327's new-chat dialog blocks and the then-unused FakeTerminals import), docs/architecture.md (keep both sides' rows), and NewChatDialog.test.tsx (deleted on the sprint branch, modified here: delete it). A scratch resolution passed typecheck and lint, and 1345 of 1346 tests across 104 files passed; the one failure was ptyHelperCheck.test.ts, caused by the scratch copy's symlinked node_modules, untouched by either branch. 3) Screenshot DM-327-01 shows the abandoned OAuth authorize URL, including the person's orgUUID and the flow's state/code_challenge. These are not credentials, but consider cropping it if the repo is shared. 4) docs/design/chat-shells.md line 27 still describes the osascript launch as today's behaviour; it is design-doc history. 5) Windows login specs are unit-tested only. 6) The worker flagged a likely overlap with DM-328 in terminalSessions.ts (startLive/wireLive) and bootstrap.ts.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npx vitest run src/main src/preload src/shared src/renderer src/test: 4779 passed, 7 skipped, 0 failed (final run after the lint refactor)",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint src scripts reported no errors (the subagent reported exit 0)",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "node, web and fireguard tsconfigs: exit 0",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "built for the live check; the scratch app ran with --user-data-dir /tmp/dm327-live/userdata (scratch registry copied from the DM-326 live dir) and was driven over CDP on port 9357",
+            "name": "npm run build",
+            "status": "passed"
+          },
+          {
+            "detail": "with the stopMessage guard on the orchestrator-exit pause removed, terminalSessions.signedOut.test.ts failed 4 of 10 tests (quit, idle, delete, folder); the file was then restored",
+            "name": "mutation check",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run coverage",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "TerminalPane.tsx: when the phase is signed_out it shows SignInCard instead of starting. Its Sign in runs SignInTerminal in the pane, through window.dm.terminals.signIn(agentId) and main's sign-in terminals. A signed-in status calls startAgain and the chat starts. Tests in TerminalPane.test.tsx: the card is shown and no sign-in starts by itself; the login runs in the pane naming only the agent; signed in re-attaches and shows Running; still signed out starts nothing and offers Sign in again. Main side: terminalHandlers.signIn.test.ts checks /bin/claude with ['auth','login'], cwd = home, no DM_SESSION_TOKEN and grantsAsked 0. terminalLoginSpec.test.ts strips DM_SESSION_TOKEN and dm_session_token, ELECTRON_* and NODE_OPTIONS. Mutating the scrub failed 2 tests. Screenshot DM-327-01 shows 'Sign in to Claude Code' in app-main with Back and claude auth login running in the window."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "SignInPrompt now only calls SignInContext's openSignIn. App.tsx provides it and renders SignInView in app-main with Back, keeping the screen underneath (and any dialog) hidden. Navigating away closes it. Every SignInPrompt/SignInOffer user goes through it: agent page, add-agent pane, run bar, Agents section, new-chat fields, Start run dialog, and the adapter SignedOutCard. App.signIn.test.tsx covers opening from the agent page, Back returning to the page and closing the terminal, closing on navigation, and the signed-in status shown everywhere. The migrated tests cover each surface. planSignIn (macOS osascript, Windows /k console, Linux), agentAuthNode.ts and their tests are deleted, along with shimLaunch's keepOpen option. A search of src for osascript, planSignIn, signInAgent, keepOpen and agentAuthNode finds nothing. Live screenshots DM-327-01 and -02 show the view and Back with Claude Code still signed in."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "terminalSessions.ts wireLive: an exit with stopMessage === null runs pauseIfSignedOut. It returns early for a chat with no runId or a custom CLI. Only status 'signed_out', with the manager not closing, pauses a running or paused run with reason signed_out, through the same desktopWorkspace runs object the session manager uses (core's desktop-only run.pause_signed_out). Every stop main makes (idle, folder, delete, endAgent, quit) sets stopMessage first. terminalSessions.signedOut.test.ts has 10 tests: running/paused pause; ordinary /exit, unknown status and a completed run pause nothing; a worker chat or custom CLI is not checked; quit, idle stop, deleted chat and folder stop run no check. Mutations: removing the status condition failed 2 tests, removing the self-exit guard failed 4."
+          }
+        ],
+        "notes": "Limits and risks: (1) A chat-card sign-in checks the status twice (once in the view, once on the chat re-attach), so a8s doctor can take about 24 s; this keeps the sidebar status current. (2) Back stops the login, so a browser flow half-finished when Back is pressed is lost (intended). (3) The live check ran the person's real `claude auth login`, which printed an OAuth URL and may have opened a browser page; nothing was completed, no login process was left after Back, and the agent page and sidebar still showed Signed in. (4) Possible merge overlap with DM-328, which also edits terminalSessions.ts (startLive) and bootstrap.ts; lint splitting moved startLive's PTY data/exit wiring into a new wireLive. (5) Windows login specs are tested only. Discoveries: none."
+      },
       "failure": null,
       "fencingToken": 1,
       "id": "at_01m69b9e12wwvjsqa10wnss1pc",
       "kind": "work",
       "number": 1,
-      "outputs": null,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Live: in-window sign-in view opened from the agent page (claude auth login running in the app's window, Back control)",
+            "location": "docs/verification/DM-327-01-in-window-sign-in-from-agent-page.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Live: after Back, the agent page again and Claude Code still signed in",
+            "location": "docs/verification/DM-327-02-back-to-agent-page.png",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "terminal-chats-DM-327",
+        "changedFiles": [
+          "docs/architecture.md",
+          "docs/runbooks/agents.md",
+          "docs/verification/DM-327-01-in-window-sign-in-from-agent-page.png",
+          "docs/verification/DM-327-02-back-to-agent-page.png",
+          "src/main/agents/shimLaunch.ts",
+          "src/main/agents/shimLaunch.test.ts",
+          "src/main/agents/signInHooks.test.ts",
+          "src/main/desktop/agentAuth.ts",
+          "src/main/desktop/agentAuth.test.ts",
+          "src/main/desktop/agentAuthNode.ts",
+          "src/main/desktop/agentAuthNode.test.ts",
+          "src/main/desktop/bootstrap.ts",
+          "src/main/desktop/handlers.test.ts",
+          "src/main/desktop/ipc.ts",
+          "src/main/desktop/ipc.test.ts",
+          "src/main/terminals/__mocks__/terminalHandlersRig.ts",
+          "src/main/terminals/__mocks__/terminalSessionsRig.ts",
+          "src/main/terminals/loginTerminals.ts",
+          "src/main/terminals/loginTerminals.test.ts",
+          "src/main/terminals/terminalEnv.ts",
+          "src/main/terminals/terminalHandlers.ts",
+          "src/main/terminals/terminalHandlers.test.ts",
+          "src/main/terminals/terminalHandlers.signIn.test.ts",
+          "src/main/terminals/terminalLaunchSpec.ts",
+          "src/main/terminals/terminalLoginSpec.test.ts",
+          "src/main/terminals/terminalSessions.ts",
+          "src/main/terminals/terminalSessions.signedOut.test.ts",
+          "src/preload/index.ts",
+          "src/preload/terminals.ts",
+          "src/preload/terminals.test.ts",
+          "src/shared/agents/terminalApi.ts",
+          "src/shared/desktop/api.ts",
+          "src/test/idleAgents.ts",
+          "src/renderer/src/App.tsx",
+          "src/renderer/src/App.signIn.test.tsx",
+          "src/renderer/src/App.chats.test.tsx",
+          "src/renderer/src/styles.css",
+          "src/renderer/src/agents/signInContext.ts",
+          "src/renderer/src/agents/SignInPrompt.tsx",
+          "src/renderer/src/agents/SignInPrompt.test.tsx",
+          "src/renderer/src/agents/SignInTerminal.tsx",
+          "src/renderer/src/agents/SignInView.tsx",
+          "src/renderer/src/agents/SignInView.test.tsx",
+          "src/renderer/src/agents/useSignInTerminal.ts",
+          "src/renderer/src/agents/TerminalPane.tsx",
+          "src/renderer/src/agents/TerminalPane.test.tsx",
+          "src/renderer/src/agents/terminalPane.css",
+          "src/renderer/src/agents/useTerminal.ts",
+          "src/renderer/src/agents/agentOutcomes.ts",
+          "src/renderer/src/agents/agentOutcomes.test.ts",
+          "src/renderer/src/agents/AgentPage.test.tsx",
+          "src/renderer/src/agents/AddAgentPane.test.tsx",
+          "src/renderer/src/agents/NewChatDialog.test.tsx",
+          "src/renderer/src/agents/ChatView.signIn.test.tsx",
+          "src/renderer/src/sidebar/AgentsSection.test.tsx",
+          "src/renderer/src/epic/StartRunDialog.test.tsx",
+          "src/renderer/src/epic/EpicWorkspace.signedOut.test.tsx",
+          "src/renderer/src/epic/EpicWorkspace.startRun.test.tsx",
+          "src/renderer/src/epic/__mocks__/fakeBackend.ts",
+          "src/renderer/src/epic/__mocks__/renderWorkspace.tsx",
+          "src/renderer/src/__mocks__/fakeDm.ts",
+          "src/renderer/src/__mocks__/fakeTerminals.ts",
+          "src/renderer/src/__mocks__/idleTerminals.ts",
+          "src/renderer/src/__mocks__/signInRecorder.tsx",
+          "src/renderer/src/__mocks__/chatViewKit.tsx"
+        ],
+        "commits": [
+          "296b6d7f015806de41f4367c2e523b6e4f468f5d",
+          "1176d182408d457b6a2ac57c2f3d2e7690557851"
+        ],
+        "summary": "The CLI's own login now runs in a PTY in the app's window. Main: agents:signIn is registered beside terminals:attach through the same sender guard and port model. It takes only an agent id; main reads the registered executable and runs it with LOGIN_ARGS in the home folder, with the scrubbed environment (terminalLoginEnv strips DM_SESSION_TOKEN in any case), no grant and no instructions (terminalLoginSpec, loginTerminals.ts). There is one login per agent, shared by every view; it stops when the last port closes (Back), when the agent is removed (endAgentSessions), and at quit (bootstrap quit busy/dispose). Removed: the osascript, Windows-console and Linux terminal launches, agentAuthNode.ts, their tests, shimLaunch keepOpen/'/k', and window.dm.signInAgent/AgentSignInResult. signInFlags.ts and signInHooks.ts are kept; signInHooks now has only checkAuth. terminalSessions: when an orchestrator chat's CLI exits on its own (stopMessage null), main runs the status command; only signed_out pauses a running or paused run via the desktop session with reason signed_out. Quit, idle stop, deleted chat, folder stop and agent removal set the stop message first, so they pause nothing. Renderer: SignInPrompt opens SignInView in app-main through SignInContext; the previous screen and any dialog stay mounted but hidden, and the view closes on Back or on navigation. When the login ends, the view checks agents:status once and shows signed in, or the status reason with Sign in again. TerminalPane shows a sign-in card on signed_out; its button runs SignInTerminal in the pane, and a signed-in status calls startAgain. The 3-second polling is gone. Docs: architecture.md and runbooks/agents.md. A subagent migrated 10 existing renderer tests to the new flow and split functions for lint (wireLive, pauseRunIfActive, PhaseNotice/Ended, ShellSidebar, useSignInTerminal helpers). Merge note: DM-328 also edits startLive in terminalSessions.ts and bootstrap.ts."
+      },
       "reconciledAt": null,
       "revisionId": "rv_01m68tv9xwk534yz9ytfy3ntqx",
-      "state": "running",
-      "submittedAt": null,
+      "state": "accepted",
+      "submittedAt": "2026-10-31T16:40:05.000Z",
       "supersededAt": null,
       "ticketContentHash": "sha256:d3a6634995f9675fbe1aad05ed30349d792a9a6d0607b3db54e50d874e72bfff",
       "ticketId": "tk_01m68tv9x8y36qa2yn377asb8p",
-      "updatedAt": "2026-10-31T16:09:39.623Z",
+      "updatedAt": "2026-10-31T16:51:57.604Z",
       "worker": {
         "catalogRevision": "1",
         "effort": "medium",
@@ -2164,12 +2323,1011 @@
     },
     {
       "createdAt": "2026-10-31T16:06:33.044Z",
+      "decidedAt": "2026-10-31T17:11:00.849Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Merge conflicts with DM-321/DM-327 resolved by the orchestrator at integration per the reviewer notes. Reviewer notes: Merge with terminal-chats-sprint-1 (merge-tree 0b52156) conflicts in 4 files: terminalSessions.ts writeStartFiles (take the sprint's async version with agent and Claude settings, add orchestratesRun: chat.runId !== undefined to its writeTerminalFiles call); bootstrap.ts (DM-328's startChats with terminals plus the sprint's startTerminals with agents and logins); terminalSessionsRig.ts (keep the sprint's newOrchestrator, drop runChat, rewrite the 16 rig.runChat(...) calls in terminalSessions.kickoff.test.ts to rig.newOrchestrator('rn_2', ...)); architecture.md (sprint's rows plus DM-328's orchestratorStart row). With these resolutions, in scratch: typecheck and lint pass; targeted tests 59/60 files, 782/783 tests; the one failure (ptyHelperCheck) is a scratch artifact of the linked node_modules. Risks, none blocking: (1) Windows, a8s.exe: the guidance (skills alone 32,817 bytes) now goes on the command line through --append-system-prompt, over the 32,767-character limit, so an Autonomous Start run on Windows fails to spawn (fails closed: chat removed, run queued with a problem). The worker reported this; file a follow-up, for example pasting the instructions on win32 as the .cmd shim path does. (2) StartOptions and TerminalStart are exported from terminalSessions.ts but used only inside it; by my reading of scripts/deadcode-check.mjs, which strips ts-prune's '(used in module)' tag, npm run deadcode should report them at the sprint checkpoint. Drop the export or refresh the ignore file then. (3) Claude's kickoffSent is stored before the spawn: if the person answers 'No, exit' to folder trust, or the spawn fails and the chat can't be removed, the kickoff never reaches the CLI and later starts don't send it. This matches the design's first-start-only rule. (4) A CLI that never turns bracketed paste on is pasted nothing, its kickoff included (reported by the worker; Codex and Cursor are untested live). (5) Docs: architecture.md and the terminalSessions.ts header describe the paste as 'once the screen is quiet for a second' and leave out the wait for ESC[?2004h and the separate Enter.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npx vitest run src/main/terminals/ src/main/agents/{orchestratorKickoff,orchestratorStart,chatHandlers,chatHandlers.folder,chatIpc,sessionManager.folder,chatStore}.test.ts src/renderer/src/epic/ src/renderer/src/App.terminal.test.tsx: 53 files, 666 tests passed before the last fix; after it, src/main/terminals/ plus orchestratorStart: 20 files, 244 passed. The new tests failed before the implementation (40 red, then green).",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint src scripts: no errors (after the last change)",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "node, web and fireguard tsconfigs: no errors (after the last change)",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "built for the live check; electron-vite built",
+            "name": "npm run build",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run coverage",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "orchestratorStart.ts:83-109 queues the run, creates the chat (orchestrator, runId, allowSave off, 'Orchestrator · <epic>') and awaits TerminalSessions.start before answering; workspaceActions.ts reloads the chats then calls onOpenChat(chat.id). Tests: orchestratorStart.test.ts 'queues the run, creates the orchestrator chat with its run id, and starts its terminal before answering' (steps auth, grant:gr_1, spawn); EpicWorkspace.startRun.test.tsx 'opens the orchestrator chat…'; workspaceActions.test.ts asserts ['chats listed','opened chat_orch']. Removing onOpenChat turns 2 tests red. Screenshot DM-328-01 (opened): the orchestrator chat's terminal is RUNNING with Claude's folder-trust prompt."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "terminalFiles.ts appends orchestratorGuidance() when chat.runId is set; orchestratorStart.test.ts reads the real instructions file and checks it ends with the guidance (red under the orchestratesRun:false mutation). orchestratorKickoff.ts:46-56 is fixed text plus epic, branch, run and first step; tests check no claim token, the mask, one line per title and under 1,500 chars. kickoffSent is in chatRecordSchema and ChatPatch; it is stored with the grant before spawn for Claude ('args') and after the Enter for a paste; a resume and an attach never carry the kickoff. 'never sends it again' is red under the kickoffSent:false mutation; 'pastes nothing into a resumed Autonomous session' and the launch-spec routes test resumed => null for every kind."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Live: DM-328-02 shows Claude's first prompt is the kickoff and it runs dm get_capabilities. DM-328-03 (pre-fix build) shows one bracketed paste of the multi-line kickoff in a8s's input box; DM-328-04 (fixed build) shows the paste plus separate Enter submitted and a8s planning, asking approval for dm get_capabilities. Tests (terminalSessions.kickoff.test.ts): waits for ESC[?2004h even when split, then 1 s of quiet; Enter 500 ms later; one paste only; control characters stripped. The mutations removing the wait, the stripping, the separate Enter and the stop-cancel each turn tests red. Spawn failure: orchestratorStart.test.ts it.each (spawn fails, signed out, untracked folder) plus agent not connected: chat removed, run queued, problem names the reason, revoked grants equal issued; red when startTerminal ignores failures. Re-ran: 52 files / 637 tests passed, lint and typecheck exit 0."
+          }
+        ],
+        "notes": "Limits: Codex, Cursor and Windows .cmd paths are covered by tests only (not installed here). The wait for bracketed paste was observed live only for Autonomous; for Codex and Cursor it is inference. Live runs used the person's installed Claude Code and a8s against a scratch repo only, with DARKMECHANICUS_HOME=/tmp/dm328-live/dmhome and --user-data-dir=/tmp/dm328-live/userdata. All four scratch runs were cancelled (rn_01m69dj45e3t2372hetwcvv140, rn_01m69dmnpn71ee74qfccb5j4na, rn_01m69dyyp1w6beqxmwzvm59j37, rn_01m69e7v0nhywzmmy2rb19s7qv) and the app was quit; no dm328-live processes remained. Red-team: attacked paste injection (control characters, an early paste end; fixed by stripping), the kickoff repeating (stored gate tested), paste timing (the live runs found two defects, both fixed), spawn-failure removal, and renderer kickoff injection (none: only main's start passes a kickoff; the attach schema is unchanged). Rejected or not fixed: the items below.\nDiscoveries:\n- title: Keep Autonomous's orchestrator guidance under the Windows command-line limit\n  reason: The guidance is about 33 KB (skills/orchestrator.md plus skills/worker.md). Autonomous takes its instructions only as --append-system-prompt TEXT (no file form in a8s --help), so an a8s.exe Start run on Windows would build a command line over 32,767 characters and fail to spawn; it fails closed (chat removed, run queued with a problem). Only .cmd shims get the text by paste (terminalLaunchSpec.ts autonomousLaunch).\n  ticket: DM-328\n- title: Paste for CLIs that never turn bracketed paste on\n  reason: The first paste waits for ESC[?2004h, so a custom CLI (or any CLI) that never enables bracketed paste is pasted nothing, its kickoff included. This is safe, since no stray paste marks are typed, but silent; the pane could say so.\n  ticket: DM-328\n- title: Kickoff lost if the app quits between chat creation and the first spawn\n  reason: The kickoff is passed only through Start run's start() call, so if that start never runs (a quit while the sign-in check runs, up to 30 s), a later Start again sends no kickoff and kickoffSent stays unset.\n  ticket: DM-328"
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m69bcwtmyyd3frxn6ayt57tz",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Start run shows the Claude Code orchestrator terminal (folder-trust prompt)",
+            "location": "docs/verification/DM-328-01-start-run-shows-claude-terminal.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Claude Code received the kickoff as its initial prompt and ran dm get_capabilities",
+            "location": "docs/verification/DM-328-02-claude-kickoff-as-initial-prompt.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Autonomous: kickoff arrived as one bracketed paste (pre-fix build: the same-write Enter was ignored)",
+            "location": "docs/verification/DM-328-03-a8s-kickoff-one-bracketed-paste.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Autonomous with the fix: paste and separate Enter submitted, agent working and asking approval for dm get_capabilities",
+            "location": "docs/verification/DM-328-04-a8s-kickoff-pasted-and-submitted.png",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "terminal-chats-DM-328",
+        "changedFiles": [
+          "docs/architecture.md",
+          "docs/verification/DM-328-01-start-run-shows-claude-terminal.png",
+          "docs/verification/DM-328-02-claude-kickoff-as-initial-prompt.png",
+          "docs/verification/DM-328-03-a8s-kickoff-one-bracketed-paste.png",
+          "docs/verification/DM-328-04-a8s-kickoff-pasted-and-submitted.png",
+          "src/main/agents/chatHandlers.folder.test.ts",
+          "src/main/agents/chatHandlers.test.ts",
+          "src/main/agents/chatHandlers.ts",
+          "src/main/agents/chatIpc.test.ts",
+          "src/main/agents/chatStore.ts",
+          "src/main/agents/orchestratorKickoff.test.ts",
+          "src/main/agents/orchestratorKickoff.ts",
+          "src/main/agents/orchestratorStart.test.ts",
+          "src/main/agents/orchestratorStart.ts",
+          "src/main/agents/sessionManager.folder.test.ts",
+          "src/main/desktop/bootstrap.ts",
+          "src/main/terminals/__mocks__/terminalSessionsRig.ts",
+          "src/main/terminals/terminalFiles.test.ts",
+          "src/main/terminals/terminalFiles.ts",
+          "src/main/terminals/terminalLaunchSpec.test.ts",
+          "src/main/terminals/terminalLaunchSpec.ts",
+          "src/main/terminals/terminalSessions.kickoff.test.ts",
+          "src/main/terminals/terminalSessions.ts",
+          "src/renderer/src/App.tsx",
+          "src/renderer/src/epic/EpicWorkspace.startRun.test.tsx",
+          "src/renderer/src/epic/EpicWorkspace.tsx",
+          "src/renderer/src/epic/__mocks__/fakeOrchestration.ts",
+          "src/renderer/src/epic/orchestration.ts",
+          "src/renderer/src/epic/useWorkspace.ts",
+          "src/renderer/src/epic/workspaceActions.redraft.test.ts",
+          "src/renderer/src/epic/workspaceActions.test.ts",
+          "src/renderer/src/epic/workspaceActions.ts",
+          "src/shared/agents/chat.ts"
+        ],
+        "commits": [
+          "3b43f6e48610fdfd121af69e9c83a556a3ee755e",
+          "4b0ddab1e9ef03a680b3cca17bc03b6d9dd4a108"
+        ],
+        "summary": "Start run creates the orchestrator chat (runId, allowSave off, 'Orchestrator · <epic>') and starts its terminal via the new TerminalSessions.start(ref, { kickoff }) before answering; the renderer then reloads the chats and opens it, so the app shows its terminal. A start that does not run (folder refused, agent not connected or signed out, spawn failure) removes the chat and leaves the run queued with a problem; a CLI that starts and exits keeps its chat. The orchestrator/worker guidance (orchestratorGuidance()) moves into the instructions file of chats with a runId; the kickoff is fixed text plus the run lines (epic, branch, run id, first step), with no claim token. ChatRecord gains kickoffSent; the kickoff goes only on a first start. Claude gets it as its positional prompt (kickoffSent stored before the spawn); the launch spec reports kickoffIn (args|paste|null). The session manager now delivers pasteFirst for every CLI on a first start (the gap named in the assignment): it waits for the CLI to turn bracketed paste on, then for one second with no output, writes one bracketed paste with control characters other than tab stripped, and sends Enter 500 ms later as its own keypress; kickoffSent is stored when the Enter goes. The live runs found two defects, both fixed and tested: Autonomous ignored an Enter in the same write as the paste, and a paste sent while Autonomous was still starting (quiet for about 4 s before its input was live) was lost. Merge note: terminal-chats-sprint-1 has since taken DM-321 and DM-327; expect small conflicts in terminalSessions.ts writeStartFiles (added orchestratesRun) and possibly in bootstrap.ts and App.tsx."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m68tv9xwk534yz9ytfy3ntqx",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T16:58:42.621Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:c0b079b331716a2da5caecbc176dfa8820be7f36cd8ce0d2c0902cd9b855a470",
+      "ticketId": "tk_01m68tv9x8gd4hs117ksemxn2a",
+      "updatedAt": "2026-10-31T17:11:00.849Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "low",
+        "hostId": "omp-claude-code-darwin-arm64",
+        "label": "DM-328 worker (task subagent)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (anthropic/claude-opus-5-5, low). This host runs every worker as a task subagent of the session model and cannot set its effort per worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T16:40:18.068Z",
+      "decidedAt": "2026-10-31T17:16:10.795Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "c1, c2, c4 verified by the reviewer (screenshots DM-329-01..04, live OSPREY resume, read-only Earlier conversation mutation-checked, delete path).",
+        "outcome": "rejected",
+        "reasons": [
+          "c3 is not proven: replacing the grant match in src/main/agents/grantBindings.ts:81 with \"any chat of the folder\" leaves all 40 tests in grantBindings.test.ts, chatIpc.test.ts and terminalSessions.oldChats.test.ts green, because the store lists newest first and every fixture creates the matching chat last. Add fixtures where the matching chat is NOT the newest (and a non-matching chat with grantIds exists in the same folder), so linking to the wrong chat fails a test."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npx vitest run src/core/services/activity.test.ts src/main/agents/grantBindings.test.ts src/main/agents/chatIpc.test.ts src/main/agents/chatHandlers.test.ts src/main/agents/chatStore.test.ts src/main/terminals/terminalSessions* src/renderer/src/ticket src/renderer/src/epic/OrchestratorFeed* src/renderer/src/epic/orchestratorFeedView.test.ts src/renderer/src/app src/renderer/src/agents src/renderer/src/App*: 99 files, 1354 tests passed (after the final edits)",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint src scripts, exit 0",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "0 TS errors across node, web and fireguard configs",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "built for the live check only",
+            "name": "npm run build",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run coverage",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Tested: chatStore.test.ts 'chat store reads chats stored before terminals' (the exact record line from the old build); TerminalPane.earlier.test.tsx (opens as a terminal; Earlier conversation above it; read-only: no composer, no Answer group, approval shown cancelled, only chats.read called, transcript unchanged; hidden again; none for a chat without a transcript or when the read fails). Live: old profile from 022734c upgraded, screenshots DM-329-02 and DM-329-04; transcript md5 unchanged (DM-329-05)."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Live: ps shows claude … --model haiku --resume 42eb1ddb-3b32-4ca9-9352-918f157b9ad7 in the chat's folder; it answered OSPREY from the old exchange (DM-329-03, DM-329-05). CLI checked first with claude -p --resume --fork-session. Tested: terminalSessions.oldChats.test.ts (--resume when the SDK session file exists; --session-id when it is gone; New session after a refusal starts a new id); TerminalPane.earlier.test.tsx 'a resume the CLI could not continue' (the pane says so, and New session attaches with newSession: true)."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Tested: activity.test.ts 'timelines and the grants sessions ran on'; grantBindings.test.ts (claim and run-start binding, takeover on a later page, external takeover falls back, other folders not searched, after restart via a reopened store, old chats without grantIds skipped); chatIpc.test.ts 'the terminal bound by grant' (validation, untracked folder, claim token refused); ActivityTab.terminal.test.tsx and OrchestratorFeed.terminal.test.tsx (timeline plus Open terminal opening the chat; old Open chat binding still shown beside it; no link when none is bound). No live screenshot: the live run made no attempt or run."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Tested: terminalSessions.oldChats.test.ts 'deleting a chat' over the real adapter session manager, activity bindings and terminal sessions on one store: PTY tree killed before its exit (kills=1), grant gr_1 revoked, record and transcript gone (also on reopen), bindings gone (also on reopened bindings file), grant link null, attach refused; and a chat with no running terminal revokes nothing yet is removed."
+          }
+        ],
+        "notes": "Limits: the refused-resume notice shows for any non-zero exit of a resumed start, not only a refusal. Earlier conversation reads the whole transcript once per show of a chat. The 'transcript removed' check in the delete test goes through the store (file removal itself is covered by chatStoreDelete tests). kickoffSent is DM-328's field; old records lack it and the launch spec reads that as not sent. c3 was not exercised live. In terminalSessions.oldChats.test.ts the app() helper sits at module level, still indented as it was inside the describe. Process note: one edit with a relative path landed in the coordinating checkout's src/core/services/activity.test.ts; it was reverted with git apply -R straight away (that checkout's src is clean) and the patch applied in this worktree.\n\nDiscoveries:\n- title: Bind an orchestrator terminal chat to its run by its runId as well as by grant\n  reason: Start run creates the orchestrator chat with runId, but a run binds by grant only once that chat's session calls start_run. Until then the Orchestrator feed has no Open terminal link even though the chat is known (grantBindings.ts uses only timeline sessions).\n  ticket: DM-329\n- title: Detect a refused Claude resume precisely instead of by exit code\n  reason: useTerminal.ts treats any non-zero exit of a resumed start as possibly refused. Main already knows when an attach's own start exited before it answered (attachEnded in terminalSessions.ts); passing that to the renderer would make the notice exact.\n  ticket: DM-329"
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m69dapcmnxds0rjgxt9p10tz",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Old build (022734c): Claude chat with one exchange",
+            "location": "docs/verification/DM-329-01-old-build-chat-one-exchange.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "New build: old chat opens as a terminal with Earlier conversation, resuming",
+            "location": "docs/verification/DM-329-02-old-chat-opens-as-terminal-resuming.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "claude --resume continues the SDK session (answers OSPREY)",
+            "location": "docs/verification/DM-329-03-claude-resume-continues-sdk-session.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Earlier conversation open, read-only, above the terminal",
+            "location": "docs/verification/DM-329-04-earlier-conversation-read-only.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Live log",
+            "location": "docs/verification/DM-329-05-live-log.txt",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "terminal-chats-DM-329",
+        "changedFiles": [
+          "src/shared/domain/activity.ts",
+          "src/core/services/activity.ts",
+          "src/core/services/activity.test.ts",
+          "src/main/agents/grantBindings.ts",
+          "src/main/agents/grantBindings.test.ts",
+          "src/main/agents/chatHandlers.ts",
+          "src/main/agents/chatIpc.ts",
+          "src/main/agents/chatIpc.test.ts",
+          "src/main/agents/chatStore.test.ts",
+          "src/main/desktop/bootstrap.ts",
+          "src/main/terminals/terminalSessions.oldChats.test.ts",
+          "src/shared/agents/chatApi.ts",
+          "src/preload/index.ts",
+          "src/renderer/src/__mocks__/fakeChats.ts",
+          "src/renderer/src/__mocks__/idleChats.ts",
+          "src/renderer/src/agents/useBoundTerminal.ts",
+          "src/renderer/src/agents/EarlierConversation.tsx",
+          "src/renderer/src/agents/TerminalPane.tsx",
+          "src/renderer/src/agents/TerminalPane.test.tsx",
+          "src/renderer/src/agents/TerminalPane.earlier.test.tsx",
+          "src/renderer/src/agents/useTerminal.ts",
+          "src/renderer/src/agents/terminalPane.css",
+          "src/renderer/src/ticket/ActivityTab.tsx",
+          "src/renderer/src/ticket/ActivityTab.terminal.test.tsx",
+          "src/renderer/src/ticket/ticket.css",
+          "src/renderer/src/epic/OrchestratorFeed.tsx",
+          "src/renderer/src/epic/OrchestratorFeed.terminal.test.tsx",
+          "src/renderer/src/epic/OrchestratorFeed.test.tsx",
+          "src/renderer/src/epic/OrchestratorFeed.thread.test.tsx",
+          "src/renderer/src/epic/orchestratorFeed.css",
+          "src/renderer/src/epic/orchestratorFeedView.test.ts",
+          "src/renderer/src/app/activityPoller.test.ts",
+          "src/renderer/src/app/useActivityTimeline.test.tsx",
+          "docs/verification/DM-329-01-old-build-chat-one-exchange.png",
+          "docs/verification/DM-329-02-old-chat-opens-as-terminal-resuming.png",
+          "docs/verification/DM-329-03-claude-resume-continues-sdk-session.png",
+          "docs/verification/DM-329-04-earlier-conversation-read-only.png",
+          "docs/verification/DM-329-05-live-log.txt"
+        ],
+        "commits": [
+          "f74cf0d4efaafe131ba5526c15b50815874d56ab",
+          "9b9448a89e74097bafb0fd9ad8f07a2c1c0ac6be",
+          "3b6fbd96c78357080aaad3fce9efb44cd02c0d2b",
+          "a382c7d3acfd560516f5d1bbf39ef3a93695046a"
+        ],
+        "summary": "Old chats open as terminals; their stored transcripts are readable read-only; old Claude chats resume their SDK session; the Activity tab and Orchestrator feed link to the chat bound by grant. (1) Records: chats stored before terminals (no grantIds/kickoffSent/sessionStarted) load unchanged and read as none issued/sent/started; a first start appends its grant to an empty list. This needed no production change; tests in chatStore.test.ts and terminalSessions.oldChats.test.ts confirm it. (2) EarlierConversation.tsx: for a chat with a stored transcript (read through window.dm.chats.read, as chats:read does), an Earlier conversation control above the terminal opens ChatTranscript read-only: no composer; approval requests without a decision show as cancelled; every sign-in card is a record only; nothing is appended. (3) CLI checked first: claude -p --resume <sdk id> --fork-session answered with the remembered word. The SDK writes <config>/projects/<project>/<id>.jsonl, so the existing claudeSession.ts rule resumes old chats with --resume; live in the built app it started with --resume 42eb1ddb-… and answered OSPREY. A resumed start that exits with a non-zero code now says the CLI may not have been able to continue the earlier session; New session starts a new one. (4) Core timelines' ActivitySession gains grantId (sessions.grant_id). New main module grantBindings.ts (findBoundTerminal) and channel chats:boundTerminal ({folder, attemptId}|{folder, runId}, validated like chats:boundThreads): an attempt binds to the chat whose stored grantIds include the grant of the session that claimed it; a run binds to the chat of the latest session that started or took it over and ran in a chat of the folder, reading the run timeline page by page. The chat store is read from disk, so the link survives a restart. ActivityTab and OrchestratorFeed show Open terminal (useBoundTerminal), next to the old item-based Open chat binding. (5) Deleting a chat: one integration test over the adapter session manager, activity bindings and terminal sessions on one store shows the PTY killed, the grant revoked, the record, transcript and bindings removed (also on reopen), and the grant link gone. Reviewer notes: ActivitySession.grantId is a shared read-model change, so 8 fixtures gained grantId: null. The refused-resume notice is a heuristic: any non-zero exit of a resumed start. One DM-326 TerminalPane expectation was updated to the new notice text. During the work one edit with a relative path landed in the coordinating checkout's src/core/services/activity.test.ts; it was reverted at once with git apply -R and that checkout's src is clean."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m68tv9xwk534yz9ytfy3ntqx",
+      "state": "rejected",
+      "submittedAt": "2026-10-31T17:08:25.883Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:6966ff80347c64d9d17e14d3a770c874e4f1cfe5b8bc18a8a4f1c4c6d123f6c2",
+      "ticketId": "tk_01m68tv9x8a466zehy9vs01ebv",
+      "updatedAt": "2026-10-31T17:16:10.795Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "medium",
+        "hostId": "omp-claude-code-darwin-arm64",
+        "label": "DM-329 worker (task subagent)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (anthropic/claude-opus-5-5, medium). This host runs every worker as a task subagent of the session model and cannot set its effort per worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T17:16:10.828Z",
+      "decidedAt": "2026-10-31T17:19:38.866Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "c1, c2, c4 from the independent review of attempt 1; c3 fixed in attempt 2 (wrong-chat mutation now fails 8 tests), branch merged with the integration branch by the worker. Discoveries for the retro: bind the orchestrator chat to its run by runId too; detect a refused Claude resume precisely.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "After the merge: npx vitest run src/main/terminals src/renderer/src/agents src/main/agents/chatIpc.test.ts src/main/agents/chatHandlers.test.ts src/main/agents/grantBindings.test.ts src/main/agents/chatStore.test.ts src/core/services/activity.test.ts src/renderer/src/ticket src/renderer/src/epic/OrchestratorFeed* src/renderer/src/epic/orchestratorFeedView.test.ts src/renderer/src/app src/renderer/src/App*: 121 files, 1642 tests passed",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "grantBindings.ts:81 match replaced with chats[0]: 8 tests fail across grantBindings.test.ts, chatIpc.test.ts and terminalSessions.oldChats.test.ts; restored from a copy, git diff empty",
+            "name": "mutation check (c3)",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint src scripts, exit 0 (after the merge)",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "0 TS errors (after the merge)",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Only TerminalModel was flagged: line drift 132->140 from DM-329's exitPhase change, not a new export. deadcode:refresh run; the rerun says 'No new dead exports found.'",
+            "name": "npm run deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "attempt 1, for the live check (before the merge)",
+            "name": "npm run build",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run coverage",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Old record test in chatStore.test.ts (exact line the old build wrote; no grantIds/kickoffSent/sessionStarted read as none). TerminalPane.earlier.test.tsx: old chat opens as a terminal with Earlier conversation above it; read-only (no textbox or Send, no Answer group, approval shown cancelled, only chats.read called). Mutating earlierEntries to drop the cancelled decisions fails that test, so it is not vacuous. readChat (sessionManager.ts:1031) writes nothing, and nothing under src/main/terminals appends to a transcript. Screenshots DM-329-02 and DM-329-04 opened: old chat as a terminal with Earlier conversation, and the transcript shown read-only above the terminal. Live log: transcript md5 unchanged."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Live: DM-329-05 shows claude ... --resume 42eb1ddb-3b32-4ca9-9352-918f157b9ad7 in the chat's folder after the CLI was checked first with -p --resume --fork-session. Screenshot DM-329-03 shows the resumed session answering OSPREY. Tested: terminalSessions.oldChats.test.ts (--resume when the SDK file exists, --session-id when it is gone, New session after a refusal starts a new id and keeps the grants). TerminalPane.earlier.test.tsx: a non-zero resumed exit says the earlier session may not have been continued, and New session attaches with newSession:true."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Tests now fail on a wrong-chat link: every positive grant-binding test puts newer chats of the same folder with other grantIds ahead of the bound chat (grantBindings.test.ts attempt and run cases including restart and takeover; chatIpc.test.ts 'the terminal bound by grant'; terminalSessions.oldChats.test.ts delete). The chats[0] mutation fails 8 tests. Also activity.test.ts (grantId in both timelines), ActivityTab.terminal.test.tsx and OrchestratorFeed.terminal.test.tsx (Open terminal next to old item-based bindings). Not exercised live."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "bootstrap.ts:502 serves chats:* over `ending` (endingTerminals), so delete kills the PTY and revokes the grant before sessions.deleteChat forgets the activity bindings and deletes the record and transcript. terminalSessions.oldChats.test.ts 'deleting a chat' runs the real session manager, activity bindings and terminal sessions on one store: tree killed before exit, gr_1 revoked, record and transcript null (also after reopening), bindings empty (also from a reopened bindings file), grant link null, attach refused. A chat with no running terminal is still fully removed."
+          }
+        ],
+        "notes": "Limits as in attempt 1: the refused-resume notice shows for any non-zero exit of a resumed start; c3 was not exercised live; the live run used the pre-merge build. Merge conflicts were mechanical; both sides' behavior kept (sign-in card and Earlier conversation both render, Earlier conversation above the sign-in card or exit row).\n\nDiscoveries:\n- title: Bind an orchestrator terminal chat to its run by its runId as well as by grant\n  reason: Start run creates the orchestrator chat with runId, but a run binds by grant only once that chat's session calls start_run. Until then the Orchestrator feed has no Open terminal link even though the chat is known (grantBindings.ts uses only timeline sessions).\n  ticket: DM-329\n- title: Detect a refused Claude resume precisely instead of by exit code\n  reason: useTerminal.ts treats any non-zero exit of a resumed start as possibly refused. Main already knows when an attach's own start exited before it answered (attachEnded in terminalSessions.ts); passing that to the renderer would make the notice exact.\n  ticket: DM-329"
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m69fccpcmeqy8c659zpqf18d",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Old build (022734c): Claude chat with one exchange",
+            "location": "docs/verification/DM-329-01-old-build-chat-one-exchange.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "New build: old chat opens as a terminal with Earlier conversation, resuming",
+            "location": "docs/verification/DM-329-02-old-chat-opens-as-terminal-resuming.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "claude --resume continues the SDK session (answers OSPREY)",
+            "location": "docs/verification/DM-329-03-claude-resume-continues-sdk-session.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Earlier conversation open, read-only, above the terminal",
+            "location": "docs/verification/DM-329-04-earlier-conversation-read-only.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Live log",
+            "location": "docs/verification/DM-329-05-live-log.txt",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "terminal-chats-DM-329",
+        "changedFiles": [
+          ".tsprune-ignore",
+          "src/shared/domain/activity.ts",
+          "src/core/services/activity.ts",
+          "src/core/services/activity.test.ts",
+          "src/main/agents/grantBindings.ts",
+          "src/main/agents/grantBindings.test.ts",
+          "src/main/agents/chatHandlers.ts",
+          "src/main/agents/chatIpc.ts",
+          "src/main/agents/chatIpc.test.ts",
+          "src/main/agents/chatStore.test.ts",
+          "src/main/desktop/bootstrap.ts",
+          "src/main/terminals/terminalSessions.oldChats.test.ts",
+          "src/shared/agents/chatApi.ts",
+          "src/preload/index.ts",
+          "src/renderer/src/__mocks__/fakeChats.ts",
+          "src/renderer/src/__mocks__/idleChats.ts",
+          "src/renderer/src/agents/useBoundTerminal.ts",
+          "src/renderer/src/agents/EarlierConversation.tsx",
+          "src/renderer/src/agents/TerminalPane.tsx",
+          "src/renderer/src/agents/TerminalPane.test.tsx",
+          "src/renderer/src/agents/TerminalPane.earlier.test.tsx",
+          "src/renderer/src/agents/useTerminal.ts",
+          "src/renderer/src/agents/terminalPane.css",
+          "src/renderer/src/ticket/ActivityTab.tsx",
+          "src/renderer/src/ticket/ActivityTab.terminal.test.tsx",
+          "src/renderer/src/ticket/ticket.css",
+          "src/renderer/src/epic/OrchestratorFeed.tsx",
+          "src/renderer/src/epic/OrchestratorFeed.terminal.test.tsx",
+          "src/renderer/src/epic/OrchestratorFeed.test.tsx",
+          "src/renderer/src/epic/OrchestratorFeed.thread.test.tsx",
+          "src/renderer/src/epic/orchestratorFeed.css",
+          "src/renderer/src/epic/orchestratorFeedView.test.ts",
+          "src/renderer/src/app/activityPoller.test.ts",
+          "src/renderer/src/app/useActivityTimeline.test.tsx",
+          "docs/verification/DM-329-01-old-build-chat-one-exchange.png",
+          "docs/verification/DM-329-02-old-chat-opens-as-terminal-resuming.png",
+          "docs/verification/DM-329-03-claude-resume-continues-sdk-session.png",
+          "docs/verification/DM-329-04-earlier-conversation-read-only.png",
+          "docs/verification/DM-329-05-live-log.txt"
+        ],
+        "commits": [
+          "f74cf0d4efaafe131ba5526c15b50815874d56ab",
+          "9b9448a89e74097bafb0fd9ad8f07a2c1c0ac6be",
+          "3b6fbd96c78357080aaad3fce9efb44cd02c0d2b",
+          "a382c7d3acfd560516f5d1bbf39ef3a93695046a",
+          "e9bea6087c3477c4a2846ee5c63a2d7b50e9d56e",
+          "35a3eda146349798b88c03a789003efd3adcbdb0"
+        ],
+        "summary": "Attempt 2. Fix for the c3 rejection: grant-binding fixtures created the matching chat last, and the store lists newest first, so 'any chat of the folder' passed. grantBindings.test.ts (attempt claim, restart, old chat, run start, external-takeover fallback, and the later-page takeover with the starter's chat now newer than the taker's), chatIpc.test.ts (chats:boundTerminal) and terminalSessions.oldChats.test.ts (delete) now add newer chats of the same folder with other grantIds after the bound chat. Mutation check: replacing grantBindings.ts:81 with chats[0] fails 8 tests; the file was restored with no diff. Then merged terminal-chats-sprint-1 (DM-321, DM-325, DM-327, DM-328). Conflicts resolved keeping both sides: TerminalPane.tsx (both imports, one doc comment, <EarlierConversation> before DM-327's sign-in-card ternary), bootstrap.ts (grantReads kept, then DM-328's ChatServices doc comment), chatIpc.test.ts (DM-328's recordingTerminals/queueingRuns kept, ipcRig keeps the boundTerminal option). .tsprune-ignore refreshed for line drift only (useTerminal.ts TerminalModel 132->140, from the exitPhase change). Everything from attempt 1 is unchanged: Earlier conversation read-only, old Claude chats resume their SDK session with claude --resume (verified live), chats:boundTerminal with Open terminal in the Activity tab and Orchestrator feed, delete tested."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m68tv9xwk534yz9ytfy3ntqx",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T17:19:38.822Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:6966ff80347c64d9d17e14d3a770c874e4f1cfe5b8bc18a8a4f1c4c6d123f6c2",
+      "ticketId": "tk_01m68tv9x8a466zehy9vs01ebv",
+      "updatedAt": "2026-10-31T17:19:38.866Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "high",
+        "hostId": "omp-claude-code-darwin-arm64",
+        "label": "DM-329 worker (task subagent)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (anthropic/claude-opus-5-5, high). This host runs every worker as a task subagent of the session model and cannot set its effort per worker. Attempt 1 rejected for a vacuous grant-link test; same worker continues and also merges the current integration branch.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T17:20:59.040Z",
+      "decidedAt": "2026-10-31T18:22:27.495Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Two workers completed it (main side, then renderer). protocolHandshake.ts was deleted here by orchestrator approval because removing the adapters and SDK broke it; the protocol column stays for DM-331. Docs (architecture, agents runbook) updated here already; DM-332 completes them. Reviewer notes: Re-run in the DM-330 worktree: lint 0, typecheck 0, build 0, deadcode 0, vitest src/main src/preload src/renderer src/shared + core/claimTokenMask.test.ts = 263 files, 3556 passed, 7 skipped. Mutations (reverted, worktree clean at a75102c): dropping activity.forgetChat in chatRecords.deleteChat failed chatRecords.test; mapping Default to 'default' failed 3 StartRunDialog tests. Non-blocking follow-ups: stale code comments that still describe removed behaviour: src/shared/desktop/api.ts:267-275 (addCustomAgent/updateCustomAgent say a handshake runs), src/renderer/src/agents/CustomAgentForm.tsx:155-157 and CustomAgentEdit.tsx:61 (handshake), src/main/desktop/agentHandlers.ts:39-41 (handshake; SessionManager.endAgentSessions), src/main/agents/boundThreads.ts:4 (chats:open and the push channel), src/shared/agents/chat.ts:124 (IDLE_STOP_CODE 'the session manager stores'). The worker's discoveries stand: shellActions.openTicket/openThread thread landing has no consumer, and that was already so at the sprint-1 base, where ChatView was rendered only by test kits. styles.css may still hold chat-era rules. Scope extras confirmed unused: clipMasked/createStreamMasker/StreamMasker (only deleted adapters and session manager used them), src/test/eventLog.ts and claimTokenFixture.ts (only deleted adapter tests). Masking of stored records (chatStore.saveRecord), activity bindings, the orchestrator kickoff and core heartbeat notes is intact. Custom CLI add/edit keeps the strict payload, the native dialog and the native confirmation; dropping the handshake was the approved move from DM-331.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npx vitest run src/main src/preload src/renderer src/shared src/core/claimTokenMask.test.ts: 263 files, 3556 passed, 7 skipped",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint src scripts: exit 0, no findings",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "node, web and fireguard tsconfigs: exit 0",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "electron-vite build: exit 0",
+            "name": "npm run build",
+            "status": "passed"
+          },
+          {
+            "detail": "Run because the assignment asked for it (the worker brief says not to). 'No new dead exports found' after removing dead code and running deadcode:refresh (116 -> 108 entries). Dropped: entries for removed code (clipMasked, StreamMasker, createStreamMasker, OwnCliCall, ApprovalCategory, McpServerSpec, ChatAdapter*, SendChatRequest, SetChatModelRequest, AnswerApprovalRequest). Updated: entries whose line numbers moved. Added: exports used only by the other project (ErrorProblem, IDLE_STOP_CODE, ApprovalRequestItem, ModelOption, AgentModels, BoundThreadsRequest used by the renderer; AgentAuthState used by main)",
+            "name": "npm run deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "rg -n 'agents/adapters|adapterRegistry|ownServerTools|ownCliCommand|signInFlags|signInHooks|claude-agent-sdk|answerApproval|retryTurn|setModel' src: one hit only, src/main/agents/chatIpc.test.ts:40 (REMOVED_CHANNELS, the test asserting those channels are gone). rg -c claude-agent-sdk in package.json, package-lock.json and electron.vite.config.ts: 0",
+            "name": "rg evidence",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test / coverage / fireguard",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "src/main/agents/adapters/, adapterRegistry.ts, ownServerTools.ts, ownCliCommand.ts, signInFlags.ts, signInHooks.ts (plus protocolHandshake.ts, threadBindings.ts, sessionManager.ts) deleted in the diff. My own grep of src, scripts, fireguard, package.json, package-lock.json, electron.vite.config.ts and .tsprune-ignore finds no import of any of them; the only hit is chatIpc.test.ts:40 REMOVED_CHANNELS. typecheck (node, web, fireguard; node includes src/integration and src/test) and build exit 0. The worker's rg evidence is in the submission."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "chatIpc.ts registers only list/create/startOrchestrator/read/boundThreads/boundTerminal/rename/delete; preload/index.ts and the ChatsApi type match, so typecheck rules out any renderer call to a removed function. chatIpc.test.ts asserts the exact channel set and that none of the REMOVED_CHANNELS are registered (passing). ChatComposer.tsx, ApprovalCard.tsx, SignedOutCard.tsx and ChatView.tsx are deleted, along with useAgentModels, useChatSession, useThreadBindings, useChatLinks and ChatContext. Old approvals render through a read-only ApprovalRecord, and StreamRow, ChatTranscript and ActivityTab tests assert no buttons. ChatPushEvent is only chats_changed."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "package.json devDependencies and package-lock.json have no @anthropic-ai/claude-agent-sdk (lock diff removes it, its platform binaries and its deps @anthropic-ai/sdk, @stablelib/base64, fast-sha256, json-schema-to-ts, standardwebhooks and ts-algebra, none imported in src). `npm ls @anthropic-ai/claude-agent-sdk` is empty. Its externalizeDeps exception is gone from electron.vite.config.ts. `npm run build` re-run by me: exit 0."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "src/shared/agents/models.ts has agentModels (Claude: default/opus/sonnet/haiku, the old CURATED_CLAUDE_MODELS; Autonomous: free text; others: cli) and isSafeModelId. StartRunDialog -> useAgentModelChoice -> agentModels, with no chats:models call. StartRunDialog.test.tsx 'the model choice' asserts the labels Default (recommended)/Opus/Sonnet/Haiku and that Default starts with model null; the Autonomous tests cover trimming and refusing unsafe ids. Breaking the Default->null mapping failed 3 tests (reverted). `npm run deadcode` re-run by me: 'No new dead exports found'. The 116->108 refresh is listed in the evidence, and every new entry (ErrorProblem, IDLE_STOP_CODE, ApprovalRequestItem, ModelOption, AgentModels, BoundThreadsRequest, AgentAuthState) is confirmed used from the other project."
+          }
+        ],
+        "notes": "Red-team: the renderer calls only the eight kept channels plus onEvent (rg plus the ChatsApi type checked against the preload). Earlier conversation (TerminalPane.earlier tests) and Activity/Orchestrator old-thread rows render stored transcripts read-only; their tests assert no buttons, a single read and no subscription. A bad model typed for Autonomous cannot start a run, and main's terminalLaunchSpec checks the id again. Fixed during review: the read-once cache was keyed on the chat id alone and now uses folder and chat id. The TerminalPane.earlier test now asserts the only chats call is 'read'. Behavior change: old transcripts' undecided approvals rely on main's readChat to mark them cancelled; the renderer shows 'Not answered' if one ever arrives undecided. Docs: architecture.md and the agents runbook were rewritten for terminal chats (design SH-8 item 3); the runbook's verification history is kept and marked as checks of the removed adapters. Not verified: no live run of the built app; Codex, Cursor and custom-CLI terminal presets were not exercised live.\nDiscoveries:\n- title: Remove dead shell link actions after ChatView removal\n  reason: shellActions.openTicket has no caller, and App.tsx's openThread thread landing is taken immediately because no chat view consumes ThreadLanding; TicketLink is kept only to type openTicket.\n  ticket: DM-330\n- title: Prune remaining chat CSS in styles.css\n  reason: only chatView.css and chatThreads.css were swept for classes no component uses; styles.css may still hold chat-era rules.\n  ticket: DM-331"
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m69fn650cc6bnjwn99788jf5",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Curated models and isSafeModelId",
+            "location": "src/shared/agents/models.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Read-only transcript test",
+            "location": "src/renderer/src/agents/ChatTranscript.test.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Start run model choice tests",
+            "location": "src/renderer/src/epic/StartRunDialog.test.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Dead-code baseline",
+            "location": ".tsprune-ignore",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "terminal-chats-DM-330",
+        "changedFiles": [
+          "package.json",
+          "package-lock.json",
+          "electron.vite.config.ts",
+          ".tsprune-ignore",
+          "docs/architecture.md",
+          "docs/runbooks/agents.md",
+          "src/core/claimTokenMask.ts",
+          "src/core/claimTokenMask.test.ts",
+          "src/main/agents/**",
+          "src/main/desktop/**",
+          "src/main/terminals/**",
+          "src/preload/index.ts",
+          "src/shared/agents/chat.ts",
+          "src/shared/agents/chatApi.ts",
+          "src/shared/agents/models.ts",
+          "src/shared/agents/models.test.ts",
+          "src/test/eventLog.ts",
+          "src/test/eventLog.test.ts",
+          "src/renderer/src/agents/**",
+          "src/renderer/src/__mocks__/**",
+          "src/renderer/src/sidebar/**",
+          "src/renderer/src/epic/StartRunDialog.tsx",
+          "src/renderer/src/epic/StartRunDialog.test.tsx",
+          "src/renderer/src/epic/EpicWorkspace.startRun.test.tsx",
+          "src/renderer/src/epic/OrchestratorFeed.thread.test.tsx",
+          "src/renderer/src/ticket/ActivityTab.thread.test.tsx",
+          "src/renderer/src/app/shellActions.ts",
+          "src/renderer/src/App.chats.test.tsx",
+          "src/renderer/src/App.terminal.test.tsx"
+        ],
+        "commits": [
+          "dacdec6ff7924cc67e3bea018cf1d024a39da97a",
+          "8637b3adc9e3abb1b6f63919eca866e2603ce4d7",
+          "a75102c2748cd62bbec5f0fa2528991067d3ed70"
+        ],
+        "summary": "DM-330 complete. Main/preload/shared (dacdec6): adapters, adapterRegistry, ownServerTools, ownCliCommand, signInFlags, signInHooks, protocolHandshake, threadBindings and sessionManager deleted; chatRecords.ts (list/create/rename/delete/read-only readChat) replaces the session manager; activityBindings keeps only byAttempt/byRun/forgetChat; chatStore no longer writes transcripts; chats channels limited to list/create/startOrchestrator/read/boundThreads/boundTerminal/rename/delete; launchSpec reduced to withFolder; custom-CLI handshake removed (approved by Main); models.ts holds agentModels and isSafeModelId; @anthropic-ai/claude-agent-sdk uninstalled. Renderer (8637b3a, a75102c): ChatView, composer, approval card, signed-out card and the chat session/links/models hooks deleted. Start run's model choice comes from agentModels: Claude's curated list (Default sends null), Autonomous a trimmed text id checked by isSafeModelId (an invalid one is refused before the run starts), others CLI default. useThreadStream reads the chat once (keyed by folder and chat) and subscribes to nothing. StreamRow and ChatTranscript show approvals read-only via ApprovalRecord. streaming_text and the waiting-below logic removed; EarlierConversation, ChatHeader and shellActions fixed. Fakes rewritten and affected tests updated; tests deleted only for removed behavior; new ChatTranscript, StartRunDialog model-choice and StreamApproval tests. Also: streamed-text masking (clipMasked, createStreamMasker, StreamMasker) removed from core claimTokenMask; dead test helpers (src/test/eventLog.ts, claimTokenFixture.ts, chatFixtures.trackedFolders) and dead exports removed or un-exported; dead composer, approval-action and thread-link CSS pruned; two main tests split for lint; docs/architecture.md and docs/runbooks/agents.md rewritten for terminal chats (not a packet criterion; please review)."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m68tv9xwk534yz9ytfy3ntqx",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T18:16:23.257Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:fdbb2e6e5c083d05c829a0f6551d7e6023d0e877d99a6824c6d34271e2ca0eff",
+      "ticketId": "tk_01m68tv9x86hsnj5yfcz065037",
+      "updatedAt": "2026-10-31T18:22:27.495Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "medium",
+        "hostId": "omp-claude-code-darwin-arm64",
+        "label": "DM-330 worker (task subagent)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (anthropic/claude-opus-5-5, medium). This host runs every worker as a task subagent of the session model and cannot set its effort per worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T18:23:51.326Z",
+      "decidedAt": "2026-10-31T18:58:47.017Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": " Reviewer notes: Non-blocking follow-ups: (1) Stale comments: agentHandlers.ts:39 still says custom CLIs go through 'the handshake', and the agentHandlers.test.ts:48 fixture reason says 'ACP handshake'. (2) docs/runbooks/agents.md:81 says a flagged chat doesn't start 'until you have removed those arguments ... and confirmed the rest', but any confirmed review clears the mark even with the arguments unchanged (the dialog itself says 'Remove any that start a protocol server'). The wording could be softened. (3) Failing closed on an unknown protocol value is not directly tested; it is unreachable because v1's CHECK constraint allows only claude, codex and acp. (4) Start run on a flagged agent queues the run and then the terminal refuses it, which is the existing orchestratorStart refusal path: nothing starts, but a queued run is left with a problem. (5) The sidebar reorders an agent after an edit; this is existing useAgents behavior, not from this change. (6) Live: a8s was not started after the review. Starting a reviewed row is covered by the unit tests only. Red-team checks that held: DROP COLUMN is available (SQLite 3.53.3 in Node and Electron); the migration is atomic (one BEGIN IMMEDIATE transaction including user_version); re-running and v1 upgrades are safe; folder defaults and rowid order are kept; the old build refuses v3 with incompatible_schema; chat attach and Start run both go through the guard in beginStart; login terminals refuse custom CLIs and the sign-in status check runs nothing for them; the renderer cannot set or clear the flag (strict schemas, native confirmation with checkbox); the Windows .cmd and .js rules are the same when a custom CLI is added and when it starts (planCliLaunch/planShimLaunch, windowsProgramKind), so dropping the Claude-SDK-only refusals opens no new launch path.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npx vitest run src/main/desktop src/main/terminals src/main/agents src/renderer/src/agents src/renderer/src/sidebar/AgentsSection.test.tsx src/renderer/src/epic/StartRunDialog.test.tsx: 96 files passed, 1615 passed, 7 skipped. The migration tests (appDatabase.test.ts) and the flagged-start test (terminalSessions.test.ts) were run red before the code.",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint src scripts, exit 0",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "node, web and fireguard tsconfigs, exit 0",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "built for the live check (this branch, and 022734c in a temporary detached worktree under /tmp, since removed)",
+            "name": "npm run build",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run coverage",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node; .tsprune-ignore api.ts line numbers updated by hand to the new export lines",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "customAgent.ts addAgent: strict {name,args} schema (protocol, path, version, reportedName and needsReview keys refused with invalid_input, tested), program from pickExecutable only, launchRefusal runs planCliLaunch, then deps.confirm, then addCustom with no protocol. agentRegistry insertCustomAgent writes version NULL and needs_review 0. Tested in customAgent.test.ts 'stores a cu_ row with its args and no protocol...': the SELECT * row has no protocol or reported_name column and the log is exactly ['pick','confirm'], so no handshake runs. Also tested: confirmations carry the exact name, program and args; the symlink is kept as picked (DM-304). CustomAgentForm.test.tsx 'sends exactly the name and arguments'. Re-ran: passes."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "appDatabase.ts V3 (one transaction via migrate/db.tx): ADD needs_review with CHECK, UPDATE sets needs_review = 1 for kind custom with protocol IS NOT 'claude', nulls custom versions, DROP COLUMN reported_name and protocol. appDatabase.test.ts builds a v2 fixture from the v1 and v2 migrations, with a built-in row, ACP, Codex app-server and Claude custom rows and a folder default. It checks user_version 3, both columns gone from the table and its SQL, needs_review 1/1/0/0, all other data, the folder default (and that its cascade still works), app_meta, the row checks, a v1 upgrade, a reopen applying nothing and a newer file refused. terminalSessions.test.ts: attach and start of a flagged row are both refused with no steps, spawn, instructions file or grant, and the same row with needsReview false starts. customAgent.test.ts: a review is action 'review', the mark is cleared only on confirm, and it is kept when the confirmation is declined, the repick cancelled or the launch rules fail. Mutating the guard, the migration predicate or the clear made the tests fail; each mutation was reverted."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "src/main/agents/protocolHandshake.ts is absent: it was deleted by DM-330 (dacdec6), the prerequisite. customAgent.test.ts 'has no protocolHandshake module, and no source file imports one' scans src for static and dynamic imports; my grep finds no import. CustomAgentForm.tsx has no protocol state or radios; CustomAgentForm.test.tsx asserts 0 radios and no Protocol, ACP, Codex app-server or Claude Code SDK text. AgentPage no longer shows a Protocol row. Screenshot DM-331-06 shows Name and Arguments only."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Opened all six PNGs and the dump. 022734c is the head of the terminal-chats epic branch (its start commit). The dump before the upgrade: v2, 'a8s ACP' with protocol acp on <home>/.local/bin/a8s and 'Claude link' with protocol claude on <home>/.local/bin/claude. After: v3, protocol and reported_name gone, needs_review 1 and 0. After the review: args ['{folder}'] and needs_review 0. DM-331-01 shows the 'Review its arguments' note and a primary Review arguments button with no Edit. DM-331-02: the ACP chat is REFUSED with the review message. DM-331-03: the Claude link chat is RUNNING with Claude Code's folder-trust prompt. DM-331-04 and 05: the review form, then Edit offered again with the note gone. Caveat: the native dialogs were stubbed over the main-process inspector (disclosed)."
+          }
+        ],
+        "notes": "Live dialogs were stubbed over the main inspector (showOpenDialog returns the path the real dialog would; showMessageBox answers {response:0, checkboxChecked:true}; every call recorded); nothing else was overridden. a8s was not started after the review: the unit tests cover that a reviewed row starts, and running a8s with only a folder argument risked sending a real prompt. Both builds quit with app.quit() from a short inspector session and exit code 0, with no dm331 process left. Custom CLIs now show 'Version unknown' everywhere, since nothing probes them. Red-team: no other spawn path for custom CLIs (login terminals refuse custom, Start run goes through sessions.start, the importer and installer write only built-ins, the renderer cannot send needsReview); the migration flags any protocol other than 'claude'; a downgrade is refused with incompatible_schema.\nDiscoveries:\n- title: README still says chat edits and commands wait for approval in the chat\n  reason: README.md step 5 still says a chat's edits and commands wait for your approval in the chat. Since DM-330, approvals happen in the agent CLI's own terminal. I only rewrote the custom-CLI part of that sentence, to stay in scope.\n  ticket: DM-331\n- title: Editing a custom CLI moves it to the end of the sidebar agent list\n  reason: useAgents.ts (line 63) drops the edited agent and appends it again, so after a review a8s ACP moved below Claude link in the sidebar (DM-331-05), although its rowid in app.sqlite did not change. After a reload the list is in rowid order again.\n  ticket: DM-331"
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m69k8a0yr70mvprrpe5d0g2d",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Live: ACP row shows Review arguments",
+            "location": "docs/verification/DM-331-01-acp-row-review-arguments.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Live: chat on ACP row refused until reviewed",
+            "location": "docs/verification/DM-331-02-acp-chat-refused-until-reviewed.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Live: chat on Claude-protocol row starts",
+            "location": "docs/verification/DM-331-03-claude-row-chat-starts.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Live: Review arguments form",
+            "location": "docs/verification/DM-331-04-review-arguments-form.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Live: after review, Edit again",
+            "location": "docs/verification/DM-331-05-reviewed-edit-again.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Live: Add a custom CLI form with no protocol choice",
+            "location": "docs/verification/DM-331-06-add-custom-cli-no-protocol.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Live method and app.sqlite dumps (before, after upgrade, after review)",
+            "location": "docs/verification/DM-331-07-app-sqlite-dump.txt",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "terminal-chats-DM-331",
+        "changedFiles": [
+          ".tsprune-ignore",
+          "README.md",
+          "docs/architecture.md",
+          "docs/runbooks/agents.md",
+          "docs/verification/DM-331-01-acp-row-review-arguments.png",
+          "docs/verification/DM-331-02-acp-chat-refused-until-reviewed.png",
+          "docs/verification/DM-331-03-claude-row-chat-starts.png",
+          "docs/verification/DM-331-04-review-arguments-form.png",
+          "docs/verification/DM-331-05-reviewed-edit-again.png",
+          "docs/verification/DM-331-06-add-custom-cli-no-protocol.png",
+          "docs/verification/DM-331-07-app-sqlite-dump.txt",
+          "src/main/agents/__mocks__/chatFixtures.ts",
+          "src/main/desktop/agentHandlers.test.ts",
+          "src/main/desktop/agentHandlers.ts",
+          "src/main/desktop/agentInstaller.test.ts",
+          "src/main/desktop/agentRegistry.test.ts",
+          "src/main/desktop/agentRegistry.ts",
+          "src/main/desktop/agentRegistryImport.test.ts",
+          "src/main/desktop/appDatabase.test.ts",
+          "src/main/desktop/appDatabase.ts",
+          "src/main/desktop/customAgent.test.ts",
+          "src/main/desktop/customAgent.ts",
+          "src/main/desktop/ipc.ts",
+          "src/main/terminals/terminalSessions.test.ts",
+          "src/main/terminals/terminalSessions.ts",
+          "src/renderer/src/__mocks__/fixtures.ts",
+          "src/renderer/src/agents/AddAgentPane.tsx",
+          "src/renderer/src/agents/AgentPage.custom.test.tsx",
+          "src/renderer/src/agents/AgentPage.tsx",
+          "src/renderer/src/agents/CustomAgentEdit.tsx",
+          "src/renderer/src/agents/CustomAgentForm.test.tsx",
+          "src/renderer/src/agents/CustomAgentForm.tsx",
+          "src/renderer/src/agents/agentOutcomes.test.ts",
+          "src/renderer/src/agents/agentOutcomes.ts",
+          "src/renderer/src/agents/agentText.test.ts",
+          "src/renderer/src/agents/agentText.ts",
+          "src/renderer/src/epic/StartRunDialog.test.tsx",
+          "src/renderer/src/sidebar/AgentsSection.test.tsx",
+          "src/renderer/src/styles.css",
+          "src/shared/desktop/api.ts"
+        ],
+        "commits": [
+          "a9b56c963001f7606032b560314dc190fd9d1699",
+          "48bbe57d6cae15b32ac504fe240c76dd23f6a6df"
+        ],
+        "summary": "Custom CLIs no longer have a protocol. CustomAgentRequest is {name,args}; customAgent.ts keeps the strict payload (at most 32 arguments, no control or formatting characters), the native program dialog (picked path kept, DM-304), planCliLaunch and the native confirmation, and stores the row with no protocol and no handshake. The Claude-protocol-only .cmd/.bat and script refusals are gone because a terminal runs the program as picked. reportedName (the DM-303 handshake version label) is removed from AgentView, the registry and the renderer. App DB migration v3 (appDatabase.ts) adds needs_review, sets it on custom rows whose protocol IS NOT 'claude' (ACP and Codex; fails closed), nulls custom rows' handshake version, and drops reported_name and protocol with ALTER TABLE DROP COLUMN (a table rebuild would cascade-delete folder_agent_defaults; tested). Claude-protocol and built-in rows stay needs_review=0. AgentView gains needsReview. registry.updateCustom clears it, so a confirmed edit is the review; its native confirmation has action 'review', titled 'Review a custom CLI', with a note on why. terminalSessions.beginStart refuses a flagged agent before any step (no grant, file or spawn) with a message pointing to Review arguments; this covers attach and Start run. Renderer: the add form has no protocol choice (PROTOCOL_TEXT, PREFILLED_ARGS and the .custom-protocol CSS removed); AgentPage shows a 'Review its arguments' note and a primary 'Review arguments' button in place of Edit for a flagged row, opening CustomAgentEdit in review mode ('Confirm arguments'). Docs (README, architecture.md, runbooks/agents.md) and .tsprune-ignore api.ts line drift updated. Live check: an old 022734c profile with an ACP a8s row and a Claude-protocol claude row, both added through the old build's own form, was upgraded by this build: the ACP row asks for review and its chat is refused; the Claude row's chat starts."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m68tv9xwk534yz9ytfy3ntqx",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T18:51:23.904Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:f0fbc25c9e7bba8e700f47329dad51e1f67efa093fc518c618f69e920d798fd8",
+      "ticketId": "tk_01m68tv9x849h8v3qse7cce81a",
+      "updatedAt": "2026-10-31T18:58:47.017Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "high",
+        "hostId": "omp-claude-code-darwin-arm64",
+        "label": "DM-331 worker (task subagent)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (anthropic/claude-opus-5-5, high). This host runs every worker as a task subagent of the session model and cannot set its effort per worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T19:00:10.474Z",
+      "decidedAt": "2026-10-31T19:03:44.945Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Orchestrator review: section headings present (architecture Terminals section, runbook Start again/resume/idle stop and Known limitations, chat-shells As built); rg for adapter/approval card/composer leaves only non-chat adapter uses and a passage marked historical. The 2.1.316 onFailure:block option is worded as reported and untried.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "rg -n -i \"adapter|approval card|composer\" docs/architecture.md docs/runbooks/agents.md README.md: remaining hits are architecture.md:25,49 (MCP/IPC adapters), :114 (Git adapter), :212 (FsAdapter), and runbook :255,258 in the passage labelled as a historical record; README has no hits",
+            "name": "stale-term rg",
+            "status": "passed"
+          },
+          {
+            "detail": "docs only; not needed per assignment",
+            "name": "npm run lint",
+            "status": "skipped"
+          },
+          {
+            "detail": "docs only",
+            "name": "npm run typecheck",
+            "status": "skipped"
+          },
+          {
+            "detail": "docs only; no source changed",
+            "name": "targeted tests",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test / fireguard / deadcode / coverage",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "architecture.md section '### Terminals: PTY host, sessions, attach and port, launch spec' (before '### IPC surface') covers the PTY host, attach and port, launch spec, and a table of what the renderer can and cannot start. The runbook covers the user side. The rg output above shows no stale chat adapter, approval card or composer claims."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "agents.md: Chats ('One click creates the chat...'), Sign in (in-window sign-in terminal), new '## Start again, resume and idle stop', Custom CLIs bullet 'Custom CLIs added before terminal chats' (Review arguments / needs_review), new '## Known limitations' with all six items."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "chat-shells.md '## As built' (before '## Risks and open questions') lists five deviations, including 'New chat is one click, with no dialog'."
+          }
+        ],
+        "notes": "Every claim was checked against source: terminalLaunchSpec.ts, terminalEnv.ts, terminalSessions.ts header, terminalHandlers.ts:213 (the checking wait), App.tsx startNewChat, claudeSettingsFile.ts header (Windows fail-open), git log for protocolHandshake.ts (dacdec6f). Not in the repo: Claude Code 2.1.316 onFailure: block and the hook timeout behaviour; the runbook says so plainly. Discoveries: none."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m69nat3ab2gngdceyhy7spxd",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Architecture terminal chats section",
+            "location": "docs/architecture.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Agents runbook",
+            "location": "docs/runbooks/agents.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Design As built section",
+            "location": "docs/design/chat-shells.md",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "terminal-chats-DM-332",
+        "changedFiles": [
+          "docs/architecture.md",
+          "docs/runbooks/agents.md",
+          "docs/design/chat-shells.md"
+        ],
+        "commits": [
+          "331010f89ec3aa8a614e137cd7b5a504bbfe110e"
+        ],
+        "summary": "Docs only. architecture.md: new section 'Terminals: PTY host, sessions, attach and port, launch spec' (ptyHost/node-pty in main, spawn-helper check, TerminalSessions with headless xterm screen, start order, the attach path that waits through the sign-in check, MessageChannelMain port rules, a table of each kind's launch arguments, how pasteFirst is delivered, a shortened 'what the renderer can and cannot make main start' table). The renderer paragraph now describes one-click New chat (startNewChat/newChatAgent) instead of a dialog, and 'both adapters' became 'both bridges (desktop IPC and MCP)'. agents.md: new 'Start again, resume and idle stop' and 'Known limitations' sections (ELECTRON_RUN_AS_NODE on Windows, claim tokens in the orchestrator terminal, Codex/Cursor flags not verified live, Windows not verified live because optional DM-333 did not run on this Mac, Claude hook fail-open cases plus the 2.1.316 onFailure: block option, physical Cmd+W/Cmd+Q not exercised). Fixed stale wording: New chat dialog, 'sign-in window', Claude shim reason citing the removed SDK, the Dismiss/three-second check text, the macOS verification line. chat-shells.md: 'As built' section (one-click New chat with no dialog; protocolHandshake removed in DM-330, commit dacdec6f; attach waits instead of answering checking; pasteFirst details; Claude resume decided by its session file). For the reviewer: the onFailure: block option and hook timeouts have no evidence in the repo, so they are worded as reported and not tried, and the app sets neither."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m68tv9xwk534yz9ytfy3ntqx",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T19:03:44.874Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:f8657e147dbfa73881c1a3363e9071fe5d5e106ea7b114891545c228ced44bae",
+      "ticketId": "tk_01m68tv9x8fv21pjx5a9mz53x5",
+      "updatedAt": "2026-10-31T19:03:44.945Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "low",
+        "hostId": "omp-claude-code-darwin-arm64",
+        "label": "DM-332 worker (task subagent)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (anthropic/claude-opus-5-5, low). This host runs every worker as a task subagent of the session model and cannot set its effort per worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T19:04:22.062Z",
       "decidedAt": null,
       "decision": null,
       "evidence": null,
       "failure": null,
       "fencingToken": 1,
-      "id": "at_01m69bcwtmyyd3frxn6ayt57tz",
+      "id": "at_01m69njfseav541r4y0znk7t4t",
       "kind": "work",
       "number": 1,
       "outputs": null,
@@ -2178,14 +3336,14 @@
       "state": "running",
       "submittedAt": null,
       "supersededAt": null,
-      "ticketContentHash": "sha256:c0b079b331716a2da5caecbc176dfa8820be7f36cd8ce0d2c0902cd9b855a470",
-      "ticketId": "tk_01m68tv9x8gd4hs117ksemxn2a",
-      "updatedAt": "2026-10-31T16:11:33.073Z",
+      "ticketContentHash": "sha256:c9b6ea877d2f9f814115542c5ac7771a016ca46c909564645667f219896bc010",
+      "ticketId": "tk_01m68tv9x88htns1rzc4tg593j",
+      "updatedAt": "2026-10-31T19:04:22.104Z",
       "worker": {
         "catalogRevision": "1",
         "effort": "low",
         "hostId": "omp-claude-code-darwin-arm64",
-        "label": "DM-328 worker (task subagent)",
+        "label": "DM-334 worker (task subagent)",
         "modelId": "anthropic/claude-opus-5-5",
         "rationale": "Recommended by match_capabilities (anthropic/claude-opus-5-5, low). This host runs every worker as a task subagent of the session model and cannot set its effort per worker.",
         "sessionId": null
@@ -2317,6 +3475,115 @@
       "number": 5,
       "recordedBy": "Claude Code",
       "row": 5,
+      "sprintId": "sp_01m5jz275zxpve9s276gzaw4s0"
+    },
+    {
+      "checks": [
+        {
+          "detail": "npm run typecheck after merging DM-327, DM-328, DM-329 (conflicts resolved at integration)",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run lint exit 0",
+          "name": "lint",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run deadcode exit 0 (local-only exports un-exported; baseline refreshed for line drift and pre-existing terminal exports, see integration notes)",
+          "name": "deadcode",
+          "status": "passed"
+        },
+        {
+          "detail": "npx vitest run src/main src/preload src/renderer src/shared src/core/services/activity.test.ts: 319 files, 4858 passed, 7 skipped",
+          "name": "row tests",
+          "status": "passed"
+        }
+      ],
+      "commit": "cc13b5307fcd756b0a34da65f2ffdaf12e4f6049",
+      "createdAt": "2026-10-31T17:20:59.017Z",
+      "id": "rk_01m69fn648czr44k28f2682ecj",
+      "number": 6,
+      "recordedBy": "Claude Code",
+      "row": 6,
+      "sprintId": "sp_01m5jz275zxpve9s276gzaw4s0"
+    },
+    {
+      "checks": [
+        {
+          "detail": "npm run typecheck after merging DM-330",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run lint exit 0",
+          "name": "lint",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run deadcode exit 0",
+          "name": "deadcode",
+          "status": "passed"
+        },
+        {
+          "detail": "npx vitest run src: 413 files, 7392 passed, 7 skipped",
+          "name": "row tests",
+          "status": "passed"
+        }
+      ],
+      "commit": "13a491c448443c5b3565c1b56dc8ccd8333c1d87",
+      "createdAt": "2026-10-31T18:23:51.287Z",
+      "id": "rk_01m69k89zqpdhnh119q3yhzg66",
+      "number": 7,
+      "recordedBy": "Claude Code",
+      "row": 7,
+      "sprintId": "sp_01m5jz275zxpve9s276gzaw4s0"
+    },
+    {
+      "checks": [
+        {
+          "detail": "npm run typecheck after merging DM-331",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run lint exit 0",
+          "name": "lint",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run deadcode exit 0",
+          "name": "deadcode",
+          "status": "passed"
+        },
+        {
+          "detail": "npx vitest run src: 413 files, 7409 passed, 7 skipped",
+          "name": "row tests",
+          "status": "passed"
+        }
+      ],
+      "commit": "1a5be33e8724b0fa2f7976582683b6d115c4c702",
+      "createdAt": "2026-10-31T19:00:10.448Z",
+      "id": "rk_01m69nat2fq9bmbwfn9xtrbj2e",
+      "number": 8,
+      "recordedBy": "Claude Code",
+      "row": 8,
+      "sprintId": "sp_01m5jz275zxpve9s276gzaw4s0"
+    },
+    {
+      "checks": [
+        {
+          "detail": "npm run typecheck after merging DM-332 (docs only; no test files touched by the row). DM-333 is optional and unclaimed: this Mac host cannot satisfy its windows environment.",
+          "name": "typecheck",
+          "status": "passed"
+        }
+      ],
+      "commit": "4b8d17f6d34786b29342287d4590d77e7b65e1a4",
+      "createdAt": "2026-10-31T19:04:21.982Z",
+      "id": "rk_01m69njfpygww0441fcc6h1nqf",
+      "number": 9,
+      "recordedBy": "Claude Code",
+      "row": 9,
       "sprintId": "sp_01m5jz275zxpve9s276gzaw4s0"
     }
   ],

@@ -66,11 +66,13 @@ describe('runMutationGate', () => {
       config: DEFAULT_CONFIG,
       modules: [{ path: 'src/clamp.ts', source }],
       relatedTests: ['src/clamp.test.ts'],
-      applyAndTest: async ({ mutatedSource }) => {
-        // "tests" fail (kill) when mutation removes the < check
-        const killed = !mutatedSource.includes('n < min');
-        return { ok: !killed, error: killed ? 'expected fail' : undefined };
-      },
+      appliers: [
+        async ({ mutatedSource }) => {
+          // "tests" fail (kill) when mutation removes the < check
+          const killed = !mutatedSource.includes('n < min');
+          return { ok: !killed, error: killed ? 'expected fail' : undefined };
+        },
+      ],
     });
     expect(gate.total).toBeGreaterThan(0);
     expect(gate.killed + gate.survived).toBe(gate.total);

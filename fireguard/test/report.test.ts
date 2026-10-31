@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { formatHumanReport, formatJsonReport } from '../src/report.js';
-import type { FireguardReport } from '../src/types.js';
+import type { FireguardReport, MutationExecution } from '../src/types.js';
 
 const failingReport: FireguardReport = {
   grade: { letter: 'F', score: 0, reasons: ['ast gate failed'] },
@@ -48,7 +48,10 @@ describe('report', () => {
   });
 });
 
-function mutationReport(moduleTests?: Record<string, number>): FireguardReport {
+function mutationReport(
+  moduleTests?: Record<string, number>,
+  execution?: MutationExecution
+): FireguardReport {
   return {
     grade: { letter: 'F', score: 0, reasons: ['mutation gate failed'] },
     gates: {
@@ -64,6 +67,7 @@ function mutationReport(moduleTests?: Record<string, number>): FireguardReport {
         ],
         modules: ['src/add.ts', 'src/orphan.ts'],
         moduleTests,
+        execution,
       },
     },
     scope: {
@@ -94,5 +98,24 @@ describe('report mutation scoping', () => {
     const report = mutationReport({ 'src/add.ts': 1 });
     const json = JSON.parse(formatJsonReport(report)) as FireguardReport;
     expect(json.gates.mutation?.moduleTests).toEqual({ 'src/add.ts': 1 });
+  });
+
+  it('says how mutants ran: copies, in place, or in place after a fallback', () => {
+    const copies = formatHumanReport(mutationReport(undefined, { lanes: 4, workspace: 'copies' }));
+    expect(copies).toContain('  ran 4 mutants at a time in temporary workspace copies');
+    const inPlace = formatHumanReport(
+      mutationReport(undefined, { lanes: 1, workspace: 'in-place' })
+    );
+    expect(inPlace).toContain('  ran one mutant at a time in the working tree');
+    const fallback = formatHumanReport(
+      mutationReport(undefined, {
+        lanes: 1,
+        workspace: 'in-place',
+        fallbackReason: 'graded tests failed in a workspace copy: boom',
+      })
+    );
+    expect(fallback).toContain(
+      '  ran one mutant at a time in the working tree (graded tests failed in a workspace copy: boom)'
+    );
   });
 });

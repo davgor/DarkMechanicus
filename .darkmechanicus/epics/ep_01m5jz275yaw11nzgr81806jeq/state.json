@@ -9,7 +9,7 @@
   "epicId": "ep_01m5jz275yaw11nzgr81806jeq",
   "format": "darkmechanicus.epic-state",
   "formatVersion": 1,
-  "generation": 23,
+  "generation": 34,
   "outcome": null,
   "provenance": {
     "note": "Harden the completion guarantees introduced by Scrum cadence and reduce its procedural orchestration burden.",
@@ -46,14 +46,14 @@
     "tk_01m5jzc2m3zc232ea3b3dz4kvk": "backlog",
     "tk_01m5jzc2m3zrwxxq1wbwmxf0kq": "backlog",
     "tk_01m68tv9x1bay77zhr4p3qyqej": "completed",
-    "tk_01m68tv9x849h8v3qse7cce81a": "backlog",
-    "tk_01m68tv9x86hsnj5yfcz065037": "backlog",
-    "tk_01m68tv9x88htns1rzc4tg593j": "backlog",
-    "tk_01m68tv9x8a466zehy9vs01ebv": "backlog",
+    "tk_01m68tv9x849h8v3qse7cce81a": "completed",
+    "tk_01m68tv9x86hsnj5yfcz065037": "completed",
+    "tk_01m68tv9x88htns1rzc4tg593j": "in_progress",
+    "tk_01m68tv9x8a466zehy9vs01ebv": "completed",
     "tk_01m68tv9x8bzd5120s7jnw288c": "completed",
-    "tk_01m68tv9x8fv21pjx5a9mz53x5": "backlog",
+    "tk_01m68tv9x8fv21pjx5a9mz53x5": "completed",
     "tk_01m68tv9x8g0s4tjqdkx5b8gax": "backlog",
-    "tk_01m68tv9x8gd4hs117ksemxn2a": "in_progress",
+    "tk_01m68tv9x8gd4hs117ksemxn2a": "completed",
     "tk_01m68tv9x8kq9wvw94trd5fqrz": "completed",
     "tk_01m68tv9x8r5qphehn0w0h53zq": "backlog",
     "tk_01m68tv9x8sfdxh618cw46ns1m": "completed",
@@ -61,9 +61,9 @@
     "tk_01m68tv9x8trmgz7k6vz6j2zxg": "completed",
     "tk_01m68tv9x8tvnn82xcqmpbg6js": "completed",
     "tk_01m68tv9x8v7dh0j2ar74e5qyf": "completed",
-    "tk_01m68tv9x8y36qa2yn377asb8p": "in_progress",
+    "tk_01m68tv9x8y36qa2yn377asb8p": "completed",
     "tk_01m68tv9x8yd5ytsjzga9q4rej": "completed"
   },
   "title": "Terminal chats: New chat opens the folder's agent CLI in a terminal inside the app",
-  "updatedAt": "2026-10-31T16:12:36.324Z"
+  "updatedAt": "2026-10-31T19:04:22.074Z"
 }

@@ -55,4 +55,30 @@ describe('fireguard config', () => {
     });
     expect(loaded.thresholds.agenticFlakinessRuns).toBe(100);
   });
+
+  it('reads concurrency from the file and lets FIREGUARD_CONCURRENCY override it', () => {
+    const fromFile = loadConfig({
+      cwd: process.cwd(),
+      readFile: () => JSON.stringify({ concurrency: 2 }),
+      env: {},
+    });
+    expect(fromFile.concurrency).toBe(2);
+    const fromEnv = loadConfig({
+      cwd: process.cwd(),
+      readFile: () => JSON.stringify({ concurrency: 2 }),
+      env: { FIREGUARD_CONCURRENCY: '6' },
+    });
+    expect(fromEnv.concurrency).toBe(6);
+  });
+
+  it('rejects a concurrency that is not a whole number of at least 1', () => {
+    for (const value of ['0', '-2', '1.5', 'many']) {
+      expect(() =>
+        loadConfig({ cwd: process.cwd(), readFile: () => '{}', env: { FIREGUARD_CONCURRENCY: value } })
+      ).toThrow(/concurrency must be a whole number of at least 1/);
+    }
+    expect(() =>
+      loadConfig({ cwd: process.cwd(), readFile: () => '{"concurrency": 0}', env: {} })
+    ).toThrow(/concurrency must be a whole number of at least 1/);
+  });
 });

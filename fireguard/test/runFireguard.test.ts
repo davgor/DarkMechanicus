@@ -1,6 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import { runFireguard } from '../src/runFireguard.js';
 import { DEFAULT_CONFIG } from '../src/config.js';
+import { inPlaceLanes } from './support.js';
+
+const killAll = async () => inPlaceLanes(async () => ({ ok: false }));
 
 describe('runFireguard', () => {
   it('fails closed with F when modules change without graded test updates', async () => {
@@ -9,7 +12,7 @@ describe('runFireguard', () => {
       getDiffEntries: async () => [{ status: 'M', path: 'src/data/jobs.ts' }],
       readFile: async () => '',
       runOnce: async () => ({ ok: true }),
-      applyAndTest: async () => ({ ok: false }),
+      openMutationLanes: killAll,
     });
     expect(report.skipped).toBe(false);
     expect(report.grade.letter).toBe('F');
@@ -39,7 +42,7 @@ describe('add', () => {
           ? solidTest
           : 'export function add(a:number,b:number){return a+b;}',
       runOnce: async () => ({ ok: true }),
-      applyAndTest: async () => ({ ok: false }),
+      openMutationLanes: killAll,
     });
     expect(report.skipped).toBe(false);
     expect(report.scope.gradedTestFiles).toEqual(['src/add.test.ts']);
@@ -49,7 +52,7 @@ describe('add', () => {
 
   it('fail-fasts on AST before flake/mutation', async () => {
     const runOnce = vi.fn(async () => ({ ok: true }));
-    const applyAndTest = vi.fn(async () => ({ ok: false }));
+    const openMutationLanes = vi.fn(killAll);
     const slop = `
 import { it, expect, vi } from 'vitest';
 const fn = vi.fn(() => 1);
@@ -64,13 +67,13 @@ it('empty', () => { fn(); });
       ],
       readFile: async (path) => (path.endsWith('.test.ts') ? slop : 'export const x = 1;'),
       runOnce,
-      applyAndTest,
+      openMutationLanes,
     });
     expect(report.grade.letter).toBe('F');
     expect(report.gates.ast?.pass).toBe(false);
     expect(report.gates.flake).toBeUndefined();
     expect(runOnce).not.toHaveBeenCalled();
-    expect(applyAndTest).not.toHaveBeenCalled();
+    expect(openMutationLanes).not.toHaveBeenCalled();
   });
 
   it('runs flake then mutation and returns a passing grade for solid work', async () => {
@@ -97,7 +100,7 @@ export function add(a: number, b: number): number {
       ],
       readFile: async (path) => (path.endsWith('.test.ts') ? solidTest : solidMod),
       runOnce: async () => ({ ok: true }),
-      applyAndTest: async () => ({ ok: false }),
+      openMutationLanes: killAll,
     });
     expect(report.gates.ast?.pass).toBe(true);
     expect(report.gates.flake?.pass).toBe(true);

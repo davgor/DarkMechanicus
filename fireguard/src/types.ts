@@ -22,6 +22,12 @@ export interface FireguardConfig {
    * and a hung flake run counts as flaky instead of hanging fireguard.
    */
   testTimeoutMs: number;
+  /**
+   * Mutants tested at once. Above 1, each runs in its own temporary copy of the workspace, so
+   * the working tree is not mutated; at 1, or when the copies cannot be made or fail a baseline
+   * run of the graded tests, mutants are written into the working tree in turn.
+   */
+  concurrency: number;
 }
 
 export interface AstFinding {
@@ -73,11 +79,22 @@ export interface MutationGateResult {
   survivors: MutationSurvivor[];
   modules: string[];
   /**
-   * Graded test files each module's mutants ran against (module path -> count). Present when
-   * mutants were scoped to the tests that transitively import their module; 0 means no graded
-   * test reaches the module, so every one of its mutants counted as survived.
+   * Graded test files related to each module, nearest and farther (module path -> count).
+   * Present when mutants were scoped to the tests that transitively import their module; 0 means
+   * no graded test reaches the module, so every one of its mutants counted as survived.
    */
   moduleTests?: Record<string, number>;
+  /** How the mutants ran; present on every run made through `runFireguard`. */
+  execution?: MutationExecution;
+}
+
+export interface MutationExecution {
+  /** Mutants tested at once, each in its own workspace. */
+  lanes: number;
+  /** `copies`: temporary copies of the workspace; `in-place`: the working tree. */
+  workspace: 'copies' | 'in-place';
+  /** Why copies were wanted (concurrency above 1) but the mutants ran in the working tree. */
+  fallbackReason?: string;
 }
 
 export type GateResult = AstGateResult | FlakeGateResult | MutationGateResult;
@@ -126,3 +143,21 @@ export interface RunOnceResult {
 }
 
 export type TestRunner = (files: string[]) => Promise<RunOnceResult>;
+
+export interface MutantRun {
+  file: string;
+  originalSource: string;
+  mutatedSource: string;
+  relatedTests: string[];
+}
+
+/** Writes one mutant into a workspace, runs the given tests there, and restores the file. */
+export type ApplyAndTest = (input: MutantRun) => Promise<RunOnceResult>;
+
+export interface MutationLanes {
+  /** One applier per lane; the mutation gate gives each lane one mutant at a time. */
+  appliers: ApplyAndTest[];
+  execution: MutationExecution;
+  /** Removes any workspace copies. */
+  close: () => Promise<void>;
+}

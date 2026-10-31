@@ -2,8 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DEFAULT_CONFIG } from '../src/config.js';
 import {
   createMutationApplier,
+  createVitestRunner,
   readWorkspaceFileSync,
   workspaceFileExists,
 } from '../src/processAdapters.js';
@@ -53,6 +55,28 @@ describe('createMutationApplier', () => {
     });
     expect(result.ok).toBe(true);
     expect(await readFile(join(dir, rel), 'utf8')).toBe('export const n = 1;\n');
+  });
+});
+
+describe('createVitestRunner worker cap', () => {
+  it('hands maxWorkers to the test command as VITEST_MAX_WORKERS', async () => {
+    const testCommand = "node -e process.exit(process.env.VITEST_MAX_WORKERS==='3'?0:7)";
+    const config = { ...DEFAULT_CONFIG, testCommand };
+    const capped = createVitestRunner({ cwd: process.cwd(), config, maxWorkers: 3 });
+    expect(await capped(['x.test.ts'])).toEqual({ ok: true });
+    const other = createVitestRunner({ cwd: process.cwd(), config, maxWorkers: 2 });
+    expect((await other(['x.test.ts'])).ok).toBe(false);
+  });
+
+  it('adds --passWithNoTests and --bail=1 to mutant runs only', async () => {
+    // `--` makes node hand the flags to the script instead of parsing them as its own options.
+    const testCommand =
+      "node -e process.exit(process.argv.slice(-3).join()==='--passWithNoTests,--bail=1,x.spec.ts'?0:9) --";
+    const config = { ...DEFAULT_CONFIG, testCommand };
+    const lenient = createVitestRunner({ cwd: process.cwd(), config, mutantRun: true });
+    expect(await lenient(['x.spec.ts'])).toEqual({ ok: true });
+    const strict = createVitestRunner({ cwd: process.cwd(), config });
+    expect((await strict(['x.spec.ts'])).ok).toBe(false);
   });
 });
 

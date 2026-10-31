@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { buildRelatedTests, collectImports, resolveRelative } from '../src/importGraph.js';
+import {
+  buildRelatedTests,
+  collectImports,
+  resolveRelative,
+  type RelatedTests,
+} from '../src/importGraph.js';
 
 type Files = Record<string, string | null>;
 
@@ -21,6 +26,12 @@ function relate(files: Files, tests: string[], modules: string[]) {
     },
   });
   return { related, reads };
+}
+
+/** Every related test of a module, nearest and farther alike, sorted. */
+function testsOf(related: Map<string, RelatedTests>, path: string): string[] | undefined {
+  const tiers = related.get(path);
+  return tiers && [...tiers.nearest, ...tiers.farther].sort();
 }
 
 const IMPORT_FLAVOURS = [
@@ -274,15 +285,17 @@ describe('buildRelatedTests relations', () => {
   it('maps each module to the tests that import it, sorted', () => {
     const tests = ['src/z.test.ts', 'src/a.test.ts', 'src/m.test.ts'];
     const { related } = relate(TWO_MODULES, tests, ['src/add.ts', 'src/sub.ts']);
-    expect(related.get('src/add.ts')).toEqual(['src/a.test.ts', 'src/z.test.ts']);
-    expect(related.get('src/sub.ts')).toEqual(['src/m.test.ts', 'src/z.test.ts']);
+    expect(testsOf(related, 'src/add.ts')).toEqual(['src/a.test.ts', 'src/z.test.ts']);
+    expect(testsOf(related, 'src/sub.ts')).toEqual(['src/m.test.ts', 'src/z.test.ts']);
     expect([...related.keys()]).toEqual(['src/add.ts', 'src/sub.ts']);
   });
 
   it('follows transitive imports, re-exports, index files and import cycles', () => {
     const modules = ['src/leaf.ts', 'src/lib/impl.ts', 'src/cycle-b.ts', 'src/lazy.ts'];
     const { related } = relate(TRANSITIVE, ['src/feature.test.ts'], modules);
-    expect([...related.values()]).toEqual(modules.map(() => ['src/feature.test.ts']));
+    expect(modules.map((path) => testsOf(related, path))).toEqual(
+      modules.map(() => ['src/feature.test.ts'])
+    );
   });
 
   it('keeps modules that no test reaches with an empty list', () => {
@@ -293,12 +306,44 @@ describe('buildRelatedTests relations', () => {
     };
     const tests = ['src/used.test.ts', 'src/used.test.ts'];
     const { related } = relate(files, tests, ['src/used.ts', 'src/orphan.ts']);
-    expect(related.get('src/orphan.ts')).toEqual([]);
-    expect(related.get('src/used.ts')).toEqual(['src/used.test.ts']);
+    expect(related.get('src/orphan.ts')).toEqual({ nearest: [], farther: [] });
+    expect(testsOf(related, 'src/used.ts')).toEqual(['src/used.test.ts']);
   });
 
   it('returns an empty map when there are no modules', () => {
     expect(relate({}, ['src/a.test.ts'], []).related.size).toBe(0);
+  });
+});
+
+/** `core` is imported directly by two tests and through `wrap` by a third. */
+const DISTANCES: Files = {
+  'src/core.ts': 'export const core = 1;',
+  'src/wrap.ts': "export { core } from './core';",
+  'src/core.test.ts': "import { core } from './core';",
+  'src/both.test.ts': "import { core } from './wrap';\nimport './core';",
+  'src/wrap.test.ts': "import { core } from './wrap';",
+};
+
+describe('buildRelatedTests import distance', () => {
+  it('puts the tests fewest import hops away in nearest and the rest in farther', () => {
+    const tests = ['src/wrap.test.ts', 'src/core.test.ts', 'src/both.test.ts'];
+    const { related } = relate(DISTANCES, tests, ['src/core.ts', 'src/wrap.ts']);
+    expect(related.get('src/core.ts')).toEqual({
+      nearest: ['src/both.test.ts', 'src/core.test.ts'],
+      farther: ['src/wrap.test.ts'],
+    });
+    expect(related.get('src/wrap.ts')).toEqual({
+      nearest: ['src/both.test.ts', 'src/wrap.test.ts'],
+      farther: [],
+    });
+  });
+
+  it('measures from the module, so a deep module still has nearest tests', () => {
+    const { related } = relate(TRANSITIVE, ['src/feature.test.ts'], ['src/cycle-b.ts']);
+    expect(related.get('src/cycle-b.ts')).toEqual({
+      nearest: ['src/feature.test.ts'],
+      farther: [],
+    });
   });
 });
 
@@ -338,8 +383,8 @@ describe('buildRelatedTests file access', () => {
   it('does not count mocks, packages, or computed imports as relations', () => {
     const modules = ['src/mocked.ts', 'src/computed.ts'];
     const { related } = relate(NON_RELATIONS, ['src/a.test.ts'], modules);
-    expect(related.get('src/mocked.ts')).toEqual([]);
-    expect(related.get('src/computed.ts')).toEqual([]);
+    expect(related.get('src/mocked.ts')).toEqual({ nearest: [], farther: [] });
+    expect(related.get('src/computed.ts')).toEqual({ nearest: [], farther: [] });
   });
 
   it('reads every file at most once and never reads non-source files', () => {
@@ -351,14 +396,16 @@ describe('buildRelatedTests file access', () => {
       'src/three.test.ts',
       'src/two.test.ts',
     ]);
-    expect(related.get('src/data.json')).toHaveLength(3);
+    expect(testsOf(related, 'src/data.json')).toHaveLength(3);
   });
 
   it('follows imports through every supported source extension', () => {
     const modules = ['src/a.js', 'src/b.mjs', 'src/c.cjs', 'src/d.tsx'];
     modules.push('src/e.jsx', 'src/f.mts', 'src/g.cts');
     const { related } = relate(EXTENSION_CHAIN, ['src/chain.test.ts'], modules);
-    expect([...related.values()]).toEqual(modules.map(() => ['src/chain.test.ts']));
+    expect(modules.map((path) => testsOf(related, path))).toEqual(
+      modules.map(() => ['src/chain.test.ts'])
+    );
   });
 
   it('treats unreadable files as having no imports', () => {
@@ -370,8 +417,8 @@ describe('buildRelatedTests file access', () => {
     };
     const tests = ['src/a.test.ts', 'src/missing.test.ts', 'src/gone.test.ts'];
     const { related } = relate(files, tests, ['src/broken.ts', 'src/ok.ts']);
-    expect(related.get('src/broken.ts')).toEqual(['src/a.test.ts']);
-    expect(related.get('src/ok.ts')).toEqual(['src/a.test.ts']);
+    expect(testsOf(related, 'src/broken.ts')).toEqual(['src/a.test.ts']);
+    expect(testsOf(related, 'src/ok.ts')).toEqual(['src/a.test.ts']);
   });
 });
 
@@ -391,14 +438,22 @@ describe('buildRelatedTests visit cap', () => {
   it('follows chains up to exactly 5000 visited files', () => {
     const modules = ['src/unrelated.ts', 'src/chain/n4998.ts'];
     const { related } = relate(chainFiles(4999), ['src/chain.test.ts'], modules);
-    expect(related.get('src/chain/n4998.ts')).toEqual(['src/chain.test.ts']);
-    expect(related.get('src/unrelated.ts')).toEqual([]);
+    expect(testsOf(related, 'src/chain/n4998.ts')).toEqual(['src/chain.test.ts']);
+    expect(testsOf(related, 'src/unrelated.ts')).toEqual([]);
   });
 
-  it('relates a test to every module once its closure exceeds 5000 files', () => {
+  it('relates a test to every module as a farther test once its closure exceeds 5000 files', () => {
     const modules = ['src/unrelated.ts', 'src/chain/n4999.ts'];
-    const { related } = relate(chainFiles(5000), ['src/chain.test.ts'], modules);
-    expect(related.get('src/unrelated.ts')).toEqual(['src/chain.test.ts']);
-    expect(related.get('src/chain/n4999.ts')).toEqual(['src/chain.test.ts']);
+    const files: Files = { ...chainFiles(5000), 'src/unrelated.test.ts': "import './unrelated';" };
+    const tests = ['src/chain.test.ts', 'src/unrelated.test.ts'];
+    const { related } = relate(files, tests, modules);
+    expect(related.get('src/unrelated.ts')).toEqual({
+      nearest: ['src/unrelated.test.ts'],
+      farther: ['src/chain.test.ts'],
+    });
+    expect(related.get('src/chain/n4999.ts')).toEqual({
+      nearest: [],
+      farther: ['src/chain.test.ts'],
+    });
   });
 });

@@ -1,9 +1,10 @@
 import ts from 'typescript';
+import type { RelatedTests } from '../importGraph.js';
 import type {
+  ApplyAndTest,
   FireguardConfig,
   MutationGateResult,
   MutationSurvivor,
-  RunOnceResult,
 } from '../types.js';
 
 export type MutantKind = 'conditional-inversion' | 'operator-swap' | 'return-value-tweak';
@@ -156,29 +157,57 @@ export function scoreMutations(options: {
   return options.moduleTests ? { ...result, moduleTests: options.moduleTests } : result;
 }
 
-type ApplyAndTest = (input: {
-  file: string;
-  originalSource: string;
-  mutatedSource: string;
-  relatedTests: string[];
-}) => Promise<RunOnceResult>;
-
-async function isKilled(input: {
+interface MutantJob {
   mod: { path: string; source: string };
   mutant: Mutant;
-  tests: string[];
-  applyAndTest: ApplyAndTest;
-}): Promise<boolean> {
-  // No test can reach this module, so nothing can kill the mutant: skip applying it.
-  if (input.tests.length === 0) return false;
-  const result = await input.applyAndTest({
-    file: input.mod.path,
-    originalSource: input.mod.source,
-    mutatedSource: input.mutant.mutatedSource,
-    relatedTests: input.tests,
-  });
-  // ok:false means tests failed => mutant killed
-  return !result.ok;
+  /** Test batches to try in order (nearest, then farther); empty when no test reaches the module. */
+  batches: string[][];
+}
+
+/** A mutant is killed as soon as one batch fails, so farther tests run only for survivors. */
+async function isKilled(job: MutantJob, applyAndTest: ApplyAndTest): Promise<boolean> {
+  for (const relatedTests of job.batches) {
+    const result = await applyAndTest({
+      file: job.mod.path,
+      originalSource: job.mod.source,
+      mutatedSource: job.mutant.mutatedSource,
+      relatedTests,
+    });
+    // ok:false means tests failed => mutant killed
+    if (!result.ok) return true;
+  }
+  return false;
+}
+
+/**
+ * Each lane takes the next job as soon as it is free, so lanes never run two jobs at once.
+ * After a job throws, no lane starts another; the first error is rethrown once every lane
+ * has finished its job in flight (so its workspace is no longer in use).
+ */
+async function runOnLanes<T>(
+  jobs: T[],
+  appliers: ApplyAndTest[],
+  run: (job: T, applyAndTest: ApplyAndTest) => Promise<boolean>
+): Promise<boolean[]> {
+  if (appliers.length === 0) throw new Error('fireguard: no mutation lanes to run mutants on');
+  const results: boolean[] = [];
+  let next = 0;
+  let failure: { error: unknown } | undefined;
+  await Promise.all(
+    appliers.map(async (applyAndTest) => {
+      while (failure === undefined && next < jobs.length) {
+        const index = next;
+        next += 1;
+        try {
+          results[index] = await run(jobs[index]!, applyAndTest);
+        } catch (error) {
+          failure ??= { error };
+        }
+      }
+    })
+  );
+  if (failure !== undefined) throw failure.error;
+  return results;
 }
 
 export async function runMutationGate(options: {
@@ -186,39 +215,45 @@ export async function runMutationGate(options: {
   modules: Array<{ path: string; source: string }>;
   relatedTests: string[];
   /**
-   * Graded tests that can kill the mutants of one module (those that transitively import it).
-   * When omitted, every module's mutants run against all of `relatedTests`.
+   * Graded tests that can kill the mutants of one module (those that transitively import it),
+   * nearest first. When omitted, every module's mutants run against all of `relatedTests`.
    */
-  relatedTestsFor?: (modulePath: string) => string[];
-  applyAndTest: ApplyAndTest;
+  relatedTestsFor?: (modulePath: string) => RelatedTests;
+  /** One applier per lane; mutants are spread over the lanes, one per lane at a time. */
+  appliers: ApplyAndTest[];
 }): Promise<MutationGateResult> {
-  let killed = 0;
-  let survived = 0;
-  const survivors: MutationSurvivor[] = [];
   const moduleTests: Record<string, number> = {};
-
+  const jobs: MutantJob[] = [];
   for (const mod of options.modules) {
-    const tests = options.relatedTestsFor
+    const tiers = options.relatedTestsFor
       ? options.relatedTestsFor(mod.path)
-      : options.relatedTests;
-    moduleTests[mod.path] = tests.length;
+      : { nearest: options.relatedTests, farther: [] };
+    moduleTests[mod.path] = tiers.nearest.length + tiers.farther.length;
+    // No test can reach a module without batches, so its mutants survive without being applied.
+    const batches = [tiers.nearest, tiers.farther].filter((batch) => batch.length > 0);
     for (const mutant of generateMutants(mod.path, mod.source)) {
-      if (await isKilled({ mod, mutant, tests, applyAndTest: options.applyAndTest })) {
-        killed += 1;
-      } else {
-        survived += 1;
-        survivors.push({
-          file: mutant.file,
-          line: mutant.line,
-          description: `${mutant.kind}: ${mutant.description}`,
-        });
-      }
+      jobs.push({ mod, mutant, batches });
     }
   }
 
+  const killedByJob = await runOnLanes(jobs, options.appliers, isKilled);
+  let killed = 0;
+  const survivors: MutationSurvivor[] = [];
+  jobs.forEach((job, index) => {
+    if (killedByJob[index]) {
+      killed += 1;
+      return;
+    }
+    survivors.push({
+      file: job.mutant.file,
+      line: job.mutant.line,
+      description: `${job.mutant.kind}: ${job.mutant.description}`,
+    });
+  });
+
   return scoreMutations({
     killed,
-    survived,
+    survived: survivors.length,
     minScore: options.config.thresholds.minMutationScore,
     survivors,
     modules: options.modules.map((m) => m.path),
