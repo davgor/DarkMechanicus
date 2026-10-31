@@ -9,7 +9,7 @@
   "epicId": "ep_01m43sbb2tbnxtr35fety5vzhs",
   "format": "darkmechanicus.epic-state",
   "formatVersion": 1,
-  "generation": 55,
+  "generation": 56,
   "outcome": null,
   "provenance": null,
   "status": "in_progress",
@@ -50,5 +50,5 @@
     "tk_01m49emzzdwv2qxvaq6zhhe12w": "completed"
   },
   "title": "Source control: a GitHub Desktop-style Git view in every folder",
-  "updatedAt": "2026-10-31T18:38:43.311Z"
+  "updatedAt": "2026-10-31T20:04:04.553Z"
 }

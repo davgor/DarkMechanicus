@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "**Decision (person, 2026-10-31) and revision 4 (orchestrator).** GitHub sign-in no longer uses an OAuth App or the device flow: **Sign in** imports the github.com token from this machine's GitHub CLI login (`gh auth token`), checks it with `GET /user` (needs the `repo` scope), and stores an encrypted copy. Sprint 2 entry criterion n1 is dropped, e1 now reads \"Sign-in with the machine's GitHub CLI login works against github.com…\".\n\nRevision 4 (rv_01m69rzt5jabxh2gd9wb46ygw7) rewrites DM-141 (gh import; removes deviceFlow.ts/config.ts and the startSignIn/cancelSignIn/onSignInFailed API), DM-142 (dialog: one 'Use my GitHub CLI login' button with fix commands), DM-140 (c1, c2, c11 and c13), DM-156 (runbook `docs/runbooks/github-sign-in.md`) and the epic's Decisions. DM-141 and DM-142 lose their acceptance on adoption and are redone; every other accepted ticket keeps its acceptance. The current DM-140 attempt finishes its non-sign-in evidence and is then failed as superseded, so the revision can be adopted with no open attempts.",
+  "createdAt": "2026-10-31T20:04:14.949Z",
+  "epicId": "ep_01m43sbb2tbnxtr35fety5vzhs",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m69s04f5akrhxbbqqsg22708",
+  "ticketId": null
+}
