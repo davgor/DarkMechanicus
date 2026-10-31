@@ -556,7 +556,7 @@
   color: var(--accent);
 }
 
-/* Attempts strip */
+/* Attempts strip: one line per attempt, so long failure or rejection reasons cannot grow it over the graph. */
 .ew-strip {
   flex-shrink: 0;
   box-sizing: border-box;
@@ -575,6 +575,7 @@
 }
 
 .ew-strip-toggle {
+  flex-shrink: 0;
   height: 30px;
   padding: 0 8px;
   border: 0;
@@ -602,19 +603,38 @@
   padding: 0;
   list-style: none;
   display: flex;
-  flex-wrap: wrap;
   gap: 4px 18px;
   min-width: 0;
 }
 
+/* On the one-line strip, attempts share the row equally: one shorter than its share keeps its whole text and leaves the rest to the others. */
+.ew-strip-items > li {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: max-content;
+}
+
 .ew-strip.is-expanded .ew-strip-items {
   flex-direction: column;
+  max-height: min(40vh, 320px);
+  overflow-y: auto;
+}
+
+.ew-strip.is-expanded .ew-strip-items > li {
+  flex: none;
+  max-width: none;
+}
+
+/* The scrolling list clips anything outside its box, so the focus ring is drawn inside the attempt. */
+.ew-strip.is-expanded .ew-strip-item:focus-visible {
+  outline-offset: -2px;
 }
 
 .ew-strip-item {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  max-width: 100%;
   padding: 2px 0;
   border: 0;
   background: transparent;
@@ -623,12 +643,23 @@
   cursor: pointer;
 }
 
+.ew-strip-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .ew-strip-sync {
   margin-left: auto;
   font-family: var(--font-mono);
   font-size: 11.5px;
   color: var(--muted);
   white-space: nowrap;
+}
+
+.ew-strip-hide {
+  flex-shrink: 0;
 }
 
 /* A disabled primary action must not look actionable (mockup 05: blocked "Advance" button). */

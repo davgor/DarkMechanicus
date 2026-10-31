@@ -1,0 +1,904 @@
+{
+  "baseRevisionId": null,
+  "bundle": {
+    "edges": [
+      {
+        "from": "tk_01m6995z2mx1bz11ze30zy4ha6",
+        "to": "tk_01m6995z2mbk5pfdkjxwabar6z"
+      },
+      {
+        "from": "tk_01m6995z2mbk5pfdkjxwabar6z",
+        "to": "tk_01m6995z2m5pfxk8z0jn694wda"
+      }
+    ],
+    "epic": {
+      "intent": "Close the six follow-ups that the Linear handoff epic's Sprint 3 report recorded. Each one either loses or hides a person's data, lets an agent do work that is certain to be refused, leaves a safety limit untested, or garbles an error message.\n\n**Storage: a flush never overwrites what it has not imported**\n- **Run history and profiles.** A local flush writes a run's `history/<runId>/run.json` and `profiles/<name>.json` without checking whether another machine changed them, so a pulled run history or profile edit is silently replaced. DM-338 closed this loss for epic records. This epic extends the same rule and the same person-only choice (Keep tracked records or Write local) to runs and profiles.\n- **Epic imports.** A pending run history export no longer blocks importing its epic. The run's own record stays protected by its own check.\n- **Stale conflicts.** A conflict that reconcile records (\"Tracked records for epic …\", \"Tracked history for run …\") disappears at the next reconcile once its condition is gone, instead of staying on the Storage card until that epic or run is next imported or exported.\n\n**Linear transfer: refuse early.** A transfer whose read-back would exceed `READBACK_LIMITS.totalChars` (100,000,000 JSON characters) is refused when the person queues it, before anything is stored or created in Linear. Today the refusal arrives only after the agent has created every Linear item.\n\n**MCP server: the size limit's wiring is tested.** The server the desktop app launches bounds each stdio message at 32,000,000 bytes. A unit test fails if `nodeHost` goes back to the SDK's unbounded transport.\n\n**Error text stays intact.** When a transfer chat or an orchestrator cannot start, the reason keeps its last letters. Today `/[.s]+$/` strips a trailing \"s\", so \"permissions\" shows as \"permission\".\n\nOut of scope: the hosted-Linear dry run (DM-316 in the source epic), any other change to transfers or the MCP protocol, and conflicts on comments.",
+      "ownerRole": null,
+      "successCriteria": [
+        {
+          "id": "s1",
+          "text": "When another machine has changed a run history or profile file that this machine has not imported, a local flush does not overwrite it. The Storage card shows the conflict, and only a person can choose Keep tracked records (import theirs and drop the local export) or Write local (write this machine's version)."
+        },
+        {
+          "id": "s2",
+          "text": "An epic whose run has a pending run history export still imports another machine's revision. The run's own tracked history is still neither imported over the local changes nor overwritten by them."
+        },
+        {
+          "id": "s3",
+          "text": "A conflict message that reconcile recorded is gone after the next reconcile once its condition no longer holds, and it stays while the condition still holds."
+        },
+        {
+          "id": "s4",
+          "text": "Queuing a Linear transfer whose read-back would exceed 100,000,000 JSON characters is refused with an error naming the limit; no transfer is stored and the agent never receives the packet. A plan of 1,000 tickets at typical sizes still queues."
+        },
+        {
+          "id": "s5",
+          "text": "A unit test exercises the transport that nodeHost creates: an over-limit stdio message gets an error reply and the next request is served. The test fails if nodeHost uses the SDK's StdioServerTransport."
+        },
+        {
+          "id": "s6",
+          "text": "A transfer-chat or orchestrator start failure whose error ends in a letter s (for example \"permissions\") shows the whole word in the person's message."
+        }
+      ],
+      "title": "Linear handoff follow-ups: no pulled run history or profile overwritten, stale conflicts cleared, oversized transfers refused at queue, MCP transport wiring tested, error text intact"
+    },
+    "formatVersion": 1,
+    "policies": {
+      "leaseSeconds": 900,
+      "maxConcurrency": 2,
+      "onTicketFailure": "continue_independent",
+      "retryLimit": 3
+    },
+    "rationale": "## Source\nThe six follow-ups recorded in the Linear handoff epic's Sprint 3 report (rp_01m693j420drfgpy8ygv9bctc1). The person asked for a new epic with them.\n\n## Decisions and assumptions\n- **Runs and profiles get DM-338's rule and choice.** Refusing the write alone would deadlock. The import waits for the pending export, and the export waits for the import; failed outbox rows still count as pending. The refusal would also break the epic Keep tracked, which flushes run history first. So each kind ships with the person-only Keep tracked records / Write local choice. One command, `resolveRecordConflict { kind, id, keep }`, replaces `resolveEpicConflict`. It keeps capability `repo.resolve_conflict` and stays desktop only. *Assumption:* the person wants the same choice as for epics, not an automatic winner.\n- **An epic import no longer waits for run history.** `hasPendingEpicChanges` drops `run_history`. The run's own file stays protected by `hasPendingRunChanges`. DM-366 comes before DM-367: once it lands, the epic Keep tracked no longer needs the run-history flush that the DM-367 guard can refuse.\n- **Stale conflicts.** Reconcile's own conflicts are recomputed on each run, except that a rejected epic keeps its message so its waiting changes stay visible.\n- **Oversized transfers are refused at queue,** where the person sees it and nothing is stored, **and at start,** for packets queued by an earlier build. The projection measures with the read-back's own JSON counter and uses named allowances for Linear's values. The read-back check remains the final gate.\n- **The MCP wiring test is a behavior test** on injected streams, not `instanceof`, so removing the bound fails it.\n- **Standards:** none beyond the project's Definition of Done. Each ticket lists its tests and runs targeted checks. The plan states neither tests-first nor Fireguard.\n- **No epic branch named;** set one from main before the run.\n\n## Graph\nOne sprint.\n- Row 1: DM-365 (stale conflicts), DM-366 (epic import), DM-369 (transfer size), DM-370 (MCP wiring) and DM-371 (reasonOf), independent.\n- Row 2: DM-367 (run history), which requires DM-366.\n- Row 3: DM-368 (profiles), which requires DM-367 and reuses its command.\n- Critical path: DM-366 → DM-367 → DM-368.",
+    "relations": [],
+    "sprints": [
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": null,
+        "entryCriteria": [
+          {
+            "id": "n1",
+            "text": "main includes the Linear handoff epic (431d48e or later), and the epic branch starts from it."
+          }
+        ],
+        "exitCriteria": [
+          {
+            "id": "x1",
+            "text": "Every required work ticket is accepted and every row check passed."
+          },
+          {
+            "id": "x2",
+            "text": "The project Definition of Done passes once on the combined work."
+          },
+          {
+            "id": "x3",
+            "text": "Each success criterion s1 to s6 is shown by the acceptance node's covered checks."
+          },
+          {
+            "id": "x4",
+            "text": "docs/architecture.md describes the run and profile conflict choice next to the epic rule."
+          }
+        ],
+        "goal": "Close the six Linear handoff follow-ups: no flush overwrites a pulled run history or profile, an epic imports while its run's history waits to export, reconcile clears its stale conflicts, oversized transfers are refused at queue, the MCP transport's wiring is tested, and start errors keep their last letters.",
+        "id": "sp_01m698z4krn17151nbaerdf150",
+        "ordinal": 1,
+        "ticketIds": [
+          "tk_01m6995z1ygn9t104c18qnpfw2",
+          "tk_01m6995z2mx1bz11ze30zy4ha6",
+          "tk_01m6995z2mbk5pfdkjxwabar6z",
+          "tk_01m6995z2m5pfxk8z0jn694wda",
+          "tk_01m6995z2md6anq7etq84yfs2p",
+          "tk_01m6995z2ma78j1qqb2vyvmvzn",
+          "tk_01m6995z2mtsfw08a8wph9sg0n",
+          "tk_01m698z4krxek4e2sxp8mzdg8s"
+        ]
+      }
+    ],
+    "tickets": [
+      {
+        "acceptanceCriteria": [
+          {
+            "covers": "tk_01m6995z1ygn9t104c18qnpfw2",
+            "id": "c1",
+            "text": "In a scratch repository, a \"Tracked records for epic\" conflict that reconcile recorded is listed by the storage status. Its waiting export entries then end without an import or export of that epic (marked done, as a person's choice or an expiry leaves them), and the next reconcile no longer lists it. A rejected epic's message stays. Evidence: storage status output before and after."
+          },
+          {
+            "covers": "tk_01m6995z2mx1bz11ze30zy4ha6",
+            "id": "c2",
+            "text": "In two scratch repositories, a run in progress on B has a pending history export. A's saved revision imports on B at reconcile, and B's run history export then lands with B's attempts. Evidence: B's plan revision and run.json."
+          },
+          {
+            "covers": "tk_01m6995z2mbk5pfdkjxwabar6z",
+            "id": "c3",
+            "text": "In two scratch repositories, A and B change the same run's history. B's flush is refused, and A's run.json is unchanged by sha256. The Storage card offers Keep tracked records / Write local for the run (screenshot), and an orchestrator session is refused the choice. Keep tracked imports A's history, and in a repeat, Write local writes B's."
+          },
+          {
+            "covers": "tk_01m6995z2m5pfxk8z0jn694wda",
+            "id": "c4",
+            "text": "The same two-repository check for a profile: B's flush is refused and A's file is unchanged by sha256. The card offers the choice (screenshot). Keep tracked imports A's profile, and Write local writes B's."
+          },
+          {
+            "covers": "tk_01m6995z2md6anq7etq84yfs2p",
+            "id": "c5",
+            "text": "On the built server with the real 100,000,000-character limit, queueing a scratch epic whose projected read-back exceeds it is refused naming totalChars, with no transfer stored. A 1,000-ticket plan at typical sizes queues."
+          },
+          {
+            "covers": "tk_01m6995z2ma78j1qqb2vyvmvzn",
+            "id": "c6",
+            "text": "The nodeHost test fails with StdioServerTransport swapped in and passes as merged. The built server answers a 32,000,001-byte message with an error and serves the next request."
+          },
+          {
+            "covers": "tk_01m6995z2mtsfw08a8wph9sg0n",
+            "id": "c7",
+            "text": "A transfer chat start that fails with an error ending in \"permissions\" shows \"permissions.\" in the person's message (test output or desktop screenshot)."
+          }
+        ],
+        "body": "Run the project's Definition of Done once on the combined sprint work in the integration worktree. Then verify each covered item with the evidence its criterion names, land the sprint as one squashed commit on the epic branch, and submit that increment.\n\nRun every command that opens a repository against scratch repositories, never against the live `.darkmechanicus/local/state.sqlite` of the main checkout. For two-machine checks, use two scratch repositories that share one Git remote, so one can pull the other's tracked records.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Runs the Definition of Done on the combined work and verifies each item end to end in scratch repositories."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m698z4krxek4e2sxp8mzdg8s",
+        "key": "DM-364",
+        "kind": "acceptance",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "tags": [],
+        "title": "Sprint 1 acceptance"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A \"Tracked records for epic\" or \"Tracked history for run\" message that one reconcile recorded is gone after the next reconcile once its waiting export entries are done, and stays while they still wait."
+          },
+          {
+            "id": "c2",
+            "text": "An epic whose tracked records the scan rejected keeps its message across reconcile while its local changes still wait."
+          },
+          {
+            "id": "c3",
+            "text": "Transfer-hold clearing, the message texts and the resolvable rules are unchanged, and the existing importer and storage tests pass."
+          },
+          {
+            "id": "c4",
+            "text": "The listed tests pass, each shown to fail without the change."
+          }
+        ],
+        "body": "**Context**\nReconcile records conflicts in `sync_state.conflict`, but `storeConflicts` (`src/core/repo/importer.ts`, about :1037-1049) clears only transfer-hold rows (`TRANSFER_HOLD_PREFIX`) before it writes this reconcile's conflicts. Two other messages that reconcile writes are cleared only by a later import (`markSynced`, about :678, called at :778 for epics and :972 for runs) or a later export (`recordExport` in `src/core/repo/finalizer.ts`, about :159-170):\n- `EPIC_RECORDS_CONFLICT_PREFIX` \"Tracked records for epic …\" (importer.ts :517, message at :523-530, produced by `planEpics` about :596-606);\n- \"Tracked history for run <id> changed while local run changes are waiting to be exported.\" (`planRuns`, about :620-624).\n\nSo when the waiting export ends some other way, for example a person's choice drops it, the message stays on the Storage card. `StorageCard.tsx` :117-118 always renders the text; the Keep buttons hide because `resolvable` is false (`src/core/services/storage.ts` :54-57 and :67-76).\n\n**Change**\n- First confirm, by searching for writes to `sync_state` `conflict`, which messages reconcile recomputes on every run. Then make `storeConflicts` treat this reconcile's conflicts as the whole set for those messages: in the same statement that clears transfer holds, also clear epic-records and run messages, then write this reconcile's conflicts.\n- Keep the message of an epic whose tracked records this scan rejected (`scan.rejectedEpics`). `planEpics` adds no conflict for it while its local changes still wait, so clearing it would hide them. Treat runs of such an epic the same way.\n- Leave profile conflicts (`storeProfileConflicts` in `src/core/repo/profileImport.ts`) to their own path unless that path recomputes them on every reconcile too, in which case clear its stale rows the same way.\n- Do not change the messages' text, the `resolvable` rules or the Storage card.\n\n**Tests** (write and run in this ticket)\n- `importer.test.ts` (`reconcileRepository conflicts`): an epic-records conflict recorded by one reconcile is gone after a later reconcile once the epic's waiting outbox entries are done, and stays while they still wait.\n- The same for a run message.\n- A rejected epic keeps its message across a reconcile while its local changes wait.\n\n**Checks:** typecheck; `npx oxlint` on the files you touched; the tests listed above plus the existing tests of the files you touched. Do not run the full suite, coverage, whole-tree lint, a build or Fireguard: the sprint's acceptance node runs the Definition of Done once on the combined work.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "routine",
+            "rationale": "Steps are spelled out; the one hard part is not hiding a rejected epic's waiting changes."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m6995z1ygn9t104c18qnpfw2",
+        "key": "DM-365",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/importer.ts",
+            "location": "src/core/repo/importer.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/storage.ts",
+            "location": "src/core/services/storage.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "ticket",
+            "label": "DM-338 (Linear handoff epic)",
+            "location": "DM-338",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "storage",
+          "core"
+        ],
+        "title": "Clear stale reconcile conflicts at the next reconcile"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "hasPendingEpicChanges ignores run_history entries, and its doc comment says why."
+          },
+          {
+            "id": "c2",
+            "text": "With a run_history export pending, reconcile imports another machine's epic revision and still skips the run's changed tracked history with its run conflict."
+          },
+          {
+            "id": "c3",
+            "text": "The pending run_history export, flushed after that import, writes a run.json that holds this machine's attempts for the run."
+          },
+          {
+            "id": "c4",
+            "text": "The listed tests pass, each shown to fail without the change."
+          }
+        ],
+        "body": "**Context**\n`hasPendingEpicChanges` (`src/core/repo/syncState.ts`, about :19-24) counts every non-comment outbox row of the epic in state pending or failed, including `run_history` rows. `run_history` is enqueued with the epic's id by `runs.ts` :65, `attempts.ts` :122, `checkpoints.ts`, `execution.ts`, `reports.ts` :295, `rowChecks.ts` :85 and `adoption.ts` :228 (all in `src/core/services/`). While a run is active, its history export is pending most of the time. `planEpics` (`src/core/repo/importer.ts`, about :596-606) then skips the epic's import and records \"Tracked records for epic …\". `planRuns` (about :620) drops the epic's runs too.\n\nThe run's own file is protected independently by `hasPendingRunChanges` (importer.ts, about :451-456), which matches on `run_id`. A `run_history` export writes only `history/<runId>/run.json`, never the epic's `state.json`, `current.json` or snapshots.\n\nOther callers of the predicate:\n- `choiceStands` in `src/core/services/storage.ts` :55;\n- `requireConflict` and `keepTracked` in `src/core/services/epicConflict.ts`. `keepTracked` flushes `run_history` before reconciling only so that this predicate clears.\n\nLeave `keepTracked` unchanged here; a later ticket changes it.\n\n**Change**\n- Exclude `run_history` from `hasPendingEpicChanges` (`kind NOT IN ('comment', 'run_history')`) and update its doc comment to say why.\n- Check the one open risk before relying on it: `buildRunHistoryRecord` builds `run.json` from the database at flush time. Trace whether importing the epic changes rows it reads (run, attempts, reports, ticket states). Confirm that the export flushed after the import still writes this machine's run with its attempts. Record what you found in the evidence.\n\n**Tests** (write and run in this ticket)\n- `importer.test.ts`: a repository with a pending `run_history` export for an active run imports another machine's epic revision at reconcile. The run's changed tracked history is still skipped, with its run conflict recorded.\n- After that import, flushing the pending `run_history` writes a `run.json` that holds this machine's attempts for the run.\n- `storage.test.ts` or `epicConflict` tests: with only a pending `run_history` export, the epic has no \"Tracked records for epic\" choice.\n\n**Checks:** typecheck; `npx oxlint` on the files you touched; the tests listed above plus the existing tests of the files you touched. Do not run the full suite, coverage, whole-tree lint, a build or Fireguard: the sprint's acceptance node runs the Definition of Done once on the combined work.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "One-line predicate change, but the worker must confirm that an epic import cannot corrupt the run export that is still waiting."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m6995z2mx1bz11ze30zy4ha6",
+        "key": "DM-366",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/syncState.ts",
+            "location": "src/core/repo/syncState.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/importer.ts",
+            "location": "src/core/repo/importer.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/epicConflict.ts",
+            "location": "src/core/services/epicConflict.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "storage",
+          "core"
+        ],
+        "title": "Stop pending run history exports from blocking an epic's import"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A run_history flush over a tracked run.json that another machine changed and this one has not imported is refused with conflict and leaves the file byte-identical. A missing file or sync_state row, or a file matching the exported or imported hash, still writes."
+          },
+          {
+            "id": "c2",
+            "text": "resolveRecordConflict { kind, id, keep } replaces resolveEpicConflict for every caller. Epic behavior is unchanged, and a session without repo.resolve_conflict is refused."
+          },
+          {
+            "id": "c3",
+            "text": "For a run, Keep tracked imports the other machine's history and drops the waiting export; Write local writes this machine's history. Each is refused when there is nothing to choose."
+          },
+          {
+            "id": "c4",
+            "text": "Epic Keep tracked still succeeds while a run's history export is refused."
+          },
+          {
+            "id": "c5",
+            "text": "The Storage card offers Keep tracked records / Write local for a resolvable run conflict, and docs/architecture.md states the run rule."
+          },
+          {
+            "id": "c6",
+            "text": "The listed tests pass, each shown to fail without the change."
+          }
+        ],
+        "body": "**Context**\nThe finalizer's `run_history` handler (`src/core/repo/finalizer.ts` `FILE_HANDLERS`, about :421-433) writes `.darkmechanicus/history/<runId>/run.json` with `writeFileSafely` (about :105-125) and records it with `recordExport` (about :159-170, which clears `sync_state.conflict` and `imported_hash`). It never checks whether another machine changed the tracked file, so a flush overwrites pulled run history.\n\nThe import side already notices the clash. `planRuns` (`src/core/repo/importer.ts`, about :620-624) skips a changed run while `hasPendingRunChanges` (about :451-456) holds, and records \"Tracked history for run <id> changed while local run changes are waiting to be exported.\" `src/core/services/storage.ts` :75 makes only epic conflicts resolvable, so the Storage card shows this one without a choice.\n\nA guard alone deadlocks. The import waits for the export and the export waits for the import, and failed outbox rows still count as pending. So the guard ships with the person's choice, as DM-338 did for epic records:\n- guard: `requireWritableRecords` (finalizer.ts, about :283-297), `unimportedHash` (about :264-270), `matchesSync` (`src/core/repo/syncState.ts` :9-17, kinds `'epic' | 'run'`);\n- person-only choice: `resolveEpicConflict(ctx, { epicId, keep: 'tracked' | 'local' }, records)` in `src/core/services/epicConflict.ts`, behind capability `repo.resolve_conflict` (`src/core/commands/capabilities.ts` :22). Schema at `src/core/commands/commandSchemas.ts` :72, command at `src/core/commands/repository.ts` :106-109. Desktop only, no MCP tool. The Storage card calls it through `onResolveConflict(epicId, keep)` and `ConflictChoice` (`src/renderer/src/home/StorageCard.tsx` :16, :62-75, :118).\n\n**Change**\n- **Guard.** Before the `run_history` handler writes, read the tracked `run.json`. If it exists and its `trackedRunHash` equals neither `exported_hash` nor `imported_hash` of the run's `sync_state` row, refuse the entry with a `conflict` error and keep it in the outbox. A missing file or a missing `sync_state` row writes as today, so repositories from before `sync_state` keep exporting.\n- **One command for every kind.** Replace `resolveEpicConflict` with `resolveRecordConflict { kind, id, keep }`, where `kind` is `'epic' | 'run'`; the profile ticket adds `'profile'`. Keep the same capability, the desktop-only rule and the epic behavior. Migrate every caller, schema, test and doc reference, with no alias left behind.\n- **Keep tracked for a run.** Mark the run's waiting `run_history` entries done without writing, reconcile, check the run was imported, and append an event.\n- **Write local for a run.** Set the run's `sync_state.imported_hash` to the tracked hash, make sure a `run_history` entry waits, flush, and return the last error if it still waits.\n- **When the choice applies.** Refuse it unless the run's tracked file is unimported and a `run_history` export waits. Refuse it during a transfer hold on the run's epic, as the epic path does.\n- **Epic Keep tracked.** With the guard, the `run_history` flush in `keepTracked` can be refused. Since DM-366 it is no longer needed to clear `hasPendingEpicChanges`, so remove it and say why in the comment.\n- **Storage.** `storage.ts` marks a run conflict `resolvable` when its choice applies, in repo mode. The Storage card offers Keep tracked records / Write local for it through the new command.\n- Describe the run rule in `docs/architecture.md` next to DM-338's epic rule.\n\n**Tests** (write and run in this ticket)\n- `finalizer.test.ts` (`seedRun`, `insertOutbox` with kind `run_history`, `flush`, `env.fs.put`/`get`, `trackedRunHash`):\n  - a flush over an unimported tracked `run.json` is refused and leaves the file byte-identical;\n  - a missing file or row still writes;\n  - a file matching the exported or imported hash still writes.\n- Service tests:\n  - Keep tracked imports the other machine's run history;\n  - Write local writes this machine's;\n  - each refuses when there is nothing to choose;\n  - a session without `repo.resolve_conflict` is refused.\n- Epic Keep tracked still works while a run's history export is refused.\n- `StorageCard` test: a resolvable run conflict shows both buttons and calls the command with `kind: 'run'`.\n\n**Checks:** typecheck; `npx oxlint` on the files you touched; the tests listed above plus the existing tests of the files you touched. Do not run the full suite, coverage, whole-tree lint, a build or Fireguard: the sprint's acceptance node runs the Definition of Done once on the combined work.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "deep",
+            "rationale": "Data-safety guard with a deadlock to avoid and a person-only command to generalize; a wrong call silently loses or wedges run history. One step up for the deadlock."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing",
+            "react"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m6995z2mbk5pfdkjxwabar6z",
+        "key": "DM-367",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/finalizer.ts",
+            "location": "src/core/repo/finalizer.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/epicConflict.ts",
+            "location": "src/core/services/epicConflict.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/storage.ts",
+            "location": "src/core/services/storage.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/home/StorageCard.tsx",
+            "location": "src/renderer/src/home/StorageCard.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/architecture.md",
+            "location": "docs/architecture.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "ticket",
+            "label": "DM-338 (Linear handoff epic)",
+            "location": "DM-338",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "storage",
+          "core",
+          "ui"
+        ],
+        "title": "Refuse run history exports over unimported tracked history and let the person keep either side"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A profile flush over a tracked profile file that another machine changed and this one has not imported is refused with conflict and leaves the file byte-identical. A missing file or sync_state row still writes."
+          },
+          {
+            "id": "c2",
+            "text": "resolveRecordConflict accepts kind 'profile'. Keep tracked imports the other machine's profile; Write local writes this machine's. Each is refused when there is nothing to choose, and a session without repo.resolve_conflict is refused."
+          },
+          {
+            "id": "c3",
+            "text": "The Storage card offers Keep tracked records / Write local for a resolvable profile conflict, and docs/architecture.md states the profile rule."
+          },
+          {
+            "id": "c4",
+            "text": "The listed tests pass, each shown to fail without the change."
+          }
+        ],
+        "body": "**Context**\nThe finalizer's `profile` handler (`src/core/repo/finalizer.ts` `FILE_HANDLERS`) writes `profiles/<name>.json` (`buildProfileRecord`, `writeFileSafely`, `recordExport` with kind `profile`) without checking whether another machine changed it.\n\nThe import side (`src/core/repo/profileImport.ts`) has three parts:\n- `scanProfiles` and `sortEntry` skip a changed profile while `hasPendingProfileChanges` holds (an outbox entry of kind `profile` that is pending or failed);\n- `storeProfileConflicts` (about :201-210) records \"Tracked profile <name> changed while local profile changes are waiting to be exported…\";\n- `applyProfile` (about :177-199) records the import.\n\n`src/core/services/storage.ts` keeps profile conflicts out of `conflictsOf` and lists them through `profileConflictsOf` (:79-84). `StorageCard.tsx` (:121) shows them without a choice.\n\nA guard alone would deadlock, as with runs. The run ticket adds the guard pattern and `resolveRecordConflict { kind, id, keep }`; this ticket applies both to profiles.\n\n**Change**\n- **Guard.** Before the `profile` handler writes, refuse with a `conflict` error when the tracked file exists and its hash, computed with the function the export records with, equals neither `exported_hash` nor `imported_hash` of the profile's `sync_state` row. A missing file or a missing row writes as today. Widen `matchesSync` to kind `profile` if you use it.\n- **Choice.** Add `kind: 'profile'` (id = profile name) to `resolveRecordConflict`. Keep tracked marks the waiting `profile` entry done without writing, reconciles and checks the profile was imported. Write local sets `imported_hash` to the tracked hash, makes sure an entry waits, and flushes. Refuse it unless the tracked profile is unimported and a `profile` export waits. Use the same capability and the same desktop-only rule.\n- **Storage.** Profile conflicts carry `resolvable`, and the Storage card offers the same Keep tracked records / Write local choice for them.\n- Add profiles to the rule in `docs/architecture.md`.\n\n**Tests** (write and run in this ticket)\n- `finalizer.test.ts`:\n  - a profile flush over an unimported tracked profile is refused and leaves the file byte-identical;\n  - a missing file or row still writes.\n- `profileImport.test.ts` (`profileText`, `resave`, `copyTracked`, `CONFLICT`): with the profile export refused, Keep tracked imports the other machine's profile and Write local writes this machine's.\n- Each choice is refused when there is nothing to choose.\n- `StorageCard` test: a resolvable profile conflict shows both buttons and calls the command with `kind: 'profile'`.\n\n**Checks:** typecheck; `npx oxlint` on the files you touched; the tests listed above plus the existing tests of the files you touched. Do not run the full suite, coverage, whole-tree lint, a build or Fireguard: the sprint's acceptance node runs the Definition of Done once on the combined work.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Applies the run ticket's guard and choice to profiles across finalizer, import, command and card."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing",
+            "react"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m6995z2m5pfxk8z0jn694wda",
+        "key": "DM-368",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/finalizer.ts",
+            "location": "src/core/repo/finalizer.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/profileImport.ts",
+            "location": "src/core/repo/profileImport.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/storage.ts",
+            "location": "src/core/services/storage.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/home/StorageCard.tsx",
+            "location": "src/renderer/src/home/StorageCard.tsx",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "storage",
+          "core",
+          "ui"
+        ],
+        "title": "Refuse profile exports over unimported tracked profiles and let the person keep either side"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Queueing a transfer whose projected read-back exceeds READBACK_LIMITS.totalChars is refused with invalid_input and { limit: 'totalChars', max }, and no transfer row is stored."
+          },
+          {
+            "id": "c2",
+            "text": "startTransfer refuses a stored packet over the limit before returning it, telling the person to cancel the transfer."
+          },
+          {
+            "id": "c3",
+            "text": "For read-backs the test driver builds from the existing test plans, the projection is never below the real merged read-back size, and the existing 1,000-ticket plan still queues."
+          },
+          {
+            "id": "c4",
+            "text": "The Linear allowances are named next to READBACK_LIMITS, and the runbook documents the queue-time check."
+          },
+          {
+            "id": "c5",
+            "text": "The listed tests pass, each shown to fail without the change."
+          }
+        ],
+        "body": "**Context**\nThe transfer packet is built and stored when the person queues a transfer:\n- `queueTransfer` (`src/core/services/transfers.ts`, about :174) calls `queueablePacket` (about :141-170), which calls `buildCurrentPacket` (about :115-134);\n- `buildCurrentPacket` calls `buildLinearPacket` (`src/core/transfer/linearPacket.ts` :195), and the result is stored as `packet_json`;\n- `startTransfer` (about :232-265) hands the stored packet to the agent with no size check.\n\nOnly `submit_transfer_readback` checks the total, in `assertWithinReadbackLimits` (about :442-460). It returns `invalid_input` \"A transfer read-back is at most <max> characters of JSON; …\" with `{ limit: 'totalChars', max }`, where max is `READBACK_LIMITS.totalChars` = 100,000,000 (`src/core/schemas.ts` :63-74). So for an oversized plan the agent creates every Linear item and only then is the read-back refused.\n\nHow a read-back is measured:\n- `jsonLongerThan(value, max)` (`schemas.ts` about :521-545) streams the JSON length;\n- the read-back schema is `linearReadback` (about :440-520);\n- merging is `mergeReadback` in `src/core/transfer/linearReadback.ts` :114.\n\n**Change**\n- **Projection.** In `src/core/transfer/linearReadback.ts`, add a function that takes a packet and a maximum and says whether its faithful read-back could exceed the maximum. Build the merged read-back the packet implies, with every DM-supplied text exactly as the packet gives it. Give each Linear-supplied value a named allowance: ids, identifiers, URLs, milestone ids, state types, sort orders and relation ends. Measure the result with `jsonLongerThan`, so keys, quotes and escapes count as they do for a submitted read-back.\n  - Size the allowances with headroom over Linear's real formats: UUID ids, `TEAM-123` identifiers and `https://linear.app/…` URLs.\n  - Name them next to `READBACK_LIMITS` with a comment saying they are allowances, not limits.\n  - Do not import from `src/test/`.\n- **Queue.** `queueablePacket` refuses a packet over `READBACK_LIMITS.totalChars` with `invalid_input` and `{ limit: 'totalChars', max }`, before the transfer row is written. Use a message that tells the person the plan is too large to transfer.\n- **Start.** `startTransfer` refuses a stored packet over the limit before returning it. Such a packet can only come from a transfer queued by an earlier build. The message tells the person to cancel the transfer.\n- Document the check where the runbook documents the read-back limits.\n\n**Tests** (write and run in this ticket)\n- Projection tests with a small maximum: a packet is refused at max and accepted above its size.\n- For read-backs built by `src/test/linearTransferDriver.ts` and `src/test/fakeLinearMcp.ts` from the existing test plans, the projection is never below the real merged read-back's size.\n- `transfers.test.ts`, near `queueTransfer refusals` and the limits block:\n  - queueing an over-limit packet is refused with `{ limit: 'totalChars' }` and stores no transfer;\n  - a stored over-limit packet is refused by `startTransfer`;\n  - the existing 1,000-ticket test plan still queues.\n\n**Checks:** typecheck; `npx oxlint` on the files you touched; the tests listed above plus the existing tests of the files you touched. Do not run the full suite, coverage, whole-tree lint, a build or Fireguard: the sprint's acceptance node runs the Definition of Done once on the combined work.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "The projection must measure exactly as the read-back check does, and the allowances must be conservative without refusing realistic plans."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m6995z2md6anq7etq84yfs2p",
+        "key": "DM-369",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/transfers.ts",
+            "location": "src/core/services/transfers.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/transfer/linearReadback.ts",
+            "location": "src/core/transfer/linearReadback.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/schemas.ts",
+            "location": "src/core/schemas.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "ticket",
+            "label": "DM-339 (Linear handoff epic)",
+            "location": "DM-339",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "linear",
+          "core"
+        ],
+        "title": "Refuse a Linear transfer at queue when its read-back would exceed the total limit"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A test starts the transport nodeHost creates, on injected streams. An over-limit line that carries an id gets a JSON-RPC error with that id, and the next valid line reaches the server."
+          },
+          {
+            "id": "c2",
+            "text": "The test fails with StdioServerTransport swapped in at nodeHost, as shown in the evidence."
+          },
+          {
+            "id": "c3",
+            "text": "Production startup still uses process stdin and stdout, the existing main and transport tests pass, and npm run deadcode passes."
+          }
+        ],
+        "body": "**Context**\n`src/mcp/main.ts` has three relevant pieces:\n- `nodeHost(script)` (about :302) is not exported and creates the server's transport with `createTransport: () => new BoundedStdioServerTransport()` (about :310);\n- `runMcpMain(host)` (:276) passes `host.createTransport()` through `startOptionsFor` (:259);\n- the entry block (:327-330) runs `runMcpMain(nodeHost(script))`.\n\n`src/mcp/main.test.ts` injects its own transport (:314, :372-375) and never reaches `nodeHost`. `src/mcp/transport.test.ts` tests the `BoundedStdioServerTransport` class directly (`rig`, :20-35). Reverting :310 to the SDK's `StdioServerTransport`, which reads unbounded messages, would therefore pass every test.\n\n`MCP_MESSAGE_MAX_BYTES` (`src/mcp/transport.ts` :12) is 32,000,000.\n\n**Change**\n- Let a test reach the transport `nodeHost` creates without spawning a process. Export `nodeHost` and give it optional stdio streams that default to `process.stdin` and `process.stdout`, passed through to the transport. Production startup stays the same.\n- If `npm run deadcode` flags the export, fix that rather than adding it to `.tsprune-ignore`.\n\n**Tests** (write and run in this ticket)\n- `main.test.ts`: start the transport from `nodeHost(...).createTransport()` on `PassThrough` streams.\n  - Write a line over `MCP_MESSAGE_MAX_BYTES` that carries an id: the reply is a JSON-RPC error with that id.\n  - Then write a valid request line: it reaches `onmessage`.\n- Show that the test fails with `StdioServerTransport` swapped in at `nodeHost`, then restore it. Test behavior, not `instanceof`.\n\n**Checks:** typecheck; `npx oxlint` on the files you touched; the tests listed above plus the existing tests of the files you touched. Do not run the full suite, coverage, whole-tree lint, a build or Fireguard: the sprint's acceptance node runs the Definition of Done once on the combined work. Also run `npm run deadcode`, because this ticket adds an export.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "One export with injectable streams and one behavior test; the steps are spelled out."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m6995z2ma78j1qqb2vyvmvzn",
+        "key": "DM-370",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/main.ts",
+            "location": "src/mcp/main.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/transport.ts",
+            "location": "src/mcp/transport.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/main.test.ts",
+            "location": "src/mcp/main.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "ticket",
+            "label": "DM-339 (Linear handoff epic)",
+            "location": "DM-339",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "mcp",
+          "testing"
+        ],
+        "title": "Test the MCP host's bounded stdio transport through nodeHost"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "One reasonOf in src/main/agents serves transferStart and orchestratorStart, and both copies are gone."
+          },
+          {
+            "id": "c2",
+            "text": "An error ending in \"permissions\" appears whole in the transfer chat's problem text and in the queued-run message, and trailing dots and whitespace are still removed (no \"..\")."
+          },
+          {
+            "id": "c3",
+            "text": "The listed tests pass, each shown to fail without the change."
+          }
+        ],
+        "body": "**Context**\n`reasonOf` exists twice, byte for byte:\n- `src/main/agents/transferStart.ts` :43-45;\n- `src/main/agents/orchestratorStart.ts` :37-39.\n\nBoth clean an error message with `.replace(/[.s]+$/, '')`. That character class removes trailing dots and trailing letters \"s\"; `\\s` (whitespace) was meant. So \"permissions\" shows as \"permission\".\n\nWhere the result appears:\n- `transferStart.ts` :89 and :97 build the transfer chat's problem text (\"… could not be started: <reason>. …\");\n- `orchestratorStart.ts` :48 (`queuedButNoChat`, called at :82 and :90) builds \"Run #N is queued, but …: <reason>. It is waiting for an orchestrator.\"\n\nCallers append \". \", so trailing dots must still be removed. The unrelated `reasonOf` helpers in `src/core/services/activityEntries.ts` :143 and `src/main/adapters/acp/acpSession.ts` :107-109 stay as they are.\n\n**Change**\n- Move `reasonOf` into one module in `src/main/agents/`, using `/[.\\s]+$/`. Import it from both callers and delete both copies.\n\n**Tests** (write and run in this ticket)\n- A test of the shared helper: a message ending in \"permissions\" keeps it; trailing dots and whitespace are removed; a non-Error value is handled as today.\n- `transferStart.test.ts`: an agent start that fails with an error ending in \"permissions\" shows \"permissions.\" in the problem text. The existing exact-match case at :199-201 ends in \"1.\" and does not catch the bug.\n- `orchestratorStart`: a queued run whose chat cannot start, with an error ending in \"permissions\", keeps the word. Add the test where orchestrator start is already tested, or create `orchestratorStart.test.ts`.\n\n**Checks:** typecheck; `npx oxlint` on the files you touched; the tests listed above plus the existing tests of the files you touched. Do not run the full suite, coverage, whole-tree lint, a build or Fireguard: the sprint's acceptance node runs the Definition of Done once on the combined work.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "A spelled-out regex fix and de-duplication with tests."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m6995z2mtsfw08a8wph9sg0n",
+        "key": "DM-371",
+        "optional": false,
+        "priority": "low",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/transferStart.ts",
+            "location": "src/main/agents/transferStart.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/orchestratorStart.ts",
+            "location": "src/main/agents/orchestratorStart.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "agents"
+        ],
+        "title": "Share one reasonOf that keeps a trailing letter s"
+      }
+    ]
+  },
+  "contentHash": "sha256:08176594823925d83ec4d73d6b34d3ea86547144a13e0c3deb9a1efb296a7f0a",
+  "createdAt": "2026-10-31T15:28:23.536Z",
+  "epicId": "ep_01m698z4kqk4a5906hkv6w2ajr",
+  "format": "darkmechanicus.plan-snapshot",
+  "formatVersion": 1,
+  "number": 1,
+  "revisionId": "rv_01m69970zgyh22yzj56zpr6sdm",
+  "savedAt": "2026-10-31T15:28:23.536Z"
+}

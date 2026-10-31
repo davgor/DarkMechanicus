@@ -15,6 +15,7 @@ beforeAll(() => {
 
 afterEach(() => {
   cleanup()
+  window.localStorage.clear()
 })
 
 function button(name: string): HTMLButtonElement {
@@ -53,6 +54,35 @@ describe('epic workspace: Saved view (1)', () => {
     fireEvent.click(within(strip).getByRole('button', { name: 'Attempts' }))
     expect(within(strip).getAllByRole('listitem').length).toBe(4)
     expect(within(strip).getByRole('button', { name: 'Attempts' }).getAttribute('aria-expanded')).toBe('true')
+  })
+})
+
+describe('epic workspace: hiding the attempts strip', () => {
+  it('hides the attempts strip down to its bar, keeps it hidden on the next visit, and shows it again', async () => {
+    const first = renderWorkspace(new FakeBackend())
+    let strip = await screen.findByLabelText('Run activity')
+    fireEvent.click(within(strip).getByRole('button', { name: 'Hide attempts' }))
+    expect(within(strip).queryAllByRole('listitem')).toEqual([])
+    expect(within(strip).getByText('synced just now').textContent).toBe('synced just now')
+    first.unmount()
+
+    renderWorkspace(new FakeBackend())
+    strip = await screen.findByLabelText('Run activity')
+    expect(within(strip).queryAllByRole('listitem')).toEqual([])
+    fireEvent.click(within(strip).getByRole('button', { name: 'Show attempts' }))
+    expect(within(strip).getAllByRole('listitem').length).toBe(3)
+    expect(within(strip).getByRole('button', { name: 'Attempts' }).getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('opens the full list when Attempts is pressed while the strip is hidden', async () => {
+    renderWorkspace(new FakeBackend())
+    const strip = await screen.findByLabelText('Run activity')
+    fireEvent.click(within(strip).getByRole('button', { name: 'Hide attempts' }))
+    expect(within(strip).getByRole('button', { name: 'Attempts' }).getAttribute('aria-expanded')).toBe('false')
+    fireEvent.click(within(strip).getByRole('button', { name: 'Attempts' }))
+    expect(within(strip).getAllByRole('listitem').length).toBe(4)
+    expect(within(strip).getByRole('button', { name: 'Attempts' }).getAttribute('aria-expanded')).toBe('true')
+    expect(within(strip).queryByRole('button', { name: 'Show attempts' })).toBe(null)
   })
 })
 

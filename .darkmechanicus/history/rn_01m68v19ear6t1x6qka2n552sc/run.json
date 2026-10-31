@@ -1363,8 +1363,13 @@
     },
     {
       "createdAt": "2026-10-31T14:57:57.397Z",
-      "decidedAt": null,
-      "decision": null,
+      "decidedAt": "2026-10-31T15:22:01.167Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "c3: a physical Cmd+W/Cmd+Q keypress could not be sent from this background session (no Accessibility, app cannot take focus); xterm passthrough is unit-tested and mutation-checked, and the native actions those accelerators send were verified live with two terminals. New --term-* palette tokens in docs/design/palette.md to report to the person. Reviewer notes: Non-blocking follow-ups: (1) After a renderer reload the sidebar dot shows only chats attached since the reload (DM-324-04: the other live chat lost its dot), so body step 2's 'a dot for each live PTY' holds only until a reload; the worker filed the discovery 'Tell the renderer which chats have a live PTY'. (2) liveTerminals keeps each hidden chat's port open to hear its exit, so main keeps posting all of that PTY's output, which the preload drops. No leak (delete/endAgent kill the PTY, the exit closes the port, re-attach closes the previous port), but the IPC traffic grows with chatty hidden CLIs; the same discovery would remove it. (3) After the App.links rewrite, no test asserts that ChatPane calls landed() for a thread link; the effect of missing it is harmless. shell.actions.openTicket and ticket landings now have no producer in the app (only ChatView navigation), which is cleanup for the adapter-deletion ticket. (4) The order 'resize the PTY before painting the snapshot' is not asserted, because the fakes don't record interleaving. (5) Without WebGL2, xterm falls back to its DOM renderer, whose style elements are inert (and would be blocked by the CSP anyway), so it would draw unstyled; out of scope. (6) Importing xterm in jsdom App tests logs 2 'getContext not implemented' warnings; harmless. (7) xtermKit.test.ts uses `as unknown as XtermParts` for its fakes; style only. Checks I ran in the worktree: 64 targeted test files, 830 tests passed; npm run lint exit 0; npm run typecheck clean on all three tsconfigs; two mutations confirmed and reverted (worktree clean at 7ea86cc).",
+        "outcome": "accepted",
+        "reasons": []
+      },
       "evidence": {
         "checks": [
           {
@@ -1412,27 +1417,27 @@
           {
             "criterionId": "c1",
             "met": true,
-            "note": "Accepted in attempt 1: App.terminal.test.tsx, TerminalPane.test.tsx layout test, src/main/windows.test.ts; live: one BrowserWindow; DM-324-01."
+            "note": "App.tsx ChatPane renders TerminalPane; ChatView is imported only by __mocks__/chatViewKit.tsx (tests). App.terminal.test.tsx asserts the terminal host is inside main[aria-label=Workspace], no transcript/composer/model picker, chats.open not called, window.open not called; windows.test.ts asserts the only `new BrowserWindow` is the one in main/index.ts and none in terminals/. Opened DM-324-01: terminal in app-main under the ChatHeader with a RUNNING pill, same window. Tests re-run green."
           },
           {
             "criterionId": "c2",
             "met": true,
-            "note": "Accepted in attempt 1: same fixture pids after switching chats and after a reload; DM-324-03 and DM-324-04."
+            "note": "Fixture log DM-324-08 shows only two start events (pids 9415, 87820) across chat switches and a renderer reload, so no PTY restarted. DM-324-03 (switched back) and DM-324-04 (after reload) show the pid-9415 screen with its earlier input lines repainted from the snapshot. App.terminal.test.tsx covers the snapshot after a switch and after a remount; TerminalPane.test.tsx asserts the first PTY handle stays open and its output listener is detached on a switch."
           },
           {
             "criterionId": "c3",
-            "met": false,
-            "note": "Shown: Escape, Tab and Ctrl+C reach the CLI (DM-324-08, DM-324-07). Copy and paste through webContents.copy()/paste() work live (DM-324-09, DM-324-10). xterm never takes a Cmd combination (xtermKit.test.ts 'xtermKit keys'). Quit: Menu.sendActionToFirstResponder('terminate:'), the action the role=quit (CommandOrControl+Q) item sends, exited in 217 ms with two live fixture terminals and nothing left in ps (DM-324-11). Close: win.close(), the close that CommandOrControl+W performs, took windows 1 -> 0 with the app and both PTYs alive, and quitting then exited in 338 ms with nothing left. Not shown: MenuItem.click() from JS on the role=quit and role=close items does nothing on macOS; performClose: needs a focused window, and this session cannot focus the app (getFocusedWindow() stayed null even with app.focus({steal:true})); a real Cmd+W/Cmd+Q press was not sent, because System Events did not answer within 30 s. Left met:false for the orchestrator to judge whether the native-action evidence is enough."
+            "met": true,
+            "note": "Live: fixture log has \\u001b, \\t and \\u0003 inputs, and DM-324-07 shows exit code 130 after Ctrl+C. Copy/paste go through webContents.copy()/paste(), the Edit role's actions: DM-324-09 shows the selected word in the clipboard, and DM-324-10 shows a pasted string and a 70,000-byte paste both reached the CLI. Cmd+W/Cmd+Q: keyGoesToTerminal returns false for every metaKey combination (xtermKit.test.ts; mutating it to `return true` fails the test). xterm 6 CoreBrowserTerminal checks the custom handler first in keydown, keypress and keyup (lines 1025/1122/1149) and returns before any preventDefault, so the page never takes Cmd keys from the menu. Live (DM-324-11): terminate: (the role=quit action) exits in 217 ms, code 0, with two live PTYs and no orphan processes; win.close() takes the window count 1->0 with the PTYs alive. A physical keypress could not be sent from a background session; the only link left unobserved is macOS routing a key the page did not take to the menu, which this patch does not affect."
           },
           {
             "criterionId": "c4",
             "met": true,
-            "note": "Accepted in attempt 1: resize events 128x38 and 167x38 in the fixture log; theme tests; styles.test.ts passes."
+            "note": "Fixture log shows sigwinch 128x38, 167x38 (sidebar collapsed, DM-324-05) and 128x38. TerminalPane.test.tsx covers the 80 ms ResizeObserver debounce and sending only a changed size. terminalTheme.test.ts checks every xterm color against the styles.css :root tokens (16 new --term-* tokens live only in :root; palette.md updated). styles.test.ts passed in my run."
           },
           {
             "criterionId": "c5",
             "met": true,
-            "note": "Accepted in attempt 1; attempt 2's copy/paste run also logged zero CSP violations."
+            "note": "electron.vite.config.ts is unchanged; built out/renderer/index.html has style-src 'self' with no 'unsafe-inline'. DM-324-08: securitypolicyviolation listener installed before load reports []; the console shows WebglRenderer's 'webglcontextlost event received' and 'firing onContextLoss'. DM-324-06 shows the grid drawn after the loss, with the brass block cursor and later input. DM-324-10 also reports zero violations. xtermKit.test.ts covers recreating the addon with the DOM renderer's style elements inert in between."
           }
         ],
         "notes": "The quit hang reported earlier came from the attached inspector client: once the socket is closed straight after the call, the app exits. No production change was needed for quit; terminal disposal ends both fixture PTYs before exit. Every process this run started was ended; none is left (ps check after the last run).\nDiscoveries:\n- title: Expose the launch spec's dropped values from the terminal session manager\n  reason: terminalSessions.ts never passes dropped (an unsafe model or resume id) to the attach answer, so the pane cannot show the notice SH-2 criterion 5 asks for.\n  ticket: DM-324\n- title: Tell the renderer which chats have a live PTY\n  reason: After a renderer reload the sidebar dot shows only chats attached since the reload (DM-324-06).\n  ticket: DM-324\n- title: Add a sidebar collapse control, or drop it from the resize criterion\n  reason: .app-shell has a fixed 272px column and no collapse control; the resize on sidebar collapse was shown by changing the grid column over CDP.\n  ticket: DM-324\n- title: Drive the native menu keys in the macOS e2e from a session that can focus the app\n  reason: From a background session the app never becomes the focused window, so Cmd+W (performClose:) and real Cmd+Q presses cannot be exercised, and MenuItem.click() on native-role items does nothing on macOS (DM-324-11). SH-9 needs System Events access or a foreground runner.\n  ticket: DM-324"
@@ -1550,12 +1555,12 @@
       },
       "reconciledAt": null,
       "revisionId": "rv_01m68tv9xwk534yz9ytfy3ntqx",
-      "state": "submitted",
+      "state": "accepted",
       "submittedAt": "2026-10-31T15:11:23.212Z",
       "supersededAt": null,
       "ticketContentHash": "sha256:64e50e810955396d212677c73aa17ed85a26ebdf8ad47f97fd611137753772b9",
       "ticketId": "tk_01m68tv9x8trmgz7k6vz6j2zxg",
-      "updatedAt": "2026-10-31T15:11:23.212Z",
+      "updatedAt": "2026-10-31T15:22:01.167Z",
       "worker": {
         "catalogRevision": "1",
         "effort": "high",
@@ -1563,6 +1568,626 @@
         "label": "DM-324 worker (task subagent)",
         "modelId": "anthropic/claude-opus-5-5",
         "rationale": "Recommended by match_capabilities (anthropic/claude-opus-5-5, high). This host runs every worker as a task subagent of the session model and cannot set its effort per worker. Attempt 1 rejected for unverified copy/paste/accelerators and a quit that did not exit; same worker continues with the reasons.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T15:23:04.020Z",
+      "decidedAt": "2026-10-31T16:04:22.791Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Session existence is read from Claude's session file; if main and Claude disagree on the config folder (CLAUDE_CONFIG_DIR set only inside Claude settings), a missed session leads to repeated \"Session ID already in use\" exits: note for the runbook/retro. Reviewer notes: Not blocking. (1) A session main fails to find does not fail safe: if main misses an existing session it starts --session-id <id>, Claude 2.1.316 exits with 'Error: Session ID … is already in use.' (string and check read from the binary), the exit says resumed:false, so the pane offers only Start again, which repeats the failure. This only happens when main's config folder differs from Claude's (for example CLAUDE_CONFIG_DIR set in Claude's own settings env). Follow-up: also offer New session after a non-zero exit of a Claude start. (2) The restart-loop fix in attachEnded is correct and tested but mostly defensive: real node-pty exits arrive after entry.done resolves, and Claude/Autonomous attaches take the sign-in check path. (3) The a8s idle claim rests on log6 having no idle-phase stats or [idle-*] lines. That pattern is consistent with log3, but the steps file for that run is not committed. (4) Codex and Cursor never get a session id captured, so the new sessionStarted flag can only make them resume an id stored by the old adapters, which may be the conversation from before the terminal rather than the one just had. Revisit when their flags are checked against the real CLIs. (5) useTerminal keeps the New-session request in state, so a later re-run of the attach effect after an exit (if kit, scheduler or live changed identity) would send newSession again; these look stable today. (6) Expect merge friction in terminalSessions.ts with DM-321, as the worker noted.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npx vitest run src/main/terminals/ src/preload/ src/renderer/src/agents/TerminalPane.test.tsx src/renderer/src/agents/liveTerminals.test.tsx src/renderer/src/App.terminal.test.tsx src/main/agents/chatStore.test.ts: 299 passed. The new lifecycle tests failed (14) before the implementation.",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint src scripts: no errors (after splitting over-long functions and describes)",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "node, web and fireguard tsconfigs clean",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "electron-vite build, run only for the c4 live check",
+            "name": "npm run build",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run coverage",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "terminalSessions.ts spawnWithGrant/sessionStarted + claudeSession.ts: Claude starts with --resume <id> only when <config>/projects/*/<id>.jsonl exists, else --session-id <id>; the id goes into the same updateChat as grantIds before the spawn. lifecycle tests 'Claude Code session ids' (new id stored at spawn as read from the reopened store; --session-id until the file exists, then --resume; stored UUID resumes only once its session exists; non-UUID replaced) and 'Autonomous sessions'. TerminalPane.tsx shows the exit notice with Start again; the 'TerminalPane starting again' tests check that it attaches again and shows the new terminal. Mutating out the pre-spawn session write fails 6 of these tests. The 299 targeted tests pass."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Exit event/port/preload carry `resumed`; the pane keeps the CLI's last screen and offers New session when resumed (TerminalPane test checks the 'No conversation found' output stays written and the emulator is not disposed). attach newSession:true (strict z.literal(true)) clears sessionId and sessionStarted in beginStart before a start, ignored while running. Covered by lifecycle 'a resume the CLI refuses…'/'new sessions', terminalHandlers.port.test 'starts a new one when the attach asks', TerminalPane 'new session' tests, preload key-only-when-true test. Removing the clear fails 2 tests. Live probe log5 shows Claude's refusal text and exit 1."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "watchLive: one timeout re-armed against lastActive, which is updated by writeInput and by output once on the screen. When it fires, stop() kills the tree, revokes the grant and sets 'Stopped after 10 minutes idle.' On FakeClock: no kill at 10 min minus 1 ms, kill and revoke of ['gr_1'] at 10 min, the exit carries the message, and clock.pending is 0. Input and output reset tests fail when their lastActive updates are removed. The exit-cleanup test fails when stopWatch is removed from onExit. The pane shows the message with Start again (TerminalPane test)."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Screenshots DM-326-03..06 viewed: Claude Code v2.1.316 on Haiku 5.5 in the built app; the prompt was answered 'OK, noted.'; after /exit the pane says 'The CLI exited with code 0.' with Start again (no New session, since that start was not a resume); after Start again it answers 'PELICAN'. Live log 07 shows ps lines with --session-id, then --resume of the same id. Idle output: probe log 01 and the design doc 'Measured (DM-326)': Claude writes only one-off chunks (update notice; a 58-byte OSC 777 notification, no line changed); a8s 0.79.0 wrote nothing during its idle window."
+          }
+        ],
+        "notes": "Claude Code auto-updated itself during the probes: the measurements are on 2.1.291, the live app run on 2.1.316. The live run trusted the scratch folder /private/tmp/dm326-live/repo (and /private/tmp/dm326-probe/repo) in Claude Code's own config and chose 'Not now' at its fullscreen-renderer prompt, which Claude records. No other user data was touched, and no process was left after the app was stopped. a8s resume's picker was not run live (covered by tests only). A compromised renderer can now clear a chat's stored session through newSession (comparable to typing /clear into the terminal); accepted. terminalSessions.ts edits are in spawnWithGrant, startLive (new watchLive helper) and the attach functions: expect merge friction with the DM-321 branch there.\n\nDiscoveries:\n- title: Let an attach that answers checking also hear a start that exits at once\n  reason: An attach that finds the sign-in check running answers 'checking'; its listener then hears started, output and exited, and the handler answers running with an empty snapshot. That works, but the 'last screen' answer added in DM-326 only covers attaches that waited out the start themselves (custom CLIs, or the preparing phase). Worth an end-to-end check in SH-9 with a refused Claude resume, which runs a sign-in check first.\n  ticket: DM-326"
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m698x8ymkg7eexvga0d34j2f",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Idle-output and session-file probe logs",
+            "location": "docs/verification/DM-326-01-idle-and-session-probes.txt",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Probe driver (node-pty + headless xterm)",
+            "location": "docs/verification/DM-326-02-probe-driver.mjs",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Claude ready on a new session",
+            "location": "docs/verification/DM-326-03-claude-ready-new-session.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "One prompt answered",
+            "location": "docs/verification/DM-326-04-one-prompt-answered.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Exit with Start again",
+            "location": "docs/verification/DM-326-05-exit-start-again.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Start again resumed the conversation",
+            "location": "docs/verification/DM-326-06-start-again-resumed.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Live run log",
+            "location": "docs/verification/DM-326-07-live-log.txt",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "terminal-chats-DM-326",
+        "changedFiles": [
+          "src/main/terminals/claudeSession.ts",
+          "src/main/terminals/claudeSession.test.ts",
+          "src/main/terminals/terminalSessions.ts",
+          "src/main/terminals/terminalSessions.lifecycle.test.ts",
+          "src/main/terminals/terminalSessions.test.ts",
+          "src/main/terminals/terminalSessions.folder.test.ts",
+          "src/main/terminals/terminalLaunchSpec.ts",
+          "src/main/terminals/terminalLaunchSpec.test.ts",
+          "src/main/terminals/terminalHandlers.ts",
+          "src/main/terminals/terminalHandlers.test.ts",
+          "src/main/terminals/terminalHandlers.port.test.ts",
+          "src/main/terminals/__mocks__/terminalSessionsRig.ts",
+          "src/main/terminals/__mocks__/terminalHandlersRig.ts",
+          "src/main/agents/chatStore.ts",
+          "src/shared/agents/chat.ts",
+          "src/shared/agents/terminalApi.ts",
+          "src/preload/terminals.ts",
+          "src/preload/terminals.test.ts",
+          "src/renderer/src/agents/useTerminal.ts",
+          "src/renderer/src/agents/TerminalPane.tsx",
+          "src/renderer/src/agents/TerminalPane.test.tsx",
+          "src/renderer/src/agents/terminalPane.css",
+          "src/renderer/src/agents/liveTerminals.test.tsx",
+          "src/renderer/src/App.terminal.test.tsx",
+          "src/renderer/src/__mocks__/fakeTerminals.ts",
+          "docs/design/chat-shells.md",
+          "docs/architecture.md",
+          "docs/verification/DM-326-01-idle-and-session-probes.txt",
+          "docs/verification/DM-326-02-probe-driver.mjs",
+          "docs/verification/DM-326-03-claude-ready-new-session.png",
+          "docs/verification/DM-326-04-one-prompt-answered.png",
+          "docs/verification/DM-326-05-exit-start-again.png",
+          "docs/verification/DM-326-06-start-again-resumed.png",
+          "docs/verification/DM-326-07-live-log.txt"
+        ],
+        "commits": [
+          "4766fa565116315c5a0423360314358609a01657",
+          "1f23bacc9693c8fd09c9e63026a550b609eb6261",
+          "d84ea1d5320c395582d8c20e32eb37e61a42d166"
+        ],
+        "summary": "Start again resumes the chat's CLI session: Claude with --resume <id> once its session file exists (claudeSession.ts), else --session-id <id>, the id now stored on the chat with the grant id before every spawn (fixing every start being a fresh session and a stored UUID being reused with --session-id); Autonomous with `a8s resume` once the chat was typed into (new `sessionStarted` record flag); Codex/Cursor per the launch-spec table. The exit event carries `resumed`; the pane shows the exit with Start again, plus New session after a resumed exit (attach `newSession: true`, which clears sessionId and sessionStarted before a start; ignored while a CLI runs). Fixed a restart loop: an attach whose own start exited before the answer now gets the last screen and the exit instead of starting the CLI again. Idle stop: 10 minutes with no input and no output kills the tree, revokes the grant, and the pane says 'Stopped after 10 minutes idle.' with Start again. Idle output measured live: neither Claude Code nor a8s redraws while idle, so all output counts. Docs: design doc records the choice, reason and measurements; architecture.md channel rows updated. Reviewer note: terminalSessions.ts changes touch spawnWithGrant, startLive and the attach functions, so the DM-321 merge needs care there."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m68tv9xwk534yz9ytfy3ntqx",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T15:54:47.092Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:a728ec6294cc1bbf19acd629c75e2c1efce130943d45afb6a46010e823ab9d32",
+      "ticketId": "tk_01m68tv9x8bzd5120s7jnw288c",
+      "updatedAt": "2026-10-31T16:04:22.791Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "medium",
+        "hostId": "omp-claude-code-darwin-arm64",
+        "label": "DM-326 worker (task subagent)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (anthropic/claude-opus-5-5, medium). This host runs every worker as a task subagent of the session model and cannot set its effort per worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T15:23:04.073Z",
+      "decidedAt": "2026-10-31T16:12:36.301Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Follow-ups for the retro: Claude Code 2.1.316 supports per-hook onFailure \"block\", which would close the remaining macOS fail-open cases (launcher cannot start, hook timeout, polluted output) and the Windows gap; needs a version check because 2.1.291 lacks it. One live memory write was approved by a key press that neither the worker scripts nor other agents sent (likely a person at the visible window). Reviewer notes: Unexplained first approval (15:37:37Z): the worker's scripts didn't send it (its only Enter at ~15:37:10.8 submitted the prompt; the script idled until ~15:37:31; the next input was 15:39:09), and no other agent connected to port 9341. The app writes to the terminal only from xterm input (terminalHandlers.ts:143-144, xtermKit.ts:84), with no kickoff injection, and the hook can't type into the terminal. Most consistent with a key press at the visible window (Claude records user_temporary); an xterm auto-reply can't be ruled out but has no evidence. Follow-ups: (1) Some macOS failures still let a write through: launcher can't start (exit 126/127), hook timeout, or polluted output (shell-form hooks run via $SHELL, so ~/.zshenv output could corrupt the JSON). Claude Code 2.1.316 has a per-hook onFailure: 'block' setting that would close these and the Windows gap, but 2.1.291 lacks it, so it needs a version check. The claudeSettingsFile.ts comment saying nothing stands between a failed hook and the CLI is out of date for 2.1.316. (2) The fallback ask uses the same memory-folder reason as the real answer, so a broken hook would ask for every write with a misleading reason; consider a distinct reason. (3) writeStartFiles calls homedir()/tmpdir() directly instead of taking them from the manager's injected dependencies. (4) Windows not checked live (belongs to the optional ticket).",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npx vitest run src/main/terminals/ src/main/agents/adapters/claudeMemoryWrites.test.ts src/main/agents/adapters/claude.test.ts: 20 files, 438 tests passed",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint src scripts, exit 0",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "exit 0",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "run only for the live check; out/main/claudeMemoryHook.js emitted, loading only its claudeMemoryGuard chunk",
+            "name": "npm run build",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run coverage",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "terminalSessions.ts writeStartFiles calls writeClaudeSettings for agent.kind 'claude' and passes the path as files.claudeSettings; terminalLaunchSpec.ts:149 adds ['--settings', path]. Test terminalSessions.test.ts 'writes a Claude chat's settings file before its start…' checks the exact --settings path, the file holds autoMemoryDirectory plus a PreToolUse command hook with matcher Write|Edit|MultiEdit|NotebookEdit, and no argument starts with '{'; another test checks other agents get no settings. Format checked against the installed 2.1.316 binary (matcher pipe list, command and args fields). The live transcript records the hook running from the settings file. Re-ran: 438 tests passed."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Diffed old and new tests: every claudeMemoryFolder case moved to claudeMemoryGuard.test.ts with the same inputs and expected answers. The rule code is the same apart from stricter handling of input that isn't an object. Added memoryHookOutput tests and a run of the real hook script through the launcher. My own run of the hook script with crafted input: ask for absolute paths, .., ~, mixed case, relative paths, symlinks, the pinned folder, MultiEdit, NotebookEdit, a moved cwd, CLAUDE_CONFIG_DIR, bad JSON and bad arguments; silent for a repo file, memory.old and Bash."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "claudeSettingsFile.test.ts writes the real settings and launcher under a userData and folder named it's \"Dark\" $HOME `x`; Mechanicus and runs the hook command through /bin/sh, /bin/bash and /bin/zsh, checking argv, ELECTRON_RUN_AS_NODE=1 and stdin. Fail-closed cases (missing runtime, failing runtime) print ask with exit 0. Two mutations (no fallback; launcher path not quoted) made 3 and 5 tests fail; both restored."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Opened DM-321-01, -02 and -04: the built app's Terminal pane shows Claude Code 2.1.316's own 'Do you want to create SECOND.md / THIRD.md / FOURTH.md? 1. Yes 2. No' prompt for writes into the pinned autoMemoryDirectory. The first request's decision record carries reasonCode hook:PreToolUse. DM-321-03-live-log.txt shows ps -wwE output for CLI pid 43021 (and the second run) with CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 and no ELECTRON_RUN_AS_NODE, and the CLI argv with --settings <userData>/agents/settings/<chat id>.json. A print-mode check without the hook wrote unasked; with it the write was denied."
+          }
+        ],
+        "notes": "Limits and risks: (1) First live request (MEMORY.md): the hook asked at 15:37:13Z and the prompt showed; at 15:37:37Z it was answered Yes, which Claude records as permissionDecision {decision: accept, source: user_temporary, reasonCode: hook:PreToolUse}. No worker script sent input after the prompt opened; the cause is unknown (possibly a person at the visible app window). Three later requests held untouched for 30-130 s and were rejected with Esc; the MEMORY.md written was deleted. (2) Claude Code auto-updated from 2.1.291 to 2.1.316 when it started and runs in auto mode by default; the format was read from 2.1.291 and the hook ran under 2.1.316 (both binaries document exec form). (3) Windows: exec form, not live-checked; a hook that cannot start there fails open, and old CLIs without exec form would run command with no args. (4) A user or managed disableAllHooks or allowManagedHooksOnly turns off --settings hooks (Claude's own rule); the moved autoMemoryDirectory still makes Claude ask before writes into the real memory folders. (5) The live run used the unpackaged build, so the runtime was `node`; the packaged Electron-as-node runtime was checked by running the built hook through a launcher with the Electron binary in a quoted, spaced folder. (6) The second live session's transcript recorded no hook record for the rejected call; the print-mode run with that chat's own settings file showed the hook's denial reason. Red-team review (reviewer subagent): one minor finding, fail-open when the hook process fails, fixed on macOS and documented for Windows; moved rules, quoting (sh, bash, zsh), file writes and tests held up.\n\nDiscoveries:\n- title: Decide how chat terminals handle Claude Code's auto permission mode\n  reason: Claude Code 2.1.316 (auto-updated during the DM-321 live check) starts in auto mode by default ('Auto mode lets Claude handle permission prompts automatically'). The hook's ask still showed a prompt that held in the tests, but which approvals auto mode can resolve without the person was not established, and one memory write in DM-321's live run was approved without a known person or worker action.\n  ticket: DM-321\n- title: Live-check the Windows memory hook (exec form) and its failure mode\n  reason: claudeSettingsFile.ts uses Claude Code's exec form on Windows; the CLI lets a call through when a hook fails to start, and there is no launcher there to fall back to ask. Only unit-tested (quoting with a spaced userData path).\n  ticket: DM-321"
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m698x909wpncyrs5mc5cr63s",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Memory guard rules (expected artifact)",
+            "location": "src/main/terminals/claudeMemoryGuard.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Live: Claude's own permission prompt for a memory-folder write",
+            "location": "docs/verification/DM-321-01-memory-write-asks.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Live: third request still asking after 120 s untouched",
+            "location": "docs/verification/DM-321-02-third-write-still-asking.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Live log: ps -wwE, settings file, launcher, hook runs, decisions, print-mode check with and without the hook, built hook under Electron-as-node, second run",
+            "location": "docs/verification/DM-321-03-live-log.txt",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Live after the fail-closed launcher change: prompt again",
+            "location": "docs/verification/DM-321-04-rebuilt-memory-write-asks.png",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "terminal-chats-DM-321",
+        "changedFiles": [
+          "docs/architecture.md",
+          "docs/verification/DM-321-01-memory-write-asks.png",
+          "docs/verification/DM-321-02-third-write-still-asking.png",
+          "docs/verification/DM-321-03-live-log.txt",
+          "docs/verification/DM-321-04-rebuilt-memory-write-asks.png",
+          "electron.vite.config.ts",
+          "src/main/agents/adapters/claude.ts",
+          "src/main/agents/adapters/claudeMemoryFolder.test.ts",
+          "src/main/agents/adapters/claudeMemoryFolder.ts",
+          "src/main/terminals/claudeMemoryGuard.test.ts",
+          "src/main/terminals/claudeMemoryGuard.ts",
+          "src/main/terminals/claudeMemoryHook.ts",
+          "src/main/terminals/claudeSettingsFile.test.ts",
+          "src/main/terminals/claudeSettingsFile.ts",
+          "src/main/terminals/dmLauncher.ts",
+          "src/main/terminals/terminalFiles.ts",
+          "src/main/terminals/terminalHandlers.test.ts",
+          "src/main/terminals/terminalSessions.test.ts",
+          "src/main/terminals/terminalSessions.ts"
+        ],
+        "commits": [
+          "21683e586eab9e970dd94746dff15c96f68492d3",
+          "27b17759dc33c72e56db778f134ee1925dfff62e",
+          "a9c4c42813d665f629cac2ebfcfc6c136145583e"
+        ],
+        "summary": "Moved the memory-folder path rules to src/main/terminals/claudeMemoryGuard.ts (same behaviour, except input that is not an object now asks; the adapter imports them; claudeMemoryFolder.ts and its test removed, all cases moved). Added the hook script src/main/terminals/claudeMemoryHook.ts, built to out/main/claudeMemoryHook.js (electron.vite input), which reads the PreToolUse JSON on stdin and prints the ask answer for a memory-folder write, nothing otherwise; bad JSON or wrong arguments ask. Added claudeSettingsFile.ts: before each Claude start, the session manager's writeStartFiles writes userData/agents/settings/<chat id>.json (0600) with autoMemoryDirectory and a PreToolUse command hook in Claude Code's settings format (checked against the strings of the installed 2.1.291 binary) and passes it as files.claudeSettings, so the launch spec adds --settings <path>. macOS: the hook command is the single-quoted path of a /bin/sh launcher beside the settings (<chat id>.memory-hook, 0700) that sets ELECTRON_RUN_AS_NODE=1 for itself and single-quotes every path; unlike the dm launcher it does not exec: if the runtime or script fails it prints the ask answer itself, because Claude lets a call through when a hook errors (red-team finding). Windows: Claude Code's exec form (command + args, no shell), so the only quoting is libuv's, which windowsCommandLine reproduces; tested with a userData path holding a space; ELECTRON_RUN_AS_NODE comes from the Windows terminal env. Reviewer must know: (1) in the first live run the MEMORY.md prompt was answered Yes 24 s after it appeared (Claude records source user_temporary, a key press); the worker sent no key then and the cause is unknown (maybe someone at the visible window); three later requests held 30-130 s and were rejected with Esc; the file was removed. (2) Claude Code auto-updated to 2.1.316 (auto mode default) during the live run; the hook's ask still showed the prompt and held. (3) On Windows a hook that cannot start lets the write through; Windows is not checked live. (4) The second live session's transcript holds no hook record for the rejected call; the print-mode run with that chat's own settings file showed the hook's denial reason."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m68tv9xwk534yz9ytfy3ntqx",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T16:01:24.836Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:2d961ae08ddb4caf3be023bb4a3cddd53ff217e6792e1c2141dd51fa770cacf2",
+      "ticketId": "tk_01m68tv9x8tvnn82xcqmpbg6js",
+      "updatedAt": "2026-10-31T16:12:36.301Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "high",
+        "hostId": "omp-claude-code-darwin-arm64",
+        "label": "DM-321 worker (task subagent)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (anthropic/claude-opus-5-5, high). This host runs every worker as a task subagent of the session model and cannot set its effort per worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T15:54:51.646Z",
+      "decidedAt": "2026-10-31T16:03:11.771Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "c1-c3 otherwise met per the worker evidence (screenshot DM-325-01). The fallback to a connected-but-signed-out agent when none can chat is accepted as a sensible extension.",
+        "outcome": "rejected",
+        "reasons": [
+          "A quick double-click on New chat creates two chats (two CLI processes and two grants); the old dialog prevented this with its busy state. Guard startNewChat in src/renderer/src/App.tsx (per folder) so a click while a create for that folder is in flight does nothing, and add an App.chats test that two rapid clicks create exactly one chat."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "The 5 new App.chats tests failed before the change. After it: npx vitest run App.chats.test.tsx plus home, agents, app, epic, sidebar and App.*.test.tsx: 1500 passed",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run lint exit 0",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck: 0 errors",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run build, for the live check",
+            "name": "build",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test / coverage / fireguard / deadcode",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Test 'creates the chat with the folder default agent, as an orchestrator that may save and with no model, and opens its terminal with no dialog' (create called with {folder:'/a', agent:'claude', model:null, role:'orchestrator', allowSave:true}, no dialog, terminal pane open), plus 'uses a signed-out folder default all the same'. Live: built app, scratch user-data-dir /tmp/dm325-live/userdata, Claude Code (~/.local/bin/claude) seeded as the folder default; one CDP click gave no dialog and a RUNNING Claude Code terminal. Screenshot docs/verification/DM-325-01-one-click-new-chat.png"
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Tests 'uses the first agent that can chat when the folder default is not connected', 'uses the first agent that can chat when the folder has no default', and 'opens the add-agent pane and creates no chat when no agent is connected'"
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "NewChatDialog.tsx and NewChatDialog.test.tsx deleted (git rm); NewChatChoice and RoleChoice removed; nothing under src references them. DefaultAgentCard note: \"New chat opens this agent's CLI; Start run chooses it first.\""
+          }
+        ],
+        "notes": "Decision: when there is no connected default and no chattable agent, but some agent is connected (signed out), the first connected agent is used and the chat is still created, following body item 2, rather than opening add-agent. Risk: there is no in-flight guard, so a fast double-click can create two chats; the old dialog's busy state prevented this. Live: the Claude trust-folder prompt was left unanswered so nothing was written to the person's Claude settings; the scratch app.sqlite was seeded with user_version=2, the agents row and the folder_agent_defaults row. Process note: one import-cleanup edit first landed in the coordinating checkout through a relative path; it was reverse-applied there with git apply -R, which restores that checkout, and moved to the worktree. Discoveries: (1) New chat has no double-click guard (see above). (2) docs/design/chat-shells.md was not checked for mentions of the removed dialog; only docs/verification/DM-254-fireguard.json matched a grep for NewChatDialog under docs, README.md and src, and it was left unchanged."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m69aqfvytrkkqqd4nr60wqmd",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "c1 live screenshot: one click opens the Claude Code terminal (Orchestrator, Allowed to save plans, Default model)",
+            "location": "docs/verification/DM-325-01-one-click-new-chat.png",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "terminal-chats-DM-325",
+        "changedFiles": [
+          "src/renderer/src/App.tsx",
+          "src/renderer/src/App.chats.test.tsx",
+          "src/renderer/src/agents/NewChatFields.tsx",
+          "src/renderer/src/agents/NewChatDialog.tsx",
+          "src/renderer/src/agents/NewChatDialog.test.tsx",
+          "src/renderer/src/app/shellActions.ts",
+          "src/renderer/src/home/DefaultAgentCard.tsx",
+          "docs/verification/DM-325-01-one-click-new-chat.png"
+        ],
+        "commits": [
+          "ac6c67512b4dcad6a9a44368c9024163ad461bc0",
+          "81d78ce1fd855183b9be58390cbcb85516407e46"
+        ],
+        "summary": "New chat creates the chat with one click and opens its terminal, with no dialog. The agent is the folder default if connected (even signed out), else the first chattable agent, else the first connected agent; with none connected the add-agent pane opens and no chat is created. Every new chat is role orchestrator, allowSave true, model null. The click handler is startNewChat in App.tsx; it reads window.dm.folderDefaultAgent at click time (a failure reads as no default, like useFolderDefaultAgent) and creates the chat through shellActions.createChat, whose parameter is now Omit<CreateChatRequest,'folder'>. The pure choice is newChatAgent in NewChatFields.tsx. Deleted NewChatDialog.tsx, NewChatDialog.test.tsx, NewChatChoice, and RoleChoice with its now-unused ROLE_HINTS and imports; AgentChoice, ModelChoice and chattableAgents are kept for StartRunDialog. The DefaultAgentCard note now reads \"New chat opens this agent's CLI; Start run chooses it first.\""
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m68tv9xwk534yz9ytfy3ntqx",
+      "state": "rejected",
+      "submittedAt": "2026-10-31T16:03:11.743Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:21e7a348a029eb92fc4f6a7a37e0963f81b98f2190f2e29d4d30d85992429601",
+      "ticketId": "tk_01m68tv9x8yd5ytsjzga9q4rej",
+      "updatedAt": "2026-10-31T16:03:11.771Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "low",
+        "hostId": "omp-claude-code-darwin-arm64",
+        "label": "DM-325 worker (task subagent)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (anthropic/claude-opus-5-5, low). This host runs every worker as a task subagent of the session model and cannot set its effort per worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T16:03:11.799Z",
+      "decidedAt": "2026-10-31T16:06:19.170Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Extension accepted: with no chattable agent, the first connected (signed-out) agent is used and its pane shows the sign-in state.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "The new test 'creates one chat for two quick clicks, and another for a click after the first is created' failed before the guard and passes after it. npx vitest run App.chats.test.tsx plus App.*.test.tsx, sidebar, agents, app, home and epic: 1501 passed",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run lint exit 0",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck exit 0",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run build in attempt 1, for the live check; not re-run, as no new live run was asked for",
+            "name": "build",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test / coverage / fireguard / deadcode",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Orchestrator review: startNewChat (App.tsx) creates {agent: newChatAgent(default), model: null, role: orchestrator, allowSave: true} with no dialog; per-folder in-flight guard (double-click test). Screenshot DM-325-01 shows Claude Code running in a terminal in app-main, header Orchestrator / Allowed to save plans, scratch folder /private/tmp/dm325-live/repo. Re-ran App.chats + home + NewChatFields: 15 files, 145 passed."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "newChatAgent: default if connected, else first chattableAgents, else first connected; none -> openAddAgent with no chat (App.chats tests)."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "NewChatDialog.tsx/test deleted; git grep finds no RoleChoice or NewChatChoice in src; DefaultAgentCard note updated."
+          }
+        ],
+        "notes": "The guard is per folder, so New chat in two different folders can run at the same time. Release after a failed create relies on the finally block; no test exercises that failure path (createChat reports errors and resolves null rather than throwing). The new test is in its own describe block so the existing block stays under the max-lines-per-function lint limit. Decision kept from attempt 1: with no connected default and no chattable agent, the first connected (signed-out) agent is used. Discoveries: none new."
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m69b6r9p9z8crx4v4wwy0rzs",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "c1 live screenshot: one click opens the Claude Code terminal (Orchestrator, Allowed to save plans, Default model)",
+            "location": "docs/verification/DM-325-01-one-click-new-chat.png",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "terminal-chats-DM-325",
+        "changedFiles": [
+          "src/renderer/src/App.tsx",
+          "src/renderer/src/App.chats.test.tsx",
+          "src/renderer/src/agents/NewChatFields.tsx",
+          "src/renderer/src/agents/NewChatDialog.tsx",
+          "src/renderer/src/agents/NewChatDialog.test.tsx",
+          "src/renderer/src/app/shellActions.ts",
+          "src/renderer/src/home/DefaultAgentCard.tsx",
+          "docs/verification/DM-325-01-one-click-new-chat.png"
+        ],
+        "commits": [
+          "ac6c67512b4dcad6a9a44368c9024163ad461bc0",
+          "81d78ce1fd855183b9be58390cbcb85516407e46",
+          "d560453a2e4cdba4f2435c4519d377b26d849eed"
+        ],
+        "summary": "Attempt 2. Adds a per-folder guard to startNewChat: a New chat click while that folder's create is still running does nothing. The guard lives in a ref Set<string> in Shell and is released in a finally block, so it clears on success, on failure and on the add-agent pane. Everything else is unchanged from attempt 1: one-click New chat with the folder default agent if connected (even signed out), else the first chattable agent, else the first connected agent; none connected opens the add-agent pane and creates no chat; role orchestrator, allowSave true, model null. NewChatDialog.tsx, NewChatDialog.test.tsx, NewChatChoice and RoleChoice are deleted, and the DefaultAgentCard note is updated."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m68tv9xwk534yz9ytfy3ntqx",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T16:06:19.144Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:21e7a348a029eb92fc4f6a7a37e0963f81b98f2190f2e29d4d30d85992429601",
+      "ticketId": "tk_01m68tv9x8yd5ytsjzga9q4rej",
+      "updatedAt": "2026-10-31T16:06:19.170Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "medium",
+        "hostId": "omp-claude-code-darwin-arm64",
+        "label": "DM-325 worker (task subagent)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (anthropic/claude-opus-5-5, medium). This host runs every worker as a task subagent of the session model and cannot set its effort per worker. Attempt 1 rejected for a missing double-click guard; same worker continues.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T16:04:39.586Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": null,
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m69b9e12wwvjsqa10wnss1pc",
+      "kind": "work",
+      "number": 1,
+      "outputs": null,
+      "reconciledAt": null,
+      "revisionId": "rv_01m68tv9xwk534yz9ytfy3ntqx",
+      "state": "running",
+      "submittedAt": null,
+      "supersededAt": null,
+      "ticketContentHash": "sha256:d3a6634995f9675fbe1aad05ed30349d792a9a6d0607b3db54e50d874e72bfff",
+      "ticketId": "tk_01m68tv9x8y36qa2yn377asb8p",
+      "updatedAt": "2026-10-31T16:09:39.623Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "medium",
+        "hostId": "omp-claude-code-darwin-arm64",
+        "label": "DM-327 worker (task subagent)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (anthropic/claude-opus-5-5, medium). This host runs every worker as a task subagent of the session model and cannot set its effort per worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T16:06:33.044Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": null,
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m69bcwtmyyd3frxn6ayt57tz",
+      "kind": "work",
+      "number": 1,
+      "outputs": null,
+      "reconciledAt": null,
+      "revisionId": "rv_01m68tv9xwk534yz9ytfy3ntqx",
+      "state": "running",
+      "submittedAt": null,
+      "supersededAt": null,
+      "ticketContentHash": "sha256:c0b079b331716a2da5caecbc176dfa8820be7f36cd8ce0d2c0902cd9b855a470",
+      "ticketId": "tk_01m68tv9x8gd4hs117ksemxn2a",
+      "updatedAt": "2026-10-31T16:11:33.073Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "low",
+        "hostId": "omp-claude-code-darwin-arm64",
+        "label": "DM-328 worker (task subagent)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (anthropic/claude-opus-5-5, low). This host runs every worker as a task subagent of the session model and cannot set its effort per worker.",
         "sessionId": null
       }
     }
@@ -1645,6 +2270,53 @@
       "number": 3,
       "recordedBy": "Claude Code",
       "row": 3,
+      "sprintId": "sp_01m5jz275zxpve9s276gzaw4s0"
+    },
+    {
+      "checks": [
+        {
+          "detail": "npm run typecheck in the integration worktree",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "npx vitest run src/renderer src/main/windows.test.ts src/main/terminals src/preload: 209 files, 2566 passed",
+          "name": "row tests",
+          "status": "passed"
+        }
+      ],
+      "commit": "c3313cb1d709f858943c03ae27f32ac12b52d468",
+      "createdAt": "2026-10-31T15:23:03.995Z",
+      "id": "rk_01m698x8xvn67z0rbspwvjxf64",
+      "number": 4,
+      "recordedBy": "Claude Code",
+      "row": 4,
+      "sprintId": "sp_01m5jz275zxpve9s276gzaw4s0"
+    },
+    {
+      "checks": [
+        {
+          "detail": "npm run typecheck after merging DM-321, DM-325, DM-326 (DM-321 conflicted with DM-326 in terminalSessions.ts imports and docs/architecture.md rows; both sides kept)",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run lint exit 0 on the merged tree",
+          "name": "lint",
+          "status": "passed"
+        },
+        {
+          "detail": "npx vitest run src/main/terminals src/main/agents src/main/desktop src/main/index.test.ts src/preload src/renderer: 299 files, 4666 passed, 9 skipped",
+          "name": "row tests",
+          "status": "passed"
+        }
+      ],
+      "commit": "d681ac5bb052548310f19f2662cda09c45b1dcdd",
+      "createdAt": "2026-10-31T16:14:13.842Z",
+      "id": "rk_01m69btythd5cp4kye8t4ttg6m",
+      "number": 5,
+      "recordedBy": "Claude Code",
+      "row": 5,
       "sprintId": "sp_01m5jz275zxpve9s276gzaw4s0"
     }
   ],
