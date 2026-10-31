@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code orchestrator (multi-repo folders)",
+    "role": "orchestrator"
+  },
+  "body": "Orchestrator integration note (acceptance round): under `npm run coverage` on a loaded machine the two-sprint test in `src/core/services/attemptsIncrement.test.ts` timed out at 15 s. Commit 7aa7c70 gives that describe block a 60 s timeout (`TWO_SPRINT_TIMEOUT`), matching the convention DM-359 used for real-Git tests.",
+  "createdAt": "2026-10-31T22:29:51.490Z",
+  "epicId": "ep_01m68w2edvsnjrvj7w56hxrmt8",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m6a1ar82n1b3hqg4ng8kxnpg",
+  "ticketId": "tk_01m68w2eewcrfw8k96bx5x75yc"
+}

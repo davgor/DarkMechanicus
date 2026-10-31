@@ -5,6 +5,7 @@ import { errorMessage } from '../api/dm'
 import type { Runner } from '../epic/runner'
 import { StateLabel } from '../epic/StatePill'
 import type { Tone } from '../graph/ticketStates'
+import { InlineMarkdown } from '../markdown/Markdown'
 import { coverageView, definitionOfDoneRows, type CoverageGroup, type DefinitionOfDoneRow } from './acceptanceView'
 import type { CriterionItem } from './ticketView'
 
@@ -15,7 +16,7 @@ export function CriteriaItems({ items }: { items: CriterionItem[] }): JSX.Elemen
       {items.map((item) => (
         <li key={item.id} className={item.verified ? 'is-verified' : undefined}>
           <input type="checkbox" checked={item.verified} readOnly disabled aria-label={item.text} />
-          <span>{item.text}</span>
+          <InlineMarkdown source={item.text} />
         </li>
       ))}
     </ul>

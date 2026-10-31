@@ -2066,23 +2066,101 @@
     },
     {
       "createdAt": "2026-10-31T21:45:19.717Z",
-      "decidedAt": null,
-      "decision": null,
-      "evidence": null,
+      "decidedAt": "2026-10-31T22:00:28.401Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (multi-repo folders)",
+        "notes": "Checks run: vitest on the file twice (passed, 25.7 s and 17.0 s of test time), vitest src/integration (87 passed), oxlint on the file (no output), npm run typecheck (no errors), git status clean. The diff is test-only. It drives the run through the real workspace commands with real Git repositories. The 60 s per-test timeout is reasonable: each test took about 8-13 s under load, against the 5 s default.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "2 passed (also passed alongside src/integration/incrementMerged.test.ts: 12 passed)",
+            "name": "vitest src/integration/multiRepo.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "no findings (after splitting helpers to meet max-lines-per-function)",
+            "name": "oxlint src/integration/multiRepo.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "node, web and fireguard tsconfigs clean",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node (targeted oxlint run instead)",
+            "name": "npm run lint",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run build / deadcode / fireguard",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "First test goes from multi_repo set-up through Definition of Done, plan, save, queue/start, claims, squash and node acceptance; increment_merged and definition_of_done both met. Each work packet's repository {name, path=<parent>/<repo>, branch {repository, feature, startCommit}} is compared exactly, and the node packet's repositories[] too."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Second test merges beta: verdicts [alpha true, beta false], reason 'merged rather than squashed', increment gate met=false with detail /^beta: increment <sha> failed verification:/ and no 'alpha', gatesMet false."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "expectNothingWritten in both tests: readdir(parent) equals ['alpha','beta']; per repo no darkmechanicus/.mcp.json entry, no tracked darkmechanicus path, and `git status --porcelain --untracked-files=all --ignored` is empty. Worktrees are kept outside the parent."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Passed twice on its own (2/2) and alongside src/integration (14 files, 87 tests); oxlint on the file printed nothing (read as no findings); npm run typecheck reported no errors. The full npm test is left to the acceptance node, as instructed."
+          }
+        ],
+        "notes": "Packet DoD checks are listed by their own names; '<repo>: <check>' is only how evidence reports them (asserted via the DoD gate detail). Under heavy machine load (load average ~92) each test took about 7-8s, so both carry an explicit 60s timeout; no other integration test sets one. Scope is test-only; no production code changed."
+      },
       "failure": null,
       "fencingToken": 1,
       "id": "at_01m69ys735x6dcdmzqpn8ey5mv",
       "kind": "work",
       "number": 1,
-      "outputs": null,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Two-repository end-to-end integration test",
+            "location": "src/integration/multiRepo.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "multi-repo-folders-DM-359",
+        "changedFiles": [
+          "src/integration/multiRepo.test.ts"
+        ],
+        "commits": [
+          "fe47bb095631332e634b1d6021bd8b8e1274639b"
+        ],
+        "summary": "Added src/integration/multiRepo.test.ts: a temp parent (harness root) holding real repositories alpha and beta with a temp DARKMECHANICUS_HOME. Scene 1: initializeRepository layout multi_repo (db mode), per-repository Definition of Done (alpha: lint, test; beta: build), epic with branch 'feature', one sprint with one work ticket per repo plus a covering acceptance node, saved; desktop queueRun then orchestrator startRun; asserts repositoryBranches bind feature per repo at its own tip. Each work ticket is claimed and its packet's repository {name, path=<parent>/<repo>, branch {repository, name: feature, startCommit}} and '<repo> - ' title prefix are asserted; workers commit in git worktrees in a separate temp dir, then submit and are accepted. Each repo's work is squashed onto its feature; the node packet's repositories[] lists both with path, branch and their own DoD checks (bare names); the node submits both increments and every '<repo>: <check>' as passed; verdicts pass with epic_start base; the DoD gate is unmet before acceptance, naming 'alpha: lint, alpha: test, beta: build'; after acceptance increment_merged and definition_of_done are both met and getRun shows one passing increment per repo. Scene 2: beta is merged (--no-ff) instead of squashed; beta's verdict fails ('merged rather than squashed'); the increment gate fails with detail starting 'beta: increment ... failed verification' and not naming alpha. Both scenes assert the parent holds only alpha and beta and that neither repo has a Dark Mechanicus/.mcp.json entry, tracked darkmechanicus file, or any untracked/ignored file. The sessions use a real root Git adapter on the non-repository parent, as in the app. Both tests have an explicit 60s timeout (about 7-8s each at load average ~92, against the 15s default)."
+      },
       "reconciledAt": null,
       "revisionId": "rv_01m69rxk6atk24v4d9szqx45np",
-      "state": "running",
-      "submittedAt": null,
+      "state": "accepted",
+      "submittedAt": "2026-10-31T21:57:35.691Z",
       "supersededAt": null,
       "ticketContentHash": "sha256:2f0d2ee7e1c7aedd2a9fda082821fbc98cf0ad5e23b06c223c5070ad560f8efe",
       "ticketId": "tk_01m68w2eew0en5nsvgz7wk4rht",
-      "updatedAt": "2026-10-31T21:46:08.436Z",
+      "updatedAt": "2026-10-31T22:00:28.401Z",
       "worker": {
         "catalogRevision": "multi-repo-1",
         "effort": "medium",
@@ -2095,12 +2173,473 @@
     },
     {
       "createdAt": "2026-10-31T21:45:19.779Z",
+      "decidedAt": "2026-10-31T21:50:22.423Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (multi-repo folders)",
+        "notes": "The result lists src/main/agents/orchestratorStart.test.ts as changed, but the diff does not touch it. No test checks that orchestratorStart passes repositoryBranches to the kickoff; only typecheck covers that. Adding such a test is a suggested follow-up, not a reason to reject. Using rescan_repositories is not described in the guides, and the ticket does not require it.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "3 files, 57 passed",
+            "name": "vitest src/mcp/skills.test.ts src/main/agents/orchestratorKickoff.test.ts src/main/agents/orchestratorStart.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "20 files, 478 passed",
+            "name": "vitest src/mcp",
+            "status": "passed"
+          },
+          {
+            "detail": "exit 0",
+            "name": "oxlint changed .ts files",
+            "status": "passed"
+          },
+          {
+            "detail": "node, web, fireguard tsconfigs clean",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run lint",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run build",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Read the new orchestrator.md section. It covers the epic branch per repository (create it at startCommit with git -C), never switching a child repository's own checkout, integration, worker worktrees and landing per touched repository, and submitting `increments` with one entry per touched repository. Checked against epicBranches.ts, the command schema and the gate in checkpoints.ts."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "worker.md: work only in a worktree of repository.path and report checks as `<repo>: <check>`. reviewer.md: read the diff in the ticket's repository and expect one increment verdict and one set of checks per touched repository. sprint-reporter.md: per-repository commits and checks, and gate details that match checkpoints.ts lines 247 and 449. All guide changes are added sections; no existing text changed."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "branchLines adds the repository lines only when the list is non-empty. A test checks that the output with an empty list is identical to the single-repository output. orchestratorStart.ts passes epic.repositoryBranches through. There are tests for listing the repositories and for masking a claim token."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Re-ran the three listed test files: 57 passed. oxlint on the changed .ts files was clean, and npm run typecheck was clean."
+          }
+        ],
+        "notes": "Repository branches are recorded at start_run, which happens after the desktop kickoff is sent. On an epic's first run the kickoff therefore shows only the epic branch, and the orchestrator guide points to get_epic's repositoryBranches. Red-team: claim-token masking of repository and branch names tested; empty list yields the byte-identical single-repository kickoff; reporter text checked against checkpoints.ts and corrected to describe the definition_of_done detail accurately."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m69ys753v51x45yebgzwg4ks",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": "multi-repo-folders-DM-360",
+        "changedFiles": [
+          "skills/orchestrator.md",
+          "skills/worker.md",
+          "skills/reviewer.md",
+          "skills/sprint-reporter.md",
+          "src/main/agents/orchestratorKickoff.ts",
+          "src/main/agents/orchestratorStart.ts",
+          "src/main/agents/orchestratorKickoff.test.ts",
+          "src/main/agents/orchestratorStart.test.ts",
+          "src/mcp/skills.test.ts"
+        ],
+        "commits": [
+          "cee49b564b78ba8210d70c2ed6b0fbfc69f02de7"
+        ],
+        "summary": "Added a 'Folders of repositories' section to skills/orchestrator.md (create a missing epic branch with `git -C <path> branch <name> <startCommit>`; never switch a child repository's own checkout, since there is no branch guard; integration, workers and landing in worktrees per touched repository; workers get a worktree of the packet's `repository.path`; squash each touched repository's sprint work onto its epic branch; submit `increments`, one {repo, branch, commit} per repository; per-repository Definition of Done reported as `<repo>: <check>`; give every redraft ticket its `repo`), to worker.md (work only in a worktree of repository.path, `git -C <worktree>`, acceptance-node checks as `<repo>: <check>`), reviewer.md (diff in the ticket's repository; one increment verdict and one set of checks per touched repository) and sprint-reporter.md (each repository's increment commit and checks; per-repository gate details). The existing single-repository text is unchanged. KickoffInput gains optional `repositoryBranches`. The kickoff adds `- repo → branch` lines after the Branch line when it is non-empty, and the output is identical to before when it is absent or empty. orchestratorStart passes `epic.repositoryBranches`."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m69rxk6atk24v4d9szqx45np",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T21:47:58.905Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:0eb8471f3f09b61873ec1832dce3764e91d71fdadd20bace965fbe19200e6ce7",
+      "ticketId": "tk_01m68w2eewqm3qz9awecfrgy29",
+      "updatedAt": "2026-10-31T21:50:22.423Z",
+      "worker": {
+        "catalogRevision": "multi-repo-1",
+        "effort": "medium",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-360)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (anthropic/claude-opus-5-5, medium). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'medium' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T21:48:31.353Z",
+      "decidedAt": "2026-10-31T22:00:08.561Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (multi-repo folders)",
+        "notes": "Checks I ran: the targeted vitest run (17 files, 236 passed), oxlint on the changed files (clean), npm run typecheck (clean). git status is clean and there is one commit (111a075). I did not run src/mcp myself because no input schema changed; the worker reports it passing. No stored or exported record holds the report's increment. Follow-up, not a reason to reject: the panel's 'touched' groups come from the plan's targeted repositories, including optional tickets, while the server's gate uses accepted tickets only, so before every ticket is accepted the panel may show an extra group. Exposing the server's touched repositories on the run view would let the panel match the gate exactly.",
+        "outcome": "rejected",
+        "reasons": [
+          "c3: SprintReportView now always returns `increments` (an array) instead of `increment`, which breaks the single-repository get_sprint_report / checkpoint `report` shape the ticket says must not change. Fix: keep `increment?: SprintIncrementView` and set it when the project is a single repository (project.repositories === null). Add `increments?: SprintIncrementView[]` only for a folder of repositories. Make gateView build its sections from whichever field is present. Document both fields in the views.ts doc comment, the checkpoints tool description and docs/architecture.md. Verify with a single-repository test that asserts `report.increment` is set and `increments` is undefined, plus a folder test that asserts the reverse; run npx vitest run src/core/services/increments.test.ts src/integration/incrementMerged.test.ts src/renderer/src/checkpoint src/mcp."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "47 files, 889 tests passed; then the reshuffled ticket/checkpoint tests (14 files, 273) and TicketPanel (36) passed again",
+            "name": "vitest renderer ticket+checkpoint+FolderHome, core increments, integration incrementMerged, src/mcp",
+            "status": "passed"
+          },
+          {
+            "detail": "no findings after splitting long describe blocks",
+            "name": "oxlint changed .ts/.tsx files",
+            "status": "passed"
+          },
+          {
+            "detail": "node, web, fireguard tsconfigs clean",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run build",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "acceptanceView.test.ts 'repositoryDefinitionGroups' (grouping, name order, `<repo>: <check>` matching with bare and other-repo decoys, missing repository); TicketPanel.test.tsx 'ticket panel of an acceptance node in a folder of repositories' renders the api group with PASSED / NOT REPORTED and web 'no Definition of Done'."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "CheckpointScreen.test.tsx 'checkpoint report increments in a folder of repositories': one section per repo with heading, commit and ✓/✗ verdict; gateView.test.ts per-repo sections; reports.ts returns every sprint increment (the DM-357 .find issue is fixed)."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "FolderHome.test.tsx \"shows each repository's number of Definition of Done checks\" (2 / 1 / none); single-repo DoD and increment tests are unchanged and pass (TicketPanel DoD describe, CheckpointScreen 'INCREMENT' section)."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Listed tests pass; oxlint on changed files is clean; npm run typecheck passes."
+          }
+        ],
+        "notes": "Response shape change: SprintReportView.increment is now increments?: SprintIncrementView[] (absent when none). MCP tool description and docs/architecture.md are updated; no input schema changed, and the src/mcp tests pass. Limit: the panel computes touched repositories from the plan (repositories targeted by any of the sprint's work tickets, including optional ones), while the server uses accepted tickets only, so before every ticket is accepted the panel can show an extra group.\nDiscoveries:\n- The renderer cannot see which repositories are touched in the server's sense (accepted tickets only). Exposing the touched repositories on the ticket or run view would let the panel match the server exactly."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m69yz27s889tad2f9pm372pm",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": "multi-repo-folders-DM-362",
+        "changedFiles": [
+          "docs/architecture.md",
+          "src/core/services/increments.test.ts",
+          "src/core/services/reports.ts",
+          "src/integration/incrementMerged.test.ts",
+          "src/mcp/tools/checkpoints.ts",
+          "src/renderer/src/checkpoint/CheckpointScreen.test.tsx",
+          "src/renderer/src/checkpoint/CheckpointScreen.tsx",
+          "src/renderer/src/checkpoint/EpicOverview.test.tsx",
+          "src/renderer/src/checkpoint/gateView.test.ts",
+          "src/renderer/src/checkpoint/gateView.ts",
+          "src/renderer/src/home/FolderHome.test.tsx",
+          "src/renderer/src/home/RepositoriesCard.tsx",
+          "src/renderer/src/ticket/AcceptanceSections.tsx",
+          "src/renderer/src/ticket/TicketPanel.test.tsx",
+          "src/renderer/src/ticket/acceptanceView.test.ts",
+          "src/renderer/src/ticket/acceptanceView.ts",
+          "src/renderer/src/ticket/panelTabs.tsx",
+          "src/shared/domain/views.ts"
+        ],
+        "commits": [
+          "111a0750fd90cad925cbe53f57c2ebe2064e0ced"
+        ],
+        "summary": "Acceptance node DoD: in a folder (project.repositories !== null) groups rows under each repository targeted by the node's sprint's work tickets (name order) via repositoryDefinitionGroups in acceptanceView.ts, matching evidence by `<repo>: <check>` (same loose matching as the server, via definitionOfDoneRows/unmetChecks); a repository with no list shows 'This repository has no Definition of Done.'; heading counts the summed checks. DefinitionOfDone now takes `bundle` (panelTabs passes it). Increments: SprintReportView.increment -> increments?: SprintIncrementView[] (reports.ts filters every view for the sprint instead of .find); gateView ReportSections.increments: IncrementSection[] with repo + heading 'INCREMENT · SPRINT n · <repo>'; CheckpointScreen/EpicOverview render one section per repository (aria-label 'INCREMENT <repo>', single repo unchanged 'INCREMENT'). RepositoriesCard rows show 'N Definition of Done check(s)' / 'No Definition of Done'. Updated MCP get_sprint_report description, docs/architecture.md, and the core/integration tests that read report.increment."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m69rxk6atk24v4d9szqx45np",
+      "state": "rejected",
+      "submittedAt": "2026-10-31T21:56:56.211Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:13c3a1d801b1e566d121beb429a01448663d0f6f6e303cdca466f6b9803380ae",
+      "ticketId": "tk_01m68w2eewkj36297tmtknt90t",
+      "updatedAt": "2026-10-31T22:00:08.561Z",
+      "worker": {
+        "catalogRevision": "multi-repo-1",
+        "effort": "medium",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-362)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (anthropic/claude-opus-5-5, medium). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'medium' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T21:57:17.905Z",
+      "decidedAt": "2026-10-31T21:59:46.891Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (multi-repo folders)",
+        "notes": "Reviewed by the orchestrator against the accepted code on the sprint branch. Markdown only; whole-tree lint left to the acceptance node.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "46 relative links; every target file and every heading anchor exists",
+            "name": "relative link and anchor check over the 6 changed files",
+            "status": "passed"
+          },
+          {
+            "detail": "no .ts/.tsx files changed (Markdown only)",
+            "name": "npx oxlint on changed files",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run lint",
+            "status": "skipped"
+          },
+          {
+            "detail": "no code changed",
+            "name": "npm run typecheck",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Orchestrator read docs/decisions/0003-multi-repo-folders.md: Context, Decision (db mode only, immediate children, one repo per work ticket, server-kept prefix, one branch name with per-repository start commits, per-repository packets, increments and Definition of Done), Consequences (no branch guard, single repository unchanged) and Known limits (renamed child, no Source control tab, nested repositories)."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Diff of docs/architecture.md (Workspace per project root: one repository or a folder of repositories; per-repository Definition of Done) and docs/product-plan.md (a project can be a folder of repositories; shared branch name and increments per repository)."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "docs/runbooks/multi-repo-folders.md added (set up, rescan, plan, run, per-repository results) and linked from README.md and docs/runbooks/mcp-setup.md; worker link check: 46 relative links and anchors resolve."
+          }
+        ],
+        "notes": "Documentation only. The app has no Source control view at all on this branch, so the 'no Source control tab' limit is true but only weakly specific to folders of repositories. Red-team: every behavioural claim was traced to code (requireFolderBranchName in runs.ts, the repo_missing_on_disk warning in graph.ts, the claim refusal in attempts.ts packetRepository, rescanRepositories never removing an entry, the RepositoriesCard Rescan button, the start-run Epic branch field); nothing needed fixing."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m69zf4eh6ap2hq6tx2v3tsh8",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Decision record 0003",
+            "location": "docs/decisions/0003-multi-repo-folders.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Multi-repo folders runbook",
+            "location": "docs/runbooks/multi-repo-folders.md",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "multi-repo-folders-DM-363",
+        "changedFiles": [
+          "docs/decisions/0003-multi-repo-folders.md",
+          "docs/runbooks/multi-repo-folders.md",
+          "docs/architecture.md",
+          "docs/product-plan.md",
+          "docs/runbooks/mcp-setup.md",
+          "README.md"
+        ],
+        "commits": [
+          "024dabc5ef174f2c73b1e93928e71c8022977fa2"
+        ],
+        "summary": "Documented folders of repositories: new decision record docs/decisions/0003-multi-repo-folders.md (context, decision, consequences, known limits) and runbook docs/runbooks/multi-repo-folders.md (set up, rescan, plan, run, per-repository results). Updated docs/architecture.md (Workspace per project root; per-repository Definition of Done) and docs/product-plan.md (each project owns its database; a project can be a folder of repositories; shared branch name with per-repository start commits and increments). Linked the runbook from README.md and docs/runbooks/mcp-setup.md. Statements were checked against childRepos.ts, initialize.ts, projectConfig.ts, repoTitles.ts, graph.ts, epicBranches.ts, attempts.ts, checkpoints.ts, runs.ts and skills/orchestrator.md. The sprint report field shape is deliberately not described (DM-362)."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m69rxk6atk24v4d9szqx45np",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T21:59:36.097Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:052034f343e4cbbaa96b5aed741946d2e8aaed77f87b021ca503e77ab8da90ed",
+      "ticketId": "tk_01m68w2eewr27g9s46gt1ma30q",
+      "updatedAt": "2026-10-31T21:59:46.891Z",
+      "worker": {
+        "catalogRevision": "multi-repo-1",
+        "effort": "low",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-363)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (anthropic/claude-opus-5-5, low). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'low' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T22:00:08.618Z",
+      "decidedAt": "2026-10-31T22:03:51.637Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (multi-repo folders)",
+        "notes": "Attempt 2 fixes the rejected single-repository report shape exactly as the reviewer asked. Follow-up (not a criterion): the panel groups Definition of Done by targeted repositories, while the gate uses accepted ones.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "34 files, 651 tests passed",
+            "name": "vitest increments.test.ts incrementMerged.test.ts src/renderer/src/checkpoint src/mcp",
+            "status": "passed"
+          },
+          {
+            "detail": "25 files, 362 tests passed",
+            "name": "vitest src/renderer/src/ticket src/renderer/src/home",
+            "status": "passed"
+          },
+          {
+            "detail": "no findings on reports.ts, views.ts, checkpoints.ts, gateView.ts, gateView.test.ts, CheckpointScreen.test.tsx, increments.test.ts",
+            "name": "oxlint changed files",
+            "status": "passed"
+          },
+          {
+            "detail": "clean",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test / npm run lint / npm run build / npm run deadcode / fireguard",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Unchanged from attempt 1, verified by ReviewDM362: Definition of Done rows grouped by repository, evidence matched by `<repo>: <check>`, a repository with no list says so; acceptanceView and TicketPanel tests pass (re-run by the orchestrator)."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "gateView builds one increment section per repository from report.increments in a folder; CheckpointScreen/gateView folder tests pass in the orchestrator re-run."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Orchestrator read the net diff of reports.ts: a single repository returns `increment: views[0]` (identical to the previous `.find`), a folder returns `increments` only; net diff of incrementMerged.test.ts and EpicOverview.test.tsx against the base is empty, so single-repository assertions are the pre-ticket ones; new tests assert each shape. Repositories card count tested in FolderHome.test.tsx."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Orchestrator re-ran vitest on increments, incrementMerged, renderer checkpoint/ticket/home and src/mcp in the worktree: 59 files, 1013 tests passed. Worker reports oxlint and typecheck clean."
+          }
+        ],
+        "notes": "Red team: I checked every reader of report.increment and report.increments. Only gateView and CheckpointScreen read them, and CheckpointScreen goes through gateView's sections. The `increments` matches elsewhere in src belong to the submit/import inputs, not the report. The src/mcp tests still pass after the description change, and no input schema changed. The new folder test would fail on the code before this commit, because it only set `increment`. The report's increment is still not stored or exported. Discoveries: (1) The reviewer's follow-up still stands: the panel's touched-repository groups come from the plan's targeted repositories, while the server's gate uses only accepted tickets, so before every ticket is accepted the panel can show an extra group."
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m69zmb5a43rb0tzyt514xp2p",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [],
+        "branch": "multi-repo-folders-DM-362",
+        "changedFiles": [
+          "docs/architecture.md",
+          "src/core/services/increments.test.ts",
+          "src/core/services/reports.ts",
+          "src/mcp/tools/checkpoints.ts",
+          "src/renderer/src/checkpoint/CheckpointScreen.test.tsx",
+          "src/renderer/src/checkpoint/CheckpointScreen.tsx",
+          "src/renderer/src/checkpoint/gateView.test.ts",
+          "src/renderer/src/checkpoint/gateView.ts",
+          "src/renderer/src/home/FolderHome.test.tsx",
+          "src/renderer/src/home/RepositoriesCard.tsx",
+          "src/renderer/src/ticket/AcceptanceSections.tsx",
+          "src/renderer/src/ticket/TicketPanel.test.tsx",
+          "src/renderer/src/ticket/acceptanceView.test.ts",
+          "src/renderer/src/ticket/acceptanceView.ts",
+          "src/renderer/src/ticket/panelTabs.tsx",
+          "src/shared/domain/views.ts"
+        ],
+        "commits": [
+          "111a0750fd90cad925cbe53f57c2ebe2064e0ced",
+          "2573bd86567ee2b7b133d513568a5549b9fe9f42"
+        ],
+        "summary": "Attempt 2 fixes the reviewer's c3 rejection; the rest of attempt 1 (111a075) is unchanged. src/core/services/reports.ts: SprintReportView keeps `increment` (the sprint's view) for a single repository and gets `increments` (one per repository, in name order) only in a folder of repositories (ctx.repositoryEntries() !== null). The two fields are never both set. src/shared/domain/views.ts adds `increments?: SprintIncrementView[]` and documents both fields. gateView.reportView builds its sections from `increments`, or else from `[increment]`. I reverted attempt 1's single-repository edits back to the pre-ticket `increment` shape: increments.test.ts, incrementMerged.test.ts, EpicOverview.test.tsx, the single-repository fixture in CheckpointScreen.test.tsx, and the gateView.test fixture helper. The get_sprint_report tool description and docs/architecture.md now describe both fields. Two new tests are in increments.test.ts. Single repository: report.increment is set and increments is undefined, including on the checkpoint report. Folder: increments is [alpha, beta] in name order, increment is undefined, and getSprintReport returns the same report."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m69rxk6atk24v4d9szqx45np",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T22:03:00.737Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:13c3a1d801b1e566d121beb429a01448663d0f6f6e303cdca466f6b9803380ae",
+      "ticketId": "tk_01m68w2eewkj36297tmtknt90t",
+      "updatedAt": "2026-10-31T22:03:51.637Z",
+      "worker": {
+        "catalogRevision": "multi-repo-1",
+        "effort": "high",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-362)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (anthropic/claude-opus-5-5, high). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'high' records the planned effort, not a setting applied. Attempt 1 rejected on c3 (single-repository sprint report shape changed from increment to increments); recommended next effort step.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T22:05:56.301Z",
       "decidedAt": null,
       "decision": null,
       "evidence": null,
       "failure": null,
       "fencingToken": 1,
-      "id": "at_01m69ys753v51x45yebgzwg4ks",
+      "id": "at_01m69zyypdwvrmtfm1wqv2wcr9",
       "kind": "work",
       "number": 1,
       "outputs": null,
@@ -2109,14 +2648,14 @@
       "state": "running",
       "submittedAt": null,
       "supersededAt": null,
-      "ticketContentHash": "sha256:0eb8471f3f09b61873ec1832dce3764e91d71fdadd20bace965fbe19200e6ce7",
-      "ticketId": "tk_01m68w2eewqm3qz9awecfrgy29",
-      "updatedAt": "2026-10-31T21:46:08.470Z",
+      "ticketContentHash": "sha256:4d505f4a8d5c391c23833731fc6dc7fafa11baced3812e75c6116cf4ef3423f7",
+      "ticketId": "tk_01m68w2edvmdw2h8063ch16s6q",
+      "updatedAt": "2026-10-31T22:06:08.467Z",
       "worker": {
         "catalogRevision": "multi-repo-1",
         "effort": "medium",
         "hostId": "a8s-omp-davidgorden-mac",
-        "label": "a8s task subagent (DM-360)",
+        "label": "a8s task subagent (DM-342)",
         "modelId": "anthropic/claude-opus-5-5",
         "rationale": "Recommended by match_capabilities (anthropic/claude-opus-5-5, medium). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'medium' records the planned effort, not a setting applied.",
         "sessionId": null
@@ -2311,6 +2850,53 @@
       "number": 8,
       "recordedBy": "Claude Code orchestrator (multi-repo folders)",
       "row": 7,
+      "sprintId": "sp_01m68w2edvv407084313gndc31"
+    },
+    {
+      "checks": [
+        {
+          "detail": "exit 0 in the sprint integration worktree",
+          "name": "npm run typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "212 files, 3894 passed, 3 skipped (pre-existing skips)",
+          "name": "vitest (rows 8-9 files: integration, main/agents, mcp, renderer checkpoint/ticket/home/epic, core/services)",
+          "status": "passed"
+        }
+      ],
+      "commit": "ea6a814678ee2622eee4a1f9b1f683c173f1ab65",
+      "createdAt": "2026-10-31T22:05:35.852Z",
+      "id": "rk_01m69zyaqc02ft4n5d2xqq6xr5",
+      "number": 9,
+      "recordedBy": "Claude Code orchestrator (multi-repo folders)",
+      "row": 8,
+      "sprintId": "sp_01m68w2edvv407084313gndc31"
+    },
+    {
+      "checks": [
+        {
+          "detail": "exit 0 in the sprint integration worktree",
+          "name": "npm run typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "212 files, 3894 passed, 3 skipped (pre-existing skips)",
+          "name": "vitest (rows 8-9 files: integration, main/agents, mcp, renderer checkpoint/ticket/home/epic, core/services)",
+          "status": "passed"
+        },
+        {
+          "detail": "taken from the DM-363 accepted attempt: 46 relative links and anchors resolve; Markdown only",
+          "name": "docs links (DM-363 changed docs)",
+          "status": "passed"
+        }
+      ],
+      "commit": "ea6a814678ee2622eee4a1f9b1f683c173f1ab65",
+      "createdAt": "2026-10-31T22:05:35.868Z",
+      "id": "rk_01m69zyaqwfk06pnpzyvfa3q91",
+      "number": 10,
+      "recordedBy": "Claude Code orchestrator (multi-repo folders)",
+      "row": 9,
       "sprintId": "sp_01m68w2edvv407084313gndc31"
     }
   ],

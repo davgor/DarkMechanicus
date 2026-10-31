@@ -1817,10 +1817,10 @@
       "revisionId": "rv_01m4acnd85d82fg5qgy4jb4kse",
       "state": "accepted",
       "submittedAt": "2026-10-31T11:18:56.883Z",
-      "supersededAt": null,
+      "supersededAt": "2026-10-31T22:30:14.917Z",
       "ticketContentHash": "sha256:3b96adb73d641cd5dfc9c1c38cb92dec86be2cf969f4edf9e5bc8bde0ac2e900",
       "ticketId": "tk_01m43st80p3n2992va52fjx8h1",
-      "updatedAt": "2026-10-31T11:18:56.898Z",
+      "updatedAt": "2026-10-31T22:30:14.917Z",
       "worker": {
         "catalogRevision": "hc_01m683v6zpwtyanf40hj5gg7wd",
         "effort": "high",
@@ -1957,10 +1957,10 @@
       "revisionId": "rv_01m4acnd85d82fg5qgy4jb4kse",
       "state": "accepted",
       "submittedAt": "2026-10-31T11:31:16.607Z",
-      "supersededAt": null,
+      "supersededAt": "2026-10-31T22:30:14.918Z",
       "ticketContentHash": "sha256:2bc755801144cd5ebcecef5413915b404d2e6643151e8f99399ae8624baf5659",
       "ticketId": "tk_01m43st80paqp9q9mynnv0cz6g",
-      "updatedAt": "2026-10-31T11:31:16.636Z",
+      "updatedAt": "2026-10-31T22:30:14.918Z",
       "worker": {
         "catalogRevision": "hc_01m683v6zpwtyanf40hj5gg7wd",
         "effort": "medium",
@@ -3228,7 +3228,11 @@
       "decidedAt": null,
       "decision": null,
       "evidence": null,
-      "failure": null,
+      "failure": {
+        "details": "Attempt 1 evidence kept for reuse (/tmp/sc-epic/results/DM-140.json, docs/verification/sprint2-acceptance/ on source-control-sprint-2 @ 265b793): DoD lint/typecheck/test/coverage/deadcode/build pass at 265b793 after tests-only integration fixes 9434bda, 95b1bb2 (coverage), 8d08e72 (cheaper git-backed tests); c3–c8, c13–c17 met in the built app; Fireguard delta (post-DM-148 tests) A 99. Not met: c1/c2 (old device-flow criteria), c12 (200x loop timeouts under external machine load 48–214), c10/c11 (orchestrator steps).",
+        "reason": "Superseded by plan revision 4: GitHub sign-in now reuses the GitHub CLI login (person's decision); DM-141/DM-142 are reworked before the acceptance round can pass c1/c2.",
+        "retryable": true
+      },
       "fencingToken": 1,
       "id": "at_01m69m3h3952ed1t8mehay952r",
       "kind": "work",
@@ -3236,12 +3240,12 @@
       "outputs": null,
       "reconciledAt": null,
       "revisionId": "rv_01m4acnd85d82fg5qgy4jb4kse",
-      "state": "running",
+      "state": "failed",
       "submittedAt": null,
       "supersededAt": null,
       "ticketContentHash": "sha256:ce0d2ba25a749644859095a7b2c979ae7d6973f3d7409a54a9a511285c79d7b0",
       "ticketId": "tk_01m43st80kzf65farkt084aemr",
-      "updatedAt": "2026-10-31T18:57:14.995Z",
+      "updatedAt": "2026-10-31T22:30:14.870Z",
       "worker": {
         "catalogRevision": "hc_01m683v6zpwtyanf40hj5gg7wd",
         "effort": "medium",
@@ -3249,6 +3253,35 @@
         "label": "omp task subagent (DM-140)",
         "modelId": "claude-opus-5-5",
         "rationale": "Run's host catalog (hc_01m49h2h…, Windows) was never imported, so match_capabilities returns not_found and the claim skips catalog checks. omp cannot select a worker model; its task subagents run claude-opus-5-5. Effort recorded as the ticket's planned effort. Lease 4h; orchestrator heartbeats for the worker. Acceptance node: the orchestrator keeps the claim token, the worker returns its evidence, and the orchestrator lands the squashed increment and submits.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T22:30:32.926Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": null,
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m6a1c0pynbgv1jx116yzvtpx",
+      "kind": "work",
+      "number": 2,
+      "outputs": null,
+      "reconciledAt": null,
+      "revisionId": "rv_01m69rzt5jabxh2gd9wb46ygw7",
+      "state": "claimed",
+      "submittedAt": null,
+      "supersededAt": null,
+      "ticketContentHash": "sha256:640259178193ed93b8eb25f1b39caa37b380d7a9526c6b23c98e120d35f68878",
+      "ticketId": "tk_01m43st80p3n2992va52fjx8h1",
+      "updatedAt": "2026-10-31T22:30:32.926Z",
+      "worker": {
+        "catalogRevision": "hc_01m683v6zpwtyanf40hj5gg7wd",
+        "effort": "high",
+        "hostId": "omp-mac-davidgorden",
+        "label": "omp task subagent (DM-141)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Run's host catalog (hc_01m49h2h…, Windows) was never imported, so match_capabilities returns not_found and the claim skips catalog checks. omp cannot select a worker model; its task subagents run claude-opus-5-5. Effort high, the ticket's planned effort (deep: long-lived credential). Lease 4h; orchestrator heartbeats for the worker. Attempt for revision 4 (gh CLI login replaces the device flow); not an escalation.",
         "sessionId": null
       }
     }
@@ -3814,7 +3847,7 @@
       "submittedBy": "Claude Code"
     }
   ],
-  "revisionId": "rv_01m4acnd85d82fg5qgy4jb4kse",
+  "revisionId": "rv_01m69rzt5jabxh2gd9wb46ygw7",
   "rowChecks": [
     {
       "checks": [
@@ -3992,5 +4025,5 @@
   "skillVersion": "1.5.1",
   "startedAt": "2026-10-06T21:14:34.059Z",
   "state": "running",
-  "updatedAt": "2026-10-31T04:31:52.872Z"
+  "updatedAt": "2026-10-31T22:30:20.923Z"
 }

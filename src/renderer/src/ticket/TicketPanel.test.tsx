@@ -206,6 +206,18 @@ describe('ticket panel evidence and history', () => {
     expect(screen.getByText('flaky').tagName).toBe('STRONG')
   })
 
+  it('renders inline Markdown in criterion text on the Overview and Evidence tabs', async () => {
+    const base = ticketDetail()
+    const criteria = [{ id: 'c1', text: 'Import sends `{ mode }` **once**' }]
+    renderPanel(new FakeBackend(scenario({ ticket: ticketDetail({ ticket: { ...base.ticket, acceptanceCriteria: criteria } }) })))
+    const overview = await screen.findByLabelText('Acceptance criteria')
+    expect(within(overview).getByText('{ mode }').tagName).toBe('CODE')
+    fireEvent.click(screen.getByRole('tab', { name: 'Evidence' }))
+    const results = screen.getByLabelText('Criteria results')
+    expect(within(results).getByText('{ mode }').tagName).toBe('CODE')
+    expect(within(results).getByText('once').tagName).toBe('STRONG')
+  })
+
   it('says when no evidence exists', async () => {
     renderPanel(new FakeBackend(scenario({ ticket: ticketDetail({ attempts: [] }) })))
     fireEvent.click(await screen.findByRole('tab', { name: 'Evidence' }))

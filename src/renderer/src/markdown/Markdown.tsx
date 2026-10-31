@@ -1,5 +1,5 @@
 import { useMemo, type MouseEvent, type ReactNode } from 'react'
-import { parseMarkdown, type Block, type Inline, type ListItem } from './parse'
+import { parseInline, parseMarkdown, type Block, type Inline, type ListItem } from './parse'
 import './markdown.css'
 
 interface MarkdownProps {
@@ -15,6 +15,12 @@ export function Markdown(props: MarkdownProps): JSX.Element {
   const blocks = useMemo(() => parseMarkdown(props.source), [props.source])
   const className = props.className ? `md ${props.className}` : 'md'
   return <div className={className}>{renderBlocks(blocks)}</div>
+}
+
+/** One line of untrusted Markdown inside running text: inline code, emphasis and safe links only; block syntax stays literal. */
+export function InlineMarkdown(props: { source: string }): JSX.Element {
+  const nodes = useMemo(() => parseInline(props.source), [props.source])
+  return <span className="md-inline">{renderInlines(nodes)}</span>
 }
 
 /** Markdown headings sit below the panel's own title, so `#` renders as h3. */

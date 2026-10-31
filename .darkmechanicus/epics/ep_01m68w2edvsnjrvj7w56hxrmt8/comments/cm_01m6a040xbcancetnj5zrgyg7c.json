@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code orchestrator (multi-repo folders)",
+    "role": "orchestrator"
+  },
+  "body": "Orchestrator integration note (acceptance round): `npm run build` failed on the combined sprint work. `StartRunDialog.tsx` imported `epicBranch` from `src/core/schemas.ts`, which imports `src/core/ids.ts` (`node:crypto`), so the renderer bundle could not resolve `randomBytes`. Typecheck and vitest passed because they run under Node. The orchestrator moved the branch-name rule into the browser-safe `src/shared/domain/branchName.ts` (`epicBranchName`), used by both `schemas.ts` and the dialog, in sprint commit 7a3c80f. The advertised JSON schemas are unchanged (src/mcp fingerprint tests pass); build, typecheck, oxlint and the dialog tests pass.",
+  "createdAt": "2026-10-31T22:08:42.411Z",
+  "epicId": "ep_01m68w2edvsnjrvj7w56hxrmt8",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m6a040xbcancetnj5zrgyg7c",
+  "ticketId": "tk_01m68w2eew9a25bh94vqq9kjg0"
+}

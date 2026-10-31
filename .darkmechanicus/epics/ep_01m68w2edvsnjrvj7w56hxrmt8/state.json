@@ -9,12 +9,12 @@
   "epicId": "ep_01m68w2edvsnjrvj7w56hxrmt8",
   "format": "darkmechanicus.epic-state",
   "formatVersion": 1,
-  "generation": 35,
+  "generation": 42,
   "outcome": null,
   "provenance": null,
   "status": "in_progress",
   "ticketStatuses": {
-    "tk_01m68w2edvmdw2h8063ch16s6q": "backlog",
+    "tk_01m68w2edvmdw2h8063ch16s6q": "in_progress",
     "tk_01m68w2eekpzm9z173fmbkg2jd": "backlog",
     "tk_01m68w2eev0yytk74ney7jrar1": "completed",
     "tk_01m68w2eev1zhz01vc0d4r9573": "completed",
@@ -28,15 +28,15 @@
     "tk_01m68w2eevna1z93ez2fmwzfw2": "completed",
     "tk_01m68w2eevqc0kjxnxm6t9rcgc": "completed",
     "tk_01m68w2eevrn99q2wv57s1s1a1": "completed",
-    "tk_01m68w2eew0en5nsvgz7wk4rht": "in_progress",
+    "tk_01m68w2eew0en5nsvgz7wk4rht": "completed",
     "tk_01m68w2eew20w1cskjbnky5zy2": "completed",
     "tk_01m68w2eew9a25bh94vqq9kjg0": "completed",
     "tk_01m68w2eewcrfw8k96bx5x75yc": "completed",
     "tk_01m68w2eewk63d66xtzmva25da": "completed",
-    "tk_01m68w2eewkj36297tmtknt90t": "backlog",
-    "tk_01m68w2eewqm3qz9awecfrgy29": "in_progress",
-    "tk_01m68w2eewr27g9s46gt1ma30q": "backlog"
+    "tk_01m68w2eewkj36297tmtknt90t": "completed",
+    "tk_01m68w2eewqm3qz9awecfrgy29": "completed",
+    "tk_01m68w2eewr27g9s46gt1ma30q": "completed"
   },
   "title": "Multi-repo folders: open a folder of Git repositories, target each ticket at one repository, and run epics across them",
-  "updatedAt": "2026-10-31T21:45:19.788Z"
+  "updatedAt": "2026-10-31T22:05:56.314Z"
 }

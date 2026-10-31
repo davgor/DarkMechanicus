@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { isAcceptanceTicket } from '../../../core/plan/acceptance'
 import type { PlanBundle } from '../../../shared/domain/bundle'
 import type { CheckStatus, EventView, TicketDetailView } from '../../../shared/domain/views'
 import { errorMessage } from '../api/dm'
 import type { Runner } from '../epic/runner'
 import { StateLabel } from '../epic/StatePill'
-import { Markdown } from '../markdown/Markdown'
+import { InlineMarkdown, Markdown } from '../markdown/Markdown'
 import { CoverageCriteria, CriteriaItems, DefinitionOfDone } from './AcceptanceSections'
 import { loadHistory } from './ticketData'
 import { capabilityRows, criteriaChecklist, evidenceView, historyItems, linkRows, sizeAndEffortRows, type LinkRow } from './ticketView'
@@ -112,7 +112,7 @@ interface EvidenceRow {
   tone: CheckStatus
   status: string
   icon: string
-  title: string
+  title: ReactNode
   detail: string
 }
 
@@ -154,7 +154,7 @@ export function EvidenceTab({ detail }: { detail: TicketDetailView }): JSX.Eleme
       tone: result.met ? 'passed' : 'failed',
       status: result.met ? 'met' : 'not met',
       icon: result.met ? '✓' : '✗',
-      title: result.text,
+      title: <InlineMarkdown source={result.text} />,
       detail: result.note
     })
   )

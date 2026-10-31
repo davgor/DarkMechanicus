@@ -9,7 +9,7 @@
   "epicId": "ep_01m43sbb2tbnxtr35fety5vzhs",
   "format": "darkmechanicus.epic-state",
   "formatVersion": 1,
-  "generation": 56,
+  "generation": 57,
   "outcome": null,
   "provenance": null,
   "status": "in_progress",
@@ -25,9 +25,9 @@
     "tk_01m43skwxxqew2pvvhzv0b82hm": "completed",
     "tk_01m43skwxxyvy3m6h8vft46my3": "completed",
     "tk_01m43st80kzf65farkt084aemr": "in_progress",
-    "tk_01m43st80p3n2992va52fjx8h1": "completed",
+    "tk_01m43st80p3n2992va52fjx8h1": "in_progress",
     "tk_01m43st80p3yhsk2s96zdhphk7": "completed",
-    "tk_01m43st80paqp9q9mynnv0cz6g": "completed",
+    "tk_01m43st80paqp9q9mynnv0cz6g": "in_progress",
     "tk_01m43st80pde20wsy9hzs8s366": "completed",
     "tk_01m43st80phph8e257thvgm244": "completed",
     "tk_01m43st80pqq25rhh231cnd0y4": "completed",
@@ -50,5 +50,5 @@
     "tk_01m49emzzdwv2qxvaq6zhhe12w": "completed"
   },
   "title": "Source control: a GitHub Desktop-style Git view in every folder",
-  "updatedAt": "2026-10-31T20:04:04.553Z"
+  "updatedAt": "2026-10-31T22:30:14.934Z"
 }

@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code orchestrator (multi-repo folders)",
+    "role": "orchestrator"
+  },
+  "body": "Orchestrator note (acceptance round): Definition of Done fixes on the sprint integration branch, not ticket work: 7a3c80f moved the epic branch-name rule to `src/shared/domain/branchName.ts` so the renderer build stops importing node:crypto (DM-361); 7aa7c70 removed graph.ts's dependency on portable.ts (DM-348), un-exported five in-module helpers added by DM-354/DM-346/DM-360/DM-361/DM-352, refreshed `.tsprune-ignore` (line drift plus two shared exports the web program sees as unused: `withRepoPrefix`, `PacketRepository`), and added a load-tolerant timeout to a DM-356 test.",
+  "createdAt": "2026-10-31T22:29:51.499Z",
+  "epicId": "ep_01m68w2edvsnjrvj7w56hxrmt8",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m6a1ar8bv6a3h7zz2rqs34yw",
+  "ticketId": null
+}
