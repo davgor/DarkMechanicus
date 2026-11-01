@@ -15,3 +15,17 @@ describe('package.json macOS build config', () => {
     expect(build.mac.hardenedRuntime).toBe(false)
   })
 })
+
+describe('package.json node-pty packaging config', () => {
+  it('unpacks node-pty from the asar, so spawn-helper is a real file that can be executed', () => {
+    expect(build.asarUnpack).toContain('node_modules/node-pty/**')
+  })
+
+  it('never rebuilds native modules, so node-pty ships its prebuild and no build needs a compiler', () => {
+    expect(build.npmRebuild).toBe(false)
+  })
+
+  it('re-applies the helper execute bit after packing, with the install script', () => {
+    expect(build.afterPack).toBe('./scripts/ptyHelperMode.mjs')
+  })
+})

@@ -289,28 +289,10 @@ describe('useAgents sign-in changes', () => {
     expect(model(view).statuses.codex).toBeUndefined()
   })
 
-  it('asks the agent’s state again when a chat reports its sign-in changed', async () => {
+  it('does not ask again when a folder’s chats change: a sign-in finished in a terminal shows on focus', async () => {
     dm.agents = [claude]
-    dm.agentStatuses.claude = signedIn
-    const view = await mount()
-    dm.agentStatuses.claude = signedOut
-    act(() => dm.chats.emit({ type: 'agent_auth', chatId: 'chat_1', agent: 'claude', state: 'signed_out' }))
-    await settle()
-    expect(model(view).statuses.claude).toEqual(signedOut)
-    dm.agentStatuses.claude = signedIn
-    act(() => dm.chats.emit({ type: 'agent_auth', chatId: 'chat_1', agent: 'claude', state: 'signed_in' }))
-    await settle()
-    expect(model(view).statuses.claude).toEqual(signedIn)
-  })
-
-  it('leaves the other pushes of a chat alone, and stops listening when it is removed from the screen', async () => {
-    dm.agents = [claude]
-    const view = await mount()
-    act(() => dm.chats.emit({ type: 'turn', chatId: 'chat_1', running: true }))
-    await settle()
-    expect(dm.agentCallsOf('agentStatus')).toHaveLength(1)
-    view.unmount()
-    act(() => dm.chats.emit({ type: 'agent_auth', chatId: 'chat_1', agent: 'claude', state: 'signed_out' }))
+    await mount()
+    act(() => dm.chats.emit({ type: 'chats_changed', folder: '/a', chatId: 'chat_1' }))
     await settle()
     expect(dm.agentCallsOf('agentStatus')).toHaveLength(1)
   })

@@ -19,8 +19,8 @@ export interface CliConfigOptions {
 }
 
 /**
- * The exact invocation a chat is allowed to make. `command` and `args` are compared literally when
- * a chat's command is checked against it (`ownCliCommand.ts`), so nothing here may be relative or
+ * The exact `dm` invocation a chat may make. `command` and `args` go as they are into the chat's
+ * instructions, its `dm` launcher and its Claude settings file, so nothing here may be relative or
  * depend on the agent's environment.
  */
 export interface CliLaunch {

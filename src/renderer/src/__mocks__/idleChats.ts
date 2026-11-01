@@ -1,6 +1,6 @@
 /**
  * `window.dm.chats` for renderer tests that are not about chats: no folder has chats, nothing is
- * pushed, and every other request is refused as unavailable.
+ * bound, nothing is pushed, and every other request is refused as unavailable.
  */
 import type { ChatsApi } from '../../../shared/agents/chatApi'
 import type { CommandResult } from '../../../shared/desktop/api'
@@ -17,18 +17,11 @@ export function idleChats(): ChatsApi {
     startTransferChat: refused,
     findTransferChat: () => Promise.resolve({ ok: true, data: null }),
     transferPrompt: refused,
-    open: refused,
     read: refused,
-    send: refused,
-    stop: refused,
-    threadBindings: () => Promise.resolve({ ok: true, data: [] }),
     boundThreads: () => Promise.resolve({ ok: true, data: [] }),
-    retryTurn: refused,
-    setModel: refused,
+    boundTerminal: () => Promise.resolve({ ok: true, data: null }),
     rename: refused,
     delete: refused,
-    answerApproval: refused,
-    models: refused,
     onEvent: () => () => {}
   }
 }

@@ -1,113 +1,118 @@
-import { describe, expect, it } from 'vitest'
+/**
+ * Starting an agent on an authorized Linear transfer: the transfer is read, an `orchestrator` chat that records
+ * the epic is created, and its terminal is started with the transfer kickoff before the answer. On the terminal
+ * sessions' fakes (fake PTY host, fake clock), with the real chat records over the same store.
+ */
+import { readFileSync } from 'node:fs'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { DomainError } from '../../core/errors'
 import { transferKickoff } from '../../mcp/transferKickoff'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { TransferStatus, TransferView } from '../../shared/domain/transfer'
-import type { AgentView } from '../../shared/desktop/api'
 import type { EpicDetailView } from '../../shared/domain/views'
-import { AT, builtInAgent, connectedAgents, fakeAdapters, memoryChatFs, memoryChatStore, REPO, trackedFolders, type FakeAdapters } from './__mocks__/fakeChatAdapter'
-import type { ChatStore, ChatStoreFs } from './chatStore'
-import { createSessionManager, type SessionManager } from './sessionManager'
+import { builtInAgent, connectedAgents } from './__mocks__/chatFixtures'
+import { createChatRecords, type ChatRecords } from './chatRecords'
 import { findTransferChat, startTransferChat, transferPrompt, type TransferReads } from './transferStart'
+import { CUSTOM_AGENT, settle, terminalRig, type TerminalRig } from '../terminals/__mocks__/terminalSessionsRig'
+import { endingTerminals } from '../terminals/terminalSessions'
 
 const EPIC_ID = 'ep_01m6772ffwkwr2a91fsqzfz1he'
 const EPIC = { id: EPIC_ID, title: 'Linear handoff', branch: null } as EpicDetailView
 const KICKOFF = transferKickoff({ epicId: EPIC_ID, epicTitle: 'Linear handoff' })
-const DM_CLI = { command: 'node', args: ['/app/out/main/cli.js', '--repo', REPO], env: { DM_SESSION_TOKEN: 'dmg_test' } }
-const REQUEST = { folder: REPO, epicId: EPIC_ID, agent: 'claude', model: 'big' } as const
-/** A connected custom CLI, named only by the registry: the built-in table knows nothing of it. */
-const CUSTOM: AgentView = builtInAgent('cursor', { id: 'cu_01m65kwqqeyajbj5bnq81gngrb', kind: 'custom', displayName: 'My ACP agent', executablePath: '/opt/my-acp' })
 
 interface Rig {
-  store: ChatStore
-  fakes: FakeAdapters
-  manager: SessionManager
+  records: ChatRecords
   transfers: TransferReads
   /** What the transfer side was asked for, as "<call> <epic id>". */
   calls: string[]
-  /** The grants the chats were issued, in order. */
-  grants: { role: string; allowSave: boolean }[]
   errors: unknown[]
 }
 
-function managerOver(store: ChatStore, fakes: FakeAdapters, seen: Pick<Rig, 'grants' | 'errors'>, agents?: readonly AgentView[]): SessionManager {
-  const { grants, errors } = seen
-  return createSessionManager({
-    store,
-    adapters: fakes.definitions,
-    agentFor: connectedAgents(agents),
-    folders: trackedFolders(),
-    issueChatCli: async (_folder, grant) => {
-      grants.push({ role: grant.role, allowSave: grant.allowSave })
-      return { cli: DM_CLI, grantId: 'gr_00000000000000000000000001' }
-    },
-    revokeChatGrant: async () => undefined,
-    push: () => {},
-    now: () => AT,
-    onError: (error) => errors.push(error)
-  })
-}
+let terminals: TerminalRig
 
-function rig(status: TransferStatus = 'queued', fs: ChatStoreFs = memoryChatFs(), agents?: readonly AgentView[]): Rig {
-  const store = memoryChatStore(fs)
-  const fakes = fakeAdapters()
-  const errors: unknown[] = []
-  const grants: Rig['grants'] = []
+beforeEach(() => {
+  terminals = terminalRig()
+})
+
+afterEach(() => {
+  terminals.cleanup()
+})
+
+/** The chat records over the terminals' store, with deleting a chat ending its terminal first, as main wires them. */
+function rig(status: TransferStatus = 'queued'): Rig {
   const calls: string[] = []
+  const records = createChatRecords({ store: terminals.store, agentFor: connectedAgents([builtInAgent('claude'), builtInAgent('autonomous'), CUSTOM_AGENT]) })
   const transfers: TransferReads = {
     getEpic: (_folder, epicId) => (calls.push(`getEpic ${epicId}`), Promise.resolve(EPIC)),
     getTransfer: (_folder, epicId) =>
       (calls.push(`getTransfer ${epicId}`), Promise.resolve({ epicId, status, packet: null, recorded: [], lastMismatches: [], next: [] } as TransferView))
   }
-  return { store, fakes, manager: managerOver(store, fakes, { grants, errors }, agents), transfers, calls, grants, errors }
+  return { records: endingTerminals(records, terminals.sessions), transfers, calls, errors: [] }
 }
 
-function chatsOf(store: ChatStore): ChatRecord[] {
-  return store.listChats(REPO)
+function request(agent = 'claude', model: string | null = 'haiku'): { folder: string; epicId: string; agent: string; model?: string } {
+  return { folder: terminals.repo, epicId: EPIC_ID, agent, ...(model === null ? {} : { model }) }
+}
+
+function chats(): ChatRecord[] {
+  return terminals.store.listChats(terminals.repo)
+}
+
+function argsOf(index = 0): string[] {
+  return (terminals.host.spawns[index]?.spec.args ?? []) as string[]
 }
 
 describe('start a transfer chat', () => {
-  it('opens an orchestrator chat titled after the epic, recording it, and sends the transfer kickoff first', async () => {
-    const { store, fakes, manager, transfers, calls } = rig()
+  it('opens an orchestrator chat titled after the epic, recording it, and starts its terminal with the transfer kickoff', async () => {
+    const { records, transfers, calls } = rig()
 
-    const result = await startTransferChat({ transfers, sessions: manager }, REQUEST)
+    const result = await startTransferChat({ transfers, chats: records, terminals: terminals.sessions }, request())
 
     expect(calls).toEqual([`getEpic ${EPIC_ID}`, `getTransfer ${EPIC_ID}`])
     expect(result.problem).toBeNull()
     expect(result.chat).toMatchObject({
-      folder: REPO,
+      folder: terminals.repo,
       agent: 'claude',
-      model: 'big',
+      model: 'haiku',
       role: 'orchestrator',
       allowSave: false,
       title: 'Linear transfer · Linear handoff',
       transferEpicId: EPIC_ID
     })
     expect(result.chat).not.toHaveProperty('runId')
-    expect(chatsOf(store).map((chat) => chat.id)).toEqual([result.chat?.id])
-
-    const first = store.readTranscript({ folder: REPO, id: result.chat?.id ?? '' })?.items[0]
-    expect(first).toMatchObject({ kind: 'user_message', text: KICKOFF })
-    expect(fakes.of('claude')[0]?.sent).toEqual([KICKOFF])
+    expect(chats().map((chat) => chat.id)).toEqual([result.chat?.id])
+    expect(terminals.steps).toEqual(['auth', 'grant:gr_1', 'spawn'])
+    expect(argsOf().at(-1)).toBe(KICKOFF)
+    expect(chats()[0]?.kickoffSent).toBe(true)
   })
 
-  it('starts the agent as an orchestrator holding the chat grant and DM_SESSION_TOKEN, with the same Dark Mechanicus options as any chat', async () => {
-    const { fakes, manager, transfers, grants } = rig('in_progress')
+  it('starts the agent with an orchestrator grant that may not save, and no run guidance in its instructions', async () => {
+    const { records, transfers } = rig('in_progress')
 
-    await startTransferChat({ transfers, sessions: manager }, REQUEST)
+    const result = await startTransferChat({ transfers, chats: records, terminals: terminals.sessions }, request())
 
-    expect(grants).toEqual([{ role: 'orchestrator', allowSave: false }])
-    const started = fakes.of('claude')[0]?.started[0]
-    expect(started).toMatchObject({ role: 'orchestrator', allowSave: false, model: 'big', darkMechanicus: DM_CLI })
-    expect(started?.darkMechanicus.args).not.toContain('--allow-save')
+    const instructions = readFileSync(argsOf()[argsOf().indexOf('--append-system-prompt-file') + 1] ?? '', 'utf8')
+    expect(result.problem).toBeNull()
+    expect(instructions).toContain('**orchestrator** grant')
+    expect(instructions).toContain('This chat may not save plans')
+    expect(instructions).not.toContain('Orchestrating a Dark Mechanicus run')
   })
 
-  it('lets the agent use its default model when none was chosen', async () => {
-    const { manager, transfers } = rig()
+  it('pastes the transfer kickoff into Autonomous once its first screen has settled, with its default model', async () => {
+    const { records, transfers } = rig()
 
-    const result = await startTransferChat({ transfers, sessions: manager }, { folder: REPO, epicId: EPIC_ID, agent: 'claude' })
+    const result = await startTransferChat({ transfers, chats: records, terminals: terminals.sessions }, request('autonomous', null))
+    const pty = terminals.host.last()
+    pty.emitData('\x1b[?2004hAutonomous')
+    await settle()
+    terminals.clock.advance(1_500)
 
+    const [paste = '', enter] = pty.written
+    expect(paste.startsWith('\x1b[200~Move this saved Dark Mechanicus epic to a Linear project')).toBe(true)
+    expect(paste).toContain('=== Linear transfer guidance ===')
+    expect(enter).toBe('\r')
     expect(result.chat?.model).toBeNull()
+    expect(chats()[0]).toMatchObject({ kickoffSent: true })
   })
 })
 
@@ -116,125 +121,124 @@ describe('start a transfer chat: refusals before anything starts', () => {
     ['not_started', 'unmet_prerequisite'],
     ['canceled', 'unmet_prerequisite'],
     ['verified', 'conflict']
-  ] as const)('refuses a transfer that is %s, creating no chat and starting no agent', async (status, code) => {
-    const { store, fakes, manager, transfers, grants } = rig(status)
+  ] as const)('refuses a transfer that is %s, creating no chat and starting no terminal', async (status, code) => {
+    const { records, transfers } = rig(status)
 
-    await expect(startTransferChat({ transfers, sessions: manager }, REQUEST)).rejects.toMatchObject({ code })
+    await expect(startTransferChat({ transfers, chats: records, terminals: terminals.sessions }, request())).rejects.toMatchObject({ code })
 
-    expect(chatsOf(store)).toEqual([])
-    expect(fakes.created).toEqual([])
-    expect(grants).toEqual([])
+    expect(chats()).toEqual([])
+    expect(terminals.host.spawns).toEqual([])
+    expect(terminals.grantsAsked).toBe(0)
   })
 
   it('reads no transfer and creates nothing when the epic cannot be read', async () => {
-    const { store, manager, transfers, calls } = rig()
+    const { records, transfers, calls } = rig()
     const refusal = new DomainError('not_found', `Epic ${EPIC_ID} was not found.`)
 
-    await expect(startTransferChat({ transfers: { ...transfers, getEpic: () => Promise.reject(refusal) }, sessions: manager }, REQUEST)).rejects.toBe(refusal)
+    await expect(
+      startTransferChat({ transfers: { ...transfers, getEpic: () => Promise.reject(refusal) }, chats: records, terminals: terminals.sessions }, request())
+    ).rejects.toBe(refusal)
 
     expect(calls).toEqual([])
-    expect(chatsOf(store)).toEqual([])
+    expect(chats()).toEqual([])
   })
 })
 
 describe('start a transfer chat: failures once the chat is asked for', () => {
   it('says the transfer is still authorized when the chat cannot be created', async () => {
-    const { store, fakes, manager, transfers } = rig()
-    const failing: SessionManager = {
-      ...manager,
+    const { records, transfers } = rig()
+    const failing: ChatRecords = {
+      ...records,
       createChat: () => {
         throw new DomainError('invalid_input', 'The chat store is full.')
       }
     }
 
-    const result = await startTransferChat({ transfers, sessions: failing }, REQUEST)
+    const result = await startTransferChat({ transfers, chats: failing, terminals: terminals.sessions }, request())
 
     expect(result.chat).toBeNull()
     expect(result.problem).toContain('The transfer is authorized')
     expect(result.problem).toContain('The chat store is full')
-    expect(chatsOf(store)).toEqual([])
-    expect(fakes.created).toEqual([])
+    expect(chats()).toEqual([])
+    expect(terminals.host.spawns).toEqual([])
   })
 
-  it('removes the chat again when the agent cannot start, naming the agent and why', async () => {
-    const { store, fakes, manager, transfers, errors } = rig()
-    fakes.prepare = (adapter) => {
-      adapter.startError = new Error('claude exited with code 1')
-    }
+  it.each([
+    ['a spawn that fails', (): void => terminals.host.failNextSpawn(new Error('posix_spawnp failed.')), 'posix_spawnp failed'],
+    ['a signed-out agent', (): void => void (terminals.auth.status = { state: 'signed_out', reason: 'Claude Code is signed out.' }), 'Claude Code is signed out'],
+    ['a folder no longer tracked', (): void => void terminals.tracked.delete(terminals.repo), 'no longer tracked']
+  ] as const)('removes the chat again when the terminal cannot start, naming the agent and why, for %s', async (_name, arrange, reason) => {
+    const { records, transfers } = rig()
+    arrange()
 
-    const result = await startTransferChat({ transfers, sessions: manager, onError: (error) => errors.push(error) }, REQUEST)
+    const result = await startTransferChat({ transfers, chats: records, terminals: terminals.sessions }, request())
 
     expect(result.chat).toBeNull()
-    expect(result.problem).toContain('Claude Code could not be started')
-    expect(result.problem).toContain('claude exited with code 1')
-    expect(chatsOf(store)).toEqual([])
+    expect(result.problem).toContain('The transfer is authorized, but Claude Code could not be started')
+    expect(result.problem).toContain(reason)
+    expect(chats()).toEqual([])
+    expect(terminals.revoked).toEqual(terminals.steps.filter((step) => step.startsWith('grant:')).map((step) => step.slice('grant:'.length)))
   })
 
-  it('keeps the chat, and says why, when the agent cannot start and the chat cannot be removed either', async () => {
-    const { store, fakes, manager, transfers, errors } = rig()
-    fakes.prepare = (adapter) => {
-      adapter.startError = new Error('claude exited with code 1')
-    }
-    const stuck: SessionManager = { ...manager, deleteChat: () => Promise.reject(new Error('disk is read-only')) }
+  it('keeps the chat, and says why, when the terminal cannot start and the chat cannot be removed either', async () => {
+    const { records, transfers, errors } = rig()
+    terminals.host.failNextSpawn(new Error('posix_spawnp failed.'))
+    const stuck: ChatRecords = { ...records, deleteChat: () => Promise.reject(new Error('disk is read-only')) }
 
-    const result = await startTransferChat({ transfers, sessions: stuck, onError: (error) => errors.push(error) }, REQUEST)
+    const result = await startTransferChat({ transfers, chats: stuck, terminals: terminals.sessions, onError: (error) => errors.push(error) }, request())
 
     expect(result.chat).toMatchObject({ transferEpicId: EPIC_ID })
-    expect(result.problem).toContain('claude exited with code 1')
-    expect(chatsOf(store)).toHaveLength(1)
-    expect(errors.map((error) => (error as Error).message)).toEqual(['claude exited with code 1', 'disk is read-only'])
+    expect(result.problem).toContain('posix_spawnp failed')
+    expect(chats()).toHaveLength(1)
+    expect(errors.map((error) => (error as Error).message)).toEqual(['disk is read-only'])
   })
 })
 
 describe('start a transfer chat: a custom agent', () => {
   it("names a custom agent that cannot start by the registry's display name", async () => {
-    const { store, fakes, manager, transfers, errors } = rig('queued', memoryChatFs(), [CUSTOM])
-    fakes.prepare = (adapter) => {
-      adapter.startError = new Error('my-acp exited with code 1')
-    }
+    const { records, transfers } = rig()
+    terminals.host.failNextSpawn(new Error('mine exited with code 1.'))
 
-    const result = await startTransferChat({ transfers, sessions: manager, onError: (error) => errors.push(error) }, { ...REQUEST, agent: CUSTOM.id })
+    const result = await startTransferChat({ transfers, chats: records, terminals: terminals.sessions }, request(CUSTOM_AGENT.id, null))
 
     expect(result.chat).toBeNull()
-    expect(result.problem).toBe(
-      'The transfer is authorized, but My ACP agent could not be started: my-acp exited with code 1. Start the transfer chat again, or copy the prompt for an agent of your own.'
-    )
-    expect(chatsOf(store)).toEqual([])
+    expect(result.problem).toMatch(/^The transfer is authorized, but My CLI could not be started: .*mine exited with code 1/)
+    expect(result.problem?.endsWith('Start the transfer chat again, or copy the prompt for an agent of your own.')).toBe(true)
+    expect(chats()).toEqual([])
   })
 })
 
 describe('find a transfer chat', () => {
-  it('finds the chat again after an app restart, and it resumes as an orchestrator with the same grant', async () => {
-    const fs = memoryChatFs()
-    const before = rig('queued', fs)
-    const started = await startTransferChat({ transfers: before.transfers, sessions: before.manager }, REQUEST)
-    await before.manager.disposeAll()
+  it('finds the chat again after an app restart, an orchestrator that may not save, and its kickoff is not given again', async () => {
+    const { records, transfers } = rig()
+    const started = await startTransferChat({ transfers, chats: records, terminals: terminals.sessions }, request())
+    terminals.host.last().exit({ exitCode: 0, signal: null })
+    await settle()
 
-    // A new store and session manager over the same files stand for the app starting again.
-    const after = rig('in_progress', fs)
-    const found = findTransferChat(after.manager, REPO, EPIC_ID)
+    // The chat records over a store opened again on the same files stand for the app starting again.
+    const reopened = createChatRecords({ store: terminals.reopenedStore(), agentFor: connectedAgents([builtInAgent('claude')]) })
+    const found = findTransferChat(reopened, terminals.repo, EPIC_ID)
 
-    expect(found).toMatchObject({ id: started.chat?.id, role: 'orchestrator', allowSave: false, transferEpicId: EPIC_ID, title: 'Linear transfer · Linear handoff' })
-    await after.manager.send({ folder: REPO, id: found?.id ?? '' }, 'Carry on with the transfer.')
-    expect(after.grants).toEqual([{ role: 'orchestrator', allowSave: false }])
-    expect(after.fakes.of('claude')[0]?.started[0]).toMatchObject({ role: 'orchestrator', allowSave: false, darkMechanicus: DM_CLI })
+    expect(found).toMatchObject({ id: started.chat?.id, role: 'orchestrator', allowSave: false, transferEpicId: EPIC_ID, title: 'Linear transfer · Linear handoff', kickoffSent: true })
+    await terminals.sessions.start(found as ChatRecord, { kickoff: KICKOFF })
+    expect(argsOf(1)).not.toContain(KICKOFF)
   })
 
   it('finds none for another epic or a chat that was not started for a transfer', async () => {
-    const { manager, transfers } = rig()
-    manager.createChat({ folder: REPO, agent: 'claude', role: 'orchestrator', allowSave: false, runId: 'rn_1' })
-    expect(findTransferChat(manager, REPO, EPIC_ID)).toBeNull()
+    const { records, transfers } = rig()
+    records.createChat({ folder: terminals.repo, agent: 'claude', role: 'orchestrator', allowSave: false, runId: 'rn_1' })
+    expect(findTransferChat(records, terminals.repo, EPIC_ID)).toBeNull()
 
-    await startTransferChat({ transfers, sessions: manager }, REQUEST)
+    await startTransferChat({ transfers, chats: records, terminals: terminals.sessions }, request())
 
-    expect(findTransferChat(manager, REPO, 'ep_01m6772ffwkwr2a91fsqzfz1hf')).toBeNull()
+    expect(findTransferChat(records, terminals.repo, 'ep_01m6772ffwkwr2a91fsqzfz1hf')).toBeNull()
   })
 })
 
 describe('transfer prompt', () => {
-  it('equals the kickoff a transfer chat is sent first', async () => {
+  it("equals the kickoff a transfer chat's terminal is started with", async () => {
     const { transfers } = rig()
 
-    expect(await transferPrompt(transfers, REPO, EPIC_ID)).toBe(KICKOFF)
+    expect(await transferPrompt(transfers, terminals.repo, EPIC_ID)).toBe(KICKOFF)
   })
 })

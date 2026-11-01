@@ -9,10 +9,8 @@ import type {
 } from '../../../shared/desktop/api'
 import type { WorkStatus } from '../../../shared/domain/status'
 import type { BoardImportView, EpicConflictChoice, EpicDetailView, StorageMode } from '../../../shared/domain/views'
-import type { TicketLink } from '../agents/ChatContext'
-import type { NewChatChoice } from '../agents/NewChatDialog'
 import { runCommand } from '../api/dm'
-import type { Landing } from './landing'
+import type { Landing, TicketLanding } from './landing'
 import type { Selection } from './selection'
 import {
   describeBoardImport,
@@ -24,6 +22,9 @@ import {
 import type { ToastTone } from './toastState'
 
 export type BusyKey = 'initialize' | 'flush' | 'reconcile'
+
+/** A link to a ticket: its epic, the ticket, and the attempt whose Activity tab opens, if one is named. */
+type TicketLink = Omit<TicketLanding, 'kind'>
 
 /** Choices on the onboarding screen that shape what Initialize does. */
 export interface InitializeOptions {
@@ -100,8 +101,8 @@ export interface ShellActions {
   track(): Promise<void>
   untrack(path: string): Promise<void>
   initialize(folder: TrackedFolderView, options: InitializeOptions): Promise<void>
-  /** Creates a chat in the folder with the choice made, and opens it; resolves with it, or null after reporting why it could not be created. */
-  createChat(folder: TrackedFolderView, choice: NewChatChoice): Promise<ChatRecord | null>
+  /** Creates a chat in the folder with these settings, and opens it; resolves with it, or null after reporting why it could not be created. */
+  createChat(folder: TrackedFolderView, choice: Omit<CreateChatRequest, 'folder'>): Promise<ChatRecord | null>
   /** Resolves with what the import did, or null after reporting why it failed. */
   importBoard(folder: TrackedFolderView): Promise<BoardImportView | null>
   flush(): Promise<void>

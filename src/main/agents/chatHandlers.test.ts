@@ -4,14 +4,15 @@ import { DomainError } from '../../core/errors'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { TransferStatus, TransferView } from '../../shared/domain/transfer'
 import type { EpicDetailView, RunView } from '../../shared/domain/views'
-import type { ChatPushEvent, ThreadBinding } from '../../shared/agents/chatApi'
+import type { ChatPushEvent } from '../../shared/agents/chatApi'
 import type { CommandResult } from '../../shared/desktop/api'
 import { transferKickoff } from '../../mcp/transferKickoff'
-import { AT, connectedAgents, MODELS, REPO } from './__mocks__/fakeChatAdapter'
+import { AT, connectedAgents, REPO } from './__mocks__/chatFixtures'
 import { createChatHandlers, type ChatHandlers } from './chatHandlers'
+import type { ChatRecords } from './chatRecords'
 import type { OrchestratorRuns } from './orchestratorStart'
-import type { SessionManager } from './sessionManager'
 import type { TransferReads } from './transferStart'
+import type { TerminalSessions } from '../terminals/terminalSessions'
 
 const CHAT: ChatRecord = {
   id: 'chat_1',
@@ -26,8 +27,6 @@ const CHAT: ChatRecord = {
   sessionId: null
 }
 
-const MESSAGE = { id: 'm1', at: AT, kind: 'user_message', text: 'hi' } as const
-
 /** Another spelling of the tracked folder, which the registry resolves to REPO. */
 const SPELLING = `${REPO}${sep}`
 
@@ -35,37 +34,20 @@ const SPELLING = `${REPO}${sep}`
 const AGENTS = { get: connectedAgents() }
 const UNKNOWN_AGENT = 'cu_01m65kwqqeyajbj5bnq81gngrb'
 
-/** A session manager that records [method, ...args] and answers with fixed values. */
-function recordingSessions(): { sessions: SessionManager; calls: unknown[][] } {
+/** Chat records that record [method, ...args] and answer with fixed values. */
+function recordingChats(): { chats: ChatRecords; calls: unknown[][] } {
   const calls: unknown[][] = []
-  const sessions: SessionManager = {
-    listChats: (...args) => (calls.push(['listChats', ...args]), [{ ...CHAT, pending: 0 }]),
+  const chats: ChatRecords = {
+    listChats: (...args) => (calls.push(['listChats', ...args]), [CHAT]),
     createChat: (...args) => (calls.push(['createChat', ...args]), CHAT),
     renameChat: (...args) => (calls.push(['renameChat', ...args]), { ...CHAT, title: 'Fix the build' }),
     deleteChat: async (...args) => {
       calls.push(['deleteChat', ...args])
     },
-    openChat: async (...args) => (calls.push(['openChat', ...args]), { chat: CHAT, items: [], pending: [], running: false }),
-    readChat: (...args) => (calls.push(['readChat', ...args]), { chat: CHAT, items: [], pending: [], running: false }),
-    send: async (...args) => (calls.push(['send', ...args]), MESSAGE),
-    stop: async (...args) => {
-      calls.push(['stop', ...args])
-    },
-    retryTurn: async (...args) => (calls.push(['retryTurn', ...args]), MESSAGE),
-    reconcileAuthStatus: (kind, status) => (calls.push(['reconcileAuthStatus', kind]), status),
-    setModel: async (...args) => (calls.push(['setModel', ...args]), { ...CHAT, model: 'small' }),
-    answerApproval: (...args) => {
-      calls.push(['answerApproval', ...args])
-    },
-    listModels: async (...args) => (calls.push(['listModels', ...args]), MODELS),
-    agentName: (id) => id,
-    liveCount: () => 0,
-    disposeAll: async () => {},
-    endAgentSessions: async (...args) => {
-      calls.push(['endAgentSessions', ...args])
-    }
+    readChat: (...args) => (calls.push(['readChat', ...args]), { chat: CHAT, items: [] }),
+    agentName: (id) => id
   }
-  return { sessions, calls }
+  return { chats, calls }
 }
 
 const EPIC_ID = 'ep_01m418epbg8qkqa2e2krvdkqk5'
@@ -89,83 +71,100 @@ function recordingTransfers(calls: string[] = [], status: TransferStatus = 'queu
   }
 }
 
-function handlersOver(sessions: SessionManager, errors: unknown[] = [], runs: OrchestratorRuns = recordingRuns(), push?: (event: ChatPushEvent) => void): ChatHandlers {
+type Terminals = Pick<TerminalSessions, 'start'>
+
+/** Terminals that record [`start`, chat, options] and answer that the PTY runs. */
+function recordingTerminals(calls: unknown[][] = []): Terminals {
+  return { start: async (...args) => (calls.push(['start', ...args]), { state: 'running', pid: 4242 }) }
+}
+
+/** Handlers over `chats` and `runs`; `push`, `terminals` and `transfers` when a test needs to see them (terminals that answer running, a queued transfer otherwise). */
+function handlersOver(
+  chats: ChatRecords,
+  errors: unknown[] = [],
+  runs: OrchestratorRuns = recordingRuns(),
+  {
+    push,
+    terminals = recordingTerminals(),
+    transfers = recordingTransfers()
+  }: { push?: (event: ChatPushEvent) => void; terminals?: Terminals; transfers?: TransferReads } = {}
+): ChatHandlers {
   return createChatHandlers({
     registry: { resolve: (path) => (path === REPO || path === SPELLING ? REPO : null) },
     agents: AGENTS,
-    sessions,
+    chats,
+    terminals,
     runs,
-    transfers: recordingTransfers(),
+    transfers,
     ...(push === undefined ? {} : { push }),
     onUnexpectedError: (error) => errors.push(error)
   })
 }
 
-/** Handlers over `sessions` whose transfer reads are `transfers`. */
-function handlersReading(sessions: SessionManager, transfers: TransferReads): ChatHandlers {
-  return createChatHandlers({ registry: { resolve: (path) => (path === REPO || path === SPELLING ? REPO : null) }, agents: AGENTS, sessions, runs: recordingRuns(), transfers })
-}
-
 const REF = { folder: SPELLING, chatId: 'chat_1' }
 const CANONICAL = { folder: REPO, id: 'chat_1' }
 
-describe('chat handlers: forwarding', () => {
-  it('resolves the tracked folder and hands the manager only validated fields', async () => {
-    const { sessions, calls } = recordingSessions()
-    const handlers = handlersOver(sessions)
+describe('chat handlers: the channels', () => {
+  it('serve the chat records, Start run, the transfer chat and the bound lookups, and nothing that sends, stops, answers or lists models', () => {
+    const handlers = handlersOver(recordingChats().chats)
 
-    expect(await handlers.list(SPELLING)).toEqual({ ok: true, data: [{ ...CHAT, pending: 0 }] })
+    expect(Object.keys(handlers).sort()).toEqual([
+      'boundTerminal',
+      'boundThreads',
+      'create',
+      'delete',
+      'findTransferChat',
+      'list',
+      'read',
+      'rename',
+      'startOrchestrator',
+      'startTransferChat',
+      'transferPrompt'
+    ])
+  })
+})
+
+describe('chat handlers: forwarding', () => {
+  it('resolves the tracked folder and hands the records only validated fields', async () => {
+    const { chats, calls } = recordingChats()
+    const handlers = handlersOver(chats)
+
+    expect(await handlers.list(SPELLING)).toEqual({ ok: true, data: [CHAT] })
     expect(await handlers.create({ folder: SPELLING, agent: 'codex', role: 'orchestrator' })).toEqual({ ok: true, data: CHAT })
-    expect((await handlers.open(REF)).ok).toBe(true)
-    expect(await handlers.read(REF)).toEqual({ ok: true, data: { chat: CHAT, items: [], pending: [], running: false } })
-    expect(await handlers.send({ ...REF, text: 'hi' })).toEqual({ ok: true, data: MESSAGE })
-    expect(await handlers.stop(REF)).toEqual({ ok: true, data: null })
-    expect(await handlers.retryTurn(REF)).toEqual({ ok: true, data: MESSAGE })
-    expect((await handlers.setModel({ ...REF, model: 'small' })).ok).toBe(true)
-    expect(await handlers.answerApproval({ ...REF, requestId: 'q1', decision: 'allow_chat' })).toEqual({ ok: true, data: null })
-    expect(await handlers.models('cursor')).toEqual({ ok: true, data: MODELS })
+    expect(await handlers.read(REF)).toEqual({ ok: true, data: { chat: CHAT, items: [] } })
     expect(await handlers.rename({ ...REF, title: '  Fix the build ' })).toEqual({ ok: true, data: { ...CHAT, title: 'Fix the build' } })
     expect(await handlers.delete(REF)).toEqual({ ok: true, data: null })
 
     expect(calls).toEqual([
       ['listChats', REPO],
       ['createChat', { folder: REPO, agent: 'codex', role: 'orchestrator' }],
-      ['openChat', CANONICAL],
       ['readChat', CANONICAL],
-      ['send', CANONICAL, 'hi'],
-      ['stop', CANONICAL],
-      ['retryTurn', CANONICAL],
-      ['setModel', CANONICAL, 'small'],
-      ['answerApproval', CANONICAL, { requestId: 'q1', decision: 'allow_chat' }],
-      ['listModels', 'cursor'],
       ['renameChat', CANONICAL, 'Fix the build'],
       ['deleteChat', CANONICAL]
     ])
   })
 
   it('passes the optional fields of a new chat through', async () => {
-    const { sessions, calls } = recordingSessions()
+    const { chats, calls } = recordingChats()
     const request = { folder: REPO, agent: 'claude', role: 'planner', model: null, allowSave: false, title: 'Plan it' }
 
-    await handlersOver(sessions).create(request)
+    await handlersOver(chats).create(request)
 
     expect(calls).toEqual([['createChat', request]])
   })
 })
 
 describe('chat handlers: refusals', () => {
-  it('refuses a folder that is not tracked, without reaching the manager', async () => {
-    const { sessions, calls } = recordingSessions()
-    const handlers = handlersOver(sessions)
+  it('refuses a folder that is not tracked, without reaching the records', async () => {
+    const { chats, calls } = recordingChats()
+    const handlers = handlersOver(chats)
     const elsewhere = join(REPO, '..', 'elsewhere')
 
     const results = [
       await handlers.list(elsewhere),
       await handlers.create({ folder: elsewhere, agent: 'claude', role: 'planner' }),
-      await handlers.send({ folder: elsewhere, chatId: 'chat_1', text: 'hi' }),
       await handlers.rename({ folder: elsewhere, chatId: 'chat_1', title: 'x' }),
       await handlers.delete({ folder: elsewhere, chatId: 'chat_1' }),
-      await handlers.retryTurn({ folder: elsewhere, chatId: 'chat_1' }),
       await handlers.read({ folder: elsewhere, chatId: 'chat_1' })
     ]
 
@@ -176,30 +175,20 @@ describe('chat handlers: refusals', () => {
   })
 
   it('refuses malformed requests, including an executable path or MCP arguments', async () => {
-    const { sessions, calls } = recordingSessions()
-    const handlers = handlersOver(sessions)
+    const { chats, calls } = recordingChats()
+    const handlers = handlersOver(chats)
 
     const results = [
       await handlers.create({ folder: REPO, agent: 'claude', role: 'planner', executablePath: '/bin/evil' }),
       await handlers.create({ folder: REPO, agent: 'claude', role: 'planner', mcpArgs: ['--role', 'worker'] }),
       await handlers.create({ folder: REPO, agent: 'claude', role: 'janitor' }),
       await handlers.create({ folder: REPO, agent: 'gemini', role: 'planner' }),
-      await handlers.send({ ...REF, text: '' }),
-      await handlers.send({ folder: REPO, chatId: '../index', text: 'x' }),
-      await handlers.setModel(REF),
-      await handlers.answerApproval({ ...REF, requestId: 'q1', decision: 'allow' }),
-      await handlers.open('chat_1'),
       await handlers.read('chat_1'),
       await handlers.read({ folder: REPO }),
       await handlers.read({ ...REF, start: true }),
+      await handlers.read({ ...REF, text: 'send this' }),
       await handlers.read({ folder: REPO, chatId: '../index' }),
-      await handlers.models('/bin/claude'),
-      await handlers.list(42),
-      await handlers.retryTurn({ ...REF, text: 'send this instead' }),
-      await handlers.retryTurn({ ...REF, messageId: 'm1' }),
-      await handlers.retryTurn({ folder: REPO }),
-      await handlers.retryTurn({ folder: REPO, chatId: '../index' }),
-      await handlers.retryTurn('chat_1')
+      await handlers.list(42)
     ]
 
     expect(results.map((result) => (result.ok ? 'ok' : result.error.code))).toEqual(Array(results.length).fill('invalid_input'))
@@ -209,25 +198,24 @@ describe('chat handlers: refusals', () => {
 
 describe('chat handlers: agents named by id', () => {
   it('refuses an agent id that is not connected with not_found, before anything runs', async () => {
-    const { sessions, calls } = recordingSessions()
+    const { chats, calls } = recordingChats()
     const queue: string[] = []
-    const handlers = handlersOver(sessions, [], recordingRuns(queue))
+    const handlers = handlersOver(chats, [], recordingRuns(queue))
 
     const results = [
       await handlers.create({ folder: REPO, agent: UNKNOWN_AGENT, role: 'planner' }),
-      await handlers.startOrchestrator({ folder: REPO, epicId: EPIC_ID, agent: UNKNOWN_AGENT }),
-      await handlers.models(UNKNOWN_AGENT)
+      await handlers.startOrchestrator({ folder: REPO, epicId: EPIC_ID, agent: UNKNOWN_AGENT })
     ]
 
-    expect(results.map((result) => (result.ok ? 'ok' : result.error.code))).toEqual(['not_found', 'not_found', 'not_found'])
+    expect(results.map((result) => (result.ok ? 'ok' : result.error.code))).toEqual(['not_found', 'not_found'])
     expect(queue).toEqual([])
     expect(calls).toEqual([])
   })
 
   it('refuses a transfer chat for a built-in agent that is not connected or an unknown agent id, reading no transfer', async () => {
-    const { sessions, calls } = recordingSessions()
+    const { chats, calls } = recordingChats()
     const reads: string[] = []
-    const handlers = handlersReading(sessions, recordingTransfers(reads))
+    const handlers = handlersOver(chats, [], recordingRuns(), { transfers: recordingTransfers(reads) })
 
     const results = [
       await handlers.startTransferChat({ folder: REPO, epicId: EPIC_ID, agent: 'autonomous' }),
@@ -245,11 +233,11 @@ describe('chat handlers: agents named by id', () => {
 describe('chat handlers: start an orchestrator', () => {
   const REQUEST = { folder: SPELLING, epicId: EPIC_ID, agent: 'codex', model: 'big' }
 
-  it('queues the run in the tracked folder, then creates the chat for it and sends the kickoff', async () => {
-    const { sessions, calls } = recordingSessions()
+  it('queues the run in the tracked folder, then creates the chat for it and starts its terminal with the kickoff', async () => {
+    const { chats, calls } = recordingChats()
     const queue: string[] = []
 
-    const result = await handlersOver(sessions, [], recordingRuns(queue)).startOrchestrator(REQUEST)
+    const result = await handlersOver(chats, [], recordingRuns(queue), { terminals: recordingTerminals(calls) }).startOrchestrator(REQUEST)
 
     expect(result).toEqual({ ok: true, data: { run: RUN, chat: CHAT, problem: null } })
     expect(queue).toEqual([`getEpic ${REPO} ${EPIC_ID}`, `queueRun ${REPO} ${EPIC_ID}`])
@@ -257,15 +245,15 @@ describe('chat handlers: start an orchestrator', () => {
       'createChat',
       { folder: REPO, agent: 'codex', role: 'orchestrator', model: 'big', allowSave: false, title: 'Orchestrator · Agent chats', runId: 'rn_2' }
     ])
-    expect(calls[1]?.[0]).toBe('send')
-    expect(calls[1]?.[1]).toBe(CHAT)
-    expect(calls[1]?.[2]).toContain(EPIC_ID)
+    expect(calls[1]?.slice(0, 2)).toEqual(['start', CHAT])
+    expect(calls[1]?.[2]).toEqual({ kickoff: expect.stringContaining(EPIC_ID) })
+    expect(calls).toHaveLength(2)
   })
 
   it('refuses a folder that is not tracked and a malformed request, before anything is queued', async () => {
-    const { sessions, calls } = recordingSessions()
+    const { chats, calls } = recordingChats()
     const queue: string[] = []
-    const handlers = handlersOver(sessions, [], recordingRuns(queue))
+    const handlers = handlersOver(chats, [], recordingRuns(queue))
 
     const results = [
       await handlers.startOrchestrator({ ...REQUEST, folder: join(REPO, '..', 'elsewhere') }),
@@ -283,15 +271,15 @@ describe('chat handlers: start an orchestrator', () => {
   })
 
   it('answers with the queue error when the run cannot be queued, and reports only unexpected failures', async () => {
-    const { sessions, calls } = recordingSessions()
+    const { chats, calls } = recordingChats()
     const errors: unknown[] = []
     const refusing: OrchestratorRuns = {
       ...recordingRuns(),
       queueRun: () => Promise.reject(new DomainError('conflict', 'Epic already has an active run.'))
     }
 
-    const refused = await handlersOver(sessions, errors, refusing).startOrchestrator(REQUEST)
-    const broken = await handlersOver(sessions, errors, { ...recordingRuns(), getEpic: () => Promise.reject(new Error('boom')) }).startOrchestrator(REQUEST)
+    const refused = await handlersOver(chats, errors, refusing).startOrchestrator(REQUEST)
+    const broken = await handlersOver(chats, errors, { ...recordingRuns(), getEpic: () => Promise.reject(new Error('boom')) }).startOrchestrator(REQUEST)
 
     expect(refused).toEqual({ ok: false, error: { code: 'conflict', message: 'Epic already has an active run.' } })
     expect(broken).toEqual({ ok: false, error: { code: 'internal', message: 'boom' } })
@@ -303,25 +291,24 @@ describe('chat handlers: start an orchestrator', () => {
 describe('chat handlers: start a transfer chat', () => {
   const REQUEST = { folder: SPELLING, epicId: EPIC_ID, agent: 'codex', model: 'big' }
 
-  it('reads the transfer in the tracked folder, then creates the transfer chat and sends the kickoff', async () => {
-    const { sessions, calls } = recordingSessions()
+  it('reads the transfer in the tracked folder, then creates the transfer chat and starts its terminal with the transfer kickoff', async () => {
+    const { chats, calls } = recordingChats()
     const reads: string[] = []
 
-    const result = await handlersReading(sessions, recordingTransfers(reads)).startTransferChat(REQUEST)
+    const result = await handlersOver(chats, [], recordingRuns(), { terminals: recordingTerminals(calls), transfers: recordingTransfers(reads) }).startTransferChat(REQUEST)
 
     expect(result).toEqual({ ok: true, data: { chat: CHAT, problem: null } })
     expect(reads).toEqual([`getEpic ${REPO} ${EPIC_ID}`, `getTransfer ${REPO} ${EPIC_ID}`])
-    expect(calls[0]).toEqual([
-      'createChat',
-      { folder: REPO, agent: 'codex', role: 'orchestrator', model: 'big', allowSave: false, title: 'Linear transfer · Agent chats', transferEpicId: EPIC_ID }
+    expect(calls).toEqual([
+      ['createChat', { folder: REPO, agent: 'codex', role: 'orchestrator', model: 'big', allowSave: false, title: 'Linear transfer · Agent chats', transferEpicId: EPIC_ID }],
+      ['start', CHAT, { kickoff: transferKickoff({ epicId: EPIC_ID, epicTitle: 'Agent chats' }) }]
     ])
-    expect(calls[1]).toEqual(['send', CHAT, transferKickoff({ epicId: EPIC_ID, epicTitle: 'Agent chats' })])
   })
 
   it('refuses a folder that is not tracked, a malformed request and a transfer nobody authorized, before any chat is created', async () => {
-    const { sessions, calls } = recordingSessions()
+    const { chats, calls } = recordingChats()
     const reads: string[] = []
-    const handlers = handlersReading(sessions, recordingTransfers(reads, 'not_started'))
+    const handlers = handlersOver(chats, [], recordingRuns(), { terminals: recordingTerminals(calls), transfers: recordingTransfers(reads, 'not_started') })
 
     const results = [
       await handlers.startTransferChat({ ...REQUEST, folder: join(REPO, '..', 'elsewhere') }),
@@ -340,11 +327,11 @@ describe('chat handlers: start a transfer chat', () => {
 
 describe('chat handlers: find a transfer chat and its prompt', () => {
   it('finds the transfer chat of an epic in the tracked folder, and none for another epic', async () => {
-    const { sessions, calls } = recordingSessions()
-    sessions.listChats = (folder) => (calls.push(['listChats', folder]), [{ ...CHAT, transferEpicId: EPIC_ID, pending: 0 }])
-    const handlers = handlersOver(sessions)
+    const { chats, calls } = recordingChats()
+    chats.listChats = (folder) => (calls.push(['listChats', folder]), [{ ...CHAT, transferEpicId: EPIC_ID }])
+    const handlers = handlersOver(chats)
 
-    expect(await handlers.findTransferChat({ folder: SPELLING, epicId: EPIC_ID })).toEqual({ ok: true, data: { ...CHAT, transferEpicId: EPIC_ID, pending: 0 } })
+    expect(await handlers.findTransferChat({ folder: SPELLING, epicId: EPIC_ID })).toEqual({ ok: true, data: { ...CHAT, transferEpicId: EPIC_ID } })
     expect(await handlers.findTransferChat({ folder: SPELLING, epicId: 'ep_01m418epbg8qkqa2e2krvdkqk6' })).toEqual({ ok: true, data: null })
     expect(calls).toEqual([
       ['listChats', REPO],
@@ -356,7 +343,7 @@ describe('chat handlers: find a transfer chat and its prompt', () => {
 
   it('answers the transfer kickoff as the prompt for an agent started elsewhere', async () => {
     const reads: string[] = []
-    const handlers = handlersReading(recordingSessions().sessions, recordingTransfers(reads))
+    const handlers = handlersOver(recordingChats().chats, [], recordingRuns(), { transfers: recordingTransfers(reads) })
 
     expect(await handlers.transferPrompt({ folder: SPELLING, epicId: EPIC_ID })).toEqual({ ok: true, data: transferKickoff({ epicId: EPIC_ID, epicTitle: 'Agent chats' }) })
     expect(reads).toEqual([`getEpic ${REPO} ${EPIC_ID}`])
@@ -366,8 +353,8 @@ describe('chat handlers: find a transfer chat and its prompt', () => {
 
 describe('chat handlers: rename, delete and failures', () => {
   it('refuses a rename or delete that names more than a chat and a title, or an empty or oversized title', async () => {
-    const { sessions, calls } = recordingSessions()
-    const handlers = handlersOver(sessions)
+    const { chats, calls } = recordingChats()
+    const handlers = handlersOver(chats)
 
     const results = [
       await handlers.rename({ ...REF, title: '' }),
@@ -384,89 +371,20 @@ describe('chat handlers: rename, delete and failures', () => {
     expect(calls).toEqual([])
   })
 
-  it('answers with the manager error code, reporting only unexpected failures', async () => {
-    const { sessions } = recordingSessions()
+  it('answers with the records error code, reporting only unexpected failures', async () => {
+    const { chats } = recordingChats()
     const errors: unknown[] = []
-    sessions.send = () => Promise.reject(new DomainError('conflict', 'still answering'))
-    sessions.retryTurn = () => Promise.reject(new DomainError('conflict', 'Claude Code is still signed out. Sign in first.'))
-    sessions.listModels = () => Promise.reject(new Error('boom'))
-    sessions.readChat = () => {
+    chats.readChat = () => {
       throw new DomainError('not_found', 'Chat not found: chat_1')
     }
-    const handlers = handlersOver(sessions, errors)
-
-    expect(await handlers.send({ ...REF, text: 'hi' })).toEqual({ ok: false, error: { code: 'conflict', message: 'still answering' } })
-    expect(await handlers.retryTurn(REF)).toEqual({ ok: false, error: { code: 'conflict', message: 'Claude Code is still signed out. Sign in first.' } })
-    expect(await handlers.models('claude')).toEqual({ ok: false, error: { code: 'internal', message: 'boom' } })
-    expect(await handlers.read(REF)).toEqual({ ok: false, error: { code: 'not_found', message: 'Chat not found: chat_1' } })
-    expect(errors).toEqual([expect.objectContaining({ message: 'boom' })])
-  })
-})
-
-const BINDINGS: ThreadBinding[] = [
-  { threadId: null, role: 'orchestrator', kind: 'run', runId: 'rn_01k8zq3v7c2m5n9p4r6t8w0xyb', epicId: EPIC_ID },
-  { threadId: 'thread_a', role: 'worker', kind: 'attempt', attemptId: 'at_01k8zq4a1b2c3d4e5f6g7h8j9k', runId: null, epicId: null, ticketId: null, ticketKey: null }
-]
-
-/** Handlers whose thread bindings are `BINDINGS`, recording the chats they were asked about. */
-function handlersWithBindings(asked: unknown[]): ChatHandlers {
-  return createChatHandlers({
-    registry: { resolve: (path) => (path === REPO || path === SPELLING ? REPO : null) },
-    agents: AGENTS,
-    sessions: recordingSessions().sessions,
-    runs: recordingRuns(),
-    transfers: recordingTransfers(),
-    threadBindings: async (chat) => {
-      asked.push(chat)
-      return BINDINGS
+    chats.listChats = () => {
+      throw new Error('boom')
     }
-  })
-}
+    const handlers = handlersOver(chats, errors)
 
-describe('chat handlers: thread bindings', () => {
-  it('answers the bindings of the chat, asked for by its canonical folder and id', async () => {
-    const asked: unknown[] = []
-
-    expect(await handlersWithBindings(asked).threadBindings(REF)).toEqual({ ok: true, data: BINDINGS })
-    expect(asked).toEqual([CANONICAL])
-  })
-
-  it('answers none when the app wired no bindings', async () => {
-    expect(await handlersOver(recordingSessions().sessions).threadBindings(REF)).toEqual({ ok: true, data: [] })
-  })
-
-  it('refuses an untracked folder and malformed requests without asking for bindings', async () => {
-    const asked: unknown[] = []
-    const handlers = handlersWithBindings(asked)
-
-    const results = [
-      await handlers.threadBindings({ folder: join(REPO, '..', 'elsewhere'), chatId: 'chat_1' }),
-      await handlers.threadBindings({ ...REF, attemptId: 'at_01k8zq4a1b2c3d4e5f6g7h8j9k' }),
-      await handlers.threadBindings({ folder: REPO }),
-      await handlers.threadBindings({ folder: REPO, chatId: '../index' }),
-      await handlers.threadBindings({ folder: '', chatId: 'chat_1' }),
-      await handlers.threadBindings('chat_1'),
-      await handlers.threadBindings(undefined)
-    ]
-
-    expect(results.map((result) => (result.ok ? 'ok' : result.error.code))).toEqual(['unauthorized', ...Array(results.length - 1).fill('invalid_input')])
-    expect(asked).toEqual([])
-  })
-
-  it('reports a failure that is not a domain error and does not throw', async () => {
-    const errors: unknown[] = []
-    const failing = createChatHandlers({
-      registry: { resolve: () => REPO },
-      agents: AGENTS,
-      sessions: recordingSessions().sessions,
-      runs: recordingRuns(),
-      transfers: recordingTransfers(),
-      threadBindings: () => Promise.reject(new Error('disk')),
-      onUnexpectedError: (error) => errors.push(error)
-    })
-
-    expect(await failing.threadBindings(REF)).toMatchObject({ ok: false })
-    expect(errors).toHaveLength(1)
+    expect(await handlers.read(REF)).toEqual({ ok: false, error: { code: 'not_found', message: 'Chat not found: chat_1' } })
+    expect(await handlers.list(REPO)).toEqual({ ok: false, error: { code: 'internal', message: 'boom' } })
+    expect(errors).toEqual([expect.objectContaining({ message: 'boom' })])
   })
 })
 
@@ -479,7 +397,8 @@ function handlersWithBound(asked: unknown[][]): ChatHandlers {
   return createChatHandlers({
     registry: { resolve: (path) => (path === REPO || path === SPELLING ? REPO : null) },
     agents: AGENTS,
-    sessions: recordingSessions().sessions,
+    chats: recordingChats().chats,
+    terminals: recordingTerminals(),
     runs: recordingRuns(),
     transfers: recordingTransfers(),
     boundThreads: (folder, target) => {
@@ -520,7 +439,7 @@ describe('chat handlers: bound threads', () => {
   })
 
   it('answers none when the app wired no lookup', async () => {
-    expect(await handlersOver(recordingSessions().sessions).boundThreads({ folder: REPO, attemptId: BOUND_ATTEMPT })).toEqual({ ok: true, data: [] })
+    expect(await handlersOver(recordingChats().chats).boundThreads({ folder: REPO, attemptId: BOUND_ATTEMPT })).toEqual({ ok: true, data: [] })
   })
 
   it('refuses an untracked folder and malformed requests without looking anything up', async () => {
@@ -537,7 +456,8 @@ describe('chat handlers: bound threads', () => {
     const failing = createChatHandlers({
       registry: { resolve: () => REPO },
       agents: AGENTS,
-      sessions: recordingSessions().sessions,
+      chats: recordingChats().chats,
+      terminals: recordingTerminals(),
       runs: recordingRuns(),
       transfers: recordingTransfers(),
       boundThreads: () => {
@@ -554,14 +474,14 @@ describe('chat handlers: bound threads', () => {
 describe('chat handlers: pushing list changes', () => {
   const CHANGED: ChatPushEvent = { type: 'chats_changed', folder: REPO, chatId: 'chat_1' }
 
-  function pushing(sessions: SessionManager): { handlers: ChatHandlers; pushed: ChatPushEvent[] } {
+  function pushing(chats: ChatRecords): { handlers: ChatHandlers; pushed: ChatPushEvent[] } {
     const pushed: ChatPushEvent[] = []
-    return { handlers: handlersOver(sessions, [], recordingRuns(), (event) => pushed.push(event)), pushed }
+    return { handlers: handlersOver(chats, [], recordingRuns(), { push: (event) => pushed.push(event) }), pushed }
   }
 
   it('says a chat was created, renamed or deleted, naming the tracked folder and the chat', async () => {
-    const { sessions } = recordingSessions()
-    const { handlers, pushed } = pushing(sessions)
+    const { chats } = recordingChats()
+    const { handlers, pushed } = pushing(chats)
 
     await handlers.create({ folder: SPELLING, agent: 'claude', role: 'planner' })
     await handlers.rename({ ...REF, title: 'Fix the build' })
@@ -571,30 +491,30 @@ describe('chat handlers: pushing list changes', () => {
   })
 
   it('says the chat of a started orchestrator was created, and nothing when no chat was left', async () => {
-    const { sessions } = recordingSessions()
-    const started = pushing(sessions)
+    const { chats } = recordingChats()
+    const started = pushing(chats)
     await started.handlers.startOrchestrator({ folder: SPELLING, epicId: EPIC_ID, agent: 'codex' })
     expect(started.pushed).toEqual([CHANGED])
 
-    sessions.createChat = () => {
+    chats.createChat = () => {
       throw new Error('disk full')
     }
-    const failed = pushing(sessions)
+    const failed = pushing(chats)
     const result = await failed.handlers.startOrchestrator({ folder: SPELLING, epicId: EPIC_ID, agent: 'codex' })
     expect(result).toMatchObject({ ok: true, data: { chat: null } })
     expect(failed.pushed).toEqual([])
   })
 
   it('says nothing for a change that was refused or failed, and works without a push', async () => {
-    const { sessions } = recordingSessions()
-    sessions.renameChat = () => {
+    const { chats } = recordingChats()
+    chats.renameChat = () => {
       throw new DomainError('not_found', 'Chat not found.')
     }
-    sessions.deleteChat = () => Promise.reject(new DomainError('not_found', 'Chat not found.'))
-    sessions.createChat = () => {
+    chats.deleteChat = () => Promise.reject(new DomainError('not_found', 'Chat not found.'))
+    chats.createChat = () => {
       throw new DomainError('conflict', 'No.')
     }
-    const { handlers, pushed } = pushing(sessions)
+    const { handlers, pushed } = pushing(chats)
 
     const results = [
       await handlers.create({ folder: SPELLING, agent: 'claude', role: 'planner' }),
@@ -606,6 +526,6 @@ describe('chat handlers: pushing list changes', () => {
 
     expect(results.every((result) => !result.ok)).toBe(true)
     expect(pushed).toEqual([])
-    expect(await handlersOver(recordingSessions().sessions).delete(REF)).toEqual({ ok: true, data: null })
+    expect(await handlersOver(recordingChats().chats).delete(REF)).toEqual({ ok: true, data: null })
   })
 })

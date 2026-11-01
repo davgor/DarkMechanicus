@@ -49,7 +49,7 @@ function submitted(): ActivityEntry {
 }
 
 function timeline(entries: ActivityEntry[], cursor: number): RunTimelineView {
-  const group = { session: { id: 'ss_orch', role: 'orchestrator' as const, label: 'Claude Code in chat' }, entries }
+  const group = { session: { id: 'ss_orch', role: 'orchestrator' as const, label: 'Claude Code in chat', grantId: null }, entries }
   return { runId: 'rn_2', epicId: 'ep_1', state: 'running', isLive: true, cursor, groups: [group] }
 }
 
@@ -114,19 +114,17 @@ describe('the live feed of a run orchestrated in a chat', () => {
     expect(lines[4]).toContain('Run started')
     expect(chats.callsOf('boundThreads')).toEqual([[{ folder: FOLDER, runId: 'rn_2' }]])
     expect(chats.callsOf('read')).toEqual([[{ folder: FOLDER, chatId: 'chat_o' }]])
-    expect(chats.callsOf('open')).toEqual([])
   })
 
-  it('adds what the chat stores while the feed is open, and a text as it is being written', async () => {
+  it('reads the chat once and follows nothing: an old transcript no longer changes', async () => {
     const feed = await openFeed(backendWith([said('a', 45, 'Planning the sprint')]))
 
-    act(() => chats.emitItem('chat_o', ran('r2', 1, 'npm run lint')))
-    act(() => chats.emit({ type: 'assistant_delta', chatId: 'chat_o', itemId: 'typing', delta: 'Claiming the ' }))
-    act(() => chats.emit({ type: 'assistant_delta', chatId: 'chat_o', itemId: 'typing', delta: 'next ticket' }))
+    act(() => chats.emit({ type: 'chats_changed', folder: FOLDER, chatId: 'chat_o' }))
+    await settle()
 
-    const lines = rows(feed)
-    expect(lines[0]).toContain('Claiming the next ticket')
-    expect(lines[1]).toContain('npm run lint')
+    expect(chats.callsOf('read')).toHaveLength(1)
+    expect(chats.subscribers()).toBe(0)
+    expect(within(feed).getByText('Planning the sprint')).toBeTruthy()
   })
 
   it('shows a subagent the chat started as one row, not what happens inside it', async () => {
@@ -143,14 +141,6 @@ describe('the live feed of a run orchestrated in a chat', () => {
     expect(feed.querySelector('img')).toBe(null)
     expect(feed.querySelector('strong')?.textContent).toBe('bold')
   })
-
-  it('leaves out an item of another chat', async () => {
-    const feed = await openFeed(backendWith([said('a', 45, 'Planning the sprint')]))
-
-    act(() => chats.emit({ type: 'item', chatId: 'chat_elsewhere', item: said('x', 1, 'From another chat') }))
-
-    expect(within(feed).queryByText('From another chat')).toBe(null)
-  })
 })
 
 describe('the live feed linking to the chat', () => {
@@ -162,21 +152,20 @@ describe('the live feed linking to the chat', () => {
     expect(host.openedChats).toEqual(['chat_o'])
   })
 
-  it('stops following the chat when the feed is closed, and asks for nothing until it is opened', async () => {
+  it('reads nothing until the feed is opened, and stops showing the chat once it is closed', async () => {
     const backend = backendWith([said('a', 45, 'Planning the sprint')])
     renderWorkspace(backend, { scheduler, orchestration: host })
     const chip = await screen.findByRole('button', { name: 'Claude Code in chat' })
     await settle()
     expect(chats.callsOf('boundThreads')).toEqual([])
-    expect(chats.callsOf('open')).toEqual([])
     expect(chats.callsOf('read')).toEqual([])
 
     fireEvent.click(chip)
     await screen.findByText('Planning the sprint')
-    expect(chats.subscribers()).toBe(1)
     fireEvent.click(within(screen.getByRole('region', { name: 'Orchestrator feed' })).getByRole('button', { name: 'Close feed' }))
 
-    expect(chats.subscribers()).toBe(0)
+    expect(screen.queryByText('Planning the sprint')).toBe(null)
+    expect(chats.callsOf('read')).toHaveLength(1)
   })
 
   it('keeps the run entries when the chat cannot be read, and says so', async () => {
@@ -189,27 +178,24 @@ describe('the live feed linking to the chat', () => {
 })
 
 describe('the live feed approvals of the chat', () => {
-  it('shows a request the chat waits on and sends the answer', async () => {
+  it('shows a request the chat stored as a record with its stored decision, with nothing to answer', async () => {
+    const decided: ChatItem = { id: 'item_d1', at: iso(-9 * SECOND), kind: 'approval_decision', requestId: 'req_1', decision: 'allow_once' }
+    const feed = await openFeed(backendWith([asked('req_1', 10), decided]))
+
+    const card = within(feed).getByRole('article', { name: 'Approval request: Run a command' })
+
+    expect(within(card).getByText('Allowed once')).toBeTruthy()
+    expect(within(card).queryByRole('button')).toBe(null)
+    expect(chats.calls.map((call) => call.method).sort()).toEqual(['boundTerminal', 'boundThreads', 'read'])
+  })
+
+  it('shows a request no decision was stored for as not answered, with nothing to answer', async () => {
     const feed = await openFeed(backendWith([asked('req_1', 10)]))
 
     const card = within(feed).getByRole('article', { name: 'Approval request: Run a command' })
-    fireEvent.click(within(card).getByRole('button', { name: 'Allow once' }))
-    await settle()
 
-    expect(chats.callsOf('answerApproval')).toEqual([[{ folder: FOLDER, chatId: 'chat_o', requestId: 'req_1', decision: 'allow_once' }]])
-    expect(await within(card).findByText('Allowed once')).toBeTruthy()
-  })
-
-  it('shows a request that waits inside a subagent, so it is never missed', async () => {
-    const thread: ChatItem = { id: 'th_1', at: iso(-30 * SECOND), kind: 'thread', parentItemId: 'spawn', label: 'Worker DM-202', state: 'running' }
-    const feed = await openFeed(backendWith([thread, asked('deep', 10, 'th_1')]))
-
-    const card = within(feed).getByRole('article', { name: 'Approval request: Run a command' })
-
-    expect(within(card).getByText('Asked by the subagent: Worker DM-202')).toBeTruthy()
-    fireEvent.click(within(card).getByRole('button', { name: 'Deny' }))
-    await settle()
-    expect(chats.callsOf('answerApproval')).toEqual([[{ folder: FOLDER, chatId: 'chat_o', requestId: 'deep', decision: 'deny' }]])
+    expect(within(card).getByText('Not answered')).toBeTruthy()
+    expect(within(card).queryByRole('button')).toBe(null)
   })
 })
 
@@ -220,7 +206,6 @@ describe('the live feed of a run no chat orchestrates', () => {
     expect(rows(feed)).toHaveLength(2)
     expect(within(feed).queryByRole('button', { name: 'Open chat' })).toBe(null)
     expect(within(feed).queryByText('Planning the sprint')).toBe(null)
-    expect(chats.callsOf('open')).toEqual([])
     expect(chats.callsOf('read')).toEqual([])
     expect(chats.subscribers()).toBe(0)
   })
@@ -229,7 +214,6 @@ describe('the live feed of a run no chat orchestrates', () => {
     const feed = await openFeed(backendWith([said('a', 45, 'Planning the sprint')], [{ ...MAIN, threadId: 'th_1' }]))
 
     expect(within(feed).queryByRole('button', { name: 'Open chat' })).toBe(null)
-    expect(chats.callsOf('open')).toEqual([])
     expect(chats.callsOf('read')).toEqual([])
   })
 

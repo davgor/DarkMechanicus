@@ -4,15 +4,18 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { FakeDm } from '../__mocks__/fakeDm'
 import { agentView } from '../__mocks__/fixtures'
 import { settle } from '../__mocks__/settle'
+import { SignInRecorder } from '../__mocks__/signInRecorder'
 import type { BuiltInAgentKind } from '../../../shared/desktop/api'
 import { AddAgentPane } from './AddAgentPane'
 import { useAgents } from './useAgents'
 
 let dm: FakeDm
 let errors: string[]
+let recorder: SignInRecorder
 
 beforeEach(() => {
   errors = []
+  recorder = new SignInRecorder()
   dm = new FakeDm()
   window.dm = dm
 })
@@ -25,7 +28,7 @@ function Pane(): JSX.Element {
 }
 
 async function mount(): Promise<void> {
-  render(<Pane />)
+  render(recorder.wrap(<Pane />))
   await settle()
 }
 
@@ -94,8 +97,7 @@ describe('AddAgentPane sign-in after connecting', () => {
     expect(inCard.getByText('Connected Claude Code 2.1.4')).toBeTruthy()
     expect(inCard.getByText(/Signed out/).closest('.agent-card-state')?.className).toContain('tone-warn')
     fireEvent.click(inCard.getByRole('button', { name: 'Sign in' }))
-    await settle()
-    expect(dm.agentCallsOf('signInAgent')).toEqual([['claude']])
+    expect(recorder.agents()).toEqual(['claude'])
   })
 
   it('does the same after Download installs a signed-out agent', async () => {

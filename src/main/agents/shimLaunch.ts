@@ -1,9 +1,9 @@
 /**
  * The one launcher for a Windows program that has to go through cmd.exe: an npm `.cmd` shim (Node
- * will not start those without a shell), and the console window a sign-in runs in.
+ * will not start those without a shell).
  *
  * The rule (DM-49): the command goes through exactly one cmd.exe parse, `cmd.exe /d /v:off /s /c
- * ""<path>" <args>"` (`/k` to keep the window open). `/s` makes cmd strip exactly the outer pair of
+ * ""<path>" <args>"`. `/s` makes cmd strip exactly the outer pair of
  * quotes, so the path stays inside its own pair, where `&`, `^`, `(`, `)`, `|`, `<`, `>` and spaces are
  * literal; `/v:off` rules out `!` expansion and `/d` skips AutoRun commands. There is no `start`, no
  * nested cmd.exe and no shell option: either would parse the line a second time with the path outside
@@ -39,8 +39,6 @@ interface ShimOptions {
    * `%ComSpec%`, so every check and every start run the same one.
    */
   comspec?: string
-  /** Leave the window open after the program ends (`/k`), for a sign-in console. */
-  keepOpen?: boolean
   /** Where `SystemRoot` is read from; the process environment by default. */
   env?: Readonly<Record<string, string | undefined>>
 }
@@ -85,7 +83,7 @@ export function planShimLaunch(path: string, args: readonly string[], options: S
     ok: true,
     launch: {
       file: options.comspec ?? win32.join((options.env ?? process.env)['SystemRoot'] ?? 'C:\\Windows', 'System32', 'cmd.exe'),
-      args: ['/d', '/v:off', '/s', options.keepOpen === true ? '/k' : '/c', command],
+      args: ['/d', '/v:off', '/s', '/c', command],
       verbatimArguments: true
     }
   }

@@ -1,0 +1,16 @@
+DM-329 live run (2026-10-31). Scratch user data /tmp/dm329-live/userdata, DARKMECHANICUS_HOME=/tmp/dm329-live/dmhome, tracked scratch repo /private/tmp/dm329-live/repo. Claude Code 2.1.316 on haiku.
+
+1. Old build: the epic's start commit 022734c, built in a temporary detached worktree (/tmp/dm329-old), run with that user data.
+   Chat created over CDP (window.dm.chats.create, role planner, model haiku), one message sent (window.dm.chats.send):
+   'Remember the code word OSPREY. Reply with exactly: OK, noted.' -> 'OK, noted.'  (screenshot DM-329-01)
+   index.jsonl record: {"id":"chat_ddd10bef-…","agent":"claude","model":"haiku","role":"planner",…,"sessionId":"42eb1ddb-3b32-4ca9-9352-918f157b9ad7"}
+   (no grantIds, kickoffSent or sessionStarted). The SDK wrote ~/.claude/projects/-private-tmp-dm329-live-repo/42eb1ddb-3b32-4ca9-9352-918f157b9ad7.jsonl,
+   so the session manager's file check (claudeSession.ts) finds an SDK-created session: no new rule needed.
+2. CLI check first: claude -p --resume 42eb1ddb-… --fork-session --model haiku "What was the code word…" in the repo -> OSPREY
+   (--fork-session so the stored session was not changed by the probe).
+3. New build (terminal-chats-DM-329, npm run build) on the same user data. Clicking the old chat's sidebar row opened its terminal with
+   Earlier conversation above it (DM-329-02). ps: claude --append-system-prompt-file …/instructions/chat_ddd10bef-….md --settings …/settings/chat_ddd10bef-….json --model haiku --resume 42eb1ddb-3b32-4ca9-9352-918f157b9ad7
+   After the folder-trust and MCP prompts, the resumed session showed the old exchange; 'What was the code word I asked you to remember?' -> OSPREY (DM-329-03).
+   Record after the start: same fields plus "grantIds":["gr_01m69esej7w1g5b5yecs10jk7w"].
+4. Earlier conversation opened the stored transcript read-only above the terminal: the two messages, no composer (DM-329-04).
+   The transcript file's md5 was the same before and after (e5b1b461b8b7e6b9f5f31332a1e3cd7f): nothing appended.

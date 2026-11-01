@@ -1,19 +1,13 @@
 import { useId, useState } from 'react'
 import type { FormEvent } from 'react'
-import type { AgentProtocol, CustomAgentRequest } from '../../../shared/desktop/api'
+import type { CustomAgentRequest } from '../../../shared/desktop/api'
 import { Button } from '../components/Button'
 import { Field } from '../components/Field'
 import { ActivityNote } from './ActivityNote'
 import { describeActivity } from './agentActivity'
 import type { AgentOutcome } from './agentOutcomes'
 import { findOutcome } from './agentOutcomes'
-import { PROTOCOL_TEXT } from './agentText'
 import type { AgentsModel } from './useAgents'
-
-const PROTOCOLS: readonly AgentProtocol[] = ['acp', 'codex', 'claude']
-
-/** The arguments a protocol starts with: Codex speaks its app server only when told to. */
-const PREFILLED_ARGS: Readonly<Record<AgentProtocol, readonly string[]>> = { acp: [], codex: ['app-server'], claude: [] }
 
 /** What main matches a name against, at most (it trims and checks the rest). */
 export const CUSTOM_NAME_MAX = 64
@@ -64,46 +58,11 @@ export function ArgumentRows({ args, disabled = false, onChange }: ArgumentRowsP
   )
 }
 
-interface ProtocolChoiceProps {
-  value: AgentProtocol
-  disabled: boolean
-  onChange(protocol: AgentProtocol): void
-}
-
-function ProtocolChoice({ value, disabled, onChange }: ProtocolChoiceProps): JSX.Element {
-  const id = useId()
-  return (
-    <fieldset className="chat-field">
-      <legend className="field-label">Protocol</legend>
-      {PROTOCOLS.map((protocol) => (
-        <div key={protocol} className="custom-protocol">
-          <label className="chat-choice">
-            <input
-              type="radio"
-              name={`${id}-protocol`}
-              checked={value === protocol}
-              disabled={disabled}
-              aria-describedby={`${id}-${protocol}`}
-              onChange={() => onChange(protocol)}
-            />
-            <span>{PROTOCOL_TEXT[protocol].label}</span>
-          </label>
-          <span id={`${id}-${protocol}`} className="field-hint">
-            {PROTOCOL_TEXT[protocol].hint}
-          </span>
-        </div>
-      ))}
-    </fieldset>
-  )
-}
-
 interface AddForm {
   draft: CustomDraft
-  protocol: AgentProtocol
   busy: boolean
   outcome: AgentOutcome | null
   setDraft(draft: CustomDraft): void
-  chooseProtocol(protocol: AgentProtocol): void
   submit(event: FormEvent): Promise<void>
 }
 
@@ -111,23 +70,14 @@ const EMPTY_DRAFT: CustomDraft = { name: '', args: [] }
 
 function useAddForm(agents: AgentsModel): AddForm {
   const [draft, setDraft] = useState<CustomDraft>(EMPTY_DRAFT)
-  const [protocol, setProtocol] = useState<AgentProtocol>('acp')
   const [busy, setBusy] = useState(false)
   const [outcome, setOutcome] = useState<AgentOutcome | null>(null)
-  // Arguments the person has not touched follow the protocol; typed ones stay.
-  const chooseProtocol = (next: AgentProtocol): void => {
-    setOutcome(null)
-    const prefilled = PREFILLED_ARGS[protocol]
-    const untouched = draft.args.length === prefilled.length && draft.args.every((arg, index) => arg === prefilled[index])
-    if (untouched) setDraft({ ...draft, args: [...PREFILLED_ARGS[next]] })
-    setProtocol(next)
-  }
   const submit = async (event: FormEvent): Promise<void> => {
     event.preventDefault()
     const name = draft.name.trim()
     if (name === '' || busy) return
-    // Exactly the name, protocol and arguments: the program is picked in main's file dialog.
-    const request: CustomAgentRequest = { name, protocol, args: cleanArgs(draft.args) }
+    // Exactly the name and arguments: the program is picked in main's file dialog.
+    const request: CustomAgentRequest = { name, args: cleanArgs(draft.args) }
     setBusy(true)
     setOutcome(null)
     const result = await agents.addCustom(request)
@@ -135,7 +85,6 @@ function useAddForm(agents: AgentsModel): AddForm {
     setOutcome(result === null ? null : findOutcome(result.outcome === 'connected' ? result.agent.displayName : name, result))
     if (result?.outcome === 'connected') {
       setDraft(EMPTY_DRAFT)
-      setProtocol('acp')
     }
   }
   // What main said was about what was sent; a change makes it stale.
@@ -143,7 +92,7 @@ function useAddForm(agents: AgentsModel): AddForm {
     setDraft(next)
     setOutcome(null)
   }
-  return { draft, protocol, busy, outcome, setDraft: change, chooseProtocol, submit }
+  return { draft, busy, outcome, setDraft: change, submit }
 }
 
 interface CustomAgentFormProps {
@@ -152,9 +101,9 @@ interface CustomAgentFormProps {
 }
 
 /**
- * Adds a custom CLI: its name, the protocol it speaks and its arguments. Choose executable sends exactly those
- * three; main opens its file dialog, shows the command in a native confirmation and runs the protocol's
- * handshake, and its refusal is shown here.
+ * Adds a custom CLI: its name and its arguments. Choose executable sends exactly those two; main opens its file
+ * dialog and shows the command in a native confirmation, and its refusal is shown here. There is no protocol:
+ * the CLI runs as it is in a chat's terminal.
  */
 export function CustomAgentForm({ agents, onClose }: CustomAgentFormProps): JSX.Element {
   const form = useAddForm(agents)
@@ -162,7 +111,6 @@ export function CustomAgentForm({ agents, onClose }: CustomAgentFormProps): JSX.
   return (
     <form className="form custom-agent-form" aria-label="Custom CLI" onSubmit={(event) => void form.submit(event)}>
       <Field label="Name" value={draft.name} maxLength={CUSTOM_NAME_MAX} onChange={(name) => form.setDraft({ ...draft, name })} />
-      <ProtocolChoice value={form.protocol} disabled={busy} onChange={form.chooseProtocol} />
       <ArgumentRows args={draft.args} disabled={busy} onChange={(args) => form.setDraft({ ...draft, args })} />
       <ActivityNote name={draft.name.trim() || 'Custom CLI'} activity={describeActivity({ finding: busy, download: null, outcome: form.outcome })} />
       <div className="button-row">

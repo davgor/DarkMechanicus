@@ -76,8 +76,8 @@ const identityOf = (agent: AgentView): string => `${agent.executablePath}|${agen
 
 /**
  * Each connected agent's sign-in state, asked of the agent's own CLI. It is asked when an agent is
- * connected or updated, whenever the window regains focus (where a sign-in finished in a terminal
- * window shows up) and whenever a chat reports that its agent's sign-in changed.
+ * connected or updated, and whenever the window regains focus (where a sign-in finished in a terminal
+ * window shows up).
  */
 function useAgentStatuses(
   agents: readonly AgentView[],
@@ -115,14 +115,6 @@ function useAgentStatuses(
     window.addEventListener('focus', recheck)
     return () => window.removeEventListener('focus', recheck)
   }, [latest, check])
-
-  useEffect(
-    () =>
-      window.dm.chats.onEvent((event) => {
-        if (event.type === 'agent_auth' && latest.current.some((agent) => agent.id === event.agent)) check(event.agent)
-      }),
-    [check, latest]
-  )
 
   const record = useCallback((id: AgentId, status: AgentAuthStatus) => setStatuses((previous) => ({ ...previous, [id]: status })), [])
 

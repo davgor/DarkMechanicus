@@ -1,0 +1,221 @@
+# DM-326: idle output and session-file probes (node-pty + @xterm/headless, 120x40, scratch repos under /tmp/dm326-probe)
+# Each line: seconds since spawn. [idle-*] lines are every output chunk while untouched, with whether it changed the screen's lines.
+
+## log2
+0.03 spawn pid=26359 /Users/davidgorden/.local/bin/claude ["--model","haiku","--session-id","e4057de0-d6df-4c79-9ebc-74889b37af3e"]
+5.03 write "\r"
+5.81 exit {"exitCode":1,"signal":0}
+8.03 screen:
+Permission allow rule (managed policy settings): Glob(./**) is not matched by file permission checks — only Read(path) r
+ules are. Use Read(./**) instead (Read rules cover all file-reading tools).
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Accessing workspace:
+ /private/tmp/dm326-probe/repo
+ Quick safety check: Is this a project you created or one you trust? (Like your own code, a well-known open source
+ project, or work from your team). If not, take a moment to review what's in this folder first.
+ Claude Code'll be able to read, edit, and execute files here.
+ Security guide
+ ❯ No, exit
+   Yes, I trust this folder
+ Enter to confirm · Esc to cancel
+8.03 stats {"start":{"chunks":9,"bytes":1337,"changing":3}}
+8.03 done exited={"exitCode":1,"signal":0}
+
+## log3
+0.01 spawn pid=54598 /Users/davidgorden/.local/bin/claude ["--model","haiku","--session-id","e4057de0-d6df-4c79-9ebc-74889b37af3e"]
+5.01 write "\u001b[B"
+5.71 write "\r"
+13.71 screen:
+Permission allow rule (managed policy settings): Glob(./**) is not matched by file permission checks — only Read(path) r
+ules are. Use Read(./**) instead (Read rules cover all file-reading tools).
+ ▐▛███▛█   Claude Code v2.1.291
+▝▜██████▀  Haiku 4.5 · Claude Enterprise
+ ▝▝   ▝▝   /private/tmp/dm326-probe/repo
+  Updated to latest. Got 58 features, 401 bugfixes, and 181 other changes.
+  code.claude.com/docs/en/changelog for details
+⚠ 6 MCP servers need authentication · run /mcp
+▎ Message from Onebrief:
+▎ Welcome to Onebrief, don't be dumb
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Try the new fullscreen renderer?
+  · Flicker-free output
+  · Mouse support — click to move your cursor or expand results
+  · Selected text auto-copies to your clipboard
+  ❯ 1. Yes, try it
+    2. Not now
+  Enter to confirm · Esc to cancel
+133.72 screen:
+Permission allow rule (managed policy settings): Glob(./**) is not matched by file permission checks — only Read(path) r
+ules are. Use Read(./**) instead (Read rules cover all file-reading tools).
+ ▐▛███▛█   Claude Code v2.1.291
+▝▜██████▀  Haiku 4.5 · Claude Enterprise
+ ▝▝   ▝▝   /private/tmp/dm326-probe/repo
+  Updated to latest. Got 58 features, 401 bugfixes, and 181 other changes.
+  code.claude.com/docs/en/changelog for details
+⚠ 6 MCP servers need authentication · run /mcp
+▎ Message from Onebrief:
+▎ Welcome to Onebrief, don't be dumb
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Try the new fullscreen renderer?
+  · Flicker-free output
+  · Mouse support — click to move your cursor or expand results
+  · Selected text auto-copies to your clipboard
+  ❯ 1. Yes, try it
+    2. Not now
+  Enter to confirm · Esc to cancel
+133.72 stats {"start":{"chunks":16,"bytes":3483,"changing":9}}
+133.72 [idle-prompt] chunk 32B changed=false "\u001b[?1006l\u001b[?1003l\u001b[?1002l\u001b[?1000l"
+133.98 [idle-prompt] chunk 8B changed=false "\u001b[2D\u001b[4B"
+133.98 [idle-prompt] chunk 104B changed=false "\u001b[?1004l\u001b[>4m\u001b[<u\u001b[?2031l\u001b[?2004l\u001b(B\u000f\u001b[?1016l\u001b[?1006l\u001b[?1003l\u001b[?1002l\u001b[?1000l\u001b[?"
+134.22 done exited=null
+
+## log4
+0.01 spawn pid=84549 /Users/davidgorden/.local/bin/claude ["--model","haiku","--session-id","e4057de0-d6df-4c79-9ebc-74889b37af3e"]
+7.01 screen:
+Permission allow rule (managed policy settings): Glob(./**) is not matched by file permission checks — only Read(path) r
+ules are. Use Read(./**) instead (Read rules cover all file-reading tools).
+ ▐▛███▛█   Claude Code v2.1.291
+▝▜██████▀  Haiku 4.5 · Claude Enterprise
+ ▝▝   ▝▝   /private/tmp/dm326-probe/repo
+▎ Message from Onebrief:
+▎ Welcome to Onebrief, don't be dumb
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Try the new fullscreen renderer?
+  · Flicker-free output
+  · Mouse support — click to move your cursor or expand results
+  · Selected text auto-copies to your clipboard
+  ❯ 1. Yes, try it
+    2. Not now
+  Enter to confirm · Esc to cancel
+7.01 write "\u001b[B"
+7.71 write "\r"
+11.72 screen:
+Permission allow rule (managed policy settings): Glob(./**) is not matched by file permission checks — only Read(path) r
+ules are. Use Read(./**) instead (Read rules cover all file-reading tools).
+ ▐▛███▛█   Claude Code v2.1.291
+▝▜██████▀  Haiku 4.5 · Claude Enterprise
+ ▝▝   ▝▝   /private/tmp/dm326-probe/repo
+▎ Message from Onebrief:
+▎ Welcome to Onebrief, don't be dumb
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ Try "how do I log an error?"
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏸ manual mode on · ? for shortcuts · ← for agents
+22.62 [idle-prompt] chunk 123B changed=true "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[80C\u001b[1A✔\u001b[83GUpdate\u001b[90Ginstalled\u001b[100G·\u001b[102GRestart\u001b["
+101.72 screen:
+Permission allow rule (managed policy settings): Glob(./**) is not matched by file permission checks — only Read(path) r
+ules are. Use Read(./**) instead (Read rules cover all file-reading tools).
+ ▐▛███▛█   Claude Code v2.1.291
+▝▜██████▀  Haiku 4.5 · Claude Enterprise
+ ▝▝   ▝▝   /private/tmp/dm326-probe/repo
+▎ Message from Onebrief:
+▎ Welcome to Onebrief, don't be dumb
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ Try "how do I log an error?"
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏸ manual mode on · ? for shortcuts · ← for agents                             ✔ Update installed · Restart to update
+101.72 write "Reply with the single word PONG."
+102.72 write "\r"
+127.72 screen:
+Permission allow rule (managed policy settings): Glob(./**) is not matched by file permission checks — only Read(path) r
+ules are. Use Read(./**) instead (Read rules cover all file-reading tools).
+ ▐▛███▛█   Claude Code v2.1.291
+▝▜██████▀  Haiku 4.5 · Claude Enterprise
+ ▝▝   ▝▝   /private/tmp/dm326-probe/repo
+▎ Message from Onebrief:
+▎ Welcome to Onebrief, don't be dumb
+❯ Reply with the single word PONG.
+⏺ PONG
+✻ Crunched for 1s · done 10:32 AM 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏸ manual mode on · ? for shortcuts · ← for agents                             ✔ Update installed · Restart to update
+164.31 [idle-after] chunk 58B changed=false "\u001b]777;notify;Claude Code;Claude is waiting for your input\u0007"
+217.72 write "/exit"
+218.72 write "\r"
+219.45 exit {"exitCode":0,"signal":0}
+222.73 screen:
+ ▐▛███▛█   Claude Code v2.1.291
+▝▜██████▀  Haiku 4.5 · Claude Enterprise
+ ▝▝   ▝▝   /private/tmp/dm326-probe/repo
+▎ Message from Onebrief:
+▎ Welcome to Onebrief, don't be dumb
+❯ Reply with the single word PONG.
+⏺ PONG
+✻ Crunched for 1s · done 10:32 AM 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ /exit
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ❯ /exit                       Exit the CLI 
+    /context                    Visualize current context usage as a colored grid
+    /usage-credits              Configure usage credits or request them from your admin when you hit a limit
+Resume this session with:
+claude --resume e4057de0-d6df-4c79-9ebc-74889b37af3e
+222.73 stats {"start":{"chunks":11,"bytes":1621,"changing":5},"idle-prompt":{"chunks":1,"bytes":123,"changing":1},"answer":{"chunks":22,"bytes":2086,"changing":15},"idle-after":{"chunks":1,"bytes":58,"changing":0},"exit":{"chunks":6,"bytes":716,"changing":2}}
+222.73 done exited={"exitCode":0,"signal":0}
+
+## log5
+0.01 spawn pid=51628 /Users/davidgorden/.local/bin/claude ["--model","haiku","--resume","7fd1f6c0-f444-4258-8373-aa72cf6b18e5"]
+2.79 exit {"exitCode":1,"signal":0}
+8.01 screen:
+No conversation found with session ID: 7fd1f6c0-f444-4258-8373-aa72cf6b18e5
+8.01 stats {"start":{"chunks":7,"bytes":367,"changing":4}}
+8.01 done exited={"exitCode":1,"signal":0}
+
+## log6
+0.01 spawn pid=71452 /Users/davidgorden/.local/bin/a8s ["start","/private/tmp/dm326-probe/repo2","--approval-mode","always-ask","--model","claude-haiku-4-5"]
+15.01 screen:
+                                             ▟▌▐▙          
+                                            ▟█▌▐█▙         
+                                           ▟██▌▐██▙        
+                                          ▟██▛  ▜██▙       A U T O N O M O U S
+                                         ▟██▛▗▌▐▖▜██▙      v0.79.0 · OMP 18.11.2
+                                        ▟█▛▘ ▐▌▐▌ ▝▜█▙     
+                                        ▀▘   ▐▌▐▌   ▝▀     
+                                        Tip: Press ⎋ to stop the agent mid-turn
+ MCP finished with failures. Connected: node_repl. Failed: claude_ai_Linear [config: ~/.claude/mcp.json]: HTTP 404: 404 
+ Not Found                                                                                                              
+model      Claude Opus 5.5 · slow · thinking xhigh
+workspace  repo2 · master
+○ CUI not marked
+recording  this machine · ~/.local/state/a8s/captures
+🐝 hivemind on · local until close · /hivemind
+warning    Update available: 0.80.0 (ca10df7d) · Run a8s update
+warning    claude-haiku-4-5 isn't offered: Autonomous offers only the newest Anthropic, OpenAI and Gemini models, so
+           Autonomous starts on its default.
+/help commands · /agents sessions
+╭── ▲ > ⬢ Opus 5.5 · ◕ xhigh > 🗑 dm326-probe/repo2 > ⑂ master ─1%────────────────────────────────────────╎┃───────1M───╮
+╰─  Ask anything · @ files · / commands                                                                               ─╯
+● Recording · Signed in · via anthropic
+○ CUI not marked · Export on · 🐝 hivemind on · local until close
+135.01 screen:
+                                             ▟▌▐▙          
+                                            ▟█▌▐█▙         
+                                           ▟██▌▐██▙        
+                                          ▟██▛  ▜██▙       A U T O N O M O U S
+                                         ▟██▛▗▌▐▖▜██▙      v0.79.0 · OMP 18.11.2
+                                        ▟█▛▘ ▐▌▐▌ ▝▜█▙     
+                                        ▀▘   ▐▌▐▌   ▝▀     
+                                        Tip: Press ⎋ to stop the agent mid-turn
+ MCP finished with failures. Connected: node_repl. Failed: claude_ai_Linear [config: ~/.claude/mcp.json]: HTTP 404: 404 
+ Not Found                                                                                                              
+model      Claude Opus 5.5 · slow · thinking xhigh
+workspace  repo2 · master
+○ CUI not marked
+recording  this machine · ~/.local/state/a8s/captures
+🐝 hivemind on · local until close · /hivemind
+warning    Update available: 0.80.0 (ca10df7d) · Run a8s update
+warning    claude-haiku-4-5 isn't offered: Autonomous offers only the newest Anthropic, OpenAI and Gemini models, so
+           Autonomous starts on its default.
+/help commands · /agents sessions
+╭── ▲ > ⬢ Opus 5.5 · ◕ xhigh > 🗑 dm326-probe/repo2 > ⑂ master ─1%────────────────────────────────────────╎┃───────1M───╮
+╰─  Ask anything · @ files · / commands                                                                               ─╯
+● Recording · Signed in · via anthropic
+○ CUI not marked · Export on · 🐝 hivemind on · local until close
+135.01 stats {"start":{"chunks":764,"bytes":690120,"changing":751}}
+135.02 exit {"exitCode":0,"signal":1}
+135.51 done exited={"exitCode":0,"signal":1}
+
+## session files after the runs
+~/.claude/projects/-private-tmp-dm326-probe-repo/e4057de0-d6df-4c79-9ebc-74889b37af3e.jsonl

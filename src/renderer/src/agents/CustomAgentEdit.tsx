@@ -38,7 +38,7 @@ function useEditForm({ agent, agents, onSaved }: CustomAgentEditProps): EditForm
     event.preventDefault()
     const name = draft.name.trim()
     if (name === '' || busy) return
-    // The protocol never changes; the program changes only through main's file dialog, which repick opens.
+    // The program changes only through main's file dialog, which repick opens.
     const update: CustomAgentUpdate = { id: agent.id, name, args: cleanArgs(draft.args), repick }
     setBusy(true)
     setOutcome(null)
@@ -58,13 +58,19 @@ function useEditForm({ agent, agents, onSaved }: CustomAgentEditProps): EditForm
   return { draft, repick, busy, outcome, setDraft: change, setRepick, submit }
 }
 
-/** Edits a custom CLI's name and arguments, or picks its program again; main checks, confirms and runs the handshake as when it was added. */
+/**
+ * Edits a custom CLI's name and arguments, or picks its program again; main checks and confirms them as when it was
+ * added. For a CLI marked `needsReview` this is its review: the same edit, titled Review arguments, whose
+ * confirmation in main clears the mark.
+ */
 export function CustomAgentEdit(props: CustomAgentEditProps): JSX.Element {
   const form = useEditForm(props)
   const { draft, busy } = form
+  const review = props.agent.needsReview
+  const title = review ? 'Review arguments' : 'Edit'
   return (
-    <form className="card form custom-agent-form" aria-label={`Edit ${props.agent.displayName}`} onSubmit={(event) => void form.submit(event)}>
-      <h2 className="card-title">Edit</h2>
+    <form className="card form custom-agent-form" aria-label={`${review ? 'Review arguments for' : 'Edit'} ${props.agent.displayName}`} onSubmit={(event) => void form.submit(event)}>
+      <h2 className="card-title">{title}</h2>
       <Field label="Name" value={draft.name} maxLength={CUSTOM_NAME_MAX} onChange={(name) => form.setDraft({ ...draft, name })} />
       <ArgumentRows args={draft.args} disabled={busy} onChange={(args) => form.setDraft({ ...draft, args })} />
       <label className="connect-check">
@@ -75,7 +81,7 @@ export function CustomAgentEdit(props: CustomAgentEditProps): JSX.Element {
       <ActivityNote name={props.agent.displayName} activity={describeActivity({ finding: busy && form.repick, download: null, outcome: form.outcome })} />
       <div className="button-row">
         <Button variant="primary" type="submit" busy={busy} disabled={draft.name.trim() === ''}>
-          Save
+          {review ? 'Confirm arguments' : 'Save'}
         </Button>
         <Button disabled={busy} onClick={props.onCancel}>
           Cancel

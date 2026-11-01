@@ -1,10 +1,10 @@
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync } from 'node:fs'
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { DomainError } from '../../core/errors'
 import type { ChatItem } from '../../shared/agents/chat'
-import { memoryChatFs, memoryChatStore, REPO, type MemoryChatFs } from './__mocks__/fakeChatAdapter'
+import { memoryChatFs, memoryChatStore, REPO, storeItems, type MemoryChatFs } from './__mocks__/chatFixtures'
 import { createChatStore, type NewChat } from './chatStore'
 
 const NEW_CHAT: NewChat = { folder: REPO, agent: 'claude', model: 'opus', role: 'planner', allowSave: true }
@@ -37,9 +37,9 @@ function seeded(): { fs: MemoryChatFs; doomed: { folder: string; id: string }; k
   const store = memoryChatStore(fs)
   const doomed = store.createChat({ ...NEW_CHAT, title: 'Secret plan' })
   const kept = store.createChat({ ...NEW_CHAT, title: 'Keep me' })
-  store.appendItem(doomed, message('m1', 'the doomed text'))
+  storeItems(fs, doomed, [message('m1', 'the doomed text')])
   store.updateChat(doomed, { title: 'Secret plan, renamed' })
-  store.appendItem(kept, message('m2', 'the kept text'))
+  storeItems(fs, kept, [message('m2', 'the kept text')])
   return { fs, doomed, kept }
 }
 
@@ -81,12 +81,11 @@ describe('chat store: deleting a chat', () => {
 });
 
 describe('chat store: after a delete', () => {
-  it('refuses to append to or update a deleted chat, and to delete it twice', () => {
+  it('refuses to update a deleted chat, and to delete it twice', () => {
     const { fs, doomed } = seeded()
     const store = memoryChatStore(fs)
     store.deleteChat(doomed)
 
-    expect(errorCode(() => store.appendItem(doomed, message('m3', 'late')))).toBe('not_found')
     expect(errorCode(() => store.updateChat(doomed, { title: 'late' }))).toBe('not_found')
     expect(errorCode(() => store.deleteChat(doomed))).toBe('not_found')
     expect(errorCode(() => store.deleteChat({ folder: REPO, id: 'chat_nope' }))).toBe('not_found')
@@ -124,8 +123,8 @@ describe('chat store: deleting on the real filesystem', () => {
       const store = createChatStore({ root })
       const doomed = store.createChat({ ...NEW_CHAT, folder, title: 'Doomed' })
       const kept = store.createChat({ ...NEW_CHAT, folder, title: 'Kept' })
-      store.appendItem(doomed, message('m1', 'gone soon'))
       const [key = ''] = readdirSync(root)
+      appendFileSync(join(root, key, `${doomed.id}.jsonl`), `${JSON.stringify(message('m1', 'gone soon'))}\n`)
 
       store.deleteChat(doomed)
 

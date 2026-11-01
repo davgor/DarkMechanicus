@@ -1,19 +1,22 @@
 import { useState } from 'react'
+import { agentModels, isSafeModelId } from '../../../shared/agents/models'
+import type { AgentModels, ModelOption } from '../../../shared/agents/models'
 import type { AgentId, AgentView } from '../../../shared/desktop/api'
 import { chattableAgents } from './NewChatFields'
 import type { AgentStatuses } from './useAgents'
-import { useAgentModels } from './useAgentModels'
-import type { ModelsState } from './useAgentModels'
 
-/** The agent and model a person is picking: only connected, signed-in agents, then that agent's models. */
+/** The agent and model a person is picking: only connected, signed-in agents, then that agent's model. */
 export interface AgentModelChoice {
   /** The agent chosen; the first one that can chat stands in until one is picked, and again if the picked one stops being able to. Null when none can. */
   agent: AgentId | null
-  /** The model chosen if the agent still offers it, otherwise its first; null when it lists none (the agent's default is used). */
+  /** How the chosen agent's model is chosen (`agentModels`); `cli` while no agent is chosen. */
+  models: AgentModels
+  /** What the model choice shows: the listed model picked (else the first), or the text typed. */
+  value: string
+  /** The model the agent starts on: null for the CLI's own default (`default`, an empty text, or an agent that takes none). */
   model: string | null
-  models: ModelsState
-  /** An agent is chosen and its model list is known: a list, or a failure that falls back to the agent's default model. */
-  settled: boolean
+  /** A typed model holds only characters that may go on a command line (`isSafeModelId`); always true otherwise. */
+  valid: boolean
   chooseAgent(id: AgentId): void
   chooseModel(model: string): void
 }
@@ -23,19 +26,37 @@ interface Picked {
   model: string | null
 }
 
-function modelFor(picked: Picked, state: ModelsState): string | null {
-  if (state.status !== 'ready') {
-    return null
-  }
-  const chosen = state.models.find((model) => model.id === picked.model)
-  return chosen?.id ?? state.models[0]?.id ?? null
+interface Model {
+  value: string
+  model: string | null
+  valid: boolean
 }
 
-const modelsSettled = (state: ModelsState): boolean => state.status === 'ready' || state.status === 'failed'
+function listed(picked: string | null, models: readonly ModelOption[]): Model {
+  const value = models.find((model) => model.id === picked)?.id ?? models[0]?.id ?? 'default'
+  return { value, model: value === 'default' ? null : value, valid: true }
+}
+
+function typed(picked: string | null): Model {
+  const value = picked ?? ''
+  const id = value.trim()
+  return { value, model: id === '' ? null : id, valid: id === '' || isSafeModelId(id) }
+}
+
+function modelFor(picked: string | null, models: AgentModels): Model {
+  switch (models.kind) {
+    case 'list':
+      return listed(picked, models.models)
+    case 'free':
+      return typed(picked)
+    case 'cli':
+      return { value: '', model: null, valid: true }
+  }
+}
 
 /**
- * Agent, then model, as the new-chat and Start run dialogs both ask for them. Until one is picked, the
- * preferred agent (a folder's default) stands in when it can chat, and otherwise the first that can.
+ * Agent, then model, as Start run asks for them. Until one is picked, the preferred agent (a folder's
+ * default) stands in when it can chat, and otherwise the first that can.
  */
 export function useAgentModelChoice(
   agents: readonly AgentView[],
@@ -44,15 +65,15 @@ export function useAgentModelChoice(
 ): AgentModelChoice {
   const [picked, setPicked] = useState<Picked>({ agent: null, model: null })
   const ready = chattableAgents(agents, statuses)
-  const usable = (id: AgentId | null): AgentId | undefined => ready.find((candidate) => candidate.id === id)?.id
-  const agent = usable(picked.agent) ?? usable(preferredAgentId) ?? ready[0]?.id ?? null
-  const models = useAgentModels(agent)
+  const usable = (id: AgentId | null): AgentView | undefined => ready.find((candidate) => candidate.id === id)
+  const agent = usable(picked.agent) ?? usable(preferredAgentId) ?? ready[0] ?? null
+  const models: AgentModels = agent === null ? { kind: 'cli' } : agentModels(agent.kind)
+  const model = modelFor(agent !== null && agent.id === picked.agent ? picked.model : null, models)
   return {
-    agent,
-    model: modelFor(picked, models),
+    agent: agent?.id ?? null,
     models,
-    settled: agent !== null && modelsSettled(models),
-    chooseAgent: (kind) => setPicked({ agent: kind, model: null }),
-    chooseModel: (model) => setPicked((previous) => ({ ...previous, model }))
+    ...model,
+    chooseAgent: (id) => setPicked({ agent: id, model: null }),
+    chooseModel: (value) => setPicked({ agent: agent?.id ?? null, model: value })
   }
 }

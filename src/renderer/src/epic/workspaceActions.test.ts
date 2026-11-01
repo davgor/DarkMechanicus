@@ -43,6 +43,8 @@ function harness(patch: Partial<WorkspaceData> = {}, backend = new FakeBackend(s
   const dispatched: WorkspaceAction[] = []
   const counts = { reloads: 0, changes: 0, chats: 0 }
   const orchestrated: unknown[] = []
+  /** The shell's side of a started orchestrator, in order: the folder's chats listed again, and a chat opened. */
+  const shell: string[] = []
   let current: WorkspaceState = workspaceReducer(initialWorkspaceState(), { type: 'load_succeeded', data: data(patch), at: 0 })
   const dispatch = (action: WorkspaceAction): void => {
     dispatched.push(action)
@@ -55,11 +57,16 @@ function harness(patch: Partial<WorkspaceData> = {}, backend = new FakeBackend(s
       orchestrated.push(choice)
       return orchestrator()
     },
-    onChatsChanged: () => {
+    onChatsChanged: async () => {
       counts.chats += 1
+      // The list arrives a turn later, as a fetch would.
+      await Promise.resolve()
+      shell.push('chats listed')
+    },
+    onOpenChat: (chatId) => {
+      shell.push(`opened ${chatId}`)
     },
     transferChats,
-    onOpenChat: () => undefined,
     agents: () => connected,
     getState: () => current,
     dispatch,
@@ -70,7 +77,7 @@ function harness(patch: Partial<WorkspaceData> = {}, backend = new FakeBackend(s
       counts.changes += 1
     }
   })
-  return { actions, backend, dispatched, dispatch, counts, orchestrated, state: () => current }
+  return { actions, backend, dispatched, dispatch, counts, orchestrated, shell, state: () => current }
 }
 
 
@@ -167,8 +174,8 @@ describe('start a run with an agent', () => {
     expect(gone.state().toast).toBe('Run queued. Custom agent is orchestrating it.')
   })
 
-  it('starts the chosen agent as the orchestrator, says so, and closes the dialog', async () => {
-    orchestrator = () => ({ run: runView({ state: 'queued' }), chat: chatRecord({ runId: 'rn_2' }), problem: null })
+  it('starts the chosen agent as the orchestrator, says so, closes the dialog, and opens the chat\'s terminal once the chats are listed', async () => {
+    orchestrator = () => ({ run: runView({ state: 'queued' }), chat: chatRecord({ id: 'chat_orch', runId: 'rn_2' }), problem: null })
     const h = harness({ run: null })
     h.dispatch({ type: 'start_run_dialog', open: true })
 
@@ -178,10 +185,11 @@ describe('start a run with an agent', () => {
     expect(h.state().toast).toBe('Run queued. Codex is orchestrating it.')
     expect([h.state().startRunOpen, h.state().banner]).toEqual([false, null])
     expect(h.counts).toEqual({ reloads: 1, changes: 1, chats: 1 })
+    expect(h.shell).toEqual(['chats listed', 'opened chat_orch'])
     expect(h.backend.names()).toEqual([])
   })
 
-  it('keeps the run queued and shows why when no agent could be started for it', async () => {
+  it('keeps the run queued and shows why when no agent could be started for it, opening nothing', async () => {
     orchestrator = () => ({ run: runView({ state: 'queued' }), chat: null, problem: 'Run #2 is queued, but Codex could not be started: it exited. It is waiting for an orchestrator.' })
     const h = harness({ run: null })
 
@@ -190,6 +198,20 @@ describe('start a run with an agent', () => {
     expect(h.state().banner).toBe('Run #2 is queued, but Codex could not be started: it exited. It is waiting for an orchestrator.')
     expect([h.state().toast, h.state().startRunOpen]).toEqual([null, false])
     expect(h.counts).toEqual({ reloads: 1, changes: 1, chats: 0 })
+    expect(h.shell).toEqual([])
+  })
+})
+
+describe('start a run with an agent: when it did not start', () => {
+  it('lists a chat that could not be removed and shows why, but stays on the epic so the reason stays in view', async () => {
+    orchestrator = () => ({ run: runView({ state: 'queued' }), chat: chatRecord({ id: 'chat_kept', runId: 'rn_2' }), problem: 'Run #2 is queued, but Codex could not be started: it exited. It is waiting for an orchestrator.' })
+    const h = harness({ run: null })
+
+    await h.actions.startRunWithAgent({ agent: 'codex', model: null })
+
+    expect(h.state().banner).toContain('could not be started')
+    expect(h.counts.chats).toBe(1)
+    expect(h.shell).toEqual(['chats listed'])
   })
 
   it('shows the refusal when nothing was queued', async () => {
@@ -218,6 +240,26 @@ describe('transfer with an agent', () => {
     const gone = harness({ run: null }, undefined, started)
     await gone.actions.transferWithAgent({ agent: custom.id, model: null }, 'resume')
     expect(gone.state().toast).toBe('Custom agent is carrying out the transfer.')
+  })
+
+  it("lists the folder's chats again before it opens the transfer chat's terminal", async () => {
+    const started: TransferChats = { ...noTransferChats(), start: async () => ({ chat: chatRecord({ id: 'chat_transfer', transferEpicId: 'ep_1' }), problem: null }) }
+    const h = harness({ run: null }, undefined, started)
+
+    await h.actions.transferWithAgent({ agent: 'claude', model: null }, 'resume')
+
+    expect(h.shell).toEqual(['chats listed', 'opened chat_transfer'])
+  })
+
+  it('lists a transfer chat that could not be removed and shows why, but stays on the epic so the reason stays in view', async () => {
+    const problem = 'The transfer is authorized, but Codex could not be started: it exited. Start the transfer chat again, or copy the prompt for an agent of your own.'
+    const kept: TransferChats = { ...noTransferChats(), start: async () => ({ chat: chatRecord({ id: 'chat_kept', transferEpicId: 'ep_1' }), problem }) }
+    const h = harness({ run: null }, undefined, kept)
+
+    await h.actions.transferWithAgent({ agent: 'codex', model: null }, 'resume')
+
+    expect(h.state().banner).toBe(problem)
+    expect(h.shell).toEqual(['chats listed'])
   })
 })
 

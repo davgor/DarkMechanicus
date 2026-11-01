@@ -85,7 +85,7 @@ function AgentSection({ props, choice }: { props: TransferDialogProps; choice: A
         onAgentStatus={props.onAgentStatus}
         emptyText="No agent is connected and signed in."
       />
-      {agent === null ? null : <ModelChoice agent={agent} state={choice.models} value={choice.model} onChange={choice.chooseModel} />}
+      {agent === null ? null : <ModelChoice models={choice.models} value={choice.value} valid={choice.valid} onChange={choice.chooseModel} />}
     </section>
   )
 }
@@ -103,7 +103,7 @@ export function TransferDialog(props: TransferDialogProps): JSX.Element {
   const copy = COPY[props.mode]
   const { agent } = choice
   const waiting = props.busy || pressed
-  const canTransfer = agent !== null && choice.settled && !waiting
+  const canTransfer = agent !== null && choice.valid && !waiting
   const once = (action: () => void): void => {
     if (acted.current) return
     acted.current = true

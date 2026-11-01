@@ -1,18 +1,11 @@
 /**
- * The chat view's model, free of React: what the transcript holds as it opens and streams, and the
- * words the transcript rows use. The transcript is a list of stored items plus the assistant texts
- * that are still being written; both are updated without touching the entries around them, so a
- * row of the list renders again only when its own entry changed.
- *
- * The list holds every thread's entries, in the order they were stored: the chat's own, and the
- * items and deltas of nested threads (`threadId` set). `threadModel` arranges them into blocks under
- * the calls that spawned them. A thread's deltas stream into entries that carry their thread, and a
- * thread item is rewritten in place when its state changes, like a tool call. Only the chat's own
- * thread can sign the chat out.
+ * The model of a transcript a chat stored before chats became terminals, free of React: its entries, and the
+ * words the transcript rows use. The list holds every thread's items, in the order they were stored: the chat's
+ * own, and the items of nested threads (`threadId` set). `threadModel` arranges them into blocks under the calls
+ * that spawned them. A later item with the same id replaces the earlier one in its place, like a tool call that
+ * finished or a thread whose state changed.
  */
-import type { ChatItem, ErrorProblem, ModelOption } from '../../../shared/agents/chat'
-import type { ChatOpenView, ChatPushEvent } from '../../../shared/agents/chatApi'
-import type { AgentAuthState } from '../../../shared/desktop/api'
+import type { ChatItem, ErrorProblem } from '../../../shared/agents/chat'
 import type { PillState } from '../components/StatePill'
 
 type ToolCallItem = Extract<ChatItem, { kind: 'tool_call' }>
@@ -20,16 +13,7 @@ type ToolInput = ToolCallItem['input']
 type ResetItem = Extract<ChatItem, { kind: 'context_reset' }>
 type DecisionItem = Extract<ChatItem, { kind: 'approval_decision' }>
 
-/** An assistant text that is still being written: the deltas so far. The stored item replaces it, by the same id. */
-interface StreamingText {
-  kind: 'streaming_text'
-  id: string
-  text: string
-  /** The nested thread the text is being written in; absent for the chat's own. */
-  threadId?: string
-}
-
-export type TranscriptEntry = ChatItem | StreamingText
+export type TranscriptEntry = ChatItem
 
 /** The last place `id` is in, or -1: what is being updated is nearly always at the end. */
 function lastIndexOfId(entries: readonly TranscriptEntry[], id: string): number {
@@ -47,172 +31,10 @@ function replaceAt(entries: readonly TranscriptEntry[], index: number, entry: Tr
   return next
 }
 
-/** A stored item: appended, or replacing the entry of the same id in its place (a call finishing, a text becoming whole). */
+/** A stored item: appended, or replacing the entry of the same id in its place (a call finishing, a thread ending). */
 export function applyItem(entries: readonly TranscriptEntry[], item: ChatItem): TranscriptEntry[] {
   const index = lastIndexOfId(entries, item.id)
   return index === -1 ? [...entries, item] : replaceAt(entries, index, item)
-}
-
-/** More of an assistant text, in the thread `threadId` (absent: the chat's own): starts its streaming entry where it begins, then grows it. */
-export function applyDelta(entries: readonly TranscriptEntry[], itemId: string, delta: string, threadId?: string): TranscriptEntry[] {
-  const index = lastIndexOfId(entries, itemId)
-  if (index === -1) {
-    return [...entries, { kind: 'streaming_text', id: itemId, text: delta, ...(threadId === undefined ? {} : { threadId }) }]
-  }
-  const existing = entries[index]
-  if (existing?.kind !== 'streaming_text') {
-    // The whole text is already stored: a delta that arrives late adds nothing.
-    return entries as TranscriptEntry[]
-  }
-  return replaceAt(entries, index, { ...existing, text: existing.text + delta })
-}
-
-/**
- * What the chat knows about its agent's sign-in. `checking`: the stored transcript says the sign-in
- * was lost once, and the app is asking whether it still is; `signed_in` also stands for "nothing says it
- * is gone".
- */
-export interface ChatAuth {
-  agent: 'checking' | 'signed_out' | 'signed_in'
-  /** A turn was cut short by the sign-in and has not been sent again, or replaced by a newer message. */
-  cutShort: boolean
-  /** The cut-short turn was sent again from the sign-in card. */
-  retried: boolean
-}
-
-const NO_AUTH_NEWS: ChatAuth = { agent: 'signed_in', cutShort: false, retried: false }
-
-/** How far an opened chat is: loading its transcript, showing it, or unable to. */
-export interface SessionState {
-  chatId: string
-  phase: 'loading' | 'ready' | 'failed'
-  entries: TranscriptEntry[]
-  /** A turn is running in the main process. */
-  running: boolean
-  auth: ChatAuth
-  /** What was pushed while the transcript was still being fetched; replayed on top of it. */
-  queued: ChatPushEvent[]
-  error: string | null
-}
-
-export type SessionAction =
-  | { type: 'opened'; view: ChatOpenView }
-  | { type: 'failed'; message: string }
-  /** Starts over: the transcript is fetched again after a failed opening. */
-  | { type: 'reopen' }
-  | { type: 'push'; event: ChatPushEvent }
-  /** The message the main process stored for a send, so it shows even before its push arrives. */
-  | { type: 'sent'; item: ChatItem }
-  /** What the agent's own status said when the chat asked whether its sign-in is still gone. */
-  | { type: 'agent_checked'; state: AgentAuthState }
-  /** The message a sign-in cut short was sent again. */
-  | { type: 'retried' }
-
-export function openSession(chatId: string): SessionState {
-  return { chatId, phase: 'loading', entries: [], running: false, auth: NO_AUTH_NEWS, queued: [], error: null }
-}
-
-/**
- * A stored item of any thread: shown, and an `auth_required` one of the chat's own thread also means the agent is
- * signed out. A turn is waiting to be retried unless the item says none was cut short (a sign-in lost while no turn
- * ran), and one that was already waiting still is; an item that does not say counts as having cut one short.
- */
-function applyStored(state: SessionState, item: ChatItem): SessionState {
-  const entries = applyItem(state.entries, item)
-  if (item.kind !== 'auth_required' || item.threadId !== undefined) {
-    return { ...state, entries }
-  }
-  return { ...state, entries, auth: { agent: 'signed_out', cutShort: item.cutShort !== false || state.auth.cutShort, retried: false } }
-}
-
-/** A turn starting leaves nothing to retry: the main process forgets the cut-short message when one starts. */
-function applyTurn(state: SessionState, running: boolean): SessionState {
-  return { ...state, running, auth: running ? { ...state.auth, cutShort: false } : state.auth }
-}
-
-function applyEvent(state: SessionState, event: ChatPushEvent): SessionState {
-  switch (event.type) {
-    case 'item':
-      return applyStored(state, event.item)
-    case 'assistant_delta':
-      return { ...state, entries: applyDelta(state.entries, event.itemId, event.delta, event.threadId) }
-    case 'turn':
-      return applyTurn(state, event.running)
-    case 'agent_auth':
-      return { ...state, auth: { ...state.auth, agent: event.state, retried: event.state === 'signed_out' ? false : state.auth.retried } }
-    case 'chats_changed':
-      // The chat list is not part of a transcript; `useChats` follows it.
-      return state
-  }
-}
-
-/** A chat whose transcript says its sign-in was lost has to ask whether it still is; the record says whether a turn was cut short. */
-function authOf(view: ChatOpenView): ChatAuth {
-  const lost = view.items.some((item) => item.kind === 'auth_required' && item.threadId === undefined)
-  return { agent: lost ? 'checking' : 'signed_in', cutShort: view.chat.cutShortMessageId != null, retried: false }
-}
-
-function opened(state: SessionState, view: ChatOpenView): SessionState {
-  const base: SessionState = { ...state, phase: 'ready', entries: [...view.items], running: view.running, auth: authOf(view), queued: [], error: null }
-  return state.queued.reduce(applyEvent, base)
-}
-
-/** The answer of the check, taken only while the chat is still asking: whatever was pushed meanwhile is newer. */
-function checked(state: SessionState, answer: AgentAuthState): SessionState {
-  if (state.auth.agent !== 'checking') {
-    return state
-  }
-  return { ...state, auth: { ...state.auth, agent: answer === 'signed_out' ? 'signed_out' : 'signed_in' } }
-}
-
-export function reduceSession(state: SessionState, action: SessionAction): SessionState {
-  switch (action.type) {
-    case 'opened':
-      return opened(state, action.view)
-    case 'failed':
-      return { ...state, phase: 'failed', queued: [], error: action.message }
-    case 'reopen':
-      return openSession(state.chatId)
-    case 'sent':
-      return { ...state, entries: applyItem(state.entries, action.item) }
-    case 'agent_checked':
-      return checked(state, action.state)
-    case 'retried':
-      return { ...state, auth: { ...state.auth, cutShort: false, retried: true } }
-    case 'push':
-      return action.event.chatId === state.chatId ? pushed(state, action.event) : state
-  }
-}
-
-/** A push for this chat: replayed after the opening while it is fetched, applied once it is shown, dropped when it failed. */
-function pushed(state: SessionState, event: ChatPushEvent): SessionState {
-  switch (state.phase) {
-    case 'loading':
-      return { ...state, queued: [...state.queued, event] }
-    case 'ready':
-      return applyEvent(state, event)
-    case 'failed':
-      return state
-  }
-}
-
-// ---- Sign-in cards ----
-
-/**
- * What the latest `auth_required` card of a chat offers: Sign in while the agent is signed out, a wait while
- * it is being checked, Retry once it is signed in and a turn was cut short, a note that it was retried; `past`
- * is a card that is only a record (the earlier ones, and one whose turn was replaced by a newer message).
- */
-export type SignInCardState = 'signed_out' | 'checking' | 'retry' | 'retried' | 'past'
-
-export function signInCardState(auth: ChatAuth): SignInCardState {
-  if (auth.agent !== 'signed_in') {
-    return auth.agent
-  }
-  if (auth.retried) {
-    return 'retried'
-  }
-  return auth.cutShort ? 'retry' : 'past'
 }
 
 // ---- Tool calls ----
@@ -287,17 +109,6 @@ export function resultText(call: Pick<ToolCallItem, 'status' | 'resultSummary'>)
 }
 
 // ---- Notices ----
-
-export function modelLabels(models: readonly ModelOption[]): ReadonlyMap<string, string> {
-  return new Map(models.map((model) => [model.id, model.label]))
-}
-
-/** A model switch, with the models' labels where they are known; a switch always applies from the next turn. */
-export function modelChangeText(from: string | null, to: string, labels: ReadonlyMap<string, string>): string {
-  const name = (id: string): string => labels.get(id) ?? id
-  const head = from === null ? `Model set to ${name(to)}.` : `Model changed from ${name(from)} to ${name(to)}.`
-  return `${head} It takes effect from the next turn.`
-}
 
 /** The notice a stopped turn leaves after the message it was answering. */
 export const STOPPED_TEXT = 'You stopped this turn before the agent finished.'

@@ -12,7 +12,6 @@ import type {
   AgentDownloadResult,
   AgentFindResult,
   AgentId,
-  AgentSignInResult,
   AgentView,
   ClaudeCodeConnectResult,
   CommandInput,
@@ -43,6 +42,7 @@ import type {
 import type { TransferView } from '../../../../shared/domain/transfer'
 import { CommandError } from '../../api/dm'
 import { idleChats } from '../../__mocks__/idleChats'
+import { idleTerminals } from '../../__mocks__/idleTerminals'
 import type { Runner } from '../runner'
 import {
   checkpointView,
@@ -108,6 +108,7 @@ export function scenario(patch: Partial<Scenario> = {}): Scenario {
 export class FakeBackend implements DmApi {
   /** No chats unless a test swaps in a `FakeChats`. */
   chats: ChatsApi = idleChats()
+  terminals = idleTerminals()
   readonly calls: RecordedCall[] = []
   readonly opened: string[] = []
   /** Every text put on the clipboard, oldest first. */
@@ -234,10 +235,6 @@ export class FakeBackend implements DmApi {
 
   agentStatus(): Promise<AgentAuthStatus> {
     return Promise.resolve({ state: 'unknown', reason: 'Not connected yet.' })
-  }
-
-  signInAgent(): Promise<AgentSignInResult> {
-    return Promise.resolve({ outcome: 'failed', reason: 'Not connected yet.' })
   }
 
   folderDefaultAgent(): Promise<AgentId | null> {

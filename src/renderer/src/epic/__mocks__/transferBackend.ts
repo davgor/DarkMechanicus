@@ -22,12 +22,6 @@ export function transferSetup(patch: { epic?: EpicDetailView; transfer?: Transfe
   const epic = patch.epic ?? epicDetail()
   const backend = new FakeBackend(scenario({ epic, run: null, checkpoint: null, transfer: patch.transfer ?? transferView() }))
   const chats = new FakeChats()
-  chats.modelLists = {
-    claude: [
-      { id: 'opus', label: 'Opus' },
-      { id: 'sonnet', label: 'Sonnet' }
-    ]
-  }
   chats.transfer = {
     epicTitle: epic.title,
     get status() {

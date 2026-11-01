@@ -6,6 +6,7 @@ import { isActiveRunState } from '../../../shared/domain/status'
 import type { RunView } from '../../../shared/domain/views'
 import { isApproval, StreamApproval, StreamBody } from '../agents/StreamRow'
 import { mergeByTime } from '../agents/threadStream'
+import { useBoundTerminal } from '../agents/useBoundTerminal'
 import { useBoundThread } from '../agents/useBoundThread'
 import { streamEntries, useThreadStream, type StreamEntry, type ThreadStream } from '../agents/useThreadStream'
 import { useRunTimeline } from '../app/useActivityTimeline'
@@ -175,12 +176,14 @@ function FeedLog({ thread, ...props }: FeedProps & { thread: BoundThread | null 
 
 /**
  * The live run feed: a non-modal drawer under the run bar. Escape or Close puts it away. A run that a chat
- * orchestrates also shows that chat's main thread, with a link to the chat; the chat is followed only while
- * the drawer is open.
+ * orchestrates (an old chat's item-based binding) also shows that chat's main thread, with a link to the chat; the
+ * chat is followed only while the drawer is open. A run started from a chat's terminal gets an Open terminal link
+ * to that chat, found by grant.
  */
 function Drawer(props: FeedProps): JSX.Element {
   const panel = useRef<HTMLElement>(null)
   const thread = useBoundThread({ folder: props.folder, runId: props.run.id }, props.view?.cursor)
+  const terminal = useBoundTerminal({ folder: props.folder, runId: props.run.id }, props.view?.cursor)
   useEffect(() => panel.current?.focus(), [])
   const onKeyDown = (event: KeyboardEvent<HTMLElement>): void => {
     if (event.key === 'Escape') {
@@ -200,6 +203,11 @@ function Drawer(props: FeedProps): JSX.Element {
         {thread === null ? null : (
           <button type="button" className="ew-link of-open" onClick={() => props.onOpenChat(thread.chatId)}>
             Open chat
+          </button>
+        )}
+        {terminal === null ? null : (
+          <button type="button" className="ew-link of-open" onClick={() => props.onOpenChat(terminal)}>
+            Open terminal
           </button>
         )}
         <button type="button" className="ew-icon-btn of-close" aria-label="Close feed" onClick={props.onClose}>

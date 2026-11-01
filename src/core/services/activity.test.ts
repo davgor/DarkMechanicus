@@ -200,12 +200,27 @@ describe('getAttemptTimeline — notes, comments, submission, decision and sessi
     const claimed = fullStory(rigged)
     const { sessions } = timeline(rigged, claimed)
     expect(sessions).toEqual([
-      { id: rigged.ctx.session.id, role: 'orchestrator', label: 'Orchestrator chat' },
-      { id: rigged.worker.session.id, role: 'worker', label: 'impl-1 worker' },
-      { id: rigged.desktop.session.id, role: null, label: 'Unknown session' }
+      { id: rigged.ctx.session.id, role: 'orchestrator', label: 'Orchestrator chat', grantId: null },
+      { id: rigged.worker.session.id, role: 'worker', label: 'impl-1 worker', grantId: null },
+      { id: rigged.desktop.session.id, role: null, label: 'Unknown session', grantId: null }
     ])
   })
 
+})
+
+describe('timelines and the grants sessions ran on', () => {
+  it('names the grant a session ran on, in both timelines, so a chat can be found by the grants it was issued', () => {
+    const rigged = rig()
+    rigged.ctx.db.run('UPDATE sessions SET grant_id = ? WHERE id = ?', 'gr_01m69dh6qr4gtz9yekbgv585st', rigged.ctx.session.id)
+    const claimed = fullStory(rigged)
+
+    const attempt = timeline(rigged, claimed)
+    const run = getRunTimeline(rigged.ctx, { runId: rigged.runId })
+
+    expect(attempt.sessions.find((session) => session.id === rigged.ctx.session.id)?.grantId).toBe('gr_01m69dh6qr4gtz9yekbgv585st')
+    expect(attempt.sessions.find((session) => session.id === rigged.worker.session.id)?.grantId).toBeNull()
+    expect(run.groups.find((group) => group.session.id === rigged.ctx.session.id)?.session.grantId).toBe('gr_01m69dh6qr4gtz9yekbgv585st')
+  })
 })
 
 describe('getAttemptTimeline — retries, failures and expired leases', () => {
@@ -490,9 +505,9 @@ describe('getRunTimeline — what a run timeline lists', () => {
       ['impl-1 worker', ['submitted', 'submitted', 'submitted']]
     ])
     expect(view.groups.map((group) => group.session)).toEqual([
-      { id: rigged.desktop.session.id, role: 'desktop', label: 'Desktop app' },
-      { id: rigged.ctx.session.id, role: 'orchestrator', label: 'Orchestrator chat' },
-      { id: rigged.worker.session.id, role: 'worker', label: 'impl-1 worker' }
+      { id: rigged.desktop.session.id, role: 'desktop', label: 'Desktop app', grantId: null },
+      { id: rigged.ctx.session.id, role: 'orchestrator', label: 'Orchestrator chat', grantId: null },
+      { id: rigged.worker.session.id, role: 'worker', label: 'impl-1 worker', grantId: null }
     ])
   })
 
@@ -595,9 +610,9 @@ describe('timelines over a log that has lost or never had some of its records', 
     rigged.ctx.db.run("UPDATE events SET session_id = NULL WHERE kind IN ('attempt.progress', 'run.started')")
     const attempt = timeline(rigged, claimed)
     expect(attempt.entries.find((entry) => entry.kind === 'note')).toMatchObject({ sessionId: null })
-    expect(attempt.sessions).toContainEqual({ id: null, role: null, label: 'Unknown session' })
+    expect(attempt.sessions).toContainEqual({ id: null, role: null, label: 'Unknown session', grantId: null })
     const group = getRunTimeline(rigged.ctx, { runId: rigged.runId }).groups.find((item) => item.session.id === null)
-    expect(group?.session).toEqual({ id: null, role: null, label: 'Unknown session' })
+    expect(group?.session).toEqual({ id: null, role: null, label: 'Unknown session', grantId: null })
     expect(kinds(group?.entries ?? [])).toEqual(['run'])
   })
 

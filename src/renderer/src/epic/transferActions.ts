@@ -22,9 +22,9 @@ export interface TransferActionDeps {
   transferChats: TransferChats
   perform<T>(task: () => Promise<T>): Promise<Result<T>>
   dispatch(action: WorkspaceAction): void
-  /** A chat was created: the shell fetches the folder's chats again. */
-  onChatsChanged(): void
-  /** Shows a chat (the shell leaves the epic for it). */
+  /** A chat was created: the shell fetches the folder's chats again, resolving once they are listed. */
+  onChatsChanged(): Promise<void>
+  /** Opens one of the folder's chats: its terminal (the shell leaves the epic for it). */
   onOpenChat(chatId: string): void
   /** The connected agents, so the toast calls a custom agent by its display name. */
   agents(): readonly AgentView[]
@@ -56,16 +56,23 @@ async function authorize(deps: TransferActionDeps, mode: TransferDialogMode): Pr
   return queued.ok
 }
 
-/** What starting the transfer chat came to: its chat opens when there is one; otherwise the banner says why, and Resume recovers. */
-function chatFeedback(deps: TransferActionDeps, result: Result<StartTransferChatResult>, choice: StartRunChoice): void {
+/**
+ * What starting the transfer chat came to: its chat's terminal opens once the chat is listed when it runs; otherwise
+ * the banner says why (a chat that could not be removed is listed, while the workspace stays on the reason), and
+ * Resume recovers.
+ */
+async function chatFeedback(deps: TransferActionDeps, result: Result<StartTransferChatResult>, choice: StartRunChoice): Promise<void> {
   if (!result.ok) {
     deps.dispatch({ type: 'banner', text: `No transfer chat was started: ${result.failure.message} Press Resume on the transfer to try again.` })
     return
   }
   const { chat, problem } = result.value
   deps.dispatch(problem === null ? { type: 'toast', text: `${agentName(choice.agent, deps.agents())} is carrying out the transfer.` } : { type: 'banner', text: problem })
-  if (chat !== null) {
-    deps.onChatsChanged()
+  if (chat === null) {
+    return
+  }
+  await deps.onChatsChanged()
+  if (problem === null) {
     deps.onOpenChat(chat.id)
   }
 }
@@ -79,7 +86,7 @@ export function createTransferActions(deps: TransferActionDeps): TransferActions
       }
       const started = await deps.perform(() => deps.transferChats.start(choice))
       closeDialog()
-      chatFeedback(deps, started, choice)
+      await chatFeedback(deps, started, choice)
     },
     async copyTransferPrompt(mode) {
       if (!(await authorize(deps, mode))) {

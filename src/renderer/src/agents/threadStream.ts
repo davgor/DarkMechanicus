@@ -1,9 +1,9 @@
 /**
- * What a chat thread shows in the places that follow Dark Mechanicus work (an attempt's Activity tab,
- * the orchestrator feed), free of React. A thread of an open chat (the chat's own, or a subagent's) becomes
- * rows: what was said, what was run, what waits for an answer, and the subagents it started. Rows
- * carry the words to show; nothing is rendered as markup here. Items are already masked when stored, and a
- * Dark Mechanicus call is named by what it did, never by its input.
+ * What a thread of an old chat shows in the places that follow Dark Mechanicus work (an attempt's Activity tab,
+ * the orchestrator feed), free of React. A thread a chat stored before chats became terminals (the chat's own, or
+ * a subagent's) becomes rows: what was said, what was run, the approvals asked with the decision stored for each,
+ * and the subagents it started. Rows carry the words to show; nothing is rendered as markup here. Items are
+ * already masked when stored, and a Dark Mechanicus call is named by what it did, never by its input.
  *
  * Which thread of which chat belongs to an attempt or a run is the main process's binding
  * (`chats:boundThreads`); `chooseBoundThread` picks the one to follow. `clipRows` keeps the rows of one
@@ -24,14 +24,14 @@ type DecisionItem = Extract<ChatItem, { kind: 'approval_decision' }>
 
 interface RowBase {
   id: string
-  /** When it was stored (ISO 8601); null for a text that is still being written. */
-  at: string | null
+  /** When it was stored (ISO 8601). */
+  at: string
   /** The state color of the row's dot. */
   tone: Tone
 }
 
 export type StreamRow =
-  | (RowBase & { kind: 'message'; who: 'You' | 'Assistant'; text: string; streaming: boolean })
+  | (RowBase & { kind: 'message'; who: 'You' | 'Assistant'; text: string })
   | (RowBase & { kind: 'tool'; title: string; summary: string; status: ReturnType<typeof callStatus> })
   | (RowBase & { kind: 'approval'; request: ApprovalRequestItem; answer: DecisionItem | null })
   | (RowBase & { kind: 'thread'; label: string; state: ReturnType<typeof threadStateView> })
@@ -57,15 +57,13 @@ function approvalBody(request: ApprovalRequestItem, answer: DecisionItem | null)
   return { kind: 'approval', tone: answer === null ? 'attention' : 'neutral', request, answer }
 }
 
-/** The body a stored or streaming entry has as a row; null for what is not part of the conversation. */
+/** The body a stored entry has as a row; null for what is not part of the conversation. */
 function bodyOf(entry: TranscriptEntry, answer: DecisionItem | null): Body | null {
   switch (entry.kind) {
     case 'user_message':
-      return { kind: 'message', tone: 'neutral', who: 'You', text: entry.text, streaming: false }
+      return { kind: 'message', tone: 'neutral', who: 'You', text: entry.text }
     case 'assistant_text':
-      return { kind: 'message', tone: 'neutral', who: 'Assistant', text: entry.text, streaming: false }
-    case 'streaming_text':
-      return { kind: 'message', tone: 'neutral', who: 'Assistant', text: entry.text, streaming: true }
+      return { kind: 'message', tone: 'neutral', who: 'Assistant', text: entry.text }
     case 'tool_call':
       return toolBody(entry)
     case 'approval_request':
@@ -84,53 +82,27 @@ function bodyOf(entry: TranscriptEntry, answer: DecisionItem | null): Body | nul
   }
 }
 
-/** Each thread's parent: the thread the `thread` item that started it was stored in (undefined: the chat's own). */
-function parentsOf(entries: readonly TranscriptEntry[]): ReadonlyMap<string, string | undefined> {
-  return new Map(entries.flatMap((entry): [string, string | undefined][] => (entry.kind === 'thread' ? [[entry.id, entry.threadId]] : [])))
-}
-
-/** Whether `threadId` is `scope` itself or any thread below it, by following the threads that started it upward. */
-function inside(parents: ReadonlyMap<string, string | undefined>, scope: string | undefined, threadId: string | undefined): boolean {
-  const seen = new Set<string>()
-  let current = threadId
-  while (!seen.has(current ?? '')) {
-    if (current === scope) {
-      return true
-    }
-    if (current === undefined) {
-      return false
-    }
-    seen.add(current)
-    current = parents.get(current)
-  }
-  return false
-}
-
 function rowOf(entry: TranscriptEntry, answer: DecisionItem | null): StreamRow | null {
   const body = bodyOf(entry, answer)
-  return body === null ? null : ({ id: entry.id, at: 'at' in entry ? entry.at : null, ...body } as StreamRow)
+  return body === null ? null : ({ id: entry.id, at: entry.at, ...body } as StreamRow)
 }
 
 /**
  * The rows of one thread of a chat (`threadId` null: the chat's own), in the order stored: its own messages,
  * calls, approvals, errors and the subagent threads it started (one row each, with the label and state).
- * What happens inside those subagents is not shown, except a request that still waits for an answer anywhere
- * below: it is the one thing a person must not miss. A thread the transcript does not have yields no rows.
+ * What happens inside those subagents is not shown. A thread the transcript does not have yields no rows.
  */
 export function streamRows(entries: readonly TranscriptEntry[], threadId: string | null): StreamRow[] {
   const scope = threadId ?? undefined
-  const parents = parentsOf(entries)
   return transcriptRows(entries).flatMap(({ entry, answer }): StreamRow[] => {
-    const own = entry.threadId === scope
-    const waitingBelow = entry.kind === 'approval_request' && answer === null && inside(parents, scope, entry.threadId)
-    const row = own || waitingBelow ? rowOf(entry, answer) : null
+    const row = entry.threadId === scope ? rowOf(entry, answer) : null
     return row === null ? [] : [row]
   })
 }
 
-/** The time a row sorts by; a text still being written (or a time that cannot be read) is the newest. */
-function timeOf(at: string | null): number {
-  const time = at === null ? Number.NaN : Date.parse(at)
+/** The time a row sorts by; a time that cannot be read is the newest. */
+function timeOf(at: string): number {
+  const time = Date.parse(at)
   return Number.isNaN(time) ? Number.POSITIVE_INFINITY : time
 }
 
@@ -148,8 +120,7 @@ function boundOf(at: string | null, open: number): number {
 
 /**
  * The rows that happened inside the window. A thread that served two attempts holds both attempts' rows;
- * each attempt shows its own. A text still being written (no time yet) is happening now, so it is inside
- * only a window that has not ended.
+ * each attempt shows its own.
  */
 export function clipRows(rows: readonly StreamRow[], window: RowWindow): StreamRow[] {
   const from = boundOf(window.from, Number.NEGATIVE_INFINITY)
@@ -169,10 +140,9 @@ function recordFirst(record: number, row: number, order: 'oldest_first' | 'newes
 
 /**
  * The chat rows among the records, in time order. Both lists must already be in the requested order; each
- * keeps its own order, and the records come first when both happened at the same time. Rows still being
- * written, which have no time yet, count as the newest.
+ * keeps its own order, and the records come first when both happened at the same time.
  */
-export function mergeByTime<R, S extends { at: string | null }>(
+export function mergeByTime<R, S extends { at: string }>(
   records: readonly R[],
   recordAt: (item: R) => string,
   rows: readonly S[],

@@ -46,9 +46,11 @@ is open.
 ## Start it with an agent in the app
 
 In the dialog, pick a connected, signed-in agent and a model, then press **Transfer with agent**.
-Dark Mechanicus authorizes the transfer, starts the agent as orchestrator in a chat titled
-`Linear transfer · <epic title>`, and sends it the transfer prompt. The chat opens. The agent
-cannot save plans.
+Dark Mechanicus authorizes the transfer, starts the agent's CLI as orchestrator in a terminal chat
+titled `Linear transfer · <epic title>`, and gives it the transfer prompt as its first input. The
+chat's terminal opens. The agent cannot save plans. If the CLI exits, open the chat (or press
+**Resume** on the transfer) to start it again; the prompt goes only with the chat's first start,
+so if the agent lost it, press **Copy prompt** on the transfer and paste it in.
 
 ## Start it with an external agent
 
@@ -76,8 +78,8 @@ The first time, Linear's sign-in may open in your browser; complete it there. In
 `/mcp` to sign in. The agent then lists your Linear teams and asks in the chat which team to use.
 Every issue goes into that team.
 
-In an in-app chat, the agent's tool calls may wait for your approval in the chat, like any other
-chat.
+In an in-app chat, the agent's tool calls may ask for your approval in its terminal, as its CLI
+always does.
 
 ## What goes where
 

@@ -40,18 +40,15 @@ export default defineConfig(({ command }) => {
     main: {
       build: {
         outDir: 'out/main',
-        // Dependencies are left to node_modules at runtime, except the Claude Agent SDK: it is an
-        // ESM-only package that the CommonJS main bundle cannot `require`, and it ships a native
-        // `claude` binary the app never uses (the chat adapter runs the user's own executable).
-        // Bundling it keeps both out of the installer; it lives in devDependencies for the same reason.
-        externalizeDeps: { exclude: ['@anthropic-ai/claude-agent-sdk'] },
         rollupOptions: {
           // `mcp` is the headless stdio MCP server agents launch; it shares src/core with the desktop.
           input: {
             index: 'src/main/index.ts',
             mcp: 'src/mcp/main.ts',
             // `cli` is the `dm` command: the same command table over a one-shot process.
-            cli: 'src/cli/main.ts'
+            cli: 'src/cli/main.ts',
+            // The `PreToolUse` hook a chat terminal's Claude Code runs before a file write (`claudeSettingsFile.ts`).
+            claudeMemoryHook: 'src/main/terminals/claudeMemoryHook.ts'
           }
         }
       }

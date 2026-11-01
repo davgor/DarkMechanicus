@@ -14,18 +14,11 @@ export function registerChatIpc(ipcMain: Pick<IpcMain, 'handle'>, handlers: Chat
   ipcMain.handle('chats:startTransferChat', (_event, request: unknown) => handlers.startTransferChat(request))
   ipcMain.handle('chats:findTransferChat', (_event, request: unknown) => handlers.findTransferChat(request))
   ipcMain.handle('chats:transferPrompt', (_event, request: unknown) => handlers.transferPrompt(request))
-  ipcMain.handle('chats:open',(_event, request: unknown) => handlers.open(request))
   ipcMain.handle('chats:read', (_event, request: unknown) => handlers.read(request))
-  ipcMain.handle('chats:send', (_event, request: unknown) => handlers.send(request))
-  ipcMain.handle('chats:stop', (_event, request: unknown) => handlers.stop(request))
-  ipcMain.handle('chats:threadBindings', (_event, request: unknown) => handlers.threadBindings(request))
   ipcMain.handle('chats:boundThreads', (_event, request: unknown) => handlers.boundThreads(request))
-  ipcMain.handle('chats:retryTurn', (_event, request: unknown) => handlers.retryTurn(request))
-  ipcMain.handle('chats:setModel', (_event, request: unknown) => handlers.setModel(request))
+  ipcMain.handle('chats:boundTerminal', (_event, request: unknown) => handlers.boundTerminal(request))
   ipcMain.handle('chats:rename', (_event, request: unknown) => handlers.rename(request))
   ipcMain.handle('chats:delete', (_event, request: unknown) => handlers.delete(request))
-  ipcMain.handle('chats:answerApproval', (_event, request: unknown) => handlers.answerApproval(request))
-  ipcMain.handle('chats:models', (_event, agent: unknown) => handlers.models(agent))
 }
 
 /** What the push needs of a `BrowserWindow`. */

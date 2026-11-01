@@ -102,6 +102,7 @@ describe('the transfer strip: Resume', () => {
     fireEvent.click((await strip()).getByRole('button', { name: 'Resume' }))
     const shown = within(await screen.findByRole('dialog', { name: 'Resume transfer' }))
     await waitFor(() => expect(shown.getByLabelText('Model')).toBeTruthy())
+    fireEvent.change(shown.getByLabelText('Model'), { target: { value: 'opus' } })
     fireEvent.click(shown.getByRole('button', { name: 'Resume with agent' }))
 
     await waitFor(() => expect(host.openedChats).toEqual(['chat_new_1']))

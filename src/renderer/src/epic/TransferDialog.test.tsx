@@ -45,11 +45,9 @@ interface Setup {
 const dialog = (): ReturnType<typeof within> => within(screen.getByRole('dialog'))
 const button = (name: string): HTMLButtonElement => dialog().getByRole('button', { name }) as HTMLButtonElement
 
-/** The dialog alone, over a bridge that lists each agent's models; the calls record what its actions asked for. */
+/** The dialog alone; the calls record what its actions asked for. The models are each agent's own (`agentModels`). */
 async function open(setup: Setup = {}): Promise<Calls> {
-  const dm = new FakeDm()
-  dm.chats.modelLists = { claude: [{ id: 'opus', label: 'Opus' }], codex: [{ id: 'gpt-5', label: 'GPT-5' }] }
-  window.dm = dm
+  window.dm = new FakeDm()
   const calls: Calls = { agent: [], copied: 0 }
   render(
     <TransferDialog
@@ -77,11 +75,21 @@ describe('TransferDialog: the agent choice', () => {
 
     expect(dialog().getAllByRole('radio')).toHaveLength(1)
     expect((dialog().getByRole('radio', { name: /Codex/ }) as HTMLInputElement).checked).toBe(true)
-    expect(Array.from((dialog().getByLabelText('Model') as HTMLSelectElement).options).map((option) => option.value)).toEqual(['gpt-5'])
+    expect(Array.from((dialog().getByLabelText('Model') as HTMLSelectElement).options).map((option) => option.textContent)).toEqual(['CLI default'])
     fireEvent.click(button('Transfer with agent'))
 
-    expect(calls.agent).toEqual([{ agent: 'codex', model: 'gpt-5' }])
+    expect(calls.agent).toEqual([{ agent: 'codex', model: null }])
     expect(calls.copied).toBe(0)
+  })
+
+  it("transfers with the model picked from the agent's list", async () => {
+    const calls = await open({ statuses: { claude: SIGNED_IN, codex: SIGNED_OUT } })
+
+    expect(Array.from((dialog().getByLabelText('Model') as HTMLSelectElement).options).map((option) => option.value)).toEqual(['default', 'opus', 'sonnet', 'haiku'])
+    fireEvent.change(dialog().getByLabelText('Model'), { target: { value: 'opus' } })
+    fireEvent.click(button('Transfer with agent'))
+
+    expect(calls.agent).toEqual([{ agent: 'claude', model: 'opus' }])
   })
 
   it('still copies the prompt with no agent connected, and cannot transfer with one', async () => {

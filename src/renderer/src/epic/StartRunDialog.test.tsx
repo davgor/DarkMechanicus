@@ -1,32 +1,26 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { useState } from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { AgentAuthStatus, AgentId, AgentView } from '../../../shared/desktop/api'
 import { FakeDm } from '../__mocks__/fakeDm'
 import { agentView } from '../__mocks__/fixtures'
 import { settle } from '../__mocks__/settle'
-import { SIGN_IN_POLL_MS } from '../agents/SignInPrompt'
+import { SignInRecorder } from '../__mocks__/signInRecorder'
 import type { StartRunChoice } from './orchestration'
 import { StartRunDialog } from './StartRunDialog'
 
 let dm: FakeDm
+let recorder: SignInRecorder
 
 beforeEach(() => {
   dm = new FakeDm()
   window.dm = dm
-  dm.chats.modelLists = {
-    claude: [
-      { id: 'opus', label: 'Opus' },
-      { id: 'sonnet', label: 'Sonnet' }
-    ],
-    codex: [{ id: 'gpt-5', label: 'GPT-5' }]
-  }
+  recorder = new SignInRecorder()
 })
 
 afterEach(() => {
   cleanup()
-  vi.useRealTimers()
 })
 
 const SIGNED_IN: AgentAuthStatus = { state: 'signed_in', reason: 'ok' }
@@ -34,6 +28,7 @@ const SIGNED_OUT: AgentAuthStatus = { state: 'signed_out', reason: 'no' }
 
 const claude = agentView({ kind: 'claude' })
 const codex = agentView({ kind: 'codex', executablePath: '/bin/codex', version: '0.9.1' })
+const autonomous = agentView({ kind: 'autonomous', executablePath: '/bin/a8s' })
 
 interface Setup {
   agents?: AgentView[]
@@ -92,7 +87,7 @@ function Harness({ setup, calls }: { setup: Setup; calls: Calls }): JSX.Element 
 
 async function open(setup: Setup = {}): Promise<Calls> {
   const calls: Calls = { agent: [], pending: 0, closed: 0, addAgent: 0, order: [] }
-  render(<Harness setup={setup} calls={calls} />)
+  render(recorder.wrap(<Harness setup={setup} calls={calls} />))
   await settle()
   return calls
 }
@@ -113,7 +108,7 @@ describe('StartRunDialog: the folder default agent', () => {
     ])
     expect(agentRadio('Codex').checked).toBe(true)
     fireEvent.click(runWithAgent())
-    expect(calls.agent).toEqual([{ agent: 'codex', model: 'gpt-5' }])
+    expect(calls.agent).toEqual([{ agent: 'codex', model: null }])
   })
 
   it('waits for the default before it can run with an agent', async () => {
@@ -172,18 +167,18 @@ describe('StartRunDialog: run with an agent', () => {
 
     expect(dialog().getAllByRole('radio')).toHaveLength(1)
     expect(agentRadio('Codex').checked).toBe(true)
-    expect(modelOptions()).toEqual(['gpt-5'])
+    expect(modelOptions()).toEqual([''])
   })
 
   it('shows the models of the agent that is picked', async () => {
     await open()
     expect(agentRadio('Claude Code').checked).toBe(true)
-    expect(modelOptions()).toEqual(['opus', 'sonnet'])
+    expect(modelOptions()).toEqual(['default', 'opus', 'sonnet', 'haiku'])
 
     fireEvent.click(agentRadio('Codex'))
     await settle()
 
-    expect(modelOptions()).toEqual(['gpt-5'])
+    expect(modelOptions()).toEqual([''])
   })
 
   it('starts the chosen agent on the chosen model', async () => {
@@ -196,20 +191,8 @@ describe('StartRunDialog: run with an agent', () => {
     expect(calls.pending).toBe(0)
   })
 
-  it('offers CLI default when the agent lists no models, and starts it with model null', async () => {
-    dm.chats.modelLists = {}
-    const calls = await open()
-    const select = dialog().getByLabelText('Model') as HTMLSelectElement
-    expect(Array.from(select.options).map((option) => option.textContent)).toEqual(['CLI default'])
-
-    fireEvent.click(runWithAgent())
-
-    expect(calls.agent).toEqual([{ agent: 'claude', model: null }])
-  })
-
   it('offers a custom agent by its name and runs it on CLI default', async () => {
-    const custom = agentView({ kind: 'custom', displayName: 'My ACP', protocol: 'acp' })
-    dm.chats.modelLists = { [custom.id]: [] }
+    const custom = agentView({ kind: 'custom', displayName: 'My ACP' })
     const calls = await open({ agents: [custom], statuses: { [custom.id]: { state: 'unchecked', reason: 'Not checked.' } } })
     expect(agentRadio('My ACP').checked).toBe(true)
     expect(Array.from((dialog().getByLabelText('Model') as HTMLSelectElement).options).map((option) => option.textContent)).toEqual(['CLI default'])
@@ -225,6 +208,85 @@ describe('StartRunDialog: run with an agent', () => {
     expect(dialog().getByText(/cannot save plans/)).toBeTruthy()
     expect(dialog().queryByLabelText('Role')).toBeNull()
     expect(dialog().queryByRole('checkbox')).toBeNull()
+  })
+})
+
+describe('StartRunDialog: the model choice', () => {
+  it('lists Claude Code’s curated models, and starts Default (recommended) with model null so the CLI picks', async () => {
+    const calls = await open()
+    const select = dialog().getByLabelText('Model') as HTMLSelectElement
+    expect(Array.from(select.options).map((option) => option.textContent)).toEqual(['Default (recommended)', 'Opus', 'Sonnet', 'Haiku'])
+    expect(select.value).toBe('default')
+
+    fireEvent.click(runWithAgent())
+
+    expect(calls.agent).toEqual([{ agent: 'claude', model: null }])
+  })
+
+  it('offers CLI default for an agent the app lists no models for, and starts it with model null', async () => {
+    const calls = await open({ agents: [codex], statuses: { codex: SIGNED_IN } })
+    const select = dialog().getByLabelText('Model') as HTMLSelectElement
+    expect(Array.from(select.options).map((option) => option.textContent)).toEqual(['CLI default'])
+
+    fireEvent.click(runWithAgent())
+
+    expect(calls.agent).toEqual([{ agent: 'codex', model: null }])
+  })
+
+  it('forgets a model picked for one agent when another is picked', async () => {
+    const calls = await open()
+    fireEvent.change(dialog().getByLabelText('Model'), { target: { value: 'haiku' } })
+    fireEvent.click(agentRadio('Codex'))
+    fireEvent.click(agentRadio('Claude Code'))
+
+    fireEvent.click(runWithAgent())
+
+    expect(calls.agent).toEqual([{ agent: 'claude', model: null }])
+  })
+})
+
+describe('StartRunDialog: Autonomous takes a typed model', () => {
+  const openAutonomous = (): Promise<Calls> => open({ agents: [autonomous], statuses: { autonomous: SIGNED_IN } })
+  const modelBox = (): HTMLInputElement => dialog().getByRole('textbox', { name: 'Model' }) as HTMLInputElement
+
+  it('starts on its default model while the box is empty', async () => {
+    const calls = await openAutonomous()
+    expect(modelBox().value).toBe('')
+
+    fireEvent.click(runWithAgent())
+
+    expect(calls.agent).toEqual([{ agent: 'autonomous', model: null }])
+  })
+
+  it('starts on the model typed, trimmed', async () => {
+    const calls = await openAutonomous()
+    fireEvent.change(modelBox(), { target: { value: '  anthropic/claude-opus-4.5 ' } })
+
+    fireEvent.click(runWithAgent())
+
+    expect(calls.agent).toEqual([{ agent: 'autonomous', model: 'anthropic/claude-opus-4.5' }])
+  })
+
+  it.each(['--yolo', 'opus; rm -rf', 'a"b', 'x'.repeat(201)])('refuses %s: says why and cannot run with the agent', async (typed) => {
+    const calls = await openAutonomous()
+    fireEvent.change(modelBox(), { target: { value: typed } })
+
+    expect(dialog().getByRole('alert').textContent).toMatch(/model id holds only/)
+    expect(modelBox().getAttribute('aria-invalid')).toBe('true')
+    expect(runWithAgent().disabled).toBe(true)
+    fireEvent.click(runWithAgent())
+    expect(calls.agent).toEqual([])
+    expect(leavePending().disabled).toBe(false)
+  })
+
+  it('can run again once the typed model is fixed', async () => {
+    const calls = await openAutonomous()
+    fireEvent.change(modelBox(), { target: { value: '-bad' } })
+    fireEvent.change(modelBox(), { target: { value: 'good-model' } })
+
+    expect(dialog().queryByRole('alert')).toBeNull()
+    fireEvent.click(runWithAgent())
+    expect(calls.agent).toEqual([{ agent: 'autonomous', model: 'good-model' }])
   })
 })
 
@@ -267,31 +329,24 @@ describe('StartRunDialog: no agent that is connected and signed in', () => {
     expect(unavailable.getByText('Signed out')).toBeTruthy()
     expect(dialog().queryByRole('radio', { name: /Claude Code/ })).toBeNull()
     fireEvent.click(unavailable.getByRole('button', { name: 'Sign in' }))
-    await settle()
 
-    expect(dm.agentCallsOf('signInAgent')).toEqual([['claude']])
+    expect(recorder.agents()).toEqual(['claude'])
     expect(calls.closed).toBe(0)
   })
 
   it('makes the signed-out agent selectable once the status says signed in, without leaving the dialog', async () => {
     const calls = await open({ agents: [claude], statuses: { claude: SIGNED_OUT } })
     expect(runWithAgent().disabled).toBe(true)
-    vi.useFakeTimers()
     fireEvent.click(dialog().getByRole('button', { name: 'Sign in' }))
-    await settle()
-
-    dm.agentStatuses.claude = SIGNED_IN
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(SIGN_IN_POLL_MS)
-    })
+    act(() => recorder.finish(SIGNED_IN))
     await settle()
 
     expect(agentRadio('Claude Code').checked).toBe(true)
     expect(dialog().queryByRole('button', { name: 'Sign in' })).toBeNull()
-    expect(modelOptions()).toEqual(['opus', 'sonnet'])
+    expect(modelOptions()).toEqual(['default', 'opus', 'sonnet', 'haiku'])
     expect(runWithAgent().disabled).toBe(false)
     fireEvent.click(runWithAgent())
-    expect(calls.agent).toEqual([{ agent: 'claude', model: 'opus' }])
+    expect(calls.agent).toEqual([{ agent: 'claude', model: null }])
     expect(calls.closed).toBe(0)
   })
 })

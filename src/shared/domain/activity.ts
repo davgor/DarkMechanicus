@@ -14,6 +14,11 @@ export interface ActivitySession {
   id: string | null
   role: SessionRole | null
   label: string
+  /**
+   * The grant the session presented (`sessions.grant_id`): what the desktop finds the chat by whose terminal it ran
+   * in, since a chat stores the ids of the grants issued to it. Null for a session that presented none.
+   */
+  grantId: string | null
 }
 
 interface EntryBase {

@@ -31,7 +31,7 @@ function run(seq: number, secondsAgo: number, change: 'started' | 'paused', reas
 }
 
 function group(label: string, role: RunActivityGroup['session']['role'], entries: ActivityEntry[], id = 'ss_orch'): RunActivityGroup {
-  return { session: { id, role, label }, entries }
+  return { session: { id, role, label, grantId: null }, entries }
 }
 
 function view(groups: RunActivityGroup[]): RunTimelineView {

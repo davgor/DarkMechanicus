@@ -2,23 +2,20 @@
  * A chat's grant is revoked through the workspace it was issued in, held since issue, never by
  * finding its folder again: a folder renamed or untracked while the chat ran still has its grant
  * revoked, in the database it moved with. One that cannot be reached is logged in one line naming
- * the grant and its expiry, and the dispose goes on.
+ * the grant and its expiry, and the revoke does not throw.
  */
 import { mkdirSync, mkdtempSync, realpathSync, renameSync, rmSync } from 'node:fs'
 import { DatabaseSync } from 'node:sqlite'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import type { ChatRecord } from '../../shared/agents/chat'
 import { DomainError } from '../../core/errors'
 import { openWorkspace } from '../../core/workspace'
 import { createSequentialIds, createTestClock } from '../../test/testContext'
 import { createFakeGit } from '../../test/workspaceHarness'
 import { buildCliConfig } from '../desktop/cliConfig'
 import { createWorkspacePool, type WorkspacePool } from '../desktop/workspacePool'
-import { AT, connectedAgents, fakeAdapters, memoryChatFs, memoryChatStore } from './__mocks__/fakeChatAdapter'
-import { createChatGrants } from './chatGrants'
-import { createSessionManager, type SessionManager } from './sessionManager'
+import { createChatGrants, type ChatGrants } from './chatGrants'
 
 /** The test clock's start plus the twelve hours a chat grant lasts. */
 const EXPIRES_AT = '2026-04-01T21:00:00.000Z'
@@ -30,11 +27,10 @@ interface GrantRow {
 }
 
 interface Rig {
-  manager: SessionManager
+  grants: ChatGrants
   pool: WorkspacePool
   tracked: Set<string>
   logged: string[]
-  errors: unknown[]
 }
 
 let root: string
@@ -65,7 +61,6 @@ async function rig(): Promise<Rig> {
   await pool.get(repo).initializeRepository({ name: 'scratch-a' })
   const tracked = new Set([repo])
   const logged: string[] = []
-  const errors: unknown[] = []
   const grants = createChatGrants({
     workspaceFor: (folder) => {
       if (!tracked.has(folder)) {
@@ -77,22 +72,7 @@ async function rig(): Promise<Rig> {
     minutes: 12 * 60,
     log: (line) => logged.push(line)
   })
-  const manager = createSessionManager({
-    store: memoryChatStore(memoryChatFs([repo])),
-    adapters: fakeAdapters().definitions,
-    agentFor: connectedAgents(),
-    folders: { trackedFolder: (path) => (tracked.has(path) ? path : null) },
-    ...grants,
-    push: () => {},
-    now: () => AT,
-    onError: (error) => errors.push(error)
-  })
-  return { manager, pool, tracked, logged, errors }
-}
-
-function settle(): Promise<void> {
-  // Promise.withResolvers is outside the TypeScript lib this repo targets.
-  return new Promise((resolve) => setImmediate(resolve))
+  return { grants, pool, tracked, logged }
 }
 
 /** The grants in the folder's own `state.sqlite`, read after every session on it has closed. */
@@ -115,69 +95,57 @@ function openSessionsIn(folder: string): number {
   }
 }
 
-/** Starts a chat's agent, so its grant is issued in the folder's workspace. */
-async function liveChat(state: Rig): Promise<ChatRecord> {
-  const chat = state.manager.createChat({ folder: repo, agent: 'claude', role: 'orchestrator', title: 'Fix the build' })
-  await state.manager.send(chat, 'hello')
-  await settle()
-  expect(grantsIn(repo)).toEqual([expect.objectContaining({ revoked_at: null })])
-  return chat
+/** Issues a chat's grant in the folder's workspace, as a chat terminal's start does; returns its id. */
+async function liveChat(state: Rig): Promise<string> {
+  const { grantId } = await state.grants.issueChatCli(repo, { role: 'orchestrator', allowSave: true, label: 'Claude Code · Fix the build' })
+  expect(grantsIn(repo)).toEqual([expect.objectContaining({ id: grantId, revoked_at: null })])
+  return grantId
 }
 
-const ENDINGS = [
-  ['the next message stops it', (state: Rig, chat: ChatRecord) => state.manager.send(chat, 'again')],
-  ['the app quits', (state: Rig) => state.manager.disposeAll()]
-] as const
-
 describe('chat grants: revoked through the workspace they were issued in', () => {
-  it.each(ENDINGS)('revokes the grant of a chat whose folder was renamed while it ran, when %s', async (_when, end) => {
+  it('revokes the grant of a chat whose folder was renamed while it ran', async () => {
     const state = await rig()
-    const chat = await liveChat(state)
+    const grantId = await liveChat(state)
     renameSync(repo, moved)
 
-    await end(state, chat)
-    await settle()
+    await state.grants.revokeChatGrant(grantId)
     state.pool.closeAll()
 
     expect(grantsIn(moved)).toEqual([expect.objectContaining({ revoked_at: expect.any(String) })])
-    expect(state.manager.liveCount()).toBe(0)
-    expect([state.logged, state.errors]).toEqual([[], []])
+    expect(state.logged).toEqual([])
   })
 
   it('revokes the grant of a chat whose folder was untracked while it ran, closing the workspace it reopened', async () => {
     const state = await rig()
-    const chat = await liveChat(state)
+    const grantId = await liveChat(state)
     // What untracking a folder does: the registry forgets it and the pool closes its workspace.
     state.tracked.delete(repo)
     state.pool.close(repo)
 
-    await state.manager.send(chat, 'again')
-    await settle()
+    await state.grants.revokeChatGrant(grantId)
 
     expect(grantsIn(repo)).toEqual([expect.objectContaining({ revoked_at: expect.any(String) })])
     expect(openSessionsIn(repo)).toBe(0)
-    expect([state.logged, state.errors]).toEqual([[], []])
+    expect(state.logged).toEqual([])
   })
 })
 
 describe('chat grants: a workspace that cannot be reached', () => {
-  it('logs one line naming the grant and its expiry, and the dispose does not throw', async () => {
+  it('logs one line naming the grant and its expiry, and the revoke does not throw', async () => {
     const state = await rig()
-    await liveChat(state)
-    // The pool released the workspace before the chats were disposed, and the folder has moved since.
+    const grantId = await liveChat(state)
+    // The pool released the workspace before the chat's terminal ended, and the folder has moved since.
     state.pool.closeAll()
     renameSync(repo, moved)
 
-    await expect(state.manager.disposeAll()).resolves.toBeUndefined()
+    await expect(state.grants.revokeChatGrant(grantId)).resolves.toBeUndefined()
 
     const [grant] = grantsIn(moved)
-    expect(grant).toMatchObject({ expires_at: EXPIRES_AT, revoked_at: null })
+    expect(grant).toMatchObject({ id: grantId, expires_at: EXPIRES_AT, revoked_at: null })
     expect(state.logged).toHaveLength(1)
-    expect(state.logged[0]).toContain(grant?.id)
+    expect(state.logged[0]).toContain(grantId)
     expect(state.logged[0]).toContain(EXPIRES_AT)
     expect(state.logged[0]).not.toContain('\n')
-    expect(state.errors).toEqual([])
-    expect(state.manager.liveCount()).toBe(0)
   })
 
   it('logs one line for a grant it never issued, and does not throw', async () => {

@@ -1,7 +1,7 @@
 /**
- * What `chats:boundThreads` answers: the chat threads bound to one attempt or one run
+ * What `chats:boundThreads` answers: the threads of old chats bound to one attempt or one run
  * (`ActivityBindings.byAttempt` and `byRun`), each as the folder, chat, thread and role that name the
- * thread to open (`chats:open`) and to follow (the push channel). Bindings are kept app-wide, so only the
+ * thread to read (`chats:read`). Bindings are kept app-wide, so only the
  * ones of the folder that was asked about are answered: a folder never learns another folder's chats.
  * Nothing about the attempt or run itself is passed on, and no claim token is ever kept in a binding.
  */

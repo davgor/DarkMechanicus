@@ -141,41 +141,29 @@ describe('Activity tab following the chat', () => {
 
     expect(dm.chats.callsOf('boundThreads')[0]).toEqual([{ folder: FOLDER, attemptId: ATTEMPT }])
     expect(dm.chats.callsOf('read')).toEqual([[{ folder: FOLDER, chatId: 'chat_o' }]])
-    expect(dm.chats.callsOf('open')).toEqual([])
   })
 
-  it('adds an item the thread stores while the tab is open, and a text as it is being written', async () => {
+  it('reads the chat once and follows nothing: an old transcript no longer changes', async () => {
     seed([THREAD, said('s1', 2, 'Reading')])
-    serve(page([claim(), note(9, 'Late note')], 4))
+    serve(page([claim()], 2))
     renderTab()
     await screen.findByText('Reading')
 
-    act(() => dm.chats.emitItem('chat_o', ran('r2', 4, 'npm run build')))
-    expect(await screen.findByText(/npm run build/)).toBeTruthy()
-    act(() => dm.chats.emit({ type: 'assistant_delta', chatId: 'chat_o', itemId: 'typing', delta: 'Fixing the', threadId: 'th_1' }))
-    act(() => dm.chats.emit({ type: 'assistant_delta', chatId: 'chat_o', itemId: 'typing', delta: ' import', threadId: 'th_1' }))
+    act(() => dm.chats.emit({ type: 'chats_changed', folder: FOLDER, chatId: 'chat_o' }))
+    await settle()
 
-    const lines = rows()
-    expect(lines.map((line) => ['Claimed', 'Reading', 'npm run build', 'Late note', 'Fixing the import'].find((part) => line.includes(part)))).toEqual([
-      'Claimed',
-      'Reading',
-      'npm run build',
-      'Late note',
-      'Fixing the import'
-    ])
+    expect(dm.chats.callsOf('read')).toHaveLength(1)
+    expect(dm.chats.subscribers()).toBe(0)
   })
 
-  it('shows nothing of the chat outside the thread, or of another chat', async () => {
+  it('shows nothing of the chat outside the thread', async () => {
     seed([THREAD, said('own', 2, 'In the main thread', null), said('other', 2, 'In another thread', 'th_2'), said('mine', 3, 'In my thread')])
     serve(page([claim()], 2))
     renderTab()
     await screen.findByText('In my thread')
 
-    act(() => dm.chats.emit({ type: 'item', chatId: 'chat_elsewhere', item: said('x', 4, 'From another chat') }))
-
     expect(screen.queryByText('In the main thread')).toBe(null)
     expect(screen.queryByText('In another thread')).toBe(null)
-    expect(screen.queryByText('From another chat')).toBe(null)
   })
 
 })
@@ -215,16 +203,17 @@ describe('Activity tab choosing the thread to follow', () => {
     expect(dm.chats.callsOf('boundThreads')).toHaveLength(3)
   })
 
-  it('stops following the chat when the tab is closed', async () => {
+  it('subscribes to nothing while the tab is open, and reads nothing more once it is closed', async () => {
     seed([THREAD, said('s1', 2, 'Reading')])
     serve(page([claim()], 2))
     const view = renderTab()
     await screen.findByText('Reading')
-    expect(dm.chats.subscribers()).toBe(1)
+    expect(dm.chats.subscribers()).toBe(0)
 
     view.unmount()
+    await settle()
 
-    expect(dm.chats.subscribers()).toBe(0)
+    expect(dm.chats.callsOf('read')).toHaveLength(1)
   })
 
   it('keeps the timeline when the chat cannot be read, and says so', async () => {
@@ -263,36 +252,17 @@ describe('Activity tab Open chat link', () => {
 })
 
 describe('Activity tab approvals of the thread', () => {
-  it('shows a request the thread waits on and sends the answer', async () => {
+  it('shows a request no decision was stored for as not answered, with nothing to answer', async () => {
     seed([THREAD, asked('req_1', 2)])
     serve(page([claim()], 2))
     renderTab()
 
     const card = await screen.findByRole('article', { name: 'Approval request: Run a command' })
-    expect(within(card).getByText('Needs your answer')).toBeTruthy()
-    fireEvent.click(within(card).getByRole('button', { name: 'Allow once' }))
-    await settle()
-
-    expect(dm.chats.callsOf('answerApproval')).toEqual([[{ folder: FOLDER, chatId: 'chat_o', requestId: 'req_1', decision: 'allow_once' }]])
-    expect(await within(card).findByText('Allowed once')).toBeTruthy()
-    expect(within(card).queryByRole('button', { name: 'Allow once' })).toBe(null)
+    expect(within(card).getByText('Not answered')).toBeTruthy()
+    expect(within(card).queryByRole('button')).toBe(null)
   })
 
-  it('shows why an answer was refused and lets the person try again', async () => {
-    seed([THREAD, asked('req_1', 2)])
-    dm.chats.failures.answerApproval = { code: 'not_found', message: 'That approval request is no longer waiting for an answer.' }
-    serve(page([claim()], 2))
-    renderTab()
-    const card = await screen.findByRole('article', { name: 'Approval request: Run a command' })
-
-    fireEvent.click(within(card).getByRole('button', { name: 'Deny' }))
-    await settle()
-
-    expect(within(card).getByRole('alert').textContent).toBe('That approval request is no longer waiting for an answer.')
-    expect((within(card).getByRole('button', { name: 'Deny' }) as HTMLButtonElement).disabled).toBe(false)
-  })
-
-  it('shows a request that a request raised in the thread was answered by an earlier decision', async () => {
+  it('shows a request with the decision stored for it, with nothing to answer', async () => {
     seed([THREAD, asked('req_1', 2), { id: 'item_answer_req_1', at: minute(3), kind: 'approval_decision', requestId: 'req_1', decision: 'deny', threadId: 'th_1' }])
     serve(page([claim()], 2))
     renderTab()
@@ -300,7 +270,7 @@ describe('Activity tab approvals of the thread', () => {
     const card = await screen.findByRole('article', { name: 'Approval request: Run a command' })
 
     expect(within(card).getByText('Denied')).toBeTruthy()
-    expect(within(card).queryByRole('button', { name: 'Allow once' })).toBe(null)
+    expect(within(card).queryByRole('button')).toBe(null)
   })
 })
 
@@ -316,7 +286,6 @@ describe('Activity tab of an attempt bound to no chat thread', () => {
     expect(rows()).toHaveLength(2)
     expect(screen.queryByRole('button', { name: 'Open chat' })).toBe(null)
     expect(screen.queryByText('Reading')).toBe(null)
-    expect(dm.chats.callsOf('open')).toEqual([])
     expect(dm.chats.callsOf('read')).toEqual([])
     expect(dm.chats.subscribers()).toBe(0)
   })
@@ -331,7 +300,6 @@ describe('Activity tab of an attempt bound to no chat thread', () => {
 
     expect(rows()).toHaveLength(1)
     expect(screen.queryByRole('button', { name: 'Open chat' })).toBe(null)
-    expect(dm.chats.callsOf('open')).toEqual([])
     expect(dm.chats.callsOf('read')).toEqual([])
   })
 
@@ -361,7 +329,6 @@ describe('Activity tab when the lookup goes wrong', () => {
     gate.resolve()
     await settle()
 
-    expect(dm.chats.callsOf('open')).toEqual([])
     expect(dm.chats.callsOf('read')).toEqual([])
     expect(dm.chats.subscribers()).toBe(0)
   })
@@ -456,23 +423,5 @@ describe('Activity tab of a thread that served two attempts of the same ticket',
     expect(rows().map((line) => ['Claimed', 'First try', 'npm test', 'Second try', 'npm run lint'].find((part) => line.includes(part)))).toEqual(['Claimed', 'Second try', 'npm run lint'])
     expect(screen.queryByText(/First try/)).toBe(null)
     expect(screen.queryByText(/npm test/)).toBe(null)
-    act(() => dm.chats.emitItem('chat_o', ran('r3', 14, 'npm run build')))
-    expect(await screen.findByText(/npm run build/)).toBeTruthy()
-  })
-
-})
-
-describe('Activity tab of an attempt that has ended, with its thread still going', () => {
-  it('stops showing what the thread does once the attempt has ended', async () => {
-    seedBoth()
-    renderAttempt(FIRST)
-    await screen.findByText('First try: reading the ticket')
-
-    act(() => dm.chats.emitItem('chat_o', ran('r4', 20, 'npm run later')))
-    act(() => dm.chats.emit({ type: 'assistant_delta', chatId: 'chat_o', itemId: 'typing', delta: 'Still going', threadId: 'th_1' }))
-    await settle()
-
-    expect(screen.queryByText(/npm run later/)).toBe(null)
-    expect(screen.queryByText(/Still going/)).toBe(null)
   })
 })

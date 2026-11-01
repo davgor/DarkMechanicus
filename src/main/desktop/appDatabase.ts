@@ -37,10 +37,33 @@ const V2 = `
 ALTER TABLE agents ADD COLUMN reported_name TEXT;
 `
 
+/**
+ * v3 is the cutover to terminal chats (`docs/design/chat-shells.md`, SH-8): a custom CLI is a program and its
+ * arguments, run in a chat's terminal, with no protocol and no handshake. The `protocol` column goes, and with it
+ * `reported_name` and a custom row's `version`, which only the handshake set.
+ *
+ * A custom row whose protocol was not Claude Code's (ACP or Codex app-server) has arguments that start a JSON-RPC
+ * server, not an interactive program, so it is marked `needs_review`: no chat starts it until the person has
+ * confirmed its arguments again (and could edit them) in the native confirmation, which clears the mark. It is
+ * marked unless its protocol is `claude`, so no protocol value runs unreviewed. A Claude-protocol row is the program
+ * itself and starts as is. Built-in rows never need review.
+ *
+ * `ALTER TABLE ... DROP COLUMN` keeps the table, its row ids and its checks: rebuilding `agents` would delete
+ * every row of it first, and the delete would cascade to `folder_agent_defaults`.
+ */
+const V3 = `
+ALTER TABLE agents ADD COLUMN needs_review INTEGER NOT NULL DEFAULT 0 CHECK (needs_review IN (0, 1));
+UPDATE agents SET needs_review = 1 WHERE kind = 'custom' AND protocol IS NOT 'claude';
+UPDATE agents SET version = NULL WHERE kind = 'custom';
+ALTER TABLE agents DROP COLUMN reported_name;
+ALTER TABLE agents DROP COLUMN protocol;
+`
+
 /** Schema of the app-wide database in user data. Separate from the per-folder `MIGRATIONS`. */
 export const APP_MIGRATIONS: Migration[] = [
   { version: 1, sql: V1 },
-  { version: 2, sql: V2 }
+  { version: 2, sql: V2 },
+  { version: 3, sql: V3 }
 ]
 
 /**

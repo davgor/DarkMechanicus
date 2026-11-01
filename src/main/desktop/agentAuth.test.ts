@@ -2,18 +2,10 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { DomainError } from '../../core/errors'
-import { AGENT_KINDS } from '../../shared/desktop/agentKinds'
 import type { AgentAuthStatus, AgentView, BuiltInAgentKind } from '../../shared/desktop/api'
-import { DOCTOR_NO_PROFILE, DOCTOR_SIGNED_OUT } from '../agents/adapters/__mocks__/autonomousSignedOut'
-import { builtInAgent } from '../agents/__mocks__/fakeChatAdapter'
-import {
-  createAgentAuthHandlers,
-  getAgentAuthStatus,
-  planSignIn,
-  signInAgent,
-  type TerminalLaunch,
-  type TerminalOutcome
-} from './agentAuth'
+import { builtInAgent } from '../agents/__mocks__/chatFixtures'
+import { DOCTOR_NO_PROFILE, DOCTOR_SIGNED_OUT } from './__mocks__/autonomousDoctor'
+import { createAgentAuthHandlers, getAgentAuthStatus } from './agentAuth'
 import type { FileCheck, ProbeLaunch, ProcessOutcome } from './agentProbe'
 
 /**
@@ -53,7 +45,7 @@ const CURSOR_NOT_AUTHENTICATED = 'Not authenticated\n'
 const CURSOR_ERROR = 'Error: could not reach api2.cursor.sh\n'
 /**
  * Autonomous `a8s doctor`: the signed-in lines are the report's recording (docs/reports/autonomous-acp.md),
- * with the email replaced. The signed-out outputs are recorded too (`autonomousSignedOut.ts`, DM-307): an
+ * with the email replaced. The signed-out outputs are recorded too (`autonomousDoctor.ts`, DM-307): an
  * isolated profile with no model sign-in, with the person's personal profile (a failed "Claude subscription
  * is not ready") and with none (a warning "not signed in to Claude").
  */
@@ -295,180 +287,6 @@ describe('status gives each CLI its own time limit', () => {
   })
 })
 
-interface SignInWorld {
-  launched: TerminalLaunch[]
-  deps: Parameters<typeof signInAgent>[2]
-}
-
-function signInWorld(
-  platform: string,
-  outcomes: TerminalOutcome[] = [{ ok: true }],
-  inspect: FileCheck = 'ok'
-): SignInWorld {
-  const world: SignInWorld = {
-    launched: [],
-    deps: {
-      platform,
-      inspect: () => inspect,
-      comspec: 'C:\\Windows\\System32\\cmd.exe',
-      launch: (launch) => {
-        world.launched.push(launch)
-        return Promise.resolve(outcomes[world.launched.length - 1] ?? { ok: true })
-      }
-    }
-  }
-  return world
-}
-
-const LOGIN_ARGS: Record<BuiltInAgentKind, string[]> = { claude: ['auth', 'login'], codex: ['login'], cursor: ['login'], autonomous: ['init'] }
-
-describe('sign in starts the CLI own login command in a visible terminal', () => {
-  it.each(AGENT_KINDS)('%s: on Windows, one new console runs the shim with only its login args, parsed by one cmd.exe', async (kind) => {
-    const shim = `C:\\Users\\me\\AppData\\Roaming\\npm\\${kind}.cmd`
-    const world = signInWorld('win32')
-
-    expect(await signInAgent(kind, shim, world.deps)).toEqual({ outcome: 'started' })
-
-    const login = LOGIN_ARGS[kind].join(' ')
-    expect(world.launched).toEqual([
-      {
-        file: 'C:\\Windows\\System32\\cmd.exe',
-        args: ['/d', '/v:off', '/s', '/k', `""${shim}" ${login}"`],
-        verbatimArguments: true
-      }
-    ])
-  })
-
-  it('on Windows, runs an .exe the same way', async () => {
-    const world = signInWorld('win32')
-
-    await signInAgent('cursor', 'C:\\Tools\\agent.exe', world.deps)
-
-    expect(world.launched[0]?.args.at(-1)).toBe('""C:\\Tools\\agent.exe" login"')
-  })
-
-  it('on Windows, parses the path in exactly one cmd.exe: no start, no nested cmd.exe, no second command line', async () => {
-    const world = signInWorld('win32')
-    const path = 'C:\\tools & calc & x\\claude.cmd'
-
-    await signInAgent('claude', path, world.deps)
-
-    const [launch] = world.launched
-    expect(launch?.args).toEqual(['/d', '/v:off', '/s', '/k', `""${path}" auth login"`])
-    expect(launch?.args.join(' ')).not.toMatch(/\bstart\b|cmd\.exe|\/c\b/i)
-    expect(launch?.args.filter((arg) => arg.includes(path))).toHaveLength(1)
-  })
-})
-
-describe('sign in on macOS and Linux', () => {
-  it.each(AGENT_KINDS)('%s: on macOS, Terminal runs the quoted executable path and the login args', async (kind) => {
-    const world = signInWorld('darwin')
-
-    expect(await signInAgent(kind, POSIX_PATHS[kind], world.deps)).toEqual({ outcome: 'started' })
-
-    expect(world.launched).toHaveLength(1)
-    const [launch] = world.launched
-    expect(launch?.file).toBe('osascript')
-    expect(launch?.verbatimArguments).toBe(false)
-    expect(launch?.args).toContain(`do script ((quoted form of (item 1 of argv)) & " ${LOGIN_ARGS[kind].join(' ')}")`)
-    // The path travels as an argument of the script, never spliced into its source.
-    expect(launch?.args.at(-1)).toBe(POSIX_PATHS[kind])
-    expect(launch?.args.slice(0, -1).join('\n')).not.toContain(POSIX_PATHS[kind])
-  })
-
-  it.each(AGENT_KINDS)('%s: on Linux, a terminal runs the executable path and the login args as separate arguments', async (kind) => {
-    const world = signInWorld('linux')
-
-    expect(await signInAgent(kind, POSIX_PATHS[kind], world.deps)).toEqual({ outcome: 'started' })
-
-    const [launch] = world.launched
-    expect(launch?.file).toBe('x-terminal-emulator')
-    expect(launch?.args.slice(-(LOGIN_ARGS[kind].length + 1))).toEqual([POSIX_PATHS[kind], ...LOGIN_ARGS[kind]])
-  })
-
-  it('on Linux, tries the next terminal program when one is not installed', async () => {
-    const world = signInWorld('linux', [
-      { ok: false, code: 'ENOENT' },
-      { ok: false, code: 'ENOENT' },
-      { ok: true }
-    ])
-
-    expect(await signInAgent('codex', POSIX_PATHS.codex, world.deps)).toEqual({ outcome: 'started' })
-
-    expect(world.launched.map((launch) => launch.file)).toEqual(['x-terminal-emulator', 'gnome-terminal', 'konsole'])
-  })
-
-  it('on Linux, says so when no terminal program exists', async () => {
-    const world = signInWorld('linux', Array.from({ length: 10 }, () => ({ ok: false, code: 'ENOENT' }) as const))
-
-    const result = await signInAgent('codex', POSIX_PATHS.codex, world.deps)
-
-    expect(result).toEqual({ outcome: 'failed', reason: expect.stringMatching(/no terminal/i) })
-  })
-
-})
-
-describe('sign in refuses what it cannot launch', () => {
-  it('stops at a terminal that exists but cannot start, with its error code', async () => {
-    const world = signInWorld('darwin', [{ ok: false, code: 'EACCES' }])
-
-    const result = await signInAgent('claude', POSIX_PATHS.claude, world.deps)
-
-    expect(result).toEqual({ outcome: 'failed', reason: expect.stringContaining('EACCES') })
-    expect(world.launched).toHaveLength(1)
-  })
-
-  it.each([
-    ['linux', 'not_a_file'],
-    ['darwin', 'not_executable']
-  ] as const)('on %s, launches nothing for a file the check says is %s', async (platform, check) => {
-    const world = signInWorld(platform, [{ ok: true }], check)
-
-    const result = await signInAgent('codex', POSIX_PATHS.codex, world.deps)
-
-    expect(result.outcome).toBe('failed')
-    expect(world.launched).toEqual([])
-  })
-
-  it.each(['C:\\100%\\codex.cmd', 'C:\\a"b\\codex.cmd', 'C:\\Users\\me\\codex.ps1', 'codex.cmd'])(
-    'on Windows, launches nothing for the unsafe or unrunnable path %s',
-    async (path) => {
-      const world = signInWorld('win32')
-
-      const result = await signInAgent('codex', path, world.deps)
-
-      expect(result.outcome).toBe('failed')
-      expect(world.launched).toEqual([])
-    }
-  )
-})
-
-describe('sign in carries no credential', () => {
-  const PLATFORM_PATHS: [string, (kind: BuiltInAgentKind) => string][] = [
-    ['win32', (kind) => `C:\\Users\\me\\AppData\\Roaming\\npm\\${kind}.cmd`],
-    ['darwin', (kind) => POSIX_PATHS[kind]],
-    ['linux', (kind) => POSIX_PATHS[kind]]
-  ]
-
-  it.each(PLATFORM_PATHS)('%s: every launch is the executable plus only that kind login args', (platform, pathFor) => {
-    for (const kind of AGENT_KINDS) {
-      const plan = planSignIn(kind, pathFor(kind), { platform, inspect: () => 'ok', comspec: 'cmd.exe' })
-
-      expect(plan.ok).toBe(true)
-      const text = plan.ok ? plan.launches.map((launch) => [launch.file, ...launch.args].join(' ')).join('\n') : ''
-      expect(text).toContain(LOGIN_ARGS[kind].join(' '))
-      expect(text).not.toMatch(/api[-_ ]?key|token|password|passwd|secret|--email|--with-/i)
-    }
-  })
-
-  it('has exactly one login command per kind, and none of them takes a credential option', () => {
-    expect(LOGIN_ARGS).toEqual({ claude: ['auth', 'login'], codex: ['login'], cursor: ['login'], autonomous: ['init'] })
-    for (const args of Object.values(LOGIN_ARGS)) {
-      expect(args.every((arg) => /^[a-z]+$/.test(arg))).toBe(true)
-    }
-  })
-})
-
 /** Every non-test source file under the renderer (the views), as [path, text]. */
 function rendererSources(): [string, string][] {
   const root = fileURLToPath(new URL('../../renderer/src', import.meta.url))
@@ -491,11 +309,10 @@ describe('no view accepts a credential', () => {
     }
   })
 
-  it('has bridge methods that take the agent id and nothing else', () => {
+  it('has a status bridge method that takes the agent id and nothing else', () => {
     const api = readFileSync(fileURLToPath(new URL('../../shared/desktop/api.ts', import.meta.url)), 'utf8')
 
     expect(api).toContain('agentStatus(id: AgentId): Promise<AgentAuthStatus>')
-    expect(api).toContain('signInAgent(id: AgentId): Promise<AgentSignInResult>')
   })
 })
 
@@ -508,11 +325,10 @@ const CUSTOM_ID = 'cu_01m65kwqqeyajbj5bnq81gngrb'
 interface HandlerWorld {
   handlers: ReturnType<typeof createAgentAuthHandlers>
   checked: [string, string][]
-  signedIn: [string, string][]
 }
 
 function handlerWorld(connected: BuiltInAgentKind[], extra: AgentView[] = []): HandlerWorld {
-  const world: HandlerWorld = { handlers: undefined as never, checked: [], signedIn: [] }
+  const world: HandlerWorld = { handlers: undefined as never, checked: [] }
   const agents = [...connected.map(connectedAgent), ...extra]
   world.handlers = createAgentAuthHandlers(
     { get: (id) => agents.find((agent) => agent.id === id) ?? null },
@@ -520,10 +336,6 @@ function handlerWorld(connected: BuiltInAgentKind[], extra: AgentView[] = []): H
       checkAuth: (agent) => {
         world.checked.push([agent.id, agent.executablePath])
         return Promise.resolve({ state: 'signed_in', reason: 'ok' })
-      },
-      signIn: (agent) => {
-        world.signedIn.push([agent.id, agent.executablePath])
-        return Promise.resolve({ outcome: 'started' })
       }
     }
   )
@@ -539,15 +351,13 @@ async function rejectionCode(promise: Promise<unknown>): Promise<string> {
   return 'resolved'
 }
 
-describe('agents:status and agents:signIn handlers', () => {
+describe('agents:status handler', () => {
   it('check the registered executable for the agent id, never one from the request', async () => {
     const world = handlerWorld(['codex'])
 
     expect(await world.handlers.agentStatus('codex')).toEqual({ state: 'signed_in', reason: 'ok' })
-    expect(await world.handlers.signInAgent('codex')).toEqual({ outcome: 'started' })
 
     expect(world.checked).toEqual([['codex', POSIX_PATHS.codex]])
-    expect(world.signedIn).toEqual([['codex', POSIX_PATHS.codex]])
   })
 
   it('refuse an agent id that is not connected with not_found, without running anything', async () => {
@@ -555,33 +365,22 @@ describe('agents:status and agents:signIn handlers', () => {
 
     for (const id of ['cursor', CUSTOM_ID]) {
       expect(await rejectionCode(world.handlers.agentStatus(id))).toBe('not_found')
-      expect(await rejectionCode(world.handlers.signInAgent(id))).toBe('not_found')
     }
     expect(world.checked).toEqual([])
-    expect(world.signedIn).toEqual([])
   })
 })
 
-describe('agents:status and agents:signIn for a custom agent', () => {
-  it('report a connected custom agent as unchecked, without running anything', async () => {
+describe('agents:status for a custom agent', () => {
+  it('reports a connected custom agent as unchecked, without running anything', async () => {
     const custom = builtInAgent('cursor', { id: CUSTOM_ID, kind: 'custom', displayName: 'My agent', executablePath: '/opt/mine' })
     const world = handlerWorld([], [custom])
 
     expect(await world.handlers.agentStatus(CUSTOM_ID)).toEqual({ state: 'unchecked', reason: expect.stringContaining('My agent') })
     expect(world.checked).toEqual([])
-    expect(world.signedIn).toEqual([])
-  })
-
-  it('refuse to sign a custom agent in with invalid_input, without opening a terminal', async () => {
-    const custom = builtInAgent('cursor', { id: CUSTOM_ID, kind: 'custom', displayName: 'My agent', executablePath: '/opt/mine' })
-    const world = handlerWorld([], [custom])
-
-    expect(await rejectionCode(world.handlers.signInAgent(CUSTOM_ID))).toBe('invalid_input')
-    expect(world.signedIn).toEqual([])
   })
 })
 
-describe('agents:status and agents:signIn inputs', () => {
+describe('agents:status inputs', () => {
   it.each([
     { kind: 'claude', apiKey: 'sk-ant-secret' },
     { kind: 'codex', password: 'hunter2' },
@@ -597,10 +396,8 @@ describe('agents:status and agents:signIn inputs', () => {
     const world = handlerWorld(['claude', 'codex', 'cursor'])
 
     expect(await rejectionCode(world.handlers.agentStatus(payload))).toBe('invalid_input')
-    expect(await rejectionCode(world.handlers.signInAgent(payload))).toBe('invalid_input')
 
     expect(world.checked).toEqual([])
-    expect(world.signedIn).toEqual([])
   })
 
   it('does not echo a rejected credential back in the error', async () => {

@@ -4,6 +4,7 @@
  * clipboard, and external links are separate narrow methods.
  */
 import type { ChatsApi } from '../agents/chatApi'
+import type { TerminalsApi } from '../agents/terminalApi'
 import type { CommandApi, CommandName } from '../domain/api'
 import type { DomainErrorShape } from '../domain/errors'
 import type { BoardRemovalResultView, BoardRemovalView, StorageMode } from '../domain/views'
@@ -33,27 +34,24 @@ export type BuiltInAgentKind = 'claude' | 'codex' | 'cursor' | 'autonomous'
 /** What an agent is: a built-in vendor CLI, or a custom CLI the person connected. */
 type AgentKind = BuiltInAgentKind | 'custom'
 
-/** How the app talks to an agent's CLI; chooses the chat adapter. */
-export type AgentProtocol = 'claude' | 'codex' | 'acp'
-
 /** An agent's id (see `agentIdSchema`): a built-in kind's name, or `cu_` and a ULID for a custom agent. */
 export type AgentId = string
 
 export interface AgentView {
   id: AgentId
   kind: AgentKind
-  protocol: AgentProtocol
   displayName: string
   executablePath: string
   /** Arguments passed before the app's own; empty for built-ins. */
   args: readonly string[]
+  /** A built-in CLI's version as its probe read it; null for a custom CLI, which nothing runs to check. */
   version: string | null
   /**
-   * The agent name a custom CLI's handshake reported with `version` (ACP `agentInfo.name`, Codex's user
-   * agent product), so the version is shown as "<name> <version>". Null for a built-in (its version is its
-   * own CLI's), and when the handshake reported none or no version.
+   * A custom CLI saved before chats became terminals with a protocol other than Claude Code's (ACP or Codex
+   * app-server): its arguments started a protocol server, so no chat starts it until the person has confirmed
+   * them again (Review arguments: an edit, with its native confirmation). False for every other agent.
    */
-  reportedName: string | null
+  needsReview: boolean
   /** `custom`: a custom CLI the person added, with a program they picked and arguments they typed. */
   connectedVia: 'found' | 'downloaded' | 'custom'
   connectedAt: string
@@ -82,19 +80,18 @@ export type AgentFindResult =
   | { outcome: 'refused'; code: AgentRefusalCode; reason: string }
 
 /**
- * Adding a custom CLI: its name, protocol and arguments, and nothing else. The program is chosen in main's
- * native file dialog, never sent by the renderer; a payload with any other key (such as a path) is refused.
+ * Adding a custom CLI: its name and arguments, and nothing else. The program is chosen in main's native
+ * file dialog, never sent by the renderer; a payload with any other key (such as a path) is refused.
  * An argument that is exactly `{folder}` becomes the chat's folder each time the CLI starts.
  */
 export interface CustomAgentRequest {
   name: string
-  protocol: AgentProtocol
   args: string[]
 }
 
 /**
- * Editing a custom CLI: its new name and arguments. The protocol cannot change; the program changes only
- * through main's file dialog, which `repick` opens.
+ * Editing (or reviewing) a custom CLI: its new name and arguments. The program changes only through main's
+ * file dialog, which `repick` opens.
  */
 export interface CustomAgentUpdate {
   id: AgentId
@@ -163,12 +160,6 @@ export interface AgentAuthStatus {
   reason: string
 }
 
-/**
- * What starting a sign-in came to. `started` means the CLI's own login is now running in a terminal
- * window of its own (the vendor's browser page opens from there); check the status afterwards.
- */
-export type AgentSignInResult = { outcome: 'started' } | { outcome: 'failed'; reason: string }
-
 export type CommandInput<K extends CommandName> = Parameters<CommandApi[K]> extends [infer I]
   ? I
   : undefined
@@ -218,6 +209,8 @@ export interface FolderPickResult {
 export interface DmApi {
   /** Agent chats run by the main process: the `chats:*` channels and their push channel. */
   chats: ChatsApi
+  /** Chat terminals: `terminals:attach`, and the port main posts for a running one. */
+  terminals: TerminalsApi
   listFolders(): Promise<TrackedFolderView[]>
   pickFolder(): Promise<FolderPickResult>
   untrackFolder(path: string): Promise<TrackedFolderView[]>
@@ -262,11 +255,6 @@ export interface DmApi {
    */
   agentStatus(id: AgentId): Promise<AgentAuthStatus>
   /**
-   * Starts that CLI's own login flow in a visible terminal window. Takes the agent id only: there is no
-   * password or key field anywhere, the vendor's own page does the signing in. Refuses ids like `agentStatus`.
-   */
-  signInAgent(id: AgentId): Promise<AgentSignInResult>
-  /**
    * The default agent id of a tracked folder (canonicalized, so a symlink reads its target's), or null.
    * An untracked folder is refused with `unauthorized`.
    */
@@ -277,15 +265,16 @@ export interface DmApi {
    */
   setFolderDefaultAgent(request: { folder: string; agentId: AgentId | null }): Promise<AgentId | null>
   /**
-   * Adds a custom CLI: main opens a native file dialog for its program, checks the name and arguments, shows
-   * the exact command in a native confirmation, and runs the protocol's handshake in an empty temp folder.
-   * Only then is it stored, as `cu_…`. A payload with a path or any other key is refused with `invalid_input`,
+   * Adds a custom CLI: main opens a native file dialog for its program, checks the name and arguments, and
+   * shows the exact command in a native confirmation. Only then is it stored, as `cu_…`, with no protocol
+   * and nothing run to check it. A payload with a path or any other key is refused with `invalid_input`,
    * a name another custom CLI has with `conflict`.
    */
   addCustomAgent(request: CustomAgentRequest): Promise<AgentFindResult>
   /**
    * Edits a custom CLI's name and arguments (and, with `repick`, its program, through main's file dialog),
-   * with the same checks, confirmation and handshake as adding it. The protocol never changes.
+   * with the same checks and confirmation as adding it. A confirmed edit is also the review a custom CLI
+   * marked `needsReview` waits for: it clears the mark.
    */
   updateCustomAgent(request: CustomAgentUpdate): Promise<AgentFindResult>
 }

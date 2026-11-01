@@ -1,20 +1,20 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
-import type { ChatSummary } from '../../../shared/agents/chatApi'
+import type { ChatRecord } from '../../../shared/agents/chat'
 import type { AgentView } from '../../../shared/desktop/api'
-import { agentView, chatSummary, folderView } from '../__mocks__/fixtures'
+import { agentView, chatRecord, folderView } from '../__mocks__/fixtures'
 import type { AgentStatuses } from '../agents/useAgents'
 import type { ChatListState } from '../agents/useChats'
 import { AgentsBlock } from './AgentsBlock'
 
 afterEach(cleanup)
 
-const OLD = chatSummary({ id: 'chat_old', title: 'Old plan', agent: 'claude', model: 'opus', updatedAt: '2026-03-01T10:00:00.000Z' })
-const NEW = chatSummary({ id: 'chat_new', title: 'Newest run', agent: 'codex', model: null, updatedAt: '2026-03-03T10:00:00.000Z' })
-const MID = chatSummary({ id: 'chat_mid', title: 'Middle chat', agent: 'cursor', model: 'composer', updatedAt: '2026-03-02T10:00:00.000Z' })
+const OLD = chatRecord({ id: 'chat_old', title: 'Old plan', agent: 'claude', model: 'opus', updatedAt: '2026-03-01T10:00:00.000Z' })
+const NEW = chatRecord({ id: 'chat_new', title: 'Newest run', agent: 'codex', model: null, updatedAt: '2026-03-03T10:00:00.000Z' })
+const MID = chatRecord({ id: 'chat_mid', title: 'Middle chat', agent: 'cursor', model: 'composer', updatedAt: '2026-03-02T10:00:00.000Z' })
 
-const ready = (chats: ChatSummary[]): ChatListState => ({ status: 'ready', chats })
+const ready = (chats: ChatRecord[]): ChatListState => ({ status: 'ready', chats })
 
 interface Setup {
   list?: ChatListState
@@ -81,7 +81,7 @@ describe('AgentsBlock listing', () => {
 
   it('names a connected custom agent by its display name, in the row and its sign-in badge, and one no longer connected generically', () => {
     const custom = agentView({ kind: 'custom', displayName: 'My Claude' })
-    const chat = chatSummary({ id: 'chat_cu', title: 'Custom work', agent: custom.id, model: null, cutShortMessageId: 'u1' })
+    const chat = chatRecord({ id: 'chat_cu', title: 'Custom work', agent: custom.id, model: null, cutShortMessageId: 'u1' })
     const statuses: AgentStatuses = { [custom.id]: { state: 'signed_out', reason: 'Signed out.' } }
     renderBlock({ list: ready([chat]), agents: [custom], statuses })
     expect(screen.getByText('My Claude · Default model')).toBeTruthy()
@@ -126,38 +126,9 @@ describe('AgentsBlock listing', () => {
   })
 })
 
-describe('AgentsBlock waiting chats', () => {
-  const WAITING = chatSummary({ id: 'chat_wait', title: 'Needs a yes', updatedAt: '2026-03-04T10:00:00.000Z', pending: 2 })
-
-  it('flags the chat that has a pending request on its row, and no other', () => {
-    renderBlock({ list: ready([OLD, WAITING]) })
-    expect(within(screen.getByRole('button', { name: /^Needs a yes/ })).getByText('Needs approval')).toBeTruthy()
-    expect(within(screen.getByRole('button', { name: /^Old plan/ })).queryByText('Needs approval')).toBeNull()
-    expect(screen.getAllByText('Needs approval')).toHaveLength(1)
-  })
-
-  it('shows no badge once nothing is pending', () => {
-    renderBlock({ list: ready([OLD, { ...WAITING, pending: 0 }]) })
-    expect(screen.queryByText('Needs approval')).toBeNull()
-    expect(screen.queryByText(/waiting/)).toBeNull()
-  })
-
-  it('shows how many chats are waiting in the header while the chats are hidden, and says so in its name', () => {
-    renderBlock({ expanded: false, list: ready([OLD, WAITING, { ...NEW, pending: 1 }]) })
-    const header = screen.getByRole('button', { name: 'Agents, 3 chats, 2 waiting for approval' })
-    expect(within(header).getByText('2 waiting')).toBeTruthy()
-    expect(screen.queryByText('Needs approval')).toBeNull()
-  })
-
-  it('leaves the header badge to the rows while they are shown', () => {
-    renderBlock({ list: ready([OLD, WAITING]) })
-    expect(screen.queryByText('1 waiting')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Agents, 2 chats, 1 waiting for approval' })).toBeTruthy()
-  })
-})
-
 describe('AgentsBlock chats waiting on a sign-in', () => {
-  const CUT = chatSummary({ id: 'chat_cut', title: 'Stuck on login', agent: 'claude', cutShortMessageId: 'u1', updatedAt: '2026-03-04T10:00:00.000Z' })
+  const CUT = chatRecord({ id: 'chat_cut', title: 'Stuck on login', agent: 'claude', cutShortMessageId: 'u1', updatedAt: '2026-03-04T10:00:00.000Z' })
+  const CUT_TOO = chatRecord({ id: 'chat_cut_2', title: 'Also stuck', agent: 'claude', cutShortMessageId: 'u2', updatedAt: '2026-03-05T10:00:00.000Z' })
   const SIGNED_OUT: AgentStatuses = { claude: { state: 'signed_out', reason: 'Not signed in.' } }
   const SIGNED_IN: AgentStatuses = { claude: { state: 'signed_in', reason: 'Signed in.' } }
 
@@ -166,17 +137,18 @@ describe('AgentsBlock chats waiting on a sign-in', () => {
     const row = within(screen.getByRole('button', { name: /^Stuck on login/ }))
     expect(row.getByText('Needs sign-in').className).toBe('waiting-badge')
     expect(screen.getAllByText('Needs sign-in')).toHaveLength(1)
-    expect(screen.queryByText('Needs approval')).toBeNull()
+    expect(within(screen.getByRole('button', { name: /^Old plan/ })).queryByText('Needs sign-in')).toBeNull()
   })
 
   it('shows how many chats are waiting in the header while the chats are hidden, and says so in its name', () => {
-    renderBlock({ expanded: false, list: ready([OLD, CUT, { ...NEW, pending: 1 }]), statuses: SIGNED_OUT })
-    const header = screen.getByRole('button', { name: 'Agents, 3 chats, 2 waiting for approval or sign-in' })
+    renderBlock({ expanded: false, list: ready([OLD, CUT, CUT_TOO]), statuses: SIGNED_OUT })
+    const header = screen.getByRole('button', { name: 'Agents, 3 chats, 2 waiting for sign-in' })
     expect(within(header).getByText('2 waiting')).toBeTruthy()
   })
 
-  it('names the sign-in alone when that is all they wait for', () => {
+  it('leaves the header badge to the rows while they are shown', () => {
     renderBlock({ list: ready([OLD, CUT]), statuses: SIGNED_OUT })
+    expect(screen.queryByText('1 waiting')).toBeNull()
     expect(screen.getByRole('button', { name: 'Agents, 2 chats, 1 waiting for sign-in' })).toBeTruthy()
   })
 

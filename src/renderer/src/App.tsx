@@ -1,9 +1,10 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ComponentProps, ComponentType } from 'react'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { TrackedFolderView } from '../../shared/desktop/api'
 import { threadLandingFor, ticketLandingFor } from './app/landing'
 import { findFolder } from './app/selection'
+import type { Selection } from './app/selection'
 import { listFor } from './app/useEpicLists'
 import { browserScheduler } from './app/scheduler'
 import type { Scheduler } from './app/scheduler'
@@ -14,10 +15,15 @@ import { useShell } from './app/useShell'
 import type { ShellModel } from './app/useShell'
 import { AddAgentPane } from './agents/AddAgentPane'
 import { AgentPage } from './agents/AgentPage'
-import type { ChatNavigation } from './agents/ChatContext'
-import { ChatView } from './agents/ChatView'
-import { NewChatDialog } from './agents/NewChatDialog'
+import { agentName } from './agents/agentText'
+import { createLiveTerminals, LiveTerminalsContext } from './agents/liveTerminals'
+import { newChatAgent } from './agents/NewChatFields'
+import { SignInContext, type SignInRequest } from './agents/signInContext'
+import { SignInView } from './agents/SignInView'
 import { chatsFor } from './agents/useChats'
+import { TerminalPane } from './agents/TerminalPane'
+import type { TerminalKit } from './agents/terminalView'
+import { xtermKit } from './agents/xtermKit'
 import { CheckForUpdatesButton } from './autoUpdate/CheckForUpdatesButton'
 import { UpdateBanner, useAppUpdate } from './autoUpdate/UpdateBanner'
 import { EpicWorkspace } from './epic/EpicWorkspace'
@@ -36,11 +42,15 @@ interface AppProps {
   scheduler?: Scheduler
   /** The epic view. Injectable so shell tests do not depend on its implementation. */
   EpicView?: EpicView
+  /** The chats' terminal emulator: xterm, or a fake in tests (jsdom has no canvas). */
+  terminalKit?: TerminalKit
 }
 
 interface PaneProps {
   shell: ShellModel
   EpicView: EpicView
+  scheduler: Scheduler
+  terminalKit: TerminalKit
   onRequestUntrack(folder: TrackedFolderView): void
 }
 
@@ -58,7 +68,7 @@ function orchestrationFor(shell: ShellModel, folder: TrackedFolderView): Orchest
     agents: shell.agents.agents,
     statuses: shell.agents.statuses,
     chats: chatsFor(shell.chats.lists, folder.path).chats,
-    onChatsChanged: () => void shell.chats.reload(folder.path),
+    onChatsChanged: () => shell.chats.reload(folder.path),
     onAddAgent: actions.openAddAgent,
     onAgentStatus: shell.agents.recordStatus,
     onOpenChat: (chatId, threadId) => (threadId === undefined ? actions.selectChat(folder.path, chatId) : actions.openThread(folder.path, chatId, threadId))
@@ -98,21 +108,30 @@ interface ChatPaneProps {
   shell: ShellModel
   folder: TrackedFolderView
   chat: ChatRecord
+  scheduler: Scheduler
+  terminalKit: TerminalKit
 }
 
-/** An open chat. Its links (markers, bound threads) open tickets and epics in the folder; a request to show one of its threads is handed to it once. */
-function ChatPane({ shell, folder, chat }: ChatPaneProps): JSX.Element {
+/**
+ * An open chat: its terminal. A link that asked for one of its threads (a transcript view's) has opened the chat,
+ * which is all a terminal can show of it, so the request is taken at once rather than left for a later view.
+ */
+function ChatPane({ shell, folder, chat, scheduler, terminalKit }: ChatPaneProps): JSX.Element {
   const actions = useLatest(shell.actions)
-  const navigation = useMemo<ChatNavigation>(
-    () => ({
-      openTicket: (link) => actions.current.openTicket(folder.path, link),
-      openEpic: (epicId) => actions.current.selectEpic(folder.path, epicId)
-    }),
-    [actions, folder.path]
+  const landing = threadLandingFor(shell.landing, chat.id) !== null
+  useEffect(() => {
+    if (landing) actions.current.landed()
+  }, [actions, landing])
+  return (
+    <TerminalPane
+      folder={folder.path}
+      chat={chat}
+      agentName={agentName(chat.agent, shell.agents.agents)}
+      kit={terminalKit}
+      scheduler={scheduler}
+      onAgentStatus={(status) => shell.agents.recordStatus(chat.agent, status)}
+    />
   )
-  const onLanded = useCallback(() => actions.current.landed(), [actions])
-  const agentDisplayName = shell.agents.agents.find((agent) => agent.id === chat.agent)?.displayName
-  return <ChatView chat={chat} agentDisplayName={agentDisplayName} onAgentStatus={shell.agents.recordStatus} navigation={navigation} landing={threadLandingFor(shell.landing, chat.id)} onLanded={onLanded} />
 }
 
 /** An open folder: either one of its epics, or the folder home. */
@@ -156,7 +175,7 @@ function MainPane(props: PaneProps): JSX.Element | null {
     case 'agent':
       return <AgentPage key={view.agent.id} agent={view.agent} agents={shell.agents} />
     case 'chat':
-      return <ChatPane key={view.chat.id} shell={shell} folder={view.folder} chat={view.chat} />
+      return <ChatPane key={view.chat.id} shell={shell} folder={view.folder} chat={view.chat} scheduler={props.scheduler} terminalKit={props.terminalKit} />
     case 'unavailable':
       return <UnavailableView folder={view.folder} onStopTracking={props.onRequestUntrack} />
     case 'onboarding':
@@ -190,29 +209,26 @@ function ShellFooter({ shell }: { shell: ShellModel }): JSX.Element {
   )
 }
 
-interface NewChatHostProps {
-  shell: ShellModel
-  folder: TrackedFolderView
-  onClose(): void
-}
-
-/** The new-chat dialog for a folder, wired to the shell: creating opens the chat, and the links open the agents screens. */
-function NewChatHost({ shell, folder, onClose }: NewChatHostProps): JSX.Element {
-  const { actions } = shell
-  return (
-    <NewChatDialog
-      folder={folder}
-      agents={shell.agents.agents}
-      statuses={shell.agents.statuses}
-      onCreate={async (choice) => (await actions.createChat(folder, choice)) !== null}
-      onAddAgent={() => {
-        onClose()
-        actions.openAddAgent()
-      }}
-      onAgentStatus={shell.agents.recordStatus}
-      onClose={onClose}
-    />
-  )
+/**
+ * New chat with one click: the folder's agent (see `newChatAgent`) as an orchestrator that may save, on the
+ * CLI's own default model, and its terminal opens; with no agent connected, the add-agent pane opens instead.
+ * A click while a folder's new chat is still being created does nothing (`starting` holds those folders).
+ */
+async function startNewChat(shell: ShellModel, folder: TrackedFolderView, starting: Set<string>): Promise<void> {
+  if (starting.has(folder.path)) return
+  starting.add(folder.path)
+  try {
+    // An untracked folder or any other failure reads as no default, as in `useFolderDefaultAgent`.
+    const defaultId = await window.dm.folderDefaultAgent(folder.path).catch(() => null)
+    const agent = newChatAgent(defaultId, shell.agents.agents, shell.agents.statuses)
+    if (agent === null) {
+      shell.actions.openAddAgent()
+      return
+    }
+    await shell.actions.createChat(folder, { agent, model: null, role: 'orchestrator', allowSave: true })
+  } finally {
+    starting.delete(folder.path)
+  }
 }
 
 /** What the sidebar needs for the folders' chats. */
@@ -226,57 +242,106 @@ function sidebarChats(shell: ShellModel, onNew: (path: string) => void): Compone
   }
 }
 
-function Shell({ scheduler, EpicView }: { scheduler: Scheduler; EpicView: EpicView }): JSX.Element {
-  const update = useAppUpdate()
-  const shell = useShell(scheduler)
-  const [pending, setPending] = useState<TrackedFolderView | null>(null)
-  const [newChatIn, setNewChatIn] = useState<TrackedFolderView | null>(null)
+interface SignInViewState {
+  /** The sign-in shown in `app-main`, or null. */
+  request: SignInRequest | null
+  open(request: SignInRequest): void
+  close(): void
+}
+
+/**
+ * The sign-in view Sign in opens: shown over the screen it was pressed on, and gone (its login stopped) with Back or
+ * as soon as the person goes to another screen.
+ */
+function useSignInView(selection: Selection): SignInViewState {
+  const screen = JSON.stringify(selection)
+  const [opened, setOpened] = useState<{ request: SignInRequest; screen: string } | null>(null)
+  if (opened !== null && opened.screen !== screen) {
+    setOpened(null)
+  }
+  const open = useCallback((request: SignInRequest) => setOpened({ request, screen }), [screen])
+  const close = useCallback(() => setOpened(null), [])
+  return { request: opened?.screen === screen ? opened.request : null, open, close }
+}
+
+interface ShellSidebarProps {
+  shell: ShellModel
+  version: string
+  /** The new chat's folder, as the sidebar's + names it (null for a path no longer tracked). */
+  onNewChat(folder: TrackedFolderView | null): void
+  onRequestUntrack(folder: TrackedFolderView): void
+}
+
+/** The sidebar, wired to the shell: folders and their epics and chats, the Agents list, and the footer. */
+function ShellSidebar({ shell, version, onNewChat, onRequestUntrack }: ShellSidebarProps): JSX.Element {
   const { actions } = shell
   return (
-    <div className="app-shell">
-      <Sidebar
-        version={update.currentVersion}
-        folders={shell.folders}
-        lists={shell.lists}
-        selection={shell.selection}
-        agents={shell.agents.agents}
-        agentStatuses={shell.agents.statuses}
-        expansion={shell.expansion}
-        chats={sidebarChats(shell, (path) => setNewChatIn(findFolder(shell.folders, path)))}
-        footer={<ShellFooter shell={shell} />}
-        onTrack={() => void actions.track()}
-        onAddAgent={actions.openAddAgent}
-        onSelectAgent={actions.openAgent}
-        onAgentStatus={shell.agents.recordStatus}
-        onSelectFolder={actions.selectFolder}
-        onSelectEpic={actions.selectEpic}
-        onRequestUntrack={setPending}
-      />
-      <main className="app-main" aria-label="Workspace">
-        <MainPane shell={shell} EpicView={EpicView} onRequestUntrack={setPending} />
-      </main>
-      <UpdateBanner />
-      {newChatIn === null ? null : (
-        <NewChatHost shell={shell} folder={newChatIn} onClose={() => setNewChatIn(null)} />
-      )}
-      {pending === null ? null : (
-        <UntrackDialog
-          folder={pending}
-          onCancel={() => setPending(null)}
-          onConfirm={() => {
-            void actions.untrack(pending.path)
-            setPending(null)
-          }}
-        />
-      )}
-    </div>
+    <Sidebar
+      version={version}
+      folders={shell.folders}
+      lists={shell.lists}
+      selection={shell.selection}
+      agents={shell.agents.agents}
+      agentStatuses={shell.agents.statuses}
+      expansion={shell.expansion}
+      chats={sidebarChats(shell, (path) => onNewChat(findFolder(shell.folders, path)))}
+      footer={<ShellFooter shell={shell} />}
+      onTrack={() => void actions.track()}
+      onAddAgent={actions.openAddAgent}
+      onSelectAgent={actions.openAgent}
+      onAgentStatus={shell.agents.recordStatus}
+      onSelectFolder={actions.selectFolder}
+      onSelectEpic={actions.selectEpic}
+      onRequestUntrack={onRequestUntrack}
+    />
   )
 }
 
-export function App({ scheduler = browserScheduler, EpicView = EpicWorkspace }: AppProps): JSX.Element {
+function Shell({ scheduler, EpicView, terminalKit }: { scheduler: Scheduler; EpicView: EpicView; terminalKit: TerminalKit }): JSX.Element {
+  const update = useAppUpdate()
+  const shell = useShell(scheduler)
+  const [pending, setPending] = useState<TrackedFolderView | null>(null)
+  const startingChats = useRef(new Set<string>())
+  const signIn = useSignInView(shell.selection)
+  const signingIn = signIn.request !== null
+  const { actions } = shell
+  return (
+    <SignInContext.Provider value={signIn.open}>
+      <div className="app-shell">
+        <ShellSidebar shell={shell} version={update.currentVersion} onNewChat={(folder) => {
+            if (folder !== null) void startNewChat(shell, folder, startingChats.current)
+          }} onRequestUntrack={setPending} />
+        <main className="app-main" aria-label="Workspace">
+          {signIn.request === null ? null : <SignInView request={signIn.request} kit={terminalKit} scheduler={scheduler} onBack={signIn.close} />}
+          {/* Kept while the sign-in view shows, hidden, so Back returns to the screen (and any dialog on it) as it was. */}
+          <div className="main-view" hidden={signingIn}>
+            <MainPane shell={shell} EpicView={EpicView} scheduler={scheduler} terminalKit={terminalKit} onRequestUntrack={setPending} />
+          </div>
+        </main>
+        <UpdateBanner />
+        {pending === null ? null : (
+          <UntrackDialog
+            folder={pending}
+            onCancel={() => setPending(null)}
+            onConfirm={() => {
+              void actions.untrack(pending.path)
+              setPending(null)
+            }}
+          />
+        )}
+      </div>
+    </SignInContext.Provider>
+  )
+}
+
+export function App({ scheduler = browserScheduler, EpicView = EpicWorkspace, terminalKit = xtermKit }: AppProps): JSX.Element {
+  // The page's chat terminals, so a chat's sidebar row shows its live PTY whichever chat is shown.
+  const [liveTerminals] = useState(createLiveTerminals)
   return (
     <ToastProvider scheduler={scheduler}>
-      <Shell scheduler={scheduler} EpicView={EpicView} />
+      <LiveTerminalsContext.Provider value={liveTerminals}>
+        <Shell scheduler={scheduler} EpicView={EpicView} terminalKit={terminalKit} />
+      </LiveTerminalsContext.Provider>
     </ToastProvider>
   )
 }

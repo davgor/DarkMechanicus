@@ -125,10 +125,14 @@
   margin-left: auto;
 }
 
-/* The link to the chat that orchestrates the run takes the place of the push to the right; Close follows it. */
+/* The links to the chat that orchestrates the run take the place of the push to the right; Close follows them. */
 .of-open {
   margin-left: auto;
   font-size: 12px;
+}
+
+.of-open + .of-open {
+  margin-left: 10px;
 }
 
 .of-open + .of-close {

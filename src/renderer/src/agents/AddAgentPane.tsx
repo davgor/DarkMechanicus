@@ -103,7 +103,7 @@ function AgentCard(props: AgentCardProps): JSX.Element {
   )
 }
 
-/** Any other CLI that speaks a protocol the app knows: the card opens the form that adds one, across the whole row. */
+/** Any other agent CLI, run as it is in a chat's terminal: the card opens the form that adds one, across the whole row. */
 function CustomCliCard({ agents }: AddAgentPaneProps): JSX.Element {
   const [open, setOpen] = useState(false)
   return (
@@ -133,7 +133,7 @@ export function AddAgentPane({ agents }: AddAgentPaneProps): JSX.Element {
           <h1 className="display">Add an agent</h1>
           <p className="lede">
             Connect the coding agents Dark Mechanicus can work with. Find one already installed on this computer,
-            download it from its official source, or add any other CLI that speaks a protocol the app knows.
+            download it from its official source, or add any other agent CLI to run in a chat’s terminal.
           </p>
         </div>
       </header>

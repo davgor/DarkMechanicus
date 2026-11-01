@@ -1,14 +1,16 @@
 /**
  * Wires the desktop bridge to Electron: the tracked-folder and agent registries, one Workspace per
- * folder, native dialogs, clipboard, external links, the agent chat sessions, and the `dm:*`, `agents:*`
- * and `chats:*` IPC channels. All logic lives in the pure modules beside this file and in
- * `../agents`; this one is composition only, so it has no unit tests of its own.
+ * folder, native dialogs, clipboard, external links, the agent chats and their terminals, and the
+ * `dm:*`, `agents:*`, `chats:*` and `terminals:*` IPC channels. All logic lives in the pure modules
+ * beside this file, in `../agents` and in `../terminals`; this one is composition only, so it has no
+ * unit tests of its own.
  */
 import {
   app,
   BrowserWindow,
   clipboard,
   dialog,
+  MessageChannelMain,
   shell,
   type IpcMain,
   type OpenDialogOptions
@@ -20,23 +22,19 @@ import { resolveHomeDir } from '../../core/repo/storageMode'
 import { openWorkspace, type Workspace } from '../../core/workspace'
 import type { AgentDownloadProgress, BuiltInAgentKind, McpConfigView } from '../../shared/desktop/api'
 import { createActivityBindings, type ActivityBindings } from '../agents/activityBindings'
-import { CHAT_ADAPTERS } from '../agents/adapterRegistry'
-import { nodeTransport } from '../agents/adapters/acpProcess'
-import { startClaudeProbe } from '../agents/adapters/claude'
-import { startCodexProbe } from '../agents/adapters/codex'
 import { createChatGrants } from '../agents/chatGrants'
 import { createChatHandlers } from '../agents/chatHandlers'
 import { createChatPush, registerChatIpc } from '../agents/chatIpc'
-import { createChatStore } from '../agents/chatStore'
-import { createSessionManager, type SessionManager } from '../agents/sessionManager'
-import { acpExchange, createHandshakeFolders, runHandshake, type HandshakeOutcome } from '../agents/protocolHandshake'
-import type { AgentLaunchSpec } from '../agents/launchSpec'
+import { createChatRecords, type ChatRecords } from '../agents/chatRecords'
+import { createChatStore, type ChatStore } from '../agents/chatStore'
 import { listBoundThreads } from '../agents/boundThreads'
-import { listThreadBindings, type BindingReads } from '../agents/threadBindings'
-import { trackChatSignIn } from '../agents/signInHooks'
+import { findBoundTerminal, type GrantBindingReads } from '../agents/grantBindings'
 import { logger } from '../logger'
-import { getAgentAuthStatus, signInAgent, type AgentAuthHooks } from './agentAuth'
-import { launchTerminal } from './agentAuthNode'
+import { createLoginTerminals, type LoginTerminals } from '../terminals/loginTerminals'
+import { createNodePtyHost, type PtyHost } from '../terminals/ptyHost'
+import { createTerminalHandlers, registerTerminalIpc } from '../terminals/terminalHandlers'
+import { createTerminalSessions, endingTerminals, type TerminalSessions, type TerminalSessionsDeps } from '../terminals/terminalSessions'
+import { getAgentAuthStatus } from './agentAuth'
 import {
   createAgentInstaller,
   installDialogOptions,
@@ -159,25 +157,11 @@ function confirmCustomAgent(confirmation: CustomAgentConfirmation): Promise<bool
   return shown.then(customAgentApproved)
 }
 
-/** A custom CLI's protocol handshake, on real processes, in a fresh temp folder. */
-function handshakeCustomAgent(spec: AgentLaunchSpec): Promise<HandshakeOutcome> {
-  const launch = agentRunDeps()
-  return runHandshake(spec, {
-    ...createHandshakeFolders(),
-    exchanges: {
-      acp: acpExchange({ ...launch, transport: nodeTransport, clientVersion: app.getVersion() }),
-      codex: (custom, folder) => startCodexProbe(custom, folder),
-      claude: (custom, folder) => startClaudeProbe(custom, folder)
-    }
-  })
-}
-
 function createCustom(agents: AgentRegistry): CustomAgents {
   return createCustomAgents({
     agents,
     pickExecutable: pickCustomExecutable,
     confirm: confirmCustomAgent,
-    handshake: handshakeCustomAgent,
     launch: agentRunDeps()
   })
 }
@@ -236,11 +220,11 @@ function openDesktopWorkspace(repoRoot: string): Workspace {
 }
 
 /**
- * What main keeps of the bridge: the chat sessions, which must be disposed before the app exits,
- * and `close`, which releases the open workspaces and then `app.sqlite` once they are.
+ * What main keeps of the bridge: the chat sessions and chat terminals, which must be disposed before the
+ * app exits, and `close`, which releases the open workspaces and then `app.sqlite` once they are.
  */
 interface DesktopBridge {
-  chats: Pick<SessionManager, 'liveCount' | 'disposeAll'>
+  chats: { busy: () => boolean; dispose: () => Promise<void> }
   close: () => void
 }
 
@@ -253,78 +237,124 @@ function desktopWorkspace(folders: Pick<FolderRegistry, 'resolve'>, workspaces: 
   return workspaces.get(tracked)
 }
 
+/** The agent chats: their records, and the terminals (one PTY per chat) over the same store and one set of grants. */
+interface ChatProcesses {
+  /** The chat records, with deleting a chat also killing its terminal. */
+  chats: ChatRecords
+  /** What the quit is held for: every chat terminal and every sign-in terminal. */
+  quit: DesktopBridge['chats']
+  /** The chat store, and the terminals, for the `terminals:*` channel. */
+  store: ChatStore
+  terminals: TerminalSessions
+  /** The agents' sign-in terminals, for `agents:signIn`. */
+  logins: LoginTerminals
+}
+
+/** What the chat terminals run over besides the store: the grants and runs of the chats, the tracked folders, the agents. */
+interface TerminalDeps {
+  grants: Pick<TerminalSessionsDeps, 'issueChatCli' | 'revokeChatGrant' | 'runs'>
+  folders: TerminalSessionsDeps['folders']
+  agents: Pick<AgentRegistry, 'get'>
+}
+
+/** The chat terminals and the sign-in terminals, over one PTY host loaded at the first start (an app where it cannot run still opens). */
+function createTerminalProcesses(store: ChatStore, deps: TerminalDeps): Pick<ChatProcesses, 'terminals' | 'logins'> {
+  let host: Promise<PtyHost> | undefined
+  const base = { host: () => (host ??= createNodePtyHost()), platform: process.platform, env: process.env }
+  const terminals = createTerminalSessions({
+    ...base,
+    store,
+    agentFor: (id) => deps.agents.get(id),
+    folders: deps.folders,
+    checkAuth: (kind, executablePath) => getAgentAuthStatus(kind, executablePath, agentRunDeps()),
+    cliFor: cliConfigFor,
+    ...deps.grants,
+    userData: app.getPath('userData'),
+    onError: (error) => {
+      logger.error('Chat terminal failed:', error)
+    }
+  })
+  const logins = createLoginTerminals({
+    ...base,
+    home: app.getPath('home'),
+    onError: (error) => {
+      logger.error('Sign-in terminal failed:', error)
+    }
+  })
+  return { terminals, logins }
+}
+
 /**
- * Runs agent chats (`userData/agents/chats`) with the connected agents, binding their threads to the runs
- * and attempts they act on (`activity`). When a chat's agent turns out to be signed out, the run it
- * orchestrates is paused with the reason `signed_out` through the folder's own desktop workspace: the
- * only session that may give that reason.
+ * The agent chats (`userData/agents/chats`) with the connected agents, each run in its terminal. When an
+ * orchestrator chat's agent turns out to be signed out, the run it orchestrates is paused with the reason
+ * `signed_out` through the folder's own desktop workspace: the only session that may give that reason. The chat
+ * terminals and the sign-in terminals load node-pty at the first start, so an app where it cannot run still opens.
+ * Deleting a chat forgets the bindings old chats stored (`activity`).
  */
-function createSessions(
+function createChatProcesses(
   folders: Pick<FolderRegistry, 'resolve'>,
   agents: Pick<AgentRegistry, 'get'>,
   workspaces: Pick<WorkspacePool, 'get'>,
   activity: ActivityBindings
-): SessionManager {
-  return createSessionManager({
-    store: createChatStore({ root: join(app.getPath('userData'), 'agents', 'chats') }),
-    activity,
-    adapters: CHAT_ADAPTERS,
-    agentFor: (id) => agents.get(id),
-    folders: { trackedFolder: (path) => folders.resolve(path) },
-    // Revoked through the workspace each grant was issued in, even after its folder moved.
-    ...createChatGrants({
-      workspaceFor: (folder) => desktopWorkspace(folders, workspaces, folder),
-      cliFor: cliConfigFor,
-      minutes: CHAT_GRANT_MINUTES,
-      log: (line) => {
-        logger.warn(line)
-      }
-    }),
-    push: createChatPush(() => BrowserWindow.getAllWindows()),
-    runs: {
-      getRun: async (folder, runId) => desktopWorkspace(folders, workspaces, folder).getRun({ runId }),
-      pauseRun: async (folder, input) => desktopWorkspace(folders, workspaces, folder).pauseRun(input)
-    },
-    onError: (error) => {
-      logger.error('Agent chat failed:', error)
+): ChatProcesses {
+  // One store for all: it keeps each folder's index in memory, so two would write over each other's records.
+  const store = createChatStore({ root: join(app.getPath('userData'), 'agents', 'chats') })
+  // Revoked through the workspace each grant was issued in, even after its folder moved.
+  const grants = createChatGrants({
+    workspaceFor: (folder) => desktopWorkspace(folders, workspaces, folder),
+    cliFor: cliConfigFor,
+    minutes: CHAT_GRANT_MINUTES,
+    log: (line) => {
+      logger.warn(line)
     }
   })
+  const runs = {
+    getRun: async (folder: string, runId: string) => desktopWorkspace(folders, workspaces, folder).getRun({ runId }),
+    pauseRun: async (folder: string, input: { runId: string; reason: string }) => desktopWorkspace(folders, workspaces, folder).pauseRun(input)
+  }
+  const launchFolders = { trackedFolder: (path: string) => folders.resolve(path) }
+  const { terminals, logins } = createTerminalProcesses(store, { grants: { ...grants, runs }, folders: launchFolders, agents })
+  const quit = {
+    busy: () => terminals.busy() || logins.busy(),
+    dispose: async () => {
+      await Promise.all([terminals.dispose(), logins.dispose()])
+    }
+  }
+  const chats = endingTerminals(createChatRecords({ store, activity, agentFor: (id) => agents.get(id) }), terminals)
+  return { chats, quit, store, terminals, logins }
 }
 
-/** What the desktop's own workspace can say about a run and an attempt, for resolving the tickets chat threads are bound to. */
-function bindingReads(workspaces: Pick<WorkspacePool, 'get'>): BindingReads {
+/** The command layer's timelines through the desktop's own workspace, for finding the chat an attempt or a run is bound to by grant. */
+function grantReads(workspaces: Pick<WorkspacePool, 'get'>): GrantBindingReads {
   return {
-    attempt: async (folder, attemptId) => {
-      const { runId, ticketId } = await workspaces.get(folder).getAttemptTimeline({ attemptId, limit: 1 })
-      return { runId, ticketId }
-    },
-    run: async (folder, runId) => {
-      const run = await workspaces.get(folder).getRun({ runId })
-      return run === null ? null : { epicId: run.epicId, tickets: run.tickets.map((ticket) => ({ ticketId: ticket.ticketId, key: ticket.key })) }
-    }
+    attemptTimeline: async (folder, attemptId) => workspaces.get(folder).getAttemptTimeline({ attemptId }),
+    runTimeline: async (folder, runId, sinceSeq) => workspaces.get(folder).getRunTimeline({ runId, sinceSeq })
   }
 }
 
-/** What the `chats:*` channels run over: the tracked folders, the connected agents, the chat sessions, the workspaces and the thread bindings. */
+/** What the `chats:*` channels run over: the tracked folders, the connected agents, the chats and their terminals, the workspaces and the bindings old chats stored. */
 interface ChatServices {
   folders: Pick<FolderRegistry, 'resolve'>
   agents: Pick<AgentRegistry, 'get'>
-  sessions: SessionManager
+  chats: ChatRecords
+  store: ChatStore
+  terminals: TerminalSessions
   workspaces: Pick<WorkspacePool, 'get'>
   activity: ActivityBindings
 }
 
-/** Serves the `chats:*` channels over the chat sessions. */
+/** Serves the `chats:*` channels over the chat records; Start run starts the orchestrator chat's terminal. */
 function startChats(ipc: Pick<IpcMain, 'handle'>, services: ChatServices): void {
-  const { folders, agents, sessions, workspaces, activity } = services
+  const { folders, agents, chats, store, terminals, workspaces, activity } = services
   const handlers = createChatHandlers({
     registry: folders,
     agents,
-    sessions,
+    chats,
+    terminals,
     // Every window hears of a chat created, renamed or deleted, so none keeps a stale list.
     push: createChatPush(() => BrowserWindow.getAllWindows()),
-    threadBindings: (chat) => listThreadBindings({ activity, reads: bindingReads(workspaces) }, chat),
     boundThreads: (folder, target) => listBoundThreads(activity, folder, target),
+    boundTerminal: (folder, target) => findBoundTerminal({ reads: grantReads(workspaces), store }, folder, target),
     // The same desktop commands the Start run button runs, through the folder's own workspace.
     runs: {
       getEpic: (folder, epicId) => workspaces.get(folder).getEpic({ epicId }),
@@ -340,6 +370,34 @@ function startChats(ipc: Pick<IpcMain, 'handle'>, services: ChatServices): void 
     }
   })
   registerChatIpc(ipc, handlers)
+}
+
+/** What `terminals:attach` and `agents:signIn` run over. */
+interface TerminalServices {
+  folders: Pick<FolderRegistry, 'resolve'>
+  agents: Pick<AgentRegistry, 'get'>
+  store: ChatStore
+  terminals: TerminalSessions
+  logins: LoginTerminals
+}
+
+/** Serves `terminals:attach` over the chat terminals and `agents:signIn` over the sign-in terminals, posting each running one's port to its frame. */
+function startTerminals(ipc: Pick<IpcMain, 'handle'>, services: TerminalServices): void {
+  const handlers = createTerminalHandlers({
+    registry: services.folders,
+    store: services.store,
+    sessions: services.terminals,
+    agents: services.agents,
+    logins: services.logins,
+    channel: () => {
+      const { port1, port2 } = new MessageChannelMain()
+      return { local: port1, remote: port2 }
+    },
+    onUnexpectedError: (error) => {
+      logger.error('Terminal request failed:', error)
+    }
+  })
+  registerTerminalIpc(ipc, handlers)
 }
 
 /** Heartbeats open workspaces; the returned close releases them first and then the app-wide database. */
@@ -363,19 +421,8 @@ function openAgentRegistry(appDb: Db): AgentRegistry {
   return createAgentRegistry({ db: appDb })
 }
 
-/** The status the app shows is the CLI's own, corrected by what chats found out (an expired login). */
-function chatAwareAuthHooks(sessions: SessionManager): AgentAuthHooks {
-  return trackChatSignIn(
-    {
-      checkAuth: (agent) => getAgentAuthStatus(agent.kind, agent.executablePath, agentRunDeps()),
-      signIn: (agent) => signInAgent(agent.kind, agent.executablePath, { ...agentRunDeps(), launch: launchTerminal })
-    },
-    sessions
-  )
-}
-
 /**
- * Registers the `dm:*`, `agents:*` and `chats:*` IPC handlers on `ipc` (the sender-guarded
+ * Registers the `dm:*`, `agents:*`, `chats:*` and `terminals:*` IPC handlers on `ipc` (the sender-guarded
  * registrar from `guardIpc`) and the background heartbeat/shutdown for open workspaces.
  */
 export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick<IpcMain, 'handle'>): DesktopBridge {
@@ -390,10 +437,9 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   const pool = createWorkspacePool(openDesktopWorkspace, (path, error) => {
     logger.error(`Workspace error for ${path}:`, error)
   })
-  // Which chat threads act on which runs and attempts, next to the chats; main code looks them up here.
+  // Which threads of old chats acted on which runs and attempts, as they stored it next to the chats.
   const activity = createActivityBindings({ file: join(app.getPath('userData'), 'agents', 'activity-bindings.jsonl') })
-  const sessions = createSessions(registry, agents, pool, activity)
-  const authHooks = chatAwareAuthHooks(sessions)
+  const { chats, quit, store, terminals, logins } = createChatProcesses(registry, agents, pool, activity)
   const handlers = createDesktopHandlers({
     registry,
     pool,
@@ -403,10 +449,12 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
     pickExecutable,
     probeAgent: probeExecutable,
     installAgent: (kind) => installer.download(kind),
-    checkAuth: authHooks.checkAuth,
-    signIn: authHooks.signIn,
+    checkAuth: (agent) => getAgentAuthStatus(agent.kind, agent.executablePath, agentRunDeps()),
     customAgents: createCustom(agents),
-    endAgentSessions: (id) => sessions.endAgentSessions(id),
+    // Removing an agent kills its chats' terminals and its sign-in terminal.
+    endAgentSessions: async (id) => {
+      await Promise.all([terminals.endAgent(id), logins.endAgent(id)])
+    },
     writeClipboard: (text) => clipboard.writeText(text),
     openExternal: (url) => shell.openExternal(url),
     mcpConfig: mcpConfigFor,
@@ -421,6 +469,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   })
   registerDesktopIpc(ipc, handlers)
   const close = runLifecycle(pool, appDb)
-  startChats(ipc, { folders: registry, agents, sessions, workspaces: pool, activity })
-  return { chats: sessions, close }
+  startChats(ipc, { folders: registry, agents, chats, store, terminals, workspaces: pool, activity })
+  startTerminals(ipc, { folders: registry, agents, store, terminals, logins })
+  return { chats: quit, close }
 }

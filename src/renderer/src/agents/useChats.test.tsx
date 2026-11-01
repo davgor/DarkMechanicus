@@ -2,7 +2,6 @@
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { FakeDm } from '../__mocks__/fakeDm'
-import { approvalDecision, approvalRequest } from '../__mocks__/chatViewKit'
 import { chatRecord } from '../__mocks__/fixtures'
 import { settle } from '../__mocks__/settle'
 import { chatsFor, useChats } from './useChats'
@@ -131,61 +130,22 @@ describe('useChats renaming and deleting', () => {
 })
 
 describe('useChats pushed events', () => {
-  it('reloads the folder of a chat whose turn started or ended, so its order and time are current', async () => {
+  it('reloads a listed folder whose chats changed elsewhere, so a chat created in another window shows', async () => {
     const view = await mount(['/a'])
-    dm.chats.chats[0] = chatRecord({ ...dm.chats.chats[0], updatedAt: '2026-03-09T10:00:00.000Z' })
-    act(() => dm.chats.emit({ type: 'turn', chatId: 'chat_a1', running: false }))
+    dm.chats.chats.push(chatRecord({ id: 'chat_a3', folder: '/a', title: 'From elsewhere', updatedAt: '2026-03-09T10:00:00.000Z' }))
+    act(() => dm.chats.emit({ type: 'chats_changed', folder: '/a', chatId: 'chat_a3' }))
     await settle()
-    expect(titles(view, '/a')).toEqual(['Older', 'Newer'])
+    expect(titles(view, '/a')).toEqual(['From elsewhere', 'Newer', 'Older'])
   })
 
-  it('reloads the folder when a chat’s model was switched, so its row names the new model', async () => {
-    const view = await mount(['/a'])
-    dm.chats.chats[0] = chatRecord({ ...dm.chats.chats[0], model: 'sonnet' })
-    act(() => dm.chats.emit({ type: 'item', chatId: 'chat_a1', item: { id: 'm1', at: '2026-03-01T10:00:00.000Z', kind: 'model_change', from: 'opus', to: 'sonnet' } }))
-    await settle()
-    expect(chatsFor(view.result.current.lists, '/a').chats.find((chat) => chat.id === 'chat_a1')?.model).toBe('sonnet')
-    const before = dm.chats.callsOf('list').length
-    act(() => dm.chats.emit({ type: 'item', chatId: 'chat_a1', item: { id: 'u1', at: '2026-03-01T10:00:00.000Z', kind: 'user_message', text: 'hi' } }))
-    await settle()
-    expect(dm.chats.callsOf('list')).toHaveLength(before)
-  })
-
-  it('reloads the folder when an approval request or its decision is pushed, so the waiting count follows', async () => {
-    const view = await mount(['/a'])
-    const waiting = (): (number | undefined)[] => chatsFor(view.result.current.lists, '/a').chats.map((chat) => chat.pending)
-    expect(waiting()).toEqual([0, 0])
-    act(() => dm.chats.emitItem('chat_a1', approvalRequest('q1')))
-    await settle()
-    expect(chatsFor(view.result.current.lists, '/a').chats.find((chat) => chat.id === 'chat_a1')?.pending).toBe(1)
-    expect(chatsFor(view.result.current.lists, '/a').chats.find((chat) => chat.id === 'chat_a2')?.pending).toBe(0)
-    act(() => dm.chats.emitItem('chat_a1', approvalDecision('q1', 'deny')))
-    await settle()
-    expect(waiting()).toEqual([0, 0])
-  })
-
-})
-
-describe('useChats sign-in and ignored events', () => {
-  it('reloads the folder when a sign-in cut a chat’s turn short, so its record says a turn waits to be retried', async () => {
-    const view = await mount(['/a'])
-    const cutShort = (): (string | null | undefined)[] => chatsFor(view.result.current.lists, '/a').chats.map((chat) => chat.cutShortMessageId)
-    expect(cutShort()).toEqual([undefined, undefined])
-    dm.chats.chats[0] = chatRecord({ ...dm.chats.chats[0], cutShortMessageId: 'u1' })
-    act(() => dm.chats.emitItem('chat_a1', { id: 'auth_1', at: '2026-03-01T10:00:00.000Z', kind: 'auth_required', agent: 'claude', message: 'Please log in.' }))
-    await settle()
-    expect(chatsFor(view.result.current.lists, '/a').chats.find((chat) => chat.id === 'chat_a1')?.cutShortMessageId).toBe('u1')
-  })
-
-  it('ignores deltas and events of chats it does not list, and stops listening when unmounted', async () => {
+  it('ignores a folder it does not list, and stops listening when unmounted', async () => {
     const view = await mount(['/a'])
     const before = dm.chats.callsOf('list').length
-    act(() => dm.chats.emit({ type: 'assistant_delta', chatId: 'chat_a1', itemId: 'i', delta: 'x' }))
-    act(() => dm.chats.emit({ type: 'turn', chatId: 'chat_elsewhere', running: true }))
+    act(() => dm.chats.emit({ type: 'chats_changed', folder: '/b', chatId: 'chat_b1' }))
     await settle()
     expect(dm.chats.callsOf('list')).toHaveLength(before)
     view.unmount()
-    act(() => dm.chats.emit({ type: 'turn', chatId: 'chat_a1', running: true }))
+    act(() => dm.chats.emit({ type: 'chats_changed', folder: '/a', chatId: 'chat_a1' }))
     await settle()
     expect(dm.chats.callsOf('list')).toHaveLength(before)
   })

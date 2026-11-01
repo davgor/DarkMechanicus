@@ -57,8 +57,8 @@ function page(entries: ActivityEntry[], cursor: number, patch: Partial<RunTimeli
   const orchestrator = entries.filter((entry) => entry.sessionId === 'ss_orch')
   const worker = entries.filter((entry) => entry.sessionId === 'ss_w')
   const groups = [
-    { session: { id: 'ss_orch', role: 'orchestrator' as const, label: 'Claude Code in chat' }, entries: orchestrator },
-    { session: { id: 'ss_w', role: 'worker' as const, label: 'Claude Code subagent' }, entries: worker }
+    { session: { id: 'ss_orch', role: 'orchestrator' as const, label: 'Claude Code in chat', grantId: null }, entries: orchestrator },
+    { session: { id: 'ss_w', role: 'worker' as const, label: 'Claude Code subagent', grantId: null }, entries: worker }
   ].filter((group) => group.entries.length > 0)
   return { runId: 'rn_2', epicId: 'ep_1', state: 'running', isLive: true, cursor, groups, ...patch }
 }

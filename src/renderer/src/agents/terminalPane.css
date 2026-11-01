@@ -1,0 +1,110 @@
+/* A chat's terminal in the main area: the chat header, then the terminal filling the rest of app-main. */
+
+.terminal-pane {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.terminal-notice {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 8px 40px;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.terminal-notice.is-blocking {
+  padding: 24px 40px;
+  border-bottom: 0;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+/* The sign-in card of a chat whose agent is signed out: why, and Sign in (whose login then runs in the pane). */
+.terminal-sign-in {
+  flex-shrink: 0;
+}
+
+.terminal-sign-in .button-row {
+  padding: 0 40px 24px;
+}
+
+/* The exit, with Start again (and New session), above the CLI's last screen. */
+.terminal-ended {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 40px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.terminal-ended .terminal-notice {
+  flex: 1;
+  padding: 0;
+  border-bottom: 0;
+}
+
+.terminal-ended .button-row {
+  padding-top: 0;
+}
+
+/* An old chat's stored transcript: the control above the terminal, and the read-only transcript it opens. */
+.terminal-earlier {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 40px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.terminal-earlier-note {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+/* The transcript takes up to half the pane; the terminal keeps the rest and is fitted to it again. */
+.terminal-earlier-panel {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  max-height: 50%;
+  min-height: 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.terminal-frame {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  padding: 8px 0 8px 12px;
+  background: var(--code-bg);
+}
+
+.terminal-frame.is-empty {
+  display: none;
+}
+
+/* No padding here: the fit addon sizes the grid to this element's box. */
+.terminal-host {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* xterm colors its scrollbar slider with a <style> element of its own, which the CSP blocks (inertStyles.ts). */
+.terminal-host .xterm .xterm-scrollable-element > .scrollbar > .slider {
+  background: var(--line);
+}
+
+.terminal-host .xterm .xterm-scrollable-element > .scrollbar > .slider:hover {
+  background: var(--line-strong);
+}
+
+.terminal-host .xterm .xterm-scrollable-element > .scrollbar > .slider.active {
+  background: var(--faint);
+}

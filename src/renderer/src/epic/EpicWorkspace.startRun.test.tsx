@@ -28,13 +28,6 @@ const QUEUED_TOAST = 'Run queued. It starts when an orchestrator picks it up.'
 function idleBackend(): { backend: FakeBackend; chats: FakeChats } {
   const backend = new FakeBackend(scenario({ run: null, checkpoint: null }))
   const chats = new FakeChats()
-  chats.modelLists = {
-    claude: [
-      { id: 'opus', label: 'Opus' },
-      { id: 'sonnet', label: 'Sonnet' }
-    ],
-    codex: [{ id: 'gpt-5', label: 'GPT-5' }]
-  }
   chats.orchestration = { epicTitle: EPIC_TITLE, queueRun: (_folder, epicId) => backend.runner('queueRun', { epicId }) }
   backend.chats = chats
   return { backend, chats }
@@ -51,10 +44,10 @@ async function openDialog(): Promise<ReturnType<typeof within>> {
   return within(await screen.findByRole('dialog', { name: 'Start run' }))
 }
 
-/** The workspace stays where it is: no chat or agent pane is opened, and the shell is told its chats changed. */
-async function stays(harness: WorkspaceHarness, host: FakeOrchestration): Promise<void> {
-  await waitFor(() => expect(host.chatsChanged.count).toBe(1))
-  expect(host.openedChats).toEqual([])
+/** The shell is told its chats changed, then asked to open the orchestrator chat (its terminal); no agent pane or epic is opened. */
+async function opensChat(harness: WorkspaceHarness, host: FakeOrchestration, chatId: string): Promise<void> {
+  await waitFor(() => expect(host.openedChats).toEqual([chatId]))
+  expect(host.chatsChanged.count).toBe(1)
   expect(host.added.count).toBe(0)
   expect(harness.opened).toEqual([])
 }
@@ -121,13 +114,12 @@ describe('Start run: run with an agent', () => {
 
     expect(dialog.getAllByRole('radio')).toHaveLength(1)
     expect(dialog.getByRole('radio', { name: /Claude Code/ })).toBeTruthy()
-    await waitFor(() => expect(Array.from((dialog.getByLabelText('Model') as HTMLSelectElement).options).map((option) => option.value)).toEqual(['opus', 'sonnet']))
+    await waitFor(() => expect(Array.from((dialog.getByLabelText('Model') as HTMLSelectElement).options).map((option) => option.value)).toEqual(['default', 'opus', 'sonnet', 'haiku']))
   })
 
   it('queues the run, then creates the orchestrator chat in this folder with that agent and model, the run id recorded and Allow save off', async () => {
     const { backend, chats } = idleBackend()
-    const host = withClaude()
-    const harness = renderWorkspace(backend, { orchestration: host })
+    renderWorkspace(backend, { orchestration: withClaude() })
 
     const dialog = await openDialog()
     await waitFor(() => expect(dialog.getByLabelText('Model')).toBeTruthy())
@@ -148,28 +140,30 @@ describe('Start run: run with an agent', () => {
       runId: 'rn_2'
     })
     expect(chats.callsOf('create')).toEqual([])
-    await stays(harness, host)
   })
 
-  it('shows the run it started as queued while the main pane stays on the epic', async () => {
-    const { backend } = idleBackend()
-    renderWorkspace(backend, { orchestration: withClaude() })
+  it('opens the orchestrator chat, whose terminal main has started, once the shell has listed it', async () => {
+    const { backend, chats } = idleBackend()
+    const host = withClaude()
+    const harness = renderWorkspace(backend, { orchestration: host })
 
     const dialog = await openDialog()
     await waitFor(() => expect(dialog.getByLabelText('Model')).toBeTruthy())
     fireEvent.click(dialog.getByRole('button', { name: 'Run with agent' }))
 
-    expect((await screen.findByText('QUEUED')).textContent).toBe('QUEUED')
+    // The fake names the first chat it creates chat_new_1.
+    await opensChat(harness, host, 'chat_new_1')
+    expect(chats.chats.map((chat) => chat.id)).toEqual(['chat_new_1'])
     expect(screen.queryByRole('dialog')).toBeNull()
-    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(EPIC_TITLE)
   })
 })
 
 describe('Start run: when the chat cannot be started', () => {
-  it('keeps the run queued and shows why no chat was started', async () => {
+  it('keeps the run queued, shows why no chat was started, and stays on the epic', async () => {
     const { backend, chats } = idleBackend()
     chats.orchestrationProblem = 'Run #2 is queued, but Claude Code could not be started: claude exited with code 1. It is waiting for an orchestrator.'
-    renderWorkspace(backend, { orchestration: withClaude() })
+    const host = withClaude()
+    renderWorkspace(backend, { orchestration: host })
 
     const dialog = await openDialog()
     await waitFor(() => expect(dialog.getByLabelText('Model')).toBeTruthy())
@@ -180,6 +174,8 @@ describe('Start run: when the chat cannot be started', () => {
     expect(chats.chats).toEqual([])
     expect(screen.queryByText('Run queued. Claude Code is orchestrating it.')).toBeNull()
     expect((await screen.findByText('QUEUED')).textContent).toBe('QUEUED')
+    expect(host.openedChats).toEqual([])
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(EPIC_TITLE)
   })
 
   it('shows the error and queues nothing when the run cannot be queued at all', async () => {
@@ -220,14 +216,13 @@ describe('Start run: no agent that is connected and signed in', () => {
   it('lists a connected agent that is signed out with Sign in, in the dialog, which stays open', async () => {
     const { agent } = readyAgent('claude')
     const host = fakeOrchestration({ agents: [agent], statuses: { claude: { state: 'signed_out', reason: 'no' } } })
-    renderWorkspace(idleBackend().backend, { orchestration: host })
+    const harness = renderWorkspace(idleBackend().backend, { orchestration: host })
 
     const dialog = await openDialog()
     expect((dialog.getByRole('button', { name: 'Run with agent' }) as HTMLButtonElement).disabled).toBe(true)
     fireEvent.click(dialog.getByRole('button', { name: 'Sign in' }))
 
-    // The backend cannot open a terminal, so the prompt says so, in the dialog.
-    expect(await dialog.findByText('Could not start sign-in')).toBeTruthy()
+    expect(harness.signIn.agents()).toEqual(['claude'])
     expect(screen.getByRole('dialog')).toBeTruthy()
   })
 })

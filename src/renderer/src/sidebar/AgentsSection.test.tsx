@@ -1,18 +1,21 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { FakeDm } from '../__mocks__/fakeDm'
 import { agentView } from '../__mocks__/fixtures'
 import { settle } from '../__mocks__/settle'
+import { SignInRecorder } from '../__mocks__/signInRecorder'
 import type { AgentAuthStatus, AgentId, AgentView } from '../../../shared/desktop/api'
 import type { AgentStatuses } from '../agents/useAgents'
 import { AgentsSection } from './AgentsSection'
 
 let dm: FakeDm
+let recorder: SignInRecorder
 
 beforeEach(() => {
   dm = new FakeDm()
   window.dm = dm
+  recorder = new SignInRecorder()
 })
 
 afterEach(cleanup)
@@ -29,16 +32,18 @@ interface Calls {
 function renderSection(agents: AgentView[], statuses: AgentStatuses = {}, selected: AgentId | null = null): Calls {
   const calls: Calls = { added: 0, selected: [], statuses: [] }
   render(
-    <AgentsSection
-      agents={agents}
-      statuses={statuses}
-      selected={selected}
-      onAdd={() => {
-        calls.added += 1
-      }}
-      onSelect={(kind) => calls.selected.push(kind)}
-      onStatus={(kind, status) => calls.statuses.push([kind, status])}
-    />
+    recorder.wrap(
+      <AgentsSection
+        agents={agents}
+        statuses={statuses}
+        selected={selected}
+        onAdd={() => {
+          calls.added += 1
+        }}
+        onSelect={(kind) => calls.selected.push(kind)}
+        onStatus={(kind, status) => calls.statuses.push([kind, status])}
+      />
+    )
   )
   return calls
 }
@@ -59,15 +64,16 @@ describe('AgentsSection sign-in', () => {
   const signedOut: AgentAuthStatus = { state: 'signed_out', reason: 'Not signed in.' }
   const unknown: AgentAuthStatus = { state: 'unknown', reason: 'The status command did not answer.' }
 
-  it('warns about a signed-out agent and offers Sign in on its row, without opening its page', async () => {
+  it('warns about a signed-out agent and offers Sign in on its row, without opening its page, and passes on what the sign-in view found', () => {
     const calls = renderSection([claude, codex], { claude: { state: 'signed_in', reason: 'Signed in.' }, codex: signedOut })
     const [first, second] = within(screen.getByRole('list')).getAllByRole('listitem') as HTMLElement[]
     expect(within(first as HTMLElement).queryByRole('button', { name: 'Sign in' })).toBeNull()
     expect(within(second as HTMLElement).getByText('Signed out').closest('.agent-state')?.className).toContain('tone-warn')
     fireEvent.click(within(second as HTMLElement).getByRole('button', { name: 'Sign in' }))
-    await settle()
-    expect(dm.agentCallsOf('signInAgent')).toEqual([['codex']])
+    expect(recorder.agents()).toEqual(['codex'])
     expect(calls.selected).toEqual([])
+    act(() => recorder.finish({ state: 'signed_in', reason: 'Signed in.' }))
+    expect(calls.statuses).toEqual([['codex', { state: 'signed_in', reason: 'Signed in.' }]])
   })
 
   it('shows an unknown state with its reason and Check again, and passes on what the check finds', async () => {
@@ -138,14 +144,12 @@ describe('AgentsSection list', () => {
 })
 
 describe('AgentsSection versions', () => {
-  it('labels a custom agent’s version with the agent name its handshake reported, the version alone, or Version unknown', () => {
-    const named = agentView({ kind: 'custom', id: 'cu_1', displayName: 'a8s custom', version: '18.11.2', reportedName: 'omp' })
-    const bare = agentView({ kind: 'custom', id: 'cu_2', displayName: 'Bare', version: '0.3.1', reportedName: null })
-    const unknown = agentView({ kind: 'custom', id: 'cu_3', displayName: 'Quiet', version: null, reportedName: null })
-    renderSection([named, bare, unknown])
-    const [first, second, third] = within(screen.getByRole('list')).getAllByRole('listitem') as HTMLElement[]
-    expect(within(first as HTMLElement).getByText('omp 18.11.2')).toBeTruthy()
-    expect(within(second as HTMLElement).getByText('v0.3.1')).toBeTruthy()
-    expect(within(third as HTMLElement).getByText('Version unknown')).toBeTruthy()
+  it('labels a built-in’s version, and a custom CLI’s as unknown', () => {
+    const builtIn = agentView({ kind: 'codex', version: '0.9.1' })
+    const custom = agentView({ kind: 'custom', id: 'cu_3', displayName: 'Quiet', version: null })
+    renderSection([builtIn, custom])
+    const [first, second] = within(screen.getByRole('list')).getAllByRole('listitem') as HTMLElement[]
+    expect(within(first as HTMLElement).getByText('v0.9.1')).toBeTruthy()
+    expect(within(second as HTMLElement).getByText('Version unknown')).toBeTruthy()
   })
 })

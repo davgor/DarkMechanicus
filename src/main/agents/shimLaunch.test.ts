@@ -9,8 +9,8 @@ import { planShimLaunch } from './shimLaunch'
 const COMSPEC = 'C:\\Windows\\System32\\cmd.exe'
 
 /** The command line cmd.exe is given, or a failure that makes the test say so. */
-function commandOf(path: string, args: readonly string[], options: { keepOpen?: boolean } = {}): string {
-  const plan = planShimLaunch(path, args, { comspec: COMSPEC, ...options })
+function commandOf(path: string, args: readonly string[]): string {
+  const plan = planShimLaunch(path, args, { comspec: COMSPEC })
   if (!plan.ok) {
     throw new Error(`refused: ${plan.reason}`)
   }
@@ -39,15 +39,6 @@ describe('planShimLaunch: the one parse', () => {
     const plan = planShimLaunch('C:\\Tools\\codex.cmd', ['login'], { env: { SystemRoot: 'C:\\Windows', ComSpec: 'C:\\evil\\cmd.exe' } })
 
     expect(plan).toMatchObject({ ok: true, launch: { file: 'C:\\Windows\\System32\\cmd.exe' } })
-  })
-
-  it('keeps the window open for a terminal with /k instead of /c', () => {
-    const plan = planShimLaunch('C:\\Tools\\claude.exe', ['auth', 'login'], { comspec: COMSPEC, keepOpen: true })
-
-    expect(plan).toEqual({
-      ok: true,
-      launch: { file: COMSPEC, args: ['/d', '/v:off', '/s', '/k', '""C:\\Tools\\claude.exe" auth login"'], verbatimArguments: true }
-    })
   })
 
   it('never uses start or a nested cmd.exe, and has exactly one command switch', () => {

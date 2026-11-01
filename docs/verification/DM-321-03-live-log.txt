@@ -1,0 +1,137 @@
+DM-321 live check on the built app (npm run build at commit 21683e5; Electron . --user-data-dir=/tmp/dm321-live/userdata,
+DARKMECHANICUS_HOME=/tmp/dm321-live/dmhome, scratch repo /private/tmp/dm321-live/repo initialised "Database only", Claude Code row
+inserted into the scratch app.sqlite pointing at ~/.local/bin/claude; the chat uses model haiku). Claude Code auto-updated itself to
+2.1.316 when it started (its banner says so); the settings format was read from the 2.1.291 binary and the hook ran under 2.1.316.
+
+== The CLI process (ps -ww) ==
+  PID  PPID COMMAND
+43021 39520 /Users/davidgorden/.local/bin/claude --append-system-prompt-file /private/tmp/dm321-live/userdata/agents/instructions/chat_a4f9ee75-5c7a-46d8-bff3-aee58a66afbc.md --settings /private/tmp/dm321-live/userdata/agents/settings/chat_a4f9ee75-5c7a-46d8-bff3-aee58a66afbc.json --model haiku --session-id d8378d23-230e-4092-8379-40b01ccbde91
+
+== /bin/ps -wwE -p 43021, the variables of interest ==
+CLAUDE_CODE_DISABLE_AUTO_MEMORY=1
+(ELECTRON_RUN_AS_NODE and NODE_OPTIONS are absent from the CLI's environment.)
+
+== userData/agents/settings/<chat id>.json (0600) ==
+{
+  "autoMemoryDirectory": "/var/folders/sp/ypkkq76s3ks08w8cyxv712000000gn/T/dark-mechanicus-unused-memory",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/private/tmp/dm321-live/userdata/agents/settings/chat_a4f9ee75-5c7a-46d8-bff3-aee58a66afbc.memory-hook'"
+          }
+        ]
+      }
+    ]
+  }
+}
+
+== userData/agents/settings/<chat id>.memory-hook (0700) ==
+#!/bin/sh
+# The Claude Code memory-folder hook for one chat, written by the app at each start.
+ELECTRON_RUN_AS_NODE=1
+export ELECTRON_RUN_AS_NODE
+exec 'node' '/Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/DM-321/out/main/claudeMemoryHook.js' '/private/tmp/dm321-live/repo' '/Users/davidgorden' '/var/folders/sp/ypkkq76s3ks08w8cyxv712000000gn/T'
+
+(Unpackaged build: the runtime is `node`, as for the dm launcher; packaged it is the app executable, see the Electron run below.)
+
+== Claude's transcript (~/.claude/projects/-private-tmp-dm321-live-repo/d8378d23-....jsonl): hook runs ==
+[
+ {
+  "hookName": "PreToolUse:Write",
+  "exitCode": 0,
+  "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"ask\",\"permissionDecisionReason\":\"This writes into Claude Code's own memory folder, which the CLI would allow without asking. Dark Mechanicus asks first.\"}}",
+  "stderr": "",
+  "command": "'/private/tmp/dm321-live/userdata/agents/settings/chat_a4f9ee75-5c7a-46d8-bff3-aee58a66afbc.memory-hook'",
+  "durationMs": 327,
+  "timestamp": "2026-10-31T15:37:13.114Z"
+ }
+]
+== permission decisions and tool results ==
+[
+ {
+  "timestamp": "2026-10-31T15:37:37.619Z",
+  "permissionDecision": {
+   "decision": "accept",
+   "source": "user_temporary",
+   "grantScope": "once",
+   "reasonCode": "hook:PreToolUse"
+  }
+ },
+ {
+  "timestamp": "2026-10-31T15:37:37.619Z",
+  "tool_result": "File created successfully at: /var/folders/sp/ypkkq76s3ks08w8cyxv712000000gn/T/dark-mechanicus-unused-memory/MEMORY.md (file state is current in your context \u2014 "
+ },
+ {
+  "timestamp": "2026-10-31T15:41:25.472Z",
+  "tool_result": "The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP wha"
+ },
+ {
+  "timestamp": "2026-10-31T15:43:51.294Z",
+  "tool_result": "The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP wha"
+ }
+]
+
+Request 1 (MEMORY.md, 15:37:10Z): the hook answered ask at 15:37:13 and Claude showed its own "Do you want to create MEMORY.md?"
+prompt (a screenshot taken ~15:37:32 still showed it). At 15:37:37 the prompt was answered Yes: Claude records source
+user_temporary, i.e. a key press in the terminal. None of the worker's scripts sent a key after the prompt opened (its next input
+was the second request at 15:39:09); the cause is not established (possibly a person at the visible app window).
+Request 2 (SECOND.md, 15:39:09Z): the prompt held untouched until the screenshot at 15:40:45 (DM-321-01-memory-write-asks.png),
+and was then rejected with Esc at 15:41:25 ("User rejected write"). Request 3 (THIRD.md, 15:41:42Z): the prompt held untouched
+for 120 s (screenshot DM-321-02-third-write-still-asking.png) and was rejected with Esc at 15:43:51. The pinned folder afterwards
+holds only MEMORY.md.
+
+== Control: the CLI's carve-out with and without the hook (claude -p --model haiku --permission-mode default --settings <file>,
+   CLAUDE_CODE_DISABLE_AUTO_MEMORY=1, cwd /private/tmp/dm321-live/repo) ==
+A, settings = autoMemoryDirectory only: {"result": "I created `/tmp/dm321-live/ctlA/mem/A.md` containing `note`. Nothing else was done.", "permission_denials": [], "is_error": false}
+   file created: True  -> the CLI writes into its autoMemoryDirectory (outside the workspace) without asking.
+B, settings = autoMemoryDirectory + this hook: {"result": "The write to `/tmp/dm321-live/ctlB/dark-mechanicus-unused-memory/B.md` failed, so the file was not created. The tool returned this error: \"This writes into Claude Code's own memory folder, which the CLI would allow without asking. Dark Mechanicus asks first.\" I didn't retry or use another tool, as you asked. If you want the file written, you'll need to approve the write or confirm the path.", "permission_denials": [{"tool_name": "Write", "tool_use_id": "toolu_01KiLNnuG9rwJmdmHuQFEbLE", "tool_input": {"file_path": "/tmp/dm321-live/ctlB/dark-mechanicus-unused-memory/B.md", "content": "note"}}], "is_error": false}
+   file created: False -> the hook's ask turns the same write into a permission request (denied in print mode).
+
+== The built hook under Electron-as-node (the packaged runtime), launcher in a folder named '/tmp/dm321-live/pkg it\'s "q" $HOME', run with /bin/zsh -c ==
+[
+ [
+  "/Users/davidgorden/.claude/projects/-private-tmp-dm321-live-repo/memory/x.md",
+  0,
+  "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"ask\",\"permissionDecisionReason\":\"This writes into Claude Code's own memory folder, which the CLI would allow without asking. Dark Mechanicus asks first.\"}}",
+  ""
+ ],
+ [
+  "/tmp/dm321-live/repo/src/a.ts",
+  0,
+  "",
+  ""
+ ]
+]
+
+== Second live run, after the launcher was made fail-closed (rebuilt at the working tree of the final commit) ==
+New chat "Memory guard check 2", CLI pid 63120:
+/Users/davidgorden/.local/bin/claude --append-system-prompt-file .../instructions/chat_2d4b5082-....md --settings /private/tmp/dm321-live/userdata/agents/settings/chat_2d4b5082-d1f4-4498-805b-95b7abd003b8.json --model haiku --session-id d71685ae-314b-4600-a5a3-3e78856eca29
+/bin/ps -wwE: CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 (no ELECTRON_RUN_AS_NODE)
+Launcher:
+#!/bin/sh
+# The Claude Code memory-folder hook for one chat, written by the app at each start.
+ELECTRON_RUN_AS_NODE=1
+export ELECTRON_RUN_AS_NODE
+'node' '/Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/DM-321/out/main/claudeMemoryHook.js' '/private/tmp/dm321-live/repo' '/Users/davidgorden' '/var/folders/sp/ypkkq76s3ks08w8cyxv712000000gn/T' || printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"This writes into Claude Code'\''s own memory folder, which the CLI would allow without asking. Dark Mechanicus asks first."}}'
+
+Hook runs (transcript d71685ae-....jsonl):
+[]
+Tool results:
+[
+ {
+  "timestamp": "2026-10-31T15:59:09.267Z",
+  "tool_result": "The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_strin"
+ }
+]
+The prompt "Do you want to create FOURTH.md?" held for 30 s (DM-321-04-rebuilt-memory-write-asks.png) and was rejected with Esc;
+the pinned folder holds no file afterwards.
+
+Claude's transcript of this session holds no hook record for the rejected call (the first session's hook_success record was
+written along with the tool result). The same chat's settings file, used as is in print mode (claude -p --model haiku
+--permission-mode default --settings /tmp/dm321-live/userdata/agents/settings/chat_2d4b5082-d1f4-4498-805b-95b7abd003b8.json), on a Write into the pinned folder:
+{"result": "The write to `/var/folders/sp/ypkkq76s3ks08w8cyxv712000000gn/T/dark-mechanicus-unused-memory/FIFTH.md` failed. The Write tool returned an error saying the path is inside Claude Code's memory folder and that \"Dark Mechanicus asks first,\" so the file was not created. I did not retry with another tool, as you asked. If you want the file written, you can approve the write in your Claude Code session, or run `printf 'note' > /var/folders/sp/ypkkq76s3ks08w8cyxv712000000gn/T/dark-mechanicus-unused-memory/FIFTH.md` yourself.", "permission_denials": [{"tool_name": "Write", "tool_use_id": "toolu_01TNzGszhCuFWW3ohadBD4Jy", "tool_input": {"file_path": "/var/folders/sp/ypkkq76s3ks08w8cyxv712000000gn/T/dark-mechanicus-unused-memory/FIFTH.md", "content": "note"}}], "is_error": false}
+file created: False

@@ -864,7 +864,6 @@ describe('agent handlers', () => {
     expect(await rejectionOf(handlers.findAgent('/bin/sh'))).toMatchObject({ code: 'invalid_input' })
     expect(await rejectionOf(handlers.removeAgent({ kind: 'claude' }))).toMatchObject({ code: 'invalid_input' })
     expect(await rejectionOf(handlers.agentStatus('claude'))).toMatchObject({ code: 'not_found' })
-    expect(await rejectionOf(handlers.signInAgent('claude'))).toMatchObject({ code: 'not_found' })
     expect(await rejectionOf(handlers.agentStatus('cu_../etc'))).toMatchObject({ code: 'invalid_input' })
     expect(await rejectionOf(handlers.agentStatus({ kind: 'claude', apiKey: 'sk-x' }))).toMatchObject({
       code: 'invalid_input'

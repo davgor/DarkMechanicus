@@ -1,16 +1,15 @@
 /**
- * What a Dark Mechanicus tool call becomes in a chat, free of React: a compact marker such as "claimed
- * DM-12", "accepted DM-12" or "sprint report filed" that opens the ticket or epic it is about. The calls
- * are known by the names the adapters give them: `mcp__darkmechanicus__<tool>` (Claude) and
+ * What a Dark Mechanicus tool call a chat stored becomes in its transcript, free of React: a compact marker such
+ * as "claimed DM-12", "accepted DM-12" or "sprint report filed". The calls are known by the names the protocol
+ * adapters gave them when chats stored transcripts: `mcp__darkmechanicus__<tool>` (Claude) and
  * `darkmechanicus.<tool>` (Codex).
  *
  * What a call is about comes from what it carries. Its input names ids (`ticketId`, `attemptId`,
  * `runId`, `epicId`), each taken only as a whole id; a call the server answered may also name them, and a
  * ticket key, in its result, which counts only when it names exactly one of that kind (a result cut at
- * 500 characters is still read, as text). The input wins over the result. Which ticket an attempt or run
- * belongs to is not known here: the marker resolves the key and the epic through the desktop's read
- * commands (`chatLookup`), and says "a ticket" until it has. The text of a marker is made of the phrases
- * below and a ticket key, never of an input or a claim token.
+ * 500 characters is still read, as text). The input wins over the result. A call that names no key says
+ * "a ticket". The text of a marker is made of the phrases below and a ticket key, never of an input or a
+ * claim token.
  */
 import { maskClaimTokens } from '../../../core/claimTokenMask'
 import type { ChatItem } from '../../../shared/agents/chat'
@@ -18,7 +17,7 @@ import type { ChatItem } from '../../../shared/agents/chat'
 type ToolCallItem = Extract<ChatItem, { kind: 'tool_call' }>
 
 /** What a call is about, as far as the call itself says; every part is null when it does not say. */
-export interface MarkerTarget {
+interface MarkerTarget {
   epicId: string | null
   runId: string | null
   ticketId: string | null
@@ -77,11 +76,6 @@ function idOf(call: ToolCallItem, kind: IdKind): string | null {
     return fromInput
   }
   return onlyMatch(call.resultSummary, WITHIN[kind])
-}
-
-/** Whether a tool is one of the Dark Mechanicus server's, however the agent names it. */
-export function isActionTool(name: string): boolean {
-  return DARK_MECHANICUS_TOOL.test(name)
 }
 
 /** The marker of a Dark Mechanicus call; null for any other call. */

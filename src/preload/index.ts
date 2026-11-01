@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { CHAT_EVENT_CHANNEL, type ChatPushEvent, type ChatsApi } from '../shared/agents/chatApi'
 import type { AutoUpdateState } from '../shared/autoUpdate/types'
 import type { AgentDownloadProgress, DmApi } from '../shared/desktop/api'
+import { createTerminalsApi } from './terminals'
 
 const autoUpdate = {
   getState: (): Promise<AutoUpdateState> => ipcRenderer.invoke('autoUpdate:getState'),
@@ -25,7 +26,7 @@ contextBridge.exposeInMainWorld('appInfo', appInfo)
 export type AutoUpdateApi = typeof autoUpdate
 export type AppInfoApi = typeof appInfo
 
-/** Agent chats: one `chats:*` invoke per request (main validates each payload), plus pushed chat events. */
+/** Agent chats: one `chats:*` invoke per request (main validates each payload), plus the pushed list changes. */
 const chats: ChatsApi = {
   list: (folder) => ipcRenderer.invoke('chats:list', folder),
   create: (request) => ipcRenderer.invoke('chats:create', request),
@@ -33,18 +34,11 @@ const chats: ChatsApi = {
   startTransferChat: (request) => ipcRenderer.invoke('chats:startTransferChat', request),
   findTransferChat: (request) => ipcRenderer.invoke('chats:findTransferChat', request),
   transferPrompt: (request) => ipcRenderer.invoke('chats:transferPrompt', request),
-  open: (request) => ipcRenderer.invoke('chats:open', request),
   read: (request) => ipcRenderer.invoke('chats:read', request),
-  send: (request) => ipcRenderer.invoke('chats:send', request),
-  stop: (request) => ipcRenderer.invoke('chats:stop', request),
-  threadBindings: (request) => ipcRenderer.invoke('chats:threadBindings', request),
   boundThreads: (request) => ipcRenderer.invoke('chats:boundThreads', request),
-  retryTurn: (request) => ipcRenderer.invoke('chats:retryTurn', request),
-  setModel: (request) => ipcRenderer.invoke('chats:setModel', request),
+  boundTerminal: (request) => ipcRenderer.invoke('chats:boundTerminal', request),
   rename: (request) => ipcRenderer.invoke('chats:rename', request),
   delete: (request) => ipcRenderer.invoke('chats:delete', request),
-  answerApproval: (request) => ipcRenderer.invoke('chats:answerApproval', request),
-  models: (agent) => ipcRenderer.invoke('chats:models', agent),
   onEvent: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, event: ChatPushEvent): void => {
       listener(event)
@@ -54,9 +48,13 @@ const chats: ChatsApi = {
   }
 }
 
-/** The narrow desktop bridge: every method is one `dm:*` or `agents:*` IPC invoke; main validates each payload. */
+/**
+ * The narrow desktop bridge: every method is one `dm:*` or `agents:*` IPC invoke; main validates each payload.
+ * `terminals` adds `terminals:attach`, `agents:signIn` and the port main posts for a running chat or sign-in terminal.
+ */
 const dm: DmApi = {
   chats,
+  terminals: createTerminalsApi(ipcRenderer),
   listFolders: () => ipcRenderer.invoke('dm:listFolders'),
   pickFolder: () => ipcRenderer.invoke('dm:pickFolder'),
   untrackFolder: (path) => ipcRenderer.invoke('dm:untrackFolder', path),
@@ -82,7 +80,6 @@ const dm: DmApi = {
     return () => ipcRenderer.removeListener('agents:downloadProgress', handler)
   },
   agentStatus: (id) => ipcRenderer.invoke('agents:status', id),
-  signInAgent: (id) => ipcRenderer.invoke('agents:signIn', id),
   folderDefaultAgent: (folder) => ipcRenderer.invoke('agents:folderDefault', folder),
   setFolderDefaultAgent: (request) => ipcRenderer.invoke('agents:setFolderDefault', request)
 }

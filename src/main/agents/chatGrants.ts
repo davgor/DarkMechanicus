@@ -1,5 +1,5 @@
 /**
- * The grants chat sessions run on. Each is revoked through the workspace it was issued in, held
+ * The grants chat terminals run on. Each is revoked through the workspace it was issued in, held
  * since issue, never by finding its folder again: a folder renamed while its chat ran is no longer
  * at its path, but the workspace's open SQLite handle still reaches its `state.sqlite` on POSIX.
  *
@@ -22,8 +22,8 @@ interface ChatGrantsDeps {
   log: (line: string) => void
 }
 
-/** What `createSessionManager` issues and revokes chat grants through. */
-interface ChatGrants {
+/** What the chat terminals (`terminalSessions.ts`) issue and revoke chat grants through. */
+export interface ChatGrants {
   issueChatCli(folder: string, grant: { role: ChatRole; allowSave: boolean; label: string }): Promise<{ cli: DarkMechanicusCli; grantId: string }>
   /** Never throws: a grant it cannot revoke is logged. */
   revokeChatGrant(grantId: string): Promise<void>

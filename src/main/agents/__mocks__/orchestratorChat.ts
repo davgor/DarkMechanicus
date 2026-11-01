@@ -28,7 +28,7 @@ const SPAWN_A = 'toolu_01Hq7XbN2vKpR4sT9wYcLm3D'
 const SPAWN_B = 'toolu_01Tz5FgJ8kWqA2nV6xBdPe7R'
 /** The worker threads, as the adapter names them after their spawning Agent calls. */
 export const THREAD_A = `claude_thread_${SPAWN_A}`
-export const THREAD_B = `claude_thread_${SPAWN_B}`
+const THREAD_B = `claude_thread_${SPAWN_B}`
 
 const AT = '2026-10-05T12:00:00.000Z'
 const MAX_RESULT_CHARS = 500

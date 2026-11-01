@@ -49,8 +49,8 @@ interface WorkspaceInput {
   epicId: string
   refreshToken: number
   onChanged(): void
-  onChatsChanged(): void
-  /** Shows a chat: the transfer chat once one is started or resumed. */
+  onChatsChanged(): Promise<void>
+  /** Opens one of the folder's chats: the orchestrator chat a run was started with, or the transfer chat once one is started or resumed. */
   onOpenChat(chatId: string): void
   /** The connected agents, read when an action names one. */
   agents: readonly AgentView[]

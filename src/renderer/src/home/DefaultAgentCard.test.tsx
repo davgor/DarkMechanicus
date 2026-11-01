@@ -89,3 +89,13 @@ describe('DefaultAgentCard', () => {
     expect(optionLabels()).toEqual(['None', claude.displayName, 'codex (not connected)'])
   })
 })
+
+describe('DefaultAgentCard: a default that cannot be read', () => {
+  it('shows None and says why when the stored default cannot be read', async () => {
+    dm.folderDefaultAgent = () => Promise.reject(new Error('The settings file is unreadable.'))
+    await renderCard()
+
+    expect(select().value).toBe('')
+    expect(screen.getByRole('alert').textContent).toContain('The settings file is unreadable.')
+  })
+})
