@@ -9,6 +9,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { DarkMechanicusCli } from '../../shared/agents/chat'
 import { removeScratch } from '../../test/removeScratch'
+import { transferGuidance } from '../../mcp/transferKickoff'
 import { orchestratorGuidance } from '../agents/orchestratorKickoff'
 import { terminalFilePaths, terminalInstructions, writeTerminalFiles } from './terminalFiles'
 
@@ -62,6 +63,17 @@ describe('terminalInstructions', () => {
 
     expect(terminalInstructions({ ...options, orchestratesRun: true })).toBe(`${plain}\n\n${orchestratorGuidance()}`)
     expect(plain).not.toContain('=== Orchestrator guidance')
+  })
+
+  it('adds the Linear transfer guidance, with the epic id and the start_transfer step, only for a transfer chat', () => {
+    const options = { cli: cliFor(FOLDER), role: 'orchestrator', allowSave: false, launcherDir: '/data/agents/bin/ch_1', orchestratesRun: false } as const
+    const plain = terminalInstructions(options)
+    const transfer = terminalInstructions({ ...options, transferEpicId: 'ep_01m6772ffwkwr2a91fsqzfz1he' })
+
+    expect(transfer).toBe(`${plain}\n\n${transferGuidance('ep_01m6772ffwkwr2a91fsqzfz1he')}`)
+    expect(transfer).toContain('Call start_transfer for epic ep_01m6772ffwkwr2a91fsqzfz1he')
+    expect(transfer).toContain('=== Linear transfer guidance ===')
+    expect(plain).not.toContain('start_transfer')
   })
 })
 

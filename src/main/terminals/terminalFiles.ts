@@ -7,6 +7,7 @@
 import { join, posix } from 'node:path'
 import { chatIdSchema, type ChatRole, type DarkMechanicusCli } from '../../shared/agents/chat'
 import { cliInstructions } from '../agents/cliInstructions'
+import { transferGuidance } from '../../mcp/transferKickoff'
 import { orchestratorGuidance } from '../agents/orchestratorKickoff'
 import { DM_LAUNCHER_NAME, dmLauncherScript, pinnedCliScript, writeDmLauncher } from './dmLauncher'
 import { writePrivateFile } from './privateFile'
@@ -37,16 +38,21 @@ interface InstructionOptions {
   launcherDir: string | null
   /** Whether the chat orchestrates a run (the chat Start run opened, with a `runId`): its guidance follows. */
   orchestratesRun: boolean
+  /** The epic a Linear transfer chat moves (the chat's `transferEpicId`): the transfer guidance follows. Absent for every other chat. */
+  transferEpicId?: string
 }
 
 /**
  * The chat's instructions: how to run `dm`, named by the launcher's absolute path where there is one; then, for the
- * chat Start run opened, the orchestrator and worker guidance (`orchestratorGuidance`).
+ * chat Start run opened, the orchestrator and worker guidance (`orchestratorGuidance`), and for a Linear transfer
+ * chat, the transfer guidance (`transferGuidance`), so a start on a new session still knows its task.
  */
 export function terminalInstructions(options: InstructionOptions): string {
   const dm = options.launcherDir === null ? options.cli : { command: posix.join(options.launcherDir, DM_LAUNCHER_NAME), args: [], env: {} }
-  const text = cliInstructions({ cli: dm, role: options.role, allowSave: options.allowSave })
-  return options.orchestratesRun ? `${text}\n\n${orchestratorGuidance()}` : text
+  const sections = [cliInstructions({ cli: dm, role: options.role, allowSave: options.allowSave })]
+  if (options.orchestratesRun) sections.push(orchestratorGuidance())
+  if (options.transferEpicId !== undefined) sections.push(transferGuidance(options.transferEpicId))
+  return sections.join('\n\n')
 }
 
 interface WriteOptions {
@@ -59,6 +65,7 @@ interface WriteOptions {
   role: ChatRole
   allowSave: boolean
   orchestratesRun: boolean
+  transferEpicId?: string
 }
 
 /** Writes the chat's instructions and, on macOS, its launcher, before a start; returns where they are. */
@@ -68,8 +75,15 @@ export async function writeTerminalFiles(options: WriteOptions): Promise<Termina
   if (files.launcherDir !== null) {
     await writeDmLauncher(files.launcherDir, dmLauncherScript(options.cli, options.folder))
   }
-  const { cli, role, allowSave, orchestratesRun } = options
-  const text = terminalInstructions({ cli, role, allowSave, orchestratesRun, launcherDir: files.launcherDir })
+  const { cli, role, allowSave, orchestratesRun, transferEpicId } = options
+  const text = terminalInstructions({
+    cli,
+    role,
+    allowSave,
+    orchestratesRun,
+    ...(transferEpicId === undefined ? {} : { transferEpicId }),
+    launcherDir: files.launcherDir
+  })
   await writePrivateFile(files.instructions, text, 0o600)
   return files
 }

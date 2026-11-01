@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { DomainError } from '../../core/errors'
-import { transferKickoff } from '../../mcp/transferKickoff'
+import { transferGuidance, transferKickoff } from '../../mcp/transferKickoff'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { TransferStatus, TransferView } from '../../shared/domain/transfer'
 import type { EpicDetailView } from '../../shared/domain/views'
@@ -86,7 +86,7 @@ describe('start a transfer chat', () => {
     expect(chats()[0]?.kickoffSent).toBe(true)
   })
 
-  it('starts the agent with an orchestrator grant that may not save, and no run guidance in its instructions', async () => {
+  it('starts the agent with an orchestrator grant that may not save, the transfer guidance and no run guidance in its instructions', async () => {
     const { records, transfers } = rig('in_progress')
 
     const result = await startTransferChat({ transfers, chats: records, terminals: terminals.sessions }, request())
@@ -96,6 +96,7 @@ describe('start a transfer chat', () => {
     expect(instructions).toContain('**orchestrator** grant')
     expect(instructions).toContain('This chat may not save plans')
     expect(instructions).not.toContain('Orchestrating a Dark Mechanicus run')
+    expect(instructions.endsWith(transferGuidance(EPIC_ID))).toBe(true)
   })
 
   it('pastes the transfer kickoff into Autonomous once its first screen has settled, with its default model', async () => {
@@ -220,8 +221,12 @@ describe('find a transfer chat', () => {
     const found = findTransferChat(reopened, terminals.repo, EPIC_ID)
 
     expect(found).toMatchObject({ id: started.chat?.id, role: 'orchestrator', allowSave: false, transferEpicId: EPIC_ID, title: 'Linear transfer · Linear handoff', kickoffSent: true })
-    await terminals.sessions.start(found as ChatRecord, { kickoff: KICKOFF })
+    expect(await terminals.sessions.start(found as ChatRecord, { kickoff: KICKOFF })).toMatchObject({ state: 'running' })
+    expect(terminals.host.spawns).toHaveLength(2)
     expect(argsOf(1)).not.toContain(KICKOFF)
+    // The task stays in the instructions file the restarted CLI is given.
+    const instructions = readFileSync(argsOf(1)[argsOf(1).indexOf('--append-system-prompt-file') + 1] ?? '', 'utf8')
+    expect(instructions).toContain(`Call start_transfer for epic ${EPIC_ID}`)
   })
 
   it('finds none for another epic or a chat that was not started for a transfer', async () => {

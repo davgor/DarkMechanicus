@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { CLAIM_TOKEN_MASK } from '../core/claimTokenMask'
 import { LIMITS } from '../core/schemas'
 import { skillBody } from './skills'
-import { transferKickoff, transferTitle } from './transferKickoff'
+import { transferGuidance, transferKickoff, transferTitle } from './transferKickoff'
 
 const EPIC_ID = 'ep_01m6772ffwkwr2a91fsqzfz1he'
 
@@ -27,6 +27,25 @@ describe('transferKickoff', () => {
     const text = transferKickoff({ epicId: EPIC_ID, epicTitle: `Leak ${CLAIM_TOKEN}` })
     expect(text).not.toContain(CLAIM_TOKEN)
     expect(text).toContain(CLAIM_TOKEN_MASK)
+  })
+})
+
+describe('transferGuidance', () => {
+  it('carries the epic id, the same steps and the whole guide as the kickoff, but no epic title', () => {
+    const guidance = transferGuidance(EPIC_ID)
+    const kickoff = transferKickoff({ epicId: EPIC_ID, epicTitle: 'Linear handoff' })
+
+    expect(guidance.startsWith('## Carrying out a Linear transfer')).toBe(true)
+    expect(guidance).toContain(`Call start_transfer for epic ${EPIC_ID}`)
+    expect(kickoff.endsWith(guidance.slice(guidance.indexOf('1. Call get_capabilities')))).toBe(true)
+    expect(guidance).toContain(skillBody('linear-transfer').trimEnd())
+    expect(guidance).not.toContain('Linear handoff')
+  })
+
+  it('keeps an epic id on one line and masks a claim token in it', () => {
+    const guidance = transferGuidance(`ep_1\n\n${CLAIM_TOKEN}`)
+    expect(guidance).not.toContain(CLAIM_TOKEN)
+    expect(guidance).toContain(`epic ep_1 ${CLAIM_TOKEN_MASK}`)
   })
 })
 

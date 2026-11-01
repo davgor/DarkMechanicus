@@ -384,7 +384,8 @@ async function writeStartFiles(manager: Manager, chat: ChatRecord, agent: AgentV
     cli,
     role: chat.role,
     allowSave: chat.allowSave,
-    orchestratesRun: chat.runId !== undefined
+    orchestratesRun: chat.runId !== undefined,
+    ...(chat.transferEpicId === undefined ? {} : { transferEpicId: chat.transferEpicId })
   })
   if (agent.kind !== 'claude') {
     return files

@@ -13,9 +13,10 @@
  *
  * A model that fails `isSafeModelId` (or is `default`) and a stored session id that is not a UUID are left out
  * and listed in `dropped`, so the pane can say so. What no `.cmd` line can carry (the instructions text and the
- * orchestrator kickoff) is returned as `pasteFirst`, for main to paste once the CLI is ready; `kickoffIn` says
+ * kickoff) is returned as `pasteFirst`, for main to paste once the CLI is ready; `kickoffIn` says
  * where the kickoff went, so main can record it as sent. The chat Start run opened (one with a `runId`) has the
- * orchestrator and worker guidance in its instructions.
+ * orchestrator and worker guidance in its instructions, and a Linear transfer chat (one with a `transferEpicId`) the
+ * transfer guidance, on every start.
  */
 import { statSync } from 'node:fs'
 import { win32 } from 'node:path'
@@ -32,7 +33,7 @@ import { terminalEnv, terminalLoginEnv } from './terminalEnv'
 import { terminalInstructions, type TerminalFiles } from './terminalFiles'
 import { windowsCommandLine } from './windowsCommandLine'
 
-interface TerminalChat extends Pick<ChatRecord, 'agent' | 'role' | 'allowSave' | 'model' | 'sessionId' | 'runId'> {
+interface TerminalChat extends Pick<ChatRecord, 'agent' | 'role' | 'allowSave' | 'model' | 'sessionId' | 'runId' | 'transferEpicId'> {
   /** Whether the CLI has written the chat's session yet, so a start resumes it. */
   sessionStarted: boolean
   /** Whether the kickoff (an orchestrator's or a transfer chat's) went with an earlier start. */
@@ -349,7 +350,14 @@ export function terminalLaunchSpec(input: TerminalLaunchInput): TerminalLaunchSp
   const launch = KIND_LAUNCHES[agent.kind]({
     folder: input.folder,
     instructionsPath: files.instructions,
-    instructionsText: terminalInstructions({ cli: input.cli, role: chat.role, allowSave: chat.allowSave, launcherDir, orchestratesRun: chat.runId !== undefined }),
+    instructionsText: terminalInstructions({
+      cli: input.cli,
+      role: chat.role,
+      allowSave: chat.allowSave,
+      launcherDir,
+      orchestratesRun: chat.runId !== undefined,
+      ...(chat.transferEpicId === undefined ? {} : { transferEpicId: chat.transferEpicId })
+    }),
     claudeSettings: files.claudeSettings,
     model,
     sessionId,

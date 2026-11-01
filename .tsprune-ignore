@@ -31,7 +31,7 @@ src/main/terminals/__mocks__/terminalSessionsRig.ts:35 - FakeClock
 src/main/terminals/__mocks__/terminalSessionsRig.ts:81 - Gate
 src/main/terminals/ptyHelperCheck.ts:16 - PtyHelperCheckOptions
 src/main/terminals/ptyHost.ts:78 - NodePtyHostOptions
-src/mcp/transferKickoff.ts:15 - TransferKickoffInput
+src/mcp/transferKickoff.ts:16 - TransferKickoffInput
 src/preload/index.ts:26 - AutoUpdateApi
 src/preload/index.ts:27 - AppInfoApi
 src/preload/terminals.ts:25 - RendererPort

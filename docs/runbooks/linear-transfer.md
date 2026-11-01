@@ -49,8 +49,7 @@ In the dialog, pick a connected, signed-in agent and a model, then press **Trans
 Dark Mechanicus authorizes the transfer, starts the agent's CLI as orchestrator in a terminal chat
 titled `Linear transfer · <epic title>`, and gives it the transfer prompt as its first input. The
 chat's terminal opens. The agent cannot save plans. If the CLI exits, open the chat (or press
-**Resume** on the transfer) to start it again; the prompt goes only with the chat's first start,
-so if the agent lost it, press **Copy prompt** on the transfer and paste it in.
+**Resume** on the transfer) to start it again; see [Resume](#resume) for what it is given then.
 
 ## Start it with an external agent
 
@@ -236,8 +235,15 @@ chat already carrying out the transfer, or, when there is none, the Resume trans
 an agent on it. **Copy prompt** copies the prompt again for an external agent. Neither authorizes
 anything new.
 
-The agent calls `start_transfer` again. It gets the same packet, what is already recorded, and what
-is still to do. An unfinished read-back is discarded. Before each create the agent searches by
+When the chat's CLI starts again it is not given the prompt a second time, but the chat's
+instructions always carry the epic, the `start_transfer` step and the guide. Codex and Cursor
+starting on a new session get those instructions as their first input and carry on by themselves.
+Claude Code and Autonomous resume their session, or have the instructions in their system prompt,
+and wait for you: tell the agent to carry on with the transfer. A custom CLI gets the instructions
+only if its arguments include `{instructions}`; otherwise press **Copy prompt** and paste it in.
+
+The agent then calls `start_transfer` again. It gets the same packet, what is already recorded, and
+what is still to do. An unfinished read-back is discarded. Before each create the agent searches by
 marker, so an item it created but did not record is found and recorded, not created twice.
 
 ### Cancel
