@@ -102,6 +102,7 @@
   --diff-del-ink: #f29ab0;
   --diff-hunk-bg: #2b2532;
   --diff-gutter-ink: #a39a8c;
+
   --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   --font-serif: "IBM Plex Serif", Georgia, serif;

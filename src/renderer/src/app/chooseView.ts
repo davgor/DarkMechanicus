@@ -76,7 +76,7 @@ export function chooseView(input: ViewInput): MainView {
   return chooseFolderView(input, folder)
 }
 
-/** The selected folder's page, its epic, or its chat. */
+/** The selected folder's page, its epic, its Kanban board, or its chat. */
 function chooseFolderView(input: ViewInput, folder: TrackedFolderView): MainView {
   const tab = input.folderTab ?? 'source'
   if (!folder.initialized) {

@@ -184,6 +184,7 @@ Colors for the source-control diff. Ink on tint is the text of an added or delet
 | `--diff-del-ink` (new) | — | `#f29ab0` | Deleted marker and text accent |
 | `--diff-hunk-bg` (new) | — | `#2b2532` | Hunk header row |
 | `--diff-gutter-ink` (new) | — | `#a39a8c` | Line-number gutter text |
+
 `rgba(236, 230, 218, 0.04)` (the sidebar row hover wash, `--ink` at 4%) is not a hex literal. `--ink` keeps its value, so it can stay as it is.
 
 ## 4. Collision rules
