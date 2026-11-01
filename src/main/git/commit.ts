@@ -58,7 +58,7 @@ function chosenPaths(status: RepoStatus, files: CommitInput['files']): string[] 
   return [...paths]
 }
 
-function buildMessage(summary: string, description: string): string {
+export function buildMessage(summary: string, description: string): string {
   return description === '' ? `${summary}\n` : `${summary}\n\n${description}\n`
 }
 
@@ -74,6 +74,10 @@ export async function commitFiles(runner: GitRunner, folder: string, input: Comm
   const status = await requireStatus(runner, folder)
   if (status.inProgress !== null) {
     throw new GitError('operation_in_progress', '', `A ${status.inProgress} is in progress.`)
+  }
+  // Starting from HEAD below would drop the unmerged entries of a conflicted stash restore, markers and all.
+  if (status.files.some((file) => file.kind === 'conflicted')) {
+    throw new GitError('merge_conflicts', '', 'Resolve the conflicted files before committing.')
   }
   const paths = chosenPaths(status, input.files)
   const root = status.root

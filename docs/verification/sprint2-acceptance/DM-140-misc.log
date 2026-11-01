@@ -1,0 +1,11 @@
+userData: <temp profile>
+scratch-plain label: No remote Never fetched | remotes: ""
+scratch-plain Not pushed markers: 0 | commits: 07e12e6 Plain second / e6fbab3 Plain first
+shot: history-scratch-plain
+subfolder /private/tmp/sc-epic/scratch/DM-140/mono/packages/app -> Repository root: /private/tmp/sc-epic/scratch/DM-140/mono | git rev-parse --show-toplevel: /private/tmp/sc-epic/scratch/DM-140/mono
+shot: toolbar-subfolder-root
+root /private/tmp/sc-epic/scratch/DM-140/mono -> Repository root lines: 0
+shot: toolbar-root-folder
+fetch progress: Counting objects 16% Cancel 18
+shot: fetch-in-progress
+after cancel: Fetch origin Never fetched

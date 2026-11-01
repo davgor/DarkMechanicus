@@ -1,8 +1,10 @@
-/** Reads what Source control shows: the repository root, the branch, the changed files and any operation in progress. */
-import { existsSync } from 'node:fs'
+/** Reads what Source control shows: the repository root, the branch, the changed files, any operation in progress and the last fetch. */
+import { existsSync, statSync } from 'node:fs'
 import { resolve } from 'node:path'
 import type { FileChange, FileChangeKind, RepoState, RepoStatus } from '../../shared/git/status'
+import { isGithubHttps } from './credentials'
 import { GitError } from './errors'
+import { resolveSyncRemote } from './remotes'
 import type { GitRunner } from './runner'
 
 type BranchState = RepoStatus['branch']
@@ -109,12 +111,30 @@ const OPERATION_MARKERS: ReadonlyArray<readonly [string, Exclude<OperationInProg
   ['REVERT_HEAD', 'revert']
 ]
 
-async function readInProgress(runner: GitRunner, root: string): Promise<OperationInProgress> {
-  const args = OPERATION_MARKERS.flatMap(([name]) => ['--git-path', name])
+interface GitPathState {
+  inProgress: OperationInProgress
+  lastFetchedAt: string | null
+}
+
+function modifiedAt(path: string): string | null {
+  try {
+    return statSync(path).mtime.toISOString()
+  } catch {
+    return null
+  }
+}
+
+/** The operation in progress (from its marker files) and the last fetch (FETCH_HEAD's modification time), from one rev-parse. */
+async function readGitPaths(runner: GitRunner, root: string): Promise<GitPathState> {
+  const args = [...OPERATION_MARKERS.map(([name]) => name), 'FETCH_HEAD'].flatMap((name) => ['--git-path', name])
   const result = await runner.run({ cwd: root, args: ['rev-parse', ...args], kind: 'read' })
   const paths = result.stdout.split(/\r?\n/)
   const index = OPERATION_MARKERS.findIndex((_marker, at) => paths[at] !== undefined && paths[at] !== '' && existsSync(resolve(root, paths[at])))
-  return index === -1 ? null : OPERATION_MARKERS[index][1]
+  const fetchHead = paths[OPERATION_MARKERS.length]
+  return {
+    inProgress: index === -1 ? null : OPERATION_MARKERS[index][1],
+    lastFetchedAt: fetchHead === undefined || fetchHead === '' ? null : modifiedAt(resolve(root, fetchHead))
+  }
 }
 
 export async function readRepoState(runner: GitRunner, folder: string): Promise<RepoState> {
@@ -137,5 +157,31 @@ export async function readRepoState(runner: GitRunner, folder: string): Promise<
     kind: 'read'
   })
   const { branch, files } = parseStatusV2(status.stdout)
-  return { kind: 'repository', status: { root, branch, files, inProgress: await readInProgress(runner, root) } }
+  const remote = await readSyncRemote(runner, root, branch.name)
+  return { kind: 'repository', status: { root, branch, files, ...(await readGitPaths(runner, root)), remote } }
+}
+
+/** The remote fetch and pull would use, or null when there is no upstream remote and no origin. */
+async function readSyncRemote(runner: GitRunner, root: string, branch: string | null): Promise<RepoStatus['remote']> {
+  try {
+    const { remote } = await resolveSyncRemote(runner, root, branch)
+    return { name: remote.name, githubHttps: isGithubHttps(remote.fetchUrl) }
+  } catch (error) {
+    if (error instanceof GitError && error.code === 'remote_not_found') {
+      return null
+    }
+    throw error
+  }
+}
+
+/** The status of the repository `folder` is in, or the GitError that says why it has none. */
+export async function readRepository(runner: GitRunner, folder: string): Promise<RepoStatus> {
+  const state = await readRepoState(runner, folder)
+  if (state.kind === 'git_missing') {
+    throw new GitError('git_not_found', '')
+  }
+  if (state.kind === 'not_repository') {
+    throw new GitError('not_repository', '', 'That folder is not a Git repository.')
+  }
+  return state.status
 }

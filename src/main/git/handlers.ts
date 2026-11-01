@@ -6,19 +6,26 @@
 import { z } from 'zod'
 import { DomainError } from '../../core/errors'
 import { parseInput } from '../../core/schemas'
-import type { CommitMessage, CommitRequest, DiscardRequest, GitErrorShape, GitResult, WorkingDiffRequest } from '../../shared/git/api'
+import type { CommitMessage, CommitRequest, DiscardRequest, GitErrorShape, GitProgressEvent, GitResult, WorkingDiffRequest } from '../../shared/git/api'
 import type { FileDiff } from '../../shared/git/diff'
 import type { CommitDiffRequest, CommitFile, HistoryPage, HistoryRequest } from '../../shared/git/history'
+import type { BranchList, BranchNameCheck, StashInfo } from '../../shared/git/branches'
+import type { ConflictState } from '../../shared/git/conflicts'
 import type { RepoState } from '../../shared/git/status'
 import type { FolderRegistry } from '../desktop/folderRegistry'
-import { pathArgs } from './args'
+import { checkBranchName, pathArgs } from './args'
+import { createBranch, deleteBranch, listBranches, mergeIntoCurrent, renameBranch, switchBranch } from './branches'
 import { commitFiles, undoLastCommit } from './commit'
+import { abortMerge, abortOperation, commitMerge, getConflicts, markResolved, openInEditor, resolveWith, type OpenPath } from './conflicts'
+import type { CredentialSession } from './credentials'
 import { discardFiles, type TrashItem } from './discard'
 import { readWorkingDiff } from './diff'
 import { GitError, GitInputError } from './errors'
 import { getCommitDiff, getCommitFiles, getHistory, MAX_HISTORY_LIMIT } from './history'
 import type { GitRunner } from './runner'
-import { readRepoState } from './status'
+import { discardStash, listStashes, restoreStash } from './stash'
+import { readRepository, readRepoState } from './status'
+import { createSync, type Sync, type SyncOperation } from './sync'
 
 /** Windows long-path maximum; bounds path strings from the renderer. */
 const MAX_PATH_LENGTH = 32_767
@@ -45,6 +52,19 @@ const discardRequestSchema = z.strictObject({
 const oidSchema = z.string().regex(/^[0-9a-fA-F]{4,64}$/, 'A commit id is 4 to 64 hexadecimal characters.')
 const historyRequestSchema = z.strictObject({ skip: z.number().int().min(0), limit: z.number().int().min(1).max(MAX_HISTORY_LIMIT) })
 const commitDiffRequestSchema = z.strictObject({ oid: oidSchema, path: pathSchema, oldPath: pathSchema.nullable(), force: z.boolean().optional() })
+const operationIdSchema = z.string().min(1).max(200)
+const syncRequestSchema = z.strictObject({ operationId: operationIdSchema })
+/** Generous for a branch name (git and `checkBranchName` set the real limits); it only bounds the payload. */
+const branchNameSchema = z.string().max(1024)
+const createBranchSchema = z.strictObject({ name: branchNameSchema, startPoint: z.enum(['current', 'default']) })
+const switchBranchSchema = z.strictObject({ name: branchNameSchema, uncommitted: z.enum(['stash', 'bring']) })
+const renameBranchSchema = z.strictObject({ from: branchNameSchema, to: branchNameSchema })
+const deleteBranchSchema = z.strictObject({ name: branchNameSchema, deleteRemote: z.boolean(), force: z.boolean() })
+const mergeBranchSchema = z.strictObject({ branch: branchNameSchema })
+const stashRefSchema = z.string().max(64)
+const resolveSchema = z.strictObject({ path: pathSchema, side: z.enum(['ours', 'theirs']) })
+const markResolvedSchema = z.strictObject({ path: pathSchema })
+const commitMergeSchema = z.strictObject({ summary: z.string().max(MAX_PATH_LENGTH).optional(), description: z.string().max(1_000_000).optional() })
 
 interface GitHandlerDeps {
   registry: Pick<FolderRegistry, 'resolve'>
@@ -52,6 +72,12 @@ interface GitHandlerDeps {
   /** Told about failures that are not GitErrors (bugs, I/O), so main can log the stack. */
   /** Moves a file to the OS trash (Electron's shell.trashItem). */
   trashItem: TrashItem
+  /** Opens a file in the default app (Electron's shell.openPath). */
+  openPath: OpenPath
+  /** The GitHub account fetch, pull and push authenticate with; its token never leaves main. */
+  session: CredentialSession
+  /** Sends a progress event of a fetch, pull or push to the windows. */
+  onProgress(event: GitProgressEvent): void
   onUnexpectedError(error: unknown): void
 }
 
@@ -66,6 +92,27 @@ export interface GitHandlers {
   getHistory(folder: unknown, request: unknown): Promise<GitResult<HistoryPage>>
   getCommitFiles(folder: unknown, oid: unknown): Promise<GitResult<CommitFile[]>>
   getCommitDiff(folder: unknown, request: unknown): Promise<GitResult<FileDiff>>
+  fetch(folder: unknown, request: unknown): Promise<GitResult<RepoState>>
+  pull(folder: unknown, request: unknown): Promise<GitResult<RepoState>>
+  push(folder: unknown, request: unknown): Promise<GitResult<RepoState>>
+  cancelOperation(folder: unknown, operationId: unknown): Promise<GitResult<{ cancelled: boolean }>>
+  listBranches(folder: unknown): Promise<GitResult<BranchList>>
+  checkBranchName(folder: unknown, name: unknown): Promise<GitResult<BranchNameCheck>>
+  createBranch(folder: unknown, request: unknown): Promise<GitResult<RepoState>>
+  switchBranch(folder: unknown, request: unknown): Promise<GitResult<RepoState>>
+  renameBranch(folder: unknown, request: unknown): Promise<GitResult<RepoState>>
+  deleteBranch(folder: unknown, request: unknown): Promise<GitResult<RepoState>>
+  mergeIntoCurrent(folder: unknown, request: unknown): Promise<GitResult<RepoState>>
+  listStashes(folder: unknown): Promise<GitResult<StashInfo[]>>
+  restoreStash(folder: unknown, ref: unknown): Promise<GitResult<RepoState>>
+  discardStash(folder: unknown, ref: unknown): Promise<GitResult<RepoState>>
+  getConflicts(folder: unknown): Promise<GitResult<ConflictState>>
+  resolveWith(folder: unknown, request: unknown): Promise<GitResult<RepoState>>
+  markResolved(folder: unknown, request: unknown): Promise<GitResult<RepoState>>
+  abortMerge(folder: unknown): Promise<GitResult<RepoState>>
+  commitMerge(folder: unknown, request: unknown): Promise<GitResult<{ oid: string }>>
+  abortOperation(folder: unknown): Promise<GitResult<RepoState>>
+  openInEditor(folder: unknown, path: unknown): Promise<GitResult<null>>
 }
 
 /** A failure to report as is: bad input, an untracked folder, or an operation git cannot do here. */
@@ -123,14 +170,7 @@ function report(error: unknown, onUnexpectedError: (error: unknown) => void): Gi
 
 /** The repository root of a tracked folder, or the GitError that says why it has none. */
 async function requireRepository(runner: GitRunner, folder: string): Promise<string> {
-  const state = await readRepoState(runner, folder)
-  if (state.kind === 'git_missing') {
-    throw new GitError('git_not_found', '')
-  }
-  if (state.kind === 'not_repository') {
-    throw new GitError('not_repository', '', 'That folder is not a Git repository.')
-  }
-  return state.status.root
+  return (await readRepository(runner, folder)).root
 }
 
 async function initFolder(runner: GitRunner, folder: string): Promise<RepoState> {
@@ -180,6 +220,89 @@ function createHistoryHandlers(
   }
 }
 
+function createSyncHandlers(
+  registry: Pick<FolderRegistry, 'resolve'>,
+  sync: Sync,
+  guarded: Guarded
+): Pick<GitHandlers, 'fetch' | 'pull' | 'push' | 'cancelOperation'> {
+  const operation = (name: SyncOperation): GitHandlers['fetch'] => (folder, request) =>
+    guarded(async () => {
+      const tracked = requireTracked(registry, folder)
+      const { operationId } = invalid(syncRequestSchema, request, 'request')
+      return sync.run(name, tracked, operationId)
+    })
+  return {
+    fetch: operation('fetch'),
+    pull: operation('pull'),
+    push: operation('push'),
+    cancelOperation: (folder, operationId) =>
+      guarded(async () => {
+        const tracked = requireTracked(registry, folder)
+        return { cancelled: sync.cancel(tracked, invalid(operationIdSchema, operationId, 'operation id')) }
+      })
+  }
+}
+
+type BranchMethod =
+  | 'listBranches'
+  | 'checkBranchName'
+  | 'createBranch'
+  | 'switchBranch'
+  | 'renameBranch'
+  | 'deleteBranch'
+  | 'mergeIntoCurrent'
+  | 'listStashes'
+  | 'restoreStash'
+  | 'discardStash'
+
+type WithRequest = <R, T>(
+  schema: z.ZodType<R>,
+  what: string,
+  work: (tracked: string, request: R) => Promise<T>
+) => (folder: unknown, request: unknown) => Promise<GitResult<T>>
+
+/** A handler of a tracked folder and one request, validated against `schema`. */
+function requestHandlers(registry: Pick<FolderRegistry, 'resolve'>, guarded: Guarded): WithRequest {
+  return (schema, what, work) => (folder, request) =>
+    guarded(async () => {
+      const tracked = requireTracked(registry, folder)
+      return work(tracked, invalid(schema, request, what))
+    })
+}
+
+function createBranchHandlers(deps: GitHandlerDeps, guarded: Guarded): Pick<GitHandlers, BranchMethod> {
+  const { registry, runner, session } = deps
+  const withRequest = requestHandlers(registry, guarded)
+  return {
+    listBranches: (folder) => guarded(() => listBranches(runner, requireTracked(registry, folder))),
+    checkBranchName: withRequest(branchNameSchema, 'branch name', (tracked, name) => checkBranchName(runner, tracked, name)),
+    createBranch: withRequest(createBranchSchema, 'request', (tracked, request) => createBranch(runner, tracked, request)),
+    switchBranch: withRequest(switchBranchSchema, 'request', (tracked, request) => switchBranch(runner, tracked, request)),
+    renameBranch: withRequest(renameBranchSchema, 'request', (tracked, request) => renameBranch(runner, tracked, request)),
+    deleteBranch: withRequest(deleteBranchSchema, 'request', (tracked, request) => deleteBranch({ runner, session }, tracked, request)),
+    mergeIntoCurrent: withRequest(mergeBranchSchema, 'request', (tracked, request) => mergeIntoCurrent(runner, tracked, request)),
+    listStashes: (folder) => guarded(() => listStashes(runner, requireTracked(registry, folder))),
+    restoreStash: withRequest(stashRefSchema, 'stash', (tracked, ref) => restoreStash(runner, tracked, ref)),
+    discardStash: withRequest(stashRefSchema, 'stash', (tracked, ref) => discardStash(runner, tracked, ref))
+  }
+}
+
+type ConflictMethod = 'getConflicts' | 'resolveWith' | 'markResolved' | 'abortMerge' | 'commitMerge' | 'abortOperation' | 'openInEditor'
+
+function createConflictHandlers(deps: GitHandlerDeps, guarded: Guarded): Pick<GitHandlers, ConflictMethod> {
+  const { registry, runner } = deps
+  const withRequest = requestHandlers(registry, guarded)
+  return {
+    getConflicts: (folder) => guarded(() => getConflicts(runner, requireTracked(registry, folder))),
+    resolveWith: withRequest(resolveSchema, 'request', (tracked, request) => resolveWith(runner, tracked, request)),
+    markResolved: withRequest(markResolvedSchema, 'request', (tracked, request) => markResolved(runner, tracked, request)),
+    abortMerge: (folder) => guarded(() => abortMerge(runner, requireTracked(registry, folder))),
+    commitMerge: withRequest(commitMergeSchema, 'request', (tracked, request) => commitMerge(runner, tracked, request)),
+    abortOperation: (folder) => guarded(() => abortOperation(runner, requireTracked(registry, folder))),
+    openInEditor: withRequest(pathSchema, 'path', (tracked, path) => openInEditor(runner, tracked, path, deps.openPath))
+  }
+}
+
 export function createGitHandlers(deps: GitHandlerDeps): GitHandlers {
   const { registry, runner } = deps
 
@@ -215,6 +338,9 @@ export function createGitHandlers(deps: GitHandlerDeps): GitHandlers {
         const parsed: DiscardRequest = invalid(discardRequestSchema, request, 'request')
         return discardFiles(runner, tracked, parsed, deps.trashItem)
       }),
-    ...createHistoryHandlers(registry, runner, guarded)
+    ...createHistoryHandlers(registry, runner, guarded),
+    ...createSyncHandlers(registry, createSync({ runner, session: deps.session, onProgress: deps.onProgress }), guarded),
+    ...createBranchHandlers(deps, guarded),
+    ...createConflictHandlers(deps, guarded)
   }
 }

@@ -24,6 +24,7 @@ import { EpicWorkspace } from './epic/EpicWorkspace'
 import type { EpicWorkspaceProps } from './epic/EpicWorkspace'
 import type { OrchestrationHost } from './epic/orchestration'
 import { FolderPage } from './folder/FolderPage'
+import { GithubAccountProvider } from './github/GithubAccount'
 import { FolderHome } from './home/FolderHome'
 import { OnboardingView } from './onboarding/OnboardingView'
 import { SourceControlView } from './source/SourceControlView'
@@ -289,7 +290,9 @@ function Shell({ scheduler, EpicView }: { scheduler: Scheduler; EpicView: EpicVi
 export function App({ scheduler = browserScheduler, EpicView = EpicWorkspace }: AppProps): JSX.Element {
   return (
     <ToastProvider scheduler={scheduler}>
-      <Shell scheduler={scheduler} EpicView={EpicView} />
+      <GithubAccountProvider>
+        <Shell scheduler={scheduler} EpicView={EpicView} />
+      </GithubAccountProvider>
     </ToastProvider>
   )
 }

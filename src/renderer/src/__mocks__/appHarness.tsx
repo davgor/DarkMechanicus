@@ -8,22 +8,24 @@ import { EventLog } from './eventLog'
 import { FakeAutoUpdate } from './fakeAutoUpdate'
 import { FakeDm } from './fakeDm'
 import { FakeGit } from './fakeGit'
+import { FakeGithub } from './fakeGithub'
 import { EPIC_B, storageStatus } from './fixtures'
 import { ManualScheduler } from './manualScheduler'
 
 function cleanRepository(folder: string): RepoState {
   return {
     kind: 'repository',
-    status: { root: folder, branch: { name: 'main', headOid: 'a'.repeat(40), upstream: null, ahead: 0, behind: 0 }, files: [], inProgress: null }
+    status: { root: folder, branch: { name: 'main', headOid: 'a'.repeat(40), upstream: null, ahead: 0, behind: 0 }, files: [], inProgress: null, lastFetchedAt: null, remote: null }
   }
 }
 
-/** A whole fake desktop: window.dm, window.autoUpdate, a manual scheduler and per-folder data. */
+/** A whole fake desktop: window.dm, window.autoUpdate, window.git, window.github, a manual scheduler and per-folder data. */
 export class AppHarness {
   /** Every props object the epic view was rendered with, oldest first. */
   readonly epicProps: EpicWorkspaceProps[] = []
   readonly dm = new FakeDm()
   readonly git = new FakeGit()
+  readonly github = new FakeGithub()
   readonly autoUpdate = new FakeAutoUpdate()
   readonly scheduler = new ManualScheduler()
   epics: Record<string, EpicSummaryView[]> = {}
@@ -38,6 +40,7 @@ export class AppHarness {
     window.dm = this.dm
     window.autoUpdate = this.autoUpdate
     window.git = this.git
+    window.github = this.github
     // Shell tests are not about Git: a folder whose state no test set is a clean repository.
     const read = this.git.getState.bind(this.git)
     this.git.getState = async (folder) => {

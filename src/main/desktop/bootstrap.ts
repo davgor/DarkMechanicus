@@ -1,14 +1,17 @@
 /**
  * Wires the desktop bridge to Electron: the tracked-folder and agent registries, one Workspace per
- * folder, native dialogs, clipboard, external links, the agent chat sessions, and the `dm:*`, `agents:*`
- * and `chats:*` IPC channels. All logic lives in the pure modules beside this file and in
- * `../agents`; this one is composition only, so it has no unit tests of its own.
+ * folder, native dialogs, clipboard, external links, the agent chat sessions, GitHub sign-in, and the
+ * `dm:*`, `agents:*`, `chats:*`, `git:*` and `github:*` IPC channels. All logic lives in the pure modules
+ * beside this file and in `../agents`, `../git` and `../github`; this one is composition only, so it has
+ * no unit tests of its own.
  */
 import {
   app,
   BrowserWindow,
   clipboard,
   dialog,
+  net,
+  safeStorage,
   shell,
   type IpcMain,
   type OpenDialogOptions
@@ -28,8 +31,15 @@ import { listBoundThreads } from '../agents/boundThreads'
 import { listThreadBindings, type BindingReads } from '../agents/threadBindings'
 import { trackChatSignIn } from '../agents/signInHooks'
 import { createGitHandlers } from '../git/handlers'
-import { registerGitIpc } from '../git/ipc'
+import { createProgressBroadcaster, registerGitIpc } from '../git/ipc'
 import { createGitRunner } from '../git/runner'
+import { createAccountStore } from '../github/accountStore'
+import { createGithubClient, createSessionClient, type GithubClient } from '../github/client'
+import { createGhCli, isExecutableFile, runGhProcess } from '../github/ghCli'
+import { createGithubHandlers } from '../github/handlers'
+import type { HttpFetch } from '../github/http'
+import { createGithubBroadcaster, registerGithubIpc } from '../github/ipc'
+import { createGithubSession, type GithubSession } from '../github/session'
 import { logger } from '../logger'
 import { getAgentAuthStatus, signInAgent } from './agentAuth'
 import { launchTerminal } from './agentAuthNode'
@@ -182,9 +192,16 @@ function openDesktopWorkspace(repoRoot: string): Workspace {
   })
 }
 
-/** What main keeps of the bridge: the chat sessions, which must be disposed before the app exits. */
+/** Main's GitHub session for its sync, clone and pull request code: the account, its token, and an API client bound to them. */
+type GithubBridge = Pick<GithubSession, 'getAccount' | 'getToken'> & {
+  /** A 401 through it signs the account out (if the rejected token is still the stored one) and returns `auth_required`. */
+  client: GithubClient
+}
+
+/** What main keeps of the bridge: the chat sessions, which must be disposed before the app exits, and the GitHub session. */
 interface DesktopBridge {
   chats: Pick<SessionManager, 'liveCount' | 'disposeAll'>
+  github: GithubBridge
 }
 
 /** The desktop's own workspace for a tracked folder; the run commands of a chat never reach a folder that is not tracked. */
@@ -284,19 +301,66 @@ function startChats(ipc: Pick<IpcMain, 'handle'>, services: ChatServices): void 
   registerChatIpc(ipc, handlers)
 }
 
-/** Serves the `git:*` channels over the real git runner, for the tracked folders only. */
-function startGit(ipc: Pick<IpcMain, 'handle'>, folders: Pick<FolderRegistry, 'resolve'>): void {
+/**
+ * Serves the `git:*` channels over the real git runner, for the tracked folders only. Fetch, pull and push
+ * authenticate with the GitHub session (in main: the token never reaches a window) and broadcast their progress.
+ */
+function startGit(ipc: Pick<IpcMain, 'handle'>, folders: Pick<FolderRegistry, 'resolve'>, github: GithubBridge): void {
   registerGitIpc(
     ipc,
     createGitHandlers({
       registry: folders,
       runner: createGitRunner(),
       trashItem: (path) => shell.trashItem(path),
+      openPath: (path) => shell.openPath(path),
+      session: { getAccount: github.getAccount, getToken: github.getToken },
+      onProgress: createProgressBroadcaster(() => BrowserWindow.getAllWindows()),
       onUnexpectedError: (error) => {
         logger.error('Git request failed:', error)
       }
     })
   )
+}
+
+/** GitHub sign-in first, then the git channels that use its session; returns the session for main's other code. */
+function startSourceControl(ipc: Pick<IpcMain, 'handle'>, folders: Pick<FolderRegistry, 'resolve'>): GithubBridge {
+  const github = startGithub(ipc)
+  startGit(ipc, folders, github)
+  return github
+}
+
+/** GitHub calls go through Chromium's network stack, which follows the system proxy settings. */
+const githubFetch: HttpFetch = (url, request) => net.fetch(url, request)
+
+/**
+ * Serves the `github:*` channels: sign-in with this computer's GitHub CLI login, the account kept in
+ * `userData/github-account.json` with its token encrypted by `safeStorage`. Returns the main-side GitHub session.
+ */
+function startGithub(ipc: Pick<IpcMain, 'handle'>): GithubBridge {
+  const broadcast = createGithubBroadcaster(() => BrowserWindow.getAllWindows())
+  const crypto = {
+    // On Linux without a keyring, safeStorage "encrypts" with a fixed password (`basic_text`): that is plain text in disguise.
+    isAvailable: () =>
+      safeStorage.isEncryptionAvailable() && !(process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text'),
+    encrypt: (text: string) => safeStorage.encryptString(text),
+    decrypt: (data: Buffer) => safeStorage.decryptString(data)
+  }
+  const store = createAccountStore({ file: join(app.getPath('userData'), 'github-account.json'), crypto })
+  const session = createGithubSession({ store, onAccountChanged: broadcast.accountChanged })
+  // gh is looked up on every sign-in, so one installed while the app runs is found.
+  const gh = createGhCli({ run: runGhProcess, env: process.env, platform: process.platform, exists: isExecutableFile })
+  const handlers = createGithubHandlers({
+    session,
+    readGhToken: (signal) => gh.readGhToken(signal),
+    // A fresh token is not stored yet, so a 401 here has no account to sign out.
+    fetchUser: (token) => createGithubClient({ fetch: githubFetch, getToken: () => token, appVersion: app.getVersion(), onUnauthorized: () => undefined }).getUser(),
+    onUnexpectedError: (error) => {
+      logger.error('GitHub request failed:', error)
+    }
+  })
+  registerGithubIpc(ipc, handlers)
+  const client = createSessionClient(session, { fetch: githubFetch, appVersion: app.getVersion() })
+  return { getAccount: session.getAccount, getToken: session.getToken, client }
 }
 
 /** Marks each open workspace alive on an interval and closes them all when the app quits. */
@@ -306,8 +370,8 @@ function keepWorkspacesAlive(pool: Pick<WorkspacePool, 'heartbeatAll' | 'closeAl
 }
 
 /**
- * Registers the `dm:*`, `agents:*`, `chats:*` and `git:*` IPC handlers on `ipc` (the sender-guarded
- * registrar from `guardIpc`) and the background heartbeat/shutdown for open workspaces.
+ * Registers the `dm:*`, `agents:*`, `chats:*`, `git:*` and `github:*` IPC handlers on `ipc` (the
+ * sender-guarded registrar from `guardIpc`) and the background heartbeat/shutdown for open workspaces.
  */
 export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick<IpcMain, 'handle'>): DesktopBridge {
   const registry = createFolderRegistry({
@@ -355,7 +419,6 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   })
   registerDesktopIpc(ipc, handlers)
   keepWorkspacesAlive(pool)
-  startGit(ipc, registry)
   startChats(ipc, { folders: registry, sessions, workspaces: pool, activity })
-  return { chats: sessions }
+  return { chats: sessions, github: startSourceControl(ipc, registry) }
 }

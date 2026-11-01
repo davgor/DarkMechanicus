@@ -1,0 +1,39 @@
+status before: "" HEAD: f844988 Merge branch 'main' of /private/tmp/sc-epic/scratch/DM-140/origin
+userData: <temp profile>
+merge source row: feature/conflict
+banner: Merging origin/feature/conflict into main: 2 conflicted files | git status: "UU a.txt\nUU b.txt"
+shot: merge-two-conflicts
+after Use mine: Merging origin/feature/conflict into main: 1 conflicted file | rows: a.txt Resolved b.txt ! 1 conflict Open in editor Use mine (main) Use theirs (origin/feature/conflict) Mark resolved
+shot: merge-one-resolved
+Mark resolved disabled while markers remain: true
+shot: merge-zero-conflicts
+shot: merge-committed
+$ git log --graph -3
+*   commit 06b2c72ba17d6d1d8398720efa48e50fa8980dd7
+|\  Merge: f844988 59c9cdb
+| | Author: Demo <demo@example.com>
+| | Date:   Sat Oct 31 18:28:38 2026 -0500
+| | 
+| |     Merge remote-tracking branch 'origin/feature/conflict'
+| |     
+| |     # Conflicts:
+| |     #       a.txt
+| |     #       b.txt
+| | 
+| * commit 59c9cdb9ac29ce7af0c8a9d17c0ab6b30dbf4133
+| | Author: Demo <demo@example.com>
+| | Date:   Sat Oct 31 18:27:20 2026 -0500
+| | 
+| |     Change a and b on feature/conflict
+| |   
+* |   commit f84498813823f407e9f0466465d6387a438e7a9e
+|\ \  Merge: cf495fa 473b5ba
+| | | Author: Demo <demo@example.com>
+| | | Date:   Sat Oct 31 18:28:06 2026 -0500
+| | | 
+| | |     Merge branch 'main' of /private/tmp/sc-epic/scratch/DM-140/origin
+$ git show HEAD:a.txt HEAD:b.txt
+mine line
+mine line
+theirs line
+status after: ""

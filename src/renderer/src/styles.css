@@ -694,6 +694,7 @@ textarea.input {
 
 .dialog-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 10px;
 }
@@ -1297,6 +1298,75 @@ textarea.input {
 
 .footer-actions {
   display: flex;
+}
+
+/* ---------- GitHub sign-in (dialog and inline prompt) ---------- */
+
+.sign-in-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.sign-in-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-soft);
+}
+
+.sign-in-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: sign-in-spin 0.9s linear infinite;
+}
+
+@keyframes sign-in-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sign-in-spinner {
+    animation: none;
+  }
+}
+
+.sign-in-failure p {
+  margin: 4px 0 0;
+}
+
+.sign-in-fix {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.sign-in-fix code {
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  user-select: all;
+}
+
+.sign-in-prompt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.sign-in-prompt-text {
+  flex: 1;
+  margin: 0;
 }
 
 /* ---------- Agents block (a folder's chats) ---------- */

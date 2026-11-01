@@ -6,6 +6,7 @@ const GIT_ERROR_CODES = [
   'auth_failed',
   'rejected_non_fast_forward',
   'merge_conflicts',
+  'conflict_markers_remain',
   'local_changes_would_be_overwritten',
   'nothing_to_commit',
   'branch_exists',

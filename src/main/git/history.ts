@@ -55,7 +55,12 @@ function parseRecord(record: string): CommitSummary {
   }
 }
 
+/** Commits on HEAD that no remote has. Empty when the repository has no remote: nothing could have been pushed. */
 async function unpushedSet(runner: GitRunner, root: string): Promise<Set<string>> {
+  const remotes = await runner.run({ cwd: root, args: ['remote'], kind: 'read' })
+  if (remotes.stdout.trim() === '') {
+    return new Set()
+  }
   const result = await runner.run({ cwd: root, args: ['rev-list', 'HEAD', '--not', '--remotes'], kind: 'read' })
   return new Set(result.stdout.split('\n').filter((line) => line !== ''))
 }
@@ -82,8 +87,8 @@ export async function getHistory(runner: GitRunner, root: string, request: Histo
   return { commits, hasMore: records.length > limit }
 }
 
-/** Parses `diff-tree --name-status -z`: `X NUL path NUL`, or `Rnn NUL old NUL new NUL` for renames and copies. */
-function parseNameStatus(output: string): CommitFile[] {
+/** Parses `--name-status -z` output: `X NUL path NUL`, or `Rnn NUL old NUL new NUL` for renames and copies. */
+export function parseNameStatus(output: string): CommitFile[] {
   const tokens = output.split('\u0000')
   const files: CommitFile[] = []
   let at = 0

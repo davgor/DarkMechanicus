@@ -153,3 +153,10 @@ describe('classifyGitFailure from text (cannot be produced offline)', () => {
     expect(error.detail.endsWith('END')).toBe(true)
   })
 })
+
+describe('classifyGitFailure message', () => {
+  it('names the git command, skipping the values of -c options', () => {
+    const args = ['-c', 'credential.helper=', '-c', 'credential.https://github.com.helper=!f', 'push', '--progress', '--', 'origin', 'main']
+    expect(classifyGitFailure({ code: 1, stdout: '', stderr: 'boom' }, args).message).toBe('git push failed with exit code 1 (git_failed)')
+  })
+})

@@ -149,3 +149,57 @@ describe('parseUnifiedDiff (binary, quoting, typechange)', () => {
     expect(parseUnifiedDiff('')).toMatchObject({ kind: 'empty', path: '' })
   })
 })
+
+describe('parseUnifiedDiff (mutation hardening)', () => {
+  const modeOnly = (gitLine: string): string => [gitLine, 'old mode 100644', 'new mode 100755', ''].join('\n')
+
+  it('decodes octal and named escapes in quoted paths', () => {
+    const raw = ['diff --git "a/\\303\\251q\\"x.txt" "b/\\303\\251q\\"x.txt"', 'index 1..2 100644', '--- "a/\\303\\251q\\"x.txt"', '+++ "b/\\303\\251q\\"x.txt"', '@@ -1 +1 @@', '-a', '+b', ''].join('\n')
+    expect(parseUnifiedDiff(raw).path).toBe('éq"x.txt')
+  })
+
+  it('takes the path from a symmetric git header even when it holds " b/"', () => {
+    expect(parseUnifiedDiff(modeOnly('diff --git a/x b/y b/x b/y')).path).toBe('x b/y')
+  })
+
+  it('falls back to the last " b/" side of an asymmetric git header', () => {
+    expect(parseUnifiedDiff(modeOnly('diff --git a/x b/y')).path).toBe('y')
+  })
+
+  it('gives an empty path when the git header has no b/ side', () => {
+    expect(parseUnifiedDiff(modeOnly('diff --git a/x c/y')).path).toBe('')
+  })
+
+  it('keeps reading deletions after the new side of a hunk is used up', () => {
+    const raw = ['diff --git a/r.txt b/r.txt', 'index 1..2 100644', '--- a/r.txt', '+++ b/r.txt', '@@ -1,2 +1 @@', ' a', '-b', ''].join('\n')
+    const diff = parseUnifiedDiff(raw)
+    if (diff.kind !== 'text') {
+      throw new Error('expected text')
+    }
+    expect(diff.hunks[0].lines.map((l) => [l.kind, l.text, l.oldNumber, l.newNumber])).toEqual([
+      ['context', 'a', 1, 1],
+      ['delete', 'b', 2, null]
+    ])
+  })
+
+  it('does not turn the final newline into a line of an unfinished hunk', () => {
+    const raw = ['diff --git a/u.txt b/u.txt', 'index 1..2 100644', '--- a/u.txt', '+++ b/u.txt', '@@ -1,2 +1,2 @@', ' a', ''].join('\n')
+    const diff = parseUnifiedDiff(raw)
+    if (diff.kind !== 'text') {
+      throw new Error('expected text')
+    }
+    expect(diff.hunks[0].lines.map((l) => l.text)).toEqual(['a'])
+  })
+
+  it('keeps the last line when the output has no final newline', () => {
+    const raw = ['diff --git a/v.txt b/v.txt', 'index 1..2 100644', '--- a/v.txt', '+++ b/v.txt', '@@ -1 +1 @@', '-a', '+b'].join('\n')
+    const diff = parseUnifiedDiff(raw)
+    if (diff.kind !== 'text') {
+      throw new Error('expected text')
+    }
+    expect(diff.hunks[0].lines.map((l) => [l.kind, l.text])).toEqual([
+      ['delete', 'a'],
+      ['add', 'b']
+    ])
+  })
+})

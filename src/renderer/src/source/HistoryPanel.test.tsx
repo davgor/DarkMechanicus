@@ -6,6 +6,8 @@ import type { CommitSummary } from '../../../shared/git/history'
 import type { RepoState } from '../../../shared/git/status'
 import { FakeDm } from '../__mocks__/fakeDm'
 import { FakeGit } from '../__mocks__/fakeGit'
+import { FakeGithub } from '../__mocks__/fakeGithub'
+import { GithubAccountProvider } from '../github/GithubAccount'
 import { folderView } from '../__mocks__/fixtures'
 import { ManualScheduler } from '../__mocks__/manualScheduler'
 import { settle } from '../__mocks__/settle'
@@ -26,12 +28,13 @@ beforeEach(() => {
   Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
   window.git = git
   window.dm = new FakeDm()
+  window.github = new FakeGithub()
 })
 
 afterEach(cleanup)
 
 function repoState(folder: string, headOid: string | null = HEAD): RepoState {
-  return { kind: 'repository', status: { root: folder, branch: { name: 'main', headOid, upstream: null, ahead: 0, behind: 0 }, files: [], inProgress: null } }
+  return { kind: 'repository', status: { root: folder, branch: { name: 'main', headOid, upstream: null, ahead: 0, behind: 0 }, files: [], inProgress: null, lastFetchedAt: null, remote: null } }
 }
 
 function commit(index: number, patch: Partial<CommitSummary> = {}): CommitSummary {
@@ -66,7 +69,9 @@ async function mount(folder = FOLDER): Promise<void> {
   const scheduler = new ManualScheduler()
   render(
     <ToastProvider scheduler={scheduler}>
-      <SourceControlView folder={folderView({ path: folder, name: 'f' })} scheduler={scheduler} />
+      <GithubAccountProvider>
+        <SourceControlView folder={folderView({ path: folder, name: 'f' })} scheduler={scheduler} />
+      </GithubAccountProvider>
     </ToastProvider>
   )
   await settle()

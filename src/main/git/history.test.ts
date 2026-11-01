@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { FileDiff } from '../../shared/git/diff'
 import { createGitRepo, type GitRepo } from '../../test/gitRepo'
@@ -53,6 +54,19 @@ function renameCommit(r: GitRepo): string {
   return commitAll(r, 'rename')
 }
 
+/**
+ * Adds `count` empty commits c0…c<count-1> on top of main with one `git fast-import`. Spawning git once per commit
+ * took most of a test's 15 s timeout on a loaded machine.
+ */
+function emptyCommits(r: GitRepo, count: number): void {
+  const now = Math.floor(Date.now() / 1000)
+  const stream = Array.from({ length: count }, (_, i) => {
+    const from = i === 0 ? 'from refs/heads/main^0\n' : ''
+    return `commit refs/heads/main\ncommitter Test <test@example.com> ${now + i} +0000\ndata <<EOM\nc${i}\nEOM\n${from}\n`
+  }).join('')
+  execFileSync('git', ['fast-import', '--quiet'], { cwd: r.root, input: stream })
+}
+
 describe('getHistory', () => {
   it('lists commits newest first with their fields', async () => {
     const r = repo()
@@ -75,9 +89,7 @@ describe('getHistory', () => {
 
   it('pages past 100 commits', async () => {
     const r = repo()
-    for (let i = 0; i < 120; i += 1) {
-      r.git('commit', '-q', '--allow-empty', '-m', `c${i}`)
-    }
+    emptyCommits(r, 120)
     const first = await getHistory(runner, r.root, { skip: 0, limit: 100 })
     expect(first.commits).toHaveLength(100)
     expect(first.hasMore).toBe(true)
@@ -110,6 +122,16 @@ describe('getHistory states', () => {
     const page = await getHistory(runner, r.root, { skip: 0, limit: 10 })
     expect(page.commits.map((c) => [c.summary, c.unpushed])).toEqual([
       ['local only', true],
+      ['initial commit', false]
+    ])
+  })
+
+  it('marks no commit unpushed when the repository has no remote', async () => {
+    const r = repo()
+    r.commit('second')
+    const page = await getHistory(runner, r.root, { skip: 0, limit: 10 })
+    expect(page.commits.map((c) => [c.summary, c.unpushed])).toEqual([
+      ['second', false],
       ['initial commit', false]
     ])
   })

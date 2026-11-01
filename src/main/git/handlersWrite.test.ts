@@ -22,6 +22,9 @@ function setup(): { handlers: GitHandlers; track(path: string): void; trashed: s
       trashed.push(path)
       return Promise.resolve()
     },
+    openPath: () => Promise.resolve(''),
+    session: { getAccount: () => null, getToken: () => null },
+    onProgress: () => undefined,
     onUnexpectedError: (error) => {
       throw error
     }

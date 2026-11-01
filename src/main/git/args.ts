@@ -68,12 +68,30 @@ interface BranchNameVerdict {
   normalized: string | null
 }
 
-/** Asks git whether `name` is a valid branch name (`git check-ref-format --branch`). */
+/** Longer than a file name may be on most file systems, where git keeps a loose ref. */
+const MAX_BRANCH_NAME_BYTES = 255
+
+/**
+ * Names refused without asking git: empty, option-like, `@` and `@{…}` (which revisions read as HEAD, another
+ * branch or an upstream), whitespace and control characters, and overlong names.
+ */
+function plainlyInvalid(name: string): boolean {
+  return (
+    name === '' ||
+    name === '@' ||
+    name.startsWith('-') ||
+    name.includes('@{') ||
+    [...name].some((char) => char <= ' ' || char === '\u007f') ||
+    Buffer.byteLength(name) > MAX_BRANCH_NAME_BYTES
+  )
+}
+
+/** Asks git whether `name` is a valid branch name (`git check-ref-format --branch`), exactly as written. */
 export async function checkBranchName(runner: GitRunner, cwd: string, name: string): Promise<BranchNameVerdict> {
-  if (name === '' || name.startsWith('-') || name.includes('\u0000')) {
+  if (plainlyInvalid(name)) {
     return { valid: false, normalized: null }
   }
   const result = await runner.run({ cwd, args: ['check-ref-format', '--branch', name], kind: 'read', acceptExitCodes: [0, 1, 128] })
-  const normalized = result.stdout.trim()
-  return result.code === 0 && normalized !== '' ? { valid: true, normalized } : { valid: false, normalized: null }
+  const normalized = result.stdout.replace(/\r?\n$/, '')
+  return result.code === 0 && normalized === name ? { valid: true, normalized } : { valid: false, normalized: null }
 }

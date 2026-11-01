@@ -151,6 +151,21 @@ describe('commitFiles guards', () => {
   })
 })
 
+describe('commitFiles with unmerged files and no operation', () => {
+  it('refuses with merge_conflicts, keeping the unmerged entries (a stash restore that conflicted)', async () => {
+    const r = repo()
+    put(r.root, 'file-1.txt', 'stashed\n')
+    r.git('stash', 'push', '-q')
+    put(r.root, 'file-1.txt', 'committed\n')
+    r.git('commit', '-q', '-am', 'meanwhile')
+    expect(() => r.git('stash', 'pop', '-q')).toThrow()
+    put(r.root, 'other.txt', 'other\n')
+    const error = await rejection(commitFiles(runner, r.root, { summary: 'x', description: '', files: [file('other.txt')] }))
+    expect((error as GitError).code).toBe('merge_conflicts')
+    expect(r.git('ls-files', '-u', '--', 'file-1.txt')).not.toBe('')
+  })
+})
+
 describe('undoLastCommit', () => {
   it('puts the changes back and returns the message', async () => {
     const r = repo()

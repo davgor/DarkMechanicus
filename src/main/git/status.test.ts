@@ -1,4 +1,4 @@
-import { rmSync, symlinkSync } from 'node:fs'
+import { rmSync, statSync, symlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { RepoStatus } from '../../shared/git/status'
@@ -49,6 +49,25 @@ describe('readRepoState', () => {
     expect(status.branch).toEqual({ name: 'main', headOid: r.rev('HEAD'), upstream: null, ahead: 0, behind: 0 })
     expect(status.files).toEqual([])
     expect(status.inProgress).toBeNull()
+    expect(status.lastFetchedAt).toBeNull()
+    expect(status.remote).toBeNull()
+  })
+
+  it('reports the sync remote and whether it is HTTPS github.com', async () => {
+    const r = repo()
+    r.git('remote', 'add', 'origin', 'https://github.com/octo/repo.git')
+    expect((await statusOf(r.root)).remote).toEqual({ name: 'origin', githubHttps: true })
+    r.git('remote', 'set-url', 'origin', 'git@github.com:octo/repo.git')
+    expect((await statusOf(r.root)).remote).toEqual({ name: 'origin', githubHttps: false })
+  })
+
+  it('names the upstream remote when it is not origin, and none when there is neither', async () => {
+    const r = repo()
+    r.git('remote', 'add', 'other', 'https://example.com/x.git')
+    expect((await statusOf(r.root)).remote).toBeNull()
+    r.git('config', 'branch.main.remote', 'other')
+    r.git('config', 'branch.main.merge', 'refs/heads/main')
+    expect((await statusOf(r.root)).remote).toEqual({ name: 'other', githubHttps: false })
   })
 })
 
@@ -176,6 +195,8 @@ describe('readRepoState (subfolder and upstream)', () => {
     r.commit('local two')
     r.commit('local three')
     r.git('fetch', '-q', 'origin')
-    expect((await statusOf(r.root)).branch).toMatchObject({ name: 'main', upstream: 'origin/main', ahead: 3, behind: 1 })
+    const status = await statusOf(r.root)
+    expect(status.branch).toMatchObject({ name: 'main', upstream: 'origin/main', ahead: 3, behind: 1 })
+    expect(status.lastFetchedAt).toBe(statSync(join(r.root, '.git', 'FETCH_HEAD')).mtime.toISOString())
   })
 })

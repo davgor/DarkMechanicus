@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events'
-import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -94,6 +94,14 @@ describe('spawning and environment (fake spawn)', () => {
     calls[0].child.close(0)
   })
 
+  it('turns off every askpass program (GIT_ASKPASS, core.askPass, SSH_ASKPASS) and GCM windows, which ignore GIT_TERMINAL_PROMPT', async () => {
+    vi.stubEnv('GIT_ASKPASS', '/usr/local/bin/some-askpass')
+    vi.stubEnv('GCM_INTERACTIVE', 'always')
+    const { spawn, calls } = fakeSpawn()
+    void createGitRunner({ spawn }).run(req({ kind: 'network' })).catch(() => undefined)
+    expect(calls[0].options.env).toMatchObject({ GIT_ASKPASS: '', GCM_INTERACTIVE: 'never' })
+    calls[0].child.close(0)
+  })
 })
 
 describe('read locks, stdin and progress (fake spawn)', () => {
@@ -127,6 +135,29 @@ describe('read locks, stdin and progress (fake spawn)', () => {
     const result = await run
     expect(lines).toEqual(['Receiving objects:  10%', 'Receiving objects:  50%', 'Resolving deltas: 100%', 'last'])
     expect(result.stderr).toContain('Resolving deltas')
+  })
+})
+
+describe('redaction (fake spawn)', () => {
+  it('replaces each `redact` secret in progress lines, output and error details', async () => {
+    const { spawn, calls } = fakeSpawn()
+    const lines: string[] = []
+    const runner = createGitRunner({ spawn })
+    const ok = runner.run(req({ redact: ['s3cret', ''], onProgress: (line) => lines.push(line) }))
+    calls[0].child.err('remote: s3cr')
+    calls[0].child.err('et here\n')
+    calls[0].child.out('out s3cret')
+    calls[0].child.close(0)
+    expect(await ok).toEqual({ code: 0, stdout: 'out [redacted]', stderr: 'remote: [redacted] here\n' })
+    expect(lines).toEqual(['remote: [redacted] here'])
+    const bad = runner.run(req({ args: ['push'], redact: ['s3cret'] }))
+    // The detail keeps the last 2000 characters; this cut falls inside the secret, so scrubbing must come first.
+    const head = "fatal: Authentication failed for 'https://u:"
+    calls[1].child.err(`${head}s3cret@github.com/'\n${'y'.repeat(1983)}`)
+    calls[1].child.close(128)
+    const error = (await bad.catch((caught: unknown) => caught)) as GitError
+    expect(error).toMatchObject({ code: 'auth_failed' })
+    expect(`${error.detail} ${error.message}`).not.toMatch(/cret|ret@github/)
   })
 })
 
@@ -283,6 +314,84 @@ describe('queue (fake spawn)', () => {
     expect(calls).toHaveLength(2)
     calls[1].child.close(0)
     await second
+  })
+})
+
+describe('process groups (fake spawn)', () => {
+  it('starts each git in its own process group and signals the whole group on cancel', async () => {
+    const { spawn, calls } = fakeSpawn()
+    const groups: Array<[number, string]> = []
+    const controller = new AbortController()
+    const runner = createGitRunner({ spawn, platform: 'linux', killGroup: (pgid, signal) => groups.push([pgid, signal]) })
+    const run = runner.run(req({ kind: 'network', signal: controller.signal }))
+    expect(calls[0].options.detached).toBe(true)
+    controller.abort()
+    await expect(run).rejects.toMatchObject({ code: 'cancelled' })
+    expect(groups).toEqual([[4242, 'SIGTERM']])
+    expect(calls[0].child.kills).toEqual([])
+  })
+
+  it('signals git itself when its group is already gone, and never starts groups without a group kill', async () => {
+    const { spawn, calls } = fakeSpawn()
+    const controller = new AbortController()
+    const gone = (): void => {
+      throw Object.assign(new Error('kill ESRCH'), { code: 'ESRCH' })
+    }
+    const run = createGitRunner({ spawn, platform: 'linux', killGroup: gone }).run(req({ kind: 'network', signal: controller.signal }))
+    controller.abort()
+    await expect(run).rejects.toMatchObject({ code: 'cancelled' })
+    expect(calls[0].child.kills).toEqual(['SIGTERM'])
+    void createGitRunner({ spawn, platform: 'linux' }).run(req({ kind: 'read' })).catch(() => undefined)
+    expect(calls[1].options.detached).toBe(false)
+    calls[1].child.close(0)
+  })
+
+  it('holds the next write until a cancelled git has exited, not just until it was cancelled', async () => {
+    const { spawn, calls } = fakeSpawn()
+    const controller = new AbortController()
+    const runner = createGitRunner({ spawn, platform: 'linux' })
+    const first = runner.run(req({ kind: 'network', signal: controller.signal }))
+    const second = runner.run(req({ kind: 'write' }))
+    controller.abort()
+    await expect(first).rejects.toMatchObject({ code: 'cancelled' })
+    await tick()
+    expect(calls).toHaveLength(1)
+    calls[0].child.close(143)
+    await tick()
+    expect(calls).toHaveLength(2)
+    calls[1].child.close(0)
+    await second
+  })
+})
+
+// Skipped on Windows: process groups and the shell alias are POSIX.
+describe.skipIf(process.platform === 'win32')('cancel against real git', () => {
+  it("ends what git started too (a process git itself would not stop), then lets the next write start", async () => {
+    const dir = realpathSync.native(mkdtempSync(join(tmpdir(), 'dm-cancel-')))
+    try {
+      const marker = join(dir, 'grandchild-got-term')
+      // git runs the alias in a shell, which starts a grandchild in the background and waits; only a group kill reaches it.
+      const grandchild = `trap 'echo term > ${marker}; exit 0' TERM; echo started >&2; i=0; while [ \\$i -lt 20 ]; do sleep 1; i=\\$((i+1)); done`
+      const alias = `alias.hang=!f() { sh -c "${grandchild}" & wait; }; f`
+      const controller = new AbortController()
+      const runner = createGitRunner()
+      const run = runner.run({
+        cwd: dir,
+        args: ['-c', alias, 'hang'],
+        kind: 'network',
+        signal: controller.signal,
+        onProgress: (line) => {
+          if (line === 'started') {
+            controller.abort()
+          }
+        }
+      })
+      await expect(run).rejects.toMatchObject({ code: 'cancelled' })
+      await runner.run({ cwd: dir, args: ['--version'], kind: 'write' })
+      expect(existsSync(marker)).toBe(true)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
 

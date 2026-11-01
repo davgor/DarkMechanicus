@@ -141,11 +141,6 @@
   font-size: 13px;
 }
 
-.source-branch {
-  color: var(--ink);
-  font-weight: 600;
-}
-
 .source-columns {
   display: grid;
   grid-template-columns: 320px minmax(0, 1fr);
@@ -501,4 +496,259 @@
   max-height: 160px;
   overflow: auto;
   white-space: pre-wrap;
+}
+
+/* ---------- Sync button ---------- */
+
+.sync {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  margin-left: auto;
+  max-width: 420px;
+}
+
+.sync-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sync-primary {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  height: auto;
+  padding: 4px 12px;
+}
+
+.sync-label {
+  font-weight: 600;
+}
+
+.sync-counts {
+  margin-left: 4px;
+  color: var(--accent);
+}
+
+.sync-fetched {
+  font-size: 11px;
+}
+
+.sync-warning {
+  display: inline-flex;
+  color: var(--accent);
+}
+
+.sync-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.sync-progress-bar {
+  flex: 1;
+  min-width: 120px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.sync-progress-fill {
+  height: 100%;
+  background: var(--accent);
+}
+
+.sync-progress-text {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.sync-failure {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.sync-failure p {
+  margin: 0;
+}
+
+.sync-failure-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.sync-detail {
+  max-height: 160px;
+  margin: 4px 0 0;
+  overflow: auto;
+  font-size: 11px;
+  white-space: pre-wrap;
+}
+
+.branch-menu {
+  position: relative;
+}
+
+.branch-button {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  column-gap: 8px;
+  padding: 4px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.branch-button-caption {
+  grid-column: 1;
+  font-size: 11px;
+}
+
+.branch-button-name {
+  grid-column: 1;
+  font-weight: 600;
+}
+
+.branch-button > svg {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
+.branch-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 340px;
+  padding: 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+}
+
+.branch-popover-title {
+  font-weight: 600;
+}
+
+.branch-list {
+  max-height: 340px;
+  overflow: auto;
+}
+
+.branch-group-title {
+  padding: 6px 8px 2px;
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.branch-row-wrap {
+  position: relative;
+}
+
+.branch-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.branch-row:hover,
+.branch-row[aria-selected='true'] {
+  background: var(--panel-3);
+}
+
+.branch-row-menu {
+  top: 100%;
+  right: auto;
+  left: 24px;
+}
+
+.branch-popover-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.branch-empty {
+  margin: 0;
+  padding: 4px 8px;
+}
+
+.branch-name-status {
+  margin: 6px 0 0;
+  font-size: 12px;
+}
+
+.branch-name-invalid {
+  color: var(--danger);
+}
+
+.branch-base {
+  display: flex;
+  gap: 16px;
+  margin: 12px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.branch-base-option,
+.branch-delete-remote {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.source-stash {
+  border-top: 1px solid var(--line-soft);
+}
+
+.source-stash-row {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.source-stash-row:hover,
+.source-stash-row[aria-expanded='true'] {
+  background: var(--panel-3);
+}
+
+.source-stash-detail {
+  padding: 4px 12px 10px;
+}
+
+.source-stash-files {
+  margin: 0 0 8px;
+  padding-left: 16px;
+  font-size: 12px;
+}
+
+.source-stash-actions {
+  display: flex;
+  gap: 6px;
 }

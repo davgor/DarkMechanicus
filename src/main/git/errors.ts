@@ -30,10 +30,10 @@ const FAILURE_PATTERNS: ReadonlyArray<readonly [GitErrorCode, RegExp]> = [
   ['not_repository', /not a git repository/i],
   ['auth_required', /terminal prompts disabled|could not read (Username|Password)/i],
   ['auth_failed', /Authentication failed|Permission denied \(publickey|Invalid username or password|returned error: 40[13]|HTTP Basic: Access denied/i],
-  ['rejected_non_fast_forward', /non-fast-forward|\(fetch first\)|Updates were rejected because/i],
-  ['operation_in_progress', /You have not concluded your merge|MERGE_HEAD exists|(rebase|cherry-pick|revert|am) .*in progress|already in progress|You are in the middle of|unresolved conflict|you have unmerged files/i],
+  ['rejected_non_fast_forward', /non-fast-forward|\(fetch first\)|\(stale info\)|Updates were rejected because/i],
+  ['operation_in_progress', /You have not concluded your merge|MERGE_HEAD exists|(rebase|cherry-pick|revert|am) .*in progress|already in progress|You are in the middle of|unresolved conflict|you have unmerged files|cannot switch branch while/i],
   ['merge_conflicts', /CONFLICT \(|Automatic merge failed|fix conflicts|Merge conflict in/i],
-  ['local_changes_would_be_overwritten', /local changes to the following files would be overwritten|would be overwritten by (merge|checkout)/i],
+  ['local_changes_would_be_overwritten', /local changes to the following files would be overwritten|would be overwritten by (merge|checkout)|could not restore untracked files from stash/i],
   ['nothing_to_commit', /nothing (added )?to commit|no changes added to commit/i],
   ['branch_exists', /a branch named '.*' already exists/i],
   ['branch_not_fully_merged', /not fully merged/i],
@@ -46,13 +46,18 @@ export function stderrTail(stderr: string): string {
   return stderr.length > DETAIL_CHARS ? stderr.slice(stderr.length - DETAIL_CHARS) : stderr
 }
 
+/** The git command `args` run: the first argument that is neither an option nor the value of a `-c`. */
+function commandName(args: readonly string[]): string {
+  const index = args.findIndex((arg, at) => !arg.startsWith('-') && args[at - 1] !== '-c')
+  return index === -1 ? 'git' : args[index]
+}
+
 /** Turns a failed git result into a GitError; anything not in the table is `git_failed`. */
 export function classifyGitFailure(result: GitRunResult, args: readonly string[]): GitError {
   const text = `${result.stderr}\n${result.stdout}`
   const row = FAILURE_PATTERNS.find(([, pattern]) => pattern.test(text))
   const code: GitErrorCode = row ? row[0] : 'git_failed'
-  const name = args.find((arg) => !arg.startsWith('-')) ?? 'git'
-  return new GitError(code, stderrTail(result.stderr), `git ${name} failed with exit code ${result.code} (${code})`)
+  return new GitError(code, stderrTail(result.stderr), `git ${commandName(args)} failed with exit code ${result.code} (${code})`)
 }
 
 /** A request git could not or must not carry out as asked (bad input, a refused operation). Reported as `invalid_input`. */

@@ -1,9 +1,9 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import type { GitResult } from '../../shared/git/api'
+import type { GitProgressEvent, GitResult } from '../../shared/git/api'
 import { createGitRepo } from '../../test/gitRepo'
-import { put, scratchDir } from '../../test/gitScratch'
+import { gitIn, put, scratchDir } from '../../test/gitScratch'
 import { GitError } from './errors'
 import { createGitHandlers, type GitHandlers } from './handlers'
 import { createGitRunner, type GitRunner } from './runner'
@@ -15,10 +15,19 @@ afterEach(() => {
   }
 })
 
-function setup(runner: GitRunner = createGitRunner()): { handlers: GitHandlers; track(path: string): void; unexpected: unknown[]; trashed: string[] } {
+const signedOut = { getAccount: () => null, getToken: () => null }
+
+function setup(runner: GitRunner = createGitRunner()): {
+  handlers: GitHandlers
+  track(path: string): void
+  unexpected: unknown[]
+  trashed: string[]
+  events: GitProgressEvent[]
+} {
   const trashed: string[] = []
   const tracked = new Set<string>()
   const unexpected: unknown[] = []
+  const events: GitProgressEvent[] = []
   const handlers = createGitHandlers({
     registry: { resolve: (folder) => (tracked.has(folder) ? folder : null) },
     runner,
@@ -26,9 +35,12 @@ function setup(runner: GitRunner = createGitRunner()): { handlers: GitHandlers; 
       trashed.push(path)
       return Promise.resolve()
     },
+    openPath: () => Promise.resolve(''),
+    session: signedOut,
+    onProgress: (event) => events.push(event),
     onUnexpectedError: (error) => unexpected.push(error)
   })
-  return { handlers, track: (path) => tracked.add(path), unexpected, trashed }
+  return { handlers, track: (path) => tracked.add(path), unexpected, trashed, events }
 }
 
 function failure(result: GitResult<unknown>): { code: string; message: string; detail?: string } {
@@ -199,6 +211,9 @@ describe('error mapping', () => {
       registry: { resolve: (f) => f },
       runner,
       trashItem: () => Promise.resolve(),
+      openPath: () => Promise.resolve(''),
+      session: signedOut,
+      onProgress: () => undefined,
       onUnexpectedError: () => {
         throw new Error('logger down')
       }
@@ -255,5 +270,45 @@ describe('history handlers', () => {
     const folder = plainFolder()
     track(folder)
     expect(failure(await handlers.getHistory(folder, { skip: 0, limit: 10 })).code).toBe('not_repository')
+  })
+})
+
+describe('sync handlers', () => {
+  function withOrigin(): { root: string; bare: string } {
+    const r = repo()
+    const bare = plainFolder()
+    gitIn(bare, 'init', '-q', '--bare', '-b', 'main')
+    r.git('remote', 'add', 'origin', bare)
+    return { root: r.root, bare }
+  }
+
+  it('publishes, fetches and pulls a tracked repository by operation id, with progress', async () => {
+    const { root } = withOrigin()
+    const { handlers, track, events } = setup()
+    track(root)
+    const pushed = await handlers.push(root, { operationId: 'p1' })
+    expect(pushed.ok && pushed.data.kind === 'repository' && pushed.data.status.branch.upstream).toBe('origin/main')
+    expect((await handlers.fetch(root, { operationId: 'f1' })).ok).toBe(true)
+    expect((await handlers.pull(root, { operationId: 'l1' })).ok).toBe(true)
+    expect(events.some((event) => event.operationId === 'p1' && event.operation === 'push')).toBe(true)
+  })
+
+  it('refuses untracked folders and malformed requests', async () => {
+    const { root } = withOrigin()
+    const { handlers, track } = setup()
+    expect(failure(await handlers.fetch(root, { operationId: 'x' })).code).toBe('unauthorized')
+    track(root)
+    for (const request of [undefined, {}, { operationId: '' }, { operationId: 7 }, { operationId: 'x', force: true }, { operationId: 'x'.repeat(201) }]) {
+      expect(failure(await handlers.push(root, request)).code, JSON.stringify(request)).toBe('invalid_input')
+    }
+    expect(failure(await handlers.cancelOperation(root, 42)).code).toBe('invalid_input')
+    expect(failure(await handlers.cancelOperation('/untracked', 'x')).code).toBe('unauthorized')
+  })
+
+  it('reports whether cancel found a running operation', async () => {
+    const { root } = withOrigin()
+    const { handlers, track } = setup()
+    track(root)
+    expect(await handlers.cancelOperation(root, 'nothing-running')).toEqual({ ok: true, data: { cancelled: false } })
   })
 })

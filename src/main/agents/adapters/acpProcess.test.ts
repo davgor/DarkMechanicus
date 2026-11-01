@@ -111,7 +111,7 @@ describe('nodeTransport: how the process ended', () => {
   })
 
   it('keeps only the tail of a long stderr', async () => {
-    const { heard } = open(node(`console.error('x'.repeat(100000) + 'THE-END'); process.exit(1)`), scratch)
+    const { heard } = open(node(`process.stderr.write('x'.repeat(100000) + 'THE-END\\n', () => process.exit(1))`), scratch)
 
     await heard.whenClosed()
 
@@ -148,11 +148,16 @@ describe('nodeTransport: how the process ended', () => {
       handle.write('{"late":true}')
     }).not.toThrow()
   })
+})
 
+describe('nodeTransport: kill', () => {
   it('kills the whole process tree, not only the process it started', async () => {
+    // The grandchild shares the process's stderr, so the transport reports the end only once the grandchild has
+    // exited too: without a tree kill the pipe stays open and the test times out. The kill's own wait for the
+    // group to empty is bounded, so whether the pid is already gone when kill resolves is not asserted.
     const script = `
       const { spawn } = require('node:child_process')
-      const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' })
+      const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: ['ignore', 'ignore', 'inherit'] })
       console.log('child:' + child.pid)
       setInterval(() => {}, 1000)
     `
@@ -162,9 +167,8 @@ describe('nodeTransport: how the process ended', () => {
     expect(alive(grandchild)).toBe(true)
 
     await handle.kill()
-
-    // No waiting: kill resolves only once the whole tree has exited.
-    expect(alive(grandchild)).toBe(false)
     await heard.whenClosed()
+
+    expect(heard.closed[0]).toMatch(/^signal SIGKILL/)
   })
 })

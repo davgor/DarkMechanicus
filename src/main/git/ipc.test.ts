@@ -63,10 +63,72 @@ function recordingHandlers(): { handlers: GitHandlers; calls: unknown[][] } {
     getCommitDiff: async (folder, request) => {
       calls.push(['getCommitDiff', folder, request])
       return { ok: false, error: { code: 'invalid_input', message: 'x' } }
-    }
+    },
+    ...syncHandlers(calls),
+    ...branchHandlers(calls)
   }
   return { handlers, calls }
 }
+
+function syncHandlers(calls: unknown[][]): Pick<GitHandlers, 'fetch' | 'pull' | 'push' | 'cancelOperation'> {
+  const operation = (name: string): GitHandlers['fetch'] => async (folder, request) => {
+    calls.push([name, folder, request])
+    return { ok: true, data: { kind: 'not_repository' } }
+  }
+  return {
+    fetch: operation('fetch'),
+    pull: operation('pull'),
+    push: operation('push'),
+    cancelOperation: async (folder, operationId) => {
+      calls.push(['cancelOperation', folder, operationId])
+      return { ok: true, data: { cancelled: true } }
+    }
+  }
+}
+
+const BRANCH_METHODS = [
+  'listBranches',
+  'checkBranchName',
+  'createBranch',
+  'switchBranch',
+  'renameBranch',
+  'deleteBranch',
+  'mergeIntoCurrent',
+  'listStashes',
+  'restoreStash',
+  'discardStash'
+] as const
+
+const CONFLICT_METHODS = ['getConflicts', 'resolveWith', 'markResolved', 'abortMerge', 'commitMerge', 'abortOperation', 'openInEditor'] as const
+
+type BranchMethod = (typeof BRANCH_METHODS)[number] | (typeof CONFLICT_METHODS)[number]
+
+function branchHandlers(calls: unknown[][]): Pick<GitHandlers, BranchMethod> {
+  const record = (name: string) => async (...args: unknown[]) => {
+    calls.push([name, ...args])
+    return { ok: false as const, error: { code: 'invalid_input' as const, message: 'x' } }
+  }
+  const methods = [...BRANCH_METHODS, ...CONFLICT_METHODS]
+  return Object.fromEntries(methods.map((name) => [name, record(name)])) as unknown as Pick<GitHandlers, BranchMethod>
+}
+
+const CHANNELS = [
+  'git:cancelOperation',
+  'git:commit',
+  'git:discardChanges',
+  'git:fetch',
+  'git:getCommitDiff',
+  'git:getCommitFiles',
+  'git:getHistory',
+  'git:getState',
+  'git:getWorkingDiff',
+  'git:initRepository',
+  'git:pull',
+  'git:push',
+  'git:undoLastCommit',
+  ...BRANCH_METHODS.map((name) => `git:${name}`),
+  ...CONFLICT_METHODS.map((name) => `git:${name}`)
+]
 
 describe('registerGitIpc', () => {
   it('registers exactly the git channels and forwards arguments untouched', async () => {
@@ -74,7 +136,7 @@ describe('registerGitIpc', () => {
     const { handlers, calls } = recordingHandlers()
     registerGitIpc(ipc, handlers)
 
-    expect(ipc.channels()).toEqual(['git:commit', 'git:discardChanges', 'git:getCommitDiff', 'git:getCommitFiles', 'git:getHistory', 'git:getState', 'git:getWorkingDiff', 'git:initRepository', 'git:undoLastCommit'])
+    expect(ipc.channels()).toEqual([...CHANNELS].sort())
     await ipc.invoke('git:getState', '/a')
     await ipc.invoke('git:getWorkingDiff', '/a', { path: 'x' })
     await ipc.invoke('git:initRepository', '/b')
@@ -84,6 +146,10 @@ describe('registerGitIpc', () => {
     await ipc.invoke('git:getHistory', '/a', { skip: 0, limit: 100 })
     await ipc.invoke('git:getCommitFiles', '/a', 'abcd')
     await ipc.invoke('git:getCommitDiff', '/a', { oid: 'abcd' })
+    await ipc.invoke('git:fetch', '/a', { operationId: 'f' })
+    await ipc.invoke('git:pull', '/a', { operationId: 'l' })
+    await ipc.invoke('git:push', '/a', { operationId: 'p' })
+    await ipc.invoke('git:cancelOperation', '/a', 'p')
     expect(calls).toEqual([
       ['getState', '/a'],
       ['getWorkingDiff', '/a', { path: 'x' }],
@@ -93,8 +159,38 @@ describe('registerGitIpc', () => {
       ['discardChanges', '/a', { files: [] }],
       ['getHistory', '/a', { skip: 0, limit: 100 }],
       ['getCommitFiles', '/a', 'abcd'],
-      ['getCommitDiff', '/a', { oid: 'abcd' }]
+      ['getCommitDiff', '/a', { oid: 'abcd' }],
+      ['fetch', '/a', { operationId: 'f' }],
+      ['pull', '/a', { operationId: 'l' }],
+      ['push', '/a', { operationId: 'p' }],
+      ['cancelOperation', '/a', 'p']
     ])
+  })
+})
+
+describe('registerGitIpc branch channels', () => {
+  it('forwards the branch and stash channels untouched', async () => {
+    const ipc = createFakeIpcMain()
+    const { handlers, calls } = recordingHandlers()
+    registerGitIpc(ipc, handlers)
+    const folderOnly: Partial<Record<BranchMethod, true>> = { listBranches: true, listStashes: true }
+    for (const name of BRANCH_METHODS) {
+      await (folderOnly[name] ? ipc.invoke(`git:${name}`, '/a', 'ignored') : ipc.invoke(`git:${name}`, '/a', { name }))
+    }
+    expect(calls).toEqual(BRANCH_METHODS.map((name) => (folderOnly[name] ? [name, '/a'] : [name, '/a', { name }])))
+  })
+})
+
+describe('registerGitIpc conflict channels', () => {
+  it('forwards the conflict channels untouched', async () => {
+    const ipc = createFakeIpcMain()
+    const { handlers, calls } = recordingHandlers()
+    registerGitIpc(ipc, handlers)
+    const folderOnly: Partial<Record<BranchMethod, true>> = { getConflicts: true, abortMerge: true, abortOperation: true }
+    for (const name of CONFLICT_METHODS) {
+      await (folderOnly[name] ? ipc.invoke(`git:${name}`, '/a', 'ignored') : ipc.invoke(`git:${name}`, '/a', { name }))
+    }
+    expect(calls).toEqual(CONFLICT_METHODS.map((name) => (folderOnly[name] ? [name, '/a'] : [name, '/a', { name }])))
   })
 })
 

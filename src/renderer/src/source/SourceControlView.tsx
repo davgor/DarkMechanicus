@@ -89,7 +89,9 @@ export function SourceControlView({ folder, scheduler }: SourceControlViewProps)
         </Notice>
       ) : null}
       {value.kind === 'not_repository' ? <InitializeNotice folder={folder.path} onDone={repo.refresh} /> : null}
-      {value.kind === 'repository' ? <RepositoryView folderPath={folder.path} status={value.status} version={repo.version} onRefresh={repo.refresh} /> : null}
+      {value.kind === 'repository' ? (
+        <RepositoryView folderPath={folder.path} status={value.status} version={repo.version} onRefresh={repo.refresh} scheduler={scheduler} />
+      ) : null}
     </div>
   )
 }

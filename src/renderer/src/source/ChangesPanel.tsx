@@ -6,7 +6,9 @@ import { Dialog } from '../components/Dialog'
 import { Menu } from '../components/Menu'
 import { badgeOf, splitPath } from './changeBadge'
 import { CommitBox } from './CommitBox'
+import { ConflictsPanel, useConflicts } from './ConflictsPanel'
 import type { CommittedInfo } from './CommitBox'
+import { StashedChanges } from './StashedChanges'
 import { useInclusion } from './useInclusion'
 import type { InclusionModel } from './useInclusion'
 
@@ -228,15 +230,18 @@ function ChangesList({ files, inclusion, selected, onSelect, onDiscard }: Change
 interface ChangesPanelProps {
   folderPath: string
   status: RepoStatus
+  /** Changes whenever the status was read again, so the conflicts are read again too. */
+  version: number
   selected: string | null
   onSelect(key: string): void
   /** Reads the repository state again. */
   onRefresh(): void
 }
 
-/** The left column's Changes: files with checkboxes, discard, the undo strip and the commit box. */
-export function ChangesPanel({ folderPath, status, selected, onSelect, onRefresh }: ChangesPanelProps): JSX.Element {
-  const inclusion = useInclusion(folderPath, status.files)
+/** The left column's Changes: the conflicts first, then files with checkboxes, discard, the undo strip and the commit box. */
+export function ChangesPanel({ folderPath, status, version, selected, onSelect, onRefresh }: ChangesPanelProps): JSX.Element {
+  const conflicts = useConflicts(folderPath, status, version)
+  const inclusion = useInclusion(folderPath, conflicts.otherFiles)
   const [discarding, setDiscarding] = useState<readonly FileChange[] | null>(null)
   const [draft, setDraft] = useState({ summary: '', description: '' })
   const [committed, setCommitted] = useState<CommittedInfo | null>(null)
@@ -247,22 +252,26 @@ export function ChangesPanel({ folderPath, status, selected, onSelect, onRefresh
   }
   return (
     <section className="source-changes" aria-label="Changes">
-      <ChangesList files={status.files} inclusion={inclusion} selected={selected} onSelect={onSelect} onDiscard={setDiscarding} />
+      {conflicts.active ? <ConflictsPanel folderPath={folderPath} status={status} model={conflicts} selectedPath={status.files.find((file) => fileKey(file) === selected)?.path ?? null} onSelect={(file) => onSelect(fileKey(file))} onRefresh={onRefresh} /> : null}
+      <ChangesList files={conflicts.otherFiles} inclusion={inclusion} selected={selected} onSelect={onSelect} onDiscard={setDiscarding} />
+      <StashedChanges folderPath={folderPath} status={status} onRefresh={onRefresh} />
       <div className="source-changes-bottom">
         {undoable(committed, status) ? <UndoStrip committed={committed} folderPath={folderPath} onUndone={undone} /> : null}
-        <CommitBox
-          folderPath={folderPath}
-          branchName={status.branch.name}
-          headOid={status.branch.headOid}
-          included={inclusion.included}
-          summary={draft.summary}
-          description={draft.description}
-          onChange={setDraft}
-          onCommitted={(info) => {
-            setCommitted(info)
-            onRefresh()
-          }}
-        />
+        {conflicts.active ? null : (
+          <CommitBox
+            folderPath={folderPath}
+            branchName={status.branch.name}
+            headOid={status.branch.headOid}
+            included={inclusion.included}
+            summary={draft.summary}
+            description={draft.description}
+            onChange={setDraft}
+            onCommitted={(info) => {
+              setCommitted(info)
+              onRefresh()
+            }}
+          />
+        )}
       </div>
       {discarding === null ? null : (
         <DiscardDialog

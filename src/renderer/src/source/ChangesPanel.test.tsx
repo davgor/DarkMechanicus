@@ -6,6 +6,8 @@ import type { FileChange, RepoState, RepoStatus } from '../../../shared/git/stat
 import { ToastProvider } from '../app/toasts'
 import { FakeDm } from '../__mocks__/fakeDm'
 import { FakeGit } from '../__mocks__/fakeGit'
+import { FakeGithub } from '../__mocks__/fakeGithub'
+import { GithubAccountProvider } from '../github/GithubAccount'
 import { folderView } from '../__mocks__/fixtures'
 import { ManualScheduler } from '../__mocks__/manualScheduler'
 import { settle } from '../__mocks__/settle'
@@ -25,6 +27,7 @@ beforeEach(() => {
   scheduler = new ManualScheduler()
   window.git = git
   window.dm = dm
+  window.github = new FakeGithub()
 })
 
 afterEach(cleanup)
@@ -38,7 +41,9 @@ function status(files: FileChange[], patch: Partial<RepoStatus['branch']> = {}):
       root: FOLDER,
       branch: { name: 'main', headOid: HEAD, upstream: null, ahead: 0, behind: 0, ...patch },
       files,
-      inProgress: null
+      inProgress: null,
+      lastFetchedAt: null,
+      remote: null
     }
   }
 }
@@ -47,7 +52,9 @@ async function mount(files: FileChange[] = [change('a.ts'), change('b.ts'), chan
   git.setState(FOLDER, status(files))
   render(
     <ToastProvider scheduler={scheduler}>
-      <SourceControlView folder={folder} scheduler={scheduler} />
+      <GithubAccountProvider>
+        <SourceControlView folder={folder} scheduler={scheduler} />
+      </GithubAccountProvider>
     </ToastProvider>
   )
   await settle()

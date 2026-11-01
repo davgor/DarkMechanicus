@@ -3,6 +3,7 @@ import { CHAT_EVENT_CHANNEL, type ChatPushEvent, type ChatsApi } from '../shared
 import type { AutoUpdateState } from '../shared/autoUpdate/types'
 import type { AgentDownloadProgress, DmApi } from '../shared/desktop/api'
 import { GIT_PROGRESS_CHANNEL, type GitApi, type GitProgressEvent } from '../shared/git/api'
+import { GITHUB_ACCOUNT_CHANGED_CHANNEL, type GithubAccountView, type GithubApi } from '../shared/github/api'
 
 const autoUpdate = {
   getState: (): Promise<AutoUpdateState> => ipcRenderer.invoke('autoUpdate:getState'),
@@ -94,6 +95,27 @@ const git: GitApi = {
   getHistory: (folder, request) => ipcRenderer.invoke('git:getHistory', folder, request),
   getCommitFiles: (folder, oid) => ipcRenderer.invoke('git:getCommitFiles', folder, oid),
   getCommitDiff: (folder, request) => ipcRenderer.invoke('git:getCommitDiff', folder, request),
+  fetch: (folder, request) => ipcRenderer.invoke('git:fetch', folder, request),
+  pull: (folder, request) => ipcRenderer.invoke('git:pull', folder, request),
+  push: (folder, request) => ipcRenderer.invoke('git:push', folder, request),
+  cancelOperation: (folder, operationId) => ipcRenderer.invoke('git:cancelOperation', folder, operationId),
+  listBranches: (folder) => ipcRenderer.invoke('git:listBranches', folder),
+  checkBranchName: (folder, name) => ipcRenderer.invoke('git:checkBranchName', folder, name),
+  createBranch: (folder, request) => ipcRenderer.invoke('git:createBranch', folder, request),
+  switchBranch: (folder, request) => ipcRenderer.invoke('git:switchBranch', folder, request),
+  renameBranch: (folder, request) => ipcRenderer.invoke('git:renameBranch', folder, request),
+  deleteBranch: (folder, request) => ipcRenderer.invoke('git:deleteBranch', folder, request),
+  mergeIntoCurrent: (folder, request) => ipcRenderer.invoke('git:mergeIntoCurrent', folder, request),
+  listStashes: (folder) => ipcRenderer.invoke('git:listStashes', folder),
+  restoreStash: (folder, ref) => ipcRenderer.invoke('git:restoreStash', folder, ref),
+  discardStash: (folder, ref) => ipcRenderer.invoke('git:discardStash', folder, ref),
+  getConflicts: (folder) => ipcRenderer.invoke('git:getConflicts', folder),
+  resolveWith: (folder, request) => ipcRenderer.invoke('git:resolveWith', folder, request),
+  markResolved: (folder, request) => ipcRenderer.invoke('git:markResolved', folder, request),
+  abortMerge: (folder) => ipcRenderer.invoke('git:abortMerge', folder),
+  commitMerge: (folder, request) => ipcRenderer.invoke('git:commitMerge', folder, request),
+  abortOperation: (folder) => ipcRenderer.invoke('git:abortOperation', folder),
+  openInEditor: (folder, path) => ipcRenderer.invoke('git:openInEditor', folder, path),
   onProgress: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, event: GitProgressEvent): void => {
       listener(event)
@@ -104,3 +126,19 @@ const git: GitApi = {
 }
 
 contextBridge.exposeInMainWorld('git', git)
+
+/** GitHub sign-in: one `github:*` invoke per method, none with arguments. The token never reaches this side. */
+const github: GithubApi = {
+  getAccount: () => ipcRenderer.invoke('github:getAccount'),
+  signIn: () => ipcRenderer.invoke('github:signIn'),
+  signOut: () => ipcRenderer.invoke('github:signOut'),
+  onAccountChanged: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, account: GithubAccountView | null): void => {
+      listener(account)
+    }
+    ipcRenderer.on(GITHUB_ACCOUNT_CHANGED_CHANNEL, handler)
+    return () => ipcRenderer.removeListener(GITHUB_ACCOUNT_CHANGED_CHANNEL, handler)
+  }
+}
+
+contextBridge.exposeInMainWorld('github', github)

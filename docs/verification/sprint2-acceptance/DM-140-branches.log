@@ -1,0 +1,100 @@
+userData: <temp profile>
+--- start [scratch-b]
+$ git branch -a
+* main
+  remotes/origin/HEAD -> origin/main
+  remotes/origin/feature/conflict
+  remotes/origin/main
+$ git stash list
+
+
+=== app after 1 create topic from default branch: Current branch topic | branches: main, topic, feature/conflict | stashed row: 0 | changed files: 0 changed files
+--- 1 create topic from default branch [scratch-b]
+$ git branch -a
+main
+* topic
+  remotes/origin/HEAD -> origin/main
+  remotes/origin/feature/conflict
+  remotes/origin/main
+$ git stash list
+
+
+filtered options: [ 'main' ]
+shot: branch-popover-filtered
+switch dialog: Switch to main You have changes on topic. Changes you leave are stashed and show under Stashed changes when you come back. Cancel Bring my changes to main Leave my changes on topic
+shot: switch-dialog
+=== app after 2 switch to main leaving changes stashed: Current branch main | branches: main, topic, feature/conflict | stashed row: 0 | changed files: 0 changed files
+--- 2 switch to main leaving changes stashed [scratch-b]
+$ git branch -a
+* main
+  topic
+  remotes/origin/HEAD -> origin/main
+  remotes/origin/feature/conflict
+  remotes/origin/main
+$ git stash list
+stash@{0}: On topic: dm-stash:topic
+
+shot: stashed-changes-row
+shot: stashed-changes-open
+=== app after 3 back on topic, Restore: Current branch topic | branches: main, topic, feature/conflict | stashed row: 0 | changed files: 1 changed file
+--- 3 back on topic, Restore [scratch-b]
+$ git branch -a
+main
+* topic
+  remotes/origin/HEAD -> origin/main
+  remotes/origin/feature/conflict
+  remotes/origin/main
+$ git stash list
+
+
+git status --short: M README.md
+=== app after 4 rename topic -> topic-renamed: Current branch topic-renamed | branches: main, topic-renamed, feature/conflict | stashed row: 0 | changed files: 1 changed file
+--- 4 rename topic -> topic-renamed [scratch-b]
+$ git branch -a
+main
+* topic-renamed
+  remotes/origin/HEAD -> origin/main
+  remotes/origin/feature/conflict
+  remotes/origin/main
+$ git stash list
+
+
+=== app after 4b Publish branch: Current branch topic-renamed | branches: main, topic-renamed, feature/conflict | stashed row: 0 | changed files: 1 changed file
+--- 4b Publish branch [scratch-b]
+$ git branch -a
+main
+* topic-renamed
+  remotes/origin/HEAD -> origin/main
+  remotes/origin/feature/conflict
+  remotes/origin/main
+  remotes/origin/topic-renamed
+$ git stash list
+
+
+upstream: origin/topic-renamed
+=== app after 5a switch to main bringing the change: Current branch main | branches: main, topic-renamed, feature/conflict | stashed row: 0 | changed files: 1 changed file
+--- 5a switch to main bringing the change [scratch-b]
+$ git branch -a
+* main
+  topic-renamed
+  remotes/origin/HEAD -> origin/main
+  remotes/origin/feature/conflict
+  remotes/origin/main
+  remotes/origin/topic-renamed
+$ git stash list
+
+
+shot: delete-dialog
+=== app after 5 delete topic-renamed with origin/topic-renamed: Current branch main | branches: main, feature/conflict | stashed row: 0 | changed files: 1 changed file
+--- 5 delete topic-renamed with origin/topic-renamed [scratch-b]
+$ git branch -a
+* main
+  remotes/origin/HEAD -> origin/main
+  remotes/origin/feature/conflict
+  remotes/origin/main
+$ git stash list
+
+
+$ git ls-remote --heads origin
+59c9cdb9ac29ce7af0c8a9d17c0ab6b30dbf4133	refs/heads/feature/conflict
+f84498813823f407e9f0466465d6387a438e7a9e	refs/heads/main

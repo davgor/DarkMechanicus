@@ -161,3 +161,12 @@ describe('App updates', () => {
     expect(sidebar().getByLabelText('Application version 0.5.0').textContent).toBe('v0.5.0')
   })
 })
+
+describe('App GitHub account', () => {
+  it('shows the signed-out footer and follows a sign-in from main', async () => {
+    await start()
+    expect(sidebar().getByRole('button', { name: 'Sign in to GitHub' })).toBeTruthy()
+    act(() => h.github.changeAccount({ login: 'octocat', name: 'Mona' }))
+    expect(sidebar().getByText('@octocat')).toBeTruthy()
+  })
+})

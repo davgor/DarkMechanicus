@@ -6,6 +6,8 @@ import type { FileDiff } from '../../../shared/git/diff'
 import type { FileChange, RepoState, RepoStatus } from '../../../shared/git/status'
 import { FakeDm } from '../__mocks__/fakeDm'
 import { FakeGit } from '../__mocks__/fakeGit'
+import { FakeGithub } from '../__mocks__/fakeGithub'
+import { GithubAccountProvider } from '../github/GithubAccount'
 import { folderView } from '../__mocks__/fixtures'
 import { ManualScheduler } from '../__mocks__/manualScheduler'
 import { settle } from '../__mocks__/settle'
@@ -25,6 +27,7 @@ beforeEach(() => {
   scheduler = new ManualScheduler()
   window.git = git
   window.dm = dm
+  window.github = new FakeGithub()
 })
 
 afterEach(cleanup)
@@ -37,6 +40,8 @@ function status(files: FileChange[] = [], patch: Partial<RepoStatus> = {}): Repo
       branch: { name: 'main', headOid: 'a'.repeat(40), upstream: null, ahead: 0, behind: 0 },
       files,
       inProgress: null,
+      lastFetchedAt: null,
+      remote: null,
       ...patch
     }
   }
@@ -57,7 +62,11 @@ function textDiff(path: string, added: string): FileDiff {
 }
 
 function renderView(ui: JSX.Element): ReturnType<typeof render> {
-  return render(<ToastProvider scheduler={scheduler}>{ui}</ToastProvider>)
+  return render(
+    <ToastProvider scheduler={scheduler}>
+      <GithubAccountProvider>{ui}</GithubAccountProvider>
+    </ToastProvider>
+  )
 }
 
 async function mount(): Promise<void> {
@@ -139,6 +148,16 @@ describe('SourceControlView repository', () => {
     expect(screen.getByText('No commits yet')).toBeTruthy()
   })
 
+  it('puts the sync button in the toolbar, and a push refreshes the state', async () => {
+    git.setState(FOLDER, status([], { remote: { name: 'origin', githubHttps: false }, branch: { name: 'main', headOid: 'a'.repeat(40), upstream: 'origin/main', ahead: 2, behind: 0 } }))
+    await mount()
+    const reads = git.calls.filter((call) => call.method === 'getState').length
+    fireEvent.click(screen.getByRole('button', { name: /Push origin/ }))
+    await settle()
+    expect(git.calls.some((call) => call.method === 'push')).toBe(true)
+    expect(git.calls.filter((call) => call.method === 'getState').length).toBeGreaterThan(reads)
+  })
+
 })
 
 describe('SourceControlView changes', () => {
@@ -156,8 +175,10 @@ describe('SourceControlView changes', () => {
       ])
     )
     await mount()
-    expect(screen.getByText('7 changed files')).toBeTruthy()
-    const list = within(screen.getByRole('list'))
+    expect(screen.getByText('6 changed files')).toBeTruthy()
+    const [conflicts, changes] = screen.getAllByRole('list')
+    expect(conflicts.getAttribute('aria-label')).toBe('Conflicted files')
+    const list = within(changes)
     const row = (name: string): HTMLElement => list.getByText(name).closest('li') as HTMLElement
     expect(within(row('app.ts')).getByText('src/').className).toContain('source-dir')
     expect(within(row('app.ts')).getByText('M')).toBeTruthy()
@@ -166,7 +187,8 @@ describe('SourceControlView changes', () => {
     expect(within(row('renamed.ts')).getByText('R')).toBeTruthy()
     expect(within(row('renamed.ts')).getByText('src/was.ts')).toBeTruthy()
     expect(within(row('notes.txt')).getByText('?')).toBeTruthy()
-    expect(within(row('clash.ts')).getByText('!')).toBeTruthy()
+    expect(list.queryByText('clash.ts')).toBeNull()
+    expect(within(within(conflicts).getByText('clash.ts').closest('li') as HTMLElement).getByText('!')).toBeTruthy()
     expect(within(row('mode.sh')).getByText('U')).toBeTruthy()
   })
 

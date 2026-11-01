@@ -1,0 +1,14 @@
+gh auth status before: exit=0 ✓ Logged in to github.com account davgor (keyring)
+shot: footer-signed-out-before
+dialog: Sign in to GitHub Dark Mechanicus signs in with this computer's GitHub CLI login (gh). It keeps an encrypted copy of the token. Cancel Use my GitHub CLI login
+toast: Success: Signed in as @davgor
+footer login text: @davgor
+account file exists: true | plain token anywhere in profile: false
+shot: footer-signed-in
+after Sign out: Sign in to GitHub visible: true | GitHub account buttons: 0 | account file exists: false
+shot: footer-signed-out
+gh auth status after Sign out: exit=0 ✓ Logged in to github.com account davgor (keyring)
+wrapper gh auth status exit: 1 | which gh: /tmp/sc-epic/scratch/DM-141/wrapbin/gh
+fix dialog: Sign in to GitHub Dark Mechanicus signs in with this computer's GitHub CLI login (gh). It keeps an encrypted copy of the token. The GitHub CLI is not signed in to github.com, or is older than 2.17. Run `gh auth login -h github.com` (update gh first if needed), then try again. gh auth login Copy Cancel Try again
+shot: sign-in-gh-auth-login
+gh auth status at end: exit=0 ✓ Logged in to github.com account davgor (keyring)

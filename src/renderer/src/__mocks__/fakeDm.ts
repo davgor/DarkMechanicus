@@ -63,6 +63,8 @@ export class FakeDm implements DmApi {
   commandCalls: CommandCall[] = []
   calls: string[] = []
   copied: string[] = []
+  /** URLs passed to openExternal, oldest first. */
+  opened: string[] = []
   skillInstalls: string[] = []
   skillsWritten: string[] = ['.claude/skills/darkmechanicus-planner/SKILL.md']
   claudeConnects: { folder: string; request: ClaudeCodeConnectRequest }[] = []
@@ -131,7 +133,8 @@ export class FakeDm implements DmApi {
     return Promise.resolve()
   }
 
-  openExternal(): Promise<boolean> {
+  openExternal(url: string): Promise<boolean> {
+    this.opened.push(url)
     return Promise.resolve(true)
   }
 
