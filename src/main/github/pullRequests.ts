@@ -5,6 +5,7 @@
  * the session-bound client, so a 401 signs the account out and fails `auth_required`; fetches authenticate as
  * sync does. Nothing GitHub answers is used as a URL: main builds every URL from the repository and the number.
  */
+import { randomUUID } from 'node:crypto'
 import type { CheckoutPullRequestRequest, CompareUrl, PullRequestInfo, PullRequestSummary } from '../../shared/github/pullRequests'
 import type { RepoState } from '../../shared/git/status'
 import { checkBranchName, refArg } from '../git/args'
@@ -264,11 +265,12 @@ async function createPullBranch(runner: GitRunner, place: Place, local: string, 
 }
 
 /**
- * The commit `refs/pull/<n>/head` points at, fetched into a private ref that is deleted again. Not FETCH_HEAD:
- * another fetch (Source control's background fetch) may rewrite that between this fetch and the read.
+ * The commit `refs/pull/<n>/head` points at, fetched into a private ref unique to this checkout that is deleted again,
+ * so an overlapping checkout of the same pull request cannot delete it. Not FETCH_HEAD: another fetch (Source control's
+ * background fetch) may rewrite that between this fetch and the read.
  */
 async function fetchPullHead(context: Context, place: Place, number: number): Promise<string> {
-  const ref = `refs/dm/pull/${number}`
+  const ref = `refs/dm/pull/${number}/${randomUUID()}`
   try {
     await fetchRef(context, place, `+refs/pull/${number}/head:${ref}`)
     const oid = await revParse(context.runner, place.root, ref)

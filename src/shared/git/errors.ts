@@ -20,6 +20,7 @@ const GIT_ERROR_CODES = [
   'cancelled',
   'output_too_large',
   'stale_selection',
+  'head_moved',
   'git_failed'
 ] as const
 

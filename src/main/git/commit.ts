@@ -189,27 +189,48 @@ export async function commitFiles(runner: GitRunner, folder: string, input: Comm
   return { oid: head.stdout.trim() }
 }
 
+/** The commit HEAD is at, or null when it names none (an unborn branch). */
+async function headOid(runner: GitRunner, root: string): Promise<string | null> {
+  const head = await runner.run({ cwd: root, args: ['rev-parse', '--verify', '-q', 'HEAD'], kind: 'read', acceptExitCodes: [0, 1] })
+  return head.code === 0 ? head.stdout.trim() : null
+}
+
+/**
+ * Moves HEAD from `checked` to `parent` (or deletes it for a root commit) only while it still points at `checked`,
+ * keeping the index and working tree as `git reset --soft` does; `head_moved` when something moved it meanwhile.
+ */
+async function moveHead(runner: GitRunner, root: string, checked: string, parent: string | null): Promise<void> {
+  const args = parent === null ? ['update-ref', '-d', 'HEAD', checked] : ['update-ref', '-m', 'reset: moving to HEAD~1', 'HEAD', parent, checked]
+  try {
+    await runner.run({ cwd: root, args, kind: 'write' })
+  } catch (error) {
+    if ((await headOid(runner, root)) !== checked) {
+      const detail = error instanceof GitError ? error.detail : ''
+      throw new GitError('head_moved', detail, 'The branch moved before the commit could be undone, so nothing was undone.')
+    }
+    throw error
+  }
+}
+
 export async function undoLastCommit(runner: GitRunner, folder: string): Promise<CommitMessage> {
   const status = await requireStatus(runner, folder)
   const root = status.root
-  if (status.branch.headOid === null) {
+  // Every check below is about this commit, and the undo happens only while HEAD still points at it.
+  const checked = status.branch.headOid
+  if (checked === null) {
     throw new GitInputError('Nothing to undo: no commits yet.')
   }
-  const parents = await runner.run({ cwd: root, args: ['rev-list', '--parents', '-n', '1', 'HEAD'], kind: 'read' })
-  const parentCount = parents.stdout.trim().split(/\s+/).length - 1
-  if (parentCount > 1) {
+  const parents = await runner.run({ cwd: root, args: ['rev-list', '--parents', '-n', '1', checked], kind: 'read' })
+  const parentOids = parents.stdout.trim().split(/\s+/).slice(1)
+  if (parentOids.length > 1) {
     throw new GitInputError('Cannot undo a merge commit.')
   }
-  const remote = await runner.run({ cwd: root, args: ['branch', '-r', '--contains', 'HEAD'], kind: 'read' })
+  const remote = await runner.run({ cwd: root, args: ['branch', '-r', '--contains', checked], kind: 'read' })
   if (remote.stdout.trim() !== '') {
     throw new GitInputError('Cannot undo a commit that is already pushed.')
   }
-  const log = await runner.run({ cwd: root, args: ['log', '-1', '--format=%B'], kind: 'read' })
-  if (parentCount === 0) {
-    await runner.run({ cwd: root, args: ['update-ref', '-d', 'HEAD'], kind: 'write' })
-  } else {
-    await runner.run({ cwd: root, args: ['reset', '--soft', 'HEAD~1'], kind: 'write' })
-  }
+  const log = await runner.run({ cwd: root, args: ['log', '-1', '--format=%B', checked], kind: 'read' })
+  await moveHead(runner, root, checked, parentOids[0] ?? null)
   return splitMessage(log.stdout)
 }
 

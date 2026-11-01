@@ -116,7 +116,8 @@ function timeoutFor(request: GitRunRequest): number | null {
   return request.kind === 'write' ? WRITE_TIMEOUT_MS : null
 }
 
-function canonical(cwd: string, platform: NodeJS.Platform): string {
+/** The key writes are queued under (and the operation lock is taken under): the real path, lower-cased on Windows. */
+export function canonical(cwd: string, platform: NodeJS.Platform): string {
   let path = resolve(cwd)
   try {
     path = realpathSync.native(path)

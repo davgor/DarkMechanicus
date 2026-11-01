@@ -2,10 +2,12 @@ import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
+import { gatedRunner } from '../../test/gatedRunner'
 import { createGitRepo, type GitRepo } from '../../test/gitRepo'
 import { gitIn, put, scratchDir } from '../../test/gitScratch'
 import { removeScratch } from '../../test/removeScratch'
-import { commitFiles, undoLastCommit } from './commit'
+import { commitFiles, findInStatus, requireStatus, undoLastCommit } from './commit'
+import { readWorkingDiff } from './diff'
 import { GitError, GitInputError } from './errors'
 import { createGitRunner } from './runner'
 
@@ -166,6 +168,45 @@ describe('commitFiles with unmerged files and no operation', () => {
   })
 })
 
+describe('commitFiles with chosen lines', () => {
+  type LineEntry = { path: string; oldPath: null; lines: number[]; diffHash: string }
+
+  async function lineEntry(root: string, path: string, lines: number[]): Promise<LineEntry> {
+    const diff = await readWorkingDiff(runner, root, findInStatus(await requireStatus(runner, root), path))
+    return { path, oldPath: null, lines, diffHash: diff.hash }
+  }
+
+  function changed(r: GitRepo, before: string, after: string): void {
+    put(r.root, 'f.txt', before)
+    r.git('add', '--', 'f.txt')
+    r.git('commit', '-q', '-m', 'base f')
+    put(r.root, 'f.txt', after)
+  }
+
+  it('commits only the chosen lines and leaves the working file as it was', async () => {
+    const r = repo()
+    changed(r, 'a\nb\nc\nd\n', 'a\nB\nc\nD\n')
+    // Changes: -b 0, +B 1, -d 2, +D 3.
+    await commitFiles(runner, r.root, { summary: 'Part', description: '', files: [await lineEntry(r.root, 'f.txt', [1, 3])] })
+    expect(r.git('show', 'HEAD:f.txt')).toBe('a\nb\nB\nc\nd\nD')
+    expect(readFileSync(join(r.root, 'f.txt'), 'utf8')).toBe('a\nB\nc\nD\n')
+  })
+
+  it('refuses a stale diff hash, a line past the last change and a file chosen whole and by lines', async () => {
+    const r = repo()
+    changed(r, 'a\n', 'b\n')
+    // Changes: -a 0, +b 1.
+    const entry = await lineEntry(r.root, 'f.txt', [1])
+    const commit = (files: Array<LineEntry | { path: string; oldPath: string | null }>): Promise<unknown> =>
+      rejection(commitFiles(runner, r.root, { summary: 'x', description: '', files }))
+    const head = r.rev('HEAD')
+    expect(await commit([{ ...entry, diffHash: 'f'.repeat(64) }])).toMatchObject({ code: 'stale_selection' })
+    expect(await commit([{ ...entry, lines: [2] }])).toMatchObject({ message: 'f.txt has no such changed line.' })
+    expect(await commit([file('f.txt'), entry])).toMatchObject({ message: 'f.txt is chosen more than once.' })
+    expect(r.rev('HEAD')).toBe(head)
+  })
+})
+
 describe('undoLastCommit', () => {
   it('puts the changes back and returns the message', async () => {
     const r = repo()
@@ -217,6 +258,36 @@ describe('undoLastCommit', () => {
     const error = await rejection(undoLastCommit(runner, root))
     expect(error).toBeInstanceOf(GitInputError)
     expect((error as Error).message).toMatch(/no commits/)
+  })
+})
+
+describe('undoLastCommit when HEAD moves between its checks and its write', () => {
+  it('refuses with head_moved and leaves the new commit in place', async () => {
+    const r = repo()
+    r.commit('checked')
+    const gated = gatedRunner(runner, (request) => request.kind === 'write')
+    const undoing = rejection(undoLastCommit(gated, r.root))
+    await gated.reached
+    const outside = r.commit('made outside Dark Mechanicus')
+    gated.release()
+    const error = await undoing
+    expect(error).toBeInstanceOf(GitError)
+    expect((error as GitError).code).toBe('head_moved')
+    expect(r.rev('HEAD')).toBe(outside)
+  })
+
+  it('refuses with head_moved instead of deleting a root commit that is no longer HEAD', async () => {
+    const root = emptyRepo()
+    put(root, 'a.txt', 'a\n')
+    await commitFiles(runner, root, { summary: 'First', description: '', files: [file('a.txt')] })
+    const gated = gatedRunner(runner, (request) => request.kind === 'write')
+    const undoing = rejection(undoLastCommit(gated, root))
+    await gated.reached
+    gitIn(root, 'commit', '-q', '--allow-empty', '-m', 'outside')
+    const outside = gitIn(root, 'rev-parse', 'HEAD').trim()
+    gated.release()
+    expect((await undoing as GitError).code).toBe('head_moved')
+    expect(gitIn(root, 'rev-parse', 'HEAD').trim()).toBe(outside)
   })
 })
 

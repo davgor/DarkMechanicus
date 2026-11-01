@@ -1,0 +1,30 @@
+9:11  up 4 days,  6:15, 11 users, load averages: 10.00 17.32 21.18
+c2 $ git ls-files -s l: 120000 35ec3b9d7586b46c0fd3450ba21e30ef666cfcd6 0	l | $ git cat-file -p HEAD:l: / | 14 lines in /etc/hosts
+c3 before: $ git status --short: "UU s.txt" | $ git stash list: "stash@{0}: On main: stashed edit"
+c3 before: $ cat s.txt
+<<<<<<< Updated upstream
+committed content
+=======
+stashed content
+>>>>>>> Stashed changes
+
+userData: <temp profile>
+c2 window.git.getWorkingDiff(folder, {path:'l/etc/hosts', oldPath:null, kind:'untracked'}) -> {"ok":false,"error":{"code":"invalid_input","message":"l/etc/hosts is not a changed file."}}
+c2 (untracked) mentions localhost/broadcasthost (hosts content): false
+c2 window.git.getWorkingDiff(folder, {path:'l/etc/hosts', oldPath:null, kind:'modified'}) -> {"ok":false,"error":{"code":"invalid_input","message":"l/etc/hosts is not a changed file."}}
+c2 (modified) mentions localhost/broadcasthost (hosts content): false
+c3 conflict row buttons: ["s.txt\n!","Open in editor","Use mine (stashed changes)","Use theirs (main)","Mark resolved"]
+shot: DM-400-c3-stash-restore-conflict.png
+shot: DM-400-c3-after-use-mine.png
+c3 after Use mine: $ cat s.txt
+stashed content
+
+c3 after: $ git status --short: "M  s.txt" | $ git diff HEAD -- s.txt:
+diff --git a/s.txt b/s.txt
+index aaefb19..6dfacf3 100644
+--- a/s.txt
++++ b/s.txt
+@@ -1 +1 @@
+-committed content
++stashed content
+9:11  up 4 days,  6:16, 11 users, load averages: 11.92 17.49 21.20

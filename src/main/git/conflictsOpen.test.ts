@@ -61,20 +61,20 @@ describe('openInEditor', () => {
   it('opens a conflicted file by its absolute path', async () => {
     const r = conflicted()
     const { openPath, opened } = opener()
-    await openInEditor(runner, r.root, 'sub/f.txt', openPath)
+    await openInEditor(runner, r.root, 'sub/f.txt', { openPath })
     expect(opened).toEqual([join(r.root, 'sub', 'f.txt')])
   })
 
   it('refuses `..`, absolute paths and files that are not conflicted, opening nothing', async () => {
     const r = conflicted()
     const { openPath, opened } = opener()
-    await expect(openInEditor(runner, r.root, '../outside/sub/f.txt', openPath)).rejects.toThrow(/stay inside the repository/)
-    await expect(openInEditor(runner, r.root, 'sub/../../top.txt', openPath)).rejects.toThrow(/stay inside the repository/)
-    await expect(openInEditor(runner, r.root, join(r.root, 'top.txt'), openPath)).rejects.toThrow(/stay inside the repository/)
-    await expect(openInEditor(runner, r.root, '/etc/hosts', openPath)).rejects.toThrow(/stay inside the repository/)
-    await expect(openInEditor(runner, r.root, 'file-1.txt', openPath)).rejects.toThrow(/not a conflicted file/)
-    await expect(openInEditor(runner, r.root, '.git/config', openPath)).rejects.toThrow(/not a conflicted file/)
-    await expect(openInEditor(runner, r.root, 'sub/./f.txt', openPath)).rejects.toThrow(/not a conflicted file/)
+    await expect(openInEditor(runner, r.root, '../outside/sub/f.txt', { openPath })).rejects.toThrow(/stay inside the repository/)
+    await expect(openInEditor(runner, r.root, 'sub/../../top.txt', { openPath })).rejects.toThrow(/stay inside the repository/)
+    await expect(openInEditor(runner, r.root, join(r.root, 'top.txt'), { openPath })).rejects.toThrow(/stay inside the repository/)
+    await expect(openInEditor(runner, r.root, '/etc/hosts', { openPath })).rejects.toThrow(/stay inside the repository/)
+    await expect(openInEditor(runner, r.root, 'file-1.txt', { openPath })).rejects.toThrow(/not a conflicted file/)
+    await expect(openInEditor(runner, r.root, '.git/config', { openPath })).rejects.toThrow(/not a conflicted file/)
+    await expect(openInEditor(runner, r.root, 'sub/./f.txt', { openPath })).rejects.toThrow(/not a conflicted file/)
     expect(opened).toEqual([])
   })
 })
@@ -86,7 +86,7 @@ describe('openInEditor through symlinks and missing files', () => {
     renameSync(join(r.root, 'sub'), join(r.root, 'sub-moved'))
     symlinkSync(dir, join(r.root, 'sub'), 'junction')
     const { openPath, opened } = opener()
-    await expect(openInEditor(runner, r.root, 'sub/f.txt', openPath)).rejects.toThrow(/outside the repository/)
+    await expect(openInEditor(runner, r.root, 'sub/f.txt', { openPath })).rejects.toThrow(/outside the repository/)
     expect(opened).toEqual([])
     const file = (await getConflicts(runner, r.root)).files.find((entry) => entry.path === 'sub/f.txt')
     expect(file?.markers).toBe(0)
@@ -98,7 +98,7 @@ describe('openInEditor through symlinks and missing files', () => {
     renameSync(join(r.root, 'top.txt'), join(r.root, 'top-moved.txt'))
     symlinkSync(join(dir, 'f.txt'), join(r.root, 'top.txt'))
     const { openPath, opened } = opener()
-    await expect(openInEditor(runner, r.root, 'top.txt', openPath)).rejects.toThrow(/outside the repository/)
+    await expect(openInEditor(runner, r.root, 'top.txt', { openPath })).rejects.toThrow(/outside the repository/)
     expect(opened).toEqual([])
     expect((await getConflicts(runner, r.root)).files.find((entry) => entry.path === 'top.txt')?.markers).toBe(0)
   })
@@ -107,14 +107,14 @@ describe('openInEditor through symlinks and missing files', () => {
     const r = conflicted()
     rmSync(join(r.root, 'top.txt'))
     const { openPath, opened } = opener()
-    await expect(openInEditor(runner, r.root, 'top.txt', openPath)).rejects.toThrow(/is not in the working tree/)
+    await expect(openInEditor(runner, r.root, 'top.txt', { openPath })).rejects.toThrow(/is not in the working tree/)
     expect(opened).toEqual([])
   })
 
   it('reports what the default app could not do', async () => {
     const r = conflicted()
     const { openPath } = opener('No application knows how to open this file.')
-    await expect(openInEditor(runner, r.root, 'top.txt', openPath)).rejects.toThrow(/No application knows how to open/)
+    await expect(openInEditor(runner, r.root, 'top.txt', { openPath })).rejects.toThrow(/No application knows how to open/)
   })
 
   it('leaves the repository alone when Mark resolved is asked through a symlinked folder', async () => {
@@ -160,7 +160,7 @@ describe('openInEditor never launches a program', () => {
   it('refuses an executable file, which the default app could run', async () => {
     const r = conflictedFile('setup', 0o755)
     const { openPath, opened } = opener()
-    await expect(openInEditor(runner, r.root, 'setup', openPath)).rejects.toThrow(/could run as a program/)
+    await expect(openInEditor(runner, r.root, 'setup', { openPath })).rejects.toThrow(/could run as a program/)
     expect(opened).toEqual([])
   })
 
@@ -169,9 +169,27 @@ describe('openInEditor never launches a program', () => {
     const r = conflictedFiles(names)
     for (const name of names) {
       const { openPath, opened } = opener()
-      await expect(openInEditor(runner, r.root, name, openPath)).rejects.toThrow(/could run as a program/)
+      await expect(openInEditor(runner, r.root, name, { openPath })).rejects.toThrow(/could run as a program/)
       expect(opened).toEqual([])
     }
+  })
+
+  it('on Windows also refuses Python and the other script types, and every extension PATHEXT lists', async () => {
+    const names = ['tool.py', 'gui.PYW', 'app.pyz', 'run.pl', 'start.jnlp', 'help.chm', 'x.wsc', 'y.sct', 'z.ws', 'e.scf', 'f.xbap', 'job.xyz', 'm.abc']
+    const r = conflictedFiles(names)
+    const windows = { platform: 'win32' as const, env: { PATHEXT: '.COM;.EXE;.XYZ; .Abc ;;' } }
+    for (const name of names) {
+      const { openPath, opened } = opener()
+      await expect(openInEditor(runner, r.root, name, { openPath, system: windows })).rejects.toThrow(/could run as a program/)
+      expect(opened).toEqual([])
+    }
+  })
+
+  it('honours PATHEXT only on Windows', async () => {
+    const r = conflictedFile('job.xyz')
+    const { openPath, opened } = opener()
+    await openInEditor(runner, r.root, 'job.xyz', { openPath, system: { platform: 'darwin', env: { PATHEXT: '.XYZ' } } })
+    expect(opened).toEqual([join(r.root, 'job.xyz')])
   })
 
   it('refuses a conflicted path that is a folder (a submodule), and one inside a nested .git', async () => {
@@ -179,13 +197,13 @@ describe('openInEditor never launches a program', () => {
     rmSync(join(r.root, 'top.txt'))
     mkdirSync(join(r.root, 'top.txt'))
     const { openPath, opened } = opener()
-    await expect(openInEditor(runner, r.root, 'top.txt', openPath)).rejects.toThrow(/is not a file/)
+    await expect(openInEditor(runner, r.root, 'top.txt', { openPath })).rejects.toThrow(/is not a file/)
     const nested = conflictedFile('cfg')
     mkdirSync(join(nested.root, 'vendor', 'n', '.git'), { recursive: true })
     put(nested.root, 'vendor/n/.git/config', '[core]\n')
     rmSync(join(nested.root, 'cfg'))
     symlinkSync(join(nested.root, 'vendor', 'n', '.git', 'config'), join(nested.root, 'cfg'))
-    await expect(openInEditor(runner, nested.root, 'cfg', openPath)).rejects.toThrow(/outside the repository/)
+    await expect(openInEditor(runner, nested.root, 'cfg', { openPath })).rejects.toThrow(/outside the repository/)
     expect(opened).toEqual([])
   })
 })

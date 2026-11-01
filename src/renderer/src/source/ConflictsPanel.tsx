@@ -282,13 +282,14 @@ interface ConflictsPanelProps {
 }
 
 /**
- * Mine is git's side `mineSide` names (main decides it: `theirs` while a rebase replays a commit, else `ours`) and
- * theirs the other. `ourBranch` names git's `ours` and `theirLabel` (MERGE_MSG) git's `theirs`. Buttons only show on
+ * Mine is git's side `mineSide` names (main decides it: `theirs` while a rebase replays a commit or a stash restore
+ * conflicts, else `ours`) and theirs the other. `ourBranch` names git's `ours` and `theirLabel` (MERGE_MSG) git's
+ * `theirs`; with nothing in progress (a stash restore) git's `theirs` is the stashed changes. Buttons only show on
  * unresolved rows, which exist only once the conflicts are read.
  */
-function sidesOf(conflicts: ConflictState | null): Sides {
+function sidesOf(conflicts: ConflictState | null, stashRestore: boolean): Sides {
   const ours = conflicts?.ourBranch ?? null
-  const theirs = conflicts?.theirLabel ?? null
+  const theirs = stashRestore ? 'stashed changes' : (conflicts?.theirLabel ?? null)
   const named = (word: string, name: string | null): string => (name === null ? word : `${word} (${name})`)
   if (conflicts?.mineSide === 'theirs') {
     return { mine: { label: named('Use mine', theirs), side: 'theirs' }, theirs: { label: named('Use theirs', ours), side: 'ours' } }
@@ -316,7 +317,7 @@ export function ConflictsPanel({ folderPath, status, model, selectedPath, onSele
       }
     ).finally(onRefresh)
   }
-  const sides = sidesOf(model.conflicts)
+  const sides = sidesOf(model.conflicts, status.inProgress === null)
   const message = failure ?? model.error
   return (
     <div className="source-conflicts">

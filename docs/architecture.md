@@ -239,9 +239,10 @@ Each folder has a **Source control** tab, in the manner of GitHub Desktop, which
 | Module | Responsibility |
 |--------|----------------|
 | `src/main/git/runner.ts` | The one git runner: `git` from `PATH`, no shell, `core.fsmonitor=false` on every call, prompts off (`GIT_TERMINAL_PROMPT=0`, empty `GIT_ASKPASS`, `GCM_INTERACTIVE=never`), writes and network operations queued per repository, timeouts (30 s reads, 120 s writes, and for network operations a 60 s stall limit), output limits, secrets scrubbed from output, and the whole process tree killed on timeout or cancel |
+| `src/main/git/operationLock.ts` | One operation at a time per repository (keyed like the runner's queue, by the canonical repository root): every handler that changes the repository runs its status reads, checks and writes under it; read-only handlers and cancel do not wait for it |
 | `src/main/git/args.ts` | Arguments from untrusted input: paths after `--literal-pathspecs ... --` (no empty, NUL, absolute or escaping path), refs through `refArg` and `git check-ref-format --branch` |
 | `src/main/git/status.ts`, `diff.ts`, `diffParser.ts`, `history.ts` | The working tree compared with HEAD, one file's diff (`--no-ext-diff --no-textconv`), and the current branch's history |
-| `src/main/git/commit.ts`, `partialPatch.ts` | Commits of chosen files, or chosen lines applied with `git apply --cached`; the repository's hooks run. Undo of the last unpushed commit |
+| `src/main/git/commit.ts`, `partialPatch.ts` | Commits of chosen files, or chosen lines applied with `git apply --cached`; the repository's hooks run. Undo of the last unpushed commit, a compare-and-swap on the commit it checked (`head_moved` when HEAD has moved since) |
 | `src/main/git/discard.ts` | Discard: a copy of each discarded file goes to the OS trash first |
 | `src/main/git/sync.ts`, `remotes.ts`, `credentials.ts` | Fetch, pull (`--no-rebase`, merge only) and push (never forced), with progress and cancel; the environment-based credential helper for `https://github.com` remotes while signed in |
 | `src/main/git/branches.ts`, `stash.ts`, `conflicts.ts` | Branches (create, switch with a stash or bringing changes, rename, delete, merge into the current one), the app's own `dm-stash:<branch>` stashes, and merge conflicts |

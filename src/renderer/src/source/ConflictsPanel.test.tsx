@@ -220,16 +220,16 @@ describe('other operations and conflicts without a merge', () => {
     }
   })
 
-  it('lists the conflicts of a stash restore without a banner, and holds the commit box until they are resolved', async () => {
-    await mount(status([change('a.ts', 'conflicted'), change('c.ts')], null), { ourBranch: 'main', theirLabel: null, mineSide: 'ours', files: [{ path: 'a.ts', kind: 'both_modified', markers: 1 }] })
+  it('lists the conflicts of a stash restore without a banner, with Use mine taking the stashed changes, and holds the commit box until they are resolved', async () => {
+    await mount(status([change('a.ts', 'conflicted'), change('c.ts')], null), { ourBranch: 'main', theirLabel: null, mineSide: 'theirs', files: [{ path: 'a.ts', kind: 'both_modified', markers: 1 }] })
     expect(screen.queryByText(/Merging/)).toBeNull()
     expect(within(rowOf('a.ts')).getByText('1 conflict')).toBeTruthy()
-    expect(button('Use mine (main)', rowOf('a.ts'))).toBeTruthy()
-    expect(button('Use theirs', rowOf('a.ts'))).toBeTruthy()
+    expect(button('Use theirs (main)', rowOf('a.ts'))).toBeTruthy()
     expect(screen.getByText('1 changed file')).toBeTruthy()
     expect(screen.queryByLabelText('Summary')).toBeNull()
-    fireEvent.click(button('Use theirs', rowOf('a.ts')))
+    fireEvent.click(button('Use mine (stashed changes)', rowOf('a.ts')))
     await settle()
+    expect(callsOf('resolveWith').map((call) => call.request)).toEqual([{ path: 'a.ts', side: 'theirs' }])
     expect(screen.queryByRole('list', { name: 'Conflicted files' })).toBeNull()
     expect(screen.getByLabelText('Summary')).toBeTruthy()
     expect(screen.getByText('2 changed files')).toBeTruthy()

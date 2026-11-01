@@ -303,7 +303,7 @@ describe('conflicts from a pull, a merge or a stash restore', () => {
     expect(conflicts.files).toEqual([{ path: 'file-1.txt', kind: 'both_modified', markers: 1 }])
   })
 
-  it('shows a conflicting stash restore, without a label, and resolves it', async () => {
+  it('shows a conflicting stash restore, without a label, with the stashed work as mine, and Use mine keeps it', async () => {
     const r = repo()
     r.git('branch', 'other')
     put(r.root, 'file-1.txt', 'stashed\n')
@@ -312,13 +312,14 @@ describe('conflicts from a pull, a merge or a stash restore', () => {
     put(r.root, 'file-1.txt', 'committed meanwhile\n')
     commitAll(r, 'meanwhile')
     await expect(restoreStash(runner, r.root, 'stash@{0}')).rejects.toMatchObject({ code: 'merge_conflicts' })
-    expect(await getConflicts(runner, r.root)).toEqual({
+    const conflicts = await getConflicts(runner, r.root)
+    expect(conflicts).toEqual({
       ourBranch: 'main',
       theirLabel: null,
-      mineSide: 'ours',
+      mineSide: 'theirs',
       files: [{ path: 'file-1.txt', kind: 'both_modified', markers: 1 }]
     })
-    await resolveWith(runner, r.root, { path: 'file-1.txt', side: 'theirs' })
+    await resolveWith(runner, r.root, { path: 'file-1.txt', side: conflicts.mineSide })
     expect(read(r, 'file-1.txt')).toBe('stashed\n')
     expect((await getConflicts(runner, r.root)).files).toEqual([])
   })

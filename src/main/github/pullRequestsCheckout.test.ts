@@ -292,6 +292,32 @@ describe('checkoutPullRequest: pr/<n> when the head is not a branch here', () =>
   })
 })
 
+describe('checkoutPullRequest: overlapping checkouts of a fork pull request', () => {
+  it('lets two overlapping checkouts of the same fork pull request both succeed, leaving no ref behind', async () => {
+    let second: (() => Promise<RepoState>) | null = null
+    const overlapping: GitRunner = {
+      run: async (request) => {
+        const result = await runner.run(request)
+        if (second !== null && request.args.includes('fetch') && request.args.some((arg) => arg.includes('refs/pull/'))) {
+          const start = second
+          second = null
+          expect(branchOf(await start())).toBe('pr/7')
+        }
+        return result
+      }
+    }
+    const { local, bare, http, prs } = setup(true, overlapping)
+    const tip = pushCommit(bare, 'refs/pull/7/head', { from: 'main', file: 'fork.txt', content: 'one\n' })
+    http.answer(jsonResponse(200, [apiPull(7, 'patch', 'fork/repo')]))
+    http.answer(jsonResponse(200, [apiPull(7, 'patch', 'fork/repo')]))
+    second = () => prs.checkout(local.root, { number: 7, uncommitted: 'bring' })
+    expect(branchOf(await prs.checkout(local.root, { number: 7, uncommitted: 'bring' }))).toBe('pr/7')
+    expect(second).toBeNull()
+    expect(local.rev('pr/7')).toBe(tip)
+    expect(local.git('for-each-ref', 'refs/dm')).toBe('')
+  })
+})
+
 describe('checkoutPullRequest: uncommitted changes and sign-in', () => {
   it('stashes the changes as dm-stash:<branch> with stash, and brings them along with bring', async () => {
     const { local, bare, http, prs } = setup()

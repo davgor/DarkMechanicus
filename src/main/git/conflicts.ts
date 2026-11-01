@@ -49,7 +49,8 @@ const LAUNCHED_EXTENSIONS: Readonly<Record<string, true>> = Object.fromEntries(
   ['.app', '.command', '.tool', '.terminal', '.workflow', '.action', '.pkg', '.mpkg', '.dmg', '.webloc', '.inetloc', '.fileloc',
     '.scpt', '.scptd', '.applescript', '.jar', '.exe', '.com', '.bat', '.cmd', '.ps1', '.psm1', '.vbs', '.vbe', '.js', '.jse',
     '.wsf', '.wsh', '.msc', '.msi', '.msp', '.scr', '.pif', '.cpl', '.hta', '.lnk', '.url', '.reg', '.inf', '.application',
-    '.appref-ms', '.gadget', '.settingcontent-ms', '.library-ms', '.desktop', '.sh', '.run', '.bin', '.appimage'].map((ext) => [ext, true])
+    '.appref-ms', '.gadget', '.settingcontent-ms', '.library-ms', '.desktop', '.sh', '.run', '.bin', '.appimage', '.py', '.pyw',
+    '.pyz', '.pl', '.jnlp', '.chm', '.wsc', '.sct', '.ws', '.scf', '.xbap'].map((ext) => [ext, true])
 )
 
 interface Stage {
@@ -67,7 +68,7 @@ interface Unmerged {
 type Located = { kind: 'file'; path: string } | { kind: 'missing' } | { kind: 'outside' }
 
 /** Where `path` really is (symlinks followed), refusing anything outside the working tree or inside a `.git`. */
-function locate(root: string, path: string): Located {
+export function locate(root: string, path: string): Located {
   let real: string
   try {
     real = realpathSync.native(join(root, path))
@@ -190,16 +191,19 @@ async function readMergeFiles(runner: GitRunner, root: string): Promise<MergeFil
  * The unmerged files and the sides' names. Whose side is mine is decided here alone: a rebase replaying a commit
  * checks out the upstream as git's `ours` and replays the person's commit as `theirs`; at a `git rebase -r` merge step
  * (MERGE_HEAD exists) git runs a real merge on the rewritten branch, so `ours` is the person's again, as in a merge,
- * cherry-pick, revert or `git am`.
+ * cherry-pick, revert or `git am`. A conflict with nothing in progress is a stash restore, whose `theirs` is the
+ * person's stashed work.
  */
 export async function getConflicts(runner: GitRunner, folder: string): Promise<ConflictState> {
   const status = await requireStatus(runner, folder)
   const unmerged = await readUnmerged(runner, status.root)
   const merge = status.inProgress === null ? null : await readMergeFiles(runner, status.root)
+  const replaying = status.inProgress === 'rebase' && merge !== null && !merge.mergeHead
+  const stashRestore = status.inProgress === null && unmerged.length > 0
   return {
     ourBranch: status.branch.name,
     theirLabel: merge === null ? null : merge.label,
-    mineSide: status.inProgress === 'rebase' && merge !== null && !merge.mergeHead ? 'theirs' : 'ours',
+    mineSide: replaying || stashRestore ? 'theirs' : 'ours',
     files: unmerged.map((entry) => entry.file)
   }
 }
@@ -310,16 +314,32 @@ export async function abortOperation(runner: GitRunner, folder: string): Promise
   return readRepoState(runner, status.root)
 }
 
+/** How `openInEditor` opens a file, and the OS facts it reads (injected so tests can act as Windows). */
+interface Opener {
+  openPath: OpenPath
+  system?: { platform: NodeJS.Platform; env: NodeJS.ProcessEnv }
+}
+
+/** On Windows, every extension `PATHEXT` lists also runs as a program. */
+function pathExtensions({ platform, env }: NonNullable<Opener['system']>): ReadonlySet<string> {
+  if (platform !== 'win32') {
+    return new Set()
+  }
+  const listed = (env.PATHEXT ?? '').split(';').map((ext) => ext.trim().toLowerCase())
+  return new Set(listed.filter((ext) => ext !== ''))
+}
+
 /** Whether the default app would run the file rather than show it: an execute bit, or a name the OS launches. */
-function couldRun(path: string, stats: Stats): boolean {
-  return (stats.mode & 0o111) !== 0 || LAUNCHED_EXTENSIONS[extname(path).toLowerCase()] === true
+function couldRun(path: string, stats: Stats, extra: ReadonlySet<string>): boolean {
+  const ext = extname(path).toLowerCase()
+  return (stats.mode & 0o111) !== 0 || LAUNCHED_EXTENSIONS[ext] === true || extra.has(ext)
 }
 
 /**
  * Opens a conflicted file in the default app, by its real path, once it is known to be a plain file inside the working
  * tree that the default app shows rather than runs.
  */
-export async function openInEditor(runner: GitRunner, folder: string, path: string, openPath: OpenPath): Promise<null> {
+export async function openInEditor(runner: GitRunner, folder: string, path: string, opener: Opener): Promise<null> {
   const { status } = await findConflict(runner, folder, path)
   const located = locate(status.root, path)
   if (located.kind === 'missing') {
@@ -332,10 +352,11 @@ export async function openInEditor(runner: GitRunner, folder: string, path: stri
   if (!stats.isFile()) {
     throw new GitInputError(`${path} is not a file. Resolve it in a terminal.`)
   }
-  if (couldRun(path, stats) || couldRun(located.path, stats)) {
+  const extra = pathExtensions(opener.system ?? { platform: process.platform, env: process.env })
+  if (couldRun(path, stats, extra) || couldRun(located.path, stats, extra)) {
     throw new GitInputError(`${path} could run as a program, so it is not opened. Open it from your editor instead.`)
   }
-  const failure = await openPath(located.path)
+  const failure = await opener.openPath(located.path)
   if (failure !== '') {
     throw new GitInputError(`Could not open ${path}: ${failure}`)
   }
