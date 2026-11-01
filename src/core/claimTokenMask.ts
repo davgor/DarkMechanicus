@@ -1,27 +1,32 @@
 /**
- * Masks Dark Mechanicus claim tokens. A claim token is `<attempt id>.<secret>` (see
- * `src/core/services/attempts.ts`): an `at_` stable id (26 Crockford base32 characters) and a
+ * Masks Dark Mechanicus claim tokens. A claim token is `<attempt id>.<secret>`: a plan attempt's `at_`
+ * stable id (`src/core/services/attempts.ts`) or a Kanban card attempt's `ka_` one
+ * (`src/core/services/kanban/attempts.ts`), 26 Crockford base32 characters after the prefix, and a
  * base64url secret (32 characters when generated). Orchestrator chats hand execution packets, which
  * carry tokens, to their workers; anything stored or sent to the renderer goes through here first.
  *
  * Three shapes beyond a whole token are masked too:
  * - a secret of 16 characters or more, which is how a shortened or tail-adjacent token still reads;
- * - two tokens glued together with no separator: a secret has no `.`, so the next `at_<id>.` is where
+ * - two tokens glued together with no separator: a secret has no `.`, so the next `at_<id>.` or `ka_<id>.` is where
  *   a secret ends, not part of it;
- * - a token cut short at the end of a text (`at_<id>.` and 0 to 15 secret characters), the way a long
+ * - a token cut short at the end of a text (the attempt id, its `.` and 0 to 15 secret characters), the way a long
  *   string cut to a limit leaves it.
  */
 const ID_CHAR = '[0-9a-hjkmnp-tv-z]'
 const SECRET_CHAR = '[A-Za-z0-9_-]'
 
+/** The attempt id prefixes a token can start with: a plan attempt's, or a Kanban card attempt's. */
+const ID_PREFIX = '(?:at|ka)_'
+
 /** What every token starts with: its attempt id and the dot before its secret. */
-const TOKEN_START = `at_${ID_CHAR}{26}[.]`
+const TOKEN_START = `${ID_PREFIX}${ID_CHAR}{26}[.]`
 
 /** A secret character of this token: one that does not start the next token of a glued pair. */
 const OWN_SECRET_CHAR = `(?:(?!${TOKEN_START})${SECRET_CHAR})`
 
 /** A whole token, or a short secret that the next token or the end of the text cuts off. */
 const CLAIM_TOKEN = new RegExp(`${TOKEN_START}(?:${OWN_SECRET_CHAR}{16,}|${OWN_SECRET_CHAR}*(?=${TOKEN_START}|$))`, 'g')
+
 
 export const CLAIM_TOKEN_MASK = '[claim token masked]'
 

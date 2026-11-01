@@ -6,6 +6,8 @@ import { useAgents } from '../agents/useAgents'
 import type { AgentsModel } from '../agents/useAgents'
 import { chatsFor, useChats } from '../agents/useChats'
 import type { ChatsModel } from '../agents/useChats'
+import { useKanbanCounts } from '../kanban/useKanbanCounts'
+import type { KanbanCounts } from '../kanban/useKanbanCounts'
 import { bucketOfEpic } from '../sidebar/buckets'
 import { useExpansion } from '../sidebar/useExpansion'
 import type { Expansion } from '../sidebar/useExpansion'
@@ -36,6 +38,8 @@ export interface ShellModel {
   selection: Selection
   view: MainView
   lists: Record<string, EpicListState>
+  /** Open Kanban cards of every active folder, for the sidebar. */
+  kanbanCounts: KanbanCounts
   /** Storage/MCP status of the selected folder, once it is initialized and loaded. */
   status: StorageStatusView | null
   expansion: Expansion
@@ -52,6 +56,8 @@ export interface ShellModel {
   landing: Landing | null
   /** Refresh token for an epic view: changes whenever events touch that epic. */
   epicToken(folderPath: string, epicId: string): number
+  /** Refresh token for a folder's views: changes whenever events touch the folder. */
+  folderToken(folderPath: string): number
 }
 
 /** Agent sessions and Git state change without events, so the footer status also refreshes on a timer. */
@@ -118,6 +124,7 @@ export function useShell(scheduler: Scheduler): ShellModel {
   const selected = findFolder(folders.folders, selection.folderPath)
   const feed = useEventFeed({ paths, selectedPath: selection.folderPath, scheduler, onError: toasts.reportError })
   const lists = useEpicLists({ paths, tokens: feed.tokens, onError: toasts.reportError })
+  const kanbanCounts = useKanbanCounts({ paths, tokens: feed.tokens, onError: toasts.reportError })
   const status = useFooterStatus(statusPathOf(selected), feed.tokens, scheduler, toasts.reportError)
 
   const actions = createShellActions({
@@ -140,13 +147,12 @@ export function useShell(scheduler: Scheduler): ShellModel {
     view: chooseView({
       loaded: folders.loaded,
       folder: selected,
-      epicId: selection.epicId,
-      chatId: selection.chatId,
+      ...selection,
       chats: knownChats(chats, selection.folderPath),
-      agentPane: selection.agentPane,
       agents: connected
     }),
     lists,
+    kanbanCounts,
     status,
     expansion,
     agents,
@@ -154,6 +160,7 @@ export function useShell(scheduler: Scheduler): ShellModel {
     busy,
     actions,
     landing,
-    epicToken: (path, epicId) => epicToken(feed.tokens, path, epicId)
+    epicToken: (path, epicId) => epicToken(feed.tokens, path, epicId),
+    folderToken: (path) => folderToken(feed.tokens, path)
   }
 }

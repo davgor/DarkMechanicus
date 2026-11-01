@@ -40,15 +40,18 @@
  * **Idle stop.** A PTY with no input and no output on its screen for 10 minutes is stopped (tree killed, grant
  * revoked) with the message `Stopped after 10 minutes idle.`; the next attach resumes it as above.
  *
- * **Kickoff and first paste** ("The orchestrator chat Start run opens"). `start` is Start run's (and Transfer with
- * agent's): it starts the chat's PTY with the kickoff, which goes only when the record's `kickoffSent` is not set and the start
- * is not a resume. Claude Code takes it as its positional prompt, and `kickoffSent` is stored with the grant's id
- * before the spawn. What the launch could not put on the command line (`pasteFirst`: the kickoff for every other
- * CLI, the instructions too for one with no instructions flag or behind a `.cmd`) is written once the CLI has drawn
- * its first screen and the screen has then taken no output for a second: as one bracketed paste, with every control
- * character but tab taken out, then Enter as a keypress of its own half a second later, as input the person typed
- * (so it marks the session started). A kickoff pasted stores `kickoffSent` once its Enter has gone. A PTY that
- * exits or is stopped first gets nothing more.
+ * **Kickoff and pastes** ("The orchestrator chat Start run opens"). `start` is Start run's (and Transfer with
+ * agent's, and Play's for a Kanban card): it starts the chat's PTY with the kickoff, which goes only when the record's
+ * `kickoffSent` is not set and the start is not a resume. Claude Code takes it as its positional prompt, and
+ * `kickoffSent` is stored with the grant's id before the spawn. What the launch could not put on the command line
+ * (`pasteFirst`: the kickoff for every other CLI, the instructions too for one with no instructions flag or behind a
+ * `.cmd`) is the PTY's first paste. `paste` is Kick back's: it adds a paste (the masked kick-back message) to the
+ * chat's running PTY, after any paste still waiting, or starts the PTY as an attach does (a resume when the CLI has a
+ * session, never with the kickoff) and adds it there. Every paste is written once the CLI has turned bracketed paste
+ * on and the screen has then taken no output for a second, one at a time: as one bracketed paste, with every control
+ * character but tab taken out, then Enter as a keypress of its own half a second later, as input the person typed (so
+ * it marks the session started). A kickoff pasted stores `kickoffSent` once its Enter has gone. A PTY that exits or
+ * is stopped first gets nothing more: what still waits in it is dropped.
  *
  * **Quit.** `busy` and `dispose` go to `disposeBeforeQuit`: `dispose` stops new starts, cancels the ones under
  * way, kills every PTY tree and resolves once every PTY has reported its exit and every revoke and kill has
@@ -125,13 +128,13 @@ export interface AttachOptions {
   newSession?: boolean
 }
 
-/** Start run's (and Transfer with agent's) start: the kickoff, which goes with it when it is the chat's first (`kickoffSent` unset). */
+/** Start run's (and Transfer with agent's, and Play's) start: the kickoff, which goes with it when it is the chat's first (`kickoffSent` unset). */
 interface StartOptions {
   kickoff: string
 }
 
-/** What `start` answers: the PTY runs (it may have exited since), or why it did not start. */
-type TerminalStart = { state: 'running'; pid: number } | { state: NotStartedState; message: string }
+/** What `start` and `paste` answer: the PTY runs (it may have exited since), or why it did not start. */
+export type TerminalStart = { state: 'running'; pid: number } | { state: NotStartedState; message: string }
 
 export interface TerminalSessions {
   /** Starts the chat's PTY when none runs, and subscribes `listener` to the chat; see the module comment. */
@@ -141,6 +144,13 @@ export interface TerminalSessions {
    * runs or did not start, past the sign-in check. Subscribes no one.
    */
   start(ref: ChatRef, options: StartOptions): Promise<TerminalStart>
+  /**
+   * Kick back's paste: `text` is pasted into the chat's PTY as typed input, after whatever paste is still waiting, and
+   * submitted (see "Pastes" in the module comment). A chat with no PTY is started first, as an attach starts it (a
+   * resume when the CLI has a session, never with the kickoff). Resolves once the text waits in a running PTY, or
+   * with why it cannot: a PTY that exits or is stopped before its input is live drops it. Subscribes no one.
+   */
+  paste(ref: ChatRef, text: string): Promise<TerminalStart>
   /** Stops `listener` hearing the chat. */
   detach(chatId: string, listener: TerminalListener): void
   /** Input for the chat's running PTY, as typed; nothing when none runs. Input counts as activity. */
@@ -207,19 +217,27 @@ interface Subscriber {
   held: TerminalEvent[] | null
 }
 
-/** The one paste a start asked for (`pasteFirst`), waiting for the CLI's first screen to settle. */
-interface FirstPaste {
+/** A paste waiting for the CLI's input: the launch's `pasteFirst`, or one `paste` asked for (Kick back's comment). */
+interface Paste {
   text: string
-  /** Whether it carries the kickoff, so `kickoffSent` is stored once it is written. */
+  /** Whether it carries the kickoff, so `kickoffSent` is stored once its Enter has gone. */
   kickoff: boolean
-  /** Whether the CLI has turned bracketed paste on, which starts the wait. */
-  armed: boolean
-  /** The end of the output before that, too short to hold the whole sequence. */
+}
+
+/** A running PTY's pastes, written one at a time once its input is live and its screen has settled. */
+interface PasteQueue {
+  /** The pastes still to be written, in order. */
+  waiting: Paste[]
+  /** Whether the CLI has turned bracketed paste on: the sign its input is live, which every paste waits for. */
+  inputLive: boolean
+  /** Until then, the end of the output, too short to hold the whole sequence. */
   seen: string
-  /** When the screen last took output (`timers.now`), once armed. */
+  /** When the screen last took output (`timers.now`). */
   lastOutput: number
-  /** Cancels the timer that waits for the screen to settle, and once the paste is written, the one for its Enter. */
-  cancel: () => void
+  /** Whether a paste has been written and its Enter has not gone yet. */
+  entering: boolean
+  /** Cancels the timer the queue waits on (the screen to settle, or a paste's Enter); null while none is set. */
+  cancel: (() => void) | null
 }
 
 /** A chat whose PTY is running (or has just exited and is still putting its last output on the screen). */
@@ -245,10 +263,10 @@ interface Live {
   marksStarted: boolean
   /** When it last had input, or output on its screen (`timers.now`). */
   lastActive: number
-  /** The paste still to be written; null when the start asked for none, once written, and once stopped or exited. */
-  firstPaste: FirstPaste | null
+  /** Its pastes: the launch's `pasteFirst` first, then any `paste`; emptied once it is stopped or has exited. */
+  pastes: PasteQueue
   revoke: () => Promise<void>
-  /** Ends the folder watch, the idle timer, and the wait for the first paste. */
+  /** Ends the folder watch, the idle timer, and the wait for the pastes. */
   stopWatch: () => void
 }
 
@@ -385,7 +403,8 @@ async function writeStartFiles(manager: Manager, chat: ChatRecord, agent: AgentV
     role: chat.role,
     allowSave: chat.allowSave,
     orchestratesRun: chat.runId !== undefined,
-    ...(chat.transferEpicId === undefined ? {} : { transferEpicId: chat.transferEpicId })
+    ...(chat.transferEpicId === undefined ? {} : { transferEpicId: chat.transferEpicId }),
+    ...(chat.cardId === undefined ? {} : { cardId: chat.cardId })
   })
   if (agent.kind !== 'claude') {
     return files
@@ -431,7 +450,7 @@ function closeAfterExit(manager: Manager, live: Live, exit: PtyExit, reportClose
 }
 
 /**
- * The watches on a running PTY; answers the function that ends them, which also gives up the first paste. Its
+ * The watches on a running PTY; answers the function that ends them, which also gives up the pastes still waiting. Its
  * folder is checked every minute. It is stopped once it has gone `IDLE_MS` with no activity: a timer set for the
  * earliest moment it can be idle, checked against `lastActive` when it fires, so activity costs a timestamp and
  * not a new timer.
@@ -454,8 +473,9 @@ function watchLive(manager: Manager, live: Live): () => void {
   return () => {
     stopFolderWatch()
     stopIdleWatch()
-    live.firstPaste?.cancel()
-    live.firstPaste = null
+    live.pastes.cancel?.()
+    live.pastes.cancel = null
+    live.pastes.waiting = []
   }
 }
 
@@ -465,56 +485,65 @@ function bracketedPaste(text: string): string {
 }
 
 /**
- * Writes the first paste as input the person typed, then Enter as its own keypress `ENTER_DELAY_MS` later
- * (Autonomous takes an Enter that arrives with the paste as part of it, verified live); the kickoff is stored as
- * sent once the Enter has gone.
+ * Writes the next waiting paste once the PTY can take it: its CLI has turned bracketed paste on (`BRACKETED_PASTE_ON`,
+ * which a TUI sends when its input is live; Autonomous goes quiet for seconds while it starts before it does, verified
+ * live), no earlier paste is still waiting for its Enter, and the screen has then taken nothing for `SETTLE_MS` (the
+ * timer is set for the earliest moment, then checked against `lastOutput`, as the idle stop's is). The paste is
+ * written as input the person typed, then Enter as its own keypress `ENTER_DELAY_MS` later (Autonomous takes an
+ * Enter that arrives with the paste as part of it, verified live); a kickoff is stored as sent once its Enter has
+ * gone. The next paste waits for the screen to settle again, counted from that Enter at the earliest, so it never
+ * lands while the CLI is still taking the text before it. A CLI that never turns bracketed paste on is pasted nothing.
  */
-function writeFirstPaste(manager: Manager, live: Live, paste: FirstPaste): void {
-  writeInput(manager, live, bracketedPaste(paste.text))
-  paste.cancel = manager.deps.timers.after(() => {
-    live.firstPaste = null
+function writePastes(manager: Manager, live: Live): void {
+  const queue = live.pastes
+  const next = queue.waiting[0]
+  if (next === undefined || !queue.inputLive || queue.entering || queue.cancel !== null || live.exited || live.stopMessage !== null) {
+    return
+  }
+  const { timers } = manager.deps
+  const quiet = timers.now() - queue.lastOutput
+  if (quiet < SETTLE_MS) {
+    queue.cancel = timers.after(() => {
+      queue.cancel = null
+      writePastes(manager, live)
+    }, SETTLE_MS - quiet)
+    return
+  }
+  queue.waiting.shift()
+  queue.entering = true
+  writeInput(manager, live, bracketedPaste(next.text))
+  queue.cancel = timers.after(() => {
+    queue.cancel = null
+    queue.entering = false
     writeInput(manager, live, ENTER)
-    if (paste.kickoff) {
+    queue.lastOutput = timers.now()
+    if (next.kickoff) {
       try {
         manager.deps.store.updateChat(live.chat, { kickoffSent: true })
       } catch (error) {
         manager.onError(error)
       }
     }
+    writePastes(manager, live)
   }, ENTER_DELAY_MS)
 }
 
-/**
- * The screen took `data` while the first paste waits. The wait starts once the CLI has turned bracketed paste on
- * (`BRACKETED_PASTE_ON`, which a TUI sends when its input is live; Autonomous goes quiet for seconds while it starts
- * before it does, verified live), and the paste goes once the screen has then taken nothing for `SETTLE_MS` (the
- * timer is set for the earliest moment, then checked against `lastOutput`, as the idle stop's is). A CLI that never
- * turns it on is pasted nothing.
- */
-function settleFirstPaste(manager: Manager, live: Live, paste: FirstPaste, data: string): void {
-  const { timers } = manager.deps
-  if (!paste.armed) {
-    // Kept short of a whole sequence, so one split across two chunks is still found.
-    const seen = paste.seen + data
-    if (!seen.includes(BRACKETED_PASTE_ON)) {
-      paste.seen = seen.slice(-(BRACKETED_PASTE_ON.length - 1))
-      return
-    }
-  }
-  paste.lastOutput = timers.now()
-  if (paste.armed) {
+/** The screen took `data`: the pastes' wait goes on, and once the CLI turns bracketed paste on, the first can go. */
+function pasteSawOutput(manager: Manager, live: Live, data: string): void {
+  const queue = live.pastes
+  queue.lastOutput = manager.deps.timers.now()
+  if (queue.inputLive) {
     return
   }
-  paste.armed = true
-  const check = (): void => {
-    const quiet = timers.now() - paste.lastOutput
-    if (quiet >= SETTLE_MS) {
-      writeFirstPaste(manager, live, paste)
-    } else {
-      paste.cancel = timers.after(check, SETTLE_MS - quiet)
-    }
+  // Kept short of a whole sequence, so one split across two chunks is still found.
+  const seen = queue.seen + data
+  if (!seen.includes(BRACKETED_PASTE_ON)) {
+    queue.seen = seen.slice(-(BRACKETED_PASTE_ON.length - 1))
+    return
   }
-  paste.cancel = timers.after(check, SETTLE_MS)
+  queue.inputLive = true
+  queue.seen = ''
+  writePastes(manager, live)
 }
 
 interface Started {
@@ -524,16 +553,14 @@ interface Started {
   resumed: boolean
   marksStarted: boolean
   /** The launch's `pasteFirst`, and whether the kickoff is in it; null when there is none. */
-  firstPaste: Pick<FirstPaste, 'text' | 'kickoff'> | null
+  firstPaste: Paste | null
 }
 
-/** Output the screen has taken: activity for the idle stop, told to listeners, and the first paste's wait goes on. */
+/** Output the screen has taken: activity for the idle stop, told to listeners, and the pastes' wait goes on. */
 function tookOutput(manager: Manager, live: Live, data: string): void {
   live.lastActive = manager.deps.timers.now()
   emit(manager, live.chat.id, { kind: 'output', data })
-  if (live.firstPaste !== null) {
-    settleFirstPaste(manager, live, live.firstPaste, data)
-  }
+  pasteSawOutput(manager, live, data)
 }
 
 /** Tracks a PTY just spawned, with the screen made for it: nothing here can fail, so no PTY runs untracked. */
@@ -562,7 +589,7 @@ function startLive(manager: Manager, chat: ChatRecord, started: Started): Live {
     resumed: started.resumed,
     marksStarted: started.marksStarted,
     lastActive: manager.deps.timers.now(),
-    firstPaste: started.firstPaste === null ? null : { ...started.firstPaste, armed: false, seen: '', lastOutput: 0, cancel: () => {} },
+    pastes: { waiting: started.firstPaste === null ? [] : [started.firstPaste], inputLive: false, seen: '', lastOutput: 0, entering: false, cancel: null },
     tree: { pid: pty.pid, kill: () => pty.kill(), exited: ended, hasExited: () => live.exited },
     revoke: () => (revoked ??= revokeGrant(manager, grantId)),
     stopWatch: () => {}
@@ -918,6 +945,49 @@ async function start(manager: Manager, ref: ChatRef, options: StartOptions): Pro
   return outcome.state === 'running' ? { state: 'running', pid: outcome.live.pty.pid } : outcome
 }
 
+const EXITED_BEFORE_PASTE = 'The terminal exited before the text could be pasted.'
+
+/** The chat's PTY a paste goes into, started as an attach starts it (never with the kickoff) when none runs; or why there is none. */
+async function pasteTarget(manager: Manager, chat: ChatRecord): Promise<Live | TerminalStart> {
+  const entry = manager.entries.get(chat.id) ?? beginStart(manager, chat, {})
+  if (!('kind' in entry)) {
+    return entry
+  }
+  const outcome = entry.kind === 'live' ? { state: 'running' as const, live: entry } : await entry.done
+  return outcome.state === 'running' ? outcome.live : outcome
+}
+
+/**
+ * `TerminalSessions.paste`. A PTY being stopped or that has just exited is waited out and the chat started again,
+ * once: a PTY that ends again before the text could wait in it answers `failed`, so a CLI that exits at once is not
+ * started over and over.
+ */
+async function paste(manager: Manager, ref: ChatRef, text: string): Promise<TerminalStart> {
+  for (let waitedOut = false; ; waitedOut = true) {
+    if (manager.closing) {
+      return { state: 'failed', message: QUITTING }
+    }
+    // Read on each round: the chat may have been deleted while its last PTY exited.
+    const chat = manager.deps.store.getChat(ref)
+    if (chat === null) {
+      return { state: 'refused', message: `No chat ${ref.id} in ${ref.folder}.` }
+    }
+    const live = await pasteTarget(manager, chat)
+    if (!('kind' in live)) {
+      return live
+    }
+    if (!live.exited && live.stopMessage === null) {
+      live.pastes.waiting.push({ text, kickoff: false })
+      writePastes(manager, live)
+      return { state: 'running', pid: live.pty.pid }
+    }
+    if (waitedOut) {
+      return { state: 'failed', message: live.stopMessage ?? EXITED_BEFORE_PASTE }
+    }
+    await live.closed
+  }
+}
+
 /**
  * Ends a chat's entry for `message`: a running PTY is stopped at once (before this returns); a start is cancelled,
  * and its PTY stopped when it got that far. Resolves with the PTY and its kill, or null when there was none.
@@ -1001,6 +1071,7 @@ export function createTerminalSessions(deps: TerminalSessionsDeps): TerminalSess
         writeInput(manager, live, data)
       }
     },
+    paste: (ref, text) => paste(manager, ref, text),
     resize: (chatId, cols, rows) => {
       const live = running(chatId)
       if (live !== null) {

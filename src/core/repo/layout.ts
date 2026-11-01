@@ -25,6 +25,7 @@ function layoutUnder(root: string, mode: StorageMode, base: string): RepoLayout 
     epicsDir: join(base, 'epics'),
     historyDir: join(base, 'history'),
     profilesDir: join(base, 'profiles'),
+    kanbanDir: join(base, 'kanban'),
     localDir,
     dbFile: join(localDir, 'state.sqlite'),
     machineFile: join(localDir, 'machine.json')

@@ -1,0 +1,85 @@
+# c2: two cards created over the scratch repo-mode repository (fx/repo), listed in Backlog
+# Throwaway scripts under /tmp/dm-kanban/acceptance/scripts (not in the repository), run with `node --import tsx` from the integration worktree against its src (openWorkspace) or with its built out/main. Scratch fixtures under /private/tmp/dm-kanban/acceptance/fx; claim tokens redacted.
+
+### initializeRepository
+{
+  "projectId": "pj_01m6ay2nemward8agwr6p4qfzs",
+  "name": "kanban-fixture",
+  "keyPrefix": "DM",
+  "createdFiles": [
+    ".darkmechanicus/.gitignore",
+    ".darkmechanicus/project.json",
+    ".darkmechanicus/local/machine.json"
+  ],
+  "alreadyInitialized": false,
+  "storage": {
+    "mode": "repo",
+    "projectDir": "/private/tmp/dm-kanban/acceptance/fx/repo/.darkmechanicus"
+  }
+}
+
+### createKanbanCard x2 (planner session): key, lane, revision
+[
+  {
+    "id": "kc_01m6ay2ngrq46dar70v49cqc0g",
+    "key": "DM-1",
+    "lane": "backlog",
+    "revision": 1,
+    "createdBy": {
+      "role": "planner",
+      "label": "acceptance planner"
+    }
+  },
+  {
+    "id": "kc_01m6ay2nhcpdax05a517yfcjzk",
+    "key": "DM-2",
+    "lane": "backlog",
+    "revision": 1,
+    "createdBy": {
+      "role": "planner",
+      "label": "acceptance planner"
+    }
+  }
+]
+
+### listKanbanCards: lane counts
+{
+  "backlog": 2,
+  "in_progress": 0,
+  "ready_for_review": 0,
+  "done": 0
+}
+
+### listKanbanCards: lanes.backlog (verbatim)
+[
+  {
+    "id": "kc_01m6ay2ngrq46dar70v49cqc0g",
+    "key": "DM-1",
+    "title": "Document the release checklist",
+    "lane": "backlog",
+    "priority": "normal",
+    "updatedAt": "2026-11-01T06:52:15.257Z",
+    "playPending": false,
+    "openAttempt": null,
+    "kickBackCount": 0,
+    "summary": null
+  },
+  {
+    "id": "kc_01m6ay2nhcpdax05a517yfcjzk",
+    "key": "DM-2",
+    "title": "Fix the typo in the README title",
+    "lane": "backlog",
+    "priority": "low",
+    "updatedAt": "2026-11-01T06:52:15.276Z",
+    "playPending": false,
+    "openAttempt": null,
+    "kickBackCount": 0,
+    "summary": null
+  }
+]
+DM-1: fields = id, key, kickBackCount, lane, openAttempt, playPending, priority, summary, title, updatedAt
+DM-1: has body = false, has acceptanceCriteria = false, has evidence = false
+DM-2: fields = id, key, kickBackCount, lane, openAttempt, playPending, priority, summary, title, updatedAt
+DM-2: has body = false, has acceptanceCriteria = false, has evidence = false
+
+Backlog keys: DM-1, DM-2; consecutive = true

@@ -206,11 +206,12 @@ A session lists only the tools its role may call. Each tool adapts one command, 
 
 | Tools | planner | orchestrator | worker | reviewer |
 |-------|:-------:|:------------:|:------:|:--------:|
-| Read-only (25): `get_capabilities`, `get_project`, `list_projects`, `get_storage_status`, `search_history`, `list_branch_epics`, `list_sessions`, `list_epics`, `get_epic`, `list_tickets`, `get_ticket`, `get_plan`, `validate_plan`, `list_revisions`, `match_capabilities`, `get_run`, `get_ready_tickets`, `get_sprint_report`, `get_checkpoint`, `get_run_events`, `list_comments`, `list_profiles`, `get_profile`, `preview_board_import`, `get_transfer` | yes | yes | yes | yes |
+| Read-only (27): `get_capabilities`, `get_project`, `list_projects`, `get_storage_status`, `search_history`, `list_branch_epics`, `list_sessions`, `list_epics`, `get_epic`, `list_tickets`, `get_ticket`, `get_plan`, `validate_plan`, `list_revisions`, `match_capabilities`, `get_run`, `get_ready_tickets`, `get_sprint_report`, `get_checkpoint`, `get_run_events`, `list_comments`, `list_profiles`, `get_profile`, `preview_board_import`, `get_transfer`, `list_kanban_cards`, `get_kanban_card` | yes | yes | yes | yes |
 | Comments: `add_comment` | yes | yes | yes | yes |
 | Profiles: `save_profile` | yes | yes | | |
 | Definition of Done: `set_definition_of_done` | yes | | | |
 | Repository and drafts: `initialize_repository`, `rescan_repositories`, `flush_portable_state`, `reconcile_repository`, `create_epic`, `import_board`, `create_ticket`, `update_ticket`, `open_plan_draft`, `update_plan_draft`, `discard_plan_draft` | yes | yes | | |
+| Kanban cards (`kanban.write`): `create_kanban_card`, `update_kanban_card` | yes | yes | | |
 | `save_plan` | with `--allow-save` | with `--allow-save` | | |
 | Epic and ticket status: `set_epic_status`, `set_epic_branch`, `set_ticket_status` | | yes | | |
 | Runs: `register_host`, `start_run`, `pause_run`, `resume_run`, `cancel_run`, `takeover_run`, `adopt_revision` | | yes | | |
@@ -220,9 +221,11 @@ A session lists only the tools its role may call. Each tool adapts one command, 
 | `accept_attempt`, `reject_attempt` | | yes | | yes |
 | Checkpoints: `submit_sprint_report`, `redraft_next_sprint`, `advance_sprint` | | yes | | |
 | Linear transfer (`epic.transfer`): `start_transfer`, `record_transfer_item`, `submit_transfer_readback` | | yes | | |
-| **Total** | 37 (38 with `--allow-save`) | 62 (63 with `--allow-save`) | 29 | 28 |
+| Kanban claim (`kanban.claim`): `claim_kanban_card` | | yes | | |
+| Kanban reporting (`kanban.report`): `heartbeat_kanban_card`, `submit_kanban_card`, `fail_kanban_card` | | yes | yes | |
+| **Total** | 43 (44 with `--allow-save`) | 71 (72 with `--allow-save`) | 34 | 30 |
 
-`--allow-save` has no effect for `worker` and `reviewer`. No role lists a tool for the desktop-only actions.
+`--allow-save` has no effect for `worker` and `reviewer`. No role lists a tool for the desktop-only actions: no tool presses Play on a Kanban card, approves one or kicks one back (`kanban.play` and `kanban.review` belong to a person in the desktop app).
 
 ### Linear transfer
 

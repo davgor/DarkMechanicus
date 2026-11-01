@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { DarkMechanicusCli } from '../../shared/agents/chat'
 import { removeScratch } from '../../test/removeScratch'
 import { transferGuidance } from '../../mcp/transferKickoff'
+import { kanbanGuidance } from '../agents/kanbanKickoff'
 import { orchestratorGuidance } from '../agents/orchestratorKickoff'
 import { terminalFilePaths, terminalInstructions, writeTerminalFiles } from './terminalFiles'
 
@@ -74,6 +75,16 @@ describe('terminalInstructions', () => {
     expect(transfer).toContain('Call start_transfer for epic ep_01m6772ffwkwr2a91fsqzfz1he')
     expect(transfer).toContain('=== Linear transfer guidance ===')
     expect(plain).not.toContain('start_transfer')
+  })
+
+  it('adds the Kanban card guidance, with the card id and the claim step, only for the chat Play opened for a card', () => {
+    const options = { cli: cliFor(FOLDER), role: 'orchestrator', allowSave: false, launcherDir: '/data/agents/bin/ch_1', orchestratesRun: false } as const
+    const plain = terminalInstructions(options)
+    const card = terminalInstructions({ ...options, cardId: 'kc_01m6a1p7qaxttbw9f5927qk2dx' })
+
+    expect(card).toBe(`${plain}\n\n${kanbanGuidance('kc_01m6a1p7qaxttbw9f5927qk2dx')}`)
+    expect(card).toContain('claim_kanban_card with cardId kc_01m6a1p7qaxttbw9f5927qk2dx')
+    expect(plain).not.toContain('claim_kanban_card')
   })
 })
 

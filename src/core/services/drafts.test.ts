@@ -11,6 +11,7 @@ import {
 import { createTestCtx, type TestCtx, withRole } from '../../test/testContext'
 import { isStableId } from '../ids'
 import { META_KEYS, setMeta } from '../meta'
+import { nextProjectKey } from './draftDeps'
 import { discardPlanDraft, openDraft, updatePlanDraft } from './drafts'
 import { createEpic } from './epics'
 import { getPlan } from './plans'
@@ -185,6 +186,29 @@ describe('updatePlanDraft ticket keys', () => {
     const epic = createEpic(ctx, { title: 'Prefixed' })
     updatePlanDraft(ctx, { epicId: epic.id, ops: [addTicket('One'), addTicket('Two'), addTicket('Three')] })
     expect(draftBundle(ctx, epic.id).tickets.map((ticket) => ticket.key)).toEqual(['XY-1', 'XY-2', 'XY-3', 'XY-4'])
+  })
+
+  it('shares one sequence with kanban cards, so no card and plan ticket share a key', () => {
+    const ctx = createTestCtx()
+    const epic = createEpic(ctx, { title: 'Earlier' })
+    ctx.db.run("UPDATE drafts SET bundle_json = json_set(bundle_json, '$.tickets[0].key', 'DM-40') WHERE epic_id = ?", epic.id)
+    const insertCard = (id: string, key: string): void => {
+      ctx.db.run(
+        `INSERT INTO kanban_cards (id, key, title, body, acceptance_criteria_json, expected_artifacts_json, references_json,
+           priority, lane, created_by_role, created_by_label, created_at, updated_at, revision)
+         VALUES (?, ?, 'Card', '', '[]', '[]', '[]', 'normal', 'backlog', 'desktop', 'Ada', 't', 't', 1)`,
+        id,
+        key
+      )
+    }
+    insertCard('kc_41', 'DM-41')
+    const cardKey = nextProjectKey(ctx)
+    expect(cardKey).toBe('DM-42')
+    insertCard('kc_42', cardKey)
+    const later = createEpic(ctx, { title: 'Later' })
+    updatePlanDraft(ctx, { epicId: later.id, ops: [addTicket('After the cards')] })
+    expect(draftBundle(ctx, later.id).tickets.map((ticket) => ticket.key)).toEqual(['DM-43', 'DM-44'])
+    expect(nextProjectKey(ctx)).toBe('DM-45')
   })
 })
 

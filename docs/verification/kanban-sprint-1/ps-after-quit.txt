@@ -1,0 +1,5 @@
+# ps after app.quit() (same filter: the worktree's Electron, the scratch user-data-dir, the claude agent binary), ~30 s after the quit
+(end of list: nothing left)
+
+# The person's own app (coordinating checkout, its own profile) was never touched and is still running:
+17793 ~/Documents/GitHub/DarkMechanicus/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron .

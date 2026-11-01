@@ -12,6 +12,8 @@ import { createChatHandlers, type ChatHandlers } from './chatHandlers'
 import type { ChatRecords } from './chatRecords'
 import type { OrchestratorRuns } from './orchestratorStart'
 import type { TransferReads } from './transferStart'
+import type { KanbanCardView } from '../../shared/domain/kanban'
+import type { KanbanCards } from '../kanban/startKanbanCard'
 import type { TerminalSessions } from '../terminals/terminalSessions'
 
 const CHAT: ChatRecord = {
@@ -71,14 +73,32 @@ function recordingTransfers(calls: string[] = [], status: TransferStatus = 'queu
   }
 }
 
-type Terminals = Pick<TerminalSessions, 'start'>
+type Terminals = Pick<TerminalSessions, 'start' | 'paste'>
 
-/** Terminals that record [`start`, chat, options] and answer that the PTY runs. */
+/** Terminals that record [`start`, chat, options] and [`paste`, chat, text] and answer that the PTY runs. */
 function recordingTerminals(calls: unknown[][] = []): Terminals {
-  return { start: async (...args) => (calls.push(['start', ...args]), { state: 'running', pid: 4242 }) }
+  return {
+    start: async (...args) => (calls.push(['start', ...args]), { state: 'running', pid: 4242 }),
+    paste: async (...args) => (calls.push(['paste', ...args]), { state: 'running', pid: 4242 })
+  }
 }
 
-/** Handlers over `chats` and `runs`; `push`, `terminals` and `transfers` when a test needs to see them (terminals that answer running, a queued transfer otherwise). */
+const CARD_ID = 'kc_01m6aspj4vxjq38vcbgxpg73jn'
+const CARD = { id: CARD_ID, key: 'DM-7', title: 'Fix the flaky upload test' } as KanbanCardView
+
+/** Kanban cards that record "<call> <folder> <card id>" and answer with a fixed card. */
+function recordingCards(calls: string[] = []): KanbanCards {
+  return {
+    play: (folder, cardId) => (calls.push(`play ${folder} ${cardId}`), Promise.resolve(CARD)),
+    kickBack: (folder, input) => (calls.push(`kickBack ${folder} ${input.cardId}`), Promise.resolve(CARD)),
+    branch: (folder) => (calls.push(`branch ${folder}`), Promise.resolve('feature/cards'))
+  }
+}
+
+/**
+ * Handlers over `chats` and `runs`; `push`, `terminals`, `transfers` and `kanban` when a test needs to see them
+ * (terminals that answer running, a queued transfer and a card that plays and kicks back otherwise).
+ */
 function handlersOver(
   chats: ChatRecords,
   errors: unknown[] = [],
@@ -86,8 +106,9 @@ function handlersOver(
   {
     push,
     terminals = recordingTerminals(),
-    transfers = recordingTransfers()
-  }: { push?: (event: ChatPushEvent) => void; terminals?: Terminals; transfers?: TransferReads } = {}
+    transfers = recordingTransfers(),
+    kanban = recordingCards()
+  }: { push?: (event: ChatPushEvent) => void; terminals?: Terminals; transfers?: TransferReads; kanban?: KanbanCards } = {}
 ): ChatHandlers {
   return createChatHandlers({
     registry: { resolve: (path) => (path === REPO || path === SPELLING ? REPO : null) },
@@ -96,6 +117,7 @@ function handlersOver(
     terminals,
     runs,
     transfers,
+    kanban,
     ...(push === undefined ? {} : { push }),
     onUnexpectedError: (error) => errors.push(error)
   })
@@ -114,9 +136,11 @@ describe('chat handlers: the channels', () => {
       'create',
       'delete',
       'findTransferChat',
+      'kickBackKanbanCard',
       'list',
       'read',
       'rename',
+      'startKanbanCard',
       'startOrchestrator',
       'startTransferChat',
       'transferPrompt'
@@ -401,6 +425,7 @@ function handlersWithBound(asked: unknown[][]): ChatHandlers {
     terminals: recordingTerminals(),
     runs: recordingRuns(),
     transfers: recordingTransfers(),
+    kanban: recordingCards(),
     boundThreads: (folder, target) => {
       asked.push([folder, target])
       return FOUND
@@ -460,6 +485,7 @@ describe('chat handlers: bound threads', () => {
       terminals: recordingTerminals(),
       runs: recordingRuns(),
       transfers: recordingTransfers(),
+      kanban: recordingCards(),
       boundThreads: () => {
         throw new Error('disk')
       },
@@ -549,5 +575,107 @@ describe('chat handlers: pushing a started transfer chat', () => {
     expect(result).toMatchObject({ ok: true, data: { chat: null } })
     expect(failedPushes).toEqual([])
     expect(errors).toEqual([expect.objectContaining({ message: 'disk full' })])
+  })
+})
+
+describe('chat handlers: play a Kanban card', () => {
+  const REQUEST = { folder: SPELLING, cardId: CARD_ID, agent: 'claude', model: 'sonnet' }
+  const CHANGED: ChatPushEvent = { type: 'chats_changed', folder: REPO, chatId: 'chat_1' }
+
+  it('plays the card in the tracked folder, creates its chat and starts its terminal with the card kickoff, then says the chat was created', async () => {
+    const { chats, calls } = recordingChats()
+    const cards: string[] = []
+    const pushed: ChatPushEvent[] = []
+
+    const result = await handlersOver(chats, [], recordingRuns(), { terminals: recordingTerminals(calls), kanban: recordingCards(cards), push: (event) => pushed.push(event) }).startKanbanCard(REQUEST)
+
+    expect(result).toEqual({ ok: true, data: { card: CARD, chat: CHAT, problem: null } })
+    expect(cards).toEqual([`play ${REPO} ${CARD_ID}`, `branch ${REPO}`])
+    expect(calls).toEqual([
+      ['createChat', { folder: REPO, agent: 'claude', role: 'orchestrator', model: 'sonnet', allowSave: false, title: 'Kanban · DM-7 Fix the flaky upload test', cardId: CARD_ID }],
+      ['start', CHAT, { kickoff: expect.stringContaining(`claim_kanban_card with cardId ${CARD_ID}`) }]
+    ])
+    expect(pushed).toEqual([CHANGED])
+  })
+
+  it('removes the chat of a terminal that did not start and says why, pushing nothing', async () => {
+    const { chats, calls } = recordingChats()
+    const terminals: Terminals = { ...recordingTerminals(calls), start: async () => ({ state: 'signed_out', message: 'Claude Code is signed out.' }) }
+    const pushed: ChatPushEvent[] = []
+
+    const result = await handlersOver(chats, [], recordingRuns(), { terminals, push: (event) => pushed.push(event) }).startKanbanCard(REQUEST)
+
+    expect(result).toEqual({
+      ok: true,
+      data: { card: CARD, chat: null, problem: 'DM-7 is played, but claude could not be started: Claude Code is signed out. The card keeps its pending play: press Play again to start a new chat.' }
+    })
+    expect(calls.map((call) => call[0])).toEqual(['createChat', 'deleteChat'])
+    expect(pushed).toEqual([])
+  })
+
+  it('refuses a folder that is not tracked, an agent that is not connected and a malformed request, before the card is played', async () => {
+    const { chats, calls } = recordingChats()
+    const cards: string[] = []
+    const handlers = handlersOver(chats, [], recordingRuns(), { terminals: recordingTerminals(calls), kanban: recordingCards(cards) })
+
+    const results = [
+      await handlers.startKanbanCard({ ...REQUEST, folder: join(REPO, '..', 'elsewhere') }),
+      await handlers.startKanbanCard({ ...REQUEST, agent: UNKNOWN_AGENT }),
+      await handlers.startKanbanCard({ ...REQUEST, cardId: 'ep_01m6aspj4vxjq38vcbgxpg73jn' }),
+      await handlers.startKanbanCard({ ...REQUEST, role: 'planner' }),
+      await handlers.startKanbanCard({ ...REQUEST, allowSave: true }),
+      await handlers.startKanbanCard(undefined)
+    ]
+
+    expect(results.map((result) => (result.ok ? 'ok' : result.error.code))).toEqual(['unauthorized', 'not_found', ...Array(4).fill('invalid_input')])
+    expect(cards).toEqual([])
+    expect(calls).toEqual([])
+  })
+})
+
+describe('chat handlers: kick back a Kanban card', () => {
+  const REQUEST = { folder: SPELLING, cardId: CARD_ID, comment: 'Cover the empty upload.' }
+
+  it("kicks the card back in the tracked folder and pastes the comment into its chat's terminal", async () => {
+    const { chats, calls } = recordingChats()
+    chats.listChats = (folder) => (calls.push(['listChats', folder]), [{ ...CHAT, cardId: CARD_ID }])
+    const cards: string[] = []
+
+    const result = await handlersOver(chats, [], recordingRuns(), { terminals: recordingTerminals(calls), kanban: recordingCards(cards) }).kickBackKanbanCard(REQUEST)
+
+    expect(result).toEqual({ ok: true, data: { card: CARD, chatId: 'chat_1', problem: null } })
+    expect(cards).toEqual([`kickBack ${REPO} ${CARD_ID}`])
+    expect(calls).toEqual([
+      ['listChats', REPO],
+      ['paste', { ...CHAT, cardId: CARD_ID }, `DM-7 was kicked back by a person: Cover the empty upload. Claim it again with claim_kanban_card (cardId ${CARD_ID}) and address the comment.`]
+    ])
+  })
+
+  it("reports a comment that could not reach the card's chat", async () => {
+    const { chats } = recordingChats()
+    chats.listChats = () => [{ ...CHAT, cardId: CARD_ID }]
+    const terminals: Terminals = { ...recordingTerminals(), paste: async () => ({ state: 'refused', message: 'The folder is not tracked.' }) }
+
+    const result = await handlersOver(chats, [], recordingRuns(), { terminals }).kickBackKanbanCard(REQUEST)
+
+    expect(result).toMatchObject({ ok: true, data: { card: CARD, chatId: 'chat_1', problem: expect.stringContaining('the comment could not reach its chat: The folder is not tracked.') } })
+  })
+
+  it('refuses a folder that is not tracked, a blank comment and a malformed request, before the card is kicked back', async () => {
+    const { chats, calls } = recordingChats()
+    const cards: string[] = []
+    const handlers = handlersOver(chats, [], recordingRuns(), { terminals: recordingTerminals(calls), kanban: recordingCards(cards) })
+
+    const results = [
+      await handlers.kickBackKanbanCard({ ...REQUEST, folder: join(REPO, '..', 'elsewhere') }),
+      await handlers.kickBackKanbanCard({ ...REQUEST, comment: '   ' }),
+      await handlers.kickBackKanbanCard({ ...REQUEST, cardId: `${CARD_ID}.secret` }),
+      await handlers.kickBackKanbanCard({ ...REQUEST, chatId: 'chat_1' }),
+      await handlers.kickBackKanbanCard(undefined)
+    ]
+
+    expect(results.map((result) => (result.ok ? 'ok' : result.error.code))).toEqual(['unauthorized', ...Array(4).fill('invalid_input')])
+    expect(cards).toEqual([])
+    expect(calls).toEqual([])
   })
 })

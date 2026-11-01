@@ -1,6 +1,7 @@
 /** Flushing a database-only project: the save completes, and no record file is ever written. */
 import { describe, expect, it } from 'vitest'
 import { makeBundle } from '../../test/bundles'
+import { doneCard, kanbanSessions } from '../../test/kanbanFixtures'
 import { createRepoEnv, flush, type RepoEnv, stageRevision } from '../../test/repoEnv'
 import {
   idOf,
@@ -82,6 +83,18 @@ describe('flush in db mode for the other kinds of entry', () => {
     expect([...env.fs.files().keys()]).toEqual([])
   })
 
+  it('settles Kanban card and event entries without a file or a sync record', () => {
+    const env = dbEnv()
+    doneCard(kanbanSessions(env))
+    const kinds = env.db.all<{ kind: string }>('SELECT DISTINCT kind FROM outbox ORDER BY kind').map((row) => row.kind)
+    expect(kinds).toEqual(['kanban_card', 'kanban_event'])
+    const writesBefore = env.fs.writes.length
+    expect(flush(env)).toMatchObject({ flushed: 6, failed: 0, errors: [] })
+    expect(outboxStates(env).every((state) => state === 'done')).toBe(true)
+    expect(env.db.all('SELECT kind, entity_id FROM sync_state')).toEqual([])
+    expect([...env.fs.files().keys()]).toEqual([])
+    expect(env.fs.writes.slice(writesBefore)).toEqual([])
+  })
 })
 
 describe('flush in db mode and the repository folder', () => {

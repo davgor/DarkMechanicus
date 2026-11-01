@@ -26,6 +26,7 @@ import type {
   TransferReadbackResult,
   TransferView
 } from './transfer'
+import type { KanbanAttemptView, KanbanBoardView, KanbanCardView, KanbanPacket } from './kanban'
 import type { WorkStatus } from './status'
 import type {
   ApprovalView,
@@ -247,6 +248,78 @@ export interface AddCommentInput {
   idempotencyKey?: string
 }
 
+/** A new Kanban card's content. It always starts in Backlog; the key and author come from the server. */
+export interface CreateKanbanCardInput {
+  title: string
+  /** Markdown; empty when omitted. */
+  body?: string
+  /** Omit a criterion's `id` to have `c<n>` assigned. */
+  acceptanceCriteria?: (CriterionInput | string)[]
+  expectedArtifacts?: string[]
+  references?: TicketReference[]
+  /** `normal` when omitted. */
+  priority?: TicketPriority
+  size?: TicketSize
+  idempotencyKey?: string
+}
+
+/** An edit of a Backlog card that was never claimed: only the fields given change; `size: null` clears the size. */
+export interface UpdateKanbanCardInput extends Partial<Omit<CreateKanbanCardInput, 'size' | 'idempotencyKey'>> {
+  cardId: string
+  /** The card's current `revision`; another value is refused with `conflict`. */
+  expectedRevision: number
+  size?: TicketSize | null
+  idempotencyKey?: string
+}
+
+/** One page of the board: every open card, and Done from `doneCursor` (the start when omitted), `doneLimit` cards at most. */
+export interface ListKanbanCardsInput {
+  /** 1 to 100; 20 when omitted. */
+  doneLimit?: number
+  /** A previous page's `doneNextCursor`. */
+  doneCursor?: string
+}
+
+/** Claims a card a person pressed Play on. */
+export interface ClaimKanbanCardInput {
+  cardId: string
+  /** 30 to 86,400 seconds; 900 when omitted. */
+  leaseSeconds?: number
+  idempotencyKey?: string
+}
+
+/** Keeps a card's claim alive for another lease of the length it was claimed with. */
+export interface HeartbeatKanbanCardInput {
+  attemptId: string
+  claimToken: string
+  /** At most 280 characters, shown with the attempt until the next note; a claim token in it is masked. */
+  progressNote?: string
+}
+
+/** Reports a card's result, which moves it to Ready for review: the same outputs and evidence as `submitAttempt`. */
+export interface SubmitKanbanCardInput {
+  attemptId: string
+  claimToken: string
+  outputs: Partial<AttemptOutputs> & { summary: string }
+  evidence?: Partial<AttemptEvidence>
+  idempotencyKey?: string
+}
+
+export interface FailKanbanCardInput {
+  attemptId: string
+  claimToken: string
+  reason: string
+  idempotencyKey?: string
+}
+
+/** Sends a card in Ready for review back to In progress with a pending Play; the next claim lists the comment. */
+export interface KickBackKanbanCardInput {
+  cardId: string
+  /** Markdown, 1 to 20,000 characters and not blank. */
+  comment: string
+  idempotencyKey?: string
+}
+
 export interface CommandApi {
   // Discovery and repository lifecycle
   getCapabilities(): Promise<CapabilitiesView>
@@ -382,6 +455,38 @@ export interface CommandApi {
   addComment(input: AddCommentInput): Promise<CommentView>
   /** Oldest first. Without ticketId: every comment of the epic, epic-level and ticket-level. */
   listComments(input: { epicId: string; ticketId?: string }): Promise<CommentView[]>
+
+  // Kanban cards (isolated tickets on the folder's board)
+  /** Adds a card to Backlog with the next key of the project's ticket sequence. Person, planner and orchestrator. */
+  createKanbanCard(input: CreateKanbanCardInput): Promise<KanbanCardView>
+  /** Edits a card in Backlog that has never been claimed; otherwise `invalid_state`. */
+  updateKanbanCard(input: UpdateKanbanCardInput): Promise<KanbanCardView>
+  /**
+   * The board: slim summaries of each lane, never a body, criteria or evidence. Open lanes by priority, then
+   * age; Done newest first and paged.
+   */
+  listKanbanCards(input: ListKanbanCardsInput): Promise<KanbanBoardView>
+  /** The full card, with its body, criteria and every attempt. */
+  getKanbanCard(input: { cardId: string }): Promise<KanbanCardView>
+  /**
+   * The person presses Play: a pending play an orchestrator's claim consumes. Backlog, or In progress with no
+   * open attempt; pressing it again changes nothing. Human-only.
+   */
+  playKanbanCard(input: { cardId: string }): Promise<KanbanCardView>
+  /**
+   * Claims a card with a pending Play (`play_required` without one, `already_claimed` while an attempt is open) and
+   * moves it to In progress. The packet's claim token is returned once. Orchestrator only.
+   */
+  claimKanbanCard(input: ClaimKanbanCardInput): Promise<KanbanPacket>
+  heartbeatKanbanCard(input: HeartbeatKanbanCardInput): Promise<KanbanAttemptView>
+  /** Moves the card to Ready for review. */
+  submitKanbanCard(input: SubmitKanbanCardInput): Promise<KanbanAttemptView>
+  /** The attempt fails and the card stays In progress, where a person can press Play again. */
+  failKanbanCard(input: FailKanbanCardInput): Promise<KanbanAttemptView>
+  /** Moves a card in Ready for review to Done with its compact summary. Human-only. */
+  approveKanbanCard(input: { cardId: string; idempotencyKey?: string }): Promise<KanbanCardView>
+  /** Rejects the submission with the comment (see `KickBackKanbanCardInput`). Human-only. */
+  kickBackKanbanCard(input: KickBackKanbanCardInput): Promise<KanbanCardView>
 
   // Named capability profiles (reusable presets tickets can start from)
   listProfiles(): Promise<ProfileView[]>

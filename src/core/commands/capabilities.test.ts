@@ -18,6 +18,9 @@ const RUN = probeId('run')
 const TICKET = probeId('ticket')
 const ATTEMPT = probeId('attempt')
 const TOKEN = `${ATTEMPT}.secret`
+const CARD = probeId('kanbanCard')
+const CARD_ATTEMPT = probeId('kanbanAttempt')
+const CARD_TOKEN = `${CARD_ATTEMPT}.secret`
 
 /**
  * One schema-valid input per command. Ids point at nothing, so a permitted call stops at a
@@ -107,6 +110,17 @@ const PROBES: Record<CommandName, unknown> = {
   getRunTimeline: { runId: RUN },
   addComment: { epicId: EPIC, body: 'probe' },
   listComments: { epicId: EPIC },
+  createKanbanCard: { title: 'Probe card' },
+  updateKanbanCard: { cardId: CARD, expectedRevision: 1, title: 'Probe edit' },
+  listKanbanCards: {},
+  getKanbanCard: { cardId: CARD },
+  playKanbanCard: { cardId: CARD },
+  claimKanbanCard: { cardId: CARD },
+  heartbeatKanbanCard: { attemptId: CARD_ATTEMPT, claimToken: CARD_TOKEN },
+  submitKanbanCard: { attemptId: CARD_ATTEMPT, claimToken: CARD_TOKEN, outputs: { summary: 'probe' } },
+  failKanbanCard: { attemptId: CARD_ATTEMPT, claimToken: CARD_TOKEN, reason: 'probe' },
+  approveKanbanCard: { cardId: CARD },
+  kickBackKanbanCard: { cardId: CARD, comment: 'probe' },
   listProfiles: undefined,
   getProfile: { name: 'probe-profile' },
   saveProfile: { name: 'probe-profile', capability: defaultCapabilityProfile() },
@@ -183,6 +197,7 @@ describe('COMMAND_CAPABILITIES', () => {
     expect(humanOnly.sort()).toEqual([
       'approveAndAdvance',
       'approveCheckpoint',
+      'approveKanbanCard',
       'approveWithRedraft',
       'authorizeAutoContinue',
       'cancelTransfer',
@@ -190,6 +205,8 @@ describe('COMMAND_CAPABILITIES', () => {
       'deleteTicket',
       'grantRetry',
       'issueGrant',
+      'kickBackKanbanCard',
+      'playKanbanCard',
       'queueRun',
       'queueTransfer',
       'resolveEpicConflict',

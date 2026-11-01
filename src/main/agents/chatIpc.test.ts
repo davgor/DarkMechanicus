@@ -3,8 +3,18 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import type { ChatRecord } from '../../shared/agents/chat'
-import { CHAT_EVENT_CHANNEL, type BoundThread, type ChatPushEvent, type ChatReadView, type StartOrchestratorResult, type StartTransferChatResult } from '../../shared/agents/chatApi'
+import {
+  CHAT_EVENT_CHANNEL,
+  type BoundThread,
+  type ChatPushEvent,
+  type ChatReadView,
+  type KickBackKanbanCardResult,
+  type StartKanbanCardResult,
+  type StartOrchestratorResult,
+  type StartTransferChatResult
+} from '../../shared/agents/chatApi'
 import type { CommandResult } from '../../shared/desktop/api'
+import type { KanbanCardView } from '../../shared/domain/kanban'
 import type { TransferView } from '../../shared/domain/transfer'
 import type { EpicDetailView, RunView } from '../../shared/domain/views'
 import { transferKickoff } from '../../mcp/transferKickoff'
@@ -22,6 +32,7 @@ import type { ChatStore } from './chatStore'
 import { guardIpc } from '../ipcGuard'
 import type { OrchestratorRuns } from './orchestratorStart'
 import type { TransferReads } from './transferStart'
+import type { KanbanCards } from '../kanban/startKanbanCard'
 import type { TerminalSessions } from '../terminals/terminalSessions'
 
 type Listener = Parameters<IpcMain['handle']>[1]
@@ -34,9 +45,11 @@ const CHAT_CHANNELS = [
   'chats:create',
   'chats:delete',
   'chats:findTransferChat',
+  'chats:kickBackKanbanCard',
   'chats:list',
   'chats:read',
   'chats:rename',
+  'chats:startKanbanCard',
   'chats:startOrchestrator',
   'chats:startTransferChat',
   'chats:transferPrompt'
@@ -53,6 +66,22 @@ const RUN = { id: 'rn_2', number: 2, epicId: EPIC_ID, state: 'queued' } as RunVi
 const TRANSFERS: TransferReads = {
   getEpic: () => Promise.resolve(EPIC),
   getTransfer: (_folder, epicId) => Promise.resolve({ epicId, status: 'queued', packet: null, recorded: [], lastMismatches: [], next: [] } as TransferView)
+}
+
+const CARD_ID = 'kc_01m6a1p7qaxttbw9f5927qk2dx'
+
+/** The card the fake Kanban side answers with: what the kickoff and the kick-back message read of it. */
+function cardView(cardId: string, lane: KanbanCardView['lane']): KanbanCardView {
+  return { id: cardId, key: 'DM-42', title: 'Fix the flaky upload test', lane, playPending: true } as KanbanCardView
+}
+
+/** A Kanban side that plays and kicks back any card, recording "<call> <card id>" in `calls`. */
+function recordingKanban(calls: string[]): KanbanCards {
+  return {
+    play: (_folder, cardId) => (calls.push(`play ${cardId}`), Promise.resolve(cardView(cardId, 'backlog'))),
+    kickBack: (_folder, input) => (calls.push(`kickBack ${input.cardId}`), Promise.resolve(cardView(input.cardId, 'in_progress'))),
+    branch: () => Promise.resolve('feature/cards')
+  }
 }
 
 function createFakeIpcMain(): { handle(channel: string, listener: Listener): void; channels(): string[]; invoke(channel: string, ...args: unknown[]): Promise<unknown> } {
@@ -77,12 +106,19 @@ interface IpcRig {
   queued: string[]
   /** The terminals started, with the kickoff each was given, in order. */
   terminalStarts: { chatId: string; kickoff: string }[]
+  /** The text pasted into each chat's terminal, in order. */
+  terminalPastes: { chatId: string; text: string }[]
+  /** What the Kanban side was asked for, as "<call> <card id>". */
+  kanbanCalls: string[]
   channels(): string[]
 }
 
-/** Terminals that write down each start and the kickoff it was given, and answer that the PTY runs. */
-function recordingTerminals(starts: IpcRig['terminalStarts']): Pick<TerminalSessions, 'start'> {
-  return { start: async (ref, options) => (starts.push({ chatId: ref.id, kickoff: options.kickoff }), { state: 'running', pid: 4242 }) }
+/** Terminals that write down each start with the kickoff it was given and each paste, and answer that the PTY runs. */
+function recordingTerminals(starts: IpcRig['terminalStarts'], pastes: IpcRig['terminalPastes']): Pick<TerminalSessions, 'start' | 'paste'> {
+  return {
+    start: async (ref, options) => (starts.push({ chatId: ref.id, kickoff: options.kickoff }), { state: 'running', pid: 4242 }),
+    paste: async (ref, text) => (pastes.push({ chatId: ref.id, text }), { state: 'running', pid: 4242 })
+  }
 }
 
 /** A run queue that writes down the epics it queued a run for. */
@@ -98,6 +134,8 @@ function ipcRig(options: { bindings?: boolean; windows?: readonly ChatWindow[]; 
   const activity = options.bindings === true ? createActivityBindings({ file: BINDINGS_FILE, fs }) : undefined
   const queued: string[] = []
   const terminalStarts: IpcRig['terminalStarts'] = []
+  const terminalPastes: IpcRig['terminalPastes'] = []
+  const kanbanCalls: string[] = []
   const boundThreads = activity === undefined ? undefined : (folder: string, target: Parameters<typeof listBoundThreads>[2]) => listBoundThreads(activity, folder, target)
   registerChatIpc(
     ipc,
@@ -105,9 +143,10 @@ function ipcRig(options: { bindings?: boolean; windows?: readonly ChatWindow[]; 
       registry: { resolve: (path) => (path === REPO ? REPO : null) },
       agents: { get: connectedAgents() },
       chats: createChatRecords({ store, agentFor: connectedAgents(), ...(activity === undefined ? {} : { activity }) }),
-      terminals: recordingTerminals(terminalStarts),
+      terminals: recordingTerminals(terminalStarts, terminalPastes),
       runs: queueingRuns(queued),
       transfers: TRANSFERS,
+      kanban: recordingKanban(kanbanCalls),
       ...(options.windows === undefined ? {} : { push: createChatPush(() => options.windows ?? []) }),
       ...(boundThreads === undefined ? {} : { boundThreads }),
       ...(options.boundTerminal === undefined ? {} : { boundTerminal: options.boundTerminal(store) })
@@ -119,6 +158,8 @@ function ipcRig(options: { bindings?: boolean; windows?: readonly ChatWindow[]; 
     store,
     queued,
     terminalStarts,
+    terminalPastes,
+    kanbanCalls,
     channels: ipc.channels
   }
 }
@@ -286,6 +327,69 @@ describe('chat IPC: start a transfer chat', () => {
   })
 })
 
+describe('chat IPC: play a Kanban card and kick it back', () => {
+  it('plays the card, creates its orchestrator chat and starts its terminal with the card kickoff, storing no transcript item', async () => {
+    const state = ipcRig()
+
+    const result = data(await state.invoke<CommandResult<StartKanbanCardResult>>('chats:startKanbanCard', { folder: REPO, cardId: CARD_ID, agent: 'claude', model: 'big' }))
+
+    expect(state.kanbanCalls).toEqual([`play ${CARD_ID}`])
+    expect(result.problem).toBeNull()
+    const chat = result.chat as ChatRecord
+    expect(chat).toMatchObject({ role: 'orchestrator', allowSave: false, cardId: CARD_ID, title: 'Kanban · DM-42 Fix the flaky upload test', model: 'big' })
+    expect(state.terminalStarts).toEqual([{ chatId: chat.id, kickoff: expect.stringContaining(`claim_kanban_card with cardId ${CARD_ID}`) }])
+    expect(state.terminalStarts[0]?.kickoff).toContain('Branch: feature/cards')
+    expect(state.store.readTranscript(chat)?.items ?? []).toEqual([])
+  })
+
+  it("kicks the card back and pastes the comment into the terminal of the card's chat, starting nothing new", async () => {
+    const state = ipcRig()
+    const started = data(await state.invoke<CommandResult<StartKanbanCardResult>>('chats:startKanbanCard', { folder: REPO, cardId: CARD_ID, agent: 'claude' }))
+
+    const result = data(await state.invoke<CommandResult<KickBackKanbanCardResult>>('chats:kickBackKanbanCard', { folder: REPO, cardId: CARD_ID, comment: 'Still flaky.' }))
+
+    expect(state.kanbanCalls).toEqual([`play ${CARD_ID}`, `kickBack ${CARD_ID}`])
+    expect(result).toMatchObject({ chatId: started.chat?.id, problem: null, card: { lane: 'in_progress' } })
+    expect(state.terminalPastes).toEqual([
+      { chatId: started.chat?.id, text: `DM-42 was kicked back by a person: Still flaky. Claim it again with claim_kanban_card (cardId ${CARD_ID}) and address the comment.` }
+    ])
+    expect(state.terminalStarts).toHaveLength(1)
+  })
+
+})
+
+describe('chat IPC: Kanban requests a renderer cannot shape', () => {
+  it('refuses a card id that is not kc_, an extra field, a blank comment or an untracked folder, and plays nothing', async () => {
+    const state = ipcRig()
+    const start = { folder: REPO, cardId: CARD_ID, agent: 'claude' }
+    const kickBack = { folder: REPO, cardId: CARD_ID, comment: 'Not yet.' }
+
+    const answers = await Promise.all([
+      ...[
+        { ...start, cardId: 'ka_01m6aspj4vxjq38vcbgxpg73jn' },
+        { ...start, cardId: `${CARD_ID}.gUJvQxJEDk0emfDt1HQ9H3tYGOmsf4IX` },
+        { ...start, cardId: 'tk_01m6a1p7qaxttbw9f5927qk2dx' },
+        { ...start, role: 'planner' },
+        { ...start, allowSave: true },
+        { ...start, agent: 'gemini' },
+        { ...start, folder: '/elsewhere' }
+      ].map((payload) => state.invoke<CommandResult<unknown>>('chats:startKanbanCard', payload)),
+      ...[
+        { ...kickBack, cardId: 'ep_01m418epbg8qkqa2e2krvdkqk5' },
+        { ...kickBack, comment: '' },
+        { ...kickBack, chatId: 'chat_1' },
+        { ...kickBack, folder: '/elsewhere' }
+      ].map((payload) => state.invoke<CommandResult<unknown>>('chats:kickBackKanbanCard', payload))
+    ])
+
+    expect(answers.map((answer) => (answer.ok ? 'ok' : answer.error.code))).toEqual([...Array(6).fill('invalid_input'), 'unauthorized', ...Array(3).fill('invalid_input'), 'unauthorized'])
+    expect(state.kanbanCalls).toEqual([])
+    expect(state.terminalStarts).toEqual([])
+    expect(state.terminalPastes).toEqual([])
+    expect(state.store.listChats(REPO)).toEqual([])
+  })
+})
+
 describe('chat IPC: agents named by id', () => {
   it('refuses chats:create for an agent id that is not connected with not_found, and creates no chat', async () => {
     const state = ipcRig()
@@ -320,7 +424,8 @@ describe('chat IPC behind the sender guard', () => {
       chats: {} as ChatRecords,
       terminals: {} as TerminalSessions,
       runs: {} as OrchestratorRuns,
-      transfers: {} as TransferReads
+      transfers: {} as TransferReads,
+      kanban: {} as KanbanCards
     })
     registerChatIpc(guardIpc({ handle: (channel, listener) => void listeners.set(channel, listener) }, { appUrl: 'http://localhost:5173' }), handlers)
     const stranger = { senderFrame: { url: 'https://example.com/', parent: null, detached: false, isDestroyed: () => false } } as unknown as IpcMainInvokeEvent

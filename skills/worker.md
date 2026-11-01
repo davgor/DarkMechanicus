@@ -10,6 +10,7 @@ You carry out one ticket. Your input is one execution packet, either returned by
 - Never edit the plan or other tickets, never change statuses, and never accept or reject work, including your own.
 - The claim token is a secret. Use it only in the reporting tools. Never write it into files, commits, logs, or output.
 - Late writes from an expired or superseded claim are rejected. Stop on `expired_claim` or `stale_claim`, tell the orchestrator, and do not retry the write.
+- An isolated ticket, meaning one coherent change with no prerequisites and nothing depending on it that one worker can finish in one attempt, goes on the folder's Kanban board with `create_kanban_card`, not into a new epic. Work that needs two or more tickets, ordering or sprints stays an epic. Agents create and edit cards; only a person presses Play, approves or kicks back. A discovery from your ticket still goes in your report, not on the board.
 
 ## Read the packet
 
@@ -64,6 +65,10 @@ Call `submit_attempt` (or hand the same content to the orchestrator):
 - `evidence`: `checks` as above, `criteria` with one entry per acceptance criterion (`criterionId`, `met`, and a `note` saying where it is shown), and `notes` (limits, risks, and your discoveries, written as described under Discoveries).
 
 Report unmet criteria as `met: false` with the reason. Do not submit unfinished work as finished.
+
+### Kanban card packets
+
+A card packet (from `claim_kanban_card`) carries a card instead of a ticket: its title, body, acceptance criteria, the checked-out branch, and every earlier kick-back comment, which you address in full. There is no sprint, epic or predecessors. Work and commit on the checked-out branch, not on a branch of your own. Heartbeat with `heartbeat_kanban_card` (its `progressNote`, at most 280 characters, no secrets) every `heartbeatIntervalSeconds` until the card is submitted. Report back to the orchestrator with the same `outputs` and `evidence`; it reviews and submits the card with `submit_kanban_card` or fails it with `fail_kanban_card`, unless it tells you otherwise.
 
 ## Blockers
 

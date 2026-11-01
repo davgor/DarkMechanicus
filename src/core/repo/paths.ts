@@ -27,6 +27,8 @@ export function ownedPaths(layout: RepoLayout) {
   const snapshotsDir = (epicId: string): string => join(epicDir(epicId), 'snapshots')
   const runDir = (runId: string): string => join(layout.historyDir, checkedId(runId, 'run'))
   const commentsDir = (epicId: string): string => join(epicDir(epicId), 'comments')
+  const kanbanCardDir = (cardId: string): string => join(layout.kanbanDir, checkedId(cardId, 'kanbanCard'))
+  const kanbanEventsDir = (cardId: string): string => join(kanbanCardDir(cardId), 'events')
   return {
     epicDir,
     snapshotsDir,
@@ -40,6 +42,11 @@ export function ownedPaths(layout: RepoLayout) {
     commentsDir,
     commentFile: (epicId: string, commentId: string): string =>
       join(commentsDir(epicId), `${checkedId(commentId, 'comment')}.json`),
+    kanbanCardDir,
+    kanbanCardFile: (cardId: string): string => join(kanbanCardDir(cardId), 'card.json'),
+    kanbanEventsDir,
+    kanbanEventFile: (cardId: string, eventId: string): string =>
+      join(kanbanEventsDir(cardId), `${checkedId(eventId, 'kanbanEvent')}.json`),
     /** Machine-local (under `local/`, never committed): what this machine's latest export of the epic was about to write. */
     exportIntentFile: (epicId: string): string => join(layout.localDir, 'exports', `${checkedId(epicId, 'epic')}.json`)
   }

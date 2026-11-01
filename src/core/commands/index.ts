@@ -5,6 +5,7 @@ import { checkpointCommands } from './checkpoints'
 import { commentCommands } from './comments'
 import { deletionCommands } from './deletion'
 import { executionCommands } from './execution'
+import { kanbanCommands } from './kanban'
 import { profileCommands } from './profiles'
 import { repositoryCommands } from './repository'
 import { transferCommands } from './transfers'
@@ -19,6 +20,7 @@ export const COMMANDS: CommandTable = {
   ...executionCommands,
   ...checkpointCommands,
   ...commentCommands,
+  ...kanbanCommands,
   ...activityCommands,
   ...deletionCommands,
   ...transferCommands

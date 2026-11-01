@@ -34,6 +34,12 @@ export const DOMAIN_ERROR_CODES = [
   'import_rejected',
   'unsafe_path',
   'save_pending',
+  /** The entity is not in a state that allows the change, such as editing a Kanban card that has left Backlog. */
+  'invalid_state',
+  /** A Kanban card was claimed without a pending Play: only a person starts a card, by pressing Play. */
+  'play_required',
+  /** A report on a Kanban card attempt that another computer claimed; only that computer reports on it. */
+  'card_not_owned',
   'internal'
 ] as const
 

@@ -155,6 +155,7 @@ describe('repository-shaped commands in a database-only project', () => {
       unchanged: [],
       conflicts: [],
       profileConflicts: [],
+      kanbanConflicts: [],
       rejected: [],
       branchChanged: false,
       pausedRuns: []

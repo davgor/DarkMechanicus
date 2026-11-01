@@ -109,7 +109,7 @@ export interface AttemptCard {
   canAbandon: boolean
 }
 
-interface EvidenceView {
+export interface EvidenceView {
   source: string
   checks: { name: string; status: CheckStatus; detail: string; icon: string }[]
   criteria: { text: string; met: boolean; note: string }[]
@@ -131,7 +131,7 @@ function latestWithEvidence(attempts: AttemptView[]): AttemptView | null {
   return newestFirst(attempts).find((item) => item.evidence !== null) ?? null
 }
 
-export function criteriaChecklist(ticket: TicketContent, attempts: AttemptView[]): { heading: string; items: CriterionItem[] } {
+export function criteriaChecklist(ticket: Pick<TicketContent, 'acceptanceCriteria'>, attempts: AttemptView[]): { heading: string; items: CriterionItem[] } {
   const results = new Map((latestWithEvidence(attempts)?.evidence?.criteria ?? []).map((item) => [item.criterionId, item]))
   const items = ticket.acceptanceCriteria.map((criterion) => ({
     id: criterion.id,
@@ -299,7 +299,7 @@ export function attemptCards(attempts: AttemptView[], now: number): AttemptCard[
   return newestFirst(attempts).map((item) => attemptCard(item, now))
 }
 
-export function evidenceView(ticket: TicketContent, attempts: AttemptView[]): EvidenceView | null {
+export function evidenceView(ticket: Pick<TicketContent, 'acceptanceCriteria'>, attempts: AttemptView[]): EvidenceView | null {
   const source = latestWithEvidence(attempts)
   const evidence = source?.evidence
   if (!source || !evidence) {

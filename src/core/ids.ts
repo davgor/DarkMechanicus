@@ -21,7 +21,10 @@ export const ID_PREFIXES = {
   hostCatalog: 'hc',
   comment: 'cm',
   rowCheck: 'rk',
-  grant: 'gr'
+  grant: 'gr',
+  kanbanCard: 'kc',
+  kanbanAttempt: 'ka',
+  kanbanEvent: 'ke'
 } as const
 
 export type IdKind = keyof typeof ID_PREFIXES

@@ -15,6 +15,8 @@ export function idleChats(): ChatsApi {
     create: refused,
     startOrchestrator: refused,
     startTransferChat: refused,
+    startKanbanCard: refused,
+    kickBackKanbanCard: refused,
     findTransferChat: () => Promise.resolve({ ok: true, data: null }),
     transferPrompt: refused,
     read: refused,

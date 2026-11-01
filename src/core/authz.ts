@@ -44,6 +44,11 @@ export const CAPABILITIES = [
   'checkpoint.approve',
   'checkpoint.advance',
   'comment.write',
+  'kanban.write',
+  'kanban.play',
+  'kanban.claim',
+  'kanban.report',
+  'kanban.review',
   'grant.issue',
   'grant.revoke'
 ] as const
@@ -66,7 +71,10 @@ export const HUMAN_ONLY_CAPABILITIES: readonly Capability[] = [
   // Sending a plan out to Linear is the person's decision; an agent only carries out a queued transfer.
   'transfer.queue',
   // Settling an epic records conflict drops one side's changes: which survive is the person's call.
-  'repo.resolve_conflict'
+  'repo.resolve_conflict',
+  // Starting a Kanban card, and approving or kicking back its result: an agent never grades or launches its own work.
+  'kanban.play',
+  'kanban.review'
 ]
 
 /** What a planner and an orchestrator both hold. */
@@ -78,6 +86,8 @@ const PLANNER_SHARED: Capability[] = [
   'epic.create',
   'draft.edit',
   'comment.write',
+  // Adding or editing a Kanban card; only a person may start, approve or kick one back.
+  'kanban.write',
   'profile.write',
   // Re-detecting a folder's repositories only records what is on disk, so both planning roles may do it.
   'project.repositories'
@@ -114,28 +124,34 @@ const ORCHESTRATOR: Capability[] = [
   'attempt.reconcile',
   'attempt.carry_forward',
   'report.submit',
-  'checkpoint.advance'
+  'checkpoint.advance',
+  'kanban.claim',
+  'kanban.report'
 ]
 
-const DESKTOP: Capability[] = CAPABILITIES.filter(
-  (capability) =>
-    capability !== 'attempt.claim' &&
-    capability !== 'attempt.heartbeat' &&
-    capability !== 'attempt.submit' &&
-    capability !== 'attempt.fail' &&
-    capability !== 'attempt.carry_forward' &&
-    capability !== 'report.submit' &&
-    capability !== 'run.start' &&
-    capability !== 'run.row_check' &&
-    capability !== 'host.register'
-)
+/** What the desktop never holds: claiming and reporting on work belong to the agents that execute it. */
+const AGENT_ONLY: readonly Capability[] = [
+  'attempt.claim',
+  'attempt.heartbeat',
+  'attempt.submit',
+  'attempt.fail',
+  'attempt.carry_forward',
+  'report.submit',
+  'run.start',
+  'run.row_check',
+  'host.register',
+  'kanban.claim',
+  'kanban.report'
+]
+
+const DESKTOP: Capability[] = CAPABILITIES.filter((capability) => !AGENT_ONLY.includes(capability))
 
 const ROLE_CAPABILITIES: Record<SessionRole, Capability[]> = {
   desktop: DESKTOP,
   reader: ['read'],
   planner: PLANNER,
   orchestrator: ORCHESTRATOR,
-  worker: ['read', 'attempt.heartbeat', 'attempt.submit', 'attempt.fail', 'comment.write'],
+  worker: ['read', 'attempt.heartbeat', 'attempt.submit', 'attempt.fail', 'comment.write', 'kanban.report'],
   reviewer: ['read', 'attempt.review', 'comment.write']
 }
 

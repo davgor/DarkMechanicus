@@ -1,0 +1,7 @@
+# ps before quit (processes of the scratch app: the worktree's Electron, its helpers, and agent processes it started)
+74987 44609 /bin/zsh -l -c DISABLE_AUTO_UPDATE=1 DARKMECHANICUS_HOME=/private/tmp/dm-kanban/acceptance/fx/dmhome ~/Documents/GitHub/DarkMechanicus-worktrees/kanban-sprint-1/node_modules/electron/dist/Electron.app/Content
+75881 74987 ~/Documents/GitHub/DarkMechanicus-worktrees/kanban-sprint-1/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron --inspect=9461 ~/Documents/GitHub/DarkMechanicus-worktrees/kanban-sprint-1 --user-da
+75977 75881 ~/Documents/GitHub/DarkMechanicus-worktrees/kanban-sprint-1/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper.app/Contents/MacOS/Electron Helper --type=gpu-process --user-data-dir=/p
+75978 75881 ~/Documents/GitHub/DarkMechanicus-worktrees/kanban-sprint-1/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper.app/Contents/MacOS/Electron Helper --type=utility --utility-sub-type=net
+75983 75881 ~/Documents/GitHub/DarkMechanicus-worktrees/kanban-sprint-1/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper (Renderer).app/Contents/MacOS/Electron Helper (Renderer) --type=renderer
+82564 75881 ~/.local/share/claude/versions/2.1.316 --output-format stream-json --verbose --input-format stream-json --model sonnet --permission-prompt-tool stdio --setting-sources=user,project,local --permission-mode def

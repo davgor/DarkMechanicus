@@ -1,18 +1,22 @@
 import { describe, expect, it } from 'vitest'
 import { createIdGenerator } from './ids'
-import { CLAIM_TOKEN_MASK, maskClaimTokens, maskClaimTokensDeep } from './claimTokenMask'
+import { CLAIM_TOKEN_MASK, maskClaimTokens, maskClaimTokensDeep, maskWholeClaimTokens } from './claimTokenMask'
 
-/** A token built by the real id generator, so it has exactly the shape attempts.ts hands out; another seed, another token. */
-function realShapedToken(seed = 0): { token: string; attemptId: string; secret: string } {
+/**
+ * A token built by the real id generator, so it has exactly the shape a claim hands out (a plan attempt's, or a Kanban
+ * card attempt's); another seed, another token.
+ */
+function realShapedToken(seed = 0, kind: 'attempt' | 'kanbanAttempt' = 'attempt'): { token: string; attemptId: string; secret: string } {
   const random = (size: number): Buffer => Buffer.from(Array.from({ length: size }, (_, index) => (index * 37 + 11 + seed * 53) % 256))
   const ids = createIdGenerator(() => 1_700_000_000_000 + seed * 86_400_000, random)
-  const attemptId = ids.next('attempt')
+  const attemptId = ids.next(kind)
   const secret = ids.secret()
   return { token: `${attemptId}.${secret}`, attemptId, secret }
 }
 
 const { token, attemptId, secret } = realShapedToken()
 const other = realShapedToken(1)
+const card = realShapedToken(2, 'kanbanAttempt')
 
 describe('maskClaimTokens', () => {
   it('uses a token shaped like the one attempts.ts issues', () => {
@@ -153,5 +157,22 @@ describe('maskClaimTokensDeep', () => {
     const bare = Object.assign(Object.create(null) as Record<string, unknown>, { note: `${token}${other.token}`, cut: [`${attemptId}.${secret.slice(0, 4)}`] })
 
     expect(maskClaimTokensDeep(bare)).toEqual({ note: `${CLAIM_TOKEN_MASK}${CLAIM_TOKEN_MASK}`, cut: [CLAIM_TOKEN_MASK] })
+  })
+})
+
+describe('Kanban card claim tokens', () => {
+  it('uses a token shaped like the one a Kanban claim issues', () => {
+    expect(card.token).toMatch(/^ka_[0-9a-hjkmnp-tv-z]{26}[.][A-Za-z0-9_-]{32}$/)
+  })
+
+  it('masks a card token whole, cut short at the end of a text, and glued to a plan token', () => {
+    expect(maskClaimTokens(`claim ${card.token} now`)).toBe(`claim ${CLAIM_TOKEN_MASK} now`)
+    expect(maskClaimTokens(`cut ${card.attemptId}.${card.secret.slice(0, 5)}`)).toBe(`cut ${CLAIM_TOKEN_MASK}`)
+    expect(maskClaimTokens(`${token}${card.token}`)).toBe(`${CLAIM_TOKEN_MASK}${CLAIM_TOKEN_MASK}`)
+  })
+
+  it('masks only whole card tokens in text stored as given, keeping a card attempt id in a path', () => {
+    const text = `see ${card.token}; docs/${card.attemptId}.json`
+    expect(maskWholeClaimTokens(text)).toBe(`see ${CLAIM_TOKEN_MASK}; docs/${card.attemptId}.json`)
   })
 })

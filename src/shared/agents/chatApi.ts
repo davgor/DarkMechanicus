@@ -5,6 +5,7 @@
  * arguments are decided in the main process. Each chat runs in its terminal (`terminalApi.ts`).
  */
 import type { AgentId, CommandResult } from '../desktop/api'
+import type { KanbanCardView } from '../domain/kanban'
 import type { RunView } from '../domain/views'
 import type { ChatItem, ChatRecord, ChatRole } from './chat'
 
@@ -63,6 +64,44 @@ export interface StartTransferChatResult {
   problem: string | null
 }
 
+/** Plays a Kanban card and starts a connected agent as its orchestrator; the role, Allow save, the chat title and the kickoff are decided in main. */
+export interface StartKanbanCardRequest {
+  folder: string
+  /** A card id (`kc_…`). */
+  cardId: string
+  agent: AgentId
+  /** Null (or left out) lets the agent use its default model. */
+  model?: string | null
+}
+
+/** What pressing Play left behind. The play is marked either way; the chat exists only when its agent was started. */
+export interface StartKanbanCardResult {
+  /** The card as Play left it (`playPending` true). */
+  card: KanbanCardView
+  /** The card's orchestrator chat, whose terminal was started with the card kickoff; null when no agent is carrying the card. */
+  chat: ChatRecord | null
+  /** Why `chat` is null (or what went wrong with a chat that was kept); pressing Play again starts a new chat. Null when it started. */
+  problem: string | null
+}
+
+/** Kicks a card in Ready for review back with the person's comment. */
+export interface KickBackKanbanCardRequest {
+  folder: string
+  /** A card id (`kc_…`). */
+  cardId: string
+  /** Markdown, 1 to 20,000 characters and not blank. */
+  comment: string
+}
+
+/** What a kick-back left behind: the card is back In progress with a pending play either way. */
+export interface KickBackKanbanCardResult {
+  card: KanbanCardView
+  /** The card's newest chat, whose terminal the comment was pasted into; null when the card has no chat (press Play to start one). */
+  chatId: string | null
+  /** Why the comment could not be handed to that chat's terminal; null once it was (it is pasted when the CLI's input is live), and when there is no chat. */
+  problem: string | null
+}
+
 /** Names the epic of a tracked folder whose Linear transfer is asked about. */
 export interface TransferChatRequest {
   folder: string
@@ -114,6 +153,18 @@ export interface ChatsApi {
    * authorized the transfer (queued) or it is in progress. A failure once the chat is asked for is reported in the result.
    */
   startTransferChat(request: StartTransferChatRequest): Promise<CommandResult<StartTransferChatResult>>
+  /**
+   * Plays the Kanban card, creates an orchestrator chat for it with Allow save off, records the card's id on
+   * the chat and starts its terminal with the card kickoff. A card that cannot be played is an error and nothing
+   * was created; a failure after the play is reported in the result (the play stays pending, so Play again starts
+   * a new chat).
+   */
+  startKanbanCard(request: StartKanbanCardRequest): Promise<CommandResult<StartKanbanCardResult>>
+  /**
+   * Kicks the card back to In progress with the comment, then pastes the comment into the terminal of the card's
+   * newest chat, starting it again (a resume, with no kickoff) when it is stopped, so its agent claims the card again.
+   */
+  kickBackKanbanCard(request: KickBackKanbanCardRequest): Promise<CommandResult<KickBackKanbanCardResult>>
   /** The most recently updated chat started for the epic's transfer, across app restarts; null when there is none. */
   findTransferChat(request: TransferChatRequest): Promise<CommandResult<ChatRecord | null>>
   /** The transfer kickoff, the same first input a transfer chat's terminal gets, for an agent the person starts elsewhere. */

@@ -58,7 +58,8 @@ export class FakeDm implements DmApi {
     searchHistory: [],
     listBranchEpics: [],
     listProfiles: [],
-    previewBoardImport: { open: [], done: [], skipped: [] }
+    previewBoardImport: { open: [], done: [], skipped: [] },
+    listKanbanCards: { lanes: { backlog: [], in_progress: [], ready_for_review: [], done: [] }, doneTotal: 0, doneNextCursor: null }
   }
   handlers: Partial<Record<CommandName, (input: unknown, folder: string) => unknown>> = {}
   failures: Partial<Record<CommandName, DomainErrorShape>> = {}

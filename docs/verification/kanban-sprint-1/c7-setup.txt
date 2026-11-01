@@ -1,0 +1,40 @@
+# c7 setup: DM-2 put In progress (desktop Play, orchestrator claim with a 24 h lease and a progress note) so each lane holds a card
+# Throwaway scripts under /tmp/dm-kanban/acceptance/scripts (not in the repository), run with `node --import tsx` from the integration worktree against its src (openWorkspace) or with its built out/main. Scratch fixtures under /private/tmp/dm-kanban/acceptance/fx; claim tokens redacted.
+
+### board after (key by lane, open attempt)
+{
+  "backlog": [
+    {
+      "key": "DM-1",
+      "openAttempt": null,
+      "playPending": false
+    }
+  ],
+  "in_progress": [
+    {
+      "key": "DM-2",
+      "openAttempt": {
+        "number": 1,
+        "state": "running"
+      },
+      "playPending": false
+    }
+  ],
+  "ready_for_review": [
+    {
+      "key": "DM-4",
+      "openAttempt": {
+        "number": 1,
+        "state": "submitted"
+      },
+      "playPending": false
+    }
+  ],
+  "done": [
+    {
+      "key": "DM-3",
+      "openAttempt": null,
+      "playPending": false
+    }
+  ]
+}

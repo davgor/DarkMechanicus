@@ -22,6 +22,7 @@ const PLANNER_SHARED: Capability[] = [
   'epic.create',
   'draft.edit',
   'comment.write',
+  'kanban.write',
   'profile.write',
   'project.repositories'
 ]
@@ -50,10 +51,12 @@ const ORCHESTRATOR: Capability[] = [
   'attempt.reconcile',
   'attempt.carry_forward',
   'report.submit',
-  'checkpoint.advance'
+  'checkpoint.advance',
+  'kanban.claim',
+  'kanban.report'
 ]
 
-const WORKER: Capability[] = ['read', 'attempt.heartbeat', 'attempt.submit', 'attempt.fail', 'comment.write']
+const WORKER: Capability[] = ['read', 'attempt.heartbeat', 'attempt.submit', 'attempt.fail', 'comment.write', 'kanban.report']
 const REVIEWER: Capability[] = ['read', 'attempt.review', 'comment.write']
 
 const DESKTOP: Capability[] = [
@@ -91,7 +94,10 @@ const DESKTOP: Capability[] = [
   'attempt.reconcile',
   'checkpoint.approve',
   'checkpoint.advance',
-  'comment.write'
+  'comment.write',
+  'kanban.write',
+  'kanban.play',
+  'kanban.review'
 ]
 
 /** Capabilities the desktop never holds: they belong to the agents that execute work. */
@@ -104,7 +110,9 @@ const AGENT_ONLY = [
   'report.submit',
   'run.start',
   'run.row_check',
-  'host.register'
+  'host.register',
+  'kanban.claim',
+  'kanban.report'
 ] as const
 
 const READER: Capability[] = ['read']
@@ -124,12 +132,12 @@ function sessionWith(role: SessionRole, capabilities: Capability[]): SessionCont
 
 describe('capability vocabulary', () => {
   it('lists every capability exactly once', () => {
-    expect(CAPABILITIES).toHaveLength(44)
-    expect(new Set(CAPABILITIES).size).toBe(44)
+    expect(CAPABILITIES).toHaveLength(49)
+    expect(new Set(CAPABILITIES).size).toBe(49)
     expect(sorted(CAPABILITIES)).toEqual(sorted([...DESKTOP, ...AGENT_ONLY]))
   })
 
-  it('marks approval, auto-continue, retry grants, run queueing, deletion, granting roles, the sign-in pause and resume, transfer queueing and epic records conflict choices as human-only', () => {
+  it('marks approval, auto-continue, retry grants, run queueing, deletion, granting roles, the sign-in pause and resume, transfer queueing, epic records conflict choices and Kanban play and review as human-only', () => {
     expect(sorted(HUMAN_ONLY_CAPABILITIES)).toEqual(
       sorted([
         'checkpoint.approve',
@@ -143,7 +151,9 @@ describe('capability vocabulary', () => {
         'epic.delete',
         'ticket.delete',
         'transfer.queue',
-        'repo.resolve_conflict'
+        'repo.resolve_conflict',
+        'kanban.play',
+        'kanban.review'
       ])
     )
   })
@@ -169,6 +179,25 @@ describe('capabilitiesForRole exact sets', () => {
 
   it.each(WRITING_ROLES)('lets the %s role write comments', (role) => {
     expect(capabilitiesForRole(role).filter((capability) => capability === 'comment.write')).toEqual(['comment.write'])
+  })
+
+  it('lets only the desktop, planner and orchestrator write Kanban cards', () => {
+    expect(ALL_ROLES.filter((role) => capabilitiesForRole(role).includes('kanban.write'))).toEqual(['desktop', 'planner', 'orchestrator'])
+  })
+
+  it('lets only the desktop press Play on, approve or kick back a Kanban card, as human-only capabilities', () => {
+    for (const capability of ['kanban.play', 'kanban.review'] as const) {
+      expect(HUMAN_ONLY_CAPABILITIES).toContain(capability)
+      expect(ALL_ROLES.filter((role) => capabilitiesForRole(role, { allowSave: true }).includes(capability))).toEqual(['desktop'])
+    }
+  })
+
+  it('lets only the orchestrator claim a Kanban card, and the orchestrator and the worker report on one', () => {
+    expect(ALL_ROLES.filter((role) => capabilitiesForRole(role, { allowSave: true }).includes('kanban.claim'))).toEqual(['orchestrator'])
+    expect(ALL_ROLES.filter((role) => capabilitiesForRole(role, { allowSave: true }).includes('kanban.report'))).toEqual([
+      'orchestrator',
+      'worker'
+    ])
   })
 
   it('lets the orchestrator do everything the planner can, except what is reserved to the planner', () => {

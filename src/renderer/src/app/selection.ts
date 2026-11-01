@@ -13,6 +13,8 @@ export interface Selection {
   agentPane?: AgentPane
   /** One of the folder's chats, shown in place of its home; absent means no chat. Only set with `epicId` null. */
   chatId?: string
+  /** The folder's Kanban board, shown in place of its home; absent means no board. Only set with `epicId` null and no chat. */
+  kanban?: true
 }
 
 export const EMPTY_SELECTION: Selection = { folderPath: null, epicId: null }
@@ -34,12 +36,13 @@ export function isSelection(value: unknown): value is Selection {
   if (typeof value !== 'object' || value === null) {
     return false
   }
-  const candidate = value as { folderPath?: unknown; epicId?: unknown; agentPane?: unknown; chatId?: unknown }
+  const candidate = value as { folderPath?: unknown; epicId?: unknown; agentPane?: unknown; chatId?: unknown; kanban?: unknown }
   return (
     isNullableString(candidate.folderPath) &&
     isNullableString(candidate.epicId) &&
     (candidate.agentPane === undefined || isAgentPane(candidate.agentPane)) &&
-    (candidate.chatId === undefined || typeof candidate.chatId === 'string')
+    (candidate.chatId === undefined || typeof candidate.chatId === 'string') &&
+    (candidate.kanban === undefined || candidate.kanban === true)
   )
 }
 
@@ -68,10 +71,12 @@ function resolveFolder(
   }
   const canShowEpics = folder.initialized && folder.available
   const chatId = canShowEpics ? keptChatId(stored, chats) : undefined
+  const kanban = canShowEpics && stored.kanban === true
   return {
     folderPath: folder.path,
     epicId: canShowEpics ? stored.epicId : null,
-    ...(chatId === undefined ? {} : { chatId })
+    ...(chatId === undefined ? {} : { chatId }),
+    ...(kanban ? { kanban: true as const } : {})
   }
 }
 

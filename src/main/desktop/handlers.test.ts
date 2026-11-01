@@ -27,7 +27,11 @@ const AGENT_ONLY_COMMANDS = [
   'submitSprintReport',
   'startTransfer',
   'recordTransferItem',
-  'submitTransferReadback'
+  'submitTransferReadback',
+  'claimKanbanCard',
+  'heartbeatKanbanCard',
+  'submitKanbanCard',
+  'failKanbanCard'
 ]
 
 const NOT_TRACKED = 'That folder is not tracked by Dark Mechanicus.'
@@ -377,6 +381,26 @@ describe('timeline commands', () => {
       ok: true,
       data: { name: 'getRunTimeline', input: run, repoRoot: '/repos/a' }
     })
+  })
+})
+
+describe('kanban card commands', () => {
+  it('lets the person create, edit, list, read, play, approve and kick back Kanban cards, with each input passed through untouched', async () => {
+    const world = createWorld({ tracked: ['/repos/a'] })
+    const handlers = createDesktopHandlers(world.deps)
+    const calls = [
+      { name: 'createKanbanCard', input: { title: 'Card', priority: 'high' } },
+      { name: 'updateKanbanCard', input: { cardId: 'kc_x', expectedRevision: 3, body: 'Edited' } },
+      { name: 'listKanbanCards', input: { doneLimit: 20, doneCursor: 'cursor-1' } },
+      { name: 'getKanbanCard', input: { cardId: 'kc_x' } },
+      { name: 'playKanbanCard', input: { cardId: 'kc_x' } },
+      { name: 'approveKanbanCard', input: { cardId: 'kc_x' } },
+      { name: 'kickBackKanbanCard', input: { cardId: 'kc_x', comment: 'Cover the empty case.' } }
+    ]
+
+    const results = await Promise.all(calls.map((call) => handlers.command('/repos/a', call.name, call.input)))
+
+    expect(results).toEqual(calls.map((call) => ({ ok: true, data: { ...call, repoRoot: '/repos/a' } })))
   })
 })
 

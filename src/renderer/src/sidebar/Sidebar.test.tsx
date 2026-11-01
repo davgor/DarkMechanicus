@@ -60,6 +60,8 @@ function renderSidebar(
       onAgentStatus={() => undefined}
       onSelectFolder={(path) => calls.folders.push(path)}
       onSelectEpic={(path, id) => calls.epics.push(`${path}:${id}`)}
+      kanbanCounts={{}}
+      onSelectKanban={() => undefined}
       onRequestUntrack={(folder) => calls.untrackRequests.push(folder.path)}
       chats={{
         lists: chatLists,
@@ -207,6 +209,8 @@ describe('Sidebar agents', () => {
         onAgentStatus={() => undefined}
         onSelectFolder={() => undefined}
         onSelectEpic={() => undefined}
+        kanbanCounts={{}}
+        onSelectKanban={() => undefined}
         onRequestUntrack={() => undefined}
         chats={NO_CHATS}
       />

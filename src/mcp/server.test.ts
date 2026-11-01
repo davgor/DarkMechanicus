@@ -84,7 +84,15 @@ const TOOLS: Record<string, { method: CommandName; kind: Kind }> = {
   get_transfer: { method: 'getTransfer', kind: 'read' },
   start_transfer: { method: 'startTransfer', kind: 'idempotent' },
   record_transfer_item: { method: 'recordTransferItem', kind: 'idempotent' },
-  submit_transfer_readback: { method: 'submitTransferReadback', kind: 'write' }
+  submit_transfer_readback: { method: 'submitTransferReadback', kind: 'write' },
+  create_kanban_card: { method: 'createKanbanCard', kind: 'write' },
+  update_kanban_card: { method: 'updateKanbanCard', kind: 'write' },
+  list_kanban_cards: { method: 'listKanbanCards', kind: 'read' },
+  get_kanban_card: { method: 'getKanbanCard', kind: 'read' },
+  claim_kanban_card: { method: 'claimKanbanCard', kind: 'write' },
+  heartbeat_kanban_card: { method: 'heartbeatKanbanCard', kind: 'idempotent' },
+  submit_kanban_card: { method: 'submitKanbanCard', kind: 'write' },
+  fail_kanban_card: { method: 'failKanbanCard', kind: 'write' }
 }
 
 /** Tools only a planner (or the desktop) holds the capability for: an orchestrator session does not list them. */
@@ -111,7 +119,11 @@ const HUMAN_ONLY: CommandName[] = [
   'queueTransfer',
   'cancelTransfer',
   // Which side of an epic records conflict survives drops the other side's changes: the person's call.
-  'resolveEpicConflict'
+  'resolveEpicConflict',
+  // Only a person starts a Kanban card, and only a person approves or kicks one back.
+  'playKanbanCard',
+  'approveKanbanCard',
+  'kickBackKanbanCard'
 ]
 
 /** Read models for the desktop's activity panels: the app polls them, and no MCP tool adapts them. */
@@ -146,7 +158,7 @@ describe('tool inventory', () => {
     await withRig(build, createStubApi(), async (rig) => {
       const { tools } = await rig.client.listTools()
       expect(tools.map((tool) => tool.name).sort()).toEqual(Object.keys(ORCHESTRATOR_TOOLS).sort())
-      expect(tools).toHaveLength(64)
+      expect(tools).toHaveLength(72)
     })
   })
 
@@ -165,7 +177,9 @@ describe('tool inventory', () => {
 
   it('adapts every command an agent may use, and none of the human-only ones or the desktop-only reads', () => {
     const adapted = new Set(Object.values(TOOLS).map((tool) => tool.method))
-    const agentCommands = COMMAND_NAMES.filter((name) => !HUMAN_ONLY.includes(name) && !DESKTOP_READS.includes(name))
+    const agentCommands = COMMAND_NAMES.filter(
+      (name) => !HUMAN_ONLY.includes(name) && !DESKTOP_READS.includes(name)
+    )
     expect([...adapted].sort()).toEqual([...agentCommands].sort())
     expect(COMMAND_NAMES).toHaveLength(agentCommands.length + HUMAN_ONLY.length + DESKTOP_READS.length)
   })

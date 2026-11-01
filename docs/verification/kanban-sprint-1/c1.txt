@@ -1,0 +1,84 @@
+# c1 setup: the pre-Kanban build (coordinating checkout b8b100d, out/main/mcp.js, schema 12) initialized fx/v12-orig in repo mode and created an epic
+
+### v12 build get_capabilities (schemaVersion)
+{
+  "schemaVersion": 12
+}
+
+### initialize_repository (v12 build, repo mode)
+{
+  "ok": true,
+  "data": {
+    "projectId": "pj_01m6ay9fr3tzn7pqw2080a2fff",
+    "name": "v12-fixture",
+    "keyPrefix": "OLD",
+    "createdFiles": [
+      ".darkmechanicus/.gitignore",
+      ".darkmechanicus/project.json",
+      ".darkmechanicus/local/machine.json"
+    ],
+    "alreadyInitialized": false,
+    "storage": {
+      "mode": "repo",
+      "projectDir": "/private/tmp/dm-kanban/acceptance/fx/v12-orig/.darkmechanicus"
+    }
+  }
+}
+
+### create_epic
+{
+  "epicId": "ep_01m6ay9frsv0v70g8fmk2qkac8"
+}
+
+### v12 build serves a kanban tool
+false
+
+
+# c1: a copy of a schema-12 database (made with the pre-Kanban build of the coordinating checkout, b8b100d), opened by the built app (kanban-sprint-1)
+
+$ sqlite3 fx/v12-orig/.darkmechanicus/local/state.sqlite 'PRAGMA user_version'
+12
+$ sqlite3 fx/v12-orig/.darkmechanicus/local/state.sqlite .tables
+approvals             meta                  search_index_data   
+attempts              outbox                search_index_docsize
+checkpoints           plan_revisions        search_index_idx    
+comments              profiles              sessions            
+drafts                retry_grants          sprint_reports      
+epics                 row_checks            sync_state          
+events                runs                  ticket_status       
+grants                search_index          transfer_items      
+host_catalogs         search_index_config   transfers           
+idempotency           search_index_content
+$ sqlite3 fx/v12-orig/.darkmechanicus/local/state.sqlite 'SELECT kind, count(*) FROM outbox GROUP BY kind; SELECT kind, count(*) FROM sync_state GROUP BY kind'
+$ cp -R fx/v12-orig fx/v12-copy
+$ sqlite3 fx/v12-copy/.darkmechanicus/local/state.sqlite 'PRAGMA user_version'
+12
+
+# The built app (Electron, --user-data-dir=<scratch>/userdata, DARKMECHANICUS_HOME=<scratch>/fx/dmhome) tracked fx/v12-copy through Choose folder (native dialog stubbed to return that path). Its Storage card then read 'Schema v13' (screenshot c1-app-storage-v13.png).
+
+$ sqlite3 fx/v12-copy/.darkmechanicus/local/state.sqlite .tables
+approvals             kanban_cards          search_index_content
+attempts              kanban_events         search_index_data   
+checkpoints           meta                  search_index_docsize
+comments              outbox                search_index_idx    
+drafts                plan_revisions        sessions            
+epics                 profiles              sprint_reports      
+events                retry_grants          sync_state          
+grants                row_checks            ticket_status       
+host_catalogs         runs                  transfer_items      
+idempotency           search_index          transfers           
+kanban_attempts       search_index_config 
+$ sqlite3 fx/v12-copy/.darkmechanicus/local/state.sqlite 'PRAGMA user_version'
+13
+$ sqlite3 fx/v12-copy/.darkmechanicus/local/state.sqlite "SELECT name FROM sqlite_master WHERE type IN ('table','index') AND name LIKE 'kanban%' ORDER BY name"
+kanban_attempts
+kanban_attempts_one_open_per_card
+kanban_cards
+kanban_events
+kanban_events_card
+$ sqlite3 fx/v12-copy/.darkmechanicus/local/state.sqlite 'SELECT id, title FROM epics'
+ep_01m6ay9frsv0v70g8fmk2qkac8|Pre-Kanban epic
+
+# The original was not opened by the new build:
+$ sqlite3 fx/v12-orig/.darkmechanicus/local/state.sqlite 'PRAGMA user_version'
+12

@@ -1,0 +1,335 @@
+# c5: the dm CLI's kanban commands, a planner MCP smoke, and approve_kanban_card under an orchestrator grant
+# Throwaway scripts under /tmp/dm-kanban/acceptance/scripts (not in the repository), run with `node --import tsx` from the integration worktree against its src (openWorkspace) or with its built out/main. Scratch fixtures under /private/tmp/dm-kanban/acceptance/fx; claim tokens redacted.
+
+## 1. node out/main/cli.js --list
+$ node out/main/cli.js --list   (the entries for the kanban commands, verbatim lines; grep -A4 '"command": "[a-z_]*kanban')
+      "command": "approve_kanban_card",
+      "alias": "approveKanbanCard",
+      "capability": "kanban.review",
+      "mutates": true,
+      "beforeInitialize": false
+      "command": "claim_kanban_card",
+      "alias": "claimKanbanCard",
+      "capability": "kanban.claim",
+      "mutates": true,
+      "beforeInitialize": false
+      "command": "create_kanban_card",
+      "alias": "createKanbanCard",
+      "capability": "kanban.write",
+      "mutates": true,
+      "beforeInitialize": false
+      "command": "fail_kanban_card",
+      "alias": "failKanbanCard",
+      "capability": "kanban.report",
+      "mutates": true,
+      "beforeInitialize": false
+      "command": "get_kanban_card",
+      "alias": "getKanbanCard",
+      "capability": "read",
+      "mutates": false,
+      "beforeInitialize": false
+      "command": "heartbeat_kanban_card",
+      "alias": "heartbeatKanbanCard",
+      "capability": "kanban.report",
+      "mutates": true,
+      "beforeInitialize": false
+      "command": "kick_back_kanban_card",
+      "alias": "kickBackKanbanCard",
+      "capability": "kanban.review",
+      "mutates": true,
+      "beforeInitialize": false
+      "command": "list_kanban_cards",
+      "alias": "listKanbanCards",
+      "capability": "read",
+      "mutates": false,
+      "beforeInitialize": false
+      "command": "play_kanban_card",
+      "alias": "playKanbanCard",
+      "capability": "kanban.play",
+      "mutates": true,
+      "beforeInitialize": false
+      "command": "submit_kanban_card",
+      "alias": "submitKanbanCard",
+      "capability": "kanban.report",
+      "mutates": true,
+      "beforeInitialize": false
+      "command": "update_kanban_card",
+      "alias": "updateKanbanCard",
+      "capability": "kanban.write",
+      "mutates": true,
+      "beforeInitialize": false
+
+
+## 2-3. Planner MCP smoke and the dm CLI under an orchestrator grant
+
+### 1. node out/main/cli.js --list: see c5-list.txt (this script's filter expected a bare array; the output is {ok, data: [...]})
+
+### 2. planner MCP session: kanban tools listed
+[
+  "create_kanban_card",
+  "update_kanban_card",
+  "list_kanban_cards",
+  "get_kanban_card"
+]
+
+### 2b. planner MCP create_kanban_card
+{
+  "ok": true,
+  "data": {
+    "id": "kc_01m6ay7dm1y967gx2mzjzhe9dk",
+    "key": "DM-4",
+    "title": "Add a CONTRIBUTING.md",
+    "lane": "backlog",
+    "priority": "normal",
+    "updatedAt": "2026-11-01T06:54:51.010Z",
+    "playPending": false,
+    "openAttempt": null,
+    "kickBackCount": 0,
+    "summary": null,
+    "body": "Explain how to run the checks before opening a pull request.",
+    "acceptanceCriteria": [
+      {
+        "id": "c1",
+        "text": "CONTRIBUTING.md names the check commands"
+      }
+    ],
+    "expectedArtifacts": [],
+    "references": [],
+    "size": null,
+    "createdBy": {
+      "role": "planner",
+      "label": "c5 planner smoke"
+    },
+    "createdAt": "2026-11-01T06:54:51.010Z",
+    "completedAt": null,
+    "revision": 1,
+    "attempts": []
+  }
+}
+
+### 2c. planner MCP claim_kanban_card (not a planner tool)
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"ok\":false,\"error\":{\"code\":\"unauthorized\",\"message\":\"This planner session is not permitted to perform \\\"kanban.claim\\\".\",\"details\":{\"role\":\"planner\",\"capability\":\"kanban.claim\",\"tool\":\"claim_kanban_card\"}}}"
+    }
+  ],
+  "structuredContent": {
+    "ok": false,
+    "error": {
+      "code": "unauthorized",
+      "message": "This planner session is not permitted to perform \"kanban.claim\".",
+      "details": {
+        "role": "planner",
+        "capability": "kanban.claim",
+        "tool": "claim_kanban_card"
+      }
+    }
+  },
+  "isError": true
+}
+
+### 3. desktop issueGrant (token not printed)
+{
+  "id": "gr_01m6ay7dqzz5k4j967nxwgp08f",
+  "role": "orchestrator",
+  "allowSave": false,
+  "label": "DM-377 c5 orchestrator grant",
+  "createdAt": "2026-11-01T06:54:51.135Z",
+  "expiresAt": "2026-11-01T07:24:51.135Z",
+  "revokedAt": null,
+  "lastUsedAt": null,
+  "active": true
+}
+
+### 3b: dm --repo <scratch repo> --token-file <grant> call get_capabilities '{}'  (exit 0)
+{
+  "ok": true,
+  "data": {
+    "server": {
+      "name": "darkmechanicus",
+      "version": "0.0.0"
+    },
+    "apiVersion": 1,
+    "schemaVersion": 13,
+    "skillsVersion": "1.7.0",
+    "role": "orchestrator",
+    "sessionId": "ss_01m6ay7e3p8ew96004g3r2zadw",
+    "capabilities": [
+      "read",
+      "repo.init",
+      "repo.flush",
+      "repo.reconcile",
+      "epic.create",
+      "draft.edit",
+      "comment.write",
+      "kanban.write",
+      "profile.write",
+      "project.repositories",
+      "repo.backup",
+      "epic.status",
+      "epic.branch",
+      "epic.transfer",
+      "ticket.status",
+      "host.register",
+      "run.start",
+      "run.control",
+      "run.takeover",
+      "run.adopt",
+      "run.redraft",
+      "run.row_check",
+      "attempt.claim",
+      "attempt.heartbeat",
+      "attempt.submit",
+      "attempt.review",
+      "attempt.fail",
+      "attempt.reconcile",
+      "attempt.carry_forward",
+      "report.submit",
+      "checkpoint.advance",
+      "kanban.claim",
+      "kanban.report"
+    ],
+    "repoRoot": "/private/tmp/dm-kanban/acceptance/fx/repo",
+    "initialized": true
+  }
+}
+
+### 3c: dm --repo <scratch repo> --token-file <grant> call claim_kanban_card '{"cardId":"kc_01m6ay7dm1y967gx2mzjzhe9dk"}'  (exit 0)
+{
+  "ok": true,
+  "data": {
+    "cardId": "kc_01m6ay7dm1y967gx2mzjzhe9dk",
+    "key": "DM-4",
+    "attemptId": "ka_01m6ay7eeccbytk28jpfgee3e4",
+    "claimToken": "[redacted claim token]",
+    "leaseExpiresAt": "2026-11-01T07:09:51.852Z",
+    "heartbeatIntervalSeconds": 300,
+    "card": {
+      "title": "Add a CONTRIBUTING.md",
+      "body": "Explain how to run the checks before opening a pull request.",
+      "acceptanceCriteria": [
+        {
+          "id": "c1",
+          "text": "CONTRIBUTING.md names the check commands"
+        }
+      ],
+      "expectedArtifacts": [],
+      "references": [],
+      "priority": "normal",
+      "size": null
+    },
+    "branch": "main",
+    "reviewComments": [],
+    "reporting": {
+      "heartbeatTool": "heartbeat_kanban_card",
+      "submitTool": "submit_kanban_card",
+      "failTool": "fail_kanban_card",
+      "instructions": "Work on the checked-out branch main; cards get no branch of their own. Work only on this card and stay within its acceptance criteria. Call heartbeat_kanban_card with the claim token at least every heartbeatIntervalSeconds, or the lease expires. When finished, call submit_kanban_card with outputs (summary, artifacts, commits, changed files, branch) and evidence for each acceptance criterion. If you cannot finish, call fail_kanban_card with the reason. Submitting moves the card to Ready for review; only a person approves it or kicks it back."
+    },
+    "definitionOfDone": []
+  }
+}
+
+### 3d: dm --repo <scratch repo> --token-file <grant> call submit_kanban_card '{"attemptId":"ka_01m6ay7eeccbytk28jpfgee3e4","claimToken":"[redacted claim token]","outputs":{"summary":"Added CONTRIBUTING.md naming npm test and npm run lint.","commits":["3333333333333333333333333333333333333333"],"changedFiles":["CONTRIBUTING.md"]},"evidence":{"checks":[{"name":"lint","status":"passed","detail":"oxlint clean"},{"name":"test","status":"passed","detail":"3 tests passed"}],"criteria":[{"criterionId":"c1","met":true,"note":"CONTRIBUTING.md lines 3-6 name the commands"}],"notes":"Kept the guide short; links to README for setup."}}'  (exit 0)
+{
+  "ok": true,
+  "data": {
+    "id": "ka_01m6ay7eeccbytk28jpfgee3e4",
+    "cardId": "kc_01m6ay7dm1y967gx2mzjzhe9dk",
+    "number": 1,
+    "state": "submitted",
+    "machineId": "mc_01m6ay2nevqz938cnwsypwd6xe",
+    "leaseExpiresAt": null,
+    "heartbeatAt": null,
+    "progressNote": null,
+    "outputs": {
+      "summary": "Added CONTRIBUTING.md naming npm test and npm run lint.",
+      "artifacts": [],
+      "commits": [
+        "3333333333333333333333333333333333333333"
+      ],
+      "changedFiles": [
+        "CONTRIBUTING.md"
+      ],
+      "branch": null
+    },
+    "evidence": {
+      "checks": [
+        {
+          "name": "lint",
+          "status": "passed",
+          "detail": "oxlint clean"
+        },
+        {
+          "name": "test",
+          "status": "passed",
+          "detail": "3 tests passed"
+        }
+      ],
+      "criteria": [
+        {
+          "criterionId": "c1",
+          "met": true,
+          "note": "CONTRIBUTING.md lines 3-6 name the commands"
+        }
+      ],
+      "notes": "Kept the guide short; links to README for setup."
+    },
+    "reviewComment": null,
+    "createdAt": "2026-11-01T06:54:51.852Z",
+    "submittedAt": "2026-11-01T06:54:52.184Z",
+    "decidedAt": null
+  }
+}
+
+### 3e: dm --repo <scratch repo> --token-file <grant> call approve_kanban_card '{"cardId":"kc_01m6ay7dm1y967gx2mzjzhe9dk"}'  (exit 1)
+{
+  "ok": false,
+  "error": {
+    "code": "unauthorized",
+    "message": "This orchestrator session is not permitted to perform \"kanban.review\".",
+    "details": {
+      "role": "orchestrator",
+      "capability": "kanban.review"
+    }
+  }
+}
+
+### 3f: dm --repo <scratch repo> --token-file <grant> call kick_back_kanban_card '{"cardId":"kc_01m6ay7dm1y967gx2mzjzhe9dk","comment":"agents cannot kick back"}'  (exit 1)
+{
+  "ok": false,
+  "error": {
+    "code": "unauthorized",
+    "message": "This orchestrator session is not permitted to perform \"kanban.review\".",
+    "details": {
+      "role": "orchestrator",
+      "capability": "kanban.review"
+    }
+  }
+}
+
+### 3g: dm --repo <scratch repo> --token-file <grant> call play_kanban_card '{"cardId":"kc_01m6ay7dm1y967gx2mzjzhe9dk"}'  (exit 1)
+{
+  "ok": false,
+  "error": {
+    "code": "unauthorized",
+    "message": "This orchestrator session is not permitted to perform \"kanban.play\".",
+    "details": {
+      "role": "orchestrator",
+      "capability": "kanban.play"
+    }
+  }
+}
+
+### 3h. the card afterwards (still Ready for review: the refused calls changed nothing)
+{
+  "key": "DM-4",
+  "lane": "ready_for_review",
+  "attempts": [
+    "submitted"
+  ]
+}
+
+(grant revoked and its token file deleted)

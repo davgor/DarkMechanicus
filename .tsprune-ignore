@@ -1,15 +1,15 @@
 # Baseline ignore for ts-prune (one pattern per line)
 # Generated from tsconfig.node.json + tsconfig.web.json
 # Refresh after export moves/deletes: npm run deadcode:refresh
-# Refreshed 2026-11-01 (131 entries)
+# Refreshed 2026-11-01 (137 entries)
 
 electron.vite.config.ts:37 - default
 src/core/canonical.ts:18 - canonicalJson
 src/core/canonical.ts:23 - prettyJson
 src/core/canonical.ts:27 - sha256Hex
-src/core/claimTokenMask.ts:26 - CLAIM_TOKEN_MASK
-src/core/claimTokenMask.ts:54 - maskClaimTokensDeep
-src/core/claimTokenMask.ts:66 - maskWholeClaimTokens
+src/core/claimTokenMask.ts:31 - CLAIM_TOKEN_MASK
+src/core/claimTokenMask.ts:59 - maskClaimTokensDeep
+src/core/claimTokenMask.ts:71 - maskWholeClaimTokens
 src/core/definitionOfDone.ts:12 - checkNameKey
 src/core/plan/acceptance.ts:35 - acceptanceNodeOf
 src/core/plan/graph.ts:112 - checkEdgeAddition
@@ -42,14 +42,14 @@ src/renderer/src/agents/useTerminal.ts:140 - TerminalModel
 src/renderer/src/epic/__mocks__/transferBackend.ts:15 - TransferSetup
 src/renderer/src/epic/transferActions.ts:19 - TransferActionDeps
 src/renderer/src/epic/transferView.ts:44 - TransferStripView
-src/shared/agents/chat.ts:123 - ErrorProblem
-src/shared/agents/chat.ts:129 - IDLE_STOP_CODE
-src/shared/agents/chat.ts:211 - ApprovalRequestItem
-src/shared/agents/chat.ts:214 - DarkMechanicusCli
+src/shared/agents/chat.ts:125 - ErrorProblem
+src/shared/agents/chat.ts:131 - IDLE_STOP_CODE
+src/shared/agents/chat.ts:213 - ApprovalRequestItem
+src/shared/agents/chat.ts:216 - DarkMechanicusCli
 src/shared/agents/chat.ts:36 - chatIdSchema
-src/shared/agents/chatApi.ts:15 - ChatRequestRef
-src/shared/agents/chatApi.ts:67 - TransferChatRequest
-src/shared/agents/chatApi.ts:84 - BoundThreadsRequest
+src/shared/agents/chatApi.ts:106 - TransferChatRequest
+src/shared/agents/chatApi.ts:123 - BoundThreadsRequest
+src/shared/agents/chatApi.ts:16 - ChatRequestRef
 src/shared/agents/models.ts:14 - ModelOption
 src/shared/agents/models.ts:20 - AgentModels
 src/shared/agents/terminalApi.ts:27 - TERMINAL_COLS
@@ -64,23 +64,27 @@ src/shared/desktop/api.ts:133 - AgentDownloadPhase
 src/shared/desktop/api.ts:155 - AgentAuthState
 src/shared/desktop/api.ts:163 - CommandInput
 src/shared/desktop/api.ts:167 - CommandOutput
-src/shared/desktop/api.ts:353 - DesktopCommandName
-src/shared/desktop/api.ts:355 - DESKTOP_COMMANDS
+src/shared/desktop/api.ts:360 - DesktopCommandName
+src/shared/desktop/api.ts:362 - DESKTOP_COMMANDS
 src/shared/desktop/api.ts:62 - AgentRefusalCode
-src/shared/domain/api.ts:117 - SprintInput
-src/shared/domain/api.ts:160 - ClaimTicketInput
-src/shared/domain/api.ts:181 - IncrementRef
-src/shared/domain/api.ts:187 - HeartbeatAttemptInput
-src/shared/domain/api.ts:195 - SubmitAttemptInput
-src/shared/domain/api.ts:214 - StartRunInput
-src/shared/domain/api.ts:225 - SprintReportInput
-src/shared/domain/api.ts:232 - RecordRowCheckInput
-src/shared/domain/api.ts:241 - AddCommentInput
-src/shared/domain/api.ts:79 - API_VERSION
-src/shared/domain/api.ts:92 - TicketCriterionInput
+src/shared/domain/api.ts:118 - SprintInput
+src/shared/domain/api.ts:161 - ClaimTicketInput
+src/shared/domain/api.ts:182 - IncrementRef
+src/shared/domain/api.ts:188 - HeartbeatAttemptInput
+src/shared/domain/api.ts:196 - SubmitAttemptInput
+src/shared/domain/api.ts:215 - StartRunInput
+src/shared/domain/api.ts:226 - SprintReportInput
+src/shared/domain/api.ts:233 - RecordRowCheckInput
+src/shared/domain/api.ts:242 - AddCommentInput
+src/shared/domain/api.ts:284 - ClaimKanbanCardInput
+src/shared/domain/api.ts:292 - HeartbeatKanbanCardInput
+src/shared/domain/api.ts:300 - SubmitKanbanCardInput
+src/shared/domain/api.ts:308 - FailKanbanCardInput
+src/shared/domain/api.ts:316 - KickBackKanbanCardInput
+src/shared/domain/api.ts:80 - API_VERSION
+src/shared/domain/api.ts:93 - TicketCriterionInput
 src/shared/domain/bundle.ts:117 - REFERENCE_KINDS
 src/shared/domain/bundle.ts:155 - CHECKPOINT_MODES
-src/shared/domain/bundle.ts:16 - TicketCriterion
 src/shared/domain/bundle.ts:178 - RELATION_KINDS
 src/shared/domain/bundle.ts:182 - Relation
 src/shared/domain/bundle.ts:188 - TICKET_FAILURE_POLICIES
@@ -89,6 +93,8 @@ src/shared/domain/bundle.ts:29 - WorkType
 src/shared/domain/bundle.ts:56 - TICKET_KINDS
 src/shared/domain/bundle.ts:60 - Modality
 src/shared/domain/errors.ts:5 - DOMAIN_ERROR_CODES
+src/shared/domain/kanban.ts:25 - KanbanAttemptState
+src/shared/domain/kanban.ts:31 - KANBAN_EDITABLE_FIELDS
 src/shared/domain/retro.ts:17 - TIER_VERDICTS
 src/shared/domain/retro.ts:21 - RetroDelivered
 src/shared/domain/retro.ts:28 - RetroDiscovery
@@ -116,8 +122,8 @@ src/shared/domain/transfer.ts:279 - ReadbackCounts
 src/shared/domain/transfer.ts:296 - EpicTransferItem
 src/shared/domain/transfer.ts:69 - LinearBlocksRelation
 src/shared/domain/transfer.ts:77 - LinearRelatedRelation
-src/shared/domain/views.ts:1004 - RedraftSkippedView
-src/shared/domain/views.ts:1013 - RedraftChangesView
+src/shared/domain/views.ts:1011 - RedraftSkippedView
+src/shared/domain/views.ts:1020 - RedraftChangesView
 src/shared/domain/views.ts:116 - EpicOutcome
 src/shared/domain/views.ts:238 - PrerequisiteOutcome
 src/shared/domain/views.ts:286 - WorkerInfo
@@ -129,8 +135,8 @@ src/shared/domain/views.ts:517 - GateConditionId
 src/shared/domain/views.ts:613 - AssignmentFallback
 src/shared/domain/views.ts:619 - PacketRepository
 src/shared/domain/views.ts:631 - ExecutionPacket
-src/shared/domain/views.ts:893 - StorageLocationView
-src/shared/domain/views.ts:967 - RedraftMovedView
-src/shared/domain/views.ts:975 - RedraftDependentView
-src/shared/domain/views.ts:983 - RedraftAddedView
-src/shared/domain/views.ts:991 - RedraftSkipCode
+src/shared/domain/views.ts:898 - StorageLocationView
+src/shared/domain/views.ts:974 - RedraftMovedView
+src/shared/domain/views.ts:982 - RedraftDependentView
+src/shared/domain/views.ts:990 - RedraftAddedView
+src/shared/domain/views.ts:998 - RedraftSkipCode

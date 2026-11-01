@@ -1,0 +1,47 @@
+# c8: IPC log of the built app (main process, over its Node inspector: the dm:command, chats:startKanbanCard and chats:kickBackKanbanCard handlers wrapped to record each call; dm:command rows for non-Kanban commands left out). The native folder/executable dialog was stubbed the same way.
+# getKanbanCard runs only when a card is opened (and again while that card stays open and the folder changes); the board reads listKanbanCards.
+2026-11-01T06:59:59.945Z | dialog.showOpenDialog (stub) |  | "/private/tmp/dm-kanban/acceptance/fx/v12-copy"
+2026-11-01T06:59:59.970Z | dm:command | listKanbanCards | {"doneLimit":1}
+2026-11-01T06:59:59.977Z | dm:command | listKanbanCards | {"doneLimit":1}
+2026-11-01T07:00:30.022Z | dialog.showOpenDialog (stub) |  | "/private/tmp/dm-kanban/acceptance/fx/repo"
+2026-11-01T07:00:30.048Z | dm:command | listKanbanCards | {"doneLimit":1}
+2026-11-01T07:00:30.056Z | dm:command | listKanbanCards | {"doneLimit":1}
+2026-11-01T07:00:41.367Z | dm:command | listKanbanCards | {"doneLimit":20}
+2026-11-01T07:01:06.362Z | ---- mark1: before the first click on the Ready-for-review card DM-4 (that click hit the list item, not its button, and opened nothing; the next click opened it) ----
+2026-11-01T07:01:17.810Z | dm:command | getKanbanCard | {"cardId":"kc_01m6ay7dm1y967gx2mzjzhe9dk"}
+2026-11-01T07:01:34.914Z | ---- mark2: before clicking the Done row DM-3 ----
+2026-11-01T07:01:41.108Z | dm:command | getKanbanCard | {"cardId":"kc_01m6ay3q98p2ybn5hjz4rkw8gr"}
+2026-11-01T07:02:13.834Z | dialog.showOpenDialog (stub) |  | "~/.local/share/claude/versions/2.1.316"
+2026-11-01T07:02:29.429Z | dm:command | listKanbanCards | {"doneLimit":20}
+2026-11-01T07:03:02.090Z | dm:command | createKanbanCard | {"title":"Add a line to NOTES.md","body":"Append one line to `NOTES.md` saying `Kanban live check`. Commit the change on the checked-out branch.","acceptanceCriteria":["NOTES.md gains one line"],"expectedArtifacts":[],"priority":"normal"}
+2026-11-01T07:03:02.107Z | dm:command | listKanbanCards | {"doneLimit":20}
+2026-11-01T07:03:03.369Z | dm:command | listKanbanCards | {"doneLimit":20}
+2026-11-01T07:03:03.370Z | dm:command | listKanbanCards | {"doneLimit":1}
+2026-11-01T07:03:17.390Z | dm:command | getKanbanCard | {"cardId":"kc_01m6aypd6b6kkafv889q2dzj68"}
+2026-11-01T07:03:55.542Z | chats:startKanbanCard |  | {"folder":"/private/tmp/dm-kanban/acceptance/fx/repo","cardId":"kc_01m6aypd6b6kkafv889q2dzj68","agent":"claude","model":"sonnet"}
+2026-11-01T07:03:55.866Z | dm:command | listKanbanCards | {"doneLimit":1}
+2026-11-01T07:05:43.866Z | dm:command | listKanbanCards | {"doneLimit":1}
+2026-11-01T07:06:13.868Z | dm:command | listKanbanCards | {"doneLimit":1}
+2026-11-01T07:06:30.368Z | dm:command | listKanbanCards | {"doneLimit":1}
+2026-11-01T07:07:21.901Z | dm:command | listKanbanCards | {"doneLimit":20}
+2026-11-01T07:07:32.640Z | dm:command | getKanbanCard | {"cardId":"kc_01m6aypd6b6kkafv889q2dzj68"}
+2026-11-01T07:07:52.401Z | ---- mark3: before Send kick back on DM-5 ----
+2026-11-01T07:07:52.598Z | chats:kickBackKanbanCard |  | {"folder":"/private/tmp/dm-kanban/acceptance/fx/repo","cardId":"kc_01m6aypd6b6kkafv889q2dzj68","comment":"Also add a second line saying 'kicked back once'."}
+2026-11-01T07:07:52.612Z | dm:command | listKanbanCards | {"doneLimit":20}
+2026-11-01T07:07:52.868Z | dm:command | getKanbanCard | {"cardId":"kc_01m6aypd6b6kkafv889q2dzj68"}
+2026-11-01T07:07:52.868Z | dm:command | listKanbanCards | {"doneLimit":20}
+2026-11-01T07:07:52.868Z | dm:command | listKanbanCards | {"doneLimit":1}
+2026-11-01T07:08:21.369Z | dm:command | listKanbanCards | {"doneLimit":1}
+2026-11-01T07:08:31.867Z | dm:command | listKanbanCards | {"doneLimit":1}
+2026-11-01T07:08:54.367Z | dm:command | listKanbanCards | {"doneLimit":1}
+2026-11-01T07:10:50.813Z | dm:command | listKanbanCards | {"doneLimit":20}
+2026-11-01T07:10:53.214Z | dm:command | getKanbanCard | {"cardId":"kc_01m6aypd6b6kkafv889q2dzj68"}
+2026-11-01T07:11:02.747Z | ---- mark4: before Approve on DM-5 ----
+2026-11-01T07:11:02.866Z | dm:command | approveKanbanCard | {"cardId":"kc_01m6aypd6b6kkafv889q2dzj68"}
+2026-11-01T07:11:02.876Z | dm:command | listKanbanCards | {"doneLimit":20}
+2026-11-01T07:11:03.358Z | dm:command | getKanbanCard | {"cardId":"kc_01m6aypd6b6kkafv889q2dzj68"}
+2026-11-01T07:11:03.358Z | dm:command | listKanbanCards | {"doneLimit":20}
+2026-11-01T07:11:03.358Z | dm:command | listKanbanCards | {"doneLimit":1}
+2026-11-01T07:11:18.896Z | ---- mark5: after closing the DM-5 panel, before Show Done ----
+2026-11-01T07:11:21.300Z | ---- mark6: before clicking the Done row DM-5 ----
+2026-11-01T07:11:21.468Z | dm:command | getKanbanCard | {"cardId":"kc_01m6aypd6b6kkafv889q2dzj68"}

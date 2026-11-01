@@ -103,7 +103,7 @@ function ownedDirs(layout: RepoLayout): string[] {
   if (layout.mode === 'db') {
     return [layout.localDir]
   }
-  return [layout.epicsDir, layout.historyDir, layout.profilesDir, layout.localDir]
+  return [layout.epicsDir, layout.historyDir, layout.profilesDir, layout.kanbanDir, layout.localDir]
 }
 
 function createLayout(deps: InitDeps): void {

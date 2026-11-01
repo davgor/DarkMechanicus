@@ -39,7 +39,7 @@ export interface ChatStoreFs {
 }
 
 /** What a caller supplies to start a chat; the store assigns the id, timestamps and session id. */
-export type NewChat = Pick<ChatRecord, 'folder' | 'agent' | 'model' | 'role' | 'allowSave'> & { title?: string; runId?: string; transferEpicId?: string }
+export type NewChat = Pick<ChatRecord, 'folder' | 'agent' | 'model' | 'role' | 'allowSave'> & { title?: string; runId?: string; transferEpicId?: string; cardId?: string }
 
 /** Identifies a chat: its folder (any spelling) and id. Every `ChatRecord` is one. */
 export type ChatRef = Pick<ChatRecord, 'folder' | 'id'>
@@ -216,7 +216,8 @@ function createChat(context: StoreContext, input: NewChat): ChatRecord {
     updatedAt: now,
     sessionId: null,
     ...(input.runId === undefined ? {} : { runId: input.runId }),
-    ...(input.transferEpicId === undefined ? {} : { transferEpicId: input.transferEpicId })
+    ...(input.transferEpicId === undefined ? {} : { transferEpicId: input.transferEpicId }),
+    ...(input.cardId === undefined ? {} : { cardId: input.cardId })
   })
 }
 

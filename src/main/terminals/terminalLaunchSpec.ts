@@ -15,8 +15,8 @@
  * and listed in `dropped`, so the pane can say so. What no `.cmd` line can carry (the instructions text and the
  * kickoff) is returned as `pasteFirst`, for main to paste once the CLI is ready; `kickoffIn` says
  * where the kickoff went, so main can record it as sent. The chat Start run opened (one with a `runId`) has the
- * orchestrator and worker guidance in its instructions, and a Linear transfer chat (one with a `transferEpicId`) the
- * transfer guidance, on every start.
+ * orchestrator and worker guidance in its instructions, a Linear transfer chat (one with a `transferEpicId`) the
+ * transfer guidance, and the chat Play opened for a Kanban card (one with a `cardId`) the card guidance, on every start.
  */
 import { statSync } from 'node:fs'
 import { win32 } from 'node:path'
@@ -33,7 +33,7 @@ import { terminalEnv, terminalLoginEnv } from './terminalEnv'
 import { terminalInstructions, type TerminalFiles } from './terminalFiles'
 import { windowsCommandLine } from './windowsCommandLine'
 
-interface TerminalChat extends Pick<ChatRecord, 'agent' | 'role' | 'allowSave' | 'model' | 'sessionId' | 'runId' | 'transferEpicId'> {
+interface TerminalChat extends Pick<ChatRecord, 'agent' | 'role' | 'allowSave' | 'model' | 'sessionId' | 'runId' | 'transferEpicId' | 'cardId'> {
   /** Whether the CLI has written the chat's session yet, so a start resumes it. */
   sessionStarted: boolean
   /** Whether the kickoff (an orchestrator's or a transfer chat's) went with an earlier start. */
@@ -356,7 +356,8 @@ export function terminalLaunchSpec(input: TerminalLaunchInput): TerminalLaunchSp
       allowSave: chat.allowSave,
       launcherDir,
       orchestratesRun: chat.runId !== undefined,
-      ...(chat.transferEpicId === undefined ? {} : { transferEpicId: chat.transferEpicId })
+      ...(chat.transferEpicId === undefined ? {} : { transferEpicId: chat.transferEpicId }),
+      ...(chat.cardId === undefined ? {} : { cardId: chat.cardId })
     }),
     claudeSettings: files.claudeSettings,
     model,

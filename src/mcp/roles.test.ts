@@ -32,7 +32,9 @@ const READ_TOOLS = [
   'list_profiles',
   'get_profile',
   'preview_board_import',
-  'get_transfer'
+  'get_transfer',
+  'list_kanban_cards',
+  'get_kanban_card'
 ]
 
 /** Every role may comment. */
@@ -53,7 +55,10 @@ const PLANNER_SHARED_TOOLS = [
   'update_plan_draft',
   'discard_plan_draft',
   'save_profile',
-  'rescan_repositories'
+  'rescan_repositories',
+  // kanban.write: adding and editing cards; only a person presses Play, approves or kicks back.
+  'create_kanban_card',
+  'update_kanban_card'
 ]
 
 /** Only a planner (and the desktop) sets the Definition of Done: the orchestrator accepts work against it. */
@@ -88,10 +93,24 @@ const ORCHESTRATOR_TOOLS = [
   // epic.transfer: carrying out a transfer the person queued.
   'start_transfer',
   'record_transfer_item',
-  'submit_transfer_readback'
+  'submit_transfer_readback',
+  // kanban.claim and kanban.report: carrying a card a person pressed Play on.
+  'claim_kanban_card',
+  'heartbeat_kanban_card',
+  'submit_kanban_card',
+  'fail_kanban_card'
 ]
 
-const WORKER_TOOLS = [...READ_TOOLS, ...COMMENT_TOOLS, 'heartbeat_attempt', 'submit_attempt', 'fail_attempt']
+const WORKER_TOOLS = [
+  ...READ_TOOLS,
+  ...COMMENT_TOOLS,
+  'heartbeat_attempt',
+  'submit_attempt',
+  'fail_attempt',
+  'heartbeat_kanban_card',
+  'submit_kanban_card',
+  'fail_kanban_card'
+]
 const REVIEWER_TOOLS = [...READ_TOOLS, ...COMMENT_TOOLS, 'accept_attempt', 'reject_attempt']
 
 interface ListingCase {
@@ -132,6 +151,14 @@ describe('tools/list per role', () => {
       const { tools } = await rig.client.listTools()
       const readOnly = tools.filter((tool) => tool.annotations?.readOnlyHint === true).map((tool) => tool.name)
       expect(readOnly.sort()).toEqual([...READ_TOOLS].sort())
+    })
+  })
+
+  it.each(LISTINGS)('lists no Kanban tool to play, approve or kick back a card to the $role (allowSave $allowSave)', async ({ role, allowSave }) => {
+    await withRig(serverFor(role, allowSave), createStubApi(), async (rig) => {
+      const kanban = (await rig.client.listTools()).tools.map((tool) => tool.name).filter((name) => name.includes('kanban'))
+      expect(kanban.filter((name) => /play|approve|kick/.test(name))).toEqual([])
+      expect(kanban.length).toBeGreaterThan(0)
     })
   })
 })

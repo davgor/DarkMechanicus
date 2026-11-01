@@ -12,6 +12,8 @@ const EPIC = idOf('epic', 7)
 const REVISION = idOf('revision', 8)
 const RUN = idOf('run', 9)
 const COMMENT = idOf('comment', 10)
+const CARD = idOf('kanbanCard', 11)
+const CARD_EVENT = idOf('kanbanEvent', 12)
 const ROOT = resolve('/repo')
 const layout = resolveLayout(ROOT)
 
@@ -72,6 +74,30 @@ describe('ownedPaths', () => {
       expect([error.code, error.message]).toEqual(['unsafe_path', 'Refusing to build a repository path from an invalid profile name.'])
     }
     expect(paths.profileFile('con-1')).toBe(join(layout.profilesDir, 'con-1.json'))
+  })
+})
+
+describe('ownedPaths for Kanban cards', () => {
+  const paths = ownedPaths(layout)
+
+  it('puts a card record and its event records under kanban/<cardId>/', () => {
+    const cardDir = join(ROOT, '.darkmechanicus', 'kanban', CARD)
+    expect(paths.kanbanCardDir(CARD)).toBe(cardDir)
+    expect(paths.kanbanCardFile(CARD)).toBe(join(cardDir, 'card.json'))
+    expect(paths.kanbanEventsDir(CARD)).toBe(join(cardDir, 'events'))
+    expect(paths.kanbanEventFile(CARD, CARD_EVENT)).toBe(join(cardDir, 'events', `${CARD_EVENT}.json`))
+  })
+
+  it.each([
+    ['an epic id used as a card id', () => paths.kanbanCardFile(EPIC)],
+    ['a traversal card id', () => paths.kanbanCardFile('../../project')],
+    ['a card id with a separator', () => paths.kanbanCardDir(`${CARD}/x`)],
+    ['a traversal card id for events', () => paths.kanbanEventsDir('..')],
+    ['a card id used as an event id', () => paths.kanbanEventFile(CARD, CARD)],
+    ['a traversal event id', () => paths.kanbanEventFile(CARD, '../card')],
+    ['an event filed under an event id', () => paths.kanbanEventFile(CARD_EVENT, CARD_EVENT)]
+  ])('rejects %s with unsafe_path', (_label, build) => {
+    expect(captureError(build).code).toBe('unsafe_path')
   })
 })
 

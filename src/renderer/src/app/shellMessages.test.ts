@@ -39,6 +39,7 @@ const reconcile = (patch: Partial<ReconcileResultView> = {}): ReconcileResultVie
   unchanged: [],
   conflicts: [],
   profileConflicts: [],
+  kanbanConflicts: [],
   rejected: [],
   branchChanged: false,
   pausedRuns: [],

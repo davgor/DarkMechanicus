@@ -742,6 +742,11 @@ export interface StorageStatusView {
   conflicts: { epicId: string; message: string; resolvable: boolean }[]
   /** Named profiles whose tracked file changed while a local save waits to be exported. */
   profileConflicts: { name: string; message: string }[]
+  /**
+   * Kanban cards whose tracked records disagree with this database: a card record that changed while a local edit
+   * waits to be exported, or an event file that differs from the event held here (events are never rewritten).
+   */
+  kanbanConflicts: { cardId: string; message: string }[]
   sessions: { active: number; byRole: Record<string, number> }
 }
 
@@ -913,12 +918,14 @@ export interface FlushResultView {
 }
 
 export interface ReconcileResultView {
-  /** Epic and run ids, and `profile:<name>` for named profiles. */
+  /** Epic and run ids, `profile:<name>` for named profiles, and `kanban:<cardId>` for Kanban cards. */
   imported: string[]
   unchanged: string[]
   conflicts: { epicId: string; message: string }[]
   /** Named profiles kept local because their tracked file changed while a local save waits to be exported. */
   profileConflicts: { name: string; message: string }[]
+  /** Kanban cards whose tracked records disagree with this database; the local card is kept. */
+  kanbanConflicts: { cardId: string; message: string }[]
   rejected: { path: string; message: string }[]
   branchChanged: boolean
   pausedRuns: string[]

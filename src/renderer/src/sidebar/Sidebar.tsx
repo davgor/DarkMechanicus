@@ -15,6 +15,7 @@ import { Button } from '../components/Button'
 import { AgentsSection } from './AgentsSection'
 import { FolderRow } from './FolderRow'
 import type { Expansion } from './useExpansion'
+import type { KanbanCounts } from '../kanban/useKanbanCounts'
 
 /** The folders' chats and what can be done with them. */
 interface SidebarChats {
@@ -47,6 +48,9 @@ interface SidebarProps {
   onAgentStatus(id: AgentId, status: AgentAuthStatus): void
   onSelectFolder(path: string): void
   onSelectEpic(path: string, epicId: string): void
+  /** Open Kanban cards per folder path; a folder is absent until its board has loaded. */
+  kanbanCounts: KanbanCounts
+  onSelectKanban(path: string): void
   /** Asks the shell to confirm and stop tracking a folder. */
   onRequestUntrack(folder: TrackedFolderView): void
 }
@@ -109,6 +113,8 @@ export function Sidebar(props: SidebarProps): JSX.Element {
             agents={props.agents}
             onSelectFolder={props.onSelectFolder}
             onSelectEpic={props.onSelectEpic}
+            kanbanOpen={props.kanbanCounts[folder.path] ?? null}
+            onSelectKanban={props.onSelectKanban}
             onStopTracking={props.onRequestUntrack}
             onNewChat={props.chats.onNew}
             onOpenChat={props.chats.onOpen}
