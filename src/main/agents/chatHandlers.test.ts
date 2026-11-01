@@ -529,3 +529,25 @@ describe('chat handlers: pushing list changes', () => {
     expect(await handlersOver(recordingChats().chats).delete(REF)).toEqual({ ok: true, data: null })
   })
 })
+
+describe('chat handlers: pushing a started transfer chat', () => {
+  const CHANGED: ChatPushEvent = { type: 'chats_changed', folder: REPO, chatId: 'chat_1' }
+  const REQUEST = { folder: SPELLING, epicId: EPIC_ID, agent: 'codex' }
+
+  it('says the chat of a started transfer was created, and nothing when no chat was left, reporting why', async () => {
+    const { chats } = recordingChats()
+    const pushed: ChatPushEvent[] = []
+    await handlersOver(chats, [], recordingRuns(), { push: (event) => pushed.push(event) }).startTransferChat(REQUEST)
+    expect(pushed).toEqual([CHANGED])
+
+    chats.createChat = () => {
+      throw new Error('disk full')
+    }
+    const failedPushes: ChatPushEvent[] = []
+    const errors: unknown[] = []
+    const result = await handlersOver(chats, errors, recordingRuns(), { push: (event) => failedPushes.push(event) }).startTransferChat(REQUEST)
+    expect(result).toMatchObject({ ok: true, data: { chat: null } })
+    expect(failedPushes).toEqual([])
+    expect(errors).toEqual([expect.objectContaining({ message: 'disk full' })])
+  })
+})

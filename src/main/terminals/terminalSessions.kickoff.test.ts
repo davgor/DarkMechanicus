@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { ChatRecord } from '../../shared/agents/chat'
 import { builtInAgent } from '../agents/__mocks__/chatFixtures'
 import type { FakePty } from './__mocks__/fakePtyHost'
-import { settle, startTerminal, terminalRig, type TerminalRig } from './__mocks__/terminalSessionsRig'
+import { eventually, settle, startTerminal, terminalRig, type TerminalRig } from './__mocks__/terminalSessionsRig'
 
 const SECOND = 1_000
 /** How long after the paste its Enter goes. */
@@ -90,9 +90,11 @@ describe('terminal sessions: the kickoff goes with the first start only', () => 
     rig.clock.advance(10 * SECOND)
     expect(pty.written).toEqual([])
 
+    const timersBefore = rig.clock.pending
     pty.emitData(PASTE_ON.slice(0, 4))
     pty.emitData(`${PASTE_ON.slice(4)}> `)
-    await settle()
+    // The screen parses asynchronously: wait until it has taken the sequence and set the settle timer, not a fixed 5 ms.
+    await eventually(() => rig.clock.pending > timersBefore, 'the settle timer once paste is on')
     rig.clock.advance(SECOND + ENTER_DELAY)
     expect(pty.written).toEqual(pasteOf(KICKOFF))
   })

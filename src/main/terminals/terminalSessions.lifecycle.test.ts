@@ -35,7 +35,8 @@ function claudeSession(pty: FakePty): string[] {
 /** The PTY ends, and the exit has been told. */
 async function exitAndSettle(pty: FakePty, exit: { exitCode: number; signal: number | null } = { exitCode: 0, signal: null }): Promise<void> {
   pty.exit(exit)
-  await settle()
+  // The exit is told once the screen has flushed, which is asynchronous: wait for it, not a fixed 5 ms.
+  await eventually(() => !rig.sessions.busy(), 'the exit to be told')
 }
 
 function stored(chat: ChatRecord): ChatRecord | undefined {
