@@ -5,6 +5,7 @@
  * arguments are decided in the main process.
  */
 import type { AgentId, CommandResult } from '../desktop/api'
+import type { KanbanCardView } from '../domain/kanban'
 import type { RunView } from '../domain/views'
 import type { ApprovalDecision, ApprovalRequestItem, ChatItem, ChatRecord, ChatRole, ModelOption } from './chat'
 
@@ -63,6 +64,44 @@ export interface StartTransferChatResult {
   problem: string | null
 }
 
+/** Plays a Kanban card and starts a connected agent as its orchestrator; the role, Allow save, the chat title and the kickoff are decided in main. */
+export interface StartKanbanCardRequest {
+  folder: string
+  /** A card id (`kc_…`). */
+  cardId: string
+  agent: AgentId
+  /** Null (or left out) lets the agent use its default model. */
+  model?: string | null
+}
+
+/** What pressing Play left behind. The play is marked either way; the chat exists only when its agent was started. */
+export interface StartKanbanCardResult {
+  /** The card as Play left it (`playPending` true). */
+  card: KanbanCardView
+  /** The card's orchestrator chat, with its kickoff message already sent; null when no agent is carrying the card. */
+  chat: ChatRecord | null
+  /** Why `chat` is null (or what went wrong with a chat that was kept); pressing Play again starts a new chat. Null when it started. */
+  problem: string | null
+}
+
+/** Kicks a card in Ready for review back with the person's comment. */
+export interface KickBackKanbanCardRequest {
+  folder: string
+  /** A card id (`kc_…`). */
+  cardId: string
+  /** Markdown, 1 to 20,000 characters and not blank. */
+  comment: string
+}
+
+/** What a kick-back left behind: the card is back In progress with a pending play either way. */
+export interface KickBackKanbanCardResult {
+  card: KanbanCardView
+  /** The card's newest chat, which the comment was sent to; null when the card has no chat (press Play to start one). */
+  chatId: string | null
+  /** Why the comment did not reach that chat's agent; null when it was sent, and when there is no chat. */
+  problem: string | null
+}
+
 /** Names the epic of a tracked folder whose Linear transfer is asked about. */
 export interface TransferChatRequest {
   folder: string
@@ -104,20 +143,22 @@ export interface ChatOpenView {
 
 /**
  * A thread of a chat bound to what it acts on: its main thread (`threadId` null) or a subagent thread (a
- * `thread` item's id), as that run's `orchestrator` or an attempt's `worker`. The main process resolves
+ * `thread` item's id), as that run's `orchestrator`, an attempt's `worker` or a Kanban card's `orchestrator`. The main process resolves
  * what it can read: the epic of a run, and the run, epic and ticket (id and display key) of an attempt;
  * what it could not read is null, and a binding whose ticket is unknown still names its attempt.
  */
 export type ThreadBinding = { threadId: string | null; role: 'orchestrator' | 'worker' } & (
   | { kind: 'run'; runId: string; epicId: string | null }
   | { kind: 'attempt'; attemptId: string; runId: string | null; epicId: string | null; ticketId: string | null; ticketKey: string | null }
+  /** The chat Play started for a Kanban card: its main thread, as the card's orchestrator. */
+  | { kind: 'card'; cardId: string }
 )
 
-/** What to look bound threads up by: an attempt (a worker's thread) or a run (its orchestrator), in a tracked folder. */
-export type BoundThreadsRequest = { folder: string; attemptId: string } | { folder: string; runId: string }
+/** What to look bound threads up by: an attempt (a worker's thread), a run (its orchestrator) or a Kanban card (the chat Play started), in a tracked folder. */
+export type BoundThreadsRequest = { folder: string; attemptId: string } | { folder: string; runId: string } | { folder: string; cardId: string }
 
 /**
- * A chat thread bound to an attempt or a run, as the main process knows it: the chat (`folder`, `chatId`) and
+ * A chat thread bound to an attempt, a run or a Kanban card, as the main process knows it: the chat (`folder`, `chatId`) and
  * the thread in it (a `thread` item's id, or null for the chat's main thread) with what it is to the target.
  * Enough to `open` the chat and follow its pushed events; the stored items are already masked.
  */
@@ -160,6 +201,17 @@ export interface ChatsApi {
    * transfer (queued) or it is in progress. A failure once the chat is asked for is reported in the result.
    */
   startTransferChat(request: StartTransferChatRequest): Promise<CommandResult<StartTransferChatResult>>
+  /**
+   * Plays the Kanban card, creates an orchestrator chat for it with Allow save off, records the card's id on
+   * the chat and sends the kickoff. A card that cannot be played is an error and nothing was created; a
+   * failure after the play is reported in the result (the play stays pending, so Play again starts a new chat).
+   */
+  startKanbanCard(request: StartKanbanCardRequest): Promise<CommandResult<StartKanbanCardResult>>
+  /**
+   * Kicks the card back to In progress with the comment, then sends the comment to the card's newest chat,
+   * which resumes like any stopped chat, so its agent claims the card again.
+   */
+  kickBackKanbanCard(request: KickBackKanbanCardRequest): Promise<CommandResult<KickBackKanbanCardResult>>
   /** The most recently updated chat started for the epic's transfer, across idle stops and app restarts; null when there is none. */
   findTransferChat(request: TransferChatRequest): Promise<CommandResult<ChatSummary | null>>
   /** The transfer kickoff, the same first message a transfer chat gets, for an agent the person starts elsewhere. */

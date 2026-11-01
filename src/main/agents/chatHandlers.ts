@@ -10,14 +10,25 @@
  */
 import { z } from 'zod'
 import { DomainError, toErrorShape } from '../../core/errors'
-import { LIMITS, parseInput, stableId } from '../../core/schemas'
+import { commentBody, LIMITS, parseInput, stableId } from '../../core/schemas'
 import { APPROVAL_DECISIONS, CHAT_ROLES, chatIdSchema, type ChatItem, type ChatRecord, type ModelOption } from '../../shared/agents/chat'
-import type { BoundThread, ChatOpenView, ChatPushEvent, ChatSummary, StartOrchestratorResult, StartTransferChatResult, ThreadBinding } from '../../shared/agents/chatApi'
+import type {
+  BoundThread,
+  ChatOpenView,
+  ChatPushEvent,
+  ChatSummary,
+  KickBackKanbanCardResult,
+  StartKanbanCardResult,
+  StartOrchestratorResult,
+  StartTransferChatResult,
+  ThreadBinding
+} from '../../shared/agents/chatApi'
 import { agentIdSchema } from '../../shared/desktop/agentKinds'
 import type { CommandResult } from '../../shared/desktop/api'
 import { connectedAgent } from '../desktop/agentHandlers'
 import type { AgentRegistry } from '../desktop/agentRegistry'
 import type { FolderRegistry } from '../desktop/folderRegistry'
+import { kickBackKanbanCard, startKanbanCard, type KanbanCards } from '../kanban/startKanbanCard'
 import type { BoundTarget } from './boundThreads'
 import type { ChatRef } from './chatStore'
 import { refuseSwappedFolder } from './launchFolder'
@@ -54,8 +65,16 @@ const refSchema = z.strictObject(refShape)
 /** A whole id of the kind: a claim token (`<attempt id>.<secret>`) or any other text is not one. */
 const attemptIdSchema = stableId.regex(/^at_/)
 const runIdSchema = stableId.regex(/^rn_/)
-/** An attempt or a run, never both and never anything else. */
-const boundThreadsSchema = z.union([z.strictObject({ folder: folderSchema, attemptId: attemptIdSchema }), z.strictObject({ folder: folderSchema, runId: runIdSchema })])
+const cardIdSchema = stableId.regex(/^kc_/)
+/** An attempt, a run or a Kanban card, only one of them and never anything else. */
+const boundThreadsSchema = z.union([
+  z.strictObject({ folder: folderSchema, attemptId: attemptIdSchema }),
+  z.strictObject({ folder: folderSchema, runId: runIdSchema }),
+  z.strictObject({ folder: folderSchema, cardId: cardIdSchema })
+])
+/** Only a card, an agent and its model: the role, Allow save, title, kickoff message and what the chat records are decided in main. */
+const startKanbanCardSchema = z.strictObject({ folder: folderSchema, cardId: cardIdSchema, agent: agentIdSchema, model: modelSchema.nullable().optional() })
+const kickBackKanbanCardSchema = z.strictObject({ folder: folderSchema, cardId: cardIdSchema, comment: commentBody })
 const sendSchema = z.strictObject({ ...refShape, text: z.string().min(1).max(LIMITS.markdown) })
 const setModelSchema = z.strictObject({ ...refShape, model: modelSchema })
 const renameSchema = z.strictObject({ ...refShape, title: z.string().trim().min(1).max(LIMITS.title) })
@@ -74,9 +93,11 @@ interface ChatHandlerDeps {
   runs: OrchestratorRuns
   /** The desktop's transfer reads, for starting a transfer chat and for its prompt. */
   transfers: TransferReads
+  /** The desktop's Kanban commands, for Play and Kick back. */
+  kanban: KanbanCards
   /** The bindings of a chat's threads to runs and attempts, resolved as far as the folder's store allows; without it a chat has none. */
   threadBindings?: (chat: ChatRef) => Promise<ThreadBinding[]>
-  /** The threads bound to an attempt or a run among the chats of a (canonical) folder; without it nothing is bound. */
+  /** The threads bound to an attempt, a run or a Kanban card among the chats of a (canonical) folder; without it nothing is bound. */
   boundThreads?: (folder: string, target: BoundTarget) => BoundThread[]
   /** Told that a chat was created, renamed or deleted, so every window can list the folder's chats again; without it nothing is pushed. */
   push?: (event: ChatPushEvent) => void
@@ -90,6 +111,8 @@ export interface ChatHandlers {
   create(request: unknown): Promise<CommandResult<ChatRecord>>
   startOrchestrator(request: unknown): Promise<CommandResult<StartOrchestratorResult>>
   startTransferChat(request: unknown): Promise<CommandResult<StartTransferChatResult>>
+  startKanbanCard(request: unknown): Promise<CommandResult<StartKanbanCardResult>>
+  kickBackKanbanCard(request: unknown): Promise<CommandResult<KickBackKanbanCardResult>>
   findTransferChat(request: unknown): Promise<CommandResult<ChatSummary | null>>
   transferPrompt(request: unknown): Promise<CommandResult<string>>
   open(request: unknown): Promise<CommandResult<ChatOpenView>>
@@ -158,6 +181,26 @@ async function startTransfer(deps: ChatHandlerDeps, input: unknown): Promise<Sta
   return started
 }
 
+/** Validates the request, the agent and the folder before the card is played; see `startKanbanCard` for what happens after. */
+async function startCard(deps: ChatHandlerDeps, input: unknown): Promise<StartKanbanCardResult> {
+  const request = parseInput(startKanbanCardSchema, input, 'Kanban card request')
+  connectedAgent(deps.agents, request.agent)
+  const folder = chatFolder(deps, request.folder)
+  const { kanban, sessions, onUnexpectedError } = deps
+  const started = await startKanbanCard({ cards: kanban, sessions, ...(onUnexpectedError === undefined ? {} : { onError: onUnexpectedError }) }, { ...request, folder })
+  if (started.chat !== null) {
+    chatsChanged(deps, { folder: started.chat.folder, id: started.chat.id })
+  }
+  return started
+}
+
+/** Validates the request and the folder before the card is kicked back; see `kickBackKanbanCard` for what happens after. */
+function kickBackCard(deps: ChatHandlerDeps, input: unknown): Promise<KickBackKanbanCardResult> {
+  const request = parseInput(kickBackKanbanCardSchema, input, 'Kanban kick-back request')
+  const { kanban, sessions, onUnexpectedError } = deps
+  return kickBackKanbanCard({ cards: kanban, sessions, ...(onUnexpectedError === undefined ? {} : { onError: onUnexpectedError }) }, { ...request, folder: chatFolder(deps, request.folder) })
+}
+
 /** A transfer request, validated, with the canonical path of its tracked folder. */
 function transferRequest(deps: ChatHandlerDeps, input: unknown): { folder: string; epicId: string } {
   const request = parseInput(transferChatSchema, input, 'transfer request')
@@ -170,11 +213,11 @@ async function threadBindings(deps: ChatHandlerDeps, input: unknown): Promise<Th
   return (await deps.threadBindings?.(ref)) ?? []
 }
 
-/** The threads bound to the attempt or run the request names; the request and the folder are validated even when the app wired no lookup. */
+/** The threads bound to the attempt, run or card the request names; the request and the folder are validated even when the app wired no lookup. */
 function boundThreads(deps: ChatHandlerDeps, input: unknown): BoundThread[] {
   const request = parseInput(boundThreadsSchema, input, 'bound threads request')
   const folder = chatFolder(deps, request.folder)
-  const target: BoundTarget = 'attemptId' in request ? { attemptId: request.attemptId } : { runId: request.runId }
+  const target: BoundTarget = 'attemptId' in request ? { attemptId: request.attemptId } : 'runId' in request ? { runId: request.runId } : { cardId: request.cardId }
   return deps.boundThreads?.(folder, target) ?? []
 }
 
@@ -223,6 +266,8 @@ export function createChatHandlers(deps: ChatHandlerDeps): ChatHandlers {
     create: (input) => answer(deps, () => createChat(deps, input)),
     startOrchestrator: (input) => answer(deps, () => startOrchestrator(deps, input)),
     startTransferChat: (input) => answer(deps, () => startTransfer(deps, input)),
+    startKanbanCard: (input) => answer(deps, () => startCard(deps, input)),
+    kickBackKanbanCard: (input) => answer(deps, () => kickBackCard(deps, input)),
     findTransferChat: (input) =>
       answer(deps, () => {
         const { folder, epicId } = transferRequest(deps, input)

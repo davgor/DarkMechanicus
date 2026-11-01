@@ -14,6 +14,7 @@ import { Menu } from '../components/Menu'
 import { AgentsBlock } from './AgentsBlock'
 import { BucketGroup } from './BucketGroup'
 import { groupEpics } from './buckets'
+import type { Bucket } from './buckets'
 import type { Expansion } from './useExpansion'
 
 interface FolderRowProps {
@@ -29,6 +30,9 @@ interface FolderRowProps {
   agents: readonly AgentView[]
   onSelectFolder(path: string): void
   onSelectEpic(path: string, epicId: string): void
+  /** Cards open on the folder's Kanban board (Backlog, In progress and Ready for review); null until it has loaded. */
+  kanbanOpen: number | null
+  onSelectKanban(path: string): void
   onStopTracking(folder: TrackedFolderView): void
   /** Starts the new-chat flow for the folder. */
   onNewChat(path: string): void
@@ -139,25 +143,59 @@ function StatusRow({ label, selected, onSelect }: StatusRowProps): JSX.Element {
   )
 }
 
+interface KanbanRowProps {
+  open: number | null
+  selected: boolean
+  onSelect(): void
+}
+
+/** The folder's Kanban board, between the open epic buckets and Completed. */
+function KanbanRow({ open, selected, onSelect }: KanbanRowProps): JSX.Element {
+  return (
+    <div className="bucket">
+      <button
+        type="button"
+        className={classNames('bucket-header', 'kanban-row', selected && 'is-selected')}
+        aria-current={selected ? 'true' : undefined}
+        aria-label={open === null ? 'Kanban' : `Kanban, ${plural(open, 'open card')}`}
+        onClick={onSelect}
+      >
+        <Icon name="kanban" size={14} />
+        <span className="bucket-label">Kanban</span>
+        {open === null ? null : <span className="count-badge">{open}</span>}
+      </button>
+    </div>
+  )
+}
+
 function Buckets(props: FolderRowProps): JSX.Element {
   const { folder, list, selection, expansion } = props
   if (list.status === 'loading') {
     return <p className="sidebar-note">Loading epics…</p>
   }
   const selectedEpicId = selection.folderPath === folder.path ? selection.epicId : null
+  const group = (bucket: Bucket): JSX.Element => (
+    <BucketGroup
+      key={bucket.id}
+      bucket={bucket}
+      expanded={expansion.isBucketExpanded(folder.path, bucket.id)}
+      selectedEpicId={selectedEpicId}
+      onToggle={() => expansion.toggleBucket(folder.path, bucket.id)}
+      onOpenEpic={(epicId) => props.onSelectEpic(folder.path, epicId)}
+    />
+  )
+  const buckets = groupEpics(list.epics)
+  const completed = buckets.filter((bucket) => bucket.id === 'completed')
   return (
     <div className="buckets">
       {list.status === 'error' ? <p className="sidebar-note is-error">Could not refresh epics</p> : null}
-      {groupEpics(list.epics).map((bucket) => (
-        <BucketGroup
-          key={bucket.id}
-          bucket={bucket}
-          expanded={expansion.isBucketExpanded(folder.path, bucket.id)}
-          selectedEpicId={selectedEpicId}
-          onToggle={() => expansion.toggleBucket(folder.path, bucket.id)}
-          onOpenEpic={(epicId) => props.onSelectEpic(folder.path, epicId)}
-        />
-      ))}
+      {buckets.filter((bucket) => bucket.id !== 'completed').map(group)}
+      <KanbanRow
+        open={props.kanbanOpen}
+        selected={selection.folderPath === folder.path && selection.kanban === true}
+        onSelect={() => props.onSelectKanban(folder.path)}
+      />
+      {completed.map(group)}
     </div>
   )
 }
@@ -215,7 +253,10 @@ export function FolderRow(props: FolderRowProps): JSX.Element {
   const { folder, selection, expansion } = props
   const expanded = expansion.isFolderExpanded(folder.path)
   const folderSelected =
-    selection.folderPath === folder.path && selection.epicId === null && selection.chatId === undefined
+    selection.folderPath === folder.path &&
+    selection.epicId === null &&
+    selection.chatId === undefined &&
+    selection.kanban !== true
   return (
     <div className="folder">
       <FolderHeader

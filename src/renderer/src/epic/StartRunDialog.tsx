@@ -94,15 +94,24 @@ function EpicBranchSection(props: {
   )
 }
 
-/** The first choice: the agent (only connected, signed-in ones; a signed-out one has Sign in in the list, the rest say where to fix that) and its model. */
-function RunWithAgentSection({ props, choice }: { props: DialogProps; choice: AgentModelChoice }): JSX.Element {
+interface RunWithAgentSectionProps {
+  /** What starting the agent here does, under the section heading. */
+  hint: string
+  agents: readonly AgentView[]
+  statuses: AgentStatuses
+  choice: AgentModelChoice
+  onAddAgent(): void
+  onAgentStatus(id: AgentId, status: AgentAuthStatus): void
+}
+
+/** The agent choice (only connected, signed-in ones; a signed-out one has Sign in in the list, the rest say where to fix that) and its model. */
+export function RunWithAgentSection(props: RunWithAgentSectionProps): JSX.Element {
+  const { choice } = props
   const { agent } = choice
   return (
     <section className="chat-field start-run-section" aria-label="Run with an agent">
       <h3 className="field-label">Run with an agent</h3>
-      <p className="field-hint">
-        {`Dark Mechanicus starts the agent as the orchestrator of “${props.epicTitle}” and sends it the run. It cannot save plans.`}
-      </p>
+      <p className="field-hint">{props.hint}</p>
       <AgentChoice
         agents={props.agents}
         statuses={props.statuses}
@@ -177,7 +186,11 @@ export function StartRunDialog(props: StartRunDialogProps): JSX.Element {
         {props.multiRepo ? (
           <EpicBranchSection branchName={props.branchName} value={branch} problem={problem} onChange={setBranch} />
         ) : null}
-        <RunWithAgentSection props={props} choice={choice} />
+        <RunWithAgentSection
+          {...props}
+          hint={`Dark Mechanicus starts the agent as the orchestrator of “${props.epicTitle}” and sends it the run. It cannot save plans.`}
+          choice={choice}
+        />
         <section className="chat-field start-run-section" aria-label="Leave pending">
           <h3 className="field-label">Leave pending</h3>
           <p className="field-hint">

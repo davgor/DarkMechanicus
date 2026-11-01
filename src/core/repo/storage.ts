@@ -21,7 +21,7 @@ interface StorageDeps {
 
 type DatabaseStatus = Pick<
   StorageStatusView,
-  'schemaVersion' | 'outbox' | 'lastFlushAt' | 'branch' | 'conflicts' | 'profileConflicts' | 'sessions'
+  'schemaVersion' | 'outbox' | 'lastFlushAt' | 'branch' | 'conflicts' | 'profileConflicts' | 'kanbanConflicts' | 'sessions'
 >
 
 /** Status must render for broken folders too: an unreadable project reads as "not initialized". */
@@ -67,7 +67,7 @@ function conflictsOf(deps: RecordsDeps): StorageStatusView['conflicts'] {
     `SELECT s.kind, s.entity_id, s.conflict, r.epic_id AS run_epic, c.epic_id AS comment_epic
      FROM sync_state s LEFT JOIN runs r ON s.kind = 'run' AND r.id = s.entity_id
        LEFT JOIN comments c ON s.kind = 'comment' AND c.id = s.entity_id
-     WHERE s.conflict IS NOT NULL AND s.kind <> 'profile' ORDER BY s.kind, s.entity_id`
+     WHERE s.conflict IS NOT NULL AND s.kind NOT IN ('profile', 'kanban_card', 'kanban_event') ORDER BY s.kind, s.entity_id`
   )
   return rows.map((row) => ({
     epicId: row.run_epic ?? row.comment_epic ?? row.entity_id,
@@ -84,6 +84,18 @@ function profileConflictsOf(db: Db): StorageStatusView['profileConflicts'] {
     .map((row) => ({ name: row.entity_id, message: row.conflict }))
 }
 
+/** Kanban card and event conflicts, by card: an event's conflict names the card it belongs to. */
+function kanbanConflictsOf(db: Db): StorageStatusView['kanbanConflicts'] {
+  return db
+    .all<{ card_id: string; conflict: string }>(
+      `SELECT COALESCE(e.card_id, s.entity_id) AS card_id, s.conflict
+       FROM sync_state s LEFT JOIN kanban_events e ON s.kind = 'kanban_event' AND e.id = s.entity_id
+       WHERE s.kind IN ('kanban_card', 'kanban_event') AND s.conflict IS NOT NULL
+       ORDER BY card_id, s.kind, s.entity_id`
+    )
+    .map((row) => ({ cardId: row.card_id, message: row.conflict }))
+}
+
 function databaseStatus(deps: RecordsDeps & { clock: Clock }, head: { current: string | null; repository: boolean }): DatabaseStatus {
   const { db, clock } = deps
   const branch = branchState(db, head.current)
@@ -94,6 +106,7 @@ function databaseStatus(deps: RecordsDeps & { clock: Clock }, head: { current: s
     branch: { current: head.current, recorded: branch.recorded, changed: branch.changed, repository: head.repository },
     conflicts: conflictsOf(deps),
     profileConflicts: profileConflictsOf(db),
+    kanbanConflicts: kanbanConflictsOf(db),
     sessions: summarizeActiveSessions({ db, clock })
   }
 }
@@ -104,6 +117,7 @@ const NO_DATABASE: Omit<DatabaseStatus, 'branch'> = {
   lastFlushAt: null,
   conflicts: [],
   profileConflicts: [],
+  kanbanConflicts: [],
   sessions: { active: 0, byRole: {} }
 }
 

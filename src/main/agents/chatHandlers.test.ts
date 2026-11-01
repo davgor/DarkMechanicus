@@ -12,6 +12,8 @@ import { createChatHandlers, type ChatHandlers } from './chatHandlers'
 import type { OrchestratorRuns } from './orchestratorStart'
 import type { SessionManager } from './sessionManager'
 import type { TransferReads } from './transferStart'
+import type { KanbanCardView } from '../../shared/domain/kanban'
+import type { KanbanCards } from '../kanban/startKanbanCard'
 
 const CHAT: ChatRecord = {
   id: 'chat_1',
@@ -72,6 +74,9 @@ const EPIC_ID = 'ep_01m418epbg8qkqa2e2krvdkqk5'
 const EPIC = { id: EPIC_ID, title: 'Agent chats', branch: null } as EpicDetailView
 const RUN = { id: 'rn_2', number: 2, epicId: EPIC_ID, state: 'queued' } as RunView
 
+/** No Kanban request in these tests gets past validation: the Kanban channels are covered end to end in `chatIpc.test.ts`. */
+const NO_KANBAN = {} as KanbanCards
+
 /** A run queue that records "<call> <folder> <epic id>" and answers with a fixed epic and run. */
 function recordingRuns(calls: string[] = []): OrchestratorRuns {
   return {
@@ -96,6 +101,7 @@ function handlersOver(sessions: SessionManager, errors: unknown[] = [], runs: Or
     sessions,
     runs,
     transfers: recordingTransfers(),
+    kanban: NO_KANBAN,
     ...(push === undefined ? {} : { push }),
     onUnexpectedError: (error) => errors.push(error)
   })
@@ -103,7 +109,7 @@ function handlersOver(sessions: SessionManager, errors: unknown[] = [], runs: Or
 
 /** Handlers over `sessions` whose transfer reads are `transfers`. */
 function handlersReading(sessions: SessionManager, transfers: TransferReads): ChatHandlers {
-  return createChatHandlers({ registry: { resolve: (path) => (path === REPO || path === SPELLING ? REPO : null) }, agents: AGENTS, sessions, runs: recordingRuns(), transfers })
+  return createChatHandlers({ registry: { resolve: (path) => (path === REPO || path === SPELLING ? REPO : null) }, agents: AGENTS, sessions, runs: recordingRuns(), transfers, kanban: NO_KANBAN })
 }
 
 const REF = { folder: SPELLING, chatId: 'chat_1' }
@@ -416,6 +422,7 @@ function handlersWithBindings(asked: unknown[]): ChatHandlers {
     sessions: recordingSessions().sessions,
     runs: recordingRuns(),
     transfers: recordingTransfers(),
+    kanban: NO_KANBAN,
     threadBindings: async (chat) => {
       asked.push(chat)
       return BINDINGS
@@ -461,6 +468,7 @@ describe('chat handlers: thread bindings', () => {
       sessions: recordingSessions().sessions,
       runs: recordingRuns(),
       transfers: recordingTransfers(),
+      kanban: NO_KANBAN,
       threadBindings: () => Promise.reject(new Error('disk')),
       onUnexpectedError: (error) => errors.push(error)
     })
@@ -482,6 +490,7 @@ function handlersWithBound(asked: unknown[][]): ChatHandlers {
     sessions: recordingSessions().sessions,
     runs: recordingRuns(),
     transfers: recordingTransfers(),
+    kanban: NO_KANBAN,
     boundThreads: (folder, target) => {
       asked.push([folder, target])
       return FOUND
@@ -540,6 +549,7 @@ describe('chat handlers: bound threads', () => {
       sessions: recordingSessions().sessions,
       runs: recordingRuns(),
       transfers: recordingTransfers(),
+      kanban: NO_KANBAN,
       boundThreads: () => {
         throw new Error('disk')
       },
@@ -607,5 +617,109 @@ describe('chat handlers: pushing list changes', () => {
     expect(results.every((result) => !result.ok)).toBe(true)
     expect(pushed).toEqual([])
     expect(await handlersOver(recordingSessions().sessions).delete(REF)).toEqual({ ok: true, data: null })
+  })
+})
+
+const CARD_ID = 'kc_01m6aspj4vxjq38vcbgxpg73jn'
+const CARD = { id: CARD_ID, key: 'DM-7', title: 'Fix the flaky upload test' } as KanbanCardView
+
+/** Kanban cards that record "<call> <folder> <card id>" and answer with a fixed card. */
+function recordingCards(calls: string[]): KanbanCards {
+  return {
+    play: (folder, cardId) => (calls.push(`play ${folder} ${cardId}`), Promise.resolve(CARD)),
+    kickBack: (folder, input) => (calls.push(`kickBack ${folder} ${input.cardId}`), Promise.resolve(CARD)),
+    branch: (folder) => (calls.push(`branch ${folder}`), Promise.resolve('feature/cards'))
+  }
+}
+
+/** Handlers over `sessions` and `kanban` that report unexpected failures to `errors` and push list changes to `pushed`. */
+function reportingHandlers(sessions: SessionManager, kanban: KanbanCards, errors: unknown[], pushed: ChatPushEvent[]): ChatHandlers {
+  return createChatHandlers({
+    registry: { resolve: (path) => (path === REPO || path === SPELLING ? REPO : null) },
+    agents: AGENTS,
+    sessions,
+    runs: recordingRuns(),
+    transfers: recordingTransfers(),
+    kanban,
+    push: (event) => pushed.push(event),
+    onUnexpectedError: (error) => errors.push(error)
+  })
+}
+
+describe('chat handlers: start a Kanban card with an error reporter', () => {
+  const CHANGED: ChatPushEvent = { type: 'chats_changed', folder: REPO, chatId: 'chat_1' }
+
+  it('plays the card in the tracked folder, sends the kickoff and says the chat was created', async () => {
+    const { sessions, calls } = recordingSessions()
+    const cards: string[] = []
+    const errors: unknown[] = []
+    const pushed: ChatPushEvent[] = []
+
+    const result = await reportingHandlers(sessions, recordingCards(cards), errors, pushed).startKanbanCard({ folder: SPELLING, cardId: CARD_ID, agent: 'claude' })
+
+    expect(result).toEqual({ ok: true, data: { card: CARD, chat: CHAT, problem: null } })
+    expect(cards).toEqual([`play ${REPO} ${CARD_ID}`, `branch ${REPO}`])
+    expect(calls[0]).toEqual([
+      'createChat',
+      { folder: REPO, agent: 'claude', role: 'orchestrator', model: null, allowSave: false, title: 'Kanban · DM-7 Fix the flaky upload test', cardId: CARD_ID }
+    ])
+    expect(calls[1]?.[0]).toBe('send')
+    expect(calls[1]?.[1]).toBe(CHAT)
+    expect(calls[1]?.[2]).toContain('claim_kanban_card')
+    expect(calls[1]?.[2]).toContain(CARD_ID)
+    expect(pushed).toEqual([CHANGED])
+    expect(errors).toEqual([])
+  })
+
+  it('reports an agent that cannot start, removes its chat and says nothing changed in the list', async () => {
+    const { sessions, calls } = recordingSessions()
+    sessions.send = () => Promise.reject(new Error('claude exited with code 1'))
+    const errors: unknown[] = []
+    const pushed: ChatPushEvent[] = []
+
+    const result = await reportingHandlers(sessions, recordingCards([]), errors, pushed).startKanbanCard({ folder: SPELLING, cardId: CARD_ID, agent: 'claude' })
+
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        card: CARD,
+        chat: null,
+        problem: 'DM-7 is played, but claude could not be started: claude exited with code 1. The card keeps its pending play: press Play again to start a new chat.'
+      }
+    })
+    expect(calls.map((call) => call[0])).toEqual(['createChat', 'deleteChat'])
+    expect(errors).toEqual([expect.objectContaining({ message: 'claude exited with code 1' })])
+    expect(pushed).toEqual([])
+  })
+})
+
+describe('chat handlers: kick back and transfer failures with an error reporter', () => {
+  it("kicks the card back in the tracked folder and reports a comment that cannot reach the card's chat", async () => {
+    const { sessions } = recordingSessions()
+    sessions.listChats = () => [{ ...CHAT, cardId: CARD_ID, pending: 0 }]
+    sessions.send = () => Promise.reject(new Error('codex is gone'))
+    const cards: string[] = []
+    const errors: unknown[] = []
+
+    const result = await reportingHandlers(sessions, recordingCards(cards), errors, []).kickBackKanbanCard({ folder: SPELLING, cardId: CARD_ID, comment: 'Not yet.' })
+
+    expect(result).toMatchObject({ ok: true, data: { card: CARD, chatId: 'chat_1', problem: expect.stringContaining('the comment could not reach its chat: codex is gone') } })
+    expect(cards).toEqual([`kickBack ${REPO} ${CARD_ID}`])
+    expect(errors).toEqual([expect.objectContaining({ message: 'codex is gone' })])
+  })
+
+  it('reports a transfer chat that cannot be created, and says nothing changed in the list', async () => {
+    const { sessions } = recordingSessions()
+    sessions.createChat = () => {
+      throw new Error('disk full')
+    }
+    const errors: unknown[] = []
+    const pushed: ChatPushEvent[] = []
+
+    const result = await reportingHandlers(sessions, recordingCards([]), errors, pushed).startTransferChat({ folder: SPELLING, epicId: EPIC_ID, agent: 'codex' })
+
+    expect(result).toMatchObject({ ok: true, data: { chat: null, problem: expect.stringContaining('the transfer chat could not be created: disk full') } })
+    expect(errors).toEqual([expect.objectContaining({ message: 'disk full' })])
+    expect(pushed).toEqual([])
   })
 })

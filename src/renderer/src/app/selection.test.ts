@@ -195,3 +195,26 @@ describe('resolveSelection with a chat', () => {
     expect(resolveSelection(stored, [], false, { agents: null, chats: null })).toBe(stored)
   })
 })
+
+describe('selection of a folder\'s Kanban board', () => {
+  const stored = { folderPath: '/a', epicId: null, kanban: true as const }
+
+  it('accepts the board flag, and refuses any other value for it', () => {
+    expect(isSelection(stored)).toBe(true)
+    expect(isSelection({ folderPath: '/a', epicId: null, kanban: false })).toBe(false)
+    expect(isSelection({ folderPath: '/a', epicId: null, kanban: 'yes' })).toBe(false)
+  })
+
+  it('keeps the board of a folder that is set up, so it survives a reload', () => {
+    expect(resolveSelection(stored, [alpha], true, { agents: [], chats: [] })).toEqual(stored)
+  })
+
+  it('drops the board when the folder cannot hold one', () => {
+    expect(resolveSelection(stored, [folderView({ path: '/a', initialized: false })], true)).toEqual({ folderPath: '/a', epicId: null })
+    expect(resolveSelection(stored, [folderView({ path: '/a', available: false })], true)).toEqual({ folderPath: '/a', epicId: null })
+  })
+
+  it('does not carry the board over to the first folder when the stored one is gone', () => {
+    expect(resolveSelection({ ...stored, folderPath: '/gone' }, [alpha], true)).toEqual({ folderPath: '/a', epicId: null })
+  })
+})

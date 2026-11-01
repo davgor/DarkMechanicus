@@ -77,6 +77,8 @@ export interface RepoLayout {
   epicsDir: string
   historyDir: string
   profilesDir: string
+  /** Kanban cards: `kanban/<cardId>/card.json` and one immutable `events/<eventId>.json` per transition. */
+  kanbanDir: string
   localDir: string
   dbFile: string
   machineFile: string

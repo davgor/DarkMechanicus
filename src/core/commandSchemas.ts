@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { REASONING_EFFORTS } from '../shared/domain/bundle'
+import { REASONING_EFFORTS, TICKET_SIZES } from '../shared/domain/bundle'
 import { repositoryName } from './repo/portable'
 import { STORAGE_MODES } from './repo/storageMode'
 import { MAX_GRANT_MINUTES, MIN_GRANT_MINUTES } from './services/grants'
@@ -29,6 +29,7 @@ import {
   rowCheckEntries,
   sprintReportInput,
   stableId,
+  ticketInput,
   transferRef,
   workStatus
 } from './schemas'
@@ -49,6 +50,19 @@ const runRef = z.strictObject({ runId: stableId })
 const timelineWindow = {
   sinceSeq: z.number().int().min(0).optional(),
   limit: z.number().int().min(1).max(500).optional()
+}
+
+/**
+ * A Kanban card's content: the ticket fields a card shares, with no kind, tags, capability or repository. Its
+ * criteria never carry `covers`, which only an acceptance node uses.
+ */
+const kanbanCardFields = {
+  title: ticketInput.shape.title,
+  body: ticketInput.shape.body,
+  acceptanceCriteria: z.array(criterionInput).max(LIMITS.criteria).optional(),
+  expectedArtifacts: ticketInput.shape.expectedArtifacts,
+  references: ticketInput.shape.references,
+  priority: ticketInput.shape.priority
 }
 
 export const COMMAND_SCHEMAS = {
@@ -116,6 +130,43 @@ export const COMMAND_SCHEMAS = {
   deleteTicket: z.strictObject({ epicId: stableId, ticketId: stableId }),
   addComment: z.strictObject({ epicId: stableId, ticketId: stableId.optional(), body: commentBody, idempotencyKey }),
   listComments: z.strictObject({ epicId: stableId, ticketId: stableId.optional() }),
+  createKanbanCard: z.strictObject({ ...kanbanCardFields, size: z.enum(TICKET_SIZES).optional(), idempotencyKey }),
+  updateKanbanCard: z.strictObject({
+    cardId: stableId,
+    expectedRevision: revision,
+    ...kanbanCardFields,
+    title: kanbanCardFields.title.optional(),
+    // `null` clears the size.
+    size: ticketInput.shape.size,
+    idempotencyKey
+  }),
+  listKanbanCards: z.strictObject({
+    doneLimit: z.number().int().min(1).max(100).optional(),
+    doneCursor: z.string().min(1).max(200).optional()
+  }),
+  getKanbanCard: z.strictObject({ cardId: stableId }),
+  playKanbanCard: z.strictObject({ cardId: stableId }),
+  claimKanbanCard: z.strictObject({ cardId: stableId, leaseSeconds: leaseSeconds.optional(), idempotencyKey }),
+  heartbeatKanbanCard: z.strictObject({
+    attemptId: stableId,
+    claimToken,
+    progressNote: z.string().max(LIMITS.progressNote).optional()
+  }),
+  submitKanbanCard: z.strictObject({
+    attemptId: stableId,
+    claimToken,
+    outputs: attemptOutputsInput,
+    evidence: attemptEvidenceInput.optional(),
+    idempotencyKey
+  }),
+  failKanbanCard: z.strictObject({
+    attemptId: stableId,
+    claimToken,
+    reason: z.string().min(1).max(LIMITS.shortText),
+    idempotencyKey
+  }),
+  approveKanbanCard: z.strictObject({ cardId: stableId, idempotencyKey }),
+  kickBackKanbanCard: z.strictObject({ cardId: stableId, comment: commentBody, idempotencyKey }),
   getProfile: z.strictObject({ name: profileName }),
   saveProfile: z.strictObject({
     name: profileName,

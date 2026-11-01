@@ -10,6 +10,7 @@ import { registerCommentTools } from './tools/comments'
 import { grantTools } from './tools/define'
 import { registerDiscoveryTools } from './tools/discovery'
 import { registerExecutionTools } from './tools/execution'
+import { registerKanbanTools } from './tools/kanban'
 import { registerPlanningTools } from './tools/planning'
 import { registerProfileTools } from './tools/profiles'
 import { registerTransferTools } from './tools/transfers'
@@ -55,6 +56,7 @@ export function createMcpServer(
   registerCheckpointTools(server, api)
   registerCommentTools(server, api)
   registerTransferTools(server, api)
+  registerKanbanTools(server, api)
   registerPrompts(server)
   return server
 }

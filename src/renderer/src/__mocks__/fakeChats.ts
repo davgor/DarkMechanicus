@@ -13,7 +13,7 @@
  * answers the stored message, and is `not_found` for a chat with nothing cut short, as in main (a test
  * makes it refuse as signed out through `failures`).
  * `threadBindings` answers what a test put in `bindings` for the chat (none by default); `boundThreads` answers what a test
- * put in `bound` for the attempt or run (none by default).
+ * put in `bound` for the attempt, run or Kanban card (none by default).
  * Starting an orchestrator needs `orchestration` (how to queue the run and what the epic is called):
  * it then queues the run, stores an orchestrator chat with Allow save off that records the run's id
  * and answers both, as main does, unless `orchestrationProblem` says the chat could not be started.
@@ -21,6 +21,10 @@
  * is refused unless the transfer is queued or in progress, as in main, and otherwise stores an orchestrator
  * chat with Allow save off that records the epic's id, unless `transferProblem` says it could not be started.
  * `findTransferChat` answers the newest such chat of the folder, `transferPrompt` the transfer's prompt.
+ * Starting a Kanban card needs `kanban` (how Play and a kick-back move the card): it then marks the play, stores
+ * an orchestrator chat with Allow save off that records the card's id and answers both, as main does, unless
+ * `kanbanProblem` says the chat could not be started. A kick-back moves the card back, stores the comment as a
+ * message of the card's newest chat and answers that chat's id (null when the card has none).
  * A create, a rename and a delete that succeed push `chats_changed` to every subscriber (the originating
  * window too), as main does, so a second subscriber stands for a second window.
  */
@@ -35,8 +39,12 @@ import type {
   ChatsApi,
   ChatSummary,
   CreateChatRequest,
+  KickBackKanbanCardRequest,
+  KickBackKanbanCardResult,
   SendChatRequest,
   SetChatModelRequest,
+  StartKanbanCardRequest,
+  StartKanbanCardResult,
   StartOrchestratorRequest,
   StartOrchestratorResult,
   StartTransferChatRequest,
@@ -46,6 +54,7 @@ import type {
 } from '../../../shared/agents/chatApi'
 import type { AgentId, CommandResult } from '../../../shared/desktop/api'
 import type { DomainErrorShape } from '../../../shared/domain/errors'
+import type { KanbanCardView } from '../../../shared/domain/kanban'
 import type { TransferStatus } from '../../../shared/domain/transfer'
 import type { RunView } from '../../../shared/domain/views'
 import { chatRecord } from './fixtures'
@@ -57,6 +66,8 @@ type Method =
   | 'create'
   | 'startOrchestrator'
   | 'startTransferChat'
+  | 'startKanbanCard'
+  | 'kickBackKanbanCard'
   | 'findTransferChat'
   | 'transferPrompt'
   | 'rename'
@@ -86,6 +97,12 @@ interface FakeTransfer {
   prompt: string
 }
 
+/** What main does around a Kanban card that the fake cannot: record Play and the kick-back on the card. */
+interface FakeKanban {
+  play(folder: string, cardId: string): Promise<KanbanCardView>
+  kickBack(folder: string, cardId: string, comment: string): Promise<KanbanCardView>
+}
+
 const NOT_FOUND: DomainErrorShape = { code: 'not_found', message: 'Chat not found.' }
 
 export class FakeChats implements ChatsApi {
@@ -105,12 +122,16 @@ export class FakeChats implements ChatsApi {
   transfer: FakeTransfer | null = null
   /** When set, `startTransferChat` starts no chat and answers with this problem. */
   transferProblem: string | null = null
+  /** How `startKanbanCard` and `kickBackKanbanCard` move the card; without it both are refused as unavailable. */
+  kanban: FakeKanban | null = null
+  /** When set, `startKanbanCard` marks the play but starts no chat and answers with this problem. */
+  kanbanProblem: string | null = null
   /** Each chat's stored transcript, as `open` returns it. */
   transcripts: Record<string, ChatItem[]> = {}
   /** Each chat's thread bindings, as `threadBindings` answers them; a chat with no entry has none. */
   bindings: Record<string, ThreadBinding[]> = {}
-  /** The threads bound to each attempt and each run, as `boundThreads` answers them; one with no entry has none. */
-  bound: { attempts: Record<string, BoundThread[]>; runs: Record<string, BoundThread[]> } = { attempts: {}, runs: {} }
+  /** The threads bound to each attempt, run and Kanban card, as `boundThreads` answers them; one with no entry has none. */
+  bound: { attempts: Record<string, BoundThread[]>; runs: Record<string, BoundThread[]>; cards: Record<string, BoundThread[]> } = { attempts: {}, runs: {}, cards: {} }
   /** The chats whose turn is running, as `open` reports it. */
   running = new Set<string>()
   /** Every call with exactly the arguments it was given, oldest first. */
@@ -228,6 +249,50 @@ export class FakeChats implements ChatsApi {
     })
   }
 
+  startKanbanCard(request: StartKanbanCardRequest): Promise<CommandResult<StartKanbanCardResult>> {
+    return this.call<StartKanbanCardResult>('startKanbanCard', [request], async () => {
+      const kanban = this.kanban
+      if (kanban === null) {
+        return { ok: false, error: { code: 'unsupported_capability', message: 'Kanban is not part of this test.' } }
+      }
+      const card = await kanban.play(request.folder, request.cardId)
+      if (this.kanbanProblem !== null) {
+        return { ok: true, data: { card, chat: null, problem: this.kanbanProblem } }
+      }
+      this.created += 1
+      const chat = chatRecord({
+        id: `chat_new_${this.created}`,
+        folder: request.folder,
+        agent: request.agent,
+        role: 'orchestrator',
+        model: request.model ?? null,
+        allowSave: false,
+        title: `Kanban · ${card.key} ${card.title}`,
+        cardId: card.id,
+        createdAt: this.tick(),
+        updatedAt: this.tick()
+      })
+      this.chats.push(chat)
+      this.changed(chat)
+      return { ok: true, data: { card, chat, problem: null } }
+    })
+  }
+
+  kickBackKanbanCard(request: KickBackKanbanCardRequest): Promise<CommandResult<KickBackKanbanCardResult>> {
+    return this.call<KickBackKanbanCardResult>('kickBackKanbanCard', [request], async () => {
+      const kanban = this.kanban
+      if (kanban === null) {
+        return { ok: false, error: { code: 'unsupported_capability', message: 'Kanban is not part of this test.' } }
+      }
+      const card = await kanban.kickBack(request.folder, request.cardId, request.comment)
+      const chat = this.inFolder(request.folder).find((item) => item.cardId === request.cardId) ?? null
+      if (chat !== null) {
+        this.transcripts[chat.id] = [...(this.transcripts[chat.id] ?? []), this.made(chat.id, { kind: 'user_message', text: request.comment })]
+      }
+      return { ok: true, data: { card, chatId: chat?.id ?? null, problem: null } }
+    })
+  }
+
   findTransferChat(request: TransferChatRequest): Promise<CommandResult<ChatSummary | null>> {
     return this.call('findTransferChat', [request], () => ({
       ok: true,
@@ -314,7 +379,7 @@ export class FakeChats implements ChatsApi {
 
   boundThreads(request: BoundThreadsRequest): Promise<CommandResult<BoundThread[]>> {
     return this.call('boundThreads', [request], () => {
-      const found = 'attemptId' in request ? this.bound.attempts[request.attemptId] : this.bound.runs[request.runId]
+      const found = 'attemptId' in request ? this.bound.attempts[request.attemptId] : 'runId' in request ? this.bound.runs[request.runId] : this.bound.cards[request.cardId]
       return { ok: true, data: [...(found ?? [])] }
     })
   }

@@ -16,6 +16,18 @@ function allTicketKeys(ctx: Ctx): string[] {
     .map((row) => row.key ?? '')
 }
 
+/** Every key the project has handed out: every plan ticket key, and every Kanban card key, which share one sequence. */
+function allProjectKeys(ctx: Ctx): string[] {
+  const cardKeys = ctx.db.all<{ key: string }>('SELECT key FROM kanban_cards').map((row) => row.key)
+  return [...allTicketKeys(ctx), ...cardKeys]
+}
+
+/** The next free key of the project's ticket sequence, for a new Kanban card. */
+export function nextProjectKey(ctx: Ctx): string {
+  const prefix = getMeta(ctx.db, META_KEYS.keyPrefix) ?? DEFAULT_KEY_PREFIX
+  return `${prefix}-${maxKeyNumber(allProjectKeys(ctx)) + 1}`
+}
+
 /** Id and key allocation for the tickets and sprints a draft edit creates, and the project's repositories. */
 export function draftDeps(ctx: Ctx): DraftDeps {
   const prefix = getMeta(ctx.db, META_KEYS.keyPrefix) ?? DEFAULT_KEY_PREFIX
@@ -23,7 +35,7 @@ export function draftDeps(ctx: Ctx): DraftDeps {
   return {
     newId: (kind) => ctx.ids.next(kind),
     nextKey: () => {
-      const number = next ?? maxKeyNumber(allTicketKeys(ctx)) + 1
+      const number = next ?? maxKeyNumber(allProjectKeys(ctx)) + 1
       next = number + 1
       return `${prefix}-${number}`
     },

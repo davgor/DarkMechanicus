@@ -30,6 +30,7 @@ interface Setup {
   expansion?: FakeExpansion
   chats?: ChatListState
   statuses?: AgentStatuses
+  kanbanOpen?: number | null
 }
 
 interface Calls {
@@ -38,6 +39,7 @@ interface Calls {
   stops: string[]
   newChats: string[]
   chats: string[]
+  kanban: string[]
   expansion: FakeExpansion
 }
 
@@ -54,6 +56,8 @@ function row(setup: Setup, calls: Calls): JSX.Element {
       agents={[]}
       onSelectFolder={(path) => calls.folders.push(path)}
       onSelectEpic={(path, id) => calls.epics.push(`${path}:${id}`)}
+      kanbanOpen={setup.kanbanOpen === undefined ? 3 : setup.kanbanOpen}
+      onSelectKanban={(path) => calls.kanban.push(path)}
       onNewChat={(path) => calls.newChats.push(path)}
       onOpenChat={(path, id) => calls.chats.push(`${path}:${id}`)}
       onRenameChat={() => Promise.resolve(true)}
@@ -64,7 +68,7 @@ function row(setup: Setup, calls: Calls): JSX.Element {
 }
 
 function newCalls(setup: Setup): Calls {
-  return { folders: [], epics: [], stops: [], newChats: [], chats: [], expansion: setup.expansion ?? new FakeExpansion() }
+  return { folders: [], epics: [], stops: [], newChats: [], chats: [], kanban: [], expansion: setup.expansion ?? new FakeExpansion() }
 }
 
 function renderRow(setup: Setup = {}): Calls {
@@ -120,10 +124,10 @@ describe('FolderRow header', () => {
 })
 
 describe('FolderRow buckets', () => {
-  it('shows exactly three buckets in order with counts', () => {
+  it('lists In progress, Backlog, Kanban and Completed in that order with counts', () => {
     renderRow()
-    const headers = Array.from(document.querySelectorAll('.bucket-header')).map((el) => el.getAttribute('aria-label'))
-    expect(headers).toEqual(['In progress, 1 epic', 'Backlog, 1 epic', 'Completed, 1 epic'])
+    const rows = Array.from(document.querySelectorAll('.buckets .bucket-header')).map((el) => el.getAttribute('aria-label'))
+    expect(rows).toEqual(['In progress, 1 epic', 'Backlog, 1 epic', 'Kanban, 3 open cards', 'Completed, 1 epic'])
   })
 
   it('expands buckets according to the persisted state', () => {
@@ -149,6 +153,47 @@ describe('FolderRow buckets', () => {
   it('does not highlight an epic of another folder', () => {
     renderRow({ selection: { folderPath: '/other', epicId: EPIC_A } })
     expect(screen.getByRole('button', { name: /Alpha work/ }).getAttribute('aria-current')).toBeNull()
+  })
+})
+
+describe('FolderRow Kanban row', () => {
+  it('says how many cards are open, in the singular for one', () => {
+    renderRow({ kanbanOpen: 1 })
+    expect(screen.getByRole('button', { name: 'Kanban, 1 open card' })).toBeTruthy()
+    cleanup()
+    renderRow({ kanbanOpen: 0 })
+    expect(screen.getByRole('button', { name: 'Kanban, 0 open cards' })).toBeTruthy()
+  })
+
+  it('names the row without a count until the board has loaded', () => {
+    renderRow({ kanbanOpen: null })
+    expect(screen.getByRole('button', { name: 'Kanban' })).toBeTruthy()
+  })
+
+  it('opens the folder\'s board', () => {
+    const calls = renderRow()
+    fireEvent.click(screen.getByRole('button', { name: 'Kanban, 3 open cards' }))
+    expect(calls.kanban).toEqual(['/a'])
+    expect(calls.folders).toEqual([])
+  })
+
+  it('shows as selected while the board is open, instead of the folder', () => {
+    renderRow({ selection: { folderPath: '/a', epicId: null, kanban: true } })
+    expect(screen.getByRole('button', { name: 'Kanban, 3 open cards' }).getAttribute('aria-current')).toBe('true')
+    expect(screen.getByRole('button', { name: FOLDER_BUTTON }).getAttribute('aria-current')).toBeNull()
+  })
+
+  it('is not selected for another folder\'s board or for the folder home', () => {
+    renderRow({ selection: { folderPath: '/other', epicId: null, kanban: true } })
+    expect(screen.getByRole('button', { name: 'Kanban, 3 open cards' }).getAttribute('aria-current')).toBeNull()
+    cleanup()
+    renderRow({ selection: { folderPath: '/a', epicId: null } })
+    expect(screen.getByRole('button', { name: 'Kanban, 3 open cards' }).getAttribute('aria-current')).toBeNull()
+  })
+
+  it('has no Kanban row in a folder that is not set up', () => {
+    renderRow({ folder: folderView({ path: '/s', name: 'setup-me', initialized: false }) })
+    expect(screen.queryByRole('button', { name: /^Kanban/ })).toBeNull()
   })
 })
 

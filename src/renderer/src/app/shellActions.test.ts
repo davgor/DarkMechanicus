@@ -86,6 +86,13 @@ describe('selection actions', () => {
     expect(recorder.revealed).toEqual(['/a'])
   })
 
+  it('opens a folder\'s Kanban board, reveals the folder and forgets a pending link request', () => {
+    recorder.actions().selectKanban('/a')
+    expect(recorder.selections).toEqual([{ folderPath: '/a', epicId: null, kanban: true }])
+    expect(recorder.revealed).toEqual(['/a'])
+    expect(recorder.landings).toEqual([null])
+  })
+
   it('selects an epic and reveals its bucket', () => {
     recorder.buckets['/a:ep_1'] = 'completed'
     recorder.actions().selectEpic('/a', 'ep_1')

@@ -153,8 +153,20 @@ describe('createIdGenerator kinds and secrets', () => {
       hostCatalog: 'hc',
       comment: 'cm',
       rowCheck: 'rk',
-      grant: 'gr'
+      grant: 'gr',
+      kanbanCard: 'kc',
+      kanbanAttempt: 'ka',
+      kanbanEvent: 'ke'
     })
+  })
+
+  it('gives every id kind a distinct prefix, so a kanban id never passes as another kind', () => {
+    const prefixes = Object.values(ID_PREFIXES)
+    expect(new Set(prefixes).size).toBe(prefixes.length)
+    const card = createIdGenerator(() => 0, fixedRandom(() => 0).random).next('kanbanCard')
+    expect(isStableId(card, 'kanbanCard')).toBe(true)
+    expect(isStableId(card, 'ticket')).toBe(false)
+    expect(isStableId(card, 'kanbanAttempt')).toBe(false)
   })
 
   it('encodes 24 random bytes as unpadded base64url secrets', () => {

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { AppHarness } from './__mocks__/appHarness'
 import { EPIC_A, EPIC_B, EPIC_C, epicSummary, folderView, runSummary } from './__mocks__/fixtures'
 import { settle } from './__mocks__/settle'
+import { cardSummary, doneCard } from './kanban/__mocks__/fixtures'
 
 let h: AppHarness
 
@@ -30,14 +31,42 @@ const stub = (): string | null => screen.getByTestId('epic-stub').textContent
 const sidebar = (): ReturnType<typeof within> => within(screen.getByRole('complementary', { name: 'Tracked folders' }))
 
 describe('App sidebar buckets', () => {
-  it('shows In progress, Backlog and Completed in order with counts', async () => {
+  it('shows In progress, Backlog, Kanban and Completed in order with counts', async () => {
     seed()
+    h.dm.responses.listKanbanCards = {
+      lanes: { backlog: [cardSummary({ id: 'kc_1' })], in_progress: [cardSummary({ id: 'kc_2', lane: 'in_progress' })], ready_for_review: [], done: [doneCard(1)] },
+      doneTotal: 1,
+      doneNextCursor: null
+    }
     h.mount()
     await settle()
     const labels = Array.from(document.querySelectorAll('.bucket-header')).map((el) => el.getAttribute('aria-label'))
-    expect(labels).toEqual(['In progress, 1 epic', 'Backlog, 1 epic', 'Completed, 1 epic'])
+    expect(labels).toEqual(['In progress, 1 epic', 'Backlog, 1 epic', 'Kanban, 2 open cards', 'Completed, 1 epic'])
   })
 
+})
+
+describe('App sidebar Kanban', () => {
+  it('opens the folder\'s Kanban board from the sidebar, and reopens it after a reload', async () => {
+    seed()
+    h.mount()
+    await settle()
+    fireEvent.click(sidebar().getByRole('button', { name: 'Kanban, 0 open cards' }))
+    await settle()
+    const workspace = within(screen.getByRole('main', { name: 'Workspace' }))
+    expect(workspace.getByRole('heading', { name: 'Kanban' })).toBeTruthy()
+    expect(workspace.getByRole('region', { name: 'Done, 0 cards' })).toBeTruthy()
+    expect(sidebar().getByRole('button', { name: 'Kanban, 0 open cards' }).getAttribute('aria-current')).toBe('true')
+    cleanup()
+    h = new AppHarness()
+    seed()
+    h.mount()
+    await settle()
+    expect(within(screen.getByRole('main', { name: 'Workspace' })).getByRole('heading', { name: 'Kanban' })).toBeTruthy()
+  })
+})
+
+describe('App sidebar epic rows', () => {
   it('shows status lines and badges on the rows', async () => {
     seed()
     h.mount()

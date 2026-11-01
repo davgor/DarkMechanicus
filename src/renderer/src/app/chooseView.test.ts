@@ -112,3 +112,18 @@ describe('chooseView with a chat', () => {
     expect(view).toEqual({ kind: 'add-agent' })
   })
 })
+
+describe('chooseView with the Kanban board', () => {
+  it('shows the board of a folder that is set up', () => {
+    expect(chooseView({ loaded: true, folder: ready, epicId: null, kanban: true })).toEqual({ kind: 'kanban', folder: ready })
+  })
+
+  it('shows setup or unavailable instead of the board of a folder that cannot hold one', () => {
+    expect(chooseView({ loaded: true, folder: setup, epicId: null, kanban: true }).kind).toBe('onboarding')
+    expect(chooseView({ loaded: true, folder: missing, epicId: null, kanban: true }).kind).toBe('unavailable')
+  })
+
+  it('lets an agents screen take over the board', () => {
+    expect(chooseView({ loaded: true, folder: ready, epicId: null, kanban: true, agentPane: { kind: 'add' }, agents: [] }).kind).toBe('add-agent')
+  })
+})

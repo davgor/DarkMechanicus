@@ -105,7 +105,7 @@ function Details({ card }: { card: AttemptCard }): JSX.Element {
   )
 }
 
-function AttemptCardView({ card, onReview }: { card: AttemptCard; onReview: Review }): JSX.Element {
+function AttemptCardView({ card, onReview }: { card: AttemptCard; onReview?: Review }): JSX.Element {
   return (
     <li className={card.superseded ? 'tp-attempt is-superseded' : 'tp-attempt'} aria-label={`Attempt ${card.heading}`}>
       <div className="tp-attempt-head">
@@ -115,12 +115,13 @@ function AttemptCardView({ card, onReview }: { card: AttemptCard; onReview: Revi
         {card.superseded ? <span className="ew-chip">superseded</span> : null}
       </div>
       <Details card={card} />
-      <ReviewControls card={card} onReview={onReview} />
+      {onReview === undefined ? null : <ReviewControls card={card} onReview={onReview} />}
     </li>
   )
 }
 
-export function AttemptList(props: { attempts: AttemptView[]; now: number; onReview: Review }): JSX.Element {
+/** The attempts, newest first. Without `onReview` the list is read-only: the caller offers its own review controls. */
+export function AttemptList(props: { attempts: AttemptView[]; now: number; onReview?: Review }): JSX.Element {
   const cards = attemptCards(props.attempts, props.now)
   if (cards.length === 0) {
     return <p className="ew-muted">No attempts yet.</p>

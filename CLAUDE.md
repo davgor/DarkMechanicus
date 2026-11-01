@@ -9,4 +9,6 @@
 
 Use the `planner` role only when you're asked to *plan* an epic.
 
+An isolated ticket (one change, no prerequisites, nothing depending on it, done in one attempt) goes on the folder's Kanban board with `create_kanban_card`, not into a new epic; see the delivery standards' Standing rules.
+
 Details: [`.claude/skills/delivery-standards/SKILL.md`](.claude/skills/delivery-standards/SKILL.md), [`skills/orchestrator.md`](skills/orchestrator.md), [`docs/runbooks/mcp-setup.md`](docs/runbooks/mcp-setup.md).

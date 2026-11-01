@@ -55,7 +55,7 @@ describe('initializeRepository on a fresh folder', () => {
       alreadyInitialized: false,
       machineId: seqId('machine', 2)
     })
-    for (const dir of [layout.epicsDir, layout.historyDir, layout.profilesDir, layout.localDir]) {
+    for (const dir of [layout.epicsDir, layout.historyDir, layout.profilesDir, layout.kanbanDir, layout.localDir]) {
       expect(d.fs.isDirectory(dir)).toBe(true)
     }
     expect(d.fs.get(layout.gitignoreFile)).toBe('local/\n')
@@ -201,7 +201,7 @@ describe('initializeRepository in db mode', () => {
     const d = dbDeps()
     initializeRepository(d, {})
     expect(d.fs.exists(dbLayout.gitignoreFile)).toBe(false)
-    for (const dir of [dbLayout.epicsDir, dbLayout.historyDir, dbLayout.profilesDir]) {
+    for (const dir of [dbLayout.epicsDir, dbLayout.historyDir, dbLayout.profilesDir, dbLayout.kanbanDir]) {
       expect(d.fs.exists(dir)).toBe(false)
     }
     expect(d.fs.isDirectory(dbLayout.localDir)).toBe(true)

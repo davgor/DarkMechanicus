@@ -2,6 +2,7 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { createMemoryFs } from '../../test/memoryFs'
 import { idOf, insertComment, insertEpic, insertOutbox, insertRevision, insertRun, T0 } from '../../test/repoFixtures'
+import { kanbanSessions } from '../../test/kanbanFixtures'
 import { createStubGit } from '../../test/repoEnv'
 import { makeBundle } from '../../test/bundles'
 import { createTestClock, createTestDb } from '../../test/testContext'
@@ -10,6 +11,7 @@ import type { Db } from '../db/database'
 import { SCHEMA_VERSION } from '../db/migrations'
 import { setMeta } from '../meta'
 import { TRANSFER_HOLD_PREFIX } from '../services/transferGuard'
+import { createKanbanCard } from '../services/kanban/cards'
 import { EPIC_RECORDS_CONFLICT_PREFIX } from './importer'
 import { resolveLayout } from './layout'
 import { getStorageStatus } from './storage'
@@ -52,6 +54,7 @@ describe('getStorageStatus without a database', () => {
       uncommittedRecordFiles: null,
       conflicts: [],
       profileConflicts: [],
+      kanbanConflicts: [],
       sessions: { active: 0, byRole: {} }
     })
   })
@@ -125,6 +128,7 @@ describe('getStorageStatus with a database', () => {
         { name: 'deep-review', message: 'review conflict' },
         { name: 'ui', message: 'ui conflict' }
       ],
+      kanbanConflicts: [],
       sessions: { active: 1, byRole: { orchestrator: 1 } }
     })
   })
@@ -151,7 +155,26 @@ describe('getStorageStatus with a database', () => {
     const status = await getStorageStatus({ db, layout, fs: initializedFs(), git: gitWith(0, 'main'), clock: createTestClock() })
     expect(status.outbox).toEqual({ pending: 0, failed: 0, lastError: null })
     expect(status.branch).toEqual({ current: 'main', recorded: 'main', changed: false, repository: true })
-    expect([status.conflicts, status.profileConflicts]).toEqual([[], []])
+    expect([status.conflicts, status.profileConflicts, status.kanbanConflicts]).toEqual([[], [], []])
+  })
+})
+
+describe('getStorageStatus Kanban conflicts', () => {
+  it('lists Kanban card and event conflicts by card, apart from the epic conflicts', async () => {
+    const db = createTestDb()
+    const { desktop } = kanbanSessions({ db, clock: createTestClock() })
+    const card = createKanbanCard(desktop, { title: 'Edited on two machines' })
+    const event = db.get<{ id: string }>('SELECT id FROM kanban_events WHERE card_id = ?', card.id)?.id ?? ''
+    const conflict = 'INSERT INTO sync_state (kind, entity_id, conflict, updated_at) VALUES (?, ?, ?, ?)'
+    db.run(conflict, 'kanban_card', card.id, 'card conflict', T0)
+    db.run(conflict, 'kanban_event', event, 'event conflict', T0)
+    db.run(conflict, 'kanban_card', idOf('kanbanCard', 99), null, T0)
+    const status = await getStorageStatus({ db, layout, fs: initializedFs(), git: gitWith(0, 'main'), clock: createTestClock() })
+    expect(status.kanbanConflicts).toEqual([
+      { cardId: card.id, message: 'card conflict' },
+      { cardId: card.id, message: 'event conflict' }
+    ])
+    expect(status.conflicts).toEqual([])
   })
 })
 

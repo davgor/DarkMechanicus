@@ -1,0 +1,55 @@
+{
+  "lanes": {
+    "backlog": [
+      {
+        "id": "kc_01m6ay2ngrq46dar70v49cqc0g",
+        "key": "DM-1",
+        "title": "Document the release checklist",
+        "lane": "backlog",
+        "priority": "normal",
+        "updatedAt": "2026-11-01T06:52:15.257Z",
+        "playPending": false,
+        "openAttempt": null,
+        "kickBackCount": 0,
+        "summary": null
+      },
+      {
+        "id": "kc_01m6ay2nhcpdax05a517yfcjzk",
+        "key": "DM-2",
+        "title": "Fix the typo in the README title",
+        "lane": "backlog",
+        "priority": "low",
+        "updatedAt": "2026-11-01T06:52:15.276Z",
+        "playPending": false,
+        "openAttempt": null,
+        "kickBackCount": 0,
+        "summary": null
+      }
+    ],
+    "in_progress": [],
+    "ready_for_review": [],
+    "done": [
+      {
+        "id": "kc_01m6ay3q98p2ybn5hjz4rkw8gr",
+        "key": "DM-3",
+        "title": "Add a CHANGELOG.md",
+        "lane": "done",
+        "priority": "high",
+        "updatedAt": "2026-11-01T06:52:49.888Z",
+        "playPending": false,
+        "openAttempt": null,
+        "kickBackCount": 1,
+        "summary": {
+          "outcome": "Added the 0.1.0 section under Unreleased, as the kick-back asked.",
+          "commits": [
+            "2222222222222222222222222222222222222222"
+          ],
+          "completedAt": "2026-11-01T06:52:49.888Z",
+          "approvedBy": "acceptance desktop"
+        }
+      }
+    ]
+  },
+  "doneTotal": 1,
+  "doneNextCursor": null
+}

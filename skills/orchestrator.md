@@ -13,6 +13,7 @@ You are usually the agent session the person is working with, and your role also
 - You cannot approve checkpoints, enable auto-continue, grant retries, or queue runs for a person. Those are actions for a person in the desktop app. Never try to forge or work around them.
 - Claim tokens are secrets. Give a token only to the worker doing that ticket. Never put one in a ticket, commit, report, or log.
 - Submission is not acceptance. A worker's own claim of success never unlocks downstream work.
+- An isolated ticket, meaning one coherent change with no prerequisites and nothing depending on it that one worker can finish in one attempt, goes on the folder's Kanban board with `create_kanban_card`, not into a new epic. Work that needs two or more tickets, ordering or sprints stays an epic. Agents create and edit cards; only a person presses Play, approves or kicks back. Follow-ups and bugs found during a sprint stay in that epic's plan or retro.
 
 ## 1. Set up
 
@@ -130,3 +131,14 @@ When the leftover is in the final sprint, the redraft adds a sprint after it, an
 ## 7. Record keeping
 
 Every claim records the model, host, catalog revision, and rationale. Put decisions and surprises in review notes and in the sprint report so the history explains itself. Record a blocker or decision that concerns one ticket, or the whole epic, with `add_comment` (with or without a `ticketId`), and read what people and workers left with `list_comments` before you dispatch a ticket again after a failure or rejection.
+
+## 8. Running a Kanban card
+
+When a person presses Play on a card, the desktop starts a chat for you with the card's id. A card has no run, sprints or checkpoints.
+
+1. Call `claim_kanban_card` with the card id. It needs the person's Play (`play_required` otherwise) and returns the packet: the card, the checked-out branch, every earlier kick-back comment and a claim token.
+2. Hand the packet to one worker subagent, with the worker guidance and the rule that it reports back to you instead of calling `submit_kanban_card` or `fail_kanban_card`. The claim token is a secret, as for tickets.
+3. The worker works on the checked-out branch and commits there. Keep calling `heartbeat_kanban_card` until you submit, so the claim does not expire.
+4. Review the work against the card's acceptance criteria and the Definition of Done. Send it back to the worker until it meets them.
+5. Call `submit_kanban_card` with outputs and evidence for each criterion, which moves the card to Ready for review, or `fail_kanban_card` with the reason when it cannot be done.
+6. Stop. Never approve a card or kick it back: only a person does that, in the desktop app. A kick-back comes back as a new message; claim the card again and address every comment.

@@ -8,7 +8,7 @@ import { StateLabel } from '../epic/StatePill'
 import { InlineMarkdown, Markdown } from '../markdown/Markdown'
 import { CoverageCriteria, CriteriaItems, DefinitionOfDone } from './AcceptanceSections'
 import { loadHistory } from './ticketData'
-import { capabilityRows, criteriaChecklist, evidenceView, historyItems, linkRows, sizeAndEffortRows, type LinkRow } from './ticketView'
+import { capabilityRows, criteriaChecklist, evidenceView, historyItems, linkRows, sizeAndEffortRows, type EvidenceView, type LinkRow } from './ticketView'
 
 function LinkList(props: { title: string; rows: LinkRow[]; onSelect(ticketId: string): void }): JSX.Element | null {
   if (props.rows.length === 0) {
@@ -140,11 +140,8 @@ function EvidenceList(props: { heading: string; label: string; rows: EvidenceRow
   )
 }
 
-export function EvidenceTab({ detail }: { detail: TicketDetailView }): JSX.Element {
-  const evidence = evidenceView(detail.ticket, detail.attempts)
-  if (evidence === null) {
-    return <p className="ew-muted">No evidence recorded yet.</p>
-  }
+/** An attempt's evidence: where it came from, its checks, its criteria results and its notes. */
+export function EvidenceSections({ evidence }: { evidence: EvidenceView }): JSX.Element {
   const checks = evidence.checks.map(
     (check): EvidenceRow => ({ key: check.name, tone: check.status, status: check.status, icon: check.icon, title: check.name, detail: check.detail })
   )
@@ -171,6 +168,11 @@ export function EvidenceTab({ detail }: { detail: TicketDetailView }): JSX.Eleme
       )}
     </>
   )
+}
+
+export function EvidenceTab({ detail }: { detail: TicketDetailView }): JSX.Element {
+  const evidence = evidenceView(detail.ticket, detail.attempts)
+  return evidence === null ? <p className="ew-muted">No evidence recorded yet.</p> : <EvidenceSections evidence={evidence} />
 }
 
 function useHistory(runner: Runner, epicId: string, reloadKey: unknown): { events: EventView[] | null; error: string | null } {

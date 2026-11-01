@@ -24,6 +24,7 @@ import { EpicWorkspace } from './epic/EpicWorkspace'
 import type { EpicWorkspaceProps } from './epic/EpicWorkspace'
 import type { OrchestrationHost } from './epic/orchestration'
 import { FolderHome } from './home/FolderHome'
+import { KanbanBoard } from './kanban/KanbanBoard'
 import { OnboardingView } from './onboarding/OnboardingView'
 import { Sidebar } from './sidebar/Sidebar'
 import { SidebarFooter } from './sidebar/SidebarFooter'
@@ -157,6 +158,8 @@ function MainPane(props: PaneProps): JSX.Element | null {
       return <AgentPage key={view.agent.id} agent={view.agent} agents={shell.agents} />
     case 'chat':
       return <ChatPane key={view.chat.id} shell={shell} folder={view.folder} chat={view.chat} />
+    case 'kanban':
+      return <KanbanBoard key={view.folder.path} folder={view.folder} refreshToken={shell.folderToken(view.folder.path)} host={orchestrationFor(shell, view.folder)} />
     case 'unavailable':
       return <UnavailableView folder={view.folder} onStopTracking={props.onRequestUntrack} />
     case 'onboarding':
@@ -174,7 +177,7 @@ function MainPane(props: PaneProps): JSX.Element | null {
 }
 
 function ShellFooter({ shell }: { shell: ShellModel }): JSX.Element {
-  const folderReady = shell.view.kind === 'home' || shell.view.kind === 'epic' || shell.view.kind === 'chat'
+  const folderReady = ['home', 'epic', 'chat', 'kanban'].includes(shell.view.kind)
   return (
     <SidebarFooter
       status={shell.status}
@@ -250,6 +253,8 @@ function Shell({ scheduler, EpicView }: { scheduler: Scheduler; EpicView: EpicVi
         onAgentStatus={shell.agents.recordStatus}
         onSelectFolder={actions.selectFolder}
         onSelectEpic={actions.selectEpic}
+        kanbanCounts={shell.kanbanCounts}
+        onSelectKanban={actions.selectKanban}
         onRequestUntrack={setPending}
       />
       <main className="app-main" aria-label="Workspace">

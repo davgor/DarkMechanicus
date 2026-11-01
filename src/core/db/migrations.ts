@@ -3,7 +3,7 @@ import { redactedJson } from '../storedSecrets'
 import type { Db } from './database'
 
 /** Highest schema version this build understands. Newer databases are refused, never downgraded. */
-export const SCHEMA_VERSION = 12
+export const SCHEMA_VERSION = 13
 
 export interface Migration {
   version: number
@@ -494,6 +494,106 @@ const V12 = `
 ALTER TABLE epics ADD COLUMN repository_branches_json TEXT;
 `
 
+/**
+ * v13 adds the Kanban board: cards (keyed from the project's ticket sequence, so no card and plan ticket share a
+ * key), their attempts (at most one open per card, holding the claim secret and lease) and one event per transition.
+ * The outbox and sync state gain the `kanban_card` and `kanban_event` record kinds; SQLite cannot alter a CHECK
+ * constraint, so both tables are rebuilt the way v2 rebuilt them, keeping every row, id and the outbox id sequence.
+ */
+const V13 = `
+CREATE TABLE kanban_cards (
+  id TEXT PRIMARY KEY,
+  key TEXT NOT NULL UNIQUE,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL DEFAULT '',
+  acceptance_criteria_json TEXT NOT NULL,
+  expected_artifacts_json TEXT NOT NULL,
+  references_json TEXT NOT NULL,
+  priority TEXT NOT NULL,
+  size TEXT,
+  lane TEXT NOT NULL CHECK (lane IN ('backlog','in_progress','ready_for_review','done')),
+  play_requested_at TEXT,
+  play_requested_by TEXT,
+  created_by_role TEXT NOT NULL,
+  created_by_label TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  completed_at TEXT,
+  summary_json TEXT,
+  compacted_at TEXT,
+  revision INTEGER NOT NULL
+);
+
+CREATE TABLE kanban_attempts (
+  id TEXT PRIMARY KEY,
+  card_id TEXT NOT NULL REFERENCES kanban_cards(id),
+  number INTEGER NOT NULL CHECK (number >= 1),
+  state TEXT NOT NULL CHECK (state IN ('claimed','running','submitted','accepted','rejected','failed','lease_expired')),
+  claim_secret TEXT NOT NULL,
+  machine_id TEXT,
+  lease_expires_at TEXT,
+  heartbeat_at TEXT,
+  progress_note TEXT,
+  outputs_json TEXT,
+  evidence_json TEXT,
+  review_comment TEXT,
+  created_at TEXT NOT NULL,
+  submitted_at TEXT,
+  decided_at TEXT,
+  UNIQUE (card_id, number)
+);
+CREATE UNIQUE INDEX kanban_attempts_one_open_per_card ON kanban_attempts(card_id)
+  WHERE state IN ('claimed','running','submitted');
+
+CREATE TABLE kanban_events (
+  id TEXT PRIMARY KEY,
+  card_id TEXT NOT NULL REFERENCES kanban_cards(id),
+  kind TEXT NOT NULL,
+  attempt_id TEXT,
+  actor_role TEXT NOT NULL,
+  actor_label TEXT NOT NULL,
+  payload_json TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX kanban_events_card ON kanban_events(card_id, created_at, id);
+
+CREATE TABLE outbox_v13 (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind TEXT NOT NULL CHECK (kind IN ('snapshot','epic_state','run_history','comment','profile','kanban_card','kanban_event')),
+  epic_id TEXT,
+  run_id TEXT,
+  revision_id TEXT,
+  entity_id TEXT,
+  state TEXT NOT NULL CHECK (state IN ('pending','done','failed')),
+  attempts INTEGER NOT NULL DEFAULT 0,
+  last_error TEXT,
+  created_at TEXT NOT NULL,
+  done_at TEXT
+);
+INSERT INTO outbox_v13 (id, kind, epic_id, run_id, revision_id, entity_id, state, attempts, last_error, created_at, done_at)
+  SELECT id, kind, epic_id, run_id, revision_id, entity_id, state, attempts, last_error, created_at, done_at FROM outbox;
+DELETE FROM sqlite_sequence WHERE name = 'outbox_v13';
+INSERT INTO sqlite_sequence (name, seq) SELECT 'outbox_v13', seq FROM sqlite_sequence WHERE name = 'outbox';
+DROP TABLE outbox;
+ALTER TABLE outbox_v13 RENAME TO outbox;
+CREATE INDEX outbox_state ON outbox(state, id);
+
+CREATE TABLE sync_state_v13 (
+  kind TEXT NOT NULL CHECK (kind IN ('epic','run','comment','profile','kanban_card','kanban_event')),
+  entity_id TEXT NOT NULL,
+  exported_hash TEXT,
+  generation INTEGER NOT NULL DEFAULT 0,
+  imported_hash TEXT,
+  conflict TEXT,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (kind, entity_id)
+);
+INSERT INTO sync_state_v13 (kind, entity_id, exported_hash, generation, imported_hash, conflict, updated_at)
+  SELECT kind, entity_id, exported_hash, generation, imported_hash, conflict, updated_at FROM sync_state;
+DROP TABLE sync_state;
+ALTER TABLE sync_state_v13 RENAME TO sync_state;
+`
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, sql: V1 },
   { version: 2, sql: V2 },
@@ -506,7 +606,8 @@ export const MIGRATIONS: Migration[] = [
   { version: 9, sql: V9 },
   { version: 10, sql: '', data: scrubStoredResponses },
   { version: 11, sql: V11 },
-  { version: 12, sql: V12 }
+  { version: 12, sql: V12 },
+  { version: 13, sql: V13 }
 ]
 
 export function readSchemaVersion(db: Db): number {

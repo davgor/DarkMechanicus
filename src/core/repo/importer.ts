@@ -6,9 +6,9 @@
  * and cross-file references are checked before anything is applied. All staged changes are applied
  * in one transaction (per-item savepoints), so a rejected epic or run never changes what the
  * database already holds, and drafts are never touched. Named profiles are scanned and applied by
- * `profileImport.ts` inside the same transaction. Comment and profile files whose stamp is unchanged
- * since this workspace last read them with a synced hash are not read again (`fileHashes.ts`). An epic whose
- * local Linear transfer is open takes no other saved revision and no run from the files (`planTransferHolds`).
+ * `profileImport.ts`, and Kanban cards by `kanbanImport.ts`, inside the same transaction. Comment and profile files
+ * whose stamp is unchanged since this workspace last read them with a synced hash are not read again (`fileHashes.ts`).
+ * An epic whose local Linear transfer is open takes no other saved revision and no run from the files (`planTransferHolds`).
  */
 import { join } from 'node:path'
 import type { PlanBundle } from '../../shared/domain/bundle'
@@ -27,6 +27,7 @@ import { findOpenTransfer, type OpenTransfer, TRANSFER_HOLD_PREFIX } from '../se
 import { type FileHashCache, readUnlessSynced } from './fileHashes'
 import { readProject } from './initialize'
 import { assertContained, displayPath, ownedPaths } from './paths'
+import { applyKanban, type KanbanScan, scanKanban } from './kanbanImport'
 import { applyProfiles, type ProfileScan, scanProfiles } from './profileImport'
 import {
   type CommentRecord,
@@ -1112,6 +1113,7 @@ interface ApplyContext {
   project: ProjectRecord
   plan: Plan
   profiles: ProfileScan
+  kanban: KanbanScan
   current: string | null
   branchChanged: boolean
 }
@@ -1121,7 +1123,8 @@ interface ApplyContext {
  * as a digest in meta), so a file that stays rejected is not recorded again on every heartbeat.
  */
 function problemsChanged(db: Db, result: ReconcileResultView): boolean {
-  const digest = contentHash({ conflicts: result.conflicts, profileConflicts: result.profileConflicts, rejected: result.rejected })
+  const { conflicts, profileConflicts, kanbanConflicts, rejected } = result
+  const digest = contentHash({ conflicts, profileConflicts, kanbanConflicts, rejected })
   const changed = getMeta(db, META_KEYS.reconcileProblems) !== digest
   setMeta(db, META_KEYS.reconcileProblems, digest)
   return changed
@@ -1133,7 +1136,7 @@ function problemsChanged(db: Db, result: ReconcileResultView): boolean {
  */
 function recordReconciled(deps: ImporterDeps, result: ReconcileResultView): void {
   const { imported, rejected, branchChanged, pausedRuns } = result
-  const conflicts = result.conflicts.length + result.profileConflicts.length
+  const conflicts = result.conflicts.length + result.profileConflicts.length + result.kanbanConflicts.length
   const newProblems = problemsChanged(deps.db, result) && conflicts + rejected.length > 0
   if (imported.length > 0 || branchChanged || newProblems) {
     const payload = { imported, unchanged: result.unchanged.length, conflicts, rejected: rejected.length, branchChanged, pausedRuns }
@@ -1142,19 +1145,21 @@ function recordReconciled(deps: ImporterDeps, result: ReconcileResultView): void
 }
 
 function applyPlan(deps: ImporterDeps, context: ApplyContext): ReconcileResultView {
-  const { plan, profiles, branchChanged } = context
+  const { plan, profiles, kanban, branchChanged } = context
   const now = deps.clock.nowIso()
   rememberProject(deps.db, context.project)
   const staged = applyStaged(deps, plan, now)
   const profileOutcome = applyProfiles(deps.db, profiles, now)
+  const kanbanOutcome = applyKanban(deps.db, kanban, now)
   storeConflicts(deps.db, plan.conflicts, now)
   const pausedRuns = branchChanged ? pauseActiveRuns(deps, now) : []
   const result: ReconcileResultView = {
-    imported: [...staged.imported, ...profileOutcome.imported],
-    unchanged: [...plan.unchanged, ...profiles.unchanged],
+    imported: [...staged.imported, ...profileOutcome.imported, ...kanbanOutcome.imported],
+    unchanged: [...plan.unchanged, ...profiles.unchanged, ...kanban.unchanged],
     conflicts: plan.conflicts.map((conflict) => ({ epicId: conflict.epicId, message: conflict.message })),
     profileConflicts: profiles.conflicts,
-    rejected: [...staged.rejected, ...profileOutcome.rejected],
+    kanbanConflicts: kanban.conflicts.map((conflict) => ({ cardId: conflict.cardId, message: conflict.message })),
+    rejected: [...staged.rejected, ...profileOutcome.rejected, ...kanbanOutcome.rejected],
     branchChanged,
     pausedRuns
   }
@@ -1175,6 +1180,7 @@ function nothingToReconcile(): ReconcileResultView {
     unchanged: [],
     conflicts: [],
     profileConflicts: [],
+    kanbanConflicts: [],
     rejected: [],
     branchChanged: false,
     pausedRuns: []
@@ -1184,9 +1190,9 @@ function nothingToReconcile(): ReconcileResultView {
 /**
  * Reconciles tracked records into the local database under the write lock (so no finalizer can be
  * mid-write while files are read). Throws `not_initialized` or `project_mismatch` without changing
- * anything; per-epic, per-run, and per-profile problems (including an `epics/`, `history/`, or
- * `profiles` that is a link, resolves outside, or is not a directory, which is then read as empty)
- * are reported in `rejected`/`conflicts`/`profileConflicts` and leave those entities as they were.
+ * anything; per-epic, per-run, per-profile and per-card problems (including an `epics/`, `history/`, `profiles` or
+ * `kanban` that is a link, resolves outside, or is not a directory, which is then read as empty) are reported in
+ * `rejected`/`conflicts`/`profileConflicts`/`kanbanConflicts` and leave those entities as they were.
  *
  * A `db` project has nothing to reconcile: its database *is* the record, so no file is read, the
  * checkout branch is never recorded, and moving the checkout never pauses a run — the plan is not
@@ -1202,6 +1208,7 @@ export function reconcileRepository(deps: ImporterDeps): ReconcileResultView {
     const project = requireProject(deps)
     const plan = planImport(deps.db, scanRepository(deps))
     const profiles = scanProfiles(deps)
-    return applyPlan(deps, { project, plan, profiles, current, branchChanged })
+    const kanban = scanKanban(deps)
+    return applyPlan(deps, { project, plan, profiles, kanban, current, branchChanged })
   })
 }

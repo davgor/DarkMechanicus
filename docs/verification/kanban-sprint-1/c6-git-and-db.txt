@@ -1,0 +1,61 @@
+# c6: the scratch repository and its database after the live Play (read-only sqlite3)
+$ git -C fx/repo branch --show-current
+main
+$ git -C fx/repo log --format="%h %s%n  %b" -3 --stat
+d2e5ab5 Add "kicked back once" line to NOTES.md
+Addresses the DM-5 kick-back comment.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+
+ NOTES.md | 1 +
+ 1 file changed, 1 insertion(+)
+6748399 Add Kanban live check line to NOTES.md
+Appends one line to NOTES.md for card DM-5 (kc_01m6aypd6b6kkafv889q2dzj68).
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+
+ NOTES.md | 1 +
+ 1 file changed, 1 insertion(+)
+3d4a213 Track the Dark Mechanicus records (Kanban cards)
+
+
+ .darkmechanicus/.gitignore                         |  1 +
+ .../kanban/kc_01m6ay2ngrq46dar70v49cqc0g/card.json | 25 ++++++++++++
+ .../events/ke_01m6ay2ngsk3ynd0tensmw01eq.json      | 16 ++++++++
+ .../kanban/kc_01m6ay2nhcpdax05a517yfcjzk/card.json | 25 ++++++++++++
+ .../events/ke_01m6ay2nhdm57a9m5j9p36bhdz.json      | 16 ++++++++
+ .../kanban/kc_01m6ay3q98p2ybn5hjz4rkw8gr/card.json | 25 ++++++++++++
+ .../events/ke_01m6ay3q994d4xt7m1aa41b2zf.json      | 16 ++++++++
+ .../events/ke_01m6ay3q9qe7aemtg38ckmdt47.json      | 14 +++++++
+ .../events/ke_01m6ay3q9y0by57nnn4932jm50.json      | 18 +++++++++
+ .../events/ke_01m6ay3qa5zr3cs47y4a1s72n0.json      | 16 ++++++++
+ .../events/ke_01m6ay3qab5ymx11e7vgs1ewmg.json      | 44 ++++++++++++++++++++++
+ .../events/ke_01m6ay3qahqtryv9grws3348xq.json      | 17 +++++++++
+ .../events/ke_01m6ay3qan5f9gsd025asrn7tt.json      | 18 +++++++++
+ .../events/ke_01m6ay3qavwzy5zx2t64g3nwak.json      | 42 +++++++++++++++++++++
+ .../events/ke_01m6ay3qb0ks50d16z2tm8te97.json      | 24 ++++++++++++
+ .darkmechanicus/project.json                       |  8 ++++
+ 16 files changed, 325 insertions(+)
+$ cat fx/repo/NOTES.md
+Notes
+Kanban live check
+kicked back once
+
+$ sqlite3 -readonly fx/repo/.darkmechanicus/local/state.sqlite (DM-5 attempts: number, state, commits, review_comment)
+1|rejected|["67483997e395548555704cb60096bfe1e013c4be"]|Also add a second line saying 'kicked back once'.
+2|accepted|["d2e5ab5e515b8e3184003bc7fe51f02141aed453"]|
+$ ... kanban_cards DM-5: lane, completed_at, summary_json
+done|2026-11-01T07:11:02.867Z|{"outcome":"Addressed the kick-back: appended a second line `kicked back once` to NOTES.md in a new commit on main, after the earlier `Kanban live check` commit.","commits":["d2e5ab5e515b8e3184003bc7fe51f02141aed453"],"completedAt":"2026-11-01T07:11:02.867Z","approvedBy":"Desktop"}
+$ ... kanban_events of DM-5 (kind, actor_role, created_at)
+created|desktop|Desktop|2026-11-01T07:03:02.092Z
+played|desktop|Desktop|2026-11-01T07:03:55.543Z
+claimed|orchestrator|dm CLI|2026-11-01T07:05:43.414Z
+running|orchestrator|dm CLI|2026-11-01T07:06:12.594Z
+submitted|orchestrator|dm CLI|2026-11-01T07:06:30.260Z
+kicked_back|desktop|Desktop|2026-11-01T07:07:52.600Z
+claimed|orchestrator|dm CLI|2026-11-01T07:08:20.115Z
+running|orchestrator|dm CLI|2026-11-01T07:08:30.560Z
+submitted|orchestrator|dm CLI|2026-11-01T07:08:54.134Z
+approved|desktop|Desktop|2026-11-01T07:11:02.867Z

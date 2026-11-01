@@ -8,10 +8,12 @@ import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync
 import { tmpdir } from 'node:os'
 import { join, relative } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import type { KanbanCardView } from '../../shared/domain/kanban'
 import type { TransferView } from '../../shared/domain/transfer'
 import type { EpicDetailView, RunView } from '../../shared/domain/views'
 import type { CommandResult } from '../../shared/desktop/api'
 import { createFolderRegistry, type FolderRegistry } from '../desktop/folderRegistry'
+import type { KanbanCards } from '../kanban/startKanbanCard'
 import { connectedAgents, fakeAdapters } from './__mocks__/fakeChatAdapter'
 import { createChatHandlers, type ChatHandlers } from './chatHandlers'
 import { createChatStore, type ChatStore } from './chatStore'
@@ -21,6 +23,7 @@ import type { TransferReads } from './transferStart'
 const AGAIN = 'Track the folder again to keep using this chat.'
 const EPIC_ID = 'ep_01m418epbg8qkqa2e2krvdkqk5'
 const RUN_ID = 'rn_01m418epbg8qkqa2e2krvdkqk6'
+const CARD_ID = 'kc_01m418epbg8qkqa2e2krvdkqk7'
 
 let root: string
 let repo: string
@@ -63,7 +66,10 @@ function rig(): { handlers: ChatHandlers; registry: FolderRegistry; store: ChatS
     getEpic: runs.getEpic,
     getTransfer: (_folder, epicId) => Promise.resolve({ epicId, status: 'queued', packet: null, recorded: [], lastMismatches: [], next: [] } as TransferView)
   }
-  return { handlers: createChatHandlers({ registry, agents: { get: connectedAgents() }, sessions, runs, transfers }), registry, store }
+  // A card that plays and kicks back: only the folder refusal stops a Kanban request.
+  const card = { id: CARD_ID, key: 'DM-42', title: 'Fix it', lane: 'in_progress' } as KanbanCardView
+  const kanban: KanbanCards = { play: () => Promise.resolve(card), kickBack: () => Promise.resolve(card), branch: () => Promise.resolve('main') }
+  return { handlers: createChatHandlers({ registry, agents: { get: connectedAgents() }, sessions, runs, transfers, kanban }), registry, store }
 }
 
 /** Every file under the chats root, by relative path, with its bytes. */
@@ -114,7 +120,10 @@ async function everyFolderRequest(handlers: ChatHandlers, folder: string, chatId
     await handlers.answerApproval({ ...ref, requestId: 'q1', decision: 'allow_once' }),
     await handlers.startTransferChat({ folder, epicId: EPIC_ID, agent: 'claude' }),
     await handlers.findTransferChat({ folder, epicId: EPIC_ID }),
-    await handlers.transferPrompt({ folder, epicId: EPIC_ID })
+    await handlers.transferPrompt({ folder, epicId: EPIC_ID }),
+    await handlers.startKanbanCard({ folder, cardId: CARD_ID, agent: 'claude' }),
+    await handlers.kickBackKanbanCard({ folder, cardId: CARD_ID, comment: 'Not yet.' }),
+    await handlers.boundThreads({ folder, cardId: CARD_ID })
   ]
 }
 
@@ -129,7 +138,7 @@ describe('chat handlers: a chat whose folder was replaced by a symlink', () => {
 
     const results = await everyFolderRequest(handlers, repo, chatId)
 
-    expect(results).toHaveLength(17)
+    expect(results).toHaveLength(20)
     for (const result of results) {
       expect(refusal(result)).toEqual({ code: 'not_found', message: `The folder ${repo} now leads to ${elsewhere}, not to the folder this chat was created in. ${AGAIN}` })
     }

@@ -335,6 +335,12 @@ function startChats(ipc: Pick<IpcMain, 'handle'>, services: ChatServices): void 
       getEpic: (folder, epicId) => workspaces.get(folder).getEpic({ epicId }),
       getTransfer: (folder, epicId) => workspaces.get(folder).getTransfer({ epicId })
     },
+    // The same Play and Kick back commands as the board, run as the person through the folder's own workspace.
+    kanban: {
+      play: (folder, cardId) => workspaces.get(folder).playKanbanCard({ cardId }),
+      kickBack: (folder, input) => workspaces.get(folder).kickBackKanbanCard(input),
+      branch: async (folder) => (await workspaces.get(folder).getStorageStatus()).branch.current
+    },
     onUnexpectedError: (error) => {
       logger.error('Chat request failed:', error)
     }

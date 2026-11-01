@@ -109,6 +109,7 @@ export function storageStatus(patch: Partial<StorageStatusView> = {}): StorageSt
     uncommittedRecordFiles: 0,
     conflicts: [],
     profileConflicts: [],
+    kanbanConflicts: [],
     sessions: { active: 0, byRole: {} },
     ...patch
   }

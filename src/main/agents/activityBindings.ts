@@ -1,12 +1,15 @@
 /**
- * Links chat threads to the Dark Mechanicus runs and attempts they act on, app-wide, so main-process
- * code can find the chat and thread behind a run (`byRun`) or an attempt (`byAttempt`).
+ * Links chat threads to the Dark Mechanicus runs, attempts and Kanban cards they act on, app-wide, so
+ * main-process code can find the chat and thread behind a run (`byRun`), an attempt (`byAttempt`) or a
+ * card (`byCard`).
  *
  * A binding names a chat, a thread in it (a `thread` item's id, or null for the chat's main thread),
  * the chat's folder, a run or an attempt, and what the thread is to it: its `orchestrator` or a
  * `worker`. What binds:
  *
  * - A chat Start run launched (it records `runId`): its main thread, to that run, as orchestrator.
+ * - A chat Play started for a Kanban card (it records `cardId`): its main thread, to that card, as
+ *   orchestrator. The chat is bound when it is created, so a kick-back finds it before any item.
  * - `start_run` (by the one run id its result names), `takeover_run` and `claim_ticket` (by the `runId`
  *   of their input), called by the main thread: the main thread, to the run, as orchestrator. A
  *   `claim_ticket` also binds it to the attempt its result names, as orchestrator.
@@ -51,6 +54,7 @@ const AFTER = '(?![A-Za-z0-9_])'
 
 const ATTEMPT_ID = new RegExp(`^at_${ID_BODY}$`)
 const RUN_ID = new RegExp(`^rn_${ID_BODY}$`)
+const CARD_ID = new RegExp(`^kc_${ID_BODY}$`)
 const ATTEMPT_IDS = new RegExp(`${BEFORE}at_${ID_BODY}${AFTER}`, 'g')
 const RUN_IDS = new RegExp(`${BEFORE}rn_${ID_BODY}${AFTER}`, 'g')
 const LABELLED_ATTEMPT_IDS = new RegExp(`${BEFORE}[Aa]ttempt[ _]?[Ii][Dd]["'\`]?\\s*[:=]\\s*["'\`]?(at_${ID_BODY})${AFTER}`, 'g')
@@ -72,13 +76,14 @@ const bindingBase = {
 
 const bindingSchema = z.discriminatedUnion('kind', [
   z.object({ ...bindingBase, kind: z.literal('run'), runId: z.string().regex(RUN_ID) }),
-  z.object({ ...bindingBase, kind: z.literal('attempt'), attemptId: z.string().regex(ATTEMPT_ID) })
+  z.object({ ...bindingBase, kind: z.literal('attempt'), attemptId: z.string().regex(ATTEMPT_ID) }),
+  z.object({ ...bindingBase, kind: z.literal('card'), cardId: z.string().regex(CARD_ID) })
 ])
 
 export type ActivityBinding = z.infer<typeof bindingSchema>
 
 type Role = ActivityBinding['role']
-type Target = { kind: 'run'; runId: string } | { kind: 'attempt'; attemptId: string }
+type Target = { kind: 'run'; runId: string } | { kind: 'attempt'; attemptId: string } | { kind: 'card'; cardId: string }
 type ToolCall = Extract<ChatItem, { kind: 'tool_call' }>
 type ThreadItem = Extract<ChatItem, { kind: 'thread' }>
 
@@ -98,6 +103,8 @@ export interface ActivityBindings {
   byAttempt(attemptId: string): ActivityBinding[]
   /** Every thread bound to the run, in the order bound. */
   byRun(runId: string): ActivityBinding[]
+  /** Every thread bound to the Kanban card, in the order bound. */
+  byCard(cardId: string): ActivityBinding[]
   /** Every binding of one chat (its main thread and its subagent threads), in the order bound. */
   byChat(chat: ChatRef): ActivityBinding[]
   /** Removes every binding of a deleted chat, from memory and from the file. */
@@ -146,9 +153,9 @@ function exactId(value: unknown, pattern: RegExp): string | null {
 
 // ---- Storage ----
 
-/** What makes a binding new: its chat, thread and run or attempt. The role is what was first bound. */
+/** What makes a binding new: its chat, thread and run, attempt or card. The role is what was first bound. */
 function keyOf(binding: ActivityBinding): string {
-  const id = binding.kind === 'run' ? binding.runId : binding.attemptId
+  const id = binding.kind === 'run' ? binding.runId : binding.kind === 'attempt' ? binding.attemptId : binding.cardId
   return JSON.stringify([binding.chatId, binding.folder, binding.threadId, binding.kind, id])
 }
 
@@ -315,8 +322,11 @@ function observe(context: Context, chat: ChatRecord, item: ChatItem): ActivityBi
 }
 
 function observeChat(context: Context, chat: ChatRecord, items: readonly ChatItem[]): ActivityBinding[] {
-  const own = chat.runId === undefined ? [] : onRun(chat.runId).flatMap((each) => add(context, chat, each) ?? [])
-  return [...own, ...items.flatMap((item) => observe(context, chat, item))]
+  const own: Found[] = [
+    ...(chat.runId === undefined ? [] : onRun(chat.runId)),
+    ...(chat.cardId === undefined ? [] : [{ threadId: null, role: 'orchestrator' as const, target: { kind: 'card' as const, cardId: chat.cardId } }])
+  ]
+  return [...own.flatMap((each) => add(context, chat, each) ?? []), ...items.flatMap((item) => observe(context, chat, item))]
 }
 
 function matching(context: Context, test: (binding: ActivityBinding) => boolean): ActivityBinding[] {
@@ -336,6 +346,7 @@ export function createActivityBindings(options: {
     observeChat: (chat, items) => observeChat(context, chat, items),
     byAttempt: (attemptId) => matching(context, (binding) => binding.kind === 'attempt' && binding.attemptId === attemptId),
     byRun: (runId) => matching(context, (binding) => binding.kind === 'run' && binding.runId === runId),
+    byCard: (cardId) => matching(context, (binding) => binding.kind === 'card' && binding.cardId === cardId),
     byChat: (chat) => matching(context, (binding) => belongsTo(binding, chat)),
     forgetChat: (chat) => {
       forgetChat(context, chat)

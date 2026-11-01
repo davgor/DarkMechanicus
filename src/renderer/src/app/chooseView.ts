@@ -16,6 +16,8 @@ export type MainView =
   | { kind: 'epic'; folder: TrackedFolderView; epicId: string }
   /** One of the folder's agent chats. */
   | { kind: 'chat'; folder: TrackedFolderView; chat: ChatRecord }
+  /** The folder's Kanban board. */
+  | { kind: 'kanban'; folder: TrackedFolderView }
   /** Pressing + in the AGENTS section: the cards to find or download an agent. */
   | { kind: 'add-agent' }
   /** One connected agent's page. */
@@ -29,6 +31,8 @@ interface ViewInput {
   chatId?: string | null
   /** The folder's chats, or null until they have loaded. */
   chats?: readonly ChatRecord[] | null
+  /** The folder's Kanban board is chosen. */
+  kanban?: boolean
   /** An agents screen chosen over the folder view. */
   agentPane?: AgentPane
   /** The connected agents, or null until they have loaded. */
@@ -69,8 +73,16 @@ export function chooseView(input: ViewInput): MainView {
   if (!folder.initialized) {
     return { kind: 'onboarding', folder }
   }
+  return chooseFolderView(folder, epicId, input)
+}
+
+/** What a folder that is set up shows: one of its epics, its Kanban board, a chat, or its home. */
+function chooseFolderView(folder: TrackedFolderView, epicId: string | null, input: ViewInput): MainView {
   if (epicId !== null) {
     return { kind: 'epic', folder, epicId }
+  }
+  if (input.kanban === true) {
+    return { kind: 'kanban', folder }
   }
   return chooseChatView(folder, input.chatId ?? null, input.chats ?? null)
 }

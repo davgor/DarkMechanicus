@@ -16,7 +16,9 @@ Deploy/CI shape mirrored from [AI-DND-Matrix](https://github.com/davgor/AI-DND-M
 
 ## Standing rules
 
-Any work you do going forward needs to have the lint, unit test, and build confirming, and it needs to be tracked in Dark Mechanicus: either a new epic, or a ticket on the existing epic it relates to. Outside an epic, everything needs to be written TDD style. Inside an epic, tests-first and Fireguard apply only when the epic's plan states them; each ticket lists its tests, and its worker writes and runs them in that ticket (see section 2).
+Any work you do going forward needs to have the lint, unit test, and build confirming, and it needs to be tracked in Dark Mechanicus: a Kanban card for an isolated ticket, a new epic, or a ticket on the existing epic it relates to. Outside an epic, everything needs to be written TDD style. Inside an epic, tests-first and Fireguard apply only when the epic's plan states them; each ticket lists its tests, and its worker writes and runs them in that ticket (see section 2).
+
+An isolated ticket, meaning one coherent change with no prerequisites and nothing depending on it that one worker can finish in one attempt, goes on the folder's Kanban board with `create_kanban_card`, not into a new epic. Work that needs two or more tickets, ordering or sprints stays an epic. Agents create and edit cards; only a person presses Play, approves or kicks back. Follow-ups and bugs found during a sprint stay in that epic's plan or retro.
 
 Read `README.md` and `.ai-instructions.md` for process boundaries. For tickets already in scope, also follow the shipped role guides listed in section 1.
 
@@ -39,7 +41,8 @@ The role guides shipped in `skills/` say how each job is done. Follow the one th
 |-----------|--------|
 | User or orchestrator named a ticket or epic | Read it (`get_ticket`, `get_epic`, `list_comments`) and work it as the worker guide says, staying inside its acceptance criteria |
 | Work extends an existing epic | Add a ticket on that epic through a planner draft (`create_ticket` or `update_plan_draft`, then `validate_plan`). A completed epic is read-only: create a new epic with `provenance` set to it instead |
-| Standalone bug/feature/refactor | Create a new epic (`create_epic`) with success criteria, and plan its tickets as a draft |
+| Isolated ticket: one change, no prerequisites, nothing depending on it, done in one attempt | Add a card to the folder's Kanban board (`create_kanban_card`) instead of a new epic. A person presses Play; a card started by Play runs as the orchestrator guide's "Running a Kanban card" section says |
+| Standalone bug/feature/refactor that needs two or more tickets, ordering or sprints | Create a new epic (`create_epic`) with success criteria, and plan its tickets as a draft |
 | Exploratory spike with no code | Ticket optional; say so in the report |
 
 **Planning drafts, then Save.** Plans are edited as drafts and execution reads only saved revisions. When the draft validates, either save it (only if your session has the `plan.save` capability and the person has seen the summary) or tell the person it is ready and ask them to review it in the desktop app and press Save. Do not claim tickets or start runs for work that is not saved.
@@ -117,7 +120,7 @@ Copy and track:
 
 ```
 Delivery:
-- [ ] Work is tracked in Dark Mechanicus: new epic, or ticket on an existing epic (draft saved or handed over for Save)
+- [ ] Work is tracked in Dark Mechanicus: Kanban card for an isolated ticket, new epic, or ticket on an existing epic (draft saved or handed over for Save)
 - [ ] Inside an epic: the tests the ticket's **Tests** section lists are written and run in this ticket
 - [ ] Failing test(s) written first (outside an epic, or when the epic's plan states tests-first; where applicable)
 - [ ] Implementation complete

@@ -143,6 +143,40 @@ describe('MCP comment tools over the real Workspace', () => {
   })
 })
 
+describe('Kanban card tools over the real Workspace', () => {
+  let harness: Harness
+
+  beforeEach(() => {
+    harness = createHarness()
+  })
+
+  afterEach(() => {
+    harness.cleanup()
+  })
+
+  it('lets a planner create a Backlog card that the board then lists', async () => {
+    await harness.open('orchestrator').initializeRepository({ name: 'kanban-repo' })
+    const planner = await connect(harness, 'planner', false)
+    const card = data<{ id: string; key: string; lane: string; title: string; playPending: boolean }>(
+      await call(planner, 'create_kanban_card', { title: 'Fix the flaky clock test', acceptanceCriteria: ['Passes 100 runs'] })
+    )
+    expect([card.lane, card.title, card.playPending]).toEqual(['backlog', 'Fix the flaky clock test', false])
+    const board = data<{ lanes: { backlog: { id: string }[] } }>(await call(planner, 'list_kanban_cards'))
+    expect(board.lanes.backlog.map((item) => item.id)).toEqual([card.id])
+  })
+
+  it('refuses a worker that tries to create a card, and creates nothing', async () => {
+    const orchestrator = harness.open('orchestrator')
+    await orchestrator.initializeRepository({ name: 'kanban-repo' })
+    const worker = await connect(harness, 'worker', false)
+    const denied = await call(worker, 'create_kanban_card', { title: 'Sneaky card' })
+    expect(denied.error?.message).toBe('This worker session is not permitted to perform "kanban.write".')
+    expect(denied.error?.code).toBe('unauthorized')
+    const board = await orchestrator.listKanbanCards({})
+    expect(board.lanes.backlog).toEqual([])
+  })
+})
+
 const REVIEW_CAPABILITY = {
   workType: 'review',
   reasoning: { level: 'deep', rationale: 'Independent verification' },

@@ -1,0 +1,236 @@
+# c3: a full card lifecycle with one kick-back, play_required, and unauthorized approve from an orchestrator session
+# Throwaway scripts under /tmp/dm-kanban/acceptance/scripts (not in the repository), run with `node --import tsx` from the integration worktree against its src (openWorkspace) or with its built out/main. Scratch fixtures under /private/tmp/dm-kanban/acceptance/fx; claim tokens redacted.
+
+### 1. created by the orchestrator session
+{
+  "key": "DM-3",
+  "lane": "backlog",
+  "playPending": false,
+  "revision": 1,
+  "completedAt": null,
+  "attempts": [],
+  "summary": null
+}
+
+### 2. orchestrator claimKanbanCard before any Play
+{
+  "refused": true,
+  "code": "play_required",
+  "message": "DM-3 has no pending Play. Only a person starts a card, by pressing Play in the desktop app."
+}
+
+### 2b. orchestrator playKanbanCard (human-only)
+{
+  "refused": true,
+  "code": "unauthorized",
+  "message": "This orchestrator session is not permitted to perform \"kanban.play\"."
+}
+
+### 3. desktop playKanbanCard
+{
+  "key": "DM-3",
+  "lane": "backlog",
+  "playPending": true,
+  "revision": 1,
+  "completedAt": null,
+  "attempts": [],
+  "summary": null
+}
+
+### 4. orchestrator claimKanbanCard (attempt 1 packet)
+{
+  "key": "DM-3",
+  "attemptId": "ka_01m6ay3q9y7jfxsy9cnax9b4rd",
+  "claimToken": "[redacted claim token]",
+  "branch": "main",
+  "reviewComments": [],
+  "reporting": {
+    "heartbeatTool": "heartbeat_kanban_card",
+    "submitTool": "submit_kanban_card",
+    "failTool": "fail_kanban_card"
+  },
+  "card": {
+    "title": "Add a CHANGELOG.md",
+    "acceptanceCriteria": [
+      {
+        "id": "c1",
+        "text": "CHANGELOG.md exists with an Unreleased heading"
+      }
+    ]
+  }
+}
+
+### 4b. card after the claim
+{
+  "key": "DM-3",
+  "lane": "in_progress",
+  "playPending": false,
+  "revision": 1,
+  "completedAt": null,
+  "attempts": [
+    {
+      "number": 1,
+      "state": "claimed",
+      "reviewComment": null
+    }
+  ],
+  "summary": null
+}
+
+### 4c. a second claim while attempt 1 is open
+{
+  "refused": true,
+  "code": "already_claimed",
+  "message": "DM-3 already has an open attempt (#1, claimed)."
+}
+
+### 5. worker heartbeatKanbanCard
+{
+  "state": "running",
+  "progressNote": "writing CHANGELOG.md"
+}
+
+### 6. orchestrator submitKanbanCard (attempt 1)
+{
+  "attempt": "submitted"
+}
+
+### 6b. card after submit
+{
+  "key": "DM-3",
+  "lane": "ready_for_review",
+  "playPending": false,
+  "revision": 1,
+  "completedAt": null,
+  "attempts": [
+    {
+      "number": 1,
+      "state": "submitted",
+      "reviewComment": null
+    }
+  ],
+  "summary": null
+}
+
+### 7. orchestrator approveKanbanCard (human-only)
+{
+  "refused": true,
+  "code": "unauthorized",
+  "message": "This orchestrator session is not permitted to perform \"kanban.review\"."
+}
+
+### 7b. orchestrator kickBackKanbanCard (human-only)
+{
+  "refused": true,
+  "code": "unauthorized",
+  "message": "This orchestrator session is not permitted to perform \"kanban.review\"."
+}
+
+### 7c. desktop kickBackKanbanCard with a blank comment
+{
+  "refused": true,
+  "code": "invalid_input",
+  "message": "Invalid kickBackKanbanCard input at comment: A comment needs some text"
+}
+
+### 8. desktop kickBackKanbanCard
+{
+  "key": "DM-3",
+  "lane": "in_progress",
+  "playPending": true,
+  "revision": 1,
+  "completedAt": null,
+  "attempts": [
+    {
+      "number": 1,
+      "state": "rejected",
+      "reviewComment": "Also add a 0.1.0 section with today's date."
+    }
+  ],
+  "summary": null
+}
+
+### 9. orchestrator claimKanbanCard (attempt 2 packet lists the kick-back)
+{
+  "key": "DM-3",
+  "attemptId": "ka_01m6ay3qankqj2gdmwrfe32qt9",
+  "claimToken": "[redacted claim token]",
+  "branch": "main",
+  "reviewComments": [
+    "Also add a 0.1.0 section with today's date."
+  ],
+  "reporting": {
+    "heartbeatTool": "heartbeat_kanban_card",
+    "submitTool": "submit_kanban_card",
+    "failTool": "fail_kanban_card"
+  },
+  "card": {
+    "title": "Add a CHANGELOG.md",
+    "acceptanceCriteria": [
+      {
+        "id": "c1",
+        "text": "CHANGELOG.md exists with an Unreleased heading"
+      }
+    ]
+  }
+}
+
+### 9b. submit with attempt 1's token
+{
+  "refused": true,
+  "code": "stale_claim",
+  "message": "A newer attempt superseded this claim."
+}
+
+### 10. orchestrator submitKanbanCard (attempt 2)
+{
+  "attempt": "submitted"
+}
+
+### 11. desktop approveKanbanCard
+{
+  "key": "DM-3",
+  "lane": "done",
+  "playPending": false,
+  "revision": 1,
+  "completedAt": "2026-11-01T06:52:49.888Z",
+  "attempts": [
+    {
+      "number": 1,
+      "state": "rejected",
+      "reviewComment": "Also add a 0.1.0 section with today's date."
+    },
+    {
+      "number": 2,
+      "state": "accepted",
+      "reviewComment": null
+    }
+  ],
+  "summary": {
+    "outcome": "Added the 0.1.0 section under Unreleased, as the kick-back asked.",
+    "commits": [
+      "2222222222222222222222222222222222222222"
+    ],
+    "completedAt": "2026-11-01T06:52:49.888Z",
+    "approvedBy": "acceptance desktop"
+  }
+}
+
+### 12. board lane of the card
+[
+  {
+    "lane": "done",
+    "key": "DM-3",
+    "summary": {
+      "outcome": "Added the 0.1.0 section under Unreleased, as the kick-back asked.",
+      "commits": [
+        "2222222222222222222222222222222222222222"
+      ],
+      "completedAt": "2026-11-01T06:52:49.888Z",
+      "approvedBy": "acceptance desktop"
+    },
+    "kickBackCount": 1
+  }
+]
+
+Result: orchestrator approve refused with "unauthorized"

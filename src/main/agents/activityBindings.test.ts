@@ -134,6 +134,31 @@ describe('activity bindings: replaying a recorded orchestrator chat (c1)', () =>
   })
 })
 
+describe('activity bindings: a chat a Kanban card started', () => {
+  const CARD = 'kc_01m6a1p7qaxttbw9f5927qk2dx'
+
+  it('binds its main thread to the card as orchestrator before it has any item, once, and answers after a restart', () => {
+    const fs = memoryChatFs()
+    const chat = memoryChatStore(fs).createChat({ ...ORCHESTRATOR, cardId: CARD })
+    const bindings = bindingsOver(fs)
+
+    expect(bindings.observeChat(chat, [])).toEqual([{ chatId: chat.id, threadId: null, folder: REPO, role: 'orchestrator', kind: 'card', cardId: CARD }])
+    expect(bindings.observeChat(chat, [])).toEqual([])
+    expect(bindingsOver(fs).byCard(CARD).map(where)).toEqual([{ chatId: chat.id, threadId: null, role: 'orchestrator' }])
+    expect(bindingsOver(fs).byCard('kc_01m6a1p7qaxttbw9f5927qk2dy')).toEqual([])
+  })
+
+  it('binds nothing, and stores no line, for a card id that is not exactly a card id, such as one followed by a secret', () => {
+    const fs = memoryChatFs()
+    const chat = memoryChatStore(fs).createChat({ ...ORCHESTRATOR, cardId: `${CARD}.${SECRET_A}` })
+    const bindings = bindingsOver(fs)
+
+    expect(bindings.observeChat(chat, [])).toEqual([])
+    expect(bindingsFile(fs)).not.toContain(SECRET_A)
+    expect(lineCount(fs)).toBe(0)
+  })
+})
+
 describe('activity bindings: replays are idempotent and bindings outlive the app', () => {
   it('adds nothing when the same items are replayed again, by the same app or a restarted one', () => {
     const fs = memoryChatFs()

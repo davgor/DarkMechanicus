@@ -91,9 +91,9 @@ export async function resolveTarget(target: MarkerTarget, reads: LookupReads, kn
   return fromRuns(await fromAttempt(target, reads), reads, knownRuns)
 }
 
-/** Every run the chat is bound to, or acts on through a bound attempt, once, in the order bound. */
+/** Every run the chat is bound to, or acts on through a bound attempt, once, in the order bound. A Kanban card's binding names no run. */
 export function knownRunIds(bindings: readonly ThreadBinding[]): string[] {
-  const ids = bindings.map((binding) => binding.runId)
+  const ids = bindings.map((binding) => (binding.kind === 'card' ? null : binding.runId))
   return [...new Set(ids.filter((id): id is string => id !== null))]
 }
 

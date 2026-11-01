@@ -106,7 +106,7 @@ describe('a grant decides what a CLI session may do', () => {
     })
     const { role, capabilities } = await cli.getCapabilities()
     expect(role).toBe('worker')
-    expect([...capabilities].sort()).toEqual(['attempt.fail', 'attempt.heartbeat', 'attempt.submit', 'comment.write', 'read'])
+    expect([...capabilities].sort()).toEqual(['attempt.fail', 'attempt.heartbeat', 'attempt.submit', 'comment.write', 'kanban.report', 'read'])
     await expect(cli.createEpic({ title: 'No' })).rejects.toMatchObject({ code: 'unauthorized' })
   })
 

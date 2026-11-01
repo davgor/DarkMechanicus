@@ -119,6 +119,10 @@ describe('knownRunIds', () => {
     expect(knownRunIds(BOUND)).toEqual([RUN, OTHER_RUN])
     expect(knownRunIds([])).toEqual([])
   })
+
+  it('skips a Kanban card binding, which names no run', () => {
+    expect(knownRunIds([{ threadId: null, role: 'orchestrator', kind: 'card', cardId: 'kc_01m6a1p7qaxttbw9f5927qk2dx' }, ...BOUND])).toEqual([RUN, OTHER_RUN])
+  })
 })
 
 describe('lookupReads', () => {

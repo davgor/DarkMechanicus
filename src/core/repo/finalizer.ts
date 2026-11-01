@@ -17,7 +17,7 @@ import type { Clock } from '../clock'
 import type { Db } from '../db/database'
 import { fail } from '../errors'
 import { META_KEYS, setMeta } from '../meta'
-import type { OutboxKind } from '../services/outbox'
+import { KANBAN_OUTBOX_KINDS, type OutboxKind } from '../services/outbox'
 import { hasTransferHold } from '../services/transferGuard'
 import type { StorageMode } from './storageMode'
 import { assertContained, displayPath, ownedPaths } from './paths'
@@ -25,17 +25,22 @@ import {
   buildCommentRecord,
   buildEpicPointerRecord,
   buildEpicStateRecord,
+  buildKanbanCardRecord,
+  buildKanbanEventRecord,
   buildProfileRecord,
   buildRunHistoryRecord,
   buildSnapshotRecord,
-  type CommentRecord,
   commentRecord,
+  kanbanEventRecord,
+  MAX_RECORD_BYTES,
   parseRecord,
   readOwnedText,
   type SnapshotRecord,
   snapshotRecord,
   trackedCommentHash,
   trackedEpicHash,
+  trackedKanbanCardHash,
+  trackedKanbanEventHash,
   trackedProfileHash,
   trackedRunHash
 } from './portable'
@@ -77,6 +82,8 @@ interface OutboxRow {
   run_id: string | null
   revision_id: string | null
   entity_id: string | null
+  /** The Kanban card a `kanban_card` or `kanban_event` entry belongs to; null for every other kind. */
+  card_id: string | null
 }
 
 type WriteEnv = Pick<FinalizerDeps, 'layout' | 'fs'>
@@ -150,7 +157,7 @@ function writeSnapshot(env: WriteEnv, record: SnapshotRecord): void {
 }
 
 /** Kinds of `sync_state` rows the finalizer records exports for. */
-type ExportKind = 'epic' | 'run' | 'comment' | 'profile'
+type ExportKind = 'epic' | 'run' | 'comment' | 'profile' | 'kanban_card' | 'kanban_event'
 
 function nextGeneration(db: Db, kind: ExportKind, entityId: string): number {
   const row = db.get<{ generation: number }>('SELECT generation FROM sync_state WHERE kind = ? AND entity_id = ?', kind, entityId)
@@ -350,17 +357,28 @@ function exportEpic(deps: FinalizerDeps, epicId: string, entryId: number): void 
   }
 }
 
-/** Writes a comment file once and returns the text on disk; an existing file must hold the same comment. */
-function writeCommentFile(env: WriteEnv, target: string, record: CommentRecord): string {
+/** An immutable record: written once, and an existing file must hold the very same record. */
+interface OnceRecord<T> {
+  schema: z.ZodType<T>
+  value: T
+  /** What the conflict calls these records, as in "comments are never rewritten". */
+  plural: string
+}
+
+/** Writes an immutable record file once and returns the text on disk; an existing file must hold the same record. */
+function writeOnce<T>(env: WriteEnv, target: string, record: OnceRecord<T>): string {
   const shown = displayPath(env.layout, target)
   const existing = readOwnedText(env, target)
   if (existing !== null) {
-    if (contentHash(parseRecord(commentRecord, existing, shown)) !== contentHash(record)) {
-      fail('conflict', `${shown} already exists with different content; comments are never rewritten.`)
+    if (contentHash(parseRecord(record.schema, existing, shown)) !== contentHash(record.value)) {
+      fail('conflict', `${shown} already exists with different content; ${record.plural} are never rewritten.`)
     }
     return existing
   }
-  const text = prettyJson(record)
+  const text = prettyJson(record.value)
+  if (Buffer.byteLength(text, 'utf8') > MAX_RECORD_BYTES) {
+    fail('internal', `${shown} would be larger than the 8 MiB record limit, so it is not written.`)
+  }
   try {
     writeFileSafely(env, target, text)
   } catch (error: unknown) {
@@ -394,8 +412,49 @@ function exportComment(deps: FinalizerDeps, commentId: string): void {
     fail('internal', `Comment ${commentId} belongs to epic ${record.epicId}, which has no saved plan to export it with yet.`)
   }
   requireEpicRecords(deps, record.epicId, commentId)
-  const text = writeCommentFile(deps, ownedPaths(deps.layout).commentFile(record.epicId, commentId), record)
+  const text = writeOnce(deps, ownedPaths(deps.layout).commentFile(record.epicId, commentId), { schema: commentRecord, value: record, plural: 'comments' })
   recordExport(deps, { kind: 'comment', entityId: commentId, hash: trackedCommentHash(text), generation: nextGeneration(deps.db, 'comment', commentId) })
+}
+
+/**
+ * Rewrites a card's `card.json` at the next generation, past every generation this machine has exported, imported or
+ * seen. It writes only over the record it last exported or imported, or one a reconcile has reported as a conflict
+ * with a local edit (and noted as seen): another machine's edit is never dropped before the person was told. Until a
+ * reconcile has seen it, the entry fails with `conflict` and waits; the next export after that reconcile wins, as a
+ * profile's does.
+ */
+function exportKanbanCard(deps: FinalizerDeps, cardId: string): void {
+  const target = ownedPaths(deps.layout).kanbanCardFile(cardId)
+  const generation = nextGeneration(deps.db, 'kanban_card', cardId)
+  const text = prettyJson(buildKanbanCardRecord(deps.db, cardId, { generation }))
+  const existing = readOwnedText(deps, target)
+  if (existing !== null && existing !== text && !matchesSync(deps.db, 'kanban_card', cardId, trackedKanbanCardHash(existing))) {
+    const shown = displayPath(deps.layout, target)
+    fail(
+      'conflict',
+      `${shown} holds a card record this machine has not imported, so the local edit was not written over it. The next reconcile reports the conflict, and the export after it writes the local card.`
+    )
+  }
+  if (existing !== text) {
+    writeFileSafely(deps, target, text)
+  }
+  recordExport(deps, { kind: 'kanban_card', entityId: cardId, hash: trackedKanbanCardHash(text), generation })
+}
+
+/**
+ * Writes a card's event once, beside its `card.json`. A checkout without the card's record (another branch) would get
+ * a card folder with events alone, which every reconcile rejects; the entry waits instead, as a comment's does.
+ */
+function exportKanbanEvent(deps: FinalizerDeps, eventId: string): void {
+  const record = buildKanbanEventRecord(deps.db, eventId)
+  const paths = ownedPaths(deps.layout)
+  const cardFile = paths.kanbanCardFile(record.cardId)
+  assertContained(deps.layout, deps.fs, cardFile)
+  if (!deps.fs.exists(cardFile)) {
+    fail('not_found', `Kanban event ${eventId} is not exported: the record of card ${record.cardId} is not in this checkout.`)
+  }
+  const text = writeOnce(deps, paths.kanbanEventFile(record.cardId, eventId), { schema: kanbanEventRecord, value: record, plural: 'Kanban events' })
+  recordExport(deps, { kind: 'kanban_event', entityId: eventId, hash: trackedKanbanEventHash(text), generation: nextGeneration(deps.db, 'kanban_event', eventId) })
 }
 
 function required(value: string | null, what: string): string {
@@ -430,7 +489,9 @@ const FILE_HANDLERS: Record<OutboxKind, EntryHandler> = {
     const text = prettyJson(buildProfileRecord(deps.db, name))
     writeFileSafely(deps, ownedPaths(deps.layout).profileFile(name), text)
     recordExport(deps, { kind: 'profile', entityId: name, hash: trackedProfileHash(text), generation: nextGeneration(deps.db, 'profile', name) })
-  }
+  },
+  kanban_card: (deps, _hooks, entry) => exportKanbanCard(deps, required(entry.entity_id, 'card id')),
+  kanban_event: (deps, _hooks, entry) => exportKanbanEvent(deps, required(entry.entity_id, 'event id'))
 }
 
 /** A comment with no `sync_state` row is re-queued by every later save (`enqueueUnexportedComments`). */
@@ -460,7 +521,9 @@ const DB_HANDLERS: Record<OutboxKind, EntryHandler> = {
       generation: nextGeneration(deps.db, 'comment', commentId)
     })
   },
-  profile: () => undefined
+  profile: () => undefined,
+  kanban_card: () => undefined,
+  kanban_event: () => undefined
 }
 
 const HANDLERS_BY_MODE: Record<StorageMode, Record<OutboxKind, EntryHandler>> = {
@@ -500,6 +563,10 @@ function entityKeys(entry: OutboxRow): string[] {
   // A comment file stands alone: it never waits for, or holds back, its epic's plan records.
   if (entry.kind === 'comment') {
     return [`comment:${entry.entity_id ?? entry.id}`]
+  }
+  // A card's definition and events are written in order: a failed one holds back the card's later records only.
+  if (entry.card_id !== null) {
+    return [`kanban:${entry.card_id}`]
   }
   const keys: string[] = []
   if (entry.epic_id !== null) {
@@ -566,13 +633,22 @@ export interface FlushScope {
 
 function queuedAfter(db: Db, afterId: number, scope: FlushScope | undefined): OutboxRow[] {
   const rows = db.all<OutboxRow>(
-    "SELECT id, kind, epic_id, run_id, revision_id, entity_id FROM outbox WHERE state IN ('pending', 'failed') AND id > ? ORDER BY id",
+    `SELECT o.id, o.kind, o.epic_id, o.run_id, o.revision_id, o.entity_id,
+       CASE o.kind WHEN 'kanban_card' THEN o.entity_id
+         WHEN 'kanban_event' THEN (SELECT e.card_id FROM kanban_events e WHERE e.id = o.entity_id) END AS card_id
+     FROM outbox o WHERE o.state IN ('pending', 'failed') AND o.id > ? ORDER BY o.id`,
     afterId
   )
   if (scope === undefined) {
     return rows
   }
-  return rows.filter((row) => row.epic_id === scope.epicId && (scope.kinds === undefined || scope.kinds.includes(row.kind)))
+  // Kanban records belong to no epic, so only an unscoped flush writes them.
+  return rows.filter(
+    (row) =>
+      !KANBAN_OUTBOX_KINDS.includes(row.kind) &&
+      row.epic_id === scope.epicId &&
+      (scope.kinds === undefined || scope.kinds.includes(row.kind))
+  )
 }
 
 /**

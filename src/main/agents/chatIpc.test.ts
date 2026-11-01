@@ -10,12 +10,16 @@ import {
   type ChatPushEvent,
   type ChatSummary,
   type StartOrchestratorResult,
+  type KickBackKanbanCardResult,
+  type StartKanbanCardResult,
   type StartTransferChatResult,
   type ThreadBinding
 } from '../../shared/agents/chatApi'
 import type { CommandResult } from '../../shared/desktop/api'
 import type { TransferView } from '../../shared/domain/transfer'
+import type { KanbanCardView } from '../../shared/domain/kanban'
 import type { EpicDetailView, RunView } from '../../shared/domain/views'
+import type { KanbanCards } from '../kanban/startKanbanCard'
 import { transferKickoff } from '../../mcp/transferKickoff'
 import { AT, connectedAgents, fakeAdapters, memoryChatFs, memoryChatStore, MODELS, REPO, trackedFolders, type FakeAdapters, type MemoryChatFs } from './__mocks__/fakeChatAdapter'
 import { ATTEMPT_A, ATTEMPT_B, RUN_ID, THREAD_A } from './__mocks__/orchestratorChat'
@@ -40,6 +44,7 @@ const CHAT_CHANNELS = [
   'chats:create',
   'chats:delete',
   'chats:findTransferChat',
+  'chats:kickBackKanbanCard',
   'chats:list',
   'chats:models',
   'chats:open',
@@ -48,6 +53,7 @@ const CHAT_CHANNELS = [
   'chats:retryTurn',
   'chats:send',
   'chats:setModel',
+  'chats:startKanbanCard',
   'chats:startOrchestrator',
   'chats:startTransferChat',
   'chats:stop',
@@ -62,6 +68,22 @@ const RUN = { id: 'rn_2', number: 2, epicId: EPIC_ID, state: 'queued' } as RunVi
 const TRANSFERS: TransferReads = {
   getEpic: () => Promise.resolve(EPIC),
   getTransfer: (_folder, epicId) => Promise.resolve({ epicId, status: 'queued', packet: null, recorded: [], lastMismatches: [], next: [] } as TransferView)
+}
+
+const CARD_ID = 'kc_01m6a1p7qaxttbw9f5927qk2dx'
+
+/** The card the fake Kanban side answers with: what the kickoff and the kick-back message read of it. */
+function cardView(cardId: string, lane: KanbanCardView['lane']): KanbanCardView {
+  return { id: cardId, key: 'DM-42', title: 'Fix the flaky upload test', lane, playPending: true } as KanbanCardView
+}
+
+/** A Kanban side that plays and kicks back any card, recording "<call> <card id>" in `calls`. */
+function recordingKanban(calls: string[]): KanbanCards {
+  return {
+    play: (_folder, cardId) => (calls.push(`play ${cardId}`), Promise.resolve(cardView(cardId, 'backlog'))),
+    kickBack: (_folder, input) => (calls.push(`kickBack ${input.cardId}`), Promise.resolve(cardView(input.cardId, 'in_progress'))),
+    branch: () => Promise.resolve('feature/cards')
+  }
 }
 
 function createFakeIpcMain(): { handle(channel: string, listener: Listener): void; channels(): string[]; invoke(channel: string, ...args: unknown[]): Promise<unknown> } {
@@ -87,6 +109,8 @@ interface IpcRig {
   events: ChatPushEvent[]
   /** The epics a run was queued for, in order. */
   queued: string[]
+  /** What the Kanban side was asked for, as "<call> <card id>". */
+  kanbanCalls: string[]
   channels(): string[]
 }
 
@@ -132,6 +156,8 @@ function ipcRig(options: { bindings?: boolean; windows?: readonly ChatWindow[] }
     push: (event) => events.push(event)
   })
   const queued: string[] = []
+  const kanbanCalls: string[] = []
+  const kanban = recordingKanban(kanbanCalls)
   const runs: OrchestratorRuns = {
     getEpic: () => Promise.resolve(EPIC),
     queueRun: (_folder, epicId) => (queued.push(epicId), Promise.resolve(RUN))
@@ -144,6 +170,7 @@ function ipcRig(options: { bindings?: boolean; windows?: readonly ChatWindow[] }
       sessions,
       runs,
       transfers: TRANSFERS,
+      kanban,
       ...(options.windows === undefined ? {} : { push: createChatPush(() => options.windows ?? []) }),
       ...(activity === undefined ? {} : bindingLookups(activity))
     })
@@ -156,6 +183,7 @@ function ipcRig(options: { bindings?: boolean; windows?: readonly ChatWindow[] }
     store,
     events,
     queued,
+    kanbanCalls,
     channels: ipc.channels
   }
 }
@@ -425,6 +453,72 @@ describe('chat IPC: start an orchestrator', () => {
   })
 })
 
+describe('chat IPC: start a Kanban card and kick it back', () => {
+  it('plays the card and starts an orchestrator chat bound to it, with the kickoff as its first stored item', async () => {
+    const window = fakeWindow()
+    const state = ipcRig({ windows: [window] })
+
+    const result = data(await state.invoke<CommandResult<StartKanbanCardResult>>('chats:startKanbanCard', { folder: REPO, cardId: CARD_ID, agent: 'claude', model: 'big' }))
+    await settle()
+
+    expect(state.kanbanCalls).toEqual([`play ${CARD_ID}`])
+    expect(result.problem).toBeNull()
+    expect(result.chat).toMatchObject({ role: 'orchestrator', allowSave: false, cardId: CARD_ID, title: 'Kanban · DM-42 Fix the flaky upload test', model: 'big' })
+    const stored = state.store.readTranscript(result.chat as ChatRecord)?.items ?? []
+    expect(stored[0]).toMatchObject({ kind: 'user_message' })
+    expect(stored[0]?.kind === 'user_message' ? stored[0].text : '').toContain('claim_kanban_card')
+    expect(window.sent).toContainEqual([CHAT_EVENT_CHANNEL, { type: 'chats_changed', folder: REPO, chatId: result.chat?.id }])
+  })
+
+  it("kicks the card back and sends the comment to the card's chat", async () => {
+    const state = ipcRig()
+    const started = data(await state.invoke<CommandResult<StartKanbanCardResult>>('chats:startKanbanCard', { folder: REPO, cardId: CARD_ID, agent: 'claude' }))
+    await settle()
+
+    const result = data(await state.invoke<CommandResult<KickBackKanbanCardResult>>('chats:kickBackKanbanCard', { folder: REPO, cardId: CARD_ID, comment: 'Still flaky.' }))
+
+    expect(state.kanbanCalls).toEqual([`play ${CARD_ID}`, `kickBack ${CARD_ID}`])
+    expect(result.chatId).toBe(started.chat?.id)
+    expect(result.card.lane).toBe('in_progress')
+    expect(state.fakes.created[0]?.sent[1]).toBe('DM-42 was kicked back by a person: Still flaky. Claim it again with claim_kanban_card and address the comment.')
+  })
+})
+
+describe('chat IPC: Kanban requests a renderer cannot shape', () => {
+  it('refuses a card id that is not kc_, an extra field, a blank comment or an untracked folder, and plays nothing', async () => {
+    const state = ipcRig()
+    const start = { folder: REPO, cardId: CARD_ID, agent: 'claude' }
+    const kickBack = { folder: REPO, cardId: CARD_ID, comment: 'Not yet.' }
+
+    const answers = await Promise.all([
+      ...[
+        { ...start, cardId: 'ka_01m6aspj4vxjq38vcbgxpg73jn' },
+        { ...start, cardId: `${CARD_ID}.gUJvQxJEDk0emfDt1HQ9H3tYGOmsf4IX` },
+        { ...start, cardId: 'tk_01m6a1p7qaxttbw9f5927qk2dx' },
+        { ...start, role: 'planner' },
+        { ...start, allowSave: true },
+        { ...start, agent: 'gemini' },
+        { ...start, folder: '/elsewhere' }
+      ].map((payload) => state.invoke<CommandResult<unknown>>('chats:startKanbanCard', payload)),
+      ...[
+        { ...kickBack, cardId: 'ep_01m418epbg8qkqa2e2krvdkqk5' },
+        { ...kickBack, comment: '' },
+        { ...kickBack, chatId: 'chat_1' },
+        { ...kickBack, folder: '/elsewhere' }
+      ].map((payload) => state.invoke<CommandResult<unknown>>('chats:kickBackKanbanCard', payload))
+    ])
+
+    expect(answers.map((answer) => (answer.ok ? 'ok' : answer.error.code))).toEqual([
+      ...Array(6).fill('invalid_input'),
+      'unauthorized',
+      ...Array(3).fill('invalid_input'),
+      'unauthorized'
+    ])
+    expect(state.kanbanCalls).toEqual([])
+    expect(state.fakes.created).toEqual([])
+  })
+})
+
 describe('chat IPC: start a transfer chat', () => {
   it('starts an orchestrator chat that records the epic, holds the grant like any chat and sends the kickoff first', async () => {
     const state = ipcRig()
@@ -500,7 +594,14 @@ describe('chat IPC behind the sender guard', () => {
     const reached = (): never => {
       throw new Error('a handler was reached')
     }
-    const handlers = createChatHandlers({ registry: { resolve: reached }, agents: { get: reached }, sessions: {} as SessionManager, runs: {} as OrchestratorRuns, transfers: {} as TransferReads })
+    const handlers = createChatHandlers({
+      registry: { resolve: reached },
+      agents: { get: reached },
+      sessions: {} as SessionManager,
+      runs: {} as OrchestratorRuns,
+      transfers: {} as TransferReads,
+      kanban: {} as KanbanCards
+    })
     registerChatIpc(guardIpc({ handle: (channel, listener) => void listeners.set(channel, listener) }, { appUrl: 'http://localhost:5173' }), handlers)
     const stranger = { senderFrame: { url: 'https://example.com/', parent: null, detached: false, isDestroyed: () => false } } as unknown as IpcMainInvokeEvent
 
@@ -626,5 +727,15 @@ describe('chat IPC: bound threads end to end', () => {
     ]
 
     expect(answers.map((answer) => (answer.ok ? 'ok' : answer.error.code))).toEqual(['unauthorized', 'invalid_input'])
+  })
+
+  it('answers the chat a Kanban card started, by the card id, and refuses an id that is not a card', async () => {
+    const state = ipcRig({ bindings: true })
+    const started = data(await state.invoke<CommandResult<StartKanbanCardResult>>('chats:startKanbanCard', { folder: REPO, cardId: CARD_ID, agent: 'claude' }))
+
+    const ofCard = data(await state.invoke<CommandResult<BoundThread[]>>('chats:boundThreads', { folder: REPO, cardId: CARD_ID }))
+
+    expect(ofCard).toEqual([{ folder: REPO, chatId: started.chat?.id, threadId: null, role: 'orchestrator' }])
+    expect(await state.invoke('chats:boundThreads', { folder: REPO, cardId: RUN_ID })).toMatchObject({ ok: false, error: { code: 'invalid_input' } })
   })
 })

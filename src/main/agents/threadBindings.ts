@@ -3,7 +3,8 @@
  * epic of each run and the run, epic and ticket (id and display key) of each attempt resolved through
  * reads of the folder's own store. A read that finds nothing or fails leaves its fields null: the
  * binding still names its run or attempt, and the answer never fails over one that could not be read.
- * Each run and attempt is read once per call, however many bindings name it.
+ * Each run and attempt is read once per call, however many bindings name it. A Kanban card binding is
+ * answered as it is bound, with no read.
  */
 import type { ThreadBinding } from '../../shared/agents/chatApi'
 import type { ActivityBinding, ActivityBindings } from './activityBindings'
@@ -79,6 +80,9 @@ async function resolveAttempt(reader: Reader, binding: Extract<ActivityBinding, 
 async function resolve(reader: Reader, binding: ActivityBinding): Promise<ThreadBinding> {
   if (binding.kind === 'attempt') {
     return resolveAttempt(reader, binding)
+  }
+  if (binding.kind === 'card') {
+    return { threadId: binding.threadId, role: binding.role, kind: 'card', cardId: binding.cardId }
   }
   const run = await reader.run(binding.runId)
   return { threadId: binding.threadId, role: binding.role, kind: 'run', runId: binding.runId, epicId: run?.epicId ?? null }

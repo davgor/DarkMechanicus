@@ -4,12 +4,14 @@
  * from local database rows, so the finalizer never writes a record the importer would reject.
  */
 import { z } from 'zod'
-import { REASONING_EFFORTS } from '../../shared/domain/bundle'
+import { REASONING_EFFORTS, TICKET_PRIORITIES, TICKET_SIZES } from '../../shared/domain/bundle'
+import { KANBAN_EDITABLE_FIELDS } from '../../shared/domain/kanban'
 import { TIER_VERDICTS } from '../../shared/domain/retro'
 import { ATTEMPT_STATES, OPEN_ATTEMPT_STATES, RUN_STATES } from '../../shared/domain/status'
 import { LINEAR_IDENTIFIER_PATTERN } from '../../shared/domain/transfer'
 import type { SessionRole } from '../../shared/domain/views'
 import { contentHash } from '../canonical'
+import { CLAIM_TOKEN_MASK, maskWholeClaimTokens } from '../claimTokenMask'
 import { type Db, parseJson } from '../db/database'
 import { fail } from '../errors'
 import { type IdKind, isStableId, STABLE_ID_PATTERN } from '../ids'
@@ -19,6 +21,7 @@ import {
   checkResult,
   commentBody,
   commitHash,
+  criterion,
   criterionResult,
   definitionOfDoneChecks,
   epicBranch,
@@ -27,6 +30,7 @@ import {
   profileName,
   rowCheckEntries,
   ticketKey,
+  ticketReference,
   workStatus
 } from '../schemas'
 import { assertContained, displayPath } from './paths'
@@ -445,6 +449,84 @@ export const profileRecord = z.strictObject({
 })
 export type ProfileRecord = z.infer<typeof profileRecord>
 
+/** Who made a card transition. A reader's board read can expire a lapsed lease, so every role is one. */
+const KANBAN_ACTOR_ROLES = [...SESSION_ROLES, 'reader'] as const satisfies readonly SessionRole[]
+const kanbanActor = z.strictObject({ role: z.enum(KANBAN_ACTOR_ROLES), label })
+
+/**
+ * A Kanban card's definition (`kanban/<cardId>/card.json`): what an edit can change, its key and author. Only a create
+ * or an edit rewrites it, at the next `generation`; where the card is (lane, attempts, summary) is rebuilt from its
+ * events. The local edit revision is not tracked: the events carry it.
+ */
+export const kanbanCardRecord = z.strictObject({
+  format: z.literal('darkmechanicus.kanban-card'),
+  formatVersion: z.literal(1),
+  id: idOf('kanbanCard'),
+  key: ticketKey,
+  title: z.string().min(1).max(LIMITS.title),
+  body: markdown,
+  acceptanceCriteria: z.array(criterion).max(LIMITS.criteria),
+  expectedArtifacts: z.array(label).max(LIMITS.references),
+  references: z.array(ticketReference).max(LIMITS.references),
+  priority: z.enum(TICKET_PRIORITIES),
+  size: z.enum(TICKET_SIZES).nullable(),
+  createdBy: kanbanActor,
+  createdAt: isoTime,
+  updatedAt: isoTime,
+  generation: positiveInt
+})
+export type KanbanCardRecord = z.infer<typeof kanbanCardRecord>
+
+const kanbanEventBase = {
+  format: z.literal('darkmechanicus.kanban-event'),
+  formatVersion: z.literal(1),
+  id: idOf('kanbanEvent'),
+  cardId: idOf('kanbanCard'),
+  actor: kanbanActor,
+  createdAt: isoTime
+}
+
+/** A transition of the card itself, which names no attempt. */
+function cardEvent<K extends string, P extends z.ZodType>(kind: K, payload: P) {
+  return z.strictObject({ ...kanbanEventBase, kind: z.literal(kind), attemptId: z.null(), payload })
+}
+
+/** A transition of one attempt, whose payload carries the attempt's number. */
+function attemptEvent<K extends string, P extends z.ZodRawShape>(kind: K, payload: P) {
+  return z.strictObject({
+    ...kanbanEventBase,
+    kind: z.literal(kind),
+    attemptId: idOf('kanbanAttempt'),
+    payload: z.strictObject({ number: positiveInt, ...payload })
+  })
+}
+
+const kanbanDoneSummary = z.strictObject({
+  outcome: z.string().max(280),
+  commits: z.array(z.string().max(200)).max(LIMITS.listItems),
+  completedAt: isoTime,
+  approvedBy: label
+})
+
+/**
+ * One immutable file per card transition (`kanban/<cardId>/events/<eventId>.json`), so machines never edit the same
+ * file. The payload is strict per kind and carries what an import needs to rebuild the card: the claim's machine and
+ * lease, the outputs and evidence, the failure reason, the kick-back comment and the Done summary; never a claim secret.
+ */
+export const kanbanEventRecord = z.discriminatedUnion('kind', [
+  cardEvent('created', z.strictObject({ revision: positiveInt })),
+  cardEvent('updated', z.strictObject({ revision: positiveInt, fields: z.array(z.enum(KANBAN_EDITABLE_FIELDS)).max(KANBAN_EDITABLE_FIELDS.length) })),
+  cardEvent('played', z.strictObject({})),
+  attemptEvent('claimed', { machineId: idOf('machine'), leaseExpiresAt: isoTime }),
+  attemptEvent('running', {}),
+  attemptEvent('submitted', { outputs: attemptOutputs, evidence: attemptEvidence }),
+  attemptEvent('failed', { reason: shortText }),
+  attemptEvent('lease_expired', { leaseExpiresAt: isoTime }),
+  attemptEvent('approved', { summary: kanbanDoneSummary }),
+  attemptEvent('kicked_back', { comment: commentBody })
+])
+export type KanbanEventRecord = z.infer<typeof kanbanEventRecord>
+
 export const runHistoryRecord = runHistoryShape.superRefine((record, ctx) => {
   for (const rule of RUN_UNIQUENESS) {
     const duplicate = firstDuplicate(rule.keys(record))
@@ -541,6 +623,16 @@ export function trackedCommentHash(text: string): string {
 /** Change-detection hash of a profile record's text (CRLF-insensitive, like the others). */
 export function trackedProfileHash(text: string): string {
   return contentHash([normalizeNewlines(text)])
+}
+
+/** Change-detection hash of a Kanban card record's text. */
+export function trackedKanbanCardHash(text: string): string {
+  return contentHash(['kanban-card', normalizeNewlines(text)])
+}
+
+/** Change-detection hash of one Kanban event file's text. */
+export function trackedKanbanEventHash(text: string): string {
+  return contentHash(['kanban-event', normalizeNewlines(text)])
 }
 
 function exportable<T>(schema: z.ZodType<T>, value: unknown, what: string): T {
@@ -889,4 +981,97 @@ export function buildProfileRecord(db: Db, name: string): ProfileRecord {
     updatedAt: row.updated_at
   }
   return exportable(profileRecord, record, `profile ${name}`)
+}
+
+interface KanbanCardRow {
+  id: string
+  key: string
+  title: string
+  body: string
+  acceptance_criteria_json: string
+  expected_artifacts_json: string
+  references_json: string
+  priority: string
+  size: string | null
+  created_by_role: string
+  created_by_label: string
+  created_at: string
+}
+
+/** A card's definition as a record; `updatedAt` is when the definition last changed (its latest create or edit event). */
+export function buildKanbanCardRecord(db: Db, cardId: string, meta: { generation: number }): KanbanCardRecord {
+  const row = db.get<KanbanCardRow>('SELECT * FROM kanban_cards WHERE id = ?', cardId) ?? fail('not_found', `Kanban card ${cardId} does not exist.`)
+  const edited = db.get<{ at: string | null }>(
+    "SELECT MAX(created_at) AS at FROM kanban_events WHERE card_id = ? AND kind IN ('created', 'updated')",
+    cardId
+  )
+  const record = {
+    format: 'darkmechanicus.kanban-card',
+    formatVersion: 1,
+    id: row.id,
+    key: row.key,
+    title: row.title,
+    body: row.body,
+    acceptanceCriteria: parseJson<unknown>(row.acceptance_criteria_json, []),
+    expectedArtifacts: parseJson<unknown>(row.expected_artifacts_json, []),
+    references: parseJson<unknown>(row.references_json, []),
+    priority: row.priority,
+    size: row.size,
+    createdBy: { role: row.created_by_role, label: row.created_by_label },
+    createdAt: row.created_at,
+    updatedAt: edited?.at ?? row.created_at,
+    generation: meta.generation
+  }
+  return exportable(kanbanCardRecord, record, `Kanban card ${cardId}`)
+}
+
+interface KanbanEventRow {
+  id: string
+  card_id: string
+  kind: string
+  attempt_id: string | null
+  actor_role: string
+  actor_label: string
+  payload_json: string
+  created_at: string
+}
+
+/**
+ * A copy of `value` with every claim secret of `secrets`, and any whole claim token, masked in its strings. The
+ * services mask reports already; this keeps a secret that reached a payload some other way out of the record file.
+ */
+function withoutClaimSecrets(value: unknown, secrets: string[]): unknown {
+  return JSON.parse(JSON.stringify(value), (_key, item: unknown) =>
+    typeof item === 'string'
+      ? maskWholeClaimTokens(secrets.reduce((text, secret) => text.split(secret).join(CLAIM_TOKEN_MASK), item))
+      : item
+  )
+}
+
+/** A Kanban event row in its record shape, not validated (the importer compares tracked files with it); null when absent. */
+export function readKanbanEventRecord(db: Db, eventId: string): Record<string, unknown> | null {
+  const row = db.get<KanbanEventRow>('SELECT * FROM kanban_events WHERE id = ?', eventId)
+  if (row === undefined) {
+    return null
+  }
+  const secrets = db
+    .all<{ claim_secret: string }>('SELECT claim_secret FROM kanban_attempts WHERE card_id = ?', row.card_id)
+    .map((attempt) => attempt.claim_secret)
+    .filter((secret) => secret !== '')
+  return {
+    format: 'darkmechanicus.kanban-event',
+    formatVersion: 1,
+    id: row.id,
+    cardId: row.card_id,
+    kind: row.kind,
+    attemptId: row.attempt_id,
+    actor: { role: row.actor_role, label: row.actor_label },
+    payload: withoutClaimSecrets(parseJson<unknown>(row.payload_json, null), secrets),
+    createdAt: row.created_at
+  }
+}
+
+export function buildKanbanEventRecord(db: Db, eventId: string): KanbanEventRecord {
+  const record = readKanbanEventRecord(db, eventId) ?? fail('not_found', `Kanban event ${eventId} does not exist.`)
+  return exportable(kanbanEventRecord, record, `Kanban event ${eventId}`)
 }

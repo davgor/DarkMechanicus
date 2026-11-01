@@ -77,6 +77,8 @@ interface ShellDeps {
 export interface ShellActions {
   selectFolder(path: string): void
   selectEpic(path: string, epicId: string): void
+  /** Opens a folder's Kanban board in the main area. */
+  selectKanban(path: string): void
   /** Opens one of a folder's chats in the main area. */
   selectChat(path: string, chatId: string): void
   /**
@@ -133,7 +135,7 @@ async function whileBusy(deps: ShellDeps, key: BusyKey, work: () => Promise<void
 
 type SelectionActions = Pick<
   ShellActions,
-  'selectFolder' | 'selectEpic' | 'selectChat' | 'openAddAgent' | 'openAgent' | 'changed'
+  'selectFolder' | 'selectEpic' | 'selectKanban' | 'selectChat' | 'openAddAgent' | 'openAgent' | 'changed'
 >
 
 function showEpic(deps: ShellDeps, path: string, epicId: string): void {
@@ -157,6 +159,11 @@ function selectionActions(deps: ShellDeps): SelectionActions {
     selectEpic: (path, epicId) => {
       deps.land(null)
       showEpic(deps, path, epicId)
+    },
+    selectKanban: (path) => {
+      deps.land(null)
+      deps.select({ folderPath: path, epicId: null, kanban: true })
+      deps.reveal(path, null)
     },
     selectChat: (path, chatId) => {
       deps.land(null)

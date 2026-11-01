@@ -77,8 +77,10 @@ has copied the whole database, and is not meant to be.
 
 Capabilities reserved to a person are not grantable, whatever role is chosen: approving a sprint
 checkpoint, authorizing auto-continue, granting a retry, queueing a run, deleting an epic or a
-ticket, and issuing or revoking a further grant. An agent cannot promote itself, and approval stays
-in the app.
+ticket, issuing or revoking a further grant, and pressing Play on, approving or kicking back a
+Kanban card (`kanban.play`, `kanban.review`). A granted orchestrator can create, edit and claim
+cards and report on them, but only after you press Play. An agent cannot promote itself, and
+approval stays in the app.
 
 `plan.save` is granted only if you tick **May save plans**, and only for a planner or orchestrator.
 Without it the agent prepares a draft and you press Save.

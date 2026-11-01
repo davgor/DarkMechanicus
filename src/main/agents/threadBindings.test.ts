@@ -119,3 +119,13 @@ describe('listThreadBindings', () => {
     expect(Object.keys(binding ?? {}).sort()).toEqual(['attemptId', 'epicId', 'kind', 'role', 'runId', 'threadId', 'ticketId', 'ticketKey'])
   })
 })
+
+describe('listThreadBindings: Kanban cards', () => {
+  it('names a Kanban card binding by its card id, and reads nothing for it', async () => {
+    const { reads: readers, calls } = reads()
+    const card: ActivityBinding = { ...BASE, threadId: null, role: 'orchestrator', kind: 'card', cardId: 'kc_01k8zq2a3b4c5d6e7f8g9h0j1m' }
+
+    expect(await listed([card], readers)).toEqual([{ threadId: null, role: 'orchestrator', kind: 'card', cardId: 'kc_01k8zq2a3b4c5d6e7f8g9h0j1m' }])
+    expect(calls).toEqual({ attempts: [], runs: [] })
+  })
+})

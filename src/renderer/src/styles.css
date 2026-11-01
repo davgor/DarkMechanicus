@@ -1147,7 +1147,8 @@ textarea.input {
 .status-row.is-selected,
 .agent-row.is-selected,
 .chat-row.is-selected,
-.epic-row.is-selected {
+.epic-row.is-selected,
+.kanban-row.is-selected {
   background: var(--primary-soft);
   box-shadow: inset 2px 0 0 var(--ring);
 }

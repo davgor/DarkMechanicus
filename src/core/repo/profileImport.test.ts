@@ -59,6 +59,7 @@ describe('reconcileRepository profile reconstruction', () => {
       unchanged: [],
       conflicts: [],
       profileConflicts: [],
+      kanbanConflicts: [],
       rejected: [],
       branchChanged: false,
       pausedRuns: []

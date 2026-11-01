@@ -10,12 +10,15 @@ const BASE = { chatId: 'chat_1', folder: REPO }
 const RUN_ORCHESTRATOR: ActivityBinding = { ...BASE, threadId: null, role: 'orchestrator', kind: 'run', runId: RUN_ID }
 const ATTEMPT_ORCHESTRATOR: ActivityBinding = { ...BASE, threadId: null, role: 'orchestrator', kind: 'attempt', attemptId: ATTEMPT_A }
 const ATTEMPT_WORKER: ActivityBinding = { ...BASE, threadId: THREAD_A, role: 'worker', kind: 'attempt', attemptId: ATTEMPT_A }
+const CARD_ID = 'kc_01m6a1p7qaxttbw9f5927qk2dx'
+const CARD_ORCHESTRATOR: ActivityBinding = { ...BASE, chatId: 'chat_2', threadId: null, role: 'orchestrator', kind: 'card', cardId: CARD_ID }
 
 /** The bindings a fixed list holds, asked for like `ActivityBindings` does (every one of the run or attempt, in the order bound). */
 function over(bindings: ActivityBinding[]): Parameters<typeof listBoundThreads>[0] {
   return {
     byAttempt: (attemptId) => bindings.filter((binding) => binding.kind === 'attempt' && binding.attemptId === attemptId),
-    byRun: (runId) => bindings.filter((binding) => binding.kind === 'run' && binding.runId === runId)
+    byRun: (runId) => bindings.filter((binding) => binding.kind === 'run' && binding.runId === runId),
+    byCard: (cardId) => bindings.filter((binding) => binding.kind === 'card' && binding.cardId === cardId)
   }
 }
 
@@ -31,6 +34,13 @@ describe('listBoundThreads', () => {
 
   it('names the threads bound to a run', () => {
     expect(listBoundThreads(over([RUN_ORCHESTRATOR]), REPO, { runId: RUN_ID })).toEqual([{ folder: REPO, chatId: 'chat_1', threadId: null, role: 'orchestrator' }])
+  })
+
+  it('names the chats bound to a Kanban card, and none for another card', () => {
+    const bindings = over([RUN_ORCHESTRATOR, CARD_ORCHESTRATOR])
+
+    expect(listBoundThreads(bindings, REPO, { cardId: CARD_ID })).toEqual([{ folder: REPO, chatId: 'chat_2', threadId: null, role: 'orchestrator' }])
+    expect(listBoundThreads(bindings, REPO, { cardId: 'kc_01m6a1p7qaxttbw9f5927qk2dy' })).toEqual([])
   })
 
   it('answers none for an attempt or a run nothing is bound to', () => {

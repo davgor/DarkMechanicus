@@ -120,7 +120,16 @@ describe('SKILLS_VERSION', () => {
     const [major = 0, minor = 0, patch = 0] = SKILLS_VERSION.split('.').map(Number)
     expect(major > 1 || (major === 1 && (minor > 6 || (minor === 6 && patch >= 2)))).toBe(true)
   })
+
+  it('moved past 1.6.2 when the guides started routing isolated tickets to the Kanban board', () => {
+    const [major = 0, minor = 0] = SKILLS_VERSION.split('.').map(Number)
+    expect(major > 1 || (major === 1 && minor >= 7)).toBe(true)
+  })
 })
+
+/** The Kanban routing rule, worded identically in every agent guide that plans or runs work. */
+const KANBAN_ROUTING =
+  "An isolated ticket, meaning one coherent change with no prerequisites and nothing depending on it that one worker can finish in one attempt, goes on the folder's Kanban board with `create_kanban_card`, not into a new epic. Work that needs two or more tickets, ordering or sprints stays an epic. Agents create and edit cards; only a person presses Play, approves or kicks back."
 
 /** Phrases each skill must keep; a guard against accidentally dropping a rule during edits. */
 const REQUIRED: [string, string[]][] = [
@@ -158,7 +167,9 @@ const REQUIRED: [string, string[]][] = [
       'one ticket per repository',
       'give the title without it',
       'Acceptance nodes take no `repo`',
-      'redraft'
+      'redraft',
+      KANBAN_ROUTING,
+      '`update_kanban_card`'
     ]
   ],
   [
@@ -275,7 +286,11 @@ const REQUIRED: [string, string[]][] = [
       "a worktree of its packet's `repository.path`",
       "Squash each touched repository's sprint work onto its epic branch",
       '`increments`, one `{ repo, branch, commit }` per touched repository',
-      'Give every ticket added in a retro redraft its `repo`'
+      'Give every ticket added in a retro redraft its `repo`',
+      KANBAN_ROUTING,
+      '`claim_kanban_card`',
+      '`submit_kanban_card`',
+      'Never approve a card'
     ]
   ],
   [
@@ -307,7 +322,9 @@ const REQUIRED: [string, string[]][] = [
       '### Folders of repositories',
       'Work only in a worktree of `repository.path`',
       'run Git as `git -C <worktree>`',
-      'report each check as `<repo>: <check>`'
+      'report each check as `<repo>: <check>`',
+      KANBAN_ROUTING,
+      '`heartbeat_kanban_card`'
     ]
   ],
   [

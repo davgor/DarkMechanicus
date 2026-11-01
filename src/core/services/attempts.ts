@@ -8,6 +8,7 @@ import type { ClaimTicketInput, HeartbeatAttemptInput, SubmitAttemptInput } from
 import type { EpicBranch, ReasoningEffort, TicketContent } from '../../shared/domain/bundle'
 import type { DomainErrorCode } from '../../shared/domain/errors'
 import {
+  type AttemptState,
   isActiveRunState,
   isLeasedAttemptState,
   OPEN_ATTEMPT_STATES,
@@ -92,6 +93,11 @@ const CLAIM_REJECTIONS: Partial<Record<TicketExecutionState, Rejection>> = {
 
 const MIN_HEARTBEAT_SECONDS = 10
 
+/** How often a claim holder heartbeats: a third of its lease, but never more often than every 10 seconds. */
+export function heartbeatIntervalSeconds(leaseSeconds: number): number {
+  return Math.max(MIN_HEARTBEAT_SECONDS, Math.floor(leaseSeconds / 3))
+}
+
 const REPORTING: ExecutionPacket['reporting'] = {
   heartbeatTool: 'heartbeat_attempt',
   submitTool: 'submit_attempt',
@@ -130,7 +136,7 @@ function recordAttempt(
   enqueueOutbox(ctx, { kind: 'run_history', epicId, runId: row.run_id })
 }
 
-function normalizeOutputs(outputs: OutputsInput): AttemptOutputs {
+export function normalizeOutputs(outputs: OutputsInput): AttemptOutputs {
   return {
     summary: outputs.summary,
     artifacts: outputs.artifacts ?? [],
@@ -140,7 +146,7 @@ function normalizeOutputs(outputs: OutputsInput): AttemptOutputs {
   }
 }
 
-function normalizeEvidence(evidence: Partial<AttemptEvidence> | undefined): AttemptEvidence {
+export function normalizeEvidence(evidence: Partial<AttemptEvidence> | undefined): AttemptEvidence {
   return { checks: evidence?.checks ?? [], criteria: evidence?.criteria ?? [], notes: evidence?.notes ?? '' }
 }
 
@@ -380,7 +386,7 @@ function executionPacket(ctx: Ctx, parts: PacketParts): ExecutionPacket {
     claimToken: `${row.id}.${parts.secret}`,
     fencingToken: row.fencing_token,
     leaseExpiresAt: row.lease_expires_at ?? '',
-    heartbeatIntervalSeconds: Math.max(MIN_HEARTBEAT_SECONDS, Math.floor(parts.leaseSeconds / 3)),
+    heartbeatIntervalSeconds: heartbeatIntervalSeconds(parts.leaseSeconds),
     epic: {
       id: context.run.epic_id,
       title: context.bundle.epic.title,
@@ -457,34 +463,56 @@ export function claimTicket(ctx: Ctx, input: ClaimTicketInput): ClaimResultView 
   })
 }
 
-function tokenMatches(row: AttemptRow, token: string): boolean {
-  const separator = token.indexOf('.')
-  if (separator === -1 || row.claim_secret === null) {
-    return false
-  }
-  return token.slice(0, separator) === row.id && token.slice(separator + 1) === row.claim_secret
+/** What a claim check reads of an attempt: a plan ticket's or a Kanban card's. */
+interface HeldClaim {
+  id: string
+  claimSecret: string | null
+  state: AttemptState
+  /** A newer attempt of the same ticket or card took this one's place. */
+  superseded: boolean
 }
 
-/** A late write must carry this attempt's token, be its ticket's latest attempt, and hold a live lease. */
-function verifyClaim(ctx: Ctx, row: AttemptRow, token: string): void {
-  const details = { attemptId: row.id }
-  if (!tokenMatches(row, token)) {
+function tokenMatches(claim: HeldClaim, token: string): boolean {
+  const separator = token.indexOf('.')
+  if (separator === -1 || claim.claimSecret === null) {
+    return false
+  }
+  return token.slice(0, separator) === claim.id && token.slice(separator + 1) === claim.claimSecret
+}
+
+/**
+ * A late write must carry the attempt's token (`<attemptId>.<secret>`), be its latest attempt, and hold a live
+ * lease. `expired` tells the writer what follows an expired lease.
+ */
+export function verifyClaimToken(claim: HeldClaim, token: string, expired: string): void {
+  const details = { attemptId: claim.id }
+  if (!tokenMatches(claim, token)) {
     fail('stale_claim', 'The claim token does not match this attempt.', details)
   }
+  if (claim.superseded) {
+    fail('stale_claim', 'A newer attempt superseded this claim.', details)
+  }
+  if (claim.state === 'lease_expired') {
+    fail('expired_claim', expired, details)
+  }
+  if (!isLeasedAttemptState(claim.state)) {
+    fail('stale_claim', `This attempt is ${claim.state}; its claim is no longer active.`, details)
+  }
+}
+
+/** A plan attempt's claim is superseded when it was marked so, or when its ticket has a later attempt in the run. */
+function verifyClaim(ctx: Ctx, row: AttemptRow, token: string): void {
   const latest = ctx.db.get<{ number: number }>(
     'SELECT MAX(number) AS number FROM attempts WHERE run_id = ? AND ticket_id = ?',
     row.run_id,
     row.ticket_id
   )
-  if (row.superseded_at !== null || row.number < (latest?.number ?? row.number)) {
-    fail('stale_claim', 'A newer attempt superseded this claim.', details)
-  }
-  if (row.state === 'lease_expired') {
-    fail('expired_claim', 'The claim lease expired; the orchestrator must reconcile this attempt.', details)
-  }
-  if (!isLeasedAttemptState(row.state)) {
-    fail('stale_claim', `This attempt is ${row.state}; its claim is no longer active.`, details)
-  }
+  const superseded = row.superseded_at !== null || row.number < (latest?.number ?? row.number)
+  verifyClaimToken(
+    { id: row.id, claimSecret: row.claim_secret, state: row.state, superseded },
+    token,
+    'The claim lease expired; the orchestrator must reconcile this attempt.'
+  )
 }
 
 /**
@@ -499,10 +527,10 @@ function settleLeases(ctx: Ctx, attemptId: string): void {
 }
 
 /**
- * A progress note is free text, so whatever the worker pasted into it is masked before it is stored: the claim
- * token this heartbeat proved (any shape), and anything else shaped like one.
+ * Free text a claim holder sends (a progress note) is masked before it is stored: the claim token it proved (any
+ * shape), and anything else shaped like a plan attempt's token.
  */
-function maskNote(text: string, claimToken: string): string {
+export function maskNote(text: string, claimToken: string): string {
   return maskClaimTokens(text.split(claimToken).join(CLAIM_TOKEN_MASK))
 }
 

@@ -140,8 +140,8 @@ export interface SessionManagerDeps {
   onError?: (error: unknown) => void
 }
 
-/** A request to create a chat, with the run it orchestrates or the epic it transfers when there is one. */
-type NewChatRequest = CreateChatRequest & Pick<ChatRecord, 'runId' | 'transferEpicId'>
+/** A request to create a chat, with the run it orchestrates, the epic it transfers or the Kanban card it carries when there is one. */
+type NewChatRequest = CreateChatRequest & Pick<ChatRecord, 'runId' | 'transferEpicId' | 'cardId'>
 
 interface ApprovalAnswer {
   requestId: string
@@ -151,7 +151,7 @@ interface ApprovalAnswer {
 export interface SessionManager {
   /** A folder's chats, each with the number of approval requests it is waiting on. */
   listChats(folder: string): ChatSummary[]
-  /** `runId` links the chat to the run it orchestrates, `transferEpicId` to the epic it moves to Linear; only main sets them (the `chats:create` request cannot). */
+  /** `runId` links the chat to the run it orchestrates, `transferEpicId` to the epic it moves to Linear, `cardId` to the Kanban card it carries; only main sets them (the `chats:create` request cannot). */
   createChat(request: NewChatRequest): ChatRecord
   /** Changes the chat's title; a running agent keeps going, and its next session is named after the new title. */
   renameChat(ref: ChatRef, title: string): ChatRecord
@@ -1070,7 +1070,8 @@ function createChat(manager: Manager, request: NewChatRequest): ChatRecord {
     allowSave: request.allowSave ?? true,
     ...(request.title === undefined ? {} : { title: request.title }),
     ...(request.runId === undefined ? {} : { runId: request.runId }),
-    ...(request.transferEpicId === undefined ? {} : { transferEpicId: request.transferEpicId })
+    ...(request.transferEpicId === undefined ? {} : { transferEpicId: request.transferEpicId }),
+    ...(request.cardId === undefined ? {} : { cardId: request.cardId })
   })
   bindActivity(manager, (activity) => activity.observeChat(chat, []))
   return chat

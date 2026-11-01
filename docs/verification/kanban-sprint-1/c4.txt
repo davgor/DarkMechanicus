@@ -1,0 +1,112 @@
+# c4: .darkmechanicus/kanban/ after the lifecycle, a fresh clone that reconciles, and the db-mode folder
+# Throwaway scripts under /tmp/dm-kanban/acceptance/scripts (not in the repository), run with `node --import tsx` from the integration worktree against its src (openWorkspace) or with its built out/main. Scratch fixtures under /private/tmp/dm-kanban/acceptance/fx; claim tokens redacted.
+# Boards compared: c4-board-original.json and c4-board-clone.json (listKanbanCards with doneLimit 100).
+
+### 1. .darkmechanicus/kanban/ after the lifecycle (find, with each record's format and kind)
+.darkmechanicus/kanban/kc_01m6ay2ngrq46dar70v49cqc0g/
+.darkmechanicus/kanban/kc_01m6ay2ngrq46dar70v49cqc0g/card.json  (darkmechanicus.kanban-card key=DM-1 generation=1)
+.darkmechanicus/kanban/kc_01m6ay2ngrq46dar70v49cqc0g/events/
+.darkmechanicus/kanban/kc_01m6ay2ngrq46dar70v49cqc0g/events/ke_01m6ay2ngsk3ynd0tensmw01eq.json  (darkmechanicus.kanban-event kind=created)
+.darkmechanicus/kanban/kc_01m6ay2nhcpdax05a517yfcjzk/
+.darkmechanicus/kanban/kc_01m6ay2nhcpdax05a517yfcjzk/card.json  (darkmechanicus.kanban-card key=DM-2 generation=1)
+.darkmechanicus/kanban/kc_01m6ay2nhcpdax05a517yfcjzk/events/
+.darkmechanicus/kanban/kc_01m6ay2nhcpdax05a517yfcjzk/events/ke_01m6ay2nhdm57a9m5j9p36bhdz.json  (darkmechanicus.kanban-event kind=created)
+.darkmechanicus/kanban/kc_01m6ay3q98p2ybn5hjz4rkw8gr/
+.darkmechanicus/kanban/kc_01m6ay3q98p2ybn5hjz4rkw8gr/card.json  (darkmechanicus.kanban-card key=DM-3 generation=1)
+.darkmechanicus/kanban/kc_01m6ay3q98p2ybn5hjz4rkw8gr/events/
+.darkmechanicus/kanban/kc_01m6ay3q98p2ybn5hjz4rkw8gr/events/ke_01m6ay3q994d4xt7m1aa41b2zf.json  (darkmechanicus.kanban-event kind=created)
+.darkmechanicus/kanban/kc_01m6ay3q98p2ybn5hjz4rkw8gr/events/ke_01m6ay3q9qe7aemtg38ckmdt47.json  (darkmechanicus.kanban-event kind=played)
+.darkmechanicus/kanban/kc_01m6ay3q98p2ybn5hjz4rkw8gr/events/ke_01m6ay3q9y0by57nnn4932jm50.json  (darkmechanicus.kanban-event kind=claimed)
+.darkmechanicus/kanban/kc_01m6ay3q98p2ybn5hjz4rkw8gr/events/ke_01m6ay3qa5zr3cs47y4a1s72n0.json  (darkmechanicus.kanban-event kind=running)
+.darkmechanicus/kanban/kc_01m6ay3q98p2ybn5hjz4rkw8gr/events/ke_01m6ay3qab5ymx11e7vgs1ewmg.json  (darkmechanicus.kanban-event kind=submitted)
+.darkmechanicus/kanban/kc_01m6ay3q98p2ybn5hjz4rkw8gr/events/ke_01m6ay3qahqtryv9grws3348xq.json  (darkmechanicus.kanban-event kind=kicked_back)
+.darkmechanicus/kanban/kc_01m6ay3q98p2ybn5hjz4rkw8gr/events/ke_01m6ay3qan5f9gsd025asrn7tt.json  (darkmechanicus.kanban-event kind=claimed)
+.darkmechanicus/kanban/kc_01m6ay3q98p2ybn5hjz4rkw8gr/events/ke_01m6ay3qavwzy5zx2t64g3nwak.json  (darkmechanicus.kanban-event kind=submitted)
+.darkmechanicus/kanban/kc_01m6ay3q98p2ybn5hjz4rkw8gr/events/ke_01m6ay3qb0ks50d16z2tm8te97.json  (darkmechanicus.kanban-event kind=approved)
+
+### 2. claim secret scan
+{
+  "attemptsWithSecrets": 2,
+  "filesScanned": 14,
+  "filesContainingASecret": 0
+}
+
+### 3. git -C repo log --oneline; git status --porcelain
+3d4a213 Track the Dark Mechanicus records (Kanban cards)
+ad58685 Initial commit
+--- status:
+
+
+### 3b. reconcileRepository in the fresh clone
+{
+  "imported": [],
+  "unchanged": [
+    "kanban:kc_01m6ay2ngrq46dar70v49cqc0g",
+    "kanban:kc_01m6ay2nhcpdax05a517yfcjzk",
+    "kanban:kc_01m6ay3q98p2ybn5hjz4rkw8gr"
+  ],
+  "conflicts": [],
+  "profileConflicts": [],
+  "kanbanConflicts": [],
+  "rejected": [],
+  "branchChanged": false,
+  "pausedRuns": []
+}
+getKanbanCard DM-1: identical in the clone = true
+getKanbanCard DM-2: identical in the clone = true
+getKanbanCard DM-3: identical in the clone = false
+
+### 4. db-mode folder before: git status --porcelain
+(empty)
+
+### 4b. initializeRepository (db mode)
+{
+  "projectId": "pj_01m6ay5axctkmym1a2fvz2e9vg",
+  "name": "kanban-db-fixture",
+  "keyPrefix": "DB",
+  "createdFiles": [
+    "project.json",
+    "local/machine.json"
+  ],
+  "alreadyInitialized": false,
+  "storage": {
+    "mode": "db",
+    "projectDir": "/private/tmp/dm-kanban/acceptance/fx/dbhome/projects/db-40b46150e538eb4e"
+  }
+}
+
+### 4c. db-mode card after create, Play, claim, submit, kick back, claim, submit, approve
+{
+  "key": "DB-1",
+  "lane": "done",
+  "attempts": [
+    "rejected",
+    "accepted"
+  ],
+  "summary": {
+    "outcome": "Docs and CONTRIBUTING now say main.",
+    "commits": [],
+    "completedAt": "2026-11-01T06:53:42.727Z",
+    "approvedBy": "acceptance desktop"
+  }
+}
+
+### 4d. db-mode board lane counts
+{
+  "backlog": [],
+  "in_progress": [],
+  "ready_for_review": [],
+  "done": [
+    "DB-1"
+  ]
+}
+
+### 4e. db-mode folder after: git status --porcelain --ignored; ls -A
+status: (empty)
+ls -A: .git NOTES.md README.md
+
+### 3c. diff evidence/c4-board-original.json evidence/c4-board-clone.json (run right after the script; the printing line was missing from the first run)
+diff exit status: 0 (0 = identical, output empty)
+
+### 3d. (extra) getKanbanCard field-by-field comparison, original vs clone
+DM-3.attempts.0.progressNote: original="writing CHANGELOG.md" clone=null
