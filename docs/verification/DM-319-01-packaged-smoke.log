@@ -1,0 +1,79 @@
+# DM-319 packaged smoke (2026-10-31T11:55:42Z, 26.7.1 arm64)
+## Packaging: electron-vite build && electron-builder --mac --publish never --config.directories.output=/tmp/dm319/release (= npm run package:mac with a scratch output dir)
+  • skipped dependencies rebuild  reason=npmRebuild is set to false
+  • packaging       platform=darwin arch=arm64 electron=42.11.9 appOutDir=/tmp/dm319/release/mac-arm64
+  • signing         file=/tmp/dm319/release/mac-arm64/DarkMechanicus.app platform=darwin type=distribution identityName=- identityHash=none provisioningProfile=none
+  • building        target=DMG arch=arm64 file=/tmp/dm319/release/DarkMechanicus-0.20.0-arm64.dmg
+  • skipped dependencies rebuild  reason=npmRebuild is set to false
+  • packaging       platform=darwin arch=x64 electron=42.11.9 appOutDir=/tmp/dm319/release/mac
+  • signing         file=/tmp/dm319/release/mac/DarkMechanicus.app platform=darwin type=distribution identityName=- identityHash=none provisioningProfile=none
+  • building        target=DMG arch=x64 file=/tmp/dm319/release/DarkMechanicus-0.20.0-x64.dmg
+  • building block map  blockMapFile=/tmp/dm319/release/DarkMechanicus-0.20.0-arm64.dmg.blockmap
+  • building block map  blockMapFile=/tmp/dm319/release/DarkMechanicus-0.20.0-x64.dmg.blockmap
+
+## ls -l spawn-helper, signed arm64 bundle (mac-arm64) and x64 bundle (mac)
+-rwxr-xr-x 1 davidgorden wheel 69248 Oct 31 06:51 Contents/Resources/app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper
+-rwxr-xr-x 1 davidgorden wheel 28880 Oct 31 06:51 Contents/Resources/app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-x64/spawn-helper
+-rwxr-xr-x 1 davidgorden wheel 69248 Oct 31 06:52 Contents/Resources/app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper
+-rwxr-xr-x 1 davidgorden wheel 28880 Oct 31 06:52 Contents/Resources/app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-x64/spawn-helper
+
+## afterPack proof: node_modules helpers chmod 644, then electron-builder --mac dir --arm64 --x64 --config.mac.identity=null --config.directories.output=/tmp/dm319/unsigned
+  • skipped dependencies rebuild  reason=npmRebuild is set to false
+  • packaging       platform=darwin arch=x64 electron=42.11.9 appOutDir=/tmp/dm319/unsigned/mac
+  • skipped macOS code signing  reason=identity explicitly is set to null
+  • skipped dependencies rebuild  reason=npmRebuild is set to false
+  • packaging       platform=darwin arch=arm64 electron=42.11.9 appOutDir=/tmp/dm319/unsigned/mac-arm64
+  • skipped macOS code signing  reason=identity explicitly is set to null
+node_modules before packaging: -rw-r--r-- darwin-arm64/spawn-helper, -rw-r--r-- darwin-x64/spawn-helper (restored with node scripts/ptyHelperMode.mjs afterwards)
+-rwxr-xr-x 1 davidgorden wheel 50480 Oct 31 06:53 Contents/Resources/app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper
+-rwxr-xr-x 1 davidgorden wheel  9248 Oct 31 06:53 Contents/Resources/app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-x64/spawn-helper
+-rwxr-xr-x 1 davidgorden wheel 50480 Oct 31 06:53 Contents/Resources/app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper
+-rwxr-xr-x 1 davidgorden wheel  9248 Oct 31 06:53 Contents/Resources/app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-x64/spawn-helper
+
+## pty.node checksums (sha256)
+e6457d66f45af3facd02920a5b212164e80fe0bb758afe6e6eab1eceeba3fc9a  node_modules/node-pty/prebuilds/darwin-arm64/pty.node
+e6457d66f45af3facd02920a5b212164e80fe0bb758afe6e6eab1eceeba3fc9a  unsigned mac-arm64: Contents/Resources/app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-arm64/pty.node
+4dd84e559e15c5aae7cff7757bd0a4abc819545d6dc46327d52966a624d82be2  signed mac-arm64: Contents/Resources/app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-arm64/pty.node
+The signed bundle's bytes differ only because electron-builder ad-hoc re-signs every Mach-O (identity "-"); same Mach-O build UUID:
+UUID: 333B9B8F-3DBD-3733-BBB3-BC6679A9760C (arm64) node_modules/node-pty/prebuilds/darwin-arm64/pty.node
+UUID: 333B9B8F-3DBD-3733-BBB3-BC6679A9760C (arm64) Contents/Resources/app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-arm64/pty.node
+CodeDirectory v=20400 size=389 flags=0x2(adhoc) hashes=6+2 location=embedded
+Signature=adhoc
+
+## Inspector: signed arm64 app, scratch --user-data-dir, --inspect=0; real PtyHost (src/main/terminals/ptyHost.ts bundled with esbuild, evaluated with the app main module's require and __filename) spawns /bin/echo ok
+started pid=78600 userData=/tmp/dm319/userdata-J0DPPv
+inspector ws://127.0.0.1:59759/ea480df9-4d11-4daa-bbd9-ba8cd470300c
+{
+  "mainFilename": "/private/tmp/dm319/release/mac-arm64/DarkMechanicus.app/Contents/Resources/app.asar/out/main/index.js",
+  "resourcesPath": "/private/tmp/dm319/release/mac-arm64/DarkMechanicus.app/Contents/Resources",
+  "arch": "arm64",
+  "electron": "42.11.9",
+  "pid": 78694,
+  "output": "ok\r\n",
+  "exit": {
+    "exitCode": 0,
+    "signal": 0
+  },
+  "ptyNodeLoaded": [
+    "/private/tmp/dm319/release/mac-arm64/DarkMechanicus.app/Contents/Resources/app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-arm64/pty.node"
+  ],
+  "nodePtyModules": [
+    "/private/tmp/dm319/release/mac-arm64/DarkMechanicus.app/Contents/Resources/app.asar/node_modules/node-pty/lib/index.js",
+    "/private/tmp/dm319/release/mac-arm64/DarkMechanicus.app/Contents/Resources/app.asar/node_modules/node-pty/lib/unixTerminal.js"
+  ]
+}
+app exited
+
+## Inspector: copy of the signed arm64 app with its darwin-arm64 spawn-helper chmod 644
+started pid=78861 userData=/tmp/dm319/userdata-LYwTjm
+inspector ws://127.0.0.1:59769/1a82cafb-363b-425b-b975-9809169ffa79
+{
+  "mainFilename": "/private/tmp/dm319/broken/DarkMechanicus.app/Contents/Resources/app.asar/out/main/index.js",
+  "resourcesPath": "/private/tmp/dm319/broken/DarkMechanicus.app/Contents/Resources",
+  "arch": "arm64",
+  "electron": "42.11.9",
+  "error": "The terminal helper isn't executable: /private/tmp/dm319/broken/DarkMechanicus.app/Contents/Resources/app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper. Reinstall Dark Mechanicus.",
+  "ptyNodeLoaded": [],
+  "nodePtyModules": []
+}
+app exited

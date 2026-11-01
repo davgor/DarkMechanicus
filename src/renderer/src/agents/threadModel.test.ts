@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ChatItem } from '../../../shared/agents/chat'
-import { threadPath, threadStateView, transcriptTree, type ThreadNode, type TreeRow } from './threadModel'
-import type { TranscriptEntry } from './chatViewModel'
+import { threadStateView, transcriptTree, type ThreadNode, type TreeRow } from './threadModel'
 
 const AT = '2026-03-01T10:00:00.000Z'
 
@@ -79,12 +78,6 @@ describe('transcriptTree', () => {
     expect(ids(inner.rows)).toEqual(['deep'])
   })
 
-  it('streams a thread\'s unfinished text inside the thread', () => {
-    const streaming: TranscriptEntry = { kind: 'streaming_text', id: 'live', text: 'Partly', threadId: 'th' }
-    const rows = transcriptTree([call('spawn'), thread('th', 'spawn'), streaming])
-    expect(only(rows[0]).rows.map((row) => [row.entry.id, row.entry.kind])).toEqual([['live', 'streaming_text']])
-  })
-
   it('shows a thread whose spawning call is not in the transcript where the thread was stored', () => {
     const rows = transcriptTree([user('a'), thread('th', 'gone'), text('n', 'th'), user('b')])
     expect(ids(rows)).toEqual(['a', 'th', 'b'])
@@ -95,11 +88,11 @@ describe('transcriptTree', () => {
 })
 
 describe('transcriptTree: threads that are not as stored, and requests', () => {
-  it('shows the items of a thread that has no thread item as a thread of their own, so a request in it can still be answered', () => {
+  it('shows the items of a thread that has no thread item as a thread of their own, so nothing in it is lost', () => {
     const rows = transcriptTree([user('a'), asked('q', 'lost'), text('n', 'lost')])
     expect(ids(rows)).toEqual(['a', 'lost'])
     const node = only(rows[1])
-    expect(node).toMatchObject({ pending: 1, item: { id: 'lost', label: 'Worker', state: 'running' } })
+    expect(node).toMatchObject({ item: { id: 'lost', label: 'Worker', state: 'running' } })
     expect(ids(node.rows)).toEqual(['item_q', 'n'])
   })
 
@@ -108,33 +101,11 @@ describe('transcriptTree: threads that are not as stored, and requests', () => {
     expect(rows.length).toBeLessThanOrEqual(1)
   })
 
-  it('counts the requests waiting for an answer, in the thread and in the threads below it', () => {
-    const rows = transcriptTree([call('spawn'), thread('outer', 'spawn'), asked('q1', 'outer'), call('inner_spawn', 'outer'), thread('inner', 'inner_spawn', 'outer'), asked('q2', 'inner'), asked('q3', 'inner'), answered('q3')])
-    const outer = only(rows[0])
-    expect(outer.pending).toBe(2)
-    expect(only(outer.rows[1]).pending).toBe(1)
-  })
-
   it('gives a request in a thread the decision stored for it, and keeps that decision out of the rows', () => {
     const rows = transcriptTree([call('spawn'), thread('th', 'spawn'), asked('q', 'th'), answered('q')])
     expect(ids(rows)).toEqual(['spawn'])
     const request = only(rows[0]).rows[0]
     expect(request?.answer).toMatchObject({ requestId: 'q', decision: 'allow_once' })
-    expect(only(rows[0]).pending).toBe(0)
-  })
-})
-
-describe('threadPath', () => {
-  const entries = [call('spawn'), thread('outer', 'spawn'), call('inner_spawn', 'outer'), thread('inner', 'inner_spawn', 'outer'), text('deep', 'inner')]
-
-  it('names a thread and every thread above it, so a view can open them all', () => {
-    expect([...threadPath(entries, 'inner')].sort()).toEqual(['inner', 'outer'])
-    expect([...threadPath(entries, 'outer')]).toEqual(['outer'])
-  })
-
-  it('is empty for a thread that is not in the transcript, and stops at a thread that names itself', () => {
-    expect([...threadPath(entries, 'nowhere')]).toEqual([])
-    expect([...threadPath([thread('loop', 'x', 'loop')], 'loop')]).toEqual(['loop'])
   })
 })
 

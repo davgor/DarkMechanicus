@@ -2,44 +2,44 @@ import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import type { ApprovalDecision, ChatItem, ChatRecord } from '../../shared/agents/chat'
-import { CHAT_EVENT_CHANNEL, type BoundThread, type ChatOpenView, type ChatPushEvent, type StartOrchestratorResult, type ThreadBinding } from '../../shared/agents/chatApi'
+import type { ChatRecord } from '../../shared/agents/chat'
+import { CHAT_EVENT_CHANNEL, type BoundThread, type ChatPushEvent, type ChatReadView, type StartOrchestratorResult } from '../../shared/agents/chatApi'
 import type { CommandResult } from '../../shared/desktop/api'
 import type { EpicDetailView, RunView } from '../../shared/domain/views'
-import { AT, connectedAgents, fakeAdapters, memoryChatFs, memoryChatStore, MODELS, REPO, trackedFolders, type FakeAdapters, type MemoryChatFs } from './__mocks__/fakeChatAdapter'
+import { AT, connectedAgents, memoryChatFs, memoryChatStore, REPO, storeItems, type MemoryChatFs } from './__mocks__/chatFixtures'
 import { ATTEMPT_A, ATTEMPT_B, RUN_ID, THREAD_A } from './__mocks__/orchestratorChat'
-import { createActivityBindings } from './activityBindings'
+import { createActivityBindings, type ActivityBinding } from './activityBindings'
 import { createChatHandlers } from './chatHandlers'
 import { createChatPush, registerChatIpc, type ChatWindow } from './chatIpc'
+import { createChatRecords, type ChatRecords } from './chatRecords'
 import { listBoundThreads } from './boundThreads'
-import { listThreadBindings } from './threadBindings'
+import { findBoundTerminal, type GrantBindingReads } from './grantBindings'
+import type { BoundTerminalLookup } from './chatHandlers'
+import type { ActivityEntry } from '../../shared/domain/activity'
 import type { ChatStore } from './chatStore'
 import { guardIpc } from '../ipcGuard'
 import type { OrchestratorRuns } from './orchestratorStart'
-import { createSessionManager, type SessionManager } from './sessionManager'
+import type { TerminalSessions } from '../terminals/terminalSessions'
 
 type Listener = Parameters<IpcMain['handle']>[1]
 
 const EVENT = {} as IpcMainInvokeEvent
 
 const CHAT_CHANNELS = [
-  'chats:answerApproval',
+  'chats:boundTerminal',
   'chats:boundThreads',
   'chats:create',
   'chats:delete',
   'chats:list',
-  'chats:models',
-  'chats:open',
   'chats:read',
   'chats:rename',
-  'chats:retryTurn',
-  'chats:send',
-  'chats:setModel',
-  'chats:startOrchestrator',
-  'chats:stop',
-  'chats:threadBindings'
+  'chats:startOrchestrator'
 ]
 
+/** The channels of chats run by protocol adapters, gone now that every chat runs in its terminal. */
+const REMOVED_CHANNELS = ['chats:answerApproval', 'chats:models', 'chats:open', 'chats:retryTurn', 'chats:send', 'chats:setModel', 'chats:stop', 'chats:threadBindings']
+
+const BINDINGS_FILE = '/state/agents/activity-bindings.jsonl'
 const EPIC_ID = 'ep_01m418epbg8qkqa2e2krvdkqk5'
 const EPIC = { id: EPIC_ID, title: 'Agent chats', branch: { repository: null, name: 'epic/agent-chats', startCommit: null } } as EpicDetailView
 const RUN = { id: 'rn_2', number: 2, epicId: EPIC_ID, state: 'queued' } as RunView
@@ -60,79 +60,53 @@ function createFakeIpcMain(): { handle(channel: string, listener: Listener): voi
 
 interface IpcRig {
   invoke<T>(channel: string, ...args: unknown[]): Promise<T>
-  sessions: SessionManager
-  fakes: FakeAdapters
   fs: MemoryChatFs
   store: ChatStore
-  events: ChatPushEvent[]
   /** The epics a run was queued for, in order. */
   queued: string[]
+  /** The terminals started, with the kickoff each was given, in order. */
+  terminalStarts: { chatId: string; kickoff: string }[]
   channels(): string[]
 }
 
-/** The real handlers and session manager behind fake IPC, with fake adapters, an in-memory store and a fake run queue. */
-/** The chat's `dm` invocation and the grant it carries; no chat in these tests inspects them. */
-function chatCliDeps() {
-  return {
-    issueChatCli: async (folder: string) => ({
-      cli: {
-        command: 'node',
-        args: ['/app/out/main/cli.js', '--repo', folder],
-        env: { DM_SESSION_TOKEN: 'dmg_test' }
-      },
-      grantId: 'gr_00000000000000000000000001'
-    }),
-    revokeChatGrant: async () => undefined
-  }
+/** Terminals that write down each start and the kickoff it was given, and answer that the PTY runs. */
+function recordingTerminals(starts: IpcRig['terminalStarts']): Pick<TerminalSessions, 'start'> {
+  return { start: async (ref, options) => (starts.push({ chatId: ref.id, kickoff: options.kickoff }), { state: 'running', pid: 4242 }) }
 }
 
-function ipcRig(options: { bindings?: boolean; windows?: readonly ChatWindow[] } = {}): IpcRig {
+/** A run queue that writes down the epics it queued a run for. */
+function queueingRuns(queued: string[]): OrchestratorRuns {
+  return { getEpic: () => Promise.resolve(EPIC), queueRun: (_folder, epicId) => (queued.push(epicId), Promise.resolve(RUN)) }
+}
+
+/** The real handlers and chat records behind fake IPC, with an in-memory store and the bindings old chats stored in `fs`. */
+function ipcRig(options: { bindings?: boolean; windows?: readonly ChatWindow[]; boundTerminal?: (store: ChatStore) => BoundTerminalLookup } = {}): IpcRig {
   const ipc = createFakeIpcMain()
-  const fakes = fakeAdapters()
   const fs = memoryChatFs()
   const store = memoryChatStore(fs)
-  const activity = options.bindings === true ? createActivityBindings({ file: '/state/agents/activity-bindings.jsonl', fs }) : undefined
-  const events: ChatPushEvent[] = []
-  const sessions = createSessionManager({
-    store,
-    ...(activity === undefined ? {} : { activity }),
-    adapters: fakes.definitions,
-    agentFor: connectedAgents(),
-    folders: trackedFolders(),
-    ...chatCliDeps(),
-    push: (event) => events.push(event)
-  })
+  const activity = options.bindings === true ? createActivityBindings({ file: BINDINGS_FILE, fs }) : undefined
   const queued: string[] = []
-  const runs: OrchestratorRuns = {
-    getEpic: () => Promise.resolve(EPIC),
-    queueRun: (_folder, epicId) => (queued.push(epicId), Promise.resolve(RUN))
-  }
-  const threadBindings =
-    activity === undefined
-      ? undefined
-      : (chat: Parameters<typeof listThreadBindings>[1]) =>
-          listThreadBindings({ activity, reads: { attempt: async () => ({ runId: RUN_ID, ticketId: 'tk_1' }), run: async () => ({ epicId: EPIC_ID, tickets: [{ ticketId: 'tk_1', key: 'DM-12' }] }) } }, chat)
+  const terminalStarts: IpcRig['terminalStarts'] = []
   const boundThreads = activity === undefined ? undefined : (folder: string, target: Parameters<typeof listBoundThreads>[2]) => listBoundThreads(activity, folder, target)
   registerChatIpc(
     ipc,
     createChatHandlers({
       registry: { resolve: (path) => (path === REPO ? REPO : null) },
       agents: { get: connectedAgents() },
-      sessions,
-      runs,
+      chats: createChatRecords({ store, agentFor: connectedAgents(), ...(activity === undefined ? {} : { activity }) }),
+      terminals: recordingTerminals(terminalStarts),
+      runs: queueingRuns(queued),
       ...(options.windows === undefined ? {} : { push: createChatPush(() => options.windows ?? []) }),
-      ...(threadBindings === undefined ? {} : { threadBindings }),
-      ...(boundThreads === undefined ? {} : { boundThreads })
+      ...(boundThreads === undefined ? {} : { boundThreads }),
+      ...(options.boundTerminal === undefined ? {} : { boundTerminal: options.boundTerminal(store) })
     })
   )
   return {
     invoke: async <T>(channel: string, ...args: unknown[]) => (await ipc.invoke(channel, ...args)) as T,
-    sessions,
-    fakes,
     fs,
     store,
-    events,
     queued,
+    terminalStarts,
     channels: ipc.channels
   }
 }
@@ -144,17 +118,16 @@ function data<T>(result: CommandResult<T>): T {
   return result.data
 }
 
-function settle(): Promise<void> {
-  return new Promise((resolve) => setImmediate(resolve))
-}
-
 async function createdChat(state: IpcRig): Promise<ChatRecord> {
   return data(await state.invoke<CommandResult<ChatRecord>>('chats:create', { folder: REPO, agent: 'claude', role: 'orchestrator', title: 'Ship it' }))
 }
 
 describe('chat IPC registration', () => {
-  it('registers exactly the chats channels, each once', () => {
-    expect(ipcRig().channels()).toEqual(CHAT_CHANNELS)
+  it('registers exactly the chats channels, each once, and none of the removed ones', () => {
+    const channels = ipcRig().channels()
+
+    expect(channels).toEqual(CHAT_CHANNELS)
+    expect(channels.filter((channel) => REMOVED_CHANNELS.includes(channel))).toEqual([])
   })
 
   it('passes a missing argument through for the handler to refuse', async () => {
@@ -163,52 +136,6 @@ describe('chat IPC registration', () => {
     for (const channel of CHAT_CHANNELS) {
       expect(await state.invoke<CommandResult<unknown>>(channel)).toMatchObject({ ok: false, error: { code: 'invalid_input' } })
     }
-  })
-})
-
-describe('chat IPC end to end with a fake adapter', () => {
-  it('streams a chat created through IPC to the renderer channel and to the store, in order', async () => {
-    const state = ipcRig()
-    state.fakes.prepare = (adapter) => {
-      adapter.turn = async (self) => {
-        self.emit({ type: 'item', item: { id: 't1', at: AT, kind: 'tool_call', name: 'Read', input: { path: 'a.ts' }, status: 'completed', resultSummary: null } })
-        self.emit({ type: 'assistant_delta', itemId: 'a1', delta: 'Done' })
-        self.emit({ type: 'item', item: { id: 'a1', at: AT, kind: 'assistant_text', text: 'Done.' } })
-      }
-    }
-    const chat = await createdChat(state)
-
-    const message = data(await state.invoke<CommandResult<ChatItem>>('chats:send', { folder: REPO, chatId: chat.id, text: 'Go' }))
-    await settle()
-
-    const stored = state.store.readTranscript(chat)?.items ?? []
-    expect(stored.map((item) => item.id)).toEqual([message.id, 't1', 'a1'])
-    expect(state.events.filter((event) => event.type === 'item').map((event) => event.item)).toEqual(stored)
-    expect(state.events.map((event) => event.type)).toEqual(['item', 'turn', 'item', 'assistant_delta', 'item', 'turn'])
-    const opened = data(await state.invoke<CommandResult<ChatOpenView>>('chats:open', { folder: REPO, chatId: chat.id }))
-    expect(opened.items).toEqual(stored)
-  })
-
-  it('holds an approval until it is answered through IPC, and keeps it pending across reopening', async () => {
-    const state = ipcRig()
-    const answers: ApprovalDecision[] = []
-    state.fakes.prepare = (adapter) => {
-      adapter.turn = async (self) => {
-        answers.push(await self.ask('q1', 'file_edit', 'Edit'))
-      }
-    }
-    const chat = await createdChat(state)
-    const ref = { folder: REPO, chatId: chat.id }
-    await state.invoke('chats:send', { ...ref, text: 'Edit a.ts' })
-    await settle()
-
-    const reopened = data(await state.invoke<CommandResult<ChatOpenView>>('chats:open', ref))
-    expect(reopened.pending.map((request) => [request.requestId, request.category])).toEqual([['q1', 'file_edit']])
-    expect(answers).toEqual([])
-
-    expect(await state.invoke('chats:answerApproval', { ...ref, requestId: 'q1', decision: 'allow_chat' })).toEqual({ ok: true, data: null })
-    await settle()
-    expect(answers).toEqual(['allow_chat'])
   })
 })
 
@@ -224,52 +151,20 @@ const STALE = [
   { id: 'item_q1', at: AT, kind: 'approval_request', requestId: 'q1', category: 'command', tool: 'Bash', summary: 'Use Bash' }
 ] as const
 
-describe('chat IPC: reading a chat for a panel (chats:read)', () => {
-  it('starts no agent and writes nothing to the store for a chat whose vendor starts on open, where chats:open does both', async () => {
+describe('chat IPC: reading a chat stored before terminals (chats:read)', () => {
+  it('reads the stored transcript with what no agent can finish shown ended, and writes nothing', async () => {
     const state = ipcRig({ bindings: true })
     const chat = data(await state.invoke<CommandResult<ChatRecord>>('chats:create', { folder: REPO, agent: 'codex', role: 'orchestrator', title: 'Ship it' }))
-    for (const item of STALE) {
-      state.store.appendItem(chat, item)
-    }
+    storeItems(state.fs, chat, STALE)
     const before = stored(state.fs)
-    state.events.length = 0
 
-    const read = data(await state.invoke<CommandResult<ChatOpenView>>('chats:read', { folder: REPO, chatId: chat.id }))
+    const read = data(await state.invoke<CommandResult<ChatReadView>>('chats:read', { folder: REPO, chatId: chat.id }))
 
-    expect(state.fakes.created).toEqual([])
     expect(stored(state.fs)).toBe(before)
-    expect(state.events).toEqual([])
-    expect(read.pending).toEqual([])
+    expect(read.chat.id).toBe(chat.id)
     expect(read.items.map((item) => item.kind)).toEqual(['tool_call', 'thread', 'approval_request', 'approval_decision'])
-
-    await state.invoke('chats:open', { folder: REPO, chatId: chat.id })
-    expect(state.fakes.created).toHaveLength(1)
-    expect(stored(state.fs)).not.toBe(before)
-  })
-
-  it('shows what a live agent is waiting on, and the answer sent after reading reaches the agent', async () => {
-    const state = ipcRig()
-    const answers: ApprovalDecision[] = []
-    state.fakes.prepare = (adapter) => {
-      adapter.turn = async (self) => {
-        self.emit({ type: 'item', item: { id: 't1', at: AT, kind: 'tool_call', name: 'Read', input: {}, status: 'running', resultSummary: null } })
-        answers.push(await self.ask('q1', 'file_edit', 'Edit'))
-      }
-    }
-    const chat = await createdChat(state)
-    const ref = { folder: REPO, chatId: chat.id }
-    await state.invoke('chats:send', { ...ref, text: 'Edit a.ts' })
-    await settle()
-
-    const read = data(await state.invoke<CommandResult<ChatOpenView>>('chats:read', ref))
-
-    expect(read.running).toBe(true)
-    expect(read.pending.map((request) => [request.requestId, request.category])).toEqual([['q1', 'file_edit']])
-    expect(read.items.find((item) => item.id === 't1')).toMatchObject({ status: 'running' })
-    expect(await state.invoke('chats:answerApproval', { ...ref, requestId: 'q1', decision: 'allow_once' })).toEqual({ ok: true, data: null })
-    await settle()
-    expect(answers).toEqual(['allow_once'])
-    expect(state.fakes.created).toHaveLength(1)
+    expect(read.items[0]).toMatchObject({ status: 'cancelled' })
+    expect(read.items[1]).toMatchObject({ state: 'failed' })
   })
 
   it('refuses a chat that does not exist and a folder that is not tracked', async () => {
@@ -280,105 +175,40 @@ describe('chat IPC: reading a chat for a panel (chats:read)', () => {
   })
 })
 
-describe('chat IPC: retrying a turn a sign-in cut short', () => {
-  const SIGNED_IN = { state: 'signed_in', reason: 'Claude Code reports it is signed in.' } as const
-
-  it('re-sends the message once after sign-in, and is refused while the agent is signed out or has nothing to retry', async () => {
-    const state = ipcRig()
-    let turns = 0
-    state.fakes.prepare = (adapter) => {
-      adapter.turn = (self) => {
-        turns += 1
-        if (turns === 1) {
-          self.emit({ type: 'item', item: { id: 'a1', at: AT, kind: 'auth_required', agent: 'claude', message: 'Not logged in · Please run /login' } })
-        }
-        return Promise.resolve()
-      }
-    }
-    const chat = await createdChat(state)
-    const ref = { folder: REPO, chatId: chat.id }
-    const message = data(await state.invoke<CommandResult<ChatItem>>('chats:send', { ...ref, text: 'Go' }))
-    await settle()
-
-    expect(await state.invoke('chats:retryTurn', ref)).toMatchObject({ ok: false, error: { code: 'conflict' } })
-    state.sessions.reconcileAuthStatus('claude', SIGNED_IN)
-    expect(data(await state.invoke<CommandResult<ChatItem>>('chats:retryTurn', ref))).toEqual(message)
-    await settle()
-    expect(await state.invoke('chats:retryTurn', ref)).toMatchObject({ ok: false, error: { code: 'not_found' } })
-
-    expect(state.fakes.created[0]?.sent).toEqual(['Go', 'Go'])
-  })
-
-  it('takes a chat and nothing else: another message or an id of one is refused, and nothing is sent', async () => {
-    const state = ipcRig()
-    const chat = await createdChat(state)
-    const ref = { folder: REPO, chatId: chat.id }
-
-    const answers = await Promise.all([{ ...ref, text: 'send this instead' }, { ...ref, messageId: 'm1' }, { folder: REPO }].map((payload) => state.invoke<CommandResult<unknown>>('chats:retryTurn', payload)))
-
-    expect(answers.map((answer) => (answer.ok ? 'ok' : answer.error.code))).toEqual(Array(3).fill('invalid_input'))
-    expect(state.fakes.created).toEqual([])
-  })
-})
-
-describe('chat IPC: stop, model and listing', () => {
-  it('stops a turn, changes the model and lists models through IPC', async () => {
-    const state = ipcRig()
-    state.fakes.prepare = (adapter) => {
-      adapter.turn = (self) => self.untilStopped()
-    }
-    const chat = await createdChat(state)
-    const ref = { folder: REPO, chatId: chat.id }
-    await state.invoke('chats:send', { ...ref, text: 'Long job' })
-
-    expect(await state.invoke('chats:stop', ref)).toEqual({ ok: true, data: null })
-    expect(data(await state.invoke<CommandResult<ChatRecord>>('chats:setModel', { ...ref, model: 'small' })).model).toBe('small')
-    expect(data(await state.invoke<CommandResult<unknown>>('chats:models', 'claude'))).toEqual([...MODELS, { id: '/bin/claude', label: 'claude' }])
-    expect(data(await state.invoke<CommandResult<ChatRecord[]>>('chats:list', REPO)).map((listed) => listed.id)).toEqual([chat.id])
-
-    const adapter = state.fakes.created[0]
-    expect([adapter?.stops, adapter?.modelChanges]).toEqual([1, ['small']])
-  })
-})
-
 describe('chat IPC: rename and delete', () => {
-  it('renames a chat, then deletes it, ending its agent and removing it from the store', async () => {
+  it('renames a chat, then deletes it with its transcript, removing it from the store', async () => {
     const state = ipcRig()
-    state.fakes.prepare = (adapter) => {
-      adapter.turn = (self) => self.untilStopped()
-    }
     const chat = await createdChat(state)
     const ref = { folder: REPO, chatId: chat.id }
-    await state.invoke('chats:send', { ...ref, text: 'Long job' })
+    storeItems(state.fs, chat, [{ id: 'm1', at: AT, kind: 'user_message', text: 'Go' }])
 
     expect(data(await state.invoke<CommandResult<ChatRecord>>('chats:rename', { ...ref, title: 'Renamed' })).title).toBe('Renamed')
     expect(state.store.getChat({ folder: REPO, id: chat.id })?.title).toBe('Renamed')
+    expect(data(await state.invoke<CommandResult<ChatRecord[]>>('chats:list', REPO)).map((listed) => listed.id)).toEqual([chat.id])
     expect(await state.invoke('chats:delete', ref)).toEqual({ ok: true, data: null })
 
-    expect(state.fakes.created[0]?.disposals).toBe(1)
     expect(state.store.getChat({ folder: REPO, id: chat.id })).toBeNull()
+    expect(state.store.readTranscript({ folder: REPO, id: chat.id })).toBeNull()
     expect(data(await state.invoke<CommandResult<ChatRecord[]>>('chats:list', REPO))).toEqual([])
     expect(await state.invoke('chats:delete', ref)).toMatchObject({ ok: false, error: { code: 'not_found' } })
   })
 })
 
 describe('chat IPC: start an orchestrator', () => {
-  it('queues the run and starts the chat with the kickoff as its first stored and pushed item', async () => {
+  it('queues the run, creates the chat and starts its terminal with the kickoff, storing no transcript item', async () => {
     const state = ipcRig()
 
     const result = data(
       await state.invoke<CommandResult<StartOrchestratorResult>>('chats:startOrchestrator', { folder: REPO, epicId: EPIC_ID, agent: 'claude', model: 'big' })
     )
-    await settle()
 
     expect(state.queued).toEqual([EPIC_ID])
     expect(result.problem).toBeNull()
     const chat = result.chat as ChatRecord
     expect(chat).toMatchObject({ role: 'orchestrator', allowSave: false, runId: 'rn_2', title: 'Orchestrator · Agent chats', model: 'big' })
-    const stored = state.store.readTranscript(chat)?.items ?? []
-    expect(stored[0]).toMatchObject({ kind: 'user_message' })
-    expect(state.events.flatMap((event) => (event.type === 'item' ? [event.item] : []))[0]).toEqual(stored[0])
-    expect(state.fakes.created[0]?.started[0]).toMatchObject({ role: 'orchestrator', allowSave: false })
+    expect(state.terminalStarts).toEqual([{ chatId: chat.id, kickoff: expect.stringContaining('Run: rn_2') }])
+    expect(state.terminalStarts[0]?.kickoff).toContain('Branch: epic/agent-chats')
+    expect(state.store.readTranscript(chat)?.items ?? []).toEqual([])
   })
 
   it('refuses an executable path, a role, an Allow save choice or another folder in the request', async () => {
@@ -398,20 +228,18 @@ describe('chat IPC: start an orchestrator', () => {
 
     expect(answers.map((answer) => (answer.ok ? 'ok' : answer.error.code))).toEqual([...Array(5).fill('invalid_input'), 'unauthorized'])
     expect(state.queued).toEqual([])
-    expect(state.fakes.created).toEqual([])
+    expect(state.terminalStarts).toEqual([])
   })
 })
 
 describe('chat IPC: agents named by id', () => {
-  it('refuses chats:create for an agent id that is not connected with not_found, and creates no chat or adapter', async () => {
+  it('refuses chats:create for an agent id that is not connected with not_found, and creates no chat', async () => {
     const state = ipcRig()
 
     const answer = await state.invoke<CommandResult<unknown>>('chats:create', { folder: REPO, agent: 'cu_01m65kwqqeyajbj5bnq81gngrb', role: 'planner' })
-    await settle()
 
     expect(answer).toMatchObject({ ok: false, error: { code: 'not_found' } })
     expect(state.store.listChats(REPO)).toEqual([])
-    expect(state.fakes.created).toEqual([])
   })
 
   it('refuses a malformed agent id with invalid_input before anything runs', async () => {
@@ -422,7 +250,7 @@ describe('chat IPC: agents named by id', () => {
     )
 
     expect(answers.map((answer) => (answer.ok ? 'ok' : answer.error.code))).toEqual(['invalid_input', 'invalid_input', 'invalid_input'])
-    expect(state.fakes.created).toEqual([])
+    expect(state.store.listChats(REPO)).toEqual([])
   })
 })
 
@@ -432,7 +260,13 @@ describe('chat IPC behind the sender guard', () => {
     const reached = (): never => {
       throw new Error('a handler was reached')
     }
-    const handlers = createChatHandlers({ registry: { resolve: reached }, agents: { get: reached }, sessions: {} as SessionManager, runs: {} as OrchestratorRuns })
+    const handlers = createChatHandlers({
+      registry: { resolve: reached },
+      agents: { get: reached },
+      chats: {} as ChatRecords,
+      terminals: {} as TerminalSessions,
+      runs: {} as OrchestratorRuns
+    })
     registerChatIpc(guardIpc({ handle: (channel, listener) => void listeners.set(channel, listener) }, { appUrl: 'http://localhost:5173' }), handlers)
     const stranger = { senderFrame: { url: 'https://example.com/', parent: null, detached: false, isDestroyed: () => false } } as unknown as IpcMainInvokeEvent
 
@@ -461,7 +295,7 @@ describe('chat push channel', () => {
   it('sends each event to every open window on the chats event channel', () => {
     const open = fakeWindow()
     const closed = fakeWindow(true)
-    const event: ChatPushEvent = { type: 'turn', chatId: 'chat_1', running: true }
+    const event: ChatPushEvent = { type: 'chats_changed', folder: REPO, chatId: 'chat_1' }
 
     createChatPush(() => [open, closed])(event)
 
@@ -469,7 +303,7 @@ describe('chat push channel', () => {
     expect(closed.sent).toEqual([])
   })
 
-  it('tells every window when a chat is renamed or deleted in one of them, so each refreshes its list', async () => {
+  it('tells every window when a chat is created, renamed or deleted in one of them, so each refreshes its list', async () => {
     const first = fakeWindow()
     const second = fakeWindow()
     const state = ipcRig({ windows: [first, second] })
@@ -480,7 +314,7 @@ describe('chat push channel', () => {
     data(await state.invoke<CommandResult<null>>('chats:delete', { folder: REPO, chatId: chat.id }))
 
     for (const window of [first, second]) {
-      expect(window.sent.filter(([, event]) => (event as ChatPushEvent).type === 'chats_changed')).toEqual(Array(3).fill([CHAT_EVENT_CHANNEL, changed]))
+      expect(window.sent).toEqual(Array(3).fill([CHAT_EVENT_CHANNEL, changed]))
     }
   })
 })
@@ -488,10 +322,11 @@ describe('chat push channel', () => {
 describe('chat preload bridge', () => {
   const preload = readFileSync(fileURLToPath(new URL('../../preload/index.ts', import.meta.url)), 'utf8')
 
-  it('invokes exactly the chats channels main registers', () => {
+  it('invokes exactly the chats channels main registers, and none of the removed ones', () => {
     const invoked = [...preload.matchAll(/ipcRenderer\.invoke\(\s*'(chats:[A-Za-z]+)'/g)].map((match) => match[1]).sort()
 
     expect(invoked).toEqual(CHAT_CHANNELS)
+    expect(REMOVED_CHANNELS.filter((channel) => preload.includes(`'${channel}'`))).toEqual([])
   })
 
   it('listens for pushed chat events on the shared channel name', () => {
@@ -500,46 +335,15 @@ describe('chat preload bridge', () => {
   })
 })
 
-describe('chat IPC: thread bindings end to end', () => {
-  const BASE = { at: AT, kind: 'tool_call', status: 'completed', resultSummary: null } as const
-
-  it('answers the bindings of the calls and subagent threads a chat stored, with the ticket key resolved', async () => {
+describe('chat IPC: threads of old chats bound to an attempt or a run', () => {
+  it('answers the chat and thread an old chat stored bindings for, by attempt and by run', async () => {
     const state = ipcRig({ bindings: true })
-    state.fakes.prepare = (adapter) => {
-      adapter.turn = async (self) => {
-        self.emit({ type: 'item', item: { ...BASE, id: 'take', name: 'mcp__darkmechanicus__takeover_run', input: { runId: RUN_ID } } })
-        self.emit({ type: 'item', item: { ...BASE, id: 'beat', threadId: THREAD_A, name: 'mcp__darkmechanicus__heartbeat_attempt', input: { attemptId: ATTEMPT_A } } })
-      }
-    }
     const chat = await createdChat(state)
-    const ref = { folder: REPO, chatId: chat.id }
-    await state.invoke('chats:send', { ...ref, text: 'Go' })
-    await settle()
-
-    const bindings = data(await state.invoke<CommandResult<ThreadBinding[]>>('chats:threadBindings', ref))
-
-    expect(bindings).toEqual([
-      { threadId: null, role: 'orchestrator', kind: 'run', runId: RUN_ID, epicId: EPIC_ID },
-      { threadId: THREAD_A, role: 'worker', kind: 'attempt', attemptId: ATTEMPT_A, runId: RUN_ID, epicId: EPIC_ID, ticketId: 'tk_1', ticketKey: 'DM-12' }
-    ])
-    expect(await state.invoke('chats:threadBindings', { ...ref, chatId: 'chat_unknown' })).toEqual({ ok: true, data: [] })
-  })
-})
-
-describe('chat IPC: bound threads end to end', () => {
-  const BASE = { at: AT, kind: 'tool_call', status: 'completed', resultSummary: null } as const
-
-  it('answers which chat and thread are bound to an attempt and to a run, once the chat stored the calls that bind them', async () => {
-    const state = ipcRig({ bindings: true })
-    state.fakes.prepare = (adapter) => {
-      adapter.turn = async (self) => {
-        self.emit({ type: 'item', item: { ...BASE, id: 'take', name: 'mcp__darkmechanicus__takeover_run', input: { runId: RUN_ID } } })
-        self.emit({ type: 'item', item: { ...BASE, id: 'beat', threadId: THREAD_A, name: 'mcp__darkmechanicus__heartbeat_attempt', input: { attemptId: ATTEMPT_A } } })
-      }
-    }
-    const chat = await createdChat(state)
-    await state.invoke('chats:send', { folder: REPO, chatId: chat.id, text: 'Go' })
-    await settle()
+    const stored: ActivityBinding[] = [
+      { chatId: chat.id, threadId: null, folder: REPO, role: 'orchestrator', kind: 'run', runId: RUN_ID },
+      { chatId: chat.id, threadId: THREAD_A, folder: REPO, role: 'worker', kind: 'attempt', attemptId: ATTEMPT_A }
+    ]
+    state.fs.files.set(BINDINGS_FILE, stored.map((binding) => `${JSON.stringify(binding)}\n`).join(''))
 
     const ofAttempt = data(await state.invoke<CommandResult<BoundThread[]>>('chats:boundThreads', { folder: REPO, attemptId: ATTEMPT_A }))
     const ofRun = data(await state.invoke<CommandResult<BoundThread[]>>('chats:boundThreads', { folder: REPO, runId: RUN_ID }))
@@ -558,5 +362,58 @@ describe('chat IPC: bound threads end to end', () => {
     ]
 
     expect(answers.map((answer) => (answer.ok ? 'ok' : answer.error.code))).toEqual(['unauthorized', 'invalid_input'])
+  })
+})
+
+describe('chat IPC: the terminal bound by grant', () => {
+  const CLAIM: ActivityEntry = {
+    kind: 'claim',
+    id: 'event:1',
+    at: AT,
+    sessionId: 'ss_cli',
+    attemptId: ATTEMPT_A,
+    ticketId: 'tk_1',
+    number: 1,
+    worker: { label: 'impl', modelId: null, hostId: null, effort: null, rationale: null }
+  }
+  const reads: GrantBindingReads = {
+    attemptTimeline: async (_folder, attemptId) => ({
+      attemptId,
+      runId: RUN_ID,
+      ticketId: 'tk_1',
+      state: 'running',
+      isLive: true,
+      cursor: 1,
+      entries: [CLAIM],
+      sessions: [{ id: 'ss_cli', role: 'orchestrator', label: 'dm', grantId: 'gr_2' }]
+    }),
+    runTimeline: async (_folder, runId) => ({ runId, epicId: EPIC_ID, state: 'running', isLive: true, cursor: 0, groups: [] })
+  }
+  const lookup = (store: ChatStore): BoundTerminalLookup => (folder, target) => findBoundTerminal({ reads, store }, folder, target)
+
+  it('answers the chat whose stored grants include the grant the claiming session presented, and null for a run no chat started', async () => {
+    const state = ipcRig({ boundTerminal: lookup })
+    const chat = await createdChat(state)
+    state.store.updateChat(chat, { grantIds: ['gr_1', 'gr_2'] })
+    // A newer chat of the same folder, on another grant: listed first, and not the one bound.
+    const newer = await createdChat(state)
+    state.store.updateChat(newer, { grantIds: ['gr_3'] })
+
+    expect(await state.invoke('chats:boundTerminal', { folder: REPO, attemptId: ATTEMPT_A })).toEqual({ ok: true, data: chat.id })
+    expect(await state.invoke('chats:boundTerminal', { folder: REPO, runId: RUN_ID })).toEqual({ ok: true, data: null })
+  })
+
+  it('answers null when the app wired no lookup, and refuses an untracked folder, a claim token and a request naming neither', async () => {
+    const state = ipcRig({ boundTerminal: lookup })
+    const unwired = ipcRig()
+
+    const answers = [
+      await state.invoke<CommandResult<unknown>>('chats:boundTerminal', { folder: '/elsewhere', attemptId: ATTEMPT_A }),
+      await state.invoke<CommandResult<unknown>>('chats:boundTerminal', { folder: REPO, attemptId: `${ATTEMPT_A}.secret` }),
+      await state.invoke<CommandResult<unknown>>('chats:boundTerminal', { folder: REPO })
+    ]
+
+    expect(answers.map((answer) => (answer.ok ? 'ok' : answer.error.code))).toEqual(['unauthorized', 'invalid_input', 'invalid_input'])
+    expect(await unwired.invoke('chats:boundTerminal', { folder: REPO, attemptId: ATTEMPT_A })).toEqual({ ok: true, data: null })
   })
 })

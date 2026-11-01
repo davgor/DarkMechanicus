@@ -1,20 +1,19 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react'
 import type { ChatRecord } from '../../../shared/agents/chat'
-import type { ChatPushEvent, ChatSummary, CreateChatRequest } from '../../../shared/agents/chatApi'
+import type { CreateChatRequest } from '../../../shared/agents/chatApi'
 import { useLatest } from '../app/useLatest'
 import { unwrapChat } from './chatCalls'
 
 export interface ChatListState {
   status: 'loading' | 'ready' | 'error'
-  /** Each chat with the number of approval requests it is waiting on. */
-  chats: ChatSummary[]
+  chats: ChatRecord[]
 }
 
 const LOADING: ChatListState = { status: 'loading', chats: [] }
 
 type Lists = Record<string, ChatListState>
 
-type ListAction = { type: 'loaded'; path: string; chats: ChatSummary[] } | { type: 'failed'; path: string }
+type ListAction = { type: 'loaded'; path: string; chats: ChatRecord[] } | { type: 'failed'; path: string }
 
 function listsReducer(lists: Lists, action: ListAction): Lists {
   if (action.type === 'loaded') {
@@ -70,34 +69,14 @@ function useActiveFolders(paths: readonly string[], reload: (path: string) => Pr
   }, [key, reload])
 }
 
-/** The stored items that change a chat's row: a model switch, a request or an answer (the chat starts or stops waiting), and a sign-in that cut a turn short (it waits on the sign-in). */
-const ROW_ITEMS: ReadonlySet<string> = new Set(['model_change', 'approval_request', 'approval_decision', 'auth_required'])
-
-/** What changes a chat's row (its time, so its place in the list, its model, whether it waits): a turn starting or ending, one of `ROW_ITEMS`. */
-function changesRow(event: ChatPushEvent): boolean {
-  return event.type === 'turn' || (event.type === 'item' && ROW_ITEMS.has(event.item.kind))
-}
-
-/** The folder to list again after an event: a chat added, renamed or removed (in any window) names its folder; a change to a chat's row is found by the chat. Null when the event changes no listed chat. */
-function folderToReload(lists: Lists, event: ChatPushEvent): string | null {
-  if (event.type === 'chats_changed') {
-    return lists[event.folder] === undefined ? null : event.folder
-  }
-  if (!changesRow(event)) {
-    return null
-  }
-  return Object.keys(lists).find((path) => lists[path]?.chats.some((chat) => chat.id === event.chatId)) ?? null
-}
-
-/** A chat created, renamed or deleted (here or in another window), a turn starting or ending, a model switch, or a request being asked or answered changes the list: reload its folder. */
+/** A chat created, renamed or deleted (here or in another window) names its folder: reload that folder's list when it is listed. */
 function useChatEvents(lists: Lists, reload: (path: string) => Promise<void>): void {
   const current = useLatest(lists)
   useEffect(
     () =>
       window.dm.chats.onEvent((event) => {
-        const folder = folderToReload(current.current, event)
-        if (folder !== null) {
-          void reload(folder)
+        if (current.current[event.folder] !== undefined) {
+          void reload(event.folder)
         }
       }),
     [current, reload]

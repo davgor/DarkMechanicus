@@ -50,7 +50,7 @@ function attemptPage(entries: ActivityEntry[], cursor: number, isLive = true): A
     isLive,
     cursor,
     entries,
-    sessions: [{ id: 'ss_worker', role: 'worker', label: 'impl' }]
+    sessions: [{ id: 'ss_worker', role: 'worker', label: 'impl', grantId: null }]
   }
 }
 
@@ -201,8 +201,8 @@ describe('mergeAttemptTimeline', () => {
     const next = {
       ...attemptPage([alive('2026-01-01T00:01:00.000Z', false), note(6)], 8, false),
       sessions: [
-        { id: 'ss_worker', role: 'worker' as const, label: 'impl' },
-        { id: 'ss_desktop', role: 'desktop' as const, label: 'Desktop' }
+        { id: 'ss_worker', role: 'worker' as const, label: 'impl', grantId: null },
+        { id: 'ss_desktop', role: 'desktop' as const, label: 'Desktop', grantId: null }
       ]
     }
     const merged = mergeAttemptTimeline(first, next)
@@ -220,7 +220,7 @@ describe('mergeAttemptTimeline', () => {
 })
 
 function group(sessionId: string, label: string, entries: ActivityEntry[]): RunActivityGroup {
-  return { session: { id: sessionId, role: 'orchestrator', label }, entries }
+  return { session: { id: sessionId, role: 'orchestrator', label, grantId: null }, entries }
 }
 
 function runPage(groups: RunActivityGroup[], cursor: number, isLive = true): RunTimelineView {

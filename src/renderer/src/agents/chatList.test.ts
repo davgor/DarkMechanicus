@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { agentView, chatRecord, chatSummary } from '../__mocks__/fixtures'
+import { agentView, chatRecord } from '../__mocks__/fixtures'
 import type { AgentStatuses } from './useAgents'
-import { chatMeta, newestFirst, ROLE_LABELS, waitingCount, waitingOnSignIn, waitingReason } from './chatList'
+import { chatMeta, newestFirst, ROLE_LABELS, waitingCount, waitingOnSignIn } from './chatList'
 
 describe('newestFirst', () => {
   it('orders by when the chat last changed, newest first, without changing the input', () => {
@@ -44,25 +44,11 @@ describe('waitingOnSignIn', () => {
 })
 
 describe('waitingCount', () => {
-  it('counts the chats that wait on an answer, not their requests', () => {
-    expect(waitingCount([chatSummary({ pending: 0 }), chatSummary({ pending: 1 }), chatSummary({ pending: 4 })], {})).toBe(2)
-    expect(waitingCount([], {})).toBe(0)
-  })
-
-  it('counts a chat waiting on a sign-in like one waiting on an approval, once', () => {
-    const chats = [chatSummary({ id: 'a', cutShortMessageId: 'u1' }), chatSummary({ id: 'b', pending: 1 }), chatSummary({ id: 'c' })]
+  it('counts the chats waiting on a sign-in while their agent is signed out', () => {
+    const chats = [chatRecord({ id: 'a', cutShortMessageId: 'u1' }), chatRecord({ id: 'b', cutShortMessageId: 'u2' }), chatRecord({ id: 'c' })]
     expect(waitingCount(chats, SIGNED_OUT)).toBe(2)
-    expect(waitingCount(chats, SIGNED_IN)).toBe(1)
-  })
-})
-
-describe('waitingReason', () => {
-  it('names what the waiting chats wait for', () => {
-    const approval = chatSummary({ id: 'b', pending: 1 })
-    const signIn = chatSummary({ id: 'a', cutShortMessageId: 'u1' })
-    expect(waitingReason([approval], SIGNED_OUT)).toBe('approval')
-    expect(waitingReason([signIn], SIGNED_OUT)).toBe('sign-in')
-    expect(waitingReason([approval, signIn], SIGNED_OUT)).toBe('approval or sign-in')
+    expect(waitingCount(chats, SIGNED_IN)).toBe(0)
+    expect(waitingCount([], SIGNED_OUT)).toBe(0)
   })
 })
 

@@ -1,4 +1,4 @@
-import type { AgentDownloadResult, AgentFindResult, AgentSignInResult, AgentView } from '../../../shared/desktop/api'
+import type { AgentDownloadResult, AgentFindResult, AgentView } from '../../../shared/desktop/api'
 
 /** What an agent action came to, ready to show inline where it was started. */
 export interface AgentOutcome {
@@ -16,12 +16,9 @@ const outcome = (tone: AgentOutcome['tone'], title: string, detail: string | nul
   output
 })
 
-/** A built-in's version follows its name; a custom CLI's is labelled with the agent name its handshake reported. */
+/** A built-in's version follows its name; a custom CLI has none. */
 function withVersion(verb: string, name: string, agent: AgentView): string {
-  if (agent.version === null) {
-    return `${verb} ${name}`
-  }
-  return agent.reportedName === null ? `${verb} ${name} ${agent.version}` : `${verb} ${name} (${agent.reportedName} ${agent.version})`
+  return agent.version === null ? `${verb} ${name}` : `${verb} ${name} ${agent.version}`
 }
 
 /** Null when the person closed the file dialog: nothing happened, so there is nothing to say. */
@@ -57,15 +54,4 @@ export function downloadOutcome(name: string, result: AgentDownloadResult): Agen
     case 'failed':
       return outcome('error', 'Download failed', result.reason, result.output)
   }
-}
-
-export function signInOutcome(result: AgentSignInResult): AgentOutcome {
-  if (result.outcome === 'started') {
-    return outcome(
-      'ok',
-      'Sign-in started',
-      'Finish signing in in the terminal window that opened. This updates here once you are signed in.'
-    )
-  }
-  return outcome('error', 'Could not start sign-in', result.reason)
 }

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { ChatRecord } from '../../../shared/agents/chat'
 import type { AgentView, TrackedFolderView } from '../../../shared/desktop/api'
-import { waitingCount, waitingReason } from '../agents/chatList'
+import { waitingCount } from '../agents/chatList'
 import type { AgentStatuses } from '../agents/useAgents'
 import type { ChatListState } from '../agents/useChats'
 import { plural } from '../app/plural'
@@ -43,17 +43,15 @@ interface HeaderProps {
   folder: TrackedFolderView
   expanded: boolean
   highlighted: boolean
-  /** Chats of the folder waiting for an approval or a sign-in; shown while the folder is collapsed, so a waiting agent is seen from anywhere. */
+  /** Chats of the folder waiting for a sign-in; shown while the folder is collapsed, so a waiting agent is seen from anywhere. */
   waiting: number
-  /** What they wait for, in words. */
-  waitingFor: string
   onToggle(): void
   onSelect(): void
   onStopTracking(): void
 }
 
 function FolderHeader(props: HeaderProps): JSX.Element {
-  const { folder, expanded, highlighted, waiting, waitingFor } = props
+  const { folder, expanded, highlighted, waiting } = props
   const [menuOpen, setMenuOpen] = useState(false)
   return (
     <div
@@ -88,7 +86,7 @@ function FolderHeader(props: HeaderProps): JSX.Element {
           </span>
         </span>
         {waiting > 0 && !expanded ? (
-          <span className="waiting-badge" title={`${plural(waiting, 'chat')} waiting for your ${waitingFor}`}>
+          <span className="waiting-badge" title={`${plural(waiting, 'chat')} waiting for your sign-in`}>
             {waiting} waiting
           </span>
         ) : null}
@@ -208,7 +206,6 @@ export function FolderRow(props: FolderRowProps): JSX.Element {
         expanded={expanded}
         highlighted={folderSelected && canHoldEpics(folder)}
         waiting={waitingCount(props.chats.chats, props.statuses)}
-        waitingFor={waitingReason(props.chats.chats, props.statuses)}
         onToggle={() => expansion.toggleFolder(folder.path)}
         onSelect={() => props.onSelectFolder(folder.path)}
         onStopTracking={() => props.onStopTracking(folder)}

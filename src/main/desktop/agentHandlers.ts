@@ -1,7 +1,7 @@
 /**
  * The behavior behind the `agents:*` IPC channels, as a pure factory over injected dependencies (no
  * Electron imports). The renderer only ever names a built-in agent kind (find, download), an agent
- * id, or a custom CLI's name, protocol and arguments (`customAgent.ts`): the executable to run comes
+ * id, or a custom CLI's name and arguments (`customAgent.ts`): the executable to run comes
  * from the native file dialog in this process or the registry, never from an IPC payload, so a
  * compromised renderer cannot make main run a program of its choosing.
  */

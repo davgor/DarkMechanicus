@@ -1,0 +1,39 @@
+DM-324 live run on the built app (npm run build; electron . --user-data-dir=/tmp/dm324-live/userdata, production CSP)
+
+CSP violations (securitypolicyviolation listener installed before load, after every reload): []
+Console log:
+[console log] webglcontextlost event received
+[console warning] webgl context not restored; firing onContextLoss
+
+Header after Ctrl+C: Agent fixture
+Terminal
+EXITED
+Worker
+Does not save plans | The CLI exited with code 130.
+Fixture processes left after Quit (menu role quit): '87820'; app processes left: '66417
+72164
+72449
+72450
+72760'
+
+Fixture log (both fixture PTYs append here):
+{"event":"start","pid":9415,"cwd":"/private/tmp/dm324-live/repo","sessionToken":true,"argv":[],"cols":163,"rows":47}
+{"event":"ready"}
+{"event":"input","data":"h"}
+{"event":"input","data":"el"}
+{"event":"input","data":"l"}
+{"event":"input","data":"o"}
+{"event":"input","data":"\r"}
+{"event":"input","data":"\u001b"}
+{"event":"input","data":"\t"}
+{"event":"start","pid":87820,"cwd":"/private/tmp/dm324-live/repo","sessionToken":true,"argv":[],"cols":163,"rows":47}
+{"event":"ready"}
+{"event":"sigwinch","cols":128,"rows":38}
+{"event":"sigwinch","cols":167,"rows":38}
+{"event":"sigwinch","cols":128,"rows":38}
+{"event":"input","data":"a"}
+{"event":"input","data":"f"}
+{"event":"input","data":"t"}
+{"event":"input","data":"e"}
+{"event":"input","data":"r"}
+{"event":"input","data":"\u0003"}

@@ -1,0 +1,84 @@
+DM-331 live check (c4): an old profile upgraded to the DM-331 build.
+
+Old profile: the epic start commit 022734c, built in a temporary detached worktree (/tmp/dm331/old, removed afterwards),
+run as DISABLE_AUTO_UPDATE=1 <old>/node_modules/.bin/electron --inspect=9441 <old> --user-data-dir=/tmp/dm331/userdata
+--remote-debugging-port=9442. Both custom rows were added through that build's own Add a custom CLI form (driven over
+renderer CDP): "a8s ACP" with protocol ACP, program <home>/.local/bin/a8s, arguments {folder} --mode acp --approval-mode
+always-ask (its ACP handshake reported "Autonomous 18.11.2"); "Claude link" with protocol Claude Code SDK, program
+<home>/.local/bin/claude, no arguments. The scratch folder /private/tmp/dm331/repos/s1 was tracked. Then the old build quit.
+
+New build: branch terminal-chats-DM-331 (npm run build), run the same way on the same --user-data-dir (ports 9451/9452).
+Harness stubs (main inspector, both builds): dialog.showOpenDialog -> the path the real dialog would return
+(<home>/.local/bin/a8s, <home>/.local/bin/claude as picked, /private/tmp/dm331/repos/s1); dialog.showMessageBox ->
+{response:0, checkboxChecked:true}, each call recorded. No other override.
+
+Seen in the new build:
+- a8s ACP's page: "Review its arguments" note and a primary Review arguments button, no Edit (DM-331-01).
+- New chat on a8s ACP: terminal REFUSED, "a8s ACP was saved with arguments for a chat protocol the app no longer speaks,
+  so it does not start until you review them. Open it under Agents and choose Review arguments."; no a8s process (DM-331-02).
+- New chat on Claude link (folder default set to it): terminal RUNNING, Claude Code's folder-trust prompt; ps showed
+  <home>/.local/bin/claude as a child of the app's Electron process (DM-331-03).
+- Review arguments form with the stored name and arguments, arguments 2-5 removed (DM-331-04); Confirm arguments raised the
+  native confirmation recorded below, and the page then offers Edit and no review note (DM-331-05).
+- Add a custom CLI form: Name and Arguments only, 0 radio inputs (DM-331-06).
+
+Native confirmation of the review (recorded by the showMessageBox stub):
+  title: Review a custom CLI
+  message: Run this command and save it as "a8s ACP"?
+  detail: Program: <home>/.local/bin/a8s | Arguments: 1. "{folder}" | These arguments were saved before chats ran in a
+  terminal, for a protocol (ACP or Codex app-server) the app no longer speaks. Remove any that start a protocol server:
+  no chat starts this CLI until you confirm them. | It runs in a chat's terminal whenever a chat uses it, with {folder}
+  replaced by the chat's folder. | Nothing is saved until you tick the box and choose Run and save.
+
+Quit: app.quit() from a short main-inspector session after closing the renderer CDP session; both builds exited with code 0
+and `ps -A | grep dm331` listed no process afterwards.
+
+sqlite3 dumps of /tmp/dm331/userdata/app.sqlite:
+
+## before upgrade (profile written by the 022734c build, after it quit): PRAGMA user_version
+2
+## .schema agents
+CREATE TABLE agents (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL CHECK (kind IN ('claude','codex','cursor','autonomous','custom')),
+  protocol TEXT NOT NULL CHECK (protocol IN ('claude','codex','acp')),
+  display_name TEXT NOT NULL,
+  executable_path TEXT NOT NULL,
+  args_json TEXT NOT NULL DEFAULT '[]',
+  version TEXT,
+  connected_via TEXT NOT NULL CHECK (connected_via IN ('found','downloaded','custom')),
+  connected_at TEXT NOT NULL,
+  last_probed TEXT NOT NULL, reported_name TEXT,
+  CHECK (kind = 'custom' OR id = kind),
+  CHECK (kind <> 'custom' OR substr(id, 1, 3) = 'cu_')
+);
+## SELECT * FROM agents
+id|kind|protocol|display_name|executable_path|args_json|version|connected_via|connected_at|last_probed|reported_name
+cu_01m69mdkq1g6wkfqjd8xprq0a0|custom|acp|a8s ACP|<home>/.local/bin/a8s|["{folder}","--mode","acp","--approval-mode","always-ask"]|18.11.2|custom|2026-10-31T18:44:13.665Z|2026-10-31T18:44:13.665Z|Autonomous
+cu_01m69me7n6hwf866vcwd3zrtz9|custom|claude|Claude link|<home>/.local/bin/claude|[]||custom|2026-10-31T18:44:34.086Z|2026-10-31T18:44:34.086Z|
+
+## after upgrade (the DM-331 build opened the same profile): PRAGMA user_version
+3
+## .schema agents
+CREATE TABLE agents (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL CHECK (kind IN ('claude','codex','cursor','autonomous','custom')),
+  display_name TEXT NOT NULL,
+  executable_path TEXT NOT NULL,
+  args_json TEXT NOT NULL DEFAULT '[]',
+  version TEXT,
+  connected_via TEXT NOT NULL CHECK (connected_via IN ('found','downloaded','custom')),
+  connected_at TEXT NOT NULL,
+  last_probed TEXT NOT NULL, needs_review INTEGER NOT NULL DEFAULT 0 CHECK (needs_review IN (0, 1)),
+  CHECK (kind = 'custom' OR id = kind),
+  CHECK (kind <> 'custom' OR substr(id, 1, 3) = 'cu_')
+);
+## SELECT * FROM agents
+id|kind|display_name|executable_path|args_json|version|connected_via|connected_at|last_probed|needs_review
+cu_01m69mdkq1g6wkfqjd8xprq0a0|custom|a8s ACP|<home>/.local/bin/a8s|["{folder}","--mode","acp","--approval-mode","always-ask"]||custom|2026-10-31T18:44:13.665Z|2026-10-31T18:44:13.665Z|1
+cu_01m69me7n6hwf866vcwd3zrtz9|custom|Claude link|<home>/.local/bin/claude|[]||custom|2026-10-31T18:44:34.086Z|2026-10-31T18:44:34.086Z|0
+
+## after Review arguments was confirmed for a8s ACP (arguments 2-5 removed): SELECT * FROM agents
+id|kind|display_name|executable_path|args_json|version|connected_via|connected_at|last_probed|needs_review
+cu_01m69mdkq1g6wkfqjd8xprq0a0|custom|a8s ACP|<home>/.local/bin/a8s|["{folder}"]||custom|2026-10-31T18:44:13.665Z|2026-10-31T18:47:37.161Z|0
+cu_01m69me7n6hwf866vcwd3zrtz9|custom|Claude link|<home>/.local/bin/claude|[]||custom|2026-10-31T18:44:34.086Z|2026-10-31T18:44:34.086Z|0

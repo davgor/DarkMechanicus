@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { agentView } from '../__mocks__/fixtures'
-import { agentName, agentVersionLabel, AGENT_BLURBS, connectedViaText, phaseText, signInLabel } from './agentText'
+import { agentName, agentVersionLabel, AGENT_BLURBS, connectedViaText, CUSTOM_AGENT_BLURB, phaseText, signInLabel } from './agentText'
 
 describe('agentName', () => {
   it('uses a connected custom agent\'s display name, and a generic one once it is no longer connected', () => {
@@ -19,17 +19,20 @@ describe('agentName', () => {
 })
 
 describe('agentVersionLabel', () => {
-  it('names the version with the agent name the handshake reported', () => {
-    expect(agentVersionLabel(agentView({ kind: 'custom', version: '18.11.2', reportedName: 'omp' }))).toBe('omp 18.11.2')
+  it('shows a built-in’s version as its probe read it', () => {
+    expect(agentVersionLabel(agentView({ version: '2.1.4' }))).toBe('v2.1.4')
   })
 
-  it('shows the version alone without a reported name, as for every built-in', () => {
-    expect(agentVersionLabel(agentView({ version: '2.1.4', reportedName: null }))).toBe('v2.1.4')
+  it('says Version unknown without a version, as for every custom CLI, which nothing runs to check', () => {
+    expect(agentVersionLabel(agentView({ version: null }))).toBe('Version unknown')
+    expect(agentVersionLabel(agentView({ kind: 'custom', version: null }))).toBe('Version unknown')
   })
+})
 
-  it('says Version unknown without a version, whatever name was reported', () => {
-    expect(agentVersionLabel(agentView({ version: null, reportedName: null }))).toBe('Version unknown')
-    expect(agentVersionLabel(agentView({ kind: 'custom', version: null, reportedName: 'omp' }))).toBe('Version unknown')
+describe('CUSTOM_AGENT_BLURB', () => {
+  it('describes a custom CLI as a program and arguments, with no protocol', () => {
+    expect(CUSTOM_AGENT_BLURB).not.toMatch(/protocol|ACP|Codex app-server|Claude Code SDK/i)
+    expect(CUSTOM_AGENT_BLURB).toMatch(/terminal/)
   })
 })
 

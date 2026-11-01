@@ -11,10 +11,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { EpicDetailView, RunView } from '../../shared/domain/views'
 import type { CommandResult } from '../../shared/desktop/api'
 import { createFolderRegistry, type FolderRegistry } from '../desktop/folderRegistry'
-import { connectedAgents, fakeAdapters } from './__mocks__/fakeChatAdapter'
+import { connectedAgents } from './__mocks__/chatFixtures'
 import { createChatHandlers, type ChatHandlers } from './chatHandlers'
+import { createChatRecords } from './chatRecords'
 import { createChatStore, type ChatStore } from './chatStore'
-import { createSessionManager } from './sessionManager'
 
 const AGAIN = 'Track the folder again to keep using this chat.'
 const EPIC_ID = 'ep_01m418epbg8qkqa2e2krvdkqk5'
@@ -39,24 +39,18 @@ afterEach(() => {
   rmSync(root, { recursive: true, force: true })
 })
 
-/** The real handlers over the real folder registry, chat store and session manager, with fake adapters. */
+/** The real handlers over the real folder registry, chat store and chat records. */
 function rig(): { handlers: ChatHandlers; registry: FolderRegistry; store: ChatStore } {
   const registry = createFolderRegistry({ file: join(root, 'userData', 'folders.json'), homeDir: root, dmHome: join(root, 'dm-home') })
   const store = createChatStore({ root: chatsRoot })
-  const sessions = createSessionManager({
-    store,
-    adapters: fakeAdapters().definitions,
-    agentFor: connectedAgents(),
-    folders: { trackedFolder: (path) => registry.resolve(path) },
-    issueChatCli: async (folder) => ({ cli: { command: 'node', args: ['/app/out/main/cli.js', '--repo', folder], env: {} }, grantId: 'gr_1' }),
-    revokeChatGrant: async () => undefined,
-    push: () => {}
-  })
+  const chats = createChatRecords({ store, agentFor: connectedAgents() })
   const runs = {
     getEpic: () => Promise.resolve({ id: EPIC_ID, title: 'Agent chats', branch: null } as EpicDetailView),
     queueRun: () => Promise.resolve({ id: RUN_ID, number: 2, epicId: EPIC_ID, state: 'queued' } as RunView)
   }
-  return { handlers: createChatHandlers({ registry, agents: { get: connectedAgents() }, sessions, runs }), registry, store }
+  // Every request here is refused before a chat exists, so no terminal is ever started.
+  const terminals = { start: () => Promise.reject(new Error('No terminal starts in these tests.')) }
+  return { handlers: createChatHandlers({ registry, agents: { get: connectedAgents() }, chats, terminals, runs }), registry, store }
 }
 
 /** Every file under the chats root, by relative path, with its bytes. */
@@ -94,17 +88,11 @@ async function everyFolderRequest(handlers: ChatHandlers, folder: string, chatId
     await handlers.list(folder),
     await handlers.create({ folder, agent: 'claude', role: 'planner' }),
     await handlers.startOrchestrator({ folder, epicId: EPIC_ID, agent: 'codex' }),
-    await handlers.open(ref),
     await handlers.read(ref),
-    await handlers.send({ ...ref, text: 'hello' }),
-    await handlers.stop(ref),
-    await handlers.threadBindings(ref),
     await handlers.boundThreads({ folder, runId: RUN_ID }),
-    await handlers.retryTurn(ref),
-    await handlers.setModel({ ...ref, model: 'small' }),
+    await handlers.boundTerminal({ folder, runId: RUN_ID }),
     await handlers.rename({ ...ref, title: 'Renamed' }),
-    await handlers.delete(ref),
-    await handlers.answerApproval({ ...ref, requestId: 'q1', decision: 'allow_once' })
+    await handlers.delete(ref)
   ]
 }
 
@@ -119,7 +107,7 @@ describe('chat handlers: a chat whose folder was replaced by a symlink', () => {
 
     const results = await everyFolderRequest(handlers, repo, chatId)
 
-    expect(results).toHaveLength(14)
+    expect(results).toHaveLength(8)
     for (const result of results) {
       expect(refusal(result)).toEqual({ code: 'not_found', message: `The folder ${repo} now leads to ${elsewhere}, not to the folder this chat was created in. ${AGAIN}` })
     }
@@ -143,7 +131,6 @@ describe('chat handlers: a chat whose folder was replaced by a symlink', () => {
       await handlers.delete({ folder: repo, chatId: theirs.id }),
       await handlers.rename({ folder: repo, chatId, title: 'Renamed' }),
       await handlers.delete({ folder: repo, chatId }),
-      await handlers.send({ folder: repo, chatId, text: 'hello' }),
       await handlers.create({ folder: repo, agent: 'claude', role: 'planner' })
     ]
 

@@ -26,8 +26,6 @@ export interface ThreadNode {
   item: ThreadItem
   /** The thread's own rows, oldest first. */
   rows: TreeRow[]
-  /** Approval requests waiting for an answer in the thread and in the threads below it. */
-  pending: number
 }
 
 type Scopes = ReadonlyMap<string | undefined, readonly TranscriptRowModel[]>
@@ -68,16 +66,8 @@ function groupByThread(rows: readonly TranscriptRowModel[]): Scopes {
   return scopes
 }
 
-function pendingIn(rows: readonly TreeRow[]): number {
-  return rows.reduce((sum, row) => {
-    const own = row.entry.kind === 'approval_request' && row.answer === null ? 1 : 0
-    return sum + own + row.threads.reduce((below, node) => below + node.pending, 0)
-  }, 0)
-}
-
 function nodeOf(scopes: Scopes, item: ThreadItem): ThreadNode {
-  const rows = rowsOf(scopes, item.id)
-  return { item, rows, pending: pendingIn(rows) }
+  return { item, rows: rowsOf(scopes, item.id) }
 }
 
 /** The thread items among `rows`, by the call each names as its spawner. */
@@ -109,18 +99,6 @@ function rowsOf(scopes: Scopes, scope: string | undefined): TreeRow[] {
 /** The entries as the rows of the chat's own thread, each carrying the thread blocks under it. */
 export function transcriptTree(entries: readonly TranscriptEntry[]): TreeRow[] {
   return rowsOf(groupByThread(transcriptRows(withLostThreads(entries))), undefined)
-}
-
-/** The thread `threadId` and every thread above it, so a view can open the whole way down to it; empty when it is not in the transcript. */
-export function threadPath(entries: readonly TranscriptEntry[], threadId: string): ReadonlySet<string> {
-  const threads = new Map(entries.flatMap((entry): [string, ThreadItem][] => (entry.kind === 'thread' ? [[entry.id, entry]] : [])))
-  const path = new Set<string>()
-  let current = threads.get(threadId)
-  while (current !== undefined && !path.has(current.id)) {
-    path.add(current.id)
-    current = current.threadId === undefined ? undefined : threads.get(current.threadId)
-  }
-  return path
 }
 
 /** A thread's state in words, with the state color it shares with the rest of the app. */

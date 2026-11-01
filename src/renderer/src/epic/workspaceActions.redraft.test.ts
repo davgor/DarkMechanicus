@@ -40,7 +40,8 @@ function harness(patch: Partial<WorkspaceData> = {}, backend = new FakeBackend(s
     dispatch,
     reload: () => undefined,
     onChanged: () => undefined,
-    onChatsChanged: () => undefined,
+    onChatsChanged: async () => undefined,
+    onOpenChat: () => undefined,
     agents: () => []
   })
   return { actions, backend, dispatched, dispatch, state: () => current }

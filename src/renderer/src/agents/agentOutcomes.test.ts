@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { AgentDownloadResult } from '../../../shared/desktop/api'
 import { agentView } from '../__mocks__/fixtures'
-import { downloadOutcome, findOutcome, signInOutcome } from './agentOutcomes'
+import { downloadOutcome, findOutcome } from './agentOutcomes'
 
 describe('findOutcome', () => {
   it('confirms a connected agent with its version', () => {
@@ -18,9 +18,9 @@ describe('findOutcome', () => {
     expect(outcome?.title).toBe('Connected Codex')
   })
 
-  it('names the version of a custom CLI with the agent name its handshake reported', () => {
-    const agent = agentView({ kind: 'custom', displayName: 'a8s custom', version: '18.11.2', reportedName: 'Autonomous' })
-    expect(findOutcome('a8s custom', { outcome: 'connected', agent })?.title).toBe('Connected a8s custom (Autonomous 18.11.2)')
+  it('names a custom CLI alone: nothing runs to read its version', () => {
+    const agent = agentView({ kind: 'custom', displayName: 'a8s custom', version: null })
+    expect(findOutcome('a8s custom', { outcome: 'connected', agent })?.title).toBe('Connected a8s custom')
   })
 
   it('says nothing when the file dialog was closed', () => {
@@ -70,24 +70,5 @@ describe('downloadOutcome', () => {
       detail: 'The installer failed (exit code 1).',
       output: ['fetching', 'disk full']
     })
-  })
-})
-
-describe('signInOutcome', () => {
-  it('points at the terminal window the sign-in opened', () => {
-    const outcome = signInOutcome({ outcome: 'started' })
-    expect(outcome.tone).toBe('ok')
-    expect(outcome.title).toBe('Sign-in started')
-    expect(outcome.detail).toContain('terminal window')
-  })
-
-  it('shows why a sign-in could not start', () => {
-    expect(signInOutcome({ outcome: 'failed', reason: 'Connect it first.' })).toEqual({
-      tone: 'error',
-      title: 'Could not start sign-in',
-      detail: 'Connect it first.',
-      output: []
-    })
-    expect(signInOutcome({ outcome: 'failed', reason: 'No terminal.' }).detail).toBe('No terminal.')
   })
 })

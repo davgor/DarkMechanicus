@@ -127,6 +127,12 @@ describe('failureDetail', () => {
     expect(failureDetail(refused('   '))).toBeNull()
   })
 
+  it('shows the whole result when it is JSON with no error message in it', () => {
+    expect(failureDetail(refused('42'))).toBe('42')
+    expect(failureDetail(refused('{"ok":false,"error":"stale claim"}'))).toBe('{"ok":false,"error":"stale claim"}')
+    expect(failureDetail(refused('{"ok":false,"error":{"code":"stale_claim","message":7}}'))).toBe('{"ok":false,"error":{"code":"stale_claim","message":7}}')
+  })
+
   it('masks a claim token, joins lines and cuts a long text short', () => {
     expect(failureDetail(refused(`Bad token ${ATTEMPT}.Qx7vT2mN9pL4kR8sW1yZ3bC6dF0gH5jA
 for the attempt`))).toBe('Bad token [claim token masked] for the attempt')

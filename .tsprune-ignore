@@ -1,15 +1,12 @@
 # Baseline ignore for ts-prune (one pattern per line)
 # Generated from tsconfig.node.json + tsconfig.web.json
 # Refresh after export moves/deletes: npm run deadcode:refresh
-# Refreshed 2026-10-31 (99 entries)
+# Refreshed 2026-10-31 (108 entries)
 
 electron.vite.config.ts:37 - default
-src/core/claimTokenMask.ts:115 - maskWholeClaimTokens
-src/core/claimTokenMask.ts:35 - CLAIM_TOKEN_MASK
-src/core/claimTokenMask.ts:46 - clipMasked
-src/core/claimTokenMask.ts:73 - maskClaimTokensDeep
-src/core/claimTokenMask.ts:78 - StreamMasker
-src/core/claimTokenMask.ts:89 - createStreamMasker
+src/core/claimTokenMask.ts:26 - CLAIM_TOKEN_MASK
+src/core/claimTokenMask.ts:54 - maskClaimTokensDeep
+src/core/claimTokenMask.ts:66 - maskWholeClaimTokens
 src/core/definitionOfDone.ts:12 - checkNameKey
 src/core/plan/acceptance.ts:35 - acceptanceNodeOf
 src/core/plan/graph.ts:112 - checkEdgeAddition
@@ -24,32 +21,44 @@ src/core/plan/graph.ts:532 - sortedSprints
 src/core/plan/graph.ts:584 - SprintRow
 src/core/plan/graph.ts:595 - planRows
 src/core/repo/layout.ts:8 - ResolveLayoutOptions
-src/main/agents/ownCliCommand.ts:47 - OwnCliCall
 src/main/desktop/cliConfig.ts:8 - CliConfigOptions
-src/preload/index.ts:25 - AutoUpdateApi
-src/preload/index.ts:26 - AppInfoApi
-src/shared/agents/chat.ts:197 - ApprovalCategory
-src/shared/agents/chat.ts:208 - McpServerSpec
-src/shared/agents/chat.ts:215 - ChatAdapterStartOptions
-src/shared/agents/chat.ts:249 - DarkMechanicusCli
-src/shared/agents/chat.ts:258 - ChatAdapterEvent
-src/shared/agents/chat.ts:271 - ChatAdapterEmit
-src/shared/agents/chat.ts:278 - ChatAdapter
-src/shared/agents/chat.ts:39 - chatIdSchema
-src/shared/agents/chat.ts:89 - APPROVAL_DECISIONS
+src/main/terminals/__mocks__/terminalPorts.ts:12 - PortPair
+src/main/terminals/__mocks__/terminalPorts.ts:68 - Posted
+src/main/terminals/__mocks__/terminalSessionsRig.ts:35 - FakeClock
+src/main/terminals/__mocks__/terminalSessionsRig.ts:81 - Gate
+src/main/terminals/ptyHelperCheck.ts:16 - PtyHelperCheckOptions
+src/main/terminals/ptyHost.ts:78 - NodePtyHostOptions
+src/preload/index.ts:26 - AutoUpdateApi
+src/preload/index.ts:27 - AppInfoApi
+src/preload/terminals.ts:25 - RendererPort
+src/preload/terminals.ts:33 - TerminalIpc
+src/renderer/src/__mocks__/fakeTerminalKit.ts:7 - FakeTerminalView
+src/renderer/src/agents/terminalTheme.ts:38 - TokenReader
+src/renderer/src/agents/useTerminal.ts:140 - TerminalModel
+src/shared/agents/chat.ts:121 - ErrorProblem
+src/shared/agents/chat.ts:127 - IDLE_STOP_CODE
+src/shared/agents/chat.ts:209 - ApprovalRequestItem
+src/shared/agents/chat.ts:212 - DarkMechanicusCli
+src/shared/agents/chat.ts:36 - chatIdSchema
 src/shared/agents/chatApi.ts:15 - ChatRequestRef
-src/shared/agents/chatApi.ts:49 - SendChatRequest
-src/shared/agents/chatApi.ts:53 - SetChatModelRequest
-src/shared/agents/chatApi.ts:62 - AnswerApprovalRequest
-src/shared/agents/chatApi.ts:94 - BoundThreadsRequest
+src/shared/agents/chatApi.ts:61 - BoundThreadsRequest
+src/shared/agents/models.ts:14 - ModelOption
+src/shared/agents/models.ts:20 - AgentModels
+src/shared/agents/terminalApi.ts:27 - TERMINAL_COLS
+src/shared/agents/terminalApi.ts:28 - TERMINAL_ROWS
+src/shared/agents/terminalApi.ts:34 - TerminalState
+src/shared/agents/terminalApi.ts:37 - TerminalAttachView
+src/shared/agents/terminalApi.ts:51 - TerminalPortGrant
+src/shared/agents/terminalApi.ts:99 - TerminalAttachOptions
 src/shared/autoUpdate/types.ts:17 - AUTO_UPDATE_EVENT_CHANNEL
-src/shared/desktop/api.ts:102 - AgentDownloadFailureCode
-src/shared/desktop/api.ts:131 - AgentDownloadPhase
-src/shared/desktop/api.ts:167 - CommandInput
-src/shared/desktop/api.ts:171 - CommandOutput
-src/shared/desktop/api.ts:353 - DesktopCommandName
-src/shared/desktop/api.ts:355 - DESKTOP_COMMANDS
-src/shared/desktop/api.ts:59 - AgentRefusalCode
+src/shared/desktop/api.ts:99 - AgentDownloadFailureCode
+src/shared/desktop/api.ts:128 - AgentDownloadPhase
+src/shared/desktop/api.ts:150 - AgentAuthState
+src/shared/desktop/api.ts:158 - CommandInput
+src/shared/desktop/api.ts:162 - CommandOutput
+src/shared/desktop/api.ts:342 - DesktopCommandName
+src/shared/desktop/api.ts:344 - DESKTOP_COMMANDS
+src/shared/desktop/api.ts:57 - AgentRefusalCode
 src/shared/domain/api.ts:100 - SprintInput
 src/shared/domain/api.ts:143 - ClaimTicketInput
 src/shared/domain/api.ts:164 - IncrementRef

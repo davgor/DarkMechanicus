@@ -1,0 +1,20 @@
+DM-324 attempt 2: live checks on the built app (scratch --user-data-dir /tmp/dm324-live/userdata)
+
+Copy and paste (Edit roles), two live fixture terminals (pids 94373, 18507):
+- main inspector: win.focus(); win.webContents.focus(); focused element in page: xterm-helper-textarea
+- double-click selected the word "fixture" on the terminal's first line; webContents.copy() -> clipboard.readText() = "fixture" (screenshot DM-324-09)
+- clipboard.writeText('pasted-from-clipboard'); webContents.paste() -> the fixture log has an input event containing "pasted-from-clipboard"
+- clipboard set to 70,000 "p" characters; webContents.paste() -> the fixture received all 70,000 bytes as input (main drops any single input message over 64 KiB, so the renderer's chunking delivered it)
+- clipboard held no formats before the run and was cleared afterwards
+- CSP violations during the run: []
+
+Cmd keys: xterm's custom key handler (keyGoesToTerminal) returns false for every metaKey combination, so xterm leaves Cmd+C/V/W/Q to the native menu (xtermKit.test.ts 'xtermKit keys'). Earlier run: a CDP Cmd+C keydown sent nothing to the CLI.
+Real keystrokes via System Events: not sent. osascript 'tell application "System Events" to get name of (first process whose unix id is …)' did not answer within 30 s (no Accessibility/Automation grant for this session), so no keystroke was sent anywhere.
+
+Quit:
+- this branch, two live fixture terminals, app.quit() from the main inspector: both fixture processes ended (gone from ps), but the Electron main process (and 2 helpers) stayed for 11 s+; the main inspector then answered "Cannot find context with specified id" (the JS environment was torn down, the native process did not exit).
+- this branch, no terminal started (Local Storage cleared so no chat reopens), app.quit() from the main inspector: same, main process stayed.
+- integration start commit 022734c (no terminal code), no chat, app.quit() from the main inspector: same, main process stayed.
+- this branch, two live fixture terminals, no --inspect, CDP Browser.close: fixtures and helpers ended, main stayed (inconclusive: Browser.close closes windows, and macOS keeps the app open with no window).
+Each stuck process was killed with kill -9 (only processes this run started).
+Processes left after cleanup: []

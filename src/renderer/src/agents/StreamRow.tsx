@@ -3,7 +3,7 @@ import './chatView.css'
 import './threadStream.css'
 import { StatePill } from '../components/StatePill'
 import { Markdown } from '../markdown/Markdown'
-import { ApprovalCard } from './ApprovalCard'
+import { ApprovalRecord } from './ApprovalRecord'
 import { Hourglass } from './Hourglass'
 import type { StreamRow } from './threadStream'
 import type { StreamEntry } from './useThreadStream'
@@ -18,7 +18,7 @@ export function isApproval(row: StreamRow): row is ApprovalRow {
 
 function Message({ row }: { row: Extract<StreamRow, { kind: 'message' }> }): JSX.Element {
   return (
-    <div className="ts-body" aria-busy={row.streaming || undefined}>
+    <div className="ts-body">
       <p className="ts-who">{row.who}</p>
       {row.who === 'You' ? <p className="ts-user">{row.text}</p> : <Markdown source={row.text} />}
     </div>
@@ -55,7 +55,7 @@ export function StreamBody({ row }: { row: BodyRow }): JSX.Element {
   }
 }
 
-/** A request in a followed thread, answerable where it is shown. */
+/** A request in a followed thread, as a record of what was asked and the decision stored for it: nothing answers it. */
 export function StreamApproval({ row, entry }: { row: ApprovalRow; entry: StreamEntry }): JSX.Element {
-  return <ApprovalCard request={row.request} answer={row.answer} folder={entry.stream.folder} onAnswer={entry.stream.answer} />
+  return <ApprovalRecord request={row.request} answer={row.answer} folder={entry.stream.folder} />
 }

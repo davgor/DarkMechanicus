@@ -3,7 +3,7 @@ import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { ChatItem } from '../../../shared/agents/chat'
 import type { TranscriptEntry } from './chatViewModel'
-import { StreamBody } from './StreamRow'
+import { StreamApproval, StreamBody } from './StreamRow'
 import { streamRows, type StreamRow } from './threadStream'
 
 afterEach(cleanup)
@@ -42,12 +42,6 @@ describe('StreamBody', () => {
     expect(container.querySelector('.md code')?.textContent).toBe('code')
   })
 
-  it('marks a text that is still being written as busy', () => {
-    const { container } = render(<StreamBody row={rowOf({ kind: 'streaming_text', id: 's', text: 'Reading' })} />)
-
-    expect(container.querySelector('[aria-busy="true"]')).not.toBe(null)
-  })
-
   it('shows a call by its tool, the input that says what it does and its status; a Dark Mechanicus call by what it did alone', () => {
     const { container, rerender } = render(<StreamBody row={rowOf(call({}))} />)
     expect(screen.getByText('Bash')).toBeTruthy()
@@ -75,5 +69,31 @@ describe('StreamBody', () => {
     render(<StreamBody row={rowOf({ id: 'e', at: AT, kind: 'error', message: 'The <agent> stopped' })} />)
 
     expect(screen.getByText('The <agent> stopped').tagName).toBe('P')
+  })
+})
+
+describe('StreamApproval', () => {
+  it('shows an approval of an old chat as a record with its stored decision, and offers nothing to answer', () => {
+    const asked: ChatItem = { id: 'r', at: AT, kind: 'approval_request', requestId: 'q1', category: 'command', tool: 'Bash', summary: 'Run it', input: { command: 'npm test' } }
+    const answered: ChatItem = { id: 'd', at: AT, kind: 'approval_decision', requestId: 'q1', decision: 'allow_once' }
+    const cancelled: ChatItem = { id: 'd', at: AT, kind: 'approval_decision', requestId: 'q1', decision: 'cancelled' }
+    const approvalOf = (items: ChatItem[]): Extract<StreamRow, { kind: 'approval' }> => {
+      const [row] = streamRows(items, null)
+      if (row?.kind !== 'approval') throw new Error('Expected an approval row.')
+      return row
+    }
+    const show = (row: Extract<StreamRow, { kind: 'approval' }>): JSX.Element => (
+      <StreamApproval row={row} entry={{ at: row.at, row, stream: { rows: [row], error: null, folder: '/a' } }} />
+    )
+
+    const { rerender } = render(show(approvalOf([asked, answered])))
+    expect(screen.getByRole('article', { name: /^Approval request/ })).toBeTruthy()
+    expect(screen.getByText('npm test')).toBeTruthy()
+    expect(screen.getByText('Allowed once')).toBeTruthy()
+    expect(screen.queryByRole('button')).toBeNull()
+
+    rerender(show(approvalOf([asked, cancelled])))
+    expect(screen.getByText('Cancelled')).toBeTruthy()
+    expect(screen.queryByRole('button')).toBeNull()
   })
 })

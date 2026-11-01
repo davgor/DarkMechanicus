@@ -51,7 +51,7 @@ function RunWithAgentSection({ props, choice }: { props: DialogProps; choice: Ag
         onAgentStatus={props.onAgentStatus}
         emptyText="No agent is connected and signed in."
       />
-      {agent === null ? null : <ModelChoice agent={agent} state={choice.models} value={choice.model} onChange={choice.chooseModel} />}
+      {agent === null ? null : <ModelChoice models={choice.models} value={choice.value} valid={choice.valid} onChange={choice.chooseModel} />}
     </section>
   )
 }
@@ -67,7 +67,7 @@ export function StartRunDialog(props: StartRunDialogProps): JSX.Element {
   const preferred = useFolderDefaultAgent(props.folderPath)
   const choice = useAgentModelChoice(props.agents, props.statuses, preferred.agentId)
   const { agent } = choice
-  const canRun = agent !== null && preferred.loaded && choice.settled && !props.busy
+  const canRun = agent !== null && preferred.loaded && choice.valid && !props.busy
   return (
     <Dialog
       title="Start run"

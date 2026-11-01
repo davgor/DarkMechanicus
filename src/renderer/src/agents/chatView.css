@@ -1,15 +1,7 @@
 /*
- * The chat view: header, scrolling transcript, composer. Every color is a token from styles.css
+ * The chat header and the read-only transcript of an old chat. Every color is a token from styles.css
  * (surfaces and lines from the gunmetal set, brass for code, the state colors for call statuses).
- * The header and composer keep their place; only the transcript scrolls.
  */
-
-.chat-view {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-}
 
 /* ---------- Header ---------- */
 
@@ -84,13 +76,6 @@
   list-style: none;
 }
 
-.chat-empty {
-  max-width: 860px;
-  margin: 48px auto;
-  color: var(--muted);
-  text-align: center;
-}
-
 .chat-msg > article {
   display: flex;
   flex-direction: column;
@@ -118,16 +103,6 @@
   margin: 0;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
-}
-
-.chat-msg-assistant > article[aria-busy="true"] {
-  border-left: 2px solid var(--st-running);
-  padding-left: 12px;
-}
-
-.chat-working {
-  color: var(--muted);
-  font-size: 12.5px;
 }
 
 /* ---------- Tool calls ---------- */
@@ -273,7 +248,6 @@
 }
 
 .chat-approval-note,
-.chat-approval-scope,
 .chat-approval-answer-detail {
   margin: 0;
   color: var(--muted);
@@ -339,12 +313,6 @@
   color: var(--muted);
 }
 
-.chat-approval-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
 /* ---------- Notices and errors ---------- */
 
 .chat-notice {
@@ -393,44 +361,4 @@
   color: var(--muted);
   font-family: var(--font-mono);
   font-size: 12px;
-}
-
-/* ---------- Composer ---------- */
-
-.chat-composer {
-  display: flex;
-  flex-shrink: 0;
-  flex-direction: column;
-  gap: 6px;
-  padding: 12px 40px 16px;
-  border-top: 1px solid var(--line-soft);
-  background: var(--bg-canvas);
-}
-
-.chat-composer > * {
-  width: 100%;
-  max-width: 860px;
-  margin-inline: auto;
-}
-
-.chat-composer p {
-  margin-block: 0;
-}
-
-.chat-composer-row {
-  display: flex;
-  align-items: flex-end;
-  gap: 10px;
-}
-
-.chat-input {
-  flex: 1;
-  min-height: 56px;
-  max-height: 200px;
-  resize: vertical;
-}
-
-.chat-input:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }

@@ -3,6 +3,7 @@
  * no test inherits the views another one picked (test support only).
  */
 import { render, type RenderResult } from '@testing-library/react'
+import { SignInRecorder } from '../../__mocks__/signInRecorder'
 import type { Clock } from '../clock'
 import { ClockContext } from '../clock'
 import { EpicWorkspace, type EpicWorkspaceProps } from '../EpicWorkspace'
@@ -22,6 +23,8 @@ export interface WorkspaceHarness extends RenderResult {
   /** Times the workspace reported its epic deleted. */
   deleted: { count: number }
   opened: string[]
+  /** The sign-in views the workspace's Sign in buttons opened, as the shell would show them. */
+  signIn: SignInRecorder
   refresh(token: number): void
   /** Shows another epic in the same place, as picking it in the sidebar does. */
   openEpic(epicId: string): void
@@ -34,6 +37,7 @@ export function renderWorkspace(backend: FakeBackend, patch: Partial<EpicWorkspa
   const opened: string[] = []
   const memory = createViewMemory()
   const host = fakeOrchestration()
+  const signIn = new SignInRecorder()
   let shown = { refreshToken: patch.refreshToken ?? 0, epicId: patch.epicId ?? 'ep_1' }
   const element = (): JSX.Element => (
     <ClockContext.Provider value={FIXED_CLOCK}>
@@ -54,10 +58,10 @@ export function renderWorkspace(backend: FakeBackend, patch: Partial<EpicWorkspa
       </ViewMemoryContext.Provider>
     </ClockContext.Provider>
   )
-  const result = render(element())
+  const result = render(signIn.wrap(element()))
   const show = (next: Partial<typeof shown>): void => {
     shown = { ...shown, ...next }
-    result.rerender(element())
+    result.rerender(signIn.wrap(element()))
   }
   return {
     ...result,
@@ -65,6 +69,7 @@ export function renderWorkspace(backend: FakeBackend, patch: Partial<EpicWorkspa
     changes,
     deleted,
     opened,
+    signIn,
     refresh: (refreshToken) => show({ refreshToken }),
     openEpic: (epicId) => show({ epicId })
   }

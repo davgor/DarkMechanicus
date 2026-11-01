@@ -1,14 +1,14 @@
 /**
- * Sign-in state and sign-in launch for each agent CLI, using only the CLI's own commands.
+ * Sign-in state for each agent CLI, and its login command, using only the CLI's own commands.
  *
  * - Status runs the CLI's own status command (a constant per kind, with a timeout, through the same
  *   launch rules as the version probe) and classifies what it says as `signed_in`, `signed_out`, or
  *   `unknown`. Only the classification and a fixed sentence leave this module: the command's output
  *   (which can hold an account email) is read to classify and then dropped, never stored or returned.
- * - Sign in opens a terminal window that runs the CLI's own login command (a constant per kind). The
- *   vendor's flow opens its own browser page, and prompts (such as a pasted code) happen in that
- *   window. This app never shows a password or key field and never reads or stores a credential:
- *   the only input any channel takes is the agent id.
+ * - Signing in runs the CLI's own login command (`LOGIN_ARGS`, a constant per kind) in a terminal in the
+ *   app's window (`terminalLoginSpec` and `loginTerminals.ts`). The vendor's flow opens its own browser
+ *   page, and prompts (such as a pasted code) happen in that terminal. This app never shows a password or
+ *   key field and never reads or stores a credential: the only input the channel takes is the agent id.
  *
  * What each status command prints, and where that is known from:
  * - Claude Code `auth status`: a JSON document with a boolean `loggedIn` (exit 1 when signed out).
@@ -31,12 +31,10 @@
  *   model sign-in is `a8s init`; `a8s login` is the company Okta sign-in and is never run.
  */
 import { z } from 'zod'
-import { DomainError } from '../../core/errors'
 import { AGENT_DEFINITIONS } from '../../shared/desktop/agentKinds'
-import type { AgentAuthState, AgentAuthStatus, AgentSignInResult, AgentView, BuiltInAgentKind } from '../../shared/desktop/api'
+import type { AgentAuthState, AgentAuthStatus, AgentView, BuiltInAgentKind } from '../../shared/desktop/api'
 import { connectedAgent } from './agentHandlers'
-import { planShimLaunch } from '../agents/shimLaunch'
-import { checkFile, planCliLaunch, windowsProgramKind, type AgentProbeDeps, type ProcessOutcome } from './agentProbe'
+import { planCliLaunch, type AgentProbeDeps, type ProcessOutcome } from './agentProbe'
 import type { AgentRegistry } from './agentRegistry'
 
 /**
@@ -58,8 +56,8 @@ const STATUS_ARGS: Readonly<Record<BuiltInAgentKind, readonly string[]>> = {
   autonomous: ['doctor']
 }
 
-/** Each CLI's own login command: no key, token, email, or password option. */
-const LOGIN_ARGS: Readonly<Record<BuiltInAgentKind, readonly string[]>> = {
+/** Each CLI's own login command: no key, token, email, or password option. Run in the sign-in terminal. */
+export const LOGIN_ARGS: Readonly<Record<BuiltInAgentKind, readonly string[]>> = {
   claude: ['auth', 'login'],
   codex: ['login'],
   cursor: ['login'],
@@ -188,147 +186,17 @@ export async function getAgentAuthStatus(
   return interpretStatus(kind, await deps.run(plan.launch, deps.timeoutMs ?? STATUS_TIMEOUT_MS[kind]))
 }
 
-/** One terminal program to start. Like a probe launch there is no shell option: the path is one argument. */
-export interface TerminalLaunch {
-  file: string
-  args: readonly string[]
-  /** Windows only: hand `args` to the process unquoted, because they already carry their own quoting. */
-  verbatimArguments: boolean
-}
-
-export type TerminalOutcome = { ok: true } | { ok: false; code: string | null }
-
-/** Starts a terminal window, resolving once it has started (not once the sign-in is done), never rejecting. */
-export type TerminalLauncher = (launch: TerminalLaunch) => Promise<TerminalOutcome>
-
-interface AgentSignInDeps extends Pick<AgentProbeDeps, 'platform' | 'inspect' | 'comspec'> {
-  launch: TerminalLauncher
-}
-
-type SignInPlan = { ok: true; launches: TerminalLaunch[] } | { ok: false; reason: string }
-
-/**
- * The console is cmd.exe itself, started detached so Windows gives it a window of its own, running
- * with `/k` (so the window stays up for the CLI's messages) through the shared launcher
- * (`planShimLaunch`): exactly one cmd.exe parse, the path in its own pair of quotes. Do not add a
- * `start` or a nested cmd.exe: that parses the line a second time with the path outside quotes, and
- * an `&` in the path would end the command. A path with `%` or `"` is refused, never escaped.
- */
-function planWindows(path: string, loginArgs: readonly string[], comspec: string | undefined): SignInPlan {
-  if (windowsProgramKind(path) === null) {
-    return { ok: false, reason: 'That file is not a program Windows can run (.exe or .cmd).' }
-  }
-  const plan = planShimLaunch(path, loginArgs, { comspec, keepOpen: true })
-  return plan.ok ? { ok: true, launches: [plan.launch] } : { ok: false, reason: plan.reason }
-}
-
-/** The executable path is an argument of the AppleScript (`argv`), shell-quoted by AppleScript itself, never spliced into its source. */
-function planMac(path: string, login: string): SignInPlan {
-  const script = [
-    'on run argv',
-    'tell application "Terminal"',
-    'activate',
-    `do script ((quoted form of (item 1 of argv)) & " ${login}")`,
-    'end tell',
-    'end run'
-  ]
-  return {
-    ok: true,
-    launches: [{ file: 'osascript', args: [...script.flatMap((line) => ['-e', line]), path], verbatimArguments: false }]
-  }
-}
-
-/** Runs the command given as arguments, then waits for Enter so the window does not vanish with the CLI's last message. */
-const LINUX_WRAPPER = '"$@"; printf "\\nPress Enter to close this window. "; read -r _'
-
-/** Terminal programs to try in order, each with the flag that makes it run the rest of the line. */
-const LINUX_TERMINALS: readonly { file: string; lead: readonly string[] }[] = [
-  { file: 'x-terminal-emulator', lead: ['-e'] },
-  { file: 'gnome-terminal', lead: ['--'] },
-  { file: 'konsole', lead: ['-e'] },
-  { file: 'xfce4-terminal', lead: ['-x'] },
-  { file: 'xterm', lead: ['-e'] }
-]
-
-/** The path and the login args are separate positional arguments of `sh -c`, never part of its script text. */
-function planLinux(path: string, loginArgs: readonly string[]): SignInPlan {
-  return {
-    ok: true,
-    launches: LINUX_TERMINALS.map(({ file, lead }) => ({
-      file,
-      args: [...lead, 'sh', '-c', LINUX_WRAPPER, 'sh', path, ...loginArgs],
-      verbatimArguments: false
-    }))
-  }
-}
-
-/** The terminal launches (in the order to try them) that run `kind`'s own login command on its executable. */
-export function planSignIn(
-  kind: BuiltInAgentKind,
-  executablePath: string,
-  deps: Pick<AgentProbeDeps, 'platform' | 'inspect' | 'comspec'>
-): SignInPlan {
-  const refusal = checkFile(executablePath, deps)
-  if (refusal !== null) {
-    return { ok: false, reason: refusal.reason }
-  }
-  const loginArgs = LOGIN_ARGS[kind]
-  if (deps.platform === 'win32') {
-    return planWindows(executablePath, loginArgs, deps.comspec)
-  }
-  return deps.platform === 'darwin'
-    ? planMac(executablePath, loginArgs.join(' '))
-    : planLinux(executablePath, loginArgs)
-}
-
-function failed(reason: string): AgentSignInResult {
-  return { outcome: 'failed', reason }
-}
-
-/** Starts the first terminal that exists; a missing program moves on to the next, any other failure stops. */
-async function launchFirstTerminal(
-  launches: readonly TerminalLaunch[],
-  launch: TerminalLauncher
-): Promise<AgentSignInResult> {
-  const [next, ...rest] = launches
-  if (next === undefined) {
-    return failed('No terminal program was found to run the sign-in in.')
-  }
-  const outcome = await launch(next)
-  if (outcome.ok) {
-    return { outcome: 'started' }
-  }
-  if (outcome.code === 'ENOENT') {
-    return launchFirstTerminal(rest, launch)
-  }
-  return failed(
-    outcome.code === null ? 'Could not open a terminal window.' : `Could not open a terminal window (${outcome.code}).`
-  )
-}
-
-/** Opens a terminal window running the kind's own login command on its registered executable. */
-export async function signInAgent(
-  kind: BuiltInAgentKind,
-  executablePath: string,
-  deps: AgentSignInDeps
-): Promise<AgentSignInResult> {
-  const plan = planSignIn(kind, executablePath, deps)
-  return plan.ok ? launchFirstTerminal(plan.launches, deps.launch) : failed(plan.reason)
-}
-
 /** A connected built-in agent: the only kind whose status and login commands the app knows. */
 type BuiltInAgentView = AgentView & { kind: BuiltInAgentKind }
 
-/** What main wires in: the real runner and terminal launcher, bound to the platform. */
+/** What main wires in: the real runner, bound to the platform. */
 export interface AgentAuthHooks {
   checkAuth: (agent: BuiltInAgentView) => Promise<AgentAuthStatus>
-  signIn: (agent: BuiltInAgentView) => Promise<AgentSignInResult>
 }
 
 /** Arguments are `unknown` because they come straight from IPC. */
 export interface AgentAuthHandlers {
   agentStatus(id: unknown): Promise<AgentAuthStatus>
-  signInAgent(id: unknown): Promise<AgentSignInResult>
 }
 
 function isBuiltIn(agent: AgentView): agent is BuiltInAgentView {
@@ -336,11 +204,10 @@ function isBuiltIn(agent: AgentView): agent is BuiltInAgentView {
 }
 
 /**
- * The behavior behind `agents:status` and `agents:signIn`. The only input is the agent id: anything
- * else (such as an object carrying a key or a path) is refused with `invalid_input`, and an id that is
- * not connected with `not_found`, before anything runs. The executable comes from the registry entry,
- * never from the renderer. A custom agent has no known status or login command, so nothing runs for it:
- * its status is `unchecked` and signing it in is refused with `invalid_input`.
+ * The behavior behind `agents:status`. The only input is the agent id: anything else (such as an object
+ * carrying a key or a path) is refused with `invalid_input`, and an id that is not connected with
+ * `not_found`, before anything runs. The executable comes from the registry entry, never from the
+ * renderer. A custom agent has no known status command, so nothing runs for it: its status is `unchecked`.
  */
 export function createAgentAuthHandlers(agents: Pick<AgentRegistry, 'get'>, hooks: AgentAuthHooks): AgentAuthHandlers {
   return {
@@ -349,13 +216,6 @@ export function createAgentAuthHandlers(agents: Pick<AgentRegistry, 'get'>, hook
       return isBuiltIn(agent)
         ? hooks.checkAuth(agent)
         : { state: 'unchecked', reason: `The app cannot check whether ${agent.displayName} is signed in; sign it in from a terminal if it needs that.` }
-    },
-    signInAgent: async (input) => {
-      const agent = connectedAgent(agents, input)
-      if (!isBuiltIn(agent)) {
-        throw new DomainError('invalid_input', `${agent.displayName} is a custom CLI; the app has no sign-in command for it. Sign it in from a terminal.`)
-      }
-      return hooks.signIn(agent)
     }
   }
 }

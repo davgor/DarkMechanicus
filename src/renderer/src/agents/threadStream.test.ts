@@ -50,7 +50,6 @@ const decided = (requestId: string, threadId?: string): ChatItem => ({
   decision: 'allow_once',
   ...scope(threadId)
 })
-const streaming = (id: string, text: string, threadId?: string): TranscriptEntry => ({ kind: 'streaming_text', id, text, ...scope(threadId) })
 
 const ids = (rows: readonly StreamRow[]): string[] => rows.map((row) => row.id)
 
@@ -69,13 +68,12 @@ describe('streamRows of the chat main thread: what is said and run', () => {
     expect(ids(streamRows(entries, null))).toEqual(['u', 'a', 'c', 'item_r1', 'th', 'e'])
   })
 
-  it('says who wrote a message, and marks a text that is still being written', () => {
-    const rows = streamRows([user('u', 'Run the epic'), said('a', 'On it'), streaming('s', 'Reading the')], null)
+  it('says who wrote a message', () => {
+    const rows = streamRows([user('u', 'Run the epic'), said('a', 'On it')], null)
 
     expect(rows).toEqual([
-      expect.objectContaining({ kind: 'message', who: 'You', text: 'Run the epic', streaming: false, at: AT }),
-      expect.objectContaining({ kind: 'message', who: 'Assistant', text: 'On it', streaming: false }),
-      expect.objectContaining({ kind: 'message', who: 'Assistant', text: 'Reading the', streaming: true, at: null })
+      expect.objectContaining({ kind: 'message', who: 'You', text: 'Run the epic', at: AT }),
+      expect.objectContaining({ kind: 'message', who: 'Assistant', text: 'On it' })
     ])
   })
 
@@ -158,17 +156,10 @@ describe('streamRows of the chat main thread: threads and approvals', () => {
     expect(rows[1]).toMatchObject({ state: { label: 'Done' }, tone: 'accepted' })
   })
 
-  it('still shows an approval that waits inside a subagent thread, and drops it once answered', () => {
-    const waiting: TranscriptEntry[] = [thread('th'), asked('deep', 'th'), said('inside', 'inner', 'th')]
+  it('shows nothing from inside a subagent thread, an approval asked there included', () => {
+    const entries: TranscriptEntry[] = [thread('outer'), asked('here', 'outer'), thread('inner', 'outer'), asked('deep', 'inner')]
 
-    expect(ids(streamRows(waiting, null))).toEqual(['th', 'item_deep'])
-    expect(ids(streamRows([...waiting, decided('deep', 'th')], null))).toEqual(['th'])
-  })
-
-  it('reaches an approval that waits in a thread started by a subagent', () => {
-    const entries: TranscriptEntry[] = [thread('outer'), thread('inner', 'outer'), asked('deep', 'inner')]
-
-    expect(ids(streamRows(entries, null))).toEqual(['outer', 'item_deep'])
+    expect(ids(streamRows(entries, null))).toEqual(['outer'])
   })
 })
 
@@ -195,8 +186,8 @@ describe('streamRows of a subagent thread', () => {
     asked('sibling-ask', 'sibling')
   ]
 
-  it('shows only the items of that thread, the threads it started, and what waits below it', () => {
-    expect(ids(streamRows(entries, 'th'))).toEqual(['mine', 'mine-call', 'item_mine-ask', 'sub', 'item_deep'])
+  it('shows only the items of that thread and the threads it started', () => {
+    expect(ids(streamRows(entries, 'th'))).toEqual(['mine', 'mine-call', 'item_mine-ask', 'sub'])
   })
 
   it('shows nothing of the chat around it: not the main thread, not a sibling thread', () => {
@@ -207,15 +198,6 @@ describe('streamRows of a subagent thread', () => {
     expect(ids(rows)).not.toContain('other')
   })
 
-  it('streams a text being written in the thread, and not one written in another', () => {
-    const live: TranscriptEntry[] = [...entries, streaming('now', 'Reading', 'th'), streaming('else', 'Writing', 'sibling')]
-
-    const rows = streamRows(live, 'th')
-
-    expect(rows[rows.length - 1]).toMatchObject({ id: 'now', streaming: true, text: 'Reading' })
-    expect(ids(rows)).not.toContain('else')
-  })
-
   it('is empty for a thread the transcript does not have (yet)', () => {
     expect(streamRows(entries, 'unknown')).toEqual([])
   })
@@ -223,8 +205,9 @@ describe('streamRows of a subagent thread', () => {
 
 describe('mergeByTime', () => {
   const record = (id: string, minute: number): { id: string; at: string } => ({ id, at: at(minute) })
-  const chat = (id: string, minute: number | null): { id: string; at: string | null } => ({ id, at: minute === null ? null : at(minute) })
-  const names = (merged: ReturnType<typeof mergeByTime<{ id: string; at: string }, { id: string; at: string | null }>>): string[] =>
+  const chat = (id: string, minute: number): { id: string; at: string } => ({ id, at: at(minute) })
+  type Timed = { id: string; at: string }
+  const names = (merged: readonly ({ source: 'record'; item: Timed } | { source: 'chat'; row: Timed })[]): string[] =>
     merged.map((entry) => (entry.source === 'record' ? entry.item.id : entry.row.id))
 
   it('puts the chat rows among the records in time order, oldest first', () => {
@@ -233,16 +216,10 @@ describe('mergeByTime', () => {
     expect(names(merged)).toEqual(['claim', 'said', 'ran', 'note', 'late'])
   })
 
-  it('puts a row that is still being written after everything, since it is the newest', () => {
-    const merged = mergeByTime([record('note', 5)], (item) => item.at, [chat('said', 3), chat('typing', null)], 'oldest_first')
+  it('lists newest first when asked', () => {
+    const merged = mergeByTime([record('note', 5), record('claim', 1)], (item) => item.at, [chat('later', 7), chat('said', 3)], 'newest_first')
 
-    expect(names(merged)).toEqual(['said', 'note', 'typing'])
-  })
-
-  it('lists newest first when asked, with what is still being written on top', () => {
-    const merged = mergeByTime([record('note', 5), record('claim', 1)], (item) => item.at, [chat('typing', null), chat('said', 3)], 'newest_first')
-
-    expect(names(merged)).toEqual(['typing', 'note', 'said', 'claim'])
+    expect(names(merged)).toEqual(['later', 'note', 'said', 'claim'])
   })
 
   it('keeps the order of each list as it was given, even where times are not in order', () => {
@@ -267,7 +244,7 @@ describe('mergeByTime', () => {
 
 describe('clipRows to the window of an attempt', () => {
   const timed = (id: string, minute: number): ChatItem => ({ ...said(id), at: at(minute) })
-  const entries: TranscriptEntry[] = [timed('early', 1), timed('start', 2), timed('middle', 4), timed('end', 6), timed('late', 8), streaming('typing', 'Writing')]
+  const entries: TranscriptEntry[] = [timed('early', 1), timed('start', 2), timed('middle', 4), timed('end', 6), timed('late', 8)]
   const rows = streamRows(entries, null)
   const window = (from: number | null, to: number | null): { from: string | null; to: string | null } => ({
     from: from === null ? null : at(from),
@@ -278,15 +255,11 @@ describe('clipRows to the window of an attempt', () => {
     expect(ids(clipRows(rows, window(2, 6)))).toEqual(['start', 'middle', 'end'])
   })
 
-  it('goes on to now while the end is open, including the text still being written', () => {
-    expect(ids(clipRows(rows, window(4, null)))).toEqual(['middle', 'end', 'late', 'typing'])
+  it('goes on to now while the end is open', () => {
+    expect(ids(clipRows(rows, window(4, null)))).toEqual(['middle', 'end', 'late'])
   })
 
-  it('drops the text still being written once the window has ended, since it is newer than the end', () => {
-    expect(ids(clipRows(rows, window(null, 8)))).toEqual(['early', 'start', 'middle', 'end', 'late'])
-  })
-
-  it('treats a time it cannot read as being written now', () => {
+  it('treats a time it cannot read as the newest', () => {
     const odd = streamRows([{ ...said('odd'), at: 'sometime' }, timed('middle', 4)], null)
 
     expect(ids(clipRows(odd, window(2, null)))).toEqual(['odd', 'middle'])

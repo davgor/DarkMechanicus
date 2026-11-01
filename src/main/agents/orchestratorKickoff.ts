@@ -1,14 +1,17 @@
 /**
- * What Dark Mechanicus tells an agent it starts as a run's orchestrator: the title of its chat and
- * the first message in it. The message is plain text the person can read in the transcript. It is
- * built from ids, the epic's title and its branch only, never from anything that grants access (a
- * claim token is issued to the orchestrator by the server when it claims a ticket, and the
- * orchestrator hands it to the worker's subagent), and it goes through the claim token mask in case
- * a title or branch name carries one.
+ * What Dark Mechanicus tells an agent it starts as a run's orchestrator (`docs/design/chat-shells.md`, "The
+ * orchestrator chat Start run opens"): the title of its chat, the kickoff, and the guidance.
  *
- * A chat has no way to open an MCP prompt, so the message carries the orchestrator and worker
- * guidance itself, read from the same skill sources the MCP server serves as prompts. The run lines
- * and steps come first; the guidance follows in a marked section, so the transcript reads in order.
+ * - **The kickoff** is the chat's first input, sent with its first start only: fixed text and the run lines (the
+ *   epic, its branch, the run, the first step). It is short enough for any command line, since Claude Code takes
+ *   it as its positional prompt.
+ * - **The guidance** is for the whole session, so it goes in the chat's instructions (`terminalFiles.ts`), after
+ *   the `dm` instructions: the steps, the worker handoff, and the orchestrator and worker guides read from the same
+ *   skill sources the MCP server serves as prompts, since a chat has no way to open an MCP prompt.
+ *
+ * Both are built from ids, the epic's title and its branch only, never from anything that grants access (a claim
+ * token is issued to the orchestrator by the server when it claims a ticket, and the orchestrator hands it to the
+ * worker's subagent), and the title and branch go through the claim token mask in case one carries a token.
  */
 import { LIMITS } from '../../core/schemas'
 import { skillBody } from '../../mcp/skills'
@@ -39,6 +42,19 @@ function branchLine(branch: string | null): string {
   return branch === null ? 'Branch: no branch is recorded for this epic yet' : `Branch: ${oneLine(branch)}`
 }
 
+/** The chat's first input: fixed text and the run lines. */
+export function orchestratorKickoff(input: KickoffInput): string {
+  return [
+    'Run this Dark Mechanicus epic as its orchestrator, following the orchestrator guidance in your instructions.',
+    '',
+    `Epic: ${oneLine(input.epicTitle)} (${input.epicId})`,
+    branchLine(input.branch),
+    `Run: ${input.runId}, queued from the desktop app`,
+    '',
+    `First step: call get_capabilities and confirm your role is orchestrator, then call start_run for this epic. It picks up the queued run ${input.runId}; if it says a run is already active, carry on with that run.`
+  ].join('\n')
+}
+
 /** Each worker's subagent runs in the orchestrator's own session, so it can report for itself. */
 const HANDOFF =
   '4. Start each worker subagent with two things written into the message you give it: its whole execution packet (the attempt id and claim token that claim_ticket returned, with the ticket) and the worker guidance below. ' +
@@ -57,17 +73,15 @@ function guide(heading: string, name: string): string[] {
   return [`=== ${heading} ===`, '', skillBody(name).trimEnd(), '']
 }
 
-/** The first message of an orchestrator chat. */
-export function orchestratorKickoff(input: KickoffInput): string {
-  const lines = [
-    'Run this Dark Mechanicus epic as its orchestrator.',
+/** What the instructions of the chat Start run opened add to the `dm` instructions. */
+export function orchestratorGuidance(): string {
+  return [
+    '## Orchestrating a Dark Mechanicus run',
     '',
-    `Epic: ${oneLine(input.epicTitle)} (${input.epicId})`,
-    branchLine(input.branch),
-    `Run: ${input.runId}, queued from the desktop app`,
+    'The desktop app started this chat as the orchestrator of a run it queued; your first message names the epic, its branch and the run.',
     '',
     '1. Call get_capabilities first and confirm your role is orchestrator.',
-    `2. Call start_run for this epic. It picks up the queued run ${input.runId}; if it says a run is already active, carry on with that run.`,
+    '2. Call start_run for the epic. It picks up the queued run; if it says a run is already active, carry on with that run.',
     '3. Run the epic yourself, in this chat, following the orchestrator guidance below. Never do a ticket yourself: start a subagent as the worker for each one.',
     HANDOFF,
     '5. Keep going until the sprint checkpoint, where a person approves in the desktop app.',
@@ -77,6 +91,5 @@ export function orchestratorKickoff(input: KickoffInput): string {
     ...guide('Orchestrator guidance (for you)', 'orchestrator'),
     ...guide('Worker guidance (give all of it to each worker subagent, with its packet)', 'worker'),
     '=== End of guidance ==='
-  ]
-  return lines.join('\n')
+  ].join('\n')
 }

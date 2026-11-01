@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { REPO } from './__mocks__/fakeChatAdapter'
+import { REPO } from './__mocks__/chatFixtures'
 import { ATTEMPT_A, ATTEMPT_B, RUN_ID, THREAD_A } from './__mocks__/orchestratorChat'
 import type { ActivityBinding } from './activityBindings'
 import { listBoundThreads } from './boundThreads'

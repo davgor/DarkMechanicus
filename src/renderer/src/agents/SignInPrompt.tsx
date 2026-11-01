@@ -1,106 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useContext, useEffect, useRef, useState } from 'react'
 import type { AgentAuthStatus, AgentId } from '../../../shared/desktop/api'
 import { errorMessage } from '../api/dm'
 import { useLatest } from '../app/useLatest'
 import { Button } from '../components/Button'
-import { signInOutcome } from './agentOutcomes'
-import type { AgentOutcome } from './agentOutcomes'
-
-/** How often a started sign-in asks the app for the agent's status, until it is signed in or dismissed. */
-export const SIGN_IN_POLL_MS = 3000
-
-/** What the prompt shows: Sign in, then (once the CLI's own login is running) a wait for the status to say signed in. */
-type Step =
-  | { step: 'idle'; problem: AgentOutcome | null }
-  | { step: 'starting' }
-  | { step: 'waiting'; started: AgentOutcome }
-  | { step: 'signed_in' }
+import { SignInContext } from './signInContext'
 
 interface Handlers {
-  /** Every status the prompt asks for, so the screen that holds the agent's state stays current. */
+  /** The status checked once the CLI's login has ended, so the screen that holds the agent's state stays current. */
   onStatus?(status: AgentAuthStatus): void
-  /** The status says signed in; called once. */
+  /** That status says signed in. */
   onSignedIn?(): void
-}
-
-const problemOf = (detail: string): AgentOutcome => ({ tone: 'error', title: 'Could not start sign-in', detail, output: [] })
-
-/** Asks the status once per interval while `active`; a check that fails is retried on the next one, and checks never overlap. */
-function usePolling(agent: AgentId, active: boolean, onStatus: Handlers['onStatus'], onSignedIn: () => void): void {
-  const report = useLatest(onStatus)
-  const done = useLatest(onSignedIn)
-  useEffect(() => {
-    if (!active) {
-      return undefined
-    }
-    let live = true
-    let checking = false
-    const timer = setInterval(() => {
-      if (checking) {
-        return
-      }
-      checking = true
-      window.dm.agentStatus(agent).then(
-        (status) => {
-          checking = false
-          if (!live) {
-            return
-          }
-          report.current?.(status)
-          if (status.state === 'signed_in') {
-            live = false
-            done.current()
-          }
-        },
-        () => {
-          // The next interval asks again.
-          checking = false
-        }
-      )
-    }, SIGN_IN_POLL_MS)
-    return () => {
-      live = false
-      clearInterval(timer)
-    }
-  }, [agent, active, report, done])
-}
-
-interface SignIn {
-  state: Step
-  start(): void
-  dismiss(): void
-}
-
-function useSignIn(agent: AgentId, handlers: Handlers): SignIn {
-  const [state, setState] = useState<Step>({ step: 'idle', problem: null })
-  const latest = useLatest(handlers)
-  const mounted = useRef(true)
-  useEffect(() => {
-    mounted.current = true
-    return () => {
-      mounted.current = false
-    }
-  }, [])
-  const signedIn = useCallback(() => {
-    setState({ step: 'signed_in' })
-    latest.current.onSignedIn?.()
-  }, [latest])
-  usePolling(agent, state.step === 'waiting', handlers.onStatus, signedIn)
-  const start = useCallback(() => {
-    setState({ step: 'starting' })
-    window.dm.signInAgent(agent).then(
-      (result) => {
-        if (!mounted.current) return
-        const outcome = signInOutcome(result)
-        setState(result.outcome === 'started' ? { step: 'waiting', started: outcome } : { step: 'idle', problem: outcome })
-      },
-      (error: unknown) => {
-        if (mounted.current) setState({ step: 'idle', problem: problemOf(errorMessage(error)) })
-      }
-    )
-  }, [agent])
-  const dismiss = useCallback(() => setState({ step: 'idle', problem: null }), [])
-  return { state, start, dismiss }
 }
 
 interface SignInPromptProps extends Handlers {
@@ -115,48 +24,18 @@ interface SignInPromptProps extends Handlers {
   size?: 'md' | 'sm'
 }
 
-function Waiting({ started, onDismiss }: { started: AgentOutcome; onDismiss(): void }): JSX.Element {
-  return (
-    <div className="sign-in-note" role="status">
-      <p className="sign-in-note-title">{started.title}</p>
-      {started.detail === null ? null : <p className="note">{started.detail}</p>}
-      <Button size="sm" onClick={onDismiss}>
-        Dismiss
-      </Button>
-    </div>
-  )
-}
-
-function Problem({ problem }: { problem: AgentOutcome }): JSX.Element {
-  return (
-    <div className="sign-in-note" role="alert">
-      <p className="sign-in-note-title tone-error">{problem.title}</p>
-      {problem.detail === null ? null : <p className="note">{problem.detail}</p>}
-    </div>
-  )
-}
-
 /**
- * Sign in for an agent that needs it, wherever it is needed. Pressing it starts the CLI's own login
- * (naming only the agent id; the vendor's page does the signing in) and then asks `agents:status` every
- * few seconds until it says signed in, or until the person dismisses the prompt or leaves the screen.
+ * Sign in for an agent that needs it, wherever it is needed. Pressing it opens the agent's sign-in view in this
+ * window (`SignInContext`): the CLI's own login runs in a terminal there (naming only the agent id; the vendor's page
+ * does the signing in), the status is checked once it ends, and Back returns here.
  */
-export function SignInPrompt({ agent, name, disabled = false, variant = 'primary', size = 'sm', ...handlers }: SignInPromptProps): JSX.Element {
-  const { state, start, dismiss } = useSignIn(agent, handlers)
+export function SignInPrompt({ agent, name, disabled = false, variant = 'primary', size = 'sm', onStatus, onSignedIn }: SignInPromptProps): JSX.Element {
+  const openSignIn = useContext(SignInContext)
   return (
     <div className="sign-in" role="group" aria-label={`Sign in to ${name}`}>
-      {state.step === 'waiting' ? <Waiting started={state.started} onDismiss={dismiss} /> : null}
-      {state.step === 'signed_in' ? (
-        <p className="sign-in-note tone-ok" role="status">
-          {`Signed in to ${name}.`}
-        </p>
-      ) : null}
-      {state.step === 'idle' && state.problem !== null ? <Problem problem={state.problem} /> : null}
-      {state.step === 'idle' || state.step === 'starting' ? (
-        <Button variant={variant} size={size} busy={state.step === 'starting'} disabled={disabled} onClick={start}>
-          Sign in
-        </Button>
-      ) : null}
+      <Button variant={variant} size={size} disabled={disabled || openSignIn === null} onClick={() => openSignIn?.({ agent, name, onStatus, onSignedIn })}>
+        Sign in
+      </Button>
     </div>
   )
 }

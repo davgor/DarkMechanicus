@@ -27,8 +27,10 @@ interface ActionDeps {
   epicId: string
   /** Starts an agent as the orchestrator of a new run (the run is queued with it). */
   startOrchestrator: StartOrchestrator
-  /** A chat was created for a run: the shell fetches the folder's chats again. */
-  onChatsChanged(): void
+  /** A chat was created for a run: the shell fetches the folder's chats again, resolving once they are listed. */
+  onChatsChanged(): Promise<void>
+  /** Opens one of the folder's chats: its terminal. */
+  onOpenChat(chatId: string): void
   /** The connected agents, so the toast calls a custom orchestrator by its display name. */
   agents(): readonly AgentView[]
   getState(): WorkspaceState
@@ -188,20 +190,27 @@ function draftActions(deps: ActionDeps): Pick<WorkspaceActions, 'editDraft' | 'd
   }
 }
 
-/** What starting an orchestrator came to: a toast when its chat is running, otherwise the banner says why it is not. */
-function orchestratorFeedback(deps: ActionDeps, result: Result<StartOrchestratorResult>, choice: StartRunChoice): void {
+/**
+ * What starting an orchestrator came to: a toast and its chat's terminal opened when it runs, otherwise the banner
+ * says why it is not (and a chat that could not be removed is listed, while the workspace stays on the reason).
+ */
+async function orchestratorFeedback(deps: ActionDeps, result: Result<StartOrchestratorResult>, choice: StartRunChoice): Promise<void> {
   if (!result.ok) {
     deps.dispatch({ type: 'banner', text: result.failure.message })
     return
   }
   const { chat, problem } = result.value
-  if (chat !== null) {
-    deps.onChatsChanged()
-  }
-  if (problem === null) {
-    deps.dispatch({ type: 'toast', text: `Run queued. ${agentName(choice.agent, deps.agents())} is orchestrating it.` })
-  } else {
+  if (problem !== null) {
     deps.dispatch({ type: 'banner', text: problem })
+  } else {
+    deps.dispatch({ type: 'toast', text: `Run queued. ${agentName(choice.agent, deps.agents())} is orchestrating it.` })
+  }
+  if (chat === null) {
+    return
+  }
+  await deps.onChatsChanged()
+  if (problem === null) {
+    deps.onOpenChat(chat.id)
   }
 }
 
@@ -216,7 +225,7 @@ function runActions(deps: ActionDeps): Pick<WorkspaceActions, 'startRun' | 'star
     async startRunWithAgent(choice) {
       const result = await perform(deps, () => deps.startOrchestrator(choice))
       closeDialog()
-      orchestratorFeedback(deps, result, choice)
+      await orchestratorFeedback(deps, result, choice)
     },
     async runCommand(kind) {
       const run = currentRun(deps)

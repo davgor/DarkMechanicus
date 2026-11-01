@@ -46,60 +46,43 @@ const choose = async (form: Scope): Promise<void> => {
   await settle()
 }
 
-const added = agentView({ kind: 'custom', id: 'cu_01m65kwqqeyajbj5bnq81gngrb', displayName: 'My Claude', protocol: 'claude', version: '2.1.4' })
+const added = agentView({ kind: 'custom', id: 'cu_01m65kwqqeyajbj5bnq81gngrb', displayName: 'My Claude', version: null })
 
 describe('CustomAgentForm: the fields', () => {
-  it('offers the three protocols, each with a one-line explanation, and the {folder} hint', async () => {
+  it('asks for a name and arguments only: no protocol choice, and no arguments to start with', async () => {
     const form = await openForm()
-    for (const protocol of ['ACP', 'Codex app-server', 'Claude Code SDK']) {
-      const radio = form.getByRole('radio', { name: protocol })
-      expect(radio.getAttribute('aria-describedby')).toBeTruthy()
-      expect(document.getElementById(radio.getAttribute('aria-describedby') ?? '')?.textContent).toMatch(/\w/)
-    }
-    expect((form.getByRole('radio', { name: 'ACP' }) as HTMLInputElement).checked).toBe(true)
+    expect(form.queryAllByRole('radio')).toEqual([])
+    expect(form.queryByText('Protocol')).toBeNull()
+    expect(form.queryByText(/ACP|Codex app-server|Claude Code SDK/)).toBeNull()
+    expect(form.getByLabelText('Name')).toBeTruthy()
+    expect(argumentValues(form)).toEqual([])
     expect(form.getByText((_, element) => element?.textContent === 'An argument {folder} becomes the chat’s folder.' && element.tagName === 'P')).toBeTruthy()
-  })
-
-  it('prefills the arguments by protocol: app-server for Codex, none for ACP and Claude', async () => {
-    const form = await openForm()
-    expect(argumentValues(form)).toEqual([])
-    fireEvent.click(form.getByRole('radio', { name: 'Codex app-server' }))
-    expect(argumentValues(form)).toEqual(['app-server'])
-    fireEvent.click(form.getByRole('radio', { name: 'Claude Code SDK' }))
-    expect(argumentValues(form)).toEqual([])
-  })
-
-  it('keeps arguments the person typed when the protocol changes', async () => {
-    const form = await openForm()
-    fireEvent.click(form.getByRole('button', { name: 'Add argument' }))
-    type(form, 'Argument 1', '--acp')
-    fireEvent.click(form.getByRole('radio', { name: 'Codex app-server' }))
-    expect(argumentValues(form)).toEqual(['--acp'])
   })
 
   it('adds and removes argument rows', async () => {
     const form = await openForm()
-    fireEvent.click(form.getByRole('radio', { name: 'Codex app-server' }))
     fireEvent.click(form.getByRole('button', { name: 'Add argument' }))
+    fireEvent.click(form.getByRole('button', { name: 'Add argument' }))
+    type(form, 'Argument 1', '--model')
     type(form, 'Argument 2', '{folder}')
-    expect(argumentValues(form)).toEqual(['app-server', '{folder}'])
+    expect(argumentValues(form)).toEqual(['--model', '{folder}'])
     fireEvent.click(form.getByRole('button', { name: 'Remove argument 1' }))
     expect(argumentValues(form)).toEqual(['{folder}'])
   })
-
 })
 
 describe('CustomAgentForm: sending', () => {
-  it('sends exactly the name, protocol and arguments, and nothing else', async () => {
+  it('sends exactly the name and arguments, and nothing else', async () => {
     const form = await openForm()
-    type(form, 'Name', 'My Codex')
-    fireEvent.click(form.getByRole('radio', { name: 'Codex app-server' }))
+    type(form, 'Name', 'My Claude')
     fireEvent.click(form.getByRole('button', { name: 'Add argument' }))
-    type(form, 'Argument 2', '{folder}')
+    fireEvent.click(form.getByRole('button', { name: 'Add argument' }))
+    type(form, 'Argument 1', '--model')
+    type(form, 'Argument 2', 'haiku')
     await choose(form)
-    expect(dm.agentCallsOf('addCustomAgent')).toEqual([[{ name: 'My Codex', protocol: 'codex', args: ['app-server', '{folder}'] }]])
+    expect(dm.agentCallsOf('addCustomAgent')).toEqual([[{ name: 'My Claude', args: ['--model', 'haiku'] }]])
     const [[request]] = dm.agentCallsOf('addCustomAgent') as [[object]]
-    expect(Object.keys(request).sort()).toEqual(['args', 'name', 'protocol'])
+    expect(Object.keys(request).sort()).toEqual(['args', 'name'])
   })
 
   it('trims the name and arguments and leaves out empty argument rows', async () => {
@@ -109,9 +92,9 @@ describe('CustomAgentForm: sending', () => {
     fireEvent.click(form.getByRole('button', { name: 'Add argument' }))
     fireEvent.click(form.getByRole('button', { name: 'Add argument' }))
     type(form, 'Argument 1', '   ')
-    type(form, 'Argument 2', ' --acp ')
+    type(form, 'Argument 2', ' --verbose ')
     await choose(form)
-    expect(dm.agentCallsOf('addCustomAgent')).toEqual([[{ name: 'My Agent', protocol: 'acp', args: ['--acp'] }]])
+    expect(dm.agentCallsOf('addCustomAgent')).toEqual([[{ name: 'My Agent', args: ['--verbose'] }]])
   })
 
   it('cannot choose an executable without a name', async () => {
@@ -128,22 +111,22 @@ describe('CustomAgentForm: sending', () => {
 
 describe('CustomAgentForm: main’s answer', () => {
   it('shows main’s refusal reason inline and keeps what was typed', async () => {
-    dm.customOutcomes = [{ outcome: 'refused', code: 'failed', reason: 'The program did not answer the ACP handshake.' }]
+    dm.customOutcomes = [{ outcome: 'refused', code: 'failed', reason: 'That file is not executable.' }]
     const form = await openForm()
     type(form, 'Name', 'My Agent')
     await choose(form)
     expect(form.getByText('Not connected')).toBeTruthy()
-    expect(form.getByText('The program did not answer the ACP handshake.')).toBeTruthy()
+    expect(form.getByText('That file is not executable.')).toBeTruthy()
     expect((form.getByLabelText('Name') as HTMLInputElement).value).toBe('My Agent')
   })
 
   it('drops the refusal once the form is changed, since it was about what was sent', async () => {
-    dm.customOutcomes = [{ outcome: 'refused', code: 'failed', reason: 'The program did not answer the ACP handshake.' }]
+    dm.customOutcomes = [{ outcome: 'refused', code: 'failed', reason: 'That file is not executable.' }]
     const form = await openForm()
     type(form, 'Name', 'My Agent')
     await choose(form)
-    fireEvent.click(form.getByRole('radio', { name: 'Codex app-server' }))
-    expect(form.queryByText('The program did not answer the ACP handshake.')).toBeNull()
+    type(form, 'Name', 'My Agent 2')
+    expect(form.queryByText('That file is not executable.')).toBeNull()
   })
 
   it('says nothing when the file dialog is closed without a pick', async () => {
@@ -157,9 +140,8 @@ describe('CustomAgentForm: main’s answer', () => {
     dm.customOutcomes = [{ outcome: 'connected', agent: added }]
     const form = await openForm()
     type(form, 'Name', 'My Claude')
-    fireEvent.click(form.getByRole('radio', { name: 'Claude Code SDK' }))
     await choose(form)
-    expect(screen.getByText('Connected My Claude 2.1.4')).toBeTruthy()
+    expect(screen.getByText('Connected My Claude')).toBeTruthy()
     expect((form.getByLabelText('Name') as HTMLInputElement).value).toBe('')
   })
 

@@ -2,8 +2,8 @@
  * Adding and editing a custom agent CLI: a program the person picked, started with arguments they typed.
  * Every step is a guard against a compromised renderer or a mistake, in this order, and nothing is stored
  * unless every one passes:
- * 1. The payload is checked strictly: name, protocol and arguments for an add; id, name, arguments and
- *    `repick` for an edit. Any other key (a path, the protocol on an edit, `__proto__`) is `invalid_input`.
+ * 1. The payload is checked strictly: name and arguments for an add; id, name, arguments and `repick` for an
+ *    edit. Any other key (a path, a protocol, `__proto__`) is `invalid_input`.
  *    A name is 1-64 characters once trimmed and unique among custom agents whatever its case (`conflict`);
  *    there are at most 32 arguments of 1-1024 characters; neither holds a control or formatting character
  *    (bidi overrides and isolates, zero-width marks, line separators), so the confirmation shows exactly
@@ -12,14 +12,16 @@
  *    the stored one). Its path must hold no such character either.
  * 3. The program and the argv, `{folder}` replaced by a sample path, must pass `planCliLaunch` on this
  *    platform (a file the system would run; a Windows shim argument cmd.exe can be given safely).
- * 4. A native confirmation shows the exact program, each argument (as a JSON string) and the protocol.
- *    Only Run and save with the checkbox ticked goes on. A Claude Code SDK protocol program must be the
- *    program itself: the SDK would follow a Windows shim, or run a script with `node`, instead.
- * 5. The protocol's handshake runs in an empty temp folder (`runHandshake`, wired in main). It is the only
- *    thing run: the version and agent name are what the handshake reported, never a `--version` run.
- * 6. The row is written: `cu_` and a ULID, kind and `connected_via` `custom`, the arguments, the version
- *    and agent name the handshake reported. An edit never changes the protocol, and fails `not_found` if
- *    the agent was removed meanwhile. The name is checked again in the same synchronous step that writes it.
+ * 4. A native confirmation shows the exact program and each argument (as a JSON string). Only Run and save
+ *    with the checkbox ticked goes on.
+ * 5. The row is written: `cu_` and a ULID, kind and `connected_via` `custom`, and the arguments, with no protocol.
+ *    Nothing is run to check it, so no version is stored: the CLI first runs in a chat's terminal. An edit fails
+ *    `not_found` if the agent was removed meanwhile. The name is checked again in the same synchronous step that
+ *    writes it.
+ *
+ * A row marked `needsReview` (saved for ACP or Codex app-server before chats became terminals, `appDatabase.ts`
+ * v3) starts no chat until it is reviewed: an edit like any other, whose confirmation is titled as a review and
+ * says why. Only a confirmed edit clears the mark.
  *
  * Two adds or edits that would end with the same name are not run side by side: the second is refused
  * with `conflict` while the first is open, as is a second edit of the same agent.
@@ -32,15 +34,13 @@ import { agentIdSchema, isBuiltInAgentKind } from '../../shared/desktop/agentKin
 import type {
   AgentFindResult,
   AgentId,
-  AgentProtocol,
   AgentRefusalCode,
   AgentView,
   CustomAgentRequest,
   CustomAgentUpdate
 } from '../../shared/desktop/api'
-import { withFolder, type AgentLaunchSpec } from '../agents/launchSpec'
-import { HANDSHAKE_TIMEOUT_MS, type HandshakeOutcome, type ReportedVersion } from '../agents/protocolHandshake'
-import { planCliLaunch, windowsProgramKind, type AgentProbeDeps } from './agentProbe'
+import { withFolder } from '../agents/launchSpec'
+import { planCliLaunch, type AgentProbeDeps } from './agentProbe'
 import type { AgentRegistry } from './agentRegistry'
 
 const MAX_NAME_CHARS = 64
@@ -56,18 +56,10 @@ const HIDDEN_MESSAGE = 'holds a control or formatting character'
 /** Any space but the plain one (no-break, ideographic, em): it reads as a space but is not one to the program. */
 const OTHER_SPACE = /(?! )\p{Zs}/u
 const OTHER_SPACE_MESSAGE = 'holds a space that is not a plain space'
-/** Scripts the Claude Code SDK would run with whatever `node` is on the path, not as the program shown. */
-const SCRIPT_EXTENSION = /\.(?:[cm]?js|jsx|tsx?)$/i
 /** What `{folder}` stands for while the argv is checked: a plain folder on each platform. */
 const SAMPLE_FOLDER: Readonly<Record<'win32' | 'other', string>> = {
   win32: 'C:\\Users\\Sample\\Project',
   other: '/home/sample/project'
-}
-
-const PROTOCOL_NAMES: Readonly<Record<AgentProtocol, string>> = {
-  acp: 'Agent Client Protocol (ACP)',
-  codex: 'Codex app-server',
-  claude: 'Claude Code SDK'
 }
 
 const nameSchema = z
@@ -103,7 +95,6 @@ const argsSchema = z
 
 const addSchema = z.strictObject({
   name: nameSchema,
-  protocol: z.enum(['claude', 'codex', 'acp']),
   args: argsSchema
 }) satisfies z.ZodType<CustomAgentRequest>
 
@@ -114,11 +105,10 @@ const updateSchema = z.strictObject({
   repick: z.boolean()
 }) satisfies z.ZodType<CustomAgentUpdate>
 
-/** What the person is asked to approve: exactly what will be stored and started. */
+/** What the person is asked to approve: exactly what will be stored and started. `review`: an edit of a row marked `needsReview`. */
 export interface CustomAgentConfirmation {
-  action: 'add' | 'edit'
+  action: 'add' | 'edit' | 'review'
   name: string
-  protocol: AgentProtocol
   executablePath: string
   args: readonly string[]
 }
@@ -129,8 +119,6 @@ interface CustomAgentDeps {
   pickExecutable: () => Promise<string | null>
   /** Main's native confirmation; resolves true only for an explicit yes. */
   confirm: (confirmation: CustomAgentConfirmation) => Promise<boolean>
-  /** Runs the spec's protocol handshake in a fresh temp folder (`runHandshake`, wired in main). */
-  handshake: (spec: AgentLaunchSpec) => Promise<HandshakeOutcome>
   /** The launch rules of this platform, as every start uses them. */
   launch: Pick<AgentProbeDeps, 'platform' | 'inspect' | 'comspec'>
   /** A new agent's id; `cu_` and a fresh ULID by default. */
@@ -165,26 +153,18 @@ function assertNameFree(agents: Pick<AgentRegistry, 'list'>, name: string, self:
 
 /** Why the program and argv cannot be started on this platform, or null when they can. */
 function launchRefusal(confirmation: CustomAgentConfirmation, launch: CustomAgentDeps['launch']): AgentFindResult | null {
-  const { executablePath, args, protocol } = confirmation
+  const { executablePath, args } = confirmation
   if (HIDDEN_TEXT.test(executablePath)) {
     return refused('unsafe_path', 'The path of that program holds a control or formatting character, so it cannot be shown or started safely.')
-  }
-  // The Claude Code SDK does not run a shim: it follows it to the script or program inside (see
-  // `resolveClaudeExecutable`), which is not what the confirmation would show.
-  if (protocol === 'claude' && launch.platform === 'win32' && windowsProgramKind(executablePath) === 'shim') {
-    return refused('unsafe_path', 'For the Claude Code SDK protocol, choose the program itself (.exe), not a .cmd or .bat file.')
-  }
-  if (protocol === 'claude' && SCRIPT_EXTENSION.test(executablePath)) {
-    return refused('unsafe_path', 'For the Claude Code SDK protocol, choose the program itself, not a script: the SDK would run a script with whatever node is on the path.')
   }
   const sample = launch.platform === 'win32' ? SAMPLE_FOLDER.win32 : SAMPLE_FOLDER.other
   const plan = planCliLaunch(executablePath, withFolder(args, sample), launch)
   return 'ok' in plan ? refused(plan.code, plan.reason) : null
 }
 
-type Store = (reported: ReportedVersion) => AgentView
+type Store = () => AgentView
 
-/** Launch rules, the confirmation and the handshake; `store` runs only once all of them said yes. */
+/** Launch rules and the confirmation; `store` runs only once both said yes. */
 async function confirmAndStore(deps: CustomAgentDeps, confirmation: CustomAgentConfirmation, store: Store): Promise<AgentFindResult> {
   const refusal = launchRefusal(confirmation, deps.launch)
   if (refusal !== null) {
@@ -193,9 +173,7 @@ async function confirmAndStore(deps: CustomAgentDeps, confirmation: CustomAgentC
   if (!(await deps.confirm(confirmation))) {
     return CANCELLED
   }
-  const { name, protocol, executablePath, args } = confirmation
-  const outcome = await deps.handshake({ kind: 'custom', displayName: name, protocol, executablePath, args: [...args] })
-  return outcome.ok ? { outcome: 'connected', agent: store(outcome) } : refused(outcome.code, outcome.reason)
+  return { outcome: 'connected', agent: store() }
 }
 
 /** Runs `work` holding `keys`; a key already held is refused with `conflict`, and every key is let go afterwards. */
@@ -212,17 +190,17 @@ async function holding<T>(held: Set<string>, keys: readonly string[], work: () =
 }
 
 async function addAgent(deps: CustomAgentDeps, held: Set<string>, input: unknown): Promise<AgentFindResult> {
-  const { name, protocol, args } = parseInput(addSchema, input, 'custom CLI')
+  const { name, args } = parseInput(addSchema, input, 'custom CLI')
   assertNameFree(deps.agents, name, null)
   return holding(held, [`name:${nameKey(name)}`], async () => {
     const executablePath = await deps.pickExecutable()
     if (executablePath === null) {
       return CANCELLED
     }
-    return confirmAndStore(deps, { action: 'add', name, protocol, executablePath, args }, ({ version, reportedName }) => {
+    return confirmAndStore(deps, { action: 'add', name, executablePath, args }, () => {
       assertNameFree(deps.agents, name, null)
       const id = deps.newId?.() ?? `cu_${newUlid()}`
-      return deps.agents.addCustom({ id, protocol, displayName: name, executablePath, args, version, reportedName })
+      return deps.agents.addCustom({ id, displayName: name, executablePath, args })
     })
   })
 }
@@ -244,10 +222,10 @@ async function updateAgent(deps: CustomAgentDeps, held: Set<string>, input: unkn
     if (executablePath === null) {
       return CANCELLED
     }
-    const confirmation: CustomAgentConfirmation = { action: 'edit', name, protocol: existing.protocol, executablePath, args }
-    return confirmAndStore(deps, confirmation, ({ version, reportedName }) => {
+    const confirmation: CustomAgentConfirmation = { action: existing.needsReview ? 'review' : 'edit', name, executablePath, args }
+    return confirmAndStore(deps, confirmation, () => {
       assertNameFree(deps.agents, name, id)
-      const updated = deps.agents.updateCustom(id, { displayName: name, executablePath, args, version, reportedName })
+      const updated = deps.agents.updateCustom(id, { displayName: name, executablePath, args })
       if (updated === null) {
         throw new DomainError('not_found', `The custom CLI ${JSON.stringify(name)} was removed while it was being edited; nothing was saved.`)
       }
@@ -283,6 +261,12 @@ export function customAgentApproved(answer: { response: number; checkboxChecked:
   return answer.response === 0 && answer.checkboxChecked
 }
 
+const DIALOG_VERBS: Readonly<Record<CustomAgentConfirmation['action'], string>> = { add: 'Add', edit: 'Edit', review: 'Review' }
+
+/** Why a review asks again: the arguments were for a protocol server, which a terminal does not talk to. */
+const REVIEW_NOTE =
+  'These arguments were saved before chats ran in a terminal, for a protocol (ACP or Codex app-server) the app no longer speaks. Remove any that start a protocol server: no chat starts this CLI until you confirm them.'
+
 /**
  * Every argument on a numbered line of its own, as a JSON string, so where one ends is never in doubt (a
  * quote inside shows as `\"`; a newline or a bidi character cannot reach here). Cancel is the default and
@@ -292,15 +276,14 @@ export function customAgentDialogOptions(confirmation: CustomAgentConfirmation):
   const { args } = confirmation
   const argLines =
     args.length === 0 ? 'Arguments: none' : ['Arguments:', ...args.map((arg, index) => `  ${index + 1}. ${JSON.stringify(arg)}`)].join('\n')
-  const seconds = HANDSHAKE_TIMEOUT_MS / 1000
   const detail = [
     `Program: ${confirmation.executablePath}`,
     argLines,
-    `Protocol: ${PROTOCOL_NAMES[confirmation.protocol]}`,
-    `It runs once now, in an empty temporary folder for at most ${seconds} seconds, to check that it speaks this protocol. After that it runs whenever a chat uses it, with {folder} replaced by the chat's folder.`,
-    'Nothing runs until you tick the box and choose Run and save.'
+    ...(confirmation.action === 'review' ? [REVIEW_NOTE] : []),
+    "It runs in a chat's terminal whenever a chat uses it, with {folder} replaced by the chat's folder.",
+    'Nothing is saved until you tick the box and choose Run and save.'
   ].join('\n\n')
-  const verb = confirmation.action === 'add' ? 'Add' : 'Edit'
+  const verb = DIALOG_VERBS[confirmation.action]
   return {
     type: 'question',
     title: `${verb} a custom CLI`,

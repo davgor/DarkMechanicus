@@ -1,5 +1,5 @@
 import { AGENT_DEFINITIONS, isBuiltInAgentKind } from '../../../shared/desktop/agentKinds'
-import type { AgentAuthStatus, AgentDownloadProgress, AgentId, AgentProtocol, AgentView, BuiltInAgentKind } from '../../../shared/desktop/api'
+import type { AgentAuthStatus, AgentDownloadProgress, AgentId, AgentView, BuiltInAgentKind } from '../../../shared/desktop/api'
 
 /**
  * What to call an agent by its id (a chat's agent, which can outlive its connection): the connected
@@ -22,20 +22,7 @@ export const AGENT_BLURBS: Readonly<Record<BuiltInAgentKind, string>> = {
 }
 
 /** The Custom CLI card's line in the add-agent pane. */
-export const CUSTOM_AGENT_BLURB = 'Any other coding agent CLI that speaks ACP, Codex app-server or Claude Code SDK.'
-
-interface ProtocolText {
-  label: string
-  /** One line on what the protocol is, shown beside its choice. */
-  hint: string
-}
-
-/** What each protocol a custom CLI can speak is called, in the order the form offers them. */
-export const PROTOCOL_TEXT: Readonly<Record<AgentProtocol, ProtocolText>> = {
-  acp: { label: 'ACP', hint: 'Agent Client Protocol over standard input and output, as Cursor and Autonomous speak it.' },
-  codex: { label: 'Codex app-server', hint: 'The JSON-RPC server Codex runs with its app-server command.' },
-  claude: { label: 'Claude Code SDK', hint: 'Claude Code’s streaming JSON mode; the app adds its own flags after your arguments.' }
-}
+export const CUSTOM_AGENT_BLURB = 'Any other coding agent CLI: a program and its arguments, run in a chat’s terminal.'
 
 interface SignInLabel {
   text: string
@@ -71,15 +58,11 @@ export function connectedViaText(via: AgentView['connectedVia']): string {
 }
 
 /**
- * An agent's version as the agent page, the sidebar and the pickers show it: "<name> <version>" with the
- * agent name a custom CLI's handshake reported (`omp 18.11.2`), the version alone otherwise (`v2.1.4`),
- * or "Version unknown".
+ * An agent's version as the agent page, the sidebar and the pickers show it: `v2.1.4`, or "Version unknown" (every
+ * custom CLI, which nothing runs to check).
  */
-export function agentVersionLabel(agent: Pick<AgentView, 'version' | 'reportedName'>): string {
-  if (agent.version === null) {
-    return 'Version unknown'
-  }
-  return agent.reportedName === null ? `v${agent.version}` : `${agent.reportedName} ${agent.version}`
+export function agentVersionLabel(agent: Pick<AgentView, 'version'>): string {
+  return agent.version === null ? 'Version unknown' : `v${agent.version}`
 }
 
 /** What the running download is doing, from the progress the main process reports. */

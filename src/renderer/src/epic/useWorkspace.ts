@@ -49,7 +49,9 @@ interface WorkspaceInput {
   epicId: string
   refreshToken: number
   onChanged(): void
-  onChatsChanged(): void
+  onChatsChanged(): Promise<void>
+  /** Opens one of the folder's chats: the orchestrator chat a run was started with. */
+  onOpenChat(chatId: string): void
   /** The connected agents, read when an action names one. */
   agents: readonly AgentView[]
 }
@@ -102,6 +104,8 @@ export function useWorkspace(input: WorkspaceInput): WorkspaceController {
   changedRef.current = input.onChanged
   const chatsChangedRef = useRef(input.onChatsChanged)
   chatsChangedRef.current = input.onChatsChanged
+  const openChatRef = useRef(input.onOpenChat)
+  openChatRef.current = input.onOpenChat
   const agentsRef = useRef(input.agents)
   agentsRef.current = input.agents
   const startOrchestrator = useMemo<StartOrchestrator>(
@@ -124,7 +128,8 @@ export function useWorkspace(input: WorkspaceInput): WorkspaceController {
         dispatch,
         reload,
         onChanged: () => changedRef.current(),
-        onChatsChanged: () => chatsChangedRef.current()
+        onChatsChanged: () => chatsChangedRef.current(),
+        onOpenChat: (chatId) => openChatRef.current(chatId)
       }),
     [runner, epicId, startOrchestrator, reload]
   )

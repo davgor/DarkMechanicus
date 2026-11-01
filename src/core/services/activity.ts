@@ -57,8 +57,8 @@ function sliceOf(drafts: Draft[], window: Window): Slice {
 }
 
 function sessionOf(ctx: Ctx, id: string | null): ActivitySession {
-  const row = id === null ? undefined : ctx.db.get<{ role: ActivitySession['role']; label: string }>('SELECT role, label FROM sessions WHERE id = ?', id)
-  return { id, role: row?.role ?? null, label: row?.label ?? UNKNOWN_SESSION }
+  const row = id === null ? undefined : ctx.db.get<{ role: ActivitySession['role']; label: string; grant_id: string | null }>('SELECT role, label, grant_id FROM sessions WHERE id = ?', id)
+  return { id, role: row?.role ?? null, label: row?.label ?? UNKNOWN_SESSION, grantId: row?.grant_id ?? null }
 }
 
 function payloadAttemptId(event: EventView): string | null {

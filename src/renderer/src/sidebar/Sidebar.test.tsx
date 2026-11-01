@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps } from 'react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { FakeExpansion } from '../__mocks__/fakeExpansion'
-import { agentView, chatSummary, EPIC_A, epicSummary, folderView } from '../__mocks__/fixtures'
+import { agentView, chatRecord, EPIC_A, epicSummary, folderView } from '../__mocks__/fixtures'
 import type { AgentView, TrackedFolderView } from '../../../shared/desktop/api'
 import type { ChatListState } from '../agents/useChats'
 import type { EpicListState } from '../app/useEpicLists'
@@ -217,7 +217,7 @@ describe('Sidebar agents', () => {
 
 describe('Sidebar chats', () => {
   const lists = {
-    '/a': { status: 'ready', chats: [chatSummary({ id: 'chat_1', title: 'Fix the build', folder: '/a' })] }
+    '/a': { status: 'ready', chats: [chatRecord({ id: 'chat_1', title: 'Fix the build', folder: '/a' })] }
   } satisfies Record<string, ChatListState>
 
   it('gives each folder its own chats, and none to a folder that is not initialized', () => {

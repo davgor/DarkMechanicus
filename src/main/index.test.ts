@@ -44,8 +44,8 @@ vi.mock('./autoUpdate', () => ({ initAutoUpdate: () => {}, registerAutoUpdateHan
 vi.mock('./desktop/bootstrap', () => ({
   startDesktopBridge: () => ({
     chats: {
-      liveCount: () => startup.liveChats,
-      disposeAll: async () => {
+      busy: () => startup.liveChats > 0,
+      dispose: async () => {
         startup.events.push('dispose chats')
       }
     },

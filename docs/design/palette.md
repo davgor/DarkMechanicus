@@ -149,6 +149,29 @@ Tokens marked (DM-3) were added by the token-consolidation ticket for colors tha
 | `--btn-danger-hover` (DM-3) | `#d4604c` | `#f07894` | Destructive button hover fill |
 | `--tone-ok` (DM-3) | `#86cfab` | `#84d6be` | Success text (`.tone-ok`), a lighter tint of the new accepted |
 
+### Chat terminals (DM-324)
+
+The 16 ANSI colors a chat's CLI paints with. The terminal pane reads them, and its background (`--code-bg`), text (`--ink`), cursor (`--accent`) and selection (`--primary-soft`), from `:root` with `getComputedStyle` (`agents/terminalTheme.ts`). The normal colors reuse the palette's hues; the bright ones are lighter tints of them.
+
+| Token | Today | Proposed | Role |
+|---|---|---|---|
+| `--term-black` (new) | — | `#2c2520` | ANSI black (follows `--line-soft`) |
+| `--term-red` (new) | — | `#e0574f` | ANSI red |
+| `--term-green` (new) | — | `#84c20a` | ANSI green (the lens) |
+| `--term-yellow` (new) | — | `#d69b4a` | ANSI yellow (brass) |
+| `--term-blue` (new) | — | `#6aa7ff` | ANSI blue (follows `--st-ready`) |
+| `--term-magenta` (new) | — | `#c78bd8` | ANSI magenta |
+| `--term-cyan` (new) | — | `#4cc7a8` | ANSI cyan (jade, follows `--st-accepted`) |
+| `--term-white` (new) | — | `#c9c1b2` | ANSI white (follows `--ink-2`) |
+| `--term-bright-black` (new) | — | `#797165` | ANSI bright black (follows `--faint`) |
+| `--term-bright-red` (new) | — | `#f07068` | ANSI bright red |
+| `--term-bright-green` (new) | — | `#a5dc3a` | ANSI bright green |
+| `--term-bright-yellow` (new) | — | `#f2d7ae` | ANSI bright yellow (bone, follows `--ink-display`) |
+| `--term-bright-blue` (new) | — | `#93c0ff` | ANSI bright blue |
+| `--term-bright-magenta` (new) | — | `#e0a8ee` | ANSI bright magenta |
+| `--term-bright-cyan` (new) | — | `#84d6be` | ANSI bright cyan (follows `--tone-ok`) |
+| `--term-bright-white` (new) | — | `#f5f0e6` | ANSI bright white |
+
 `rgba(236, 230, 218, 0.04)` (the sidebar row hover wash, `--ink` at 4%) is not a hex literal. `--ink` keeps its value, so it can stay as it is.
 
 ## 4. Collision rules

@@ -170,7 +170,7 @@ describe('useAttemptTimeline — what it follows', () => {
 describe('useRunTimeline', () => {
   it('merges each poll into the group of the session that did it', async () => {
     const group = (entries: ActivityEntry[]): RunTimelineView['groups'][number] => ({
-      session: { id: 'ss_o', role: 'orchestrator', label: 'Orchestrator' },
+      session: { id: 'ss_o', role: 'orchestrator', label: 'Orchestrator', grantId: null },
       entries
     })
     const runPage = (entries: ActivityEntry[], cursor: number): RunTimelineView => ({

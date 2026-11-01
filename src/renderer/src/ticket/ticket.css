@@ -415,7 +415,8 @@
   font-size: 12px;
 }
 
-.tp-activity-live + .tp-activity-open {
+.tp-activity-live + .tp-activity-open,
+.tp-activity-open + .tp-activity-open {
   margin-left: 10px;
 }
 

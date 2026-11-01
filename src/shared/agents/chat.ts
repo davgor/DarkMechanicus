@@ -1,27 +1,24 @@
 /**
- * The provider-neutral chat contract: what a chat is, what its transcript holds, and the interface
- * every vendor adapter implements. The renderer, the session manager and the store share it, so it
- * stays free of Node imports.
+ * The chat contract: what a chat is and what the transcript a chat stored before chats became terminals
+ * holds. Main, the renderer and the store share it, so it stays free of Node imports.
  *
- * Stored transcripts are append-only JSON lines of `ChatItem`. A later line with the same item `id`
- * replaces the earlier one (a tool call going from `running` to `completed`). Items carry an
- * optional `threadId`; absent means the chat's own thread, so chats stored before nested threads
- * existed need no migration.
+ * Stored transcripts are JSON lines of `ChatItem`, read-only since chats run in terminals. A later line with
+ * the same item `id` replaces the earlier one (a tool call going from `running` to `completed`). Items carry an
+ * optional `threadId`; absent means the chat's own thread, so chats stored before nested threads existed need
+ * no migration.
  *
- * Nested threads. The work a subagent does is a thread: a `thread` item (in the thread of whoever
+ * Nested threads. The work a subagent did is a thread: a `thread` item (in the thread of whoever
  * started it, the chat's own or another subagent's) names the tool call that spawned it
  * (`parentItemId`), a `label` and a `state`, and every item of the subagent carries that thread
- * item's `id` as its `threadId`. The thread item is written again, by the same id, when its state
- * changes. An approval request raised inside a thread carries its `threadId` and `threadLabel`.
+ * item's `id` as its `threadId`. The thread item was written again, by the same id, when its state
+ * changed. An approval request raised inside a thread carries its `threadId` and `threadLabel`.
  *
- * Ended work. A turn the person stops leaves a `turn_stopped` item. A tool call or thread that cannot
- * finish because its agent ended is written again, by the same id, as `cancelled` (a call) or `failed`
- * (a thread): when its approval is cancelled, when its agent is disposed, and when the chat is opened or
- * a new agent starts on it with no live agent before.
+ * Ended work. A turn the person stopped left a `turn_stopped` item. A tool call or thread that could not
+ * finish because its agent ended was written again, by the same id, as `cancelled` (a call) or `failed`
+ * (a thread).
  */
 import { z } from 'zod'
 import { agentIdSchema } from '../desktop/agentKinds'
-import type { AgentView } from '../desktop/api'
 
 /** Dark Mechanicus roles a chat can run as: the four roles the app's MCP server serves. */
 export const CHAT_ROLES = ['planner', 'orchestrator', 'worker', 'reviewer'] as const
@@ -58,10 +55,27 @@ export const chatRecordSchema = z.object({
   /** The run this chat orchestrates, when Dark Mechanicus started it for one; absent for every other chat and for chats stored before runs were recorded. */
   runId: z.string().min(1).optional(),
   /**
-   * The id of the user message whose turn an expired sign-in cut short, so it can be sent again once
-   * the agent is signed in (`chats:retryTurn`). Null or absent when no turn is waiting to be retried.
+   * The id of the user message whose turn an expired sign-in cut short, as chats stored it before they became
+   * terminals. Null or absent when no turn was waiting to be retried; nothing sets it any more.
    */
-  cutShortMessageId: z.string().min(1).nullable().optional()
+  cutShortMessageId: z.string().min(1).nullable().optional(),
+  /**
+   * The ids of the grants issued to the chat's terminal, oldest first, each stored before the process it went to
+   * started; absent for a chat whose terminal never started.
+   */
+  grantIds: z.array(z.string().min(1)).optional(),
+  /**
+   * Whether the chat's CLI has a session a later start resumes (`a8s resume`, Codex and Cursor by their stored id):
+   * set once the person first types into the chat's terminal, cleared by New session; absent until then. Not used
+   * for Claude Code, whose session is known to exist by its session file (`claudeSession.ts`).
+   */
+  sessionStarted: z.boolean().optional(),
+  /**
+   * Whether the orchestrator kickoff went with the terminal of the chat Start run opened: set when it went on the
+   * command line (Claude Code's prompt, stored before the spawn) or was pasted; absent until then. A start of a
+   * chat that has it set never sends the kickoff again.
+   */
+  kickoffSent: z.boolean().optional()
 })
 
 export type ChatRecord = z.infer<typeof chatRecordSchema>
@@ -86,7 +100,7 @@ const APPROVAL_CATEGORIES = ['file_edit', 'command', 'other'] as const
  * later requests of the same category and tool in the same chat, until the app quits. On a call to a
  * tool of the chat's own Dark Mechanicus server it answers later calls to any tool of that server.
  */
-export const APPROVAL_DECISIONS = ['allow_once', 'allow_chat', 'deny'] as const
+const APPROVAL_DECISIONS = ['allow_once', 'allow_chat', 'deny'] as const
 
 /** A stored decision: an answer, or `cancelled` when no answer can reach the agent any more. */
 const APPROVAL_OUTCOMES = [...APPROVAL_DECISIONS, 'cancelled'] as const
@@ -194,57 +208,6 @@ export type ChatItem = z.infer<typeof chatItemSchema>
 
 export type ApprovalRequestItem = Extract<ChatItem, { kind: 'approval_request' }>
 
-export type ApprovalCategory = (typeof APPROVAL_CATEGORIES)[number]
-
-export type ApprovalDecision = (typeof APPROVAL_DECISIONS)[number]
-
-/** A model an agent offers, as shown in the model picker. */
-export interface ModelOption {
-  id: string
-  label: string
-}
-
-/** A ready-made MCP server entry: the command to launch and its arguments. */
-export interface McpServerSpec {
-  command: string
-  args: string[]
-  env?: Record<string, string>
-}
-
-/** What an adapter needs to start (or resume) a chat's agent session. */
-export interface ChatAdapterStartOptions {
-  chatId: string
-  /**
-   * Canonical folder the agent works in, checked on disk when the session started: the process runs with it as
-   * its working directory, the protocol's own workspace (`cwd`) is it, and the `dm` command is pinned to it.
-   */
-  folder: string
-  /**
-   * Checks `folder` on disk again, throwing (a `not_found` error naming it) when it was moved, deleted,
-   * untracked or replaced by a symlink since. The adapter calls it before every process it starts, the ones
-   * started again after a crash or for a model change included, so no process runs in a folder that is gone.
-   */
-  checkFolder: () => void
-  model: string | null
-  role: ChatRole
-  allowSave: boolean
-  /** The vendor session to resume; null starts a new one. */
-  sessionId: string | null
-  /**
-   * How the chat reaches Dark Mechanicus: the `dm` CLI it may run, pinned to its folder, with the
-   * grant issued for its role already in `env`. The adapter puts `env` into the process it starts
-   * and tells the agent, in its first instructions, to use this command. Nothing is registered
-   * with the vendor as an MCP server.
-   */
-  darkMechanicus: DarkMechanicusCli
-  /**
-   * Appended to the agent's system prompt: how to reach Dark Mechanicus, and that its grant is
-   * already in place. Without it an agent looks for MCP tools, finds none, and reports that it has
-   * no access.
-   */
-  instructions: string
-}
-
 /** The exact `dm` invocation a chat may make, and the environment that authorizes it. */
 export interface DarkMechanicusCli {
   command: string
@@ -252,48 +215,4 @@ export interface DarkMechanicusCli {
   args: string[]
   /** Carries `DM_SESSION_TOKEN`, and the runtime switches the packaged app needs. */
   env: Record<string, string>
-}
-
-/** Everything an adapter reports while it runs. */
-export type ChatAdapterEvent =
-  /** A finished transcript item (or a status update of an earlier one, by the same id). */
-  | { type: 'item'; item: ChatItem }
-  /** A piece of the assistant text `itemId` that is still being written; the whole text follows as an item. */
-  | { type: 'assistant_delta'; itemId: string; delta: string; threadId?: string }
-  /**
-   * The agent needs a decision; the adapter holds the vendor until `respond` is called. The manager
-   * records the request and the decision items.
-   */
-  | { type: 'approval_request'; request: ApprovalRequestItem; respond: (decision: ApprovalDecision) => void }
-  /** The vendor's session id, as soon as it is known. */
-  | { type: 'session'; sessionId: string }
-
-export type ChatAdapterEmit = (event: ChatAdapterEvent) => void
-
-/**
- * One live agent session for one chat. Vendor adapters implement it; the session manager drives it.
- * Reads and searches inside the folder never raise an approval request (the adapter configures the
- * vendor that way); file edits, commands and anything else do.
- */
-export interface ChatAdapter {
-  readonly kind: AgentView['kind']
-  /** Starts or resumes the session; events flow to `emit` until `dispose`. */
-  start(options: ChatAdapterStartOptions, emit: ChatAdapterEmit): Promise<void>
-  /** Sends a user message and runs one turn: resolves when the turn has ended (finished or stopped), rejects when it failed. */
-  send(text: string): Promise<void>
-  /** Switches the model for the following turns. */
-  setModel(model: string): Promise<void>
-  /** Interrupts the current turn, so the pending `send` settles; the session stays usable. */
-  stop(): Promise<void>
-  /** The models this agent offers. */
-  listModels(): Promise<ModelOption[]>
-  /** Ends the session and kills its whole process tree (no orphans on Windows or macOS); no events follow. */
-  dispose(): Promise<void>
-  /**
-   * The agent still has work going on, with or without a turn of the person's: a turn, one the agent started on
-   * its own, a tool call waiting for its answer, or a subagent or background command that has not ended. The
-   * session manager never stops an agent for being idle while this is true, so an adapter that cannot tell says
-   * true whenever there may be some.
-   */
-  hasLiveWork(): boolean
 }

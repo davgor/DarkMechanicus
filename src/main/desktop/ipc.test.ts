@@ -67,10 +67,6 @@ function createRecordingAgentHandlers(calls: unknown[][]): AgentHandlers & Agent
       calls.push(['agentStatus', kind])
       return { state: 'unknown', reason: 'Not connected yet.' }
     },
-    signInAgent: async (kind) => {
-      calls.push(['signInAgent', kind])
-      return { outcome: 'started' }
-    },
     folderDefaultAgent: async (folder) => {
       calls.push(['folderDefaultAgent', folder])
       return 'claude'
@@ -142,7 +138,6 @@ const EXPECTED_CHANNELS = [
   'agents:list',
   'agents:remove',
   'agents:setFolderDefault',
-  'agents:signIn',
   'agents:status',
   'agents:updateCustom',
   'dm:command',
@@ -274,18 +269,14 @@ describe('agent channels never carry an executable path', () => {
     ])
   })
 
-  it('status and sign-in forward only the kind, dropping any path, key or other option the renderer adds', async () => {
+  it('status forwards only the kind, dropping any path, key or other option the renderer adds', async () => {
     const ipc = createFakeIpcMain()
     const { handlers, calls } = createRecordingHandlers()
     registerDesktopIpc(ipc, handlers)
 
-    await ipc.invoke('agents:status', 'claude', 'C:\\evil.exe', { executablePath: '/bin/sh' })
-    await ipc.invoke('agents:signIn', 'codex', 'sk-secret', { apiKey: 'sk-secret', password: 'hunter2' })
+    await ipc.invoke('agents:status', 'claude', 'C:\\evil.exe', { executablePath: '/bin/sh', apiKey: 'sk-secret' })
 
-    expect(calls).toEqual([
-      ['agentStatus', 'claude'],
-      ['signInAgent', 'codex']
-    ])
+    expect(calls).toEqual([['agentStatus', 'claude']])
   })
 
   it('hands a payload that carries a credential to the handler untouched, for it to reject', async () => {
@@ -293,9 +284,9 @@ describe('agent channels never carry an executable path', () => {
     const { handlers, calls } = createRecordingHandlers()
     registerDesktopIpc(ipc, handlers)
 
-    await ipc.invoke('agents:signIn', { kind: 'claude', apiKey: 'sk-secret' })
+    await ipc.invoke('agents:status', { kind: 'claude', apiKey: 'sk-secret' })
 
-    expect(calls).toEqual([['signInAgent', { kind: 'claude', apiKey: 'sk-secret' }]])
+    expect(calls).toEqual([['agentStatus', { kind: 'claude', apiKey: 'sk-secret' }]])
   })
 
   it('hands a non-kind payload to the handler untouched, for it to reject', async () => {
@@ -367,7 +358,6 @@ describe('preload bridge', () => {
     expect(preload).toContain("findAgent: (kind) => ipcRenderer.invoke('agents:find', kind)")
     expect(preload).toContain("removeAgent: (id) => ipcRenderer.invoke('agents:remove', id)")
     expect(preload).toContain("agentStatus: (id) => ipcRenderer.invoke('agents:status', id)")
-    expect(preload).toContain("signInAgent: (id) => ipcRenderer.invoke('agents:signIn', id)")
     expect(preload).toContain("folderDefaultAgent: (folder) => ipcRenderer.invoke('agents:folderDefault', folder)")
     expect(preload).toContain(
       "setFolderDefaultAgent: (request) => ipcRenderer.invoke('agents:setFolderDefault', request)"

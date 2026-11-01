@@ -1,26 +1,27 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { FakeDm } from '../__mocks__/fakeDm'
 import { agentView, localNoonIso } from '../__mocks__/fixtures'
 import { settle } from '../__mocks__/settle'
+import { SignInRecorder } from '../__mocks__/signInRecorder'
 import type { AgentView } from '../../../shared/desktop/api'
 import { AgentPage } from './AgentPage'
-import { SIGN_IN_POLL_MS } from './SignInPrompt'
 import { useAgents } from './useAgents'
 
 let dm: FakeDm
 let errors: string[]
+let recorder: SignInRecorder
 
 beforeEach(() => {
   errors = []
+  recorder = new SignInRecorder()
   dm = new FakeDm()
   window.dm = dm
 })
 
 afterEach(() => {
   cleanup()
-  vi.useRealTimers()
 })
 
 function Page({ agent }: { agent: AgentView }): JSX.Element {
@@ -38,7 +39,7 @@ const claude = agentView({
 
 async function mount(agent: AgentView = claude): Promise<void> {
   dm.agents = [agent]
-  render(<Page agent={agent} />)
+  render(recorder.wrap(<Page agent={agent} />))
   await settle()
 }
 
@@ -114,38 +115,23 @@ describe('AgentPage sign-in', () => {
     expect(screen.queryByRole('button', { name: 'Check again' })).toBeNull()
   })
 
-  it('watches the status after Sign in and shows signed in once the CLI says so', async () => {
+  it('shows signed in once the sign-in view’s status check says so', async () => {
     dm.agentStatuses.claude = { state: 'signed_out', reason: 'Not signed in.' }
     await mount()
-    vi.useFakeTimers()
     press('Sign in')
-    await settle()
-    dm.agentStatuses.claude = { state: 'signed_in', reason: 'Signed in.' }
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(SIGN_IN_POLL_MS)
-    })
+    act(() => recorder.finish({ state: 'signed_in', reason: 'Signed in.' }))
     expect(screen.getByText('Signed in', { selector: '.agent-state' })).toBeTruthy()
-    expect(screen.queryByText('Sign-in started')).toBeNull()
+    expect(screen.getByText('Signed in.')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Sign in' }).className).not.toContain('btn-primary')
   })
 })
 
 describe('AgentPage actions', () => {
-  it('starts the CLI’s own sign-in naming only the kind, and says where to finish it', async () => {
+  it('opens the sign-in view naming only the agent id', async () => {
     await mount()
     press('Sign in')
-    await settle()
-    expect(dm.agentCallsOf('signInAgent')).toEqual([['claude']])
-    expect(screen.getByText('Sign-in started')).toBeTruthy()
-    expect(screen.getByText(/terminal window/)).toBeTruthy()
-  })
-
-  it('shows why a sign-in could not start', async () => {
-    dm.signInOutcomes = [{ outcome: 'failed', reason: 'No terminal could be opened.' }]
-    await mount()
-    press('Sign in')
-    await settle()
-    expect(screen.getByText('Could not start sign-in')).toBeTruthy()
-    expect(screen.getByText('No terminal could be opened.')).toBeTruthy()
+    expect(recorder.agents()).toEqual(['claude'])
+    expect(recorder.requests.map((request) => request.name)).toEqual(['Claude Code'])
   })
 
   it('finds again with only the kind', async () => {

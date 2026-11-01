@@ -1,0 +1,10 @@
+DM-326 live run: built app (npm run build), electron . --user-data-dir=/tmp/dm326-live/userdata, scratch tracked repo /private/tmp/dm326-live/repo, Claude Code on haiku (the CLI had auto-updated itself to 2.1.316).
+Chat created over CDP with window.dm.chats.create, opened by clicking its sidebar row; keys sent with Input.dispatchKeyEvent / Input.insertText.
+
+First start (ps): claude --append-system-prompt-file <instructions> --model haiku --session-id 7b8bbff5-cdb6-4f6e-ab94-279890f36b02
+Record at the spawn (index.jsonl): sessionId 7b8bbff5-cdb6-4f6e-ab94-279890f36b02, grantIds [gr_01m69agrh4ayz01za4sms46vzd]
+Session file before the first prompt (after the trust and MCP prompts): absent; after the prompt: ~/.claude/projects/-private-tmp-dm326-live-repo/7b8bbff5-cdb6-4f6e-ab94-279890f36b02.jsonl
+Prompt: 'Remember the code word PELICAN. Reply with exactly: OK, noted.' -> 'OK, noted.'
+/exit -> pane: 'The CLI exited with code 0.' with the button 'Start again' (no New session: that start was not a resume)
+Start again (ps): claude --append-system-prompt-file <instructions> --model haiku --resume 7b8bbff5-cdb6-4f6e-ab94-279890f36b02
+Prompt: 'What was the code word I asked you to remember? Answer with the word only.' -> 'PELICAN'

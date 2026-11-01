@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { FakeExpansion } from '../__mocks__/fakeExpansion'
-import { EPIC_A, EPIC_B, EPIC_C, chatSummary, epicSummary, folderView } from '../__mocks__/fixtures'
+import { EPIC_A, EPIC_B, EPIC_C, chatRecord, epicSummary, folderView } from '../__mocks__/fixtures'
 import type { TrackedFolderView } from '../../../shared/desktop/api'
 import type { AgentStatuses } from '../agents/useAgents'
 import type { ChatListState } from '../agents/useChats'
@@ -205,8 +205,8 @@ describe('FolderRow Agents block', () => {
   const chats = (): ChatListState => ({
     status: 'ready',
     chats: [
-      chatSummary({ id: 'chat_old', title: 'Old plan', updatedAt: '2026-03-01T10:00:00.000Z' }),
-      chatSummary({ id: 'chat_new', title: 'Newest run', updatedAt: '2026-03-03T10:00:00.000Z' })
+      chatRecord({ id: 'chat_old', title: 'Old plan', updatedAt: '2026-03-01T10:00:00.000Z' }),
+      chatRecord({ id: 'chat_new', title: 'Newest run', updatedAt: '2026-03-03T10:00:00.000Z' })
     ]
   })
   const rowTitles = (): string[] => Array.from(document.querySelectorAll('.chat-row-title')).map((el) => el.textContent ?? '')
@@ -246,44 +246,16 @@ describe('FolderRow Agents block', () => {
 
 })
 
-describe('FolderRow waiting chats', () => {
-  const waiting = (): ChatListState => ({
-    status: 'ready',
-    chats: [chatSummary({ id: 'chat_a', title: 'Asks', pending: 1 }), chatSummary({ id: 'chat_b', title: 'Also asks', pending: 3 }), chatSummary({ id: 'chat_c', title: 'Quiet' })]
-  })
-  const collapsed = (): FakeExpansion => new FakeExpansion({ collapsedFolders: ['/a'] })
-
-  it('flags a collapsed folder whose chats are waiting, counting the chats and not the requests', () => {
-    renderRow({ chats: waiting(), expansion: collapsed() })
-    const folder = screen.getByRole('button', { name: /^alpha/ })
-    expect(within(folder).getByText('2 waiting')).toBeTruthy()
-    expect(folder.textContent).toContain('~/code/alpha')
-  })
-
-  it('leaves the folder row alone while it is open, since the Agents block shows the chats', () => {
-    renderRow({ chats: waiting() })
-    expect(screen.getByRole('button', { name: FOLDER_BUTTON })).toBeTruthy()
-    expect(screen.getAllByText('Needs approval')).toHaveLength(2)
-    expect(screen.queryByText('2 waiting')).toBeNull()
-  })
-
-  it('shows no badge on a collapsed folder when nothing is waiting', () => {
-    renderRow({ chats: { status: 'ready', chats: [chatSummary({ id: 'chat_c', title: 'Quiet' })] }, expansion: collapsed() })
-    expect(screen.getByRole('button', { name: FOLDER_BUTTON })).toBeTruthy()
-    expect(screen.queryByText(/waiting/)).toBeNull()
-  })
-})
-
 describe('FolderRow chats waiting on a sign-in', () => {
   const chats: ChatListState = {
     status: 'ready',
-    chats: [chatSummary({ id: 'chat_a', title: 'Stuck on login', agent: 'claude', cutShortMessageId: 'u1' }), chatSummary({ id: 'chat_c', title: 'Quiet', agent: 'claude' })]
+    chats: [chatRecord({ id: 'chat_a', title: 'Stuck on login', agent: 'claude', cutShortMessageId: 'u1' }), chatRecord({ id: 'chat_c', title: 'Quiet', agent: 'claude' })]
   }
   const SIGNED_OUT: AgentStatuses = { claude: { state: 'signed_out', reason: 'Not signed in.' } }
   const SIGNED_IN: AgentStatuses = { claude: { state: 'signed_in', reason: 'Signed in.' } }
   const collapsed = (): FakeExpansion => new FakeExpansion({ collapsedFolders: ['/a'] })
 
-  it('flags a collapsed folder with the same waiting badge as an approval, saying what it waits for', () => {
+  it('flags a collapsed folder with a waiting badge, saying what it waits for', () => {
     renderRow({ chats, statuses: SIGNED_OUT, expansion: collapsed() })
     const folder = screen.getByRole('button', { name: /^alpha/ })
     const badge = within(folder).getByText('1 waiting')
@@ -305,14 +277,20 @@ describe('FolderRow chats waiting on a sign-in', () => {
     expect(screen.queryByText('1 waiting')).toBeNull()
     expect(screen.getByText('Needs sign-in')).toBeTruthy()
   })
+
+  it('shows no badge on a collapsed folder when nothing is waiting', () => {
+    renderRow({ chats: { status: 'ready', chats: [chatRecord({ id: 'chat_c', title: 'Quiet' })] }, statuses: SIGNED_OUT, expansion: collapsed() })
+    expect(screen.getByRole('button', { name: FOLDER_BUTTON })).toBeTruthy()
+    expect(screen.queryByText(/waiting/)).toBeNull()
+  })
 })
 
 describe('FolderRow chat actions', () => {
   const chats = (): ChatListState => ({
     status: 'ready',
     chats: [
-      chatSummary({ id: 'chat_old', title: 'Old plan', updatedAt: '2026-03-01T10:00:00.000Z' }),
-      chatSummary({ id: 'chat_new', title: 'Newest run', updatedAt: '2026-03-03T10:00:00.000Z' })
+      chatRecord({ id: 'chat_old', title: 'Old plan', updatedAt: '2026-03-01T10:00:00.000Z' }),
+      chatRecord({ id: 'chat_new', title: 'Newest run', updatedAt: '2026-03-03T10:00:00.000Z' })
     ]
   })
 

@@ -77,6 +77,24 @@
   --edge-waiting: #6f6057;
   --node-bg: #1e1917;
 
+  /* Chat terminals: the 16 ANSI colors a CLI paints with (the pane reads them with getComputedStyle) */
+  --term-black: #2c2520;
+  --term-red: #e0574f;
+  --term-green: #84c20a;
+  --term-yellow: #d69b4a;
+  --term-blue: #6aa7ff;
+  --term-magenta: #c78bd8;
+  --term-cyan: #4cc7a8;
+  --term-white: #c9c1b2;
+  --term-bright-black: #797165;
+  --term-bright-red: #f07068;
+  --term-bright-green: #a5dc3a;
+  --term-bright-yellow: #f2d7ae;
+  --term-bright-blue: #93c0ff;
+  --term-bright-magenta: #e0a8ee;
+  --term-bright-cyan: #84d6be;
+  --term-bright-white: #f5f0e6;
+
   --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   --font-serif: "IBM Plex Serif", Georgia, serif;
@@ -877,6 +895,15 @@ textarea.input {
   background: var(--bg);
 }
 
+/* The screen app-main shows; hidden (kept as it is) while the sign-in view stands in front of it. */
+.main-view {
+  display: contents;
+}
+
+.main-view[hidden] {
+  display: none;
+}
+
 .main-loading {
   padding: 48px 64px;
   color: var(--muted);
@@ -1375,6 +1402,15 @@ textarea.input {
   font-weight: 600;
 }
 
+/* A chat whose terminal (its CLI's PTY) is running: the running hue, named in its title for assistive tech. */
+.chat-live-dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--st-running);
+}
+
 .chat-row-meta {
   overflow: hidden;
   color: var(--muted);
@@ -1592,16 +1628,6 @@ textarea.input {
   margin-top: 0;
 }
 
-.custom-protocol {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.custom-protocol .field-hint {
-  padding-left: 24px;
-}
-
 .custom-args {
   align-self: stretch;
 }
@@ -1624,27 +1650,13 @@ textarea.input {
   gap: 12px;
 }
 
-/* The sign-in prompt: Sign in or Check again, with what the sign-in is doing under it. Shared by the Agents screens, the new-chat flow, the chat card and the run bar. */
+/* The sign-in prompt: Sign in (which opens the sign-in view) or Check again. Shared by the Agents screens, the new-chat flow and the run bar. */
 .sign-in {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 6px;
   min-width: 0;
-}
-
-.sign-in-note {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  margin: 0;
-  font-size: 13px;
-}
-
-.sign-in-note-title {
-  margin: 0;
-  font-weight: 600;
 }
 
 /* A signed-out or unknown agent in the sidebar list: its prompt sits under the row, in the row's own column. */

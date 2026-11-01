@@ -17,6 +17,11 @@
  * group's id can still only be the child's (the agent process wrappers do), or not at all (the probe and
  * installer runners kill only a program that is still running). On Windows an ended child is left
  * alone: taskkill would look for the tree by a pid that may by now belong to something else.
+ *
+ * A program in a PTY is not a Node `ChildProcess`: node-pty gives a pid, its own kill and an exit event.
+ * `killPtyTree` ends that tree the same way. `forkpty` makes the program the leader of its own session
+ * and process group, so on macOS and Linux the group's SIGKILL reaches it without `detached`; on Windows
+ * taskkill ends the tree, then node-pty's kill closes the pseudo-console.
  */
 import { spawn, type ChildProcess } from 'node:child_process'
 import { win32 } from 'node:path'
@@ -115,19 +120,18 @@ async function waitForGroupToEmpty(pgid: number, deps: TreeKillDeps): Promise<bo
 }
 
 /**
- * Ends what an ended child left running in its process group, when anything is left.
+ * Ends what an ended program left running in its process group, when anything is left.
  *
- * A group that still has a member is the child's own, not a reused id: a group's id is its leader's
+ * A group that still has a member is the program's own, not a reused id: a group's id is its leader's
  * pid, and the system keeps that id allocated while any member of the group lives, so it is not handed
  * to a new process, and a new group (whose id is always its own leader's pid) cannot take it. From the
- * moment the child ends, a group that keeps a member therefore stays the child's.
+ * moment the program ends, a group that keeps a member therefore stays the program's.
  *
- * A group with no member left is not signalled: its id was freed with the child, and a group found under
- * it later could be anyone's. A check long after the end could not tell the two apart (the group may have
- * emptied and its id been reused in between), which is why the check is made once, as the child ends.
+ * A group with no member left is not signalled: its id was freed with the program, and a group found
+ * under it later could be anyone's. A check long after the end could not tell the two apart (the group may
+ * have emptied and its id been reused in between), which is why the check is made once, as it ends.
  */
-function endLeftovers(child: ChildProcess, deps: TreeKillDeps): Promise<boolean> {
-  const { pid } = child
+function endLeftovers(pid: number | undefined, deps: TreeKillDeps): Promise<boolean> {
   if (pid === undefined || deps.platform === 'win32' || !groupHasMembers(pid, deps)) {
     return Promise.resolve(true)
   }
@@ -150,13 +154,16 @@ async function endWindowsTree(child: ChildProcess, pid: number, deps: TreeKillDe
   return false
 }
 
-/** Resolves true when the group is empty, false when there was no group to signal or it did not empty. */
-async function endGroup(child: ChildProcess, pid: number, deps: TreeKillDeps): Promise<boolean> {
+/**
+ * Resolves true when the group is empty, false when there was no group to signal (then `killSelf` ends
+ * the program itself) or it did not empty.
+ */
+async function endGroup(pid: number, killSelf: () => void, deps: TreeKillDeps): Promise<boolean> {
   try {
     deps.signalGroup(pid, 'SIGKILL')
   } catch {
-    // There is no group of its own (the child was not started as a leader): end the program itself.
-    child.kill('SIGKILL')
+    // There is no group of its own (the program was not started as a leader): end the program itself.
+    killSelf()
     return false
   }
   return waitForGroupToEmpty(pid, deps)
@@ -169,7 +176,9 @@ function endTree(child: ChildProcess, deps: TreeKillDeps): Promise<boolean> {
     child.kill('SIGKILL')
     return Promise.resolve(true)
   }
-  return deps.platform === 'win32' ? endWindowsTree(child, pid, deps) : endGroup(child, pid, deps)
+  return deps.platform === 'win32'
+    ? endWindowsTree(child, pid, deps)
+    : endGroup(pid, () => child.kill('SIGKILL'), deps)
 }
 
 /** `work`'s result, or null once `ms` have passed; the timer never keeps the process alive and never outlives the work. */
@@ -188,23 +197,44 @@ async function within<T>(work: Promise<T>, ms: number): Promise<T | null> {
   }
 }
 
-async function stopTree(child: ChildProcess, deps: TreeKillDeps): Promise<boolean> {
-  if (hasEnded(child)) {
-    return endLeftovers(child, deps)
-  }
-  const ended = whenEnded(child)
-  const reached = endTree(child, deps)
+/** Whether the tree is gone once the program has ended (`ended`) and the kill has settled (`reached`), within the limit. */
+async function settleTree(ended: Promise<unknown>, reached: Promise<boolean>, deps: TreeKillDeps): Promise<boolean> {
   const settled = await within(Promise.all([ended, reached]), deps.waitMs)
   return settled !== null && settled[1]
 }
 
+async function stopTree(child: ChildProcess, deps: TreeKillDeps): Promise<boolean> {
+  if (hasEnded(child)) {
+    return endLeftovers(child.pid, deps)
+  }
+  const ended = whenEnded(child)
+  return settleTree(ended, endTree(child, deps), deps)
+}
+
 /**
- * The kill for each child. One that is running is shared: two taskkills racing over one tree can fail
- * each other. On macOS and Linux one that settled after the child ended is kept, so asking again repeats
+ * The kill for each program. One that is running is shared: two taskkills racing over one tree can fail
+ * each other. On macOS and Linux one that settled after the program ended is kept, so asking again repeats
  * its answer instead of checking a group id that may since have been handed on. (Windows checks nothing
- * for an ended child, so there a later ask is answered afresh, as before.)
+ * for an ended program, so there a later ask is answered afresh, as before.)
  */
-const kills = new WeakMap<ChildProcess, Promise<boolean>>()
+const kills = new WeakMap<object, Promise<boolean>>()
+
+/** Runs `stop` for `target` unless a kill for it is running or remembered, and remembers it as described above. */
+function sharedKill(target: object, deps: TreeKillDeps, ended: () => boolean, stop: () => Promise<boolean>): Promise<boolean> {
+  const known = kills.get(target)
+  if (known !== undefined) {
+    return known
+  }
+  const kill = stop()
+  kills.set(target, kill)
+  const settle = (): void => {
+    if (deps.platform === 'win32' || !ended()) {
+      kills.delete(target)
+    }
+  }
+  kill.then(settle, settle)
+  return kill
+}
 
 /**
  * Ends `child` and everything it started, and resolves with whether that tree is gone: true once the
@@ -215,18 +245,60 @@ const kills = new WeakMap<ChildProcess, Promise<boolean>>()
  * with the child still running starts a new one.
  */
 export function killProcessTree(child: ChildProcess, overrides: Partial<TreeKillDeps> = {}): Promise<boolean> {
-  const known = kills.get(child)
-  if (known !== undefined) {
-    return known
-  }
   const deps: TreeKillDeps = { ...realDeps(), ...overrides }
-  const kill = stopTree(child, deps)
-  kills.set(child, kill)
-  const settle = (): void => {
-    if (deps.platform === 'win32' || !hasEnded(child)) {
-      kills.delete(child)
-    }
+  return sharedKill(child, deps, () => hasEnded(child), () => stopTree(child, deps))
+}
+
+/** A program in a PTY, as `killPtyTree` needs it. */
+export interface PtyTree {
+  /** The pid node-pty reports; on macOS and Linux also the id of the process group the program leads. */
+  readonly pid: number
+  /** node-pty's own kill (on Windows it also closes the pseudo-console). */
+  kill(): void
+  /** Settles once node-pty has reported the program's exit. */
+  readonly exited: Promise<unknown>
+  /** Whether that exit has already been reported. */
+  hasExited(): boolean
+}
+
+/** node-pty's kill, which may throw for a PTY that is already closed; the tree kill's answer does not depend on it. */
+function closePty(pty: PtyTree): void {
+  try {
+    pty.kill()
+  } catch {
+    // Already closed.
   }
-  kill.then(settle, settle)
-  return kill
+}
+
+/** Taskkill for the tree, then node-pty's kill; true when taskkill ended the tree (or found it gone). */
+async function endWindowsPty(pty: PtyTree, deps: TreeKillDeps): Promise<boolean> {
+  const code = await deps.taskkill(pty.pid)
+  closePty(pty)
+  return code === 0 || code === TASKKILL_NO_SUCH_PROCESS
+}
+
+function stopPtyTree(pty: PtyTree, deps: TreeKillDeps): Promise<boolean> {
+  if (pty.hasExited()) {
+    return endLeftovers(pty.pid, deps)
+  }
+  const ended = pty.exited.then(
+    () => undefined,
+    () => undefined
+  )
+  const reached = deps.platform === 'win32' ? endWindowsPty(pty, deps) : endGroup(pty.pid, () => closePty(pty), deps)
+  return settleTree(ended, reached, deps)
+}
+
+/**
+ * Ends the program in a PTY and everything it started, and resolves with whether that tree is gone:
+ * true once its exit was reported and nothing is left of what it started, false when the limit passed
+ * first or the tree could not be reached. macOS and Linux: SIGKILL to the group the program leads, then
+ * the group is checked until it is empty. Windows: `taskkill /pid <pid> /t /f`, then node-pty's own kill.
+ * The kill is sent before this returns. For a program whose exit was already reported, what it left in
+ * its group is ended (macOS and Linux; ask from the exit listener, as for `killProcessTree`), and on
+ * Windows nothing is done. Asking again shares or repeats answers as `killProcessTree` does.
+ */
+export function killPtyTree(pty: PtyTree, overrides: Partial<TreeKillDeps> = {}): Promise<boolean> {
+  const deps: TreeKillDeps = { ...realDeps(), ...overrides }
+  return sharedKill(pty, deps, () => pty.hasExited(), () => stopPtyTree(pty, deps))
 }

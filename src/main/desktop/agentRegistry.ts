@@ -1,14 +1,14 @@
 /**
  * Machine-local registry of connected agents, stored in the `agents` table of the app database.
- * One row per agent id. A built-in agent's (`claude`, `codex`, or `cursor`) id is its kind; a custom
- * agent's is `cu_` and a ULID, with its own protocol, display name and arguments, and the agent name its
- * handshake reported with its version (`reported_name`, NULL for every built-in).
+ * One row per agent id. A built-in agent's (`claude`, `codex`, `cursor` or `autonomous`) id is its kind; a
+ * custom agent's is `cu_` and a ULID, with its own display name and arguments, no version (nothing runs to
+ * check it), and `needs_review` when the v3 migration found it saved for a protocol server (`appDatabase.ts`).
  */
 import type { Db } from '../../core/db/database'
 import { AGENT_DEFINITIONS } from '../../shared/desktop/agentKinds'
-import type { AgentId, AgentProtocol, AgentView, BuiltInAgentKind } from '../../shared/desktop/api'
+import type { AgentId, AgentView, BuiltInAgentKind } from '../../shared/desktop/api'
 
-/** A built-in agent's own fields; its id, protocol, display name and (empty) arguments follow from its kind. */
+/** A built-in agent's own fields; its id, display name and (empty) arguments follow from its kind. */
 type BuiltInAgentEntry = Pick<AgentView, 'executablePath' | 'version' | 'connectedVia' | 'connectedAt' | 'lastProbed'> & {
   kind: BuiltInAgentKind
 }
@@ -20,16 +20,13 @@ export type AgentConnection = Omit<BuiltInAgentEntry, 'connectedAt' | 'lastProbe
 export interface CustomAgentEntry {
   /** `cu_` and a ULID. */
   id: AgentId
-  protocol: AgentProtocol
   displayName: string
   executablePath: string
   args: readonly string[]
-  version: string | null
-  reportedName: string | null
 }
 
-/** What an edit may change of a custom agent: never its id or its protocol. */
-type CustomAgentChange = Pick<CustomAgentEntry, 'displayName' | 'executablePath' | 'args' | 'version' | 'reportedName'>
+/** What an edit may change of a custom agent: never its id. */
+type CustomAgentChange = Omit<CustomAgentEntry, 'id'>
 
 export interface AgentRegistry {
   /** Connected agents in insertion order, at most one per id. */
@@ -42,43 +39,37 @@ export interface AgentRegistry {
   remove(id: AgentId): void
   /** Inserts a custom agent row (kind and `connected_via` `custom`); throws when the id is taken. */
   addCustom(agent: CustomAgentEntry): AgentView
-  /** Changes a custom agent's row in place, refreshing `lastProbed`; null when no custom agent has the id. */
+  /**
+   * Changes a custom agent's row in place, refreshing `lastProbed` and clearing `needsReview` (the person has just
+   * confirmed it); null when no custom agent has the id.
+   */
   updateCustom(id: AgentId, change: CustomAgentChange): AgentView | null
-}
-
-const PROTOCOL_BY_KIND: Readonly<Record<BuiltInAgentKind, AgentProtocol>> = {
-  claude: 'claude',
-  codex: 'codex',
-  cursor: 'acp',
-  autonomous: 'acp'
 }
 
 interface AgentRow {
   id: AgentId
   kind: AgentView['kind']
-  protocol: AgentProtocol
   display_name: string
   executable_path: string
   args_json: string
   version: string | null
-  reported_name: string | null
+  needs_review: number
   connected_via: AgentView['connectedVia']
   connected_at: string
   last_probed: string
 }
 
-const SELECT_AGENTS = `SELECT id, kind, protocol, display_name, executable_path, args_json, version, reported_name, connected_via, connected_at, last_probed FROM agents`
+const SELECT_AGENTS = `SELECT id, kind, display_name, executable_path, args_json, version, needs_review, connected_via, connected_at, last_probed FROM agents`
 
 function toView(row: AgentRow): AgentView {
   return {
     id: row.id,
     kind: row.kind,
-    protocol: row.protocol,
     displayName: row.display_name,
     executablePath: row.executable_path,
     args: JSON.parse(row.args_json) as string[],
     version: row.version,
-    reportedName: row.reported_name,
+    needsReview: row.needs_review === 1,
     connectedVia: row.connected_via,
     connectedAt: row.connected_at,
     lastProbed: row.last_probed
@@ -95,12 +86,11 @@ export function writeBuiltInAgent(db: Db, agent: BuiltInAgentEntry, replace: boo
        connected_via = excluded.connected_via, last_probed = excluded.last_probed`
     : 'DO NOTHING'
   db.run(
-    `INSERT INTO agents (id, kind, protocol, display_name, executable_path, args_json, version, connected_via, connected_at, last_probed)
-     VALUES (?, ?, ?, ?, ?, '[]', ?, ?, ?, ?)
+    `INSERT INTO agents (id, kind, display_name, executable_path, args_json, version, connected_via, connected_at, last_probed)
+     VALUES (?, ?, ?, ?, '[]', ?, ?, ?, ?)
      ON CONFLICT (id) ${conflict}`,
     agent.kind,
     agent.kind,
-    PROTOCOL_BY_KIND[agent.kind],
     AGENT_DEFINITIONS[agent.kind].displayName,
     agent.executablePath,
     agent.version,
@@ -117,15 +107,12 @@ function getAgent(db: Db, id: AgentId): AgentView | null {
 
 function insertCustomAgent(db: Db, agent: CustomAgentEntry, stamp: string): AgentView {
   db.run(
-    `INSERT INTO agents (id, kind, protocol, display_name, executable_path, args_json, version, reported_name, connected_via, connected_at, last_probed)
-     VALUES (?, 'custom', ?, ?, ?, ?, ?, ?, 'custom', ?, ?)`,
+    `INSERT INTO agents (id, kind, display_name, executable_path, args_json, version, needs_review, connected_via, connected_at, last_probed)
+     VALUES (?, 'custom', ?, ?, ?, NULL, 0, 'custom', ?, ?)`,
     agent.id,
-    agent.protocol,
     agent.displayName,
     agent.executablePath,
     JSON.stringify(agent.args),
-    agent.version,
-    agent.reportedName,
     stamp,
     stamp
   )
@@ -136,16 +123,14 @@ function insertCustomAgent(db: Db, agent: CustomAgentEntry, stamp: string): Agen
   return view
 }
 
-/** Only a custom row is changed, and never its id, kind, protocol or connected_at. */
+/** Only a custom row is changed, and never its id, kind or connected_at; the edit was confirmed, so it needs no review. */
 function updateCustomAgent(db: Db, id: AgentId, change: CustomAgentChange, stamp: string): AgentView | null {
   db.run(
-    `UPDATE agents SET display_name = ?, executable_path = ?, args_json = ?, version = ?, reported_name = ?, last_probed = ?
+    `UPDATE agents SET display_name = ?, executable_path = ?, args_json = ?, needs_review = 0, last_probed = ?
      WHERE id = ? AND kind = 'custom'`,
     change.displayName,
     change.executablePath,
     JSON.stringify(change.args),
-    change.version,
-    change.reportedName,
     stamp,
     id
   )

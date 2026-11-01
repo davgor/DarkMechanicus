@@ -7,7 +7,7 @@ import { formatShortDate } from '../sidebar/epicStatusLine'
 import { ActivityNote } from './ActivityNote'
 import { describeActivity, IDLE_ACTIVITY } from './agentActivity'
 import type { AgentOutcome } from './agentOutcomes'
-import { agentVersionLabel, connectedViaText, PROTOCOL_TEXT, signInLabel } from './agentText'
+import { agentVersionLabel, connectedViaText, signInLabel } from './agentText'
 import { CustomAgentEdit } from './CustomAgentEdit'
 import { CheckAgain, SignInPrompt } from './SignInPrompt'
 import type { AgentsModel } from './useAgents'
@@ -64,7 +64,6 @@ function Details({ agent, agents }: AgentPageProps): JSX.Element {
     <section className="card" aria-label="Connection">
       <h2 className="card-title">Connection</h2>
       <dl className="kv agent-kv">
-        {agent.kind === 'custom' ? <Row label="Protocol">{PROTOCOL_TEXT[agent.protocol].label}</Row> : null}
         <Row label="Executable">
           <span className="mono">{agent.executablePath}</span>
         </Row>
@@ -78,6 +77,19 @@ function Details({ agent, agents }: AgentPageProps): JSX.Element {
         <SignInRow agent={agent} agents={agents} />
       </dl>
     </section>
+  )
+}
+
+/** A custom CLI marked `needsReview`: why no chat starts it, and what Review arguments does. */
+function ReviewNeeded(): JSX.Element {
+  return (
+    <div className="agent-note" role="note" aria-label="Review needed">
+      <p className="agent-note-title tone-warn">Review its arguments</p>
+      <p className="note">
+        It was saved before chats ran in a terminal, with arguments for a protocol (ACP or Codex app-server) the app no
+        longer speaks. No chat starts it until you review them: remove any that start a protocol server, then confirm.
+      </p>
+    </div>
   )
 }
 
@@ -111,15 +123,15 @@ interface ActionsProps extends AgentPageProps {
   onRemove(): void
 }
 
-/** A built-in agent is found again or updated from its vendor; a custom CLI is edited. Either can be removed. */
+/** A built-in agent is found again or updated from its vendor; a custom CLI is edited (or reviewed, when marked). Either can be removed. */
 function PageActions({ agent, agents, onEdit, onRemove }: ActionsProps): JSX.Element {
   const { kind } = agent
   const activity = agents.activity(agent.id)
   return (
     <div className="button-row">
       {kind === 'custom' ? (
-        <Button disabled={activity.busy} onClick={onEdit}>
-          Edit
+        <Button variant={agent.needsReview ? 'primary' : 'default'} disabled={activity.busy} onClick={onEdit}>
+          {agent.needsReview ? 'Review arguments' : 'Edit'}
         </Button>
       ) : (
         <>
@@ -158,6 +170,7 @@ export function AgentPage({ agent, agents }: AgentPageProps): JSX.Element {
         </div>
       </header>
       <Details agent={agent} agents={agents} />
+      {agent.needsReview ? <ReviewNeeded /> : null}
       <ActivityNote name={name} activity={saved === null || activity.busy ? activity : describeActivity({ ...IDLE_ACTIVITY, outcome: saved })} />
       {editing ? (
         <CustomAgentEdit

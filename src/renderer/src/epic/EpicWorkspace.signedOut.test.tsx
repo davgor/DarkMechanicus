@@ -1,11 +1,9 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import type { AgentAuthStatus } from '../../../shared/desktop/api'
 import { SIGNED_OUT_PAUSE_REASON } from '../../../shared/domain/status'
 import { chatRecord } from '../__mocks__/fixtures'
-import { settle } from '../__mocks__/settle'
-import { SIGN_IN_POLL_MS } from '../agents/SignInPrompt'
 import { installDomShims } from './__mocks__/domShims'
 import { FakeBackend, scenario } from './__mocks__/fakeBackend'
 import { fakeOrchestration, readyAgent } from './__mocks__/fakeOrchestration'
@@ -21,7 +19,6 @@ beforeAll(() => {
 
 afterEach(() => {
   cleanup()
-  vi.useRealTimers()
 })
 
 const SIGNED_OUT: AgentAuthStatus = { state: 'signed_out', reason: 'Claude Code asked to sign in again.' }
@@ -96,20 +93,13 @@ describe('Run bar: paused because the orchestrator’s agent signed out', () => 
 })
 
 describe('Run bar: signing in from the bar', () => {
-  it('starts the agent’s sign-in and reports the status it finds, until the agent is signed in', async () => {
-    const backend = pausedForSignIn()
+  it('opens the agent’s sign-in view and reports the status it finds', async () => {
     const host = hostWith(SIGNED_OUT)
-    renderWorkspace(backend, { orchestration: host })
+    const harness = renderWorkspace(pausedForSignIn(), { orchestration: host })
     const bar = await runBar()
-    vi.useFakeTimers()
-    backend.signInAgent = () => Promise.resolve({ outcome: 'started' })
-    backend.agentStatus = () => Promise.resolve(SIGNED_IN)
     fireEvent.click(bar.getByRole('button', { name: 'Sign in' }))
-    await settle()
-    expect(bar.getByText('Sign-in started')).toBeTruthy()
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(SIGN_IN_POLL_MS)
-    })
+    expect(harness.signIn.agents()).toEqual(['claude'])
+    act(() => harness.signIn.finish(SIGNED_IN))
     expect(host.reportedStatuses).toEqual([['claude', SIGNED_IN]])
   })
 

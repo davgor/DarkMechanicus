@@ -23,9 +23,9 @@ function connection(kind: AgentConnection['kind'], overrides: Partial<AgentConne
 interface AgentRow {
   id: string
   kind: string
-  protocol: string
   display_name: string
   args_json: string
+  needs_review: number
 }
 
 describe('createAgentRegistry listing', () => {
@@ -53,12 +53,11 @@ describe('createAgentRegistry upsert', () => {
     expect(view).toEqual({
       id: 'claude',
       kind: 'claude',
-      protocol: 'claude',
       displayName: 'Claude Code',
       args: [],
       executablePath: '/bin/claude',
       version: '1.0.0',
-      reportedName: null,
+      needsReview: false,
       connectedVia: 'found',
       connectedAt: '2026-01-01T00:00:00.000Z',
       lastProbed: '2026-01-01T00:00:00.000Z'
@@ -71,11 +70,11 @@ describe('createAgentRegistry upsert', () => {
     const registry = createAgentRegistry({ db })
     AGENT_KINDS.forEach((kind) => registry.upsert(connection(kind)))
 
-    expect(db.all<AgentRow>('SELECT id, kind, protocol, display_name, args_json FROM agents ORDER BY rowid')).toEqual([
-      { id: 'claude', kind: 'claude', protocol: 'claude', display_name: 'Claude Code', args_json: '[]' },
-      { id: 'codex', kind: 'codex', protocol: 'codex', display_name: 'Codex', args_json: '[]' },
-      { id: 'cursor', kind: 'cursor', protocol: 'acp', display_name: 'Cursor', args_json: '[]' },
-      { id: 'autonomous', kind: 'autonomous', protocol: 'acp', display_name: 'Autonomous', args_json: '[]' }
+    expect(db.all<AgentRow>('SELECT id, kind, display_name, args_json, needs_review FROM agents ORDER BY rowid')).toEqual([
+      { id: 'claude', kind: 'claude', display_name: 'Claude Code', args_json: '[]', needs_review: 0 },
+      { id: 'codex', kind: 'codex', display_name: 'Codex', args_json: '[]', needs_review: 0 },
+      { id: 'cursor', kind: 'cursor', display_name: 'Cursor', args_json: '[]', needs_review: 0 },
+      { id: 'autonomous', kind: 'autonomous', display_name: 'Autonomous', args_json: '[]', needs_review: 0 }
     ])
   })
 
@@ -130,18 +129,20 @@ const CUSTOM_ID = 'cu_01m65kwqqeyajbj5bnq81gngrb'
 function customEntry(overrides: Partial<CustomAgentEntry> = {}): CustomAgentEntry {
   return {
     id: CUSTOM_ID,
-    protocol: 'acp',
     displayName: 'My agent',
     executablePath: '/opt/mine',
     args: ['--acp', '{folder}'],
-    version: '0.3.1',
-    reportedName: 'mine',
     ...overrides
   }
 }
 
+/** A custom row as the v3 migration leaves an ACP or Codex one: marked for review. */
+function markForReview(db: Db, id: string): void {
+  db.run('UPDATE agents SET needs_review = 1 WHERE id = ?', id)
+}
+
 describe('createAgentRegistry custom agents', () => {
-  it('adds a custom row: kind and connected_via custom, its own args and display name, and the reported agent name', () => {
+  it('adds a custom row: kind and connected_via custom, its own args and display name, no version and no review', () => {
     const db = appDb()
     const registry = createAgentRegistry({ db, now: () => '2026-01-01T00:00:00.000Z' })
 
@@ -150,65 +151,79 @@ describe('createAgentRegistry custom agents', () => {
     expect(view).toEqual({
       id: CUSTOM_ID,
       kind: 'custom',
-      protocol: 'acp',
       displayName: 'My agent',
       executablePath: '/opt/mine',
       args: ['--acp', '{folder}'],
-      version: '0.3.1',
-      reportedName: 'mine',
+      version: null,
+      needsReview: false,
       connectedVia: 'custom',
       connectedAt: '2026-01-01T00:00:00.000Z',
       lastProbed: '2026-01-01T00:00:00.000Z'
     })
-    expect(db.get<AgentRow>('SELECT id, kind, protocol, display_name, args_json, reported_name FROM agents')).toEqual({
+    expect(db.get<AgentRow>('SELECT id, kind, display_name, args_json, needs_review FROM agents')).toEqual({
       id: CUSTOM_ID,
       kind: 'custom',
-      protocol: 'acp',
       display_name: 'My agent',
       args_json: '["--acp","{folder}"]',
-      reported_name: 'mine'
+      needs_review: 0
     })
+  })
+
+  it('reads a row marked for review as needing review', () => {
+    const db = appDb()
+    const registry = createAgentRegistry({ db })
+    registry.addCustom(customEntry())
+
+    markForReview(db, CUSTOM_ID)
+
+    expect(registry.get(CUSTOM_ID)?.needsReview).toBe(true)
+    expect(registry.list()).toEqual([expect.objectContaining({ id: CUSTOM_ID, needsReview: true })])
   })
 })
 
 describe('createAgentRegistry custom agent edits', () => {
-  it('updates the name, program, args, version and reported name of a custom row in place, never its protocol or connectedAt', () => {
+  it('updates the name, program and args of a custom row in place, never its connectedAt', () => {
     const registry = createAgentRegistry({ db: appDb(), now: counterNow() })
     const added = registry.addCustom(customEntry())
 
-    const updated = registry.updateCustom(CUSTOM_ID, {
-      displayName: 'Renamed',
-      executablePath: '/opt/other',
-      args: [],
-      version: null,
-      reportedName: null
-    })
+    const updated = registry.updateCustom(CUSTOM_ID, { displayName: 'Renamed', executablePath: '/opt/other', args: [] })
 
     expect(updated).toEqual({
       ...added,
       displayName: 'Renamed',
       executablePath: '/opt/other',
       args: [],
-      version: null,
-      reportedName: null,
       lastProbed: '2026-01-01T00:00:01.000Z'
     })
     expect(registry.list()).toEqual([updated])
   })
 
+  it('clears the review mark: a confirmed edit is the review', () => {
+    const db = appDb()
+    const registry = createAgentRegistry({ db })
+    registry.addCustom(customEntry())
+    markForReview(db, CUSTOM_ID)
+
+    const updated = registry.updateCustom(CUSTOM_ID, { displayName: 'My agent', executablePath: '/opt/mine', args: ['{folder}'] })
+
+    expect(updated).toMatchObject({ needsReview: false, args: ['{folder}'] })
+    expect(db.get('SELECT needs_review FROM agents WHERE id = ?', CUSTOM_ID)).toEqual({ needs_review: 0 })
+  })
+
   it('updates nothing and answers null for an id with no custom row, built-ins included', () => {
-    const registry = createAgentRegistry({ db: appDb() })
+    const db = appDb()
+    const registry = createAgentRegistry({ db })
     registry.upsert(connection('codex'))
-    const fields = { displayName: 'X', executablePath: '/bin/sh', args: [], version: null, reportedName: null }
+    const fields = { displayName: 'X', executablePath: '/bin/sh', args: [] }
 
     expect(registry.updateCustom(CUSTOM_ID, fields)).toBeNull()
     expect(registry.updateCustom('codex', fields)).toBeNull()
     expect(registry.get('codex')?.executablePath).toBe('/bin/codex')
   })
 
-  it('reads a built-in row as reporting no agent name', () => {
+  it('reads a built-in row as needing no review', () => {
     const registry = createAgentRegistry({ db: appDb() })
 
-    expect(registry.upsert(connection('autonomous', { version: '0.79.0' }))).toMatchObject({ version: '0.79.0', reportedName: null })
+    expect(registry.upsert(connection('autonomous', { version: '0.79.0' }))).toMatchObject({ version: '0.79.0', needsReview: false })
   })
 })

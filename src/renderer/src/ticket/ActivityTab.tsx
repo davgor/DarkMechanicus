@@ -7,6 +7,7 @@ import type { Scheduler } from '../app/scheduler'
 import { useAttemptTimeline } from '../app/useActivityTimeline'
 import { isApproval, StreamApproval, StreamBody } from '../agents/StreamRow'
 import { mergeByTime } from '../agents/threadStream'
+import { useBoundTerminal } from '../agents/useBoundTerminal'
 import { useBoundThread } from '../agents/useBoundThread'
 import { streamEntries, useThreadStream, type StreamEntry, type ThreadStream } from '../agents/useThreadStream'
 import { StatePill } from '../epic/StatePill'
@@ -57,6 +58,8 @@ interface HeadingProps {
   view: AttemptTimelineView | null
   /** Opens the chat the attempt's worker runs in; null when the attempt is not worked in a chat. */
   onOpenChat: (() => void) | null
+  /** Opens the chat whose terminal claimed the attempt (bound by grant); null when none is known. */
+  onOpenTerminal: (() => void) | null
 }
 
 function Heading(props: HeadingProps): JSX.Element {
@@ -70,6 +73,11 @@ function Heading(props: HeadingProps): JSX.Element {
       {props.onOpenChat === null ? null : (
         <button type="button" className="ew-link tp-activity-open" onClick={props.onOpenChat}>
           Open chat
+        </button>
+      )}
+      {props.onOpenTerminal === null ? null : (
+        <button type="button" className="ew-link tp-activity-open" onClick={props.onOpenTerminal}>
+          Open terminal
         </button>
       )}
     </div>
@@ -189,8 +197,10 @@ function LogOf({ view, thread }: { view: AttemptTimelineView; thread: BoundThrea
 
 /**
  * Follows one attempt: its history, then each new entry while it is open; polling stops when it closes. An
- * attempt whose worker runs in a chat thread also shows that thread, merged in, with a link to the chat; the
- * lookup is asked again as the timeline moves until a thread is bound. Any other attempt shows the timeline alone.
+ * attempt whose worker runs in a chat thread (an old chat's item-based binding) also shows that thread, merged in,
+ * with a link to the chat; an attempt claimed from a chat's terminal gets an Open terminal link to that chat, found
+ * by grant. Both lookups are asked again as the timeline moves until they find their chat. Any other attempt shows
+ * the timeline alone.
  */
 function Timeline(props: TimelineProps): JSX.Element {
   const [error, setError] = useState<string | null>(null)
@@ -202,10 +212,12 @@ function Timeline(props: TimelineProps): JSX.Element {
   })
   useEffect(() => setError(null), [view])
   const thread = useBoundThread({ folder: props.folderPath, attemptId: props.attemptId }, view?.cursor)
+  const terminal = useBoundTerminal({ folder: props.folderPath, attemptId: props.attemptId }, view?.cursor)
   const open = thread === null ? null : () => props.onOpenChat(thread.chatId, thread.threadId ?? undefined)
+  const openTerminal = terminal === null ? null : () => props.onOpenChat(terminal)
   return (
     <>
-      <Heading attempt={props.attempt} view={view} onOpenChat={open} />
+      <Heading attempt={props.attempt} view={view} onOpenChat={open} onOpenTerminal={openTerminal} />
       {error === null ? null : <p role="alert" className="tp-error">{error}</p>}
       {view === null && error === null ? <p className="ew-muted">Loading activity…</p> : null}
       {view === null ? null : <LogOf view={view} thread={thread} />}

@@ -1,8 +1,10 @@
 /**
  * What the epic workspace needs from the shell to start a run with an agent and to show which chat
  * is orchestrating it: the connected agents (only signed-in ones can be chosen), the folder's chats,
- * and the shell's navigation. The workspace stays on the epic; the shell opens the chat or the
- * add-agent pane only when the person follows a link.
+ * and the shell's navigation. A run started with an agent opens its orchestrator chat, whose terminal
+ * main has started (the CLI may ask the person something there first, such as Claude Code's folder
+ * trust); otherwise the workspace stays on the epic, and the shell opens a chat or the add-agent pane
+ * only when the person follows a link.
  */
 import type { ChatRecord } from '../../../shared/agents/chat'
 import type { StartOrchestratorResult } from '../../../shared/agents/chatApi'
@@ -25,8 +27,8 @@ export interface OrchestrationHost {
   statuses: AgentStatuses
   /** The folder's chats; the one orchestrating a run is the one that recorded the run's id. */
   chats: readonly ChatRecord[]
-  /** A chat was created for a run: the shell fetches the folder's chats again. */
-  onChatsChanged(): void
+  /** A chat was created for a run: the shell fetches the folder's chats again, resolving once they are listed. */
+  onChatsChanged(): Promise<void>
   /** Opens the add-agent pane. */
   onAddAgent(): void
   /** A sign-in prompt asked an agent's state itself: the shell shows what it found. */

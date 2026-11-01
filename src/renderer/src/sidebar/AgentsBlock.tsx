@@ -3,7 +3,7 @@ import type { ChatRecord } from '../../../shared/agents/chat'
 import type { AgentView, TrackedFolderView } from '../../../shared/desktop/api'
 import { plural } from '../app/plural'
 import { DeleteChatDialog, RenameChatDialog } from '../agents/ChatDialogs'
-import { newestFirst, waitingCount, waitingOnSignIn, waitingReason } from '../agents/chatList'
+import { newestFirst, waitingCount, waitingOnSignIn } from '../agents/chatList'
 import type { AgentStatuses } from '../agents/useAgents'
 import type { ChatListState } from '../agents/useChats'
 import { Button } from '../components/Button'
@@ -94,7 +94,7 @@ export function AgentsBlock(props: AgentsBlockProps): JSX.Element {
           type="button"
           className="agents-toggle"
           aria-expanded={expanded}
-          aria-label={`Agents, ${plural(list.chats.length, 'chat')}${waiting > 0 ? `, ${waiting} waiting for ${waitingReason(list.chats, statuses)}` : ''}`}
+          aria-label={`Agents, ${plural(list.chats.length, 'chat')}${waiting > 0 ? `, ${waiting} waiting for sign-in` : ''}`}
           onClick={props.onToggle}
         >
           <Icon name={expanded ? 'chevron-down' : 'chevron-right'} size={14} />

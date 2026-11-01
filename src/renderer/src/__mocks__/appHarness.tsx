@@ -8,14 +8,16 @@ import { FakeAutoUpdate } from './fakeAutoUpdate'
 import { FakeDm } from './fakeDm'
 import { EPIC_B, storageStatus } from './fixtures'
 import { ManualScheduler } from './manualScheduler'
+import { FakeTerminalKit } from './fakeTerminalKit'
 
-/** A whole fake desktop: window.dm, window.autoUpdate, a manual scheduler and per-folder data. */
+/** A whole fake desktop: window.dm, window.autoUpdate, a manual scheduler, a terminal emulator and per-folder data. */
 export class AppHarness {
   /** Every props object the epic view was rendered with, oldest first. */
   readonly epicProps: EpicWorkspaceProps[] = []
   readonly dm = new FakeDm()
   readonly autoUpdate = new FakeAutoUpdate()
   readonly scheduler = new ManualScheduler()
+  readonly terminalKit = new FakeTerminalKit()
   epics: Record<string, EpicSummaryView[]> = {}
   statuses: Record<string, StorageStatusView> = {}
   private readonly logs = new Map<string, EventLog>()
@@ -64,6 +66,6 @@ export class AppHarness {
   }
 
   mount(): RenderResult {
-    return render(<App scheduler={this.scheduler} EpicView={this.epicView} />)
+    return render(<App scheduler={this.scheduler} EpicView={this.epicView} terminalKit={this.terminalKit} />)
   }
 }

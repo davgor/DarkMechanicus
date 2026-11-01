@@ -23,14 +23,59 @@ function open(dir: string): Db {
   return db
 }
 
-function insertAgent(db: Db, id: string, kind: string, protocol = 'claude'): void {
+function insertAgent(db: Db, id: string, kind: string): void {
   db.run(
-    `INSERT INTO agents (id, kind, protocol, display_name, executable_path, connected_via, connected_at, last_probed)
-     VALUES (?, ?, ?, 'Agent', '/bin/agent', 'found', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')`,
+    `INSERT INTO agents (id, kind, display_name, executable_path, connected_via, connected_at, last_probed)
+     VALUES (?, ?, 'Agent', '/bin/agent', 'found', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')`,
     id,
-    kind,
-    protocol
+    kind
   )
+}
+
+/** The custom rows of the fixture: one per protocol a custom CLI could speak before chats became terminals. */
+const ACP_ROW = { id: 'cu_01m6acp00000000000000000aa', protocol: 'acp', display_name: 'a8s over ACP', executable_path: '/Users/me/.local/bin/a8s', args_json: '["start","{folder}","--mode","acp"]', version: '0.79.0', reported_name: 'omp' }
+const CODEX_ROW = { id: 'cu_01m6codex000000000000000bb', protocol: 'codex', display_name: 'My Codex', executable_path: '/opt/tools/codex', args_json: '["app-server"]', version: '0.9.1', reported_name: 'codex_cli_rs' }
+const CLAUDE_ROW = { id: 'cu_01m6c1aude00000000000000cc', protocol: 'claude', display_name: 'My Claude', executable_path: '/Users/me/.local/bin/claude', args_json: '["--model","haiku"]', version: null, reported_name: null }
+
+/**
+ * Writes `<dir>/app.sqlite` at today's schema (v2, as the build before terminal chats left it): a built-in Codex
+ * row, one custom row per protocol, and a folder default on the ACP row.
+ */
+function writeTodaysAppSqlite(dir: string): void {
+  const raw = openDatabase(join(dir, 'app.sqlite'))
+  migrate(raw, APP_MIGRATIONS.filter((migration) => migration.version <= 2))
+  raw.run(
+    `INSERT INTO agents (id, kind, protocol, display_name, executable_path, args_json, version, reported_name, connected_via, connected_at, last_probed)
+     VALUES ('codex', 'codex', 'codex', 'Codex', '/usr/local/bin/codex', '[]', '0.9.1', NULL, 'found', '2026-10-01T00:00:00Z', '2026-10-02T00:00:00Z')`
+  )
+  for (const row of [ACP_ROW, CODEX_ROW, CLAUDE_ROW]) {
+    raw.run(
+      `INSERT INTO agents (id, kind, protocol, display_name, executable_path, args_json, version, reported_name, connected_via, connected_at, last_probed)
+       VALUES (?, 'custom', ?, ?, ?, ?, ?, ?, 'custom', '2026-10-01T00:00:00Z', '2026-10-02T00:00:00Z')`,
+      row.id,
+      row.protocol,
+      row.display_name,
+      row.executable_path,
+      row.args_json,
+      row.version,
+      row.reported_name
+    )
+  }
+  raw.run("INSERT INTO folder_agent_defaults (folder, agent_id, updated_at) VALUES ('/repos/a', ?, '2026-10-03T00:00:00Z')", ACP_ROW.id)
+  raw.run("INSERT INTO app_meta (key, value) VALUES ('legacy_import', 'done')")
+  expect(raw.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(2)
+  raw.close()
+}
+
+/** The fixture at today's schema, opened (and so upgraded) by this build. */
+function upgraded(): Db {
+  const dir = tempDir()
+  writeTodaysAppSqlite(dir)
+  return open(dir)
+}
+
+function columnsOf(db: Db, table: string): string[] {
+  return db.all<{ name: string }>(`SELECT name FROM pragma_table_info('${table}') ORDER BY cid`).map((column) => column.name)
 }
 
 afterEach(() => {
@@ -39,36 +84,55 @@ afterEach(() => {
 })
 
 describe('openAppDatabase', () => {
-  it('creates app.sqlite at user_version 2 with the three tables', () => {
+  it('creates app.sqlite at user_version 3 with the three tables', () => {
     const dir = tempDir()
     const db = open(dir)
     expect(existsSync(join(dir, 'app.sqlite'))).toBe(true)
-    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(2)
+    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(3)
     const tables = db
       .all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
       .map((row) => row.name)
     expect(tables).toEqual(['agents', 'app_meta', 'folder_agent_defaults'])
   })
 
+  it('stores an agent with no protocol and no handshake result, and whether it needs review', () => {
+    const db = open(tempDir())
+    expect(columnsOf(db, 'agents')).toEqual([
+      'id',
+      'kind',
+      'display_name',
+      'executable_path',
+      'args_json',
+      'version',
+      'connected_via',
+      'connected_at',
+      'last_probed',
+      'needs_review'
+    ])
+  })
+
+})
+
+describe('openAppDatabase on a file already there', () => {
   it('applies nothing when reopened', () => {
     const dir = tempDir()
     open(dir).close()
     openDbs.length = 0
     const db = open(dir)
-    expect(migrate(db, APP_MIGRATIONS)).toEqual({ from: 2, to: 2 })
+    expect(migrate(db, APP_MIGRATIONS)).toEqual({ from: 3, to: 3 })
   })
 
   it('refuses a database at a newer user_version with incompatible_schema', () => {
     const dir = tempDir()
     const raw = openDatabase(join(dir, 'app.sqlite'))
-    raw.exec('PRAGMA user_version = 3')
+    raw.exec('PRAGMA user_version = 4')
     raw.close()
     const error = thrownBy(() => open(dir))
     expect(error).toBeInstanceOf(DomainError)
     expect((error as DomainError).code).toBe('incompatible_schema')
   })
 
-  it('upgrades a v1 file, keeping its agent rows, which report no agent name', () => {
+  it('upgrades a v1 file, keeping its agent rows', () => {
     const dir = tempDir()
     const raw = openDatabase(join(dir, 'app.sqlite'))
     migrate(raw, APP_MIGRATIONS.filter((migration) => migration.version === 1))
@@ -78,8 +142,63 @@ describe('openAppDatabase', () => {
     )
     raw.close()
     const db = open(dir)
-    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(2)
-    expect(db.get('SELECT id, version, reported_name FROM agents')).toEqual({ id: 'cu_1', version: '18.11.2', reported_name: null })
+    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(3)
+    expect(db.get('SELECT id, args_json, needs_review FROM agents')).toEqual({ id: 'cu_1', args_json: '["{folder}"]', needs_review: 1 })
+  })
+})
+
+describe('upgrading an app.sqlite at today’s schema (v2): the protocol goes, ACP and Codex custom rows need review', () => {
+  it('drops the protocol column, and the agent name the handshake reported', () => {
+    const db = upgraded()
+    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(3)
+    expect(columnsOf(db, 'agents')).not.toContain('protocol')
+    expect(columnsOf(db, 'agents')).not.toContain('reported_name')
+    expect(db.get<{ sql: string }>("SELECT sql FROM sqlite_master WHERE name = 'agents'")?.sql).not.toMatch(/protocol|reported_name/)
+  })
+
+  it('marks the ACP and Codex custom rows for review, and leaves the Claude-protocol row and the built-in to start as they are', () => {
+    const db = upgraded()
+    expect(db.all('SELECT id, needs_review FROM agents ORDER BY rowid')).toEqual([
+      { id: 'codex', needs_review: 0 },
+      { id: ACP_ROW.id, needs_review: 1 },
+      { id: CODEX_ROW.id, needs_review: 1 },
+      { id: CLAUDE_ROW.id, needs_review: 0 }
+    ])
+  })
+
+  it('keeps every row’s program, arguments, name and timestamps, and clears only the custom rows’ handshake version', () => {
+    const db = upgraded()
+    expect(db.all('SELECT id, kind, display_name, executable_path, args_json, version, connected_via, connected_at, last_probed FROM agents ORDER BY rowid')).toEqual([
+      { id: 'codex', kind: 'codex', display_name: 'Codex', executable_path: '/usr/local/bin/codex', args_json: '[]', version: '0.9.1', connected_via: 'found', connected_at: '2026-10-01T00:00:00Z', last_probed: '2026-10-02T00:00:00Z' },
+      ...[ACP_ROW, CODEX_ROW, CLAUDE_ROW].map((row) => ({
+        id: row.id,
+        kind: 'custom',
+        display_name: row.display_name,
+        executable_path: row.executable_path,
+        args_json: row.args_json,
+        version: null,
+        connected_via: 'custom',
+        connected_at: '2026-10-01T00:00:00Z',
+        last_probed: '2026-10-02T00:00:00Z'
+      }))
+    ])
+  })
+
+})
+
+describe('upgrading an app.sqlite at today’s schema (v2): what else the upgrade keeps', () => {
+  it('keeps the folder defaults and app_meta: rebuilding agents would have cascaded the defaults away', () => {
+    const db = upgraded()
+    expect(db.all('SELECT folder, agent_id FROM folder_agent_defaults')).toEqual([{ folder: '/repos/a', agent_id: ACP_ROW.id }])
+    expect(db.all('SELECT key, value FROM app_meta')).toEqual([{ key: 'legacy_import', value: 'done' }])
+    db.run('DELETE FROM agents WHERE id = ?', ACP_ROW.id)
+    expect(db.all('SELECT * FROM folder_agent_defaults')).toEqual([])
+  })
+
+  it('keeps the row checks after the upgrade', () => {
+    const db = upgraded()
+    expect(thrownBy(() => insertAgent(db, 'other', 'claude'))).toBeInstanceOf(Error)
+    expect(thrownBy(() => db.run("UPDATE agents SET needs_review = 2 WHERE id = 'codex'"))).toBeInstanceOf(Error)
   })
 })
 
@@ -92,11 +211,14 @@ describe('app database constraints', () => {
     expect(db.all('SELECT * FROM folder_agent_defaults')).toEqual([])
   })
 
-  it('accepts a built-in row and a cu_ custom row', () => {
+  it('accepts a built-in row and a cu_ custom row, neither needing review unless told', () => {
     const db = open(tempDir())
-    insertAgent(db, 'codex', 'codex', 'codex')
-    insertAgent(db, 'cu_1', 'custom', 'acp')
-    expect(db.all('SELECT id FROM agents')).toHaveLength(2)
+    insertAgent(db, 'codex', 'codex')
+    insertAgent(db, 'cu_1', 'custom')
+    expect(db.all('SELECT id, needs_review FROM agents')).toEqual([
+      { id: 'codex', needs_review: 0 },
+      { id: 'cu_1', needs_review: 0 }
+    ])
   })
 
   it('refuses a built-in row whose id is not its kind', () => {
@@ -106,11 +228,12 @@ describe('app database constraints', () => {
 
   it('refuses a custom row whose id does not start with cu_', () => {
     const db = open(tempDir())
-    expect(thrownBy(() => insertAgent(db, 'mine', 'custom', 'acp'))).toBeInstanceOf(Error)
+    expect(thrownBy(() => insertAgent(db, 'mine', 'custom'))).toBeInstanceOf(Error)
   })
 
-  it('refuses an unknown protocol', () => {
+  it('refuses a needs_review other than 0 or 1', () => {
     const db = open(tempDir())
-    expect(thrownBy(() => insertAgent(db, 'claude', 'claude', 'telnet'))).toBeInstanceOf(Error)
+    insertAgent(db, 'cu_1', 'custom')
+    expect(thrownBy(() => db.run("UPDATE agents SET needs_review = 2 WHERE id = 'cu_1'"))).toBeInstanceOf(Error)
   })
 })

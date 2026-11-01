@@ -36,7 +36,7 @@ export function fakeOrchestration(patch: Partial<OrchestrationHost> = {}): FakeO
     agents: [],
     statuses: {},
     chats,
-    onChatsChanged: () => {
+    onChatsChanged: async () => {
       chatsChanged.count += 1
     },
     onAddAgent: () => {

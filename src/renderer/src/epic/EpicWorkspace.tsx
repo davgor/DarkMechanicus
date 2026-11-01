@@ -289,6 +289,7 @@ function WorkspaceBody(props: EpicWorkspaceProps): JSX.Element {
     refreshToken: props.refreshToken,
     onChanged: props.onChanged,
     onChatsChanged: props.orchestration.onChatsChanged,
+    onOpenChat: props.orchestration.onOpenChat,
     agents: props.orchestration.agents
   })
   const now = useNow()

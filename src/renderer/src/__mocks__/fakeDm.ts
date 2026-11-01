@@ -1,6 +1,7 @@
 import type { CommandName } from '../../../shared/domain/api'
 import { deferred } from './deferred'
 import { FakeChats } from './fakeChats'
+import { idleTerminals } from './idleTerminals'
 import type { Deferred } from './deferred'
 import type { DomainErrorShape } from '../../../shared/domain/errors'
 import type { BoardRemovalResultView, BoardRemovalView } from '../../../shared/domain/views'
@@ -10,7 +11,6 @@ import type {
   AgentDownloadResult,
   AgentFindResult,
   AgentId,
-  AgentSignInResult,
   AgentView,
   BuiltInAgentKind,
   CustomAgentRequest,
@@ -50,6 +50,7 @@ export const MCP_JSON = '{\n  "mcpServers": {\n    "darkmechanicus": { "command"
  */
 export class FakeDm implements DmApi {
   chats = new FakeChats()
+  terminals = idleTerminals()
   folders: TrackedFolderView[] = []
   pickQueue: FolderPickResult[] = []
   responses: Partial<Record<CommandName, unknown>> = {
@@ -146,8 +147,6 @@ export class FakeDm implements DmApi {
   downloadOutcomes: AgentDownloadResult[] = []
   /** What agentStatus answers per agent id; an agent with no entry is `unknown`. */
   agentStatuses: Partial<Record<AgentId, AgentAuthStatus>> = {}
-  /** Answers to signInAgent, in order; once used up the sign-in starts. */
-  signInOutcomes: AgentSignInResult[] = []
   /** Default agent per folder path, as `setFolderDefaultAgent` leaves it. */
   folderDefaults: Partial<Record<string, AgentId>> = {}
   /** Every agent API call with exactly the arguments it was given, oldest first. */
@@ -214,10 +213,6 @@ export class FakeDm implements DmApi {
       [kind],
       () => this.agentStatuses[kind] ?? { state: 'unknown', reason: 'Not connected yet.' }
     )
-  }
-
-  signInAgent(kind: AgentId): Promise<AgentSignInResult> {
-    return this.agentCall('signInAgent', [kind], () => this.signInOutcomes.shift() ?? { outcome: 'started' })
   }
 
   folderDefaultAgent(folder: string): Promise<AgentId | null> {

@@ -1,0 +1,69 @@
+DM-324: quit and close checks on the built app (out/ of terminal-chats-DM-324), scratch --user-data-dir /tmp/dm324-live/userdata, two live fixture terminals (chats opened over the renderer CDP port, whose socket was closed before quitting).
+Each check: one main-inspector Runtime.evaluate, then the inspector socket closed at once; ps -axo pid,pgid,args polled for the app's processes and agent-fixture.mjs.
+
+1. Cmd+Q, menu item role=quit, accelerator CommandOrControl+Q, label "Quit dark-mechanicus".
+   1a. MenuItem.click() from JS on the role=quit item: nothing happened (no before-quit; fixtures kept running; killed after 11 s). On macOS that item is the native terminate: action, and click() from JS does not run it. A real Cmd+Q sends that action.
+   1b. Menu.sendActionToFirstResponder('terminate:'), the action the Quit item sends on macOS:
+{
+  "result": "{\"menuItem\":\"Quit dark-mechanicus\",\"role\":\"quit\",\"accelerator\":\"CommandOrControl+Q\",\"action\":\"terminate:\"}",
+  "exitedMs": 217,
+  "exitCode": 0,
+  "before": [
+    "76513 45668 /Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/DM-324/node_modules/electron/dist/Electron.app/Contents/MacOS/Elect",
+    "77911 45668 /Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/DM-324/node_modules/electron/dist/Electron.app/Contents/Frameworks/",
+    "77912 45668 /Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/DM-324/node_modules/electron/dist/Electron.app/Contents/Frameworks/",
+    "78360 45668 /Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/DM-324/node_modules/electron/dist/Electron.app/Contents/Frameworks/",
+    "79104 79104 node /tmp/dm324-live/bin/agent-fixture.mjs",
+    "99345 99345 node /tmp/dm324-live/bin/agent-fixture.mjs"
+  ],
+  "after": []
+}
+   1c. For comparison: app.quit(), one live terminal: exited in 150 ms, exit code 0, nothing left.
+
+2. Cmd+W, menu item role=close, accelerator CommandOrControl+W, label "Close Window".
+   2a. Menu.sendActionToFirstResponder('performClose:'), then MenuItem.click() on the role=close item: the window stayed open. The app cannot become key from this background session: app.focus({ steal: true }) + win.focus() left BrowserWindow.getFocusedWindow() null, and performClose: goes to the key window. The window was never closed this way.
+{
+  "result": "{\"menuItem\":\"Close Window\",\"role\":\"close\",\"accelerator\":\"CommandOrControl+W\",\"windowsBefore\":1,\"windowsAfter\":1,\"viaNativeAction\":false,\"windowsAfterRoleClick\":1,\"appAliveAfterClose\":true}",
+  "exitedMs": 466,
+  "exitCode": 0,
+  "before": [
+    "33060 45668 /Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/DM-324/node_modules/electron/dist/Electron.app/Contents/MacOS/Elect",
+    "34603 45668 /Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/DM-324/node_modules/electron/dist/Electron.app/Contents/Frameworks/",
+    "34605 45668 /Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/DM-324/node_modules/electron/dist/Electron.app/Contents/Frameworks/",
+    "34986 45668 /Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/DM-324/node_modules/electron/dist/Electron.app/Contents/Frameworks/",
+    "35821 35821 node /tmp/dm324-live/bin/agent-fixture.mjs",
+    "54329 54329 node /tmp/dm324-live/bin/agent-fixture.mjs"
+  ],
+  "after": []
+}
+{
+  "result": "{\"focused\":false,\"windowsBefore\":1,\"windowsAfter\":1,\"appStillRunning\":true}",
+  "exitedMs": 1733,
+  "exitCode": 0,
+  "before": [
+    "180 45668 /Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/DM-324/node_modules/electron/dist/Electron.app/Contents/Frameworks/El",
+    "183 45668 /Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/DM-324/node_modules/electron/dist/Electron.app/Contents/Frameworks/El",
+    "656 45668 /Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/DM-324/node_modules/electron/dist/Electron.app/Contents/Frameworks/El",
+    "98999 45668 /Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/DM-324/node_modules/electron/dist/Electron.app/Contents/MacOS/Elect",
+    "1202  1202 node /tmp/dm324-live/bin/agent-fixture.mjs",
+    "17616 17616 node /tmp/dm324-live/bin/agent-fixture.mjs"
+  ],
+  "after": []
+}
+   2b. win.close(), the window close that Cmd+W performs on the key window: the window closed (1 -> 0), the app stayed running (macOS convention), both fixture PTYs kept running, then terminate: quit:
+{
+  "result": "{\"windowsBefore\":1,\"windowsAfter\":0,\"appAlive\":true,\"fixturesAfterClose\":2}",
+  "exitedMs": 338,
+  "exitCode": 0,
+  "before": [
+    "61174 45668 /Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/DM-324/node_modules/electron/dist/Electron.app/Contents/MacOS/Elect",
+    "61741 45668 /Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/DM-324/node_modules/electron/dist/Electron.app/Contents/Frameworks/",
+    "61746 45668 /Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/DM-324/node_modules/electron/dist/Electron.app/Contents/Frameworks/",
+    "62157 45668 /Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/DM-324/node_modules/electron/dist/Electron.app/Contents/Frameworks/",
+    "62464 62464 node /tmp/dm324-live/bin/agent-fixture.mjs",
+    "78188 78188 node /tmp/dm324-live/bin/agent-fixture.mjs"
+  ],
+  "after": []
+}
+
+Conclusion: with two live fixture terminals, the quit action exits in 217-466 ms (inside the 5 s quit-disposal bound), exit code 0, and leaves no app or fixture process. Closing the window keeps the app and its PTYs alive until quit. Not done: a real Cmd+W/Cmd+Q key press (System Events keystrokes, or a key window this session can focus) — a CDP-dispatched Cmd key goes to the page, not the native menu.

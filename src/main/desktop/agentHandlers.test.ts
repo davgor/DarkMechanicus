@@ -108,12 +108,11 @@ describe('findAgent connects a verified pick', () => {
     const expected = {
       id: 'claude',
       kind: 'claude',
-      protocol: 'claude',
       displayName: 'Claude Code',
       args: [],
       executablePath: '/home/me/.local/bin/claude',
       version: '2.1.281',
-      reportedName: null,
+      needsReview: false,
       connectedVia: 'found',
       connectedAt: '2026-01-01T00:00:00.000Z',
       lastProbed: '2026-01-01T00:00:00.000Z'
@@ -141,12 +140,12 @@ describe('findAgent connects a verified pick', () => {
     expect(world.registry.list()[0]?.version).toBeNull()
   })
 
-  it('stores a verified a8s as autonomous, an ACP agent', async () => {
+  it('stores a verified a8s as autonomous', async () => {
     const world = createWorld({ picks: ['/Users/me/.local/bin/a8s'], probe: () => ({ ok: true, version: '0.79.0' }) })
 
     const result = await world.handlers.findAgent('autonomous')
 
-    expect(result).toMatchObject({ outcome: 'connected', agent: { id: 'autonomous', kind: 'autonomous', protocol: 'acp', displayName: 'Autonomous', version: '0.79.0', args: [] } })
+    expect(result).toMatchObject({ outcome: 'connected', agent: { id: 'autonomous', kind: 'autonomous', displayName: 'Autonomous', version: '0.79.0', args: [], needsReview: false } })
     expect(world.probed).toEqual([['autonomous', '/Users/me/.local/bin/a8s']])
   })
 })
@@ -249,12 +248,9 @@ describe('custom agents', () => {
     const defaults = createFolderAgentDefaults({ db })
     const agent = world.registry.addCustom({
       id: CUSTOM_ID,
-      protocol: 'acp',
       displayName: 'My agent',
       executablePath: '/opt/mine',
-      args: ['{folder}'],
-      version: null,
-      reportedName: null
+      args: ['{folder}']
     })
     defaults.set('/repos/a', agent.id)
 

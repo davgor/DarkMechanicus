@@ -1,6 +1,6 @@
 /*
  * Subagent threads and Dark Mechanicus action markers in the chat. Every color is a token from styles.css: the
- * state colors for running, done and failed (always next to their words), brass for ticket keys and links,
+ * state colors for running, done and failed (always next to their words), brass for ticket keys,
  * gunmetal for lines and surfaces.
  */
 
@@ -25,12 +25,6 @@
 
 .chat-thread[data-state='failed'] {
   border-left-color: var(--st-failed);
-}
-
-/* The thread another screen linked to: ringed until the person looks elsewhere. */
-.chat-thread[data-focused='true'] {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
 }
 
 .chat-thread-head {
@@ -74,44 +68,6 @@
   flex-shrink: 0;
 }
 
-/* The ticket a thread is bound to: its key in brass, a button when it can open the ticket's Activity tab. */
-.chat-thread-bound {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 6px;
-  height: 22px;
-  padding: 0 8px;
-  border: 1px solid var(--line);
-  border-radius: 11px;
-  background: transparent;
-  color: var(--accent);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.chat-thread-link {
-  cursor: pointer;
-}
-
-.chat-thread-link:hover {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-}
-
-.chat-thread-link:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-}
-
-.chat-thread-hint {
-  color: var(--muted);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
 .chat-thread-rows {
   display: flex;
   flex-direction: column;
@@ -149,21 +105,6 @@
   font-family: var(--font-mono);
   font-size: 12px;
   text-align: left;
-}
-
-.chat-marker-link {
-  cursor: pointer;
-}
-
-.chat-marker-link:hover {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-  color: var(--ink);
-}
-
-.chat-marker-link:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
 }
 
 .chat-marker-icon {

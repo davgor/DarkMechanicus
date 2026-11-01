@@ -137,7 +137,7 @@ export function windowsProgramKind(path: string): 'shim' | 'program' | null {
   return PROGRAM_EXTENSIONS.has(extension) ? 'program' : null
 }
 
-export type LaunchPlan = { launch: ProbeLaunch } | AgentRefusal
+type LaunchPlan = { launch: ProbeLaunch } | AgentRefusal
 
 /**
  * Node refuses to spawn `.cmd` files without a shell, and npm installs agents as `.cmd` shims, so a
@@ -166,7 +166,7 @@ function planLaunch(path: string, args: readonly string[], deps: Pick<AgentProbe
 }
 
 /** A path must be absolute and name a regular file the system would let us run. */
-export function checkFile(path: string, deps: Pick<AgentProbeDeps, 'platform' | 'inspect'>): AgentRefusal | null {
+function checkFile(path: string, deps: Pick<AgentProbeDeps, 'platform' | 'inspect'>): AgentRefusal | null {
   const absolute = deps.platform === 'win32' ? win32.isAbsolute(path) : posix.isAbsolute(path)
   const check: FileCheck = absolute ? deps.inspect(path) : 'not_a_file'
   if (check === 'not_a_file') {

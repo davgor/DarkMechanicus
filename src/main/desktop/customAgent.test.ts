@@ -1,13 +1,12 @@
-import { chmodSync, mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { type Db, openDatabase } from '../../core/db/database'
 import { migrate } from '../../core/db/migrations'
 import { DomainError } from '../../core/errors'
-import type { AgentFindResult, AgentProtocol } from '../../shared/desktop/api'
-import type { AgentLaunchSpec } from '../agents/launchSpec'
-import type { HandshakeOutcome } from '../agents/protocolHandshake'
+import type { AgentFindResult } from '../../shared/desktop/api'
 import type { FileCheck } from './agentProbe'
 import { removeScratch } from '../../test/removeScratch'
 import { createAgentRegistry, type AgentRegistry } from './agentRegistry'
@@ -46,8 +45,6 @@ interface WorldOptions {
   picks?: (string | null | Promise<string | null>)[]
   /** Successive answers to the confirmation; defaults to yes. */
   answers?: (boolean | Promise<boolean>)[]
-  /** Successive handshake outcomes; defaults to a success reporting 1.2.3. */
-  handshakes?: (HandshakeOutcome | Promise<HandshakeOutcome>)[]
   platform?: string
   inspect?: (path: string) => FileCheck
 }
@@ -56,10 +53,9 @@ interface World {
   db: Db
   registry: AgentRegistry
   custom: CustomAgents
-  /** What happened, in order: `pick`, `confirm`, `handshake`. */
+  /** What happened, in order: `pick`, `confirm`. */
   log: string[]
   confirmations: CustomAgentConfirmation[]
-  handshakes: AgentLaunchSpec[]
 }
 
 function createWorld(options: WorldOptions = {}): World {
@@ -68,8 +64,7 @@ function createWorld(options: WorldOptions = {}): World {
   const registry = createAgentRegistry({ db, now: () => STAMP })
   const picks = [...(options.picks ?? [PROGRAM])]
   const answers = [...(options.answers ?? [])]
-  const shakes = [...(options.handshakes ?? [])]
-  const world: World = { db, registry, custom: undefined as never, log: [], confirmations: [], handshakes: [] }
+  const world: World = { db, registry, custom: undefined as never, log: [], confirmations: [] }
   world.custom = createCustomAgents({
     agents: registry,
     pickExecutable: async () => {
@@ -80,11 +75,6 @@ function createWorld(options: WorldOptions = {}): World {
       world.log.push('confirm')
       world.confirmations.push(confirmation)
       return (await answers.shift()) ?? true
-    },
-    handshake: async (spec) => {
-      world.log.push('handshake')
-      world.handshakes.push(spec)
-      return (await shakes.shift()) ?? { ok: true, version: '1.2.3', reportedName: 'mine' }
     },
     launch: { platform: options.platform ?? 'linux', inspect: options.inspect ?? (() => 'ok') }
   })
@@ -101,7 +91,7 @@ async function rejectionOf(promise: Promise<unknown>): Promise<{ code: string; m
 }
 
 function addRequest(overrides: Record<string, unknown> = {}): Record<string, unknown> {
-  return { name: 'My agent', protocol: 'acp', args: ['--acp', '{folder}'], ...overrides }
+  return { name: 'My agent', args: ['--acp', '{folder}'], ...overrides }
 }
 
 function connected(result: AgentFindResult): Extract<AgentFindResult, { outcome: 'connected' }>['agent'] {
@@ -117,59 +107,58 @@ async function expectRefusedBeforeAnything(world: World, payload: unknown): Prom
   expect(world.registry.list()).toEqual([])
 }
 
-describe('adding a custom CLI stores it only after the pick, the confirmation and the handshake', () => {
-  it('stores a cu_ row with its args, protocol and the agent name and version the handshake reported, connected as custom', async () => {
+describe('adding a custom CLI stores it only after the pick and the confirmation', () => {
+  it('stores a cu_ row with its args and no protocol, connected as custom, without running anything to check it', async () => {
     const world = createWorld()
 
     const agent = connected(await world.custom.add(addRequest()))
 
-    // The handshake is the only thing run: no version command or other probe is started.
-    expect(world.log).toEqual(['pick', 'confirm', 'handshake'])
+    // Nothing is run: no handshake, version command or other probe; the CLI first runs in a chat's terminal.
+    expect(world.log).toEqual(['pick', 'confirm'])
     expect(agent).toEqual({
       id: expect.stringMatching(CUSTOM_ID),
       kind: 'custom',
-      protocol: 'acp',
       displayName: 'My agent',
       executablePath: PROGRAM,
       args: ['--acp', '{folder}'],
-      version: '1.2.3',
-      reportedName: 'mine',
+      version: null,
+      needsReview: false,
       connectedVia: 'custom',
       connectedAt: STAMP,
       lastProbed: STAMP
     })
     expect(
-      world.db.get('SELECT kind, protocol, connected_via, args_json, version, reported_name FROM agents WHERE id = ?', agent.id)
+      world.db.get('SELECT * FROM agents WHERE id = ?', agent.id)
     ).toEqual({
+      id: agent.id,
       kind: 'custom',
-      protocol: 'acp',
+      display_name: 'My agent',
+      executable_path: PROGRAM,
       connected_via: 'custom',
       args_json: '["--acp","{folder}"]',
-      version: '1.2.3',
-      reported_name: 'mine'
+      version: null,
+      needs_review: 0,
+      connected_at: STAMP,
+      last_probed: STAMP
     })
   })
 
-  it('confirms and handshakes exactly the picked program, the typed arguments and the chosen protocol', async () => {
+  it('confirms exactly the name, the picked program and the typed arguments, and stores them', async () => {
     const world = createWorld()
 
-    await world.custom.add(addRequest({ protocol: 'codex', args: ['app-server'] }))
+    await world.custom.add(addRequest({ args: ['--model', 'haiku'] }))
 
-    expect(world.confirmations).toEqual([
-      { action: 'add', name: 'My agent', protocol: 'codex', executablePath: PROGRAM, args: ['app-server'] }
-    ])
-    expect(world.handshakes).toEqual([
-      { kind: 'custom', displayName: 'My agent', protocol: 'codex', executablePath: PROGRAM, args: ['app-server'] }
-    ])
+    expect(world.confirmations).toEqual([{ action: 'add', name: 'My agent', executablePath: PROGRAM, args: ['--model', 'haiku'] }])
+    expect(world.registry.list()).toEqual([expect.objectContaining({ executablePath: PROGRAM, args: ['--model', 'haiku'] })])
   })
 
-  it('stores a null version and name when the handshake reports neither, and gives each agent its own id', async () => {
-    const world = createWorld({ picks: [PROGRAM, PROGRAM], handshakes: [{ ok: true, version: null, reportedName: null }] })
+  it('gives each agent its own id', async () => {
+    const world = createWorld({ picks: [PROGRAM, PROGRAM] })
 
-    const first = connected(await world.custom.add(addRequest({ protocol: 'claude', args: [] })))
+    const first = connected(await world.custom.add(addRequest({ args: [] })))
     const second = connected(await world.custom.add(addRequest({ name: 'Other agent' })))
 
-    expect(first).toMatchObject({ version: null, reportedName: null })
+    expect(first).toMatchObject({ version: null, needsReview: false })
     expect(first.id).not.toBe(second.id)
     expect(world.registry.list().map((agent) => agent.displayName)).toEqual(['My agent', 'Other agent'])
   })
@@ -189,17 +178,6 @@ describe('adding a custom CLI stores nothing when the person backs out', () => {
 
     expect(await world.custom.add(addRequest())).toEqual({ outcome: 'cancelled' })
     expect(world.log).toEqual(['pick', 'confirm'])
-    expect(world.registry.list()).toEqual([])
-  })
-
-  it.each([
-    { ok: false, code: 'did_not_start', reason: 'It stopped before it finished the ACP handshake.' },
-    { ok: false, code: 'timed_out', reason: 'It did not finish the ACP handshake within 20 seconds.' },
-    { ok: false, code: 'wrong_program', reason: 'It answered initialize without a protocolVersion.' }
-  ] as const)('answers refused and stores nothing when the handshake fails ($code)', async (outcome) => {
-    const world = createWorld({ handshakes: [outcome] })
-
-    expect(await world.custom.add(addRequest())).toEqual({ outcome: 'refused', code: outcome.code, reason: outcome.reason })
     expect(world.registry.list()).toEqual([])
   })
 })
@@ -297,12 +275,14 @@ describe('custom CLI arguments', () => {
     const agent = connected(await world.custom.add(addRequest({ args: ['{folder}', '--cwd', '{folder}'] })))
 
     expect(agent.args).toEqual(['{folder}', '--cwd', '{folder}'])
-    expect(world.handshakes[0]?.args).toEqual(['{folder}', '--cwd', '{folder}'])
   })
 
   it('refuses arguments that are not a list of strings', async () => {
     for (const args of ['--acp', [42], [null], { 0: '--acp' }, undefined]) {
-      await expectRefusedBeforeAnything(createWorld(), addRequest({ args }))
+      const world = createWorld()
+      expect((await rejectionOf(world.custom.add(addRequest({ args })))).code).toBe('invalid_input')
+      expect(world.log).toEqual([])
+      expect(world.registry.list()).toEqual([])
     }
   })
 })
@@ -313,10 +293,13 @@ describe('custom CLI payloads never carry a path', () => {
     ['a path', addRequest({ path: '/bin/sh' })],
     ['a command', addRequest({ command: 'rm -rf /' })],
     ['an id', addRequest({ id: 'cu_01m61r9qvzjh2yyk89xbzd67dn' })],
-    ['a __proto__ key', JSON.parse('{"name":"x","protocol":"acp","args":[],"__proto__":{"executablePath":"/bin/sh"}}') as unknown],
+    ['a __proto__ key', JSON.parse('{"name":"x","args":[],"__proto__":{"executablePath":"/bin/sh"}}') as unknown],
     ['a constructor key', addRequest({ constructor: { executablePath: '/bin/sh' } })],
-    ['an unknown protocol', addRequest({ protocol: 'shell' })],
-    ['no protocol', { name: 'x', args: [] }],
+    ['a protocol, which a custom CLI no longer has', addRequest({ protocol: 'acp' })],
+    ['a version or agent name, which only a handshake gave', addRequest({ version: '1.0.0', reportedName: 'x' })],
+    ['a review mark', addRequest({ needsReview: false })],
+    ['no name', { args: [] }],
+    ['no arguments', { name: 'x' }],
     ['a string', '/bin/sh'],
     ['a list', [addRequest()]],
     ['null', null],
@@ -355,23 +338,11 @@ describe('the picked program and argv must pass the launch rules for this platfo
     }
   })
 
-  it('refuses a Windows shim for the Claude Code SDK protocol, whose SDK would run the shim’s target instead of what is shown', async () => {
-    for (const pick of ['C:\\tools\\agent.cmd', 'C:\\tools\\agent.BAT']) {
-      const world = createWorld({ platform: 'win32', picks: [pick] })
-      expect(await world.custom.add(addRequest({ protocol: 'claude', args: [] }))).toMatchObject({ outcome: 'refused', code: 'unsafe_path' })
-      expect(world.log).toEqual(['pick'])
-    }
-    const exe = createWorld({ platform: 'win32', picks: ['C:\\tools\\agent.exe'] })
-    expect(await exe.custom.add(addRequest({ protocol: 'claude', args: [] }))).toMatchObject({ outcome: 'connected' })
-  })
-
-  it('refuses a script for the Claude Code SDK protocol, which the SDK would run with whatever node is on the path', async () => {
-    for (const pick of ['/opt/agent.js', '/opt/agent.mjs', '/opt/agent.cjs', '/opt/agent.ts', '/opt/agent.TSX', '/opt/agent.jsx']) {
-      const world = createWorld({ picks: [pick] })
-      expect(await world.custom.add(addRequest({ protocol: 'claude', args: [] }))).toMatchObject({ outcome: 'refused', code: 'unsafe_path' })
-      expect(world.log).toEqual(['pick'])
-    }
-    expect(await createWorld({ picks: ['/opt/agent.js'] }).custom.add(addRequest({ protocol: 'acp' }))).toMatchObject({ outcome: 'connected' })
+  it('accepts a script or a Windows shim the launch rules accept: the terminal runs the program as picked, no SDK follows it', async () => {
+    expect(await createWorld({ picks: ['/opt/agent.js'] }).custom.add(addRequest({ args: [] }))).toMatchObject({ outcome: 'connected' })
+    expect(await createWorld({ platform: 'win32', picks: ['C:\\tools\\agent.cmd'] }).custom.add(addRequest({ args: [] }))).toMatchObject({
+      outcome: 'connected'
+    })
   })
 })
 
@@ -391,11 +362,11 @@ describe('adding custom CLIs at the same time', () => {
     expect(world.registry.list()).toHaveLength(2)
   })
 
-  it('frees the name once an add is cancelled or refused', async () => {
-    const world = createWorld({ picks: [null, PROGRAM, PROGRAM], handshakes: [{ ok: false, code: 'timed_out', reason: 'slow' }] })
+  it('frees the name once an add is cancelled at the pick or the confirmation', async () => {
+    const world = createWorld({ picks: [null, PROGRAM, PROGRAM], answers: [false] })
 
     expect(await world.custom.add(addRequest())).toEqual({ outcome: 'cancelled' })
-    expect((await world.custom.add(addRequest())).outcome).toBe('refused')
+    expect(await world.custom.add(addRequest())).toEqual({ outcome: 'cancelled' })
     expect((await world.custom.add(addRequest())).outcome).toBe('connected')
   })
 })
@@ -405,7 +376,6 @@ async function addedWorld(options: WorldOptions = {}): Promise<{ world: World; i
   const id = connected(await world.custom.add(addRequest())).id
   world.log.length = 0
   world.confirmations.length = 0
-  world.handshakes.length = 0
   return { world, id }
 }
 
@@ -414,19 +384,14 @@ function editRequest(id: string, overrides: Record<string, unknown> = {}): Recor
 }
 
 describe('editing a custom CLI', () => {
-  it('keeps the program and protocol without repick, and stores the new name and arguments after confirming and a handshake', async () => {
-    const { world, id } = await addedWorld({
-      handshakes: [
-        { ok: true, version: '1.2.3', reportedName: 'mine' },
-        { ok: true, version: '2.0.0', reportedName: 'theirs' }
-      ]
-    })
+  it('keeps the program without repick, and stores the new name and arguments after confirming', async () => {
+    const { world, id } = await addedWorld()
 
     const agent = connected(await world.custom.update(editRequest(id)))
 
-    expect(world.log).toEqual(['confirm', 'handshake'])
-    expect(world.confirmations).toEqual([{ action: 'edit', name: 'Renamed', protocol: 'acp', executablePath: PROGRAM, args: ['--acp'] }])
-    expect(agent).toMatchObject({ id, kind: 'custom', protocol: 'acp', displayName: 'Renamed', executablePath: PROGRAM, args: ['--acp'], version: '2.0.0', reportedName: 'theirs' })
+    expect(world.log).toEqual(['confirm'])
+    expect(world.confirmations).toEqual([{ action: 'edit', name: 'Renamed', executablePath: PROGRAM, args: ['--acp'] }])
+    expect(agent).toMatchObject({ id, kind: 'custom', displayName: 'Renamed', executablePath: PROGRAM, args: ['--acp'], version: null, needsReview: false })
     expect(world.registry.list()).toEqual([agent])
   })
 
@@ -435,29 +400,24 @@ describe('editing a custom CLI', () => {
 
     const agent = connected(await world.custom.update(editRequest(id, { repick: true })))
 
-    expect(world.log).toEqual(['pick', 'confirm', 'handshake'])
+    expect(world.log).toEqual(['pick', 'confirm'])
     expect(agent.executablePath).toBe('/opt/other-agent')
   })
 
-  it('changes nothing when the repick, the confirmation or the handshake says no', async () => {
-    const { world, id } = await addedWorld({
-      picks: [null],
-      answers: [true, false],
-      handshakes: [{ ok: true, version: '1.2.3', reportedName: 'mine' }, { ok: false, code: 'wrong_program', reason: 'no' }]
-    })
+  it('changes nothing when the repick or the confirmation says no', async () => {
+    const { world, id } = await addedWorld({ picks: [null], answers: [true, false] })
     const before = world.registry.list()
 
     expect(await world.custom.update(editRequest(id, { repick: true }))).toEqual({ outcome: 'cancelled' })
     expect(await world.custom.update(editRequest(id))).toEqual({ outcome: 'cancelled' })
-    expect(await world.custom.update(editRequest(id))).toMatchObject({ outcome: 'refused', code: 'wrong_program' })
     expect(world.registry.list()).toEqual(before)
   })
 
-  it('cannot change the protocol or the program: those keys are refused', async () => {
+  it('cannot set a protocol, the program or the review mark: those keys are refused', async () => {
     const { world, id } = await addedWorld()
     const before = world.registry.list()
 
-    for (const extra of [{ protocol: 'codex' }, { protocol: 'acp' }, { executablePath: '/bin/sh' }, { path: '/bin/sh' }]) {
+    for (const extra of [{ protocol: 'codex' }, { executablePath: '/bin/sh' }, { path: '/bin/sh' }, { needsReview: false }]) {
       expect((await rejectionOf(world.custom.update(editRequest(id, extra)))).code).toBe('invalid_input')
     }
     expect(world.log).toEqual([])
@@ -465,27 +425,39 @@ describe('editing a custom CLI', () => {
   })
 })
 
-describe('the version and agent name a custom CLI’s handshake reported', () => {
-  it('stores the version alone when the handshake reports no agent name', async () => {
-    const world = createWorld({ handshakes: [{ ok: true, version: '0.46.0', reportedName: null }] })
+/** A custom CLI as the v3 migration leaves a row saved for ACP or Codex app-server: marked for review. */
+async function flaggedWorld(options: WorldOptions = {}): Promise<{ world: World; id: string }> {
+  const added = await addedWorld(options)
+  added.world.db.run('UPDATE agents SET needs_review = 1 WHERE id = ?', added.id)
+  return added
+}
 
-    const agent = connected(await world.custom.add(addRequest({ protocol: 'codex', args: ['app-server'] })))
+describe('reviewing a custom CLI marked for review', () => {
+  it('shows its arguments in the native confirmation as a review, and once confirmed it no longer needs review', async () => {
+    const { world, id } = await flaggedWorld()
+    expect(world.registry.get(id)?.needsReview).toBe(true)
 
-    expect(agent).toMatchObject({ version: '0.46.0', reportedName: null })
-    expect(world.db.get('SELECT version, reported_name FROM agents WHERE id = ?', agent.id)).toEqual({ version: '0.46.0', reported_name: null })
+    const agent = connected(await world.custom.update(editRequest(id, { name: 'My agent', args: ['{folder}'] })))
+
+    expect(world.confirmations).toEqual([{ action: 'review', name: 'My agent', executablePath: PROGRAM, args: ['{folder}'] }])
+    expect(agent).toMatchObject({ id, needsReview: false, args: ['{folder}'] })
+    expect(world.registry.get(id)?.needsReview).toBe(false)
   })
 
-  it('clears the agent name an earlier handshake reported when the new one reports none', async () => {
-    const { world, id } = await addedWorld({
-      handshakes: [
-        { ok: true, version: '1.2.3', reportedName: 'mine' },
-        { ok: true, version: '2.0.0', reportedName: null }
-      ]
-    })
+  it('keeps the mark when the confirmation is declined or the repick cancelled', async () => {
+    const { world, id } = await flaggedWorld({ picks: [null], answers: [true, false] })
 
-    const agent = connected(await world.custom.update(editRequest(id)))
+    expect(await world.custom.update(editRequest(id))).toEqual({ outcome: 'cancelled' })
+    expect(await world.custom.update(editRequest(id, { repick: true }))).toEqual({ outcome: 'cancelled' })
+    expect(world.registry.get(id)?.needsReview).toBe(true)
+  })
 
-    expect(agent).toMatchObject({ version: '2.0.0', reportedName: null })
+  it('keeps the mark when the reviewed command fails the launch rules', async () => {
+    const { world, id } = await flaggedWorld({ picks: ['/opt/evil\u202Etxt'] })
+
+    expect(await world.custom.update(editRequest(id, { repick: true }))).toMatchObject({ outcome: 'refused', code: 'unsafe_path' })
+    expect(world.confirmations).toEqual([])
+    expect(world.registry.get(id)?.needsReview).toBe(true)
   })
 })
 
@@ -546,36 +518,35 @@ describe('the native dialogs', () => {
   const confirmation: CustomAgentConfirmation = {
     action: 'add',
     name: 'My agent',
-    protocol: 'acp' satisfies AgentProtocol,
     executablePath: 'C:\\Tools\\my agent.exe',
     args: ['--acp', '{folder}', ' spaced ']
   }
 
-  it('shows the exact program, each argument on its own numbered line, and the protocol; Cancel is the default', () => {
+  it('shows the exact program and each argument on its own numbered line, and no protocol; Cancel is the default', () => {
     const options = customAgentDialogOptions(confirmation)
 
     expect(options.detail).toContain('Program: C:\\Tools\\my agent.exe')
     expect(options.detail).toContain('1. "--acp"')
     expect(options.detail).toContain('2. "{folder}"')
     expect(options.detail).toContain('3. " spaced "')
-    expect(options.detail).toContain('Agent Client Protocol (ACP)')
+    expect(options.detail).not.toMatch(/protocol|Codex app-server|Claude Code SDK/i)
     expect(options.message).toContain('My agent')
     expect(options.buttons[options.cancelId]).toBe('Cancel')
     expect(options.defaultId).toBe(options.cancelId)
   })
 
-  it('says when there are no arguments, and titles an edit as one', () => {
-    const options = customAgentDialogOptions({ ...confirmation, action: 'edit', protocol: 'codex', args: [] })
+  it('says the command runs in a chat terminal, and nothing is run to check it now', () => {
+    const options = customAgentDialogOptions(confirmation)
 
-    expect(options.detail).toContain('Arguments: none')
-    expect(options.detail).toContain('Codex app-server')
-    expect(options.title).toMatch(/edit/i)
+    expect(options.detail).toContain("It runs in a chat's terminal whenever a chat uses it")
+    expect(options.detail).not.toMatch(/runs once now|temporary folder|handshake/i)
   })
 
-  it('opens files only, with hidden folders reachable, links kept as picked and Windows programs listed first', () => {
-    // noResolveAliases: macOS would otherwise hand back ~/.local/bin/claude as its versioned target.
-    expect(customExecutableDialogOptions('darwin').properties).toEqual(['openFile', 'showHiddenFiles', 'noResolveAliases'])
-    expect(customExecutableDialogOptions('win32').filters[0]).toEqual({ name: 'Programs', extensions: ['exe', 'cmd'] })
+  it('says when there are no arguments, and titles an edit as one', () => {
+    const options = customAgentDialogOptions({ ...confirmation, action: 'edit', args: [] })
+
+    expect(options.detail).toContain('Arguments: none')
+    expect(options.title).toMatch(/edit/i)
   })
 
   it('shows each argument as a JSON string, so an argument holding quotes cannot pass for several', () => {
@@ -601,6 +572,27 @@ describe('the native dialogs', () => {
   })
 })
 
+describe('the native confirmation of a review', () => {
+  const confirmation: CustomAgentConfirmation = { action: 'review', name: 'My agent', executablePath: '/opt/tools/my-agent', args: ['--acp'] }
+
+  it('titles a review as one, and says why the arguments are asked for again', () => {
+    const options = customAgentDialogOptions(confirmation)
+
+    expect(options.title).toBe('Review a custom CLI')
+    expect(options.detail).toContain('1. "--acp"')
+    expect(options.detail).toMatch(/saved before chats ran in a terminal/)
+    expect(customAgentDialogOptions({ ...confirmation, action: 'edit' }).detail).not.toMatch(/saved before chats/)
+  })
+})
+
+describe('the executable picker', () => {
+  it('opens files only, with hidden folders reachable, links kept as picked and Windows programs listed first', () => {
+    // noResolveAliases: macOS would otherwise hand back ~/.local/bin/claude as its versioned target.
+    expect(customExecutableDialogOptions('darwin').properties).toEqual(['openFile', 'showHiddenFiles', 'noResolveAliases'])
+    expect(customExecutableDialogOptions('win32').filters[0]).toEqual({ name: 'Programs', extensions: ['exe', 'cmd'] })
+  })
+})
+
 describe.runIf(process.platform !== 'win32')('a custom CLI picked through a symlink', () => {
   it('stores, confirms and hands over the link as picked, not its target, and the real file check accepts it', async () => {
     const scratch = mkdtempSync(join(tmpdir(), 'dm-custom-link-'))
@@ -613,15 +605,26 @@ describe.runIf(process.platform !== 'win32')('a custom CLI picked through a syml
       symlinkSync(target, link)
       const world = createWorld({ picks: [link], inspect: inspectExecutable })
 
-      const agent = connected(await world.custom.add(addRequest({ protocol: 'claude', args: [] })))
+      const agent = connected(await world.custom.add(addRequest({ args: [] })))
 
       expect(agent.executablePath).toBe(link)
       expect(world.confirmations[0]?.executablePath).toBe(link)
       expect(customAgentDialogOptions(world.confirmations[0]!).detail).toContain(`Program: ${link}`)
-      expect(world.handshakes[0]?.executablePath).toBe(link)
       expect(world.registry.get(agent.id)?.executablePath).toBe(link)
     } finally {
       removeScratch(scratch)
     }
+  })
+})
+
+describe('no handshake is left to run', () => {
+  const SRC = fileURLToPath(new URL('../..', import.meta.url))
+
+  it('has no protocolHandshake module, and no source file imports one', () => {
+    expect(existsSync(join(SRC, 'main', 'agents', 'protocolHandshake.ts'))).toBe(false)
+    const importers = readdirSync(SRC, { recursive: true, encoding: 'utf8' })
+      .filter((path) => /\.tsx?$/.test(path))
+      .filter((path) => /from\s+['"][^'"]*protocolHandshake['"]|import\(\s*['"][^'"]*protocolHandshake/.test(readFileSync(join(SRC, path), 'utf8')))
+    expect(importers).toEqual([])
   })
 })

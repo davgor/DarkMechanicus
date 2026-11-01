@@ -3,33 +3,34 @@
  * Electron imports). Every argument arrives from the renderer and is untrusted: it is validated
  * here, folders must be tracked and still lead to the folder that was tracked (one replaced by a
  * symlink to another directory is refused before any chat is looked up), and requests are strict
- * objects, so a renderer can name chats, agent ids, models, roles, text and decisions but never an
- * executable or MCP arguments. Agent ids are
- * checked against the agent registry (`not_found` for one that is not connected) before anything runs. Answers are
- * `CommandResult`s, like `dm:command`, so the UI gets the error code and message.
+ * objects, so a renderer can name chats, agent ids, models, roles and titles but never an executable
+ * or MCP arguments. Agent ids are checked against the agent registry (`not_found` for one that is not
+ * connected) before anything runs. Answers are `CommandResult`s, like `dm:command`, so the UI gets the
+ * error code and message.
  */
 import { z } from 'zod'
 import { DomainError, toErrorShape } from '../../core/errors'
 import { LIMITS, parseInput, stableId } from '../../core/schemas'
-import { APPROVAL_DECISIONS, CHAT_ROLES, chatIdSchema, type ChatItem, type ChatRecord, type ModelOption } from '../../shared/agents/chat'
-import type { BoundThread, ChatOpenView, ChatPushEvent, ChatSummary, StartOrchestratorResult, ThreadBinding } from '../../shared/agents/chatApi'
+import { CHAT_ROLES, chatIdSchema, type ChatRecord } from '../../shared/agents/chat'
+import type { BoundThread, ChatPushEvent, ChatReadView, StartOrchestratorResult } from '../../shared/agents/chatApi'
 import { agentIdSchema } from '../../shared/desktop/agentKinds'
 import type { CommandResult } from '../../shared/desktop/api'
 import { connectedAgent } from '../desktop/agentHandlers'
 import type { AgentRegistry } from '../desktop/agentRegistry'
 import type { FolderRegistry } from '../desktop/folderRegistry'
 import type { BoundTarget } from './boundThreads'
+import type { ChatRecords } from './chatRecords'
 import type { ChatRef } from './chatStore'
 import { refuseSwappedFolder } from './launchFolder'
 import { startOrchestratorRun, type OrchestratorRuns } from './orchestratorStart'
-import type { SessionManager } from './sessionManager'
+import type { TerminalSessions } from '../terminals/terminalSessions'
 
 /** Windows long-path maximum; bounds path strings from the renderer. */
 const MAX_PATH_LENGTH = 32_767
 const MAX_MODEL_LENGTH = 200
-const MAX_REQUEST_ID_LENGTH = 200
 
-const folderSchema = z.string().min(1).max(MAX_PATH_LENGTH)
+/** A folder as the renderer names it; bounded by the Windows long-path maximum. */
+export const folderSchema = z.string().min(1).max(MAX_PATH_LENGTH)
 const modelSchema = z.string().min(1).max(MAX_MODEL_LENGTH)
 const refShape = { folder: folderSchema, chatId: chatIdSchema }
 
@@ -54,26 +55,25 @@ const attemptIdSchema = stableId.regex(/^at_/)
 const runIdSchema = stableId.regex(/^rn_/)
 /** An attempt or a run, never both and never anything else. */
 const boundThreadsSchema = z.union([z.strictObject({ folder: folderSchema, attemptId: attemptIdSchema }), z.strictObject({ folder: folderSchema, runId: runIdSchema })])
-const sendSchema = z.strictObject({ ...refShape, text: z.string().min(1).max(LIMITS.markdown) })
-const setModelSchema = z.strictObject({ ...refShape, model: modelSchema })
 const renameSchema = z.strictObject({ ...refShape, title: z.string().trim().min(1).max(LIMITS.title) })
-const answerSchema = z.strictObject({
-  ...refShape,
-  requestId: z.string().min(1).max(MAX_REQUEST_ID_LENGTH),
-  decision: z.enum(APPROVAL_DECISIONS)
-})
+
+/** Finds the id of the chat of a (canonical) folder that an attempt or a run is bound to by grant; null when none is. */
+export type BoundTerminalLookup = (folder: string, target: BoundTarget) => Promise<string | null>
 
 interface ChatHandlerDeps {
   registry: Pick<FolderRegistry, 'resolve'>
   /** The connected agents; a request naming any other agent is refused before anything runs. */
   agents: Pick<AgentRegistry, 'get'>
-  sessions: SessionManager
+  /** The chat records; deleting a chat through them also ends its terminal (`endingTerminals`). */
+  chats: ChatRecords
+  /** The chat terminals: Start run starts the orchestrator chat's terminal before it answers. */
+  terminals: Pick<TerminalSessions, 'start'>
   /** The desktop's run commands, for starting an orchestrator. */
   runs: OrchestratorRuns
-  /** The bindings of a chat's threads to runs and attempts, resolved as far as the folder's store allows; without it a chat has none. */
-  threadBindings?: (chat: ChatRef) => Promise<ThreadBinding[]>
-  /** The threads bound to an attempt or a run among the chats of a (canonical) folder; without it nothing is bound. */
+  /** The threads of old chats bound to an attempt or a run among the chats of a (canonical) folder; without it nothing is bound. */
   boundThreads?: (folder: string, target: BoundTarget) => BoundThread[]
+  /** The chat of a (canonical) folder an attempt or a run is bound to by grant (`grantBindings.ts`); without it none is. */
+  boundTerminal?: BoundTerminalLookup
   /** Told that a chat was created, renamed or deleted, so every window can list the folder's chats again; without it nothing is pushed. */
   push?: (event: ChatPushEvent) => void
   /** Told about failures that are not DomainErrors (bugs, I/O), so main can log the stack. */
@@ -82,26 +82,20 @@ interface ChatHandlerDeps {
 
 /** Arguments are `unknown` because they come straight from IPC. */
 export interface ChatHandlers {
-  list(folder: unknown): Promise<CommandResult<ChatSummary[]>>
+  list(folder: unknown): Promise<CommandResult<ChatRecord[]>>
   create(request: unknown): Promise<CommandResult<ChatRecord>>
   startOrchestrator(request: unknown): Promise<CommandResult<StartOrchestratorResult>>
-  open(request: unknown): Promise<CommandResult<ChatOpenView>>
-  /** The same view as `open`, read-only: no agent is started and nothing is stored, for panels that follow a chat. */
-  read(request: unknown): Promise<CommandResult<ChatOpenView>>
-  send(request: unknown): Promise<CommandResult<ChatItem>>
-  stop(request: unknown): Promise<CommandResult<null>>
-  threadBindings(request: unknown): Promise<CommandResult<ThreadBinding[]>>
+  /** The chat and its stored transcript, read-only: nothing is started or stored. */
+  read(request: unknown): Promise<CommandResult<ChatReadView>>
   boundThreads(request: unknown): Promise<CommandResult<BoundThread[]>>
-  retryTurn(request: unknown): Promise<CommandResult<ChatItem>>
-  setModel(request: unknown): Promise<CommandResult<ChatRecord>>
+  /** The id of the chat whose terminal the attempt or run is bound to by grant, or null. */
+  boundTerminal(request: unknown): Promise<CommandResult<string | null>>
   rename(request: unknown): Promise<CommandResult<ChatRecord>>
   delete(request: unknown): Promise<CommandResult<null>>
-  answerApproval(request: unknown): Promise<CommandResult<null>>
-  models(agent: unknown): Promise<CommandResult<ModelOption[]>>
 }
 
 /** The canonical path of a tracked folder; anything else is unauthorized, with a refusal naming the folder like `launchFolder`'s. */
-function trackedFolder(deps: ChatHandlerDeps, folder: string): string {
+function trackedFolder(deps: Pick<ChatHandlerDeps, 'registry'>, folder: string): string {
   const tracked = deps.registry.resolve(folder)
   if (tracked === null) {
     throw new DomainError(
@@ -112,8 +106,11 @@ function trackedFolder(deps: ChatHandlerDeps, folder: string): string {
   return tracked
 }
 
-/** A tracked folder's canonical path, as its chats are stored under it; one replaced by a symlink to another directory is refused. */
-function chatFolder(deps: ChatHandlerDeps, folder: string): string {
+/**
+ * A tracked folder's canonical path, as its chats are stored under it; an untracked one is unauthorized, and one
+ * replaced by a symlink to another directory is refused (`refuseSwappedFolder`), before any chat is looked up.
+ */
+export function chatFolder(deps: Pick<ChatHandlerDeps, 'registry'>, folder: string): string {
   const tracked = trackedFolder(deps, folder)
   refuseSwappedFolder(tracked)
   return tracked
@@ -130,29 +127,23 @@ async function startOrchestrator(deps: ChatHandlerDeps, input: unknown): Promise
   const request = parseInput(startOrchestratorSchema, input, 'orchestrator request')
   connectedAgent(deps.agents, request.agent)
   const folder = chatFolder(deps, request.folder)
-  const { runs, sessions, onUnexpectedError } = deps
-  const started = await startOrchestratorRun({ runs, sessions, ...(onUnexpectedError === undefined ? {} : { onError: onUnexpectedError }) }, { ...request, folder })
+  const { runs, chats, terminals, onUnexpectedError } = deps
+  const started = await startOrchestratorRun({ runs, chats, terminals, ...(onUnexpectedError === undefined ? {} : { onError: onUnexpectedError }) }, { ...request, folder })
   if (started.chat !== null) {
     chatsChanged(deps, { folder: started.chat.folder, id: started.chat.id })
   }
   return started
 }
 
-/** The chat's thread bindings; the request is validated even when the app wired none. */
-async function threadBindings(deps: ChatHandlerDeps, input: unknown): Promise<ThreadBinding[]> {
-  const { ref } = chatRequest(deps, refSchema, input)
-  return (await deps.threadBindings?.(ref)) ?? []
-}
-
-/** The threads bound to the attempt or run the request names; the request and the folder are validated even when the app wired no lookup. */
-function boundThreads(deps: ChatHandlerDeps, input: unknown): BoundThread[] {
+/** The attempt or run a request names, and its tracked folder's canonical path. */
+function boundRequest(deps: ChatHandlerDeps, input: unknown): { folder: string; target: BoundTarget } {
   const request = parseInput(boundThreadsSchema, input, 'bound threads request')
   const folder = chatFolder(deps, request.folder)
-  const target: BoundTarget = 'attemptId' in request ? { attemptId: request.attemptId } : { runId: request.runId }
-  return deps.boundThreads?.(folder, target) ?? []
+  return { folder, target: 'attemptId' in request ? { attemptId: request.attemptId } : { runId: request.runId } }
 }
 
-async function answer<T>(deps: ChatHandlerDeps, action: () => T | Promise<T>): Promise<CommandResult<T>> {
+/** Runs `action` as a `CommandResult`; failures that are not DomainErrors are reported to `onUnexpectedError` too. */
+export async function answer<T>(deps: Pick<ChatHandlerDeps, 'onUnexpectedError'>, action: () => T | Promise<T>): Promise<CommandResult<T>> {
   try {
     return { ok: true, data: await action() }
   } catch (error) {
@@ -171,59 +162,44 @@ function chatsChanged(deps: ChatHandlerDeps, chat: ChatRef): void {
 function createChat(deps: ChatHandlerDeps, input: unknown): ChatRecord {
   const request = parseInput(createSchema, input, 'new chat')
   connectedAgent(deps.agents, request.agent)
-  const chat = deps.sessions.createChat({ ...request, folder: chatFolder(deps, request.folder) })
+  const chat = deps.chats.createChat({ ...request, folder: chatFolder(deps, request.folder) })
   chatsChanged(deps, { folder: chat.folder, id: chat.id })
   return chat
 }
 
 function renameChat(deps: ChatHandlerDeps, input: unknown): ChatRecord {
   const { ref, request } = chatRequest(deps, renameSchema, input)
-  const chat = deps.sessions.renameChat(ref, request.title)
+  const chat = deps.chats.renameChat(ref, request.title)
   chatsChanged(deps, ref)
   return chat
 }
 
 async function deleteChat(deps: ChatHandlerDeps, input: unknown): Promise<null> {
   const { ref } = chatRequest(deps, refSchema, input)
-  await deps.sessions.deleteChat(ref)
+  await deps.chats.deleteChat(ref)
   chatsChanged(deps, ref)
   return null
 }
 
 export function createChatHandlers(deps: ChatHandlerDeps): ChatHandlers {
-  const { sessions } = deps
+  const { chats } = deps
   return {
-    list: (folder) => answer(deps, () => sessions.listChats(chatFolder(deps, parseInput(folderSchema, folder, 'folder')))),
+    list: (folder) => answer(deps, () => chats.listChats(chatFolder(deps, parseInput(folderSchema, folder, 'folder')))),
     create: (input) => answer(deps, () => createChat(deps, input)),
     startOrchestrator: (input) => answer(deps, () => startOrchestrator(deps, input)),
-    open: (input) => answer(deps, () => sessions.openChat(chatRequest(deps, refSchema, input).ref)),
-    read: (input) => answer(deps, () => sessions.readChat(chatRequest(deps, refSchema, input).ref)),
-    send: (input) =>
+    read: (input) => answer(deps, () => chats.readChat(chatRequest(deps, refSchema, input).ref)),
+    // The request and the folder are validated even when the app wired no lookup.
+    boundThreads: (input) =>
       answer(deps, () => {
-        const { ref, request } = chatRequest(deps, sendSchema, input)
-        return sessions.send(ref, request.text)
+        const { folder, target } = boundRequest(deps, input)
+        return deps.boundThreads?.(folder, target) ?? []
       }),
-    stop: (input) =>
+    boundTerminal: (input) =>
       answer(deps, async () => {
-        await sessions.stop(chatRequest(deps, refSchema, input).ref)
-        return null
-      }),
-    threadBindings: (input) => answer(deps, () => threadBindings(deps, input)),
-    boundThreads: (input) => answer(deps, () => boundThreads(deps, input)),
-    retryTurn: (input) => answer(deps, () => sessions.retryTurn(chatRequest(deps, refSchema, input).ref)),
-    setModel: (input) =>
-      answer(deps, () => {
-        const { ref, request } = chatRequest(deps, setModelSchema, input)
-        return sessions.setModel(ref, request.model)
+        const { folder, target } = boundRequest(deps, input)
+        return (await deps.boundTerminal?.(folder, target)) ?? null
       }),
     rename: (input) => answer(deps, () => renameChat(deps, input)),
-    delete: (input) => answer(deps, () => deleteChat(deps, input)),
-    answerApproval: (input) =>
-      answer(deps, () => {
-        const { ref, request } = chatRequest(deps, answerSchema, input)
-        sessions.answerApproval(ref, { requestId: request.requestId, decision: request.decision })
-        return null
-      }),
-    models: (agent) => answer(deps, () => sessions.listModels(connectedAgent(deps.agents, agent).id))
+    delete: (input) => answer(deps, () => deleteChat(deps, input))
   }
 }

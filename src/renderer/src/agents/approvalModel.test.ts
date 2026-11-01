@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ApprovalRequestItem, ChatItem } from '../../../shared/agents/chat'
-import { answerView, approvalDetail, transcriptRows } from './approvalModel'
+import { answerView, approvalDetail, transcriptRows, type ApprovalDetail } from './approvalModel'
 
 const AT = '2026-03-01T10:00:00.000Z'
 const FOLDER = '/home/u/alpha'
@@ -30,6 +30,10 @@ describe('approvalDetail for commands', () => {
   it('falls back to the summary when the request carries no command', () => {
     const detail = approvalDetail(request(), FOLDER)
     expect(detail).toMatchObject({ command: null, workingDirectory: FOLDER, summary: 'Run npm test' })
+  })
+
+  it('has no command when the argument list holds no text', () => {
+    expect(approvalDetail(request({ input: { command: ['', 3] } }), FOLDER).command).toBe(null)
   })
 })
 
@@ -86,6 +90,19 @@ describe('approvalDetail for edits', () => {
   })
 })
 
+describe('approvalDetail for whole-file writes', () => {
+  const write = (input: ApprovalRequestItem['input'], tool: string): ApprovalDetail =>
+    approvalDetail(request({ category: 'file_edit', tool, summary: 'Write a file', input }), FOLDER)
+
+  it('reads a notebook cell write as a whole-file write, and cuts a very long line short', () => {
+    const cell = write({ notebook_path: '/n.ipynb', new_source: 'a\nb' }, 'NotebookEdit')
+    expect(cell).toMatchObject({ files: ['/n.ipynb'], diff: { text: 'Writes 2 lines', hidden: 0 } })
+
+    const [line] = write({ file_path: '/a', content: 'x'.repeat(200) }, 'Write').diff?.lines ?? []
+    expect(line).toEqual({ sign: '+', text: `${'x'.repeat(159)}…` })
+  })
+})
+
 describe('approvalDetail for other requests', () => {
   it('names the tool and keeps the summary', () => {
     const detail = approvalDetail(request({ category: 'other', tool: 'WebFetch', summary: 'Use WebFetch', input: { url: 'https://example.com' } }), FOLDER)
@@ -131,23 +148,5 @@ describe('answerView', () => {
       detail: 'Answered automatically by an earlier Allow for this chat.'
     })
     expect(answerView(decision('a', 'cancelled'))).toMatchObject({ state: 'canceled', label: 'Cancelled', detail: 'No answer reached the agent.' })
-  })
-})
-
-describe('approvalDetail: what Allow for this chat covers', () => {
-  const OWN = 'Allow for this chat covers all Dark Mechanicus tools in this chat.'
-
-  it('says Allow for this chat covers all the chat’s Dark Mechanicus tools, for a call to one of them', () => {
-    const detail = approvalDetail(request({ category: 'other', tool: 'mcp__darkmechanicus__claim_ticket', summary: 'Use mcp__darkmechanicus__claim_ticket', ownServer: true }), FOLDER)
-    expect(detail.allowChatNote).toBe(OWN)
-  })
-
-  it.each([
-    ['a request main did not mark', request({ category: 'other', tool: 'mcp__other__claim_ticket', summary: 'Use mcp__other__claim_ticket' })],
-    ['a request marked false', request({ category: 'other', tool: 'mcp__other__claim_ticket', ownServer: false })],
-    ['a command', request({ category: 'command', tool: 'Bash' })],
-    ['a file edit', request({ category: 'file_edit', tool: 'Edit' })]
-  ])('says nothing more for %s', (_what, item) => {
-    expect(approvalDetail(item, FOLDER).allowChatNote).toBeNull()
   })
 })

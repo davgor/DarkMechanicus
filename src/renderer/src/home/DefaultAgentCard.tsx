@@ -35,7 +35,7 @@ function useStoredDefault(folderPath: string): [AgentId | null | undefined, (val
 }
 
 /**
- * The folder's default agent: New chat and Start run choose it first while it can chat. None leaves
+ * The folder's default agent: New chat opens its CLI, and Start run chooses it first while it can chat. None leaves
  * them on the first agent that can. A stored default that is no longer connected stays listed as such.
  */
 export function DefaultAgentCard({ folder, agents }: DefaultAgentCardProps): JSX.Element {
@@ -62,7 +62,7 @@ export function DefaultAgentCard({ folder, agents }: DefaultAgentCardProps): JSX
         ))}
         {missing ? <option value={stored}>{`${stored} (not connected)`}</option> : null}
       </select>
-      <p className="note">New chat and Start run choose this agent first while it is signed in.</p>
+      <p className="note">New chat opens this agent&apos;s CLI; Start run chooses it first.</p>
     </section>
   )
 }
