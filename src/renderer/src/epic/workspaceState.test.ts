@@ -25,6 +25,7 @@ function data(patch: Partial<WorkspaceData> = {}): WorkspaceData {
     savedTickets: [],
     draftTickets: [],
     validation: validation(),
+    transfer: null,
     ...patch
   }
 }
@@ -67,6 +68,7 @@ describe('workspace loading', () => {
       busy: false,
       confirm: null,
       startRunOpen: false,
+      transferDialog: null,
       validation: null
     })
   })
@@ -212,6 +214,13 @@ describe('workspace feedback', () => {
     const open = workspaceReducer(loaded(), { type: 'start_run_dialog', open: true })
     expect(open.startRunOpen).toBe(true)
     expect(workspaceReducer(open, { type: 'start_run_dialog', open: false }).startRunOpen).toBe(false)
+  })
+
+  it('opens the Transfer to Linear dialog to authorize a transfer or to resume one, and closes it', () => {
+    const queue = workspaceReducer(loaded(), { type: 'transfer_dialog', mode: 'queue' })
+    expect(queue.transferDialog).toBe('queue')
+    expect(workspaceReducer(queue, { type: 'transfer_dialog', mode: 'resume' }).transferDialog).toBe('resume')
+    expect(workspaceReducer(queue, { type: 'transfer_dialog', mode: null }).transferDialog).toBe(null)
   })
 
   it('selects tickets without leaving the checkpoint view', () => {

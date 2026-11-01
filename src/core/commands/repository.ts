@@ -1,14 +1,17 @@
 import { join } from 'node:path'
 import { API_VERSION } from '../../shared/domain/api'
-import type { CapabilitiesView, ProjectView } from '../../shared/domain/views'
+import type { CapabilitiesView, ProjectView, RepositoryView } from '../../shared/domain/views'
 import { requireCapability } from '../authz'
 import { SCHEMA_VERSION } from '../db/migrations'
 import { fail } from '../errors'
 import { backupDatabase } from '../repo/backup'
 import { listBranchEpics } from '../repo/branchEpics'
-import { writeDefinitionOfDone } from '../repo/projectConfig'
+import { readProject } from '../repo/initialize'
+import type { RepositoryEntry } from '../repo/portable'
+import { rescanRepositories, writeDefinitionOfDone } from '../repo/projectConfig'
 import { getStorageStatus } from '../repo/storage'
 import { COMMAND_SCHEMAS } from '../commandSchemas'
+import { resolveEpicConflict } from '../services/epicConflict'
 import { appendEvent, listEvents } from '../services/events'
 import { issueGrant, listGrants, revokeGrant } from '../services/grants'
 import { searchHistory } from '../services/history'
@@ -36,25 +39,58 @@ function requireRoleCapability(core: WorkspaceCore, capability: 'repo.init'): vo
   }
 }
 
+function repositoryViews(entries: RepositoryEntry[]): RepositoryView[] {
+  return entries.map((entry) => ({
+    name: entry.name,
+    missing: entry.missing === true,
+    ...(entry.definitionOfDone === undefined ? {} : { definitionOfDone: entry.definitionOfDone })
+  }))
+}
+
 function projectView(core: WorkspaceCore): ProjectView {
   const project = core.project()
+  // Read from the file each time, like the Definition of Done, so a rescan behind an open session shows.
+  const repositories = readProject(core.layout, core.fs)?.repositories
   return {
     projectId: project.projectId,
     name: project.name,
     keyPrefix: project.keyPrefix,
     repoRoot: core.repoRoot,
     createdAt: project.createdAt,
-    definitionOfDone: core.ctx().definitionOfDone()
+    definitionOfDone: core.ctx().definitionOfDone(),
+    repositories: repositories === undefined ? null : repositoryViews(repositories)
   }
 }
 
-/** Writes the checks to project.json, then records the change in the event log. Nothing is committed. */
-function setDefinitionOfDone(core: WorkspaceCore, input: { checks: Parameters<typeof writeDefinitionOfDone>[1] }): ProjectView {
+/** Re-detects the folder's child repositories, writes them to project.json, then records what changed. */
+function rescan(core: WorkspaceCore): RepositoryView[] {
+  const ctx = core.ctx()
+  requireCapability(ctx.session, 'project.repositories')
+  const result = rescanRepositories(core)
+  ctx.db.tx(() =>
+    appendEvent(ctx, {
+      kind: 'project.repositories_rescanned',
+      payload: { added: result.added, missing: result.missing }
+    })
+  )
+  return repositoryViews(result.project.repositories ?? [])
+}
+
+/**
+ * Writes the checks to project.json (repository `repo`'s in a folder of repositories), then records the change in
+ * the event log. Nothing is committed.
+ */
+function setDefinitionOfDone(
+  core: WorkspaceCore,
+  input: { checks: Parameters<typeof writeDefinitionOfDone>[1]; repo?: string }
+): ProjectView {
   const ctx = core.ctx()
   requireCapability(ctx.session, 'project.definition_of_done')
-  const written = writeDefinitionOfDone(core, input.checks)
-  const names = (written.definitionOfDone ?? []).map((check) => check.name)
-  ctx.db.tx(() => appendEvent(ctx, { kind: 'project.definition_of_done_set', payload: { names } }))
+  const written = writeDefinitionOfDone(core, input.checks, input.repo)
+  const list = input.repo === undefined ? written.definitionOfDone : written.repositories?.find((entry) => entry.name === input.repo)?.definitionOfDone
+  const names = (list ?? []).map((check) => check.name)
+  const payload = input.repo === undefined ? { names } : { repository: input.repo, names }
+  ctx.db.tx(() => appendEvent(ctx, { kind: 'project.definition_of_done_set', payload }))
   return projectView(core)
 }
 
@@ -72,6 +108,10 @@ const repositoryCommands = {
     schema: COMMAND_SCHEMAS.setDefinitionOfDone,
     mutates: true,
     run: setDefinitionOfDone
+  },
+  rescanRepositories: {
+    mutates: true,
+    run: rescan
   },
   initializeRepository: {
     schema: COMMAND_SCHEMAS.initializeRepository,
@@ -101,6 +141,11 @@ const repositoryCommands = {
       requireCapability(core.ctx().session, 'repo.reconcile')
       return core.reconcile()
     }
+  },
+  resolveEpicConflict: {
+    schema: COMMAND_SCHEMAS.resolveEpicConflict,
+    mutates: true,
+    run: (core, input) => resolveEpicConflict(core.ctx(), input, core)
   },
   searchHistory: {
     schema: COMMAND_SCHEMAS.searchHistory,

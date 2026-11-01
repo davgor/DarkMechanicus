@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { DomainError } from '../../core/errors'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { EpicDetailView, RunView } from '../../shared/domain/views'
-import { AT, fakeAdapters, memoryChatStore, REPO, type FakeAdapters } from './__mocks__/fakeChatAdapter'
+import { AT, connectedAgents, fakeAdapters, memoryChatStore, REPO, trackedFolders, type FakeAdapters } from './__mocks__/fakeChatAdapter'
 import type { ChatStore } from './chatStore'
 import { startOrchestratorRun, type OrchestratorRuns } from './orchestratorStart'
 import { createSessionManager, type SessionManager } from './sessionManager'
@@ -33,7 +33,8 @@ function rig(runs: Partial<OrchestratorRuns> = {}): Rig {
   const manager = createSessionManager({
     store,
     adapters: fakes.definitions,
-    executablePath: (kind) => `/bin/${kind}`,
+    agentFor: connectedAgents(),
+    folders: trackedFolders(),
     issueChatCli: async (folder: string) => ({
       cli: {
         command: 'node',
@@ -106,6 +107,21 @@ describe('start an orchestrator for a run', () => {
     const result = await startOrchestratorRun({ runs, sessions: manager }, { folder: REPO, epicId: 'ep_1', agent: 'claude' })
 
     expect(result.chat?.model).toBeNull()
+  })
+
+  it("lists each repository's epic branch in the kickoff of a folder of repositories", async () => {
+    const folderEpic = {
+      ...EPIC,
+      repositoryBranches: [
+        { repository: 'api', name: 'epic/agent-chats', startCommit: 'a'.repeat(40) },
+        { repository: 'web', name: 'epic/agent-chats', startCommit: 'b'.repeat(40) }
+      ]
+    } as EpicDetailView
+    const { fakes, manager, runs } = rig({ getEpic: () => Promise.resolve(folderEpic) })
+
+    await startOrchestratorRun({ runs, sessions: manager }, REQUEST)
+
+    expect(fakes.of('claude')[0]?.sent[0]).toContain('- api → epic/agent-chats\n- web → epic/agent-chats\n')
   })
 })
 
@@ -194,7 +210,8 @@ describe('start an orchestrator: an agent that cannot start', () => {
     const offline = createSessionManager({
       store,
       adapters: fakeAdapters().definitions,
-      executablePath: () => null,
+      agentFor: () => null,
+      folders: trackedFolders(),
       issueChatCli: async (folder: string) => ({
         cli: {
           command: 'node',

@@ -1,10 +1,10 @@
 /**
  * The chat surface of the desktop bridge (`window.dm.chats`): one `chats:*` IPC channel per request
  * and one push channel for what running chats report. The renderer names folders, chats, agent
- * kinds, models, roles, text and decisions only; which executable runs and the Dark Mechanicus MCP
+ * ids, models, roles, text and decisions only; which executable runs and the Dark Mechanicus MCP
  * arguments are decided in the main process.
  */
-import type { AgentKind, CommandResult } from '../desktop/api'
+import type { AgentId, CommandResult } from '../desktop/api'
 import type { RunView } from '../domain/views'
 import type { ApprovalDecision, ApprovalRequestItem, ChatItem, ChatRecord, ChatRole, ModelOption } from './chat'
 
@@ -19,7 +19,7 @@ export interface ChatRequestRef {
 
 export interface CreateChatRequest {
   folder: string
-  agent: AgentKind
+  agent: AgentId
   role: ChatRole
   /** Null (or left out) lets the agent use its default model. */
   model?: string | null
@@ -32,7 +32,7 @@ export interface CreateChatRequest {
 export interface StartOrchestratorRequest {
   folder: string
   epicId: string
-  agent: AgentKind
+  agent: AgentId
   /** Null (or left out) lets the agent use its default model. */
   model?: string | null
 }
@@ -44,6 +44,29 @@ export interface StartOrchestratorResult {
   chat: ChatRecord | null
   /** Why `chat` is null (or what went wrong with a chat that was kept); the run waits for an orchestrator. Null when it started. */
   problem: string | null
+}
+
+/** Starts a connected agent on an authorized Linear transfer of an epic; the role, Allow save and the chat title are decided in main. */
+export interface StartTransferChatRequest {
+  folder: string
+  epicId: string
+  agent: AgentId
+  /** Null (or left out) lets the agent use its default model. */
+  model?: string | null
+}
+
+/** What starting a transfer chat left behind. The transfer stays authorized either way; the chat exists only when its agent was started. */
+export interface StartTransferChatResult {
+  /** The transfer chat, with its kickoff message already sent; null when no agent is carrying out the transfer. */
+  chat: ChatRecord | null
+  /** Why `chat` is null (or what went wrong with a chat that was kept). Null when it started. */
+  problem: string | null
+}
+
+/** Names the epic of a tracked folder whose Linear transfer is asked about. */
+export interface TransferChatRequest {
+  folder: string
+  epicId: string
 }
 
 export interface SendChatRequest extends ChatRequestRef {
@@ -119,7 +142,7 @@ export type ChatPushEvent =
    * item in the chat that found it), or the person signed in again and the CLI says so (`signed_in`).
    * Sent for every chat of that agent that was opened since the app started, so they all agree.
    */
-  | { type: 'agent_auth'; chatId: string; agent: AgentKind; state: 'signed_out' | 'signed_in' }
+  | { type: 'agent_auth'; chatId: string; agent: AgentId; state: 'signed_out' | 'signed_in' }
 
 export interface ChatsApi {
   /** A tracked folder's chats, most recently updated first, each with its waiting requests. */
@@ -131,6 +154,16 @@ export interface ChatsApi {
    * result (the run is still queued); a failure before it is an error and nothing was created.
    */
   startOrchestrator(request: StartOrchestratorRequest): Promise<CommandResult<StartOrchestratorResult>>
+  /**
+   * Creates an orchestrator chat for the epic's Linear transfer with Allow save off, records the epic's id on
+   * the chat and sends the transfer kickoff. Refused, with nothing started, unless the person authorized the
+   * transfer (queued) or it is in progress. A failure once the chat is asked for is reported in the result.
+   */
+  startTransferChat(request: StartTransferChatRequest): Promise<CommandResult<StartTransferChatResult>>
+  /** The most recently updated chat started for the epic's transfer, across idle stops and app restarts; null when there is none. */
+  findTransferChat(request: TransferChatRequest): Promise<CommandResult<ChatSummary | null>>
+  /** The transfer kickoff, the same first message a transfer chat gets, for an agent the person starts elsewhere. */
+  transferPrompt(request: TransferChatRequest): Promise<CommandResult<string>>
   /** The transcript and pending approvals; starts the agent when its vendor needs it running. */
   open(request: ChatRequestRef): Promise<CommandResult<ChatOpenView>>
   /**
@@ -169,7 +202,7 @@ export interface ChatsApi {
   delete(request: ChatRequestRef): Promise<CommandResult<null>>
   answerApproval(request: AnswerApprovalRequest): Promise<CommandResult<null>>
   /** The models a connected agent offers. */
-  models(kind: AgentKind): Promise<CommandResult<ModelOption[]>>
+  models(agent: AgentId): Promise<CommandResult<ModelOption[]>>
   /** Subscribes to pushed chat events; returns the unsubscribe function. */
   onEvent(listener: (event: ChatPushEvent) => void): () => void
 }

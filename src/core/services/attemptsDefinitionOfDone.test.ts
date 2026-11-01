@@ -4,6 +4,7 @@ import type { PlanBundle } from '../../shared/domain/bundle'
 import type { ClaimResultView, DefinitionOfDoneCheck } from '../../shared/domain/views'
 import { makeBundle, tid } from '../../test/bundles'
 import { claim, startedRun, submitClaim } from '../../test/execution'
+import { createStubGit } from '../../test/repoEnv'
 import { createTestCtx } from '../../test/testContext'
 import { acceptAttempt } from './attempts'
 
@@ -53,6 +54,80 @@ describe('the execution packet of a work ticket', () => {
   it('does not carry the Definition of Done: that belongs to the acceptance node', () => {
     const { work } = packets(DEFINITION)
     expect(Object.keys(work)).not.toContain('definitionOfDone')
+    expect(work.reporting.instructions).not.toContain('definition_of_done')
+  })
+})
+
+const LINT = DEFINITION[0]
+const BUILD = DEFINITION[2]
+const HEADS: Record<string, string> = { api: '2'.repeat(40), web: '3'.repeat(40), docs: '4'.repeat(40) }
+
+/**
+ * api, web and docs, where `lists` gives each repository's checks; a stray folder-level list is ignored. Sprint =
+ * {DM-1 api, DM-2 web, DM-3 docs (optional, never claimed), DM-4 node}; DM-1 and DM-2 are accepted.
+ */
+function folderPackets(lists: Record<string, DefinitionOfDoneCheck[]>): { work: ClaimResultView['packet']; node: ClaimResultView['packet'] } {
+  const ctx = createTestCtx({
+    projectRoot: '/folder',
+    repositories: Object.keys(HEADS),
+    repositoryDefinitionOfDone: lists,
+    definitionOfDone: [BUILD],
+    gitFor: (repo) => {
+      const head = repo === null ? undefined : HEADS[repo]
+      if (head === undefined) {
+        throw new Error(`No repository ${String(repo)}`)
+      }
+      return { ...createStubGit(), head: () => ({ branch: 'main', commit: head, detached: false }), branchCommit: () => null }
+    }
+  })
+  const base = makeBundle([[1, 2, 3, 4]])
+  const repos = ['api', 'web', 'docs']
+  const bundle: PlanBundle = {
+    ...base,
+    tickets: base.tickets.map((ticket, index) => {
+      const repo = repos[index]
+      if (repo === undefined) {
+        return { ...ticket, kind: 'acceptance' as const }
+      }
+      return { ...ticket, repo, title: `${repo} - ${ticket.title}`, optional: repo === 'docs' }
+    })
+  }
+  const { runId } = startedRun(ctx, { bundle, branch: { repository: null, name: 'epic/multi', startCommit: null } })
+  const [work, web] = [claim(ctx, runId, 1), claim(ctx, runId, 2)]
+  for (const claimed of [work, web]) {
+    submitClaim(ctx, claimed)
+    acceptAttempt(ctx, { attemptId: claimed.attempt.id })
+  }
+  return { work: work.packet, node: claim(ctx, runId, 4).packet }
+}
+
+describe('the execution packet of a sprint acceptance node in a folder of repositories', () => {
+  it('carries each touched repository\'s checks on its entry, and none for one without a list or an untouched one', () => {
+    const { node } = folderPackets({ api: [LINT, BUILD], docs: [LINT] })
+    expect(node.repositories?.map((repository) => [repository.name, repository.definitionOfDone])).toEqual([
+      ['api', [LINT, BUILD]],
+      ['web', undefined]
+    ])
+    expect(Object.keys(node.repositories?.[1] ?? {})).not.toContain('definitionOfDone')
+  })
+
+  it('has no folder-level Definition of Done, and tells the worker to report checks as "<repository name>: <check name>"', () => {
+    const { node } = folderPackets({ web: [LINT] })
+    expect(Object.keys(node)).not.toContain('definitionOfDone')
+    expect(node.reporting.instructions).toContain('"<repository name>: <check name>"')
+    expect(node.reporting.instructions).toContain('definition_of_done')
+  })
+
+  it('says nothing more than the plain reporting text when no touched repository has a list', () => {
+    const { node } = folderPackets({ docs: [LINT] })
+    expect(node.reporting.instructions).not.toContain('definition_of_done')
+    expect(node.repositories?.every((repository) => repository.definitionOfDone === undefined)).toBe(true)
+  })
+
+  it('leaves a work ticket\'s repository without checks', () => {
+    const { work } = folderPackets({ api: [LINT], web: [LINT] })
+    expect(work.repository?.name).toBe('api')
+    expect(Object.keys(work.repository ?? {})).not.toContain('definitionOfDone')
     expect(work.reporting.instructions).not.toContain('definition_of_done')
   })
 })

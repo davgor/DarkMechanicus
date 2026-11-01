@@ -19,6 +19,15 @@ describe('ChatView header', () => {
     expect(facts.getByText('Allowed to save plans')).toBeTruthy()
   })
 
+  it('names a custom agent by its connected display name, and generically once it is no longer connected', async () => {
+    const custom = chatRecord({ ...CHAT, agent: 'cu_01m65kwqqeyajbj5bnq81gngrb', model: null })
+    await mountChatView([], { chat: custom, agentDisplayName: 'My Claude' })
+    expect(within(screen.getByRole('list', { name: 'Chat details' })).getByText('My Claude')).toBeTruthy()
+    cleanup()
+    await mountChatView([], { chat: custom })
+    expect(within(screen.getByRole('list', { name: 'Chat details' })).getByText('Custom agent')).toBeTruthy()
+  })
+
   it('says a worker, or a planner that was not allowed to, does not save plans', async () => {
     await mountChatView([], { chat: chatRecord({ ...CHAT, role: 'worker', allowSave: false }) })
     expect(screen.getByText('Worker')).toBeTruthy()

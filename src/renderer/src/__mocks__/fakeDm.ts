@@ -9,9 +9,12 @@ import type {
   AgentDownloadProgress,
   AgentDownloadResult,
   AgentFindResult,
-  AgentKind,
+  AgentId,
   AgentSignInResult,
   AgentView,
+  BuiltInAgentKind,
+  CustomAgentRequest,
+  CustomAgentUpdate,
   ClaudeCodeConnectRequest,
   ClaudeCodeConnectResult,
   CommandInput,
@@ -144,10 +147,12 @@ export class FakeDm implements DmApi {
   findOutcomes: AgentFindResult[] = []
   /** Answers to downloadAgent, in order; once used up the confirmation is declined. */
   downloadOutcomes: AgentDownloadResult[] = []
-  /** What agentStatus answers per kind; an agent with no entry is `unknown`. */
-  agentStatuses: Partial<Record<AgentKind, AgentAuthStatus>> = {}
+  /** What agentStatus answers per agent id; an agent with no entry is `unknown`. */
+  agentStatuses: Partial<Record<AgentId, AgentAuthStatus>> = {}
   /** Answers to signInAgent, in order; once used up the sign-in starts. */
   signInOutcomes: AgentSignInResult[] = []
+  /** Default agent per folder path, as `setFolderDefaultAgent` leaves it. */
+  folderDefaults: Partial<Record<string, AgentId>> = {}
   /** Every agent API call with exactly the arguments it was given, oldest first. */
   agentCalls: { method: string; args: unknown[] }[] = []
   private agentHolds: Partial<Record<string, Deferred[]>> = {}
@@ -175,18 +180,29 @@ export class FakeDm implements DmApi {
     return this.agentCall('listAgents', [], () => [...this.agents])
   }
 
-  findAgent(kind: AgentKind): Promise<AgentFindResult> {
+  findAgent(kind: BuiltInAgentKind): Promise<AgentFindResult> {
     return this.agentCall('findAgent', [kind], () => this.findOutcomes.shift() ?? { outcome: 'cancelled' })
   }
 
-  removeAgent(kind: AgentKind): Promise<AgentView[]> {
-    return this.agentCall('removeAgent', [kind], () => {
-      this.agents = this.agents.filter((agent) => agent.kind !== kind)
+  removeAgent(id: AgentId): Promise<AgentView[]> {
+    return this.agentCall('removeAgent', [id], () => {
+      this.agents = this.agents.filter((agent) => agent.id !== id)
       return [...this.agents]
     })
   }
 
-  downloadAgent(kind: AgentKind): Promise<AgentDownloadResult> {
+  /** Answers to addCustomAgent and updateCustomAgent, in order; once used up the file dialog is closed without a pick. */
+  customOutcomes: AgentFindResult[] = []
+
+  addCustomAgent(request: CustomAgentRequest): Promise<AgentFindResult> {
+    return this.agentCall('addCustomAgent', [request], () => this.customOutcomes.shift() ?? { outcome: 'cancelled' })
+  }
+
+  updateCustomAgent(request: CustomAgentUpdate): Promise<AgentFindResult> {
+    return this.agentCall('updateCustomAgent', [request], () => this.customOutcomes.shift() ?? { outcome: 'cancelled' })
+  }
+
+  downloadAgent(kind: BuiltInAgentKind): Promise<AgentDownloadResult> {
     return this.agentCall('downloadAgent', [kind], () => this.downloadOutcomes.shift() ?? { outcome: 'cancelled' })
   }
 
@@ -195,7 +211,7 @@ export class FakeDm implements DmApi {
     return () => this.progressListeners.delete(listener)
   }
 
-  agentStatus(kind: AgentKind): Promise<AgentAuthStatus> {
+  agentStatus(kind: AgentId): Promise<AgentAuthStatus> {
     return this.agentCall(
       'agentStatus',
       [kind],
@@ -203,8 +219,23 @@ export class FakeDm implements DmApi {
     )
   }
 
-  signInAgent(kind: AgentKind): Promise<AgentSignInResult> {
+  signInAgent(kind: AgentId): Promise<AgentSignInResult> {
     return this.agentCall('signInAgent', [kind], () => this.signInOutcomes.shift() ?? { outcome: 'started' })
+  }
+
+  folderDefaultAgent(folder: string): Promise<AgentId | null> {
+    return this.agentCall('folderDefaultAgent', [folder], () => this.folderDefaults[folder] ?? null)
+  }
+
+  setFolderDefaultAgent(request: { folder: string; agentId: AgentId | null }): Promise<AgentId | null> {
+    return this.agentCall('setFolderDefaultAgent', [request], () => {
+      if (request.agentId === null) {
+        delete this.folderDefaults[request.folder]
+      } else {
+        this.folderDefaults[request.folder] = request.agentId
+      }
+      return request.agentId
+    })
   }
 
   /** Calls recorded for one agent method. */

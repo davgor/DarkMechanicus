@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code orchestrator (multi-repo folders)",
+    "role": "orchestrator"
+  },
+  "body": "Orchestrator integration note (acceptance round): `src/core/plan/graph.ts` imported `RepositoryEntry` from `src/core/repo/portable.ts`. The renderer imports graph.ts (`groupIntoRows`), so the web TypeScript program pulled in portable.ts and, through it, schemas, ids and the database module; `npm run deadcode` then reported ~140 findings. The orchestrator replaced the import with a local structural `RepositoryRef { name; missing? }` in commit 7aa7c70 (no behaviour change).",
+  "createdAt": "2026-10-31T22:29:51.458Z",
+  "epicId": "ep_01m68w2edvsnjrvj7w56hxrmt8",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m6a1ar72g5q5jrk1kgjydcz2",
+  "ticketId": "tk_01m68w2eevhkm0zj67e34eag1c"
+}

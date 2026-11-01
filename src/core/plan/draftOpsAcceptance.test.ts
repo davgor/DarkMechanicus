@@ -4,12 +4,12 @@ import type { DraftOp } from '../../shared/domain/api'
 import type { PlanBundle, TicketContent } from '../../shared/domain/bundle'
 import { makeBundle, makeSprint, makeTicket, tid } from '../../test/bundles'
 import { DomainError } from '../errors'
-import { applyDraftOps, type DraftOpsResult } from './draftOps'
+import { applyDraftOps, type DraftDeps, type DraftOpsResult } from './draftOps'
 import { validatePlan } from './graph'
 import { maxKeyNumber } from './normalize'
 
 /** Readable, deterministic ids (`tk_new1`, `sp_new1`) and keys continuing after the bundle's own. */
-function makeDeps(bundle: PlanBundle): { newId(kind: 'ticket' | 'sprint'): string; nextKey(): string } {
+function makeDeps(bundle: PlanBundle): DraftDeps {
   const counters = { ticket: 0, sprint: 0 }
   let key = maxKeyNumber(bundle.tickets.map((ticket) => ticket.key))
   return {
@@ -20,7 +20,8 @@ function makeDeps(bundle: PlanBundle): { newId(kind: 'ticket' | 'sprint'): strin
     nextKey: () => {
       key += 1
       return `DM-${key}`
-    }
+    },
+    repositories: () => null
   }
 }
 

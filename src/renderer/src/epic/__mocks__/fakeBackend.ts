@@ -11,6 +11,7 @@ import type {
   AgentAuthStatus,
   AgentDownloadResult,
   AgentFindResult,
+  AgentId,
   AgentSignInResult,
   AgentView,
   ClaudeCodeConnectResult,
@@ -39,6 +40,7 @@ import type {
   TicketDetailView,
   ValidationReport
 } from '../../../../shared/domain/views'
+import type { TransferView } from '../../../../shared/domain/transfer'
 import { CommandError } from '../../api/dm'
 import { idleChats } from '../../__mocks__/idleChats'
 import type { Runner } from '../runner'
@@ -53,6 +55,7 @@ import {
   savedPlan,
   summaries,
   ticketDetail,
+  transferView,
   validation
 } from './fixtures'
 
@@ -72,6 +75,8 @@ interface Scenario {
   profiles: ProfileView[]
   /** The tracked repository's project, with its Definition of Done. */
   project: ProjectView
+  /** Where the epic's Linear transfer stands; queueTransfer and cancelTransfer change it as main does. */
+  transfer: TransferView
 }
 
 interface RecordedCall {
@@ -95,6 +100,7 @@ export function scenario(patch: Partial<Scenario> = {}): Scenario {
     comments: [],
     profiles: [],
     project: projectView(),
+    transfer: transferView(),
     ...patch
   }
 }
@@ -104,6 +110,8 @@ export class FakeBackend implements DmApi {
   chats: ChatsApi = idleChats()
   readonly calls: RecordedCall[] = []
   readonly opened: string[] = []
+  /** Every text put on the clipboard, oldest first. */
+  readonly copied: string[] = []
   /** Queued failures per command, consumed one per call. */
   readonly failures: Partial<Record<CommandName, DomainErrorShape[]>> = {}
   /** Promises a command waits on before answering (to observe in-flight states). */
@@ -186,7 +194,8 @@ export class FakeBackend implements DmApi {
     return Promise.resolve({ removed: [], removedFolders: [], kept: [], editByHand: [] })
   }
 
-  copyText(): Promise<void> {
+  copyText(text: string): Promise<void> {
+    this.copied.push(text)
     return Promise.resolve()
   }
 
@@ -207,6 +216,14 @@ export class FakeBackend implements DmApi {
     return Promise.resolve([])
   }
 
+  addCustomAgent(): Promise<AgentFindResult> {
+    return Promise.resolve({ outcome: 'cancelled' })
+  }
+
+  updateCustomAgent(): Promise<AgentFindResult> {
+    return Promise.resolve({ outcome: 'cancelled' })
+  }
+
   downloadAgent(): Promise<AgentDownloadResult> {
     return Promise.resolve({ outcome: 'cancelled' })
   }
@@ -220,7 +237,15 @@ export class FakeBackend implements DmApi {
   }
 
   signInAgent(): Promise<AgentSignInResult> {
-    return Promise.resolve({ outcome: 'not_connected', reason: 'Not connected yet.' })
+    return Promise.resolve({ outcome: 'failed', reason: 'Not connected yet.' })
+  }
+
+  folderDefaultAgent(): Promise<AgentId | null> {
+    return Promise.resolve(null)
+  }
+
+  setFolderDefaultAgent(): Promise<AgentId | null> {
+    return Promise.resolve(null)
   }
 }
 
@@ -338,6 +363,24 @@ function approveWithRedraft(state: Scenario): unknown {
   }
 }
 
+/** Authorizes a transfer the way main does: refused while one is open, otherwise queued afresh from the saved plan. */
+function queueTransfer(state: Scenario): TransferView {
+  if (state.transfer.status === 'queued' || state.transfer.status === 'in_progress') {
+    throw new Error('A transfer of this epic is already open. Cancel it before queuing another.')
+  }
+  state.transfer = transferView('queued')
+  return state.transfer
+}
+
+/** Withdraws the authorization: the recorded items are cleared, as main does. */
+function cancelTransfer(state: Scenario): TransferView {
+  if (state.transfer.status !== 'queued' && state.transfer.status !== 'in_progress') {
+    throw new Error('This epic has no open transfer to cancel.')
+  }
+  state.transfer = transferView('canceled')
+  return state.transfer
+}
+
 function runHandlers(state: Scenario): Partial<Record<CommandName, Handler>> {
   return {
     approveWithRedraft: () => approveWithRedraft(state),
@@ -402,6 +445,9 @@ function defaultHandlers(state: Scenario): Partial<Record<CommandName, Handler>>
     getProject: () => state.project,
     listProfiles: () => state.profiles,
     saveProfile: (input: SaveProfileRequest) => saveProfile(state, input),
+    getTransfer: () => state.transfer,
+    queueTransfer: () => queueTransfer(state),
+    cancelTransfer: () => cancelTransfer(state),
     ...runHandlers(state)
   }
 }

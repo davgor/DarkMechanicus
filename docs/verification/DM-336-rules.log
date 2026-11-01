@@ -1,0 +1,17 @@
+$ cmp .agents/skills/delivery-standards/SKILL.md .claude/skills/delivery-standards/SKILL.md; echo $?
+0
+$ cmp .claude/skills/delivery-standards/SKILL.md .cursor/skills/delivery-standards/SKILL.md; echo $?
+0
+$ shasum -a 256 */skills/delivery-standards/SKILL.md (hidden dirs)
+0043f9ddd643fa0ac0e5ad965d0d9965ddff682efb6dcca99cba100b183cdb6b  .agents/skills/delivery-standards/SKILL.md
+0043f9ddd643fa0ac0e5ad965d0d9965ddff682efb6dcca99cba100b183cdb6b  .claude/skills/delivery-standards/SKILL.md
+0043f9ddd643fa0ac0e5ad965d0d9965ddff682efb6dcca99cba100b183cdb6b  .cursor/skills/delivery-standards/SKILL.md
+$ grep -n "" .agents/skills/delivery-standards/SKILL.md .claude/skills/delivery-standards/SKILL.md .cursor/skills/delivery-standards/SKILL.md | grep ":13:"
+.agents/skills/delivery-standards/SKILL.md:13:This skill exists as three identical copies, `.agents/skills/delivery-standards/SKILL.md`, `.claude/skills/delivery-standards/SKILL.md` and `.cursor/skills/delivery-standards/SKILL.md`. Keep all three byte-identical when changing workflow rules. `.cursor/rules/delivery-standards.mdc` is a shorter Cursor rule that summarizes these standards and points here; it is not a copy of this file.
+.claude/skills/delivery-standards/SKILL.md:13:This skill exists as three identical copies, `.agents/skills/delivery-standards/SKILL.md`, `.claude/skills/delivery-standards/SKILL.md` and `.cursor/skills/delivery-standards/SKILL.md`. Keep all three byte-identical when changing workflow rules. `.cursor/rules/delivery-standards.mdc` is a shorter Cursor rule that summarizes these standards and points here; it is not a copy of this file.
+.cursor/skills/delivery-standards/SKILL.md:13:This skill exists as three identical copies, `.agents/skills/delivery-standards/SKILL.md`, `.claude/skills/delivery-standards/SKILL.md` and `.cursor/skills/delivery-standards/SKILL.md`. Keep all three byte-identical when changing workflow rules. `.cursor/rules/delivery-standards.mdc` is a shorter Cursor rule that summarizes these standards and points here; it is not a copy of this file.
+$ git ls-files | grep -i "delivery-standards"
+.agents/skills/delivery-standards/SKILL.md
+.claude/skills/delivery-standards/SKILL.md
+.cursor/rules/delivery-standards.mdc
+.cursor/skills/delivery-standards/SKILL.md

@@ -88,7 +88,35 @@ function CreatedNothing({ name }: { name: string }): JSX.Element {
   )
 }
 
-const MODE_CHOICES = [
+/** What set-up makes of the folder: a single repository in either storage mode, or a folder of repositories. */
+type SetupChoice = StorageMode | 'multi_repo'
+
+/** The repositories a folder of repositories is set up over, and where its plans live. */
+function CreatedNothingMulti({ name, repositories }: { name: string; repositories: readonly string[] }): JSX.Element {
+  return (
+    <div className="created-list">
+      <p className="created-note-text">
+        Plans live in this computer’s Dark Mechanicus database. Nothing is written into <strong>{name}</strong> or
+        its repositories. Each ticket targets one of these repositories:
+      </p>
+      <ul className="onboarding-repositories" aria-label="Detected repositories">
+        {repositories.map((repository) => (
+          <li key={repository}>
+            <code>{repository}</code>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+const MULTI_REPO_CHOICE = {
+  mode: 'multi_repo' as const,
+  label: 'Folder of repositories',
+  note: 'Plan across the Git repositories inside this folder. Everything stays in one database on this machine.'
+}
+
+const MODE_CHOICES: { mode: SetupChoice; label: string; note: string }[] = [
   {
     mode: 'repo' as const,
     label: 'In this repository',
@@ -102,17 +130,20 @@ const MODE_CHOICES = [
 ]
 
 interface StorageModeChoiceProps {
-  mode: StorageMode
+  mode: SetupChoice
+  /** Offer Folder of repositories too. */
+  multiRepo: boolean
   disabled: boolean
-  onChange(mode: StorageMode): void
+  onChange(mode: SetupChoice): void
 }
 
 /** Where this folder's plans, tickets and history are kept. Fixed once the project has data. */
-function StorageModeChoice({ mode, disabled, onChange }: StorageModeChoiceProps): JSX.Element {
+function StorageModeChoice({ mode, multiRepo, disabled, onChange }: StorageModeChoiceProps): JSX.Element {
   const name = useId()
+  const choices = multiRepo ? [MULTI_REPO_CHOICE, ...MODE_CHOICES] : MODE_CHOICES
   return (
     <div className="onboarding-modes" role="radiogroup" aria-label="Where plans and history are stored">
-      {MODE_CHOICES.map((choice) => (
+      {choices.map((choice) => (
         <label key={choice.mode} className={classNames('onboarding-mode', mode === choice.mode && 'is-selected')}>
           <input
             type="radio"
@@ -231,7 +262,7 @@ function BoardCard({ folder, view, removable }: BoardCardProps): JSX.Element {
   )
 }
 
-function OnboardingHead({ name, mode }: { name: string; mode: StorageMode }): JSX.Element {
+function OnboardingHead({ name, mode }: { name: string; mode: SetupChoice }): JSX.Element {
   return (
     <header className="onboarding-head">
       <Mascot size={96} />
@@ -239,9 +270,23 @@ function OnboardingHead({ name, mode }: { name: string; mode: StorageMode }): JS
       <p className="lede">
         {mode === 'repo'
           ? 'Plans, tickets and run history will live inside this repository so they travel with it. Initializing only creates files; nothing is committed or pushed.'
-          : 'Plans, tickets and run history will live in a database on this machine. The repository is left exactly as it is: no file is created in it, so there is nothing to commit or to explain to anyone else.'}
+          : mode === 'multi_repo'
+            ? 'Plans, tickets and run history for the repositories in this folder will live in a database on this machine. Nothing is written into the folder or its repositories.'
+            : 'Plans, tickets and run history will live in a database on this machine. The repository is left exactly as it is: no file is created in it, so there is nothing to commit or to explain to anyone else.'}
       </p>
     </header>
+  )
+}
+
+/** What the chosen set-up creates, or that it creates nothing in the folder. */
+function CreatedPlan({ folder, mode }: { folder: TrackedFolderView; mode: SetupChoice }): JSX.Element {
+  if (mode === 'repo') {
+    return <CreatedFiles />
+  }
+  return mode === 'multi_repo' ? (
+    <CreatedNothingMulti name={folder.name} repositories={folder.childRepositories ?? []} />
+  ) : (
+    <CreatedNothing name={folder.name} />
   )
 }
 
@@ -250,8 +295,8 @@ interface SetupCardProps {
   busy: boolean
   /** Open board epics an import would create; zero hides the option. */
   importable: number
-  mode: StorageMode
-  onModeChange(mode: StorageMode): void
+  mode: SetupChoice
+  onModeChange(mode: SetupChoice): void
   onInitialize(options: InitializeOptions): void
   onChooseDifferent(): void
 }
@@ -262,14 +307,15 @@ function SetupCard(props: SetupCardProps): JSX.Element {
   const [writeMcpConfig, setWriteMcpConfig] = useState(true)
   const [importBoard, setImportBoard] = useState(false)
   const inRepo = mode === 'repo'
+  const repositories = folder.childRepositories ?? []
   return (
     <section className="card card-strong" aria-label="What initializing creates">
       <span className="eyebrow">
         <span>{inRepo ? 'WILL BE CREATED IN' : 'NOTHING WILL BE CREATED IN'}</span>{' '}
         <span className="eyebrow-path">{folder.displayPath}</span>
       </span>
-      <StorageModeChoice mode={mode} disabled={busy} onChange={onModeChange} />
-      {inRepo ? <CreatedFiles /> : <CreatedNothing name={folder.name} />}
+      <StorageModeChoice mode={mode} multiRepo={repositories.length > 0} disabled={busy} onChange={onModeChange} />
+      <CreatedPlan folder={folder} mode={mode} />
       {inRepo ? (
         <p className="created-note">
           <Icon name="file" />
@@ -289,7 +335,7 @@ function SetupCard(props: SetupCardProps): JSX.Element {
           busy={busy}
           onClick={() =>
             props.onInitialize({
-              mode,
+              ...(mode === 'multi_repo' ? { mode: 'db' as const, layout: 'multi_repo' as const } : { mode }),
               writeMcpConfig: inRepo && writeMcpConfig,
               importBoard: importable > 0 && importBoard
             })
@@ -303,10 +349,25 @@ function SetupCard(props: SetupCardProps): JSX.Element {
   )
 }
 
+/**
+ * The choice in effect for `folder`. Folder of repositories is offered only when it has child
+ * repositories, and preselected then (such a folder is not itself inside a repository); a choice
+ * made for another folder does not carry over to it.
+ */
+function setupChoiceFor(folder: TrackedFolderView, picked: { path: string; mode: SetupChoice } | null): SetupChoice {
+  const multiRepo = (folder.childRepositories ?? []).length > 0
+  if (picked !== null && (picked.mode !== 'multi_repo' || multiRepo) && (picked.path === folder.path || !multiRepo)) {
+    return picked.mode
+  }
+  return multiRepo ? 'multi_repo' : 'repo'
+}
+
 /** Shown for a tracked folder with no project yet: explains and performs setup. */
 export function OnboardingView({ folder, busy, onInitialize, onChooseDifferent }: OnboardingViewProps): JSX.Element {
   const toasts = useToasts()
-  const [mode, setMode] = useState<StorageMode>('repo')
+  const [picked, setPicked] = useState<{ path: string; mode: SetupChoice } | null>(null)
+  const mode = setupChoiceFor(folder, picked)
+  const setMode = (next: SetupChoice): void => setPicked({ path: folder.path, mode: next })
   const preview = useBoardPreview(folder.path, 0, toasts.reportError)
   const board = preview.status === 'ready' && boardFound(preview.value) ? preview.value : null
   const importable = board === null ? 0 : newEpicCount(board)

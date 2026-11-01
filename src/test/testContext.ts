@@ -5,6 +5,7 @@ import type { Ctx } from '../core/context'
 import { openDatabase, type Db } from '../core/db/database'
 import { migrate } from '../core/db/migrations'
 import { encodeBase32, ID_PREFIXES, type IdGenerator } from '../core/ids'
+import type { GitAdapter } from '../core/repo/types'
 import type { DefinitionOfDoneCheck, SessionRole } from '../shared/domain/views'
 
 export interface TestClock extends Clock {
@@ -57,11 +58,21 @@ interface TestCtxOptions {
   ids?: IdGenerator
   machineId?: string
   projectId?: string
+  /** The project root's absolute path (default `/projects/test`). */
+  projectRoot?: string
   sessionId?: string
   assertBranch?: () => void
   checkout?: { branch: string | null; commit: string | null }
   /** The project's Definition of Done (default: none). */
   definitionOfDone?: DefinitionOfDoneCheck[]
+  /** The project's repository names (default: `null`, a single repository). */
+  repositories?: string[] | null
+  /** Which of `repositories` a rescan marked missing (default: none). */
+  missingRepositories?: string[]
+  /** Each repository's own Definition of Done, by name (default: none). */
+  repositoryDefinitionOfDone?: Record<string, DefinitionOfDoneCheck[]>
+  /** The Git adapter per repository (default: none, so a service that opens Git throws). */
+  gitFor?: (repo: string | null) => GitAdapter
 }
 
 export interface TestCtx extends Ctx {
@@ -89,9 +100,26 @@ export function createTestCtx(options: TestCtxOptions = {}): TestCtx {
     session: testSession(options),
     machineId: options.machineId ?? 'mc_00000000000000000000000001',
     projectId: options.projectId ?? 'pj_00000000000000000000000001',
+    projectRoot: options.projectRoot ?? '/projects/test',
     assertBranch: options.assertBranch ?? (() => undefined),
     checkout: () => options.checkout ?? { branch: 'main', commit: '0123456789abcdef0123456789abcdef01234567' },
-    definitionOfDone: () => options.definitionOfDone ?? []
+    // No repository behind a test context unless the test supplies adapters: a service that opens Git needs one.
+    gitFor:
+      options.gitFor ??
+      ((repo) => {
+        throw new Error(`This test context has no Git adapter for ${repo === null ? 'the root' : repo}.`)
+      }),
+    definitionOfDone: () => options.definitionOfDone ?? [],
+    repositories: () => options.repositories ?? null,
+    repositoryEntries: () =>
+      options.repositories?.map((name) => {
+        const definitionOfDone = options.repositoryDefinitionOfDone?.[name]
+        return {
+          name,
+          ...(options.missingRepositories?.includes(name) === true ? { missing: true as const } : {}),
+          ...(definitionOfDone === undefined ? {} : { definitionOfDone })
+        }
+      }) ?? null
   }
 }
 

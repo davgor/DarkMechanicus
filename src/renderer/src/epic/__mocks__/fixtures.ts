@@ -3,6 +3,7 @@
  * "Planning vertical slice" sample from the design mockups. Lives under __mocks__ so fireguard
  * treats it as support code rather than a production module.
  */
+import { buildLinearPacket } from '../../../../core/transfer/linearPacket'
 import type { TrackedFolderView } from '../../../../shared/desktop/api'
 import {
   DEFAULT_POLICIES,
@@ -14,6 +15,14 @@ import {
   type TicketContent
 } from '../../../../shared/domain/bundle'
 import type { SprintRetro, TicketTierFacts } from '../../../../shared/domain/retro'
+import type {
+  EpicTransferOutcome,
+  LinearTransferPacket,
+  TransferItemKind,
+  TransferItemView,
+  TransferStatus,
+  TransferView
+} from '../../../../shared/domain/transfer'
 import type { AttemptState, TicketExecutionState } from '../../../../shared/domain/status'
 import type {
   AttemptView,
@@ -55,6 +64,7 @@ export function folder(patch: Partial<TrackedFolderView> = {}): TrackedFolderVie
     storageMode: 'repo',
     available: true,
     addedAt: '2026-01-01T00:00:00.000Z',
+    childRepositories: null,
     ...patch
   }
 }
@@ -450,6 +460,7 @@ export function projectView(patch: Partial<ProjectView> = {}): ProjectView {
       { name: 'Unit tests', command: 'npm test', description: 'Every unit test passes.' },
       { name: 'Typecheck', command: 'npm run typecheck', description: 'No type errors in any project.' }
     ],
+    repositories: null,
     ...patch
   }
 }
@@ -847,6 +858,47 @@ export function profileView(patch: Partial<ProfileView> = {}): ProfileView {
     },
     revision: 2,
     updatedAt: iso(0),
+    ...patch
+  }
+}
+
+/** The Linear packet the sample saved plan (rev 4) builds, as main stores it when the transfer is queued. */
+export function transferPacket(): LinearTransferPacket {
+  return buildLinearPacket({ epic: { id: EPIC_ID }, bundle: bundle(), revisionId: 'rv_4', revisionNumber: 4, ticketStatuses: {} })
+}
+
+/**
+ * Where the sample epic's transfer stands: `status` (never queued by default) with its first `recordedCount`
+ * packet refs recorded, in the order an agent creates them, and the rest still to do.
+ */
+export function transferView(status: TransferStatus = 'not_started', recordedCount = 0, patch: Partial<TransferView> = {}): TransferView {
+  const packet = transferPacket()
+  const refs: { ref: string; kind: TransferItemKind }[] = [
+    { ref: packet.project.ref, kind: 'project' },
+    ...packet.milestones.map((item) => ({ ref: item.ref, kind: 'milestone' as const })),
+    ...packet.issues.map((item) => ({ ref: item.ref, kind: 'issue' as const })),
+    ...packet.relations.map((item) => ({ ref: item.ref, kind: 'relation' as const }))
+  ]
+  const recorded: TransferItemView[] = refs.slice(0, recordedCount).map((item, index) => ({
+    ref: item.ref,
+    kind: item.kind,
+    linearId: `lin_${index + 1}`,
+    identifier: null,
+    url: null,
+    recordedAt: iso(-index * MINUTE)
+  }))
+  return { epicId: EPIC_ID, status, packet, recorded, lastMismatches: [], next: refs.slice(recordedCount).map((item) => item.ref), ...patch }
+}
+
+/** The outcome a verified transfer leaves on the epic: every issue of the sample plan in the ENG team. */
+export function transferOutcome(patch: Partial<EpicTransferOutcome> = {}): EpicTransferOutcome {
+  const packet = transferPacket()
+  return {
+    target: 'linear',
+    projectUrl: 'https://linear.app/acme/project/planning-vertical-slice-1a2b3c',
+    revisionId: packet.revisionId,
+    packetHash: packet.packetHash,
+    items: packet.issues.map((issue, index) => ({ key: issue.key, identifier: `ENG-${index + 1}`, url: null })),
     ...patch
   }
 }

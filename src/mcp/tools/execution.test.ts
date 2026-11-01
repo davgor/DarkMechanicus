@@ -389,6 +389,19 @@ describe('reasoning effort in host catalogs and claims', () => {
   })
 })
 
+describe('a replayed claim in the claim_ticket description', () => {
+  it('says the token is shown once and what to do when it is lost', async () => {
+    await inRig(createCannedApi({}), async (rig) => {
+      const { tools } = await rig.client.listTools()
+      const described = tools.find((tool) => tool.name === 'claim_ticket')?.description ?? ''
+      expect(described).toContain('claimToken null')
+      expect(described).toContain('fail_attempt without a claimToken')
+      expect(described).toContain('claim it again with a new idempotencyKey; the old key keeps replaying the lost claim')
+      expect(described).toContain('reconcile_attempt')
+    })
+  })
+})
+
 describe('acceptance node readiness in the tool descriptions', () => {
   it('tells orchestrators the node waits for the rest of its sprint', async () => {
     await inRig(createCannedApi({}), async (rig) => {

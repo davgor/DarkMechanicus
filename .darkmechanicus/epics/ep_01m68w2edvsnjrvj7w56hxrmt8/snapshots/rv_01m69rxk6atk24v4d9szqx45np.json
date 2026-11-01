@@ -1,0 +1,2306 @@
+{
+  "baseRevisionId": "rv_01m698jy704yjss9zzv6p2mq1z",
+  "bundle": {
+    "edges": [
+      {
+        "from": "tk_01m68w2eevcqq11z7s343qf6nv",
+        "to": "tk_01m68w2eevfh6hxrjp1p1qpd55"
+      },
+      {
+        "from": "tk_01m68w2eevfh6hxrjp1p1qpd55",
+        "to": "tk_01m68w2eevqc0kjxnxm6t9rcgc"
+      },
+      {
+        "from": "tk_01m68w2eevqc0kjxnxm6t9rcgc",
+        "to": "tk_01m68w2eevhkm0zj67e34eag1c"
+      },
+      {
+        "from": "tk_01m68w2eevqc0kjxnxm6t9rcgc",
+        "to": "tk_01m68w2eev0yytk74ney7jrar1"
+      },
+      {
+        "from": "tk_01m68w2eevfh6hxrjp1p1qpd55",
+        "to": "tk_01m68w2eev1zhz01vc0d4r9573"
+      },
+      {
+        "from": "tk_01m68w2eevfh6hxrjp1p1qpd55",
+        "to": "tk_01m68w2eevdqc3y140fmmce9v0"
+      },
+      {
+        "from": "tk_01m68w2eevqc0kjxnxm6t9rcgc",
+        "to": "tk_01m68w2eevrn99q2wv57s1s1a1"
+      },
+      {
+        "from": "tk_01m68w2eevfh6hxrjp1p1qpd55",
+        "to": "tk_01m68w2eevav0n4d8wt3tx6aqv"
+      },
+      {
+        "from": "tk_01m68w2eevav0n4d8wt3tx6aqv",
+        "to": "tk_01m68w2eevna1z93ez2fmwzfw2"
+      },
+      {
+        "from": "tk_01m68w2eevna1z93ez2fmwzfw2",
+        "to": "tk_01m68w2eevh32qzespfmw6xs2v"
+      },
+      {
+        "from": "tk_01m68w2eevqc0kjxnxm6t9rcgc",
+        "to": "tk_01m68w2eevh32qzespfmw6xs2v"
+      },
+      {
+        "from": "tk_01m68w2eevh32qzespfmw6xs2v",
+        "to": "tk_01m68w2eewcrfw8k96bx5x75yc"
+      },
+      {
+        "from": "tk_01m68w2eewcrfw8k96bx5x75yc",
+        "to": "tk_01m68w2eew20w1cskjbnky5zy2"
+      },
+      {
+        "from": "tk_01m68w2eevh32qzespfmw6xs2v",
+        "to": "tk_01m68w2eewk63d66xtzmva25da"
+      },
+      {
+        "from": "tk_01m68w2eew20w1cskjbnky5zy2",
+        "to": "tk_01m68w2eew0en5nsvgz7wk4rht"
+      },
+      {
+        "from": "tk_01m68w2eewk63d66xtzmva25da",
+        "to": "tk_01m68w2eew0en5nsvgz7wk4rht"
+      },
+      {
+        "from": "tk_01m68w2eevh32qzespfmw6xs2v",
+        "to": "tk_01m68w2eewqm3qz9awecfrgy29"
+      },
+      {
+        "from": "tk_01m68w2eew20w1cskjbnky5zy2",
+        "to": "tk_01m68w2eewqm3qz9awecfrgy29"
+      },
+      {
+        "from": "tk_01m68w2eewk63d66xtzmva25da",
+        "to": "tk_01m68w2eewqm3qz9awecfrgy29"
+      },
+      {
+        "from": "tk_01m68w2eevna1z93ez2fmwzfw2",
+        "to": "tk_01m68w2eew9a25bh94vqq9kjg0"
+      },
+      {
+        "from": "tk_01m68w2eew20w1cskjbnky5zy2",
+        "to": "tk_01m68w2eewkj36297tmtknt90t"
+      },
+      {
+        "from": "tk_01m68w2eewk63d66xtzmva25da",
+        "to": "tk_01m68w2eewkj36297tmtknt90t"
+      },
+      {
+        "from": "tk_01m68w2eewqm3qz9awecfrgy29",
+        "to": "tk_01m68w2eewr27g9s46gt1ma30q"
+      }
+    ],
+    "epic": {
+      "intent": "Today a Dark Mechanicus folder is one Git repository: one project, one checkout, one epic branch, one Definition of Done. Many people keep their repositories side by side in one folder (for example `~/Documents/GitHub`), and real work often spans several of them. This epic lets a person open that parent folder, plan one epic across its repositories and run it, with every ticket saying which repository it changes.\n\n## What changes\n- **Setup.** A tracked folder that is not inside a Git repository and has child Git repositories offers **Folder of repositories**. It is always set up in the machine-local `db` storage mode (decision 0002): nothing is written into the parent folder or any child repository.\n- **Repositories.** The immediate child folders that hold a `.git` directory or file are detected and recorded on the project under their exact folder names. Hidden and symlinked children and deeper repositories are skipped. **Rescan** adds new ones and marks vanished ones missing; it never drops one.\n- **Tickets.** Every work ticket in a folder of repositories targets exactly one repository (new ticket field `repo`). The server keeps its title as `<exact folder name> - <description>`, for example `DarkMechanicus - Add refund endpoint`, and swaps the prefix when the repository changes. Acceptance nodes span repositories and carry neither. Single-repository folders refuse the field and are otherwise unchanged.\n- **Planning.** `validate_plan` reports a work ticket without a repository, or naming one the project does not list. The planner guides split cross-repository work into one ticket per repository, wired with dependencies.\n- **Runs.** The epic branch name is shared and bound in each repository the plan names, with that repository's own start commit. Packets give the worker the target repository's absolute path and branch. Each sprint's acceptance node lands one squashed increment per touched repository, each verified against that repository's history, and reports each touched repository's own Definition of Done.\n- **Desktop.** Setup, a Repositories card with Rescan, a Repository picker in the ticket editor, the branch name at run start, and per-repository Definition of Done and increments.\n\n## Contract (shared by the tickets)\n- `project.json`: optional `repositories: RepositoryEntry[]`, with `RepositoryEntry = { name, missing?: true, definitionOfDone?: DefinitionOfDoneCheck[] }`. Its presence makes the project a folder of repositories. A repository's path is `<project root>/<name>`.\n- `initialize_repository` gains `layout?: 'single' | 'multi_repo'` (default `single`). New command `rescan_repositories` (capability `project.repositories`).\n- Ticket field `repo?: string` in `ticketContent`; `repo?: string | null` in `ticketInput` (`null` clears it in a patch).\n- Title rule: exactly `${repo} - ${description}`, applied by the server.\n- `WorkspaceCore.gitFor(repo: string | null): GitAdapter` (`null` is the project root, the single-repository case).\n- Epic: `branch` keeps the shared name (`repository: null`, `startCommit: null`), and new `repositoryBranches?: EpicBranch[]` holds one entry per bound repository (`repository` is its name).\n- Work packet `repository?: { name, path, branch }`. Acceptance packet `repositories?: { name, path, branch, definitionOfDone }[]` for the sprint's touched repositories.\n- A sprint's **touched repositories** are the `repo` values of its work tickets with an accepted attempt.\n- `incrementRef` gains `repo?`. In a folder of repositories, `submit_attempt` on an acceptance node takes `increments: IncrementRef[]` (one per touched repository) instead of `increment`, and `attempts.increment_json` then holds an array of verdicts, each with its `repo`.\n- Definition of Done check names in evidence for a folder of repositories: `<repo>: <check name>`.\n\n## Standards (owner decision, 2026-10-31)\nTests are listed and written in each ticket: every work ticket body has a **Tests** section, and testable behavior is written tests-first. There is no Fireguard ticket and no Fireguard run in this epic. The project's Definition of Done gates each sprint's acceptance node.\n\n## Out of scope\n- A Source control tab for a folder of repositories (the Source control epic is not on main).\n- Repositories deeper than one level, submodules, and a parent folder that is itself inside a Git repository.\n- `repo` storage mode for the parent folder, and converting an existing single-repository project.\n- Retitling tickets when a child folder is renamed (rescan marks it missing and validation reports its tickets).\n- A board filter by repository.",
+      "ownerRole": null,
+      "successCriteria": [
+        {
+          "id": "s1",
+          "text": "In the desktop app, adding a folder that is not a Git repository but holds child Git repositories offers Folder of repositories; after set-up the folder page lists every child repository by its exact folder name, and nothing was written into the parent folder or any child repository."
+        },
+        {
+          "id": "s2",
+          "text": "In a folder of repositories, a ticket targeting `DarkMechanicus` titled `Add refund endpoint` is stored and shown as `DarkMechanicus - Add refund endpoint`; moving it to another repository swaps the prefix; acceptance nodes carry no repository and no prefix."
+        },
+        {
+          "id": "s3",
+          "text": "`validate_plan` reports a work ticket without a repository or naming one the project does not list, and a single-repository project refuses the `repo` field."
+        },
+        {
+          "id": "s4",
+          "text": "A run of a two-repository epic hands each worker its repository's absolute path and epic branch, and a sprint passes only when each touched repository has a verified squashed increment and its own Definition of Done reported as passed."
+        },
+        {
+          "id": "s5",
+          "text": "Single-repository folders behave as before: their packets, increments, Definition of Done and titles are unchanged, and the existing suite passes."
+        },
+        {
+          "id": "s6",
+          "text": "The role guides, the orchestrator kickoff and the docs describe folders of repositories."
+        }
+      ],
+      "title": "Multi-repo folders: open a folder of Git repositories, target each ticket at one repository, and run epics across them"
+    },
+    "formatVersion": 1,
+    "policies": {
+      "leaseSeconds": 900,
+      "maxConcurrency": 2,
+      "onTicketFailure": "continue_independent",
+      "retryLimit": 3
+    },
+    "rationale": "## Decisions\n\nThe owner set these on 2026-10-31:\n- **Storage:** a folder of repositories is always set up in the machine-local `db` storage mode. Nothing is written into the parent folder or any child repository.\n- **Prefix:** the exact child folder name, as `<name> - <description>` (for example `DarkMechanicus - Add refund endpoint`). No humanizing and no display-name override.\n- **Scope:** plan and execute across repositories in this epic.\n- **Standards:** tests are listed and written in each ticket. No Fireguard ticket and no Fireguard run.\n\nThe planner assumed these (change them before Save if they are wrong):\n- Repositories are the immediate children holding a `.git` directory or file. Hidden and symlinked children and deeper repositories are skipped. The parent must not be inside a Git repository.\n- One work ticket targets exactly one repository; cross-repository changes are split and wired with dependencies. Acceptance nodes target none.\n- The prefix is stored in the title and kept by the server, so every reader (board, CLI, search, the Linear transfer, commit messages) sees it. The `repo` field is the source of truth; the editor edits only the description.\n- Ticket keys stay one sequence per project, with the key prefix derived from the parent folder's name as today.\n- One shared epic branch name, bound per repository with its own start commit: the commit of that branch when it already exists in the repository, else the repository's current HEAD (the same rule a single repository uses today). The run binds every repository the saved plan names, and a repository first named in an adopted revision when it is adopted.\n- A folder of repositories is in `db` mode, so no branch guard watches the child checkouts. The orchestrator guide therefore forbids switching a child repository's own checkout and does all integration in worktrees.\n- In a folder of repositories each repository has its own Definition of Done, and there is no folder-level list.\n- Rescan never drops a repository. A vanished one is marked missing and validation reports its tickets.\n\n## Open questions\n- Should a folder of repositories also allow folder-level Definition of Done checks next to the per-repository ones?\n- The Source control epic (`ep_01m43sbb2tbnxtr35fety5vzhs`, not on main) will need to choose a child repository for a folder of repositories.\n\n## Shape\n\nOne sprint ending in one human checkpoint. The owner compressed the original three sprints into one on 2026-10-31; the dependency edges keep their order inside it:\n1. **Plan across repositories** (DM-345 to DM-352). Detection, set-up and the project record first, then the ticket field with its server-kept prefix. Validation, the planner guides and the editor build on the field; the set-up screen and the Repositories card build on the project record.\n2. **Execute across repositories in the core** (DM-353 to DM-359). Per-repository Git adapters, then branch binding, then packets; increment verification runs beside packets, and the gate, views and records follow it; per-repository Definition of Done follows packets. A two-repository end-to-end integration test joins them.\n3. **Agents and the desktop** (DM-360 to DM-363). Role guides and the kickoff, the branch name at run start, per-repository checks and increments in the app, then the docs.\n\nOne acceptance node (DM-342) runs the Definition of Done once on the combined work and verifies every ticket. Compressing removes the checkpoints between the parts, so the data-model decisions of part 1 are reviewed by a person only at the final checkpoint, after the execution work has built on them.\n\nConcurrency is capped at 2: most tickets in a row touch shared core modules.",
+    "relations": [],
+    "sprints": [
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": null,
+        "entryCriteria": [],
+        "exitCriteria": [
+          {
+            "id": "x1",
+            "text": "A folder of repositories is set up from the desktop app without writing into the parent or any child repository, and its repositories are listed and rescanned."
+          },
+          {
+            "id": "x2",
+            "text": "Tickets in a folder of repositories carry a repository and a prefixed title, set from the editor or any command, and validate_plan reports missing or unknown repositories."
+          },
+          {
+            "id": "x3",
+            "text": "A run in a folder of repositories binds the epic branch per repository and hands each worker its repository's path and branch."
+          },
+          {
+            "id": "x4",
+            "text": "A sprint passes only when each touched repository has a verified squashed increment and reports its Definition of Done checks as passed."
+          },
+          {
+            "id": "x5",
+            "text": "An orchestrator started from the desktop app on a folder of repositories works each ticket in its own repository."
+          },
+          {
+            "id": "x6",
+            "text": "The desktop app shows Definition of Done checks and increments per repository, and the docs describe folders of repositories."
+          },
+          {
+            "id": "x7",
+            "text": "Single-repository folders, their tickets, runs, packets, increments and Definition of Done are unchanged."
+          }
+        ],
+        "goal": "Multi-repo folders end to end: a person sets up a folder of repositories and plans an epic whose work tickets each target one repository with a server-kept `<repo> - ` title prefix; a run binds the epic branch, hands out packets, verifies increments and reports Definition of Done per repository; the guides, the kickoff, the desktop app and the docs cover it.",
+        "id": "sp_01m68w2edvv407084313gndc31",
+        "ordinal": 1,
+        "ticketIds": [
+          "tk_01m68w2eevcqq11z7s343qf6nv",
+          "tk_01m68w2eevfh6hxrjp1p1qpd55",
+          "tk_01m68w2eevqc0kjxnxm6t9rcgc",
+          "tk_01m68w2eevhkm0zj67e34eag1c",
+          "tk_01m68w2eev0yytk74ney7jrar1",
+          "tk_01m68w2eev1zhz01vc0d4r9573",
+          "tk_01m68w2eevdqc3y140fmmce9v0",
+          "tk_01m68w2eevrn99q2wv57s1s1a1",
+          "tk_01m68w2eevav0n4d8wt3tx6aqv",
+          "tk_01m68w2eevna1z93ez2fmwzfw2",
+          "tk_01m68w2eevh32qzespfmw6xs2v",
+          "tk_01m68w2eewcrfw8k96bx5x75yc",
+          "tk_01m68w2eew20w1cskjbnky5zy2",
+          "tk_01m68w2eewk63d66xtzmva25da",
+          "tk_01m68w2eew0en5nsvgz7wk4rht",
+          "tk_01m68w2eewqm3qz9awecfrgy29",
+          "tk_01m68w2eew9a25bh94vqq9kjg0",
+          "tk_01m68w2eewkj36297tmtknt90t",
+          "tk_01m68w2eewr27g9s46gt1ma30q",
+          "tk_01m68w2edvmdw2h8063ch16s6q"
+        ]
+      }
+    ],
+    "tickets": [
+      {
+        "acceptanceCriteria": [
+          {
+            "covers": "tk_01m68w2eevcqq11z7s343qf6nv",
+            "id": "c1",
+            "text": "`detectChildRepos` on the scratch parent returns `['alpha', 'beta', 'gamma']`; the plain folder, the symlink to `alpha` and the nested repository are not listed (script output)."
+          },
+          {
+            "covers": "tk_01m68w2eevfh6hxrjp1p1qpd55",
+            "id": "c2",
+            "text": "Set-up with `layout: 'multi_repo'` leaves the parent and each child unchanged (listings with modification times before and after), and a rescan after adding `delta` and renaming `beta` lists `delta` and marks `beta` missing (output)."
+          },
+          {
+            "covers": "tk_01m68w2eevqc0kjxnxm6t9rcgc",
+            "id": "c3",
+            "text": "In the scratch project, `add_ticket` with `{ repo: 'alpha', title: 'Add refund endpoint' }` stores `alpha - Add refund endpoint`, `update_ticket` with `{ repo: 'gamma' }` retitles it `gamma - Add refund endpoint`, and `repo` on the acceptance node is refused (output)."
+          },
+          {
+            "covers": "tk_01m68w2eevhkm0zj67e34eag1c",
+            "id": "c4",
+            "text": "`validate_plan` on a scratch plan with one work ticket without `repo` and one naming `zeta` prints `missing_repo` and `unknown_repo` with both keys."
+          },
+          {
+            "covers": "tk_01m68w2eev0yytk74ney7jrar1",
+            "id": "c5",
+            "text": "The planner and graph planner prompts served by the built MCP server state the repository rules (quote the lines)."
+          },
+          {
+            "covers": "tk_01m68w2eev1zhz01vc0d4r9573",
+            "id": "c6",
+            "text": "Screenshot from the built app: the scratch parent's set-up screen offers Folder of repositories and lists `alpha`, `beta` and `gamma`; a scratch single repository's set-up screen is unchanged."
+          },
+          {
+            "covers": "tk_01m68w2eevdqc3y140fmmce9v0",
+            "id": "c7",
+            "text": "Screenshot: the folder page's Repositories card after the rescan, with `beta` marked Missing, and the sidebar's repository count."
+          },
+          {
+            "covers": "tk_01m68w2eevrn99q2wv57s1s1a1",
+            "id": "c8",
+            "text": "Screenshot: the ticket editor with the Repository select and the prefix label, and the ticket panel after changing the repository, showing the new prefixed title."
+          },
+          {
+            "covers": "tk_01m68w2eevav0n4d8wt3tx6aqv",
+            "id": "c9",
+            "text": "Script output: `gitFor('alpha').head()` prints alpha's branch and commit, and `gitFor('../alpha')` and a symlinked child are refused."
+          },
+          {
+            "covers": "tk_01m68w2eevna1z93ez2fmwzfw2",
+            "id": "c10",
+            "text": "Script output: `start_run` on a scratch two-repository epic prints `repositoryBranches` with each repository's start commit, and `queue_run` without a branch name prints the refusal."
+          },
+          {
+            "covers": "tk_01m68w2eevh32qzespfmw6xs2v",
+            "id": "c11",
+            "text": "Script output: the packets of one work ticket per repository and of the acceptance node, claim tokens redacted, show each repository's path and branch."
+          },
+          {
+            "covers": "tk_01m68w2eewcrfw8k96bx5x75yc",
+            "id": "c12",
+            "text": "Script output: a submission with both squashed increments passes, and one with a merge commit in `beta` fails naming `beta`."
+          },
+          {
+            "covers": "tk_01m68w2eew20w1cskjbnky5zy2",
+            "id": "c13",
+            "text": "`get_run` output shows one increment per repository, and the gate detail names a missing repository."
+          },
+          {
+            "covers": "tk_01m68w2eewk63d66xtzmva25da",
+            "id": "c14",
+            "text": "Script output: the gate names `beta: test (not reported)` and passes once it is reported."
+          },
+          {
+            "covers": "tk_01m68w2eew0en5nsvgz7wk4rht",
+            "id": "c15",
+            "text": "`src/integration/multiRepo.test.ts` passes within the full `npm test` run (quote the result line)."
+          },
+          {
+            "covers": "tk_01m68w2eewqm3qz9awecfrgy29",
+            "id": "c16",
+            "text": "A real orchestrator chat started from the built app on the scratch two-repository fixture epic claims a ticket, its worker commits in that repository's worktree, and `git -C <repo> log <epic branch>` shows the commit only in that repository (transcript excerpt and both logs)."
+          },
+          {
+            "covers": "tk_01m68w2eew9a25bh94vqq9kjg0",
+            "id": "c17",
+            "text": "Screenshot: the start-run dialog asking for the epic branch on the scratch folder, and the refusal of an invalid name."
+          },
+          {
+            "covers": "tk_01m68w2eewkj36297tmtknt90t",
+            "id": "c18",
+            "text": "Screenshot: an acceptance node's Definition of Done grouped by repository and its per-repository increments, from a scripted scratch run."
+          },
+          {
+            "covers": "tk_01m68w2eewr27g9s46gt1ma30q",
+            "id": "c19",
+            "text": "The runbook is linked from `README.md` and `docs/runbooks/mcp-setup.md`, and every relative link in the changed docs resolves (command output)."
+          }
+        ],
+        "body": "Run the project's Definition of Done once on the combined work in the sprint integration worktree. There is no Fireguard run in this epic. Then verify each covered item with the evidence its criterion names, land the sprint as one squashed commit on the epic branch, and submit that increment.\n\nFixtures: a scratch parent folder holding three scratch Git repositories (`alpha`, `beta`, and `gamma`, where `gamma` has a `.git` file because it was made with `git worktree add`), a plain folder, a symlink to `alpha` and a nested repository under the plain folder, and a scratch `DARKMECHANICUS_HOME`. The execution criteria (c9 to c15) and the agent and desktop criteria (c16 to c19) need only `alpha` and `beta`. Never open the live `state.sqlite` of the main checkout.\n\nWhere a criterion needs commands, run them through a throwaway in-process script (`openWorkspace` from `src/core/workspace.ts` against the scratch home), redact claim tokens in printed packets, and delete the script afterwards. Take screenshots from the built app (`npm run build`) started with the scratch `DARKMECHANICUS_HOME`. For the live orchestrator check, use a two-ticket fixture epic (one ticket per repository), start it from the built app, and stop the chat after its first accepted ticket.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Verifies the sprint's combined work end to end on scratch repositories."
+          },
+          "skills": [
+            "typescript",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m68w2edvmdw2h8063ch16s6q",
+        "key": "DM-342",
+        "kind": "acceptance",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "tags": [],
+        "title": "Sprint 1 acceptance"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "`detectChildRepos` returns only immediate, non-hidden, non-symlinked child directories that hold a `.git` directory or file, by exact name in code-point order."
+          },
+          {
+            "id": "c2",
+            "text": "`isInsideGitRepository` is true inside a Git work tree and false for a plain folder."
+          },
+          {
+            "id": "c3",
+            "text": "The listed tests in `childRepos.test.ts` pass, and lint and typecheck pass."
+          }
+        ],
+        "body": "**Context**\nA folder of repositories is a parent folder whose immediate children are Git repositories. Nothing detects them today. The core filesystem port `FsAdapter` (`src/core/repo/types.ts`) already has `readdir`, `realpath`, `isSymlink`, `isDirectory` and `exists`.\n\n**Change**\nAdd the module `src/core/repo/childRepos.ts`:\n- `detectChildRepos(root: string, fs: FsAdapter): string[]` returns the names of the immediate children of `root` that are real directories (not symlinks) holding a `.git` entry, which may be a directory or a file (a worktree or submodule checkout has a `.git` file). Skip names starting with `.`. Return exact folder names sorted by code point. Never look below one level.\n- `isInsideGitRepository(root: string, fs: FsAdapter): boolean` is true when `root` or any ancestor holds a `.git` entry. Follow the bounded ancestor walk in `src/core/repo/discovery.ts` (`findRepositoryRoot`, `MAX_ANCESTORS`).\n\n**Out of scope**\nRecording repositories on the project (next ticket), the desktop and any UI.\n\n**Tests** (written first, in `src/core/repo/childRepos.test.ts`, with real temp directories)\n- A parent with `alpha/.git/` (directory), `beta/.git` (file), `plain/`, a file `notes.txt`, `.hidden/.git/`, a symlink `linked -> alpha`, and `gamma/nested/.git/` returns exactly `['alpha', 'beta']`.\n- An empty parent returns `[]`.\n- `isInsideGitRepository` is true for a subfolder of a repository and false for a plain temp folder.\n\n**Verify**\n`npx vitest run src/core/repo/childRepos.test.ts`, `npm run lint`, `npm run typecheck`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "One pure module with spelled-out rules and tests."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/repo/childRepos.ts",
+          "src/core/repo/childRepos.test.ts"
+        ],
+        "id": "tk_01m68w2eevcqq11z7s343qf6nv",
+        "key": "DM-345",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/discovery.ts",
+            "location": "src/core/repo/discovery.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/types.ts",
+            "location": "src/core/repo/types.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "micro",
+        "tags": [
+          "multi-repo",
+          "core"
+        ],
+        "title": "Detect a folder's child Git repositories"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "`initialize_repository` with `layout: 'multi_repo'` sets the folder up in db mode, records its child repositories, and writes nothing into the parent or any child."
+          },
+          {
+            "id": "c2",
+            "text": "Set-up is refused for `mode: 'repo'`, a parent inside a Git repository, and a parent without child repositories, each with `invalid_input`."
+          },
+          {
+            "id": "c3",
+            "text": "`rescan_repositories` adds new repositories, marks vanished ones missing without removing them, and is refused for single-repository projects and for readers."
+          },
+          {
+            "id": "c4",
+            "text": "`get_project` returns `repositories` (null for a single repository), and a `project.json` without the field re-serializes unchanged."
+          },
+          {
+            "id": "c5",
+            "text": "The listed tests pass, and lint and typecheck pass."
+          }
+        ],
+        "body": "**Context**\n`initialize_repository` (`src/core/commands/repository.ts`, schema `COMMAND_SCHEMAS.initializeRepository` in `src/core/commandSchemas.ts`) runs `initializeRepository` and `createProject` in `src/core/repo/initialize.ts`. The project record is `projectRecord` in `src/core/repo/portable.ts`; optional fields such as `definitionOfDone` have no default, so older records parse and re-serialize unchanged. `writeDefinitionOfDone` in `src/core/repo/projectConfig.ts` is the model for rewriting `project.json` in either storage mode. `get_project` returns `ProjectView` (`src/shared/domain/views.ts`). Child detection is `detectChildRepos` and `isInsideGitRepository` in `src/core/repo/childRepos.ts`.\n\n**Change**\n1. `projectRecord` gains optional `repositories: RepositoryEntry[]` (no default), with `RepositoryEntry = { name, missing?: true }`. A name is 1 to 255 characters with no `/`, `\\` or NUL and is not `.` or `..`; names are unique. The field's presence, even when every repository is missing, marks a folder of repositories. Mirror it in `ProjectView` as `repositories: RepositoryView[] | null` (`null` for a single repository).\n2. `initialize_repository` gains `layout?: 'single' | 'multi_repo'`. With `multi_repo` it:\n   - refuses `mode: 'repo'` (`invalid_input`: a folder of repositories is stored in the database only), and uses `db` when the mode is omitted;\n   - refuses a root inside a Git repository and a root with no child repositories, each with `invalid_input` and a message naming the folder;\n   - records the detected repositories.\n3. New command `rescan_repositories` (no input; new capability `project.repositories`, granted to planner and orchestrator in `src/core/authz.ts` and mapped in `src/core/commands/capabilities.ts`). It re-detects, appends new repositories, sets `missing: true` on vanished ones and clears it on returning ones, never removes an entry, appends the event `project.repositories_rescanned` with the added and missing names, and returns the new list. A single-repository project refuses it with `invalid_input`.\n4. Register the MCP tool `rescan_repositories` (kind `idempotent`) in `src/mcp/tools/discovery.ts` next to `set_definition_of_done`, and add `rescanRepositories` to `DESKTOP_COMMANDS` in `src/shared/desktop/api.ts`.\n\n**Out of scope**\nPer-repository Definition of Done (DM-358) and the desktop set-up screen.\n\n**Tests** (written first)\n- `src/core/repo/initialize.test.ts`: a `multi_repo` set-up records `['alpha', 'beta']` in db mode and leaves the parent and both children unchanged (list them with modification times before and after); `mode: 'repo'`, a parent inside a Git repository and a parent without child repositories are each refused.\n- `src/core/commands/repositories.test.ts` (new): rescan adds a new child, marks a removed one missing and keeps it, clears `missing` when it returns, and is refused for a single-repository project and for a reader.\n- `src/core/repo/portable.test.ts`: a `project.json` without `repositories` parses and re-serializes byte-identical.\n\n**Verify**\nThe listed tests, `npm run lint`, `npm run typecheck`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Touches the project record, set-up, authorization and a new command across core, MCP and desktop lists."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/commands/repositories.test.ts"
+        ],
+        "id": "tk_01m68w2eevfh6hxrjp1p1qpd55",
+        "key": "DM-346",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/initialize.ts",
+            "location": "src/core/repo/initialize.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/portable.ts",
+            "location": "src/core/repo/portable.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/projectConfig.ts",
+            "location": "src/core/repo/projectConfig.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/commands/repository.ts",
+            "location": "src/core/commands/repository.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/tools/discovery.ts",
+            "location": "src/mcp/tools/discovery.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/decisions/0002-storage-modes.md",
+            "location": "docs/decisions/0002-storage-modes.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "multi-repo",
+          "core",
+          "mcp"
+        ],
+        "title": "Set up a folder of repositories and record its repositories on the project"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "In a folder of repositories, adding a ticket with `repo: 'alpha'` and title `Add refund endpoint` stores `alpha - Add refund endpoint`, and a title that already has the prefix is not doubled."
+          },
+          {
+            "id": "c2",
+            "text": "Changing only the repository swaps the prefix, changing only the title keeps it, and clearing the repository leaves the bare description."
+          },
+          {
+            "id": "c3",
+            "text": "`repo` on an acceptance node, in a single-repository project, or naming an unlisted repository is refused with `invalid_input`."
+          },
+          {
+            "id": "c4",
+            "text": "A ticket without `repo` keeps its saved shape and hash, and the plan diff reports repository changes."
+          },
+          {
+            "id": "c5",
+            "text": "The listed tests pass, and lint and typecheck pass."
+          }
+        ],
+        "body": "**Context**\nTicket content is `ticketContent` and `ticketInput` in `src/core/schemas.ts`, mirrored by `TicketContent` in `src/shared/domain/bundle.ts`, and stored as JSON in `bundle_json`, so no SQL migration is needed. Every add and update passes through `buildTicket` (~136) and `patchTicket` (~183) in `src/core/plan/normalize.ts`, called from `applyDraftOps` in `src/core/plan/draftOps.ts` with the `DraftDeps` built by `draftDeps(ctx)` in `src/core/services/draftDeps.ts`. The MCP tools `create_ticket`, `update_ticket` and `update_plan_draft` reuse `ticketInput` (`src/mcp/tools/authoring.ts`), so they accept the field once the schema does. The project's repositories are `repositories` on the project record.\n\n**Change**\n1. `ticketContent` gains `repo?: string` (no default, like `size`, so saved tickets keep their shape and hash) and `ticketInput` gains `repo?: string | null` (`null` clears it in a patch). Add it to `TicketContent`.\n2. New pure module `src/core/plan/repoTitles.ts`: `repoPrefix(repo)` returns `${repo} - `; `withRepoPrefix(repo, description)`; `descriptionOf(repo, title)` strips exactly that prefix when present.\n3. `DraftDeps` gains `repositories(): string[] | null`: the project's repository names, or `null` for a single repository.\n4. In `add_ticket` and `update_ticket` (through `buildTicket` and `patchTicket`):\n   - Create with `repo` R and title T: the title becomes `withRepoPrefix(R, descriptionOf(R, T.trim()))`, so a title that already has R's prefix is not doubled.\n   - Update: the description is `descriptionOf(oldRepo, patch.title ?? ticket.title)`; the title becomes the new repository's prefix plus that description, or the bare description when `repo` is cleared.\n   - Refuse with `invalid_input`: `repo` on an acceptance node; `repo` in a single-repository project; a `repo` the project does not list (name the listed repositories); a prefixed title longer than `LIMITS.title`.\n5. `src/core/plan/diff.ts`: the ticket change detail reports `repository A → B`.\n\n**Out of scope**\nPlan validation of missing repositories (next ticket) and UI.\n\n**Tests** (written first)\n- `src/core/plan/repoTitles.test.ts`: prefix, prefix not doubled, strip only the exact prefix (including a repository named `foo - bar` and a title that starts with another repository's prefix).\n- `src/core/plan/draftOps.test.ts`: add with a repository; update the title only (prefix kept); update the repository only (prefix swapped); update both; clear the repository; each refusal above.\n- `src/core/plan/normalize.test.ts`: a ticket without `repo` keeps its exact shape.\n- `src/core/plan/diff.test.ts`: the repository change detail.\n\n**Verify**\nThe listed tests, `npm run lint`, `npm run typecheck`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "The prefix rules on update must hold for every combination of title and repository changes without changing saved hashes."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/plan/repoTitles.ts",
+          "src/core/plan/repoTitles.test.ts"
+        ],
+        "id": "tk_01m68w2eevqc0kjxnxm6t9rcgc",
+        "key": "DM-347",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/schemas.ts",
+            "location": "src/core/schemas.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/plan/normalize.ts",
+            "location": "src/core/plan/normalize.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/plan/draftOps.ts",
+            "location": "src/core/plan/draftOps.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/draftDeps.ts",
+            "location": "src/core/services/draftDeps.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/plan/diff.ts",
+            "location": "src/core/plan/diff.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "multi-repo",
+          "core",
+          "plan"
+        ],
+        "title": "Give each ticket a target repository and keep its title prefixed"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "`validate_plan` reports `missing_repo`, `unknown_repo` and `repo_not_allowed` as errors and `repo_missing_on_disk` as a warning, each naming the ticket key and the repository."
+          },
+          {
+            "id": "c2",
+            "text": "`save_plan` refuses a plan with a repository error."
+          },
+          {
+            "id": "c3",
+            "text": "Single-repository plans validate exactly as before."
+          },
+          {
+            "id": "c4",
+            "text": "The listed tests pass, and lint and typecheck pass."
+          }
+        ],
+        "body": "**Context**\n`validatePlan(bundle)` in `src/core/plan/graph.ts` (~503) is pure and returns `{ valid, errors, warnings }` from sub-checks such as `acceptanceErrors` (~382). Its callers are `src/core/services/drafts.ts` (~98), `src/core/services/plans.ts` (~224 `validatePlanView`, ~235 the save gate) and `src/core/services/redraft.ts` (~117). The draft-op checks of the previous ticket stop bad input; this rule catches plans that drifted afterwards: a repository marked missing by a rescan, or a work ticket never given a repository.\n\n**Change**\n- `validatePlan(bundle, options?: { repositories: RepositoryEntry[] | null })` with a new sub-check `repositoryIssues`:\n  - error `missing_repo`: a work ticket in a folder of repositories has no `repo`;\n  - error `unknown_repo`: a ticket names a repository the project does not list;\n  - error `repo_not_allowed`: a ticket has `repo` in a single-repository project, or an acceptance node has `repo`;\n  - warning `repo_missing_on_disk`: a ticket names a repository marked `missing`.\n  Each issue names the ticket key and the repository.\n- Pass the project's repositories from all four callers. Without options the function behaves exactly as today.\n\n**Tests** (written first, in a new `src/core/plan/repositoryRules.test.ts` that follows `src/core/plan/acceptanceRules.test.ts`)\nOne case per issue code, a valid two-repository plan with no issue, and a single-repository plan without `repo` with no issue. One `src/core/services/plans.test.ts` case shows `save_plan` refuses a plan with `missing_repo`.\n\n**Verify**\nThe listed tests, `npm run lint`, `npm run typecheck`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "One pure sub-check with listed codes, threaded to four named callers."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/plan/repositoryRules.test.ts"
+        ],
+        "id": "tk_01m68w2eevhkm0zj67e34eag1c",
+        "key": "DM-348",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/plan/graph.ts",
+            "location": "src/core/plan/graph.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/plan/acceptanceRules.test.ts",
+            "location": "src/core/plan/acceptanceRules.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/plans.ts",
+            "location": "src/core/services/plans.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "multi-repo",
+          "core",
+          "plan"
+        ],
+        "title": "Report missing and unknown ticket repositories in validate_plan and at save"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The planner guide tells planners to set `repo` on every work ticket in a folder of repositories, to give titles without the prefix, and to split cross-repository changes into one ticket per repository."
+          },
+          {
+            "id": "c2",
+            "text": "The graph planner guide says covering criteria name the repository their check runs in."
+          },
+          {
+            "id": "c3",
+            "text": "`src/mcp/skills.test.ts` asserts the new rules and passes."
+          }
+        ],
+        "body": "**Context**\n`skills/planner.md` and `skills/graph-planner.md` are served by the MCP server as prompts (`src/mcp/skills.ts`), with phrase assertions in `src/mcp/skills.test.ts`. After the previous tickets, `get_project` returns `repositories` for a folder of repositories, tickets take `repo`, and the server writes the `<repo> - ` title prefix.\n\n**Change**\n- `skills/planner.md`, section 4: add a short \"Folders of repositories\" rule. When `get_project` returns `repositories`, set `repo` on every work ticket to the repository it changes. One ticket changes one repository, so split a cross-repository change into one ticket per repository and wire them with dependencies. The server writes the `<repo> - ` prefix, so give the title without it. Acceptance nodes take no `repo`.\n- `skills/graph-planner.md`, the acceptance node section: in a folder of repositories each covering criterion names the repository its check runs in.\n- Keep all other text in both guides as it is.\n\n**Tests**\nExtend `src/mcp/skills.test.ts` to assert that the served planner prompt states the `repo` rule and the one-repository-per-ticket rule.\n\n**Verify**\n`npx vitest run src/mcp/skills.test.ts`, `npm run lint`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "Guide text with the rules spelled out, plus one phrase test."
+          },
+          "skills": [
+            "documentation",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "documentation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m68w2eev0yytk74ney7jrar1",
+        "key": "DM-349",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/planner.md",
+            "location": "skills/planner.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/graph-planner.md",
+            "location": "skills/graph-planner.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/skills.test.ts",
+            "location": "src/mcp/skills.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "multi-repo",
+          "guides"
+        ],
+        "title": "Teach the planner guides to target one repository per ticket"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "For a tracked folder that is not set up and not inside a Git repository, the folder view lists its child repositories; otherwise the list is null."
+          },
+          {
+            "id": "c2",
+            "text": "The set-up screen offers Folder of repositories only when child repositories exist, lists them, hides the `.mcp.json` option, and submits `{ mode: 'db', layout: 'multi_repo' }`."
+          },
+          {
+            "id": "c3",
+            "text": "Set-up for folders without child repositories is unchanged."
+          },
+          {
+            "id": "c4",
+            "text": "The listed tests pass, and lint and typecheck pass."
+          }
+        ],
+        "body": "**Context**\nSet-up happens in `src/renderer/src/onboarding/OnboardingView.tsx` (`MODE_CHOICES` ~85, `StorageModeChoice` ~111, `SetupCard` ~296, tested by `OnboardingView.test.tsx`), which calls `repositoryActions.initialize` in `src/renderer/src/app/shellActions.ts` (`runCommand(folder.path, 'initializeRepository', { mode })`). The tracked folder view is `TrackedFolderView` (`src/shared/desktop/api.ts` ~11–22), built by `toView` in `src/main/desktop/folderRegistry.ts` (~147) through `RegistryFs` (~22–31), which has no `readdir` yet. `initialize_repository` accepts `layout: 'multi_repo'`, and `detectChildRepos` / `isInsideGitRepository` live in `src/core/repo/childRepos.ts`.\n\n**Change**\n1. Main: give `RegistryFs` (and its real implementation) `readdir` and `isSymlink`, and add `childRepositories: string[] | null` to `TrackedFolderView`. For a folder that is not set up and not inside a Git repository it is the result of `detectChildRepos`; otherwise it is `null`. Read nothing else.\n2. Renderer: when `childRepositories` is non-empty, `SetupCard` offers a third choice, **Folder of repositories**, preselected when the folder is not itself a repository. It lists the detected repositories, says that plans live in this computer's Dark Mechanicus database and nothing is written into the folder or its repositories, and hides the `.mcp.json` option. Choosing it calls `initializeRepository` with `{ mode: 'db', layout: 'multi_repo' }`.\n3. When `childRepositories` is empty or `null`, the screen is unchanged.\n\n**Tests** (written first)\n- `src/main/desktop/folderRegistry.test.ts`: a temp parent with two child repositories gives `childRepositories: ['alpha', 'beta']`; a repository folder and a set-up folder give `null`.\n- `src/renderer/src/onboarding/OnboardingView.test.tsx`: the choice appears only with child repositories, lists them, hides the `.mcp.json` option, and submits `{ mode: 'db', layout: 'multi_repo' }`.\n- The `shellActions` test: `initialize` passes `layout` through.\n\n**Verify**\nThe listed tests, `npm run lint`, `npm run typecheck`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Crosses main, the shared desktop API and the renderer set-up flow."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "react",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m68w2eev1zhz01vc0d4r9573",
+        "key": "DM-350",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/onboarding/OnboardingView.tsx",
+            "location": "src/renderer/src/onboarding/OnboardingView.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/app/shellActions.ts",
+            "location": "src/renderer/src/app/shellActions.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/folderRegistry.ts",
+            "location": "src/main/desktop/folderRegistry.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/desktop/api.ts",
+            "location": "src/shared/desktop/api.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "multi-repo",
+          "desktop"
+        ],
+        "title": "Offer 'Folder of repositories' set-up in the desktop app"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The folder page of a folder of repositories shows a Repositories card listing each repository with its path and a Missing tag; single-repository folders have no card."
+          },
+          {
+            "id": "c2",
+            "text": "Rescan runs `rescanRepositories`, reports added and missing repositories, and refreshes the list."
+          },
+          {
+            "id": "c3",
+            "text": "The sidebar row shows the repository count for a folder of repositories."
+          },
+          {
+            "id": "c4",
+            "text": "The listed tests pass, and lint and typecheck pass."
+          }
+        ],
+        "body": "**Context**\n`src/renderer/src/home/FolderHome.tsx` lays out the folder page; `SecondaryColumn` (~44–60) holds the side cards. `get_project` returns `repositories` (`null` for a single repository) and `rescanRepositories` is a desktop command. Tests use `FolderHome.test.tsx` with `FakeDm` and the fixtures in `src/renderer/src/__mocks__/fixtures` (`folderView`, `projectView`). The sidebar row is `src/renderer/src/sidebar/FolderRow.tsx`.\n\n**Change**\n- A **Repositories** card in `SecondaryColumn`, shown only when `repositories` is not `null`: each repository's exact name and path (`<folder>/<name>`), a \"Missing\" tag on missing ones, and a **Rescan** button that runs `rescanRepositories`, shows a toast naming the added and missing repositories, and refreshes the card. Errors show in the card the way the other cards show them.\n- `FolderRow` shows \"N repositories\" under the folder name for a folder of repositories.\n\n**Tests** (written first)\n`FolderHome.test.tsx`: the card is absent for a single repository, lists repositories with the Missing tag, and Rescan calls `rescanRepositories` and re-renders with the new list. `FolderRow.test.tsx`: the count line.\n\n**Verify**\nThe listed tests, `npm run lint`, `npm run typecheck`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "One card and one row line over an existing command, following the existing cards."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "ui",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m68w2eevdqc3y140fmmce9v0",
+        "key": "DM-351",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/home/FolderHome.tsx",
+            "location": "src/renderer/src/home/FolderHome.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/sidebar/FolderRow.tsx",
+            "location": "src/renderer/src/sidebar/FolderRow.tsx",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "multi-repo",
+          "renderer"
+        ],
+        "title": "List a folder's repositories on its page and rescan them"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "In a folder of repositories, the editor shows a Repository select and edits the title's description beside a fixed prefix label; acceptance nodes and single-repository projects show no select."
+          },
+          {
+            "id": "c2",
+            "text": "Saving with a changed repository sends `repo` and the description, and the stored title carries the new prefix."
+          },
+          {
+            "id": "c3",
+            "text": "A work ticket without a repository shows \"Choose a repository.\" and is not applied."
+          },
+          {
+            "id": "c4",
+            "text": "The ticket panel shows the ticket's repository."
+          },
+          {
+            "id": "c5",
+            "text": "The listed tests pass, and lint and typecheck pass."
+          }
+        ],
+        "body": "**Context**\nThe ticket editor works on `TicketForm` (`src/renderer/src/ticket/ticketForm.ts`: `formFromBundle`, `formErrors` ~206, `ticketPatch`, `formToOps`), rendered by `src/renderer/src/ticket/editorFields.tsx` (`DetailFields` ~136–190; `OptionalSelect` ~118–132 is the model for a select) inside `TicketEditor.tsx`. New tickets come from `addTicket` in `src/renderer/src/epic/workspaceActions.ts` (~262, `{ title: 'New ticket' }`). The panel header is `PanelHead` in `src/renderer/src/ticket/TicketPanel.tsx`. The server keeps the `<repo> - ` prefix, and `descriptionOf` in `src/core/plan/repoTitles.ts` strips it.\n\n**Change**\n- `TicketForm` gains `repo: string` (`''` for none). The title field edits the description: `formFromBundle` strips the prefix with `descriptionOf`, and the field shows the prefix as a fixed label before the input. `ticketPatch` sends `repo` when it changed and the description as `title`.\n- A **Repository** select in `DetailFields` lists the project's repositories (missing ones marked and not offered as a new choice). It is shown only in a folder of repositories and never for acceptance nodes. `formErrors` adds \"Choose a repository.\" for a work ticket without one.\n- `addTicket` in a folder of repositories leaves `repo` unset, so the editor opens showing that error until a repository is chosen.\n- `PanelHead` shows the repository next to the key; the title already carries the prefix.\n\n**Tests** (written first)\n`ticketForm.test.ts`: the description round trip, the `repo` patch, the missing-repository error, and no repository field for single-repository projects or acceptance nodes. `TicketEditor.test.tsx`: choosing a repository applies `update_ticket` with `repo`. `TicketPanel.test.tsx`: the repository is shown.\n\n**Verify**\nThe listed tests, `npm run lint`, `npm run typecheck`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "The form must round-trip the description against a server-kept prefix across form, editor and panel."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "ui",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m68w2eevrn99q2wv57s1s1a1",
+        "key": "DM-352",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/ticket/ticketForm.ts",
+            "location": "src/renderer/src/ticket/ticketForm.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/ticket/editorFields.tsx",
+            "location": "src/renderer/src/ticket/editorFields.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/ticket/TicketEditor.tsx",
+            "location": "src/renderer/src/ticket/TicketEditor.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/ticket/TicketPanel.tsx",
+            "location": "src/renderer/src/ticket/TicketPanel.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/epic/workspaceActions.ts",
+            "location": "src/renderer/src/epic/workspaceActions.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "multi-repo",
+          "renderer"
+        ],
+        "title": "Choose a ticket's repository in the editor and show it on the ticket"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "`gitFor(name)` returns an adapter rooted at that child repository, cached per name, and `gitFor(null)` returns the root adapter."
+          },
+          {
+            "id": "c2",
+            "text": "Unlisted or missing repositories, names with path parts and symlinked children are refused before any Git command runs."
+          },
+          {
+            "id": "c3",
+            "text": "A folder of repositories opens and reads its checkout without error although its root is not a repository."
+          },
+          {
+            "id": "c4",
+            "text": "The listed tests pass, and lint and typecheck pass."
+          }
+        ],
+        "body": "**Context**\n`RepositoryWorkspace` (`src/core/workspace.ts`) builds one adapter, `this.git = options.git ?? createGitAdapter(this.repoRoot, { fs })` (~153), exposed as `WorkspaceCore.git` (`src/core/commands/types.ts`) and passed to command contexts (~394). `createGitAdapter(root, { fs, runGit })` is in `src/core/repo/git.ts`. In a folder of repositories the root is not a repository, so `checkout()` (~325) sees no head. The project's repositories are `repositories` on the project record.\n\n**Change**\n- Add `gitFor(repo: string | null): GitAdapter` to `WorkspaceCore` and the command context. `null` returns the existing root adapter. A name:\n  - must be listed in the project's `repositories` and not missing, else `invalid_input` naming it;\n  - resolves `<root>/<name>` with `realpath` and is refused with `unsafe_path` unless it is not a symlink and its real path's parent is the real project root (no escape through `..`, separators or links);\n  - returns an adapter cached per name, built with the same `createGitAdapter` options (tests may inject a factory, as `options.git` does today).\n- Keep `core.git` as the root adapter; change no other call site in this ticket.\n- Make sure `checkout()` and `assertBranch()` stay no-ops, without throwing, for a db-mode folder of repositories whose root has no `.git`.\n\n**Tests** (written first)\n`src/core/workspace.gitFor.test.ts` (new), with two real repositories made by `src/test/gitRepo.ts` under a temp parent: `gitFor('alpha').head()` reports alpha's branch and commit; `gitFor(null)` is the root adapter; an unlisted name, a missing one, `..`, `alpha/../beta` and a symlinked child are refused; the adapter is cached; opening the folder and reading its checkout does not throw.\n\n**Verify**\nThe listed tests, `npm run lint`, `npm run typecheck`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Path containment for child repositories is security-relevant; a missed escape runs Git outside the folder."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/workspace.gitFor.test.ts"
+        ],
+        "id": "tk_01m68w2eevav0n4d8wt3tx6aqv",
+        "key": "DM-353",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/workspace.ts",
+            "location": "src/core/workspace.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/git.ts",
+            "location": "src/core/repo/git.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/commands/types.ts",
+            "location": "src/core/commands/types.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/test/gitRepo.ts",
+            "location": "src/test/gitRepo.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "multi-repo",
+          "core",
+          "git"
+        ],
+        "title": "Open a Git adapter per child repository"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Starting a run in a folder of repositories binds the shared branch name in every repository the saved plan's work tickets name, each with its own start commit."
+          },
+          {
+            "id": "c2",
+            "text": "Queueing or starting such a run without a branch name is refused with `invalid_input`."
+          },
+          {
+            "id": "c3",
+            "text": "A repository first named in an adopted revision is bound then, and bound repositories are never rebound."
+          },
+          {
+            "id": "c4",
+            "text": "Single-repository branch binding is unchanged."
+          },
+          {
+            "id": "c5",
+            "text": "The listed tests pass, and lint and typecheck pass."
+          }
+        ],
+        "body": "**Context**\n`startRun` (`src/core/services/runs.ts` ~286) calls `bindEpicBranch` (~262), which binds once, from the request or from `checkoutBranch(ctx)` (~256: the root checkout's HEAD, `repository: null`). `setEpicBranch` (`src/core/services/epics.ts` ~339) sets it by hand. The epic stores `epics.branch_json`, exported as `epicStateRecord.branch` (`src/core/repo/portable.ts` ~97–115) and read into epic views. In a folder of repositories the root has no checkout, so the name must come from the epic or the request. `gitFor(repo)` gives each repository's adapter.\n\n**Change**\n1. Epics gain `repositoryBranches?: EpicBranch[]`. Store it either inside `branch_json` (then write a data-only V11 migration in `src/core/db/migrations.ts` following V10) or in a new column (then a V11 `ALTER TABLE` following V6); say which in the evidence. Mirror it in `epicStateRecord` (optional, no default) and the epic view.\n2. In a folder of repositories:\n   - `queue_run` and `start_run` refuse an epic with no branch name (`invalid_input`: set the epic branch first); `start_run`'s `branch` may supply it.\n   - Binding sets `branch` to `{ repository: null, name, startCommit: null }` and binds each repository named by a work ticket of the saved revision being run as `{ repository: <name>, name, startCommit }`. `startCommit` is the commit of `refs/heads/<name>` in that repository when the branch exists, else that repository's HEAD commit. Add `branchCommit(name): string | null` to `GitAdapter` (`git rev-parse --verify --quiet refs/heads/<name>^{commit}`, through `safeArg`) if no method gives it.\n   - When the run adopts a later revision that names a new repository, bind that one then. Never rebind a bound repository.\n   - Append `epic.branch_set` with the repositories bound.\n3. Single-repository epics bind exactly as today.\n\n**Tests** (written first)\n`src/core/services/runs.test.ts`: a two-repository epic binds both with their own start commits (one with an existing branch, one from HEAD); a missing branch name is refused at queue and at start; a repository added in an adopted revision is bound, and a bound one keeps its commit; the existing single-repository cases pass unchanged. `src/core/repo/git.test.ts`: `branchCommit` for an existing and a missing branch, and `unsafe_path` for a leading dash.\n\n**Verify**\nThe listed tests, `npm run lint`, `npm run typecheck`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "deep",
+            "rationale": "Bind-once run state and a stored-shape migration; a wrong start commit silently breaks every later increment check."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "database",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m68w2eevna1z93ez2fmwzfw2",
+        "key": "DM-354",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/runs.ts",
+            "location": "src/core/services/runs.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/epics.ts",
+            "location": "src/core/services/epics.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/portable.ts",
+            "location": "src/core/repo/portable.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/db/migrations.ts",
+            "location": "src/core/db/migrations.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "multi-repo",
+          "core",
+          "execution"
+        ],
+        "title": "Bind the epic branch in every repository the run names"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A work packet in a folder of repositories names its repository, the repository's absolute path and its bound epic branch."
+          },
+          {
+            "id": "c2",
+            "text": "An acceptance packet lists exactly the sprint's touched repositories with their paths and branches."
+          },
+          {
+            "id": "c3",
+            "text": "Claiming a ticket whose repository is missing or unbound is refused."
+          },
+          {
+            "id": "c4",
+            "text": "Single-repository packets are unchanged."
+          },
+          {
+            "id": "c5",
+            "text": "The listed tests pass, and lint and typecheck pass."
+          }
+        ],
+        "body": "**Context**\n`executionPacket(ctx, parts)` in `src/core/services/attempts.ts` (~295–321) builds the packet with `epic: { id, title, branch }` from `epics.branch_json`; `REPORTING` (~91–101) is the worker's reporting text; the type is `ExecutionPacket` in `src/shared/domain/views.ts` (~584). Neither names a repository or a path today. Epics now carry `repositoryBranches`.\n\n**Change**\nIn a folder of repositories:\n- A work ticket's packet gains `repository: { name, path, branch }`: its `repo`, the absolute path `<project root>/<repo>`, and that repository's bound `EpicBranch`.\n- An acceptance node's packet gains `repositories: { name, path, branch }[]` for the sprint's touched repositories (the `repo` values of its work tickets with an accepted attempt), in name order.\n- The reporting text gains one line: work only in a worktree of `repository.path`, on that repository's branch.\n- `claim_ticket` refuses a work ticket whose repository is missing or unbound (`invalid_input`) instead of handing out a packet without a path.\n- Compute the touched repositories in one exported helper, `touchedRepositories(ctx, sprintId)` in `src/core/services/increments.ts`; the increment ticket reuses it.\nSingle-repository packets are unchanged: no new fields.\n\n**Tests** (written first)\n`src/core/services/attempts.test.ts`: work packets for two repositories carry their own path and branch; the acceptance packet lists only the touched repositories; a missing repository is refused at claim; a single-repository packet keeps its previous shape.\n\n**Verify**\nThe listed tests, `npm run lint`, `npm run typecheck`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Packet shape, claim refusal and the shared touched-repositories helper must agree."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m68w2eevh32qzespfmw6xs2v",
+        "key": "DM-355",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/attempts.ts",
+            "location": "src/core/services/attempts.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/domain/views.ts",
+            "location": "src/shared/domain/views.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/increments.ts",
+            "location": "src/core/services/increments.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "multi-repo",
+          "core",
+          "execution"
+        ],
+        "title": "Put the target repository's path and branch in execution packets"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "An acceptance submission in a folder of repositories takes one increment per touched repository, and each is verified against that repository's Git history and previous increment."
+          },
+          {
+            "id": "c2",
+            "text": "A failed check in any one repository fails the node's increment and names that repository."
+          },
+          {
+            "id": "c3",
+            "text": "A singular increment and a missing, untouched, unknown or duplicate repository are refused with `invalid_input`."
+          },
+          {
+            "id": "c4",
+            "text": "Single-repository increment verification is unchanged."
+          },
+          {
+            "id": "c5",
+            "text": "The listed tests pass, and lint and typecheck pass."
+          }
+        ],
+        "body": "**Context**\n`submit_attempt` (`src/core/commands/execution.ts` ~138) verifies `input.increment` through `verifiedIncrement` (~80–89): `incrementContextOf(ctx, attemptId)` (`src/core/services/increments.ts` ~70–90: `epicBranch`, `previous`, `workCommits`) and `verifyIncrement(core.git, context, named, verifiedAt)` (`src/core/services/incrementVerify.ts` ~227–255, which reads `refs/heads/<epic.name>` and checks the branch, reachability, base and squash). `storeSubmission` and `verdictOf` in `src/core/services/attempts.ts` (~489–563) store one verdict in `attempts.increment_json`. The input is `submitAttempt.increment: incrementRef.optional()` in `src/core/commandSchemas.ts`. `gitFor(repo)` and `repositoryBranches` exist.\n\n**Change**\n1. `incrementRef` gains `repo?: string`; `submitAttempt` gains `increments?: IncrementRef[]` (at most 100); the shared `IncrementRef` type follows.\n2. In a folder of repositories an acceptance node's submission must use `increments`, with exactly one entry per touched repository. Refuse with `invalid_input` a singular `increment`, a missing touched repository, an untouched or unknown repository, and a duplicate. Single-repository projects refuse `increments` and are otherwise unchanged.\n3. Verify each entry with `verifyIncrement(core.gitFor(repo), context, …)` against a per-repository context: that repository's bound `EpicBranch`; `previous` is its increment from the nearest earlier sprint whose standing acceptance attempt passed and touched it, else its start commit; `workCommits` are the accepted work commits of tickets with that `repo`. Give `incrementContextOf` a repository parameter rather than duplicating it, and take the touched repositories from `touchedRepositories(ctx, sprintId)`.\n4. Store the verdicts as a JSON array in `attempts.increment_json`, each with its `repo`. Fail closed: one failed repository fails the node's increment.\n\n**Tests** (written first)\n`src/core/services/incrementVerify.test.ts` and `src/core/services/attemptsIncrement.test.ts`, with two real repositories from `src/test/gitRepo.ts`: both squashed increments pass; a merge commit in `beta` fails naming `beta`; a second sprint's increment is checked against that repository's previous increment; a repository untouched in sprint 1 is checked against its start commit in sprint 2; each refusal in step 2; the existing single-repository verification tests pass unchanged.\n\n**Verify**\nThe listed tests, `npm run lint`, `npm run typecheck`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "deep",
+            "rationale": "Verification must fail closed per repository; a wrong previous increment or work-commit set passes bad sprints."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m68w2eewcrfw8k96bx5x75yc",
+        "key": "DM-356",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/incrementVerify.ts",
+            "location": "src/core/services/incrementVerify.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/increments.ts",
+            "location": "src/core/services/increments.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/commands/execution.ts",
+            "location": "src/core/commands/execution.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/attempts.ts",
+            "location": "src/core/services/attempts.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "multi-repo",
+          "core",
+          "execution",
+          "git"
+        ],
+        "title": "Verify one squashed increment per touched repository"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The `increment_merged` gate passes for a folder of repositories only when every touched repository's increment passed, and names each failing or missing repository."
+          },
+          {
+            "id": "c2",
+            "text": "`get_run` shows one increment per repository for such sprints."
+          },
+          {
+            "id": "c3",
+            "text": "Attempt records carry the per-repository increments, and single-repository records re-serialize unchanged."
+          },
+          {
+            "id": "c4",
+            "text": "The listed tests pass, and lint and typecheck pass."
+          }
+        ],
+        "body": "**Context**\nThe checkpoint gate `increment_merged` in `src/core/services/checkpoints.ts` reads the stored increment verdict of a sprint's acceptance node (tested in `checkpointsIncrement.test.ts`). `sprintIncrementViews` (`src/core/services/increments.ts` ~107) builds `SprintIncrementView` (`src/shared/domain/views.ts` ~335–365) for `get_run`. The portable records are `sprintIncrementRecord` (`src/core/repo/portable.ts` ~177–185) and the optional `increment` on the attempt record (~203). After the previous ticket, a node in a folder of repositories stores an array of verdicts in `attempts.increment_json`.\n\n**Change**\n- In a folder of repositories `increment_merged` passes only when every touched repository has a passing verdict; its detail names each failing or missing repository.\n- `SprintIncrementView` gains `repo?`, and `sprintIncrementViews` returns one view per repository, in name order, for such sprints.\n- The attempt record gains optional `increments`, and `sprintIncrementRecord` optional `repo`, both without defaults so existing records re-serialize unchanged. Everything that reads `increment_json` (search `increment_json` and `.increment` in `src/core`) handles both shapes.\n\n**Tests** (written first)\n`src/core/services/checkpointsIncrement.test.ts`: the gate passes with two passing repositories and fails naming a failing one and a missing one. `src/core/services/increments.test.ts`: one view per repository. `src/core/repo/portable.test.ts`: a multi-repository attempt round-trips and a single-repository one re-serializes byte-identical.\n\n**Verify**\nThe listed tests, `npm run lint`, `npm run typecheck`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Every reader of the stored increment must handle both shapes."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m68w2eew20w1cskjbnky5zy2",
+        "key": "DM-357",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/checkpoints.ts",
+            "location": "src/core/services/checkpoints.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/increments.ts",
+            "location": "src/core/services/increments.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/portable.ts",
+            "location": "src/core/repo/portable.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/domain/views.ts",
+            "location": "src/shared/domain/views.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "multi-repo",
+          "core",
+          "execution"
+        ],
+        "title": "Gate, export and show per-repository increments"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "`set_definition_of_done` with `repo` sets that repository's checks in a folder of repositories, is refused there without `repo`, and is refused with `repo` in a single-repository project."
+          },
+          {
+            "id": "c2",
+            "text": "The acceptance packet carries each touched repository's checks."
+          },
+          {
+            "id": "c3",
+            "text": "The gate requires every touched repository's checks reported as `<repo>: <check>` passed and names unmet ones by repository."
+          },
+          {
+            "id": "c4",
+            "text": "Single-repository Definition of Done behavior is unchanged."
+          },
+          {
+            "id": "c5",
+            "text": "The listed tests pass, and lint and typecheck pass."
+          }
+        ],
+        "body": "**Context**\nThe Definition of Done is one flat list in `project.json` (`definitionOfDone`), set by `set_definition_of_done` (planner-only capability `project.definition_of_done`; `writeDefinitionOfDone` in `src/core/repo/projectConfig.ts`), read by `ctx.definitionOfDone()` (`src/core/context.ts`), placed in acceptance packets by `definitionOfDonePart` (`src/core/services/attempts.ts` ~283–293), and enforced by the `definition_of_done` gate (`src/core/services/checkpoints.ts`, with `unmetChecks` in `src/core/definitionOfDone.ts`), which matches the node's `evidence.checks` by name. Acceptance packets in a folder of repositories already list `repositories`.\n\n**Change**\n- `RepositoryEntry` gains optional `definitionOfDone`. `set_definition_of_done` gains `repo?: string`: required in a folder of repositories, where it sets that repository's checks, and refused in a single-repository project. A folder of repositories has no folder-level list.\n- Each `repositories` entry of an acceptance packet carries that repository's `definitionOfDone`.\n- In a folder of repositories the node reports each check as `<repo>: <check name>`, and the `definition_of_done` gate checks every touched repository's list, naming unmet checks as `<repo>: <check> (<status>)`. A touched repository without a list adds no check.\n- Update the MCP tool `set_definition_of_done` (`src/mcp/tools/discovery.ts`) input and description, and `DEFINITION_OF_DONE_INSTRUCTIONS` in `attempts.ts`.\nSingle-repository behavior is unchanged.\n\n**Tests** (written first)\n`src/core/commands/definitionOfDone.test.ts`: per-repository set and the refusals. `src/core/services/attemptsDefinitionOfDone.test.ts`: the packet carries each touched repository's checks. `src/core/services/checkpointsDefinitionOfDone.test.ts`: the gate names `beta: test (not reported)`, passes once every touched repository's checks pass, and does not require an untouched repository's checks. The existing single-repository cases pass unchanged.\n\n**Verify**\nThe listed tests, `npm run lint`, `npm run typecheck`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Spans the project record, packets, the gate and the MCP tool."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m68w2eewk63d66xtzmva25da",
+        "key": "DM-358",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/projectConfig.ts",
+            "location": "src/core/repo/projectConfig.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/definitionOfDone.ts",
+            "location": "src/core/definitionOfDone.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/checkpoints.ts",
+            "location": "src/core/services/checkpoints.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/attempts.ts",
+            "location": "src/core/services/attempts.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/tools/discovery.ts",
+            "location": "src/mcp/tools/discovery.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "multi-repo",
+          "core",
+          "execution"
+        ],
+        "title": "Give each repository its own Definition of Done"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "`src/integration/multiRepo.test.ts` runs a two-repository sprint from set-up to passing gates and asserts each packet's path and branch."
+          },
+          {
+            "id": "c2",
+            "text": "A merged rather than squashed increment in one repository fails the gate naming that repository."
+          },
+          {
+            "id": "c3",
+            "text": "The test asserts the parent holds only the two repositories and no Dark Mechanicus file was written into either."
+          },
+          {
+            "id": "c4",
+            "text": "The test passes on its own and in `npm test`, and lint and typecheck pass."
+          }
+        ],
+        "body": "**Context**\n`src/integration/incrementMerged.test.ts` and `src/integration/definitionOfDone.test.ts` drive whole runs against one real repository made with `src/test/gitRepo.ts` (`createGitRepo`, `squash`, `merge`, `branch`, `rev`) and the workspace harness (`src/test/workspaceHarness.ts`, `src/test/execution.ts`). Every piece of a multi-repository run exists once its prerequisites (DM-357, DM-358) are accepted.\n\n**Change**\nAdd `src/integration/multiRepo.test.ts`, using a temp parent holding repositories `alpha` and `beta` and a temp `DARKMECHANICUS_HOME`:\n1. Set up with `layout: 'multi_repo'` and set each repository's Definition of Done.\n2. Create an epic with branch `feature` and one sprint with one work ticket per repository and a covering acceptance node; save; queue and start the run.\n3. Claim each work ticket and assert its packet's path and branch; commit in that repository on a worktree branch (worktrees in a temp directory outside the parent), submit and accept.\n4. Squash each repository's sprint work onto `feature` in that repository; claim the acceptance node and assert its packet lists both repositories with their checks; submit both increments and every `<repo>: <check>` as passed; accept; assert both gates pass.\n5. In a second scene `beta` is merged instead of squashed: the increment gate fails naming `beta`.\n6. Assert the parent still holds only the two repositories and no Dark Mechanicus file was written into either.\n\n**Tests**\nThis ticket is the test. It is deterministic (temp directories only, no network) and passes on its own and in the full suite.\n\n**Verify**\n`npx vitest run src/integration/multiRepo.test.ts`, `npm run lint`, `npm run typecheck`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Drives a whole run across two real repositories with deterministic Git scenes."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [
+          "src/integration/multiRepo.test.ts"
+        ],
+        "id": "tk_01m68w2eew0en5nsvgz7wk4rht",
+        "key": "DM-359",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/integration/incrementMerged.test.ts",
+            "location": "src/integration/incrementMerged.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/integration/definitionOfDone.test.ts",
+            "location": "src/integration/definitionOfDone.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/test/gitRepo.ts",
+            "location": "src/test/gitRepo.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/test/workspaceHarness.ts",
+            "location": "src/test/workspaceHarness.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "multi-repo",
+          "integration"
+        ],
+        "title": "Run a two-repository epic end to end in an integration test"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The orchestrator guide explains creating the epic branch per repository, keeping integration and landing in per-repository worktrees without switching a child repository's own checkout, and submitting one increment per touched repository."
+          },
+          {
+            "id": "c2",
+            "text": "The worker, reviewer and sprint reporter guides describe working in the packet's repository and per-repository checks and increments."
+          },
+          {
+            "id": "c3",
+            "text": "The orchestrator kickoff lists each repository's branch for a folder of repositories and is unchanged for a single repository."
+          },
+          {
+            "id": "c4",
+            "text": "The listed tests pass, and lint and typecheck pass."
+          }
+        ],
+        "body": "**Context**\nThe role guides are `skills/orchestrator.md` (~20–58: `start_run` with a branch, a worktree per worker branched from the sprint integration branch, \"Keep the coordinating checkout on the epic branch… `git -C <worktree>`\", the acceptance round, the squash merge and `increment { branch, commit }`), `skills/worker.md` (~17, 26, 35), `skills/reviewer.md` (~18, 32) and `skills/sprint-reporter.md` (~18, 30, 31, 62–63). The MCP server serves them as prompts, and `src/main/agents/orchestratorKickoff.ts` embeds them in the desktop kickoff (`KickoffInput.branch`, `branchLine`, `HANDOFF`), which `src/main/agents/orchestratorStart.ts` feeds with `epic.branch?.name`. `src/mcp/skills.test.ts` (~186–190, 243–246) and `src/main/agents/orchestratorKickoff.test.ts` assert their text.\n\n**Change**\nAdd a \"Folders of repositories\" paragraph to each guide and keep the single-repository text as it is:\n- orchestrator: when a repository has no epic branch, create it at that repository's `startCommit` (`git -C <path> branch <name> <startCommit>`); never switch the branch of a child repository's own checkout (a folder of repositories has no branch guard), and keep the sprint integration branch, the workers' worktrees and the landing on the epic branch in worktrees per touched repository; give each worker a worktree of its packet's `repository.path`; squash each touched repository's sprint work onto its epic branch and submit `increments`, one per repository; give every ticket added in a retro redraft its `repo`.\n- worker: work only in a worktree of `repository.path`, run Git as `git -C <worktree>`, and on an acceptance node report Definition of Done checks as `<repo>: <check>`.\n- reviewer: diff against the integration branch in the ticket's repository; on an acceptance node expect one increment verdict and one set of checks per touched repository.\n- sprint reporter: list each repository's increment commit and checks.\nIn the kickoff, `KickoffInput` takes `repositoryBranches` and `branchLine` lists `repository → branch` when they are present; `orchestratorStart` passes them from the epic.\n\n**Tests** (written first)\n`src/mcp/skills.test.ts`: the new rules in the served orchestrator and worker prompts. `src/main/agents/orchestratorKickoff.test.ts`: a two-repository epic's kickoff lists both branches, and a single-repository kickoff is unchanged.\n\n**Verify**\nThe listed tests, `npm run lint`, `npm run typecheck`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Four guides and the kickoff must describe one consistent per-repository Git workflow that agents follow literally."
+          },
+          "skills": [
+            "documentation",
+            "typescript",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "documentation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m68w2eewqm3qz9awecfrgy29",
+        "key": "DM-360",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/orchestrator.md",
+            "location": "skills/orchestrator.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/worker.md",
+            "location": "skills/worker.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/reviewer.md",
+            "location": "skills/reviewer.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/sprint-reporter.md",
+            "location": "skills/sprint-reporter.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/orchestratorKickoff.ts",
+            "location": "src/main/agents/orchestratorKickoff.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/orchestratorStart.ts",
+            "location": "src/main/agents/orchestratorStart.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "multi-repo",
+          "guides",
+          "agents"
+        ],
+        "title": "Teach the orchestrator, worker, reviewer and reporter guides and the kickoff about folders of repositories"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Starting a run on an epic without a branch in a folder of repositories asks for a valid branch name and records it before queueing."
+          },
+          {
+            "id": "c2",
+            "text": "An invalid branch name is refused in the dialog."
+          },
+          {
+            "id": "c3",
+            "text": "Single-repository start dialogs are unchanged."
+          },
+          {
+            "id": "c4",
+            "text": "The listed tests pass, and lint and typecheck pass."
+          }
+        ],
+        "body": "**Context**\nRuns start from `src/renderer/src/epic/StartRunDialog.tsx` (tested by `StartRunDialog.test.tsx`; `RunBar.tsx` and `workspaceActions.ts` around it), which leads to `startOrchestratorRun` in `src/main/agents/orchestratorStart.ts` (`queueRun`, then the orchestrator chat). In a folder of repositories `queue_run` refuses an epic without a branch name. `setEpicBranch` is already a desktop command.\n\n**Change**\nIn a folder of repositories, when the epic has no branch name, `StartRunDialog` shows a required **Epic branch** field, prefilled with a lowercase hyphenated slug of the epic title and validated by the `epicBranch.name` rule in `src/core/schemas.ts`. On Start it calls `setEpicBranch` with `{ repository: null, name, startCommit: null }` before the existing start path. When a branch is already set, the dialog shows its name read-only. Single-repository dialogs are unchanged.\n\n**Tests** (written first)\n`StartRunDialog.test.tsx`: the field appears only in a folder of repositories without a branch; an invalid name is refused; `setEpicBranch` is called before `queueRun`; a single-repository dialog has no field.\n\n**Verify**\nThe listed tests, `npm run lint`, `npm run typecheck`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "One field and one call in an existing dialog, steps spelled out."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "ui",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m68w2eew9a25bh94vqq9kjg0",
+        "key": "DM-361",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/epic/StartRunDialog.tsx",
+            "location": "src/renderer/src/epic/StartRunDialog.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/orchestratorStart.ts",
+            "location": "src/main/agents/orchestratorStart.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "multi-repo",
+          "renderer"
+        ],
+        "title": "Ask for the epic branch name when starting a run in a folder of repositories"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "An acceptance node in a folder of repositories lists Definition of Done checks grouped by repository, each with its reported status."
+          },
+          {
+            "id": "c2",
+            "text": "Sprint increments show one row per repository with its commit and verdict."
+          },
+          {
+            "id": "c3",
+            "text": "The Repositories card shows each repository's check count, and single-repository views are unchanged."
+          },
+          {
+            "id": "c4",
+            "text": "The listed tests pass, and lint and typecheck pass."
+          }
+        ],
+        "body": "**Context**\nThe acceptance node's Definition of Done list is rendered by `src/renderer/src/ticket/AcceptanceSections.tsx` with `definitionOfDoneRows` in `src/renderer/src/ticket/acceptanceView.ts` (~72), reading `project.definitionOfDone`. Sprint increments are rendered from `SprintIncrementView` (find the components with `grep -rn SprintIncrementView src/renderer`). After DM-357 and DM-358 a folder of repositories has per-repository Definition of Done lists, `<repo>: <check>` evidence names and one increment view per repository.\n\n**Change**\n- In a folder of repositories the acceptance node's Definition of Done section groups rows under each touched repository's name and matches evidence by `<repo>: <check>`. A touched repository without a list says so under its name.\n- Increments show one row per repository: name, commit and verdict.\n- The folder page's Repositories card shows each repository's number of Definition of Done checks.\nSingle-repository views are unchanged.\n\n**Tests** (written first)\n`src/renderer/src/ticket/acceptanceView.test.ts`: per-repository grouping and status matching. The increment component's test: one row per repository. `FolderHome.test.tsx`: the check count.\n\n**Verify**\nThe listed tests, `npm run lint`, `npm run typecheck`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Grouping and evidence matching span the acceptance view, increments and the folder page."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "ui",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m68w2eewkj36297tmtknt90t",
+        "key": "DM-362",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/ticket/AcceptanceSections.tsx",
+            "location": "src/renderer/src/ticket/AcceptanceSections.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/ticket/acceptanceView.ts",
+            "location": "src/renderer/src/ticket/acceptanceView.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/home/FolderHome.tsx",
+            "location": "src/renderer/src/home/FolderHome.tsx",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "multi-repo",
+          "renderer"
+        ],
+        "title": "Show Definition of Done checks and increments per repository"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Decision record 0003 states the decisions, consequences and limits of folders of repositories."
+          },
+          {
+            "id": "c2",
+            "text": "`docs/architecture.md` and `docs/product-plan.md` no longer state that every folder is one repository."
+          },
+          {
+            "id": "c3",
+            "text": "The runbook covers set-up, rescan, planning, running and per-repository results, is linked from `README.md` and `docs/runbooks/mcp-setup.md`, and its links resolve."
+          }
+        ],
+        "body": "**Context**\n`docs/architecture.md` (~36–38: a Workspace per repository root; ~168–171: the project Definition of Done), `docs/product-plan.md` (~16: each repository owns its database; ~100–102: one feature branch per epic) and `docs/decisions/0002-storage-modes.md` describe one repository per folder. Runbooks live in `docs/runbooks/` and are linked from `README.md`.\n\n**Change**\n- New decision record `docs/decisions/0003-multi-repo-folders.md`: context; the decision (db mode only, immediate children, exact-name prefix kept by the server, one repository per work ticket, a shared branch name with per-repository start commits, per-repository increments and Definition of Done); consequences; known limits (a renamed child is marked missing, no Source control tab, nested repositories ignored).\n- Update the architecture and product-plan lines above to cover folders of repositories.\n- New runbook `docs/runbooks/multi-repo-folders.md`: set up, rescan, plan, run, and read per-repository results. Link it from `README.md` and `docs/runbooks/mcp-setup.md`.\n\n**Tests**\nNone: documentation only.\n\n**Verify**\n`npm run lint`, and every relative link in the changed files resolves to an existing file.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "Documentation of decided behavior, with the files and lines named."
+          },
+          "skills": [
+            "documentation"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell"
+          ],
+          "workType": "documentation"
+        },
+        "expectedArtifacts": [
+          "docs/decisions/0003-multi-repo-folders.md",
+          "docs/runbooks/multi-repo-folders.md"
+        ],
+        "id": "tk_01m68w2eewr27g9s46gt1ma30q",
+        "key": "DM-363",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/architecture.md",
+            "location": "docs/architecture.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/product-plan.md",
+            "location": "docs/product-plan.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/decisions/0002-storage-modes.md",
+            "location": "docs/decisions/0002-storage-modes.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "README.md",
+            "location": "README.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "multi-repo",
+          "docs"
+        ],
+        "title": "Document folders of repositories"
+      }
+    ]
+  },
+  "contentHash": "sha256:5e644cf2a323d5d40bd859324dcacdd6952c37cb21a84cb872fcc799166c8d20",
+  "createdAt": "2026-10-31T20:02:51.723Z",
+  "epicId": "ep_01m68w2edvsnjrvj7w56hxrmt8",
+  "format": "darkmechanicus.plan-snapshot",
+  "formatVersion": 1,
+  "number": 2,
+  "revisionId": "rv_01m69rxk6atk24v4d9szqx45np",
+  "savedAt": "2026-10-31T20:02:51.723Z"
+}

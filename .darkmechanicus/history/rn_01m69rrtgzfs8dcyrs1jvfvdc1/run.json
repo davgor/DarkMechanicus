@@ -1,0 +1,2661 @@
+{
+  "activeSprintId": "sp_01m69zre564hdfn5nngtqynny1",
+  "attempts": [
+    {
+      "createdAt": "2026-10-31T20:00:38.017Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": null,
+      "failure": {
+        "details": "The orchestrator's kernel was reset right after the claim, losing the claim token before any worker was started. No work was done under this attempt.",
+        "reason": "claim response lost",
+        "retryable": true
+      },
+      "fencingToken": 1,
+      "id": "at_01m69rsgm1smszz6da74m4e9py",
+      "kind": "work",
+      "number": 1,
+      "outputs": null,
+      "reconciledAt": null,
+      "revisionId": "rv_01m69970zgyh22yzj56zpr6sdm",
+      "state": "failed",
+      "submittedAt": null,
+      "supersededAt": null,
+      "ticketContentHash": "sha256:57a70bd32d27d752e370d76866723ca8605ad9c1dc671cccac1a42a1c7465a6d",
+      "ticketId": "tk_01m6995z2md6anq7etq84yfs2p",
+      "updatedAt": "2026-10-31T20:02:12.289Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "medium",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-369)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (medium). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'medium' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T20:00:55.083Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": null,
+      "failure": {
+        "details": "The orchestrator's kernel was reset right after the claim, losing the claim token before any worker was started. No work was done under this attempt.",
+        "reason": "claim response lost",
+        "retryable": true
+      },
+      "fencingToken": 1,
+      "id": "at_01m69rt19b4e95d0nxp3agsvr9",
+      "kind": "work",
+      "number": 1,
+      "outputs": null,
+      "reconciledAt": null,
+      "revisionId": "rv_01m69970zgyh22yzj56zpr6sdm",
+      "state": "failed",
+      "submittedAt": null,
+      "supersededAt": null,
+      "ticketContentHash": "sha256:3522ff1d342dcc7209aac2095670ab0e30f032050f625861ad89603db5ee6b67",
+      "ticketId": "tk_01m6995z2mx1bz11ze30zy4ha6",
+      "updatedAt": "2026-10-31T20:02:12.305Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "medium",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-366)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (medium). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'medium' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T20:03:07.819Z",
+      "decidedAt": "2026-10-31T20:18:11.291Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "Accepted on review of the production diff and the worker's targeted evidence.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "All three tsc projects (node, web, fireguard) exit 0.",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Exit 0 after splitting two describe blocks that exceeded max-lines-per-function.",
+            "name": "npx oxlint on the 6 touched source/test files",
+            "status": "passed"
+          },
+          {
+            "detail": "3 files, 91 tests passed. New tests: the oversized queue test takes ~2.4s and the stored-packet start test ~1.3s; both build real 100M-character data, like the existing merged-size tests.",
+            "name": "npx vitest run src/core/transfer/linearReadback.test.ts src/core/services/transfers.test.ts src/integration/linearTransfer.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "Only transfers.ts was restored, with the projection kept. Two tests fail: the queue totalChars refusal and the startTransfer stored-packet refusal ('expected a DomainError, but the action succeeded'). The file was copied back from /tmp/dm-linear/DM-369-transfers.ts.new, and git status was clean afterwards.",
+            "name": "New tests fail without the change (transfers.ts restored to e0e7e07)",
+            "status": "passed"
+          },
+          {
+            "detail": "All 8 new tests fail: the 3 projection unit tests, the 2 driver read-back tests, the 1,000-ticket projection test, and the queue and start refusals. Restored with git checkout -- src; git status was clean afterwards.",
+            "name": "New tests fail without the change (transfers.ts, linearReadback.ts, schemas.ts restored to e0e7e07)",
+            "status": "passed"
+          },
+          {
+            "detail": "With an undercounting projection, 5 tests fail: both driver 'never below' tests, the 1,000-ticket 'at least its faithful read-back' test, the exact-allowance boundary test, and the real-formats test. The mutation was reverted and git status was clean afterwards.",
+            "name": "Non-vacuity mutation: every READBACK_ALLOWANCES value set to 2",
+            "status": "passed"
+          },
+          {
+            "detail": "Left to the acceptance node, as the ticket's Checks section says.",
+            "name": "npm test / lint / build / deadcode / fireguard (full sweep)",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "queueablePacket calls assertReadbackFits before any write: invalid_input with {limit:'totalChars', max}; transfers.test.ts shows no transfer row or event is stored. Fails with transfers.ts reverted (worker evidence)."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "startTransfer parses the stored packet and refuses before any write or event, with a remedy telling the agent to ask the person to cancel; covered by a transfers.test.ts case."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "projectedReadbackLongerThan builds exactly the strict linearReadback field set (checked against schemas.ts :509-536) with jsonLongerThan; tests against driver-built read-backs fail when every allowance shrinks to 2, so they catch under-counting; the existing 1,000-ticket plan projects 475,362 and queues."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "READBACK_ALLOWANCES sits next to READBACK_LIMITS with a comment calling them allowances; docs/runbooks/linear-transfer.md 'Size limits' documents the queue and start checks and the allowance table."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "8 new tests fail with linearReadback.ts, schemas.ts and transfers.ts at base; targeted vitest 91/91, typecheck and oxlint on touched files passed."
+          }
+        ],
+        "notes": "Design: the projection builds a placeholder object that shares one string per allowance and references the packet's own strings, then measures it with jsonLongerThan. Neither queue nor start builds a JSON copy. The sort order is replaced by a string two characters shorter than its allowance, so it takes the same JSON length as a 25-character number. Production code imports nothing from src/test/. The ticket guessed 24 for the longest number; testing found 25 (-0.0000012345678901234567), so the allowance is 25.\n\nRed-team review:\n- Bypass paths: only queueTransfer writes transfer rows (grep of INSERT INTO transfers), and startTransfer covers packets stored by older builds. An agent session already in progress under an older build could keep calling record_transfer_item without calling start_transfer again. It is not refused there. This is out of the ticket's scope, and the read-back check still stops completion.\n- Fail-open: a malformed stored packet_json makes the projection throw a TypeError. Before this change nextRefs threw on the same input, so nothing regressed and the start is not allowed. The refusal sits after requireOpenTransfer and before every write, and runs inside withIdempotency's transaction.\n- Seams: the read-back check, assertWithinReadbackLimits, is unchanged and stays the backstop. Two kinds of faithful read-back are not covered, as the ticket's 'DM text exactly' rule implies. Linear may rewrite text longer, for example by adding Markdown escapes the comparison tolerates. Linear may also report extra relation kinds that the comparison ignores. Both are documented in the runbook as cases where the submit-time check still refuses. skills/linear-transfer.md and src/mcp/transferKickoff.ts do not mention the new start refusal; its message tells the agent to ask the person to cancel.\n- Vacuous tests: the boundary test pins equality (refused at size-1, accepted at size), and the undercount mutation shows the 'never below' tests catch undercounting. Restoring the base files shows every new test fails.\n- Realistic plans: a typical 1,000-ticket plan projects to under 0.5% of the limit, and one with 2,600-character bodies to about 3.1%, so none is refused."
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m69ry2xbzakqr49kk6xp3tcx",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Projection",
+            "location": "src/core/transfer/linearReadback.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Allowances",
+            "location": "src/core/schemas.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Queue/start refusals",
+            "location": "src/core/services/transfers.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Projection unit tests",
+            "location": "src/core/transfer/linearReadback.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Runbook",
+            "location": "docs/runbooks/linear-transfer.md",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "linear-DM-369",
+        "changedFiles": [
+          "docs/runbooks/linear-transfer.md",
+          "src/core/schemas.ts",
+          "src/core/services/transfers.ts",
+          "src/core/services/transfers.test.ts",
+          "src/core/transfer/linearReadback.ts",
+          "src/core/transfer/linearReadback.test.ts",
+          "src/integration/linearTransfer.test.ts"
+        ],
+        "commits": [
+          "fd707102c45d79dfaa51be31af0e5d9189a5a6cf"
+        ],
+        "summary": "Added projectedReadbackLongerThan(packet, max) in src/core/transfer/linearReadback.ts. It builds the merged read-back a packet implies (project, milestones, issues and relations). Every DM text and label is kept exactly as the packet gives it, priorities are exact, and relation kinds are 'blocks' or 'related' from the packet. Each Linear-supplied value is a placeholder sized by its READBACK_ALLOWANCES allowance. The result is measured with jsonLongerThan, so keys, quotes and escapes count as they do for a submitted read-back. READBACK_ALLOWANCES sits next to READBACK_LIMITS in src/core/schemas.ts, with a comment saying the values are allowances, not limits: id 64, identifier 32, url LIMITS.shortText (2,000, the most linearUrl accepts), milestoneId 64, stateType 16, sortOrder 25 (the longest JSON of any number, e.g. -0.0000012345678901234567), relationEnd 64. queueablePacket in src/core/services/transfers.ts now refuses a packet over READBACK_LIMITS.totalChars. It runs after the existing refusals and before any row is written, and fails with invalid_input, { limit: 'totalChars', max } and a message saying the plan is too large to transfer. startTransfer parses the stored packet and makes the same check before any UPDATE or event, with a message telling the agent to ask the person to cancel the transfer. The runbook's Size limits section (docs/runbooks/linear-transfer.md) documents the queue-time check, the allowance table and the start refusal, and the 'Authorize it in the app' refusal list now includes it. Measured projections: the typical 1,000-ticket test plan projects to 475,362 characters; 1,000 tickets with 2,600-character bodies to 3,079,362; 1,000 tickets with full LIMITS.markdown bodies to 100,479,362, which is refused."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m69970zgyh22yzj56zpr6sdm",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T20:18:11.266Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:57a70bd32d27d752e370d76866723ca8605ad9c1dc671cccac1a42a1c7465a6d",
+      "ticketId": "tk_01m6995z2md6anq7etq84yfs2p",
+      "updatedAt": "2026-10-31T20:18:11.291Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "high",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-369)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (high). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'high' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T20:03:07.872Z",
+      "decidedAt": "2026-10-31T20:12:00.778Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "Accepted on review of the diff and the worker's targeted evidence (typecheck, oxlint on touched files, importer and storage tests 83 passed). Note for DM-367: the c3 test flushes over a run.json another machine changed; DM-367's guard will refuse that, so it must update this test.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "exit 0 (node, web, fireguard tsconfigs) after the final edits",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "exit 0 after splitting the describe block (the first run flagged max-lines-per-function on the conflicts describe)",
+            "name": "npx oxlint src/core/repo/syncState.ts src/core/repo/importer.test.ts src/core/repo/storage.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "83 passed. With syncState.ts restored from HEAD~ (git show HEAD:… before the source commit): 3 failed (both new importer tests: imported [] vs [EPIC]; the storage test: resolvable true vs false); the file was restored afterwards, and git diff was unchanged.",
+            "name": "npx vitest run src/core/repo/importer.test.ts src/core/repo/storage.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "Run together with the earlier files at the intermediate state; both passed (the only failure was the then-vacuous storage test, fixed since).",
+            "name": "npx vitest run importer.hostile.test.ts finalizer.test.ts (extra regression)",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "syncState.ts: kind NOT IN ('comment','run_history'); doc comment explains the run file is guarded by hasPendingRunChanges and built from run-keyed rows the epic import does not change. Read in the diff."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "importer.test.ts 'imports another machine's epic revision and still skips the run's changed history': epic imported to R3, run stays running with its run conflict, attempts A1..A3 intact."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Flush after the import writes run.json byte-identical to the record built before reconcile, attempts A1..A3. Worker traced buildRunHistoryRecord (run-keyed rows) vs applyEpic writes (epic tables) to rule out corruption."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Worker restored syncState.ts from the base and showed the 3 new tests fail; the storage test was fixed after red-team found its fixture made the choice resolvable by itself (pending revision)."
+          }
+        ],
+        "notes": "Risk trace: buildRunHistoryRecord (portable.ts:758) reads only rows keyed by run_id: runs, attempts, sprint_reports, checkpoints, row_checks. applyEpic (importer.ts:772) writes only epics, plan_revisions, ticket_status, sync_state(kind='epic') and search_index; none of those is read by the run export. Runs/attempts/reports/checkpoints/row_checks are written by applyRun only, and planRuns still skips any run with a pending/failed outbox row matching run_id (hasPendingRunChanges). Every production run_history enqueue (runs.ts:65, attempts.ts:122, checkpoints.ts:687/775, execution.ts:278/468, reports.ts:295, rowChecks.ts:85, adoption.ts:228) sets runId, so each is guarded that way. pauseActiveRuns does update runs, but it runs only on a branch change and does not depend on the predicate. Conclusion: importing the epic cannot change the pending run export. The c3 test pins this byte for byte: the run.json flushed after the import equals the record built before the reconcile. Callers: (1) importer.ts planEpics: the epic now imports when its only waiting exports are run_history/comment; planRuns then no longer drops all of the epic's runs, but runs with their own pending exports still get the 'Tracked history for run' conflict (intended). (2) storage.ts choiceStands (src/core/repo/storage.ts:55, not services/): a stored 'Tracked records for epic' conflict whose epic has only run_history waiting is now resolvable:false. It is stale, and the next reconcile imports the epic and clears it via markSynced. (3) epicConflict.ts requireConflict: with only run_history waiting it now refuses with 'nothing to choose' for both keep=tracked and keep=local (before, it allowed the choice). (4) epicConflict.ts keepTracked (left unchanged, as instructed): its post-flush hasPendingEpicChanges check (line 79, 'its run history is still waiting to be exported') can no longer fire for run_history, so if the scoped run_history flush fails, keepTracked now continues to reconcile. That is safe: the run with the failed export gets a run conflict instead of an overwrite. The pre-flush and the error branch are now effectively dead; this is for DM-367. Red-team: (a) the first storage test was vacuous: insertRevision defaults to state 'pending', and a pending plan revision alone made the choice resolvable. I fixed it with state:'saved' and re-showed the failure without the change. (b) The c3 flush test fails without the change only through its import precondition (result.imported); the flushed bytes are the same either way. That is by design: it shows that the import does not change the export. (c) Bypass check: a run_history row without run_id would escape hasPendingRunChanges, but no production code enqueues one, and the finalizer's run_history handler requires run_id. (d) Pre-existing, not changed here: the flush after the import overwrites the other machine's changed run.json with this machine's record (the run conflict stays recorded). See discoveries. (e) importer.test.ts conflicts describe exceeded max-lines-per-function; I moved the new tests to their own describe block."
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m69ry2z04pc2e5cz4cqpkqz3",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "branch",
+            "location": "linear-DM-366",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "linear-DM-366",
+        "changedFiles": [
+          "src/core/repo/syncState.ts",
+          "src/core/repo/importer.test.ts",
+          "src/core/repo/storage.test.ts"
+        ],
+        "commits": [
+          "6216cf80a4538a242e701fdae48060caf53b2d38",
+          "a60abf182642d43f10a83f61c8253755cb51b33c",
+          "46d1e7c2150c437e3f499fcd0759031a88dd4614"
+        ],
+        "summary": "hasPendingEpicChanges now ignores run_history (kind NOT IN ('comment','run_history')), and its doc comment says why. An epic imports while its run's history export waits; the run itself stays guarded by hasPendingRunChanges."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m69970zgyh22yzj56zpr6sdm",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T20:12:00.750Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:3522ff1d342dcc7209aac2095670ab0e30f032050f625861ad89603db5ee6b67",
+      "ticketId": "tk_01m6995z2mx1bz11ze30zy4ha6",
+      "updatedAt": "2026-10-31T20:12:00.778Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "high",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-366)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (high). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'high' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T20:12:13.329Z",
+      "decidedAt": "2026-10-31T20:23:18.568Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "Accepted after one review round: the first version kept messages only for rejected epics, which would have cleared a rejected run's message while its export still waited (against s3); the worker closed it before submission. Profile conflicts left to their own path: storeProfileConflicts does not recompute them on every reconcile.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "exit 0 after follow-up (node, web, fireguard)",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "exit 0 after splitting describes for max-lines-per-function",
+            "name": "npx oxlint src/core/repo/importer.ts src/core/repo/importer.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "5 files, 229 tests passed; importer.test.ts re-run after the describe split: 77 passed",
+            "name": "npx vitest run importer.test.ts importer.hostile.test.ts storage.test.ts profileImport.test.ts services/transfers.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "Base importer.ts: first 3 tests fail. Mutants: rejected-epic keep off -> rejected-epic test fails; rejectedRuns -> '[]' -> rejected-run test fails; history flag forced 0 -> dir test fails; epics flag forced 0 -> dir test fails. Source restored each time.",
+            "name": "new tests fail without change",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "storeConflicts clears transfer holds, 'Tracked records for epic' and 'Tracked history for run' messages in one UPDATE, then writes this reconcile's conflicts; tests in describe('reconcileRepository clearing stale conflicts') show each message stays while its export waits and is gone after the next reconcile once it is done."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Rejected epics keep their own and their runs' messages; after review the worker extended this to a rejected run.json and to epics/ or history/ rejected as a whole (716784e), each with a test failing when its keep rule is off."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Transfer-hold clause unchanged; message texts unchanged (run prefix became a constant with identical wording); resolvable rules untouched; importer, hostile importer, profile import, transfers and storage tests 229 passed."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "With importer.ts at base the 3 original tests fail; the 2 follow-up tests fail with their keep rules switched off (worker evidence)."
+          }
+        ],
+        "notes": "Writers of sync_state.conflict: importer markSynced (NULL), storeConflicts (transfer hold, epic-records, run-history, comment), finalizer recordExport (NULL), profileImport applyProfile (NULL) and storeProfileConflicts. Comment conflicts left alone (not in scope). Profile conflicts NOT handled: scanProfiles does not recompute them on every reconcile — a rejected profiles/ dir returns early with no conflicts and per-entry read errors/unchanged entries add none, so clearing would hide waiting changes. Red-team: (1) a stored message is now also cleared when tracked records revert to the synced hash while an export still waits — accepted: no divergence remains, the export can proceed. (2) Runs of a rejected epic are found via the local runs table; a run with waiting local changes always has a local row. (3) Follow-up closed the former gap: rejected run files and wholly rejected epics/ or history/ now keep their messages. (4) Tests verified non-vacuous via base and per-rule mutants. Accepted: while history/ is rejected, run messages of every run are kept, including ones whose export finished; they clear on the first reconcile that can read history/."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m69seqmhh2mha2xze7frh0ge",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "tests",
+            "location": "src/core/repo/importer.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "linear-DM-365",
+        "changedFiles": [
+          "src/core/repo/importer.ts",
+          "src/core/repo/importer.test.ts"
+        ],
+        "commits": [
+          "aa33665ff34ddc1755f54dff03b23a52bc088e6f",
+          "716784ee7ce0d912cbb7f5e2575e26d6ed8300d5"
+        ],
+        "summary": "storeConflicts now clears, in the same UPDATE as transfer holds, every stored 'Tracked records for epic' and 'Tracked history for run' conflict, except those of epics in scan.rejectedEpics and of runs of those epics (local runs table), then writes this reconcile's conflicts. Plan carries rejectedEpics. Run message prefix extracted to RUN_HISTORY_CONFLICT_PREFIX (text unchanged). Three new tests in a new describe 'reconcileRepository clearing stale conflicts'. Follow-up: Scan also records rejected run ids (rejectedRuns) and whether epics/ or history/ as a whole was rejected (rejectedDirs, from listTopLevel now returning null); storeConflicts keeps a rejected run's message, and every epic-records (run-history) message while epics/ (history/) is rejected. Plan carries these as `unread`. New tests split into describes 'reconcileRepository keeping the conflicts of records it could not read' and 'reconcileRepository with epics/ or history/ rejected'."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m69970zgyh22yzj56zpr6sdm",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T20:23:18.540Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:40b03b9ef91e9105621808edd3a2ae45555c8c8e5ae8ea90cfa6425364174a16",
+      "ticketId": "tk_01m6995z1ygn9t104c18qnpfw2",
+      "updatedAt": "2026-10-31T20:23:18.568Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "medium",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-365)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (medium). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'medium' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T20:18:11.321Z",
+      "decidedAt": "2026-10-31T20:22:07.854Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "Accepted on review of the diff (7 lines in main.ts) and the worker's targeted evidence.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "2 files, 46 tests passed.",
+            "name": "npx vitest run src/mcp/main.test.ts src/mcp/transport.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "With createTransport using the SDK StdioServerTransport(stdin, stdout), the nodeHost test failed: 'AssertionError: expected [] to have a length of 1 but got +0'. Restored from /tmp/dm-linear/DM-370-main.ts.new; git diff identical to before.",
+            "name": "negative check: StdioServerTransport swapped in at nodeHost",
+            "status": "passed"
+          },
+          {
+            "detail": "tsc node/web/fireguard: no errors.",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "exit 0",
+            "name": "npx oxlint src/mcp/main.ts src/mcp/main.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found.",
+            "name": "npm run deadcode",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "main.test.ts drives nodeHost(...).createTransport() on PassThrough streams: an over-limit line with id 41 gets a JSON-RPC error with id 41, and request 42 reaches onmessage; the line is streamed in 64 KiB chunks."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "With StdioServerTransport swapped in at nodeHost, the test failed ('expected [] to have a length of 1 but got +0'); restored, the diff matched."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "nodeHost defaults stdin/stdout to process.stdin/process.stdout (diff read); main and transport tests 46 passed; typecheck, oxlint and npm run deadcode ('No new dead exports found') passed."
+          }
+        ],
+        "notes": "Red-team: nodeHost construction only builds closures (reads package.json via readPackageVersion, which fails safe to fallback); onShutdown listeners are registered only when runMcpMain calls it, so the test asserts SIGINT/SIGTERM listener counts and process.stdin data listeners are unchanged after start. The test would be vacuous if the transport ignored injected streams; the negative check proves the bounded path is what's exercised. writeStdout/writeStderr still use process streams by design (they're CLI output, not transport). Over-limit line is streamed in 64 KiB chunks, so the test never holds a multi-MB string."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m69ssn7sq70k6enpzgrdvdex",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": "linear-DM-370",
+        "changedFiles": [
+          "src/mcp/main.ts",
+          "src/mcp/main.test.ts"
+        ],
+        "commits": [
+          "b7a8bf774fa99460d540ff6d1ed4a7f9aaeaa932"
+        ],
+        "summary": "Exported nodeHost(script, { stdin?, stdout? }) with streams defaulting to process.stdin/process.stdout and passed to BoundedStdioServerTransport. Added a main.test.ts test that starts nodeHost(...).createTransport() on PassThrough streams: an over-limit line (built from MCP_MESSAGE_MAX_BYTES in 64 KiB chunks) with id 41 gets a JSON-RPC error with id 41, and the next ping (id 42) reaches onmessage; transport closed in finally."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m69970zgyh22yzj56zpr6sdm",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T20:22:07.826Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:5dc22891f6afb0c6e18b2b4ed03416a572e7a9b60f872677aaca9be5f0c40756",
+      "ticketId": "tk_01m6995z2ma78j1qqb2vyvmvzn",
+      "updatedAt": "2026-10-31T20:22:07.854Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "low",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-370)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (low). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'low' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T20:22:07.897Z",
+      "decidedAt": "2026-10-31T20:26:05.084Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "Accepted on review of the diff and the worker's targeted evidence.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "27 passed. With old regex /[.s]+$/ restored in startReason.ts: 4 new tests failed, then restored.",
+            "name": "npx vitest run startReason/transferStart/orchestratorStart tests",
+            "status": "passed"
+          },
+          {
+            "detail": "clean",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "clean after moving new transfer test into its own describe (max-lines-per-function)",
+            "name": "npx oxlint on 6 touched files",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found.",
+            "name": "npm run deadcode",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "src/main/agents/startReason.ts holds the only reasonOf (/[.\\s]+$/); transferStart.ts and orchestratorStart.ts import it and their copies are deleted (diff read); activityEntries.ts and acpSession.ts untouched."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "transferStart test: problem text contains 'lacks permissions. Start'; orchestratorStart test: 'lacks permissions. It is waiting for an orchestrator.'; both start from an error ending 'permissions.', so the s is kept and no '..'."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "With /[.s]+$/ restored in startReason.ts all 4 new tests failed; 27 passed with the fix; typecheck, oxlint on 6 files and deadcode passed."
+          }
+        ],
+        "notes": "Red-team: checked other callers (only the two files), existing test expecting 'The chat store is full.' still passes since callers append '. '. Inner whitespace preserved (anchored at end). No fail-open paths; non-Error values still String()-ed."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m69t0w8shr5zhm96j1pzeakb",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": "linear-DM-371",
+        "changedFiles": [
+          "src/main/agents/startReason.ts",
+          "src/main/agents/startReason.test.ts",
+          "src/main/agents/transferStart.ts",
+          "src/main/agents/transferStart.test.ts",
+          "src/main/agents/orchestratorStart.ts",
+          "src/main/agents/orchestratorStart.test.ts"
+        ],
+        "commits": [
+          "6ce2dd56f2873b51bc2cf3c031b37608b552b4d0"
+        ],
+        "summary": "Moved reasonOf into src/main/agents/startReason.ts with /[.\\s]+$/; transferStart and orchestratorStart import it, both copies deleted. Tests added for helper, transfer problem text, queued-run message."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m69970zgyh22yzj56zpr6sdm",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T20:26:05.052Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:a0e28267afcb0e37c3a0fbba8f66d7df9cddd62c053f6a0f4186cbe403f13b81",
+      "ticketId": "tk_01m6995z2mtsfw08a8wph9sg0n",
+      "updatedAt": "2026-10-31T20:26:05.084Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "low",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-371)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (low). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'low' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T20:27:27.613Z",
+      "decidedAt": "2026-10-31T21:06:01.062Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "Accepted after reviewing finalizer.ts, syncState.ts, recordConflict.ts and runConflict.ts. Beyond the ticket, reviewed and kept: a failed run export now blocks only its own run, not its epic's saves. Left open as a follow-up: no export intent for run history, so a crash between writing run.json and recording it, followed by a change to the run, presents the machine's own older file as 'tracked' (fails closed; Keep tracked would restore older values of rows the run changed after the crash). Worker restored one accidental relative-path edit in the shared checkout (views.ts); verified clean.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "node, web and fireguard projects, exit 0, after the last commit.",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "All 28 touched TS/TSX files, exit 0, no findings (long describe blocks were split to satisfy max-lines-per-function).",
+            "name": "npx oxlint <touched .ts/.tsx files>",
+            "status": "passed"
+          },
+          {
+            "detail": "20 files, 1081 tests passed: finalizer, storage, importer, importer.hostile, profileImport, StorageCard, shellActions, shellMessages, capabilities, mcp/server, authz, schemas, workspace, workspace.dbMode, main/desktop/handlers, mcp/tools/discovery, FolderHome, App.footer, App.events, useStorageStatus.",
+            "name": "npx vitest run (targeted)",
+            "status": "passed"
+          },
+          {
+            "detail": "Exports were renamed/removed/added, so deadcode ran. The first run reported 18 pre-existing exports at shifted line numbers only (views.ts/api.ts edits); confirmed each name was already in the baseline, ran deadcode:refresh (18 line changes, same names), then 'No new dead exports found.'",
+            "name": "npm run deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "Copy/restore protocol (/tmp/dm-linear/DM-367-*.new; git status clean after each): base finalizer.ts fails the refuse, blocking, DM-366 rewrite, run choice and epic-c4 tests (7); turning off the row rule, same-text rule, hash match and missing-file rule each fails exactly its finalizer test; the commit-1 finalizer fails the empty-file and >8 MiB tests; runConflict switch-offs (no outbox drop, no hold check, no waiting check, no imported_hash) each fail their test; re-adding the run flush to epic Keep tracked fails the c4 test; base storage.ts fails 4 storage tests; storage hold and repo-mode switch-offs each fail their test; base StorageCard/shellMessages/shellActions fail their new tests.",
+            "name": "fail-without-change runs",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run lint / npm test / npm run build / npm run fireguard",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "exportRunHistory refuses with conflict when unimportedRunHistory returns a hash other than the text to write; missing file or sync_state row, a matching exported/imported hash, or identical bytes still write; this machine's own large or empty file cannot wedge it (review fix 32f7084). finalizer tests fail with the guard removed (worker evidence)."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "resolveRecordConflict {kind:'epic'|'run', id, keep} replaces resolveEpicConflict in core, commands, capabilities, MCP desktop-only list, preload/renderer and tests; requireCapability('repo.resolve_conflict') and assertBranch before dispatch; epic tests unchanged in behavior; orchestrator refused."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "runConflict.ts: tracked marks the run's waiting exports done and imports in one transaction, refusing if not imported; local records the found hash as imported_hash and flushes only that run; both refuse with nothing to choose and during a transfer hold."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Epic keepTracked no longer flushes run histories; a refused run export blocks only its run's later entries (flushEntry holds run: keys only), so epic Keep tracked and epic saves proceed; covered by importer/finalizer tests."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "storage.ts conflicts carry kind and id; run conflicts resolvable under the same rule the choice checks; StorageCard shows both buttons and sends kind 'run' (StorageCard test); docs/architecture.md states the run rule next to the epic rule."
+          },
+          {
+            "criterionId": "c6",
+            "met": true,
+            "note": "Each new or changed test failed with the original file restored or its rule off; typecheck, oxlint on 28 files, 1081 tests in 20 files, deadcode (after .tsprune-ignore line refresh, same names) passed."
+          }
+        ],
+        "notes": "Red-team (own pass plus a reviewer subagent prompted to refute): FIXED (1) a refused run_history blocked the epic key in the flush, so a run conflict stalled every later save of its epic and every other run's history, and made epic Write local report the run's error; a failed run_history now blocks only its run (it still waits behind a failed save of its epic). FIXED (2) crash window: a process dying after renaming run.json but before recordExport commits would lock itself out; a file holding exactly the text to write is now written over. FIXED (3) reviewer P3: unimportedRunHistory used readOwnedText, so this machine's own run.json over 8 MiB (the export has no size cap) stopped exporting for good with no choice, and an empty file was refused as a rejected record; it now hashes the file whatever its size and an empty one unread. FIXED (4) Write local for a run flushes {runId} only (FlushScope is now {epicId}|{runId}), so another run's refusal in the same epic cannot block it, and entries with a null epic_id are still reached. SURVIVED: other writers of run.json/sync_state run rows (recordExport, markSynced, storeConflicts conflict-only, epicDeletion removes run+row+outbox together); wedges (epic conflict -> run conflict reappears after the epic is settled; transfer hold -> cancel; rejected epic/run -> conflict kept by DM-365 and Write local works; runClash comes after the pending check); Write-local crash after imported_hash commit (next flush writes); concurrent Keep tracked holds the write lock through its reconcile; db mode refuses and is never resolvable. REJECTED/LEFT: a narrower crash window remains (rename done, row not committed, and the run changes before the retry, e.g. another process records an attempt): the next export is refused and the person is asked; choosing Keep tracked there would import this machine's own older history over newer rows. Epics close this with export intents; adding one for runs is beyond the ticket's guard design, recorded as a discovery. Process note: one early edit used a relative path and landed in the shared checkout's src/shared/domain/views.ts; it was detected at once, diffed to confirm only my edit differed, and restored byte-for-byte from the then-identical worktree file (diff empty). No git command ran there. Merge note: .tsprune-ignore is line-number keyed; sibling tickets that also refresh it will conflict textually and should re-run deadcode:refresh after merging.\nDiscoveries:\n- title: Export intent for run history so an interrupted export is never taken for another machine's\n  reason: exportRunHistory trusts only exported_hash/imported_hash and an exact-text match. If a process dies between renaming run.json and committing recordExport, and the run then changes (another process records an attempt), the next export is refused and a run conflict is offered; Keep tracked there imports this machine's own older history (upsertAttempt clears leases/claim secrets). exportEpic covers the same gap with readExportIntent; runs have none (src/core/repo/finalizer.ts exportRunHistory).\n  ticket: DM-367\n- title: Update or retire docs/verification/DM-336-check.mjs, which calls the removed resolveEpicConflict\n  reason: docs/verification/DM-336-check.mjs (lines 4, 276, 281) calls desktop.resolveEpicConflict({epicId, keep}); the command is now resolveRecordConflict({kind:'epic', id, keep}), so rerunning that script fails. DM-336-acceptance.md records past output and was left as history.\n  ticket: DM-367"
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m69tamfxr31z94e3qrvx4fjd",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "branch",
+            "location": "linear-DM-367",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "record conflict service",
+            "location": "src/core/services/recordConflict.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "run conflict service",
+            "location": "src/core/services/runConflict.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "run rule",
+            "location": "docs/architecture.md",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "linear-DM-367",
+        "changedFiles": [
+          ".tsprune-ignore",
+          "docs/architecture.md",
+          "src/core/authz.ts",
+          "src/core/commandSchemas.ts",
+          "src/core/commands/capabilities.test.ts",
+          "src/core/commands/capabilities.ts",
+          "src/core/commands/repository.ts",
+          "src/core/repo/finalizer.test.ts",
+          "src/core/repo/finalizer.ts",
+          "src/core/repo/importer.test.ts",
+          "src/core/repo/importer.ts",
+          "src/core/repo/storage.test.ts",
+          "src/core/repo/storage.ts",
+          "src/core/repo/syncState.ts",
+          "src/core/services/epicConflict.ts",
+          "src/core/services/recordConflict.ts",
+          "src/core/services/runConflict.ts",
+          "src/mcp/server.test.ts",
+          "src/renderer/src/App.tsx",
+          "src/renderer/src/app/shellActions.test.ts",
+          "src/renderer/src/app/shellActions.ts",
+          "src/renderer/src/app/shellMessages.test.ts",
+          "src/renderer/src/app/shellMessages.ts",
+          "src/renderer/src/home/FolderHome.tsx",
+          "src/renderer/src/home/StorageCard.test.tsx",
+          "src/renderer/src/home/StorageCard.tsx",
+          "src/shared/desktop/api.ts",
+          "src/shared/domain/api.ts",
+          "src/shared/domain/views.ts",
+          "src/test/stubApi.ts"
+        ],
+        "commits": [
+          "abc44d40a19e863161eece7adfa9bb661f734a3a",
+          "32f70842d8517e1b9c23daae3c9185a5ec67c986"
+        ],
+        "summary": "Run history exports no longer overwrite a tracked run.json another machine changed: exportRunHistory (finalizer.ts) refuses with conflict when unimportedRunHistory finds the file's trackedRunHash equal to neither exported_hash nor imported_hash of the run's sync_state row; a missing file, a missing row, or a file already holding exactly the text to write still writes. A failed run_history entry now holds back only its own run in a flush (not its epic or other runs). resolveEpicConflict is replaced everywhere by resolveRecordConflict {kind:'epic'|'run', id, keep} (services/recordConflict.ts dispatcher with a RESOLVERS table, epicConflict.ts settleEpicConflict, runConflict.ts settleRunConflict; same capability repo.resolve_conflict, desktop only, no MCP tool; no 'profile' kind added). Run Keep tracked marks the run's waiting exports done, reconciles and requires the run imported (else rolls back); Write local records the found hash as imported_hash and flushes only that run. Both refuse with nothing to choose, during a transfer hold on the run's epic, and for sessions without the capability. Epic Keep tracked no longer flushes run histories first. hasPendingRunChanges moved to syncState.ts. Storage status conflicts now carry kind and id (StorageConflictView); a run conflict is resolvable in repo mode while its run_history waits, its run.json is unimported and its epic has no hold. The Storage card offers Keep tracked records / Write local for it and calls the command with kind 'run'. docs/architecture.md states the run rule next to the epic rule. DM-366's flush case in importer.test.ts is rewritten to the refused-then-Write-local behavior; its first case is unchanged. .tsprune-ignore refreshed for line shifts only (same 18 names)."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m69970zgyh22yzj56zpr6sdm",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T21:06:01.035Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:903dfa146ffcf2f1579b75e803ebf71ea98ec7b11243811158fdd35d7df53078",
+      "ticketId": "tk_01m6995z2mbk5pfdkjxwabar6z",
+      "updatedAt": "2026-10-31T21:06:01.062Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "high",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-367)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (high). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'high' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T21:08:07.573Z",
+      "decidedAt": "2026-10-31T21:19:29.846Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "Accepted on review of finalizer.ts, commandSchemas.ts and profileConflict.ts. Behavior changes kept: the old test that pinned a pending local profile save overwriting a pulled one now expects the refusal, and the stored profile conflict message now points to the Storage card choice.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "tsc node, web and fireguard projects: clean.",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "All 17 touched .ts/.tsx files: exit 0. Two max-lines-per-function hits in new tests were fixed by splitting describes.",
+            "name": "npx oxlint <touched files>",
+            "status": "passed"
+          },
+          {
+            "detail": "profileImport, finalizer, storage, StorageCard, shellMessages, shellActions, importer, importer.hostile, dbFlush, capabilities, mcp/server, services/profiles, workspace.dbMode: 13 files, 404 tests passed. commands/profiles, workspace, repoProfiles, App.footer: 53 passed. mcp/server rerun after its comment edit: 21 passed.",
+            "name": "npx vitest run (tests of touched files plus seams)",
+            "status": "passed"
+          },
+          {
+            "detail": "It reported only moved line numbers of 7 existing names in views.ts (StorageLocationView and the Redraft* views). Ran npm run deadcode:refresh; the .tsprune-ignore diff is line numbers only. A re-run gives 'No new dead exports found.'",
+            "name": "npm run deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "(a) Guard condition switched off: 9 tests fail (3 finalizer refusal tests, profileImport refused flush, 5 choice tests). (a2) Missing file/row exemption switched off: 6 finalizer tests fail, including 'writes as before when the tracked file is missing, or the profile has no sync_state row'. (b) Base recordConflict.ts: 5 choice/refusal tests fail. (c) Base commandSchemas.ts: the schema test fails. (d) Base storage.ts: 3 fail (status shape, profile resolvable, keep-tracked resolvable check). (e) Base StorageCard.tsx: 2 profile button tests fail. (f) Base shellMessages.ts: the profile toast test fails. Each file was copied back from /tmp/dm-linear/DM-368-*.new, and git diff --stat was identical before and after.",
+            "name": "fail-without-change demonstrations",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "full suite / coverage / build / fireguard / whole-tree lint",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "exportProfile refuses with conflict when unimportedProfile returns a hash other than the text to write; missing file or sync_state row, or identical bytes, still write; a refused profile export blocks only that profile. 9 tests fail with the guard off, 6 with the exemptions off (worker evidence)."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "resolveRecordConflict accepts kind 'profile' (discriminated schema validates the id as a profile name); profileConflict.ts: tracked marks the waiting export done and reconciles in one transaction, rolling back unless profile:<name> was imported; local records the found hash and flushes only that profile; both refuse with nothing to choose; capability unchanged (desktop only)."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Profile conflicts carry resolvable under the choice's own rule; the Storage card shows Keep tracked records / Write local for them and sends kind 'profile' (card test); toast wording covers profiles; docs/architecture.md states the profile rule."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Each new test failed with its rule off or the base file restored; typecheck, oxlint, 404 + 53 tests and deadcode (line-number refresh only) passed."
+          }
+        ],
+        "notes": "Red-team. Attacked: (1) Bypass by other writers: the finalizer's profile handler is the only writer of profiles/<name>.json (grep of profileFile/profilesDir). (2) Fail-open: unimportedProfile throws on an unsafe path or a read error (a directory or an unreadable file), so the export fails closed. Storage status catches it and offers no choice. db mode never offers or accepts a choice. (3) Deadlock: Keep tracked marks the export done before reconciling, so scanProfiles no longer skips the profile. Write local sets imported_hash so the guard passes. Both are refused when nothing is in conflict, so neither leaves a stuck state. Remaining wait, the same as runs: a tracked profile the reconcile rejects (bad JSON, over 256 KiB, wrong name) blocks the export and offers no button. The export error says to fix it in Git first. (4) Crash windows: a crash after writing the file and before recordExport commits leaves this machine's own text, which the 'exactly the text to write' rule lets the next flush overwrite. A crash after Write local commits and before its flush leaves imported_hash set, so the next flush writes over only that hash. A newer pull in between is refused again and becomes a fresh conflict. (5) Seams: matchesSync is now shared by the import (profileImport) and the guard, so both use the same hash and the same sync rule. ReconcileResultView.profileConflicts is unchanged. StorageStatusView.profileConflicts gains resolvable, and every producer and fixture is updated. StorageConflictView is narrowed to 'epic'|'run'|'comment', so a profile never enters conflicts[]. (6) Vacuous tests: each new test was shown to fail with its change reverted. The missing-file/row tests do not depend on the guard, so they were shown to fail by switching off the exemption instead. Changed on purpose: the old test 'lets the pending local save win on export' asserted the overwrite this ticket forbids, and it now asserts the refusal. The stored conflict text 'Flush or resolve the local changes before importing' was misleading once flushing is refused, so it now names the Storage card choice. Known behaviour kept from the spec: before any sync_state row exists (no reconcile yet), a flush still writes over a pulled profile ('missing row writes as today'). After a reconcile, storeProfileConflicts creates a row (with null hashes), so the guard then protects the file and the choice is offered.\n\nDiscoveries:\n- title: Offer a way out when a tracked record the reconcile rejects blocks its own export\n  reason: For profiles (as for runs after DM-367), a tracked file that is unimported and also rejected by the reconcile (bad JSON, oversized, names another profile) keeps the waiting export refused. No conflict row and no Storage card choice exist for it; the only guidance is the export error text 'must be fixed in Git first'. Seen while red-teaming src/core/repo/finalizer.ts exportProfile and src/core/repo/storage.ts profileConflictsOf.\n  ticket: DM-368"
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m69wn38n47a9dqfckmhprfg6",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "branch",
+            "location": "linear-DM-368",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "profile conflict service",
+            "location": "src/core/services/profileConflict.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "profile guard",
+            "location": "src/core/repo/finalizer.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "profile rule",
+            "location": "docs/architecture.md",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "linear-DM-368",
+        "changedFiles": [
+          ".tsprune-ignore",
+          "docs/architecture.md",
+          "src/core/commandSchemas.ts",
+          "src/core/repo/finalizer.test.ts",
+          "src/core/repo/finalizer.ts",
+          "src/core/repo/profileImport.test.ts",
+          "src/core/repo/profileImport.ts",
+          "src/core/repo/storage.test.ts",
+          "src/core/repo/storage.ts",
+          "src/core/repo/syncState.ts",
+          "src/core/services/profileConflict.ts",
+          "src/core/services/recordConflict.ts",
+          "src/mcp/server.test.ts",
+          "src/renderer/src/app/shellActions.ts",
+          "src/renderer/src/app/shellMessages.test.ts",
+          "src/renderer/src/app/shellMessages.ts",
+          "src/renderer/src/home/StorageCard.test.tsx",
+          "src/renderer/src/home/StorageCard.tsx",
+          "src/shared/domain/views.ts"
+        ],
+        "commits": [
+          "4f8207efd2bc1702ba07d13f3b76728609953df8"
+        ],
+        "summary": "Profile exports no longer write over a tracked profiles/<name>.json that another machine changed. finalizer.ts exportProfile refuses with conflict when unimportedProfile finds a file whose trackedProfileHash (the hash the export records) is neither exported_hash nor imported_hash of the profile's sync_state row. A missing file, a missing row, or a file already holding exactly the text to write still writes. The file is hashed whatever its size, and an empty file hashes as empty. A refused profile entry blocks only that profile's later entries (its only key is profile:<name>). resolveRecordConflict accepts kind 'profile' (id = profile name). The command schema is now a discriminated union, so a profile id is validated with profileName, not stableId. RESOLVERS maps profile to settleProfileConflict (new services/profileConflict.ts). Keep tracked, in one tx with no file write, marks the waiting profile exports done, reconciles, and requires 'profile:<name>' in imported, else rolls back. Write local sets imported_hash to the found hash, then flushes only that profile (new FlushScope {profileName}). Both are refused unless the tracked file is unimported and a profile export waits; the capability is the same desktop-only repo.resolve_conflict. Storage status profileConflicts now carry resolvable under the same rule, and the StorageCard offers Keep tracked records / Write local sending kind 'profile'. Shell toasts have profile wording. matchesSync is widened to 'profile', and hasPendingProfileChanges moved to syncState.ts (profileImport now uses both). The stored conflict message now names the choice instead of 'Flush or resolve'. docs/architecture.md states the profile rule."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m69970zgyh22yzj56zpr6sdm",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T21:19:29.818Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:8a4394062c370baadb7f9897a239d25f33f4c458a7ec01e4b25b65048241c0f3",
+      "ticketId": "tk_01m6995z2m5pfxk8z0jn694wda",
+      "updatedAt": "2026-10-31T21:19:29.846Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "medium",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-368)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (medium). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'medium' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T21:20:42.755Z",
+      "decidedAt": "2026-10-31T21:59:47.902Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "DoD all passed once at 769d1b2 with no integration fix: lint, typecheck, test (8,738 passed, 9 skipped; Fireguard suite 129 passed), coverage (lines 97.74%, branches 95.05% vs 95), deadcode, build. Landed as a9b0cea on linear-followups (one parent e0e7e07, tree identical to followups-sprint-1 at 85c4285).",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npm run lint (oxlint src scripts) exited 0 with no findings. docs/verification/DM-364-lint.log",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck exited 0 for the node, web and fireguard projects. DM-364-typecheck.log",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npm test: Vitest 449 files, 8738 passed, 9 skipped. Then the Fireguard suite: 21 files, 129 passed. DM-364-test.log",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run coverage: 449 files, 8738 passed, 9 skipped. Statements 97.61%, branches 95.05%, functions 96.29%, lines 97.74%, against thresholds of 97/95/96/97 (branch margin 0.05 points). DM-364-coverage.log",
+            "name": "coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run deadcode: 'No new dead exports found.' against the committed .tsprune-ignore; no refresh was needed. DM-364-deadcode.log",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run build: electron-vite built main (index.js, mcp.js, cli.js), preload and renderer. DM-364-build.log",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Scratch repos: an epic-records conflict listed before; after its waiting entries ended (marked done in B's scratch DB) and the pull was undone, the next reconcile imported nothing and storage listed no conflict; a rejected epic kept its message. Evidence DM-364-acceptance.md."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Two clones of one bare remote: with B's run history export held waiting, A's revision 2 imported on B with no conflict; B's run.json was then written with B's attempt."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "B's run flush refused, B's run.json kept A's sha256 in both rounds; built app Storage card shows Keep tracked records / Write local for the run (DM-364-storage-card-closeup.png, viewed); orchestrator session refused; Keep tracked imported A's history, Write local wrote B's on fresh repos."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Same for profile shared-review: flush refused, A's file kept its sha256, card offers the choice (same screenshot), Keep tracked and Write local each gave the expected profile."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Real 100,000,000 limit: a 1,000-ticket plan with 100,000-char bodies refused at queue with invalid_input naming totalChars, no transfer row; a typical 1,000-ticket plan queued (database-only project, since repo mode cannot save the oversized snapshot)."
+          },
+          {
+            "criterionId": "c6",
+            "met": true,
+            "note": "nodeHost test passes as merged and fails with StdioServerTransport swapped in (DM-364-c6-swap.diff); the built server answered a 32,000,001-byte message with an error and served the next request."
+          },
+          {
+            "criterionId": "c7",
+            "met": true,
+            "note": "One-off test drove the real startTransferChat with an error ending in 'permissions': the message reads '…lacks permissions. Start the transfer chat again…' (source saved as DM-364-c7.test.ts.txt)."
+          }
+        ],
+        "notes": "No integration fixes; no product code changed. All scratch repositories, homes and the app's user data under /private/tmp/dm364-* were removed. Only Electron and server processes this run started were used, and ps confirmed none remain. The coordinating checkout and its state.sqlite were never opened. Not done: no negative control against main's build for c1/c2, since that needs a Git worktree of the shared repository. The person's commands ran through a desktop Workspace from source, because the MCP server refuses the desktop role."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m69xc4r3mvp518hj4bjc5k35",
+      "increment": {
+        "base": {
+          "commit": "e0e7e07f4c72700660b5ff30bf0a9910d9b58f6f",
+          "kind": "epic_start"
+        },
+        "branch": "linear-followups",
+        "checks": [
+          {
+            "detail": "Names the epic branch linear-followups.",
+            "name": "Epic branch",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit a9b0cea exists.",
+            "name": "Commit exists",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit a9b0cea has one parent, e0e7e07.",
+            "name": "One parent",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit a9b0cea is reachable from linear-followups.",
+            "name": "On the epic branch",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit a9b0cea comes after the epic's start commit e0e7e07.",
+            "name": "After the base commit",
+            "status": "passed"
+          },
+          {
+            "detail": "None of the 11 commits recorded by this sprint's accepted work is reachable from linear-followups.",
+            "name": "Squashed, not merged",
+            "status": "passed"
+          }
+        ],
+        "commit": "a9b0cea4546effaa03ceffc04ab66fb46444cc50",
+        "parent": "e0e7e07f4c72700660b5ff30bf0a9910d9b58f6f",
+        "passed": true,
+        "reasons": [],
+        "verifiedAt": "2026-10-31T21:59:47.373Z"
+      },
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "acceptance evidence",
+            "location": "docs/verification/DM-364-acceptance.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "check script (c1-c6)",
+            "location": "docs/verification/DM-364-check.mjs",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "check log",
+            "location": "docs/verification/DM-364-check.log",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "app driver (screenshots)",
+            "location": "docs/verification/DM-364-ui.mjs",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Storage card screenshot (window)",
+            "location": "docs/verification/DM-364-storage-card-conflicts.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Storage card screenshot (card)",
+            "location": "docs/verification/DM-364-storage-card-closeup.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "c6 swapped-transport failure",
+            "location": "docs/verification/DM-364-c6-swapped.log",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "c7 probe output",
+            "location": "docs/verification/DM-364-c7-probe.log",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "followups-sprint-1",
+        "changedFiles": [
+          "docs/verification/DM-364-acceptance.md",
+          "docs/verification/DM-364-app.log",
+          "docs/verification/DM-364-build.log",
+          "docs/verification/DM-364-c6-merged.log",
+          "docs/verification/DM-364-c6-swap.diff",
+          "docs/verification/DM-364-c6-swapped.log",
+          "docs/verification/DM-364-c7-probe.log",
+          "docs/verification/DM-364-c7-tests.log",
+          "docs/verification/DM-364-c7.test.ts.txt",
+          "docs/verification/DM-364-check.log",
+          "docs/verification/DM-364-check.mjs",
+          "docs/verification/DM-364-coverage.log",
+          "docs/verification/DM-364-deadcode.log",
+          "docs/verification/DM-364-lint.log",
+          "docs/verification/DM-364-ps-after-quit.txt",
+          "docs/verification/DM-364-storage-card-closeup.png",
+          "docs/verification/DM-364-storage-card-conflicts.png",
+          "docs/verification/DM-364-test.log",
+          "docs/verification/DM-364-typecheck.log",
+          "docs/verification/DM-364-ui-page.txt",
+          "docs/verification/DM-364-ui-run.log",
+          "docs/verification/DM-364-ui-setup.log",
+          "docs/verification/DM-364-ui.mjs"
+        ],
+        "commits": [
+          "85c4285ab0a514741421cbf6f00cefa4b0271551"
+        ],
+        "summary": "Sprint 1 acceptance: the Definition of Done passed once at 769d1b2 with no integration fixes. All seven criteria (c1 to c7) were verified and their evidence committed on followups-sprint-1. c1 to c6 ran on the built out/main/mcp.js in scratch repositories under /private/tmp/dm364-*, with two-machine checks on two git clones of one bare remote. The person's desktop commands (resolveRecordConflict, queueTransfer) ran through a desktop Workspace from source. The c3/c4 Storage card screenshots came from the built Electron app with an isolated user-data-dir and the scratch clone tracked. c7 is test output."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m69970zgyh22yzj56zpr6sdm",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T21:59:47.875Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:e070731ad66efaf821c7e02e8ace65a90bd34d64301583c48a98d8a821f7557e",
+      "ticketId": "tk_01m698z4krxek4e2sxp8mzdg8s",
+      "updatedAt": "2026-10-31T21:59:47.902Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "medium",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-364)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (medium). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'medium' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T22:22:33.664Z",
+      "decidedAt": "2026-10-31T22:40:41.774Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "Accepted after an adversarial review (verdict correct, 0.85). Notes carried forward: DM-374's export intent must cover an interrupted first export with no sync_state row; DM-372 checks a rejected pulled profile with no row on the merged branch (needs DM-375).",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "node, web, fireguard tsconfigs clean",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "exit 0 after splitting a describe over max-lines-per-function",
+            "name": "npx oxlint (4 touched ts files)",
+            "status": "passed"
+          },
+          {
+            "detail": "204 passed",
+            "name": "npx vitest run finalizer.test.ts profileImport.test.ts storage.test.ts importer.test.ts services/profiles.test.ts",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "finalizer.ts unimportedProfile drops the no-row exemption; finalizer.test.ts refusal test leaves the file byte-identical; identical-text and missing-file still write. Reviewer reran on reverted copies: refusal test fails on base."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "profileImport.test.ts first-sync tests: reconcile stores a resolvable conflict; Write local inserts the missing sync_state row (INSERT … ON CONFLICT) and writes; Keep tracked imports. Reviewer scratch T1/T2/T2b confirmed the real flows (with the reconcile's conflict row present, and with no reconcile)."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "The overwrite test now covers only a missing file; docs/architecture.md profile rule states the first-sync case and the row insert."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Typecheck, oxlint on touched files, targeted vitest (204 passed) by the worker; reviewer ran the full suite (8742 passed) and showed the 3 new refusal/first-sync tests fail without finalizer.ts and the Write local test fails without profileConflict.ts. The two allowed-write tests guard unchanged behaviour by design."
+          }
+        ],
+        "notes": "No profileImport.ts change needed: scanProfiles already inserts the conflict row via ON CONFLICT. No exports added/removed, so deadcode not run. Ported red-team case 1 as firstSyncOverPulledProfile fixture."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m6a0xcp0wzc30snn1gmfr3kn",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "branch",
+            "location": "linear-DM-373",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "linear-DM-373",
+        "changedFiles": [
+          "src/core/repo/finalizer.ts",
+          "src/core/services/profileConflict.ts",
+          "src/core/repo/finalizer.test.ts",
+          "src/core/repo/profileImport.test.ts",
+          "docs/architecture.md"
+        ],
+        "commits": [
+          "2b49035c1509629584300af1bae2991c9e79845d"
+        ],
+        "summary": "unimportedProfile no longer exempts a profile with no sync_state row (missing file still writes; a file holding exactly the text to write still writes). profileConflict keepLocal now INSERTs the sync_state row ON CONFLICT DO UPDATE imported_hash, mirroring epicConflict. Reconcile already stores the conflict row for such a profile, and storage marks it resolvable; Keep tracked imports the pulled profile. Finalizer no-row overwrite test flipped; docs/architecture.md profile rule states the first-sync case."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6a0q906z5xpzcfe8zfyd9kp",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T22:29:25.581Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:35deac07c3909878dcf08e3bd3cf01600b290bae9a9e769193070c58ccf2b62f",
+      "ticketId": "tk_01m69zre5wwbq31kj3xmvsperk",
+      "updatedAt": "2026-10-31T22:40:41.774Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "medium",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-373)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (medium). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'medium' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T22:22:33.729Z",
+      "decidedAt": "2026-10-31T22:42:49.426Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "Adversarial review verdict: correct-with-minor-issues (0.85); behaviour is right, c1-c4 met. Rejected for the untested guard condition and the now-misleading refusal text, both introduced by this ticket's change. Retry continues on branch linear-DM-375 with a new commit on top of fe5c03b.",
+        "outcome": "rejected",
+        "reasons": [
+          "Untested guard: the 'tracked file not yet imported' condition (importer.ts:650-671 holdsUnimportedHistory, profileImport.ts:150-161 unimportedProfile !== null) has no test. An adversarial review replaced both with true and every repo/services test still passed. Add a test where this machine's OWN rejected file (its own run.json over 8 MiB; its own profile over 256 KiB) has a waiting export and the reconcile records NO conflict, and the next flush writes.",
+          "Truthful text: the finalizer's refusal still says 'A tracked file the reconcile rejects must be fixed in Git first', but the Storage card now offers Write local for it; and the storeConflicts comment says unread records 'are not planned at all', no longer true for rejected runs. Make both say what now happens (small hunks; finalizer.ts is also being edited by DM-374)."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "node, web and fireguard tsconfigs clean",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "importer.ts, profileImport.ts, importer.test.ts, profileImport.test.ts: exit 0",
+            "name": "npx oxlint (touched files)",
+            "status": "passed"
+          },
+          {
+            "detail": "3 files, 120 tests passed",
+            "name": "npx vitest run importer.test.ts profileImport.test.ts storage.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "68 passed (finalizer's unimported* guards are now called from the importer)",
+            "name": "npx vitest run finalizer.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "Without the implementation, all 7 new tests failed (vitest -t 'rejects while': 7 failed | 99 skipped). The first assertion to fail in each was the missing conflict or the missing resolvable Storage row: 'expected [] to deeply equal [...]'.",
+            "name": "new tests before the change",
+            "status": "passed"
+          },
+          {
+            "detail": "no exports added, removed or moved",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run lint / npm test / build / fireguard",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "importer.test.ts > \"a pulled run history the reconcile rejects while the run's export waits\" > 'records a resolvable run conflict only while an export of the run waits'. A pulled run.json at 9 MiB is rejected with 'is larger than the 8 MiB record limit'. result.conflicts holds the 'Tracked history for run …' conflict under EPIC, and getStorageStatus.conflicts lists the run conflict with resolvable: true."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "profileImport.test.ts > \"a pulled profile the reconcile rejects while the profile's export waits\" > 'records a resolvable profile conflict while an export of the profile waits'. A pulled ui.json at 300 KiB is rejected with 'is larger than the 256 KiB profile limit', profileConflicts holds the usual conflict, and Storage profileConflicts shows resolvable: true."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Write local: importer.test.ts \"writing local writes this machine's run, whatever the pulled file's size\" (run.json becomes the local record, the Storage conflict clears) and profileImport.test.ts \"writing local writes this machine's profile over the rejected one\". Keep tracked: 'keeping the tracked history refuses, naming the rejection, and changes nothing' and 'keeping the tracked file refuses, naming the rejection, and changes nothing'. Both give a conflict error that contains the limit rejection text and leave the domain, outbox and sync_state unchanged. No waiting export: the second half of 'records a resolvable run conflict only while an export of the run waits' (export done, the stored conflict cleared, then a reconcile records no conflict and Storage is empty). Also 'records no conflict while no export of the profile waits, and one once an export waits'."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "All 7 new tests pass after the change, and each was run and failed before the implementation (7 failed). Each test first asserts that the conflict or the resolvable Storage row exists, so it fails without the change. The existing tests of the touched files still pass: importer 120 total with profileImport and storage, finalizer 68."
+          }
+        ],
+        "notes": "I did not change storage.ts: runChoiceStands and profileChoiceStands already use the choice's own rule, and the tests show resolvable: true. A small hunk was added to docs/architecture.md, on the 'Unimported run history' and 'Unimported profiles' bullets. Merging may conflict there if DM-373 or DM-374 edit the same lines. The finalizer's refusal text still says 'A tracked file the reconcile rejects must be fixed in Git first.' That is still true for keeping the tracked side, so I left it unchanged; finalizer.ts belongs to the siblings. Red-team pass: duplicates are impossible (a rejected run is never also in scan.runs). A rejected run with no local row or no sync_state row gets no conflict, which matches the guard's rule for writing. An invalid profile name or a link path is caught and skipped. Keep tracked runs inside its transaction after marking the exports done, so it records no new conflict and rolls back with the rejection message. A local run over 8 MiB that this machine wrote stays rejected on later reconciles, but its conflict was cleared by recordExport and no new one is recorded (tested)."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m6a0xcr157re7fmzg0stdddh",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Rejected-run conflict planning",
+            "location": "src/core/repo/importer.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Rejected-profile conflict",
+            "location": "src/core/repo/profileImport.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Run tests",
+            "location": "src/core/repo/importer.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Profile tests",
+            "location": "src/core/repo/profileImport.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "linear-DM-375",
+        "changedFiles": [
+          "docs/architecture.md",
+          "src/core/repo/importer.ts",
+          "src/core/repo/importer.test.ts",
+          "src/core/repo/profileImport.ts",
+          "src/core/repo/profileImport.test.ts"
+        ],
+        "commits": [
+          "fe5c03b12b2d42270b848860d21e8709d33cc702"
+        ],
+        "summary": "A tracked run.json or profile that the reconcile rejects (for example a file over the 8 MiB run record limit or the 256 KiB profile limit, a newer format, or bad JSON) now gets a conflict in two cases. Runs: the new planRejectedRuns in importer.ts covers a rejected run that exists locally, has a waiting run_history export (hasPendingRunChanges) and a tracked file it has not imported (unimportedRunHistory non-null; a throwing path counts as nothing it could lose). The run's conflict is recorded under its local epic with the same 'Tracked history for run …' message, so DM-365's storeConflicts clear/keep rules apply. A run whose epic was skipped for its own conflict or a transfer hold gets nothing, as planRuns already does for readable runs. Profiles: scanProfiles' rejection path in profileImport.ts records the usual profile conflict when hasPendingProfileChanges holds and unimportedProfile is non-null (an invalid name or unreadable path is skipped). storage.ts needed no change: it already computes resolvable with the same rule the choice checks, and the tests confirm resolvable: true. Write local writes this machine's record. Keep tracked refuses through the existing result.rejected lookup, and its message includes the rejection text ('is larger than the 8 MiB record limit' / 'is larger than the 256 KiB profile limit'). docs/architecture.md now describes both cases."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6a0q906z5xpzcfe8zfyd9kp",
+      "state": "rejected",
+      "submittedAt": "2026-10-31T22:29:25.619Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:512b0bb703a745122bdd3a0e9d7ed1e8c7c6cd14464f8f945a610bf3322fd52f",
+      "ticketId": "tk_01m69zre5wv5wwffvz2mvew3yp",
+      "updatedAt": "2026-10-31T22:42:49.426Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "medium",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-375)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (medium). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'medium' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T22:29:25.635Z",
+      "decidedAt": "2026-10-31T22:52:59.027Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "Adversarial review: correct-with-minor-issues (0.8). Drop/collision/lease logic verified with mutations; the approvals/retry-grant discovery needs no fix in DM-376 (approvals of dropped reports can never authorize; retry grants only loosen the limit) and stays a follow-up. Rejected for the signed-out pause lease case (c2) and one untested branch. Retry continues on linear-DM-376 with a new commit on top of e8173b7.",
+        "outcome": "rejected",
+        "reasons": [
+          "c2 not met for a run paused for sign-in: requireNoLiveLease (runConflict.ts:54-71) only checks lease_expires_at > now, but a run paused with pause_reason 'signed_out' keeps its claimed/running attempts leased regardless of lease time (expireLeases skips it, execution.ts:250-262; heartbeats still accepted, runs.test.ts:621; resume extends leases, runs.ts:439). Keep tracked then deletes a local-only attempt and strips a tracked attempt's claim (reviewer repro /tmp/dm-review/DM-376/head probe376.test.ts PROBE1/1b). Treat such attempts as live (e.g. join runs: lease_expires_at > now OR run paused with SIGNED_OUT pause reason) and make the refusal message right for that case (no past 'runs until' time).",
+          "Untested branch: deleting a dropped sprint report's search entry (importer.ts:526-532, doc_type 'report') — renaming the branch passes all 86 tests. Add a local-only report with a search entry to the drop test and assert it is gone."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npm run typecheck (node, web, fireguard tsconfigs) clean",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npx oxlint on all 10 touched source/test files: exit 0, after splitting a too-long describe (max-lines-per-function)",
+            "name": "oxlint (touched files)",
+            "status": "passed"
+          },
+          {
+            "detail": "importer.test.ts 86/86, StorageCard.test.tsx + shellMessages.test.ts (132 total with importer), profileImport.test.ts, shellActions.test.ts, commands/capabilities.test.ts, authz.test.ts: 148/148",
+            "name": "vitest targeted",
+            "status": "passed"
+          },
+          {
+            "detail": "With runConflict.ts reverted to HEAD (a9b0cea), 3 new keep-tracked tests fail: drop (record text differs, local-only A3/report/checkpoint/row check kept), same ticket+number (UNIQUE constraint failed: attempts.run_id, attempts.ticket_id, attempts.number), live lease (Expected a DomainError, but the action succeeded). Restored afterwards.",
+            "name": "tests fail without the change",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found (new export dropRunRowsTrackedLacks is used by runConflict.ts)",
+            "name": "npm run deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test (full suite)",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run build",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run lint (whole tree)",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "importer.test.ts 'drops the local-only attempt, report, checkpoint and row check of a finished run, so the run's rows equal the tracked record' asserts prettyJson(buildRunHistoryRecord(db, RUN)) === the pulled run.json byte for byte, only tracked ids remain in attempts/sprint_reports/checkpoints/row_checks, and A3's search entry is gone. 'same ticket and number' covers a local-only attempt that collides on a unique key. 'puts the dropped rows back when the import then refuses' shows the transaction rolls back the drop (dumpDomain, outbox and search_index unchanged)."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "'is refused, changing nothing, while an attempt of the run on this machine holds a live lease, and allowed once it expires': refused for a running local-only A3 and for a claimed tracked A1 with lease > now. The message names the attempt and run and says Write local. dumpDomain, outbox (still pending), sync_state and run.json are unchanged. Once the clock reaches lease_expires_at, Keep tracked succeeds and the rows equal the record."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "'writing local instead keeps every one of this machine's rows of the run and writes them all': attempts/reports/checkpoints/row_checks rows are unchanged, the run.json written equals the local record with every local row, and the search entry is kept. Docs updated: runConflict.ts module doc, recordConflict.ts module doc, api.ts resolveRecordConflict (epic, run, profile; what tracked and local do for each; the lease refusal), the authz.ts comment (epics, runs, profiles), StorageCard run titles (asserted in StorageCard.test.tsx), the shellMessages run toast (asserted in shellMessages.test.ts), and the docs/architecture.md run rule (what Keep tracked drops, what stays, the lease refusal, Write local keeps every row). The epic and profile rules in architecture.md already described their choices and are unchanged."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "All listed tests pass. With runConflict.ts reverted, the drop test, the collision test and the lease test fail. The Write local test and the rollback test pass both before and after: Write local was not changed and the rollback test guards the new drop, so neither can fail before the change. The renderer copy assertions fail against the old strings."
+          }
+        ],
+        "notes": "The rows are deleted before the import, not after, inside the same transaction; see the summary for why (unique-key collisions). The live-lease predicate is state IN LEASED_ATTEMPT_STATES AND lease_expires_at > clock.nowIso(). A claimed or running attempt with a NULL or expired lease does not block. A submitted attempt holds no lease and does not block, though a local-only submitted attempt is dropped. Rows the run record never carries stay: retry_grants, approvals (including any approval linked to a dropped checkpoint), events, outbox, sync_state. A local approval that pointed at a dropped local-only checkpoint therefore becomes an orphan text reference with no foreign key. Out of scope, recorded below.\nDiscoveries:\n- title: Decide what Keep tracked does with a run's machine-local approvals and retry grants\n  reason: dropRunRowsTrackedLacks deletes only what the run record carries (attempts, reports, checkpoints, row checks). approvals.run_id, checkpoints.approval_id and retry_grants.run_id are machine-local and not exported (portable.ts buildRunHistoryRecord), so after Keep tracked a pending approval or a retry grant can refer to a checkpoint or attempt that no longer exists here. No foreign key breaks, because neither column is declared as one in migrations.ts, but the run's gates may still read them.\n  ticket: DM-376"
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m6a19z03k61ye5rsbmzn43jd",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Keep tracked lease guard and drop",
+            "location": "src/core/services/runConflict.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "dropRunRowsTrackedLacks",
+            "location": "src/core/repo/importer.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Tests",
+            "location": "src/core/repo/importer.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "linear-DM-376",
+        "changedFiles": [
+          "docs/architecture.md",
+          "src/core/authz.ts",
+          "src/core/repo/importer.test.ts",
+          "src/core/repo/importer.ts",
+          "src/core/services/recordConflict.ts",
+          "src/core/services/runConflict.ts",
+          "src/renderer/src/app/shellMessages.test.ts",
+          "src/renderer/src/app/shellMessages.ts",
+          "src/renderer/src/home/StorageCard.test.tsx",
+          "src/renderer/src/home/StorageCard.tsx",
+          "src/shared/domain/api.ts"
+        ],
+        "commits": [
+          "e8173b7cce795115d12b3f25ea4e1a76fe6201d9"
+        ],
+        "summary": "Keep tracked for a run now keeps only the other machine's run. Inside the keepTracked transaction, after requireConflict, a new lease guard refuses (conflict, nothing changed) while any attempt of the run on this machine is claimed/running with lease_expires_at > now, tracked or local-only, because the drop deletes local-only attempts and the import (upsertAttempt) takes the lease of tracked ones. The message names the attempt and run and says to wait for it to finish or expire, or choose Write local. Then the new importer.dropRunRowsTrackedLacks reads and validates the tracked run.json, the same way readRunFiles does, and deletes this machine's attempts, sprint_reports, checkpoints and row_checks of the run whose ids the record lacks, children first (reverse of RUN_CHILD_TABLES), plus the search_index attempt/report entries of the dropped rows. After that the waiting exports are marked done and the tracked history is imported. A rejected file becomes the existing 'tracked history was not imported' conflict. After the import, a hash check (matchesSync with the hash that was read) refuses if the file changed in between. A throw rolls back the whole transaction. Design note for the reviewer: the ticket says 'after the import', but the rows are deleted BEFORE the reconcile in the same transaction. Deleting after fails whenever a local-only row shares a unique key with a tracked one (attempts UNIQUE(run_id,ticket_id,number), the one-open-attempt index, row_checks UNIQUE(run_id,number), sprint_reports UNIQUE(run_id,sprint_id,report_revision)). The test 'same ticket and number' shows this: the pre-change code fails with 'UNIQUE constraint failed: attempts.run_id, attempts.ticket_id, attempts.number'. The end state is the one the ticket asks for: after the import, the run's rows equal the tracked record. retry_grants, approvals, events and outbox are not carried by the run record, so they are not deleted. Docs and copy updated: runConflict.ts and recordConflict.ts module docs; the api.ts resolveRecordConflict doc (now names epics, runs and profiles and what each choice does); the authz.ts comment (epics, runs, profiles); the Storage card run button titles; the run toast in shellMessages.ts; the docs/architecture.md run rule."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6a0q906z5xpzcfe8zfyd9kp",
+      "state": "rejected",
+      "submittedAt": "2026-10-31T22:42:21.010Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:074f0c9b6f80a08636fd7c206a4f65c390bc0f27e6dc3208caddff6921fe12ed",
+      "ticketId": "tk_01m69zre5w4rddzrm0txqbf8qr",
+      "updatedAt": "2026-10-31T22:52:59.027Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "high",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-376)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (high). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'high' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T22:40:49.512Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": null,
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m6a1ytv825bc3ap1x6szzxtp",
+      "kind": "work",
+      "number": 1,
+      "outputs": null,
+      "reconciledAt": null,
+      "revisionId": "rv_01m6a0q906z5xpzcfe8zfyd9kp",
+      "state": "running",
+      "submittedAt": null,
+      "supersededAt": null,
+      "ticketContentHash": "sha256:5c90bdd9f6cbf0b87185d53b6afed90d874a0602d8d96001df6447175e381daf",
+      "ticketId": "tk_01m69zre5wr7vq2demde8q01zy",
+      "updatedAt": "2026-10-31T22:58:33.819Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "high",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-374)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (high). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'high' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T22:42:49.461Z",
+      "decidedAt": "2026-10-31T22:49:16.525Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "Attempt 2 accepted after a second adversarial pass (correct, 0.9). Attempt 1 was rejected for an untested guard and stale refusal text; both fixed in d290ff6. Out-of-scope edge for the report: a rejected run whose epic is also rejected gets no card choice although the refusal mentions Write local (planRejectedRuns skips runs of rejected epics, as planRuns does).",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "attempt 2: exit 0",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "attempt 2: importer.ts, finalizer.ts, importer.test.ts, profileImport.test.ts, exit 0. An earlier run flagged max-lines-per-function on the two test describes; I fixed it by moving the new tests into their own describes.",
+            "name": "npx oxlint (touched files)",
+            "status": "passed"
+          },
+          {
+            "detail": "attempt 2: 4 files, 190 tests passed",
+            "name": "npx vitest run importer.test.ts profileImport.test.ts storage.test.ts finalizer.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "With holdsUnimportedHistory returning true and the profile check set to `if (true)`, importer.test.ts and profileImport.test.ts showed 2 failed | 106 passed. The failures were the two new own-rejected-record tests ('expected [ {…} ] to deeply equal []'). The guards were restored afterwards.",
+            "name": "guard mutation (attempt 2)",
+            "status": "passed"
+          },
+          {
+            "detail": "Without the implementation, all 7 attempt-1 tests failed (7 failed | 99 skipped).",
+            "name": "new tests before the change (attempt 1)",
+            "status": "passed"
+          },
+          {
+            "detail": "no exports added, removed or moved",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run lint / npm test / build / fireguard",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "importer.ts planRejectedRuns records the 'Tracked history for run …' conflict under the run's local epic for a rejected pulled run.json with a waiting run_history export and an unimported file; importer.test.ts asserts it and Storage marks it resolvable. Reviewer probes confirmed."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "profileImport.ts scanProfiles rejection path records the profile conflict for a rejected pulled profile (over 256 KiB) with a waiting export; profileImport.test.ts asserts the resolvable Storage row."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Write local writes this machine's record (including a local run over 8 MiB); Keep tracked refuses naming the rejection and changes nothing; no waiting export means no conflict, and (attempt 2) this machine's own rejected file with a waiting export gets no conflict and flushes. Run/profile refusal text now says Write local is offered."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Worker: typecheck, oxlint touched files, vitest importer/profileImport/storage/finalizer (190 passed). Reviewer: 7 new attempt-1 tests fail on the old code; each attempt-2 test fails when its guard is replaced with true; core/services + repo suites 1251 tests pass on HEAD."
+          }
+        ],
+        "notes": "The finalizer hunks are only the two refusal string lines, in exportRunHistory and exportProfile, which DM-374 is also editing. I left the epic refusal text (requireWritableRecords: 'Tracked files the reconcile rejects must be fixed in Git first.') unchanged. A rejected epic record gets no planned conflict, so the Storage card offers no Write local for it, and that text stays true. docs/verification/DM-364-ui-page.txt quotes the old profile text as a recorded capture, so I did not change it. Red team: no duplicate conflicts (a rejected run is never in scan.runs). A run or profile with no local row or sync_state row gets no conflict. Invalid names and link paths are caught and skipped. Keep tracked rolls back with the rejection message. This machine's own oversized file gets no conflict, and its export writes."
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m6a22fznd7b4e237ay7vwg2z",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Rejected-run conflict planning",
+            "location": "src/core/repo/importer.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Rejected-profile conflict",
+            "location": "src/core/repo/profileImport.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Refusal texts",
+            "location": "src/core/repo/finalizer.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Run tests",
+            "location": "src/core/repo/importer.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Profile tests",
+            "location": "src/core/repo/profileImport.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "linear-DM-375",
+        "changedFiles": [
+          "docs/architecture.md",
+          "src/core/repo/finalizer.ts",
+          "src/core/repo/importer.ts",
+          "src/core/repo/importer.test.ts",
+          "src/core/repo/profileImport.ts",
+          "src/core/repo/profileImport.test.ts"
+        ],
+        "commits": [
+          "fe5c03b12b2d42270b848860d21e8709d33cc702",
+          "d290ff6e83eb682e325a079572a7e61fdcd06cee"
+        ],
+        "summary": "A tracked run.json or profile that the reconcile rejects now gets a conflict when its local export waits over a file this machine has not imported. Rejections include a file over the 8 MiB run record limit or the 256 KiB profile limit, a newer format, and bad JSON.\n\nRuns: the new planRejectedRuns in importer.ts covers a rejected run that exists locally, has a waiting run_history export, and whose tracked file unimportedRunHistory reports (a throwing path counts as nothing to lose). The run's conflict is filed under its local epic with the 'Tracked history for run …' prefix, so DM-365's storeConflicts clear/keep rules apply. A run whose epic was skipped for its own conflict or a transfer hold gets nothing.\n\nProfiles: scanProfiles' rejection path records the usual profile conflict when hasPendingProfileChanges holds and unimportedProfile is non-null.\n\nstorage.ts needed no change: it already marks conflicts resolvable under the choice's own rule. Write local writes this machine's record, and Keep tracked refuses with the rejection text.\n\nAttempt 2 makes two fixes the review asked for. (1) New tests cover the unimported-file guard: this machine's own rejected run.json over 8 MiB, or own profile over 256 KiB, with a new waiting export gets no conflict, and the next flush writes it. Both tests fail when the guard is replaced with `true`. (2) The run and profile refusal texts in finalizer.ts now say that a rejected tracked file can still be replaced with write local, or fixed in Git first to keep the tracked side. The storeConflicts comment no longer says unread records are 'not planned at all'."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6a0q906z5xpzcfe8zfyd9kp",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T22:46:11.462Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:512b0bb703a745122bdd3a0e9d7ed1e8c7c6cd14464f8f945a610bf3322fd52f",
+      "ticketId": "tk_01m69zre5wv5wwffvz2mvew3yp",
+      "updatedAt": "2026-10-31T22:49:16.525Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "high",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-375)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (high). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'high' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T22:52:59.077Z",
+      "decidedAt": "2026-10-31T22:59:51.905Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "Attempt 2 accepted after two adversarial passes (final verdict correct). Attempt 1 rejected for the signed-out pause lease case and an untested search-entry branch; fixed in 1b53b9b with a shared isOverdue rule. Follow-up (discovery): Keep tracked leaves machine-local approvals and retry grants pointing at dropped rows; reviewer showed approvals can never authorize a tracked report and grants only loosen the retry limit.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npm run typecheck (node, web and fireguard tsconfigs) passed, exit 0, at 1b53b9b",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Attempt 2: npx oxlint on execution.ts, runConflict.ts, importer.test.ts and api.ts exit 0. Attempt 1: exit 0 on all 10 files it touched.",
+            "name": "oxlint (touched files)",
+            "status": "passed"
+          },
+          {
+            "detail": "Run 1 (importer.test.ts, runs, execution, checkpoints and attempts services tests, src/core/commands): 16 files, 363 passed; importer.test.ts alone 87/87. Run 2 (every other test importing services/execution: legacyRecords, attemptsIncrement, increments, attempts.review, rowChecks, adoptionFreshBudget, mcp/tools/execution; plus the StorageCard and shellMessages tests): 10 files, 236 passed.",
+            "name": "vitest targeted",
+            "status": "passed"
+          },
+          {
+            "detail": "Attempt 2: with runConflict.ts at e8173b7, the new sign-in test fails ('Expected a DomainError, but the action succeeded'). With the importer.ts report branch disabled (doc_type 'report' renamed to 'reportX'), the drop test fails (expected one report search entry, got two). Both files were restored. Attempt 1: with runConflict.ts at a9b0cea, the drop, shared-key and live-lease tests fail.",
+            "name": "tests fail without the change",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found (liveLeases is used by runConflict.ts; LeaseRow is not exported)",
+            "name": "npm run deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test (full suite)",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run build",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run lint (whole tree)",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "runConflict.ts keepTracked calls importer.ts dropRunRowsTrackedLacks, deleting this machine's attempts, sprint reports, checkpoints and row checks of the run the tracked record lacks (plus their search entries) before the import, in one transaction. importer.test.ts compares buildRunHistoryRecord byte for byte with the tracked run.json afterwards; the collision test covers shared unique keys. Reviewer mutations (guard off, search delete off, drop after import) are each caught."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Refused, changing nothing, while any attempt of the run on this machine holds a live lease, using execution.ts liveLeases (same isOverdue rule as expireLeases), including a run paused for sign-in whose lease time passed (attempt 2). Reviewer probes PROBE1/1b/1c refuse; 120-case matrix shows expireLeases unchanged and liveLeases its exact complement."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Write local keeps every local row (test). runConflict.ts and recordConflict.ts module docs, api.ts resolveRecordConflict doc (epics, runs, profiles), authz.ts comment, StorageCard tooltips, the run toast and docs/architecture.md describe each choice, including the sign-in refusal."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Worker: typecheck, oxlint touched files, deadcode, vitest importer 87/87 plus services/commands 363 and execution importers 236. New drop/collision/lease/sign-in/report-search tests fail on the older code (verified by worker and reviewer); reviewer ran 538 related tests on HEAD, all passing."
+          }
+        ],
+        "notes": "Attempt 2 fixes the review's findings: the sign-in pause gap in c2, and the untested report search-entry branch. Behaviour note: the guard now treats a lease ending exactly now, and a claimed/running attempt with a NULL lease, as held. This matches expireLeases, which expires neither.\nDiscoveries:\n- title: Decide what Keep tracked does with a run's machine-local approvals and retry grants\n  reason: dropRunRowsTrackedLacks deletes only what the run record carries (attempts, reports, checkpoints, row checks). approvals.run_id, checkpoints.approval_id and retry_grants.run_id are machine-local and not exported (portable.ts buildRunHistoryRecord). After Keep tracked, a pending approval or a retry grant can therefore refer to a checkpoint or attempt that no longer exists here. No foreign key breaks, because migrations.ts declares neither column as one, but the run's gates may still read them.\n  ticket: DM-376"
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m6a2n3a5ktnhzgraqeyjpxvw",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Keep tracked lease guard and drop",
+            "location": "src/core/services/runConflict.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Shared lease rule (liveLeases, isOverdue, expireLeases)",
+            "location": "src/core/services/execution.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "dropRunRowsTrackedLacks",
+            "location": "src/core/repo/importer.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Tests",
+            "location": "src/core/repo/importer.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "linear-DM-376",
+        "changedFiles": [
+          "docs/architecture.md",
+          "src/core/authz.ts",
+          "src/core/repo/importer.test.ts",
+          "src/core/repo/importer.ts",
+          "src/core/services/execution.ts",
+          "src/core/services/recordConflict.ts",
+          "src/core/services/runConflict.ts",
+          "src/renderer/src/app/shellMessages.test.ts",
+          "src/renderer/src/app/shellMessages.ts",
+          "src/renderer/src/home/StorageCard.test.tsx",
+          "src/renderer/src/home/StorageCard.tsx",
+          "src/shared/domain/api.ts"
+        ],
+        "commits": [
+          "e8173b7cce795115d12b3f25ea4e1a76fe6201d9",
+          "1b53b9bbb81fae9ac5073f4d754948cd9ffbfe4d"
+        ],
+        "summary": "Attempt 2 builds on attempt 1 (e8173b7) with a new commit, 1b53b9b, that fixes the review's two findings.\n(1) The Keep tracked lease guard now uses the same rule as lease expiry. In execution.ts the claimed/running query became leasedAttempts, which also returns whether the run is paused for sign-in (state 'paused' and pause_reason SIGNED_OUT_PAUSE_REASON). The overdue rule became isOverdue: not paused for sign-in, has a lease, and the lease ended before now. expireLeases expires the attempts isOverdue picks, with the same behaviour as before. The new export liveLeases(ctx, runId) returns the claimed/running attempts that are not overdue. runConflict.requireNoLiveLease uses liveLeases, so it now also refuses on a run paused for sign-in whatever its lease time. That case's message says the run is paused for sign-in and its workers keep their claims until it resumes, and asks to resume the run and wait, or choose Write local; it prints no 'runs until' time. Because the guard now follows isOverdue exactly, a lease that ends exactly now still counts as held (isBefore is strict), and a claimed/running attempt with a NULL lease counts as held too.\n(2) The drop test now gives the local-only report a search entry and asserts that only the tracked report's entry is left.\nThe runConflict module doc, the api.ts resolveRecordConflict doc and the docs/architecture.md run rule now describe the sign-in case.\nUnchanged from attempt 1: Keep tracked deletes this machine's rows of the run the tracked run.json lacks (attempts, sprint reports, checkpoints, row checks and their search entries, children first) BEFORE the reconcile, in the same transaction. That order avoids unique-key collisions; after the import the run's rows equal the tracked record. Any refusal rolls everything back. Write local keeps every local row."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6a0q906z5xpzcfe8zfyd9kp",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T22:57:00.704Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:074f0c9b6f80a08636fd7c206a4f65c390bc0f27e6dc3208caddff6921fe12ed",
+      "ticketId": "tk_01m69zre5w4rddzrm0txqbf8qr",
+      "updatedAt": "2026-10-31T22:59:51.905Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "high",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-376)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (high). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'high' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    }
+  ],
+  "checkpoints": [
+    {
+      "decidedAt": "2026-10-31T22:20:17.355Z",
+      "decidedBy": "ss_01m69yymgy27z2yy2adgwaz40n",
+      "id": "ck_01m6a0s7jbqssnyp2q36exdqyp",
+      "outcome": "advanced",
+      "policy": "human",
+      "reportId": "rp_01m6a0rwt1pprnmxxze8mnbarg",
+      "sprintId": "sp_01m698z4krn17151nbaerdf150"
+    }
+  ],
+  "createdAt": "2026-10-31T20:00:15.391Z",
+  "endedAt": null,
+  "epicId": "ep_01m698z4kqk4a5906hkv6w2ajr",
+  "format": "darkmechanicus.run",
+  "formatVersion": 1,
+  "host": {
+    "label": "Autonomous (omp) on davidgorden's Mac",
+    "type": "omp"
+  },
+  "hostCatalogId": "hc_01m682cjdas7t34q5ymg6qs2vk",
+  "number": 1,
+  "ownerMachineId": "mc_01m4912pg590r3j7r99nbcw9wz",
+  "pauseReason": null,
+  "reports": [
+    {
+      "content": {
+        "accepted": [
+          "DM-365 Clear stale reconcile conflicts at the next reconcile: accepted on attempt 1 (a review round before submission extended the keep rule to rejected run files and rejected top-level folders).",
+          "DM-366 Stop pending run history exports from blocking an epic's import: accepted on attempt 2 (attempt 1 was failed unworked after the orchestrator lost its claim token).",
+          "DM-367 Refuse run history exports over unimported tracked history and let the person keep either side: accepted on attempt 1.",
+          "DM-368 Refuse profile exports over unimported tracked profiles and let the person keep either side: accepted on attempt 1.",
+          "DM-369 Refuse a Linear transfer at queue when its read-back would exceed the total limit: accepted on attempt 2 (attempt 1 failed unworked, lost claim token).",
+          "DM-370 Test the MCP host's bounded stdio transport through nodeHost: accepted on attempt 1.",
+          "DM-371 Share one reasonOf that keeps a trailing letter s: accepted on attempt 1.",
+          "DM-364 Sprint 1 acceptance: accepted on attempt 1 with increment a9b0cea on linear-followups."
+        ],
+        "blocked": [],
+        "changes": {
+          "commits": [
+            "4314b6f3e81695c926394c043596e2e4098efa05",
+            "69a1c9e0559ad4346ee45ce116256b5e2c5ea6de",
+            "ade9300fc20e14b519d1251602271fd2559b6943",
+            "fbdb23b9051fab802c2e78623e8c67acdad85bfb",
+            "3b29b741fb6f79755aa98cd0ef00b67c12ffe0bb",
+            "6a4a51145b1b238e5ea7b74d7e7772d68095ebec",
+            "769d1b2bff1e53d6d3ea219ebb746d46510a6c58",
+            "85c4285ab0a514741421cbf6f00cefa4b0271551",
+            "a9b0cea4546effaa03ceffc04ab66fb46444cc50"
+          ],
+          "files": [
+            ".tsprune-ignore",
+            "docs/architecture.md",
+            "docs/runbooks/linear-transfer.md",
+            "docs/verification/DM-364-acceptance.md",
+            "docs/verification/DM-364-app.log",
+            "docs/verification/DM-364-build.log",
+            "docs/verification/DM-364-c6-merged.log",
+            "docs/verification/DM-364-c6-swap.diff",
+            "docs/verification/DM-364-c6-swapped.log",
+            "docs/verification/DM-364-c7-probe.log",
+            "docs/verification/DM-364-c7-tests.log",
+            "docs/verification/DM-364-c7.test.ts.txt",
+            "docs/verification/DM-364-check.log",
+            "docs/verification/DM-364-check.mjs",
+            "docs/verification/DM-364-coverage.log",
+            "docs/verification/DM-364-deadcode.log",
+            "docs/verification/DM-364-lint.log",
+            "docs/verification/DM-364-ps-after-quit.txt",
+            "docs/verification/DM-364-storage-card-closeup.png",
+            "docs/verification/DM-364-storage-card-conflicts.png",
+            "docs/verification/DM-364-test.log",
+            "docs/verification/DM-364-typecheck.log",
+            "docs/verification/DM-364-ui-page.txt",
+            "docs/verification/DM-364-ui-run.log",
+            "docs/verification/DM-364-ui-setup.log",
+            "docs/verification/DM-364-ui.mjs",
+            "src/core/authz.ts",
+            "src/core/commandSchemas.ts",
+            "src/core/commands/capabilities.test.ts",
+            "src/core/commands/capabilities.ts",
+            "src/core/commands/repository.ts",
+            "src/core/repo/finalizer.test.ts",
+            "src/core/repo/finalizer.ts",
+            "src/core/repo/importer.test.ts",
+            "src/core/repo/importer.ts",
+            "src/core/repo/profileImport.test.ts",
+            "src/core/repo/profileImport.ts",
+            "src/core/repo/storage.test.ts",
+            "src/core/repo/storage.ts",
+            "src/core/repo/syncState.ts",
+            "src/core/schemas.ts",
+            "src/core/services/epicConflict.ts",
+            "src/core/services/profileConflict.ts",
+            "src/core/services/recordConflict.ts",
+            "src/core/services/runConflict.ts",
+            "src/core/services/transfers.test.ts",
+            "src/core/services/transfers.ts",
+            "src/core/transfer/linearReadback.test.ts",
+            "src/core/transfer/linearReadback.ts",
+            "src/integration/linearTransfer.test.ts",
+            "src/main/agents/orchestratorStart.test.ts",
+            "src/main/agents/orchestratorStart.ts",
+            "src/main/agents/startReason.test.ts",
+            "src/main/agents/startReason.ts",
+            "src/main/agents/transferStart.test.ts",
+            "src/main/agents/transferStart.ts",
+            "src/mcp/main.test.ts",
+            "src/mcp/main.ts",
+            "src/mcp/server.test.ts",
+            "src/renderer/src/App.tsx",
+            "src/renderer/src/app/shellActions.test.ts",
+            "src/renderer/src/app/shellActions.ts",
+            "src/renderer/src/app/shellMessages.test.ts",
+            "src/renderer/src/app/shellMessages.ts",
+            "src/renderer/src/home/FolderHome.tsx",
+            "src/renderer/src/home/StorageCard.test.tsx",
+            "src/renderer/src/home/StorageCard.tsx",
+            "src/shared/desktop/api.ts",
+            "src/shared/domain/api.ts",
+            "src/shared/domain/views.ts",
+            "src/test/stubApi.ts"
+          ]
+        },
+        "checks": [
+          {
+            "detail": "3b29b74: typecheck, oxlint on 18 changed files, vitest 77 files / 2,286 passed.",
+            "name": "Row 1 check (DM-365, DM-366, DM-369, DM-370, DM-371)",
+            "status": "passed"
+          },
+          {
+            "detail": "6a4a511: typecheck, oxlint, vitest 150 files / 2,678 passed, deadcode.",
+            "name": "Row 2 check (DM-367)",
+            "status": "passed"
+          },
+          {
+            "detail": "769d1b2: typecheck, oxlint, vitest 151 files / 3,195 passed, deadcode.",
+            "name": "Row 3 check (DM-368)",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-364: npm run lint exit 0.",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-364: all three projects.",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-364: 449 files, 8,738 passed, 9 skipped; Fireguard suite 129 passed.",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-364: statements 97.61%, branches 95.05%, functions 96.29%, lines 97.74%.",
+            "name": "coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-364: no new dead exports.",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-364: main, preload, renderer.",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "epicOutcome": {
+          "successCriteria": [
+            {
+              "criterionId": "s1",
+              "met": false,
+              "note": "Met for runs and for profiles with a sync record (DM-364 c3, c4: refusals by sha256, the card's choice, person-only). Not met for a profile with no sync_state row: red-team reproduced a new local profile 'ui' overwriting a pulled 'ui' before any reconcile (finalizer.ts unimportedProfile no-row exemption, which the plan specified)."
+            },
+            {
+              "criterionId": "s2",
+              "met": true,
+              "note": "DM-366; DM-364 c2: A's revision imported on B while B's run history export waited, and B's run.json then landed with B's attempt."
+            },
+            {
+              "criterionId": "s3",
+              "met": true,
+              "note": "DM-365; DM-364 c1: the conflict cleared at the next reconcile once its waiting entries ended, and a rejected epic kept its message."
+            },
+            {
+              "criterionId": "s4",
+              "met": true,
+              "note": "DM-369; DM-364 c5 with the real limit: refused at queue naming totalChars with no transfer stored; a typical 1,000-ticket plan queues. In repo mode an oversized plan cannot even be saved (follow-up)."
+            },
+            {
+              "criterionId": "s5",
+              "met": true,
+              "note": "DM-370; DM-364 c6: the nodeHost test fails with StdioServerTransport swapped in; the built server refuses a 32,000,001-byte message and serves the next."
+            },
+            {
+              "criterionId": "s6",
+              "met": true,
+              "note": "DM-371; DM-364 c7: '…lacks permissions. Start the transfer chat again…'."
+            }
+          ],
+          "summary": "Five of six success criteria hold. Runs and profiles now get DM-338's refusal and person-only choice, epics import while a run's history waits, stale conflicts clear, oversized transfers are refused at queue, the MCP transport wiring is tested, and start errors keep their last letters. s1 is not met: a profile with no sync record yet is still written over, and three minor gaps remain; the redraft's Sprint 2 closes them."
+        },
+        "exitCriteria": [
+          {
+            "criterionId": "x1",
+            "met": true,
+            "note": "All seven work tickets accepted (DM-366 and DM-369 on attempt 2 after unworked lost-token failures); row checks 1 (3b29b74), 2 (6a4a511) and 3 (769d1b2) passed."
+          },
+          {
+            "criterionId": "x2",
+            "met": true,
+            "note": "DM-364 ran lint, typecheck, test, coverage, deadcode and build once at 769d1b2; all passed with no integration fix."
+          },
+          {
+            "criterionId": "x3",
+            "met": false,
+            "note": "The covered checks c1 to c7 passed, but the post-acceptance red-team disproved s1 for profiles: with no sync record yet, a new local profile overwrites a pulled one of the same name. s2 to s6 hold. Sprint 2 of the redraft closes it."
+          },
+          {
+            "criterionId": "x4",
+            "met": true,
+            "note": "docs/architecture.md states the run and profile rule next to the epic rule (DM-367, DM-368); its profile sentence becomes fully true with Sprint 2."
+          }
+        ],
+        "failed": [],
+        "followUps": [
+          {
+            "body": "get_transfer returns the full packet even before a transfer exists (about 101.8 million characters for an oversized plan); the MCP SDK client stops at 10 MiB and drops the connection (found in DM-364).",
+            "title": "Keep get_transfer and get_plan replies under the MCP client's message limit"
+          },
+          {
+            "body": "In repo mode a plan whose snapshot exceeds the 8 MiB record limit stays pending on save_plan; DM-369's queue refusal is then reachable only in database-only projects or from a stored packet (found in DM-364).",
+            "title": "Refuse a plan save whose snapshot exceeds the record limit instead of leaving it pending"
+          },
+          {
+            "body": "skills/linear-transfer.md and the kickoff prompt do not mention that start_transfer refuses an over-limit packet; the refusal's message tells the agent what to do (found in DM-369).",
+            "title": "Mention the start-time size refusal in the Linear transfer guide"
+          },
+          {
+            "body": "It calls the removed resolveEpicConflict, so it no longer reruns; it is the record of a past acceptance and was left unchanged (found in DM-367).",
+            "title": "Leave docs/verification/DM-336-check.mjs as history"
+          },
+          {
+            "body": "Merging linear-followups into main changes the resolveRecordConflict command the desktop app calls; rebuild and restart the app and MCP servers together.",
+            "title": "Rebuild after merging"
+          }
+        ],
+        "retro": {
+          "actions": [
+            "Planner: never exempt a missing sync record for a kind whose ids people choose; state the first-sync case explicitly in data-safety tickets.",
+            "Orchestrator: give long eval cells an explicit timeout and keep worktree copies out of claim cells, so a kernel reset cannot lose claim tokens.",
+            "Workers: brief absolute paths only; keep checking the shared checkout after every worker.",
+            "Keep an independent red-team on every data-safety sprint before the report."
+          ],
+          "delivered": [
+            {
+              "demo": "Reconcile after a waiting export ended: the Storage card no longer lists its old conflict.",
+              "evidence": "aa33665, 716784e; DM-364 c1.",
+              "ticket": "tk_01m6995z1ygn9t104c18qnpfw2"
+            },
+            {
+              "demo": "Pull another machine's revision during an active run: the epic imports.",
+              "evidence": "6216cf8..46d1e7c; DM-364 c2.",
+              "ticket": "tk_01m6995z2mx1bz11ze30zy4ha6"
+            },
+            {
+              "demo": "Pull another machine's run history while a local run change waits: the flush refuses and the Storage card offers Keep tracked records / Write local.",
+              "evidence": "abc44d4, 32f7084; DM-364 c3, DM-364-storage-card-closeup.png.",
+              "ticket": "tk_01m6995z2mbk5pfdkjxwabar6z"
+            },
+            {
+              "demo": "The same for a pulled profile.",
+              "evidence": "4f8207e; DM-364 c4.",
+              "ticket": "tk_01m6995z2m5pfxk8z0jn694wda"
+            },
+            {
+              "demo": "Queue a transfer of a plan whose read-back would exceed 100,000,000 characters: refused naming totalChars.",
+              "evidence": "fd70710; DM-364 c5.",
+              "ticket": "tk_01m6995z2md6anq7etq84yfs2p"
+            },
+            {
+              "demo": "Swap StdioServerTransport into nodeHost: main.test.ts fails.",
+              "evidence": "b7a8bf7; DM-364 c6.",
+              "ticket": "tk_01m6995z2ma78j1qqb2vyvmvzn"
+            },
+            {
+              "demo": "A start error ending in 'permissions' shows the whole word.",
+              "evidence": "6ce2dd5; DM-364 c7.",
+              "ticket": "tk_01m6995z2mtsfw08a8wph9sg0n"
+            },
+            {
+              "demo": "docs/verification/DM-364-acceptance.md.",
+              "evidence": "85c4285; squashed as a9b0cea.",
+              "ticket": "tk_01m698z4krxek4e2sxp8mzdg8s"
+            }
+          ],
+          "discoveries": [
+            {
+              "body": "unimportedProfile (finalizer.ts) returns null when the profile has no sync_state row, so a profile saved here under a name another machine pushed is written over the pulled file before the first reconcile, silently. Profile names are chosen by people and collide across machines, unlike run ids. Drop the no-row exemption for profiles, let profileConflict keepLocal insert the row when it is missing (as epicConflict keepLocal does), and flip the finalizer test that asserts the overwrite (finalizer.test.ts about :983-996). Red-team repro: /tmp/dm-redteam/redteam.test.ts.",
+              "ticket": "tk_01m6995z2m5pfxk8z0jn694wda",
+              "title": "Refuse a profile export over a pulled profile this machine has no sync record for"
+            },
+            {
+              "body": "exportRunHistory and exportProfile have no restoreFile and no export intent, unlike exportEpic. A read-back failure, a recordExport error or a kill before commit leaves this machine's own new file with no sync record; after a further change the next flush refuses it as another machine's and the card offers a choice about this machine's own write, where Keep tracked restores older values. Restore the previous text on failure and record an intent so an interrupted export is recognized as this machine's. Red-team repro: /tmp/dm-redteam/redteam.test.ts (case 2).",
+              "ticket": "tk_01m6995z2mbk5pfdkjxwabar6z",
+              "title": "Restore the previous file when a run or profile export fails, and record export intents"
+            },
+            {
+              "body": "planRuns and scanProfiles plan only records they could read, so a pulled run.json or profile the reconcile rejects (for example over the 8 MiB record limit, which this machine's own exports may exceed) gets no conflict row: every flush is refused and the Storage card offers nothing, although resolveRecordConflict local would work. For each rejected run or profile with a waiting export and an unimported tracked file, record a conflict (run conflicts under the run's local epic id) so Write local is offered and Keep tracked refuses with the rejection reason. Red-team repro: /tmp/dm-redteam/redteam2.test.ts.",
+              "ticket": "tk_01m6995z2m5pfxk8z0jn694wda",
+              "title": "Record a conflict for a rejected pulled run or profile whose export waits"
+            },
+            {
+              "body": "Keep tracked imports the tracked run but leaves rows the file lacks (such as this machine's claimed attempt) in the database; for a finished run nothing exports them again, so this machine's view diverges, against runConflict.ts's own doc. Decide and implement: drop those rows inside the Keep tracked transaction, or queue the run's export so they go out, and make the doc and the card or toast text say what happens. Also update the resolveRecordConflict doc in shared/domain/api.ts and the comment in core/authz.ts, which name only epics and runs. Found by the red-team and by DM-364.",
+              "ticket": "tk_01m6995z2mbk5pfdkjxwabar6z",
+              "title": "Make Keep tracked for a run drop or export its local-only rows"
+            }
+          ],
+          "leftovers": [],
+          "tierFit": [
+            {
+              "note": "Small, routine, medium effort: accepted on attempt 1 after one review round before submission. Host cannot set worker effort: the recorded effort is the planned value, not one applied.",
+              "ticket": "tk_01m6995z1ygn9t104c18qnpfw2",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Small, multi_step: accepted on its first worked attempt. Host cannot set worker effort: the recorded effort is the planned value, not one applied.",
+              "ticket": "tk_01m6995z2mx1bz11ze30zy4ha6",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Medium, deep, high effort: accepted on attempt 1 (about 37 minutes). Host cannot set worker effort: the recorded effort is the planned value, not one applied.",
+              "ticket": "tk_01m6995z2mbk5pfdkjxwabar6z",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Medium, multi_step: accepted on attempt 1. Host cannot set worker effort: the recorded effort is the planned value, not one applied.",
+              "ticket": "tk_01m6995z2m5pfxk8z0jn694wda",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Medium, multi_step: accepted on its first worked attempt. Host cannot set worker effort: the recorded effort is the planned value, not one applied.",
+              "ticket": "tk_01m6995z2md6anq7etq84yfs2p",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Small, routine: accepted on attempt 1. Host cannot set worker effort: the recorded effort is the planned value, not one applied.",
+              "ticket": "tk_01m6995z2ma78j1qqb2vyvmvzn",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Small, routine: accepted on attempt 1. Host cannot set worker effort: the recorded effort is the planned value, not one applied.",
+              "ticket": "tk_01m6995z2mtsfw08a8wph9sg0n",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Acceptance node: accepted on attempt 1. Host cannot set worker effort: the recorded effort is the planned value, not one applied.",
+              "ticket": "tk_01m698z4krxek4e2sxp8mzdg8s",
+              "verdict": "right_sized"
+            }
+          ],
+          "wentPoorly": [
+            "The plan specified 'a missing sync_state row writes as today' for profiles as for runs; that is safe for unique run ids but not for person-chosen profile names, and it reached acceptance unnoticed.",
+            "The orchestrator's eval cell timed out during setup and lost two fresh claim tokens: DM-366 and DM-369 each spent one retry on an unworked attempt.",
+            "A worker's relative-path edit landed in the shared checkout (views.ts); it was restored byte-identical and verified.",
+            "Branch coverage is again just over its threshold (95.05%)."
+          ],
+          "wentWell": [
+            "Every ticket was accepted on its first worked attempt; reviewing DM-365 before submission closed a gap (rejected run files and folders) instead of shipping it.",
+            "The acceptance ran on the real limits and the built app, with screenshots of the Storage card choice, and passed the Definition of Done first time.",
+            "An independent red-team on the combined storage diff found a major hole before the person approved, with a reproduction."
+          ]
+        },
+        "risks": [
+          "Until Sprint 2 lands: a profile saved on this machine under a name another machine already pushed is written over the pulled profile if no reconcile has run since the pull (no sync record yet), silently. docs/architecture.md already says unimported profiles are never overwritten.",
+          "A run or profile export whose write fails after the file was replaced (read-back failure, process killed before commit) leaves this machine's own file, which a later change then treats as another machine's: the person is asked, and Keep tracked would restore older values.",
+          "A pulled run or profile that the reconcile rejects (for example over the 8 MiB record limit) blocks its own export with no choice on the Storage card.",
+          "Keep tracked on a run leaves this machine's local-only rows (such as a claimed attempt) in its database, unexported for a finished run.",
+          "Branch coverage is 95.05% against a 95% threshold.",
+          "Behavior change: switching to a pulled run history or profile while a local change waits now asks the person instead of overwriting."
+        ],
+        "summary": "Sprint 1 delivered all seven follow-ups and its acceptance passed once on the combined work (8,738 tests; coverage 97.74% lines, 95.05% branches), landed as a9b0cea on linear-followups. A run's history and a profile are no longer written over another machine's unimported copy once this machine has a sync record for it, and the person chooses Keep tracked records or Write local in the Storage card (one person-only resolveRecordConflict command). An epic imports while its run's history waits, stale reconcile conflicts clear, an oversized Linear transfer is refused at queue, the MCP transport wiring is tested, and start errors keep their last letters. An independent red-team after acceptance found that a new local profile can still overwrite a pulled profile of the same name before the first reconcile creates its sync record (the plan's own 'missing row writes' exemption), plus three minor gaps. Success criterion s1 is therefore not met yet; the redraft adds a Sprint 2 that closes all four."
+      },
+      "contentHash": "sha256:d2a24eeb7f9487c0f520e15b51f794d4842c0d553e78a23e6e245369c59cf327",
+      "createdAt": "2026-10-31T22:01:04.803Z",
+      "id": "rp_01m69zp213dgjna01ysfq6dt6d",
+      "reportRevision": 1,
+      "sprintId": "sp_01m698z4krn17151nbaerdf150",
+      "submittedBy": "Claude Code orchestrator (linear follow-ups)"
+    },
+    {
+      "content": {
+        "accepted": [
+          "DM-365 Clear stale reconcile conflicts at the next reconcile: accepted on attempt 1 (a review round before submission extended the keep rule to rejected run files and rejected top-level folders).",
+          "DM-366 Stop pending run history exports from blocking an epic's import: accepted on attempt 2 (attempt 1 was failed unworked after the orchestrator lost its claim token).",
+          "DM-367 Refuse run history exports over unimported tracked history and let the person keep either side: accepted on attempt 1.",
+          "DM-368 Refuse profile exports over unimported tracked profiles and let the person keep either side: accepted on attempt 1.",
+          "DM-369 Refuse a Linear transfer at queue when its read-back would exceed the total limit: accepted on attempt 2 (attempt 1 failed unworked, lost claim token).",
+          "DM-370 Test the MCP host's bounded stdio transport through nodeHost: accepted on attempt 1.",
+          "DM-371 Share one reasonOf that keeps a trailing letter s: accepted on attempt 1.",
+          "DM-364 Sprint 1 acceptance: accepted on attempt 1 with increment a9b0cea on linear-followups."
+        ],
+        "blocked": [],
+        "changes": {
+          "commits": [
+            "4314b6f3e81695c926394c043596e2e4098efa05",
+            "69a1c9e0559ad4346ee45ce116256b5e2c5ea6de",
+            "ade9300fc20e14b519d1251602271fd2559b6943",
+            "fbdb23b9051fab802c2e78623e8c67acdad85bfb",
+            "3b29b741fb6f79755aa98cd0ef00b67c12ffe0bb",
+            "6a4a51145b1b238e5ea7b74d7e7772d68095ebec",
+            "769d1b2bff1e53d6d3ea219ebb746d46510a6c58",
+            "85c4285ab0a514741421cbf6f00cefa4b0271551",
+            "a9b0cea4546effaa03ceffc04ab66fb46444cc50"
+          ],
+          "files": [
+            ".tsprune-ignore",
+            "docs/architecture.md",
+            "docs/runbooks/linear-transfer.md",
+            "docs/verification/DM-364-acceptance.md",
+            "docs/verification/DM-364-app.log",
+            "docs/verification/DM-364-build.log",
+            "docs/verification/DM-364-c6-merged.log",
+            "docs/verification/DM-364-c6-swap.diff",
+            "docs/verification/DM-364-c6-swapped.log",
+            "docs/verification/DM-364-c7-probe.log",
+            "docs/verification/DM-364-c7-tests.log",
+            "docs/verification/DM-364-c7.test.ts.txt",
+            "docs/verification/DM-364-check.log",
+            "docs/verification/DM-364-check.mjs",
+            "docs/verification/DM-364-coverage.log",
+            "docs/verification/DM-364-deadcode.log",
+            "docs/verification/DM-364-lint.log",
+            "docs/verification/DM-364-ps-after-quit.txt",
+            "docs/verification/DM-364-storage-card-closeup.png",
+            "docs/verification/DM-364-storage-card-conflicts.png",
+            "docs/verification/DM-364-test.log",
+            "docs/verification/DM-364-typecheck.log",
+            "docs/verification/DM-364-ui-page.txt",
+            "docs/verification/DM-364-ui-run.log",
+            "docs/verification/DM-364-ui-setup.log",
+            "docs/verification/DM-364-ui.mjs",
+            "src/core/authz.ts",
+            "src/core/commandSchemas.ts",
+            "src/core/commands/capabilities.test.ts",
+            "src/core/commands/capabilities.ts",
+            "src/core/commands/repository.ts",
+            "src/core/repo/finalizer.test.ts",
+            "src/core/repo/finalizer.ts",
+            "src/core/repo/importer.test.ts",
+            "src/core/repo/importer.ts",
+            "src/core/repo/profileImport.test.ts",
+            "src/core/repo/profileImport.ts",
+            "src/core/repo/storage.test.ts",
+            "src/core/repo/storage.ts",
+            "src/core/repo/syncState.ts",
+            "src/core/schemas.ts",
+            "src/core/services/epicConflict.ts",
+            "src/core/services/profileConflict.ts",
+            "src/core/services/recordConflict.ts",
+            "src/core/services/runConflict.ts",
+            "src/core/services/transfers.test.ts",
+            "src/core/services/transfers.ts",
+            "src/core/transfer/linearReadback.test.ts",
+            "src/core/transfer/linearReadback.ts",
+            "src/integration/linearTransfer.test.ts",
+            "src/main/agents/orchestratorStart.test.ts",
+            "src/main/agents/orchestratorStart.ts",
+            "src/main/agents/startReason.test.ts",
+            "src/main/agents/startReason.ts",
+            "src/main/agents/transferStart.test.ts",
+            "src/main/agents/transferStart.ts",
+            "src/mcp/main.test.ts",
+            "src/mcp/main.ts",
+            "src/mcp/server.test.ts",
+            "src/renderer/src/App.tsx",
+            "src/renderer/src/app/shellActions.test.ts",
+            "src/renderer/src/app/shellActions.ts",
+            "src/renderer/src/app/shellMessages.test.ts",
+            "src/renderer/src/app/shellMessages.ts",
+            "src/renderer/src/home/FolderHome.tsx",
+            "src/renderer/src/home/StorageCard.test.tsx",
+            "src/renderer/src/home/StorageCard.tsx",
+            "src/shared/desktop/api.ts",
+            "src/shared/domain/api.ts",
+            "src/shared/domain/views.ts",
+            "src/test/stubApi.ts"
+          ]
+        },
+        "checks": [
+          {
+            "detail": "3b29b74: typecheck, oxlint on 18 changed files, vitest 77 files / 2,286 passed.",
+            "name": "Row 1 check (DM-365, DM-366, DM-369, DM-370, DM-371)",
+            "status": "passed"
+          },
+          {
+            "detail": "6a4a511: typecheck, oxlint, vitest 150 files / 2,678 passed, deadcode.",
+            "name": "Row 2 check (DM-367)",
+            "status": "passed"
+          },
+          {
+            "detail": "769d1b2: typecheck, oxlint, vitest 151 files / 3,195 passed, deadcode.",
+            "name": "Row 3 check (DM-368)",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-364: npm run lint exit 0.",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-364: all three projects.",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-364: 449 files, 8,738 passed, 9 skipped; Fireguard suite 129 passed.",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-364: statements 97.61%, branches 95.05%, functions 96.29%, lines 97.74%.",
+            "name": "coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-364: no new dead exports.",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-364: main, preload, renderer.",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "epicOutcome": null,
+        "exitCriteria": [
+          {
+            "criterionId": "x1",
+            "met": true,
+            "note": "All seven work tickets accepted (DM-366 and DM-369 on attempt 2 after unworked lost-token failures); row checks 1 (3b29b74), 2 (6a4a511) and 3 (769d1b2) passed."
+          },
+          {
+            "criterionId": "x2",
+            "met": true,
+            "note": "DM-364 ran lint, typecheck, test, coverage, deadcode and build once at 769d1b2; all passed with no integration fix."
+          },
+          {
+            "criterionId": "x4",
+            "met": true,
+            "note": "docs/architecture.md states the run and profile rule next to the epic rule (DM-367, DM-368). Sprint 2 extends it with the first-sync, restore, rejected-record and Keep tracked cases."
+          }
+        ],
+        "failed": [],
+        "followUps": [
+          {
+            "body": "get_transfer returns the full packet even before a transfer exists (about 101.8 million characters for an oversized plan); the MCP SDK client stops at 10 MiB and drops the connection (found in DM-364).",
+            "title": "Keep get_transfer and get_plan replies under the MCP client's message limit"
+          },
+          {
+            "body": "In repo mode a plan whose snapshot exceeds the 8 MiB record limit stays pending on save_plan; DM-369's queue refusal is then reachable only in database-only projects or from a stored packet (found in DM-364).",
+            "title": "Refuse a plan save whose snapshot exceeds the record limit instead of leaving it pending"
+          },
+          {
+            "body": "skills/linear-transfer.md and the kickoff prompt do not mention that start_transfer refuses an over-limit packet; the refusal's message tells the agent what to do (found in DM-369).",
+            "title": "Mention the start-time size refusal in the Linear transfer guide"
+          },
+          {
+            "body": "It calls the removed resolveEpicConflict, so it no longer reruns; it is the record of a past acceptance and was left unchanged (found in DM-367).",
+            "title": "Leave docs/verification/DM-336-check.mjs as history"
+          },
+          {
+            "body": "Merging linear-followups into main changes the resolveRecordConflict command the desktop app calls; rebuild and restart the app and MCP servers together.",
+            "title": "Rebuild after merging"
+          }
+        ],
+        "retro": {
+          "actions": [
+            "Planner: never exempt a missing sync record for a kind whose ids people choose; state the first-sync case explicitly in data-safety tickets.",
+            "Orchestrator: give long eval cells an explicit timeout and keep worktree copies out of claim cells, so a kernel reset cannot lose claim tokens.",
+            "Workers: brief absolute paths only; keep checking the shared checkout after every worker.",
+            "Keep an independent red-team on every data-safety sprint before the report."
+          ],
+          "delivered": [
+            {
+              "demo": "Reconcile after a waiting export ended: the Storage card no longer lists its old conflict.",
+              "evidence": "aa33665, 716784e; DM-364 c1.",
+              "ticket": "tk_01m6995z1ygn9t104c18qnpfw2"
+            },
+            {
+              "demo": "Pull another machine's revision during an active run: the epic imports.",
+              "evidence": "6216cf8..46d1e7c; DM-364 c2.",
+              "ticket": "tk_01m6995z2mx1bz11ze30zy4ha6"
+            },
+            {
+              "demo": "Pull another machine's run history while a local run change waits: the flush refuses and the Storage card offers Keep tracked records / Write local.",
+              "evidence": "abc44d4, 32f7084; DM-364 c3, DM-364-storage-card-closeup.png.",
+              "ticket": "tk_01m6995z2mbk5pfdkjxwabar6z"
+            },
+            {
+              "demo": "The same for a pulled profile.",
+              "evidence": "4f8207e; DM-364 c4.",
+              "ticket": "tk_01m6995z2m5pfxk8z0jn694wda"
+            },
+            {
+              "demo": "Queue a transfer of a plan whose read-back would exceed 100,000,000 characters: refused naming totalChars.",
+              "evidence": "fd70710; DM-364 c5.",
+              "ticket": "tk_01m6995z2md6anq7etq84yfs2p"
+            },
+            {
+              "demo": "Swap StdioServerTransport into nodeHost: main.test.ts fails.",
+              "evidence": "b7a8bf7; DM-364 c6.",
+              "ticket": "tk_01m6995z2ma78j1qqb2vyvmvzn"
+            },
+            {
+              "demo": "A start error ending in 'permissions' shows the whole word.",
+              "evidence": "6ce2dd5; DM-364 c7.",
+              "ticket": "tk_01m6995z2mtsfw08a8wph9sg0n"
+            },
+            {
+              "demo": "docs/verification/DM-364-acceptance.md.",
+              "evidence": "85c4285; squashed as a9b0cea.",
+              "ticket": "tk_01m698z4krxek4e2sxp8mzdg8s"
+            }
+          ],
+          "discoveries": [
+            {
+              "body": "unimportedProfile (finalizer.ts) returns null when the profile has no sync_state row, so a profile saved here under a name another machine pushed is written over the pulled file before the first reconcile, silently. Profile names are chosen by people and collide across machines, unlike run ids. Drop the no-row exemption for profiles, let profileConflict keepLocal insert the row when it is missing (as epicConflict keepLocal does), and flip the finalizer test that asserts the overwrite (finalizer.test.ts about :983-996). Red-team repro: /tmp/dm-redteam/redteam.test.ts.",
+              "ticket": "tk_01m6995z2m5pfxk8z0jn694wda",
+              "title": "Refuse a profile export over a pulled profile this machine has no sync record for"
+            },
+            {
+              "body": "exportRunHistory and exportProfile have no restoreFile and no export intent, unlike exportEpic. A read-back failure, a recordExport error or a kill before commit leaves this machine's own new file with no sync record; after a further change the next flush refuses it as another machine's and the card offers a choice about this machine's own write, where Keep tracked restores older values. Restore the previous text on failure and record an intent so an interrupted export is recognized as this machine's. Red-team repro: /tmp/dm-redteam/redteam.test.ts (case 2).",
+              "ticket": "tk_01m6995z2mbk5pfdkjxwabar6z",
+              "title": "Restore the previous file when a run or profile export fails, and record export intents"
+            },
+            {
+              "body": "planRuns and scanProfiles plan only records they could read, so a pulled run.json or profile the reconcile rejects (for example over the 8 MiB record limit, which this machine's own exports may exceed) gets no conflict row: every flush is refused and the Storage card offers nothing, although resolveRecordConflict local would work. For each rejected run or profile with a waiting export and an unimported tracked file, record a conflict (run conflicts under the run's local epic id) so Write local is offered and Keep tracked refuses with the rejection reason. Red-team repro: /tmp/dm-redteam/redteam2.test.ts.",
+              "ticket": "tk_01m6995z2m5pfxk8z0jn694wda",
+              "title": "Record a conflict for a rejected pulled run or profile whose export waits"
+            },
+            {
+              "body": "Keep tracked imports the tracked run but leaves rows the file lacks (such as this machine's claimed attempt) in the database; for a finished run nothing exports them again, so this machine's view diverges, against runConflict.ts's own doc. Decide and implement: drop those rows inside the Keep tracked transaction, or queue the run's export so they go out, and make the doc and the card or toast text say what happens. Also update the resolveRecordConflict doc in shared/domain/api.ts and the comment in core/authz.ts, which name only epics and runs. Found by the red-team and by DM-364.",
+              "ticket": "tk_01m6995z2mbk5pfdkjxwabar6z",
+              "title": "Make Keep tracked for a run drop or export its local-only rows"
+            }
+          ],
+          "leftovers": [],
+          "tierFit": [
+            {
+              "note": "Small, routine, medium effort: accepted on attempt 1 after one review round before submission. Host cannot set worker effort: the recorded effort is the planned value, not one applied.",
+              "ticket": "tk_01m6995z1ygn9t104c18qnpfw2",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Small, multi_step: accepted on its first worked attempt. Host cannot set worker effort: the recorded effort is the planned value, not one applied.",
+              "ticket": "tk_01m6995z2mx1bz11ze30zy4ha6",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Medium, deep, high effort: accepted on attempt 1 (about 37 minutes). Host cannot set worker effort: the recorded effort is the planned value, not one applied.",
+              "ticket": "tk_01m6995z2mbk5pfdkjxwabar6z",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Medium, multi_step: accepted on attempt 1. Host cannot set worker effort: the recorded effort is the planned value, not one applied.",
+              "ticket": "tk_01m6995z2m5pfxk8z0jn694wda",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Medium, multi_step: accepted on its first worked attempt. Host cannot set worker effort: the recorded effort is the planned value, not one applied.",
+              "ticket": "tk_01m6995z2md6anq7etq84yfs2p",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Small, routine: accepted on attempt 1. Host cannot set worker effort: the recorded effort is the planned value, not one applied.",
+              "ticket": "tk_01m6995z2ma78j1qqb2vyvmvzn",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Small, routine: accepted on attempt 1. Host cannot set worker effort: the recorded effort is the planned value, not one applied.",
+              "ticket": "tk_01m6995z2mtsfw08a8wph9sg0n",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Acceptance node: accepted on attempt 1. Host cannot set worker effort: the recorded effort is the planned value, not one applied.",
+              "ticket": "tk_01m698z4krxek4e2sxp8mzdg8s",
+              "verdict": "right_sized"
+            }
+          ],
+          "wentPoorly": [
+            "The plan specified 'a missing sync_state row writes as today' for profiles as for runs; that is safe for unique run ids but not for person-chosen profile names, and it reached acceptance unnoticed.",
+            "The orchestrator's eval cell timed out during setup and lost two fresh claim tokens: DM-366 and DM-369 each spent one retry on an unworked attempt.",
+            "A worker's relative-path edit landed in the shared checkout (views.ts); it was restored byte-identical and verified.",
+            "Branch coverage is again just over its threshold (95.05%)."
+          ],
+          "wentWell": [
+            "Every ticket was accepted on its first worked attempt; reviewing DM-365 before submission closed a gap (rejected run files and folders) instead of shipping it.",
+            "The acceptance ran on the real limits and the built app, with screenshots of the Storage card choice, and passed the Definition of Done first time.",
+            "An independent red-team on the combined storage diff found a major hole before the person approved, with a reproduction."
+          ]
+        },
+        "risks": [
+          "Until Sprint 2 lands: a profile saved on this machine under a name another machine already pushed is written over the pulled profile if no reconcile has run since the pull (no sync record yet), silently. docs/architecture.md already says unimported profiles are never overwritten.",
+          "A run or profile export whose write fails after the file was replaced (read-back failure, process killed before commit) leaves this machine's own file, which a later change then treats as another machine's: the person is asked, and Keep tracked would restore older values.",
+          "A pulled run or profile that the reconcile rejects (for example over the 8 MiB record limit) blocks its own export with no choice on the Storage card.",
+          "Keep tracked on a run leaves this machine's local-only rows (such as a claimed attempt) in its database, unexported for a finished run.",
+          "Branch coverage is 95.05% against a 95% threshold.",
+          "Behavior change: switching to a pulled run history or profile while a local change waits now asks the person instead of overwriting."
+        ],
+        "summary": "Sprint 1 delivered all seven follow-ups and its acceptance passed once on the combined work (8,738 tests; coverage 97.74% lines, 95.05% branches), landed as a9b0cea on linear-followups. A run's history and a profile are no longer written over another machine's unimported copy once this machine has a sync record for it, and the person chooses Keep tracked records or Write local in the Storage card (one person-only resolveRecordConflict command). An epic imports while its run's history waits, stale reconcile conflicts clear, an oversized Linear transfer is refused at queue, the MCP transport wiring is tested, and start errors keep their last letters. An independent red-team after acceptance found that a new local profile can still overwrite a pulled profile of the same name before the first reconcile creates its sync record (the plan's own 'missing row writes' exemption), plus three minor gaps. Success criterion s1 is therefore not met yet; the redraft adds a Sprint 2 that closes all four.\n\nRevision 2, after plan revision 2 was adopted: the epic-completion criterion (each success criterion holds) moved to Sprint 2, which closes the red-team's findings in DM-373 to DM-376. Sprint 1 is no longer the final sprint, so this report carries no epic outcome."
+      },
+      "contentHash": "sha256:e218a3159fb210b916608f18270ba7ab62d56cdde1eb1468f5e4b9ff542fd4f5",
+      "createdAt": "2026-10-31T22:20:06.337Z",
+      "id": "rp_01m6a0rwt1pprnmxxze8mnbarg",
+      "reportRevision": 2,
+      "sprintId": "sp_01m698z4krn17151nbaerdf150",
+      "submittedBy": "Claude Code orchestrator (linear follow-ups)"
+    }
+  ],
+  "revisionId": "rv_01m6a0q906z5xpzcfe8zfyd9kp",
+  "rowChecks": [
+    {
+      "checks": [
+        {
+          "detail": "npm run typecheck (node, web, fireguard projects) at the row 1 merge.",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "npx oxlint over the 9 changed source files and 9 changed test files.",
+          "name": "oxlint on row 1 files",
+          "status": "passed"
+        },
+        {
+          "detail": "77 files: importer, storage, finalizer, hostile importer, profile import, transfers (service, command, integration), linearReadback, schemas, src/main/agents, mcp main and transport. 2,286 passed, 3 skipped.",
+          "name": "vitest on row 1 tests and dependents",
+          "status": "passed"
+        }
+      ],
+      "commit": "3b29b741fb6f79755aa98cd0ef00b67c12ffe0bb",
+      "createdAt": "2026-10-31T20:27:27.139Z",
+      "id": "rk_01m69tam138wjd4q6pf56v9kyy",
+      "number": 1,
+      "recordedBy": "Claude Code orchestrator (linear follow-ups)",
+      "row": 1,
+      "sprintId": "sp_01m698z4krn17151nbaerdf150"
+    },
+    {
+      "checks": [
+        {
+          "detail": "npm run typecheck at the DM-367 merge.",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "npx oxlint over every .ts/.tsx file changed since the row 1 check.",
+          "name": "oxlint on row 2 files",
+          "status": "passed"
+        },
+        {
+          "detail": "150 files, 2,678 passed.",
+          "name": "vitest core repo, services, commands, mcp, renderer app and home",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run deadcode exit 0 with the refreshed .tsprune-ignore.",
+          "name": "deadcode",
+          "status": "passed"
+        }
+      ],
+      "commit": "6a4a51145b1b238e5ea7b74d7e7772d68095ebec",
+      "createdAt": "2026-10-31T21:08:07.401Z",
+      "id": "rk_01m69wn3392nyfrg8v8858ytqb",
+      "number": 2,
+      "recordedBy": "Claude Code orchestrator (linear follow-ups)",
+      "row": 2,
+      "sprintId": "sp_01m698z4krn17151nbaerdf150"
+    },
+    {
+      "checks": [
+        {
+          "detail": "npm run typecheck at the DM-368 merge.",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "npx oxlint over every .ts/.tsx file changed since the row 2 check.",
+          "name": "oxlint on row 3 files",
+          "status": "passed"
+        },
+        {
+          "detail": "151 files, 3,195 passed.",
+          "name": "vitest core repo, services, commands, schemas, mcp, renderer app and home",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run deadcode exit 0.",
+          "name": "deadcode",
+          "status": "passed"
+        }
+      ],
+      "commit": "769d1b2bff1e53d6d3ea219ebb746d46510a6c58",
+      "createdAt": "2026-10-31T21:20:42.728Z",
+      "id": "rk_01m69xc4q88fp6n1vvpmaafr5z",
+      "number": 3,
+      "recordedBy": "Claude Code orchestrator (linear follow-ups)",
+      "row": 3,
+      "sprintId": "sp_01m698z4krn17151nbaerdf150"
+    }
+  ],
+  "runId": "rn_01m69rrtgzfs8dcyrs1jvfvdc1",
+  "skillVersion": "1.5.2",
+  "startedAt": "2026-10-31T20:00:15.392Z",
+  "state": "running",
+  "updatedAt": "2026-10-31T22:20:17.355Z"
+}

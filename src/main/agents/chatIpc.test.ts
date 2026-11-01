@@ -3,12 +3,23 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import type { ApprovalDecision, ChatItem, ChatRecord } from '../../shared/agents/chat'
-import { CHAT_EVENT_CHANNEL, type BoundThread, type ChatOpenView, type ChatPushEvent, type StartOrchestratorResult, type ThreadBinding } from '../../shared/agents/chatApi'
+import {
+  CHAT_EVENT_CHANNEL,
+  type BoundThread,
+  type ChatOpenView,
+  type ChatPushEvent,
+  type ChatSummary,
+  type StartOrchestratorResult,
+  type StartTransferChatResult,
+  type ThreadBinding
+} from '../../shared/agents/chatApi'
 import type { CommandResult } from '../../shared/desktop/api'
+import type { TransferView } from '../../shared/domain/transfer'
 import type { EpicDetailView, RunView } from '../../shared/domain/views'
-import { AT, fakeAdapters, memoryChatFs, memoryChatStore, MODELS, REPO, type FakeAdapters, type MemoryChatFs } from './__mocks__/fakeChatAdapter'
+import { transferKickoff } from '../../mcp/transferKickoff'
+import { AT, connectedAgents, fakeAdapters, memoryChatFs, memoryChatStore, MODELS, REPO, trackedFolders, type FakeAdapters, type MemoryChatFs } from './__mocks__/fakeChatAdapter'
 import { ATTEMPT_A, ATTEMPT_B, RUN_ID, THREAD_A } from './__mocks__/orchestratorChat'
-import { createActivityBindings } from './activityBindings'
+import { createActivityBindings, type ActivityBindings } from './activityBindings'
 import { createChatHandlers } from './chatHandlers'
 import { createChatPush, registerChatIpc, type ChatWindow } from './chatIpc'
 import { listBoundThreads } from './boundThreads'
@@ -17,6 +28,7 @@ import type { ChatStore } from './chatStore'
 import { guardIpc } from '../ipcGuard'
 import type { OrchestratorRuns } from './orchestratorStart'
 import { createSessionManager, type SessionManager } from './sessionManager'
+import type { TransferReads } from './transferStart'
 
 type Listener = Parameters<IpcMain['handle']>[1]
 
@@ -27,6 +39,7 @@ const CHAT_CHANNELS = [
   'chats:boundThreads',
   'chats:create',
   'chats:delete',
+  'chats:findTransferChat',
   'chats:list',
   'chats:models',
   'chats:open',
@@ -36,13 +49,20 @@ const CHAT_CHANNELS = [
   'chats:send',
   'chats:setModel',
   'chats:startOrchestrator',
+  'chats:startTransferChat',
   'chats:stop',
-  'chats:threadBindings'
+  'chats:threadBindings',
+  'chats:transferPrompt'
 ]
 
 const EPIC_ID = 'ep_01m418epbg8qkqa2e2krvdkqk5'
 const EPIC = { id: EPIC_ID, title: 'Agent chats', branch: { repository: null, name: 'epic/agent-chats', startCommit: null } } as EpicDetailView
 const RUN = { id: 'rn_2', number: 2, epicId: EPIC_ID, state: 'queued' } as RunView
+/** A transfer the person authorized, of `EPIC`. */
+const TRANSFERS: TransferReads = {
+  getEpic: () => Promise.resolve(EPIC),
+  getTransfer: (_folder, epicId) => Promise.resolve({ epicId, status: 'queued', packet: null, recorded: [], lastMismatches: [], next: [] } as TransferView)
+}
 
 function createFakeIpcMain(): { handle(channel: string, listener: Listener): void; channels(): string[]; invoke(channel: string, ...args: unknown[]): Promise<unknown> } {
   const listeners = new Map<string, Listener>()
@@ -86,6 +106,15 @@ function chatCliDeps() {
   }
 }
 
+/** The chat's thread bindings and the threads bound to a target, read from `activity`. */
+function bindingLookups(activity: ActivityBindings): Pick<Parameters<typeof createChatHandlers>[0], 'threadBindings' | 'boundThreads'> {
+  return {
+    threadBindings: (chat) =>
+      listThreadBindings({ activity, reads: { attempt: async () => ({ runId: RUN_ID, ticketId: 'tk_1' }), run: async () => ({ epicId: EPIC_ID, tickets: [{ ticketId: 'tk_1', key: 'DM-12' }] }) } }, chat),
+    boundThreads: (folder, target) => listBoundThreads(activity, folder, target)
+  }
+}
+
 function ipcRig(options: { bindings?: boolean; windows?: readonly ChatWindow[] } = {}): IpcRig {
   const ipc = createFakeIpcMain()
   const fakes = fakeAdapters()
@@ -97,7 +126,8 @@ function ipcRig(options: { bindings?: boolean; windows?: readonly ChatWindow[] }
     store,
     ...(activity === undefined ? {} : { activity }),
     adapters: fakes.definitions,
-    executablePath: (kind) => `/bin/${kind}`,
+    agentFor: connectedAgents(),
+    folders: trackedFolders(),
     ...chatCliDeps(),
     push: (event) => events.push(event)
   })
@@ -106,21 +136,16 @@ function ipcRig(options: { bindings?: boolean; windows?: readonly ChatWindow[] }
     getEpic: () => Promise.resolve(EPIC),
     queueRun: (_folder, epicId) => (queued.push(epicId), Promise.resolve(RUN))
   }
-  const threadBindings =
-    activity === undefined
-      ? undefined
-      : (chat: Parameters<typeof listThreadBindings>[1]) =>
-          listThreadBindings({ activity, reads: { attempt: async () => ({ runId: RUN_ID, ticketId: 'tk_1' }), run: async () => ({ epicId: EPIC_ID, tickets: [{ ticketId: 'tk_1', key: 'DM-12' }] }) } }, chat)
-  const boundThreads = activity === undefined ? undefined : (folder: string, target: Parameters<typeof listBoundThreads>[2]) => listBoundThreads(activity, folder, target)
   registerChatIpc(
     ipc,
     createChatHandlers({
       registry: { resolve: (path) => (path === REPO ? REPO : null) },
+      agents: { get: connectedAgents() },
       sessions,
       runs,
+      transfers: TRANSFERS,
       ...(options.windows === undefined ? {} : { push: createChatPush(() => options.windows ?? []) }),
-      ...(threadBindings === undefined ? {} : { threadBindings }),
-      ...(boundThreads === undefined ? {} : { boundThreads })
+      ...(activity === undefined ? {} : bindingLookups(activity))
     })
   )
   return {
@@ -400,13 +425,82 @@ describe('chat IPC: start an orchestrator', () => {
   })
 })
 
+describe('chat IPC: start a transfer chat', () => {
+  it('starts an orchestrator chat that records the epic, holds the grant like any chat and sends the kickoff first', async () => {
+    const state = ipcRig()
+
+    const result = data(
+      await state.invoke<CommandResult<StartTransferChatResult>>('chats:startTransferChat', { folder: REPO, epicId: EPIC_ID, agent: 'claude', model: 'big' })
+    )
+    await settle()
+
+    expect(result.problem).toBeNull()
+    const chat = result.chat as ChatRecord
+    expect(chat).toMatchObject({ role: 'orchestrator', allowSave: false, transferEpicId: EPIC_ID, title: 'Linear transfer · Agent chats', model: 'big' })
+    expect(chat).not.toHaveProperty('runId')
+    const stored = state.store.readTranscript(chat)?.items ?? []
+    expect(stored[0]).toMatchObject({ kind: 'user_message', text: transferKickoff({ epicId: EPIC_ID, epicTitle: 'Agent chats' }) })
+    // The same Dark Mechanicus invocation every chat gets, and no Linear server of DM's own.
+    expect(state.fakes.created[0]?.started[0]).toMatchObject({
+      role: 'orchestrator',
+      allowSave: false,
+      darkMechanicus: { command: 'node', args: ['/app/out/main/cli.js', '--repo', REPO], env: { DM_SESSION_TOKEN: 'dmg_test' } }
+    })
+
+    const found = data(await state.invoke<CommandResult<ChatSummary | null>>('chats:findTransferChat', { folder: REPO, epicId: EPIC_ID }))
+    expect(found?.id).toBe(chat.id)
+    expect(data(await state.invoke<CommandResult<string>>('chats:transferPrompt', { folder: REPO, epicId: EPIC_ID }))).toBe(transferKickoff({ epicId: EPIC_ID, epicTitle: 'Agent chats' }))
+  })
+
+  it('refuses an executable path, a role, a recorded epic or another folder in the request', async () => {
+    const state = ipcRig()
+    const request = { folder: REPO, epicId: EPIC_ID, agent: 'claude' }
+
+    const answers = await Promise.all(
+      [
+        { ...request, executablePath: '/bin/evil' },
+        { ...request, role: 'planner' },
+        { ...request, transferEpicId: EPIC_ID },
+        { ...request, runId: RUN_ID },
+        { folder: '/elsewhere', epicId: EPIC_ID, agent: 'claude' }
+      ].map((payload) => state.invoke<CommandResult<unknown>>('chats:startTransferChat', payload))
+    )
+
+    expect(answers.map((answer) => (answer.ok ? 'ok' : answer.error.code))).toEqual([...Array(4).fill('invalid_input'), 'unauthorized'])
+  })
+})
+
+describe('chat IPC: agents named by id', () => {
+  it('refuses chats:create for an agent id that is not connected with not_found, and creates no chat or adapter', async () => {
+    const state = ipcRig()
+
+    const answer = await state.invoke<CommandResult<unknown>>('chats:create', { folder: REPO, agent: 'cu_01m65kwqqeyajbj5bnq81gngrb', role: 'planner' })
+    await settle()
+
+    expect(answer).toMatchObject({ ok: false, error: { code: 'not_found' } })
+    expect(state.store.listChats(REPO)).toEqual([])
+    expect(state.fakes.created).toEqual([])
+  })
+
+  it('refuses a malformed agent id with invalid_input before anything runs', async () => {
+    const state = ipcRig()
+
+    const answers = await Promise.all(
+      ['cu_../../../etc', 'CU_01M65KWQQEYAJBJ5BNQ81GNGRB', ''].map((agent) => state.invoke<CommandResult<unknown>>('chats:create', { folder: REPO, agent, role: 'planner' }))
+    )
+
+    expect(answers.map((answer) => (answer.ok ? 'ok' : answer.error.code))).toEqual(['invalid_input', 'invalid_input', 'invalid_input'])
+    expect(state.fakes.created).toEqual([])
+  })
+})
+
 describe('chat IPC behind the sender guard', () => {
   it('answers no chats channel for a sender that is not the app page, and never reaches a handler', async () => {
     const listeners = new Map<string, Listener>()
     const reached = (): never => {
       throw new Error('a handler was reached')
     }
-    const handlers = createChatHandlers({ registry: { resolve: reached }, sessions: {} as SessionManager, runs: {} as OrchestratorRuns })
+    const handlers = createChatHandlers({ registry: { resolve: reached }, agents: { get: reached }, sessions: {} as SessionManager, runs: {} as OrchestratorRuns, transfers: {} as TransferReads })
     registerChatIpc(guardIpc({ handle: (channel, listener) => void listeners.set(channel, listener) }, { appUrl: 'http://localhost:5173' }), handlers)
     const stranger = { senderFrame: { url: 'https://example.com/', parent: null, detached: false, isDestroyed: () => false } } as unknown as IpcMainInvokeEvent
 

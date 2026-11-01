@@ -1,12 +1,15 @@
 import { fail } from '../errors'
+import { redactedJson } from '../storedSecrets'
 import type { Db } from './database'
 
 /** Highest schema version this build understands. Newer databases are refused, never downgraded. */
-export const SCHEMA_VERSION = 9
+export const SCHEMA_VERSION = 12
 
-interface Migration {
+export interface Migration {
   version: number
   sql: string
+  /** Rewrites rows after `sql` ran, in the same transaction, where SQL alone cannot express the change. */
+  data?: (db: Db) => void
 }
 
 const V1 = `
@@ -421,6 +424,76 @@ DROP TABLE sessions;
 ALTER TABLE sessions_v2 RENAME TO sessions;
 `
 
+/**
+ * v10 changes no schema: it scrubs the secrets that stored idempotent responses kept before
+ * `withIdempotency` redacted them. A `claimTicket` response held its claim token in plaintext, so
+ * replaying the key returned a working token. Every stored response is put through the same
+ * redaction new ones get (`storedSecrets.ts`), so the claim token reads back as null and a token
+ * pasted into any other response is masked. A response that changes nothing is left byte for byte;
+ * one that cannot be parsed cannot be checked, so it is dropped, and its key executes afresh.
+ */
+function scrubStoredResponses(db: Db): void {
+  const rows = db.all<{ command: string; key: string; response_json: string }>('SELECT command, key, response_json FROM idempotency')
+  for (const row of rows) {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(row.response_json)
+    } catch {
+      db.run('DELETE FROM idempotency WHERE command = ? AND key = ?', row.command, row.key)
+      continue
+    }
+    const scrubbed = redactedJson(parsed)
+    if (scrubbed !== JSON.stringify(parsed)) {
+      db.run('UPDATE idempotency SET response_json = ? WHERE command = ? AND key = ?', scrubbed, row.command, row.key)
+    }
+  }
+}
+
+/**
+ * V11: a person-authorized transfer of a saved epic to Linear, the Linear items it has created so far, and the
+ * read-back an agent is sending in parts (`readback_json`, cleared as soon as a final part arrives).
+ */
+const V11 = `
+CREATE TABLE transfers (
+  epic_id TEXT PRIMARY KEY REFERENCES epics(id),
+  target TEXT NOT NULL CHECK (target IN ('linear')),
+  status TEXT NOT NULL CHECK (status IN ('queued','in_progress','verified','canceled')),
+  revision_id TEXT NOT NULL REFERENCES plan_revisions(id),
+  packet_hash TEXT NOT NULL,
+  packet_json TEXT NOT NULL,
+  project_id TEXT,
+  project_url TEXT,
+  last_mismatches_json TEXT,
+  readback_json TEXT,
+  queued_by TEXT NOT NULL,
+  queued_at TEXT NOT NULL,
+  started_at TEXT,
+  updated_at TEXT NOT NULL,
+  session_id TEXT
+);
+
+CREATE TABLE transfer_items (
+  epic_id TEXT NOT NULL REFERENCES transfers(epic_id),
+  ref TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('project','milestone','issue','relation')),
+  linear_id TEXT NOT NULL,
+  identifier TEXT,
+  url TEXT,
+  recorded_at TEXT NOT NULL,
+  PRIMARY KEY (epic_id, ref)
+);
+`
+
+/**
+ * v12 records, for an epic of a folder of repositories, the epic branch as bound in each repository its runs'
+ * saved plans name (`repository_branches_json`: a JSON array of `EpicBranch`, one per repository, each with its
+ * own start commit). `branch_json` keeps the epic's own branch, so its readers are unchanged. NULL for every epic
+ * before this version and for every single-repository epic. Exported with the epic state as `repositoryBranches`.
+ */
+const V12 = `
+ALTER TABLE epics ADD COLUMN repository_branches_json TEXT;
+`
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, sql: V1 },
   { version: 2, sql: V2 },
@@ -430,7 +503,10 @@ export const MIGRATIONS: Migration[] = [
   { version: 6, sql: V6 },
   { version: 7, sql: V7 },
   { version: 8, sql: V8 },
-  { version: 9, sql: V9 }
+  { version: 9, sql: V9 },
+  { version: 10, sql: '', data: scrubStoredResponses },
+  { version: 11, sql: V11 },
+  { version: 12, sql: V12 }
 ]
 
 export function readSchemaVersion(db: Db): number {
@@ -455,6 +531,7 @@ export function migrate(db: Db, migrations: Migration[] = MIGRATIONS): { from: n
     for (const migration of migrations) {
       if (migration.version > from) {
         db.exec(migration.sql)
+        migration.data?.(db)
       }
     }
     if (target !== from) {

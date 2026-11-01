@@ -3,7 +3,9 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { DomainError } from '../../core/errors'
 import { AGENT_KINDS } from '../../shared/desktop/agentKinds'
-import type { AgentAuthStatus, AgentKind, AgentView } from '../../shared/desktop/api'
+import type { AgentAuthStatus, AgentView, BuiltInAgentKind } from '../../shared/desktop/api'
+import { DOCTOR_NO_PROFILE, DOCTOR_SIGNED_OUT } from '../agents/adapters/__mocks__/autonomousSignedOut'
+import { builtInAgent } from '../agents/__mocks__/fakeChatAdapter'
 import {
   createAgentAuthHandlers,
   getAgentAuthStatus,
@@ -49,11 +51,22 @@ const CURSOR_SIGNED_IN = '✓ Logged in as dev@example.com\n'
 const CURSOR_SIGNED_OUT = '✗ Not logged in\nRun `agent login` to authenticate.\n'
 const CURSOR_NOT_AUTHENTICATED = 'Not authenticated\n'
 const CURSOR_ERROR = 'Error: could not reach api2.cursor.sh\n'
+/**
+ * Autonomous `a8s doctor`: the signed-in lines are the report's recording (docs/reports/autonomous-acp.md),
+ * with the email replaced. The signed-out outputs are recorded too (`autonomousSignedOut.ts`, DM-307): an
+ * isolated profile with no model sign-in, with the person's personal profile (a failed "Claude subscription
+ * is not ready") and with none (a warning "not signed in to Claude").
+ */
+const A8S_SIGNED_IN =
+  '✓ Okta  signed in as dev@example.com\n✓ Model route  Claude subscription · anthropic/claude-opus-5-5 · signed in\n! gh  not found\n0 problems, 3 warnings.\n'
+const A8S_OKTA_ONLY = '✓ Okta  signed in as dev@example.com\n0 problems, 0 warnings.\n'
+const A8S_ROUTE_FAILED = '✗ Model route  Claude subscription · anthropic/claude-opus-5-5 · signed in · token refresh failed\n'
 
-const POSIX_PATHS: Record<AgentKind, string> = {
+const POSIX_PATHS: Record<BuiltInAgentKind, string> = {
   claude: '/home/me/.local/bin/claude',
   codex: '/usr/local/bin/codex',
-  cursor: '/home/me/.local/bin/agent'
+  cursor: '/home/me/.local/bin/agent',
+  autonomous: '/home/me/.local/bin/a8s'
 }
 
 interface Run {
@@ -84,7 +97,7 @@ function exited(exitCode: number, output: string): ProcessOutcome {
   return { kind: 'exited', exitCode, output }
 }
 
-async function statusOf(kind: AgentKind, outcome: ProcessOutcome): Promise<AgentAuthStatus> {
+async function statusOf(kind: BuiltInAgentKind, outcome: ProcessOutcome): Promise<AgentAuthStatus> {
   return getAgentAuthStatus(kind, POSIX_PATHS[kind], statusWorld(outcome).deps)
 }
 
@@ -98,7 +111,10 @@ describe('status maps each CLI output to signed_in, signed_out or unknown', () =
     ['codex', 1, CODEX_SIGNED_OUT, 'signed_out'],
     ['cursor', 0, CURSOR_SIGNED_IN, 'signed_in'],
     ['cursor', 1, CURSOR_SIGNED_OUT, 'signed_out'],
-    ['cursor', 0, CURSOR_NOT_AUTHENTICATED, 'signed_out']
+    ['cursor', 0, CURSOR_NOT_AUTHENTICATED, 'signed_out'],
+    ['autonomous', 0, A8S_SIGNED_IN, 'signed_in'],
+    ['autonomous', DOCTOR_SIGNED_OUT.exitCode, DOCTOR_SIGNED_OUT.output, 'signed_out'],
+    ['autonomous', DOCTOR_NO_PROFILE.exitCode, DOCTOR_NO_PROFILE.output, 'signed_out']
   ] as const)('%s exit %i with a recorded output is %s', async (kind, exitCode, output, state) => {
     expect((await statusOf(kind, exited(exitCode, output))).state).toBe(state)
   })
@@ -111,12 +127,26 @@ describe('status maps each CLI output to signed_in, signed_out or unknown', () =
     ['codex', 0, CODEX_ERROR],
     ['codex', 0, 'something new\n'],
     ['cursor', 1, CURSOR_ERROR],
-    ['cursor', 0, 'agent 2026.01.01-abcdef0\n']
+    ['cursor', 0, 'agent 2026.01.01-abcdef0\n'],
+    ['autonomous', 0, A8S_OKTA_ONLY],
+    ['autonomous', 1, A8S_ROUTE_FAILED],
+    ['autonomous', 0, 'Autonomous 0.79.0 · darwin-arm64 · OMP 18.11.2\n']
   ] as const)('%s exit %i with an error or unrecognised output is unknown, with a reason', async (kind, exitCode, output) => {
     const status = await statusOf(kind, exited(exitCode, output))
 
     expect(status.state).toBe('unknown')
     expect(status.reason).not.toBe('')
+  })
+
+  // The other signed-out wordings of a8s 0.79.0's `Model route` check (`dist/omp/route-step.js`, reason
+  // `signed-out`), not observed; and a failure that signing in does not fix (reason `policy-restricted`).
+  it.each([
+    ['✗ Model route             Codex subscription is not ready\n', 'signed_out'],
+    ['✗ Model route             Claude subscription is not ready; an API key is not subscription authentication\n', 'signed_out'],
+    ['✗ Model route             anthropic/claude-opus-5-5 is not ready\n', 'signed_out'],
+    ["✗ Model route             company sessions can't start: $ONEBRIEF_MODEL_KEY is unset\n", 'unknown']
+  ] as const)('autonomous: the route line %j is %s', async (output, state) => {
+    expect((await statusOf('autonomous', exited(1, output))).state).toBe(state)
   })
 
 })
@@ -169,7 +199,8 @@ describe('status runs only the CLI own status command, with a timeout', () => {
   it.each([
     ['claude', ['auth', 'status']],
     ['codex', ['login', 'status']],
-    ['cursor', ['status']]
+    ['cursor', ['status']],
+    ['autonomous', ['doctor']]
   ] as const)('%s runs %j on its registered executable', async (kind, args) => {
     const { run, deps } = statusWorld(exited(0, ''))
 
@@ -219,6 +250,51 @@ describe('status runs only the CLI own status command, with a timeout', () => {
   })
 })
 
+describe('status gives each CLI its own time limit', () => {
+  /** A fake runner whose CLI answers after `answerAfterMs`: past the runner's limit it times out, like the real one. */
+  function slowWorld(answerAfterMs: number, output: string): { timeouts: number[]; deps: Parameters<typeof getAgentAuthStatus>[2] } {
+    const timeouts: number[] = []
+    const deps = statusWorld(exited(0, output)).deps
+    deps.run = (_launch, timeoutMs) => {
+      timeouts.push(timeoutMs)
+      return Promise.resolve(answerAfterMs > timeoutMs ? { kind: 'timed_out' } : exited(0, output))
+    }
+    return { timeouts, deps }
+  }
+
+  it('waits up to 30 s for Autonomous, so a signed-in a8s doctor answering after 12 s is signed_in', async () => {
+    const { timeouts, deps } = slowWorld(12_000, A8S_SIGNED_IN)
+
+    const status = await getAgentAuthStatus('autonomous', POSIX_PATHS.autonomous, deps)
+
+    expect(timeouts).toEqual([30_000])
+    expect(status.state).toBe('signed_in')
+  })
+
+  it('reports unknown with the timeout message when a8s doctor answers after 30 s', async () => {
+    const { deps } = slowWorld(30_001, A8S_SIGNED_IN)
+
+    expect(await getAgentAuthStatus('autonomous', POSIX_PATHS.autonomous, deps)).toEqual({
+      state: 'unknown',
+      reason: 'Autonomous did not answer in time.'
+    })
+  })
+
+  it.each([
+    ['claude', CLAUDE_SIGNED_IN],
+    ['codex', CODEX_CHATGPT],
+    ['cursor', CURSOR_SIGNED_IN]
+  ] as const)('%s keeps the 10 s limit: answering after 12 s is unknown with the timeout message', async (kind, output) => {
+    const { timeouts, deps } = slowWorld(12_000, output)
+
+    const status = await getAgentAuthStatus(kind, POSIX_PATHS[kind], deps)
+
+    expect(timeouts).toEqual([10_000])
+    expect(status.state).toBe('unknown')
+    expect(status.reason).toMatch(/ did not answer in time\.$/)
+  })
+})
+
 interface SignInWorld {
   launched: TerminalLaunch[]
   deps: Parameters<typeof signInAgent>[2]
@@ -244,7 +320,7 @@ function signInWorld(
   return world
 }
 
-const LOGIN_ARGS: Record<AgentKind, string[]> = { claude: ['auth', 'login'], codex: ['login'], cursor: ['login'] }
+const LOGIN_ARGS: Record<BuiltInAgentKind, string[]> = { claude: ['auth', 'login'], codex: ['login'], cursor: ['login'], autonomous: ['init'] }
 
 describe('sign in starts the CLI own login command in a visible terminal', () => {
   it.each(AGENT_KINDS)('%s: on Windows, one new console runs the shim with only its login args, parsed by one cmd.exe', async (kind) => {
@@ -368,7 +444,7 @@ describe('sign in refuses what it cannot launch', () => {
 })
 
 describe('sign in carries no credential', () => {
-  const PLATFORM_PATHS: [string, (kind: AgentKind) => string][] = [
+  const PLATFORM_PATHS: [string, (kind: BuiltInAgentKind) => string][] = [
     ['win32', (kind) => `C:\\Users\\me\\AppData\\Roaming\\npm\\${kind}.cmd`],
     ['darwin', (kind) => POSIX_PATHS[kind]],
     ['linux', (kind) => POSIX_PATHS[kind]]
@@ -386,7 +462,7 @@ describe('sign in carries no credential', () => {
   })
 
   it('has exactly one login command per kind, and none of them takes a credential option', () => {
-    expect(LOGIN_ARGS).toEqual({ claude: ['auth', 'login'], codex: ['login'], cursor: ['login'] })
+    expect(LOGIN_ARGS).toEqual({ claude: ['auth', 'login'], codex: ['login'], cursor: ['login'], autonomous: ['init'] })
     for (const args of Object.values(LOGIN_ARGS)) {
       expect(args.every((arg) => /^[a-z]+$/.test(arg))).toBe(true)
     }
@@ -415,42 +491,38 @@ describe('no view accepts a credential', () => {
     }
   })
 
-  it('has bridge methods that take the kind and nothing else', () => {
+  it('has bridge methods that take the agent id and nothing else', () => {
     const api = readFileSync(fileURLToPath(new URL('../../shared/desktop/api.ts', import.meta.url)), 'utf8')
 
-    expect(api).toContain('agentStatus(kind: AgentKind): Promise<AgentAuthStatus>')
-    expect(api).toContain('signInAgent(kind: AgentKind): Promise<AgentSignInResult>')
+    expect(api).toContain('agentStatus(id: AgentId): Promise<AgentAuthStatus>')
+    expect(api).toContain('signInAgent(id: AgentId): Promise<AgentSignInResult>')
   })
 })
 
-function connectedAgent(kind: AgentKind): AgentView {
-  return {
-    kind,
-    executablePath: POSIX_PATHS[kind],
-    version: '1.0.0',
-    connectedVia: 'found',
-    connectedAt: '2026-01-01T00:00:00.000Z',
-    lastProbed: '2026-01-01T00:00:00.000Z'
-  }
+function connectedAgent(kind: BuiltInAgentKind): AgentView {
+  return builtInAgent(kind, { executablePath: POSIX_PATHS[kind], connectedAt: '2026-01-01T00:00:00.000Z', lastProbed: '2026-01-01T00:00:00.000Z' })
 }
+
+const CUSTOM_ID = 'cu_01m65kwqqeyajbj5bnq81gngrb'
 
 interface HandlerWorld {
   handlers: ReturnType<typeof createAgentAuthHandlers>
-  checked: [AgentKind, string][]
-  signedIn: [AgentKind, string][]
+  checked: [string, string][]
+  signedIn: [string, string][]
 }
 
-function handlerWorld(connected: AgentKind[]): HandlerWorld {
+function handlerWorld(connected: BuiltInAgentKind[], extra: AgentView[] = []): HandlerWorld {
   const world: HandlerWorld = { handlers: undefined as never, checked: [], signedIn: [] }
+  const agents = [...connected.map(connectedAgent), ...extra]
   world.handlers = createAgentAuthHandlers(
-    { list: () => connected.map(connectedAgent) },
+    { get: (id) => agents.find((agent) => agent.id === id) ?? null },
     {
-      checkAuth: (kind, path) => {
-        world.checked.push([kind, path])
+      checkAuth: (agent) => {
+        world.checked.push([agent.id, agent.executablePath])
         return Promise.resolve({ state: 'signed_in', reason: 'ok' })
       },
-      signIn: (kind, path) => {
-        world.signedIn.push([kind, path])
+      signIn: (agent) => {
+        world.signedIn.push([agent.id, agent.executablePath])
         return Promise.resolve({ outcome: 'started' })
       }
     }
@@ -468,7 +540,7 @@ async function rejectionCode(promise: Promise<unknown>): Promise<string> {
 }
 
 describe('agents:status and agents:signIn handlers', () => {
-  it('check the registered executable for the kind, never one from the request', async () => {
+  it('check the registered executable for the agent id, never one from the request', async () => {
     const world = handlerWorld(['codex'])
 
     expect(await world.handlers.agentStatus('codex')).toEqual({ state: 'signed_in', reason: 'ok' })
@@ -478,21 +550,38 @@ describe('agents:status and agents:signIn handlers', () => {
     expect(world.signedIn).toEqual([['codex', POSIX_PATHS.codex]])
   })
 
-  it('answer unknown, with a reason, for a kind that is not connected, without running anything', async () => {
+  it('refuse an agent id that is not connected with not_found, without running anything', async () => {
     const world = handlerWorld(['claude'])
 
-    expect(await world.handlers.agentStatus('cursor')).toEqual({
-      state: 'unknown',
-      reason: expect.stringMatching(/Cursor is not connected/)
-    })
-    expect(await world.handlers.signInAgent('cursor')).toEqual({
-      outcome: 'not_connected',
-      reason: expect.stringMatching(/Cursor is not connected/)
-    })
+    for (const id of ['cursor', CUSTOM_ID]) {
+      expect(await rejectionCode(world.handlers.agentStatus(id))).toBe('not_found')
+      expect(await rejectionCode(world.handlers.signInAgent(id))).toBe('not_found')
+    }
+    expect(world.checked).toEqual([])
+    expect(world.signedIn).toEqual([])
+  })
+})
+
+describe('agents:status and agents:signIn for a custom agent', () => {
+  it('report a connected custom agent as unchecked, without running anything', async () => {
+    const custom = builtInAgent('cursor', { id: CUSTOM_ID, kind: 'custom', displayName: 'My agent', executablePath: '/opt/mine' })
+    const world = handlerWorld([], [custom])
+
+    expect(await world.handlers.agentStatus(CUSTOM_ID)).toEqual({ state: 'unchecked', reason: expect.stringContaining('My agent') })
     expect(world.checked).toEqual([])
     expect(world.signedIn).toEqual([])
   })
 
+  it('refuse to sign a custom agent in with invalid_input, without opening a terminal', async () => {
+    const custom = builtInAgent('cursor', { id: CUSTOM_ID, kind: 'custom', displayName: 'My agent', executablePath: '/opt/mine' })
+    const world = handlerWorld([], [custom])
+
+    expect(await rejectionCode(world.handlers.signInAgent(CUSTOM_ID))).toBe('invalid_input')
+    expect(world.signedIn).toEqual([])
+  })
+})
+
+describe('agents:status and agents:signIn inputs', () => {
   it.each([
     { kind: 'claude', apiKey: 'sk-ant-secret' },
     { kind: 'codex', password: 'hunter2' },

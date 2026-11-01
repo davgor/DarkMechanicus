@@ -11,6 +11,9 @@ export function registerChatIpc(ipcMain: Pick<IpcMain, 'handle'>, handlers: Chat
   ipcMain.handle('chats:list', (_event, folder: unknown) => handlers.list(folder))
   ipcMain.handle('chats:create', (_event, request: unknown) => handlers.create(request))
   ipcMain.handle('chats:startOrchestrator', (_event, request: unknown) => handlers.startOrchestrator(request))
+  ipcMain.handle('chats:startTransferChat', (_event, request: unknown) => handlers.startTransferChat(request))
+  ipcMain.handle('chats:findTransferChat', (_event, request: unknown) => handlers.findTransferChat(request))
+  ipcMain.handle('chats:transferPrompt', (_event, request: unknown) => handlers.transferPrompt(request))
   ipcMain.handle('chats:open',(_event, request: unknown) => handlers.open(request))
   ipcMain.handle('chats:read', (_event, request: unknown) => handlers.read(request))
   ipcMain.handle('chats:send', (_event, request: unknown) => handlers.send(request))
@@ -22,7 +25,7 @@ export function registerChatIpc(ipcMain: Pick<IpcMain, 'handle'>, handlers: Chat
   ipcMain.handle('chats:rename', (_event, request: unknown) => handlers.rename(request))
   ipcMain.handle('chats:delete', (_event, request: unknown) => handlers.delete(request))
   ipcMain.handle('chats:answerApproval', (_event, request: unknown) => handlers.answerApproval(request))
-  ipcMain.handle('chats:models', (_event, kind: unknown) => handlers.models(kind))
+  ipcMain.handle('chats:models', (_event, agent: unknown) => handlers.models(agent))
 }
 
 /** What the push needs of a `BrowserWindow`. */

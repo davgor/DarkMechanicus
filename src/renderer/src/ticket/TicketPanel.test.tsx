@@ -105,6 +105,23 @@ describe('ticket panel overview', () => {
   })
 })
 
+describe('ticket panel repository', () => {
+  it("shows the ticket's repository next to the key, and none for a ticket without one", async () => {
+    const backend = new FakeBackend()
+    const content = backend.state.ticket.ticket
+    backend.state.ticket = { ...backend.state.ticket, ticket: { ...content, repo: 'alpha', title: `alpha - ${content.title}` } }
+    renderPanel(backend)
+    const panel = await screen.findByLabelText('Ticket DM-202')
+    expect((await within(panel).findByLabelText('Repository')).textContent).toBe('alpha')
+    expect(within(panel).getByRole('heading', { level: 2 }).textContent).toBe('alpha - Transactional bundle import')
+    cleanup()
+    renderPanel(new FakeBackend())
+    const plain = await screen.findByLabelText('Ticket DM-202')
+    await within(plain).findByRole('heading', { level: 2 })
+    expect(within(plain).queryByLabelText('Repository')).toBe(null)
+  })
+})
+
 async function askToDelete(): Promise<HTMLElement> {
   fireEvent.click(await screen.findByRole('button', { name: 'Delete ticket…' }))
   return screen.getByRole('alertdialog', { name: 'Delete ticket' })
@@ -204,6 +221,18 @@ describe('ticket panel evidence and history', () => {
     ])
     expect(screen.getByText('FROM ATTEMPT #1').textContent).toBe('FROM ATTEMPT #1')
     expect(screen.getByText('flaky').tagName).toBe('STRONG')
+  })
+
+  it('renders inline Markdown in criterion text on the Overview and Evidence tabs', async () => {
+    const base = ticketDetail()
+    const criteria = [{ id: 'c1', text: 'Import sends `{ mode }` **once**' }]
+    renderPanel(new FakeBackend(scenario({ ticket: ticketDetail({ ticket: { ...base.ticket, acceptanceCriteria: criteria } }) })))
+    const overview = await screen.findByLabelText('Acceptance criteria')
+    expect(within(overview).getByText('{ mode }').tagName).toBe('CODE')
+    fireEvent.click(screen.getByRole('tab', { name: 'Evidence' }))
+    const results = screen.getByLabelText('Criteria results')
+    expect(within(results).getByText('{ mode }').tagName).toBe('CODE')
+    expect(within(results).getByText('once').tagName).toBe('STRONG')
   })
 
   it('says when no evidence exists', async () => {
@@ -441,7 +470,8 @@ describe('ticket panel size, effort, quality and cost', () => {
 })
 
 /** Sprint 1: DM-1, DM-2, a required DM-4 nothing covers, and the node DM-91 whose criteria cover DM-1 and DM-2. */
-function nodePlan() {
+/** `repos`: in a folder of repositories, the repository each work ticket (by key) targets. */
+function nodePlan(repos: Record<string, string> = {}) {
   const node = ticket('DM-91', 'Sprint 1 acceptance', {
     kind: 'acceptance',
     acceptanceCriteria: [
@@ -453,15 +483,20 @@ function nodePlan() {
   })
   return savedPlan({
     bundle: bundle({
-      tickets: [ticket('DM-1', 'Row checks'), ticket('DM-2', 'Increments'), ticket('DM-4', 'Docs'), node],
+      tickets: [ticket('DM-1', 'Row checks'), ticket('DM-2', 'Increments'), ticket('DM-4', 'Docs'), node].map((item) =>
+        repos[item.key] === undefined ? item : { ...item, repo: repos[item.key] }
+      ),
       sprints: [sprint(1, 'Build', ['tk_1', 'tk_2', 'tk_4', 'tk_91'])],
       edges: []
     })
   })
 }
 
-function nodeBackend(patch: Partial<Parameters<typeof scenario>[0]> = {}, attempts: ReturnType<typeof attempt>[] = []): FakeBackend {
-  const plan = nodePlan()
+function nodeBackend(
+  patch: Partial<Parameters<typeof scenario>[0]> = {},
+  attempts: ReturnType<typeof attempt>[] = [],
+  plan = nodePlan()
+): FakeBackend {
   const content = plan.bundle.tickets.find((item) => item.id === 'tk_91')
   return new FakeBackend(
     scenario({
@@ -522,6 +557,31 @@ describe('ticket panel of an acceptance node', () => {
     expect(boxes.map((box) => box.checked)).toEqual([true, false, false, false])
   })
 
+})
+
+describe('ticket panel of an acceptance node in a folder of repositories', () => {
+  it('in a folder of repositories, groups the checks under each touched repository and reads `<repo>: <check>` evidence', async () => {
+    const plan = nodePlan({ 'DM-1': 'web', 'DM-2': 'api', 'DM-4': 'api' })
+    const check = { name: 'Unit tests', command: 'npm test', description: '' }
+    const project = projectView({
+      repositories: [
+        { name: 'api', missing: false, definitionOfDone: [check, { ...check, name: 'Lint', command: 'npm run lint' }] },
+        { name: 'web', missing: false }
+      ]
+    })
+    const evidence = attempt('DM-91', 1, 'submitted', {
+      evidence: { checks: [{ name: 'api: unit tests', status: 'passed', detail: '' }, { name: 'Lint', status: 'passed', detail: '' }], criteria: [], notes: '' }
+    })
+    renderPanel(nodeBackend({ project }, [evidence], plan), { ticketId: 'tk_91', plan })
+    const dod = await screen.findByLabelText('Definition of Done')
+    expect(within(dod).getByText('DEFINITION OF DONE · 2 CHECKS')).toBeTruthy()
+    const api = within(dod).getByRole('group', { name: 'api' })
+    expect(within(api).getAllByRole('listitem').map((row) => [row.querySelector('.tp-dod-name')?.textContent, row.querySelector('.tp-dod-state')?.textContent])).toEqual([
+      ['Unit tests', 'PASSED'],
+      ['Lint', 'NOT REPORTED']
+    ])
+    expect(within(dod).getByRole('group', { name: 'web' }).textContent).toContain('This repository has no Definition of Done.')
+  })
 })
 
 describe('ticket panel of an acceptance node: Definition of Done', () => {

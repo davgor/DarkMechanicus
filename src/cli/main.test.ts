@@ -1,8 +1,10 @@
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { DomainError } from '../core/errors'
+import type { LinearIssueItem, LinearTransferPacket } from '../shared/domain/transfer'
 import { createStubWorkspace } from '../test/stubWorkspace'
 import type { OpenWorkspaceOptions } from '../core/workspace'
+import { skillBody } from '../mcp/skills'
 import { type CliHost, resolveCommand, runCli, snakeCase } from './main'
 
 // Resolved, as the CLI resolves them: on Windows `/work/repo` becomes `D:\work\repo`.
@@ -185,5 +187,108 @@ describe('dm usage errors', () => {
     await runCli(recorded.host)
     expect(recorded.stdout.join('')).toContain('Usage: dm')
     expect(recorded.exits).toEqual([0])
+  })
+})
+
+function issue(position: number, key: string, title: string): LinearIssueItem {
+  return {
+    ref: `tk_${position}`,
+    key,
+    marker: `dm:ep_1/tk_${position}`,
+    position,
+    milestoneRef: 'sp_1',
+    title,
+    description: `Body\n\ndm:ep_1/tk_${position}`,
+    priority: 3,
+    labels: [],
+    state: 'default',
+    blockedBy: []
+  }
+}
+
+const PACKET: LinearTransferPacket = {
+  format: 'darkmechanicus.linear-transfer',
+  version: 1,
+  epicId: 'ep_1',
+  revisionId: 'rv_1',
+  packetHash: 'sha256:abc',
+  project: { ref: 'project', marker: 'dm:ep_1/project', name: 'Linear handoff', summary: 'dm:ep_1/project', content: 'dm:ep_1/project' },
+  milestones: [{ ref: 'sp_1', marker: 'dm:ep_1/sp_1', position: 1, name: 'Sprint 1: Build', description: 'dm:ep_1/sp_1' }],
+  issues: [issue(1, 'DM-1', 'First ticket'), issue(2, 'DM-2', 'Second ticket')],
+  relations: []
+}
+
+const EPIC = 'ep_01m6772ffwkwr2a91fsqzfz1he'
+const CLAIM_TOKEN = 'at_01m44wa86sxhxz3xv76qnvza2e.gUJvQxJEDk0emfDt1HQ9H3tYGOmsf4IX'
+
+/** A host whose workspace knows one epic (its title carries a claim token) and its transfer in `status`. */
+function transferHost(argv: string[], status: string, options: { unknown?: boolean; env?: Record<string, string> } = {}): Recorded {
+  const recorded = recorder(argv, { env: options.env })
+  recorded.host.open = (open) => {
+    recorded.opened.push(open)
+    const workspace = createStubWorkspace({
+      canned: {
+        getEpic: { id: EPIC, title: `Linear handoff ${CLAIM_TOKEN}` },
+        getTransfer: { epicId: EPIC, status, packet: PACKET, recorded: [], lastMismatches: [], next: [] }
+      }
+    })
+    if (options.unknown === true) {
+      workspace.getEpic = () => Promise.reject(new DomainError('not_found', 'There is no epic ep_nope.'))
+    }
+    return workspace
+  }
+  return recorded
+}
+
+describe('dm transfer linear', () => {
+  it('prints the kickoff, the packet summary, the setup and the grant help as text, as a reader', async () => {
+    const recorded = transferHost(['transfer', 'linear', '--epic', EPIC], 'queued', { env: { DM_SESSION_TOKEN: 'dmg_abc' } })
+    await runCli(recorded.host)
+    const text = recorded.stdout.join('')
+    expect(recorded.exits).toEqual([0])
+    expect(recorded.opened[0]).toMatchObject({ role: 'reader', transport: 'cli' })
+    expect(recorded.opened[0]?.grantToken).toBeUndefined()
+    expect(text.startsWith('The transfer is authorized.')).toBe(true)
+    expect(text).toContain(`(${EPIC})`)
+    expect(text).toContain(skillBody('linear-transfer').trimEnd())
+    expect(text).not.toContain(CLAIM_TOKEN)
+    expect(text).toContain('=== Packet summary ===')
+    expect(text).toContain('- Sprint 1: Build: 2 issues')
+    expect(text).toContain('1. DM-1 First ticket')
+    expect(text).toContain('claude mcp add --transport http linear-server https://mcp.linear.app/mcp')
+    expect(text).toContain('codex mcp add linear --url https://mcp.linear.app/mcp')
+    expect(text).toContain('- Cursor: add https://mcp.linear.app/mcp in its MCP settings.')
+    expect(text).toContain('Agent access card')
+    expect(text).toContain('DM_SESSION_TOKEN')
+    expect(() => JSON.parse(text) as unknown).toThrow()
+  })
+
+  it('says first when the transfer is not authorized', async () => {
+    const recorded = transferHost(['transfer', 'linear', '--epic', EPIC], 'not_started')
+    await runCli(recorded.host)
+    expect(recorded.stdout.join('').startsWith('The transfer is not authorized yet.')).toBe(true)
+    expect(recorded.exits).toEqual([0])
+  })
+
+  it('prints the packet with --json', async () => {
+    const recorded = transferHost(['transfer', 'linear', '--epic', EPIC, '--json'], 'queued')
+    await runCli(recorded.host)
+    expect(JSON.parse(recorded.stdout.join(''))).toEqual(PACKET)
+    expect(recorded.exits).toEqual([0])
+  })
+
+  it('errors for an unknown epic', async () => {
+    const recorded = transferHost(['transfer', 'linear', '--epic', 'ep_nope'], 'queued', { unknown: true })
+    await runCli(recorded.host)
+    expect(recorded.stdout).toEqual([])
+    expect(recorded.stderr.join('')).toContain('There is no epic ep_nope.')
+    expect(recorded.exits).toEqual([1])
+  })
+
+  it('rejects a missing --epic as a usage mistake', async () => {
+    const recorded = recorder(['transfer', 'linear'])
+    await runCli(recorded.host)
+    expect(recorded.exits).toEqual([2])
+    expect(recorded.opened).toEqual([])
   })
 })

@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code orchestrator (multi-repo folders)",
+    "role": "orchestrator"
+  },
+  "body": "Orchestrator integration note: the row 6 combined check found `src/mcp/validation.test.ts` pinning the old `submit_attempt` input-schema fingerprint; DM-356 deliberately added `increments` to that schema but did not update the pin, and neither the worker nor the reviewer ran that file. The orchestrator updated the fingerprint (with a \"changed on purpose\" comment) on the sprint integration branch in d7f19a6 and recorded a passing row check. No behaviour change.",
+  "createdAt": "2026-10-31T21:33:52.344Z",
+  "epicId": "ep_01m68w2edvsnjrvj7w56hxrmt8",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m69y47tr6f6b8e5fy2qwymgs",
+  "ticketId": "tk_01m68w2eewcrfw8k96bx5x75yc"
+}

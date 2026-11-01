@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type Dispatch } from 'react'
-import type { TrackedFolderView } from '../../../shared/desktop/api'
+import type { AgentView, TrackedFolderView } from '../../../shared/desktop/api'
 import { unwrapChat } from '../agents/chatCalls'
 import { errorMessage } from '../api/dm'
 import type { Scheduler } from '../app/scheduler'
 import { useClock } from './clock'
-import type { OrchestrationHost, StartOrchestrator } from './orchestration'
+import type { OrchestrationHost, StartOrchestrator, TransferChats } from './orchestration'
 import { bindRunner, type Runner } from './runner'
 import { useViewMemory } from './viewMemory'
 import { createWorkspaceActions, type WorkspaceActions } from './workspaceActions'
@@ -50,6 +50,10 @@ interface WorkspaceInput {
   refreshToken: number
   onChanged(): void
   onChatsChanged(): void
+  /** Shows a chat: the transfer chat once one is started or resumed. */
+  onOpenChat(chatId: string): void
+  /** The connected agents, read when an action names one. */
+  agents: readonly AgentView[]
 }
 
 interface LoadInput {
@@ -84,6 +88,16 @@ function useWorkspaceLoad({ runner, epicId, refreshToken, reloadToken, dispatch 
   }, [runner, epicId, refreshToken, reloadToken, clock, dispatch])
 }
 
+/** The transfer calls of the chat bridge, for one epic of one folder. */
+function transferChatsFor(folder: string, epicId: string): TransferChats {
+  return {
+    start: (choice) => unwrapChat(window.dm.chats.startTransferChat({ folder, epicId, agent: choice.agent, model: choice.model })),
+    find: () => unwrapChat(window.dm.chats.findTransferChat({ folder, epicId })),
+    prompt: () => unwrapChat(window.dm.chats.transferPrompt({ folder, epicId })),
+    copy: (text) => window.dm.copyText(text)
+  }
+}
+
 /**
  * Loads the epic (again whenever `refreshToken` changes or an action reloads) and binds actions. The
  * view the person picks is remembered for the epic, so it reopens there after visiting another one.
@@ -100,10 +114,15 @@ export function useWorkspace(input: WorkspaceInput): WorkspaceController {
   changedRef.current = input.onChanged
   const chatsChangedRef = useRef(input.onChatsChanged)
   chatsChangedRef.current = input.onChatsChanged
+  const openChatRef = useRef(input.onOpenChat)
+  openChatRef.current = input.onOpenChat
+  const agentsRef = useRef(input.agents)
+  agentsRef.current = input.agents
   const startOrchestrator = useMemo<StartOrchestrator>(
     () => (choice) => unwrapChat(window.dm.chats.startOrchestrator({ folder: folderPath, epicId, agent: choice.agent, model: choice.model })),
     [folderPath, epicId]
   )
+  const transferChats = useMemo(() => transferChatsFor(folderPath, epicId), [folderPath, epicId])
   const reload = useCallback(() => setReloadToken({}), [])
   useEffect(() => {
     memory.remember(folderPath, epicId, state.chosenView)
@@ -115,13 +134,16 @@ export function useWorkspace(input: WorkspaceInput): WorkspaceController {
         runner,
         epicId,
         startOrchestrator,
+        agents: () => agentsRef.current,
         getState: () => stateRef.current,
         dispatch,
         reload,
         onChanged: () => changedRef.current(),
-        onChatsChanged: () => chatsChangedRef.current()
+        onChatsChanged: () => chatsChangedRef.current(),
+        transferChats,
+        onOpenChat: (chatId) => openChatRef.current(chatId)
       }),
-    [runner, epicId, startOrchestrator, reload]
+    [runner, epicId, startOrchestrator, transferChats, reload]
   )
   return { state, dispatch, actions, runner, reload }
 }

@@ -1,0 +1,13 @@
+
+ RUN  v4.1.11 /Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/linear-sprint-1
+
+ ✓ src/integration/linearTransfer.test.ts > a Linear transfer interrupted between a create and its record > creates nothing twice after a crash between a create and its record 74ms
+ ✓ src/integration/linearTransfer.test.ts > a Linear transfer interrupted between a create and its record > lays the epic out in execution order: rising identifiers, a milestone per sprint, acceptance issues last and blocked, the related link 48ms
+ ✓ src/integration/linearTransfer.test.ts > a Linear transfer whose read-back differs > reports an injected wrong milestone and unexpected issue, fixes them without deleting, and only then completes the epic 67ms
+ ✓ src/integration/linearTransfer.test.ts > a Linear transfer canceled and queued again > adopts every existing item by its marker after the person cancels and queues the transfer again 55ms
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  02:20:38
+   Duration  769ms (transform 305ms, setup 0ms, import 439ms, tests 245ms, environment 0ms)
+

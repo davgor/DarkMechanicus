@@ -1,0 +1,18 @@
+$ git grep -n LINEAR_SETUP_LINES -- src
+src/cli/main.ts:19:import { LINEAR_SETUP_LINES } from '../shared/domain/linearSetup'
+src/cli/main.ts:173:  ...LINEAR_SETUP_LINES.map((line) => `- ${line.cli}: ${line.setup}`)
+src/mcp/skills.test.ts:5:import { LINEAR_SETUP_LINES } from '../shared/domain/linearSetup'
+src/mcp/skills.test.ts:67:    expect(LINEAR_SETUP_LINES.map((entry) => entry.cli)).toEqual(['Claude Code', 'Codex', 'Cursor'])
+src/mcp/skills.test.ts:68:    for (const entry of LINEAR_SETUP_LINES) {
+src/renderer/src/epic/TransferDialog.tsx:3:import { LINEAR_SETUP_LINES } from '../../../shared/domain/linearSetup'
+src/renderer/src/epic/TransferDialog.tsx:61:        {LINEAR_SETUP_LINES.map((line) => (
+src/shared/domain/linearSetup.ts:19:export const LINEAR_SETUP_LINES: readonly LinearSetupLine[] = [
+exit: 0
+
+$ git grep -n linearSetup -- src/cli/main.ts src/renderer/src/epic/TransferDialog.tsx src/renderer/src/epic/transferView.ts
+src/cli/main.ts:19:import { LINEAR_SETUP_LINES } from '../shared/domain/linearSetup'
+src/renderer/src/epic/TransferDialog.tsx:3:import { LINEAR_SETUP_LINES } from '../../../shared/domain/linearSetup'
+exit: 0
+
+$ git grep -n "in Cursor's MCP settings" -- src skills
+exit: 1

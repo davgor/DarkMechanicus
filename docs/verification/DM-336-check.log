@@ -1,0 +1,82 @@
+$ DM336_MAIN_SERVER=/tmp/dm336-main-022734c.NE6bth/out/main/mcp.js node docs/verification/DM-336-check.mjs
+# HEAD b23a9c90c6551544b3cdfd204551f701fabf631f; main build from a throwaway 'git worktree add --detach /tmp/dm336-main-022734c.NE6bth 022734c' + 'npx electron-vite build'
+## c1 (DM-337): main V10 database opened by this build
+main build: /tmp/dm336-main-022734c.NE6bth/out/main/mcp.js (darkmechanicus 0.20.0, schema 10) on /private/var/folders/sp/ypkkq76s3ks08w8cyxv712000000gn/T/dm336-main-v10-repo-0Jfan0
+main build: initialize_repository, create_epic ep_01m6938y7ycyfxpk00kywee5sn
+$ sqlite3 /private/var/folders/sp/ypkkq76s3ks08w8cyxv712000000gn/T/dm336-main-v10-repo-0Jfan0/.darkmechanicus/local/state.sqlite "PRAGMA user_version; SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'transfer%' ORDER BY name;"
+  10
+this build: /Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/linear-sprint-3/out/main/mcp.js (darkmechanicus 0.20.0, schema 11) on the same repository
+this build get_epic ep_01m6938y7ycyfxpk00kywee5sn: title "Created by main at V10"
+this build get_transfer ep_01m6938y7ycyfxpk00kywee5sn: ok -> {"epicId":"ep_01m6938y7ycyfxpk00kywee5sn","status":"not_started","packet":null,"recorded":[],"lastMismatches":[],"next":[]}
+$ sqlite3 /private/var/folders/sp/ypkkq76s3ks08w8cyxv712000000gn/T/dm336-main-v10-repo-0Jfan0/.darkmechanicus/local/state.sqlite "PRAGMA user_version; SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'transfer%' ORDER BY name;"
+  11
+  transfer_items
+  transfers
+
+fresh scratch repository opened by this build:
+$ sqlite3 /private/var/folders/sp/ypkkq76s3ks08w8cyxv712000000gn/T/dm336-fresh-repo-fHxQd4/.darkmechanicus/local/state.sqlite "PRAGMA user_version; SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'transfer%' ORDER BY name;"
+  11
+  transfer_items
+  transfers
+
+## c2 (DM-338): a pulled revision and a local epic change
+machine A: saved epic ep_01m6938ynp1td6d80dycye9at1: {"savedRevision":{"id":"rv_01m6938ynx40rkk3tjptk51j7m","number":1},"workTickets":["Prepare","Deliver"],"conflict":null}
+pull A -> B: copied [".gitignore","epics","history","profiles","project.json"]
+machine B reconcile_repository: imported [], conflicts []
+machine A save_plan: saved rv_01m6938yvbx720pwec8nk7b72p (revision 2); flush {"flushed":0,"failed":0,"errors":[]}; A holds {"savedRevision":{"id":"rv_01m6938yvbx720pwec8nk7b72p","number":2},"workTickets":["Prepare (saved on A)","Deliver"],"conflict":null}
+pull A -> B: copied [".gitignore","epics","history","profiles","project.json"]
+machine B save_plan (local change): ok -> {"status":"pending","revisionId":"rv_01m6938yw9fep467vf6axeycny","revisionNumber":2}
+machine B get_storage_status: pending {"pending":1,"failed":0,"lastError":"Epic ep_01m6938ynp1td6d80dycye9at1's tracked state and pointer hold records this machine has not imported, so its local changes were not written over them. Reconcile, then choose which to keep in the desktop app's Storage card: keep the tracked records or write local. Tracked files the reconcile rejects must be fixed in Git first."}, conflicts for the epic []
+machine B flush_portable_state: {"flushed":0,"failed":1,"errors":["snapshot rv_01m6938yw9fep467vf6axeycny: Epic ep_01m6938ynp1td6d80dycye9at1's tracked state and pointer hold records this machine has not imported, so its local changes were not written over them. Reconcile, then choose which to keep in the desktop app's Storage card: keep the tracked records or write local. Tracked files the reconcile rejects must be fixed in Git first."]}
+machine B tracked files of the epic after the flush (sha256/16): {"epics/ep_01m6938ynp1td6d80dycye9at1/current.json":"73ea4e33142b51cb","epics/ep_01m6938ynp1td6d80dycye9at1/snapshots/rv_01m6938ynx40rkk3tjptk51j7m.json":"2bf96871630a3fdb","epics/ep_01m6938ynp1td6d80dycye9at1/snapshots/rv_01m6938yvbx720pwec8nk7b72p.json":"929ebb44dd7fd19d","epics/ep_01m6938ynp1td6d80dycye9at1/state.json":"11e9d5d53fc8eb30"}
+  identical to machine A's pulled files: true
+machine B reconcile_repository: imported [], conflicts [{"epicId":"ep_01m6938ynp1td6d80dycye9at1","message":"Tracked records for epic ep_01m6938ynp1td6d80dycye9at1 changed while local changes are waiting to be exported, so neither was applied. Choose which to keep in the desktop app's Storage card: keep the tracked records (the epic's local changes are dropped) or write local (this machine's records of the epic replace them)."}]
+machine B get_storage_status conflicts for the epic: [{"epicId":"ep_01m6938ynp1td6d80dycye9at1","message":"Tracked records for epic ep_01m6938ynp1td6d80dycye9at1 changed while local changes are waiting to be exported, so neither was applied. Choose which to keep in the desktop app's Storage card: keep the tracked records (the epic's local changes are dropped) or write local (this machine's records of the epic replace them).","resolvable":true}]
+machine B holds: {"savedRevision":{"id":"rv_01m6938ynx40rkk3tjptk51j7m","number":1},"workTickets":["Prepare","Deliver"],"conflict":"Tracked records for epic ep_01m6938ynp1td6d80dycye9at1 changed while local changes are waiting to be exported, so neither was applied. Choose which to keep in the desktop app's Storage card: keep the tracked records (the epic's local changes are dropped) or write local (this machine's records of the epic replace them)."}
+machine B MCP tools naming a conflict: [] (of 63 tools)
+machine B orchestrator resolveEpicConflict keep tracked: error unauthorized: This orchestrator session is not permitted to perform "repo.resolve_conflict". {"role":"orchestrator","capability":"repo.resolve_conflict"}
+machine B desktop resolveEpicConflict keep tracked (the person): ok -> {"epicId":"ep_01m6938ynp1td6d80dycye9at1","kept":"tracked","abandonedRevisionIds":["rv_01m6938yw9fep467vf6axeycny"],"error":null}
+machine B holds: {"savedRevision":{"id":"rv_01m6938yvbx720pwec8nk7b72p","number":2},"workTickets":["Prepare (saved on A)","Deliver"],"conflict":null}
+machine B tracked files of the epic still identical to machine A's: true
+machine B flush_portable_state: {"flushed":0,"failed":0,"errors":[]}; reconcile_repository: imported [], unchanged includes epic true, conflicts []; storage conflicts for the epic []
+
+## c3 (DM-339): an oversized stdin message to the built server
+initialize -> darkmechanicus 0.20.0
+request 2 (id first): 32000106 bytes against MCP_MESSAGE_MAX_BYTES 32000000 -> {"jsonrpc":"2.0","id":2,"error":{"code":-32600,"message":"A message is at most 32000000 bytes; this one was longer, so it was not read. Send less in one call: a transfer read-back goes in more, smaller parts."}}
+next request 10 get_capabilities -> ok true, server darkmechanicus 0.20.0, schema 11
+request "big-3" (id last, as the SDK client writes it): 32000112 bytes against MCP_MESSAGE_MAX_BYTES 32000000 -> {"jsonrpc":"2.0","id":"big-3","error":{"code":-32600,"message":"A message is at most 32000000 bytes; this one was longer, so it was not read. Send less in one call: a transfer read-back goes in more, smaller parts."}}
+next request 11 get_capabilities -> ok true, server darkmechanicus 0.20.0, schema 11
+request 30: exactly 32000000 bytes -> read and answered (result ok true, isError false; not the -32600 refusal)
+tools/list after both refusals -> 62 tools; server still running: true
+server stderr: ["MCP error: Refused a message of more than 32000000 bytes without reading it (id 2).","MCP error: Refused a message of more than 32000000 bytes without reading it (id \"big-3\")."]
+
+## c3 (DM-339): the merged read-back over READBACK_LIMITS.totalChars, through the built server
+desktop queueTransfer: ok -> "queued"
+start_transfer: transfer now in_progress
+part 1: 7502235 characters of JSON (merged about 7502237) -> ok -> {"status":"partial","received":{"project":false,"milestones":0,"issues":15,"relations":0}}
+part 2: 7502235 characters of JSON (merged about 15004472) -> ok -> {"status":"partial","received":{"project":false,"milestones":0,"issues":30,"relations":0}}
+part 3: 7502235 characters of JSON (merged about 22506707) -> ok -> {"status":"partial","received":{"project":false,"milestones":0,"issues":45,"relations":0}}
+part 4: 7502235 characters of JSON (merged about 30008942) -> ok -> {"status":"partial","received":{"project":false,"milestones":0,"issues":60,"relations":0}}
+part 5: 7502235 characters of JSON (merged about 37511177) -> ok -> {"status":"partial","received":{"project":false,"milestones":0,"issues":75,"relations":0}}
+part 6: 7502235 characters of JSON (merged about 45013412) -> ok -> {"status":"partial","received":{"project":false,"milestones":0,"issues":90,"relations":0}}
+part 7: 7502235 characters of JSON (merged about 52515647) -> ok -> {"status":"partial","received":{"project":false,"milestones":0,"issues":105,"relations":0}}
+part 8: 7502235 characters of JSON (merged about 60017882) -> ok -> {"status":"partial","received":{"project":false,"milestones":0,"issues":120,"relations":0}}
+part 9: 7502235 characters of JSON (merged about 67520117) -> ok -> {"status":"partial","received":{"project":false,"milestones":0,"issues":135,"relations":0}}
+part 10: 7502235 characters of JSON (merged about 75022352) -> ok -> {"status":"partial","received":{"project":false,"milestones":0,"issues":150,"relations":0}}
+part 11: 7502265 characters of JSON (merged about 82524617) -> ok -> {"status":"partial","received":{"project":false,"milestones":0,"issues":165,"relations":0}}
+part 12: 7502265 characters of JSON (merged about 90026882) -> ok -> {"status":"partial","received":{"project":false,"milestones":0,"issues":180,"relations":0}}
+part 13: 7502265 characters of JSON (merged about 97529147) -> ok -> {"status":"partial","received":{"project":false,"milestones":0,"issues":195,"relations":0}}
+part 14: 7502265 characters of JSON, within the 8000000 per-part cap; merged it would be about 105031412 against totalChars 100000000
+submit_transfer_readback part 14 (not final): error invalid_input: A transfer read-back is at most 100000000 characters of JSON; with this part it would be longer. Nothing from this part was stored, and the parts sent before are kept. Move the items that do not belong out of the project and give each item back the text the packet sent it, call start_transfer with a fresh idempotencyKey to discard this read-back, then read the project back again from the start. A faithful read-back this large means the plan is too large to transfer. {"limit":"totalChars","max":100000000}
+a small part after the refusal (the parts sent before are kept): ok -> {"status":"partial","received":{"project":false,"milestones":0,"issues":196,"relations":0}}
+the same oversized part as the final part: error invalid_input: A transfer read-back is at most 100000000 characters of JSON; with this part it would be longer. This final part still ended the read-back. Move the items that do not belong out of the project and give each item back the text the packet sent it, then read the project back again from the start. A faithful read-back this large means the plan is too large to transfer. {"limit":"totalChars","max":100000000}
+a new part after the refused final part (stored parts cleared, so it starts a new read-back): ok -> {"status":"partial","received":{"project":false,"milestones":0,"issues":1,"relations":0}}
+
+## c4 (DM-340): the served guide and SKILLS_VERSION
+get_capabilities: server darkmechanicus 0.20.0, skillsVersion 1.6.2
+prompts/get darkmechanicus-linear-transfer (3918 characters), the final-part line:
+  - An accepted final part ends the read-back: it is verified, or its mismatches are reported and the stored parts are cleared. A final part that takes the merged read-back past an item limit or the total size is refused, but the stored parts are still cleared. A part refused as malformed or over the per-part size changes nothing, final or not: fix it and send it again. A submission may ask the person for approval.
+  old wording "A final part always ends the read-back, whatever the result" present: false
+
+all assertions passed
+# exit 0

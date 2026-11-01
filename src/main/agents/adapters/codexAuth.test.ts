@@ -24,6 +24,7 @@ import { createCodexAdapter } from './codex'
 const OPTIONS: ChatAdapterStartOptions = {
   chatId: 'chat_1',
   folder: REPO,
+  checkFolder: () => {},
   model: null,
   role: 'orchestrator',
   allowSave: false,

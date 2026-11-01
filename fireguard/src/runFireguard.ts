@@ -3,14 +3,14 @@ import { runFlakeGate } from './gates/flakeGate.js';
 import { runMutationGate } from './gates/mutationGate.js';
 import { computeGrade } from './grade.js';
 import { resolveGitScope } from './gitScope.js';
-import { buildRelatedTests } from './importGraph.js';
+import { buildRelatedTests, type RelatedTests } from './importGraph.js';
 import type {
   DiffEntry,
   FireguardConfig,
   FireguardReport,
   GitScope,
   MutationGateResult,
-  RunOnceResult,
+  MutationLanes,
   TestRunner,
 } from './types.js';
 
@@ -18,13 +18,13 @@ export interface RunFireguardDeps {
   config: FireguardConfig;
   getDiffEntries: () => Promise<DiffEntry[]>;
   readFile: (path: string) => Promise<string>;
+  /** Runs graded tests in the working tree (the flake gate). */
   runOnce: TestRunner;
-  applyAndTest: (input: {
-    file: string;
-    originalSource: string;
-    mutatedSource: string;
-    relatedTests: string[];
-  }) => Promise<RunOnceResult>;
+  /**
+   * Opens the lanes mutants run in, given the graded tests; called only when the mutation gate
+   * runs, and always closed afterwards.
+   */
+  openMutationLanes: (gradedTests: string[]) => Promise<MutationLanes>;
   /**
    * Whether a repo-relative path is a regular file. With `readFileSync`, lets the mutation gate
    * run each module's mutants only against the graded tests that transitively import it.
@@ -39,7 +39,7 @@ export interface RunFireguardDeps {
 function createRelatedTestsLookup(
   deps: RunFireguardDeps,
   scope: GitScope
-): ((modulePath: string) => string[]) | undefined {
+): ((modulePath: string) => RelatedTests) | undefined {
   const { fileExists, readFileSync } = deps;
   if (!fileExists || !readFileSync) return undefined;
   const related = buildRelatedTests({
@@ -48,7 +48,7 @@ function createRelatedTestsLookup(
     readFile: readFileSync,
     exists: fileExists,
   });
-  return (modulePath) => related.get(modulePath) ?? [];
+  return (modulePath) => related.get(modulePath) ?? { nearest: [], farther: [] };
 }
 
 async function runMutationStage(
@@ -61,13 +61,19 @@ async function runMutationStage(
       source: await deps.readFile(path),
     }))
   );
-  return runMutationGate({
-    config: deps.config,
-    modules,
-    relatedTests: scope.gradedTestFiles,
-    relatedTestsFor: createRelatedTestsLookup(deps, scope),
-    applyAndTest: deps.applyAndTest,
-  });
+  const lanes = await deps.openMutationLanes(scope.gradedTestFiles);
+  try {
+    const result = await runMutationGate({
+      config: deps.config,
+      modules,
+      relatedTests: scope.gradedTestFiles,
+      relatedTestsFor: createRelatedTestsLookup(deps, scope),
+      appliers: lanes.appliers,
+    });
+    return { ...result, execution: lanes.execution };
+  } finally {
+    await lanes.close();
+  }
 }
 
 export async function runFireguard(deps: RunFireguardDeps): Promise<FireguardReport> {

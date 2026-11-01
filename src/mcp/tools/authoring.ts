@@ -108,7 +108,7 @@ const AUTHORING_TOOLS = [
   defineTool({
     name: 'set_epic_status',
     description:
-      'Sets an epic to backlog or in_progress. completed is accepted only when the final-sprint checkpoint rules are already satisfied (normally reached by advance_sprint) and is terminal: completed epics are read-only. in_progress returns to backlog only while no run is active.',
+      'Sets an epic to backlog or in_progress. completed is refused here: an epic completes when its final checkpoint advances (advance_sprint), or when a verified Linear transfer completes it, and completed epics are read-only. in_progress returns to backlog only while no run is active.',
     kind: 'idempotent',
     input: { epicId, status: workStatus, expectedRevision: expectedRevision.optional() },
     run: (api, input) => api.setEpicStatus(input)

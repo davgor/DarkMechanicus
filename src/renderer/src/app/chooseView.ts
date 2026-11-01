@@ -49,7 +49,7 @@ function chooseAgentView(pane: AgentPane | undefined, agents: readonly AgentView
   if (agents === null) {
     return { kind: 'loading', what: 'agents' }
   }
-  const agent = agents.find((candidate) => candidate.kind === pane.agent)
+  const agent = agents.find((candidate) => candidate.id === pane.agent)
   return agent ? { kind: 'agent', agent } : null
 }
 

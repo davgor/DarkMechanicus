@@ -1,0 +1,30 @@
+{
+  "branch": {
+    "name": "kanban",
+    "repository": "/Users/davidgorden/Documents/GitHub/DarkMechanicus",
+    "startCommit": "04bad6e5811eb550c46bb663b59311f568db2f78"
+  },
+  "completedAt": null,
+  "createdAt": "2026-10-31T22:35:54.801Z",
+  "epicId": "ep_01m6a1nv1hfyvw2nf009gnhx8k",
+  "format": "darkmechanicus.epic-state",
+  "formatVersion": 1,
+  "generation": 1,
+  "outcome": null,
+  "provenance": null,
+  "status": "backlog",
+  "ticketStatuses": {
+    "tk_01m6a1nv1j6sdba9s4q5b40yvq": "backlog",
+    "tk_01m6a1p7pfm25m2r3b83ctbsnb": "backlog",
+    "tk_01m6a1p7qa5vd3ja3h28q42mhz": "backlog",
+    "tk_01m6a1p7qabhd9mvk49b51fzst": "backlog",
+    "tk_01m6a1p7qam5570y9jmnabwwdy": "backlog",
+    "tk_01m6a1p7qamc63weyayqxnxp8c": "backlog",
+    "tk_01m6a1p7qawghr22r3yvkezmwr": "backlog",
+    "tk_01m6a1p7qaxttbw9f5927qk2dx": "backlog",
+    "tk_01m6a1p7qazwjr1cbkfse57ra2": "backlog",
+    "tk_01m6a1p7qazz27zra4gpk10yny": "backlog"
+  },
+  "title": "Kanban: a per-folder board of isolated tickets that agents carry to review and a person approves",
+  "updatedAt": "2026-10-31T22:36:18.358Z"
+}

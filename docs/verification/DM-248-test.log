@@ -1,0 +1,23 @@
+# npm run test at 796b5af1a49bee655e57cd2820c19f3d6834fb6f (exit 0)
+
+> dark-mechanicus@0.19.0 test
+> vitest run && vitest run --config fireguard/vitest.config.ts
+
+
+ RUN  v4.1.11 ~/Documents/GitHub/DarkMechanicus-worktrees/agent-clis-sprint-1
+
+
+ Test Files  417 passed (417)
+      Tests  7987 passed | 9 skipped (7996)
+   Start at  06:33:48
+   Duration  35.78s (transform 15.03s, setup 0ms, import 83.24s, tests 141.07s, environment 94.36s)
+
+
+ RUN  v4.1.11 ~/Documents/GitHub/DarkMechanicus-worktrees/agent-clis-sprint-1/fireguard
+
+
+ Test Files  20 passed (20)
+      Tests  105 passed (105)
+   Start at  06:34:24
+   Duration  2.70s (transform 814ms, setup 0ms, import 3.69s, tests 2.87s, environment 2ms)
+

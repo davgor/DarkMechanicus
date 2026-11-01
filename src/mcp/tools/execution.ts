@@ -10,6 +10,7 @@ import {
   heartbeatProgress,
   hostCatalog,
   incrementRef,
+  incrementRefs,
   LIMITS,
   rowCheckEntries,
   stableId
@@ -192,7 +193,7 @@ const ATTEMPT_TOOLS = [
   defineTool({
     name: 'claim_ticket',
     description:
-      'Claims a ready ticket: creates an attempt with a lease and returns a claimToken plus a bounded execution packet (pinned ticket, acceptance criteria, predecessor outputs, epic branch, reporting contract). Record who does the work: worker label, modelId, hostId, catalogRevision, a rationale, and the effort (low, medium, high) you dispatch the worker at; the effort is recorded on the attempt, returned in the execution packet, and kept in run history. Keep the claimToken secret; give it only to the worker doing this ticket. If the named model cannot take the ticket on the run\'s catalog (it fails a hard requirement, the host lacks a required tool, or the model is unknown), the claim still succeeds: the orchestrator collects the ticket, the attempt is recorded as "Orchestrator (fallback)" with no model and the reasons in its rationale, and the packet carries `fallback` { requestedModelId, reasons }. Fails with `unmet_prerequisite`, `already_claimed`, `capacity_exceeded`, `retry_limit_reached`, `needs_reconciliation`, or `unsupported_capability` (the model does not declare the effort).',
+      'Claims a ready ticket: creates an attempt with a lease and returns a claimToken plus a bounded execution packet (pinned ticket, acceptance criteria, predecessor outputs, epic branch, reporting contract). Record who does the work: worker label, modelId, hostId, catalogRevision, a rationale, and the effort (low, medium, high) you dispatch the worker at; the effort is recorded on the attempt, returned in the execution packet, and kept in run history. Keep the claimToken secret; give it only to the worker doing this ticket. The claimToken is shown once: repeating the call with the same idempotencyKey returns the same attempt and packet with claimToken null, and a lost token cannot be recovered. If no worker got it, free the ticket with fail_attempt without a claimToken (it uses one try); otherwise wait for the lease to expire and reconcile_attempt. Then claim it again with a new idempotencyKey; the old key keeps replaying the lost claim. If the named model cannot take the ticket on the run\'s catalog (it fails a hard requirement, the host lacks a required tool, or the model is unknown), the claim still succeeds: the orchestrator collects the ticket, the attempt is recorded as "Orchestrator (fallback)" with no model and the reasons in its rationale, and the packet carries `fallback` { requestedModelId, reasons }. Fails with `unmet_prerequisite`, `already_claimed`, `capacity_exceeded`, `retry_limit_reached`, `needs_reconciliation`, or `unsupported_capability` (the model does not declare the effort).',
     kind: 'write',
     input: CLAIM_TICKET_INPUT,
     run: (api, input) => api.claimTicket(input)
@@ -217,7 +218,12 @@ const ATTEMPT_TOOLS = [
       evidence: attemptEvidenceInput.optional(),
       increment: incrementRef
         .optional()
-        .describe('Acceptance nodes only. The epic branch and the commit (7 to 64 hex digits) that landed the sprint on it as one squashed commit.'),
+        .describe('Acceptance nodes of a single repository only. The epic branch and the commit (7 to 64 hex digits) that landed the sprint on it as one squashed commit.'),
+      increments: incrementRefs
+        .optional()
+        .describe(
+          'Acceptance nodes of a folder of repositories only, instead of increment: one { repo, branch, commit } per repository the sprint touched (the packet\'s repositories), each verified against that repository\'s history. One failed repository fails the increment; a missing, untouched, unknown or duplicate repository is refused with `invalid_input`.'
+        ),
       idempotencyKey
     },
     run: (api, input) => api.submitAttempt(input)

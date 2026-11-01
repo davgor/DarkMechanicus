@@ -5,6 +5,7 @@ import { FakeChild } from '../__mocks__/fakeChild'
 import { killProcessTree } from '../processTree'
 import { nodeTransport } from './acpProcess'
 
+vi.mock('../../logger', () => ({ logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() } }))
 vi.mock('node:child_process', () => ({ spawn: vi.fn() }))
 vi.mock('../processTree', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../processTree')>()),
@@ -168,6 +169,18 @@ describe('nodeTransport: stopping the process', () => {
     open(new FakeChild(4242))
 
     expect(spawn).toHaveBeenCalledWith('/opt/agent', ['--acp'], expect.objectContaining({ detached: false }))
+  })
+})
+
+describe('nodeTransport: a process that exits on its own', () => {
+  it('has the shared tree killer end what the process left in its group as soon as it exits', () => {
+    const child = new FakeChild(4242)
+    open(child)
+
+    child.emit('exit', 3, null)
+
+    expect(killProcessTree).toHaveBeenCalledTimes(1)
+    expect(killProcessTree).toHaveBeenCalledWith(child)
   })
 })
 

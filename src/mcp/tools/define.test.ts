@@ -14,7 +14,8 @@ const PROJECT: ProjectView = {
   keyPrefix: 'DM',
   repoRoot: '/repo',
   createdAt: '2026-01-01T00:00:00.000Z',
-  definitionOfDone: []
+  definitionOfDone: [],
+  repositories: null
 }
 
 const getProject = defineArglessTool({

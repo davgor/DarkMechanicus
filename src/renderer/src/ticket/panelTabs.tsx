@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { isAcceptanceTicket } from '../../../core/plan/acceptance'
 import type { PlanBundle } from '../../../shared/domain/bundle'
-import type { EventView, TicketDetailView } from '../../../shared/domain/views'
+import type { CheckStatus, EventView, TicketDetailView } from '../../../shared/domain/views'
 import { errorMessage } from '../api/dm'
 import type { Runner } from '../epic/runner'
 import { StateLabel } from '../epic/StatePill'
-import { Markdown } from '../markdown/Markdown'
+import { InlineMarkdown, Markdown } from '../markdown/Markdown'
 import { CoverageCriteria, CriteriaItems, DefinitionOfDone } from './AcceptanceSections'
 import { loadHistory } from './ticketData'
 import { capabilityRows, criteriaChecklist, evidenceView, historyItems, linkRows, sizeAndEffortRows, type LinkRow } from './ticketView'
@@ -87,7 +87,7 @@ function Criteria({ detail, bundle, runner, onSelect }: OverviewTabProps): JSX.E
   return (
     <>
       <CoverageCriteria detail={detail} bundle={bundle} onSelect={onSelect} />
-      <DefinitionOfDone runner={runner} detail={detail} />
+      <DefinitionOfDone runner={runner} detail={detail} bundle={bundle} />
     </>
   )
 }
@@ -106,37 +106,69 @@ export function OverviewTab(props: OverviewTabProps): JSX.Element {
   )
 }
 
+/** One check or criterion result: a status icon, then its title over a wrapping detail line. */
+interface EvidenceRow {
+  key: string
+  tone: CheckStatus
+  status: string
+  icon: string
+  title: ReactNode
+  detail: string
+}
+
+function EvidenceList(props: { heading: string; label: string; rows: EvidenceRow[] }): JSX.Element | null {
+  if (props.rows.length === 0) {
+    return null
+  }
+  return (
+    <section className="tp-section">
+      <h3 className="ew-eyebrow">{props.heading}</h3>
+      <ul className="tp-checks" aria-label={props.label}>
+        {props.rows.map((row) => (
+          <li key={row.key} className={`tp-check is-${row.tone}`}>
+            <span className="tp-check-icon" aria-label={row.status}>
+              {row.icon}
+            </span>
+            <div className="tp-check-body">
+              <span>{row.title}</span>
+              <span className="tp-check-detail">{row.detail}</span>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
 export function EvidenceTab({ detail }: { detail: TicketDetailView }): JSX.Element {
   const evidence = evidenceView(detail.ticket, detail.attempts)
   if (evidence === null) {
     return <p className="ew-muted">No evidence recorded yet.</p>
   }
+  const checks = evidence.checks.map(
+    (check): EvidenceRow => ({ key: check.name, tone: check.status, status: check.status, icon: check.icon, title: check.name, detail: check.detail })
+  )
+  const criteria = evidence.criteria.map(
+    (result): EvidenceRow => ({
+      key: result.text,
+      tone: result.met ? 'passed' : 'failed',
+      status: result.met ? 'met' : 'not met',
+      icon: result.met ? '✓' : '✗',
+      title: <InlineMarkdown source={result.text} />,
+      detail: result.note
+    })
+  )
   return (
     <>
       <p className="ew-eyebrow">{evidence.source.toUpperCase()}</p>
-      <ul className="tp-checks" aria-label="Checks">
-        {evidence.checks.map((check) => (
-          <li key={check.name} className={`tp-check is-${check.status}`}>
-            <span className="tp-check-icon" aria-label={check.status}>
-              {check.icon}
-            </span>
-            <span>{check.name}</span>
-            <span className="ew-mono ew-muted">{check.detail}</span>
-          </li>
-        ))}
-      </ul>
-      <ul className="tp-checks" aria-label="Criteria results">
-        {evidence.criteria.map((result) => (
-          <li key={result.text} className={result.met ? 'tp-check is-passed' : 'tp-check is-failed'}>
-            <span className="tp-check-icon" aria-label={result.met ? 'met' : 'not met'}>
-              {result.met ? '✓' : '✗'}
-            </span>
-            <span>{result.text}</span>
-            <span className="ew-muted">{result.note}</span>
-          </li>
-        ))}
-      </ul>
-      {evidence.notes.trim() === '' ? null : <Markdown source={evidence.notes} />}
+      <EvidenceList heading="CHECKS" label="Checks" rows={checks} />
+      <EvidenceList heading="CRITERIA" label="Criteria results" rows={criteria} />
+      {evidence.notes.trim() === '' ? null : (
+        <section className="tp-section">
+          <h3 className="ew-eyebrow">NOTES</h3>
+          <Markdown source={evidence.notes} />
+        </section>
+      )}
     </>
   )
 }

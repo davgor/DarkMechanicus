@@ -191,6 +191,7 @@ function ticketPhrases(before: TicketContent, after: TicketContent): Phrase[] {
     changed(before.tags, after.tags, 'tags changed'),
     arrow('priority', before.priority, after.priority),
     arrow('size', before.size ?? 'unset', after.size ?? 'unset'),
+    arrow('repository', before.repo ?? 'none', after.repo ?? 'none'),
     arrow('reasoning effort', effortText(before), effortText(after)),
     changed(ignoringEffort(before.capability), ignoringEffort(after.capability), 'capability profile changed'),
     optionalPhrase(before, after),

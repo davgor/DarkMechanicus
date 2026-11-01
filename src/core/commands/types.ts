@@ -9,6 +9,8 @@ import type { Capability } from '../authz'
 import type { Clock } from '../clock'
 import type { Ctx } from '../context'
 import type { Db } from '../db/database'
+import type { FlushScope } from '../repo/finalizer'
+import type { ProjectLayout } from '../repo/initialize'
 import type { ProjectRecord } from '../repo/portable'
 import type { StorageMode } from '../repo/storageMode'
 import type { FsAdapter, GitAdapter, RepoLayout } from '../repo/types'
@@ -20,6 +22,12 @@ export interface WorkspaceCore {
   readonly layout: RepoLayout
   readonly fs: FsAdapter
   readonly git: GitAdapter
+  /**
+   * The adapter for child repository `repo` of a folder of repositories (cached per name), or `git` for null.
+   * Throws `invalid_input` for a name the project does not list or records as missing, and `unsafe_path` for a
+   * child that is a link or resolves outside the folder, before any Git command runs.
+   */
+  gitFor(repo: string | null): GitAdapter
   readonly clock: Clock
   readonly role: SessionRole
   readonly options: { serverInfo?: { name: string; version: string } }
@@ -29,9 +37,10 @@ export interface WorkspaceCore {
   project(): ProjectRecord
   db(): Db | null
   ctx(): Ctx
-  initialize(input: { name?: string; keyPrefix?: string; mode?: StorageMode }): InitializeResultView
+  initialize(input: { name?: string; keyPrefix?: string; mode?: StorageMode; layout?: ProjectLayout }): InitializeResultView
   reconcile(): ReconcileResultView
-  flush(): FlushResultView
+  /** Flushes every waiting entry, or only those in `scope`. */
+  flush(scope?: FlushScope): FlushResultView
   safeFlush(): void
 }
 

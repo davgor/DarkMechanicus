@@ -87,8 +87,22 @@ export function say(sessionId: string, text: string, messageId?: string): Frame 
   return update(sessionId, { sessionUpdate: 'agent_message_chunk', ...(messageId === undefined ? {} : { messageId }), content })
 }
 
+/** A prompt after the first of its process: the person's text alone. */
 export function prompt(id: number, sessionId: string, text: string): Frame {
   return client({ id, method: 'session/prompt', params: { sessionId, prompt: [{ type: 'text', text }] } })
+}
+
+/** What the tests tell a chat about `dm` (`ChatAdapterStartOptions.instructions`). */
+export const DM_INSTRUCTIONS = 'Use the dm CLI.'
+
+/** The block that leads the first prompt of a process: the chat's instructions, for the agent and not the person's words. */
+export function instructionsBlock(instructions = DM_INSTRUCTIONS): Record<string, unknown> {
+  return { type: 'text', text: instructions, annotations: { audience: ['assistant'] } }
+}
+
+/** The first prompt of a process: the instructions lead it, then the person's text. */
+export function firstPrompt(id: number, sessionId: string, text: string, instructions = DM_INSTRUCTIONS): Frame {
+  return client({ id, method: 'session/prompt', params: { sessionId, prompt: [instructionsBlock(instructions), { type: 'text', text }] } })
 }
 
 export function turnEnd(id: number, stopReason = 'end_turn'): Frame {

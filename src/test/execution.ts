@@ -106,22 +106,30 @@ export function bundleWith(
   return { ...bundle, policies: { ...bundle.policies, ...policies } }
 }
 
-/** Claims ticket number `ticket` of the run with a default worker. */
-export function claim(
-  ctx: Ctx,
-  runId: string,
-  ticket: number,
-  extra: Partial<ClaimTicketInput> = {}
-): ClaimResultView {
+/** A claim as first issued: its packet carries the claim token, which a replay's never does. */
+export type IssuedClaim = ClaimResultView & { packet: { claimToken: string } }
+
+/** `result` with its claim token, failing the test when it has none (it was a replay). */
+export function issued(result: ClaimResultView): IssuedClaim {
+  const { claimToken } = result.packet
+  if (claimToken === null) {
+    throw new Error(`The claim of ${result.attempt.id} carries no token: it was a replay.`)
+  }
+  return { ...result, packet: { ...result.packet, claimToken } }
+}
+
+/** Claims ticket number `ticket` of the run with a default worker, or replays that claim when the key was used. */
+export function claimOrReplay(ctx: Ctx, runId: string, ticket: number, extra: Partial<ClaimTicketInput> = {}): ClaimResultView {
   return claimTicket(ctx, { runId, ticketId: tid(ticket), worker: { label: 'worker-1' }, ...extra })
 }
 
+/** Claims ticket number `ticket` of the run with a default worker; the result carries the claim token. */
+export function claim(ctx: Ctx, runId: string, ticket: number, extra: Partial<ClaimTicketInput> = {}): IssuedClaim {
+  return issued(claimOrReplay(ctx, runId, ticket, extra))
+}
+
 /** Submits a claim with its own token (default outputs: a one-line summary). */
-export function submitClaim(
-  ctx: Ctx,
-  claimed: ClaimResultView,
-  extra: Partial<SubmitAttemptInput> = {}
-): AttemptView {
+export function submitClaim(ctx: Ctx, claimed: IssuedClaim, extra: Partial<SubmitAttemptInput> = {}): AttemptView {
   return submitAttempt(ctx, {
     attemptId: claimed.attempt.id,
     claimToken: claimed.packet.claimToken,

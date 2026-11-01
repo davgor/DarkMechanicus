@@ -140,6 +140,11 @@ export interface TicketContent {
   priority: TicketPriority
   /** Absent until a planner sizes the ticket; never defaulted, so older plans keep their content hash. */
   size?: TicketSize
+  /**
+   * The repository of a folder of repositories this ticket targets; its title then starts with `<repo> - `.
+   * Absent on a single-repository project's tickets and on acceptance nodes; never defaulted.
+   */
+  repo?: string
   capability: CapabilityProfile
   references: TicketReference[]
   expectedArtifacts: string[]

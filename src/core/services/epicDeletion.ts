@@ -34,6 +34,8 @@ const DELETE_STATEMENTS = [
   'DELETE FROM comments WHERE epic_id = ?',
   'DELETE FROM ticket_status WHERE epic_id = ?',
   'DELETE FROM drafts WHERE epic_id = ?',
+  'DELETE FROM transfer_items WHERE epic_id = ?',
+  'DELETE FROM transfers WHERE epic_id = ?',
   'DELETE FROM plan_revisions WHERE epic_id = ?',
   'DELETE FROM epics WHERE id = ?'
 ]

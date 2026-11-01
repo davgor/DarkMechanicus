@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { availableParallelism } from 'node:os';
 import { resolve } from 'node:path';
 import type { FireguardConfig, FireguardThresholds } from './types.js';
 
@@ -19,6 +20,8 @@ export const DEFAULT_CONFIG: FireguardConfig = {
   baseRef: 'main',
   testCommand: 'npx vitest run',
   testTimeoutMs: 300_000,
+  // A lane per three CPUs: 4 on a 12-core machine; machines under 6 cores keep one in-place lane.
+  concurrency: Math.max(1, Math.floor(availableParallelism() / 3)),
 };
 
 export interface LoadConfigOptions {
@@ -71,6 +74,9 @@ function applyEnvOverrides(
   if (env.FIREGUARD_TEST_TIMEOUT_MS) {
     next.testTimeoutMs = Number(env.FIREGUARD_TEST_TIMEOUT_MS);
   }
+  if (env.FIREGUARD_CONCURRENCY) {
+    next.concurrency = Number(env.FIREGUARD_CONCURRENCY);
+  }
   return next;
 }
 
@@ -90,5 +96,11 @@ export function loadConfig(options: LoadConfigOptions): FireguardConfig {
     }
   }
 
-  return applyEnvOverrides(mergeConfig(DEFAULT_CONFIG, fromFile), env);
+  const config = applyEnvOverrides(mergeConfig(DEFAULT_CONFIG, fromFile), env);
+  if (!Number.isInteger(config.concurrency) || config.concurrency < 1) {
+    throw new Error(
+      `concurrency must be a whole number of at least 1 (got ${String(config.concurrency)})`
+    );
+  }
+  return config;
 }

@@ -6,6 +6,7 @@ import { isActiveRunState } from '../../../shared/domain/status'
 import type { CheckpointView, PlanView, RunView } from '../../../shared/domain/views'
 import type { TicketLanding } from '../app/landing'
 import { browserScheduler, type Scheduler } from '../app/scheduler'
+import { useRepositories } from '../app/useRepositories'
 import { CheckpointScreen } from '../checkpoint/CheckpointScreen'
 import { EpicOverview } from '../checkpoint/EpicOverview'
 import { badgeResolver, buildGraphModel, type GraphInput } from '../graph/graphModel'
@@ -19,11 +20,15 @@ import { deleteTicketFromPlan } from './deletion'
 import { DraftBar } from './DraftBar'
 import { Banner, ConfirmStrip, Notices, Toast } from './Feedback'
 import { headerView } from './headerView'
+import { TransferredPanel, TransferStrip } from './LinearTransfer'
 import { listSections } from './listSections'
 import { ListView } from './ListView'
 import type { OrchestrationHost } from './orchestration'
 import { RunBar } from './RunBar'
+import { failureOf } from './runner'
 import { StartRunDialog } from './StartRunDialog'
+import { TransferDialog } from './TransferDialog'
+import { isOpenTransfer } from './transferView'
 import { useLanding } from './useLanding'
 import { useWorkspace, type WorkspaceHandle } from './useWorkspace'
 import { ValidationPanel } from './ValidationPanel'
@@ -128,11 +133,8 @@ function reviewStage(ws: WorkspaceHandle): JSX.Element | null {
   return overview === null ? null : <OverviewStage ws={ws} overview={overview} run={run} />
 }
 
-function StageContent({ ws, input }: { ws: WorkspaceHandle; input: GraphInput | null }): JSX.Element {
-  const review = reviewStage(ws)
-  if (review !== null) {
-    return review
-  }
+/** The plan of the shown view: the graph or the list. */
+function PlanContent({ ws, input }: { ws: WorkspaceHandle; input: GraphInput | null }): JSX.Element {
   if (input === null) {
     return <p className="ew-empty">This epic has no plan yet.</p>
   }
@@ -147,6 +149,20 @@ function StageContent({ ws, input }: { ws: WorkspaceHandle; input: GraphInput | 
     )
   }
   return <GraphStage ws={ws} input={input} />
+}
+
+/** The checkpoint review or overview while open; otherwise the plan, under the Linear handoff of an epic a transfer completed. */
+function StageContent({ ws, input }: { ws: WorkspaceHandle; input: GraphInput | null }): JSX.Element {
+  const review = reviewStage(ws)
+  if (review !== null) {
+    return review
+  }
+  return (
+    <>
+      <TransferredPanel ws={ws} />
+      <PlanContent ws={ws} input={input} />
+    </>
+  )
 }
 
 function Stage({ ws }: { ws: WorkspaceHandle }): JSX.Element {
@@ -165,11 +181,13 @@ function DraftEditorPanel(props: { ws: WorkspaceHandle; plan: PlanView; ticketId
   const input = graphInputFor(ws.state)
   const badge = input === null ? { label: 'DRAFT', tone: 'neutral' as const, dashed: false } : badgeResolver(input)(ticketId)
   const close = (): void => ws.dispatch({ type: 'select_ticket', ticketId: null })
+  const repositories = useRepositories(ws.folder.path, (error) => ws.dispatch({ type: 'banner', text: failureOf(error).message }))
   return (
     <TicketEditor
       key={ticketId}
       runner={ws.runner}
       bundle={plan.bundle}
+      repositories={repositories.status === 'ready' ? repositories.value : null}
       ticketId={ticketId}
       badge={badge}
       busy={ws.state.busy}
@@ -216,6 +234,9 @@ function SidePanel({ ws }: { ws: WorkspaceHandle }): JSX.Element | null {
 /** The Start run dialog: Run with an agent, or Leave pending. The add-agent link closes it first; signing in does not. */
 function StartRunHost({ ws }: { ws: WorkspaceHandle }): JSX.Element | null {
   const host = ws.orchestration
+  // A pending or failed getProject must not block the dialog: it opens at once, and the branch field appears once the
+  // project shows a folder of repositories. The server's queue_run refusal stays the guard meanwhile.
+  const repositories = useRepositories(ws.state.startRunOpen ? ws.folder.path : null, () => undefined)
   if (!ws.state.startRunOpen) {
     return null
   }
@@ -223,11 +244,42 @@ function StartRunHost({ ws }: { ws: WorkspaceHandle }): JSX.Element | null {
   return (
     <StartRunDialog
       epicTitle={ws.data.epic.title}
+      folderPath={ws.folder.path}
       agents={host.agents}
       statuses={host.statuses}
+      multiRepo={repositories.status === 'ready' && repositories.value !== null}
+      branchName={ws.data.epic.branch?.name ?? null}
+      onSetBranch={(name) => ws.actions.setEpicBranch(name)}
       busy={ws.state.busy}
       onLeavePending={() => void ws.actions.startRun()}
       onRunWithAgent={(choice) => void ws.actions.startRunWithAgent(choice)}
+      onAddAgent={() => {
+        close()
+        host.onAddAgent()
+      }}
+      onAgentStatus={host.onAgentStatus}
+      onClose={close}
+    />
+  )
+}
+
+/** The Transfer to Linear dialog, to authorize a transfer or to start an agent on the open one again. */
+function TransferHost({ ws }: { ws: WorkspaceHandle }): JSX.Element | null {
+  const host = ws.orchestration
+  const mode = ws.state.transferDialog
+  if (mode === null) {
+    return null
+  }
+  const close = (): void => ws.dispatch({ type: 'transfer_dialog', mode: null })
+  return (
+    <TransferDialog
+      epicTitle={ws.data.epic.title}
+      mode={mode}
+      agents={host.agents}
+      statuses={host.statuses}
+      busy={ws.state.busy}
+      onTransferWithAgent={(choice) => void ws.actions.transferWithAgent(choice, mode)}
+      onCopyPrompt={() => void ws.actions.copyTransferPrompt(mode)}
       onAddAgent={() => {
         close()
         host.onAddAgent()
@@ -245,21 +297,24 @@ function WorkspaceView({ ws }: { ws: WorkspaceHandle }): JSX.Element {
     folderName: ws.folder.name,
     epic: ws.data.epic,
     view: ws.state.view,
-    hasActiveRun: run !== null && isActiveRunState(run.state)
+    hasActiveRun: run !== null && isActiveRunState(run.state),
+    hasOpenTransfer: isOpenTransfer(ws.data.transfer?.status ?? null)
   })
   return (
     <section className="ew" aria-label="Epic workspace">
       <WorkspaceHeader ws={ws} header={header} />
       <Notices header={header} loadError={ws.state.loadError} />
       {draft ? <DraftBar ws={ws} /> : <RunBar ws={ws} />}
+      <TransferStrip ws={ws} />
       <ConfirmStrip ws={ws} />
       <div className={ws.state.selectedTicketId === null ? 'ew-main' : 'ew-main has-panel'}>
         <Stage ws={ws} />
         <SidePanel ws={ws} />
       </div>
-      {draft ? <ValidationPanel ws={ws} /> : <AttemptsStrip ws={ws} />}
+      {draft ? <ValidationPanel ws={ws} saveUnavailable={header.actions.saveUnavailable} /> : <AttemptsStrip ws={ws} />}
       <Toast ws={ws} />
       <StartRunHost ws={ws} />
+      <TransferHost ws={ws} />
     </section>
   )
 }
@@ -287,7 +342,9 @@ function WorkspaceBody(props: EpicWorkspaceProps): JSX.Element {
     epicId: props.epicId,
     refreshToken: props.refreshToken,
     onChanged: props.onChanged,
-    onChatsChanged: props.orchestration.onChatsChanged
+    onChatsChanged: props.orchestration.onChatsChanged,
+    onOpenChat: props.orchestration.onOpenChat,
+    agents: props.orchestration.agents
   })
   const now = useNow()
   const { state } = controller

@@ -1,7 +1,7 @@
 /** The `increment_merged` gate: it reads the verdict stored with the acceptance node's standing submission. */
 import { describe, expect, it } from 'vitest'
 import type { PlanBundle } from '../../shared/domain/bundle'
-import type { GateCondition } from '../../shared/domain/views'
+import type { GateCondition, SprintIncrement } from '../../shared/domain/views'
 import { makeBundle, sid, tid } from '../../test/bundles'
 import {
   acceptTickets,
@@ -181,5 +181,54 @@ describe('a checkpoint cannot be passed without a verified increment', () => {
     const submitted = report(ctx, run)
     expect(approveCheckpoint(withRole(ctx, 'desktop'), { runId: run.runId, reportId: submitted.id }).sprintId).toBe(sid(1))
     expect(advanceSprint(ctx, { runId: run.runId })).toMatchObject({ outcome: 'advanced', activeSprintId: sid(2) })
+  })
+})
+
+/** Sprint 1 = {DM-1 alpha, DM-2 beta, DM-3 node}, sprint 2 = {DM-4 gamma, DM-5 node}, in a folder of alpha, beta and gamma. */
+function folderSetup(): { ctx: TestCtx; run: SeededRun; node: string } {
+  const bundle = plan()
+  const repos: Record<string, string> = { [tid(1)]: 'alpha', [tid(2)]: 'beta', [tid(4)]: 'gamma' }
+  bundle.tickets = bundle.tickets.map((ticket) => {
+    const repo = repos[ticket.id]
+    return repo === undefined ? ticket : { ...ticket, repo, title: `${repo} - ${ticket.title}` }
+  })
+  const ctx = createTestCtx({ repositories: ['alpha', 'beta', 'gamma'] })
+  const run = seedRun(ctx, { bundle })
+  acceptTickets(ctx, run, [1, 2])
+  return { ctx, run, node: seedAttempt(ctx, run, { ticket: 3, state: 'submitted' }) }
+}
+
+function storeVerdicts(ctx: TestCtx, attemptId: string, verdicts: Partial<SprintIncrement>[]): void {
+  ctx.db.run('UPDATE attempts SET increment_json = ? WHERE id = ?', JSON.stringify(verdicts.map((item) => incrementVerdict(item))), attemptId)
+}
+
+describe('increment_merged gate in a folder of repositories', () => {
+  it('is met when every touched repository has a passing verdict', () => {
+    const { ctx, run, node } = folderSetup()
+    storeVerdicts(ctx, node, [{ repo: 'alpha' }, { repo: 'beta', commit: 'd'.repeat(40) }])
+    expect(incrementGate(ctx, run)).toEqual({
+      id: 'increment_merged',
+      label: 'Sprint increment merged',
+      met: true,
+      detail: "Increments in alpha, beta are each one squashed commit on the repository's epic branch"
+    })
+  })
+
+  it('names a failing repository and a missing one', () => {
+    const { ctx, run, node } = folderSetup()
+    storeVerdicts(ctx, node, [{ repo: 'alpha', passed: false, reasons: ['The commit has 2 parents.'] }, { repo: 'gamma' }])
+    expect(incrementGate(ctx, run)).toMatchObject({
+      met: false,
+      detail: 'alpha: increment ccccccc failed verification: The commit has 2 parents.; beta: no increment named'
+    })
+  })
+
+  it('does not take a single verdict for the folder, and says to name increments', () => {
+    const { ctx, run } = folderSetup()
+    seedAttempt(ctx, run, { ticket: 3, state: 'accepted', increment: {} })
+    expect(incrementGate(ctx, run)).toMatchObject({
+      met: false,
+      detail: 'No sprint increments named yet: submit DM-3 with increments, one { repo, branch, commit } per touched repository'
+    })
   })
 })

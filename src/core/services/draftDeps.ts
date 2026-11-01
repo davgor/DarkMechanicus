@@ -16,7 +16,7 @@ function allTicketKeys(ctx: Ctx): string[] {
     .map((row) => row.key ?? '')
 }
 
-/** Id and key allocation for the tickets and sprints a draft edit creates. */
+/** Id and key allocation for the tickets and sprints a draft edit creates, and the project's repositories. */
 export function draftDeps(ctx: Ctx): DraftDeps {
   const prefix = getMeta(ctx.db, META_KEYS.keyPrefix) ?? DEFAULT_KEY_PREFIX
   let next: number | null = null
@@ -26,7 +26,8 @@ export function draftDeps(ctx: Ctx): DraftDeps {
       const number = next ?? maxKeyNumber(allTicketKeys(ctx)) + 1
       next = number + 1
       return `${prefix}-${number}`
-    }
+    },
+    repositories: () => ctx.repositories()
   }
 }
 

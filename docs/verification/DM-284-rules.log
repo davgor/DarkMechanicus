@@ -1,0 +1,4 @@
+$ grep -rn "Fireguard ticket" AGENTS.md CLAUDE.md README.md .ai-instructions.md .cursor/rules .claude/skills .cursor/skills .agents/skills skills
+(exit 1; no output)
+$ cmp .claude/skills/delivery-standards/SKILL.md .cursor/skills/delivery-standards/SKILL.md
+(exit 0; no output)

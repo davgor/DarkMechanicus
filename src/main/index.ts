@@ -83,13 +83,15 @@ app.whenReady().then(() => {
   registerAutoUpdateHandlers(ipc)
   initAutoUpdate()
   const bridge = startDesktopBridge(SKILLS, ipc)
-  // Agent chat processes are children of this app: dispose every one before it exits.
+  // Agent chat processes are children of this app: dispose every one before it exits, and only
+  // then close the workspaces and app.sqlite, exactly once.
   disposeBeforeQuit(app, {
     busy: () => bridge.chats.liveCount() > 0,
     dispose: () => bridge.chats.disposeAll(),
+    release: () => bridge.close(),
     timeoutMs: QUIT_DISPOSE_TIMEOUT_MS,
     onError: (error) => {
-      logger.error('Could not dispose agent chats on quit:', error)
+      logger.error('Could not dispose agent chats or close the app stores on quit:', error)
     }
   })
   createMainWindow()

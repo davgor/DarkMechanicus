@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { REASONING_EFFORTS } from '../shared/domain/bundle'
+import { repositoryName } from './repo/portable'
 import { STORAGE_MODES } from './repo/storageMode'
 import { MAX_GRANT_MINUTES, MIN_GRANT_MINUTES } from './services/grants'
 import {
@@ -18,11 +19,17 @@ import {
   hostCatalog,
   idempotencyKey,
   incrementRef,
+  incrementRefs,
   LIMITS,
+  linearId,
+  linearIdentifier,
+  linearReadbackPart,
+  linearUrl,
   profileName,
   rowCheckEntries,
   sprintReportInput,
   stableId,
+  transferRef,
   workStatus
 } from './schemas'
 
@@ -36,6 +43,7 @@ const note = z.string().max(LIMITS.shortText)
 const claimToken = z.string().min(1).max(300)
 const leaseSeconds = z.number().int().min(30).max(86_400)
 const epicRef = z.strictObject({ epicId: stableId })
+const transferAction = z.strictObject({ epicId: stableId, idempotencyKey })
 const runRef = z.strictObject({ runId: stableId })
 /** The paging of a timeline: entries after the previous page's cursor, at most `limit` of them. */
 const timelineWindow = {
@@ -44,12 +52,15 @@ const timelineWindow = {
 }
 
 export const COMMAND_SCHEMAS = {
-  setDefinitionOfDone: z.strictObject({ checks: definitionOfDoneChecks }),
+  /** `repo`: in a folder of repositories, the repository whose checks these are (required there, refused otherwise). */
+  setDefinitionOfDone: z.strictObject({ checks: definitionOfDoneChecks, repo: repositoryName.optional() }),
   initializeRepository: z.strictObject({
     name: z.string().min(1).max(200).optional(),
     keyPrefix: z.string().regex(/^[A-Z][A-Z0-9]{0,11}$/).optional(),
     /** Where the project's records live: in the repository (default), or in the home directory only. */
-    mode: z.enum(STORAGE_MODES).optional()
+    mode: z.enum(STORAGE_MODES).optional(),
+    /** `multi_repo`: the folder holds Git repositories as its immediate children (db mode only). */
+    layout: z.enum(['single', 'multi_repo']).optional()
   }),
   issueGrant: z.strictObject({
     role: z.enum(['planner', 'orchestrator', 'worker', 'reviewer', 'reader']),
@@ -63,6 +74,7 @@ export const COMMAND_SCHEMAS = {
     limit: z.number().int().min(1).max(100).optional(),
     epicId: stableId.optional()
   }),
+  resolveEpicConflict: z.strictObject({ epicId: stableId, keep: z.enum(['tracked', 'local']) }),
   backupDatabase: z.strictObject({
     targetPath: z
       .string()
@@ -154,6 +166,7 @@ export const COMMAND_SCHEMAS = {
     outputs: attemptOutputsInput,
     evidence: attemptEvidenceInput.optional(),
     increment: incrementRef.optional(),
+    increments: incrementRefs.optional(),
     idempotencyKey
   }),
   acceptAttempt: z.strictObject({
@@ -229,6 +242,22 @@ export const COMMAND_SCHEMAS = {
     runId: stableId.optional()
   }),
   getAttemptTimeline: z.strictObject({ attemptId: stableId, ...timelineWindow }),
-  getRunTimeline: z.strictObject({ runId: stableId, ...timelineWindow })
+  getRunTimeline: z.strictObject({ runId: stableId, ...timelineWindow }),
+  queueTransfer: transferAction,
+  cancelTransfer: transferAction,
+  startTransfer: transferAction,
+  recordTransferItem: z.strictObject({
+    epicId: stableId,
+    ref: transferRef,
+    linearId,
+    identifier: linearIdentifier.optional(),
+    url: linearUrl.optional(),
+    replace: z.boolean().optional(),
+    idempotencyKey
+  }),
+  getTransfer: epicRef,
+  // No idempotencyKey: the service must run its own two transactions, never inside a wrapper's (see the service).
+  // The part's size is checked here, before the service merges anything.
+  submitTransferReadback: z.strictObject({ epicId: stableId, readback: linearReadbackPart, final: z.boolean() })
 }
 

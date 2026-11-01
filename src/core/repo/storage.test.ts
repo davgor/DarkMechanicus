@@ -9,8 +9,11 @@ import { prettyJson } from '../canonical'
 import type { Db } from '../db/database'
 import { SCHEMA_VERSION } from '../db/migrations'
 import { setMeta } from '../meta'
+import { TRANSFER_HOLD_PREFIX } from '../services/transferGuard'
+import { EPIC_RECORDS_CONFLICT_PREFIX } from './importer'
 import { resolveLayout } from './layout'
 import { getStorageStatus } from './storage'
+import { ownedPaths } from './paths'
 import type { GitAdapter } from './types'
 
 const layout = resolveLayout(resolve('/repo'))
@@ -115,8 +118,8 @@ describe('getStorageStatus with a database', () => {
       branch: { current: 'main', recorded: 'release', changed: true, repository: true },
       uncommittedRecordFiles: 0,
       conflicts: [
-        { epicId: idOf('epic', 1), message: 'epic conflict' },
-        { epicId: idOf('epic', 1), message: 'run conflict' }
+        { epicId: idOf('epic', 1), message: 'epic conflict', resolvable: false },
+        { epicId: idOf('epic', 1), message: 'run conflict', resolvable: false }
       ],
       profileConflicts: [
         { name: 'deep-review', message: 'review conflict' },
@@ -136,9 +139,9 @@ describe('getStorageStatus with a database', () => {
     db.run(conflict, 'comment', idOf('comment', 2), 'unknown comment', T0)
     const status = await getStorageStatus({ db, layout, fs: initializedFs(), git: gitWith(0, 'main'), clock: createTestClock() })
     expect(status.conflicts).toEqual([
-      { epicId: idOf('epic', 3), message: 'comment conflict' },
-      { epicId: idOf('comment', 2), message: 'unknown comment' },
-      { epicId: idOf('epic', 4), message: 'epic conflict' }
+      { epicId: idOf('epic', 3), message: 'comment conflict', resolvable: false },
+      { epicId: idOf('comment', 2), message: 'unknown comment', resolvable: false },
+      { epicId: idOf('epic', 4), message: 'epic conflict', resolvable: false }
     ])
   })
 
@@ -149,6 +152,34 @@ describe('getStorageStatus with a database', () => {
     expect(status.outbox).toEqual({ pending: 0, failed: 0, lastError: null })
     expect(status.branch).toEqual({ current: 'main', recorded: 'main', changed: false, repository: true })
     expect([status.conflicts, status.profileConflicts]).toEqual([[], []])
+  })
+})
+
+describe('getStorageStatus conflict choices', () => {
+  it("offers the person's choice only while an epic's own tracked-records conflict still holds", async () => {
+    const db = createTestDb()
+    const fs = initializedFs()
+    const conflict = 'INSERT INTO sync_state (kind, entity_id, conflict, updated_at) VALUES (?, ?, ?, ?)'
+    const records = (epicId: string): string => `${EPIC_RECORDS_CONFLICT_PREFIX}${epicId} changed while local changes are waiting to be exported.`
+    for (const n of [3, 5]) {
+      insertEpic(db, { id: idOf('epic', n) })
+      db.run(conflict, 'epic', idOf('epic', n), records(idOf('epic', n)), T0)
+      fs.put(ownedPaths(layout).epicPointerFile(idOf('epic', n)), '{"pulled":true}')
+      fs.put(ownedPaths(layout).epicStateFile(idOf('epic', n)), '{"pulled":true}')
+    }
+    // Epic 5's local change is no longer waiting: its stored conflict is stale.
+    insertOutbox(db, { kind: 'epic_state', epicId: idOf('epic', 3) })
+    insertRevision(db, { id: idOf('revision', 1), epicId: idOf('epic', 3), number: 1, bundle: makeBundle([[1]]) })
+    insertRun(db, { id: idOf('run', 2), epicId: idOf('epic', 3), revisionId: idOf('revision', 1) })
+    db.run(conflict, 'run', idOf('run', 2), `${EPIC_RECORDS_CONFLICT_PREFIX}look-alike`, T0)
+    db.run(conflict, 'epic', idOf('epic', 4), `${TRANSFER_HOLD_PREFIX}${idOf('epic', 4)}: held`, T0)
+    const status = await getStorageStatus({ db, layout, fs, git: gitWith(0, 'main'), clock: createTestClock() })
+    expect(status.conflicts.map((item) => [item.epicId, item.resolvable])).toEqual([
+      [idOf('epic', 3), true],
+      [idOf('epic', 4), false],
+      [idOf('epic', 5), false],
+      [idOf('epic', 3), false]
+    ])
   })
 })
 

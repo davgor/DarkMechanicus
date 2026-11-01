@@ -1,5 +1,6 @@
 import type { ChatRecord, ChatRole } from '../../../shared/agents/chat'
 import type { ChatSummary } from '../../../shared/agents/chatApi'
+import type { AgentView } from '../../../shared/desktop/api'
 import { agentName } from './agentText'
 import type { AgentStatuses } from './useAgents'
 
@@ -42,4 +43,4 @@ export function waitingReason(chats: readonly Waiting[], statuses: AgentStatuses
 export const modelText = (chat: Pick<ChatRecord, 'model'>): string => chat.model ?? 'Default model'
 
 /** "Claude Code · opus": the second line of a chat row. */
-export const chatMeta = (chat: Pick<ChatRecord, 'agent' | 'model'>): string => `${agentName(chat.agent)} · ${modelText(chat)}`
+export const chatMeta = (chat: Pick<ChatRecord, 'agent' | 'model'>, connected: readonly AgentView[]): string => `${agentName(chat.agent, connected)} · ${modelText(chat)}`

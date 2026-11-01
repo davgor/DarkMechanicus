@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { ChatRecord } from '../../../shared/agents/chat'
-import type { TrackedFolderView } from '../../../shared/desktop/api'
+import type { AgentView, TrackedFolderView } from '../../../shared/desktop/api'
 import { plural } from '../app/plural'
 import { DeleteChatDialog, RenameChatDialog } from '../agents/ChatDialogs'
 import { newestFirst, waitingCount, waitingOnSignIn, waitingReason } from '../agents/chatList'
@@ -15,6 +15,8 @@ interface AgentsBlockProps {
   list: ChatListState
   /** The connected agents' sign-in states: a chat whose agent is signed out and whose turn it cut short waits on a sign-in. */
   statuses: AgentStatuses
+  /** The connected agents, so a custom agent's chats show its display name. */
+  agents: readonly AgentView[]
   expanded: boolean
   selectedChatId: string | null
   onToggle(): void
@@ -31,13 +33,14 @@ type Pending = { kind: 'rename' | 'delete'; chat: ChatRecord }
 interface ChatListProps {
   list: ChatListState
   statuses: AgentStatuses
+  agents: readonly AgentView[]
   selectedChatId: string | null
   onOpen(chatId: string): void
   onAsk(pending: Pending): void
 }
 
 /** The rows, or the note that stands in for them while there are none to show. */
-function ChatList({ list, statuses, selectedChatId, onOpen, onAsk }: ChatListProps): JSX.Element {
+function ChatList({ list, statuses, agents, selectedChatId, onOpen, onAsk }: ChatListProps): JSX.Element {
   if (list.status === 'loading') {
     return <p className="sidebar-note chat-note">Loading chats…</p>
   }
@@ -52,6 +55,7 @@ function ChatList({ list, statuses, selectedChatId, onOpen, onAsk }: ChatListPro
           <li key={chat.id}>
             <ChatRow
               chat={chat}
+              agents={agents}
               signInWaiting={waitingOnSignIn(chat, statuses)}
               selected={chat.id === selectedChatId}
               onOpen={onOpen}
@@ -101,7 +105,7 @@ export function AgentsBlock(props: AgentsBlockProps): JSX.Element {
         <Button variant="ghost" size="sm" icon="plus" aria-label={`New chat in ${folder.name}`} onClick={props.onNewChat} />
       </div>
       {expanded ? (
-        <ChatList list={list} statuses={statuses} selectedChatId={props.selectedChatId} onOpen={props.onOpenChat} onAsk={setPending} />
+        <ChatList list={list} statuses={statuses} agents={props.agents} selectedChatId={props.selectedChatId} onOpen={props.onOpenChat} onAsk={setPending} />
       ) : null}
       {pending === null ? null : <ChatDialog pending={pending} props={props} onClose={() => setPending(null)} />}
     </div>

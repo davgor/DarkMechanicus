@@ -17,7 +17,7 @@
  */
 import { posix, win32 } from 'node:path'
 import { AGENT_DEFINITIONS, expectedExecutableNames } from '../../shared/desktop/agentKinds'
-import type { AgentKind, AgentRefusalCode } from '../../shared/desktop/api'
+import type { AgentRefusalCode, BuiltInAgentKind } from '../../shared/desktop/api'
 import { planShimLaunch } from '../agents/shimLaunch'
 
 const VERSION_FLAG = '--version'
@@ -53,7 +53,7 @@ export interface AgentProbeDeps {
   inspect: (path: string) => FileCheck
   /** How long the version flag may take before the pick is refused. */
   timeoutMs?: number
-  /** The Windows command interpreter used for `.cmd` shims; defaults to `cmd.exe` on PATH lookup. */
+  /** The Windows command interpreter used for `.cmd` shims; defaults to `%SystemRoot%\System32\cmd.exe` by its full path. */
   comspec?: string
 }
 
@@ -80,14 +80,16 @@ interface Identity {
 
 type LineMatcher = (line: string) => boolean
 
-const LINE_MATCHERS: Record<AgentKind, LineMatcher> = {
+const LINE_MATCHERS: Record<BuiltInAgentKind, LineMatcher> = {
   claude: (line) => /\bClaude Code\b/i.test(line),
   codex: (line) => /^codex(?:-cli)?\b/i.test(line),
-  cursor: (line) => CURSOR_BUILD.test(line) || /\bcursor\b/i.test(line)
+  cursor: (line) => CURSOR_BUILD.test(line) || /\bcursor\b/i.test(line),
+  // `Autonomous 0.79.0 · darwin-arm64 · OMP 18.11.2` (docs/reports/autonomous-acp.md); the first version on it is Autonomous's own.
+  autonomous: (line) => /^Autonomous \d/.test(line)
 }
 
 /** The first output line that names the CLI, with the version found on it, or null for a stranger. */
-function identify(kind: AgentKind, output: string): Identity | null {
+function identify(kind: BuiltInAgentKind, output: string): Identity | null {
   const lines = output
     .replace(ANSI_ESCAPE, '')
     .split(/\r?\n/)
@@ -106,7 +108,7 @@ function refuseSpawnFailure(code: string | null): AgentRefusal {
   return refuse('did_not_start', code === null ? 'It did not start.' : `It did not start (${code}).`)
 }
 
-function interpret(kind: AgentKind, outcome: ProcessOutcome): AgentProbeResult {
+function interpret(kind: BuiltInAgentKind, outcome: ProcessOutcome): AgentProbeResult {
   if (outcome.kind === 'timed_out') {
     return refuse('timed_out', 'It timed out.')
   }
@@ -188,7 +190,7 @@ export function planCliLaunch(
 
 /** Runs the picked executable with its version flag and decides whether it is `kind`'s CLI. */
 export async function probeAgent(
-  kind: AgentKind,
+  kind: BuiltInAgentKind,
   executablePath: string,
   deps: AgentProbeDeps
 ): Promise<AgentProbeResult> {
@@ -211,7 +213,7 @@ interface AgentDialogOptions {
  * executables have no extension, which a dialog filter cannot express, so the title names the
  * expected file names and hidden folders such as `~/.local/bin` stay reachable.
  */
-export function agentDialogOptions(kind: AgentKind, platform: string): AgentDialogOptions {
+export function agentDialogOptions(kind: BuiltInAgentKind, platform: string): AgentDialogOptions {
   const names = expectedExecutableNames(kind, platform)
   const all = { name: 'All files', extensions: ['*'] }
   return {

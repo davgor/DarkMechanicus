@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-174 review (orchestrator): `endRun` (src/core/services/runs.ts, used by fail_run and cancel_run) cancels submitted attempts without recording handoff checks. `collaborationSignal` then treats each such closed, unchecked submission as unavailable, so C goes missing for the ticket and its whole sprint. Also, `stateAsOf` in src/core/services/spaceSignals.ts rewinds only accepted, rejected and failed attempts, so a submission canceled or expired after a cutoff still reads as closed at that cutoff. Decide how aggregation and the frozen snapshots treat both cases.",
+  "createdAt": "2026-10-31T08:34:12.180Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m68hgm2m7qedhvrx2n85wfm7",
+  "ticketId": "tk_01m453gpads5cm5ah9pyqk7qtw"
+}

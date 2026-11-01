@@ -17,9 +17,11 @@ import { attemptView, type AttemptRow } from '../services/execution'
 import { getSprintReport } from '../services/reports'
 import { ownedPaths } from './paths'
 import {
+  buildEpicStateRecord,
   buildRunHistoryRecord,
   buildSnapshotRecord,
   epicPointerRecord,
+  epicStateRecord,
   parseRecord,
   projectRecord,
   runHistoryRecord,
@@ -238,5 +240,24 @@ describe('a run history saved before sprint retros', () => {
     reconcileRepository(importerDeps(env, createStubGit('main')))
     const found = env.db.all<{ doc_id: string }>(`SELECT doc_id FROM search_index WHERE doc_type = 'report' AND search_index MATCH ?`, 'connectivity')
     expect(found.map((row) => row.doc_id)).toEqual([parseRecord(runHistoryRecord, RUN_TEXT, 'legacy run').reports[0]?.id])
+  })
+})
+
+describe('an epic state recorded before Linear transfers', () => {
+  const STATE_TEXT = fixture('epics', EPIC, 'state.json')
+
+  it('parses an outcome without a transfer key and re-serializes it to the same bytes', () => {
+    const record = parseRecord(epicStateRecord, STATE_TEXT, 'legacy state')
+    expect(record.outcome?.runId).toBe(RUN)
+    expect(Object.keys(record.outcome ?? {})).not.toContain('transfer')
+    expect(STATE_TEXT).not.toContain('transfer')
+    expect(prettyJson(record)).toBe(STATE_TEXT)
+  })
+
+  it('imports the completed epic and exports its state back byte for byte', () => {
+    const env = legacyClone()
+    reconcileRepository(importerDeps(env, createStubGit('main')))
+    const { generation, updatedAt } = parseRecord(epicStateRecord, STATE_TEXT, 'legacy state')
+    expect(prettyJson(buildEpicStateRecord(env.db, EPIC, { generation, updatedAt }))).toBe(STATE_TEXT)
   })
 })

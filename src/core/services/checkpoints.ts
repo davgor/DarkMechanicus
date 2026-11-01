@@ -9,6 +9,7 @@ import type {
   EpicOutcome,
   GateCondition,
   GateConditionId,
+  SprintIncrement,
   SprintReportView
 } from '../../shared/domain/views'
 import { requireCapability } from '../authz'
@@ -22,7 +23,7 @@ import { retroIsEmpty } from '../plan/retro'
 import { sprintScopeChanges } from '../plan/sprintScope'
 import { appendEvent } from './events'
 import { requestWithoutKey, withIdempotency } from './idempotency'
-import { incrementOf, standingAttempt } from './increments'
+import { incrementOf, standingAttempt, storedRepositoryIncrements, touchedRepositories } from './increments'
 import { enqueueOutbox } from './outbox'
 import { changedDraftRevision, revisionNumberOf } from './plans'
 import {
@@ -88,8 +89,13 @@ interface GateInput {
   plan: PlanState
   run: RunRow
   attempts: AttemptRow[]
-  /** The project's Definition of Done as of this evaluation; empty when it has none. */
+  /**
+   * The Definition of Done as of this evaluation: the project's, or in a folder of repositories every touched
+   * repository's checks named `<repo>: <check>`; empty when there is none.
+   */
   definition: DefinitionOfDoneCheck[]
+  /** In a folder of repositories: the repositories the sprint touched, in name order. Null for a single repository. */
+  touched: string[] | null
 }
 
 function attemptCount(count: number): string {
@@ -205,9 +211,13 @@ const INCREMENT_LABEL = 'Sprint increment merged'
 /**
  * The sprint's increment was verified as one squashed commit on the epic branch. It reads the verdict stored
  * with the acceptance node's standing submission (the accepted attempt, else the one awaiting review), which
- * the server wrote when the submission arrived, so nothing is recomputed here.
+ * the server wrote when the submission arrived, so nothing is recomputed here. In a folder of repositories every
+ * touched repository needs its own passing verdict.
  */
 function incrementGate(input: GateInput, node: TicketContent): GateCondition {
+  if (input.touched !== null) {
+    return repositoryIncrementGate(input.touched, node, storedRepositoryIncrements(standingAttempt(input.attempts, node.id)))
+  }
   const verdict = incrementOf(standingAttempt(input.attempts, node.id))
   if (verdict === null) {
     const named = `No sprint increment named yet: submit ${node.key} with increment { branch, commit }`
@@ -219,6 +229,28 @@ function incrementGate(input: GateInput, node: TicketContent): GateCondition {
   return condition('increment_merged', INCREMENT_LABEL, problems, metDetail)
 }
 
+/**
+ * A folder of repositories' increment gate: met only when each touched repository has a passing verdict (and the
+ * sprint touched at least one); each failing or missing repository is named.
+ */
+function repositoryIncrementGate(touched: string[], node: TicketContent, verdicts: SprintIncrement[] | null): GateCondition {
+  if (verdicts === null) {
+    const named = `No sprint increments named yet: submit ${node.key} with increments, one { repo, branch, commit } per touched repository`
+    return condition('increment_merged', INCREMENT_LABEL, [named], '')
+  }
+  const problems = touched.length === 0 ? ['The sprint touched no repository: no accepted work ticket names one'] : []
+  for (const repo of touched) {
+    const verdict = verdicts.find((item) => item.repo === repo)
+    if (verdict === undefined) {
+      problems.push(`${repo}: no increment named`)
+    } else if (!verdict.passed) {
+      problems.push(`${repo}: increment ${verdict.commit.slice(0, 7)} failed verification: ${verdict.reasons.join(' ')}`)
+    }
+  }
+  const metDetail = `Increments in ${touched.join(', ')} are each one squashed commit on the repository's epic branch`
+  return condition('increment_merged', INCREMENT_LABEL, problems, metDetail)
+}
+
 const DEFINITION_LABEL = 'Definition of Done passed'
 
 function checkCount(count: number): string {
@@ -226,10 +258,11 @@ function checkCount(count: number): string {
 }
 
 /**
- * The acceptance node's accepted attempt reports every check of the project's Definition of Done as passed in
- * its evidence, by name. Dark Mechanicus runs none of the commands: it reads what the worker reported and the
- * reviewer accepted, so only an accepted, current attempt counts (not one awaiting review, rejected, or
- * superseded). A project without a Definition of Done gets no such gate.
+ * The acceptance node's accepted attempt reports every check of the Definition of Done as passed in its evidence,
+ * by name (in a folder of repositories, each touched repository's checks as `<repo>: <check>`). Dark Mechanicus
+ * runs none of the commands: it reads what the worker reported and the reviewer accepted, so only an accepted,
+ * current attempt counts (not one awaiting review, rejected, or superseded). A sprint without checks to report
+ * gets no such gate.
  */
 function definitionGate(input: GateInput, node: TicketContent): GateCondition {
   const standing = standingAttempt(input.attempts, node.id)
@@ -402,6 +435,21 @@ function reportStaleness(
   return `${name} was written for ${revisions} changed the sprint beyond removing leftovers (${changes.join('; ')}): submit a new report revision`
 }
 
+/**
+ * The checks a sprint's acceptance node must report: the project's Definition of Done, or in a folder of
+ * repositories (which has no list of its own) each touched repository's checks, named `<repo>: <check>`, in
+ * repository name order. A touched repository without a list adds none, and an untouched one is not asked for.
+ */
+function sprintDefinition(ctx: Ctx, sprintId: string): DefinitionOfDoneCheck[] {
+  const entries = ctx.repositoryEntries()
+  if (entries === null) {
+    return ctx.definitionOfDone()
+  }
+  return touchedRepositories(ctx, sprintId).flatMap((name) =>
+    (entries.find((entry) => entry.name === name)?.definitionOfDone ?? []).map((check) => ({ ...check, name: `${name}: ${check.name}` }))
+  )
+}
+
 function evaluate(ctx: Ctx, run: RunRow): Evaluation {
   const bundle = loadBundle(ctx, run.revision_id)
   const sprints = sortedSprints(bundle)
@@ -414,10 +462,12 @@ function evaluate(ctx: Ctx, run: RunRow): Evaluation {
      WHERE run_id = ? ORDER BY ticket_id, number`,
     run.id
   )
-  // Only a sprint with an acceptance node has a use for it, so a plan without nodes never reads project.json here.
-  const definition = acceptanceNodeOf(bundle, sprint.id) === undefined ? [] : ctx.definitionOfDone()
+  // Only a sprint with an acceptance node has a use for these, so a plan without nodes never reads project.json here.
+  const hasNode = acceptanceNodeOf(bundle, sprint.id) !== undefined
+  const definition = hasNode ? sprintDefinition(ctx, sprint.id) : []
+  const touched = hasNode && ctx.repositoryEntries() !== null ? touchedRepositories(ctx, sprint.id) : null
   const stale = reportStaleness(ctx, { run, bundle, sprint, report })
-  const input = { index: indexBundle(bundle), bundle, sprint, report, stale, plan: planState(ctx, run), run, attempts, definition }
+  const input = { index: indexBundle(bundle), bundle, sprint, report, stale, plan: planState(ctx, run), run, attempts, definition, touched }
   const gates = evaluateGates(input, next === null)
   const grant = report === null ? null : findGrant(ctx, run, sprint, report)
   return { run, sprint, next, sprintCount: sprints.length, report, gates, grant }

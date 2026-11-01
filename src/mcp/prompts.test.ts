@@ -26,7 +26,7 @@ describe('promptName', () => {
 })
 
 describe('registerPrompts with the shipped skills', () => {
-  it('lists the six skills as prompts with their titles and descriptions', async () => {
+  it('lists the seven skills as prompts with their titles and descriptions', async () => {
     await withRig(promptServer(), createStubApi(), async (rig) => {
       const { prompts } = await rig.client.listPrompts()
       expect(prompts.map((prompt) => prompt.name)).toEqual([
@@ -35,7 +35,8 @@ describe('registerPrompts with the shipped skills', () => {
         'darkmechanicus-orchestrator',
         'darkmechanicus-worker',
         'darkmechanicus-reviewer',
-        'darkmechanicus-sprint-reporter'
+        'darkmechanicus-sprint-reporter',
+        'darkmechanicus-linear-transfer'
       ])
       expect(prompts.map((prompt) => prompt.title)).toEqual(SKILLS.map((skill) => skill.title))
       expect(prompts.map((prompt) => prompt.description)).toEqual(SKILLS.map((skill) => skill.description))

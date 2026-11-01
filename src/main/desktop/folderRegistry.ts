@@ -5,7 +5,9 @@
  */
 import {
   existsSync,
+  lstatSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   renameSync,
@@ -15,6 +17,7 @@ import {
 import { basename, dirname, isAbsolute, sep } from 'node:path'
 import { z } from 'zod'
 import { DomainError } from '../../core/errors'
+import { detectChildRepos, isInsideGitRepository } from '../../core/repo/childRepos'
 import { resolveLayout } from '../../core/repo/layout'
 import { resolveStorageMode, type StorageMode } from '../../core/repo/storageMode'
 import type { TrackedFolderView } from '../../shared/desktop/api'
@@ -29,6 +32,10 @@ export interface RegistryFs {
   realpath(path: string): string
   exists(path: string): boolean
   isDirectory(path: string): boolean
+  /** Entry names of a directory; throws when it cannot be read. */
+  readdir(path: string): string[]
+  /** Whether the path itself is a symbolic link (not followed). */
+  isSymlink(path: string): boolean
 }
 
 export interface FolderRegistry {
@@ -70,6 +77,14 @@ const nodeRegistryFs: RegistryFs = {
   isDirectory: (path) => {
     try {
       return statSync(path).isDirectory()
+    } catch {
+      return false
+    }
+  },
+  readdir: (path) => readdirSync(path),
+  isSymlink: (path) => {
+    try {
+      return lstatSync(path).isSymbolicLink()
     } catch {
       return false
     }
@@ -144,18 +159,35 @@ function storageModeOf(context: RegistryContext, path: string): StorageMode {
   return resolveStorageMode({ repoRoot: path, homeDir: context.dmHome, fs: context.fs })
 }
 
+/**
+ * The child repositories a folder could be set up over: only for a folder that is not set up and
+ * not inside a Git repository; null otherwise, or when the folder cannot be read.
+ */
+function childRepositoriesOf(fs: RegistryFs, path: string, initialized: boolean): string[] | null {
+  if (initialized) {
+    return null
+  }
+  try {
+    return isInsideGitRepository(path, fs) ? null : detectChildRepos(path, fs)
+  } catch {
+    return null
+  }
+}
+
 function toView(context: RegistryContext, entry: FolderEntry): TrackedFolderView {
   const { fs, homeDir } = context
   const mode = storageModeOf(context, entry.path)
   const layout = resolveLayout(entry.path, { mode, homeDir: context.dmHome })
+  const initialized = fs.exists(layout.projectFile)
   return {
     path: entry.path,
     name: basename(entry.path) || entry.path,
     displayPath: abbreviateHome(entry.path, homeDir),
-    initialized: fs.exists(layout.projectFile),
+    initialized,
     storageMode: mode,
     available: fs.isDirectory(entry.path),
-    addedAt: entry.addedAt
+    addedAt: entry.addedAt,
+    childRepositories: childRepositoriesOf(fs, entry.path, initialized)
   }
 }
 

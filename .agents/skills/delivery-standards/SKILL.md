@@ -1,22 +1,22 @@
 ---
 name: delivery-standards
 description: >-
-  Enforces TDD-first implementation, lint/typecheck/unit-test/fireguard/
-  deadcode/build verification, and Dark Mechanicus epic and ticket tracking
-  for all code work in DarkMechanicus. Use for every feature, bug fix,
-  refactor, or follow-up unless the user explicitly asks for a read-only
-  answer with no code changes.
+  Enforces lint/typecheck/unit-test/deadcode/build verification, TDD-first
+  and fireguard (outside an epic; inside one only when its plan states
+  them), and Dark Mechanicus epic and ticket tracking for all code work in
+  DarkMechanicus. Use for every feature, bug fix, refactor, or follow-up
+  unless the user explicitly asks for a read-only answer with no code changes.
 ---
 
 # Delivery standards (all implementation work)
 
-This skill exists as two identical copies, `.Codex/skills/delivery-standards/SKILL.md` and `.cursor/skills/delivery-standards/SKILL.md`. Keep them byte-identical when changing workflow rules.
+This skill exists as three identical copies, `.agents/skills/delivery-standards/SKILL.md`, `.claude/skills/delivery-standards/SKILL.md` and `.cursor/skills/delivery-standards/SKILL.md`. Keep all three byte-identical when changing workflow rules. `.cursor/rules/delivery-standards.mdc` is a shorter Cursor rule that summarizes these standards and points here; it is not a copy of this file.
 
 Deploy/CI shape mirrored from [AI-DND-Matrix](https://github.com/davgor/AI-DND-Matrix).
 
 ## Standing rules
 
-Any work you do going forward needs to have the lint, unit test, and build confirming, everything needs to be written TDD style (unless the person waived it for one epic, see section 2), and it needs to be tracked in Dark Mechanicus: either a new epic, or a ticket on the existing epic it relates to.
+Any work you do going forward needs to have the lint, unit test, and build confirming, and it needs to be tracked in Dark Mechanicus: either a new epic, or a ticket on the existing epic it relates to. Outside an epic, everything needs to be written TDD style. Inside an epic, tests-first and Fireguard apply only when the epic's plan states them; each ticket lists its tests, and its worker writes and runs them in that ticket (see section 2).
 
 Read `README.md` and `.ai-instructions.md` for process boundaries. For tickets already in scope, also follow the shipped role guides listed in section 1.
 
@@ -51,21 +51,21 @@ The role guides shipped in `skills/` say how each job is done. Follow the one th
 - `acceptanceCriteria`: 2 to 6 checkable statements with observable results, and tests or runbook steps named explicitly where relevant
 - `expectedArtifacts`: the files or reports the ticket must produce
 
-**Every sprint gets a Fireguard ticket.** It requires every other work ticket in the sprint, and the sprint's acceptance ticket requires it. It runs `npm run fireguard` once on the combined, committed sprint work, with `FIREGUARD_BASE_REF` set to the sprint's start commit. It rewrites any test graded F without touching production code, and records the grade in its evidence. No other ticket runs fireguard. Example: DM-78 in the Scrum cadence epic.
+**Plan-stated standards.** Inside an epic, tests-first and Fireguard apply only when the epic's plan states them, in a "Standards" section of the epic intent or in a ticket's body. Never add either by default. Every work ticket's body carries a **Tests** section that lists the tests its worker writes, or "none" with the reason, and the worker writes and runs those tests in that ticket. When the plan states Fireguard, `npm run fireguard` runs once on the combined, committed sprint work, with `FIREGUARD_BASE_REF` set to the sprint's start commit, in the place the plan names (a per-sprint grading ticket that requires the sprint's other work tickets, or the sprint's acceptance node). Any test graded F is rewritten without touching production code, and the grade is recorded in evidence. No other ticket runs fireguard.
 
 Do not report a criterion as met until section 3 passes.
 
-## 2. TDD-first implementation
+## 2. Tests and TDD-first
 
-For main/preload/renderer logic, shared helpers, and any code with testable behavior:
+**Inside an epic**, the ticket's **Tests** section decides which tests its worker writes, and the worker writes and runs them in that ticket. Order is free unless the epic's plan states tests-first; then the steps below apply to that epic. Agents never add tests-first to a plan themselves.
+
+**Outside an epic**, and inside an epic whose plan states tests-first, for main/preload/renderer logic, shared helpers, and any code with testable behavior:
 
 1. **Red** — write failing test(s) for the acceptance criterion or bug repro
 2. **Green** — minimum code to pass
 3. **Refactor** — only within scope; no drive-by changes
 
 UI-only criteria: test-first when the criterion says "tested" or when extracting pure logic is natural; otherwise implement to the criterion and cover with component/logic tests when cheap. Prefer Vitest for unit/component coverage.
-
-**Owner-waived epics.** A person may waive TDD-first for one epic by recording the decision in its plan (intent or rationale), with test authoring consolidated into testing-tail tickets at the end of the sprint. In such an epic a work ticket writes no new tests and runs only its targeted checks; the testing-tail tickets write the tests, and Fireguard still runs only in the sprint's Fireguard ticket. Agents never waive it themselves.
 
 Standing code rules (never waive):
 
@@ -77,14 +77,14 @@ Standing code rules (never waive):
 
 ## 3. Verification gate (required before done)
 
-**When it runs.** Inside an epic, keep each ticket quick. A ticket runs only targeted checks: the tests it touched (`npx vitest run path/to/foo.test.ts`), plus lint and typecheck when it changed code. The full gate below runs **only at the checkpoint**: once, on the combined work, before you file the sprint report. Fireguard runs in the sprint's Fireguard ticket, just before the acceptance ticket, which takes its grade from there. Don't run the full gate or fireguard after any other ticket. Work outside an epic, such as a standalone fix, runs the full gate before it's done.
+**When it runs.** Inside an epic, keep each ticket quick. A ticket runs only targeted checks: the tests it touched (`npx vitest run path/to/foo.test.ts`), plus lint and typecheck when it changed code. The full gate below runs **only at the checkpoint**: once, on the combined work, before you file the sprint report. Fireguard runs inside an epic only when its plan states it, once on the combined work in the place the plan names (see section 1). Don't run the full gate or fireguard after any other ticket. Work outside an epic, such as a standalone fix, runs the full gate before it's done.
 
 Run and fix until clean. **Do not report completion with failing checks.**
 
 ```bash
 npm run lint
 npm test
-npm run fireguard   # in the sprint's Fireguard ticket (outside an epic: at the end) — letter grade A–F; F fails
+npm run fireguard   # inside an epic only when its plan states it (outside an epic: at the end) — letter grade A–F; F fails
 npm run typecheck
 npm run deadcode
 npm run build
@@ -94,7 +94,7 @@ npm run build
 
 **Targeted tests during iteration** are fine (`npx vitest run path/to/foo.test.ts`). Whenever the full gate runs, it includes the full `npm test`, unless the user scoped a subset.
 
-**Fireguard (unit-test quality):** Inside an epic, `npm run fireguard` runs only in the sprint's Fireguard ticket (see section 1). Outside an epic, run it once at the end of the work when the change adds or modifies Vitest unit tests (git diff vs `main`). It's slow, so never run it per ticket. Fireguard grades those tests (AST mock/tautology checks, 100× flake isolation, mutation on changed modules). A letter grade **F** is a delivery failure — rewrite the tests and re-grade. See `fireguard/README.md`.
+**Fireguard (unit-test quality):** Inside an epic, `npm run fireguard` runs only when the epic's plan states it, once on the combined work in the place the plan names (see section 1). Outside an epic, run it once at the end of the work when the change adds or modifies Vitest unit tests (git diff vs `main`). It's slow, so never run it per ticket. Fireguard grades those tests (AST mock/tautology checks, 100× flake isolation, mutation on changed modules). A letter grade **F** is a delivery failure — rewrite the tests and re-grade. See `fireguard/README.md`.
 
 **Native modules / Electron** (new `main`/`preload` wiring or native `.node` deps): unit tests under system Node are not enough — rebuild for Electron's ABI and exercise the path in the real app before calling the ticket done.
 
@@ -118,12 +118,13 @@ Copy and track:
 ```
 Delivery:
 - [ ] Work is tracked in Dark Mechanicus: new epic, or ticket on an existing epic (draft saved or handed over for Save)
-- [ ] Failing test(s) written first (where applicable)
+- [ ] Inside an epic: the tests the ticket's **Tests** section lists are written and run in this ticket
+- [ ] Failing test(s) written first (outside an epic, or when the epic's plan states tests-first; where applicable)
 - [ ] Implementation complete
-- [ ] Inside an epic: targeted checks for this ticket pass. Fireguard runs in the sprint's Fireguard ticket, and the rest of the gate below runs only at the checkpoint
+- [ ] Inside an epic: targeted checks for this ticket pass. Fireguard runs only when the plan states it, and the rest of the gate below runs only at the checkpoint
 - [ ] npm run lint — pass
 - [ ] npm test — pass
-- [ ] npm run fireguard — pass / not F (when unit tests added/modified)
+- [ ] npm run fireguard — pass / not F (when unit tests added/modified; inside an epic, only when the plan states it)
 - [ ] npm run typecheck — pass
 - [ ] npm run deadcode — pass
 - [ ] npm run build — pass

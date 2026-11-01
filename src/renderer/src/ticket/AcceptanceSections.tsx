@@ -5,7 +5,15 @@ import { errorMessage } from '../api/dm'
 import type { Runner } from '../epic/runner'
 import { StateLabel } from '../epic/StatePill'
 import type { Tone } from '../graph/ticketStates'
-import { coverageView, definitionOfDoneRows, type CoverageGroup, type DefinitionOfDoneRow } from './acceptanceView'
+import { InlineMarkdown } from '../markdown/Markdown'
+import {
+  coverageView,
+  definitionOfDoneRows,
+  repositoryDefinitionGroups,
+  type CoverageGroup,
+  type DefinitionOfDoneRow,
+  type RepositoryDefinitionGroup
+} from './acceptanceView'
 import type { CriterionItem } from './ticketView'
 
 /** The checkbox list of a ticket's criteria; the evidence ticks it, never the reader. */
@@ -15,7 +23,7 @@ export function CriteriaItems({ items }: { items: CriterionItem[] }): JSX.Elemen
       {items.map((item) => (
         <li key={item.id} className={item.verified ? 'is-verified' : undefined}>
           <input type="checkbox" checked={item.verified} readOnly disabled aria-label={item.text} />
-          <span>{item.text}</span>
+          <InlineMarkdown source={item.text} />
         </li>
       ))}
     </ul>
@@ -114,7 +122,43 @@ function DefinitionRow({ row }: { row: DefinitionOfDoneRow }): JSX.Element {
   )
 }
 
-function DefinitionBody(props: { state: ProjectState; detail: TicketDetailView }): JSX.Element {
+function DefinitionList({ rows }: { rows: DefinitionOfDoneRow[] }): JSX.Element {
+  return (
+    <ul className="tp-dod">
+      {rows.map((row) => (
+        <DefinitionRow key={row.name} row={row} />
+      ))}
+    </ul>
+  )
+}
+
+/** In a folder of repositories: each touched repository's checks under its name, or a line saying it has none. */
+function RepositoryDefinitions(props: { groups: RepositoryDefinitionGroup[] }): JSX.Element {
+  if (props.groups.length === 0) {
+    return <p className="ew-muted">This sprint touches no repository yet.</p>
+  }
+  return (
+    <>
+      {props.groups.map((group) => (
+        <div key={group.repo} role="group" aria-label={group.repo} className="tp-cover">
+          <span className="tp-cover-head ew-mono">{group.repo}</span>
+          {group.rows.length === 0 ? (
+            <p className="ew-muted">This repository has no Definition of Done.</p>
+          ) : (
+            <DefinitionList rows={group.rows} />
+          )}
+        </div>
+      ))}
+    </>
+  )
+}
+
+interface DefinitionProps {
+  detail: TicketDetailView
+  bundle: PlanBundle
+}
+
+function DefinitionBody(props: DefinitionProps & { state: ProjectState }): JSX.Element {
   const { project, error } = props.state
   if (error !== null) {
     return (
@@ -126,34 +170,37 @@ function DefinitionBody(props: { state: ProjectState; detail: TicketDetailView }
   if (project === null) {
     return <p className="ew-muted">Loading the Definition of Done…</p>
   }
+  if (project.repositories !== null) {
+    return <RepositoryDefinitions groups={repositoryDefinitionGroups(project.repositories, props.detail.ticket, props.detail.attempts, props.bundle)} />
+  }
   const rows = definitionOfDoneRows(project.definitionOfDone, props.detail.ticket, props.detail.attempts)
   if (rows.length === 0) {
     return <p className="ew-muted">This project has no Definition of Done.</p>
   }
-  return (
-    <ul className="tp-dod">
-      {rows.map((row) => (
-        <DefinitionRow key={row.name} row={row} />
-      ))}
-    </ul>
-  )
+  return <DefinitionList rows={rows} />
 }
 
-function definitionHeading(project: ProjectView | null): string {
-  const count = project?.definitionOfDone.length ?? 0
-  if (project === null || count === 0) {
+function definitionHeading(project: ProjectView | null, props: DefinitionProps): string {
+  if (project === null) {
+    return 'DEFINITION OF DONE'
+  }
+  const count =
+    project.repositories === null
+      ? project.definitionOfDone.length
+      : repositoryDefinitionGroups(project.repositories, props.detail.ticket, [], props.bundle).reduce((sum, group) => sum + group.rows.length, 0)
+  if (count === 0) {
     return 'DEFINITION OF DONE'
   }
   return `DEFINITION OF DONE · ${count} ${count === 1 ? 'CHECK' : 'CHECKS'}`
 }
 
-/** The project's Definition of Done: the checks this node's worker must run and report, each by name. */
-export function DefinitionOfDone(props: { runner: Runner; detail: TicketDetailView }): JSX.Element {
+/** The Definition of Done (per touched repository in a folder of repositories): the checks this node's worker must run and report, each by name. */
+export function DefinitionOfDone(props: DefinitionProps & { runner: Runner }): JSX.Element {
   const state = useProject(props.runner)
   return (
     <section className="tp-section" aria-label="Definition of Done">
-      <h3 className="ew-eyebrow">{definitionHeading(state.project)}</h3>
-      <DefinitionBody state={state} detail={props.detail} />
+      <h3 className="ew-eyebrow">{definitionHeading(state.project, props)}</h3>
+      <DefinitionBody state={state} detail={props.detail} bundle={props.bundle} />
     </section>
   )
 }

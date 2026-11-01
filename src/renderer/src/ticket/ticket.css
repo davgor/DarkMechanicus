@@ -43,6 +43,11 @@
   color: var(--ink-2);
 }
 
+.tp-repo {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
 .tp-title {
   margin: 0;
   color: var(--ink-display);
@@ -310,11 +315,31 @@
   color: var(--st-failed);
 }
 
+/* A check or criterion result: the icon, then its name over a wrapping detail line. */
 .tp-check {
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) auto;
-  gap: 10px;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
   font-size: 13px;
+  line-height: 1.45;
+}
+
+.tp-check-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.tp-check-detail {
+  color: var(--ink-2);
+  font-size: 12.5px;
+}
+
+.tp-check-detail:empty {
+  display: none;
 }
 
 .tp-check.is-passed .tp-check-icon {
@@ -540,6 +565,22 @@
   color: var(--ink);
   font: inherit;
   font-size: 13.5px;
+}
+
+.tp-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.tp-title-prefix {
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.tp-title-row .tp-title-input {
+  flex: 1;
+  min-width: 0;
 }
 
 .tp-title-input {

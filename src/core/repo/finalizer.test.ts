@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { makeBundle, tid } from '../../test/bundles'
 import { createMemoryFs, type FaultSpec, isWithin } from '../../test/memoryFs'
 import { idOf, insertComment, insertEpic, insertOutbox, insertProfile, insertRevision, insertRun, insertTicketStatus, T0 } from '../../test/repoFixtures'
-import { createRepoEnv, flush, type RepoEnv, saveRevision, stageRevision } from '../../test/repoEnv'
+import { copyTracked, createRepoEnv, flush, type RepoEnv, saveRevision, stageRevision } from '../../test/repoEnv'
 import { contentHash, prettyJson } from '../canonical'
 import { getMeta } from '../meta'
 import { flushOutbox, type FlushOutcome, writeFileSafely } from './finalizer'
@@ -25,9 +25,11 @@ const EPIC = idOf('epic', 1)
 const OTHER_EPIC = idOf('epic', 2)
 const R1 = idOf('revision', 1)
 const R2 = idOf('revision', 2)
+const R3 = idOf('revision', 3)
 const RUN = idOf('run', 1)
 const BUNDLE_1 = makeBundle([[1, 2]], [[1, 2]])
 const BUNDLE_2 = makeBundle([[1, 2, 3]], [[1, 2]])
+const BUNDLE_3 = makeBundle([[1, 2, 3, 4]], [[1, 2]])
 
 function files(env: RepoEnv): { pointer: string; state: string; snapshot: (revisionId: string) => string } {
   const paths = ownedPaths(env.layout)
@@ -211,7 +213,8 @@ describe('flushOutbox fault injection at every write boundary', () => {
   it('recovers when the pointer read-back fails after the pointer was replaced', () => {
     const env = seedSavedFirstRevision()
     const entry = stageRevision(env, { epicId: EPIC, revisionId: R2, number: 2, bundle: BUNDLE_2, baseRevisionId: R1 })
-    env.fs.failOn({ op: 'readFile', match: (path) => path.endsWith('current.json') })
+    // The third read of current.json is the read-back: the save's and the state export's checks for unimported records come first.
+    env.fs.failOn({ op: 'readFile', nth: 3, match: (path) => path.endsWith('current.json') })
     expect(flush(env).failedRevisionIds).toEqual([R2])
     expect(outboxRow(env, entry)?.state).toBe('pending')
     expect(revisionState(env, R2)).toBe('pending')
@@ -291,6 +294,186 @@ describe('flushOutbox epic state and run history', () => {
     insertOutbox(env.db, { kind: 'run_history', runId: RUN })
     flush(env)
     expect(env.db.get<{ generation: number }>('SELECT generation FROM sync_state WHERE entity_id = ?', RUN)?.generation).toBe(2)
+  })
+})
+
+/** This machine saved R1 and changed a ticket's status (waiting); the checkout now holds another machine's save of R2. */
+function pulledOverLocalChange(): { env: RepoEnv; other: RepoEnv; entry: number } {
+  const env = seedSavedFirstRevision()
+  const other = seedSavedFirstRevision()
+  saveRevision(other, { epicId: EPIC, revisionId: R2, number: 2, bundle: BUNDLE_2, baseRevisionId: R1 })
+  env.db.run("UPDATE ticket_status SET status = 'completed' WHERE ticket_id = ?", tid(1))
+  const entry = insertOutbox(env.db, { kind: 'epic_state', epicId: EPIC })
+  copyTracked(other, env)
+  return { env, other, entry }
+}
+
+function trackedTexts(env: RepoEnv): (string | undefined)[] {
+  return [env.fs.get(files(env).pointer), env.fs.get(files(env).state)]
+}
+
+const UNIMPORTED = `Epic ${EPIC}'s tracked state and pointer hold records this machine has not imported`
+
+describe('flushOutbox and tracked epic records this machine has not imported', () => {
+  it('leaves a pulled revision in place under a local status change, and keeps refusing on every retry', () => {
+    const { env, other, entry } = pulledOverLocalChange()
+    const outcome = flush(env)
+    expect(outcome).toMatchObject({ flushed: 0, failed: 1, errors: [expect.stringContaining(UNIMPORTED)] })
+    expect(outcome.errors[0]).toContain('keep the tracked records or write local')
+    expect(trackedTexts(env)).toEqual(trackedTexts(other))
+    expect(JSON.parse(env.fs.get(files(env).pointer) ?? '{}')).toMatchObject({ revisionId: R2 })
+    expect(flush(env).failed).toBe(1)
+    expect(outboxRow(env, entry)).toMatchObject({ state: 'pending', attempts: 2 })
+    expect(trackedTexts(env)).toEqual(trackedTexts(other))
+  })
+
+  it('refuses a local save over them before writing its snapshot', () => {
+    const env = seedSavedFirstRevision()
+    const other = seedSavedFirstRevision()
+    saveRevision(other, { epicId: EPIC, revisionId: R2, number: 2, bundle: BUNDLE_2, baseRevisionId: R1 })
+    copyTracked(other, env)
+    stageRevision(env, { epicId: EPIC, revisionId: R3, number: 2, bundle: BUNDLE_3, baseRevisionId: R1 })
+    const outcome = flush(env)
+    expect(outcome).toMatchObject({ failed: 1, failedRevisionIds: [R3], errors: [expect.stringContaining(UNIMPORTED)] })
+    expect(env.fs.get(files(env).snapshot(R3))).toBeUndefined()
+    expect(revisionState(env, R3)).toBe('pending')
+    expect(trackedTexts(env)).toEqual(trackedTexts(other))
+  })
+
+  it('counts tracked files of an epic this database has no sync record for, and this machine never wrote, as not imported', () => {
+    const env = seedSavedFirstRevision()
+    env.db.run("DELETE FROM sync_state WHERE kind = 'epic'")
+    const before = trackedTexts(env)
+    insertOutbox(env.db, { kind: 'epic_state', epicId: EPIC })
+    expect(flush(env)).toMatchObject({ failed: 1, errors: [expect.stringContaining(UNIMPORTED)] })
+    expect(trackedTexts(env)).toEqual(before)
+  })
+})
+
+describe('flushOutbox after a process died between replacing the files and committing', () => {
+  it('takes its own uncommitted export for its own, then writes again', () => {
+    const env = seedSavedFirstRevision()
+    env.db.run("UPDATE ticket_status SET status = 'completed' WHERE ticket_id = ?", tid(1))
+    insertOutbox(env.db, { kind: 'epic_state', epicId: EPIC })
+    // Files replaced, then the database rolls back as if the process died before the commit.
+    expect(() =>
+      env.db.tx(() => {
+        flush(env)
+        throw new Error('process died')
+      })
+    ).toThrow('process died')
+    expect(parseRecord(epicStateRecord, env.fs.get(files(env).state) ?? '', 'state').ticketStatuses[tid(1)]).toBe('completed')
+    expect(flush(env)).toMatchObject({ flushed: 1, failed: 0 })
+  })
+
+  it('takes its own half-written state, over the old pointer, for its own', () => {
+    const env = seedSavedFirstRevision()
+    env.db.run("UPDATE ticket_status SET status = 'completed' WHERE ticket_id = ?", tid(1))
+    insertOutbox(env.db, { kind: 'epic_state', epicId: EPIC })
+    env.fs.failOn({ op: 'rename', match: (path) => path.endsWith('current.json') })
+    // The restore of state.json fails too, so the new state stays over the old pointer.
+    env.fs.failOn({ op: 'writeFile', nth: 2, match: (path) => path.includes('state.json.tmp-') })
+    expect(flush(env).failed).toBe(1)
+    expect(parseRecord(epicStateRecord, env.fs.get(files(env).state) ?? '', 'state').ticketStatuses[tid(1)]).toBe('completed')
+    expect(flush(env)).toMatchObject({ flushed: 1, failed: 0 })
+  })
+})
+
+/** The tracked records a later reconcile imported: another branch's (here, the given texts), synced as an import would. */
+function importedFromElsewhere(env: RepoEnv, texts: (string | undefined)[]): void {
+  const [pointer = '', state = ''] = texts
+  env.fs.put(files(env).pointer, pointer)
+  env.fs.put(files(env).state, state)
+  const hash = trackedEpicHash(pointer, state)
+  env.db.run("UPDATE sync_state SET exported_hash = ?, imported_hash = ?, generation = 1 WHERE kind = 'epic' AND entity_id = ?", hash, hash, EPIC)
+}
+
+describe('flushOutbox export intents cover only an export that has not committed', () => {
+  it('spends the intent once the entry commits', () => {
+    const env = seedSavedFirstRevision()
+    expect(env.fs.get(ownedPaths(env.layout).exportIntentFile(EPIC))).toBeUndefined()
+  })
+
+  it('ignores an intent left by a committed export once the row moved on, and refuses to write over what was imported', () => {
+    const env = seedSavedFirstRevision()
+    const imported = trackedTexts(env)
+    env.db.run("UPDATE ticket_status SET status = 'completed' WHERE ticket_id = ?", tid(1))
+    insertOutbox(env.db, { kind: 'epic_state', epicId: EPIC })
+    // Committed inside an outer transaction, so the intent is not spent.
+    env.db.tx(() => flush(env))
+    const own = trackedTexts(env)
+    expect(env.fs.get(ownedPaths(env.layout).exportIntentFile(EPIC))).toBeDefined()
+    importedFromElsewhere(env, imported)
+    env.fs.put(files(env).pointer, own[0] ?? '')
+    env.fs.put(files(env).state, own[1] ?? '')
+    insertOutbox(env.db, { kind: 'epic_state', epicId: EPIC })
+    expect(flush(env)).toMatchObject({ failed: 1, errors: [expect.stringContaining(UNIMPORTED)] })
+    expect(trackedTexts(env)).toEqual(own)
+  })
+
+  it('takes its own new pointer over the old state, left by a failed write and a failed restore, for its own', () => {
+    const env = seedSavedFirstRevision()
+    const oldState = env.fs.get(files(env).state)
+    env.db.run("UPDATE ticket_status SET status = 'completed' WHERE ticket_id = ?", tid(1))
+    insertOutbox(env.db, { kind: 'epic_state', epicId: EPIC })
+    // The first read of current.json is the check; the second is the read-back of the new pointer.
+    env.fs.failOn({ op: 'readFile', nth: 2, match: (path) => path.endsWith('current.json') })
+    // The pointer's restore cannot write its temp file; the state's restore succeeds.
+    env.fs.failOn({ op: 'writeFile', nth: 2, match: (path) => path.includes('current.json.tmp-') })
+    expect(flush(env).failed).toBe(1)
+    expect([JSON.parse(env.fs.get(files(env).pointer) ?? '{}').generation, env.fs.get(files(env).state)]).toEqual([2, oldState])
+    expect(flush(env)).toMatchObject({ flushed: 1, failed: 0 })
+    expect(parseRecord(epicStateRecord, env.fs.get(files(env).state) ?? '', 'state').ticketStatuses[tid(1)]).toBe('completed')
+  })
+})
+
+describe('flushOutbox of tracked epic records this machine wrote or never had', () => {
+  it('exports a state change over its own export, also once a checkout converted it to CRLF', () => {
+    const env = seedSavedFirstRevision()
+    env.db.run("UPDATE ticket_status SET status = 'completed' WHERE ticket_id = ?", tid(1))
+    insertOutbox(env.db, { kind: 'epic_state', epicId: EPIC })
+    expect(flush(env)).toMatchObject({ flushed: 1, failed: 0 })
+    expect(parseRecord(epicStateRecord, env.fs.get(files(env).state) ?? '', 'state')).toMatchObject({ generation: 2 })
+
+    for (const path of [files(env).pointer, files(env).state]) {
+      env.fs.put(path, (env.fs.get(path) ?? '').replace(/\n/g, '\r\n'))
+    }
+    env.db.run("UPDATE ticket_status SET status = 'in_progress' WHERE ticket_id = ?", tid(2))
+    insertOutbox(env.db, { kind: 'epic_state', epicId: EPIC })
+    expect(flush(env)).toMatchObject({ flushed: 1, failed: 0 })
+    const state = parseRecord(epicStateRecord, env.fs.get(files(env).state) ?? '', 'state')
+    expect([state.generation, state.ticketStatuses[tid(2)]]).toEqual([3, 'in_progress'])
+  })
+
+  it('writes the records into a checkout that has none of them, as before', () => {
+    const env = seedSavedFirstRevision()
+    for (const path of [files(env).pointer, files(env).state]) {
+      env.fs.remove(path)
+    }
+    insertOutbox(env.db, { kind: 'epic_state', epicId: EPIC })
+    expect(flush(env)).toMatchObject({ flushed: 1, failed: 0 })
+    expect(JSON.parse(env.fs.get(files(env).pointer) ?? '{}')).toMatchObject({ revisionId: R1, generation: 2 })
+  })
+
+  it('puts the state back when the pointer cannot be replaced, so the retry does not take its own write for a foreign one', () => {
+    const env = seedSavedFirstRevision()
+    const before = trackedTexts(env)
+    env.db.run("UPDATE ticket_status SET status = 'completed' WHERE ticket_id = ?", tid(1))
+    insertOutbox(env.db, { kind: 'epic_state', epicId: EPIC })
+    env.fs.failOn({ op: 'rename', match: (path) => path.endsWith('current.json') })
+    expect(flush(env)).toMatchObject({ flushed: 0, failed: 1, errors: [expect.stringContaining('Injected rename fault')] })
+    expect(trackedTexts(env)).toEqual(before)
+    expect(flush(env)).toMatchObject({ flushed: 1, failed: 0 })
+    expect(parseRecord(epicStateRecord, env.fs.get(files(env).state) ?? '', 'state').ticketStatuses[tid(1)]).toBe('completed')
+  })
+
+  it('removes a first state file again when its pointer cannot be written', () => {
+    const env = createRepoEnv()
+    env.fs.failOn({ op: 'writeFile', match: (path) => path.includes('current.json.tmp-') })
+    stageRevision(env, { epicId: EPIC, revisionId: R1, number: 1, bundle: BUNDLE_1 })
+    expect(flush(env).failedRevisionIds).toEqual([R1])
+    expect(trackedTexts(env)).toEqual([undefined, undefined])
+    expect(flush(env).savedRevisionIds).toEqual([R1])
   })
 })
 

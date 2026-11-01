@@ -153,6 +153,13 @@ describe('chatRecordSchema', () => {
     expect(chatRecordSchema.safeParse({ ...record, runId: '' }).success).toBe(false)
   })
 
+  it('records the epic a transfer chat moves to Linear, and reads chats stored before transfers were recorded', () => {
+    expect(chatRecordSchema.parse(record)).not.toHaveProperty('transferEpicId')
+    expect(chatRecordSchema.parse({ ...record, transferEpicId: 'ep_1' })).toHaveProperty('transferEpicId', 'ep_1')
+    expect(chatRecordSchema.parse(JSON.parse(JSON.stringify({ ...record, transferEpicId: 'ep_1' })))).toEqual({ ...record, transferEpicId: 'ep_1' })
+    expect(chatRecordSchema.safeParse({ ...record, transferEpicId: '' }).success).toBe(false)
+  })
+
   it('records the user message whose turn a sign-in cut short, and reads chats stored without it', () => {
     expect(chatRecordSchema.parse(record)).not.toHaveProperty('cutShortMessageId')
     expect(chatRecordSchema.parse({ ...record, cutShortMessageId: 'it_9' })).toHaveProperty('cutShortMessageId', 'it_9')

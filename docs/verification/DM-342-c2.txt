@@ -1,0 +1,109 @@
+$ DARKMECHANICUS_HOME=<evidence>/core/home npx tsx c1c2.mts c2
+## Listing before set-up (path, type, mtime, size; .git internals summarised separately)
+.	dir	2026-10-31T22:13:45.359Z
+alpha	dir	2026-10-31T22:13:43.203Z	128
+alpha/.git	dir	2026-10-31T22:13:43.715Z	384
+alpha/README	file	2026-10-31T22:13:43.203Z	22
+alpha-link	link	2026-10-31T22:13:45.359Z	5
+beta	dir	2026-10-31T22:13:43.819Z	128
+beta/.git	dir	2026-10-31T22:13:43.898Z	384
+beta/README	file	2026-10-31T22:13:43.819Z	21
+gamma	dir	2026-10-31T22:13:44.330Z	128
+gamma/.git	file	2026-10-31T22:13:44.260Z	89
+gamma/README	file	2026-10-31T22:13:44.331Z	19
+plain	dir	2026-10-31T22:13:44.372Z	128
+plain/nested	dir	2026-10-31T22:13:44.534Z	128
+plain/nested/.git	dir	2026-10-31T22:13:45.063Z	384
+plain/nested/README	file	2026-10-31T22:13:44.534Z	29
+plain/notes.txt	file	2026-10-31T22:13:44.358Z	3
+git status --porcelain --untracked-files=all --ignored before:
+alpha: ""
+beta: ""
+gamma: ""
+
+## initializeRepository({ layout: "multi_repo" }) =>
+{
+  "projectId": "pj_01m6a0dmqa2nstzb0wg8esjjwk",
+  "name": "parent",
+  "keyPrefix": "PAR",
+  "createdFiles": [
+    "project.json",
+    "local/machine.json"
+  ],
+  "alreadyInitialized": false,
+  "storage": {
+    "mode": "db",
+    "projectDir": "/private/tmp/multirepo-run/evidence/core/home/projects/parent-2c8ba912cf8c85fd"
+  }
+}
+
+## getProject().repositories => [{"name":"alpha","missing":false},{"name":"beta","missing":false},{"name":"gamma","missing":false}]
+Entries that differ: none
+
+## Listing after set-up
+.	dir	2026-10-31T22:13:45.359Z
+alpha	dir	2026-10-31T22:13:43.203Z	128
+alpha/.git	dir	2026-10-31T22:13:43.715Z	384
+alpha/README	file	2026-10-31T22:13:43.203Z	22
+alpha-link	link	2026-10-31T22:13:45.359Z	5
+beta	dir	2026-10-31T22:13:43.819Z	128
+beta/.git	dir	2026-10-31T22:13:43.898Z	384
+beta/README	file	2026-10-31T22:13:43.819Z	21
+gamma	dir	2026-10-31T22:13:44.330Z	128
+gamma/.git	file	2026-10-31T22:13:44.260Z	89
+gamma/README	file	2026-10-31T22:13:44.331Z	19
+plain	dir	2026-10-31T22:13:44.372Z	128
+plain/nested	dir	2026-10-31T22:13:44.534Z	128
+plain/nested/.git	dir	2026-10-31T22:13:45.063Z	384
+plain/nested/README	file	2026-10-31T22:13:44.534Z	29
+plain/notes.txt	file	2026-10-31T22:13:44.358Z	3
+git status after:
+alpha: ""
+beta: ""
+gamma: ""
+
+Top-level listing identical (paths, mtimes, sizes): true
+Full recursive listing incl. every .git entry identical (135 entries): true
+git status identical: true
+Project records written under the scratch home only: 
+  /private/tmp/multirepo-run/evidence/core/home/projects/parent-2c8ba912cf8c85fd/project.json
+  /private/tmp/multirepo-run/evidence/core/home/projects/parent-2c8ba912cf8c85fd/local/state.sqlite-shm
+  /private/tmp/multirepo-run/evidence/core/home/projects/parent-2c8ba912cf8c85fd/local/state.sqlite-wal
+  /private/tmp/multirepo-run/evidence/core/home/projects/parent-2c8ba912cf8c85fd/local/state.sqlite
+  /private/tmp/multirepo-run/evidence/core/home/projects/parent-2c8ba912cf8c85fd/local/machine.json
+
+## After `git init delta` and `mv beta beta-renamed`:
+total 0
+drwxr-xr-x  8 <user>  wheel  256 Oct 31 17:13 .
+drwxr-xr-x  4 <user>  wheel  128 Oct 31 17:13 ..
+drwxr-xr-x  4 <user>  wheel  128 Oct 31 17:13 alpha
+lrwxr-xr-x  1 <user>  wheel    5 Oct 31 17:13 alpha-link -> alpha
+drwxr-xr-x  4 <user>  wheel  128 Oct 31 17:13 beta-renamed
+drwxr-xr-x  4 <user>  wheel  128 Oct 31 17:13 delta
+drwxr-xr-x  4 <user>  wheel  128 Oct 31 17:13 gamma
+drwxr-xr-x  4 <user>  wheel  128 Oct 31 17:13 plain
+
+## rescanRepositories() =>
+[
+  {
+    "name": "alpha",
+    "missing": false
+  },
+  {
+    "name": "beta",
+    "missing": true
+  },
+  {
+    "name": "gamma",
+    "missing": false
+  },
+  {
+    "name": "beta-renamed",
+    "missing": false
+  },
+  {
+    "name": "delta",
+    "missing": false
+  }
+]
+## getProject().repositories => [{"name":"alpha","missing":false},{"name":"beta","missing":true},{"name":"gamma","missing":false},{"name":"beta-renamed","missing":false},{"name":"delta","missing":false}]

@@ -1,0 +1,57 @@
+diff --git a/.tsprune-ignore b/.tsprune-ignore
+index 933398e..22f0e4e 100644
+--- a/.tsprune-ignore
++++ b/.tsprune-ignore
+@@ -1,7 +1,7 @@
+ # Baseline ignore for ts-prune (one pattern per line)
+ # Generated from tsconfig.node.json + tsconfig.web.json
+ # Refresh after export moves/deletes: npm run deadcode:refresh
+-# Refreshed 2026-10-15 (98 entries)
++# Refreshed 2026-10-30 (99 entries)
+ 
+ electron.vite.config.ts:37 - default
+ src/core/claimTokenMask.ts:35 - CLAIM_TOKEN_MASK
+@@ -28,28 +28,28 @@ src/main/agents/ownCliCommand.ts:47 - OwnCliCall
+ src/main/desktop/cliConfig.ts:8 - CliConfigOptions
+ src/preload/index.ts:25 - AutoUpdateApi
+ src/preload/index.ts:26 - AppInfoApi
+-src/shared/agents/chat.ts:196 - ApprovalCategory
+-src/shared/agents/chat.ts:207 - McpServerSpec
+-src/shared/agents/chat.ts:214 - ChatAdapterStartOptions
+-src/shared/agents/chat.ts:239 - DarkMechanicusCli
+-src/shared/agents/chat.ts:248 - ChatAdapterEvent
+-src/shared/agents/chat.ts:261 - ChatAdapterEmit
+-src/shared/agents/chat.ts:268 - ChatAdapter
++src/shared/agents/chat.ts:197 - ApprovalCategory
++src/shared/agents/chat.ts:208 - McpServerSpec
++src/shared/agents/chat.ts:215 - ChatAdapterStartOptions
++src/shared/agents/chat.ts:249 - DarkMechanicusCli
++src/shared/agents/chat.ts:258 - ChatAdapterEvent
++src/shared/agents/chat.ts:271 - ChatAdapterEmit
++src/shared/agents/chat.ts:278 - ChatAdapter
+ src/shared/agents/chat.ts:39 - chatIdSchema
+-src/shared/agents/chat.ts:88 - APPROVAL_DECISIONS
++src/shared/agents/chat.ts:89 - APPROVAL_DECISIONS
+ src/shared/agents/chatApi.ts:15 - ChatRequestRef
+ src/shared/agents/chatApi.ts:49 - SendChatRequest
+ src/shared/agents/chatApi.ts:53 - SetChatModelRequest
+ src/shared/agents/chatApi.ts:62 - AnswerApprovalRequest
+ src/shared/agents/chatApi.ts:94 - BoundThreadsRequest
+ src/shared/autoUpdate/types.ts:17 - AUTO_UPDATE_EVENT_CHANNEL
+-src/shared/desktop/api.ts:125 - CommandInput
+-src/shared/desktop/api.ts:129 - CommandOutput
+-src/shared/desktop/api.ts:285 - DesktopCommandName
+-src/shared/desktop/api.ts:287 - DESKTOP_COMMANDS
+-src/shared/desktop/api.ts:38 - AgentRefusalCode
+-src/shared/desktop/api.ts:59 - AgentDownloadFailureCode
+-src/shared/desktop/api.ts:88 - AgentDownloadPhase
++src/shared/desktop/api.ts:102 - AgentDownloadPhase
++src/shared/desktop/api.ts:135 - CommandInput
++src/shared/desktop/api.ts:139 - CommandOutput
++src/shared/desktop/api.ts:299 - DesktopCommandName
++src/shared/desktop/api.ts:301 - DESKTOP_COMMANDS
++src/shared/desktop/api.ts:52 - AgentRefusalCode
++src/shared/desktop/api.ts:73 - AgentDownloadFailureCode
+ src/shared/domain/api.ts:100 - SprintInput
+ src/shared/domain/api.ts:143 - ClaimTicketInput
+ src/shared/domain/api.ts:164 - IncrementRef

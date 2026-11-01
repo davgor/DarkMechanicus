@@ -1,7 +1,7 @@
 import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
 import { loadConfig } from './config.js';
+import { openMutationLanes } from './mutationLanes.js';
 import {
-  createMutationApplier,
   createVitestRunner,
   getGitDiffEntries,
   readWorkspaceFile,
@@ -39,15 +39,14 @@ function flagValue(argv: string[], name: string): string | undefined {
 
 /** Git/vitest/filesystem-backed dependencies for a real run. */
 function createDeps(cwd: string, config: FireguardConfig): RunFireguardDeps {
-  const runOnce = createVitestRunner({ cwd, config });
   return {
     config,
     getDiffEntries: () => getGitDiffEntries({ cwd, baseRef: config.baseRef }),
     readFile: (path) => readWorkspaceFile(cwd, path),
     fileExists: (path) => workspaceFileExists(cwd, path),
     readFileSync: (path) => readWorkspaceFileSync(cwd, path),
-    runOnce,
-    applyAndTest: createMutationApplier({ cwd, runOnce }),
+    runOnce: createVitestRunner({ cwd, config }),
+    openMutationLanes: (gradedTests) => openMutationLanes({ cwd, config, gradedTests }),
   };
 }
 
@@ -78,7 +77,13 @@ Usage:
 Grades added or modified unit tests (git diff vs baseRef, default main) through:
   Gate 1  AST mock/assert/tautology/empty checks
   Gate 2  Flakiness (default 100 isolated runs, 0% flake; fail-fast)
-  Gate 3  Mutation score on changed production modules (≥75%)
+  Gate 3  Mutation score on changed production modules (≥75%); each mutant runs the
+          nearest importing tests first, the rest only if it survives them
+
+Speed:
+  FIREGUARD_CONCURRENCY  mutants tested at once (default: 1 per 3 CPUs). Above 1 they run
+                         in temporary workspace copies, not the working tree (unless copying
+                         or a baseline run there fails: then one at a time in the working tree)
 
 PR integration:
   --comment-pr     Upsert a sticky grade comment on the current GitHub PR

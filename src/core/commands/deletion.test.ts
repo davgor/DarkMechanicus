@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { DraftOp } from '../../shared/domain/api'
 import { dropAcceptanceNodes } from '../../test/acceptanceNodes'
+import { issued } from '../../test/execution'
 import { createHarness, type Harness } from '../../test/workspaceHarness'
 import { openDatabase } from '../db/database'
 import { encodeBase32, ID_PREFIXES } from '../ids'
@@ -33,7 +34,7 @@ async function savedEpic(agent: Workspace, title: string, ops: DraftOp[]): Promi
 }
 
 async function deliver(agent: Workspace, runId: string, ticketId: string): Promise<void> {
-  const claim = await agent.claimTicket({ runId, ticketId, worker: { label: 'worker-1' } })
+  const claim = issued(await agent.claimTicket({ runId, ticketId, worker: { label: 'worker-1' } }))
   await agent.submitAttempt({ attemptId: claim.attempt.id, claimToken: claim.packet.claimToken, outputs: { summary: 'done' } })
   await agent.acceptAttempt({ attemptId: claim.attempt.id })
 }
@@ -139,6 +140,38 @@ describe('deleteEpic', () => {
     expect(events.filter((event) => event.kind === 'epic.deleted').map((event) => [event.epicId, event.payload])).toEqual([
       [null, { title: 'Short lived', runs: 0 }]
     ])
+  })
+})
+
+describe('deleteEpic with a Linear transfer', () => {
+  it('deletes an epic with an in-progress transfer and its recorded items', async () => {
+    const desktop = harness.open('desktop')
+    await desktop.initializeRepository({ name: 'delete-repo' })
+    const plan = await savedEpic(desktop, 'Transferred', [{ op: 'add_ticket', ref: 'one', sprint: '1', ticket: { title: 'One' } }])
+    const db = openDatabase(dmPath('local', 'state.sqlite'))
+    try {
+      // The rows an interrupted transfer leaves: started, with the project and one issue recorded.
+      db.run(
+        `INSERT INTO transfers (epic_id, target, status, revision_id, packet_hash, packet_json, queued_by, queued_at, started_at, updated_at)
+         SELECT id, 'linear', 'in_progress', current_revision_id, 'sha256:x', '{}', 'ss_desktop', 't', 't', 't' FROM epics WHERE id = ?`,
+        plan.epicId
+      )
+      db.run(
+        `INSERT INTO transfer_items (epic_id, ref, kind, linear_id, recorded_at)
+         VALUES (?, 'project', 'project', 'lin-project', 't'), (?, ?, 'issue', 'lin-one', 't')`,
+        plan.epicId,
+        plan.epicId,
+        plan.ticket('one')
+      )
+    } finally {
+      db.close()
+    }
+    expect(rowsMentioning([plan.epicId]).filter((row) => row.startsWith('transfer'))).toHaveLength(3)
+
+    await desktop.deleteEpic({ epicId: plan.epicId })
+
+    expect(rowsMentioning([plan.epicId])).toEqual([])
+    expect(await desktop.listEpics()).toEqual([])
   })
 })
 

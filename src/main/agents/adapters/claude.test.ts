@@ -1,8 +1,13 @@
-import { resolve } from 'node:path'
+import { mkdtempSync, realpathSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
 import type { CanUseTool, ModelInfo, Options, PermissionResult, SDKMessage, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ApprovalDecision, ApprovalRequestItem, ChatAdapterEvent, ChatItem, ModelOption } from '../../../shared/agents/chat'
 import { REPO, memoryChatStore } from '../__mocks__/fakeChatAdapter'
+import { builtInSpec } from '../__mocks__/launchSpecs'
+import { buildCliConfig } from '../../desktop/cliConfig'
+import { cliInstructions } from '../cliInstructions'
 import {
   CURATED_CLAUDE_MODELS,
   claudeAdapterDefinition,
@@ -506,6 +511,53 @@ describe('Claude adapter: one process carries several turns (2)', () => {
     await rig.adapter.send('two')
 
     expect(rig.items()).toEqual([])
+  })
+})
+
+describe('Claude adapter: the folder every process runs in', () => {
+  it('runs the process (the SDK `cwd` it spawns with) in the folder the dm command it is told about is pinned to', async () => {
+    const folder = realpathSync(mkdtempSync(join(tmpdir(), 'dm-claude-folder-')))
+    try {
+      const cli = { ...buildCliConfig({ packaged: false, execPath: '/bin/electron', appPath: '/app', repoPath: folder }), env: { DM_SESSION_TOKEN: 'dmg_test' } }
+      const rig = await startRig({
+        plans: [replay(init(), success('ok'))],
+        start: { folder, darkMechanicus: cli, instructions: cliInstructions({ cli, role: 'orchestrator', allowSave: true }) }
+      })
+
+      await rig.adapter.send('hi')
+
+      const options = rig.sdk.launches[0]?.options
+      expect(options?.spawnClaudeCodeProcess).toBe(rig.processes.spawn)
+      expect(options).toMatchObject({
+        cwd: folder,
+        env: { DM_SESSION_TOKEN: 'dmg_test' },
+        systemPrompt: { append: expect.stringContaining(`--repo ${folder} `) as string }
+      })
+    } finally {
+      rmSync(folder, { recursive: true, force: true })
+    }
+  })
+
+  it('checks the folder before it starts another process after a crash, and starts none in a folder that is gone', async () => {
+    let checks = 0
+    let gone = false
+    const checkFolder = (): void => {
+      checks += 1
+      if (gone) {
+        throw new Error(`The folder ${FOLDER} is gone: it was moved or deleted. Track the folder again to keep using this chat.`)
+      }
+    }
+    const rig = await startRig({ plans: [{ script: ({ emit }) => emit(init(), success('ok')) }], start: { checkFolder } })
+    await rig.adapter.send('one')
+    expect(checks).toBe(1)
+    rig.sdk.launches[0]?.finish(null)
+    await vi.waitFor(() => expect(rig.sdk.launches[0]?.closed).toBe(true))
+    gone = true
+
+    await expect(rig.adapter.send('two')).rejects.toThrow(FOLDER)
+
+    expect(checks).toBe(2)
+    expect(rig.sdk.launches).toHaveLength(1)
   })
 })
 
@@ -1653,7 +1705,7 @@ describe('Claude adapter: models (2)', () => {
     const sdk = fakeSdk([{ models: INFOS }])
     const definition = createClaudeAdapterDefinition({ query: sdk.query, createProcesses: () => fakeProcesses(sdk.log), platform: 'linux' })
 
-    expect(await definition.listModels(EXECUTABLE)).toEqual(EXPECTED)
+    expect(await definition.listModels(builtInSpec('claude', EXECUTABLE))).toEqual(EXPECTED)
     expect(sdk.launches[0]?.options.pathToClaudeCodeExecutable).toBe(EXECUTABLE)
   })
 
@@ -1667,13 +1719,13 @@ describe('Claude adapter: models (2)', () => {
       clock: () => now
     })
 
-    await definition.listModels(EXECUTABLE)
+    await definition.listModels(builtInSpec('claude', EXECUTABLE))
     now += 60_000
-    await definition.listModels(EXECUTABLE)
+    await definition.listModels(builtInSpec('claude', EXECUTABLE))
     expect(sdk.launches).toHaveLength(1)
 
     now += 60 * 60_000
-    await definition.listModels(EXECUTABLE)
+    await definition.listModels(builtInSpec('claude', EXECUTABLE))
     expect(sdk.launches).toHaveLength(2)
   })
 
@@ -1686,8 +1738,8 @@ describe('Claude adapter: models (2)', () => {
       clock: () => 0
     })
 
-    expect(await definition.listModels(EXECUTABLE)).toEqual(CURATED_CLAUDE_MODELS)
-    expect(await definition.listModels(EXECUTABLE)).toEqual(EXPECTED)
+    expect(await definition.listModels(builtInSpec('claude', EXECUTABLE))).toEqual(CURATED_CLAUDE_MODELS)
+    expect(await definition.listModels(builtInSpec('claude', EXECUTABLE))).toEqual(EXPECTED)
   })
 })
 
@@ -1701,7 +1753,7 @@ describe('Claude adapter: models (3)', () => {
       readFile: () => 'nothing'
     })
 
-    expect(await definition.listModels('C:\\npm\\claude.cmd')).toEqual(CURATED_CLAUDE_MODELS)
+    expect(await definition.listModels(builtInSpec('claude', 'C:\\npm\\claude.cmd'))).toEqual(CURATED_CLAUDE_MODELS)
     expect(sdk.launches).toHaveLength(0)
   })
 
@@ -1930,7 +1982,7 @@ describe('Claude adapter: dispose (2)', () => {
 
 describe('Claude adapter definition', () => {
   it('is a Claude adapter that starts on the first message', () => {
-    const adapter = claudeAdapterDefinition.create(EXECUTABLE)
+    const adapter = claudeAdapterDefinition.create(builtInSpec('claude', EXECUTABLE))
 
     expect(claudeAdapterDefinition.startOnOpen).toBe(false)
     expect(adapter.kind).toBe('claude')

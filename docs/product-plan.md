@@ -13,7 +13,7 @@ The supplied sketch establishes the intended hierarchy and branching execution s
 ## Proposed first-version scope
 
 - Local, single-user application; multiple agent sessions and the desktop may access it concurrently.
-- Each repository owns its database, plans, tickets, and execution history. The desktop's optional project registry only remembers which repositories to open.
+- Each project owns its database, plans, tickets, and execution history. A project is one repository, or a folder of repositories: the Git repositories in a folder's immediate subfolders, kept in one database, with each work ticket targeting one of them ([0003](decisions/0003-multi-repo-folders.md)). The desktop's optional project registry only remembers which folders to open.
 - Confirmed: the existing agent app runs the orchestrator and its own subagents. Dark Mechanicus stores plans and execution order, and supplies data to help the app execute them. That app can be an external host that connects over MCP, or, since 2026-10-04, one of the agent CLIs the desktop app hosts itself.
 - One host/provider environment per run; no cross-provider agent dispatch in the first version.
 - Headless MCP operation must work with the desktop closed.
@@ -25,16 +25,16 @@ Changed 2026-10-04. The first version assumed that agents live in an external ap
 
 What a person can do:
 
-- **Connect an agent.** Find a CLI already installed on the computer, or download it from its vendor's official installer after a confirmation. Sign in is the CLI's own login, run in a terminal window.
-- **Chat with it** in a tracked folder, as a planner, orchestrator, worker or reviewer. The chat's agent gets the same Dark Mechanicus MCP server, at that role, so the authorization rules below apply to it like to any other session. Edits and commands wait for the person's approval inside the chat.
+- **Connect an agent.** Find a built-in CLI already installed on the computer (Claude Code, Codex, Cursor or Autonomous), download one of the first three from its vendor's official installer after a confirmation, or add a custom CLI that speaks the ACP, Codex app-server or Claude Code SDK protocol: its program is picked in a native dialog, its exact command confirmed, and its protocol checked once before it is stored. Sign in is the CLI's own login, run in a terminal window (a custom CLI's is done outside the app). A tracked folder can name its default agent, which New chat and Start run preselect.
+- **Chat with it** in a tracked folder, as a planner, orchestrator, worker or reviewer. The chat's agent runs the `dm` CLI with a grant at that role, issued by the app, so the authorization rules below apply to it like to any other session. Its process always starts in the folder's canonical path, and a folder that has moved or gone refuses the start. Edits and commands wait for the person's approval inside the chat.
 - **Start a run with an agent.** Start run offers *Run with an agent*, which queues the run and starts the chosen agent as its orchestrator in a chat the person can follow, or *Leave pending*, which queues the run for an orchestrator started elsewhere. A run started this way cannot save plans.
 
 Rules this change keeps or adds:
 
-- **Vendor specifics stay in adapters.** Everything that differs between the three CLIs sits in one of two places: its chat adapter (how it is launched, its protocol, its approvals, how it says the login is gone) and its per-kind connection data (its install recipe, how its version output and sign-in status are read). The session manager, the chat store, the registry, the MCP server and every stored plan record do not branch on a vendor and speak one provider-neutral chat contract, so supporting another vendor means writing an adapter and its connection data, not changing them.
+- **Vendor specifics stay in adapters.** Everything that differs between the CLIs sits in one of two places: its chat adapter (how it is launched, its protocol, its approvals, how it says the login is gone) and its per-kind connection data (its install recipe, how its version output and sign-in status are read). The session manager, the chat store, the registry, the `dm` CLI, the MCP server and every stored plan record do not branch on a vendor and speak one provider-neutral chat contract, so supporting another vendor means writing an adapter and its connection data, not changing them; a CLI that speaks a supported protocol needs neither, and is added as a custom CLI.
 - **Plans, tickets and profiles stay provider-neutral.** No ticket, plan revision, named profile, run history or exported record names an agent product, and none depends on which one wrote or runs it. The agent kind and model appear only on a chat, in the app's machine-local store, and, as before, as the model identity an orchestrator records on an attempt. Capability requirements keep describing the work, never a vendor, and the exact-model preference stays the only place a model is named.
 - **No credentials in Dark Mechanicus.** The app never shows a password or key field and never reads or stores a credential. The CLI's own login does that, and the app asks the CLI whether it is signed in.
-- **Machine-local state.** The list of connected agents and every chat transcript live in the app's user-data folder, outside the repository. They are not portable records and never travel with a pull.
+- **Machine-local state.** The connected agents and folder defaults (the app database, `app.sqlite`) and every chat transcript live in the app's user-data folder, outside the repository. They are not portable records and never travel with a pull.
 - **Humans keep their authority.** A chat's role is fixed when it starts and its agent cannot raise it. Approving a checkpoint, authorizing auto-continue, granting a retry and the `signed_out` pause stay with the desktop session.
 - **One host per run still holds.** A run has one orchestrator, a single agent, which picks its subagents in its own environment. The desktop does not dispatch work across agents.
 
@@ -100,6 +100,8 @@ Model profiles, host capability catalogs, worker registrations, Markdown comment
 ## Epic feature branches
 
 Confirmed: each epic has its own feature branch. Store its repository identity, branch name, and starting commit. Cloud spin-ups and isolated workers target that branch for integration, not the default branch. The orchestrator coordinates merges, resolves conflicts, and records outcomes; a dedicated integration ticket represents substantial integration work. Merging the epic into the default branch is a separate repository workflow, not an automatic consequence of changing its status.
+
+In a folder of repositories the epic has one branch name, bound in each repository its work tickets name with that repository's own start commit; each sprint lands one squashed increment per touched repository.
 
 Use a dedicated coordinating checkout/worktree for the epic where practical. Worker code branches may differ, but their assignments identify the epic target branch. Dark Mechanicus must verify the coordinating repository and branch before saving/exporting or dispatching work; an unexpected branch change pauses those operations and preserves drafts for reconciliation. Per-epic branches reduce normal branch switching but do not make filesystem/database writes atomic with external Git commands.
 

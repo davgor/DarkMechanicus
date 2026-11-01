@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "Person's direction (2026-10-31): the terminal lives inside the app's existing window, in the chat view, not in a new or separate window. The design and the proposed build tickets assume an embedded terminal pane.",
+  "createdAt": "2026-10-31T04:06:50.928Z",
+  "epicId": "ep_01m61r9qjc28t4x2jpczpwk41a",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m68272sg45y97xnmhmqvyvjd",
+  "ticketId": "tk_01m67cgk9jv4c8c40wtxae5cyy"
+}

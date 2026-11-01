@@ -415,3 +415,39 @@ describe('computeChanges for covered tickets', () => {
     expect(details(base, next)).toEqual(['edited ticket: kind acceptance → work; acceptance criteria edited (1 line)'])
   })
 })
+
+describe('computeChanges for a ticket repository', () => {
+  const targeted = (repo: string | undefined) => (copy: PlanBundle) => {
+    if (repo === undefined) {
+      delete copy.tickets[0].repo
+    } else {
+      copy.tickets[0].repo = repo
+    }
+  }
+
+  it('shows a repository set, swapped and cleared', () => {
+    const base = makeBundle([[1]])
+    const alpha = edited(base, targeted('alpha'))
+    expect(details(base, alpha)).toEqual(['edited ticket: repository none → alpha'])
+    const beta = edited(alpha, targeted('beta'))
+    expect(details(alpha, beta)).toEqual(['edited ticket: repository alpha → beta'])
+    expect(details(beta, edited(beta, targeted(undefined)))).toEqual(['edited ticket: repository beta → none'])
+  })
+
+  it('shows the repository next to the title change its prefix brings', () => {
+    const alpha = edited(makeBundle([[1]]), (copy) => {
+      copy.tickets[0].repo = 'alpha'
+      copy.tickets[0].title = 'alpha - Fix'
+    })
+    const beta = edited(alpha, (copy) => {
+      copy.tickets[0].repo = 'beta'
+      copy.tickets[0].title = 'beta - Fix'
+    })
+    expect(details(alpha, beta)).toEqual(['edited ticket: title changed from "alpha - Fix"; repository alpha → beta'])
+  })
+
+  it('reports nothing for a ticket whose repository did not change', () => {
+    const alpha = edited(makeBundle([[1]]), targeted('alpha'))
+    expect(computeChanges(alpha, structuredClone(alpha))).toEqual([])
+  })
+})

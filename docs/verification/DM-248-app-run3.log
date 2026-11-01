@@ -1,0 +1,12 @@
+Debugger listening on ws://127.0.0.1:9349/eaaa14f4-b336-4c1b-9b2b-d09b6fc46f87
+For help, see: https://nodejs.org/learn/getting-started/debugging
+
+DevTools listening on ws://127.0.0.1:9343/devtools/browser/21009cf8-1715-4fb9-bf32-c1811e658314
+06:32:55.664 › Auto-update disabled (dev build or DISABLE_AUTO_UPDATE=1)
+Debugger attached.
+06:33:14.297 › Uncaught exception: Error: database is not open
+    at SqliteDb.close (~/Documents/GitHub/DarkMechanicus-worktrees/agent-clis-sprint-1/out/main/chunks/workspace-Uw38SZ0u.js:335:13)
+    at EventEmitter.<anonymous> (~/Documents/GitHub/DarkMechanicus-worktrees/agent-clis-sprint-1/out/main/index.js:7607:11)
+    at EventEmitter.emit (node:events:521:24)
+    at disposeThenQuit (~/Documents/GitHub/DarkMechanicus-worktrees/agent-clis-sprint-1/out/main/index.js:7718:7)
+Waiting for the debugger to disconnect...

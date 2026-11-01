@@ -24,14 +24,27 @@ const DISCOVERY_TOOLS = [
   defineTool({
     name: 'set_definition_of_done',
     description:
-      'Planner and desktop only. Replaces the Definition of Done of the project, stored in .darkmechanicus/project.json so it travels with the repository (never committed for you), and returns the project as get_project shows it. Each check has a name, the command that runs it, and a description of what passing shows. Names must be unique ignoring case and surrounding spaces: the acceptance node of a sprint proves each check by reporting it under that name as passed in its evidence, and the definition_of_done gate of the checkpoint stays unmet until it has. Dark Mechanicus does not run the commands. An empty list removes the Definition of Done, and sprints then get no such gate. Safe to repeat.',
+      'Planner and desktop only. Replaces the Definition of Done of the project, stored in .darkmechanicus/project.json so it travels with the repository (never committed for you), and returns the project as get_project shows it. Each check has a name, the command that runs it, and a description of what passing shows. Names must be unique ignoring case and surrounding spaces: the acceptance node of a sprint proves each check by reporting it under that name as passed in its evidence, and the definition_of_done gate of the checkpoint stays unmet until it has. Dark Mechanicus does not run the commands. An empty list removes the Definition of Done, and sprints then get no such gate. In a folder of repositories each repository has its own Definition of Done and the folder has none: pass repo to set that repository\'s checks (get_project lists them under repositories); the acceptance node reports each touched repository\'s checks as "<repo>: <check name>", and a repository without checks adds none. repo is required in a folder of repositories and refused (invalid_input) in a single repository. Safe to repeat.',
     kind: 'idempotent',
     input: {
       checks: definitionOfDoneChecks.describe(
         'Every check, in order. Replaces the whole list: omit none you want to keep (call get_project first).'
-      )
+      ),
+      repo: z
+        .string()
+        .min(1)
+        .max(255)
+        .optional()
+        .describe('Folder of repositories only, and required there: the repository whose checks these are. Omit it for a single repository.')
     },
     run: (api, input) => api.setDefinitionOfDone(input)
+  }),
+  defineArglessTool({
+    name: 'rescan_repositories',
+    description:
+      'Planner and orchestrator only, for a folder of repositories. Re-detects the Git repositories in the folder\'s immediate subfolders: new ones are appended, recorded ones that are gone are marked missing (never removed), and returning ones are no longer missing. Returns the whole list. Fails with `invalid_input` for a single-repository project. Safe to repeat.',
+    kind: 'idempotent',
+    run: (api) => api.rescanRepositories()
   }),
   defineArglessTool({
     name: 'list_projects',
@@ -57,6 +70,12 @@ const DISCOVERY_TOOLS = [
         .optional()
         .describe(
           'repo (default): records in .darkmechanicus/, tracked by Git. db: everything in one database in the Dark Mechanicus home directory, nothing written into the repository.'
+        ),
+      layout: z
+        .enum(['single', 'multi_repo'])
+        .optional()
+        .describe(
+          'single (default): the folder is one repository. multi_repo: the folder holds Git repositories as its immediate subfolders and is recorded with them; db mode only (its default), refused when the folder is itself inside a Git repository or holds no repositories.'
         )
     },
     run: (api, input) => api.initializeRepository(input)

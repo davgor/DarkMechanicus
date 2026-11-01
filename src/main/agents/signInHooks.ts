@@ -13,6 +13,6 @@ import type { SessionManager } from './sessionManager'
 export function trackChatSignIn(hooks: AgentAuthHooks, sessions: Pick<SessionManager, 'reconcileAuthStatus'>): AgentAuthHooks {
   return {
     ...hooks,
-    checkAuth: async (kind, executablePath) => sessions.reconcileAuthStatus(kind, await hooks.checkAuth(kind, executablePath))
+    checkAuth: async (agent) => sessions.reconcileAuthStatus(agent.id, await hooks.checkAuth(agent))
   }
 }

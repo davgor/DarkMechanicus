@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { DmApi } from '../../../shared/desktop/api'
-import { Markdown } from './Markdown'
+import { InlineMarkdown, Markdown } from './Markdown'
 
 let opened: string[] = []
 
@@ -92,5 +92,17 @@ describe('Markdown structure', () => {
   it('keeps a list item that starts with a non-paragraph block', () => {
     const { container } = render(<Markdown source={'- # heading item'} />)
     expect(container.querySelector('li h3')?.textContent).toBe('heading item')
+  })
+})
+
+describe('InlineMarkdown', () => {
+  it('renders inline code and emphasis in one span and keeps block syntax literal', () => {
+    const { container } = render(<InlineMarkdown source={'# sends `{ mode }` **once**'} />)
+    const root = container.firstElementChild
+    expect(root?.tagName).toBe('SPAN')
+    expect(root?.querySelector('.md-inline-code')?.textContent).toBe('{ mode }')
+    expect(root?.querySelector('strong')?.textContent).toBe('once')
+    expect(root?.querySelectorAll('h3, p, ul').length).toBe(0)
+    expect(root?.textContent).toBe('# sends { mode } once')
   })
 })

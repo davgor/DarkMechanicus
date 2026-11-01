@@ -1,0 +1,61 @@
+$ git rev-parse HEAD 022734c
+b23a9c90c6551544b3cdfd204551f701fabf631f
+022734c9d7173218705fde25fe58d581d6758834
+$ git merge-base --is-ancestor 022734c HEAD; echo $?
+0
+$ git log -1 --format="%H %s" 022734c
+022734c9d7173218705fde25fe58d581d6758834 Merge branch 'main' into agent-clis
+$ git log --merges --format="%h %p %s" --ancestry-path 022734c..HEAD
+b23a9c9 ffa1ac2 8fb39a5 Merge DM-338: stop epic exports from overwriting unimported tracked records
+ffa1ac2 11fa4b6 e424d05 Merge DM-341: correct the delivery-standards mirror note
+11fa4b6 7c82f45 17575ab Merge DM-340: align the Linear setup lines and the final-part wording
+7c82f45 5796a69 d9d8b0f Merge DM-339: bound the whole read-back and MCP messages
+5c6c873 850ed2f 022734c Merge main (022734c, v0.20.0) into linear-DM-337
+$ git diff -U0 022734c HEAD -- src/core/db/migrations.ts
+diff --git a/src/core/db/migrations.ts b/src/core/db/migrations.ts
+index 6926f89..d88b71b 100644
+--- a/src/core/db/migrations.ts
++++ b/src/core/db/migrations.ts
+@@ -6 +6 @@ import type { Db } from './database'
+-export const SCHEMA_VERSION = 10
++export const SCHEMA_VERSION = 11
+@@ -451,0 +452,35 @@ function scrubStoredResponses(db: Db): void {
++/**
++ * V11: a person-authorized transfer of a saved epic to Linear, the Linear items it has created so far, and the
++ * read-back an agent is sending in parts (`readback_json`, cleared as soon as a final part arrives).
++ */
++const V11 = `
++CREATE TABLE transfers (
++  epic_id TEXT PRIMARY KEY REFERENCES epics(id),
++  target TEXT NOT NULL CHECK (target IN ('linear')),
++  status TEXT NOT NULL CHECK (status IN ('queued','in_progress','verified','canceled')),
++  revision_id TEXT NOT NULL REFERENCES plan_revisions(id),
++  packet_hash TEXT NOT NULL,
++  packet_json TEXT NOT NULL,
++  project_id TEXT,
++  project_url TEXT,
++  last_mismatches_json TEXT,
++  readback_json TEXT,
++  queued_by TEXT NOT NULL,
++  queued_at TEXT NOT NULL,
++  started_at TEXT,
++  updated_at TEXT NOT NULL,
++  session_id TEXT
++);
++
++CREATE TABLE transfer_items (
++  epic_id TEXT NOT NULL REFERENCES transfers(epic_id),
++  ref TEXT NOT NULL,
++  kind TEXT NOT NULL CHECK (kind IN ('project','milestone','issue','relation')),
++  linear_id TEXT NOT NULL,
++  identifier TEXT,
++  url TEXT,
++  recorded_at TEXT NOT NULL,
++  PRIMARY KEY (epic_id, ref)
++);
++`
++
+@@ -462 +497,2 @@ export const MIGRATIONS: Migration[] = [
+-  { version: 10, sql: '', data: scrubStoredResponses }
++  { version: 10, sql: '', data: scrubStoredResponses },
++  { version: 11, sql: V11 }

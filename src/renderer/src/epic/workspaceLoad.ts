@@ -60,12 +60,15 @@ async function loadOverview(runner: Runner, epicId: string, run: RunView | null,
 export async function loadWorkspace(runner: Runner, epicId: string): Promise<WorkspaceData> {
   const epic = await runner('getEpic', { epicId })
   const { saved, draft, run } = await loadPlans(runner, epic)
-  const [checkpoint, overview, savedTickets, draftTickets, validation] = await Promise.all([
+  // A transfer needs a saved plan, and a completed epic has none open (a verified one is in its outcome).
+  const transferable = epic.currentRevisionId !== null && epic.status !== 'completed'
+  const [checkpoint, overview, savedTickets, draftTickets, validation, transfer] = await Promise.all([
     loadCheckpoint(runner, run),
     loadOverview(runner, epicId, run, saved),
     saved === null ? [] : runner('listTickets', { epicId, view: 'saved' }),
     draft === null ? [] : runner('listTickets', { epicId, view: 'draft' }),
-    draft === null ? null : runner('validatePlan', { epicId, view: 'draft' })
+    draft === null ? null : runner('validatePlan', { epicId, view: 'draft' }),
+    transferable ? runner('getTransfer', { epicId }) : null
   ])
   return {
     epic,
@@ -76,6 +79,7 @@ export async function loadWorkspace(runner: Runner, epicId: string): Promise<Wor
     overview,
     savedTickets,
     draftTickets,
-    validation
+    validation,
+    transfer
   }
 }

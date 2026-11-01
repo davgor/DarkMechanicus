@@ -1,6 +1,7 @@
 import { contentHash } from '../canonical'
 import type { Ctx } from '../context'
 import { fail } from '../errors'
+import { redactedJson, storableJson } from '../storedSecrets'
 
 interface IdempotencyRow {
   request_hash: string
@@ -11,6 +12,13 @@ interface IdempotencyRow {
  * Runs `execute` inside one transaction. With an idempotency key, a repeat of the same request
  * returns the originally stored response instead of executing again; reusing the key for a
  * different request is rejected.
+ *
+ * This is the only place a response is stored (the v10 migration rewrites stored rows through the
+ * same redaction, and deleting an epic deletes its rows). It stores the response as `storableJson`
+ * redacts it, and a replay passes the stored row through that redaction again, so a row written in
+ * plaintext by an older build still running against this database is never handed out. A secret
+ * the response carries goes to the first caller only; a replay reads it as null, so a replayed
+ * `claimTicket` returns its packet with `claimToken: null`.
  */
 export function withIdempotency<T>(
   ctx: Ctx,
@@ -31,7 +39,7 @@ export function withIdempotency<T>(
       if (existing.request_hash !== requestHash) {
         fail('idempotency_mismatch', `Idempotency key "${scope.key}" was already used for a different ${scope.command} request.`)
       }
-      return JSON.parse(existing.response_json) as T
+      return JSON.parse(redactedJson(JSON.parse(existing.response_json))) as T
     }
     const response = execute()
     ctx.db.run(
@@ -39,7 +47,7 @@ export function withIdempotency<T>(
       scope.command,
       scope.key,
       requestHash,
-      JSON.stringify(response ?? null),
+      storableJson(response),
       ctx.clock.nowIso()
     )
     return response

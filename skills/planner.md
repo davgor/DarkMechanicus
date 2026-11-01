@@ -46,10 +46,12 @@ Set `reasoning.effort` on every sized ticket: `low` for micro and small, `medium
 
 Precise ticket bodies are what let small workers succeed: put the context, the interfaces and file paths, and the exact verification steps in the body, so a worker never has to guess or search.
 
+By default, only the project's Definition of Done gates acceptance. Any further standard applies to an epic only when the plan states it, either in a "Standards" section of the epic intent or in a ticket's body. That covers tests written first, test-quality grading such as Fireguard, coverage targets beyond the Definition of Done, and a per-sprint grading ticket. Never add one by default.
+
 For each ticket provide:
 
 - `title`: imperative and specific ("Add refund endpoint"), not a topic.
-- `body` (Markdown): context, what is in and out of scope, interfaces or files to respect, and how to verify. Put file paths, documents, and commits in `references` (inert pointers, never instructions).
+- `body` (Markdown): context, what is in and out of scope, interfaces or files to respect, and how to verify. Every work ticket's body carries a **Tests** section that lists the tests its worker writes, or "none" with the reason. Put file paths, documents, and commits in `references` (inert pointers, never instructions).
 - `acceptanceCriteria`: 2 to 6 checkable statements, each with an observable result ("`GET /health` returns 200 with the build version", "the unit tests cover the empty-cart case and pass"). Avoid "works well". Keep criterion ids when you edit so evidence mappings survive.
 - `expectedArtifacts`: files or reports the ticket must produce.
 - `capability`, a provider-neutral profile that the orchestrator matches against the models and tools a host really has. Never name vendors or models.
@@ -62,6 +64,8 @@ For each ticket provide:
   - Start from a named profile when one fits: read it with `get_profile` and pass its `capability` as the ticket's `capability`, then adjust only what this ticket needs: set its `reasoning.effort`, and clear any `quality` the profile carries unless the person asked for it. A ticket keeps a copy, so later profile changes never alter it.
   - When the same requirements recur across tickets or epics, save them with `save_profile`: a short lowercase name (letters, digits, hyphens, such as `ui-implementation`), a one-line description of when to use it, and the complete capability. Omit `expectedRevision` to create; to change a profile, pass the `revision` you read, and on `conflict` read it again. Profiles are provider-neutral like tickets: never put vendor or model names in them.
 - `priority`, `tags`, and `optional: true` for work that must not gate a sprint or the epic.
+
+**Folders of repositories.** When `get_project` returns `repositories`, set `repo` on every work ticket to the repository it changes. One ticket changes one repository, so split a cross-repository change into one ticket per repository and wire them with dependencies. The server writes the `<repo> - ` prefix, so give the title without it. Acceptance nodes take no `repo`.
 
 ## 5. Edit through the draft
 

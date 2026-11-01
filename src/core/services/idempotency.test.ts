@@ -193,6 +193,61 @@ describe('withIdempotency transactions', () => {
   })
 })
 
+/** A claim token in the real shape, and a grant token in the real shape. */
+const CLAIM_TOKEN = 'at_01j8z3k5m7n9p2q4r6s8t0v1w2.Zk9_aB3dEf7-Hj2LmN5pQr8TuVw0XyZa'
+const GRANT_TOKEN = `dmg_${'0123456789abcdef'.repeat(4)}`
+
+describe('withIdempotency secrets', () => {
+  it('hands the caller its secret once, and stores and replays it as null', () => {
+    const ctx = createTestCtx()
+    const scope = { command: 'claimTicket', key: 'k1', request: {} }
+    const response = { attempt: { id: 'at_1', fencingToken: 2 }, packet: { claimToken: 'at_1.short', fencingToken: 2 } }
+    expect(withIdempotency(ctx, scope, () => response)).toEqual(response)
+    expect(withIdempotency(ctx, scope, () => ({ never: true }))).toEqual({
+      attempt: { id: 'at_1', fencingToken: 2 },
+      packet: { claimToken: null, fencingToken: 2 }
+    })
+    expect(storedRows(ctx)[0]?.response_json).not.toContain('short')
+  })
+
+  it('redacts a stored row on replay too, so a plaintext row an older build wrote is never handed out', () => {
+    const ctx = createTestCtx()
+    const plaintext = JSON.stringify({ attempt: { id: 'at_1' }, packet: { claimToken: 'at_1.secret-1', note: `pasted ${CLAIM_TOKEN}` } })
+    ctx.db.run(
+      "INSERT INTO idempotency (command, key, request_hash, response_json, created_at) VALUES ('claimTicket', 'k1', ?, ?, 't')",
+      contentHash({}),
+      plaintext
+    )
+    expect(withIdempotency(ctx, { command: 'claimTicket', key: 'k1', request: {} }, () => ({ never: true }))).toEqual({
+      attempt: { id: 'at_1' },
+      packet: { claimToken: null, note: 'pasted [claim token masked]' }
+    })
+  })
+
+  it('stores no secret the response holds, whatever field or text it is in', () => {
+    const ctx = createTestCtx()
+    const response = {
+      grant: { id: 'gr_1', token: GRANT_TOKEN },
+      sessionToken: 'plain-session-value',
+      notes: [`pasted ${CLAIM_TOKEN} and ${GRANT_TOKEN}`],
+      [CLAIM_TOKEN]: 'a token as a field name'
+    }
+    withIdempotency(ctx, { command: 'save', key: 'k1', request: {} }, () => response)
+    const stored = storedRows(ctx)[0]?.response_json ?? ''
+    for (const secret of [GRANT_TOKEN, CLAIM_TOKEN, CLAIM_TOKEN.split('.')[1] ?? '', 'plain-session-value']) {
+      expect(stored).not.toContain(secret)
+    }
+    expect(stored).toContain('gr_1')
+  })
+
+  it('redacts what an object serializes to, not only its own fields', () => {
+    const ctx = createTestCtx()
+    const sneaky = { toJSON: () => ({ claimToken: 'from-to-json' }) }
+    withIdempotency(ctx, { command: 'save', key: 'k1', request: {} }, () => ({ sneaky }))
+    expect(storedRows(ctx)[0]?.response_json).toBe('{"sneaky":{"claimToken":null}}')
+  })
+})
+
 describe('requestWithoutKey', () => {
   it('strips only the idempotency key', () => {
     const request = { epicId: 'ep_1', ops: [1], idempotencyKey: 'k1' }

@@ -5,6 +5,7 @@ import type { DraftOp, RecordRowCheckInput } from '../shared/domain/api'
 import type { ReadinessView, RunView } from '../shared/domain/views'
 import type { Workspace } from '../core/workspace'
 import { dropAcceptanceNodes } from '../test/acceptanceNodes'
+import { issued } from '../test/execution'
 import { createHarness, type Harness } from '../test/workspaceHarness'
 
 const COMMIT = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678'
@@ -64,7 +65,7 @@ async function plan(agent: Workspace, options: { acceptanceNodes?: boolean } = {
 }
 
 async function accept(agent: Workspace, runId: string, ticketId: string): Promise<void> {
-  const claim = await agent.claimTicket({ runId, ticketId, worker: { label: 'worker-1' } })
+  const claim = issued(await agent.claimTicket({ runId, ticketId, worker: { label: 'worker-1' } }))
   await agent.submitAttempt({ attemptId: claim.attempt.id, claimToken: claim.packet.claimToken, outputs: { summary: 'done' } })
   await agent.acceptAttempt({ attemptId: claim.attempt.id })
 }

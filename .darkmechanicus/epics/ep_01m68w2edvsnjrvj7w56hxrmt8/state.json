@@ -1,0 +1,78 @@
+{
+  "branch": {
+    "name": "multi-repo-folders",
+    "repository": "/Users/davidgorden/Documents/GitHub/DarkMechanicus",
+    "startCommit": "e0e7e07f4c72700660b5ff30bf0a9910d9b58f6f"
+  },
+  "completedAt": "2026-10-31T22:59:33.046Z",
+  "createdAt": "2026-10-31T11:38:41.979Z",
+  "epicId": "ep_01m68w2edvsnjrvj7w56hxrmt8",
+  "format": "darkmechanicus.epic-state",
+  "formatVersion": 1,
+  "generation": 44,
+  "outcome": {
+    "recordedAt": "2026-10-31T22:59:33.046Z",
+    "runId": "rn_01m69s053eg2rqvbke4sntm1b1",
+    "successCriteria": [
+      {
+        "criterionId": "s1",
+        "met": true,
+        "note": "DM-342 c6, c7 and c2: Folder of repositories offered for a non-repository parent, children listed by exact name, nothing written into the parent or children."
+      },
+      {
+        "criterionId": "s2",
+        "met": true,
+        "note": "DM-342 c3 and c8 with scratch repositories named alpha and gamma (the prefix is the exact folder name, so DarkMechanicus would read `DarkMechanicus - Add refund endpoint`): stored as `alpha - Add refund endpoint`, retitled on a repository change, acceptance node refused a repo."
+      },
+      {
+        "criterionId": "s3",
+        "met": true,
+        "note": "DM-342 c4 (missing_repo, unknown_repo); DM-347/DM-348 tests: repo in a single-repository project is refused (invalid_input on edit, repo_not_allowed in validation)."
+      },
+      {
+        "criterionId": "s4",
+        "met": true,
+        "note": "DM-342 c11 (absolute path and branch per packet), c12-c14 and c15 (integration test): a sprint passes only with every touched repository's squashed increment verified and its checks reported."
+      },
+      {
+        "criterionId": "s5",
+        "met": true,
+        "note": "npm test passes (453 files, 8890 tests) with single-repository tests unchanged; reviewers checked single-repository packets, increments, report shape and titles on each ticket."
+      },
+      {
+        "criterionId": "s6",
+        "met": true,
+        "note": "DM-349 and DM-360 guides, the kickoff repository branches (DM-360), decision record 0003 and the runbook (DM-363), checked in DM-342 c5 and c19."
+      }
+    ],
+    "summary": "The epic delivered folders of repositories: set-up, a repository per ticket with the exact-folder-name prefix, per-repository branches, packets, increments and Definition of Done, the desktop surfaces, guides and docs, all landed on multi-repo-folders as 30416d1. Merging it into main is a separate step for a person."
+  },
+  "provenance": null,
+  "status": "completed",
+  "ticketStatuses": {
+    "tk_01m68w2edvmdw2h8063ch16s6q": "completed",
+    "tk_01m68w2eekpzm9z173fmbkg2jd": "backlog",
+    "tk_01m68w2eev0yytk74ney7jrar1": "completed",
+    "tk_01m68w2eev1zhz01vc0d4r9573": "completed",
+    "tk_01m68w2eevav0n4d8wt3tx6aqv": "completed",
+    "tk_01m68w2eevcqq11z7s343qf6nv": "completed",
+    "tk_01m68w2eevdd7j0bmejsjptr9c": "backlog",
+    "tk_01m68w2eevdqc3y140fmmce9v0": "completed",
+    "tk_01m68w2eevfh6hxrjp1p1qpd55": "completed",
+    "tk_01m68w2eevh32qzespfmw6xs2v": "completed",
+    "tk_01m68w2eevhkm0zj67e34eag1c": "completed",
+    "tk_01m68w2eevna1z93ez2fmwzfw2": "completed",
+    "tk_01m68w2eevqc0kjxnxm6t9rcgc": "completed",
+    "tk_01m68w2eevrn99q2wv57s1s1a1": "completed",
+    "tk_01m68w2eew0en5nsvgz7wk4rht": "completed",
+    "tk_01m68w2eew20w1cskjbnky5zy2": "completed",
+    "tk_01m68w2eew9a25bh94vqq9kjg0": "completed",
+    "tk_01m68w2eewcrfw8k96bx5x75yc": "completed",
+    "tk_01m68w2eewk63d66xtzmva25da": "completed",
+    "tk_01m68w2eewkj36297tmtknt90t": "completed",
+    "tk_01m68w2eewqm3qz9awecfrgy29": "completed",
+    "tk_01m68w2eewr27g9s46gt1ma30q": "completed"
+  },
+  "title": "Multi-repo folders: open a folder of Git repositories, target each ticket at one repository, and run epics across them",
+  "updatedAt": "2026-10-31T22:59:33.064Z"
+}

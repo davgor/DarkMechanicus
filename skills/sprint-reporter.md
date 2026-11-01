@@ -53,6 +53,10 @@ Write each part from evidence the server or an attempt recorded, never from impr
 
 `redraft_next_sprint` reads this retro to rewrite the next sprint of the draft, so a leftover or discovery you leave out is never planned, and one you invent becomes a ticket.
 
+### Folders of repositories
+
+In a folder of repositories, list each repository's increment commit in `changes` (name the repository with it), and its Definition of Done checks in `checks` under their `<repo>: <check>` names. `increment_merged` and `definition_of_done` are met only when every touched repository passes, and their `detail` names what is missing: each repository whose increment failed or was not named, and each `<repo>: <check>` not reported as passed.
+
 ## 3. Submit and wait
 
 1. Call `submit_sprint_report` with the run id, the active sprint id, and the report. The run now waits at the checkpoint and takes no new claims.
@@ -73,4 +77,4 @@ Write each part from evidence the server or an attempt recorded, never from impr
 - Call `advance_sprint` only when `canAdvance` is true. For a human-gated sprint that needs a person's approval of this exact report. For an `auto` sprint it happens only if the person authorized auto-continue on the run. You cannot enable either, and plan edits cannot relax them.
 - A person can approve the retro and the redraft in one step in the desktop app, which saves the draft, adopts it, approves, and advances together. Only a person can; you never do.
 - On `approval_required` or `gate_blocked`, read the reasons and wait. Do not retry in a loop.
-- After advancing, confirm with `get_run`. Advancing the final sprint completes the run and the epic.
+- After advancing, confirm with `get_run`. Advancing the final sprint completes the run and the epic. An epic completes when its final checkpoint advances, or when a verified Linear transfer completes it; only a person can authorize a transfer.

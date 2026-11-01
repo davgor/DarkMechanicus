@@ -189,6 +189,18 @@ describe('chat store run link', () => {
     expect(reopened.getChat(orchestrator)).toMatchObject({ title: 'Renamed', runId: 'rn_1' })
     expect(reopened.getChat(plain)).not.toHaveProperty('runId')
   })
+
+  it('keeps the epic a transfer chat moves to Linear across a reopen, and a chat without one has none', () => {
+    const fs = memoryFs()
+    const store = openStore(fs)
+    const transfer = store.createChat({ ...NEW_CHAT, role: 'orchestrator', transferEpicId: 'ep_1' })
+    const plain = store.createChat(NEW_CHAT)
+    store.updateChat(transfer, { sessionId: 'session_1' })
+
+    const reopened = openStore(fs)
+    expect(reopened.getChat(transfer)).toMatchObject({ role: 'orchestrator', transferEpicId: 'ep_1', sessionId: 'session_1' })
+    expect(reopened.getChat(plain)).not.toHaveProperty('transferEpicId')
+  })
 })
 
 describe('chat store item replacement', () => {
@@ -313,6 +325,32 @@ describe('chat store reads chats stored before threads existed', () => {
   })
 })
 
+describe('chat store reads index lines written before agents had ids', () => {
+  it('loads an "agent":"cursor" line unchanged and does not rewrite the index', () => {
+    const fs = memoryFs()
+    const created = openStore(fs).createChat(NEW_CHAT)
+    const line = JSON.stringify({
+      id: 'ch_old_cursor',
+      folder: created.folder,
+      agent: 'cursor',
+      model: null,
+      role: 'worker',
+      allowSave: false,
+      title: 'Old cursor chat',
+      createdAt: AT,
+      updatedAt: AT,
+      sessionId: 'sess-1'
+    })
+    expect(line).toContain('"agent":"cursor"')
+    fs.files.set(indexPath(fs), `${line}\n`)
+
+    const chats = openStore(fs).listChats(created.folder)
+
+    expect(chats).toEqual([JSON.parse(line)])
+    expect(fs.files.get(indexPath(fs))).toBe(`${line}\n`)
+  })
+})
+
 describe('chat store updates and errors', () => {
   it('updates the title, model and vendor session id, and keeps them across a reopen', () => {
     const fs = memoryFs()
@@ -419,7 +457,9 @@ function registryFsOver(fs: MemoryFs): RegistryFs {
     mkdirp() {},
     realpath: (path) => fs.realpath(path),
     exists: (path) => fs.files.has(path),
-    isDirectory: (path) => fs.dirs.has(path)
+    isDirectory: (path) => fs.dirs.has(path),
+    readdir: () => [],
+    isSymlink: () => false
   }
 }
 

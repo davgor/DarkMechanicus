@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { FakeDm } from '../__mocks__/fakeDm'
 import { agentView } from '../__mocks__/fixtures'
 import { settle } from '../__mocks__/settle'
-import type { AgentAuthStatus, AgentKind, AgentView } from '../../../shared/desktop/api'
+import type { AgentAuthStatus, AgentId, AgentView } from '../../../shared/desktop/api'
 import type { AgentStatuses } from '../agents/useAgents'
 import { AgentsSection } from './AgentsSection'
 
@@ -22,11 +22,11 @@ const codex = agentView({ kind: 'codex', version: null, executablePath: '/usr/lo
 
 interface Calls {
   added: number
-  selected: AgentKind[]
-  statuses: [AgentKind, AgentAuthStatus][]
+  selected: AgentId[]
+  statuses: [AgentId, AgentAuthStatus][]
 }
 
-function renderSection(agents: AgentView[], statuses: AgentStatuses = {}, selected: AgentKind | null = null): Calls {
+function renderSection(agents: AgentView[], statuses: AgentStatuses = {}, selected: AgentId | null = null): Calls {
   const calls: Calls = { added: 0, selected: [], statuses: [] }
   render(
     <AgentsSection
@@ -123,5 +123,29 @@ describe('AgentsSection list', () => {
     renderSection([claude, codex], {}, 'codex')
     expect(screen.getByRole('button', { name: /Codex/ }).getAttribute('aria-current')).toBe('true')
     expect(screen.getByRole('button', { name: /Claude Code/ }).getAttribute('aria-current')).toBeNull()
+  })
+
+  it('lists a custom agent by its name, with no Sign in, and opens its page by its id', () => {
+    const custom = agentView({ kind: 'custom', displayName: 'My Claude', connectedVia: 'custom', version: '2.1.4' })
+    const calls = renderSection([claude, custom], { [custom.id]: { state: 'unchecked', reason: 'Not checked.' } })
+    const row = within(within(screen.getByRole('list')).getAllByRole('listitem')[1] as HTMLElement)
+    expect(row.getByText('My Claude')).toBeTruthy()
+    expect(row.getByText('Sign-in not checked')).toBeTruthy()
+    expect(row.queryByRole('button', { name: 'Sign in' })).toBeNull()
+    fireEvent.click(row.getByRole('button', { name: /My Claude/ }))
+    expect(calls.selected).toEqual([custom.id])
+  })
+})
+
+describe('AgentsSection versions', () => {
+  it('labels a custom agent’s version with the agent name its handshake reported, the version alone, or Version unknown', () => {
+    const named = agentView({ kind: 'custom', id: 'cu_1', displayName: 'a8s custom', version: '18.11.2', reportedName: 'omp' })
+    const bare = agentView({ kind: 'custom', id: 'cu_2', displayName: 'Bare', version: '0.3.1', reportedName: null })
+    const unknown = agentView({ kind: 'custom', id: 'cu_3', displayName: 'Quiet', version: null, reportedName: null })
+    renderSection([named, bare, unknown])
+    const [first, second, third] = within(screen.getByRole('list')).getAllByRole('listitem') as HTMLElement[]
+    expect(within(first as HTMLElement).getByText('omp 18.11.2')).toBeTruthy()
+    expect(within(second as HTMLElement).getByText('v0.3.1')).toBeTruthy()
+    expect(within(third as HTMLElement).getByText('Version unknown')).toBeTruthy()
   })
 })

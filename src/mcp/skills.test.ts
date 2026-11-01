@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import architecture from '../../docs/architecture.md?raw'
+import linearTransferSource from '../../skills/linear-transfer.md?raw'
+import linearRunbook from '../../docs/runbooks/linear-transfer.md?raw'
 import { SKILLS_VERSION } from '../core/version'
+import { LINEAR_SETUP_LINES } from '../shared/domain/linearSetup'
 import { SKILLS, skillBody, splitSkillSource } from './skills'
 
 const EXPECTED = [
@@ -9,10 +12,19 @@ const EXPECTED = [
   ['orchestrator', 'Orchestrator'],
   ['worker', 'Worker'],
   ['reviewer', 'Reviewer'],
-  ['sprint-reporter', 'Sprint reporter']
+  ['sprint-reporter', 'Sprint reporter'],
+  ['linear-transfer', 'Linear transfer']
 ]
 
 const VENDOR_WORDS = /claude|anthropic|openai|gpt|gemini|llama|mistral|copilot|codex|sonnet|opus|haiku/i
+
+/** The Linear transfer guide gives each CLI's setup line; nothing else in a skill may name a vendor. */
+function withoutLinearSetup(body: string): string {
+  return body
+    .split('\n')
+    .filter((line) => !line.includes('https://mcp.linear.app/mcp'))
+    .join('\n')
+}
 
 function skill(name: string) {
   const found = SKILLS.find((candidate) => candidate.name === name)
@@ -23,7 +35,7 @@ function skill(name: string) {
 }
 
 describe('SKILLS', () => {
-  it('ships the six skills in a stable order with their titles', () => {
+  it('ships the seven skills in a stable order with their titles', () => {
     expect(SKILLS.map((item) => [item.name, item.title])).toEqual(EXPECTED)
   })
 
@@ -44,10 +56,18 @@ describe('SKILLS', () => {
     }
   })
 
-  it('keeps bodies provider neutral', () => {
+  it('keeps bodies provider neutral, apart from the Linear setup lines', () => {
     for (const item of SKILLS) {
-      expect(VENDOR_WORDS.test(item.body)).toBe(false)
+      expect(VENDOR_WORDS.test(withoutLinearSetup(item.body))).toBe(false)
       expect(VENDOR_WORDS.test(item.description)).toBe(false)
+    }
+  })
+
+  it('gives each Linear setup line of dm transfer and the app verbatim in the transfer guide', () => {
+    const guideLines = linearTransferSource.split('\n')
+    expect(LINEAR_SETUP_LINES.map((entry) => entry.cli)).toEqual(['Claude Code', 'Codex', 'Cursor'])
+    for (const entry of LINEAR_SETUP_LINES) {
+      expect(guideLines.filter((guideLine) => guideLine.includes(entry.guide)), entry.cli).toHaveLength(1)
     }
   })
 
@@ -63,6 +83,15 @@ describe('SKILLS', () => {
       expect(item.body.endsWith('\n')).toBe(true)
       expect(item.body.endsWith('\n\n')).toBe(false)
       expect(item.body).not.toContain('\r')
+    }
+  })
+})
+
+describe('the Linear transfer runbook', () => {
+  it('gives each Linear setup line verbatim in its setup table, once', () => {
+    const runbookLines = linearRunbook.split('\n')
+    for (const entry of LINEAR_SETUP_LINES) {
+      expect(runbookLines.filter((runbookLine) => runbookLine.includes(`| ${entry.cli} | ${entry.guide} |`)), entry.cli).toHaveLength(1)
     }
   })
 })
@@ -85,6 +114,11 @@ describe('SKILLS_VERSION', () => {
   it('moved past 1.4.0 when the retro and the redraft loop was added', () => {
     const [major = 0, minor = 0] = SKILLS_VERSION.split('.').map(Number)
     expect(major > 1 || (major === 1 && minor >= 5)).toBe(true)
+  })
+
+  it('moved past 1.6.1 when the Linear guide reworded the final read-back part', () => {
+    const [major = 0, minor = 0, patch = 0] = SKILLS_VERSION.split('.').map(Number)
+    expect(major > 1 || (major === 1 && (minor > 6 || (minor === 6 && patch >= 2)))).toBe(true)
   })
 })
 
@@ -119,6 +153,11 @@ const REQUIRED: [string, string[]][] = [
       'Never edit a sprint the run has passed',
       'A run does not redo a sprint it has passed',
       '`get_run`',
+      'set `repo` on every work ticket',
+      'One ticket changes one repository',
+      'one ticket per repository',
+      'give the title without it',
+      'Acceptance nodes take no `repo`',
       'redraft'
     ]
   ],
@@ -140,7 +179,8 @@ const REQUIRED: [string, string[]][] = [
       'only for work that must combine mid-sprint',
       '`set_definition_of_done`',
       'its own ticket',
-      'row'
+      'row',
+      'each covering criterion names the repository its check runs in'
     ]
   ],
   [
@@ -220,7 +260,22 @@ const REQUIRED: [string, string[]][] = [
       'Adoption is allowed at a checkpoint with no open attempts',
       'Run the acceptance node over what remains',
       'submit a new report revision',
-      '`plan_current`'
+      '`plan_current`',
+      'A lost claim response',
+      '`claimToken: null`',
+      'no replay, not even yours, can recover it',
+      'no `claimToken`, and a reason such as "claim response lost"',
+      'claim it again with a new `idempotencyKey`; the old key keeps replaying the lost claim',
+      'fails with `already_claimed` while its lease is live, `needs_reconciliation` once it has expired, and `run_not_active` while the run is paused',
+      '### Folders of repositories',
+      "create it at that repository's `startCommit`: `git -C <path> branch <name> <startCommit>`",
+      "Never switch the branch of a child repository's own checkout",
+      'has no branch guard',
+      'one set per touched repository',
+      "a worktree of its packet's `repository.path`",
+      "Squash each touched repository's sprint work onto its epic branch",
+      '`increments`, one `{ repo, branch, commit }` per touched repository',
+      'Give every ticket added in a retro redraft its `repo`'
     ]
   ],
   [
@@ -248,7 +303,11 @@ const REQUIRED: [string, string[]][] = [
       'structured notes',
       'a title and a reason',
       'the reporter can lift',
-      'Discoveries:'
+      'Discoveries:',
+      '### Folders of repositories',
+      'Work only in a worktree of `repository.path`',
+      'run Git as `git -C <worktree>`',
+      'report each check as `<repo>: <check>`'
     ]
   ],
   [
@@ -263,7 +322,10 @@ const REQUIRED: [string, string[]][] = [
       'Do not run the full sweep',
       'no per-ticket merge commit on the epic branch',
       'increment',
-      'Never accept an acceptance node whose increment failed'
+      'Never accept an acceptance node whose increment failed',
+      'in that repository, not in the folder',
+      'one increment verdict per touched repository',
+      'one set of Definition of Done checks per touched repository'
     ]
   ],
   [
@@ -281,6 +343,8 @@ const REQUIRED: [string, string[]][] = [
       '`get_checkpoint`',
       '`advance_sprint`',
       'cannot approve',
+      "each repository's increment commit",
+      '`<repo>: <check>` names',
       '`report_submitted`, `no_active_leases`, `required_accepted`, `acceptance_accepted`, `increment_merged`, `definition_of_done`, `retro`, `exit_criteria`, `epic_outcome` (final sprint), `plan_current`, and `approval`, in that order',
       'Definition of Done',
       'increment',
@@ -305,7 +369,44 @@ const REQUIRED: [string, string[]][] = [
       'a title and a reason',
       'the acceptance node never moves',
       '`plan_current`',
-      'submit a new report revision'
+      'submit a new report revision',
+      'An epic completes when its final checkpoint advances, or when a verified Linear transfer completes it'
+    ]
+  ],
+  [
+    'linear-transfer',
+    [
+      '`get_capabilities`',
+      'has not authorized the transfer',
+      'press Transfer to Linear in the app',
+      '`claude mcp add --transport http linear-server https://mcp.linear.app/mcp`, then `/mcp` to sign in',
+      '`codex mcp add linear --url https://mcp.linear.app/mcp`',
+      'Cursor',
+      'complete it in the browser',
+      'ask the person which team to use',
+      '## 4. Labels before issues',
+      'Reuse a label of the same name',
+      'then the milestones in `position` order, then the issues strictly in `position` order, one at a time',
+      "search Linear for the item's `marker`",
+      'Call `record_transfer_item` right after each creation',
+      'Record the project with its `url`',
+      'a project recorded without a URL fails verification',
+      "list the blocked issue's existing relations, so none is added twice",
+      'Set the sort order when a tool allows it',
+      '`submit_transfer_readback`',
+      '`final: true` on the last part only',
+      'triage, backlog, unstarted, started, completed or canceled',
+      'None of the others may be completed or canceled',
+      'An accepted final part ends the read-back',
+      'the stored parts are still cleared',
+      'over the per-part size changes nothing, final or not',
+      'Never delete anything',
+      'read the whole project back again from the start',
+      'Never complete the epic any other way',
+      '`get_transfer`',
+      'call `start_transfer` again with a fresh `idempotencyKey` before you send any read-back part',
+      'It discards an unfinished read-back',
+      'Continue from `next`'
     ]
   ]
 ]

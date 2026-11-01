@@ -29,7 +29,8 @@ function fakeGit(current: string | null, branches: Record<string, Tree>): FakeGi
     },
     showFile: async (ref, path) => branches[ref]?.[path] ?? null,
     isAncestor: async () => null,
-    commitParents: async () => null
+    commitParents: async () => null,
+    branchCommit: () => null
   }
 }
 

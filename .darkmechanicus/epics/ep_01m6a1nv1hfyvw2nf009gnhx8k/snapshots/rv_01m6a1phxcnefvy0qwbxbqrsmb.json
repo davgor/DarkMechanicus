@@ -1,0 +1,1305 @@
+{
+  "baseRevisionId": null,
+  "bundle": {
+    "edges": [
+      {
+        "from": "tk_01m6a1p7pfm25m2r3b83ctbsnb",
+        "to": "tk_01m6a1p7qa5vd3ja3h28q42mhz"
+      },
+      {
+        "from": "tk_01m6a1p7qa5vd3ja3h28q42mhz",
+        "to": "tk_01m6a1p7qazz27zra4gpk10yny"
+      },
+      {
+        "from": "tk_01m6a1p7qazz27zra4gpk10yny",
+        "to": "tk_01m6a1p7qawghr22r3yvkezmwr"
+      },
+      {
+        "from": "tk_01m6a1p7qazz27zra4gpk10yny",
+        "to": "tk_01m6a1p7qam5570y9jmnabwwdy"
+      },
+      {
+        "from": "tk_01m6a1p7qazz27zra4gpk10yny",
+        "to": "tk_01m6a1p7qaxttbw9f5927qk2dx"
+      },
+      {
+        "from": "tk_01m6a1p7qa5vd3ja3h28q42mhz",
+        "to": "tk_01m6a1p7qabhd9mvk49b51fzst"
+      },
+      {
+        "from": "tk_01m6a1p7qabhd9mvk49b51fzst",
+        "to": "tk_01m6a1p7qazwjr1cbkfse57ra2"
+      },
+      {
+        "from": "tk_01m6a1p7qaxttbw9f5927qk2dx",
+        "to": "tk_01m6a1p7qazwjr1cbkfse57ra2"
+      },
+      {
+        "from": "tk_01m6a1p7qam5570y9jmnabwwdy",
+        "to": "tk_01m6a1p7qamc63weyayqxnxp8c"
+      },
+      {
+        "from": "tk_01m6a1p7qaxttbw9f5927qk2dx",
+        "to": "tk_01m6a1p7qamc63weyayqxnxp8c"
+      }
+    ],
+    "epic": {
+      "intent": "Isolated work has no home today: one change with no prerequisites still needs a whole epic, a sprint, an acceptance node and a run. This epic adds a **Kanban board** to every tracked folder. The board is a floating list of isolated tickets (\"cards\") that agents carry through fixed lanes. A person, or a planner or orchestrator agent, can add a card at any time. A person starts a card with a Play button and finishes it by approving the agent's evidence.\n\n## What changes\n- **Sidebar.** Each folder lists In progress, Backlog, **Kanban**, Completed, then Agents. Kanban opens the folder's board.\n- **Cards.** A card is a first-class entity, not an epic and not a plan ticket. It has a title, a Markdown body, acceptance criteria, expected artifacts, references, a priority, and a `DM-<n>` key from the project's ticket sequence. People create cards on the board. Planner and orchestrator agents create them with `create_kanban_card` over MCP or the `dm` CLI. A card can be edited while it is in Backlog and has never been claimed.\n- **Lanes.** Backlog → In progress → Ready for review → Done. The agent moves the cards: claiming a card moves it to In progress, and submitting moves it to Ready for review. A person never drags cards.\n- **Play.** Play on a card reuses Run with an agent. The person picks the agent and model, and an orchestrator chat starts for that one card. The orchestrator claims the card and has one worker subagent do it on the folder's checked-out branch. It then reviews the result against the card's criteria and the Definition of Done, and submits the evidence. Only a person can press Play.\n- **Review.** A person opens a Ready-for-review card, reads the evidence, and does one of two things. **Approve** moves it to Done. **Kick back** needs a comment, which goes to the agent's chat; the agent claims the card again and reworks it. Agents can never approve or kick back a card.\n- **Compaction.** Approving stores a compact summary: the outcome line, the commits and the date. The board loads only slim card summaries, and Done is collapsed and paged. A card's full body, attempts and evidence load only when it is opened. The full records are kept.\n- **Storage.** Kanban works in both storage modes (decision 0002). In `repo` mode, cards are portable records under `.darkmechanicus/kanban/`. In `db` mode, they live only in the machine-local database, and nothing is written into the repository.\n- **Agent docs.** The delivery standards and the planner, orchestrator and worker guides tell agents to put isolated tickets on the Kanban board instead of creating an epic.\n\n## Contract (shared by the tickets)\n- Ids: `ID_PREFIXES` gains `kanbanCard: 'kc'`, `kanbanAttempt: 'ka'` and `kanbanEvent: 'ke'`.\n- `src/shared/domain/kanban.ts` defines:\n  - `KANBAN_LANES = ['backlog','in_progress','ready_for_review','done']`, labelled Backlog, In progress, Ready for review and Done.\n  - `KanbanCardSummaryView`: id, key, title, lane, priority, updatedAt, playPending, the open attempt (`{ number, state }` or null), kickBackCount, and summary (or null). It never carries the body, criteria or evidence.\n  - `KanbanDoneSummary`: outcome (at most 280 characters), commits, completedAt, approvedBy.\n  - `KanbanBoardView`: the cards of each lane, `doneTotal` and `doneNextCursor`.\n  - `KanbanCardView`: the summary fields plus body, acceptanceCriteria, expectedArtifacts, references and attempts.\n  - `KanbanAttemptView`.\n  - `KanbanPacket`: cardId, key, attemptId, claimToken, leaseExpiresAt, heartbeatIntervalSeconds, the card's content, `branch` (the checkout's current branch), `reviewComments` (every earlier kick-back comment, in order), the reporting text, and the Definition of Done.\n- Tables: one migration, at the next `SCHEMA_VERSION` after the base branch's (11 on main today), adds three tables. `kanban_cards`. `kanban_attempts`, with at most one open attempt per card, holding the claim secret, lease, heartbeat, machine id, outputs, evidence and review comment. `kanban_events`, with one row per transition. The `outbox` and `sync_state` kind CHECKs gain `kanban_card` and `kanban_event`.\n- Commands and capabilities:\n\n| Command | MCP tool | Capability | Who |\n|---|---|---|---|\n| `createKanbanCard`, `updateKanbanCard` | `create_kanban_card`, `update_kanban_card` | `kanban.write` | person, planner, orchestrator |\n| `listKanbanCards` (`doneLimit`, `doneCursor`), `getKanbanCard` | `list_kanban_cards`, `get_kanban_card` | `read` | everyone |\n| `playKanbanCard` | none | `kanban.play` (human-only) | person |\n| `claimKanbanCard` | `claim_kanban_card` | `kanban.claim` | orchestrator |\n| `heartbeatKanbanCard`, `submitKanbanCard`, `failKanbanCard` | `heartbeat_kanban_card`, `submit_kanban_card`, `fail_kanban_card` | `kanban.report` | orchestrator, worker |\n| `approveKanbanCard`, `kickBackKanbanCard` (`comment` required) | none | `kanban.review` (human-only) | person |\n\n- Transitions:\n  - Creating a card puts it in Backlog.\n  - Play is allowed in Backlog, or In progress with no open attempt. It marks a pending play.\n  - Claim needs a pending play (otherwise `play_required`) and no open attempt (otherwise `already_claimed`). It consumes the play and moves the card to In progress.\n  - Submit moves the card to Ready for review.\n  - A failure or an expired lease leaves the card In progress, where it can be played again.\n  - Approve (from Ready for review) moves the card to Done and stores the compact summary.\n  - Kick back (from Ready for review, comment required) moves the card to In progress with a pending play, so the same chat can claim it again.\n- Every write appends a `kanban_events` row and a workspace event (`kind` `kanban.*`, `payload.cardId`, no epic), so the desktop refreshes. No claim secret ever appears in an event, a record or a view.\n- Records, in `repo` mode only:\n  - `.darkmechanicus/kanban/<cardId>/card.json` (`darkmechanicus.kanban-card`), rewritten only while the card can be edited.\n  - `.darkmechanicus/kanban/<cardId>/events/<eventId>.json` (`darkmechanicus.kanban-event`). These are immutable, one per transition, and carry outputs, evidence, kick-back comments and the done summary.\n  - Import rebuilds cards, attempts, lanes and summaries from these records.\n- Desktop:\n  - IPC `chats:startKanbanCard({folder, cardId, agent, model})` and `chats:kickBackKanbanCard({folder, cardId, comment})`.\n  - `ChatRecord.cardId`, `Selection.kanban` and `MainView { kind: 'kanban' }`.\n  - Renderer code lives under `src/renderer/src/kanban/`.\n\n## Standards (owner decision, 2026-10-31)\n- Tests first: every work ticket's **Tests** section lists its tests, and testable behavior is written tests-first (a failing test, then the code).\n- Fireguard: `npm run fireguard` runs once, in this sprint's acceptance node, on the combined committed sprint work, with `FIREGUARD_BASE_REF` set to the sprint's start commit. Any test graded F is rewritten without touching production code, and the grade is recorded in evidence. No work ticket runs Fireguard.\n- Work tickets run only their targeted checks: their listed tests, the existing tests of the files they touch, lint and typecheck. The project's full Definition of Done runs once, in the acceptance node.\n\n## Out of scope\n- Dependencies between cards, sprints on the board, and custom lanes.\n- Dragging cards, or moving them between lanes by hand.\n- Per-card branches or worktrees. Cards work on the folder's checked-out branch.\n- Deleting cards, free-form comments on cards (only kick-back comments), and searching cards in history.\n- Agents starting, approving or kicking back a card.\n- Linear transfer of cards, and cards in folders of repositories (that epic is not on main).\n",
+      "ownerRole": null,
+      "successCriteria": [
+        {
+          "id": "s1",
+          "text": "In the desktop app, every initialized folder's sidebar lists In progress, Backlog, Kanban and Completed in that order. Kanban opens a board with the lanes Backlog, In progress, Ready for review and Done."
+        },
+        {
+          "id": "s2",
+          "text": "A person creates a card from the board, and a planner or orchestrator session creates one with `create_kanban_card` (over MCP, or the `dm` CLI with a grant). Both appear in Backlog with `DM-<n>` keys. This holds in a `repo` folder, where the records are under `.darkmechanicus/kanban/`, and in a `db` folder, where nothing is written into the repository."
+        },
+        {
+          "id": "s3",
+          "text": "Play on a card opens the agent and model chooser and starts an orchestrator chat. The agent claims the card (In progress), works on the checked-out branch and submits evidence (Ready for review), and no person moves the card between those lanes."
+        },
+        {
+          "id": "s4",
+          "text": "On a Ready-for-review card, a person reads the evidence and either approves it (Done) or kicks it back with a required comment. A kick-back comment reaches the agent, and the card returns to In progress. Approve and kick back are refused for every agent session over MCP and the `dm` CLI."
+        },
+        {
+          "id": "s5",
+          "text": "Done cards are compact. The board's list carries no card body or evidence, and the Done lane is collapsed and paged. Opening a done card loads its full body, attempts and evidence, which are kept in full."
+        },
+        {
+          "id": "s6",
+          "text": "The planner, orchestrator and worker prompts served by the built MCP server, and the delivery standards, tell agents to put an isolated ticket on the Kanban board with `create_kanban_card` instead of creating an epic."
+        },
+        {
+          "id": "s7",
+          "text": "Existing epics, plan tickets, runs and storage behave as before. The project's Definition of Done passes, and Fireguard grades no new test F."
+        }
+      ],
+      "title": "Kanban: a per-folder board of isolated tickets that agents carry to review and a person approves"
+    },
+    "formatVersion": 1,
+    "policies": {
+      "leaseSeconds": 900,
+      "maxConcurrency": null,
+      "onTicketFailure": "continue_independent",
+      "retryLimit": 3
+    },
+    "rationale": "## Decisions the person made (2026-10-31)\n- A Kanban card is a new first-class entity, not an epic and not a plan ticket.\n- The lanes are fixed: Backlog, In progress, Ready for review, Done. The agent moves the cards. A person reviews the evidence, then approves or kicks back with comments.\n- Approving moves a card to Done and starts compaction. Compaction means slim views, with the records kept.\n- Play reuses Run with an agent, and is human-only.\n- A card's work lands on the folder's checked-out branch.\n- All standard steps apply: tests first, Fireguard once in the acceptance node, and the full Definition of Done.\n- \"Oneshot\" is read as one sprint with one human checkpoint.\n\n## Planner assumptions (change before Save if wrong)\n- Card keys share the project's `DM-<n>` ticket sequence.\n- A claim needs a pending Play from a person, as `queue_run` gates `start_run`, so agents cannot start cards themselves. A kick-back re-authorizes the same chat to claim again.\n- The card's orchestrator reviews the worker's result before submitting. The worker only heartbeats.\n- A card can be edited only while it is in Backlog and has never been claimed.\n- Nothing stops two cards from running on the checked-out branch at once. This follows from the current-branch choice; the risk is that their commits interleave.\n- An open attempt imported from another computer cannot be reported from this one (`card_not_owned`).\n- The migration takes the next schema version on the epic branch's base, because other open epics also add migrations.\n\n## Graph\n- The critical path is k-schema → k-cards → k-exec → k-play → k-panel, with k-docs after k-mcp and k-play.\n- k-board starts once k-cards is accepted, and runs alongside k-exec.\n- k-records, k-mcp and k-play run in parallel after k-exec. k-records wires the outbox into both service files, which is why it comes after them.",
+    "relations": [],
+    "sprints": [
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": null,
+        "entryCriteria": [],
+        "exitCriteria": [
+          {
+            "id": "x1",
+            "text": "Cards are stored, keyed, listed and read in both storage modes, and repo-mode records round-trip through import."
+          },
+          {
+            "id": "x2",
+            "text": "The card lifecycle (play, claim, report, approve, kick back) enforces lanes, claim tokens and human-only review."
+          },
+          {
+            "id": "x3",
+            "text": "Agents create and carry cards over MCP and the dm CLI. No agent tool starts, approves or kicks back a card."
+          },
+          {
+            "id": "x4",
+            "text": "The desktop shows Kanban between Backlog and Completed: a four-lane board with Play, evidence review, Approve and Kick back."
+          },
+          {
+            "id": "x5",
+            "text": "Done cards are compact on the board and load in full only when opened."
+          },
+          {
+            "id": "x6",
+            "text": "The agent guides and docs route isolated tickets to Kanban."
+          },
+          {
+            "id": "x7",
+            "text": "Epics, plan tickets, runs and existing storage are unchanged. The Definition of Done passes, and Fireguard grades no new test F."
+          }
+        ],
+        "goal": "Kanban end to end. A person or an agent adds an isolated card to a folder's board, and a person presses Play. The agent carries the card to Ready for review. The person approves it to a compact Done card or kicks it back. All of this works in both storage modes.",
+        "id": "sp_01m6a1nv1jttt7pym3d23swa6y",
+        "ordinal": 1,
+        "ticketIds": [
+          "tk_01m6a1p7pfm25m2r3b83ctbsnb",
+          "tk_01m6a1p7qa5vd3ja3h28q42mhz",
+          "tk_01m6a1p7qazz27zra4gpk10yny",
+          "tk_01m6a1p7qawghr22r3yvkezmwr",
+          "tk_01m6a1p7qam5570y9jmnabwwdy",
+          "tk_01m6a1p7qaxttbw9f5927qk2dx",
+          "tk_01m6a1p7qabhd9mvk49b51fzst",
+          "tk_01m6a1p7qazwjr1cbkfse57ra2",
+          "tk_01m6a1p7qamc63weyayqxnxp8c",
+          "tk_01m6a1nv1j6sdba9s4q5b40yvq"
+        ]
+      }
+    ],
+    "tickets": [
+      {
+        "acceptanceCriteria": [
+          {
+            "covers": "tk_01m6a1p7pfm25m2r3b83ctbsnb",
+            "id": "c1",
+            "text": "A copy of a database at the previous schema version, opened by the built app, is migrated. `sqlite3` `.tables` lists the three kanban tables, and `PRAGMA user_version` prints the new version (output)."
+          },
+          {
+            "covers": "tk_01m6a1p7qa5vd3ja3h28q42mhz",
+            "id": "c2",
+            "text": "Script output over the scratch repository: two created cards are listed in Backlog with consecutive DM keys and no body field."
+          },
+          {
+            "covers": "tk_01m6a1p7qazz27zra4gpk10yny",
+            "id": "c3",
+            "text": "Script output: a full lifecycle with one kick-back, `play_required` for a claim without Play, and `unauthorized` for an approve from an orchestrator session."
+          },
+          {
+            "covers": "tk_01m6a1p7qawghr22r3yvkezmwr",
+            "id": "c4",
+            "text": "A listing of `.darkmechanicus/kanban/` in the scratch repository after the lifecycle. In the db-mode folder, `git status --porcelain` shows nothing new. A fresh clone that reconciles produces a board identical to the original (the diff of the list output is empty)."
+          },
+          {
+            "covers": "tk_01m6a1p7qam5570y9jmnabwwdy",
+            "id": "c5",
+            "text": "`node out/main/cli.js --list` lines for the kanban commands. A planner MCP smoke creates a card. A `dm` call to `approve_kanban_card` under an orchestrator grant is refused (output)."
+          },
+          {
+            "covers": "tk_01m6a1p7qaxttbw9f5927qk2dx",
+            "id": "c6",
+            "text": "Live Play: the orchestrator chat claims the fixture card, works on the checked-out branch and submits. The kick-back comment arrives in that chat, and the card returns to Ready for review after rework (screenshots of the chat and the board)."
+          },
+          {
+            "covers": "tk_01m6a1p7qabhd9mvk49b51fzst",
+            "id": "c7",
+            "text": "Screenshot from the built app: the sidebar shows Kanban between Backlog and Completed, and the board shows a card in each lane."
+          },
+          {
+            "covers": "tk_01m6a1p7qazwjr1cbkfse57ra2",
+            "id": "c8",
+            "text": "Screenshots: a Ready-for-review panel with its evidence, Approve and Kick back, and the Done lane with compact rows. Opening a done card loads its full details only then (IPC log of `getKanbanCard`)."
+          },
+          {
+            "covers": "tk_01m6a1p7qamc63weyayqxnxp8c",
+            "id": "c9",
+            "text": "The planner, orchestrator and worker prompts served by the built MCP server contain the Kanban routing sentence (quote the lines)."
+          },
+          {
+            "id": "c10",
+            "text": "The Definition of Done passes on the combined work, and `npm run fireguard` grades no new or changed test F (output, with the grade)."
+          }
+        ],
+        "body": "1. Run the project's Definition of Done once, on the combined sprint work in the integration worktree.\n2. Run `npm run fireguard` once, with `FIREGUARD_BASE_REF` set to the sprint's start commit. Rewrite any test graded F without touching production code, and record the grade in evidence.\n3. Verify each covered item with the evidence its criterion names.\n4. Land the sprint as one squashed commit on the epic branch, and submit that increment.\n\n**Fixtures**\n- A scratch repo-mode Git repository.\n- A scratch db-mode folder under a scratch `DARKMECHANICUS_HOME`.\n- A scratch `--user-data-dir` for the built app.\n- Never open the live `state.sqlite` of the main checkout: the new build migrates it.\n- Where a criterion needs commands, run them through a throwaway in-process script (`openWorkspace` from `src/core/workspace.ts`) against the scratch folders. Redact claim tokens in printed packets, and delete the script afterwards.\n\n**Live Play check.** In the scratch repository, create the fixture card \"Add a line to NOTES.md\".\n1. Press Play with a signed-in agent, and wait for Ready for review.\n2. Kick the card back once with a comment, and wait for Ready for review again.\n3. Approve it.\n4. Take screenshots of the chat and the board at each step.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": ""
+          },
+          "skills": [],
+          "tools": [
+            "repo_read",
+            "repo_write"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m6a1nv1j6sdba9s4q5b40yvq",
+        "key": "DM-377",
+        "kind": "acceptance",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "tags": [],
+        "title": "Sprint 1 acceptance"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Migrating a database at the previous schema version creates `kanban_cards`, `kanban_attempts` and `kanban_events`, keeps every existing `outbox` and `sync_state` row, and sets `user_version` to the new `SCHEMA_VERSION` (migrations.test.ts)."
+          },
+          {
+            "id": "c2",
+            "text": "`outbox` and `sync_state` accept the kinds `kanban_card` and `kanban_event` and still reject an unknown kind (test)."
+          },
+          {
+            "id": "c3",
+            "text": "Inserting a second open attempt for the same card violates the partial unique index (test)."
+          },
+          {
+            "id": "c4",
+            "text": "With plan keys up to DM-40 and a card at DM-41, the next card key is DM-42 and the next new plan ticket key is DM-43 (test)."
+          },
+          {
+            "id": "c5",
+            "text": "`src/shared/domain/kanban.ts` exports the lanes in the order backlog, in_progress, ready_for_review, done, labelled Backlog, In progress, Ready for review and Done."
+          }
+        ],
+        "body": "Lay the storage and the shared types that every other Kanban ticket builds on. See the epic's **Contract** for the names.\n\n## In scope\n- **Migration** in `src/core/db/migrations.ts`, at the next `SCHEMA_VERSION` after the base branch's (11 on main today; check the branch, because other epics add migrations too).\n  - Create `kanban_cards`: id, key UNIQUE, title, body, acceptance_criteria_json, expected_artifacts_json, references_json, priority, size, lane (CHECK on the four lanes), play_requested_at, play_requested_by, created_by_role, created_by_label, created_at, updated_at, completed_at, summary_json, compacted_at, revision.\n  - Create `kanban_attempts`: id, card_id FK, number, state (CHECK `claimed`, `running`, `submitted`, `accepted`, `rejected`, `failed`, `lease_expired`), claim_secret, machine_id, lease_expires_at, heartbeat_at, progress_note, outputs_json, evidence_json, review_comment, created_at, submitted_at, decided_at. Add UNIQUE(card_id, number), and a partial unique index that allows one open attempt (`claimed`, `running`, `submitted`) per card.\n  - Create `kanban_events`: id, card_id FK, kind, attempt_id, actor_role, actor_label, payload_json, created_at, with an index on (card_id, created_at, id).\n  - Rebuild `outbox` and `sync_state` to widen their `kind` CHECKs with `kanban_card` and `kanban_event`. Follow the V2 rebuild (`migrations.ts` ~250-290): copy the rows, copy `sqlite_sequence`, and recreate the indexes.\n- **Ids.** In `src/core/ids.ts`, add `ID_PREFIXES` entries `kanbanCard: 'kc'`, `kanbanAttempt: 'ka'` and `kanbanEvent: 'ke'`. Confirm the prefixes are unused first.\n- **Key sequence.** Card keys use the project key prefix and share the ticket sequence, so no plan ticket and card ever share a key.\n  - Add a helper next to `allTicketKeys` in `src/core/services/draftDeps.ts` that returns the plan keys plus `kanban_cards.key`.\n  - Make draft key allocation count card keys too: the callers of `maxKeyNumber` in `src/core/plan/normalize.ts`.\n- **Shared types.** `src/shared/domain/kanban.ts` defines `KANBAN_LANES`, `KanbanLane`, `KANBAN_LANE_LABELS`, `KANBAN_ATTEMPT_STATES`, and the view types the Contract lists (`KanbanCardSummaryView`, `KanbanDoneSummary`, `KanbanBoardView`, `KanbanCardView`, `KanbanAttemptView`, `KanbanPacket`).\n\n## Out of scope\nServices, commands, records, MCP and UI.\n\n## Tests (tests-first)\n- `src/core/db/migrations.test.ts`:\n  - The table and index lists and the version.\n  - `outbox` and `sync_state` accept the new kinds and still reject an unknown one.\n  - Outbox and sync_state rows written at the previous version survive the migration.\n  - A second open attempt for one card is rejected.\n- `src/core/ids.test.ts`: the new prefixes.\n- A key-sequence test in the draft-keys suite.\n\n## Verify\n`npx vitest run src/core/db/migrations.test.ts src/core/ids.test.ts <key test>`, `npm run lint`, `npm run typecheck`. Never open the live `state.sqlite` of the main checkout.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "deep",
+            "rationale": "The migration rebuilds the outbox and sync_state tables to widen their CHECKs; a wrong copy loses pending exports."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "database",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/db/migrations.ts",
+          "src/core/ids.ts",
+          "src/shared/domain/kanban.ts",
+          "src/core/services/draftDeps.ts",
+          "src/core/db/migrations.test.ts"
+        ],
+        "id": "tk_01m6a1p7pfm25m2r3b83ctbsnb",
+        "key": "DM-378",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/db/migrations.ts",
+            "location": "src/core/db/migrations.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/ids.ts",
+            "location": "src/core/ids.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/draftDeps.ts",
+            "location": "src/core/services/draftDeps.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/plan/normalize.ts",
+            "location": "src/core/plan/normalize.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/decisions/0002-storage-modes.md",
+            "location": "docs/decisions/0002-storage-modes.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "kanban",
+          "core",
+          "database"
+        ],
+        "title": "Add Kanban card tables, ids, the shared key sequence and the shared card types"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "`createKanbanCard` stores a Backlog card with the next DM key and returns it. A reader or worker session gets `unauthorized` (test)."
+          },
+          {
+            "id": "c2",
+            "text": "`updateKanbanCard` edits a Backlog card with no attempt. It returns `invalid_state` for a card that has an attempt or is not in Backlog, and `conflict` for a stale `expectedRevision` (test)."
+          },
+          {
+            "id": "c3",
+            "text": "`listKanbanCards` groups cards into the four lanes, with no body, criteria or evidence field. With 25 done cards it returns 20, and then 5 with the cursor, newest first (test)."
+          },
+          {
+            "id": "c4",
+            "text": "`getKanbanCard` returns the full card, including the body, criteria and attempts (test)."
+          },
+          {
+            "id": "c5",
+            "text": "Every new command has a `capabilities.test.ts` probe, and the desktop can call create, update, list and get (handlers test)."
+          }
+        ],
+        "body": "Add the card authoring and board-read commands. Follow the `addComment` path: service, schema, command spec, capability, `CommandApi`, and the desktop allow-list. See the epic's **Contract**.\n\n## In scope\n- **Service** `src/core/services/kanban/cards.ts` (new):\n  - `createKanbanCard` takes title, body, acceptanceCriteria, expectedArtifacts, references, priority and size. The card goes in lane `backlog`, its key is allocated inside the write transaction with the shared-sequence helper, and createdBy comes from the session's role and label.\n  - `updateKanbanCard` takes `expectedRevision`. It is allowed only in Backlog for a card with no attempt; otherwise it returns `invalid_state`, and a stale revision returns `conflict`.\n  - `listKanbanCards({ doneLimit?, doneCursor? })` returns a `KanbanBoardView`. Open lanes are ordered by priority, then createdAt. Done is ordered by completedAt, newest first; `doneLimit` defaults to 20, with a maximum of 100. Summary views never carry the body, criteria or evidence.\n  - `getKanbanCard({ cardId })` returns the full `KanbanCardView`.\n- **Every write** runs `requireCapability(ctx.session, 'kanban.write')`, `ctx.assertBranch()` and `withIdempotency`. It appends a `kanban_events` row and a workspace event (`appendEvent`, kind `kanban.created` or `kanban.updated`, `payload.cardId`, no epic id).\n- **Capabilities.** Add `kanban.write` to `src/core/authz.ts` for the planner, the orchestrator and the desktop. List and get use `read`.\n- **Registration:**\n  - `src/core/commandSchemas.ts`: strict zod that reuses the ticket field schemas in `src/core/schemas.ts`.\n  - `src/core/commands/kanban.ts` and its spread in `src/core/commands/index.ts`.\n  - `COMMAND_CAPABILITIES` in `src/core/commands/capabilities.ts`.\n  - `CommandApi` in `src/shared/domain/api.ts`.\n  - `DESKTOP_COMMANDS` in `src/shared/desktop/api.ts`.\n  - Probe rows in `src/core/commands/capabilities.test.ts`.\n\n## Out of scope\nPlay, claim and review (k-exec), portable records (k-records), MCP tools (k-mcp), and UI.\n\n## Tests (tests-first)\nService and command tests:\n- A create returns the next key in Backlog.\n- Reader and worker sessions get `unauthorized` on create.\n- Update rules: Backlog only, no attempt (seed an attempt row as a fixture), and `conflict` on a stale revision.\n- The list holds no body, criteria or evidence, and pages 25 done cards as 20 and then 5.\n- Get returns the full card.\n- The desktop handlers test reaches each new desktop command.\n\n## Verify\nThe listed test files, `npm run lint`, `npm run typecheck`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Spans the service, command table, capabilities, shared API and desktop allow-list."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "database",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/services/kanban/cards.ts",
+          "src/core/commands/kanban.ts",
+          "src/core/commandSchemas.ts",
+          "src/core/authz.ts",
+          "src/shared/domain/api.ts",
+          "src/shared/desktop/api.ts"
+        ],
+        "id": "tk_01m6a1p7qa5vd3ja3h28q42mhz",
+        "key": "DM-379",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/comments.ts",
+            "location": "src/core/services/comments.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/profiles.ts",
+            "location": "src/core/services/profiles.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/commands/capabilities.ts",
+            "location": "src/core/commands/capabilities.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/desktop/api.ts",
+            "location": "src/shared/desktop/api.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/handlers.ts",
+            "location": "src/main/desktop/handlers.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "kanban",
+          "core"
+        ],
+        "title": "Add commands to create, edit, list and read Kanban cards"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A test moves a card Backlog → play → claim (In progress) → submit (Ready for review) → approve (Done), and checks the lane, the attempt state, `completed_at`, and the compact summary (outcome of at most 280 characters, commits)."
+          },
+          {
+            "id": "c2",
+            "text": "`claimKanbanCard` without a pending play returns `play_required`. A second claim while one is open returns `already_claimed`. A wrong or expired token on submit returns `stale_claim` or `expired_claim` (tests)."
+          },
+          {
+            "id": "c3",
+            "text": "A kick-back with a comment returns the card to In progress with a pending play, and the next claim's packet lists that comment. An empty comment is refused (test)."
+          },
+          {
+            "id": "c4",
+            "text": "Orchestrator, planner, worker and reviewer sessions get `unauthorized` for play, approve and kick back. The desktop session gets `unauthorized` for claim and report (tests)."
+          },
+          {
+            "id": "c5",
+            "text": "After a full lifecycle, no claim secret appears in any `kanban_events` row, `events` payload or returned view (test)."
+          },
+          {
+            "id": "c6",
+            "text": "An expired lease marks the attempt `lease_expired` and leaves the card In progress, where play is allowed again (test)."
+          }
+        ],
+        "body": "Add the single-card lifecycle. It never touches epics, sprints, plan revisions or runs. Mirror the claim, lease and token handling in `src/core/services/attempts.ts` and `src/core/services/execution.ts`. See the epic's **Contract**.\n\n## In scope (`src/core/services/kanban/attempts.ts`)\n- **`playKanbanCard({ cardId })`** needs `kanban.play`, which is human-only.\n  - Allowed in Backlog, or In progress with no open attempt.\n  - Sets `play_requested_at` and `play_requested_by`, and is idempotent.\n  - Returns `invalid_state` in Ready for review or Done, or while an attempt is open.\n- **`claimKanbanCard({ cardId, leaseSeconds? })`** needs `kanban.claim` (orchestrator).\n  - Returns `play_required` without a pending play, and `already_claimed` while an attempt is open.\n  - Consumes the play and creates attempt n+1. Use `ids.secret()` and the `<attemptId>.<secret>` token format, and record the machine id.\n  - Moves the card to In progress.\n  - Returns a `KanbanPacket` with: the card content; `branch` from `ctx.checkout().branch`; every earlier kick-back comment, in order; reporting text that names `heartbeat_kanban_card`, `submit_kanban_card` and `fail_kanban_card`; and the project's Definition of Done.\n- **Reporting** needs `kanban.report` (orchestrator, worker). Token errors return `stale_claim` or `expired_claim`, as `verifyClaim` does.\n  - `heartbeatKanbanCard({ attemptId, claimToken, progressNote? })`.\n  - `submitKanbanCard({ attemptId, claimToken, outputs, evidence })`, with the same `outputs` and `evidence` schema as `submitAttempt`. Moves the attempt to submitted and the card to Ready for review.\n  - `failKanbanCard({ attemptId, claimToken, reason })`. The attempt fails and the card stays In progress.\n- **Lease expiry**, run like `expireLeases`: an expired attempt becomes `lease_expired`, and the card stays In progress, where it can be played again.\n- **`approveKanbanCard({ cardId })`** needs `kanban.review` (human-only) and works only in Ready for review.\n  - The attempt is accepted and the card moves to Done, with `completed_at` set.\n  - `summary_json` gets the outcome (the submission summary cut to 280 characters), the commits, completedAt and approvedBy. `compacted_at` is set.\n- **`kickBackKanbanCard({ cardId, comment })`** needs `kanban.review` (human-only) and works only in Ready for review.\n  - The comment is required, between 1 character and the comment length limit in `LIMITS`.\n  - The attempt is rejected with `review_comment`. The card moves to In progress with a pending play again.\n- **Every transition** writes a `kanban_events` row and a workspace event (`kanban.*`, `payload.cardId`). The claim secret never appears in events, payloads or views.\n- **authz:**\n  - `kanban.play` and `kanban.review` go in `HUMAN_ONLY_CAPABILITIES` (desktop).\n  - `kanban.claim` goes to the orchestrator, and `kanban.report` to the orchestrator and the worker.\n  - The desktop gets neither claim nor report, as with `attempt.*`.\n- **Registration**, as in k-cards: claim, heartbeat, submit and fail go in `AGENT_ONLY_COMMANDS` (`src/main/desktop/handlers.test.ts`); play, approve and kickBack go in `DESKTOP_COMMANDS`.\n\n## Out of scope\nRecords (k-records), MCP tools (k-mcp), chats and IPC (k-play), and UI.\n\n## Tests (tests-first)\n- The full lifecycle with a kick-back and a second claim.\n- The refusals: `play_required`, `already_claimed`, `stale_claim`, `expired_claim`, `invalid_state`, and an empty comment.\n- Lease expiry.\n- Role refusals for every non-desktop role on play, approve and kick back, and for the desktop on claim and report.\n- A scan of every `kanban_events` and `events` row and returned view for the secret.\n\n## Verify\nThe listed tests, `npm run lint`, `npm run typecheck`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "deep",
+            "rationale": "Claim tokens, leases and human-only review: a wrong call leaks a secret or lets an agent approve its own work."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "database",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/services/kanban/attempts.ts",
+          "src/core/commands/kanban.ts",
+          "src/core/authz.ts",
+          "src/shared/domain/kanban.ts"
+        ],
+        "id": "tk_01m6a1p7qazz27zra4gpk10yny",
+        "key": "DM-380",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/attempts.ts",
+            "location": "src/core/services/attempts.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/execution.ts",
+            "location": "src/core/services/execution.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/authz.ts",
+            "location": "src/core/authz.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/handlers.test.ts",
+            "location": "src/main/desktop/handlers.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "kanban",
+          "core",
+          "security"
+        ],
+        "title": "Play, claim, report, approve and kick back a Kanban card"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "In a scratch repo-mode folder, creating, claiming, submitting and approving a card writes `kanban/<cardId>/card.json` and one event file per transition, and no file contains a claim secret (test)."
+          },
+          {
+            "id": "c2",
+            "text": "In a scratch db-mode folder (scratch `DARKMECHANICUS_HOME`), the same lifecycle writes nothing under the repository, and the board still lists the card in Done (test)."
+          },
+          {
+            "id": "c3",
+            "text": "Importing the repo-mode records into a fresh database reproduces the same `listKanbanCards` and `getKanbanCard` output (round-trip test)."
+          },
+          {
+            "id": "c4",
+            "text": "An existing event file with different content is reported as a `conflict` and never overwritten. A symlinked kanban directory is refused with `unsafe_path` (tests)."
+          },
+          {
+            "id": "c5",
+            "text": "An epic-scoped flush leaves kanban outbox entries pending, and an unscoped flush writes them (test)."
+          }
+        ],
+        "body": "Make cards travel with the repository in `repo` mode, as profiles and comments do, while `db` mode writes nothing into the repository (decision 0002). See the epic's **Contract**.\n\n## In scope\n- **Layout.**\n  - Add `RepoLayout.kanbanDir` (`src/core/repo/types.ts`, and `layoutUnder` in `layout.ts`). It is created by `ownedDirs` in `initialize.ts`, in repo mode only.\n  - In `paths.ts`, add `kanbanCardFile(cardId)` → `kanban/<cardId>/card.json` and `kanbanEventFile(cardId, eventId)` → `kanban/<cardId>/events/<eventId>.json`. Both go through `checkedId` and `assertContained`.\n- **Records** in `src/core/repo/portable.ts`:\n  - `kanbanCardRecord` (`darkmechanicus.kanban-card`, formatVersion 1): the definition fields, createdBy, createdAt, updatedAt and generation.\n  - `kanbanEventRecord` (`darkmechanicus.kanban-event`, formatVersion 1): id, cardId, kind, attemptId, actor, payload and createdAt.\n  - Add builders from the rows and tracked hashes for both. Event payloads carry submission outputs and evidence, kick-back comments and the done summary, never a claim secret. Cap events at `MAX_RECORD_BYTES`.\n- **Outbox.**\n  - Add the kinds `kanban_card` and `kanban_event` to `OutboxKind` and `ExportKind`.\n  - `FILE_HANDLERS` write `card.json` generation-checked, like profiles, and write event files immutably, like comments: an existing file must match its hash, or the write is a `conflict`.\n  - `DB_HANDLERS` settle without files, like profiles and comments.\n  - Enqueue in the same transaction as every write in `services/kanban/cards.ts` and `services/kanban/attempts.ts`.\n- **Seams.**\n  - The epic-scoped `queuedAfter` skips kanban entries; only an unscoped flush writes them.\n  - `conflictsOf` and `hasPendingEpicChanges` exclude the kanban kinds.\n  - `entityKeys` gets `kanban:<cardId>`.\n  - Card record conflicts show in the storage status, as profile conflicts do.\n- **Import** (`reconcileRepository`, repo mode only):\n  - Scan `kanban/` with the contained readers, then apply card definitions and events.\n  - Rebuild each card's lane, attempts (state, outputs, evidence, review comments) and summary from its ordered event stream.\n  - An open attempt imported from another computer keeps its machine id. This computer refuses to report it, returning `card_not_owned`.\n  - `db` mode stays a no-op.\n\n## Out of scope\nUI, MCP, and new conflict-resolution screens.\n\n## Tests (tests-first)\n- Finalizer: repo mode writes the files, and db mode writes none (scratch `DARKMECHANICUS_HOME`).\n- A round-trip import into a fresh database gives equal `listKanbanCards` and `getKanbanCard` output.\n- Immutability: an existing event file with different content is a `conflict` and is left unchanged.\n- A symlinked `kanban` directory returns `unsafe_path`.\n- An epic-scoped flush leaves kanban entries pending.\n- `card_not_owned`.\n- Update the `layout`, `initialize`, `paths`, `storage` and `dbFlush` tests for the new field and kinds.\n\n## Verify\nThe listed tests, `npm run lint`, `npm run typecheck`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "deep",
+            "rationale": "Export and import of records must stay contained, never rewrite immutable files, and never leak secrets; mistakes corrupt the repository."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "database",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/repo/layout.ts",
+          "src/core/repo/paths.ts",
+          "src/core/repo/portable.ts",
+          "src/core/repo/finalizer.ts",
+          "src/core/repo/importer.ts",
+          "src/core/services/outbox.ts"
+        ],
+        "id": "tk_01m6a1p7qawghr22r3yvkezmwr",
+        "key": "DM-381",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/finalizer.ts",
+            "location": "src/core/repo/finalizer.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/importer.ts",
+            "location": "src/core/repo/importer.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/portable.ts",
+            "location": "src/core/repo/portable.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/storage.ts",
+            "location": "src/core/repo/storage.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/syncState.ts",
+            "location": "src/core/repo/syncState.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/decisions/0002-storage-modes.md",
+            "location": "docs/decisions/0002-storage-modes.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "kanban",
+          "core",
+          "storage"
+        ],
+        "title": "Persist Kanban cards as portable records in repo mode, and only in SQLite in db mode"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "`roles.test.ts`: a planner lists the create, update, list and get kanban tools but not claim. An orchestrator also lists claim, heartbeat, submit and fail. A worker lists heartbeat, submit and fail. No role lists a tool for play, approve or kick back."
+          },
+          {
+            "id": "c2",
+            "text": "Over a planner MCP session, `create_kanban_card` creates a Backlog card. A worker session calling it gets `This worker session is not permitted to perform \"kanban.write\".` (server test)."
+          },
+          {
+            "id": "c3",
+            "text": "The per-role tool counts in `main.test.ts` match the new totals, and the suite passes."
+          },
+          {
+            "id": "c4",
+            "text": "After `npm run build`, `node out/main/cli.js --list` lists `create_kanban_card` with capability `kanban.write` and `approve_kanban_card` with `kanban.review` (output)."
+          }
+        ],
+        "body": "Give agents the card tools. They get no tool for play, approve or kick back.\n\n## In scope\n- **Tool group.** Add `src/mcp/tools/kanban.ts`, built with `defineTool`, and register it in `createMcpServer` (`src/mcp/server.ts`). The tools are `create_kanban_card`, `update_kanban_card`, `list_kanban_cards`, `get_kanban_card`, `claim_kanban_card`, `heartbeat_kanban_card`, `submit_kanban_card` and `fail_kanban_card`.\n- **Tool descriptions** say three things:\n  - A card is an isolated ticket: one change, no prerequisites and nothing depending on it, done in one attempt.\n  - Only a person presses Play, approves or kicks back, in the desktop app.\n  - Claim needs a person's Play.\n- **Tool names** avoid the words in `HUMAN_ONLY_TOOLS` (`approve|queue|authorize|grant|backup`).\n- **Tests to update:**\n  - `src/mcp/roles.test.ts` role lists: planner gets create, update, list and get. Orchestrator gets those plus claim, heartbeat, submit and fail. Worker gets heartbeat, submit and fail plus reads. Reviewer gets reads.\n  - The tool-to-command map in `src/mcp/server.test.ts`.\n  - The per-role counts in `src/mcp/main.test.ts`.\n- **dm CLI.** The commands appear automatically. Confirm with `node out/main/cli.js --list` after `npm run build`.\n\n## Out of scope\nDocs (k-docs) and desktop.\n\n## Tests (tests-first)\n- Role lists and counts.\n- A server test: a planner session's `create_kanban_card` creates a Backlog card, and a worker session's call gets the standard refusal text.\n\n## Verify\n`npx vitest run src/mcp`, `npm run lint`, `npm run typecheck`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "One new tool group following defineTool, plus role lists and counts."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "database",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/mcp/tools/kanban.ts",
+          "src/mcp/server.ts",
+          "src/mcp/roles.test.ts",
+          "src/mcp/main.test.ts"
+        ],
+        "id": "tk_01m6a1p7qam5570y9jmnabwwdy",
+        "key": "DM-382",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/tools/define.ts",
+            "location": "src/mcp/tools/define.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/tools/execution.ts",
+            "location": "src/mcp/tools/execution.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/roles.test.ts",
+            "location": "src/mcp/roles.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/main.test.ts",
+            "location": "src/mcp/main.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "kanban",
+          "mcp"
+        ],
+        "title": "Expose the Kanban card tools over MCP and the dm CLI"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "`startKanbanCard` marks the play, creates an orchestrator chat (`allowSave` false) bound to the card, and sends a kickoff. The kickoff names `claim_kanban_card`, `heartbeat_kanban_card` and `submit_kanban_card` and holds no claim token (test with fakes)."
+          },
+          {
+            "id": "c2",
+            "text": "When the agent fails to start, the chat is deleted and the card can still be played (test)."
+          },
+          {
+            "id": "c3",
+            "text": "`kickBackKanbanCard` returns the card to In progress and sends the comment to the card's newest chat. With no chat, it returns `chatId: null` (test)."
+          },
+          {
+            "id": "c4",
+            "text": "The new IPC channels are in the channel-list tests, and they refuse an untrusted sender and a card id that is not `kc_` (tests)."
+          }
+        ],
+        "body": "Make Play start an orchestrator chat for one card, and make Kick back reach that chat. Mirror `src/main/agents/orchestratorStart.ts`, `orchestratorKickoff.ts` and `chatHandlers.ts` `startTransfer`.\n\n## In scope\n- **Chat binding.**\n  - Add `cardId?` to `ChatRecord` (`src/shared/agents/chat.ts`) and to `NewChat` in `src/main/agents/chatStore.ts`.\n  - Add an activity binding of kind `card` with `cardId` (`activityBindings.ts`, `boundThreads.ts`). A binding never stores a token.\n- **Kickoff** in `src/main/agents/kanbanKickoff.ts`:\n  - `kanbanTitle(key, title)` returns `Kanban · <KEY> <title>`.\n  - `kanbanKickoff({ cardId, key, title, branch })` lists these steps:\n    1. Call `get_capabilities` and confirm the role is orchestrator.\n    2. Call `claim_kanban_card`.\n    3. Start one worker subagent with the whole packet and the worker guidance, following the HANDOFF rules: the token goes only to the worker and never into a commit, comment or note.\n    4. The worker works on the checked-out branch, commits, heartbeats, and reports back without submitting.\n    5. Review the result against the card's criteria and the Definition of Done.\n    6. Call `submit_kanban_card` with outputs and evidence.\n    7. Stop: a person approves or kicks back in the desktop app.\n    8. On a kick-back message, claim again and address every comment.\n  - It carries the orchestrator and worker guidance through `skillBody`, as `orchestratorKickoff` does. All text goes through `maskClaimTokens`.\n- **Play** in `src/main/kanban/startKanbanCard.ts`:\n  1. Call core `playKanbanCard`.\n  2. Create a chat with `sessions.createChat({ role: 'orchestrator', allowSave: false, cardId, title })`.\n  3. Send the kickoff.\n  - When the send fails, delete the chat. The pending play is harmless, and Play again starts a new chat.\n- **Kick back.** The main helper:\n  1. Calls core `kickBackKanbanCard`.\n  2. Sends `\"<KEY> was kicked back by a person: <comment>. Claim it again with claim_kanban_card and address the comment.\"` to the card's newest chat, which resumes as a send to any stopped chat does.\n  3. Returns `{ chatId }`, or `{ chatId: null }` when the card has no chat.\n- **IPC:**\n  - Add `chats:startKanbanCard({ folder, cardId, agent, model })` and `chats:kickBackKanbanCard({ folder, cardId, comment })` in `chatIpc.ts` and `chatHandlers.ts`. Both use strict zod and require `cardId` to match `/^kc_/`.\n  - Add both to `src/preload/index.ts` and to `ChatsApi` in `src/shared/agents/chatApi.ts`.\n  - Cover them with `ipcGuard`, and update the channel-list tests.\n\n## Out of scope\nRenderer (k-panel) and core rules (k-exec).\n\n## Tests (tests-first)\n- The kickoff names the claim, heartbeat and submit tools, carries no token, and has the guidance markers.\n- `startKanbanCard`, with fake sessions, creates a chat with `cardId`, the orchestrator role and `allowSave: false`, then sends the kickoff. It deletes the chat when the send fails.\n- Kick back sends to the newest chat with the matching `cardId`, and returns `null` when there is none.\n- The IPC schemas reject an id that is not `kc_` and an untrusted sender.\n- `chatIpc` channel list.\n\n## Verify\nThe listed tests, `npm run lint`, `npm run typecheck`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Mirrors the orchestrator start path across chat records, bindings, IPC, preload and a new kickoff text."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/main/agents/kanbanKickoff.ts",
+          "src/main/kanban/startKanbanCard.ts",
+          "src/main/agents/chatHandlers.ts",
+          "src/main/agents/chatIpc.ts",
+          "src/preload/index.ts",
+          "src/shared/agents/chatApi.ts",
+          "src/shared/agents/chat.ts"
+        ],
+        "id": "tk_01m6a1p7qaxttbw9f5927qk2dx",
+        "key": "DM-383",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/orchestratorStart.ts",
+            "location": "src/main/agents/orchestratorStart.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/orchestratorKickoff.ts",
+            "location": "src/main/agents/orchestratorKickoff.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/chatHandlers.ts",
+            "location": "src/main/agents/chatHandlers.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/activityBindings.ts",
+            "location": "src/main/agents/activityBindings.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/claimTokenMask.ts",
+            "location": "src/main/agents/claimTokenMask.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "kanban",
+          "main",
+          "agents"
+        ],
+        "title": "Start a Kanban card's agent from the desktop and deliver kick-backs to it"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Each initialized folder in the sidebar lists In progress, Backlog, Kanban and Completed in that order, and the Kanban label reads `Kanban, N open cards` (FolderRow test)."
+          },
+          {
+            "id": "c2",
+            "text": "Selecting Kanban opens the board view, and the selection survives a reload (selection and chooseView tests)."
+          },
+          {
+            "id": "c3",
+            "text": "The board shows the Backlog, In progress, Ready for review and Done lanes with counts. Done is collapsed and loads 20 compact rows at a time (component test)."
+          },
+          {
+            "id": "c4",
+            "text": "New card creates a Backlog card through `createKanbanCard`, and the card shows without a manual reload (component test)."
+          }
+        ],
+        "body": "Add the Kanban entry and the board view. Cards open in a panel that k-panel builds. Here a click only selects the card in the board's state.\n\n## In scope\n- **Sidebar.**\n  - In `src/renderer/src/sidebar/FolderRow.tsx` `Buckets`, render a `Kanban` row after Backlog and before Completed. Split the bucket map; do not add a value to `WorkStatus` or `BUCKET_ORDER`.\n  - Its `aria-label` is `Kanban, N open cards`, counting Backlog, In progress and Ready for review. It shows a selected state.\n  - Wire `onSelectKanban(path)` through `Sidebar.tsx`, and add `shellActions.selectKanban`, which runs `land(null)`, selects and reveals.\n- **Selection and routing.**\n  - Add `Selection.kanban?: true`, with `isSelection` and `resolveSelection` (`app/selection.ts`).\n  - Add `MainView { kind: 'kanban', folder }` in `app/chooseView.ts`, and a case in `App.tsx` `MainPane`.\n- **Data.** `src/renderer/src/kanban/useKanbanBoard.ts`, modelled on `useEpicLists`, refreshes on the folder event token (card writes emit workspace events) and calls `listKanbanCards`. Done pages load with **Show more**.\n- **Board** in `src/renderer/src/kanban/KanbanBoard.tsx`:\n  - Four lanes, each with a count.\n  - Slim cards show the key, title, priority, an attempt badge (Agent working, Waiting for agent, Agent stopped or Failed) and the kick-back count.\n  - Done is collapsed by default. It shows compact rows (key, title, outcome line, date), 20 at a time.\n  - **New card** opens a form (title required, Markdown body, acceptance criteria list, expected artifacts, priority) that calls `createKanbanCard`. **Edit** appears on Backlog cards with no attempt and calls `updateKanbanCard`.\n  - No drag and drop, and no manual lane moves.\n- **Styles.** `src/renderer/src/kanban/kanban.css` uses the existing tokens (`--st-*`, `--line`, `--panel`, `--font-mono`).\n\n## Out of scope\nThe card panel, Play and review (k-panel).\n\n## Tests (tests-first; jsdom with FakeDm, as `FolderRow.test.tsx` and `StartRunDialog.test.tsx` do)\n- `FolderRow`: the order and the aria count.\n- `chooseView` and `selection` table rows.\n- `KanbanBoard`: the lanes and counts, Done collapsed with Show more fetching the next page, and New card calling `createKanbanCard` with the card appearing after the event refresh.\n\n## Verify\nThe listed tests, `npm run lint`, `npm run typecheck`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Touches the sidebar, selection, routing and a new board view that must match the existing theme."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/kanban/KanbanBoard.tsx",
+          "src/renderer/src/kanban/useKanbanBoard.ts",
+          "src/renderer/src/kanban/kanban.css",
+          "src/renderer/src/sidebar/FolderRow.tsx",
+          "src/renderer/src/app/selection.ts",
+          "src/renderer/src/app/chooseView.ts"
+        ],
+        "id": "tk_01m6a1p7qabhd9mvk49b51fzst",
+        "key": "DM-384",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/sidebar/FolderRow.tsx",
+            "location": "src/renderer/src/sidebar/FolderRow.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/sidebar/buckets.ts",
+            "location": "src/renderer/src/sidebar/buckets.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/app/useEpicLists.ts",
+            "location": "src/renderer/src/app/useEpicLists.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/app/chooseView.ts",
+            "location": "src/renderer/src/app/chooseView.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/styles.css",
+            "location": "src/renderer/src/styles.css",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "kanban",
+          "ui"
+        ],
+        "title": "Add the Kanban section to each folder and the four-lane board"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Play appears only on Backlog cards and on In-progress cards with no open attempt. Starting from the dialog calls `chats.startKanbanCard` with the chosen agent and model and opens the returned chat (component test)."
+          },
+          {
+            "id": "c2",
+            "text": "A Ready-for-review card shows the latest attempt's checks, criteria results and notes, with Approve and Kick back (component test)."
+          },
+          {
+            "id": "c3",
+            "text": "Kick back stays disabled until a comment is entered, then sends it through `chats.kickBackKanbanCard`. Approve calls `approveKanbanCard` (component test)."
+          },
+          {
+            "id": "c4",
+            "text": "The board's list request carries no card body, and the panel calls `getKanbanCard` only when a card is opened (FakeDm call-log test)."
+          }
+        ],
+        "body": "Build the card panel that opens from the board.\n\n## In scope\n- **Panel** in `src/renderer/src/kanban/KanbanCardPanel.tsx`:\n  - It loads `getKanbanCard` lazily, only when a card is opened, never from the list payload.\n  - It shows the key, title, lane, Markdown body, acceptance criteria (`CriteriaItems`), expected artifacts and kick-back history.\n  - It shows attempts with `AttemptList` and evidence with `EvidenceList`. Export `EvidenceList` from `ticket/panelTabs.tsx`, or move it to a shared module.\n  - A Done card shows the compact summary first and the details below.\n- **Play** appears on Backlog cards, and on In-progress cards with no open attempt.\n  - It opens `StartCardDialog` (new). The dialog reuses `RunWithAgentSection`, `useAgentModelChoice` and `useFolderDefaultAgent`, plus the Add agent link, with card copy instead of the epic and Leave pending copy.\n  - The dialog calls `window.dm.chats.startKanbanCard` and then opens the returned chat (`selectChat`).\n  - Play is hidden while an attempt is open, and in Ready for review and Done.\n- **Review** on a Ready-for-review card:\n  - **Approve** calls `runCommand(folder, 'approveKanbanCard', …)`.\n  - **Kick back** opens a form with a required comment and calls `window.dm.chats.kickBackKanbanCard`.\n  - The board refreshes after either.\n- **Chat link.** When the card has a chat (`chats` filtered by `cardId`), link to it.\n\n## Out of scope\nCore rules, IPC and the board lanes.\n\n## Tests (tests-first; jsdom with FakeDm)\n- Play shows only in the allowed states.\n- The dialog calls `startKanbanCard` with the chosen agent and model.\n- Approve calls `approveKanbanCard`.\n- Kick back stays disabled until a comment is entered, then calls `kickBackKanbanCard`.\n- The evidence shows checks, criteria results and notes.\n- The board's list call carries no body, and `getKanbanCard` is called only when a card is opened.\n\n## Verify\nThe listed tests, `npm run lint`, `npm run typecheck`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Reuses evidence and attempt components and the agent chooser, plus new review controls."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/kanban/KanbanCardPanel.tsx",
+          "src/renderer/src/kanban/StartCardDialog.tsx",
+          "src/renderer/src/ticket/panelTabs.tsx"
+        ],
+        "id": "tk_01m6a1p7qazwjr1cbkfse57ra2",
+        "key": "DM-385",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/epic/StartRunDialog.tsx",
+            "location": "src/renderer/src/epic/StartRunDialog.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/ticket/AttemptList.tsx",
+            "location": "src/renderer/src/ticket/AttemptList.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/ticket/panelTabs.tsx",
+            "location": "src/renderer/src/ticket/panelTabs.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/ticket/AcceptanceSections.tsx",
+            "location": "src/renderer/src/ticket/AcceptanceSections.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/agents/useAgentModelChoice.ts",
+            "location": "src/renderer/src/agents/useAgentModelChoice.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "kanban",
+          "ui"
+        ],
+        "title": "Open a Kanban card to play it, review its evidence, and approve or kick it back"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The three delivery-standards copies are byte-identical (`cmp`), and each has the Kanban routing row. Rule 3 of the `.mdc` rule names Kanban cards."
+          },
+          {
+            "id": "c2",
+            "text": "`skills.test.ts` requires the routing sentence in the planner, orchestrator and worker guides and passes, and `SKILLS_VERSION` is bumped."
+          },
+          {
+            "id": "c3",
+            "text": "The tool counts per role in `docs/runbooks/mcp-setup.md` match the `main.test.ts` totals."
+          },
+          {
+            "id": "c4",
+            "text": "`docs/decisions/0003-kanban-cards.md` records the decisions listed in the epic intent."
+          }
+        ],
+        "body": "Route isolated work to Kanban in every agent-facing rule, and document the feature.\n\n## Routing rule\nUse this wording everywhere: \"An isolated ticket, meaning one coherent change with no prerequisites and nothing depending on it that one worker can finish in one attempt, goes on the folder's Kanban board with `create_kanban_card`, not into a new epic. Work that needs two or more tickets, ordering or sprints stays an epic. Agents create and edit cards; only a person presses Play, approves or kicks back.\"\n\n## Files\n- **Delivery standards.** `.agents/skills/delivery-standards/SKILL.md`, `.claude/skills/delivery-standards/SKILL.md` and `.cursor/skills/delivery-standards/SKILL.md` stay byte-identical. Update the Standing rules, add a row to the Situation table, and add a checklist line. Also update rule 3 of `.cursor/rules/delivery-standards.mdc`.\n- **Skills:**\n  - `skills/planner.md`: the routing rule, and a short Kanban card section covering the fields and when to create one.\n  - `skills/orchestrator.md`: running a card started by Play. Claim, hand it to one worker, review, submit, and stop. Never approve.\n  - `skills/worker.md`: card packet reporting with `heartbeat_kanban_card`.\n- **Agent context.** `AGENTS.md` and `CLAUDE.md` get a one-line pointer to the rule.\n- **README.md.** A Kanban step in \"Using it\", and the sidebar sections.\n- **docs/architecture.md:** the `kanban/` persistence tree and records, the tool inventory, and the capabilities.\n- **docs/runbooks/mcp-setup.md:** the tools-per-role table and counts, matching `main.test.ts`.\n- **docs/runbooks/cli.md:** a grant never carries Play, approve or kick back.\n- **docs/product-plan.md:** the sidebar sections.\n- **docs/decisions/0003-kanban-cards.md** (new ADR) records these decisions: a first-class card entity, fixed lanes with the agent as mover, human Play and review, the checked-out branch, compaction as slim views with the records kept, and both storage modes.\n- **Tests and version.** Add entries to the `REQUIRED` phrase tables in `src/mcp/skills.test.ts` for the planner, orchestrator and worker. Bump `SKILLS_VERSION` in `src/core/version.ts`.\n\n## Out of scope\nCode changes beyond the skills test and the version bump.\n\n## Tests\n`src/mcp/skills.test.ts` phrase entries, written first, so the test fails until the guides carry the rule.\n\n## Verify\n`npx vitest run src/mcp/skills.test.ts src/mcp/prompts.test.ts`, `cmp` over the three delivery-standards copies, and `npm run lint`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "The wording and file list are given; skills tests pin the phrases."
+          },
+          "skills": [
+            "documentation",
+            "typescript"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "documentation"
+        },
+        "expectedArtifacts": [
+          "skills/planner.md",
+          "skills/orchestrator.md",
+          "skills/worker.md",
+          ".claude/skills/delivery-standards/SKILL.md",
+          "docs/decisions/0003-kanban-cards.md",
+          "docs/runbooks/mcp-setup.md",
+          "README.md"
+        ],
+        "id": "tk_01m6a1p7qamc63weyayqxnxp8c",
+        "key": "DM-386",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": ".agents/skills/delivery-standards/SKILL.md",
+            "location": ".agents/skills/delivery-standards/SKILL.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": ".cursor/rules/delivery-standards.mdc",
+            "location": ".cursor/rules/delivery-standards.mdc",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/skills.test.ts",
+            "location": "src/mcp/skills.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/runbooks/mcp-setup.md",
+            "location": "docs/runbooks/mcp-setup.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/decisions/0002-storage-modes.md",
+            "location": "docs/decisions/0002-storage-modes.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "kanban",
+          "docs"
+        ],
+        "title": "Tell agents to put isolated tickets on the Kanban board, and document Kanban"
+      }
+    ]
+  },
+  "contentHash": "sha256:46fdca92ad1b3afe94c4ecd5dff19a82ff5ea95f855b6100815f182f84e5f7bf",
+  "createdAt": "2026-10-31T22:36:18.220Z",
+  "epicId": "ep_01m6a1nv1hfyvw2nf009gnhx8k",
+  "format": "darkmechanicus.plan-snapshot",
+  "formatVersion": 1,
+  "number": 1,
+  "revisionId": "rv_01m6a1phxcnefvy0qwbxbqrsmb",
+  "savedAt": "2026-10-31T22:36:18.220Z"
+}

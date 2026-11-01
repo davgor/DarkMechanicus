@@ -1,0 +1,17 @@
+$ DARKMECHANICUS_HOME=<evidence>/core/home npx tsx c1c2.mts c1
+$ ls -la /private/tmp/multirepo-run/evidence/core/fixtures/parent
+total 0
+drwxr-xr-x  7 <user>  wheel  224 Oct 31 17:13 .
+drwxr-xr-x  4 <user>  wheel  128 Oct 31 17:13 ..
+drwxr-xr-x  4 <user>  wheel  128 Oct 31 17:13 alpha
+lrwxr-xr-x  1 <user>  wheel    5 Oct 31 17:13 alpha-link -> alpha
+drwxr-xr-x  4 <user>  wheel  128 Oct 31 17:13 beta
+drwxr-xr-x  4 <user>  wheel  128 Oct 31 17:13 gamma
+drwxr-xr-x  4 <user>  wheel  128 Oct 31 17:13 plain
+
+gamma/.git is a file: gitdir: /private/tmp/multirepo-run/evidence/core/fixtures/gamma-src/.git/worktrees/gamma
+plain/nested/.git is a directory (nested repository under the plain folder)
+alpha-link is a symlink -> alpha
+
+detectChildRepos("/private/tmp/multirepo-run/evidence/core/fixtures/parent", nodeFs) =>
+["alpha","beta","gamma"]

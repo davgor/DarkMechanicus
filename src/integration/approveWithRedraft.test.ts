@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { Workspace } from '../core/workspace'
 import type { RedraftResultView } from '../shared/domain/views'
 import { dropAcceptanceNodes } from '../test/acceptanceNodes'
+import { issued } from '../test/execution'
 import { createHarness, type Harness } from '../test/workspaceHarness'
 
 interface Planned {
@@ -51,11 +52,11 @@ async function planSprint(planner: Workspace): Promise<Planned> {
 
 /** Parse is accepted; wire fails at every try it has; docs never start. */
 async function workTheSprint(orchestrator: Workspace, run: Started): Promise<void> {
-  const parse = await orchestrator.claimTicket({ runId: run.runId, ticketId: run.parseId, worker: { label: 'Claude Code' } })
+  const parse = issued(await orchestrator.claimTicket({ runId: run.runId, ticketId: run.parseId, worker: { label: 'Claude Code' } }))
   await orchestrator.submitAttempt({ attemptId: parse.attempt.id, claimToken: parse.packet.claimToken, outputs: { summary: 'Done.' } })
   await orchestrator.acceptAttempt({ attemptId: parse.attempt.id })
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const wire = await orchestrator.claimTicket({ runId: run.runId, ticketId: run.wireId, worker: { label: 'Claude Code' } })
+    const wire = issued(await orchestrator.claimTicket({ runId: run.runId, ticketId: run.wireId, worker: { label: 'Claude Code' } }))
     const failure = { reason: 'The signing identity is missing' }
     await orchestrator.failAttempt({ attemptId: wire.attempt.id, claimToken: wire.packet.claimToken, failure })
   }

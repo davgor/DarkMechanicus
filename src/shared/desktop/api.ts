@@ -20,16 +20,42 @@ export interface TrackedFolderView {
   /** False when the folder no longer exists or is unreadable. */
   available: boolean
   addedAt: string
+  /**
+   * Names of the child Git repositories, for a folder that is not set up and not inside a Git
+   * repository (possibly empty); null otherwise.
+   */
+  childRepositories: string[] | null
 }
 
-/** Supported agent kinds; a closed set. */
-export type AgentKind = 'claude' | 'codex' | 'cursor'
+/** The agents the app knows how to find and sign in (and, all but Autonomous, download); vendor maps are keyed by these. */
+export type BuiltInAgentKind = 'claude' | 'codex' | 'cursor' | 'autonomous'
+
+/** What an agent is: a built-in vendor CLI, or a custom CLI the person connected. */
+type AgentKind = BuiltInAgentKind | 'custom'
+
+/** How the app talks to an agent's CLI; chooses the chat adapter. */
+export type AgentProtocol = 'claude' | 'codex' | 'acp'
+
+/** An agent's id (see `agentIdSchema`): a built-in kind's name, or `cu_` and a ULID for a custom agent. */
+export type AgentId = string
 
 export interface AgentView {
+  id: AgentId
   kind: AgentKind
+  protocol: AgentProtocol
+  displayName: string
   executablePath: string
+  /** Arguments passed before the app's own; empty for built-ins. */
+  args: readonly string[]
   version: string | null
-  connectedVia: 'found' | 'downloaded'
+  /**
+   * The agent name a custom CLI's handshake reported with `version` (ACP `agentInfo.name`, Codex's user
+   * agent product), so the version is shown as "<name> <version>". Null for a built-in (its version is its
+   * own CLI's), and when the handshake reported none or no version.
+   */
+  reportedName: string | null
+  /** `custom`: a custom CLI the person added, with a program they picked and arguments they typed. */
+  connectedVia: 'found' | 'downloaded' | 'custom'
   connectedAt: string
   lastProbed: string
 }
@@ -54,6 +80,28 @@ export type AgentFindResult =
   | { outcome: 'cancelled' }
   /** The pick was not this agent's CLI; nothing was stored. */
   | { outcome: 'refused'; code: AgentRefusalCode; reason: string }
+
+/**
+ * Adding a custom CLI: its name, protocol and arguments, and nothing else. The program is chosen in main's
+ * native file dialog, never sent by the renderer; a payload with any other key (such as a path) is refused.
+ * An argument that is exactly `{folder}` becomes the chat's folder each time the CLI starts.
+ */
+export interface CustomAgentRequest {
+  name: string
+  protocol: AgentProtocol
+  args: string[]
+}
+
+/**
+ * Editing a custom CLI: its new name and arguments. The protocol cannot change; the program changes only
+ * through main's file dialog, which `repick` opens.
+ */
+export interface CustomAgentUpdate {
+  id: AgentId
+  name: string
+  args: string[]
+  repick: boolean
+}
 
 /** Why a download left nothing connected; each code comes with a specific reason and, for installer failures, its last output lines. */
 export type AgentDownloadFailureCode =
@@ -97,14 +145,17 @@ export type AgentDownloadPhase =
 
 /** One step of a running download, pushed to the renderer as it happens. */
 export interface AgentDownloadProgress {
-  kind: AgentKind
+  kind: BuiltInAgentKind
   phase: AgentDownloadPhase
   /** Whole percent when the phase knows it (the download does, from the content length), otherwise null. */
   percent: number | null
 }
 
-/** Whether an agent's CLI is signed in, as its own status command says; `unknown` when that cannot be told. */
-export type AgentAuthState = 'signed_in' | 'signed_out' | 'unknown'
+/**
+ * Whether an agent's CLI is signed in, as its own status command says; `unknown` when that cannot be told,
+ * `unchecked` when the app has no way to check this CLI's sign-in (a custom CLI), so chats may use it.
+ */
+export type AgentAuthState = 'signed_in' | 'signed_out' | 'unknown' | 'unchecked'
 
 /** The sign-in state with why. The reason is plain text about the state; it never carries the CLI's output. */
 export interface AgentAuthStatus {
@@ -116,11 +167,7 @@ export interface AgentAuthStatus {
  * What starting a sign-in came to. `started` means the CLI's own login is now running in a terminal
  * window of its own (the vendor's browser page opens from there); check the status afterwards.
  */
-export type AgentSignInResult =
-  | { outcome: 'started' }
-  /** The kind has no connected executable yet, so there is nothing to sign in. */
-  | { outcome: 'not_connected'; reason: string }
-  | { outcome: 'failed'; reason: string }
+export type AgentSignInResult = { outcome: 'started' } | { outcome: 'failed'; reason: string }
 
 export type CommandInput<K extends CommandName> = Parameters<CommandApi[K]> extends [infer I]
   ? I
@@ -188,33 +235,59 @@ export interface DmApi {
   removeBoardFiles(folder: string, paths: string[]): Promise<BoardRemovalResultView>
   copyText(text: string): Promise<void>
   openExternal(url: string): Promise<boolean>
-  /** Connected agents, at most one per kind. */
+  /** Connected agents, at most one per id. */
   listAgents(): Promise<AgentView[]>
   /**
-   * Opens a native file dialog for the kind, verifies the picked executable is that agent's CLI,
+   * Opens a native file dialog for the built-in kind, verifies the picked executable is that agent's CLI,
    * and connects it. Takes the kind only; the renderer never supplies a path to run.
    */
-  findAgent(kind: AgentKind): Promise<AgentFindResult>
-  /** Forgets the connection for a kind (never uninstalls the CLI) and returns the remaining agents. */
-  removeAgent(kind: AgentKind): Promise<AgentView[]>
+  findAgent(kind: BuiltInAgentKind): Promise<AgentFindResult>
   /**
-   * Installs the kind's CLI from its vendor's official source and connects it. Takes the kind only:
+   * Forgets the connection of the agent with this id (never uninstalls the CLI) and returns the remaining
+   * agents. A malformed id is refused with `invalid_input`, one that is not connected with `not_found`.
+   */
+  removeAgent(id: AgentId): Promise<AgentView[]>
+  /**
+   * Installs the built-in kind's CLI from its vendor's official source and connects it. Takes the kind only:
    * main owns the URL, the command and the location, shows them in a native confirmation first, and
    * fetches or runs nothing until the person confirms. Running it again updates an installed agent.
    */
-  downloadAgent(kind: AgentKind): Promise<AgentDownloadResult>
+  downloadAgent(kind: BuiltInAgentKind): Promise<AgentDownloadResult>
   /** Subscribes to the progress of downloads; returns the unsubscribe function. */
   onAgentDownloadProgress(listener: (progress: AgentDownloadProgress) => void): () => void
   /**
-   * Asks the connected CLI's own status command whether it is signed in. Takes the kind only; the
-   * app reads no credential and keeps nothing of the command's output.
+   * Asks the connected CLI's own status command whether it is signed in. Takes the agent id only; the
+   * app reads no credential and keeps nothing of the command's output. Refuses a malformed id
+   * (`invalid_input`) or one that is not connected (`not_found`) before anything runs.
    */
-  agentStatus(kind: AgentKind): Promise<AgentAuthStatus>
+  agentStatus(id: AgentId): Promise<AgentAuthStatus>
   /**
-   * Starts that CLI's own login flow in a visible terminal window. Takes the kind only: there is no
-   * password or key field anywhere, the vendor's own page does the signing in.
+   * Starts that CLI's own login flow in a visible terminal window. Takes the agent id only: there is no
+   * password or key field anywhere, the vendor's own page does the signing in. Refuses ids like `agentStatus`.
    */
-  signInAgent(kind: AgentKind): Promise<AgentSignInResult>
+  signInAgent(id: AgentId): Promise<AgentSignInResult>
+  /**
+   * The default agent id of a tracked folder (canonicalized, so a symlink reads its target's), or null.
+   * An untracked folder is refused with `unauthorized`.
+   */
+  folderDefaultAgent(folder: string): Promise<AgentId | null>
+  /**
+   * Sets (or, with null, clears) a tracked folder's default agent and returns it. An untracked folder is
+   * refused with `unauthorized`, a malformed id with `invalid_input` and one that is not connected with `not_found`.
+   */
+  setFolderDefaultAgent(request: { folder: string; agentId: AgentId | null }): Promise<AgentId | null>
+  /**
+   * Adds a custom CLI: main opens a native file dialog for its program, checks the name and arguments, shows
+   * the exact command in a native confirmation, and runs the protocol's handshake in an empty temp folder.
+   * Only then is it stored, as `cu_…`. A payload with a path or any other key is refused with `invalid_input`,
+   * a name another custom CLI has with `conflict`.
+   */
+  addCustomAgent(request: CustomAgentRequest): Promise<AgentFindResult>
+  /**
+   * Edits a custom CLI's name and arguments (and, with `repick`, its program, through main's file dialog),
+   * with the same checks, confirmation and handshake as adding it. The protocol never changes.
+   */
+  updateCustomAgent(request: CustomAgentUpdate): Promise<AgentFindResult>
 }
 
 /** Every CommandApi method the renderer may invoke. Main rejects anything else. */
@@ -222,10 +295,12 @@ const DESKTOP_COMMANDS = [
   'getCapabilities',
   'getProject',
   'setDefinitionOfDone',
+  'rescanRepositories',
   'initializeRepository',
   'getStorageStatus',
   'flushPortableState',
   'reconcileRepository',
+  'resolveEpicConflict',
   'searchHistory',
   'listBranchEpics',
   'backupDatabase',
@@ -279,7 +354,11 @@ const DESKTOP_COMMANDS = [
   'grantRetry',
   'listEvents',
   'getAttemptTimeline',
-  'getRunTimeline'
+  'getRunTimeline',
+  // The person authorizes or withdraws a Linear transfer; an agent carries it out, so the rest are not here.
+  'getTransfer',
+  'queueTransfer',
+  'cancelTransfer'
 ] as const satisfies readonly CommandName[]
 
 export type DesktopCommandName = (typeof DESKTOP_COMMANDS)[number]

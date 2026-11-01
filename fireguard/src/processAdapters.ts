@@ -3,7 +3,13 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseNameStatus } from './gitScope.js';
-import type { DiffEntry, FireguardConfig, RunOnceResult } from './types.js';
+import type {
+  ApplyAndTest,
+  DiffEntry,
+  FireguardConfig,
+  RunOnceResult,
+  TestRunner,
+} from './types.js';
 
 export interface CommandResult {
   code: number;
@@ -33,13 +39,13 @@ function killTree(pid: number | undefined): void {
 export function runCommand(
   command: string,
   args: string[],
-  options: { cwd: string; timeoutMs?: number }
+  options: { cwd: string; timeoutMs?: number; env?: NodeJS.ProcessEnv }
 ): Promise<CommandResult> {
   return new Promise((resolvePromise) => {
     const child = spawn(command, args, {
       cwd: options.cwd,
       shell: false,
-      env: process.env,
+      env: options.env ?? process.env,
       detached: process.platform !== 'win32',
     });
     let stdout = '';
@@ -95,15 +101,30 @@ export async function getGitDiffEntries(options: {
 export function createVitestRunner(options: {
   cwd: string;
   config: FireguardConfig;
+  /** Caps the vitest workers of each run (VITEST_MAX_WORKERS), so parallel lanes share the CPUs. */
+  maxWorkers?: number;
+  /**
+   * Runs that test a mutant, where any failure means "killed". They add `--passWithNoTests`, so
+   * a batch vitest collects no files from (outside its `include`) passes instead of counting as
+   * a kill, and `--bail=1`, so vitest stops at the first failing test instead of also waiting
+   * out every other test the mutant hangs. Neither changes which mutants are killed.
+   */
+  mutantRun?: boolean;
 }): (files: string[]) => Promise<RunOnceResult> {
+  const env =
+    options.maxWorkers === undefined
+      ? process.env
+      : { ...process.env, VITEST_MAX_WORKERS: String(options.maxWorkers) };
+  const parts = options.config.testCommand.split(/\s+/).filter(Boolean);
+  const command = parts[0] ?? 'npx';
+  const baseArgs = parts.slice(1);
+  if (options.mutantRun) baseArgs.push('--passWithNoTests', '--bail=1');
   return async (files: string[]) => {
     if (files.length === 0) return { ok: true };
-    const parts = options.config.testCommand.split(/\s+/).filter(Boolean);
-    const command = parts[0] ?? 'npx';
-    const baseArgs = parts.slice(1);
     const result = await runCommand(command, [...baseArgs, ...files], {
       cwd: options.cwd,
       timeoutMs: options.config.testTimeoutMs,
+      env,
     });
     if (result.code === 0) return { ok: true };
     const output = result.stderr || result.stdout || `exit ${result.code}`;
@@ -135,13 +156,8 @@ function installExitHook(): void {
 
 export function createMutationApplier(options: {
   cwd: string;
-  runOnce: (files: string[]) => Promise<RunOnceResult>;
-}): (input: {
-  file: string;
-  originalSource: string;
-  mutatedSource: string;
-  relatedTests: string[];
-}) => Promise<RunOnceResult> {
+  runOnce: TestRunner;
+}): ApplyAndTest {
   installExitHook();
   return async (input) => {
     const filePath = join(options.cwd, input.file);

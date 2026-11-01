@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { localNoonIso, storageStatus } from '../__mocks__/fixtures'
-import type { StorageStatusView } from '../../../shared/domain/views'
+import type { EpicConflictChoice, StorageStatusView } from '../../../shared/domain/views'
 import { StorageCard } from './StorageCard'
 
 afterEach(cleanup)
@@ -10,6 +10,9 @@ afterEach(cleanup)
 interface Calls {
   flush: number
   reconcile: number
+  resolved: [string, EpicConflictChoice][]
+  /** Settles the choice in progress, as the shell does once the outcome is reported. */
+  settle: () => void
 }
 
 function renderCard(
@@ -17,7 +20,7 @@ function renderCard(
   busy = { flush: false, reconcile: false },
   titles: Record<string, string> = {}
 ): Calls {
-  const calls: Calls = { flush: 0, reconcile: 0 }
+  const calls: Calls = { flush: 0, reconcile: 0, resolved: [], settle: () => undefined }
   render(
     <StorageCard
       status={status}
@@ -29,9 +32,24 @@ function renderCard(
       onReconcile={() => {
         calls.reconcile += 1
       }}
+      onResolveConflict={(epicId, keep) => {
+        calls.resolved.push([epicId, keep])
+        return new Promise<void>((resolve) => {
+          calls.settle = resolve
+        })
+      }}
     />
   )
   return calls
+}
+
+/** Everything but the status, for cards a test re-renders itself. */
+const IDLE = {
+  titles: {},
+  busy: { flush: false, reconcile: false },
+  onFlush: () => undefined,
+  onReconcile: () => undefined,
+  onResolveConflict: () => Promise.resolve()
 }
 
 const row = (label: string): string | null | undefined =>
@@ -95,21 +113,21 @@ describe('StorageCard warnings', () => {
   })
 
   it('lists conflicts by epic title when it is known', () => {
-    renderCard(storageStatus({ conflicts: [{ epicId: 'ep_1', message: 'edited on two machines' }] }), undefined, {
+    renderCard(storageStatus({ conflicts: [{ epicId: 'ep_1', message: 'edited on two machines', resolvable: false }] }), undefined, {
       ep_1: 'Sprint checkpoints'
     })
     expect(row('Conflicts')).toBe('Sprint checkpoints: edited on two machines')
   })
 
   it('falls back to the epic id for an unknown epic', () => {
-    renderCard(storageStatus({ conflicts: [{ epicId: 'ep_1', message: 'edited on two machines' }] }))
+    renderCard(storageStatus({ conflicts: [{ epicId: 'ep_1', message: 'edited on two machines', resolvable: false }] }))
     expect(row('Conflicts')).toBe('ep_1: edited on two machines')
   })
 
   it('lists profile conflicts after epic conflicts', () => {
     renderCard(
       storageStatus({
-        conflicts: [{ epicId: 'ep_1', message: 'edited on two machines' }],
+        conflicts: [{ epicId: 'ep_1', message: 'edited on two machines', resolvable: false }],
         profileConflicts: [{ name: 'deep-review', message: 'saved on two machines' }]
       })
     )
@@ -117,12 +135,10 @@ describe('StorageCard warnings', () => {
   })
 
   it('lists every conflict of one epic, and only those still open after an update', () => {
-    const first = { epicId: 'ep_1', message: 'Comment cm_1 already exists with different content.' }
-    const second = { epicId: 'ep_1', message: 'Comment cm_2 already exists with different content.' }
-    const other = { epicId: 'ep_2', message: 'edited on two machines' }
-    const card = (conflicts: StorageStatusView['conflicts']): JSX.Element => (
-      <StorageCard status={storageStatus({ conflicts })} titles={{}} busy={{ flush: false, reconcile: false }} onFlush={() => undefined} onReconcile={() => undefined} />
-    )
+    const first = { epicId: 'ep_1', message: 'Comment cm_1 already exists with different content.', resolvable: false }
+    const second = { epicId: 'ep_1', message: 'Comment cm_2 already exists with different content.', resolvable: false }
+    const other = { epicId: 'ep_2', message: 'edited on two machines', resolvable: false }
+    const card = (conflicts: StorageStatusView['conflicts']): JSX.Element => <StorageCard status={storageStatus({ conflicts })} {...IDLE} />
     const { rerender } = render(card([first, other, second]))
     expect(row('Conflicts')).toBe(`ep_1: ${first.message}ep_2: ${other.message}ep_1: ${second.message}`)
     rerender(card([other, second]))
@@ -146,13 +162,47 @@ describe('StorageCard actions', () => {
     const calls = renderCard(storageStatus())
     fireEvent.click(screen.getByRole('button', { name: 'Flush' }))
     fireEvent.click(screen.getByRole('button', { name: 'Reconcile' }))
-    expect(calls).toEqual({ flush: 1, reconcile: 1 })
+    expect([calls.flush, calls.reconcile]).toEqual([1, 1])
   })
 
   it('disables an action while it runs', () => {
     renderCard(storageStatus(), { flush: true, reconcile: false })
     expect((screen.getByRole('button', { name: 'Flush' }) as HTMLButtonElement).disabled).toBe(true)
     expect((screen.getByRole('button', { name: 'Reconcile' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+})
+
+describe('StorageCard conflict choices', () => {
+  it('offers no conflict choice where the person has nothing to choose', () => {
+    renderCard(storageStatus({ conflicts: [{ epicId: 'ep_1', message: 'Linear transfer open for epic ep_1', resolvable: false }] }))
+    expect(screen.queryByRole('button', { name: 'Keep tracked records' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Write local' })).toBeNull()
+  })
+
+  it("passes the person's choice for an epic records conflict, one choice at a time", async () => {
+    const conflicts = [
+      { epicId: 'ep_1', message: 'Tracked records for epic ep_1 changed', resolvable: true },
+      { epicId: 'ep_2', message: 'edited on two machines', resolvable: false }
+    ]
+    const calls = renderCard(storageStatus({ conflicts }), undefined, { ep_1: 'Sprint checkpoints' })
+    const entry = within(screen.getByText(/Sprint checkpoints: Tracked records/))
+    const keep = entry.getByRole('button', { name: 'Keep tracked records' }) as HTMLButtonElement
+    const local = entry.getByRole('button', { name: 'Write local' }) as HTMLButtonElement
+    expect(screen.getAllByRole('button', { name: 'Write local' })).toHaveLength(1)
+
+    fireEvent.click(keep)
+    expect(calls.resolved).toEqual([['ep_1', 'tracked']])
+    expect([keep.disabled, local.disabled]).toEqual([true, true])
+    fireEvent.click(local)
+    expect(calls.resolved).toHaveLength(1)
+
+    await act(async () => calls.settle())
+    expect([keep.disabled, local.disabled]).toEqual([false, false])
+    fireEvent.click(local)
+    expect(calls.resolved).toEqual([
+      ['ep_1', 'tracked'],
+      ['ep_1', 'local']
+    ])
   })
 })
 

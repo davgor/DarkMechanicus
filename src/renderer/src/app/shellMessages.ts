@@ -1,5 +1,5 @@
 import type { ClaudeCodeConnectResult } from '../../../shared/desktop/api'
-import type { BoardImportView, FlushResultView, ReconcileResultView } from '../../../shared/domain/views'
+import type { BoardImportView, FlushResultView, ReconcileResultView, ResolveEpicConflictView } from '../../../shared/domain/views'
 import { plural } from './plural'
 import type { ToastTone } from './toastState'
 
@@ -45,6 +45,18 @@ export function describeReconcile(result: ReconcileResultView): Notice {
   const details = reconcileDetails(result)
   const message = ['Reconciled.', ...(details.length > 0 ? details : ['Already up to date.'])].join(' ')
   return { tone: result.rejected.length > 0 ? 'error' : 'info', message }
+}
+
+/** The toast after a person settles an epic records conflict: what survived, any save that was dropped, or why local waits. */
+export function describeEpicConflictChoice(result: ResolveEpicConflictView): Notice {
+  if (result.kept === 'local') {
+    return result.error === null
+      ? { tone: 'success', message: "Wrote this machine's records of the epic over the tracked ones." }
+      : { tone: 'error', message: `Kept this machine's records of the epic; writing them failed and is retried on every flush: ${result.error}` }
+  }
+  const dropped = result.abandonedRevisionIds.length
+  const saves = dropped === 0 ? '' : ` ${plural(dropped, 'unwritten save')} dropped; the draft stays.`
+  return { tone: 'success', message: `Imported the tracked records of the epic and dropped its local changes.${saves}` }
 }
 
 const CONNECT_NOTICES: Record<Exclude<ClaudeCodeConnectResult['outcome'], 'invalid'>, Notice> = {

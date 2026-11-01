@@ -114,7 +114,7 @@ export function redraftNextSprint(ctx: Ctx, input: { runId: string }): RedraftRe
       reportRevision: report.reportRevision,
       changed: outcome.changed,
       draftRevision,
-      validation: withRunWarnings(ctx, epic.id, outcome.bundle, validatePlan(outcome.bundle))
+      validation: withRunWarnings(ctx, epic.id, outcome.bundle, validatePlan(outcome.bundle, { repositories: ctx.repositoryEntries() }))
     }
   })
 }

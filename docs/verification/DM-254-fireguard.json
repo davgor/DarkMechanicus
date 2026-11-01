@@ -1,0 +1,1060 @@
+{
+  "grade": {
+    "letter": "A",
+    "score": 92,
+    "reasons": [
+      "all hard gates passed"
+    ]
+  },
+  "gates": {
+    "ast": {
+      "name": "ast",
+      "pass": true,
+      "assertionCount": 2145,
+      "mockCount": 5,
+      "mockToAssertRatio": 0.002331002331002331,
+      "tautologicalCount": 6,
+      "tautologicalRatio": 0.002797202797202797,
+      "emptyTests": [],
+      "findings": []
+    },
+    "flake": {
+      "name": "flake",
+      "pass": true,
+      "runs": 100,
+      "configuredRuns": 100,
+      "failures": 0,
+      "flakeRate": 0,
+      "files": [
+        "src/main/agents/adapters/acpProcess.test.ts",
+        "src/main/agents/adapters/claude.test.ts",
+        "src/main/agents/adapters/codex.test.ts",
+        "src/main/agents/adapters/codexAuth.test.ts",
+        "src/main/agents/adapters/codexSubagents.test.ts",
+        "src/main/agents/adapters/cursor.test.ts",
+        "src/main/agents/adapters/cursorAuth.test.ts",
+        "src/main/agents/adapters/cursorSubagents.test.ts",
+        "src/main/agents/chatHandlers.test.ts",
+        "src/main/agents/chatIpc.test.ts",
+        "src/main/agents/chatStore.test.ts",
+        "src/main/agents/launchFolder.test.ts",
+        "src/main/agents/orchestratorStart.test.ts",
+        "src/main/agents/ownServerTools.test.ts",
+        "src/main/agents/sessionManager.account.test.ts",
+        "src/main/agents/sessionManager.cutShort.test.ts",
+        "src/main/agents/sessionManager.folder.test.ts",
+        "src/main/agents/sessionManager.idle.test.ts",
+        "src/main/agents/sessionManager.ownServer.test.ts",
+        "src/main/agents/sessionManager.read.test.ts",
+        "src/main/agents/sessionManager.settle.test.ts",
+        "src/main/agents/sessionManager.test.ts",
+        "src/main/agents/sessionManagerActivity.test.ts",
+        "src/main/agents/signInFlags.test.ts",
+        "src/main/agents/signInHooks.test.ts",
+        "src/main/desktop/agentAuth.test.ts",
+        "src/main/desktop/agentHandlers.test.ts",
+        "src/main/desktop/agentInstallRecipes.test.ts",
+        "src/main/desktop/agentInstaller.test.ts",
+        "src/main/desktop/agentProbe.test.ts",
+        "src/main/desktop/agentRegistry.test.ts",
+        "src/main/desktop/agentRegistryImport.test.ts",
+        "src/main/desktop/appDatabase.test.ts",
+        "src/main/desktop/handlers.test.ts",
+        "src/main/desktop/ipc.test.ts",
+        "src/renderer/src/agents/AddAgentPane.test.tsx",
+        "src/renderer/src/agents/NewChatDialog.test.tsx",
+        "src/renderer/src/agents/SignInPrompt.test.tsx",
+        "src/renderer/src/agents/agentOutcomes.test.ts",
+        "src/renderer/src/app/chooseView.test.ts",
+        "src/renderer/src/app/selection.test.ts",
+        "src/renderer/src/epic/StartRunDialog.test.tsx",
+        "src/renderer/src/sidebar/AgentsSection.test.tsx",
+        "src/shared/desktop/agentKinds.test.ts"
+      ],
+      "failedRuns": [],
+      "failFast": true
+    },
+    "mutation": {
+      "name": "mutation",
+      "pass": true,
+      "killed": 573,
+      "survived": 152,
+      "total": 725,
+      "score": 79,
+      "survivors": [
+        {
+          "file": "src/main/agents/adapters/claude.ts",
+          "line": 383,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/main/agents/adapters/claude.ts",
+          "line": 497,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/main/agents/adapters/claude.ts",
+          "line": 497,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/agents/adapters/claude.ts",
+          "line": 499,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/main/agents/adapters/claude.ts",
+          "line": 499,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/agents/adapters/claude.ts",
+          "line": 499,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/agents/adapters/claude.ts",
+          "line": 499,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/agents/adapters/claude.ts",
+          "line": 499,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/agents/adapters/codex.ts",
+          "line": 155,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/main/agents/adapters/codex.ts",
+          "line": 155,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/main/agents/adapters/cursor.ts",
+          "line": 321,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/main/agents/adapters/cursor.ts",
+          "line": 321,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/agents/chatHandlers.ts",
+          "line": 121,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/agents/launchFolder.ts",
+          "line": 26,
+          "description": "return-value-tweak: invert boolean return to true"
+        },
+        {
+          "file": "src/main/agents/sessionManager.ts",
+          "line": 377,
+          "description": "conditional-inversion: swap operator to <"
+        },
+        {
+          "file": "src/main/agents/sessionManager.ts",
+          "line": 541,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/main/agents/sessionManager.ts",
+          "line": 541,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/desktop/agentAuth.ts",
+          "line": 68,
+          "description": "operator-swap: swap operator to <="
+        },
+        {
+          "file": "src/main/desktop/agentAuth.ts",
+          "line": 117,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/desktop/agentAuth.ts",
+          "line": 134,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/desktop/bootstrap.ts",
+          "line": 91,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/desktop/bootstrap.ts",
+          "line": 107,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/desktop/bootstrap.ts",
+          "line": 150,
+          "description": "operator-swap: swap operator to /"
+        },
+        {
+          "file": "src/main/desktop/bootstrap.ts",
+          "line": 193,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/main/desktop/bootstrap.ts",
+          "line": 193,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/desktop/bootstrap.ts",
+          "line": 253,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/App.tsx",
+          "line": 64,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/App.tsx",
+          "line": 120,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/renderer/src/App.tsx",
+          "line": 120,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/App.tsx",
+          "line": 123,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/renderer/src/App.tsx",
+          "line": 123,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/renderer/src/App.tsx",
+          "line": 174,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/App.tsx",
+          "line": 174,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/App.tsx",
+          "line": 174,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/App.tsx",
+          "line": 204,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/renderer/src/App.tsx",
+          "line": 256,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/App.tsx",
+          "line": 259,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/agents/AgentPage.tsx",
+          "line": 43,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/agents/AgentPage.tsx",
+          "line": 48,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/agents/AgentPage.tsx",
+          "line": 49,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/agents/AgentPage.tsx",
+          "line": 49,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/agents/AgentPage.tsx",
+          "line": 114,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/agents/AgentPage.tsx",
+          "line": 121,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/renderer/src/agents/ChatTranscript.tsx",
+          "line": 22,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/agents/ChatTranscript.tsx",
+          "line": 47,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/agents/ChatTranscript.tsx",
+          "line": 48,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/agents/ChatTranscript.tsx",
+          "line": 54,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/agents/ChatTranscript.tsx",
+          "line": 55,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/agents/ChatTranscript.tsx",
+          "line": 125,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/agents/ChatTranscript.tsx",
+          "line": 163,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/renderer/src/agents/ChatTranscript.tsx",
+          "line": 163,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/renderer/src/agents/ChatTranscript.tsx",
+          "line": 164,
+          "description": "operator-swap: swap operator to >="
+        },
+        {
+          "file": "src/renderer/src/agents/ChatTranscript.tsx",
+          "line": 164,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/renderer/src/agents/ChatTranscript.tsx",
+          "line": 164,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/renderer/src/agents/ChatTranscript.tsx",
+          "line": 169,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/renderer/src/agents/ChatTranscript.tsx",
+          "line": 169,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/renderer/src/agents/ChatTranscript.tsx",
+          "line": 178,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/renderer/src/agents/ChatTranscript.tsx",
+          "line": 178,
+          "description": "operator-swap: swap operator to <="
+        },
+        {
+          "file": "src/renderer/src/agents/ChatTranscript.tsx",
+          "line": 180,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/renderer/src/agents/ChatTranscript.tsx",
+          "line": 180,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/agents/ChatTranscript.tsx",
+          "line": 180,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/agents/ChatTranscript.tsx",
+          "line": 189,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/renderer/src/agents/ChatTranscript.tsx",
+          "line": 189,
+          "description": "operator-swap: swap operator to <="
+        },
+        {
+          "file": "src/renderer/src/agents/ChatTranscript.tsx",
+          "line": 191,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/renderer/src/agents/ChatTranscript.tsx",
+          "line": 191,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/renderer/src/agents/ChatTranscript.tsx",
+          "line": 191,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/agents/ChatTranscript.tsx",
+          "line": 210,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/renderer/src/agents/ChatTranscript.tsx",
+          "line": 210,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/agents/ChatTranscript.tsx",
+          "line": 213,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/renderer/src/agents/ChatTranscript.tsx",
+          "line": 213,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/agents/ChatTranscript.tsx",
+          "line": 225,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/renderer/src/agents/ChatTranscript.tsx",
+          "line": 225,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/agents/ChatTranscript.tsx",
+          "line": 242,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/agents/ChatTranscript.tsx",
+          "line": 248,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/renderer/src/agents/ChatView.tsx",
+          "line": 42,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/agents/ChatView.tsx",
+          "line": 70,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/agents/ChatView.tsx",
+          "line": 71,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/agents/NewChatFields.tsx",
+          "line": 104,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/agents/SignedOutCard.tsx",
+          "line": 51,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/agents/SignedOutCard.tsx",
+          "line": 109,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/agents/agentText.ts",
+          "line": 41,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/agents/useAgents.ts",
+          "line": 28,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/renderer/src/agents/useAgents.ts",
+          "line": 63,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/renderer/src/agents/useAgents.ts",
+          "line": 103,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/agents/useAgents.ts",
+          "line": 122,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/renderer/src/agents/useAgents.ts",
+          "line": 122,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/agents/useAgents.ts",
+          "line": 122,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/agents/useChatSession.ts",
+          "line": 31,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/renderer/src/agents/useChatSession.ts",
+          "line": 35,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/renderer/src/agents/useChatSession.ts",
+          "line": 38,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/renderer/src/agents/useChatSession.ts",
+          "line": 48,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/renderer/src/agents/useChatSession.ts",
+          "line": 65,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/renderer/src/agents/useChatSession.ts",
+          "line": 68,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/renderer/src/agents/useChatSession.ts",
+          "line": 80,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/agents/useChatSession.ts",
+          "line": 80,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/agents/useChatSession.ts",
+          "line": 181,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/renderer/src/agents/useChatSession.ts",
+          "line": 181,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/renderer/src/agents/useChatSession.ts",
+          "line": 182,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/renderer/src/agents/useChatSession.ts",
+          "line": 189,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/renderer/src/agents/useChatSession.ts",
+          "line": 189,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/renderer/src/app/shellActions.ts",
+          "line": 183,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/renderer/src/app/shellActions.ts",
+          "line": 183,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/app/shellActions.ts",
+          "line": 197,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/renderer/src/app/shellActions.ts",
+          "line": 197,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/renderer/src/app/shellActions.ts",
+          "line": 222,
+          "description": "return-value-tweak: invert boolean return to false"
+        },
+        {
+          "file": "src/renderer/src/app/shellActions.ts",
+          "line": 224,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/renderer/src/app/shellActions.ts",
+          "line": 224,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/app/shellActions.ts",
+          "line": 230,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/renderer/src/app/shellActions.ts",
+          "line": 230,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/app/shellActions.ts",
+          "line": 273,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/renderer/src/app/shellActions.ts",
+          "line": 273,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/renderer/src/epic/RunBar.tsx",
+          "line": 68,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/epic/RunBar.tsx",
+          "line": 96,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/renderer/src/epic/RunBar.tsx",
+          "line": 96,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/epic/RunBar.tsx",
+          "line": 119,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/epic/RunBar.tsx",
+          "line": 125,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/epic/RunBar.tsx",
+          "line": 140,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/renderer/src/epic/RunBar.tsx",
+          "line": 140,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/epic/RunBar.tsx",
+          "line": 148,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/epic/RunBar.tsx",
+          "line": 163,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/renderer/src/epic/RunBar.tsx",
+          "line": 163,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/renderer/src/epic/RunBar.tsx",
+          "line": 165,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/epic/RunBar.tsx",
+          "line": 166,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/epic/RunBar.tsx",
+          "line": 167,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/epic/orchestration.ts",
+          "line": 40,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/epic/runBarView.ts",
+          "line": 58,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/epic/runBarView.ts",
+          "line": 76,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/renderer/src/epic/runBarView.ts",
+          "line": 90,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/epic/runBarView.ts",
+          "line": 94,
+          "description": "conditional-inversion: swap operator to <"
+        },
+        {
+          "file": "src/renderer/src/epic/runBarView.ts",
+          "line": 102,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/renderer/src/epic/runBarView.ts",
+          "line": 112,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/epic/runBarView.ts",
+          "line": 112,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/epic/runBarView.ts",
+          "line": 113,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/epic/runBarView.ts",
+          "line": 123,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/renderer/src/epic/runBarView.ts",
+          "line": 123,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/epic/runBarView.ts",
+          "line": 123,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/epic/runBarView.ts",
+          "line": 126,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/epic/runBarView.ts",
+          "line": 126,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/epic/runBarView.ts",
+          "line": 147,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/renderer/src/epic/runBarView.ts",
+          "line": 147,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/renderer/src/epic/runBarView.ts",
+          "line": 147,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/renderer/src/epic/runBarView.ts",
+          "line": 150,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/renderer/src/epic/runBarView.ts",
+          "line": 150,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/epic/runBarView.ts",
+          "line": 159,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/epic/runBarView.ts",
+          "line": 164,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/renderer/src/epic/runBarView.ts",
+          "line": 164,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/renderer/src/epic/runBarView.ts",
+          "line": 175,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/renderer/src/epic/runBarView.ts",
+          "line": 175,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/renderer/src/epic/runBarView.ts",
+          "line": 178,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/sidebar/Sidebar.tsx",
+          "line": 80,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/sidebar/Sidebar.tsx",
+          "line": 87,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/sidebar/Sidebar.tsx",
+          "line": 97,
+          "description": "conditional-inversion: swap operator to !=="
+        }
+      ],
+      "modules": [
+        "src/core/db/migrations.ts",
+        "src/main/agents/adapterRegistry.ts",
+        "src/main/agents/adapters/claude.ts",
+        "src/main/agents/adapters/codex.ts",
+        "src/main/agents/adapters/cursor.ts",
+        "src/main/agents/chatHandlers.ts",
+        "src/main/agents/chatIpc.ts",
+        "src/main/agents/launchFolder.ts",
+        "src/main/agents/orchestratorStart.ts",
+        "src/main/agents/ownServerTools.ts",
+        "src/main/agents/sessionManager.ts",
+        "src/main/agents/signInFlags.ts",
+        "src/main/agents/signInHooks.ts",
+        "src/main/desktop/agentAuth.ts",
+        "src/main/desktop/agentHandlers.ts",
+        "src/main/desktop/agentInstallRecipes.ts",
+        "src/main/desktop/agentInstaller.ts",
+        "src/main/desktop/agentProbe.ts",
+        "src/main/desktop/agentRegistry.ts",
+        "src/main/desktop/agentRegistryImport.ts",
+        "src/main/desktop/appDatabase.ts",
+        "src/main/desktop/bootstrap.ts",
+        "src/main/desktop/ipc.ts",
+        "src/preload/index.ts",
+        "src/renderer/src/App.tsx",
+        "src/renderer/src/agents/AddAgentPane.tsx",
+        "src/renderer/src/agents/AgentPage.tsx",
+        "src/renderer/src/agents/ChatTranscript.tsx",
+        "src/renderer/src/agents/ChatView.tsx",
+        "src/renderer/src/agents/NewChatDialog.tsx",
+        "src/renderer/src/agents/NewChatFields.tsx",
+        "src/renderer/src/agents/SignInPrompt.tsx",
+        "src/renderer/src/agents/SignedOutCard.tsx",
+        "src/renderer/src/agents/agentOperations.ts",
+        "src/renderer/src/agents/agentText.ts",
+        "src/renderer/src/agents/useAgentModelChoice.ts",
+        "src/renderer/src/agents/useAgentModels.ts",
+        "src/renderer/src/agents/useAgents.ts",
+        "src/renderer/src/agents/useChatSession.ts",
+        "src/renderer/src/app/chooseView.ts",
+        "src/renderer/src/app/selection.ts",
+        "src/renderer/src/app/shellActions.ts",
+        "src/renderer/src/epic/RunBar.tsx",
+        "src/renderer/src/epic/StartRunDialog.tsx",
+        "src/renderer/src/epic/orchestration.ts",
+        "src/renderer/src/epic/runBarView.ts",
+        "src/renderer/src/sidebar/AgentsSection.tsx",
+        "src/renderer/src/sidebar/Sidebar.tsx",
+        "src/shared/agents/chat.ts",
+        "src/shared/agents/chatApi.ts",
+        "src/shared/desktop/agentKinds.ts",
+        "src/shared/desktop/api.ts"
+      ],
+      "moduleTests": {
+        "src/core/db/migrations.ts": 8,
+        "src/main/agents/adapterRegistry.ts": 21,
+        "src/main/agents/adapters/claude.ts": 21,
+        "src/main/agents/adapters/codex.ts": 21,
+        "src/main/agents/adapters/cursor.ts": 21,
+        "src/main/agents/chatHandlers.ts": 2,
+        "src/main/agents/chatIpc.ts": 1,
+        "src/main/agents/launchFolder.ts": 19,
+        "src/main/agents/orchestratorStart.ts": 4,
+        "src/main/agents/ownServerTools.ts": 14,
+        "src/main/agents/sessionManager.ts": 13,
+        "src/main/agents/signInFlags.ts": 14,
+        "src/main/agents/signInHooks.ts": 1,
+        "src/main/desktop/agentAuth.ts": 4,
+        "src/main/desktop/agentHandlers.ts": 7,
+        "src/main/desktop/agentInstallRecipes.ts": 2,
+        "src/main/desktop/agentInstaller.ts": 1,
+        "src/main/desktop/agentProbe.ts": 27,
+        "src/main/desktop/agentRegistry.ts": 10,
+        "src/main/desktop/agentRegistryImport.ts": 1,
+        "src/main/desktop/appDatabase.ts": 5,
+        "src/main/desktop/bootstrap.ts": 0,
+        "src/main/desktop/ipc.ts": 1,
+        "src/preload/index.ts": 0,
+        "src/renderer/src/App.tsx": 0,
+        "src/renderer/src/agents/AddAgentPane.tsx": 1,
+        "src/renderer/src/agents/AgentPage.tsx": 0,
+        "src/renderer/src/agents/ChatTranscript.tsx": 0,
+        "src/renderer/src/agents/ChatView.tsx": 0,
+        "src/renderer/src/agents/NewChatDialog.tsx": 1,
+        "src/renderer/src/agents/NewChatFields.tsx": 2,
+        "src/renderer/src/agents/SignInPrompt.tsx": 5,
+        "src/renderer/src/agents/SignedOutCard.tsx": 0,
+        "src/renderer/src/agents/agentOperations.ts": 4,
+        "src/renderer/src/agents/agentText.ts": 4,
+        "src/renderer/src/agents/useAgentModelChoice.ts": 2,
+        "src/renderer/src/agents/useAgentModels.ts": 2,
+        "src/renderer/src/agents/useAgents.ts": 4,
+        "src/renderer/src/agents/useChatSession.ts": 0,
+        "src/renderer/src/app/chooseView.ts": 1,
+        "src/renderer/src/app/selection.ts": 2,
+        "src/renderer/src/app/shellActions.ts": 0,
+        "src/renderer/src/epic/RunBar.tsx": 0,
+        "src/renderer/src/epic/StartRunDialog.tsx": 1,
+        "src/renderer/src/epic/orchestration.ts": 1,
+        "src/renderer/src/epic/runBarView.ts": 0,
+        "src/renderer/src/sidebar/AgentsSection.tsx": 1,
+        "src/renderer/src/sidebar/Sidebar.tsx": 0,
+        "src/shared/agents/chat.ts": 43,
+        "src/shared/agents/chatApi.ts": 43,
+        "src/shared/desktop/agentKinds.ts": 43,
+        "src/shared/desktop/api.ts": 43
+      }
+    }
+  },
+  "scope": {
+    "baseRef": "98df7226c9a8e19588de974f36414bcb4f65cbe0",
+    "gradedTestFiles": [
+      "src/main/agents/adapters/acpProcess.test.ts",
+      "src/main/agents/adapters/claude.test.ts",
+      "src/main/agents/adapters/codex.test.ts",
+      "src/main/agents/adapters/codexAuth.test.ts",
+      "src/main/agents/adapters/codexSubagents.test.ts",
+      "src/main/agents/adapters/cursor.test.ts",
+      "src/main/agents/adapters/cursorAuth.test.ts",
+      "src/main/agents/adapters/cursorSubagents.test.ts",
+      "src/main/agents/chatHandlers.test.ts",
+      "src/main/agents/chatIpc.test.ts",
+      "src/main/agents/chatStore.test.ts",
+      "src/main/agents/launchFolder.test.ts",
+      "src/main/agents/orchestratorStart.test.ts",
+      "src/main/agents/ownServerTools.test.ts",
+      "src/main/agents/sessionManager.account.test.ts",
+      "src/main/agents/sessionManager.cutShort.test.ts",
+      "src/main/agents/sessionManager.folder.test.ts",
+      "src/main/agents/sessionManager.idle.test.ts",
+      "src/main/agents/sessionManager.ownServer.test.ts",
+      "src/main/agents/sessionManager.read.test.ts",
+      "src/main/agents/sessionManager.settle.test.ts",
+      "src/main/agents/sessionManager.test.ts",
+      "src/main/agents/sessionManagerActivity.test.ts",
+      "src/main/agents/signInFlags.test.ts",
+      "src/main/agents/signInHooks.test.ts",
+      "src/main/desktop/agentAuth.test.ts",
+      "src/main/desktop/agentHandlers.test.ts",
+      "src/main/desktop/agentInstallRecipes.test.ts",
+      "src/main/desktop/agentInstaller.test.ts",
+      "src/main/desktop/agentProbe.test.ts",
+      "src/main/desktop/agentRegistry.test.ts",
+      "src/main/desktop/agentRegistryImport.test.ts",
+      "src/main/desktop/appDatabase.test.ts",
+      "src/main/desktop/handlers.test.ts",
+      "src/main/desktop/ipc.test.ts",
+      "src/renderer/src/agents/AddAgentPane.test.tsx",
+      "src/renderer/src/agents/NewChatDialog.test.tsx",
+      "src/renderer/src/agents/SignInPrompt.test.tsx",
+      "src/renderer/src/agents/agentOutcomes.test.ts",
+      "src/renderer/src/app/chooseView.test.ts",
+      "src/renderer/src/app/selection.test.ts",
+      "src/renderer/src/epic/StartRunDialog.test.tsx",
+      "src/renderer/src/sidebar/AgentsSection.test.tsx",
+      "src/shared/desktop/agentKinds.test.ts"
+    ],
+    "changedModules": [
+      "src/core/db/migrations.ts",
+      "src/main/agents/adapterRegistry.ts",
+      "src/main/agents/adapters/claude.ts",
+      "src/main/agents/adapters/codex.ts",
+      "src/main/agents/adapters/cursor.ts",
+      "src/main/agents/chatHandlers.ts",
+      "src/main/agents/chatIpc.ts",
+      "src/main/agents/launchFolder.ts",
+      "src/main/agents/orchestratorStart.ts",
+      "src/main/agents/ownServerTools.ts",
+      "src/main/agents/sessionManager.ts",
+      "src/main/agents/signInFlags.ts",
+      "src/main/agents/signInHooks.ts",
+      "src/main/desktop/agentAuth.ts",
+      "src/main/desktop/agentHandlers.ts",
+      "src/main/desktop/agentInstallRecipes.ts",
+      "src/main/desktop/agentInstaller.ts",
+      "src/main/desktop/agentProbe.ts",
+      "src/main/desktop/agentRegistry.ts",
+      "src/main/desktop/agentRegistryImport.ts",
+      "src/main/desktop/appDatabase.ts",
+      "src/main/desktop/bootstrap.ts",
+      "src/main/desktop/ipc.ts",
+      "src/preload/index.ts",
+      "src/renderer/src/App.tsx",
+      "src/renderer/src/agents/AddAgentPane.tsx",
+      "src/renderer/src/agents/AgentPage.tsx",
+      "src/renderer/src/agents/ChatTranscript.tsx",
+      "src/renderer/src/agents/ChatView.tsx",
+      "src/renderer/src/agents/NewChatDialog.tsx",
+      "src/renderer/src/agents/NewChatFields.tsx",
+      "src/renderer/src/agents/SignInPrompt.tsx",
+      "src/renderer/src/agents/SignedOutCard.tsx",
+      "src/renderer/src/agents/agentOperations.ts",
+      "src/renderer/src/agents/agentText.ts",
+      "src/renderer/src/agents/useAgentModelChoice.ts",
+      "src/renderer/src/agents/useAgentModels.ts",
+      "src/renderer/src/agents/useAgents.ts",
+      "src/renderer/src/agents/useChatSession.ts",
+      "src/renderer/src/app/chooseView.ts",
+      "src/renderer/src/app/selection.ts",
+      "src/renderer/src/app/shellActions.ts",
+      "src/renderer/src/epic/RunBar.tsx",
+      "src/renderer/src/epic/StartRunDialog.tsx",
+      "src/renderer/src/epic/orchestration.ts",
+      "src/renderer/src/epic/runBarView.ts",
+      "src/renderer/src/sidebar/AgentsSection.tsx",
+      "src/renderer/src/sidebar/Sidebar.tsx",
+      "src/shared/agents/chat.ts",
+      "src/shared/agents/chatApi.ts",
+      "src/shared/desktop/agentKinds.ts",
+      "src/shared/desktop/api.ts"
+    ]
+  },
+  "skipped": false
+}

@@ -1,4 +1,12 @@
-import type { FireguardReport, MutationGateResult } from './types.js';
+import type { FireguardReport, MutationExecution, MutationGateResult } from './types.js';
+
+function executionLine(execution: MutationExecution): string {
+  if (execution.workspace === 'copies') {
+    return `  ran ${execution.lanes} mutants at a time in temporary workspace copies`;
+  }
+  const reason = execution.fallbackReason ? ` (${execution.fallbackReason})` : '';
+  return `  ran one mutant at a time in the working tree${reason}`;
+}
 
 function formatModuleTests(moduleTests: Record<string, number> | undefined): string {
   return Object.entries(moduleTests ?? {})
@@ -16,6 +24,9 @@ function mutationLines(mutation: MutationGateResult): string[] {
   const perModule = formatModuleTests(mutation.moduleTests);
   if (perModule) {
     lines.push(`  tests per module: ${perModule}`);
+  }
+  if (mutation.execution) {
+    lines.push(executionLine(mutation.execution));
   }
   for (const survivor of mutation.survivors.slice(0, 20)) {
     lines.push(`  - survivor ${survivor.file}:${survivor.line} ${survivor.description}`);

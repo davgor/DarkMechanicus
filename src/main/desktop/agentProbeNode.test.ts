@@ -1,9 +1,9 @@
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { removeScratch } from '../../test/removeScratch'
-import { probeAgent, type ProbeLaunch } from './agentProbe'
+import { planCliLaunch, probeAgent, type ProbeLaunch } from './agentProbe'
 import { inspectExecutable, runProcess } from './agentProbeNode'
 
 /** The real runner is exercised against Node itself, which every machine running these tests has. */
@@ -102,6 +102,28 @@ describe('inspectExecutable', () => {
     chmodSync(file, 0o644)
 
     expect(inspectExecutable(file)).toBe('not_executable')
+  })
+})
+
+describe.runIf(process.platform !== 'win32')('a symlink to an executable', () => {
+  it('passes the launch check as the link itself and starts the program it points to', async () => {
+    const link = join(scratch, 'node-link')
+    symlinkSync(process.execPath, link)
+
+    expect(inspectExecutable(link)).toBe('ok')
+    const plan = planCliLaunch(link, ['-e', 'process.stdout.write("started")'], { platform: process.platform, inspect: inspectExecutable })
+    if (!('launch' in plan)) {
+      throw new Error(`expected a launch, got ${JSON.stringify(plan)}`)
+    }
+    expect(plan.launch.file).toBe(link)
+    expect(await runProcess(plan.launch, 10_000)).toEqual({ kind: 'exited', exitCode: 0, output: 'started' })
+  })
+
+  it('fails the launch check once its target is gone', () => {
+    const link = join(scratch, 'dangling-link')
+    symlinkSync(join(scratch, 'removed-version'), link)
+
+    expect(inspectExecutable(link)).toBe('not_a_file')
   })
 })
 

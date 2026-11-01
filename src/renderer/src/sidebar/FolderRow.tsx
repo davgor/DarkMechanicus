@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import type { ChatRecord } from '../../../shared/agents/chat'
-import type { TrackedFolderView } from '../../../shared/desktop/api'
+import type { AgentView, TrackedFolderView } from '../../../shared/desktop/api'
 import { waitingCount, waitingReason } from '../agents/chatList'
 import type { AgentStatuses } from '../agents/useAgents'
 import type { ChatListState } from '../agents/useChats'
 import { plural } from '../app/plural'
 import type { Selection } from '../app/selection'
+import { repositoryCount, useRepositories } from '../app/useRepositories'
 import type { EpicListState } from '../app/useEpicLists'
 import { classNames } from '../components/classNames'
 import { Icon } from '../components/Icon'
@@ -24,6 +25,8 @@ interface FolderRowProps {
   chats: ChatListState
   /** The connected agents' sign-in states: a chat whose agent is signed out and whose turn it cut short waits on a sign-in. */
   statuses: AgentStatuses
+  /** The connected agents, so a custom agent's chats show its display name. */
+  agents: readonly AgentView[]
   onSelectFolder(path: string): void
   onSelectEpic(path: string, epicId: string): void
   onStopTracking(folder: TrackedFolderView): void
@@ -37,6 +40,9 @@ interface FolderRowProps {
 /** A folder can hold epics only when it is reachable and initialized. */
 const canHoldEpics = (folder: TrackedFolderView): boolean => folder.available && folder.initialized
 
+/** A sidebar row that cannot read its project shows no repository count; the folder page reports the error. */
+const ignoreError = (): void => undefined
+
 interface HeaderProps {
   folder: TrackedFolderView
   expanded: boolean
@@ -48,6 +54,24 @@ interface HeaderProps {
   onToggle(): void
   onSelect(): void
   onStopTracking(): void
+}
+
+/** The folder's name and path and, for a folder of repositories, how many it holds. */
+function FolderText({ folder }: { folder: TrackedFolderView }): JSX.Element {
+  const repositories = useRepositories(canHoldEpics(folder) ? folder.path : null, ignoreError)
+  return (
+    <span className="folder-text">
+      <span className="folder-name" title={folder.name}>
+        {folder.name}
+      </span>{' '}
+      <span className="folder-path mono" title={folder.path}>
+        {folder.displayPath}
+      </span>
+      {repositories.status === 'ready' && repositories.value !== null ? (
+        <span className="folder-path">{repositoryCount(repositories.value.length)}</span>
+      ) : null}
+    </span>
+  )
 }
 
 function FolderHeader(props: HeaderProps): JSX.Element {
@@ -77,14 +101,7 @@ function FolderHeader(props: HeaderProps): JSX.Element {
         onClick={props.onSelect}
       >
         <Icon name="folder" />
-        <span className="folder-text">
-          <span className="folder-name" title={folder.name}>
-            {folder.name}
-          </span>{' '}
-          <span className="folder-path mono" title={folder.path}>
-            {folder.displayPath}
-          </span>
-        </span>
+        <FolderText folder={folder} />
         {waiting > 0 && !expanded ? (
           <span className="waiting-badge" title={`${plural(waiting, 'chat')} waiting for your ${waitingFor}`}>
             {waiting} waiting
@@ -153,6 +170,7 @@ function Agents(props: FolderRowProps): JSX.Element {
       folder={folder}
       list={props.chats}
       statuses={props.statuses}
+      agents={props.agents}
       expanded={expansion.isAgentsExpanded(folder.path)}
       selectedChatId={selection.folderPath === folder.path ? (selection.chatId ?? null) : null}
       onToggle={() => expansion.toggleAgents(folder.path)}

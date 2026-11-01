@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ModelOption } from '../../../shared/agents/chat'
-import type { AgentKind } from '../../../shared/desktop/api'
+import type { AgentId } from '../../../shared/desktop/api'
 import { errorMessage } from '../api/dm'
 
 /**
@@ -15,11 +15,11 @@ export type ModelsState =
   | { status: 'failed'; message: string }
 
 interface Loaded {
-  kind: AgentKind
+  kind: AgentId
   state: ModelsState
 }
 
-async function fetchModels(kind: AgentKind): Promise<ModelsState> {
+async function fetchModels(kind: AgentId): Promise<ModelsState> {
   try {
     const result = await window.dm.chats.models(kind)
     if (result.ok) {
@@ -33,8 +33,8 @@ async function fetchModels(kind: AgentKind): Promise<ModelsState> {
   }
 }
 
-/** Asks for the models of `kind` whenever it changes; an answer for a kind that is no longer chosen is dropped. */
-export function useAgentModels(kind: AgentKind | null): ModelsState {
+/** Asks for the models of the agent `kind` (an agent id) whenever it changes; an answer for an agent that is no longer chosen is dropped. */
+export function useAgentModels(kind: AgentId | null): ModelsState {
   const [loaded, setLoaded] = useState<Loaded | null>(null)
   useEffect(() => {
     if (kind === null) {

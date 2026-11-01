@@ -27,10 +27,12 @@ const PROBES: Record<CommandName, unknown> = {
   getCapabilities: undefined,
   getProject: undefined,
   setDefinitionOfDone: { checks: [] },
+  rescanRepositories: undefined,
   initializeRepository: {},
   getStorageStatus: undefined,
   flushPortableState: undefined,
   reconcileRepository: undefined,
+  resolveEpicConflict: { epicId: EPIC, keep: 'tracked' },
   searchHistory: { query: 'probe' },
   listBranchEpics: undefined,
   backupDatabase: {},
@@ -107,7 +109,13 @@ const PROBES: Record<CommandName, unknown> = {
   listComments: { epicId: EPIC },
   listProfiles: undefined,
   getProfile: { name: 'probe-profile' },
-  saveProfile: { name: 'probe-profile', capability: defaultCapabilityProfile() }
+  saveProfile: { name: 'probe-profile', capability: defaultCapabilityProfile() },
+  queueTransfer: { epicId: EPIC },
+  cancelTransfer: { epicId: EPIC },
+  startTransfer: { epicId: EPIC },
+  recordTransferItem: { epicId: EPIC, ref: 'project', linearId: 'lin-probe' },
+  getTransfer: { epicId: EPIC },
+  submitTransferReadback: { epicId: EPIC, readback: {}, final: false }
 }
 
 const COMMAND_NAMES = Object.keys(PROBES) as CommandName[]
@@ -163,7 +171,9 @@ describe('declared command capabilities match what the services enforce', () => 
     const refused = COMMAND_NAMES.filter((name) => outcomes.get(name) === 'unauthorized')
     const lacking = COMMAND_NAMES.filter((name) => !held.has(COMMAND_CAPABILITIES[name]))
     expect(refused).toEqual(lacking)
-    expect(COMMAND_NAMES.filter((name) => outcomes.get(name) === 'invalid_input')).toEqual([])
+    // The probe project is a single repository, which an authorized rescan refuses as having nothing to rescan.
+    const invalid = COMMAND_NAMES.filter((name) => outcomes.get(name) === 'invalid_input')
+    expect(invalid).toEqual(held.has('project.repositories') ? ['rescanRepositories'] : [])
   })
 })
 
@@ -175,12 +185,33 @@ describe('COMMAND_CAPABILITIES', () => {
       'approveCheckpoint',
       'approveWithRedraft',
       'authorizeAutoContinue',
+      'cancelTransfer',
       'deleteEpic',
       'deleteTicket',
       'grantRetry',
       'issueGrant',
       'queueRun',
+      'queueTransfer',
+      'resolveEpicConflict',
       'revokeGrant'
+    ])
+  })
+})
+
+describe('transfer capabilities', () => {
+  const ROLES: SessionRole[] = ['desktop', 'planner', 'orchestrator', 'worker', 'reviewer', 'reader']
+
+  it('keeps transfer.queue human-only, held by the desktop alone', () => {
+    expect(HUMAN_ONLY_CAPABILITIES).toContain('transfer.queue')
+    expect(ROLES.filter((role) => capabilitiesForRole(role, { allowSave: true }).includes('transfer.queue'))).toEqual([
+      'desktop'
+    ])
+  })
+
+  it('gives epic.transfer to the orchestrator and the desktop only', () => {
+    expect(ROLES.filter((role) => capabilitiesForRole(role, { allowSave: true }).includes('epic.transfer'))).toEqual([
+      'desktop',
+      'orchestrator'
     ])
   })
 })

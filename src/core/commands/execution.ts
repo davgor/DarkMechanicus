@@ -1,4 +1,4 @@
-import type { IncrementRef, SubmitAttemptInput } from '../../shared/domain/api'
+import type { SubmitAttemptInput } from '../../shared/domain/api'
 import type { ReadinessView, RunView, SprintIncrement } from '../../shared/domain/views'
 import { requireCapability } from '../authz'
 import { COMMAND_SCHEMAS } from '../commandSchemas'
@@ -18,8 +18,9 @@ import {
 import { getCheckpoint } from '../services/checkpoints'
 import { expireLeases, loadRunContext, runExecution } from '../services/execution'
 import { matchCapabilities, registerHost } from '../services/hosts'
-import { incrementContextOf } from '../services/increments'
-import { verifyIncrement } from '../services/incrementVerify'
+import { isRepositoryFolder } from '../services/epicBranches'
+import { incrementContextOf, repositoryIncrementsOf } from '../services/increments'
+import { verifyIncrement, verifyRepositoryIncrements } from '../services/incrementVerify'
 import { recordRowCheck } from '../services/rowChecks'
 import {
   cancelRun,
@@ -76,16 +77,23 @@ function readiness(ctx: Ctx, runId: string): ReadinessView {
 
 /**
  * The server's verdict on the increment a submission names, asked of git before the submission is stored
- * (the store is synchronous, git is not). Undefined when the attempt is not on an acceptance node, which the
- * submission then refuses. Read-only: nothing in the repository changes.
+ * (the store is synchronous, git is not). Undefined when the attempt is not on an acceptance node, or the
+ * increments are refused, which the submission then refuses. Read-only: nothing in the repository changes.
+ * A folder of repositories' `increments` are verified one per repository, each with that repository's adapter.
  */
-async function verifiedIncrement(
-  core: WorkspaceCore,
-  input: SubmitAttemptInput & { increment: IncrementRef }
-): Promise<SprintIncrement | undefined> {
+async function verifiedIncrement(core: WorkspaceCore, input: SubmitAttemptInput): Promise<SprintIncrement | SprintIncrement[] | undefined> {
   requireCapability(core.ctx().session, 'attempt.submit')
+  if (input.increments !== undefined) {
+    const entries = repositoryIncrementsOf(core.ctx(), input.attemptId, input.increments)
+    return entries === null ? undefined : verifyRepositoryIncrements((repo) => core.gitFor(repo), entries, core.clock.nowIso())
+  }
+  const { increment } = input
+  // A folder of repositories refuses a single increment; git is not asked about it.
+  if (increment === undefined || isRepositoryFolder(core.ctx())) {
+    return undefined
+  }
   const context = incrementContextOf(core.ctx(), input.attemptId)
-  return context === null ? undefined : verifyIncrement(core.git, context, input.increment, core.clock.nowIso())
+  return context === null ? undefined : verifyIncrement(core.git, context, increment, core.clock.nowIso())
 }
 
 const executionCommands = {
@@ -139,7 +147,7 @@ const executionCommands = {
     schema: COMMAND_SCHEMAS.submitAttempt,
     mutates: true,
     run: async (core, input) => {
-      const verdict = input.increment === undefined ? undefined : await verifiedIncrement(core, { ...input, increment: input.increment })
+      const verdict = await verifiedIncrement(core, input)
       return submitAttempt(core.ctx(), input, verdict)
     }
   },

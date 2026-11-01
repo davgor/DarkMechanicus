@@ -1,14 +1,18 @@
 # Baseline ignore for ts-prune: one `file - export` per line (line numbers are not matched)
 # Generated from tsconfig.node.json + tsconfig.web.json
 # Refresh after export moves/deletes: npm run deadcode:refresh
-# Refreshed 2026-10-31 (98 entries)
+# Refreshed 2026-11-01 (120 entries)
 
 electron.vite.config.ts - default
+src/core/canonical.ts - canonicalJson
+src/core/canonical.ts - prettyJson
+src/core/canonical.ts - sha256Hex
 src/core/claimTokenMask.ts - CLAIM_TOKEN_MASK
 src/core/claimTokenMask.ts - StreamMasker
 src/core/claimTokenMask.ts - clipMasked
 src/core/claimTokenMask.ts - createStreamMasker
 src/core/claimTokenMask.ts - maskClaimTokensDeep
+src/core/claimTokenMask.ts - maskWholeClaimTokens
 src/core/definitionOfDone.ts - checkNameKey
 src/core/plan/acceptance.ts - acceptanceNodeOf
 src/core/plan/graph.ts - BundleIndex
@@ -17,16 +21,18 @@ src/core/plan/graph.ts - checkEdgeAddition
 src/core/plan/graph.ts - dependentsOf
 src/core/plan/graph.ts - findCycle
 src/core/plan/graph.ts - indexBundle
-src/core/plan/graph.ts - planRows
-src/core/plan/graph.ts - prerequisitesOf
-src/core/plan/graph.ts - sortedSprints
 src/core/plan/graph.ts - ticketLabel
 src/core/plan/graph.ts - validatePlan
+src/core/plan/repoTitles.ts - withRepoPrefix
 src/core/repo/layout.ts - ResolveLayoutOptions
+src/core/transfer/linearPacket.ts - LINEAR_SUMMARY_MAX
+src/core/transfer/linearPacket.ts - LinearPacketInput
 src/main/agents/ownCliCommand.ts - OwnCliCall
 src/main/desktop/cliConfig.ts - CliConfigOptions
-src/preload/index.ts - AppInfoApi
-src/preload/index.ts - AutoUpdateApi
+src/mcp/transferKickoff.ts - TransferKickoffInput
+src/renderer/src/epic/__mocks__/transferBackend.ts - TransferSetup
+src/renderer/src/epic/transferActions.ts - TransferActionDeps
+src/renderer/src/epic/transferView.ts - TransferStripView
 src/shared/agents/chat.ts - APPROVAL_DECISIONS
 src/shared/agents/chat.ts - ApprovalCategory
 src/shared/agents/chat.ts - ChatAdapter
@@ -41,6 +47,7 @@ src/shared/agents/chatApi.ts - BoundThreadsRequest
 src/shared/agents/chatApi.ts - ChatRequestRef
 src/shared/agents/chatApi.ts - SendChatRequest
 src/shared/agents/chatApi.ts - SetChatModelRequest
+src/shared/agents/chatApi.ts - TransferChatRequest
 src/shared/autoUpdate/types.ts - AUTO_UPDATE_EVENT_CHANNEL
 src/shared/desktop/api.ts - AgentDownloadFailureCode
 src/shared/desktop/api.ts - AgentDownloadPhase
@@ -84,6 +91,20 @@ src/shared/domain/status.ts - RUN_STATES
 src/shared/domain/status.ts - TICKET_EXECUTION_STATES
 src/shared/domain/status.ts - WORK_STATUSES
 src/shared/domain/status.ts - WORK_STATUS_LABELS
+src/shared/domain/transfer.ts - EpicTransferItem
+src/shared/domain/transfer.ts - LINEAR_IDENTIFIER_PATTERN
+src/shared/domain/transfer.ts - LinearBlocksRelation
+src/shared/domain/transfer.ts - LinearIssueState
+src/shared/domain/transfer.ts - LinearReadback
+src/shared/domain/transfer.ts - LinearReadbackIssue
+src/shared/domain/transfer.ts - LinearReadbackMilestone
+src/shared/domain/transfer.ts - LinearReadbackProject
+src/shared/domain/transfer.ts - LinearReadbackRelation
+src/shared/domain/transfer.ts - LinearRelatedRelation
+src/shared/domain/transfer.ts - ReadbackCounts
+src/shared/domain/transfer.ts - TransferMismatchValue
+src/shared/domain/transfer.ts - TransferWarning
+src/shared/domain/transfer.ts - TransferWarningCode
 src/shared/domain/views.ts - AssignmentFallback
 src/shared/domain/views.ts - AttemptDecision
 src/shared/domain/views.ts - CapabilityRecommendation
@@ -92,6 +113,7 @@ src/shared/domain/views.ts - ExecutionPacket
 src/shared/domain/views.ts - FollowUpProposal
 src/shared/domain/views.ts - GateConditionId
 src/shared/domain/views.ts - HostModel
+src/shared/domain/views.ts - PacketRepository
 src/shared/domain/views.ts - PrerequisiteOutcome
 src/shared/domain/views.ts - RedraftAddedView
 src/shared/domain/views.ts - RedraftChangesView

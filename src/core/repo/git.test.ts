@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createGitRepo, type GitRepo } from '../../test/gitRepo'
 import { createMemoryFs, type MemoryFs } from '../../test/memoryFs'
-import { domainErrorOfAsync } from '../../test/repoFixtures'
+import { domainErrorOf, domainErrorOfAsync } from '../../test/repoFixtures'
 import { createTempRepo, type TempRepo } from '../../test/tempRepo'
 import { createGitAdapter } from './git'
 
@@ -423,5 +423,72 @@ describe('GitAdapter ancestry queries are read-only', () => {
     expect(gitDirSnapshot(repo.root)).toEqual(before)
     expect(repo.git('status', '--porcelain')).toBe(status)
     expect(repo.git('for-each-ref')).toBe(refs)
+  })
+})
+
+describe('GitAdapter.branchCommit', () => {
+  let repo: GitRepo | undefined
+  afterEach(() => {
+    repo?.cleanup()
+    repo = undefined
+  })
+
+  it('answers the commit an existing local branch points at, not HEAD', () => {
+    repo = createGitRepo()
+    const initial = repo.rev('HEAD')
+    repo.branch('epic/x')
+    const tip = repo.commit('on the epic branch')
+    repo.switchTo('main')
+    const adapter = createGitAdapter(repo.root)
+    expect(adapter.branchCommit('epic/x')).toBe(tip)
+    expect(adapter.branchCommit('main')).toBe(initial)
+  })
+
+  it('answers null for a branch the repository does not have, a tag or a commit id', () => {
+    repo = createGitRepo()
+    const initial = repo.rev('HEAD')
+    repo.git('-c', 'tag.gpgSign=false', 'tag', '-a', '-m', 'v1', 'v1')
+    const adapter = createGitAdapter(repo.root)
+    expect(adapter.branchCommit('epic/missing')).toBeNull()
+    expect(adapter.branchCommit('v1')).toBeNull()
+    expect(adapter.branchCommit(initial)).toBeNull()
+  })
+})
+
+describe('GitAdapter.branchCommit (CLI answers and hostile names)', () => {
+  it('asks rev-parse for exactly refs/heads/<name> as one commit', () => {
+    const calls: string[][] = []
+    const runGitSync = (args: string[]): Step => {
+      calls.push(args)
+      return { code: 0, stdout: `${SHA_A}\n` }
+    }
+    expect(createGitAdapter(ROOT, { runGitSync }).branchCommit('epic/x')).toBe(SHA_A)
+    expect(calls).toEqual([['rev-parse', '--verify', '--quiet', 'refs/heads/epic/x^{commit}']])
+    expect(createGitAdapter(ROOT, { runGitSync: () => ({ code: 1, stdout: '' }) }).branchCommit('epic/x')).toBeNull()
+    expect(createGitAdapter(ROOT, { runGitSync: () => ({ code: 0, stdout: 'garbage\n' }) }).branchCommit('epic/x')).toBeNull()
+  })
+
+  it('reads the branch ref from the files when git cannot run, never taking an existing branch for a missing one', () => {
+    const fs = gitDirRepo('ref: refs/heads/main\n')
+    fs.put(join(ROOT, '.git', 'packed-refs'), `${SHA_B} refs/heads/epic/x\n`)
+    const broken = createGitAdapter(ROOT, { fs, runGitSync: () => ({ code: 128, stdout: '' }) })
+    expect(broken.branchCommit('epic/x')).toBe(SHA_B)
+    expect(broken.branchCommit('epic/missing')).toBeNull()
+    expect(broken.branchCommit('a..b')).toBeNull()
+    // Exit status 1 is git's clean "no such branch": the files are not consulted.
+    expect(createGitAdapter(ROOT, { fs, runGitSync: () => ({ code: 1, stdout: '' }) }).branchCommit('epic/x')).toBeNull()
+  })
+
+  it('refuses a name with a leading dash or a NUL with unsafe_path before running git', () => {
+    const calls: string[][] = []
+    const runGitSync = (args: string[]): Step => {
+      calls.push(args)
+      return { code: 0, stdout: `${SHA_A}\n` }
+    }
+    const adapter = createGitAdapter(ROOT, { runGitSync })
+    expect(domainErrorOf(() => adapter.branchCommit('--all')).code).toBe('unsafe_path')
+    expect(domainErrorOf(() => adapter.branchCommit('-x')).code).toBe('unsafe_path')
+    expect(domainErrorOf(() => adapter.branchCommit('main\u0000x')).code).toBe('unsafe_path')
+    expect(calls).toEqual([])
   })
 })

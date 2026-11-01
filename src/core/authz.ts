@@ -7,14 +7,18 @@ export const CAPABILITIES = [
   'repo.flush',
   'repo.reconcile',
   'repo.backup',
+  'repo.resolve_conflict',
   'epic.create',
   'epic.status',
   'epic.branch',
   'epic.delete',
+  'epic.transfer',
+  'transfer.queue',
   'draft.edit',
   'plan.save',
   'profile.write',
   'project.definition_of_done',
+  'project.repositories',
   'ticket.status',
   'ticket.retry_grant',
   'ticket.delete',
@@ -58,7 +62,11 @@ export const HUMAN_ONLY_CAPABILITIES: readonly Capability[] = [
   'ticket.retry_grant',
   'run.queue',
   'epic.delete',
-  'ticket.delete'
+  'ticket.delete',
+  // Sending a plan out to Linear is the person's decision; an agent only carries out a queued transfer.
+  'transfer.queue',
+  // Settling an epic records conflict drops one side's changes: which survive is the person's call.
+  'repo.resolve_conflict'
 ]
 
 /** What a planner and an orchestrator both hold. */
@@ -70,7 +78,9 @@ const PLANNER_SHARED: Capability[] = [
   'epic.create',
   'draft.edit',
   'comment.write',
-  'profile.write'
+  'profile.write',
+  // Re-detecting a folder's repositories only records what is on disk, so both planning roles may do it.
+  'project.repositories'
 ]
 
 /**
@@ -87,6 +97,7 @@ const ORCHESTRATOR: Capability[] = [
   'repo.backup',
   'epic.status',
   'epic.branch',
+  'epic.transfer',
   'ticket.status',
   'host.register',
   'run.start',

@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code planner",
+    "role": "planner"
+  },
+  "body": "Repurposed on 2026-10-31 at the person's direction: this epic now turns chats into terminal shells, in one sprint. The design is `docs/design/chat-shells.md`, from DM-302 of Agent CLIs (ep_01m61r9qjc28t4x2jpczpwk41a).\n\n- The earlier \"Trustworthy completion and lighter agent orchestration\" plan is replaced. It stays readable as saved revision rv_01m5jzdeprrrmsf56dp28yrarq. The provenance field still names Scrum cadence, because a plan draft can't change provenance.\n- The person's decisions: New chat is one click with no dialog (the folder's default agent, as orchestrator with Allow save, on the CLI's default model). macOS is verified live, and Windows only by an optional ticket. Agent CLIs was merged into main first (022734c).\n- The planner's assumption: the terminal runs only the agent CLI, never a general shell (design question 2). Dropping into a shell after the CLI exits would need the person's decision.\n- This plan was applied through the repo's MCP server as a planner with save, on the person's explicit override of the grant flow.",
+  "createdAt": "2026-10-31T11:17:19.406Z",
+  "epicId": "ep_01m5jz275yaw11nzgr81806jeq",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m68tv9xertn5cvq2h34gs61y",
+  "ticketId": null
+}

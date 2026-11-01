@@ -2,7 +2,8 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { ChatSummary } from '../../../shared/agents/chatApi'
-import { chatSummary, folderView } from '../__mocks__/fixtures'
+import type { AgentView } from '../../../shared/desktop/api'
+import { agentView, chatSummary, folderView } from '../__mocks__/fixtures'
 import type { AgentStatuses } from '../agents/useAgents'
 import type { ChatListState } from '../agents/useChats'
 import { AgentsBlock } from './AgentsBlock'
@@ -18,6 +19,7 @@ const ready = (chats: ChatSummary[]): ChatListState => ({ status: 'ready', chats
 interface Setup {
   list?: ChatListState
   statuses?: AgentStatuses
+  agents?: readonly AgentView[]
   expanded?: boolean
   selectedChatId?: string | null
 }
@@ -36,6 +38,7 @@ function block(setup: Setup, calls: Calls): JSX.Element {
       folder={folderView({ path: '/a', name: 'alpha' })}
       list={setup.list ?? ready([OLD, NEW, MID])}
       statuses={setup.statuses ?? {}}
+      agents={setup.agents ?? []}
       expanded={setup.expanded ?? true}
       selectedChatId={setup.selectedChatId ?? null}
       onToggle={() => {
@@ -74,6 +77,19 @@ describe('AgentsBlock listing', () => {
     expect(within(row).getByText('Claude Code · opus')).toBeTruthy()
     expect(screen.getByText('Codex · Default model')).toBeTruthy()
     expect(screen.getByText('Cursor · composer')).toBeTruthy()
+  })
+
+  it('names a connected custom agent by its display name, in the row and its sign-in badge, and one no longer connected generically', () => {
+    const custom = agentView({ kind: 'custom', displayName: 'My Claude' })
+    const chat = chatSummary({ id: 'chat_cu', title: 'Custom work', agent: custom.id, model: null, cutShortMessageId: 'u1' })
+    const statuses: AgentStatuses = { [custom.id]: { state: 'signed_out', reason: 'Signed out.' } }
+    renderBlock({ list: ready([chat]), agents: [custom], statuses })
+    expect(screen.getByText('My Claude · Default model')).toBeTruthy()
+    expect(screen.getByText('Needs sign-in').getAttribute('title')).toBe('This chat is waiting for you to sign in to My Claude')
+    cleanup()
+    renderBlock({ list: ready([chat]), agents: [], statuses })
+    expect(screen.getByText('Custom agent · Default model')).toBeTruthy()
+    expect(screen.getByText('Needs sign-in').getAttribute('title')).toBe('This chat is waiting for you to sign in to Custom agent')
   })
 
   it('shows a collapsible header with the number of chats', () => {

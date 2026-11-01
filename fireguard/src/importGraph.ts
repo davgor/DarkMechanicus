@@ -125,45 +125,68 @@ function createEdgeLookup(io: {
   };
 }
 
-function reachableFrom(
+/** Shortest import-hop count from `start` to every file it reaches (breadth-first). */
+function distancesFrom(
   start: string,
   edgesOf: EdgeLookup
-): { files: Set<string>; truncated: boolean } {
-  const files = new Set<string>([start]);
+): { hops: Map<string, number>; truncated: boolean } {
+  const hops = new Map<string, number>([[start, 0]]);
   const queue = [start];
   for (const current of queue) {
-    for (const next of edgesOf(current)) {
-      if (files.has(next)) continue;
-      if (files.size >= MAX_VISITED_FILES) return { files, truncated: true };
-      files.add(next);
-      queue.push(next);
+    const next = (hops.get(current) ?? 0) + 1;
+    for (const target of edgesOf(current)) {
+      if (hops.has(target)) continue;
+      if (hops.size >= MAX_VISITED_FILES) return { hops, truncated: true };
+      hops.set(target, next);
+      queue.push(target);
     }
   }
-  return { files, truncated: false };
+  return { hops, truncated: false };
+}
+
+/** The graded tests that can kill a module's mutants, in the order to try them. */
+export interface RelatedTests {
+  /** Tests that reach the module in the fewest import hops; every mutant runs these first. */
+  nearest: string[];
+  /** The other related tests, run only for mutants the nearest tests leave alive. */
+  farther: string[];
 }
 
 /**
- * For each module, the sorted graded tests whose transitive relative-import closure contains
- * it (only those tests can kill its mutants). Modules no test reaches map to an empty list.
- * If a test's closure exceeds 5,000 files it is unknown, so the test is conservatively
- * related to every module rather than silently dropped.
+ * For each module, the graded tests whose transitive relative-import closure contains it (only
+ * those tests can kill its mutants), split by import distance into `nearest` and `farther`,
+ * each sorted. Modules no test reaches get two empty lists. If a test's closure exceeds 5,000
+ * files it is unknown, so the test is conservatively a `farther` test of every module rather
+ * than silently dropped.
  */
 export function buildRelatedTests(options: {
   tests: string[];
   modules: string[];
   readFile: (path: string) => string | null;
   exists: (path: string) => boolean;
-}): Map<string, string[]> {
-  const related = new Map<string, string[]>(
-    options.modules.map((path): [string, string[]] => [path, []])
+}): Map<string, RelatedTests> {
+  const reached = new Map<string, Array<{ test: string; hops: number }>>(
+    options.modules.map((path) => [path, []])
   );
   const edgesOf = createEdgeLookup(options);
-  // Tests are visited in sorted order so every module's list comes out sorted.
+  // Tests are visited in sorted order so every module's lists come out sorted.
   for (const test of [...new Set(options.tests)].sort()) {
-    const reach = reachableFrom(test, edgesOf);
-    for (const [modulePath, tests] of related) {
-      if (reach.truncated || reach.files.has(modulePath)) tests.push(test);
+    const { hops, truncated } = distancesFrom(test, edgesOf);
+    for (const [modulePath, tests] of reached) {
+      const distance = hops.get(modulePath);
+      if (distance !== undefined) tests.push({ test, hops: distance });
+      else if (truncated) tests.push({ test, hops: Number.POSITIVE_INFINITY });
     }
+  }
+  const related = new Map<string, RelatedTests>();
+  for (const [modulePath, tests] of reached) {
+    // Infinity (closure unknown) never counts as nearest, even when it is all a module has.
+    const fewest = Math.min(...tests.map((entry) => entry.hops));
+    const tiers: RelatedTests = { nearest: [], farther: [] };
+    for (const { test, hops } of tests) {
+      (hops === fewest && Number.isFinite(hops) ? tiers.nearest : tiers.farther).push(test);
+    }
+    related.set(modulePath, tiers);
   }
   return related;
 }

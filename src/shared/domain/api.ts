@@ -17,6 +17,15 @@ import type {
 } from './bundle'
 import type { AttemptTimelineView, RunTimelineView, TimelineWindow } from './activity'
 import type { SprintRetroInput } from './retro'
+import type {
+  RecordTransferItemInput,
+  StartedTransferView,
+  SubmitTransferReadbackInput,
+  TransferActionInput,
+  TransferItemView,
+  TransferReadbackResult,
+  TransferView
+} from './transfer'
 import type { WorkStatus } from './status'
 import type {
   ApprovalView,
@@ -35,6 +44,7 @@ import type {
   CriterionResult,
   DeleteEpicResultView,
   DraftUpdateResultView,
+  EpicConflictChoice,
   EpicDetailView,
   EpicSummaryView,
   EventsPage,
@@ -48,6 +58,8 @@ import type {
   ReadinessView,
   RedraftResultView,
   ReconcileResultView,
+  RepositoryView,
+  ResolveEpicConflictView,
   RevisionSummaryView,
   RowCheckView,
   RunView,
@@ -91,6 +103,11 @@ export interface TicketInput {
   priority?: TicketPriority
   /** `null` in a patch clears the size (the ticket then has no `size` key). */
   size?: TicketSize | null
+  /**
+   * The repository of a folder of repositories the ticket targets; the server keeps the title prefixed with
+   * `<repo> - `. `null` in a patch clears it (the title then keeps only its description).
+   */
+  repo?: string | null
   capability?: CapabilityPatch
   references?: TicketReference[]
   expectedArtifacts?: string[]
@@ -159,11 +176,12 @@ export interface ClaimTicketInput {
 /**
  * The increment a sprint's acceptance node names: the commit that landed the sprint on the epic branch,
  * and the branch it landed on (which must be the epic's integration branch). `commit` is a hash of 7 to 64
- * hex digits.
+ * hex digits. In a folder of repositories, `repo` names the child repository the commit is in.
  */
 export interface IncrementRef {
   branch: string
   commit: string
+  repo?: string
 }
 
 export interface HeartbeatAttemptInput {
@@ -181,9 +199,15 @@ export interface SubmitAttemptInput {
   evidence?: Partial<AttemptEvidence>
   /**
    * Acceptance nodes only. The server verifies the increment when the submission arrives and stores
-   * the verdict, whether it passed or not; a work ticket that names one is refused.
+   * the verdict, whether it passed or not; a work ticket that names one is refused. A single repository only.
    */
   increment?: IncrementRef
+  /**
+   * Acceptance nodes of a folder of repositories only, instead of `increment`: one increment per repository the
+   * sprint touched, each with its `repo`. Each is verified against that repository's history and stored with its
+   * verdict; one that fails fails the node's increment.
+   */
+  increments?: IncrementRef[]
   idempotencyKey?: string
 }
 
@@ -229,20 +253,41 @@ export interface CommandApi {
   getProject(): Promise<ProjectView>
   /**
    * Replaces the project's Definition of Done in `.darkmechanicus/project.json` (an empty list removes it)
-   * and answers with the project as getProject shows it. Planner and desktop only; never commits.
+   * and answers with the project as getProject shows it. Planner and desktop only; never commits. In a folder
+   * of repositories `repo` is required and names the repository whose checks these are; a single repository refuses it.
    */
   setDefinitionOfDone(input: {
     checks: { name: string; command: string; description?: string }[]
+    repo?: string
   }): Promise<ProjectView>
   initializeRepository(input: {
     name?: string
     keyPrefix?: string
     /** `repo` (default) keeps records in the repository; `db` keeps them only in the home directory. */
     mode?: 'repo' | 'db'
+    /**
+     * `multi_repo` sets up a folder whose immediate children are Git repositories: db mode only (the default for
+     * it), refused when the folder sits inside a Git repository or holds none. The children are recorded.
+     */
+    layout?: 'single' | 'multi_repo'
   }): Promise<InitializeResultView>
+  /**
+   * Re-detects the child repositories of a folder of repositories: appends new ones, marks vanished ones missing
+   * (never removing them), and answers with the whole list. Refused for a single-repository project.
+   */
+  rescanRepositories(): Promise<RepositoryView[]>
   getStorageStatus(): Promise<StorageStatusView>
   flushPortableState(): Promise<FlushResultView>
   reconcileRepository(): Promise<ReconcileResultView>
+  /**
+   * Desktop only; no MCP tool offers it. Settles an epic whose tracked records changed (another machine's save or
+   * state change, pulled or checked out) while this machine's changes to it wait to be exported, which neither a
+   * reconcile nor a flush will apply over the other. `tracked` drops the epic's waiting state export and any waiting
+   * save (its revision is marked failed; the draft stays), then imports the tracked records; `local` writes this
+   * machine's records over them. Refused (`conflict`) when there is no such conflict, during a Linear transfer hold,
+   * or when the chosen side cannot be applied, leaving everything as it was. Never commits.
+   */
+  resolveEpicConflict(input: { epicId: string; keep: EpicConflictChoice }): Promise<ResolveEpicConflictView>
   searchHistory(input: { query: string; limit?: number; epicId?: string }): Promise<SearchResultView[]>
   listBranchEpics(): Promise<BranchEpicView[]>
   backupDatabase(input: { targetPath?: string }): Promise<{ path: string }>
@@ -453,6 +498,26 @@ export interface CommandApi {
   getAttemptTimeline(input: { attemptId: string } & TimelineWindow): Promise<AttemptTimelineView>
   /** A run's story grouped by the session that did each thing; paged with `sinceSeq` like an attempt timeline. */
   getRunTimeline(input: { runId: string } & TimelineWindow): Promise<RunTimelineView>
+
+  // Linear transfer of a saved epic
+  /**
+   * Desktop only: the person authorizes the transfer of the epic's current saved revision to a Linear project.
+   * Refused for a completed epic, an active run, a never-saved plan, unsaved draft changes and an open transfer.
+   */
+  queueTransfer(input: TransferActionInput): Promise<TransferView>
+  /** Desktop only: withdraws the authorization; the recorded items are cleared, what is in Linear stays. */
+  cancelTransfer(input: TransferActionInput): Promise<TransferView>
+  /** Starts a queued transfer or resumes one in progress: the stored packet, what is recorded and what remains. */
+  startTransfer(input: TransferActionInput): Promise<StartedTransferView>
+  /** Records the Linear item created (or adopted) for one packet ref; the same values again change nothing. */
+  recordTransferItem(input: RecordTransferItemInput): Promise<TransferItemView>
+  /** Where the epic's transfer stands; `not_started` with the packet the saved revision builds when none exists. */
+  getTransfer(input: { epicId: string }): Promise<TransferView>
+  /**
+   * One part of the Linear read-back; parts accumulate until `final`, which compares them with the packet and
+   * completes the epic on a full match or stores and returns the mismatches.
+   */
+  submitTransferReadback(input: SubmitTransferReadbackInput): Promise<TransferReadbackResult>
 }
 
 export type CommandName = keyof CommandApi

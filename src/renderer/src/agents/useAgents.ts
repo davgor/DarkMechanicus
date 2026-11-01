@@ -1,29 +1,31 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AGENT_KINDS } from '../../../shared/desktop/agentKinds'
-import type { AgentAuthStatus, AgentKind, AgentView } from '../../../shared/desktop/api'
+import { AGENT_KINDS, isBuiltInAgentKind } from '../../../shared/desktop/agentKinds'
+import type { AgentAuthStatus, AgentId, AgentView } from '../../../shared/desktop/api'
 import { useLatest } from '../app/useLatest'
 import { describeActivity, IDLE_ACTIVITY } from './agentActivity'
 import type { ActivityState, AgentActivity } from './agentActivity'
 import { createAgentOperations } from './agentOperations'
 import type { AgentOperations } from './agentOperations'
 
-export type AgentStatuses = Readonly<Partial<Record<AgentKind, AgentAuthStatus>>>
+/** Sign-in states by agent id. */
+export type AgentStatuses = Readonly<Partial<Record<AgentId, AgentAuthStatus>>>
 
-/** The connected agents with their sign-in states, what is in flight for each kind, and the actions. */
+/** The connected agents with their sign-in states, what is in flight for each, and the actions. */
 export interface AgentsModel extends AgentOperations {
   agents: readonly AgentView[]
   /** False until the first list arrives (or fails). */
   loaded: boolean
-  /** The state of each connected agent; a kind is absent while its status is still being asked. */
+  /** The state of each connected agent by id; an id is absent while its status is still being asked. */
   statuses: AgentStatuses
   /** Shows a status a sign-in prompt found (a state it asked for itself), so every screen agrees without asking again. */
-  recordStatus(kind: AgentKind, status: AgentAuthStatus): void
-  activity(kind: AgentKind): AgentActivity
+  recordStatus(id: AgentId, status: AgentAuthStatus): void
+  /** What is in flight for an agent id (a built-in kind's id is the kind, which find and download use). */
+  activity(id: AgentId): AgentActivity
 }
 
-/** Agents show in the order of the add-agent cards, whatever order they were connected in. */
-const inCardOrder = (agents: readonly AgentView[]): AgentView[] =>
-  [...agents].sort((a, b) => AGENT_KINDS.indexOf(a.kind) - AGENT_KINDS.indexOf(b.kind))
+/** Built-in agents show in the order of the add-agent cards, whatever order they were connected in; custom agents follow. */
+const cardIndex = (agent: AgentView): number => (isBuiltInAgentKind(agent.kind) ? AGENT_KINDS.indexOf(agent.kind) : AGENT_KINDS.length)
+const inCardOrder = (agents: readonly AgentView[]): AgentView[] => [...agents].sort((a, b) => cardIndex(a) - cardIndex(b))
 
 interface ListState {
   agents: AgentView[]
@@ -58,7 +60,7 @@ function useAgentList(onError: (error: unknown) => void): AgentList {
     (agent: AgentView) =>
       setState((previous) => ({
         ...previous,
-        agents: inCardOrder([...previous.agents.filter((other) => other.kind !== agent.kind), agent])
+        agents: inCardOrder([...previous.agents.filter((other) => other.id !== agent.id), agent])
       })),
     []
   )
@@ -69,7 +71,7 @@ function useAgentList(onError: (error: unknown) => void): AgentList {
   return { ...state, upsert, replace }
 }
 
-/** Whether this is a different executable (or a new probe of it) than the one last checked for the kind. */
+/** Whether this is a different executable (or a new probe of it) than the one last checked for the agent. */
 const identityOf = (agent: AgentView): string => `${agent.executablePath}|${agent.lastProbed}`
 
 /**
@@ -80,16 +82,16 @@ const identityOf = (agent: AgentView): string => `${agent.executablePath}|${agen
 function useAgentStatuses(
   agents: readonly AgentView[],
   onError: (error: unknown) => void
-): { statuses: AgentStatuses; record(kind: AgentKind, status: AgentAuthStatus): void } {
+): { statuses: AgentStatuses; record(id: AgentId, status: AgentAuthStatus): void } {
   const [statuses, setStatuses] = useState<AgentStatuses>({})
   const report = useLatest(onError)
   const latest = useLatest(agents)
-  const checked = useRef(new Map<AgentKind, string>())
+  const checked = useRef(new Map<AgentId, string>())
 
   const check = useCallback(
-    (kind: AgentKind) => {
-      window.dm.agentStatus(kind).then(
-        (status) => setStatuses((previous) => ({ ...previous, [kind]: status })),
+    (id: AgentId) => {
+      window.dm.agentStatus(id).then(
+        (status) => setStatuses((previous) => ({ ...previous, [id]: status })),
         (error: unknown) => report.current(error)
       )
     },
@@ -97,19 +99,19 @@ function useAgentStatuses(
   )
 
   useEffect(() => {
-    for (const kind of checked.current.keys()) {
-      if (!agents.some((agent) => agent.kind === kind)) checked.current.delete(kind)
+    for (const id of checked.current.keys()) {
+      if (!agents.some((agent) => agent.id === id)) checked.current.delete(id)
     }
     for (const agent of agents) {
-      if (checked.current.get(agent.kind) !== identityOf(agent)) {
-        checked.current.set(agent.kind, identityOf(agent))
-        check(agent.kind)
+      if (checked.current.get(agent.id) !== identityOf(agent)) {
+        checked.current.set(agent.id, identityOf(agent))
+        check(agent.id)
       }
     }
   }, [agents, check])
 
   useEffect(() => {
-    const recheck = (): void => latest.current.forEach((agent) => check(agent.kind))
+    const recheck = (): void => latest.current.forEach((agent) => check(agent.id))
     window.addEventListener('focus', recheck)
     return () => window.removeEventListener('focus', recheck)
   }, [latest, check])
@@ -117,29 +119,29 @@ function useAgentStatuses(
   useEffect(
     () =>
       window.dm.chats.onEvent((event) => {
-        if (event.type === 'agent_auth') check(event.agent)
+        if (event.type === 'agent_auth' && latest.current.some((agent) => agent.id === event.agent)) check(event.agent)
       }),
-    [check]
+    [check, latest]
   )
 
-  const record = useCallback((kind: AgentKind, status: AgentAuthStatus) => setStatuses((previous) => ({ ...previous, [kind]: status })), [])
+  const record = useCallback((id: AgentId, status: AgentAuthStatus) => setStatuses((previous) => ({ ...previous, [id]: status })), [])
 
   // A removed agent's late answer must not linger.
   const connected = useMemo(
-    () => Object.fromEntries(Object.entries(statuses).filter(([kind]) => agents.some((agent) => agent.kind === kind))),
+    () => Object.fromEntries(Object.entries(statuses).filter(([id]) => agents.some((agent) => agent.id === id))),
     [statuses, agents]
   )
   return { statuses: connected, record }
 }
 
-type ActivityMap = Partial<Record<AgentKind, ActivityState>>
+type ActivityMap = Partial<Record<AgentId, ActivityState>>
 
-/** Per-kind activity, plus the download progress the main process pushes for the kind that is downloading. */
-function useActivity(): { map: ActivityMap; patch(kind: AgentKind, change: Partial<ActivityState>): void } {
+/** Per-agent activity, plus the download progress the main process pushes for the built-in kind that is downloading. */
+function useActivity(): { map: ActivityMap; patch(id: AgentId, change: Partial<ActivityState>): void } {
   const [map, setMap] = useState<ActivityMap>({})
   const patch = useCallback(
-    (kind: AgentKind, change: Partial<ActivityState>) =>
-      setMap((previous) => ({ ...previous, [kind]: { ...(previous[kind] ?? IDLE_ACTIVITY), ...change } })),
+    (id: AgentId, change: Partial<ActivityState>) =>
+      setMap((previous) => ({ ...previous, [id]: { ...(previous[id] ?? IDLE_ACTIVITY), ...change } })),
     []
   )
   useEffect(
@@ -168,6 +170,6 @@ export function useAgents(onError: (error: unknown) => void): AgentsModel {
     () => createAgentOperations({ patch, upsert, replace, onError: (error) => report.current(error) }),
     [patch, upsert, replace, report]
   )
-  const activity = useCallback((kind: AgentKind) => describeActivity(map[kind] ?? IDLE_ACTIVITY), [map])
+  const activity = useCallback((id: AgentId) => describeActivity(map[id] ?? IDLE_ACTIVITY), [map])
   return { agents: list.agents, loaded: list.loaded, statuses, recordStatus: record, activity, ...operations }
 }

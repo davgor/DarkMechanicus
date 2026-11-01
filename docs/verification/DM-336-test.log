@@ -1,0 +1,25 @@
+$ npm test
+# HEAD b23a9c90c6551544b3cdfd204551f701fabf631f
+
+> dark-mechanicus@0.20.0 test
+> vitest run && vitest run --config fireguard/vitest.config.ts
+
+
+ RUN  v4.1.11 /Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/linear-sprint-3
+
+
+ Test Files  447 passed (447)
+      Tests  8684 passed | 9 skipped (8693)
+   Start at  08:39:51
+   Duration  36.54s (transform 14.33s, setup 0ms, import 81.93s, tests 163.29s, environment 89.57s)
+
+
+ RUN  v4.1.11 /Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/linear-sprint-3/fireguard
+
+
+ Test Files  20 passed (20)
+      Tests  105 passed (105)
+   Start at  08:40:28
+   Duration  2.72s (transform 891ms, setup 0ms, import 2.98s, tests 2.80s, environment 2ms)
+
+# exit 0

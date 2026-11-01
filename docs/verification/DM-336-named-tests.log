@@ -1,0 +1,26 @@
+# Lines of DM-336-test-verbose.log (npx vitest run --reporter=verbose at b23a9c9: 447 files, 8684 passed, 9 skipped, exit 0) cited by DM-336-acceptance.md
+$ grep -n -e <each cited title> DM-336-test-verbose.log
+101: ✓ src/core/services/transfers.test.ts > submitTransferReadback merged size > refuses a part that takes the merged JSON past totalChars, naming the limit, and keeps the parts sent before 1064ms
+129: ✓ src/core/services/transfers.test.ts > submitTransferReadback merged size > compares a final part that brings the merged JSON to exactly totalChars, and refuses one past it after ending the read-back 926ms
+467: ✓ src/core/repo/importer.test.ts > a local epic change and pulled records of the epic > a flush leaves the tracked files as pulled, and the conflict stays and names the choice 49ms
+468: ✓ src/core/repo/importer.test.ts > the person's choice between a local epic change and pulled records > choosing to import keeps the pulled revision and drops the local change 36ms
+469: ✓ src/core/repo/importer.test.ts > the person's choice between a local epic change and pulled records > choosing to overwrite writes local over the pulled records 51ms
+473: ✓ src/core/repo/importer.test.ts > the person's choice while a local save waits to be written > choosing to import drops a local save still waiting to be written, and its snapshot is never written 39ms
+475: ✓ src/core/repo/importer.test.ts > refusing a choice between local and pulled epic records > refuses when there is nothing to choose, and to any session but the desktop 32ms
+2437: ✓ src/core/db/migrations.test.ts > schema v11 Linear transfers > upgrades a v9 database through the v10 scrub, keeping its epics and adding empty transfer tables 7ms
+2438: ✓ src/core/db/migrations.test.ts > schema v11 Linear transfers > keeps one transfer per epic and one item per ref, and rejects unknown statuses and kinds 7ms
+2439: ✓ src/core/db/migrations.test.ts > schema v11 on top of the v10 scrub > upgrades a database main's v10 scrub left, adding the transfer tables and leaving stored responses untouched 6ms
+2440: ✓ src/core/db/migrations.test.ts > schema v11 on top of the v10 scrub > brings a fresh database straight to v11 with the transfer tables 4ms
+3662: ✓ src/mcp/transport.test.ts > BoundedStdioServerTransport > pins the message limit: four times the read-back part limit, so a part fits at three UTF-8 bytes a character 1ms
+3673: ✓ src/mcp/transport.test.ts > BoundedStdioServerTransport > answers a line over the limit with an error without parsing it, and serves the next request 112ms
+3684: ✓ src/mcp/transport.test.ts > BoundedStdioServerTransport > reads a message of exactly the limit, and the request written after it in the same chunk 112ms
+3685: ✓ src/mcp/transport.test.ts > BoundedStdioServerTransport refusal ids > answers with the id found at either end of the line, or without one when it cannot tell 10ms
+3686: ✓ src/mcp/transport.test.ts > BoundedStdioServerTransport refusal ids > answers a line whose id JSON would refuse without an id, and keeps serving 7ms
+3687: ✓ src/mcp/transport.test.ts > BoundedStdioServerTransport lifecycle > passes stdin errors to onerror, and stops reading stdin once closed 1ms
+3688: ✓ src/mcp/transport.test.ts > LineLimit > holds a line within the limit whole, and only the copied ends of a longer one as it arrives 30ms
+8028: ✓ src/mcp/skills.test.ts > SKILLS > gives each Linear setup line of dm transfer and the app verbatim in the transfer guide 1ms
+8031: ✓ src/mcp/skills.test.ts > the Linear transfer runbook > gives each Linear setup line verbatim in its setup table, once 0ms
+8036: ✓ src/mcp/skills.test.ts > SKILLS_VERSION > moved past 1.6.1 when the Linear guide reworded the final read-back part 0ms
+8043: ✓ src/mcp/skills.test.ts > skill content requirements > linear-transfer keeps its required rules 0ms
+8804: Test Files  447 passed (447)
+8805:      Tests  8684 passed | 9 skipped (8693)

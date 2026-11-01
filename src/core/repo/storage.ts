@@ -4,9 +4,11 @@ import type { Db } from '../db/database'
 import { readSchemaVersion } from '../db/migrations'
 import { getMeta, META_KEYS } from '../meta'
 import { summarizeActiveSessions } from '../services/sessions'
-import { branchState } from './importer'
+import { unimportedEpicRecords } from './finalizer'
+import { branchState, EPIC_RECORDS_CONFLICT_PREFIX } from './importer'
 import { readProject } from './initialize'
 import type { ProjectRecord } from './portable'
+import { hasPendingEpicChanges } from './syncState'
 import type { FsAdapter, GitAdapter, RepoLayout } from './types'
 
 interface StorageDeps {
@@ -42,14 +44,36 @@ function outboxStatus(db: Db): StorageStatusView['outbox'] {
   return { pending: countOf('pending'), failed: countOf('failed'), lastError: latest?.last_error ?? null }
 }
 
-function conflictsOf(db: Db): StorageStatusView['conflicts'] {
-  const rows = db.all<{ entity_id: string; conflict: string; run_epic: string | null; comment_epic: string | null }>(
-    `SELECT s.entity_id, s.conflict, r.epic_id AS run_epic, c.epic_id AS comment_epic
+type RecordsDeps = Pick<StorageDeps, 'layout' | 'fs'> & { db: Db }
+
+/**
+ * The person can choose (`resolveEpicConflict`) for an epic's own tracked-records conflict while it still holds:
+ * the tracked records are not imported here and local changes wait. A stored conflict the checkout no longer
+ * matches (a later pull, an unreadable file) offers no choice.
+ */
+function choiceStands(deps: RecordsDeps, epicId: string): boolean {
+  if (deps.layout.mode !== 'repo' || !hasPendingEpicChanges(deps.db, epicId)) {
+    return false
+  }
+  try {
+    return unimportedEpicRecords(deps, epicId) !== null
+  } catch {
+    return false
+  }
+}
+
+function conflictsOf(deps: RecordsDeps): StorageStatusView['conflicts'] {
+  const rows = deps.db.all<{ kind: string; entity_id: string; conflict: string; run_epic: string | null; comment_epic: string | null }>(
+    `SELECT s.kind, s.entity_id, s.conflict, r.epic_id AS run_epic, c.epic_id AS comment_epic
      FROM sync_state s LEFT JOIN runs r ON s.kind = 'run' AND r.id = s.entity_id
        LEFT JOIN comments c ON s.kind = 'comment' AND c.id = s.entity_id
      WHERE s.conflict IS NOT NULL AND s.kind <> 'profile' ORDER BY s.kind, s.entity_id`
   )
-  return rows.map((row) => ({ epicId: row.run_epic ?? row.comment_epic ?? row.entity_id, message: row.conflict }))
+  return rows.map((row) => ({
+    epicId: row.run_epic ?? row.comment_epic ?? row.entity_id,
+    message: row.conflict,
+    resolvable: row.kind === 'epic' && row.conflict.startsWith(EPIC_RECORDS_CONFLICT_PREFIX) && choiceStands(deps, row.entity_id)
+  }))
 }
 
 function profileConflictsOf(db: Db): StorageStatusView['profileConflicts'] {
@@ -60,14 +84,15 @@ function profileConflictsOf(db: Db): StorageStatusView['profileConflicts'] {
     .map((row) => ({ name: row.entity_id, message: row.conflict }))
 }
 
-function databaseStatus(db: Db, clock: Clock, head: { current: string | null; repository: boolean }): DatabaseStatus {
+function databaseStatus(deps: RecordsDeps & { clock: Clock }, head: { current: string | null; repository: boolean }): DatabaseStatus {
+  const { db, clock } = deps
   const branch = branchState(db, head.current)
   return {
     schemaVersion: readSchemaVersion(db),
     outbox: outboxStatus(db),
     lastFlushAt: getMeta(db, META_KEYS.lastFlushAt),
     branch: { current: head.current, recorded: branch.recorded, changed: branch.changed, repository: head.repository },
-    conflicts: conflictsOf(db),
+    conflicts: conflictsOf(deps),
     profileConflicts: profileConflictsOf(db),
     sessions: summarizeActiveSessions({ db, clock })
   }
@@ -98,7 +123,7 @@ export async function getStorageStatus(deps: StorageDeps): Promise<StorageStatus
   const database =
     deps.db === null
       ? { ...NO_DATABASE, branch: { current: head.current, recorded: null, changed: false, repository: head.repository } }
-      : databaseStatus(deps.db, deps.clock, head)
+      : databaseStatus({ db: deps.db, layout: deps.layout, fs: deps.fs, clock: deps.clock }, head)
   return {
     initialized: project !== null,
     repoRoot: deps.layout.root,

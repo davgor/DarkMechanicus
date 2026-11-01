@@ -6,6 +6,7 @@
  */
 import { acceptanceTitle } from '../../../core/plan/acceptance'
 import type { StartOrchestratorResult } from '../../../shared/agents/chatApi'
+import type { AgentView } from '../../../shared/desktop/api'
 import type { DraftOp } from '../../../shared/domain/api'
 import type { PlanBundle } from '../../../shared/domain/bundle'
 import type { ApproveWithRedraftResultView, DraftUpdateResultView, PlanView, RunView } from '../../../shared/domain/views'
@@ -14,8 +15,9 @@ import type { NextSprintPlan } from '../checkpoint/nextSprint'
 import { redraftRefusal, type RedraftRefusal } from '../checkpoint/redraftView'
 import { dropTarget, type GraphModel } from '../graph/graphModel'
 import { agentName } from '../agents/agentText'
-import type { StartOrchestrator, StartRunChoice } from './orchestration'
+import type { StartOrchestrator, StartRunChoice, TransferChats } from './orchestration'
 import { failureOf, type Failure, type Runner } from './runner'
+import { createTransferActions, type TransferActions } from './transferActions'
 import { saveOutcome } from './validationView'
 import type { WorkspaceAction, WorkspaceState } from './workspaceState'
 
@@ -28,6 +30,12 @@ interface ActionDeps {
   startOrchestrator: StartOrchestrator
   /** A chat was created for a run: the shell fetches the folder's chats again. */
   onChatsChanged(): void
+  /** The epic's Linear transfer chat bridge. */
+  transferChats: TransferChats
+  /** Shows a chat (a transfer chat once it is started). */
+  onOpenChat(chatId: string): void
+  /** The connected agents, so the toast calls a custom orchestrator by its display name. */
+  agents(): readonly AgentView[]
   getState(): WorkspaceState
   dispatch(action: WorkspaceAction): void
   reload(): void
@@ -41,12 +49,14 @@ export type ReviewInput =
   | { attemptId: string; decision: 'reject'; reason: string }
   | { attemptId: string; decision: 'abandon' }
 
-export interface WorkspaceActions {
+export interface WorkspaceActions extends TransferActions {
   perform<T>(task: () => Promise<T>): Promise<Result<T>>
   applyOps(ops: DraftOp[]): Promise<Result<DraftUpdateResultView>>
   editDraft(): Promise<void>
   discardDraft(): Promise<void>
   saveDraft(): Promise<void>
+  /** A folder of repositories: records the epic branch name before a run starts; false (with a banner) when refused. */
+  setEpicBranch(name: string): Promise<boolean>
   /** Leave pending: queues the run for an external orchestrator, and closes the Start run dialog. */
   startRun(): Promise<void>
   /** Run with an agent: queues the run and starts the agent as its orchestrator in a chat, and closes the Start run dialog. */
@@ -196,15 +206,22 @@ function orchestratorFeedback(deps: ActionDeps, result: Result<StartOrchestrator
     deps.onChatsChanged()
   }
   if (problem === null) {
-    deps.dispatch({ type: 'toast', text: `Run queued. ${agentName(choice.agent)} is orchestrating it.` })
+    deps.dispatch({ type: 'toast', text: `Run queued. ${agentName(choice.agent, deps.agents())} is orchestrating it.` })
   } else {
     deps.dispatch({ type: 'banner', text: problem })
   }
 }
 
-function runActions(deps: ActionDeps): Pick<WorkspaceActions, 'startRun' | 'startRunWithAgent' | 'runCommand' | 'adopt'> {
+function runActions(deps: ActionDeps): Pick<WorkspaceActions, 'setEpicBranch' | 'startRun' | 'startRunWithAgent' | 'runCommand' | 'adopt'> {
   const closeDialog = (): void => deps.dispatch({ type: 'start_run_dialog', open: false })
   return {
+    async setEpicBranch(name) {
+      const expectedRevision = deps.getState().data?.epic.revision
+      const branch = { repository: null, name, startCommit: null }
+      const result = await perform(deps, () => deps.runner('setEpicBranch', { epicId: deps.epicId, branch, expectedRevision }))
+      if (!result.ok) deps.dispatch({ type: 'banner', text: result.failure.message })
+      return result.ok
+    },
     async startRun() {
       const result = await perform(deps, () => deps.runner('queueRun', { epicId: deps.epicId }))
       closeDialog()
@@ -414,6 +431,7 @@ export function createWorkspaceActions(deps: ActionDeps): WorkspaceActions {
     ...runActions(deps),
     ...graphActions(deps, applyOps),
     ...checkpointActions(deps),
+    ...createTransferActions({ ...deps, perform: (task) => perform(deps, task) }),
     addFollowUp: (proposal, ordinal) => addFollowUp(deps, proposal, ordinal),
     async review(input) {
       const result = await perform(deps, () => reviewCommand(deps, input))

@@ -187,6 +187,13 @@ describe('initialize', () => {
     expect(dm.claudeConnects).toEqual([])
   })
 
+  it('passes the multi-repository layout through', async () => {
+    await recorder.actions().initialize(alpha, { mode: 'db', layout: 'multi_repo', writeMcpConfig: false, importBoard: false })
+    expect(dm.callsOf('initializeRepository').map((call) => [call.folder, call.input])).toEqual([
+      ['/a', { mode: 'db', layout: 'multi_repo' }]
+    ])
+  })
+
   it('marks the initialization busy only while it runs', async () => {
     await recorder.actions().initialize(alpha, INIT_AND_CONNECT)
     expect(recorder.busy).toEqual(['initialize:true', 'initialize:false'])
@@ -367,6 +374,25 @@ describe('reconcile', () => {
     await recorder.actions('/a').reconcile()
     expect(recorder.errors).toEqual(['Switch back first'])
     expect(recorder.busy).toEqual(['reconcile:true', 'reconcile:false'])
+  })
+})
+
+describe('resolveEpicConflict', () => {
+  it("sends the person's choice for the folder's epic, says what survived and refreshes", async () => {
+    dm.responses.resolveEpicConflict = { epicId: 'ep_1', kept: 'tracked', abandonedRevisionIds: ['rv_1'], error: null }
+    await recorder.actions(null).resolveEpicConflict(alpha, 'ep_1', 'tracked')
+    expect(dm.callsOf('resolveEpicConflict').map((call) => [call.folder, call.input])).toEqual([['/a', { epicId: 'ep_1', keep: 'tracked' }]])
+    expect(recorder.toasts).toEqual([
+      ['success', 'Imported the tracked records of the epic and dropped its local changes. 1 unwritten save dropped; the draft stays.']
+    ])
+    expect(recorder.refreshed).toEqual(['/a'])
+  })
+
+  it('reports a refusal and leaves the folder as it is', async () => {
+    dm.failures.resolveEpicConflict = { code: 'conflict', message: 'Linear transfer open' }
+    await recorder.actions().resolveEpicConflict(alpha, 'ep_1', 'local')
+    expect(recorder.errors).toEqual(['Linear transfer open'])
+    expect([recorder.toasts, recorder.refreshed]).toEqual([[], []])
   })
 })
 

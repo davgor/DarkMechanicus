@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { FakeDm } from '../__mocks__/fakeDm'
 import { agentView } from '../__mocks__/fixtures'
 import { settle } from '../__mocks__/settle'
-import type { AgentKind } from '../../../shared/desktop/api'
+import type { BuiltInAgentKind } from '../../../shared/desktop/api'
 import { AddAgentPane } from './AddAgentPane'
 import { useAgents } from './useAgents'
 
@@ -37,11 +37,11 @@ const press = (name: string): void => {
 const claude = agentView({ kind: 'claude', version: '2.1.4' })
 
 describe('AddAgentPane cards', () => {
-  it('shows a titled pane with a card for Claude Code, Codex and Cursor', async () => {
+  it('shows a titled pane with a card for Claude Code, Codex, Cursor and Autonomous, then the Custom CLI card', async () => {
     await mount()
     expect(screen.getByRole('heading', { level: 1, name: 'Add an agent' })).toBeTruthy()
     const names = screen.getAllByRole('article').map((article) => article.getAttribute('aria-label'))
-    expect(names).toEqual(['Claude Code', 'Codex', 'Cursor'])
+    expect(names).toEqual(['Claude Code', 'Codex', 'Cursor', 'Autonomous', 'Custom CLI'])
   })
 
   it('gives every card a one-line description and the Find and Download actions with their icons', async () => {
@@ -54,6 +54,14 @@ describe('AddAgentPane cards', () => {
       expect(find.querySelector('[data-icon="search"]')).toBeTruthy()
       expect(download.querySelector('[data-icon="download"]')).toBeTruthy()
     }
+  })
+
+  it('offers Autonomous Find but no Download: it is installed with its own installer', async () => {
+    await mount()
+    const inCard = card('Autonomous')
+    expect(inCard.getByText(/coding agent/)).toBeTruthy()
+    expect(inCard.getByRole('button', { name: 'Find Autonomous' })).toBeTruthy()
+    expect(inCard.queryByRole('button', { name: /Download|Update/ })).toBeNull()
   })
 
   it('does not say anything is connected when nothing is', async () => {
@@ -129,7 +137,7 @@ describe('AddAgentPane sign-in after connecting', () => {
 })
 
 describe('AddAgentPane actions', () => {
-  it.each<[AgentKind, string]>([
+  it.each<[BuiltInAgentKind, string]>([
     ['claude', 'Claude Code'],
     ['codex', 'Codex'],
     ['cursor', 'Cursor']
@@ -141,7 +149,7 @@ describe('AddAgentPane actions', () => {
     expect(dm.agentCallsOf('downloadAgent')).toEqual([])
   })
 
-  it.each<[AgentKind, string]>([
+  it.each<[BuiltInAgentKind, string]>([
     ['claude', 'Claude Code'],
     ['codex', 'Codex'],
     ['cursor', 'Cursor']

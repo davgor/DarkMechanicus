@@ -35,6 +35,11 @@ function SavedButtons({ ws, actions }: { ws: WorkspaceHandle; actions: HeaderAct
           {actions.editDraft === 'view' ? 'View draft' : 'Edit draft'}
         </button>
       )}
+      {actions.transfer ? (
+        <button type="button" className="btn" disabled={busy} onClick={() => ws.dispatch({ type: 'transfer_dialog', mode: 'queue' })}>
+          Transfer to Linear
+        </button>
+      ) : null}
       {actions.startRun ? (
         <button type="button" className="btn btn-primary" disabled={busy} onClick={() => ws.dispatch({ type: 'start_run_dialog', open: true })}>
           Start run
@@ -64,6 +69,11 @@ function DraftButtons({ ws, actions }: { ws: WorkspaceHandle; actions: HeaderAct
           Discard draft
         </button>
       ) : null}
+      {actions.saveUnavailable === null ? null : (
+        <span className="ew-header-notice" role="status">
+          {actions.saveUnavailable}
+        </span>
+      )}
       {actions.save === null ? null : (
         <button type="button" className="btn btn-primary" disabled={busy || blocked} onClick={() => void ws.actions.saveDraft()}>
           {actions.save}

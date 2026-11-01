@@ -1,0 +1,18 @@
+# Lines of DM-310-test-verbose.log (full Vitest suite, 423 files, 8222 passed, 9 skipped) naming the tests c2-c5 cite
+188: ✓ src/core/services/transfers.test.ts > a 1,000-ticket transfer > verifies a read-back sent in pages and completes the epic with every issue in its outcome 3801ms
+1207: ✓ src/renderer/src/epic/EpicWorkspace.transfer.test.tsx > the Draft view while a transfer is open > hides Save and names the open transfer in its place while it is queued, keeping Discard draft and edits 204ms
+1216: ✓ src/renderer/src/epic/EpicWorkspace.transfer.test.tsx > the Draft view while a transfer is open > hides Save and names the open transfer in its place while it is in_progress, keeping Discard draft and edits 261ms
+1220: ✓ src/renderer/src/epic/EpicWorkspace.transfer.test.tsx > the Draft view while a transfer is open > offers Save again once the transfer is canceled 258ms
+1234: ✓ src/core/commands/transfers.test.ts > transfer command input > takes no idempotency key on a read-back part, and needs final 138ms
+1253: ✓ src/core/commands/transfers.test.ts > transfer command part size > rejects a read-back part over the size limit before anything is merged, final or not, and keeps the parts sent before 312ms
+1260: ✓ src/integration/linearTransfer.test.ts > a Linear transfer of an epic with a ticket completed in Dark Mechanicus > creates its issue in a completed state, and the read-back verifies and completes the epic 350ms
+1262: ✓ src/integration/linearTransfer.test.ts > a Linear transfer of an epic with a ticket completed in Dark Mechanicus > rejects its issue left open with a state mismatch naming its key, and verifies once the driver sets the state 294ms
+4166: ✓ src/mcp/tools/transfers.test.ts > transfer tool input > submit_transfer_readback rejects a part over the size limit whose every field is in bounds before anything runs 8ms
+4167: ✓ src/mcp/tools/transfers.test.ts > transfer tool input > drops an idempotency key from a read-back part: the command takes none 1ms
+7334: ✓ src/mcp/skills.test.ts > SKILLS > gives each Linear setup line of dm transfer and the app verbatim in the transfer guide 1ms
+7693: ✓ src/renderer/src/epic/headerView.test.ts > Save in the Draft view while a transfer is open > hides Save in the Draft view while a transfer is queued or in progress, and offers it again after cancel 0ms
+
+# Summary lines of DM-310-test-verbose.log
+8264: Test Files  423 passed (423)
+8265:      Tests  8222 passed | 9 skipped (8231)
+8269:exit: 0

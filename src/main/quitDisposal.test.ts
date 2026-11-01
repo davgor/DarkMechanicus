@@ -75,7 +75,8 @@ describe('disposeBeforeQuit', () => {
         return new Promise((resolve) => (finish = resolve))
       },
       timeoutMs: 5_000,
-      timer: manualTimer()
+      timer: manualTimer(),
+      release: () => {}
     })
 
     expect(app.beforeQuit()).toBe(true)
@@ -92,7 +93,7 @@ describe('disposeBeforeQuit', () => {
   it('lets the quit through when nothing is live, still refusing new processes', async () => {
     const app = fakeApp()
     const disposals: number[] = []
-    disposeBeforeQuit(app, { busy: () => false, dispose: async () => void disposals.push(1), timeoutMs: 5_000 })
+    disposeBeforeQuit(app, { busy: () => false, dispose: async () => void disposals.push(1), timeoutMs: 5_000, release: () => {} })
 
     expect(app.beforeQuit()).toBe(false)
     await settle()
@@ -101,11 +102,135 @@ describe('disposeBeforeQuit', () => {
   })
 })
 
+/** The app's workspaces and `app.sqlite`: like node:sqlite, closing the database twice throws. */
+function fakeStores(events: string[]): { release: () => void; closes: () => number } {
+  let open = true
+  let closes = 0
+  return {
+    release: () => {
+      events.push('close workspaces')
+      if (!open) {
+        throw new Error('database is not open')
+      }
+      open = false
+      closes += 1
+      events.push('close app.sqlite')
+    },
+    closes: () => closes
+  }
+}
+
+/** A chat disposal that finishes when the test says so. */
+function deferredDispose(events: string[]): { dispose: () => Promise<void>; finish: () => void } {
+  let finish: () => void = () => {}
+  return {
+    dispose: () => {
+      events.push('dispose started')
+      return new Promise<void>((resolve) => (finish = resolve)).then(() => void events.push('dispose finished'))
+    },
+    finish: () => finish()
+  }
+}
+
+describe('disposeBeforeQuit closing the app stores', () => {
+  it('closes the workspaces and app.sqlite once, only after a deferred quit has disposed the chats', async () => {
+    const events: string[] = []
+    const stores = fakeStores(events)
+    const errors: unknown[] = []
+    const app = fakeApp()
+    const quit = app.quit
+    app.quit = () => {
+      events.push('quit')
+      quit()
+    }
+    const chats = deferredDispose(events)
+    disposeBeforeQuit(app, {
+      busy: () => true,
+      dispose: chats.dispose,
+      timeoutMs: 5_000,
+      timer: manualTimer(),
+      release: stores.release,
+      onError: (error) => errors.push(error)
+    })
+
+    expect(app.beforeQuit()).toBe(true)
+    expect(app.beforeQuit()).toBe(true)
+    await settle()
+    expect(events).toEqual(['dispose started'])
+
+    chats.finish()
+    await settle()
+    expect(() => app.beforeQuit()).not.toThrow()
+    expect(events).toEqual(['dispose started', 'dispose finished', 'close workspaces', 'close app.sqlite', 'quit'])
+    expect([stores.closes(), app.lastQuitPrevented, errors]).toEqual([1, false, []])
+  })
+
+  it('closes them once when nothing is live, and a repeated before-quit neither throws nor closes again', async () => {
+    const events: string[] = []
+    const stores = fakeStores(events)
+    const errors: unknown[] = []
+    const app = fakeApp()
+    disposeBeforeQuit(app, {
+      busy: () => false,
+      dispose: async () => void events.push('dispose'),
+      timeoutMs: 5_000,
+      release: stores.release,
+      onError: (error) => errors.push(error)
+    })
+
+    expect(app.beforeQuit()).toBe(false)
+    expect(() => app.beforeQuit()).not.toThrow()
+    expect(app.beforeQuit()).toBe(false)
+    await settle()
+
+    expect(events).toEqual(['dispose', 'close workspaces', 'close app.sqlite'])
+    expect([stores.closes(), errors]).toEqual([1, []])
+  })
+})
+
+describe('disposeBeforeQuit closing the app stores when something goes wrong', () => {
+  it('still closes once and quits when disposing hangs past the timeout', async () => {
+    const events: string[] = []
+    const stores = fakeStores(events)
+    const app = fakeApp()
+    const timer = manualTimer()
+    disposeBeforeQuit(app, { busy: () => true, dispose: () => new Promise(() => {}), timeoutMs: 5_000, timer, release: stores.release })
+
+    app.beforeQuit()
+    await settle()
+    expect(stores.closes()).toBe(0)
+    timer.fire()
+    await settle()
+    app.beforeQuit()
+
+    expect([stores.closes(), app.quits, app.lastQuitPrevented]).toEqual([1, 1, false])
+  })
+
+  it('reports a failing close and quits anyway, whether or not chats were live', async () => {
+    const fail = (): void => {
+      throw new Error('locked')
+    }
+    const deferredErrors: unknown[] = []
+    const deferred = fakeApp()
+    disposeBeforeQuit(deferred, { busy: () => true, dispose: async () => {}, timeoutMs: 5_000, timer: manualTimer(), release: fail, onError: (error) => deferredErrors.push(error) })
+    deferred.beforeQuit()
+    await settle()
+    expect([deferred.quits, deferred.lastQuitPrevented]).toEqual([1, false])
+    expect(deferredErrors).toEqual([expect.objectContaining({ message: 'locked' })])
+
+    const directErrors: unknown[] = []
+    const direct = fakeApp()
+    disposeBeforeQuit(direct, { busy: () => false, dispose: async () => {}, timeoutMs: 5_000, release: fail, onError: (error) => directErrors.push(error) })
+    expect(() => direct.beforeQuit()).not.toThrow()
+    expect(directErrors).toEqual([expect.objectContaining({ message: 'locked' })])
+  })
+})
+
 describe('disposeBeforeQuit when disposing does not finish', () => {
   it('quits anyway when disposing hangs past the timeout or fails', async () => {
     const hung = fakeApp()
     const timer = manualTimer()
-    disposeBeforeQuit(hung, { busy: () => true, dispose: () => new Promise(() => {}), timeoutMs: 5_000, timer })
+    disposeBeforeQuit(hung, { busy: () => true, dispose: () => new Promise(() => {}), timeoutMs: 5_000, timer, release: () => {} })
     hung.beforeQuit()
     await settle()
     expect(hung.quits).toBe(0)
@@ -115,7 +240,7 @@ describe('disposeBeforeQuit when disposing does not finish', () => {
 
     const failing = fakeApp()
     const errors: unknown[] = []
-    disposeBeforeQuit(failing, { busy: () => true, dispose: () => Promise.reject(new Error('stuck')), timeoutMs: 5_000, timer: manualTimer(), onError: (error) => errors.push(error) })
+    disposeBeforeQuit(failing, { busy: () => true, dispose: () => Promise.reject(new Error('stuck')), timeoutMs: 5_000, timer: manualTimer(), release: () => {}, onError: (error) => errors.push(error) })
     failing.beforeQuit()
     await settle()
     expect([failing.quits, failing.lastQuitPrevented]).toEqual([1, false])
@@ -163,7 +288,8 @@ describe('quitting while an agent is mid-turn, with real processes', () => {
         dispose: async () => {
           await killProcessTree(agent)
         },
-        timeoutMs: 30_000
+        timeoutMs: 30_000,
+        release: () => {}
       })
 
       expect(app.beforeQuit()).toBe(true)

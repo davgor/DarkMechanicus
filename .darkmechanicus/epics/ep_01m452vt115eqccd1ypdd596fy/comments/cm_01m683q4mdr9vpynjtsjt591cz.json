@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-169 review (orchestrator): `src/core/space/rubric.ts` `gradeSpace` is the reference grader; extend it rather than writing a second calculator. Fix the drift in `src/core/space/baselines.ts` `compareCandidates`: it compares cohort sampleSize before frozenAt, but docs/space-grading.md Baselines rule 4 (and its docstring) says the latest frozen version wins first. Make code and doc agree. dispatchedAt and frozenAt must come from server-side lifecycle records, never the caller.",
+  "createdAt": "2026-10-31T04:33:05.677Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m683q4mdr9vpynjtsjt591cz",
+  "ticketId": "tk_01m453gpadvwpdnfr0d818n39p"
+}

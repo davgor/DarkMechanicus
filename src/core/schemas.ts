@@ -14,6 +14,7 @@ import {
   TOOL_CAPABILITIES,
   WORK_TYPES
 } from '../shared/domain/bundle'
+import { epicBranchName } from '../shared/domain/branchName'
 import { TIER_VERDICTS } from '../shared/domain/retro'
 import { WORK_STATUSES } from '../shared/domain/status'
 import { DomainError } from './errors'
@@ -50,6 +51,30 @@ export const LIMITS = {
   progressNote: 280,
   /** Characters in the step label of a heartbeat progress note. */
   progressStep: 64
+} as const
+
+/** Unexpected items a whole read-back may hold beyond the packet's limit for a list, so the comparison can report them. */
+const READBACK_UNEXPECTED_ITEMS = 100
+
+/**
+ * Size limits on a Linear transfer's read-back: the JSON of one `submitTransferReadback` part, the JSON of all the
+ * parts once merged, and the distinct items they may hold, each list at the packet's limit plus
+ * `READBACK_UNEXPECTED_ITEMS`.
+ */
+export const READBACK_LIMITS = {
+  /** Characters in the JSON of one read-back part. */
+  partChars: 8_000_000,
+  /**
+   * Characters in the JSON of the merged read-back. A typical issue reads back in about 3,000 characters, so a
+   * 1,000-ticket plan (the largest) needs about 3,000,000; this leaves its issues room to average just under
+   * 100,000 each, about thirty times typical. A plan with a full `LIMITS.markdown` body on every ticket does not
+   * fit. The stored JSON stays far below the engine's longest string (about 536,000,000) and, even at three UTF-8
+   * bytes a character, SQLite's longest value (1,000,000,000 bytes).
+   */
+  totalChars: 100_000_000,
+  milestones: LIMITS.sprints + READBACK_UNEXPECTED_ITEMS,
+  issues: LIMITS.tickets + READBACK_UNEXPECTED_ITEMS,
+  relations: LIMITS.edges + LIMITS.relations + READBACK_UNEXPECTED_ITEMS
 } as const
 
 export const stableId = z.string().regex(STABLE_ID_PATTERN, 'Expected a stable id such as tk_…')
@@ -164,6 +189,9 @@ export const ticketInput = z.strictObject({
   priority: z.enum(TICKET_PRIORITIES).optional(),
   // `null` in a patch clears the size; saved ticket content never holds null (see ticketContent).
   size: z.enum(TICKET_SIZES).nullable().optional(),
+  // The repository a ticket in a folder of repositories targets; `null` in a patch clears it. Checked against the
+  // project's repositories when the ticket is added or updated, never here.
+  repo: z.string().min(1).max(255).nullable().optional(),
   capability: capabilityPatch.optional(),
   references: z.array(ticketReference).max(LIMITS.references).optional(),
   expectedArtifacts: z.array(z.string().max(LIMITS.label)).max(LIMITS.references).optional(),
@@ -229,6 +257,8 @@ export const ticketContent = z.strictObject({
   priority: z.enum(TICKET_PRIORITIES),
   // No default, like `capability.reasoning.effort`: an unsized ticket keeps its saved shape and hash.
   size: z.enum(TICKET_SIZES).optional(),
+  // No default, like `size`: a ticket without a repository keeps its saved shape and hash.
+  repo: z.string().min(1).max(255).optional(),
   capability: capabilityProfile,
   references: z.array(ticketReference).max(LIMITS.references),
   expectedArtifacts: z.array(z.string().max(LIMITS.label)).max(LIMITS.references),
@@ -274,13 +304,7 @@ export const planBundle = z.strictObject({
 
 export const epicBranch = z.strictObject({
   repository: z.string().max(LIMITS.shortText).nullable(),
-  // A subset of git check-ref-format: no whitespace or ~^:?*[\, no leading dash, "..", "@{",
-  // trailing "/", "." or ".lock".
-  name: z
-    .string()
-    .min(1)
-    .max(255)
-    .regex(/^(?!-)(?!.*\.\.)(?!.*@\{)(?!.*(?:\/|\.|\.lock)$)[^\s~^:?*[\\]+$/, 'Not a valid branch name'),
+  name: epicBranchName,
   startCommit: z.string().regex(/^[0-9a-f]{7,64}$/).nullable()
 })
 
@@ -337,9 +361,18 @@ export const rowCheckEntries = z.array(checkResult).min(1).max(LIMITS.listItems)
 
 /**
  * The increment a sprint's acceptance node names: the epic branch and the commit that landed the sprint on
- * it. The branch follows the same naming rules as an epic's; the server compares it with the epic's own.
+ * it. The branch follows the same naming rules as an epic's; the server compares it with the epic's own. In a
+ * folder of repositories `repo` names the child repository (checked against the sprint's touched repositories
+ * when the submission arrives, like a ticket's `repo`).
  */
-export const incrementRef = z.strictObject({ branch: epicBranch.shape.name, commit: commitHash })
+export const incrementRef = z.strictObject({
+  branch: epicBranch.shape.name,
+  commit: commitHash,
+  repo: z.string().min(1).max(255).optional()
+})
+
+/** One increment per repository a sprint touched, for an acceptance node of a folder of repositories. */
+export const incrementRefs = z.array(incrementRef).max(100)
 
 export const artifactRef = z.strictObject({
   label: z.string().max(LIMITS.label),
@@ -437,6 +470,93 @@ export const hostCatalog = z.strictObject({
     )
     .max(LIMITS.models)
 })
+
+/** A Linear id, as the agent's Linear tools report it. */
+export const linearId = z.string().min(1).max(LIMITS.label)
+/** A Linear URL, bounded like the transfer outcome's `projectUrl`. */
+export const linearUrl = z.string().min(1).max(LIMITS.shortText)
+/** A Linear issue identifier such as `ENG-12`; the read-back comparison reports one that names no team. */
+export const linearIdentifier = z.string().min(1).max(LIMITS.label)
+/** A transfer packet ref: `project`, a sprint or ticket id, or `rel:` / `see:` followed by two ticket ids. */
+export const transferRef = z.string().min(1).max(LIMITS.label).regex(/^[A-Za-z0-9_.:-]+$/)
+
+/** A read-back name or title. The packet's longest is a milestone's `Sprint N: ` and a sprint goal line. */
+const readbackName = z.string().max(LIMITS.shortText + LIMITS.label)
+/**
+ * A read-back description. The packet's join a Markdown body with up to `LIMITS.criteria` criteria of
+ * `LIMITS.shortText`, the references and the marker, so a faithful copy can exceed `LIMITS.markdown`.
+ */
+const readbackText = z.string().max(5 * LIMITS.markdown)
+
+/**
+ * One part of what an agent read back from Linear. Every field of an item is required (only an issue's sortOrder
+ * is optional), and each list is bounded by the most a packet can hold, so a larger project is sent in parts.
+ */
+const linearReadback = z.strictObject({
+  project: z
+    .strictObject({ linearId, url: linearUrl, name: readbackName, summary: shortText, content: readbackText })
+    .optional(),
+  milestones: z
+    .array(z.strictObject({ linearId, name: readbackName, description: readbackText }))
+    .max(LIMITS.sprints)
+    .optional(),
+  issues: z
+    .array(
+      z.strictObject({
+        linearId,
+        identifier: linearIdentifier,
+        milestoneId: linearId.nullable(),
+        title: readbackName,
+        description: readbackText,
+        priority: z.number().int().min(0).max(4),
+        labels: z.array(z.string().max(LIMITS.label)).max(LIMITS.tags),
+        stateType: z.string().max(LIMITS.label),
+        sortOrder: z.number().optional()
+      })
+    )
+    .max(LIMITS.tickets)
+    .optional(),
+  relations: z
+    .array(z.strictObject({ kind: z.string().min(1).max(LIMITS.label), fromId: linearId, toId: linearId }))
+    .max(LIMITS.edges + LIMITS.relations)
+    .optional()
+})
+
+/**
+ * Whether `JSON.stringify(value)` would be longer than `max` characters, counted without building that string, so
+ * an oversized value is refused without first being copied whole. A value JSON cannot hold counts as `null`: it
+ * reaches here only beside another problem that refuses the value anyway.
+ */
+export function jsonLongerThan(value: unknown, max: number): boolean {
+  let length = 0
+  const exceeds = (item: unknown): boolean => {
+    if (Array.isArray(item)) {
+      length += Math.max(2, item.length + 1)
+      return length > max || item.some(exceeds)
+    }
+    if (item !== null && typeof item === 'object') {
+      const entries = Object.entries(item).filter(([, entry]) => entry !== undefined)
+      length += Math.max(2, entries.length + 1)
+      return (
+        length > max ||
+        entries.some(([key, entry]) => {
+          length += JSON.stringify(key).length + 1
+          return length > max || exceeds(entry)
+        })
+      )
+    }
+    const plain = typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean'
+    length += plain ? JSON.stringify(item).length : 'null'.length
+    return length > max
+  }
+  return exceeds(value)
+}
+
+/** One `submitTransferReadback` part: a `linearReadback` whose JSON is at most `READBACK_LIMITS.partChars` long. */
+export const linearReadbackPart = linearReadback.refine(
+  (part) => !jsonLongerThan(part, READBACK_LIMITS.partChars),
+  `A read-back part is at most ${READBACK_LIMITS.partChars} characters of JSON. Send the read-back in more, smaller parts.`
+)
 
 /** Parses untrusted input or throws a structured `invalid_input` error naming the first problem. */
 export function parseInput<T>(schema: z.ZodType<T>, value: unknown, what: string): T {

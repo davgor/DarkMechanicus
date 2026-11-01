@@ -6,7 +6,7 @@ import type { FsAdapter } from './types'
 /** Deeper than any real directory tree; bounds the walk even on a pathological path. */
 const MAX_ANCESTORS = 256
 
-function ancestorsOf(start: string): string[] {
+export function ancestorsOf(start: string): string[] {
   const chain: string[] = []
   let current = start
   for (let depth = 0; depth < MAX_ANCESTORS; depth += 1) {
@@ -21,7 +21,7 @@ function ancestorsOf(start: string): string[] {
 }
 
 /** The canonical form of `path`, or `path` itself when it cannot be resolved (it may not exist). */
-function canonical(fs: FsAdapter, path: string): string {
+export function canonical(fs: Pick<FsAdapter, 'realpath'>, path: string): string {
   try {
     return fs.realpath(path)
   } catch {

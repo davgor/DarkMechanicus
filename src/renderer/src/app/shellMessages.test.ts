@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ReconcileResultView } from '../../../shared/domain/views'
 import { boardImport, boardOpenEpic, EPIC_A, EPIC_B } from '../__mocks__/fixtures'
-import { describeBoardImport, describeClaudeConnect, describeFlush, describeReconcile } from './shellMessages'
+import { describeBoardImport, describeClaudeConnect, describeEpicConflictChoice, describeFlush, describeReconcile } from './shellMessages'
 
 describe('describeFlush', () => {
   it('reports an export failure as an error with the first reason', () => {
@@ -87,6 +87,24 @@ describe('describeReconcile', () => {
       tone: 'error',
       message: 'Reconciled. 1 file rejected.'
     })
+  })
+})
+
+describe('describeEpicConflictChoice', () => {
+  it('names the side that survived, how many unwritten saves keeping the tracked records dropped, and why local waits', () => {
+    const view = { epicId: 'ep_1', abandonedRevisionIds: [], error: null }
+    expect(describeEpicConflictChoice({ ...view, kept: 'local' })).toEqual({
+      tone: 'success',
+      message: "Wrote this machine's records of the epic over the tracked ones."
+    })
+    expect(describeEpicConflictChoice({ ...view, kept: 'local', error: 'disk full' })).toEqual({
+      tone: 'error',
+      message: "Kept this machine's records of the epic; writing them failed and is retried on every flush: disk full"
+    })
+    expect(describeEpicConflictChoice({ ...view, kept: 'tracked' }).message).toBe('Imported the tracked records of the epic and dropped its local changes.')
+    expect(describeEpicConflictChoice({ ...view, kept: 'tracked', abandonedRevisionIds: ['rv_1', 'rv_2'] }).message).toBe(
+      'Imported the tracked records of the epic and dropped its local changes. 2 unwritten saves dropped; the draft stays.'
+    )
   })
 })
 

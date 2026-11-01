@@ -1,6 +1,6 @@
 /** A real temporary Git repository, for tests that need real history (ancestry, merges, squashes). Not shipped. */
 import { execFileSync, type ExecFileSyncOptionsWithStringEncoding } from 'node:child_process'
-import { writeFileSync } from 'node:fs'
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { removeScratch } from './removeScratch'
 import { createTempRepo, type TempRepo } from './tempRepo'
@@ -117,13 +117,20 @@ function initFolder(deps: GitRepoDeps): TempRepo {
 }
 
 /**
- * A repository whose `main` branch holds one initial commit. Creating its temp folder and `git init` are tried
- * up to three times while the folder is busy; any other failure, and every failure after `git init`, throws at once.
+ * A repository whose `main` branch holds one initial commit: in a temporary directory of its own, or at `root`
+ * (created here, and removed by `cleanup`), e.g. a child of a folder of repositories. A temporary directory and its
+ * `git init` are tried up to three times while the folder is busy; any other failure, and every failure after
+ * `git init`, throws at once.
  */
-export function createGitRepo(overrides: Partial<GitRepoDeps> = {}): GitRepo {
+export function createGitRepo(options: { root?: string } & Partial<GitRepoDeps> = {}): GitRepo {
+  const { root: at, ...overrides } = options
   const deps: GitRepoDeps = { ...DEFAULT_DEPS, ...overrides }
-  const temp = initFolder(deps)
-  const root = temp.root
+  const temp = at === undefined ? initFolder(deps) : null
+  const root = at ?? temp?.root ?? ''
+  if (temp === null) {
+    mkdirSync(root)
+    runGit(deps, root, ['init', '-q', '-b', 'main'])
+  }
   let counter = 0
   const git = (...args: string[]): string => runGit(deps, root, args)
   const commit = (message: string): string => {
@@ -155,6 +162,6 @@ export function createGitRepo(overrides: Partial<GitRepoDeps> = {}): GitRepo {
       git('commit', '-q', '-m', message)
       return git('rev-parse', 'HEAD')
     },
-    cleanup: temp.cleanup
+    cleanup: temp?.cleanup ?? (() => rmSync(root, { recursive: true, force: true }))
   }
 }

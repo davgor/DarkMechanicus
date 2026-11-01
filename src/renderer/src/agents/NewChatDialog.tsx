@@ -3,13 +3,14 @@ import type { FormEvent } from 'react'
 import { canSavePlans } from '../../../shared/agents/chat'
 import type { ChatRole } from '../../../shared/agents/chat'
 import type { CreateChatRequest } from '../../../shared/agents/chatApi'
-import type { AgentAuthStatus, AgentKind, AgentView, TrackedFolderView } from '../../../shared/desktop/api'
+import type { AgentAuthStatus, AgentId, AgentView, TrackedFolderView } from '../../../shared/desktop/api'
 import { Button } from '../components/Button'
 import { Dialog } from '../components/Dialog'
 import { AgentChoice, ModelChoice, RoleChoice } from './NewChatFields'
 import type { AgentStatuses } from './useAgents'
 import { useAgentModelChoice } from './useAgentModelChoice'
 import type { AgentModelChoice } from './useAgentModelChoice'
+import { useFolderDefaultAgent } from './useFolderDefaultAgent'
 
 /** What the person chose: exactly what the new chat is created with, in this folder. */
 export type NewChatChoice = Required<Pick<CreateChatRequest, 'agent' | 'model' | 'role' | 'allowSave'>>
@@ -24,7 +25,7 @@ interface NewChatDialogProps {
   /** Closes the dialog and opens the add-agent pane, for an agent that is not connected. */
   onAddAgent(): void
   /** A sign-in prompt in the dialog asked an agent's state itself: the shell shows what it found, and the agent can be chosen once it is signed in. */
-  onAgentStatus(kind: AgentKind, status: AgentAuthStatus): void
+  onAgentStatus(id: AgentId, status: AgentAuthStatus): void
   onClose(): void
 }
 
@@ -48,8 +49,10 @@ interface Form {
 function useNewChatForm(props: NewChatDialogProps): Form {
   const [draft, setDraft] = useState(INITIAL_DRAFT)
   const [busy, setBusy] = useState(false)
-  const choice = useAgentModelChoice(props.agents, props.statuses)
-  const canStart = choice.settled && !busy
+  const preferred = useFolderDefaultAgent(props.folder.path)
+  const choice = useAgentModelChoice(props.agents, props.statuses, preferred.agentId)
+  // Waits for the folder's default so a quick Start cannot use the stand-in it replaces.
+  const canStart = preferred.loaded && choice.settled && !busy
   const submit = async (event: FormEvent): Promise<void> => {
     event.preventDefault()
     if (choice.agent === null || !canStart) {
