@@ -1,10 +1,10 @@
 {
-  "contentHash": "sha256:1c69f3644727623ae1562b59d660474c09d229c695b8adfeb05f7eea7afb2cde",
+  "contentHash": "sha256:f60cc84ce746253bf485cde8142fc9a0af7a0b1711cb3daf87c7dafd0f3169d7",
   "epicId": "ep_01m698z4kqk4a5906hkv6w2ajr",
   "format": "darkmechanicus.epic-pointer",
   "formatVersion": 1,
-  "generation": 27,
-  "revisionId": "rv_01m6a0q906z5xpzcfe8zfyd9kp",
-  "revisionNumber": 2,
-  "updatedAt": "2026-10-31T22:59:51.938Z"
+  "generation": 31,
+  "revisionId": "rv_01m6amnn61bvvs83c3pstsf97s",
+  "revisionNumber": 3,
+  "updatedAt": "2026-11-01T04:07:51.789Z"
 }

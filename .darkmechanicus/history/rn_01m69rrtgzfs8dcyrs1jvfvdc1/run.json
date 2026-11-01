@@ -1515,23 +1515,149 @@
     },
     {
       "createdAt": "2026-10-31T22:40:49.512Z",
-      "decidedAt": null,
-      "decision": null,
-      "evidence": null,
+      "decidedAt": "2026-10-31T23:31:05.776Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "Adversarial review: correct-with-minor-issues (0.85); no path lets another machine's file pass as this machine's own, and the 16-test revert claim holds. Rejected for two test gaps on c2's core mechanism and one cheap hardening of the new restore. Out of scope, to the report: non-UTF-8 bytes are not restored byte for byte (adapter reads strings; epics same), and exportEpic lacks the carry-over (worker discovery).",
+        "outcome": "rejected",
+        "reasons": [
+          "c2/c5 test gap — intent ordering: nothing pins that the export intent is written before the rename (finalizer.ts ~538-544). Moving writeExportIntent after writeFileSafely passes all 229 finalizer/profileImport/importer/storage tests. Add a double-fault test for runs and profiles (rename succeeds, read-back fails, the restore's temp write fails, so this machine's new file stays; then a change and a flush must write), like the existing epic test 'takes its own half-written state…'. Reviewer probe: /tmp/dm-review/DM-374/probes/dm374.probe2.test.ts 'double fault'.",
+          "c2/c5 test gap — guards reading the intent: unimportedRunHistory and unimportedProfile treat intent-named hashes as this machine's own (finalizer.ts ~499-503, ~585-588), but passing [] as the intent hashes passes all 1628 src/core/repo + src/core/services tests. Add a test at the storage/Keep-tracked seam after this machine's own crash (crash after rename, then a real reconcile): Storage must not offer the choice as resolvable and Keep tracked must refuse, for runs and profiles. Reviewer probe: dm374.probe2.test.ts 'storage seam'.",
+          "Hardening in the shared restore: when the containment check throws unsafe_path, putBackIfChanged still restores and, with no previous file, discard()s the path with no containment check (finalizer.ts ~519-527, restoreFile ~350-353); a directory swapped for a link lets it delete outside .darkmechanicus/ (reviewer probe dm374.probe.test.ts 'TOCTOU'). Skip the restore/discard when the tracked path is unsafe (rethrow the original error). The helper is shared, so epics get it too; add a test."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "exit 0 on merged HEAD ad2a4a5",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "finalizer.ts, finalizer.test.ts, paths.ts, profileImport.test.ts: exit 0",
+            "name": "npx oxlint (touched files)",
+            "status": "passed"
+          },
+          {
+            "detail": "finalizer, profileImport, importer, importer.hostile, storage, paths tests: 6 files, 312 tests passed on HEAD ad2a4a5",
+            "name": "npx vitest run (targeted)",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found; .tsprune-ignore untouched",
+            "name": "npm run deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "With finalizer.ts swapped back to followups-sprint-2 (new paths.ts kept), 16 of the new tests fail: 8 read-back/recordExport restore cases, 4 crash-then-change cases, 2 put-back-own-crash cases, 2 conflict-only-row cases (run, profile). The tests the pre-change code passes were each checked by mutation. Dropping the row comparison in readExportIntent fails the 2 'refuses ... once the row changed/appeared' tests. Dropping the entry-waiting check fails 'ignores an intent once its entry is done'. Dropping the previous-hash carry-over fails both put-back-own-crash tests. Restoring unconditionally fails both 'does not rewrite the <record> it never replaced' tests. The 8 write/rename-fault restore cases pass before the change by construction: the file is not touched before the rename.",
+            "name": "Tests fail without the change",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test (full suite)",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run lint (whole tree)",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run build",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the sprint's Fireguard ticket",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "finalizer.test.ts 'flushOutbox puts a run history or profile back when its export fails'. Faults on write, rename, read-back and a throwing recordExport (sync_state trigger) are injected for an exported run, a first run, an exported profile and a first profile. The previous run.json/profile is back byte for byte, a file that did not exist is removed, no temp file is left, sync_state is unchanged, and the retry writes. 'flushOutbox leaves a run history or profile untouched when its write fails before the rename' checks that nothing is renamed over the file in that case."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "finalizer.test.ts 'flushOutbox after a process died between replacing a run history or profile and committing'. A rename-then-rollback crash, then a change: the next flush writes for an exported run, a run with no row, an exported profile and a profile with no row. Also 'flushOutbox puts its own uncommitted run history or profile back when a later export fails' (the own crash text survives a failed retry and is still written over afterwards) and 'export intents of a run or profile with no sync_state row' (a conflict-only row from a reconcile does not lock this machine out)."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "'flushOutbox export intents of a run or profile count only while its sync_state row is unchanged'. After a crash, a run row whose imported_hash changed means a refusal. A first profile whose row appeared with an imported hash means a refusal. An intent whose entry is done means a refusal. The crash tests assert the intent file exists after the crash and is removed once its entry commits."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "docs/architecture.md run and profile bullets (lines 212-213): appended sentences state the intent (path, contents, validity rule, removal on commit) and the restore (byte for byte, removal of a new file, untouched when the write failed before its rename)."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "All listed tests pass (99 in finalizer.test.ts; 312 across the targeted files). Each was shown to fail without the change, by reverting finalizer.ts or by a targeted mutation (see the 'Tests fail without the change' check). Exception: the write/rename-fault restore cases cannot fail before the change, because those faults leave the file untouched. The 'does not rewrite' test fails if the restore is made unconditional."
+          }
+        ],
+        "notes": "Red-team: an adversarial reviewer subagent found no blocker or major issue and three nits, all addressed in ad2a4a5. (1) The restore rewrote a file it never replaced (failure before the rename): it now restores only when the file differs from what was read. (2) Missing run test for the conflict-only row: added. (3) unimportedRunHistory read the whole file before checking the row: it now checks the row first. Attacks that survived: a foreign hash entering an intent (only the new hash, or a previous hash that a valid intent already named); the conflict-only row being treated like a missing row (reconcile conflict inserts carry no hash; imports, keep-local and recordExport always change a hash or the generation); the seams storage.ts, runConflict, profileConflict, importer planRejectedRuns and scanProfiles, where own uncommitted text is consistently not offered as a conflict; db mode, where no handler writes or spends an intent. Consciously not changed: (a) Restore goes through the string FsAdapter, so a non-UTF-8 tracked file that was actually replaced is put back as decoded text, not raw bytes. All records are JSON text; the epic restore has the same limit. (b) restoreFile's removal of a new file does not re-check containment, the same as the epic path. (c) Every run/profile export now writes and fsyncs one extra small machine-local file and removes it after commit, the same cost as epics. (d) The 'run with no sync_state row' crash test passes its write step on the old code too, because runs with no row are exempt from the guard; it fails there only on the intent assertions.\n\nDiscoveries:\n- title: Epic export intent drops this machine's own uncommitted state after a failed retry\n  reason: exportEpic writes intent hashes built from the current files and the new texts, but never the hash of the current pair itself. If the files hold this machine's own uncommitted export (accepted only through the previous intent) and a retry fails and restores them, the new intent no longer covers them, and the next flush refuses this machine's own files as foreign. Run/profile exports avoid this by carrying the previous hash forward (replaceTrackedFile); exportEpic in src/core/repo/finalizer.ts does not.\n  ticket: DM-374\n- title: Machine-local export intents can be planted through a committed local/ file\n  reason: Intents under .darkmechanicus/local/exports/ are trusted if their entryId (a small sequential outbox id) is pending and the row matches. local/ is git-ignored, but a collaborator can force-add a file there. A pulled intent naming a foreign hash, with a guessable entryId and an empty row, would make the finalizer write over that machine's run, profile or epic file. This applies to the existing epic intents and now to runs and profiles; the importer does not check for tracked files under local/.\n  ticket: DM-374"
+      },
       "failure": null,
       "fencingToken": 1,
       "id": "at_01m6a1ytv825bc3ap1x6szzxtp",
       "kind": "work",
       "number": 1,
-      "outputs": null,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Implementation",
+            "location": "src/core/repo/finalizer.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Intent paths",
+            "location": "src/core/repo/paths.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Tests",
+            "location": "src/core/repo/finalizer.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Docs (run and profile rules)",
+            "location": "docs/architecture.md",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "linear-DM-374",
+        "changedFiles": [
+          "src/core/repo/finalizer.ts",
+          "src/core/repo/paths.ts",
+          "src/core/repo/finalizer.test.ts",
+          "src/core/repo/profileImport.test.ts",
+          "docs/architecture.md"
+        ],
+        "commits": [
+          "fc11c5d1414fdf1a0542304d20ea29f69f8b5ddd",
+          "bbe6cb90a1fe6af2a9d6ddd97f62c0d643ff5666",
+          "ad2a4a593d76a8c394e78ca75dc3ac82a73e1b4b"
+        ],
+        "summary": "Run history and profile exports now work like epic exports. exportRunHistory/exportProfile (src/core/repo/finalizer.ts) write a machine-local export intent before replacing the tracked file. The intent lives at local/exports/runs/<runId>.json or local/exports/profiles/<name>.json (new ownedPaths entries runExportIntentFile/profileExportIntentFile in paths.ts) and is written by the epic intent code, generalised rather than duplicated: IntentTarget + INTENTS table, syncedRowOf, writeExportIntent, readExportIntent, spendExportIntent, intentTargetOf, unimportedOf. The epic intent file format and its rules are unchanged. The intent lists the new text's hash, plus the previous file's hash when only a still-valid earlier intent made that file this machine's own. That way, putting back an own uncommitted crash text after a later failure is still accepted. It counts only while its outbox entry is pending/failed and the record's sync_state row is unchanged. A missing row reads as {null,null,0}, the same as the conflict-only row a reconcile inserts: a first export that crashed stays this machine's own while a reconcile only notes a conflict, and the intent stops counting once an import or export puts a hash on the row. flushEntry removes it after the entry's top-level commit, for every kind. When the write, its read-back or recordExport fails, replaceTrackedFile restores the previous text, read raw (no 8 MiB cap; uses fs.readFile when size > 0), or removes a file that did not exist. If the file still holds its previous content (the failure came before the rename), it is not rewritten. unimportedRunHistory checks for the run's sync_state row before reading the file, as before. Docs: sentences appended to the run and profile bullets of docs/architecture.md. Merged followups-sprint-2 (4024883) as instructed; doc conflict resolved by keeping DM-375/376 wording and appending the DM-374 sentences. Existing fault matchers in finalizer.test.ts (run writeFile, profile rename) and profileImport.test.ts (profile rename) were narrowed to the tracked file's exact path. Their old endsWith/includes matchers would now first hit the new intent file, whose name also ends in <name>.json or contains the run id."
+      },
       "reconciledAt": null,
       "revisionId": "rv_01m6a0q906z5xpzcfe8zfyd9kp",
-      "state": "running",
-      "submittedAt": null,
+      "state": "rejected",
+      "submittedAt": "2026-10-31T23:14:36.202Z",
       "supersededAt": null,
       "ticketContentHash": "sha256:5c90bdd9f6cbf0b87185d53b6afed90d874a0602d8d96001df6447175e381daf",
       "ticketId": "tk_01m69zre5wr7vq2demde8q01zy",
-      "updatedAt": "2026-10-31T22:58:33.819Z",
+      "updatedAt": "2026-10-31T23:31:05.776Z",
       "worker": {
         "catalogRevision": "1",
         "effort": "high",
@@ -1833,6 +1959,386 @@
         "label": "a8s task subagent (DM-376)",
         "modelId": "anthropic/claude-opus-5-5",
         "rationale": "Recommended by match_capabilities (high). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'high' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T23:31:05.818Z",
+      "decidedAt": "2026-10-31T23:38:40.669Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "Attempt 2 accepted after two independent adversarial passes (final verdict correct). Attempt 1 rejected for two test gaps on c2's mechanism and a restore-through-link hardening; fixed in f25f1e2. Follow-ups: exportEpic lacks the carry-over after a failed retry; writeSnapshot/writeCommentFile removals lack the containment check; non-UTF-8 restore.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "exit 0 on HEAD f25f1e2",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "finalizer.ts, finalizer.test.ts, importer.test.ts, profileImport.test.ts: exit 0",
+            "name": "npx oxlint (touched files)",
+            "status": "passed"
+          },
+          {
+            "detail": "finalizer, profileImport, importer, importer.hostile, storage, paths tests: 6 files, 319 tests passed on HEAD f25f1e2",
+            "name": "npx vitest run (targeted)",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found",
+            "name": "npm run deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "Attempt 1: with finalizer.ts reverted to followups-sprint-2, 16 new tests fail (confirmed by the reviewer); other guards checked by mutation. Attempt 2: moving writeExportIntent after writeFileSafely fails both double-fault tests (run, profile). Passing [] as the intent hashes in unimportedRunHistory/unimportedProfile fails all 3 seam tests (run; profile first export; synced profile). The 2 link-swap tests fail before the restoreFile containment check (outside files deleted: undefined instead of 'victim').",
+            "name": "Tests fail without the change",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test (full suite)",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run lint (whole tree)",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run build",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the sprint's Fireguard ticket",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "finalizer.ts replaceTrackedFile captures the previous raw text and restores it byte for byte on a failed write, read-back or recordExport (or removes a file that did not exist); an untouched file is not rewritten; restoreFile now writes and removes nothing on an unsafe path (link-swap tests). Limit: non-UTF-8 bytes come back decoded (adapter reads strings; epics same) — reported as a follow-up."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Run and profile export intents (local/exports/runs/<runId>.json, local/exports/profiles/<name>.json) written before the rename; after a crash between rename and commit (including a first export with no sync_state row) a further change flushes. Double-fault and storage-seam tests pin the order and the guards' intent reads; reviewer mutations each caught."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "An intent counts only while its outbox entry is pending/failed and the record's sync_state row is unchanged (missing row = conflict-only row); removed when the entry commits; carry-over of the previous own hash through a failed retry. Tests cover the row change after a reconcile import."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "docs/architecture.md run and profile rules state the restore and the intent; Finalizer bullet states restoreFile's containment check."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Worker: typecheck, oxlint, deadcode, vitest 319 passed on f25f1e2. Reviewer: 16 tests fail with finalizer.ts at 4024883; attempt-2 tests fail under intent-after-rename (2), [] intent hashes (3) and no containment check (2). The 8 write/rename-fault cases pass on old code by construction (file untouched), disclosed."
+          }
+        ],
+        "notes": "Attempt 2 addresses the attempt-1 review: the intent-ordering test gap, the guard-intent seam test gap, and restore through a swapped link (now skipped). Red-team: an adversarial reviewer subagent found no blocker or major issue and three nits, all addressed in ad2a4a5. (1) The restore rewrote a file it never replaced (failure before the rename): it now restores only when the file differs from what was read. (2) Missing run test for the conflict-only row: added. (3) unimportedRunHistory read the whole file before checking the row: it now checks the row first. Attacks that survived: a foreign hash entering an intent (only the new hash, or a previous hash that a valid intent already named); the conflict-only row being treated like a missing row (reconcile conflict inserts carry no hash; imports, keep-local and recordExport always change a hash or the generation); the seams storage.ts, runConflict, profileConflict, importer planRejectedRuns and scanProfiles, where own uncommitted text is consistently not offered as a conflict; db mode, where no handler writes or spends an intent. Consciously not changed: (a) Restore goes through the string FsAdapter, so a non-UTF-8 tracked file that was actually replaced is put back as decoded text, not raw bytes. All records are JSON text; the epic restore has the same limit. (c) Every run/profile export now writes and fsyncs one extra small machine-local file and removes it after commit, the same cost as epics. (d) The 'run with no sync_state row' crash test passes its write step on the old code too, because runs with no row are exempt from the guard; it fails there only on the intent assertions.\n\nDiscoveries:\n- title: Epic export intent drops this machine's own uncommitted state after a failed retry\n  reason: exportEpic writes intent hashes built from the current files and the new texts, but never the hash of the current pair itself. If the files hold this machine's own uncommitted export (accepted only through the previous intent) and a retry fails and restores them, the new intent no longer covers them, and the next flush refuses this machine's own files as foreign. Run/profile exports avoid this by carrying the previous hash forward (replaceTrackedFile); exportEpic in src/core/repo/finalizer.ts does not.\n  ticket: DM-374\n- title: Machine-local export intents can be planted through a committed local/ file\n  reason: Intents under .darkmechanicus/local/exports/ are trusted if their entryId (a small sequential outbox id) is pending and the row matches. local/ is git-ignored, but a collaborator can force-add a file there. A pulled intent naming a foreign hash, with a guessable entryId and an empty row, would make the finalizer write over that machine's run, profile or epic file. This applies to the existing epic intents and now to runs and profiles; the importer does not check for tracked files under local/.\n  ticket: DM-374\n- title: Other failure-path discards do not re-check containment\n  reason: In src/core/repo/finalizer.ts, writeFileSafely's discard of its temp file, writeSnapshot's discard(target) and writeCommentFile's discard(target) remove a path after a failure without re-checking that it still stays inside .darkmechanicus/. A directory swapped for a link between the write and the discard could make them remove a same-named file outside. DM-374 guarded only restoreFile, as the review asked.\n  ticket: DM-374"
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m6a4twetqqbqh9j7kevh8m37",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Implementation",
+            "location": "src/core/repo/finalizer.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Intent paths",
+            "location": "src/core/repo/paths.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Tests",
+            "location": "src/core/repo/finalizer.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Docs (run and profile rules)",
+            "location": "docs/architecture.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Seam tests (run)",
+            "location": "src/core/repo/importer.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "linear-DM-374",
+        "changedFiles": [
+          "src/core/repo/finalizer.ts",
+          "src/core/repo/paths.ts",
+          "src/core/repo/finalizer.test.ts",
+          "src/core/repo/profileImport.test.ts",
+          "src/core/repo/importer.test.ts",
+          "docs/architecture.md"
+        ],
+        "commits": [
+          "fc11c5d1414fdf1a0542304d20ea29f69f8b5ddd",
+          "bbe6cb90a1fe6af2a9d6ddd97f62c0d643ff5666",
+          "ad2a4a593d76a8c394e78ca75dc3ac82a73e1b4b",
+          "f25f1e2e179a840289229f820be327cc977f74cb"
+        ],
+        "summary": "Attempt 2 (on top of ad2a4a5). Fixes for the three review findings: (1) Test 'flushOutbox takes its own new run history or profile, left by a failed write and a failed restore, for its own' (finalizer.test.ts). The rename succeeds, the read-back fails and the restore's temp write fails, so this machine's new file stays; a later change is then written, not refused. It fails for runs and profiles when writeExportIntent is moved after writeFileSafely. (2) Seam tests after this machine's own crash followed by a real reconcile that notes a conflict: importer.test.ts for a run, profileImport.test.ts for a first-export profile and a synced profile. Storage lists the conflict with resolvable: false, Keep tracked refuses with 'nothing to choose' and changes nothing, and the next flush writes. All three fail when unimportedRunHistory/unimportedProfile ignore the intent. (3) restoreFile (shared by epic, run and profile restores) now checks containment first and writes or removes nothing when the path left .darkmechanicus/. The original write error is still rethrown. Link-swap tests (memoryFs) for a first run history and a first epic save: the outside files survive. The architecture.md Finalizer bullet says so. Attempt 1 content unchanged. Run and profile exports write a machine-local intent before replacing the file (local/exports/runs|profiles/...), generalised from the epic intent; it is valid while its entry waits and the sync_state row is unchanged, and removed after commit. A failed write, read-back or recordExport puts the previous file back byte for byte (raw read, any size) or removes a new one, and leaves an untouched file alone. followups-sprint-2 was merged in (bbe6cb9)."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6a0q906z5xpzcfe8zfyd9kp",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T23:35:54.945Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:5c90bdd9f6cbf0b87185d53b6afed90d874a0602d8d96001df6447175e381daf",
+      "ticketId": "tk_01m69zre5wr7vq2demde8q01zy",
+      "updatedAt": "2026-10-31T23:38:40.669Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "high",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-374)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (high). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'high' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T23:39:26.555Z",
+      "decidedAt": "2026-11-01T00:50:54.239Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "Definition of Done passed at the final tree 3100eb3 (lint, typecheck, test 8,805 + Fireguard 129, coverage 95.16% branches, deadcode, build). First run at 022a689 failed coverage at 94.99% branches; fixed by tests-only commits c6090c2 and 23b39f7 (mutation-reviewed). Increment 16fc3a8 on linear-followups, parent a9b0cea, passed verification.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Ran at 3100eb3, the final tree. Evidence commits 6f7df52 and c9358e3 add docs/verification only. npm run lint exit 0.",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "Ran at 3100eb3, the final tree. Evidence commits 6f7df52 and c9358e3 add docs/verification only. npm run typecheck exit 0.",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Ran at 3100eb3, the final tree. Evidence commits 6f7df52 and c9358e3 add docs/verification only. Vitest: 449 files, 8805 passed and 9 skipped. Fireguard: 21 files, 129 passed.",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "Ran at 3100eb3, the final tree. Evidence commits 6f7df52 and c9358e3 add docs/verification only. Statements 97.63%, branches 95.16%, functions 96.32%, lines 97.77% (thresholds 97/95/96/97). The first run at 022a689 failed at 94.99% branches; 7859c93 passed.",
+            "name": "coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "Ran at 3100eb3, the final tree. Evidence commits 6f7df52 and c9358e3 add docs/verification only. No new dead exports found.",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "Ran at 3100eb3, the final tree. Evidence commits 6f7df52 and c9358e3 add docs/verification only. electron-vite build exit 0.",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "DM-372-check.mjs on two real scratch clones: B, with no sync record for profile ui, saves before any reconcile; the flush is refused and ui.json keeps A's sha256 (d1fa74b6…). After a reconcile the conflict is resolvable; built-app screenshot DM-372-profile-conflict.png shows Keep tracked records / Write local. Write local gives B's profile, Keep tracked gives A's (sha256 equal). Also: a rejected (>256 KiB) pulled profile with no sync record gives a resolvable conflict and Write local writes."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Injected write, rename and post-rename recordExport faults leave the previous sha256 of run.json and ui.json; the next flush writes. A child process SIGKILLed right after the real rename (outbox entry left pending) followed by a further change: the next flush writes (hashes in DM-372-check.txt)."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Pulled run.json of 8,389,632 bytes and a profile over 256 KiB, each over a waiting local export, are listed resolvable in storage status; Keep tracked refuses naming the 8 MiB / 256 KiB limit; Write local writes B's file."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Keep tracked refused while B's attempt holds a live lease, nothing changed; once the lease ended it dropped B's local-only attempt and B's buildRunHistoryRecord sha256 equals the tracked run.json and A's pushed file (fc6c35e6…)."
+          }
+        ],
+        "notes": "DoD runs:\n- 022a689 (first run): lint, typecheck, test, deadcode and build passed. Coverage FAILED: branches 94.99% (11132 of 11718) against the 95% threshold. The fix was a tests-only merge, s2-coverage (c6090c2, merged as 7859c93).\n- 7859c93: all six checks passed (branches 95.16%). Logs are in DM-372-second/.\n- 3100eb3: after a tests-only assertion tightening (23b39f7, importer.test.ts and profileImport.test.ts), the whole DoD was re-run and all six passed with the same numbers. That is the final tree.\nThe evidence commits change only docs/verification. DM-372-check.mjs was re-run at 3100eb3. The UI screenshot was taken from the 022a689 build; both later merges changed tests only. Oversized files were made by padding valid JSON with trailing spaces. Scratch dirs under /private/tmp/dm372-* were removed. Home paths are masked as ~ in the committed logs."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m6a5a5ev1wwf5fwwyjv667nb",
+      "increment": {
+        "base": {
+          "commit": "a9b0cea4546effaa03ceffc04ab66fb46444cc50",
+          "kind": "previous_increment"
+        },
+        "branch": "linear-followups",
+        "checks": [
+          {
+            "detail": "Names the epic branch linear-followups.",
+            "name": "Epic branch",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 16fc3a8 exists.",
+            "name": "Commit exists",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 16fc3a8 has one parent, a9b0cea.",
+            "name": "One parent",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 16fc3a8 is reachable from linear-followups.",
+            "name": "On the epic branch",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 16fc3a8 is not part of the previous sprint's increment a9b0cea.",
+            "name": "After the base commit",
+            "status": "passed"
+          },
+          {
+            "detail": "None of the 9 commits recorded by this sprint's accepted work is reachable from linear-followups.",
+            "name": "Squashed, not merged",
+            "status": "passed"
+          }
+        ],
+        "commit": "16fc3a8cd335a47dc5682293e24031fa38416c6f",
+        "parent": "a9b0cea4546effaa03ceffc04ab66fb46444cc50",
+        "passed": true,
+        "reasons": [],
+        "verifiedAt": "2026-11-01T00:50:45.625Z"
+      },
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Acceptance summary",
+            "location": "docs/verification/DM-372-acceptance.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Check script",
+            "location": "docs/verification/DM-372-check.mjs",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Check output with sha256 hashes",
+            "location": "docs/verification/DM-372-check.txt",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "c1 Storage card screenshot (built app)",
+            "location": "docs/verification/DM-372-profile-conflict.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "UI driver",
+            "location": "docs/verification/DM-372-ui.mjs",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "DoD logs (final run)",
+            "location": "docs/verification/DM-372-*.log",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "DoD logs (first run at 022a689)",
+            "location": "docs/verification/DM-372-first/",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "DoD logs (second run at 7859c93)",
+            "location": "docs/verification/DM-372-second/",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "followups-sprint-2",
+        "changedFiles": [
+          "docs/verification/DM-372-acceptance.md",
+          "docs/verification/DM-372-app.log",
+          "docs/verification/DM-372-build.log",
+          "docs/verification/DM-372-check.mjs",
+          "docs/verification/DM-372-check.txt",
+          "docs/verification/DM-372-coverage.log",
+          "docs/verification/DM-372-deadcode.log",
+          "docs/verification/DM-372-first/DM-372-build.log",
+          "docs/verification/DM-372-first/DM-372-coverage.log",
+          "docs/verification/DM-372-first/DM-372-deadcode.log",
+          "docs/verification/DM-372-first/DM-372-lint.log",
+          "docs/verification/DM-372-first/DM-372-test.log",
+          "docs/verification/DM-372-first/DM-372-typecheck.log",
+          "docs/verification/DM-372-lint.log",
+          "docs/verification/DM-372-profile-conflict.png",
+          "docs/verification/DM-372-second/DM-372-build.log",
+          "docs/verification/DM-372-second/DM-372-coverage.log",
+          "docs/verification/DM-372-second/DM-372-deadcode.log",
+          "docs/verification/DM-372-second/DM-372-lint.log",
+          "docs/verification/DM-372-second/DM-372-test.log",
+          "docs/verification/DM-372-second/DM-372-typecheck.log",
+          "docs/verification/DM-372-storage-card-full.png",
+          "docs/verification/DM-372-test.log",
+          "docs/verification/DM-372-typecheck.log",
+          "docs/verification/DM-372-ui-page.txt",
+          "docs/verification/DM-372-ui-run.txt",
+          "docs/verification/DM-372-ui-setup.txt",
+          "docs/verification/DM-372-ui.mjs"
+        ],
+        "commits": [
+          "6f7df522dc4bb188a6d78da812e9268cb53fb6f3",
+          "c9358e39a429c9010f88a5180b750aa73adf47c9"
+        ],
+        "summary": "Sprint 2 acceptance. The final Definition of Done ran at 3100eb3: 022a689 plus two tests-only merges, s2-coverage (7859c93) and the mutation-tested assertion fixes (3100eb3). All six checks passed. c1 to c4 were verified on scratch two-clone repositories by docs/verification/DM-372-check.mjs, which drives real Workspaces from the source (node fs, real SQLite, a bare remote and two clones, and a real SIGKILL child for c2). It was re-run at 3100eb3 with all assertions passing; the output is in DM-372-check.txt. The c1 Storage card screenshot comes from the built app. Evidence is committed on followups-sprint-2 (6f7df52, c9358e3). Not squashed; linear-followups was not touched."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6a0q906z5xpzcfe8zfyd9kp",
+      "state": "accepted",
+      "submittedAt": "2026-11-01T00:50:45.730Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:4b79ab84f0bd344591fd3ce0b419cc45cdfbdfd52ad5d17f944c79ee2f0c5bce",
+      "ticketId": "tk_01m69zre5731k9a48she50h2rn",
+      "updatedAt": "2026-11-01T00:50:54.239Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "medium",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-372)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (medium). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'medium' records the planned effort, not a setting applied.",
         "sessionId": null
       }
     }
@@ -2560,9 +3066,598 @@
       "reportRevision": 2,
       "sprintId": "sp_01m698z4krn17151nbaerdf150",
       "submittedBy": "Claude Code orchestrator (linear follow-ups)"
+    },
+    {
+      "content": {
+        "accepted": [
+          "DM-373",
+          "DM-375",
+          "DM-376",
+          "DM-374",
+          "DM-372"
+        ],
+        "blocked": [],
+        "changes": {
+          "commits": [
+            "2b49035 DM-373",
+            "fe5c03b, d290ff6 DM-375",
+            "e8173b7, 1b53b9b DM-376",
+            "fc11c5d, ad2a4a5, f25f1e2 DM-374 (bbe6cb9 merged row 1)",
+            "c6090c2, 23b39f7 branch coverage tests",
+            "6f7df52, c9358e3 DM-372 evidence",
+            "4b2b616, dace4a3, 4024883 row 1 merges; 022a689 row 2 merge; 7859c93, 3100eb3 coverage merges",
+            "16fc3a8 Sprint 2 increment on linear-followups (squash, parent a9b0cea)"
+          ],
+          "files": [
+            "docs/architecture.md",
+            "docs/verification/DM-372-acceptance.md",
+            "docs/verification/DM-372-app.log",
+            "docs/verification/DM-372-build.log",
+            "docs/verification/DM-372-check.mjs",
+            "docs/verification/DM-372-check.txt",
+            "docs/verification/DM-372-coverage.log",
+            "docs/verification/DM-372-deadcode.log",
+            "docs/verification/DM-372-first/DM-372-build.log",
+            "docs/verification/DM-372-first/DM-372-coverage.log",
+            "docs/verification/DM-372-first/DM-372-deadcode.log",
+            "docs/verification/DM-372-first/DM-372-lint.log",
+            "docs/verification/DM-372-first/DM-372-test.log",
+            "docs/verification/DM-372-first/DM-372-typecheck.log",
+            "docs/verification/DM-372-lint.log",
+            "docs/verification/DM-372-profile-conflict.png",
+            "docs/verification/DM-372-second/DM-372-build.log",
+            "docs/verification/DM-372-second/DM-372-coverage.log",
+            "docs/verification/DM-372-second/DM-372-deadcode.log",
+            "docs/verification/DM-372-second/DM-372-lint.log",
+            "docs/verification/DM-372-second/DM-372-test.log",
+            "docs/verification/DM-372-second/DM-372-typecheck.log",
+            "docs/verification/DM-372-storage-card-full.png",
+            "docs/verification/DM-372-test.log",
+            "docs/verification/DM-372-typecheck.log",
+            "docs/verification/DM-372-ui-page.txt",
+            "docs/verification/DM-372-ui-run.txt",
+            "docs/verification/DM-372-ui-setup.txt",
+            "docs/verification/DM-372-ui.mjs",
+            "src/core/authz.ts",
+            "src/core/repo/finalizer.test.ts",
+            "src/core/repo/finalizer.ts",
+            "src/core/repo/importer.test.ts",
+            "src/core/repo/importer.ts",
+            "src/core/repo/paths.ts",
+            "src/core/repo/profileImport.test.ts",
+            "src/core/repo/profileImport.ts",
+            "src/core/services/execution.ts",
+            "src/core/services/profileConflict.ts",
+            "src/core/services/recordConflict.ts",
+            "src/core/services/runConflict.ts",
+            "src/core/services/transfers.test.ts",
+            "src/renderer/src/app/shellMessages.test.ts",
+            "src/renderer/src/app/shellMessages.ts",
+            "src/renderer/src/home/StorageCard.test.tsx",
+            "src/renderer/src/home/StorageCard.tsx",
+            "src/shared/domain/api.ts"
+          ]
+        },
+        "checks": [
+          {
+            "detail": "typecheck, lint, deadcode, vitest over repo/services/home/app (120 files, 2,196 tests).",
+            "name": "Row 1 check (rk_01m6a379qy2n1v1aj3e1w95gq6) at 4024883",
+            "status": "passed"
+          },
+          {
+            "detail": "typecheck, lint, deadcode, vitest over repo/services/home (85 files, 1,762 tests).",
+            "name": "Row 2 check (rk_01m6a5a5e7ary61jjezpfs1j1q) at 022a689",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-372 at 3100eb3.",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-372 at 3100eb3.",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-372 at 3100eb3: 449 files, 8,805 passed, 9 skipped; Fireguard suite 21 files, 129 passed.",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-372 at 3100eb3: statements 97.63%, branches 95.16%, functions 96.32%, lines 97.77%. The first run at 022a689 failed at 94.99% branches; tests-only fix c6090c2 + 23b39f7.",
+            "name": "coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-372 at 3100eb3.",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-372 at 3100eb3.",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "epicOutcome": {
+          "successCriteria": [
+            {
+              "criterionId": "s1",
+              "met": false,
+              "note": "Holds for the overwrite itself: no flush wrote over another machine's unimported run history or profile in any red-team sequence (first sync, interrupted export, rejected file, ping-pong choices). It does not hold for the choice: Keep tracked can drop accepted attempts whose ticket/epic completions were already exported (P1, conf 0.8, reproduced); a tracked file of ~86 MB of control bytes makes hashing throw so no choice is offered; under an epic rejected at plan time the run's conflict is cleared while its export stays refused."
+            },
+            {
+              "criterionId": "s2",
+              "met": true,
+              "note": "DM-366 (Sprint 1, DM-364 c2): the epic imports while its run's history export waits; unchanged in Sprint 2."
+            },
+            {
+              "criterionId": "s3",
+              "met": false,
+              "note": "Holds for epic and run conflicts in the cases DM-365 covers (DM-364 c1). Fails at the edges: a run conflict under an epic rejected at plan time is cleared while its export stays refused (EpicSeamsRedteam F1), and a profile conflict is never cleared by a reconcile once its condition ends, only by a successful import or export (EpicTwoMachineRedteam obs 6)."
+            },
+            {
+              "criterionId": "s4",
+              "met": true,
+              "note": "DM-369 (DM-364 c5): queueing an oversized transfer is refused at queue; EpicSecurityReview found no MCP bypass."
+            },
+            {
+              "criterionId": "s5",
+              "met": true,
+              "note": "DM-370 (DM-364 c6): main.test.ts fails if StdioServerTransport is swapped into nodeHost."
+            },
+            {
+              "criterionId": "s6",
+              "met": true,
+              "note": "DM-371 (DM-364 c7): start errors keep their trailing letters."
+            }
+          ],
+          "summary": "Both sprints delivered every planned ticket and passed the Definition of Done, but post-integration red-teams found that Keep tracked for a run can leave completions without their evidence, and that oversized tracked files and two reconcile edge cases can leave a refused export with no choice. s1 and s3 are unmet; the rest hold. A Sprint 3 with four tickets is proposed."
+        },
+        "exitCriteria": [
+          {
+            "criterionId": "x1",
+            "met": true,
+            "note": "DM-373, DM-375, DM-376 and DM-374 accepted (three after one rejection each); row checks 1 (4024883) and 2 (022a689) passed; DM-372 accepted with increment 16fc3a8."
+          },
+          {
+            "criterionId": "x2",
+            "met": true,
+            "note": "DM-372 ran lint, typecheck, test, coverage, deadcode and build at the final tree 3100eb3; all passed. The first run at 022a689 failed coverage (94.99% branches) and was fixed with tests only."
+          },
+          {
+            "criterionId": "x3",
+            "met": false,
+            "note": "s2, s4, s5 and s6 hold. s1 does not: Keep tracked for a run can drop accepted work whose completions were already exported (P1), and a very large tracked file wedges the export with no choice offered (security F1); under an epic the reconcile rejects at plan time the run's choice also disappears (seams F1). s3 does not hold in two edge cases: that run conflict is cleared while its condition holds, and a profile conflict stays after its condition ended (reconcile never clears profile conflicts). The covered checks c1-c4 all passed; the gaps were found by the post-integration red-teams."
+          },
+          {
+            "criterionId": "x4",
+            "met": true,
+            "note": "docs/architecture.md states the run and profile rules including the first sync (DM-373), the restore and intent (DM-374), the rejected-record conflict (DM-375) and what Keep tracked drops and when it is refused (DM-376). One sentence is inaccurate: a run with no sync_state row is said to be written as before, but a reconcile with an export waiting stores a conflict-only row and the flush then refuses (fails closed); carried as a discovery."
+          }
+        ],
+        "failed": [],
+        "followUps": [
+          {
+            "body": "EpicTwoMachineRedteam obs 2: with nothing waiting, the normal reconcile imports this machine's own older run.json over a live claim (lease_expired), and the worker's heartbeat fails with stale_claim even after the stash pop. Pre-existing; high severity; DM-376's lease rule only guards Keep tracked.",
+            "title": "A branch or stash round trip kills a live worker claim through the automatic import"
+          },
+          {
+            "body": "DM-374 discovery: exportEpic's intent does not carry the previous pair forward, so after a failed retry restores this machine's own uncommitted files, the next flush refuses them as another machine's. Run and profile exports carry it (replaceTrackedFile). Pre-existing, medium.",
+            "title": "Carry this machine's own uncommitted epic export through a failed retry"
+          },
+          {
+            "body": "EpicTwoMachineRedteam obs 4: after Write local on such a run, tracked records show run running and epic completed, and the run can be resumed. assertEpicOpen is used elsewhere but not on resume or claim. Needs a decision; medium.",
+            "title": "Refuse resuming or claiming a run whose epic another machine completed"
+          },
+          {
+            "body": "Write local replaces the tracked run, including the other machine's accepted attempts; correct by design but not said on the card.",
+            "title": "Warn on the Storage card that Write local discards the other machine's rows of the run"
+          },
+          {
+            "body": "EpicTwoMachineRedteam obs 1 and 3: a file written between the hash check and the rename is overwritten (the epic guard has the same pattern); imports never delete, so rows dropped by Keep tracked on one machine return from an older commit elsewhere. Pre-existing, medium.",
+            "title": "Hash-check-then-write race and non-converging imports"
+          },
+          {
+            "body": "EpicSecurityReview F2: history/RN_<id>/run.json or profiles/UI.json is rejected by name but resolves to the record's file on APFS/NTFS, so the export is refused and no choice appears. Low.",
+            "title": "Case-variant run folders and profile names hide the choice on case-insensitive filesystems"
+          },
+          {
+            "body": "EpicSecurityReview F3: Git can check out a force-added local/exports/... file; matching entryId and row makes this machine trust another machine's file. Same exposure as local/state.sqlite. Low.",
+            "title": "Do not trust export intents planted through a force-added local/ directory"
+          },
+          {
+            "body": "DM-374 review: writeSnapshot and writeCommentFile remove targets without the containment check restoreFile now has; the file adapter reads strings, so non-UTF-8 bytes are not restored byte for byte. Low.",
+            "title": "Containment checks before removing snapshot and comment files after a failed write; restore non-UTF-8 bytes"
+          },
+          {
+            "body": "get_transfer returns the full packet (101.8M chars for an oversized plan) beyond the MCP client's 10 MiB limit; an oversized repo-mode save_plan stays pending; the orchestrator guide does not mention the transfer start refusal; rebuild out/ after merging to main.",
+            "title": "Carried from Sprint 1"
+          }
+        ],
+        "retro": {
+          "actions": [
+            "Before planning any choice that deletes or rewrites local rows, list the derived state those rows already produced (ticket statuses, exported records, events) and say in the ticket what happens to each.",
+            "Plan a size bound and a stamp cache for every new read of an untrusted tracked file, in the same ticket that adds the read.",
+            "Give each ticket that adds guarded branches an explicit error-path test list, and have the row check run coverage when the sprint's margin is under 0.3%.",
+            "When several tickets of a sprint edit the same docs/architecture.md bullets, give the doc text to one ticket (or the last in the row) and let the others leave one-line notes for it."
+          ],
+          "delivered": [
+            {
+              "demo": "B saves profile ui before reconciling over A's pulled ui: the flush is refused, A's file keeps its sha256, and after a reconcile the Storage card offers the choice.",
+              "evidence": "2b49035; DM-372 c1, DM-372-profile-conflict.png.",
+              "ticket": "tk_01m69zre5wwbq31kj3xmvsperk"
+            },
+            {
+              "demo": "Inject a write/rename/record fault or SIGKILL after the rename: the previous file comes back (or the next flush writes this machine's own file instead of refusing it).",
+              "evidence": "fc11c5d, ad2a4a5, f25f1e2; DM-372 c2.",
+              "ticket": "tk_01m69zre5wr7vq2demde8q01zy"
+            },
+            {
+              "demo": "Pull a 9 MiB run.json (or a 300 KiB profile) over a waiting local export: the Storage card offers the choice, Write local writes, Keep tracked names the size limit.",
+              "evidence": "fe5c03b, d290ff6; DM-372 c3.",
+              "ticket": "tk_01m69zre5wv5wwffvz2mvew3yp"
+            },
+            {
+              "demo": "Keep tracked on a finished run: B's local-only attempt is gone and B's rebuilt run record equals A's run.json; refused while B's attempt holds a lease or the run is paused for sign-in.",
+              "evidence": "e8173b7, 1b53b9b; DM-372 c4.",
+              "ticket": "tk_01m69zre5w4rddzrm0txqbf8qr"
+            },
+            {
+              "demo": "docs/verification/DM-372-acceptance.md.",
+              "evidence": "6f7df52, c9358e3; squashed as 16fc3a8.",
+              "ticket": "tk_01m69zre5731k9a48she50h2rn"
+            }
+          ],
+          "discoveries": [
+            {
+              "body": "EpicTwoMachineRedteam P1 (conf 0.8) and EpicSeamsRedteam F4: dropRunRowsTrackedLacks deletes accepted attempts and checkpoints whose ticket and epic completions were already exported (a refused run export no longer holds back the epic's exports, finalizer.ts ~631), leaving completions without evidence and letting the other machine resume a completed epic. Rule: refuse, changing nothing, when the drop would remove an accepted non-superseded attempt or a checkpoint; point to Write local. Also EpicSeamsRedteam F2: under an epic rejected at scan time Keep tracked refuses with a vague reason; match result.rejected on the epic's directory. Probes: /tmp/dm-epic-review/TwoMachine/src/probe/probe_runKeepTracked*.test.ts, /tmp/dm-epic-review/SeamHunter/src/core/repo/probe_seamhunter.test.ts (SEAM 2, 3). Files: src/core/services/runConflict.ts.",
+              "ticket": "tk_01m69zre5w4rddzrm0txqbf8qr",
+              "title": "Refuse Keep tracked for a run when it would drop accepted work or a checkpoint, and name an epic's rejection in its refusal"
+            },
+            {
+              "body": "EpicSeamsRedteam F1: storeConflicts keeps conflicts only of epics rejected at scan time (plan.unread.rejectedEpics), so an epic skipped at plan time for a clash with local rows (epicClash) has its runs' conflicts cleared while their exports stay refused, and the Storage card offers nothing. Fix: count plan-time-rejected epics as rejected when clearing, so their run conflicts are KEPT. Also correct docs/architecture.md: a run with a conflict-only sync_state row (both hashes NULL, stored by the reconcile) is refused, not written as before. Probe SEAM 1, SEAM 4. Files: src/core/repo/importer.ts, docs/architecture.md.",
+              "ticket": "tk_01m69zre5wv5wwffvz2mvew3yp",
+              "title": "Keep a run's conflict while its epic is rejected at plan time"
+            },
+            {
+              "body": "EpicTwoMachineRedteam obs 6: storeProfileConflicts only inserts; a profile conflict clears only on a successful import or export, so after Write local whose write keeps failing the card shows a 'choose' message with no buttons. Clear, before storing, every profile conflict the scan did not re-add and that the rejected-over-waiting rule does not keep; skip when the whole profiles directory is rejected. Files: src/core/repo/profileImport.ts.",
+              "ticket": "tk_01m69zre5wwbq31kj3xmvsperk",
+              "title": "Clear a stored profile conflict once its condition no longer holds"
+            },
+            {
+              "body": "EpicSecurityReview F1 (medium): unimportedRunHistory/unimportedProfile and their callers (finalizer, importer planRejectedRuns, profileImport, storage, runConflict, profileConflict) read and hash the whole tracked file on every flush, reconcile and heartbeat while an export waits, under BEGIN IMMEDIATE (64 MiB: ~2 s per heartbeat); ~86 MB of control bytes makes the hash throw RangeError, so no conflict is shown and both choices throw. Fix: treat a profile file over MAX_PROFILE_BYTES (with CRLF margin) as not imported without reading; record the exported byte length for runs and read only files that fit it or MAX_RECORD_BYTES; cache hashes by file stamp (FileHashCache); treat a read or hash failure as not imported so the conflict shows and Write local works.",
+              "ticket": "tk_01m69zre5wr7vq2demde8q01zy",
+              "title": "Bound the reading of tracked run and profile files, and offer the choice when hashing fails"
+            }
+          ],
+          "leftovers": [],
+          "tierFit": [
+            {
+              "note": "Small, deep, medium effort: accepted on attempt 1; the review found no defect. Host cannot set worker effort: the recorded effort is the planned value.",
+              "ticket": "tk_01m69zre5wwbq31kj3xmvsperk",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Small, multi_step, medium effort: correct on attempt 1, rejected for an untested guard and stale refusal text, accepted on attempt 2. The gap was test discipline, not reasoning depth.",
+              "ticket": "tk_01m69zre5wv5wwffvz2mvew3yp",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Medium, deep, high effort: attempt 1 missed the sign-in pause lease rule, and the design question the ticket settled (what dropping rows does to exported completions) was larger than the ticket; it needed a planner-level analysis of derived state.",
+              "ticket": "tk_01m69zre5w4rddzrm0txqbf8qr",
+              "verdict": "undersized"
+            },
+            {
+              "note": "Medium, deep, high effort: about 33 minutes for attempt 1 with its own review; rejected for two test gaps and a hardening, accepted on attempt 2.",
+              "ticket": "tk_01m69zre5wr7vq2demde8q01zy",
+              "verdict": "right_sized"
+            }
+          ],
+          "wentPoorly": [
+            "The planner decision for DM-376 (Keep tracked drops local-only rows) did not ask what those rows had already produced: since Sprint 1 a refused run export no longer holds back its epic's exports, so dropped acceptances leave exported completions without evidence. s1 is unmet a second time.",
+            "Sprint 1's decision to hash tracked run files of any size, so this machine's own big export stays writable, turned every waiting export into a full read of an untrusted file on each heartbeat, with a crash at ~86 MB.",
+            "Branch coverage fell to 94.99% at acceptance; the Definition of Done had to run three times (two tests-only fixes, one after a mutation review of the coverage tests).",
+            "Each row merge conflicted on the same two docs/architecture.md bullets, edited by four tickets; the orchestrator resolved them by hand and once briefly duplicated a bullet."
+          ],
+          "wentWell": [
+            "Every ticket got an independent adversarial review before acceptance; three of four were rejected once on concrete, reproduced findings (an untested guard, the sign-in pause lease case, the crash-window ordering) and each retry was verified with mutations before acceptance.",
+            "Post-integration red-teams from three angles (cross-ticket seams, two-machine sequences, security) found the remaining defects with probes before the person's approval, instead of after merge.",
+            "Acceptance proved c2 with a real SIGKILL between rename and commit and c1 with the built app, on two clones of a bare scratch remote."
+          ]
+        },
+        "risks": [
+          "Keep tracked for a run can delete accepted attempts whose ticket completions (and an epic completion) were already exported in state.json, leaving completions without evidence; on the other machine the completed epic can be resumed and claimed (EpicTwoMachineRedteam P1, probes under /tmp/dm-epic-review/TwoMachine/src/probe). Until fixed, prefer Write local when the local side holds accepted work.",
+          "A hostile or accidental very large tracked run.json or profile is read and hashed on every flush, reconcile and heartbeat while an export waits (seconds per heartbeat at 64 MiB, under the SQLite write lock), and one of about 86 MB of control bytes makes hashing throw so the export stays refused with no choice offered (EpicSecurityReview F1). Introduced by Sprint 1's 'hash any size' decision.",
+          "Branch coverage sits at 95.16% against a 95% threshold; Sprint 1 ended at 95.05%. Each new guard without an error-path test pushes it under."
+        ],
+        "summary": "Sprint 2 closed the four gaps the Sprint 1 red-team found and landed as 16fc3a8 on linear-followups (parent a9b0cea). A profile this machine has no sync record for is now guarded (DM-373); run and profile exports put the previous file back on failure and write export intents so a crash before commit does not lock this machine out (DM-374); a pulled run or profile the reconcile rejects gets a resolvable conflict while a local export waits (DM-375); Keep tracked for a run drops this machine's local-only rows and is refused while a local lease is live or the run is paused for sign-in (DM-376). Every ticket was attacked by an independent reviewer before acceptance; DM-374, DM-375 and DM-376 were each rejected once on concrete findings and fixed. The Definition of Done passed at the final tree after a tests-only fix for branch coverage (94.99% at first). Cross-ticket and security red-teams after integration found defects the sprint did not close, the most serious being that Keep tracked for a run can drop accepted work whose ticket and epic completions were already exported. s1 and s3 are therefore reported unmet, with four discoveries for a Sprint 3."
+      },
+      "contentHash": "sha256:bcfe426bbd8b8bcb8bf48ae69a2146bb6f7c6026784c3f0170faba2e6685136e",
+      "createdAt": "2026-11-01T00:51:59.791Z",
+      "id": "rp_01m6a9f0nekjv467vwkgtyb1v4",
+      "reportRevision": 1,
+      "sprintId": "sp_01m69zre564hdfn5nngtqynny1",
+      "submittedBy": "Claude Code orchestrator (linear follow-ups)"
+    },
+    {
+      "content": {
+        "accepted": [
+          "DM-373",
+          "DM-375",
+          "DM-376",
+          "DM-374",
+          "DM-372"
+        ],
+        "blocked": [],
+        "changes": {
+          "commits": [
+            "2b49035 DM-373",
+            "fe5c03b, d290ff6 DM-375",
+            "e8173b7, 1b53b9b DM-376",
+            "fc11c5d, ad2a4a5, f25f1e2 DM-374 (bbe6cb9 merged row 1)",
+            "c6090c2, 23b39f7 branch coverage tests",
+            "6f7df52, c9358e3 DM-372 evidence",
+            "4b2b616, dace4a3, 4024883 row 1 merges; 022a689 row 2 merge; 7859c93, 3100eb3 coverage merges",
+            "16fc3a8 Sprint 2 increment on linear-followups (squash, parent a9b0cea)"
+          ],
+          "files": [
+            "docs/architecture.md",
+            "docs/verification/DM-372-acceptance.md",
+            "docs/verification/DM-372-app.log",
+            "docs/verification/DM-372-build.log",
+            "docs/verification/DM-372-check.mjs",
+            "docs/verification/DM-372-check.txt",
+            "docs/verification/DM-372-coverage.log",
+            "docs/verification/DM-372-deadcode.log",
+            "docs/verification/DM-372-first/DM-372-build.log",
+            "docs/verification/DM-372-first/DM-372-coverage.log",
+            "docs/verification/DM-372-first/DM-372-deadcode.log",
+            "docs/verification/DM-372-first/DM-372-lint.log",
+            "docs/verification/DM-372-first/DM-372-test.log",
+            "docs/verification/DM-372-first/DM-372-typecheck.log",
+            "docs/verification/DM-372-lint.log",
+            "docs/verification/DM-372-profile-conflict.png",
+            "docs/verification/DM-372-second/DM-372-build.log",
+            "docs/verification/DM-372-second/DM-372-coverage.log",
+            "docs/verification/DM-372-second/DM-372-deadcode.log",
+            "docs/verification/DM-372-second/DM-372-lint.log",
+            "docs/verification/DM-372-second/DM-372-test.log",
+            "docs/verification/DM-372-second/DM-372-typecheck.log",
+            "docs/verification/DM-372-storage-card-full.png",
+            "docs/verification/DM-372-test.log",
+            "docs/verification/DM-372-typecheck.log",
+            "docs/verification/DM-372-ui-page.txt",
+            "docs/verification/DM-372-ui-run.txt",
+            "docs/verification/DM-372-ui-setup.txt",
+            "docs/verification/DM-372-ui.mjs",
+            "src/core/authz.ts",
+            "src/core/repo/finalizer.test.ts",
+            "src/core/repo/finalizer.ts",
+            "src/core/repo/importer.test.ts",
+            "src/core/repo/importer.ts",
+            "src/core/repo/paths.ts",
+            "src/core/repo/profileImport.test.ts",
+            "src/core/repo/profileImport.ts",
+            "src/core/services/execution.ts",
+            "src/core/services/profileConflict.ts",
+            "src/core/services/recordConflict.ts",
+            "src/core/services/runConflict.ts",
+            "src/core/services/transfers.test.ts",
+            "src/renderer/src/app/shellMessages.test.ts",
+            "src/renderer/src/app/shellMessages.ts",
+            "src/renderer/src/home/StorageCard.test.tsx",
+            "src/renderer/src/home/StorageCard.tsx",
+            "src/shared/domain/api.ts"
+          ]
+        },
+        "checks": [
+          {
+            "detail": "typecheck, lint, deadcode, vitest over repo/services/home/app (120 files, 2,196 tests).",
+            "name": "Row 1 check (rk_01m6a379qy2n1v1aj3e1w95gq6) at 4024883",
+            "status": "passed"
+          },
+          {
+            "detail": "typecheck, lint, deadcode, vitest over repo/services/home (85 files, 1,762 tests).",
+            "name": "Row 2 check (rk_01m6a5a5e7ary61jjezpfs1j1q) at 022a689",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-372 at 3100eb3.",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-372 at 3100eb3.",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-372 at 3100eb3: 449 files, 8,805 passed, 9 skipped; Fireguard suite 21 files, 129 passed.",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-372 at 3100eb3: statements 97.63%, branches 95.16%, functions 96.32%, lines 97.77%. The first run at 022a689 failed at 94.99% branches; tests-only fix c6090c2 + 23b39f7.",
+            "name": "coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-372 at 3100eb3.",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-372 at 3100eb3.",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "epicOutcome": null,
+        "exitCriteria": [
+          {
+            "criterionId": "x1",
+            "met": true,
+            "note": "DM-373, DM-375, DM-376 and DM-374 accepted (three after one rejection each); row checks 1 (4024883) and 2 (022a689) passed; DM-372 accepted with increment 16fc3a8."
+          },
+          {
+            "criterionId": "x2",
+            "met": true,
+            "note": "DM-372 ran lint, typecheck, test, coverage, deadcode and build at the final tree 3100eb3; all passed. The first run at 022a689 failed coverage (94.99% branches) and was fixed with tests only."
+          },
+          {
+            "criterionId": "x4",
+            "met": true,
+            "note": "docs/architecture.md states the run and profile rules including the first sync (DM-373), the restore and intent (DM-374), the rejected-record conflict (DM-375) and what Keep tracked drops and when it is refused (DM-376). One sentence is inaccurate: a run with no sync_state row is said to be written as before, but a reconcile with an export waiting stores a conflict-only row and the flush then refuses (fails closed); carried as a discovery."
+          }
+        ],
+        "failed": [],
+        "followUps": [
+          {
+            "body": "EpicTwoMachineRedteam obs 2: with nothing waiting, the normal reconcile imports this machine's own older run.json over a live claim (lease_expired), and the worker's heartbeat fails with stale_claim even after the stash pop. Pre-existing; high severity; DM-376's lease rule only guards Keep tracked.",
+            "title": "A branch or stash round trip kills a live worker claim through the automatic import"
+          },
+          {
+            "body": "DM-374 discovery: exportEpic's intent does not carry the previous pair forward, so after a failed retry restores this machine's own uncommitted files, the next flush refuses them as another machine's. Run and profile exports carry it (replaceTrackedFile). Pre-existing, medium.",
+            "title": "Carry this machine's own uncommitted epic export through a failed retry"
+          },
+          {
+            "body": "EpicTwoMachineRedteam obs 4: after Write local on such a run, tracked records show run running and epic completed, and the run can be resumed. assertEpicOpen is used elsewhere but not on resume or claim. Needs a decision; medium.",
+            "title": "Refuse resuming or claiming a run whose epic another machine completed"
+          },
+          {
+            "body": "Write local replaces the tracked run, including the other machine's accepted attempts; correct by design but not said on the card.",
+            "title": "Warn on the Storage card that Write local discards the other machine's rows of the run"
+          },
+          {
+            "body": "EpicTwoMachineRedteam obs 1 and 3: a file written between the hash check and the rename is overwritten (the epic guard has the same pattern); imports never delete, so rows dropped by Keep tracked on one machine return from an older commit elsewhere. Pre-existing, medium.",
+            "title": "Hash-check-then-write race and non-converging imports"
+          },
+          {
+            "body": "EpicSecurityReview F2: history/RN_<id>/run.json or profiles/UI.json is rejected by name but resolves to the record's file on APFS/NTFS, so the export is refused and no choice appears. Low.",
+            "title": "Case-variant run folders and profile names hide the choice on case-insensitive filesystems"
+          },
+          {
+            "body": "EpicSecurityReview F3: Git can check out a force-added local/exports/... file; matching entryId and row makes this machine trust another machine's file. Same exposure as local/state.sqlite. Low.",
+            "title": "Do not trust export intents planted through a force-added local/ directory"
+          },
+          {
+            "body": "DM-374 review: writeSnapshot and writeCommentFile remove targets without the containment check restoreFile now has; the file adapter reads strings, so non-UTF-8 bytes are not restored byte for byte. Low.",
+            "title": "Containment checks before removing snapshot and comment files after a failed write; restore non-UTF-8 bytes"
+          },
+          {
+            "body": "get_transfer returns the full packet (101.8M chars for an oversized plan) beyond the MCP client's 10 MiB limit; an oversized repo-mode save_plan stays pending; the orchestrator guide does not mention the transfer start refusal; rebuild out/ after merging to main.",
+            "title": "Carried from Sprint 1"
+          }
+        ],
+        "retro": {
+          "actions": [
+            "Before planning any choice that deletes or rewrites local rows, list the derived state those rows already produced (ticket statuses, exported records, events) and say in the ticket what happens to each.",
+            "Plan a size bound and a stamp cache for every new read of an untrusted tracked file, in the same ticket that adds the read.",
+            "Give each ticket that adds guarded branches an explicit error-path test list, and have the row check run coverage when the sprint's margin is under 0.3%.",
+            "When several tickets of a sprint edit the same docs/architecture.md bullets, give the doc text to one ticket (or the last in the row) and let the others leave one-line notes for it."
+          ],
+          "delivered": [
+            {
+              "demo": "B saves profile ui before reconciling over A's pulled ui: the flush is refused, A's file keeps its sha256, and after a reconcile the Storage card offers the choice.",
+              "evidence": "2b49035; DM-372 c1, DM-372-profile-conflict.png.",
+              "ticket": "tk_01m69zre5wwbq31kj3xmvsperk"
+            },
+            {
+              "demo": "Inject a write/rename/record fault or SIGKILL after the rename: the previous file comes back (or the next flush writes this machine's own file instead of refusing it).",
+              "evidence": "fc11c5d, ad2a4a5, f25f1e2; DM-372 c2.",
+              "ticket": "tk_01m69zre5wr7vq2demde8q01zy"
+            },
+            {
+              "demo": "Pull a 9 MiB run.json (or a 300 KiB profile) over a waiting local export: the Storage card offers the choice, Write local writes, Keep tracked names the size limit.",
+              "evidence": "fe5c03b, d290ff6; DM-372 c3.",
+              "ticket": "tk_01m69zre5wv5wwffvz2mvew3yp"
+            },
+            {
+              "demo": "Keep tracked on a finished run: B's local-only attempt is gone and B's rebuilt run record equals A's run.json; refused while B's attempt holds a lease or the run is paused for sign-in.",
+              "evidence": "e8173b7, 1b53b9b; DM-372 c4.",
+              "ticket": "tk_01m69zre5w4rddzrm0txqbf8qr"
+            },
+            {
+              "demo": "docs/verification/DM-372-acceptance.md.",
+              "evidence": "6f7df52, c9358e3; squashed as 16fc3a8.",
+              "ticket": "tk_01m69zre5731k9a48she50h2rn"
+            }
+          ],
+          "discoveries": [
+            {
+              "body": "EpicTwoMachineRedteam P1 (conf 0.8) and EpicSeamsRedteam F4: dropRunRowsTrackedLacks deletes accepted attempts and checkpoints whose ticket and epic completions were already exported (a refused run export no longer holds back the epic's exports, finalizer.ts ~631), leaving completions without evidence and letting the other machine resume a completed epic. Rule: refuse, changing nothing, when the drop would remove an accepted non-superseded attempt or a checkpoint; point to Write local. Also EpicSeamsRedteam F2: under an epic rejected at scan time Keep tracked refuses with a vague reason; match result.rejected on the epic's directory. Probes: /tmp/dm-epic-review/TwoMachine/src/probe/probe_runKeepTracked*.test.ts, /tmp/dm-epic-review/SeamHunter/src/core/repo/probe_seamhunter.test.ts (SEAM 2, 3). Files: src/core/services/runConflict.ts.",
+              "ticket": "tk_01m69zre5w4rddzrm0txqbf8qr",
+              "title": "Refuse Keep tracked for a run when it would drop accepted work or a checkpoint, and name an epic's rejection in its refusal"
+            },
+            {
+              "body": "EpicSeamsRedteam F1: storeConflicts keeps conflicts only of epics rejected at scan time (plan.unread.rejectedEpics), so an epic skipped at plan time for a clash with local rows (epicClash) has its runs' conflicts cleared while their exports stay refused, and the Storage card offers nothing. Fix: count plan-time-rejected epics as rejected when clearing, so their run conflicts are KEPT. Also correct docs/architecture.md: a run with a conflict-only sync_state row (both hashes NULL, stored by the reconcile) is refused, not written as before. Probe SEAM 1, SEAM 4. Files: src/core/repo/importer.ts, docs/architecture.md.",
+              "ticket": "tk_01m69zre5wv5wwffvz2mvew3yp",
+              "title": "Keep a run's conflict while its epic is rejected at plan time"
+            },
+            {
+              "body": "EpicTwoMachineRedteam obs 6: storeProfileConflicts only inserts; a profile conflict clears only on a successful import or export, so after Write local whose write keeps failing the card shows a 'choose' message with no buttons. Clear, before storing, every profile conflict the scan did not re-add and that the rejected-over-waiting rule does not keep; skip when the whole profiles directory is rejected. Files: src/core/repo/profileImport.ts.",
+              "ticket": "tk_01m69zre5wwbq31kj3xmvsperk",
+              "title": "Clear a stored profile conflict once its condition no longer holds"
+            },
+            {
+              "body": "EpicSecurityReview F1 (medium): unimportedRunHistory/unimportedProfile and their callers (finalizer, importer planRejectedRuns, profileImport, storage, runConflict, profileConflict) read and hash the whole tracked file on every flush, reconcile and heartbeat while an export waits, under BEGIN IMMEDIATE (64 MiB: ~2 s per heartbeat); ~86 MB of control bytes makes the hash throw RangeError, so no conflict is shown and both choices throw. Fix: treat a profile file over MAX_PROFILE_BYTES (with CRLF margin) as not imported without reading; record the exported byte length for runs and read only files that fit it or MAX_RECORD_BYTES; cache hashes by file stamp (FileHashCache); treat a read or hash failure as not imported so the conflict shows and Write local works.",
+              "ticket": "tk_01m69zre5wr7vq2demde8q01zy",
+              "title": "Bound the reading of tracked run and profile files, and offer the choice when hashing fails"
+            }
+          ],
+          "leftovers": [],
+          "tierFit": [
+            {
+              "note": "Small, deep, medium effort: accepted on attempt 1; the review found no defect. Host cannot set worker effort: the recorded effort is the planned value.",
+              "ticket": "tk_01m69zre5wwbq31kj3xmvsperk",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Small, multi_step, medium effort: correct on attempt 1, rejected for an untested guard and stale refusal text, accepted on attempt 2. The gap was test discipline, not reasoning depth.",
+              "ticket": "tk_01m69zre5wv5wwffvz2mvew3yp",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Medium, deep, high effort: attempt 1 missed the sign-in pause lease rule, and the design question the ticket settled (what dropping rows does to exported completions) was larger than the ticket; it needed a planner-level analysis of derived state.",
+              "ticket": "tk_01m69zre5w4rddzrm0txqbf8qr",
+              "verdict": "undersized"
+            },
+            {
+              "note": "Medium, deep, high effort: about 33 minutes for attempt 1 with its own review; rejected for two test gaps and a hardening, accepted on attempt 2.",
+              "ticket": "tk_01m69zre5wr7vq2demde8q01zy",
+              "verdict": "right_sized"
+            }
+          ],
+          "wentPoorly": [
+            "The planner decision for DM-376 (Keep tracked drops local-only rows) did not ask what those rows had already produced: since Sprint 1 a refused run export no longer holds back its epic's exports, so dropped acceptances leave exported completions without evidence. s1 is unmet a second time.",
+            "Sprint 1's decision to hash tracked run files of any size, so this machine's own big export stays writable, turned every waiting export into a full read of an untrusted file on each heartbeat, with a crash at ~86 MB.",
+            "Branch coverage fell to 94.99% at acceptance; the Definition of Done had to run three times (two tests-only fixes, one after a mutation review of the coverage tests).",
+            "Each row merge conflicted on the same two docs/architecture.md bullets, edited by four tickets; the orchestrator resolved them by hand and once briefly duplicated a bullet."
+          ],
+          "wentWell": [
+            "Every ticket got an independent adversarial review before acceptance; three of four were rejected once on concrete, reproduced findings (an untested guard, the sign-in pause lease case, the crash-window ordering) and each retry was verified with mutations before acceptance.",
+            "Post-integration red-teams from three angles (cross-ticket seams, two-machine sequences, security) found the remaining defects with probes before the person's approval, instead of after merge.",
+            "Acceptance proved c2 with a real SIGKILL between rename and commit and c1 with the built app, on two clones of a bare scratch remote."
+          ]
+        },
+        "risks": [
+          "Keep tracked for a run can delete accepted attempts whose ticket completions (and an epic completion) were already exported in state.json, leaving completions without evidence; on the other machine the completed epic can be resumed and claimed (EpicTwoMachineRedteam P1, probes under /tmp/dm-epic-review/TwoMachine/src/probe). Until fixed, prefer Write local when the local side holds accepted work.",
+          "A hostile or accidental very large tracked run.json or profile is read and hashed on every flush, reconcile and heartbeat while an export waits (seconds per heartbeat at 64 MiB, under the SQLite write lock), and one of about 86 MB of control bytes makes hashing throw so the export stays refused with no choice offered (EpicSecurityReview F1). Introduced by Sprint 1's 'hash any size' decision.",
+          "Branch coverage sits at 95.16% against a 95% threshold; Sprint 1 ended at 95.05%. Each new guard without an error-path test pushes it under."
+        ],
+        "summary": "Sprint 2 closed the four gaps the Sprint 1 red-team found and landed as 16fc3a8 on linear-followups (parent a9b0cea). A profile this machine has no sync record for is now guarded (DM-373); run and profile exports put the previous file back on failure and write export intents so a crash before commit does not lock this machine out (DM-374); a pulled run or profile the reconcile rejects gets a resolvable conflict while a local export waits (DM-375); Keep tracked for a run drops this machine's local-only rows and is refused while a local lease is live or the run is paused for sign-in (DM-376). Every ticket was attacked by an independent reviewer before acceptance; DM-374, DM-375 and DM-376 were each rejected once on concrete findings and fixed. The Definition of Done passed at the final tree after a tests-only fix for branch coverage (94.99% at first). Cross-ticket and security red-teams after integration found defects the sprint did not close, the most serious being that Keep tracked for a run can drop accepted work whose ticket and epic completions were already exported. Those findings are four discoveries; plan revision 3 adds Sprint 3 for them and moves the success-criteria exit criterion (x3) there, since s1 and s3 do not yet hold."
+      },
+      "contentHash": "sha256:b047ca72fccb7e8d15893584e31db59c1bbb4deec1d170bce228c8b79cda3795",
+      "createdAt": "2026-11-01T04:09:02.075Z",
+      "id": "rp_01m6amqsvvdqhy2q54qqt9kkf3",
+      "reportRevision": 2,
+      "sprintId": "sp_01m69zre564hdfn5nngtqynny1",
+      "submittedBy": "Claude Code orchestrator (linear follow-ups)"
     }
   ],
-  "revisionId": "rv_01m6a0q906z5xpzcfe8zfyd9kp",
+  "revisionId": "rv_01m6amnn61bvvs83c3pstsf97s",
   "rowChecks": [
     {
       "checks": [
@@ -2651,11 +3746,73 @@
       "recordedBy": "Claude Code orchestrator (linear follow-ups)",
       "row": 3,
       "sprintId": "sp_01m698z4krn17151nbaerdf150"
+    },
+    {
+      "checks": [
+        {
+          "detail": "node, web and fireguard projects clean (/tmp/dm-linear/s2-row1-typecheck.log).",
+          "name": "npm run typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "oxlint src scripts: 0 warnings, 0 errors on 951 files.",
+          "name": "npm run lint",
+          "status": "passed"
+        },
+        {
+          "detail": "120 files, 2196 tests passed, covering every file DM-373, DM-375 and DM-376 touched after the merge (doc and test-helper conflicts resolved by combining both sides).",
+          "name": "npx vitest run src/core/repo src/core/services src/renderer/src/home src/renderer/src/app src/core/commandSchemas.test.ts src/core/authz.test.ts",
+          "status": "passed"
+        },
+        {
+          "detail": "No new dead exports.",
+          "name": "npm run deadcode",
+          "status": "passed"
+        }
+      ],
+      "commit": "40248833f0cab9290b3342789ba9f3935d088f3e",
+      "createdAt": "2026-10-31T23:02:55.487Z",
+      "id": "rk_01m6a379qy2n1v1aj3e1w95gq6",
+      "number": 4,
+      "recordedBy": "Claude Code orchestrator (linear follow-ups)",
+      "row": 1,
+      "sprintId": "sp_01m69zre564hdfn5nngtqynny1"
+    },
+    {
+      "checks": [
+        {
+          "detail": "node, web and fireguard projects clean.",
+          "name": "npm run typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "oxlint src scripts: 0 warnings, 0 errors on 951 files.",
+          "name": "npm run lint",
+          "status": "passed"
+        },
+        {
+          "detail": "85 files, 1762 tests passed, covering every file DM-374 touched on top of row 1 (merge was clean: DM-374 had already merged row 1).",
+          "name": "npx vitest run src/core/repo src/core/services src/renderer/src/home",
+          "status": "passed"
+        },
+        {
+          "detail": "No new dead exports.",
+          "name": "npm run deadcode",
+          "status": "passed"
+        }
+      ],
+      "commit": "022a68949d1133d5751a3e25e03f24b3087e6baf",
+      "createdAt": "2026-10-31T23:39:26.536Z",
+      "id": "rk_01m6a5a5e7ary61jjezpfs1j1q",
+      "number": 5,
+      "recordedBy": "Claude Code orchestrator (linear follow-ups)",
+      "row": 2,
+      "sprintId": "sp_01m69zre564hdfn5nngtqynny1"
     }
   ],
   "runId": "rn_01m69rrtgzfs8dcyrs1jvfvdc1",
   "skillVersion": "1.5.2",
   "startedAt": "2026-10-31T20:00:15.392Z",
-  "state": "running",
-  "updatedAt": "2026-10-31T22:20:17.355Z"
+  "state": "awaiting_checkpoint",
+  "updatedAt": "2026-11-01T04:07:57.371Z"
 }

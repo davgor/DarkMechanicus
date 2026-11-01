@@ -1,5 +1,5 @@
 {
-  "activeSprintId": "sp_01m5jz275zxpve9s276gzaw4s0",
+  "activeSprintId": null,
   "attempts": [
     {
       "createdAt": "2026-10-31T11:21:33.095Z",
@@ -3322,23 +3322,97 @@
     },
     {
       "createdAt": "2026-10-31T19:04:22.062Z",
-      "decidedAt": null,
-      "decision": null,
-      "evidence": null,
+      "decidedAt": "2026-10-31T23:49:47.696Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Orchestrator verified the branch diff vs the integration branch touches only the two test files and the worktree is clean (no leftover mutant). Fireguard leaves a mutated source file behind when interrupted mid-mutation: retro discovery.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Grade F, score 0, 'ast gate failed': 3 empty-test findings (listed in the summary)",
+            "name": "fireguard (first run)",
+            "status": "failed"
+          },
+          {
+            "detail": "FIREGUARD_BASE_REF=022734c9d7173218705fde25fe58d581d6758834 npm run fireguard -- --json exit 0: grade A, score 94, 'all hard gates passed'. AST passed with no findings; flake 100/100 runs, 0 failures; mutation 954/1112 killed, score 86",
+            "name": "fireguard (final)",
+            "status": "passed"
+          },
+          {
+            "detail": "npx vitest run src/main/agents/orchestratorKickoff.test.ts src/main/desktop/customAgent.test.ts: 2 files, 103 tests passed",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run lint (oxlint src scripts): no errors",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck: no errors",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test / deadcode / build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Fireguard ran on the sprint branch's HEAD 4b8d17f6 plus the test-only commit d96a8091, with FIREGUARD_BASE_REF=022734c9d7173218705fde25fe58d581d6758834. scope.gradedTestFiles lists 101 files in /tmp/fg4.json, including claimTokenMask, activity, the chat and agent handler and store tests, customAgent, agentRegistry, index, the claude* and dmLauncher tests, loginTerminals, ptyHelperCheck, ptyHost(.real), and the terminalHandlers, terminalSessions and renderer agent tests."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Final grade A, score 94; mutation score 86; flake rate 0"
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Rewrote the 3 tests graded F (empty-test) in 2 test files and re-graded to A. The diff 4b8d17f6..d96a8091 touches only *.test.ts files"
+          }
+        ],
+        "notes": "158 mutants survived. The mutation gate still passed, and this report doesn't list them; they are in gates.mutation of /tmp/fg4.json. Discoveries: (1) If Fireguard is killed during mutation testing, it leaves the mutated source file in the working tree. Here that was loginTerminals.ts, where an if-condition was negated. Restoring files after an interrupted run, or a harder warning, would prevent wrong grades. (2) A full Fireguard run on this sprint took about 3.6 hours, so a 1-hour limit is too short."
+      },
       "failure": null,
       "fencingToken": 1,
       "id": "at_01m69njfseav541r4y0znk7t4t",
       "kind": "work",
       "number": 1,
-      "outputs": null,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Final Fireguard JSON report (outside the repo)",
+            "location": "/tmp/fg4.json",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "terminal-chats-DM-334",
+        "changedFiles": [
+          "src/main/agents/orchestratorKickoff.test.ts",
+          "src/main/desktop/customAgent.test.ts"
+        ],
+        "commits": [
+          "d96a8091b5a392665cc3001e4c9a29204c8d6863"
+        ],
+        "summary": "Graded the combined sprint branch (terminal-chats-sprint-1 at 4b8d17f6) with FIREGUARD_BASE_REF=022734c9d7173218705fde25fe58d581d6758834 npm run fireguard -- --json. The first run was F (score 0) because the AST gate found three tests whose assertions were all inside helpers: orchestratorKickoff.test.ts:97 'carries no claim token: it is built before any claim', orchestratorKickoff.test.ts:162 'carries no claim token' and customAgent.test.ts:280 'refuses arguments that are not a list of strings'. I rewrote only those tests: expectNoCredential became credentialLeaks(text), which returns the names of any leaks and is asserted with toEqual([]) (the same four checks), and the customAgent loop now asserts its three refusal expectations directly. The final grade is A, score 94: AST passed with no findings (3369 assertions, 6 mocks); flake 100/100 runs, 0 failures; mutation 954/1112 killed (score 86, 158 survived); 101 test files graded. One re-grade was killed by my 1-hour command limit during mutation testing and left a mutant in src/main/terminals/loginTerminals.ts. That made the next run fail the flake gate with timeouts in terminalHandlers.signIn.test.ts, which passes 7/7 on the sprint branch. I restored the file with git restore and re-graded with no limit (about 3.6 hours). The working tree is clean, and no production code is changed."
+      },
       "reconciledAt": null,
       "revisionId": "rv_01m68tv9xwk534yz9ytfy3ntqx",
-      "state": "running",
-      "submittedAt": null,
+      "state": "accepted",
+      "submittedAt": "2026-10-31T23:49:47.654Z",
       "supersededAt": null,
       "ticketContentHash": "sha256:c9b6ea877d2f9f814115542c5ac7771a016ca46c909564645667f219896bc010",
       "ticketId": "tk_01m68tv9x88htns1rzc4tg593j",
-      "updatedAt": "2026-10-31T19:04:22.104Z",
+      "updatedAt": "2026-10-31T23:49:47.696Z",
       "worker": {
         "catalogRevision": "1",
         "effort": "low",
@@ -3348,11 +3422,240 @@
         "rationale": "Recommended by match_capabilities (anthropic/claude-opus-5-5, low). This host runs every worker as a task subagent of the session model and cannot set its effort per worker.",
         "sessionId": null
       }
+    },
+    {
+      "createdAt": "2026-10-31T23:50:09.515Z",
+      "decidedAt": "2026-11-01T00:26:35.002Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Orchestrator review: increment verdict passed (87102b0, one parent 022734c, squashed, on terminal-chats). Spot-checked screenshots c9 (Start again resumes: PINEAPPLE-42 recalled after /exit), c11 (orchestrator terminal received the kickoff and ran the chat dm launcher), c12 (old chat with Earlier conversation and resumed session), plus the coverage re-run and DoD logs.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npm run lint exited 0 at fb2c907. Log: /tmp/dm335-evidence/AccDoD/rerun/lint.log",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck exited 0. Log: /tmp/dm335-evidence/AccDoD/rerun/typecheck.log",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npm test exited 0. Main suite: 430 test files passed; 7507 tests passed, 7 skipped. Second suite: 20 files, 105 tests passed. Log: /tmp/dm335-evidence/AccDoD/rerun/test.log",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run coverage exited 0, with no threshold errors. Statements 97.48% (15016/15404), Branches 95.27% (9061/9510; threshold 95%), Functions 96.36% (5169/5364; threshold 96%), Lines 97.58% (13928/14272). Log: /tmp/dm335-evidence/AccDoD/rerun/coverage.log",
+            "name": "coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run deadcode exited 0: 'No new dead exports found.' Log: /tmp/dm335-evidence/AccDoD/rerun/deadcode.log",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run build exited 0. Log: /tmp/dm335-evidence/AccDoD/rerun/build.log",
+            "name": "build",
+            "status": "passed"
+          },
+          {
+            "detail": "Not re-run. DM-334 graded the sprint's tests A, score 94. The 19 coverage-fix test files were graded A, score 100, with FIREGUARD_BASE_REF=0b49965.",
+            "name": "fireguard",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "The real-PTY test file passes: 3 of 3 tests (c1-ptyHost-real-test.txt, verbose). I quit the built app over the main inspector, closing the socket right after, with four live terminals: a Claude Code chat (67992), the Claude Code orchestrator (20544) and two fixture chats (83992, 5575), each leading its own process group. 8 s later `ps -p` on the main pid and every child, a sweep of the process groups, and a grep for the scratch folders, the fixture and the chat ids all returned nothing (c1-quit-ps.txt). The earlier quit with one live Claude terminal also left nothing."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Packaged with `npx electron-vite build` then `npx electron-builder --mac --publish never --config.directories.output=/tmp/dm335-release`; exit 0, release/ never in the repo (c2-package-build.log, c2-package-builder.log). Started /tmp/dm335-release/mac-arm64/DarkMechanicus.app (arm64 Mach-O) on a fresh --user-data-dir=/tmp/dm335-pkg-profile. Tracked scratch repo /tmp/dm335-pkg-repo with the folder dialog stubbed over the main inspector. Registered the fixture by a hand insert into the scratch app.sqlite, as the brief allows (c2-pkg-app-sqlite-agents.txt; the first id failed the app's cu_ id check and was corrected before the run). One-click New chat opened a RUNNING terminal: fixture start event with cwd /private/tmp/dm335-pkg-repo, sessionToken:true, argv [--acceptance,/private/tmp/dm335-pkg-repo], and typed keys echoed (c2-packaged-fixture-chat-terminal.png, c2-agent-fixture.log, c2-ps-fixture.txt). The fixture's shebang is `#!/usr/bin/env node` and the app inherited my PATH, so it ran under that node. ls -l: app.asar.unpacked/node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper is -rwxr-xr-x, darwin-x64 likewise (c2-spawn-helper-ls.txt). After quit, no fixture or app process remained."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Claude Code chat pid 26992. `lsof -d cwd` shows /private/tmp/dm335-core/repoA, the canonical path of a folder created as /tmp/dm335-core/repoA. `ps -wwE` shows DM_SESSION_TOKEN=dmg_ce… (redacted) and DARKMECHANICUS_HOME, and no ELECTRON_RUN_AS_NODE (c3-ps-lsof.txt). The agent ran the chat's launcher `.../agents/bin/chat_8fc7ab82…/dm call get_capabilities` (that folder is first on PATH). The answer gave repoRoot /private/tmp/dm335-core/repoA, the orchestrator role, initialized: true (c3-dm-get-capabilities.png)."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "I asked the chat to Write ~/.claude/projects/-private-tmp-dm335-core-repoA/memory/acceptance-note.md. Claude's own prompt appeared ('Do you want to create acceptance-note.md? 1. Yes / 2. … / 3. No'), even with the person's auto mode on (c4-memory-write-permission-prompt.png). I answered No and the file was not created (c4-after-declining.png)."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Grants are revoked on exit. /exit revoked gr_01m6a668… (c5-grant-revoked-on-exit.txt), the fixture's Ctrl+C exit revoked gr_01m6a6ek…, and the first app quit revoked gr_01m6a64z… (c5-grants-repoA-all.txt; hashes cut to 6 chars). Moved folder: with the repoB fixture terminal live (pid 15861, cwd repoB), `mv repoB repoB-moved` stopped it at the next 60 s folder check. The chat shows STOPPED with 'The folder /private/tmp/dm335-core/repoB is gone: it was moved or deleted. Track the folder again…', the not_found text from launchFolder.ts. Its grant was revoked, and the other terminals were untouched (c5-2-after-move.png, c5-moved-folder.txt). I moved the folder back afterwards."
+          },
+          {
+            "criterionId": "c6",
+            "met": true,
+            "note": "I called `window.dm.terminals.attach` from the page (the DevTools console context) five ways. A made-up chat_000…, `__proto__`, repoB's chat through repoA, and repoA's chat through repoB each gave not_found. repoB's chat through the untracked parent folder gave unauthorized. The process list was identical before and after, and no fixture log appeared in repoB (c6-attach-refused.txt). Positive control: opening the same repoB chat in its own folder did start the fixture (pid 15861)."
+          },
+          {
+            "criterionId": "c7",
+            "met": true,
+            "note": "Switching Fixture one → New chat → Fixture two kept the same pids (c7-1-switch-same-pid.txt and screenshots). Escape, Tab and typed text reached the fixture as \\u001b, \\t and 'hello' (c7-2-escape-tab.png). Ctrl+C reached it as \\u0003 and it exited 130 (c7-6-ctrl-c.*). webContents.paste() delivered 'PASTED-VIA-WEBCONTENTS'; webContents.copy() after a mouse selection put the terminal's first row on the clipboard (c7-3-*). setSize(1100,700) and back produced SIGWINCH 113x33, 114x34 and 163x47 (c7-4-resize.txt). After a renderer reload, reopening the chat showed the earlier screen and the pids were unchanged (c7-5-*). The console log, covering reload, switching, keys, paste, copy and resize, has 0 entries and 0 CSP violations (c7-console-log.json). An injected probe afterwards proved the capture catches a CSP violation (c7-console-capture-probe.json); that probe is not an app violation."
+          },
+          {
+            "criterionId": "c8",
+            "met": true,
+            "note": "One click on 'New chat in repoA', with the folder default set to Claude Code, opened a terminal running ~/.local/bin/claude with cwd repoA (Claude's folder-trust screen for /private/tmp/dm335-core/repoA) and no app dialog (c8-new-chat-one-click.png, c8-ps.txt)."
+          },
+          {
+            "criterionId": "c9",
+            "met": true,
+            "note": "The chat answered 'noted' to a code-word prompt (c9-1-prompt-answered.png). /exit gave 'The CLI exited with code 0' and a Start again button (c9-2-after-exit.png). Start again re-ran claude with `--resume f189a651…` (c9-ps-resume.txt), showing the earlier conversation (c9-3-start-again-resumed.png). Asked for the code word, it answered PINEAPPLE-42 (c9-4-resumed-conversation-recalls.png)."
+          },
+          {
+            "criterionId": "c10",
+            "met": true,
+            "note": "Sign in on the Claude Code agent page opened the in-window 'Sign in to Claude Code' terminal running `claude auth login`, which showed the OAuth URL and 'Paste code here if prompted' (c10-1-in-window-login-terminal.png). Back returned to the agent page, still 'Signed in', and the login process was gone. `claude auth status` still shows loggedIn: true (c10-2-after-back.png, c10-ps-auth.txt). No login was completed."
+          },
+          {
+            "criterionId": "c11",
+            "met": true,
+            "note": "In scratch repoA I created a one-ticket epic (RA-1), saved rev 1, and used Start run → Run with agent: Claude Code, Haiku. An orchestrator terminal opened with --model haiku; its first prompt was the kickoff naming the epic and run rn_01m6a6r2…, and it began calling dm get_capabilities (c11-1-orchestrator-terminal.png). I interrupted it with Escape (c11-2-interrupted.png) and cancelled with Cancel run → confirm; the runs row is state=canceled (c11-3-run-cancelled.png, c11-run.txt)."
+          },
+          {
+            "criterionId": "c12",
+            "met": true,
+            "note": "Old profile: start commit 022734c9 built and run with --user-data-dir=/tmp/dm335-old-profile; scratch repo /tmp/dm335-upg-repo tracked and initialized; one Claude Code chat (Orchestrator, model switched to Haiku 5.5 through the app's selector) answered 'PINEAPPLE-42' (c12-old-2-exchange.png, c12-old-3-profile-before-quit.png). The folder dialog was stubbed over the main inspector (old-profile-dialog-stub-log.json). Combined build 0b49965 on the same profile reopened that chat as a RUNNING terminal: `claude ... --model haiku --resume e25b8a63-...`, the session id stored in the old chat's index.jsonl (c12-ps-resume.txt). I answered Claude's folder-trust prompt (Yes, scratch /tmp folder) and its .mcp.json prompt (the default, continue without the server). The resume result: the CLI shows the prior prompt and the PINEAPPLE-42 reply (c12-upg-1-resume-result.png). The Earlier conversation panel shows the old transcript read-only ('Model changed from default to haiku', YOU/ASSISTANT turns) (c12-upg-2-earlier-conversation.png)."
+          },
+          {
+            "criterionId": "c13",
+            "met": true,
+            "note": "Re-checked at HEAD fb2c907901f83825914e9cbd2c4d6cbddf145b4f in the integration worktree. `rg -n -i \"agents/adapters|adapterRegistry|ApprovalCard|claude-agent-sdk\" src` found nothing (exit 1). `grep -c claude-agent-sdk package-lock.json` printed 0."
+          },
+          {
+            "criterionId": "c14",
+            "met": true,
+            "note": "Old profile: ACP custom CLI 'A8s ACP' (~/.local/bin/a8s --mode acp) and Claude-protocol custom 'Claude custom' (~/.local/bin/claude, no args) added through window.dm.addCustomAgent. The program picker and confirmation were stubbed over the main inspector (Run and save, box ticked); both handshakes passed (c14-old-profile-agents-before-upgrade.txt, old-profile-dialog-stub-log.json). After the upgrade the app.sqlite agents table shows needs_review=1 for the ACP row and 0 for the Claude-protocol row (c14-app-sqlite-agents-after-upgrade.txt). The ACP agent page shows 'Review its arguments' and a primary Review arguments button, which opens the Review arguments form; I cancelled it (c14-upg-0-acp-agent-page.png, c14-upg-1-acp-review-arguments-form.png). With A8s ACP as folder default, New chat gives REFUSED with the needs-review message and no a8s process starts (c14-upg-4-acp-chat-refused.png, c14-ps-children.txt). With Claude custom as default, New chat gives a RUNNING Claude Code terminal (c14-upg-5-claude-custom-chat-running.png; ps shows /Users/davidgorden/.local/bin/claude as a child of the app)."
+          },
+          {
+            "criterionId": "c15",
+            "met": true,
+            "note": "`git diff 0b49965 HEAD -- docs` is empty, so the docs are the ones checked earlier. docs/architecture.md 'Hosted agents' (line 229) says each chat runs as the agent's own CLI in a terminal in the app's window. Lines 19-20 map chat terminals to src/main/terminals and the `terminals:*` bridge types to terminalApi.ts. Line 238 records the v3 terminal-chats migration. docs/runbooks/agents.md 'Known limitations' (lines 231-238) lists: on Windows, ELECTRON_RUN_AS_NODE reaches the CLI; claim tokens are visible in an orchestrator's terminal; Codex and Cursor flags were not verified live; Windows was not verified live (the optional DM-333 did not run); the Claude Code memory hook fails open in some cases; a physical Cmd+W or Cmd+Q press was not exercised."
+          },
+          {
+            "criterionId": "c16",
+            "met": true,
+            "note": "Fireguard, not re-run: DM-334 graded the sprint's tests A, score 94. The 19 test files from the coverage fix were graded A, score 100, with FIREGUARD_BASE_REF=0b49965."
+          },
+          {
+            "criterionId": "c17",
+            "met": true,
+            "note": "DoD part met: lint, typecheck, test, coverage, deadcode and build all pass at fb2c907, and fireguard passes (A/94 plus A/100). The optional Windows ticket DM-333 did not run because this Mac cannot meet its windows environment."
+          }
+        ],
+        "notes": "Live agents: AccLiveCore (c1, c3-c11), AccLiveUpgrade (c2, c12, c14); DoD agent re-ran after the coverage fix.\nSide effects on the person's machine: typing /model haiku in Claude Code 2.1.316 saved \"model\":\"haiku\" into ~/.claude/settings.json; the key was removed again. ~/.claude.json now trusts scratch folders under /private/tmp and ~/.claude/projects has scratch session folders. The Sign in check may have opened a browser OAuth tab (no login completed; claude auth status still logged in).\nHarness env vars (CI, CLAUDECODE, OMP*) leak into chat terminals when the app is launched from an agent shell: the terminal env is main's env minus ELECTRON_*/NODE_OPTIONS.\nNative dialogs were stubbed over the main inspector and some rows inserted into scratch app.sqlite files, as the acceptance brief allowed."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m6a5xsbbejz0w4kkbhecpq03",
+      "increment": {
+        "base": {
+          "commit": "022734c9d7173218705fde25fe58d581d6758834",
+          "kind": "epic_start"
+        },
+        "branch": "terminal-chats",
+        "checks": [
+          {
+            "detail": "Names the epic branch terminal-chats.",
+            "name": "Epic branch",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 87102b0 exists.",
+            "name": "Commit exists",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 87102b0 has one parent, 022734c.",
+            "name": "One parent",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 87102b0 is reachable from terminal-chats.",
+            "name": "On the epic branch",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 87102b0 comes after the epic's start commit 022734c.",
+            "name": "After the base commit",
+            "status": "passed"
+          },
+          {
+            "detail": "None of the 51 commits recorded by this sprint's accepted work is reachable from terminal-chats.",
+            "name": "Squashed, not merged",
+            "status": "passed"
+          }
+        ],
+        "commit": "87102b0cc064c8ede68889d60ce94b8d9fccfaf3",
+        "parent": "022734c9d7173218705fde25fe58d581d6758834",
+        "passed": true,
+        "reasons": [],
+        "verifiedAt": "2026-11-01T00:26:23.051Z"
+      },
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Acceptance evidence (screenshots, ps/lsof/sqlite dumps, DoD logs), outside the repository",
+            "location": "/tmp/dm335-evidence",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "terminal-chats",
+        "changedFiles": [],
+        "commits": [
+          "87102b0cc064c8ede68889d60ce94b8d9fccfaf3"
+        ],
+        "summary": "Sprint 1 acceptance round on the combined work (terminal-chats-sprint-1 at fb2c907): Definition of Done passed (first coverage run failed functions 95.54%/branches 94.42%; fixed with tests only, Fireguard A/100 on those tests), live verification on the built app (c1, c3-c11), the upgrade path and the packaged arm64 app (c2, c12, c14), static checks (c13, c15, c16). The sprint was squashed onto terminal-chats as 87102b0 (single parent 022734c). Optional DM-333 (Windows) did not run: this Mac host cannot satisfy its windows environment."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m68tv9xwk534yz9ytfy3ntqx",
+      "state": "accepted",
+      "submittedAt": "2026-11-01T00:26:23.436Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:ec01bff6416a9e212b8469ef591de90c827a777d58fa200c77182f2f008a6cc9",
+      "ticketId": "tk_01m68tv9x8g0s4tjqdkx5b8gax",
+      "updatedAt": "2026-11-01T00:26:35.002Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "medium",
+        "hostId": "omp-claude-code-darwin-arm64",
+        "label": "DM-335 worker (task subagent)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (anthropic/claude-opus-5-5, medium). This host runs every worker as a task subagent of the session model and cannot set its effort per worker.",
+        "sessionId": null
+      }
     }
   ],
-  "checkpoints": [],
+  "checkpoints": [
+    {
+      "decidedAt": "2026-11-01T04:07:33.840Z",
+      "decidedBy": "ss_01m6ammvvk5rvw7ygm43syrv3s",
+      "id": "ck_01m6amn3pgr4ryj3bhatvzw9nq",
+      "outcome": "completed",
+      "policy": "human",
+      "reportId": "rp_01m6a83g5qe0ccvrraqswcwh7w",
+      "sprintId": "sp_01m5jz275zxpve9s276gzaw4s0"
+    }
+  ],
   "createdAt": "2026-10-31T11:20:35.530Z",
-  "endedAt": null,
+  "endedAt": "2026-11-01T04:07:33.840Z",
   "epicId": "ep_01m5jz275yaw11nzgr81806jeq",
   "format": "darkmechanicus.run",
   "formatVersion": 1,
@@ -3364,7 +3667,796 @@
   "number": 1,
   "ownerMachineId": "mc_01m4912pg590r3j7r99nbcw9wz",
   "pauseReason": null,
-  "reports": [],
+  "reports": [
+    {
+      "content": {
+        "accepted": [
+          "DM-318 Add node-pty behind a PtyHost interface: real + fake host, spawn-helper execute bit, pid-based PTY tree kill, fixture CLI (2 attempts).",
+          "DM-319 Package node-pty unpacked and prebuilt: asarUnpack, npmRebuild false, afterPack helper bit, refusal message when the helper is not executable.",
+          "DM-320 Terminal launch specs per agent kind and platform: env scrub, macOS dm launcher, Windows command lines, dropped values.",
+          "DM-321 Claude's memory guards as a per-chat settings file and PreToolUse hook (live: Claude's own prompt on a memory write).",
+          "DM-322 One PTY per chat in a terminal session manager: start-once, grant issue/store/revoke, headless snapshot, held quit, folder watch (2 attempts).",
+          "DM-323 Guarded terminals:attach and MessageChannelMain port; window.dm.terminals is the only new preload surface.",
+          "DM-324 The chat's terminal in the main window: xterm WebGL under the production CSP with zero violations, theme tokens, Cmd-key passthrough, 64 KiB input chunking (2 attempts).",
+          "DM-325 One-click New chat running the folder's agent CLI; NewChatDialog deleted (2 attempts).",
+          "DM-326 Exit with Start again, Claude resume via its session file, New session, 10-minute idle stop.",
+          "DM-327 Sign in inside the app's window through a login terminal; osascript/console launches removed; signed_out run pause only after a self-exit.",
+          "DM-328 Start run opens an orchestrator terminal; guidance in the instructions file; kickoff first start only; pasteFirst delivery for every CLI.",
+          "DM-329 Existing chats open as terminals with Earlier conversation; old Claude chats resume; activity linked to chats by grant id (2 attempts).",
+          "DM-330 Protocol adapters, approval/streaming channels and the Claude Agent SDK deleted; curated models in shared code (finished by a second worker in the same attempt).",
+          "DM-331 Custom CLIs without a protocol; app.sqlite v3 migration flags ACP/Codex rows for review.",
+          "DM-332 Architecture doc, agents runbook and the design As-built section describe terminal chats and known limitations.",
+          "DM-334 Fireguard grade A, score 94 on the combined sprint (two test rewrites).",
+          "DM-335 Sprint acceptance: all 17 criteria met; increment 87102b0 verified."
+        ],
+        "blocked": [],
+        "changes": {
+          "commits": [
+            "87102b0cc064c8ede68889d60ce94b8d9fccfaf3 (sprint increment on terminal-chats, squash of terminal-chats-sprint-1 at fb2c907)"
+          ],
+          "files": [
+            ".tsprune-ignore",
+            "README.md",
+            "docs/architecture.md",
+            "docs/design/chat-shells.md",
+            "docs/design/palette.md",
+            "docs/runbooks/agents.md",
+            "docs/verification/DM-319-01-packaged-smoke.log",
+            "docs/verification/DM-319-02-packaged-smoke-driver.mjs",
+            "docs/verification/DM-321-01-memory-write-asks.png",
+            "docs/verification/DM-321-02-third-write-still-asking.png",
+            "docs/verification/DM-321-03-live-log.txt",
+            "docs/verification/DM-321-04-rebuilt-memory-write-asks.png",
+            "docs/verification/DM-324-01-terminal-in-app-main.png",
+            "docs/verification/DM-324-02-second-chat.png",
+            "docs/verification/DM-324-03-switched-back-snapshot.png",
+            "docs/verification/DM-324-04-after-reload-restored.png",
+            "docs/verification/DM-324-05-resized-sidebar-hidden.png",
+            "docs/verification/DM-324-06-after-context-loss.png",
+            "docs/verification/DM-324-07-ctrl-c-exited.png",
+            "docs/verification/DM-324-08-live-log.txt",
+            "docs/verification/DM-324-09-selection-copied.png",
+            "docs/verification/DM-324-10-attempt2-live-log.txt",
+            "docs/verification/DM-324-11-quit-and-close-log.txt",
+            "docs/verification/DM-325-01-one-click-new-chat.png",
+            "docs/verification/DM-326-01-idle-and-session-probes.txt",
+            "docs/verification/DM-326-02-probe-driver.mjs",
+            "docs/verification/DM-326-03-claude-ready-new-session.png",
+            "docs/verification/DM-326-04-one-prompt-answered.png",
+            "docs/verification/DM-326-05-exit-start-again.png",
+            "docs/verification/DM-326-06-start-again-resumed.png",
+            "docs/verification/DM-326-07-live-log.txt",
+            "docs/verification/DM-327-01-in-window-sign-in-from-agent-page.png",
+            "docs/verification/DM-327-02-back-to-agent-page.png",
+            "docs/verification/DM-328-01-start-run-shows-claude-terminal.png",
+            "docs/verification/DM-328-02-claude-kickoff-as-initial-prompt.png",
+            "docs/verification/DM-328-03-a8s-kickoff-one-bracketed-paste.png",
+            "docs/verification/DM-328-04-a8s-kickoff-pasted-and-submitted.png",
+            "docs/verification/DM-329-01-old-build-chat-one-exchange.png",
+            "docs/verification/DM-329-02-old-chat-opens-as-terminal-resuming.png",
+            "docs/verification/DM-329-03-claude-resume-continues-sdk-session.png",
+            "docs/verification/DM-329-04-earlier-conversation-read-only.png",
+            "docs/verification/DM-329-05-live-log.txt",
+            "docs/verification/DM-331-01-acp-row-review-arguments.png",
+            "docs/verification/DM-331-02-acp-chat-refused-until-reviewed.png",
+            "docs/verification/DM-331-03-claude-row-chat-starts.png",
+            "docs/verification/DM-331-04-review-arguments-form.png",
+            "docs/verification/DM-331-05-reviewed-edit-again.png",
+            "docs/verification/DM-331-06-add-custom-cli-no-protocol.png",
+            "docs/verification/DM-331-07-app-sqlite-dump.txt",
+            "electron.vite.config.ts",
+            "package-lock.json",
+            "package.json",
+            "scripts/mac-packaging.test.mjs",
+            "scripts/ptyHelperMode.mjs",
+            "scripts/ptyHelperMode.test.mjs",
+            "src/core/claimTokenMask.test.ts",
+            "src/core/claimTokenMask.ts",
+            "src/core/services/activity.test.ts",
+            "src/core/services/activity.ts",
+            "src/main/agents/__mocks__/chatFixtures.ts",
+            "src/main/agents/__mocks__/claimTokenFixture.ts",
+            "src/main/agents/__mocks__/codexReplay.ts",
+            "src/main/agents/__mocks__/codexSignedOut.ts",
+            "src/main/agents/__mocks__/codexSubagents.ts",
+            "src/main/agents/__mocks__/cursorRecordings.ts",
+            "src/main/agents/__mocks__/cursorSignedOut.ts",
+            "src/main/agents/__mocks__/cursorSubagents.ts",
+            "src/main/agents/__mocks__/fakeChatAdapter.ts",
+            "src/main/agents/__mocks__/launchSpecs.ts",
+            "src/main/agents/__mocks__/orchestratorChat.ts",
+            "src/main/agents/__mocks__/replayAcpAgent.ts",
+            "src/main/agents/activityBindings.test.ts",
+            "src/main/agents/activityBindings.ts",
+            "src/main/agents/adapterRegistry.ts",
+            "src/main/agents/adapters/__mocks__/autonomousRecordings.ts",
+            "src/main/agents/adapters/__mocks__/claudeSignedOut.ts",
+            "src/main/agents/adapters/__mocks__/claudeSubagents.ts",
+            "src/main/agents/adapters/__mocks__/fakeClaudeSdk.ts",
+            "src/main/agents/adapters/acp/acpAdapter.test.ts",
+            "src/main/agents/adapters/acp/acpAdapter.ts",
+            "src/main/agents/adapters/acp/acpAuth.ts",
+            "src/main/agents/adapters/acp/acpConfigOptions.ts",
+            "src/main/agents/adapters/acp/acpJson.ts",
+            "src/main/agents/adapters/acp/acpPermissions.ts",
+            "src/main/agents/adapters/acp/acpSession.ts",
+            "src/main/agents/adapters/acp/acpToolCalls.ts",
+            "src/main/agents/adapters/acp/acpUpdates.ts",
+            "src/main/agents/adapters/acp/genericAcpFlavor.ts",
+            "src/main/agents/adapters/acpClient.test.ts",
+            "src/main/agents/adapters/acpClient.ts",
+            "src/main/agents/adapters/acpProcess.test.ts",
+            "src/main/agents/adapters/acpProcess.ts",
+            "src/main/agents/adapters/acpProcessSpawn.test.ts",
+            "src/main/agents/adapters/autonomous.test.ts",
+            "src/main/agents/adapters/autonomous.ts",
+            "src/main/agents/adapters/autonomousApprovals.ts",
+            "src/main/agents/adapters/claude.test.ts",
+            "src/main/agents/adapters/claude.ts",
+            "src/main/agents/adapters/claudeAccount.test.ts",
+            "src/main/agents/adapters/claudeAccountProblems.ts",
+            "src/main/agents/adapters/claudeApprovals.ts",
+            "src/main/agents/adapters/claudeAuth.test.ts",
+            "src/main/agents/adapters/claudeLiveWork.test.ts",
+            "src/main/agents/adapters/claudeMasking.test.ts",
+            "src/main/agents/adapters/claudeMemoryFolder.test.ts",
+            "src/main/agents/adapters/claudeMemoryWrites.test.ts",
+            "src/main/agents/adapters/claudeProcess.test.ts",
+            "src/main/agents/adapters/claudeProcess.ts",
+            "src/main/agents/adapters/claudeResumedSubagents.test.ts",
+            "src/main/agents/adapters/claudeStrictMcp.test.ts",
+            "src/main/agents/adapters/claudeTranscript.ts",
+            "src/main/agents/adapters/codex.test.ts",
+            "src/main/agents/adapters/codex.ts",
+            "src/main/agents/adapters/codexApprovals.ts",
+            "src/main/agents/adapters/codexAuth.test.ts",
+            "src/main/agents/adapters/codexItems.test.ts",
+            "src/main/agents/adapters/codexItems.ts",
+            "src/main/agents/adapters/codexMasking.test.ts",
+            "src/main/agents/adapters/codexProcess.test.ts",
+            "src/main/agents/adapters/codexProcess.ts",
+            "src/main/agents/adapters/codexProcessSpawn.test.ts",
+            "src/main/agents/adapters/codexRpc.test.ts",
+            "src/main/agents/adapters/codexRpc.ts",
+            "src/main/agents/adapters/codexSubagents.test.ts",
+            "src/main/agents/adapters/codexThreads.ts",
+            "src/main/agents/adapters/cursor.test.ts",
+            "src/main/agents/adapters/cursor.ts",
+            "src/main/agents/adapters/cursorAuth.test.ts",
+            "src/main/agents/adapters/cursorAuth.ts",
+            "src/main/agents/adapters/cursorLaunch.test.ts",
+            "src/main/agents/adapters/cursorLaunch.ts",
+            "src/main/agents/adapters/cursorMasking.test.ts",
+            "src/main/agents/adapters/cursorProtocol.test.ts",
+            "src/main/agents/adapters/cursorProtocol.ts",
+            "src/main/agents/adapters/cursorSubagents.test.ts",
+            "src/main/agents/adapters/cursorUpdates.test.ts",
+            "src/main/agents/boundThreads.test.ts",
+            "src/main/agents/chatGrants.test.ts",
+            "src/main/agents/chatGrants.ts",
+            "src/main/agents/chatHandlers.folder.test.ts",
+            "src/main/agents/chatHandlers.test.ts",
+            "src/main/agents/chatHandlers.ts",
+            "src/main/agents/chatIpc.test.ts",
+            "src/main/agents/chatIpc.ts",
+            "src/main/agents/chatRecords.test.ts",
+            "src/main/agents/chatRecords.ts",
+            "src/main/agents/chatStore.test.ts",
+            "src/main/agents/chatStore.ts",
+            "src/main/agents/chatStoreDelete.test.ts",
+            "src/main/agents/claimTokenMask.ts",
+            "src/main/agents/customModels.test.ts",
+            "src/main/agents/grantBindings.test.ts",
+            "src/main/agents/grantBindings.ts",
+            "src/main/agents/launchSpec.test.ts",
+            "src/main/agents/launchSpec.ts",
+            "src/main/agents/orchestratorKickoff.test.ts",
+            "src/main/agents/orchestratorKickoff.ts",
+            "src/main/agents/orchestratorStart.test.ts",
+            "src/main/agents/orchestratorStart.ts",
+            "src/main/agents/ownCliCommand.test.ts",
+            "src/main/agents/ownCliCommand.ts",
+            "src/main/agents/ownServerTools.test.ts",
+            "src/main/agents/ownServerTools.ts",
+            "src/main/agents/processTree.ts",
+            "src/main/agents/processTreePty.test.ts",
+            "src/main/agents/protocolHandshake.test.ts",
+            "src/main/agents/protocolHandshake.ts",
+            "src/main/agents/sessionManager.account.test.ts",
+            "src/main/agents/sessionManager.custom.test.ts",
+            "src/main/agents/sessionManager.cutShort.test.ts",
+            "src/main/agents/sessionManager.folder.test.ts",
+            "src/main/agents/sessionManager.idle.test.ts",
+            "src/main/agents/sessionManager.ownServer.test.ts",
+            "src/main/agents/sessionManager.read.test.ts",
+            "src/main/agents/sessionManager.settle.test.ts",
+            "src/main/agents/sessionManager.test.ts",
+            "src/main/agents/sessionManager.ts",
+            "src/main/agents/sessionManagerActivity.test.ts",
+            "src/main/agents/shimLaunch.test.ts",
+            "src/main/agents/shimLaunch.ts",
+            "src/main/agents/signInFlags.test.ts",
+            "src/main/agents/signInFlags.ts",
+            "src/main/agents/signInHooks.test.ts",
+            "src/main/agents/signInHooks.ts",
+            "src/main/agents/threadBindings.test.ts",
+            "src/main/agents/threadBindings.ts",
+            "src/main/desktop/__mocks__/autonomousDoctor.ts",
+            "src/main/desktop/agentAuth.test.ts",
+            "src/main/desktop/agentAuth.ts",
+            "src/main/desktop/agentAuthNode.test.ts",
+            "src/main/desktop/agentAuthNode.ts",
+            "src/main/desktop/agentHandlers.test.ts",
+            "src/main/desktop/agentHandlers.ts",
+            "src/main/desktop/agentInstaller.test.ts",
+            "src/main/desktop/agentProbe.ts",
+            "src/main/desktop/agentRegistry.test.ts",
+            "src/main/desktop/agentRegistry.ts",
+            "src/main/desktop/agentRegistryImport.test.ts",
+            "src/main/desktop/appDatabase.test.ts",
+            "src/main/desktop/appDatabase.ts",
+            "src/main/desktop/bootstrap.ts",
+            "src/main/desktop/cliConfig.test.ts",
+            "src/main/desktop/cliConfig.ts",
+            "src/main/desktop/customAgent.test.ts",
+            "src/main/desktop/customAgent.ts",
+            "src/main/desktop/handlers.test.ts",
+            "src/main/desktop/ipc.test.ts",
+            "src/main/desktop/ipc.ts",
+            "src/main/index.test.ts",
+            "src/main/index.ts",
+            "src/main/terminals/__fixtures__/agentFixture.mjs",
+            "src/main/terminals/__mocks__/fakePtyHost.ts",
+            "src/main/terminals/__mocks__/terminalHandlersRig.ts",
+            "src/main/terminals/__mocks__/terminalPorts.ts",
+            "src/main/terminals/__mocks__/terminalSessionsRig.ts",
+            "src/main/terminals/claudeExecutable.test.ts",
+            "src/main/terminals/claudeExecutable.ts",
+            "src/main/terminals/claudeMemoryGuard.test.ts",
+            "src/main/terminals/claudeMemoryGuard.ts",
+            "src/main/terminals/claudeMemoryHook.ts",
+            "src/main/terminals/claudeSession.test.ts",
+            "src/main/terminals/claudeSession.ts",
+            "src/main/terminals/claudeSettingsFile.test.ts",
+            "src/main/terminals/claudeSettingsFile.ts",
+            "src/main/terminals/dmLauncher.test.ts",
+            "src/main/terminals/dmLauncher.ts",
+            "src/main/terminals/loginTerminals.edges.test.ts",
+            "src/main/terminals/loginTerminals.test.ts",
+            "src/main/terminals/loginTerminals.ts",
+            "src/main/terminals/privateFile.ts",
+            "src/main/terminals/ptyHelperCheck.test.ts",
+            "src/main/terminals/ptyHelperCheck.ts",
+            "src/main/terminals/ptyHost.real.test.ts",
+            "src/main/terminals/ptyHost.test.ts",
+            "src/main/terminals/ptyHost.ts",
+            "src/main/terminals/terminalEnv.ts",
+            "src/main/terminals/terminalFiles.test.ts",
+            "src/main/terminals/terminalFiles.ts",
+            "src/main/terminals/terminalHandlers.port.test.ts",
+            "src/main/terminals/terminalHandlers.signIn.test.ts",
+            "src/main/terminals/terminalHandlers.test.ts",
+            "src/main/terminals/terminalHandlers.ts",
+            "src/main/terminals/terminalLaunchSpec.test.ts",
+            "src/main/terminals/terminalLaunchSpec.ts",
+            "src/main/terminals/terminalLoginSpec.test.ts",
+            "src/main/terminals/terminalScreen.test.ts",
+            "src/main/terminals/terminalScreen.ts",
+            "src/main/terminals/terminalSessions.edges.test.ts",
+            "src/main/terminals/terminalSessions.folder.test.ts",
+            "src/main/terminals/terminalSessions.kickoff.test.ts",
+            "src/main/terminals/terminalSessions.lifecycle.test.ts",
+            "src/main/terminals/terminalSessions.oldChats.test.ts",
+            "src/main/terminals/terminalSessions.quit.test.ts",
+            "src/main/terminals/terminalSessions.screen.test.ts",
+            "src/main/terminals/terminalSessions.signedOut.test.ts",
+            "src/main/terminals/terminalSessions.test.ts",
+            "src/main/terminals/terminalSessions.ts",
+            "src/main/terminals/windowsCommandLine.test.ts",
+            "src/main/terminals/windowsCommandLine.ts",
+            "src/main/windows.test.ts",
+            "src/preload/index.ts",
+            "src/preload/terminals.test.ts",
+            "src/preload/terminals.ts",
+            "src/renderer/src/App.chatView.test.tsx",
+            "src/renderer/src/App.chats.test.tsx",
+            "src/renderer/src/App.links.test.tsx",
+            "src/renderer/src/App.signIn.test.tsx",
+            "src/renderer/src/App.terminal.test.tsx",
+            "src/renderer/src/App.tsx",
+            "src/renderer/src/__mocks__/appHarness.tsx",
+            "src/renderer/src/__mocks__/chatViewKit.tsx",
+            "src/renderer/src/__mocks__/fakeChats.ts",
+            "src/renderer/src/__mocks__/fakeDm.ts",
+            "src/renderer/src/__mocks__/fakeTerminalKit.ts",
+            "src/renderer/src/__mocks__/fakeTerminals.ts",
+            "src/renderer/src/__mocks__/fixtures.ts",
+            "src/renderer/src/__mocks__/idleChats.ts",
+            "src/renderer/src/__mocks__/idleTerminals.ts",
+            "src/renderer/src/__mocks__/rootTokens.ts",
+            "src/renderer/src/__mocks__/signInRecorder.tsx",
+            "src/renderer/src/agents/ActionMarker.test.tsx",
+            "src/renderer/src/agents/ActionMarker.tsx",
+            "src/renderer/src/agents/AddAgentPane.test.tsx",
+            "src/renderer/src/agents/AddAgentPane.tsx",
+            "src/renderer/src/agents/AgentPage.custom.test.tsx",
+            "src/renderer/src/agents/AgentPage.test.tsx",
+            "src/renderer/src/agents/AgentPage.tsx",
+            "src/renderer/src/agents/ApprovalCard.test.tsx",
+            "src/renderer/src/agents/ApprovalCard.tsx",
+            "src/renderer/src/agents/ApprovalRecord.test.tsx",
+            "src/renderer/src/agents/ApprovalRecord.tsx",
+            "src/renderer/src/agents/ChatComposer.tsx",
+            "src/renderer/src/agents/ChatContext.tsx",
+            "src/renderer/src/agents/ChatHeader.tsx",
+            "src/renderer/src/agents/ChatTranscript.test.tsx",
+            "src/renderer/src/agents/ChatTranscript.tsx",
+            "src/renderer/src/agents/ChatView.account.test.tsx",
+            "src/renderer/src/agents/ChatView.composer.test.tsx",
+            "src/renderer/src/agents/ChatView.customSignIn.test.tsx",
+            "src/renderer/src/agents/ChatView.header.test.tsx",
+            "src/renderer/src/agents/ChatView.items.test.tsx",
+            "src/renderer/src/agents/ChatView.markdown.test.tsx",
+            "src/renderer/src/agents/ChatView.markers.test.tsx",
+            "src/renderer/src/agents/ChatView.signIn.test.tsx",
+            "src/renderer/src/agents/ChatView.stream.test.tsx",
+            "src/renderer/src/agents/ChatView.threads.test.tsx",
+            "src/renderer/src/agents/ChatView.tsx",
+            "src/renderer/src/agents/CustomAgentEdit.tsx",
+            "src/renderer/src/agents/CustomAgentForm.test.tsx",
+            "src/renderer/src/agents/CustomAgentForm.tsx",
+            "src/renderer/src/agents/EarlierConversation.tsx",
+            "src/renderer/src/agents/NewChatDialog.test.tsx",
+            "src/renderer/src/agents/NewChatDialog.tsx",
+            "src/renderer/src/agents/NewChatFields.tsx",
+            "src/renderer/src/agents/SignInPrompt.test.tsx",
+            "src/renderer/src/agents/SignInPrompt.tsx",
+            "src/renderer/src/agents/SignInTerminal.tsx",
+            "src/renderer/src/agents/SignInView.edges.test.tsx",
+            "src/renderer/src/agents/SignInView.test.tsx",
+            "src/renderer/src/agents/SignInView.tsx",
+            "src/renderer/src/agents/SignedOutCard.tsx",
+            "src/renderer/src/agents/StreamRow.test.tsx",
+            "src/renderer/src/agents/StreamRow.tsx",
+            "src/renderer/src/agents/TerminalPane.earlier.test.tsx",
+            "src/renderer/src/agents/TerminalPane.failures.test.tsx",
+            "src/renderer/src/agents/TerminalPane.test.tsx",
+            "src/renderer/src/agents/TerminalPane.tsx",
+            "src/renderer/src/agents/ThreadBlock.tsx",
+            "src/renderer/src/agents/ToolCallRow.test.tsx",
+            "src/renderer/src/agents/actionMarkers.test.ts",
+            "src/renderer/src/agents/actionMarkers.ts",
+            "src/renderer/src/agents/agentOutcomes.test.ts",
+            "src/renderer/src/agents/agentOutcomes.ts",
+            "src/renderer/src/agents/agentText.test.ts",
+            "src/renderer/src/agents/agentText.ts",
+            "src/renderer/src/agents/approvalModel.test.ts",
+            "src/renderer/src/agents/approvalModel.ts",
+            "src/renderer/src/agents/chatList.test.ts",
+            "src/renderer/src/agents/chatList.ts",
+            "src/renderer/src/agents/chatLookup.test.ts",
+            "src/renderer/src/agents/chatLookup.ts",
+            "src/renderer/src/agents/chatThreads.css",
+            "src/renderer/src/agents/chatView.css",
+            "src/renderer/src/agents/chatViewModel.test.ts",
+            "src/renderer/src/agents/chatViewModel.ts",
+            "src/renderer/src/agents/inertStyles.test.ts",
+            "src/renderer/src/agents/inertStyles.ts",
+            "src/renderer/src/agents/liveTerminals.test.tsx",
+            "src/renderer/src/agents/liveTerminals.ts",
+            "src/renderer/src/agents/signInContext.ts",
+            "src/renderer/src/agents/terminalInput.test.ts",
+            "src/renderer/src/agents/terminalInput.ts",
+            "src/renderer/src/agents/terminalPane.css",
+            "src/renderer/src/agents/terminalTheme.test.ts",
+            "src/renderer/src/agents/terminalTheme.ts",
+            "src/renderer/src/agents/terminalView.ts",
+            "src/renderer/src/agents/threadModel.test.ts",
+            "src/renderer/src/agents/threadModel.ts",
+            "src/renderer/src/agents/threadStream.test.ts",
+            "src/renderer/src/agents/threadStream.ts",
+            "src/renderer/src/agents/useAgentModelChoice.ts",
+            "src/renderer/src/agents/useAgentModels.ts",
+            "src/renderer/src/agents/useAgents.test.tsx",
+            "src/renderer/src/agents/useAgents.ts",
+            "src/renderer/src/agents/useBoundTerminal.ts",
+            "src/renderer/src/agents/useChatLinks.ts",
+            "src/renderer/src/agents/useChatSession.ts",
+            "src/renderer/src/agents/useChats.test.tsx",
+            "src/renderer/src/agents/useChats.ts",
+            "src/renderer/src/agents/useSignInTerminal.ts",
+            "src/renderer/src/agents/useTerminal.ts",
+            "src/renderer/src/agents/useThreadBindings.ts",
+            "src/renderer/src/agents/useThreadStream.ts",
+            "src/renderer/src/agents/xtermKit.test.ts",
+            "src/renderer/src/agents/xtermKit.ts",
+            "src/renderer/src/app/activityPoller.test.ts",
+            "src/renderer/src/app/shellActions.ts",
+            "src/renderer/src/app/useActivityTimeline.test.tsx",
+            "src/renderer/src/epic/EpicWorkspace.signedOut.test.tsx",
+            "src/renderer/src/epic/EpicWorkspace.startRun.test.tsx",
+            "src/renderer/src/epic/EpicWorkspace.tsx",
+            "src/renderer/src/epic/OrchestratorFeed.terminal.test.tsx",
+            "src/renderer/src/epic/OrchestratorFeed.test.tsx",
+            "src/renderer/src/epic/OrchestratorFeed.thread.test.tsx",
+            "src/renderer/src/epic/OrchestratorFeed.tsx",
+            "src/renderer/src/epic/StartRunDialog.test.tsx",
+            "src/renderer/src/epic/StartRunDialog.tsx",
+            "src/renderer/src/epic/__mocks__/fakeBackend.ts",
+            "src/renderer/src/epic/__mocks__/fakeOrchestration.ts",
+            "src/renderer/src/epic/__mocks__/renderWorkspace.tsx",
+            "src/renderer/src/epic/clock.test.tsx",
+            "src/renderer/src/epic/orchestration.ts",
+            "src/renderer/src/epic/orchestratorFeed.css",
+            "src/renderer/src/epic/orchestratorFeedView.test.ts",
+            "src/renderer/src/epic/useWorkspace.ts",
+            "src/renderer/src/epic/workspaceActions.redraft.test.ts",
+            "src/renderer/src/epic/workspaceActions.test.ts",
+            "src/renderer/src/epic/workspaceActions.ts",
+            "src/renderer/src/home/DefaultAgentCard.test.tsx",
+            "src/renderer/src/home/DefaultAgentCard.tsx",
+            "src/renderer/src/home/GrantsCard.form.test.tsx",
+            "src/renderer/src/jitlessZod.test.ts",
+            "src/renderer/src/jitlessZod.ts",
+            "src/renderer/src/main.tsx",
+            "src/renderer/src/sidebar/AgentsBlock.test.tsx",
+            "src/renderer/src/sidebar/AgentsBlock.tsx",
+            "src/renderer/src/sidebar/AgentsSection.test.tsx",
+            "src/renderer/src/sidebar/ChatRow.tsx",
+            "src/renderer/src/sidebar/FolderRow.test.tsx",
+            "src/renderer/src/sidebar/FolderRow.tsx",
+            "src/renderer/src/sidebar/Sidebar.test.tsx",
+            "src/renderer/src/styles.css",
+            "src/renderer/src/ticket/ActivityTab.terminal.test.tsx",
+            "src/renderer/src/ticket/ActivityTab.thread.test.tsx",
+            "src/renderer/src/ticket/ActivityTab.tsx",
+            "src/renderer/src/ticket/editorFields.test.tsx",
+            "src/renderer/src/ticket/ticket.css",
+            "src/shared/agents/chat.ts",
+            "src/shared/agents/chatApi.ts",
+            "src/shared/agents/models.test.ts",
+            "src/shared/agents/models.ts",
+            "src/shared/agents/terminalApi.ts",
+            "src/shared/desktop/api.ts",
+            "src/shared/domain/activity.ts",
+            "src/test/eventLog.test.ts",
+            "src/test/eventLog.ts",
+            "src/test/idleAgents.ts"
+          ]
+        },
+        "checks": [
+          {
+            "detail": "npm run lint at fb2c907 (DM-335 evidence)",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck at fb2c907",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npm test at fb2c907: 430 files, 7507 passed, 7 skipped; Fireguard suite 20 files, 105 passed",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run coverage at fb2c907: statements 97.48%, branches 95.27%, functions 96.36%, lines 97.58% (first run at 0b49965 failed functions/branches; fixed with tests only)",
+            "name": "coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run deadcode at fb2c907: no new dead exports",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run build at fb2c907",
+            "name": "build",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-334: grade A, score 94 (101 graded test files); coverage-fix tests: grade A, score 100 (19 files, base 0b49965)",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "Rows 1-10 recorded passing (typecheck + row tests; lint/deadcode from row 5 on)",
+            "name": "row checks",
+            "status": "passed"
+          }
+        ],
+        "epicOutcome": {
+          "successCriteria": [
+            {
+              "criterionId": "s1",
+              "met": true,
+              "note": "DM-335 c8 (one click, no dialog), c3 (canonical cwd via lsof, DM_SESSION_TOKEN in env, dm get_capabilities from inside the terminal)."
+            },
+            {
+              "criterionId": "s2",
+              "met": true,
+              "note": "DM-335 c7 (Escape/Ctrl+C/Tab, copy/paste, resize, zero CSP violations); DM-324 Cmd-key passthrough tested; theme from :root tokens."
+            },
+            {
+              "criterionId": "s3",
+              "met": true,
+              "note": "DM-335 c7 (same pid across switch, reload restores the screen), c9 (Start again resumes), c1 (quit with four live terminals leaves no process); idle stop tested in DM-326."
+            },
+            {
+              "criterionId": "s4",
+              "met": true,
+              "note": "DM-335 c6 (forged attach starts nothing), c5 (grant revoked on exit); DM-323 strict attach and port, spawn spec equals main's own records."
+            },
+            {
+              "criterionId": "s5",
+              "met": true,
+              "note": "DM-335 c11 (orchestrator terminal with kickoff), c10 (in-window sign-in), c12 (old chat with Earlier conversation and resume)."
+            },
+            {
+              "criterionId": "s6",
+              "met": true,
+              "note": "DM-335 c13 (adapters, approval cards, SDK gone), c14 (custom CLI review migration), c15 (docs)."
+            },
+            {
+              "criterionId": "s7",
+              "met": true,
+              "note": "macOS verified live on built and packaged app (DM-335 c2); Windows paths unit-tested (DM-318, DM-320, DM-321); DM-333 optional and did not gate."
+            }
+          ],
+          "summary": "Chats are now terminals. New chat opens the folder's agent CLI in an in-app terminal with one click, and every chat behavior runs through the terminal: resume, sign-in, the orchestrator, and old chats. The protocol adapters are removed. Verified live on macOS, built and packaged; Windows is covered by unit tests only."
+        },
+        "exitCriteria": [
+          {
+            "criterionId": "x1",
+            "met": true,
+            "note": "DM-335 c1-c3, c5-c9 and c2 (packaged arm64): one-click New chat opens the Claude Code terminal with canonical cwd and grant; switch/reload/Start again/quit verified live."
+          },
+          {
+            "criterionId": "x2",
+            "met": true,
+            "note": "DM-335 c10 (in-window sign-in), c11 (orchestrator terminal with kickoff), c12 (old chat as terminal with Earlier conversation and resume)."
+          },
+          {
+            "criterionId": "x3",
+            "met": true,
+            "note": "DM-335 c13 (no adapter/SDK references; SDK absent from the lockfile) and c14 (ACP row flagged for review, Claude row starts)."
+          },
+          {
+            "criterionId": "x4",
+            "met": true,
+            "note": "All 16 required work tickets accepted; Fireguard A/94 (+A/100 for coverage-fix tests); DoD passed at fb2c907."
+          }
+        ],
+        "failed": [],
+        "followUps": [
+          {
+            "body": "Optional ticket left unrun in this sprint: packaged Windows x64 build, ConPTY, .cmd shims, taskkill, CSP log, useConptyDll decision.",
+            "title": "Run the Windows terminal verification (DM-333) on a Windows host"
+          }
+        ],
+        "retro": {
+          "actions": [
+            "Run coverage, not just targeted tests, in each row check from the middle of a sprint, so a threshold drop surfaces before the acceptance round.",
+            "When a ticket adds tests that could run on Windows or Linux CI, state each platform's expected behaviour in its body.",
+            "Size wide deletions (like DM-330) as large, or split them into main and renderer tickets.",
+            "Tell workers to use absolute worktree paths for every edit; the brief has said so since DM-329."
+          ],
+          "delivered": [
+            {
+              "demo": "Build terminal-chats, track a folder with Claude Code connected, press + on its Agents group: a terminal opens running Claude Code in the folder.",
+              "evidence": "DM-335 c8 screenshot /tmp/dm335-evidence/core/c8-new-chat-one-click.png; docs/verification/DM-325-01-one-click-new-chat.png",
+              "ticket": "tk_01m68tv9x8yd5ytsjzga9q4rej"
+            },
+            {
+              "demo": "Open two chats and switch between them; reload the window (Cmd+R): each terminal keeps its process and screen.",
+              "evidence": "docs/verification/DM-324-01..11; DM-335 c7",
+              "ticket": "tk_01m68tv9x8trmgz7k6vz6j2zxg"
+            },
+            {
+              "demo": "In a Claude chat type /exit, then press Start again: the conversation continues.",
+              "evidence": "DM-335 c9 screenshots; terminalSessions.lifecycle.test.ts",
+              "ticket": "tk_01m68tv9x8bzd5120s7jnw288c"
+            },
+            {
+              "demo": "Agent page > Sign in opens the CLI login in a terminal in the window; Back closes it.",
+              "evidence": "docs/verification/DM-327-01/02; DM-335 c10",
+              "ticket": "tk_01m68tv9x8y36qa2yn377asb8p"
+            },
+            {
+              "demo": "Start run on an epic opens Orchestrator · <epic> as a terminal that receives the kickoff.",
+              "evidence": "docs/verification/DM-328-01..04; DM-335 c11",
+              "ticket": "tk_01m68tv9x8gd4hs117ksemxn2a"
+            },
+            {
+              "demo": "Open a chat created before this change: Earlier conversation shows its old transcript above the resumed terminal.",
+              "evidence": "docs/verification/DM-329-01..05; DM-335 c12",
+              "ticket": "tk_01m68tv9x8a466zehy9vs01ebv"
+            },
+            {
+              "demo": "Ask Claude in a chat terminal to write into its memory folder: Claude asks first.",
+              "evidence": "DM-335 c4 screenshot; claudeMemoryGuard tests",
+              "ticket": "tk_01m68tv9x8tvnn82xcqmpbg6js"
+            },
+            {
+              "demo": "Upgrade a profile with an ACP custom CLI: its agent page shows Review arguments and its chats refuse to start until reviewed.",
+              "evidence": "docs/verification/DM-331-*; DM-335 c14",
+              "ticket": "tk_01m68tv9x849h8v3qse7cce81a"
+            },
+            {
+              "demo": "rg for agents/adapters or claude-agent-sdk in src finds nothing.",
+              "evidence": "DM-335 c13; chatIpc.test.ts channel set",
+              "ticket": "tk_01m68tv9x86hsnj5yfcz065037"
+            },
+            {
+              "demo": "npm run package:mac, start the arm64 app, open a chat: the PTY helper runs from app.asar.unpacked.",
+              "evidence": "docs/verification/DM-319-01-packaged-smoke.log; DM-335 c2",
+              "ticket": "tk_01m68tv9x8sfdxh618cw46ns1m"
+            },
+            {
+              "demo": "npx vitest run src/main/terminals/ptyHost.real.test.ts on macOS.",
+              "evidence": "ptyHost.real.test.ts; processTreePty.test.ts",
+              "ticket": "tk_01m68tv9x1bay77zhr4p3qyqej"
+            },
+            {
+              "demo": "Read terminalLaunchSpec.test.ts table: every kind x new/resumed x platform.",
+              "evidence": "terminalLaunchSpec.test.ts, windowsCommandLine.test.ts",
+              "ticket": "tk_01m68tv9x8kq9wvw94trd5fqrz"
+            },
+            {
+              "demo": "Read terminalSessions*.test.ts (start-once, grants, quit).",
+              "evidence": "terminalSessions.test.ts, .quit.test.ts, .folder.test.ts",
+              "ticket": "tk_01m68tv9x8v7dh0j2ar74e5qyf"
+            },
+            {
+              "demo": "From DevTools, window.dm.terminals.attach with a made-up chat id starts nothing.",
+              "evidence": "terminalHandlers*.test.ts; DM-335 c6",
+              "ticket": "tk_01m68tv9x8tbrvs1et49hwfs25"
+            },
+            {
+              "demo": "Read docs/architecture.md \"Terminals\" and docs/runbooks/agents.md \"Known limitations\".",
+              "evidence": "DM-335 c15",
+              "ticket": "tk_01m68tv9x8fv21pjx5a9mz53x5"
+            }
+          ],
+          "discoveries": [
+            {
+              "body": "terminalSessions.ts never passes `dropped` (an unsafe model or resume id) to the attach answer, so the pane cannot show the notice the design asks for.",
+              "ticket": "tk_01m68tv9x8trmgz7k6vz6j2zxg",
+              "title": "Pass the launch spec's dropped values to the terminal pane"
+            },
+            {
+              "body": "After a renderer reload the sidebar dot shows only chats attached since the reload; main has no way to list live terminals.",
+              "ticket": "tk_01m68tv9x8trmgz7k6vz6j2zxg",
+              "title": "Tell the renderer which chats have a live PTY after a reload"
+            },
+            {
+              "body": "A run binds to its chat by grant only once that chat calls start_run, so until then the Orchestrator feed has no Open terminal link (grantBindings.ts uses timeline sessions only).",
+              "ticket": "tk_01m68tv9x8a466zehy9vs01ebv",
+              "title": "Bind an orchestrator terminal chat to its run by runId"
+            },
+            {
+              "body": "useTerminal.ts treats any non-zero exit of a resumed start as possibly refused; main knows when an attach's own start exited before answering (attachEnded) and could pass that through.",
+              "ticket": "tk_01m68tv9x8a466zehy9vs01ebv",
+              "title": "Detect a refused Claude resume precisely"
+            },
+            {
+              "body": "Claude Code 2.1.316 has a per-hook onFailure: block setting that closes the remaining fail-open cases (launcher cannot start, timeout, polluted output) and the Windows exec-form gap; 2.1.291 lacks it, so a version check is needed.",
+              "ticket": "tk_01m68tv9x8tvnn82xcqmpbg6js",
+              "title": "Block writes when Claude's memory hook fails, on Claude Code versions that support it"
+            },
+            {
+              "body": "PtyHost has no pause/resume; a CLI printing past xterm's 50 MB backlog has output dropped from the screen and from listeners (terminalScreen.ts drops instead of throwing).",
+              "ticket": "tk_01m68tv9x8v7dh0j2ar74e5qyf",
+              "title": "Add flow control between the PTY and the headless screen"
+            },
+            {
+              "body": "Launched from an agent shell, CI, CLAUDECODE and OMP* reach chat terminals because the PTY env is main's env minus ELECTRON_*/NODE_OPTIONS (seen in the DM-335 live run).",
+              "ticket": "tk_01m68tv9x8g0s4tjqdkx5b8gax",
+              "title": "Scrub agent-harness markers from the terminal environment"
+            },
+            {
+              "body": "Pre-existing on main: chatGrants.test.ts and launchFolder.test.ts fail on windows-latest because tmpdir() is C:\\Users\\RUNNER~1 while the canonical path is the long form (comment on DM-318).",
+              "ticket": "tk_01m68tv9x1bay77zhr4p3qyqej",
+              "title": "Fix the Windows pr-checks job failing on 8.3 short temp paths"
+            },
+            {
+              "body": "An interrupted Fireguard run left a mutant in src/main/terminals/loginTerminals.ts, and the next run then failed the flake gate (DM-334).",
+              "ticket": "tk_01m68tv9x88htns1rzc4tg593j",
+              "title": "Make Fireguard restore a mutated file when it is interrupted"
+            }
+          ],
+          "leftovers": [],
+          "tierFit": [
+            {
+              "note": "Accepted on its first attempt at the planned tier and effort.",
+              "ticket": "tk_01m68tv9x8sfdxh618cw46ns1m",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Accepted on its first attempt (resubmitted through reconcile after an orchestrator heartbeat defect, not a capability problem).",
+              "ticket": "tk_01m68tv9x8kq9wvw94trd5fqrz",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Accepted on its first attempt.",
+              "ticket": "tk_01m68tv9x8tvnn82xcqmpbg6js",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Accepted on its first attempt.",
+              "ticket": "tk_01m68tv9x8tbrvs1et49hwfs25",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Accepted on its first attempt.",
+              "ticket": "tk_01m68tv9x8bzd5120s7jnw288c",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Accepted on its first attempt.",
+              "ticket": "tk_01m68tv9x8y36qa2yn377asb8p",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Accepted on its first attempt.",
+              "ticket": "tk_01m68tv9x8gd4hs117ksemxn2a",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Accepted on its first attempt.",
+              "ticket": "tk_01m68tv9x849h8v3qse7cce81a",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Accepted on its first attempt.",
+              "ticket": "tk_01m68tv9x8fv21pjx5a9mz53x5",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Accepted on its first attempt.",
+              "ticket": "tk_01m68tv9x88htns1rzc4tg593j",
+              "verdict": "right_sized"
+            }
+          ],
+          "wentPoorly": [
+            "The orchestrator's heartbeat daemon sent a malformed progress field, so DM-320's lease expired mid-work. The finished work was resubmitted through reconcile.",
+            "DM-318 was rejected because tests broke on Windows CI. The ticket said to skip on Linux only. That's a planning gap: the ticket text didn't cover Windows CI.",
+            "DM-324 needed a second attempt. The quit \"hang\" turned out to be the attached inspector client; Cmd+W and Cmd+Q could not be pressed from a background session.",
+            "DM-325 was rejected for a missing double-click guard. The old dialog had prevented double clicks, and the ticket didn't carry that over.",
+            "Coverage dropped below the function and branch thresholds. This was only found in the acceptance round, and fixing it needed a separate tests-only change plus a Fireguard re-grade.",
+            "Workers edited the coordinating checkout three times through relative paths. Each time they reverted it themselves.",
+            "Fireguard left a mutated source file behind when a run was interrupted mid-mutation (DM-334).",
+            "DM-330 hit a worker request budget halfway through and needed a second worker to finish the renderer.",
+            "Merges between parallel tickets conflicted (DM-321/DM-326, DM-327/DM-325, DM-328) and needed dedicated integration passes."
+          ],
+          "wentWell": [
+            "Independent reviewers with mutation checks caught three vacuous or missing tests before acceptance (DM-322 agent removal, DM-329 wrong-chat link, DM-318 Windows CI exposure).",
+            "Live checks on the built app found real defects the unit tests missed: paste timing for Autonomous (DM-328), and a restart loop on a refused resume (DM-326).",
+            "The acceptance round split into DoD, live-core and upgrade/packaged agents ran in parallel and verified all 17 criteria with screenshots.",
+            "Fireguard graded the sprint A/94 on 101 test files; the AST gate caught three helper-only assertion tests that were rewritten."
+          ]
+        },
+        "risks": [
+          "Windows is unverified live: ConPTY, .cmd shims, taskkill trees, the packaged Windows build and the Claude hook exec form (optional DM-333 did not run).",
+          "Codex and Cursor terminal flags are inference only (not installed here).",
+          "The Claude memory hook can still fail open when its launcher cannot start, times out or its output is polluted; Claude Code 2.1.316 offers onFailure: block (needs a version check).",
+          "Coverage now clears its thresholds narrowly (branches +0.27, functions +0.36 points).",
+          "Claude Code 2.1.316 saves `/model` choices into the person's ~/.claude/settings.json (seen in acceptance; reverted).",
+          "Harness environment variables (CI, CLAUDECODE, OMP*) reach chat terminals when the app is launched from an agent shell: the PTY env is main's env minus ELECTRON_*/NODE_OPTIONS.",
+          "A physical Cmd+W/Cmd+Q press was not exercised (no Accessibility from automation); the native actions and the xterm passthrough were.",
+          "node-pty runs in the main process: a native crash would take main down."
+        ],
+        "summary": "The sprint met its goal on macOS. One click on New chat opens a terminal in the app's main window. The terminal runs in the folder's canonical path and runs the folder's agent CLI, with a per-chat `dm` grant (verified live with Claude Code and in the packaged arm64 app).\n\nChats are terminals end to end:\n- switching chats and reloading keep the process and restore the screen;\n- Start again resumes Claude sessions, including chats created before the change;\n- quiet terminals are idle-stopped;\n- sign-in runs in a terminal in the window;\n- Start run opens an orchestrator terminal that receives its kickoff;\n- quitting leaves no process behind.\n\nThe protocol adapters, approval and streaming code and the Claude Agent SDK are gone. Custom CLIs no longer have a protocol, and existing ACP and Codex rows are migrated to a review state. All 16 required tickets and the acceptance node are accepted.\n\nThe Definition of Done passed. The first coverage run failed (functions 95.54%, branches 94.42%) and was fixed with tests only. Fireguard graded the sprint A/94 and the added tests A/100. The optional Windows ticket DM-333 did not run, because this Mac host cannot meet its windows environment."
+      },
+      "contentHash": "sha256:65e10520f4d9a8ed37bdaee88e6b20319a5a01a08a8daf4050c2108cd61d2cbe",
+      "createdAt": "2026-11-01T00:28:13.879Z",
+      "id": "rp_01m6a83g5qe0ccvrraqswcwh7w",
+      "reportRevision": 1,
+      "sprintId": "sp_01m5jz275zxpve9s276gzaw4s0",
+      "submittedBy": "Claude Code"
+    }
+  ],
   "revisionId": "rv_01m68tv9xwk534yz9ytfy3ntqx",
   "rowChecks": [
     {
@@ -3585,11 +4677,32 @@
       "recordedBy": "Claude Code",
       "row": 9,
       "sprintId": "sp_01m5jz275zxpve9s276gzaw4s0"
+    },
+    {
+      "checks": [
+        {
+          "detail": "npm run typecheck after merging DM-334",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "npx vitest run orchestratorKickoff.test.ts customAgent.test.ts: 2 files, 103 passed",
+          "name": "row tests",
+          "status": "passed"
+        }
+      ],
+      "commit": "0b49965a9f82330afa8be08653399a36eb617f84",
+      "createdAt": "2026-10-31T23:50:09.487Z",
+      "id": "rk_01m6a5xsafkpz2r7zgbxct1dpj",
+      "number": 10,
+      "recordedBy": "Claude Code",
+      "row": 10,
+      "sprintId": "sp_01m5jz275zxpve9s276gzaw4s0"
     }
   ],
   "runId": "rn_01m68v19ear6t1x6qka2n552sc",
   "skillVersion": "1.5.2",
   "startedAt": "2026-10-31T11:20:35.530Z",
-  "state": "running",
-  "updatedAt": "2026-10-31T11:20:35.530Z"
+  "state": "completed",
+  "updatedAt": "2026-11-01T04:07:33.840Z"
 }

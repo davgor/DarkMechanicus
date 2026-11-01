@@ -1,5 +1,5 @@
 {
-  "activeSprintId": "sp_01m43st80ktpktzfr1x9t6bty4",
+  "activeSprintId": "sp_01m43szh7yqbne13wtgk6sg7vm",
   "attempts": [
     {
       "createdAt": "2026-10-06T21:14:34.059Z",
@@ -3258,23 +3258,190 @@
     },
     {
       "createdAt": "2026-10-31T22:30:32.926Z",
-      "decidedAt": null,
-      "decision": null,
-      "evidence": null,
+      "decidedAt": "2026-10-31T23:14:21.806Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Revision 4 attempt. Reviewed 265b793..dcac892; worker's adversarial reviewer found no high/medium issues; 7 low ones fixed. Note: GH_CONFIG_DIR alone does not log gh out on macOS (keychain) — e2e 'not logged in' uses the wrapper /tmp/sc-epic/scratch/DM-141/wrapbin/gh. Accepted.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npx vitest run src/main/github src/preload src/renderer/src/__mocks__/fakeGithub.test.ts src/renderer/src/api/github.test.ts src/renderer/src/github src/renderer/src/sidebar/SidebarFooter.test.tsx src/renderer/src/App.footer.test.tsx src/renderer/src/source: 30 files, 298 tests passed",
+            "name": "unit tests (touched)",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit a91faf3 holds only tests; run against the old code, ghCli/handlers failed to load and 12 other tests failed (errors, ipc, preload contract, FakeGithub, SignInDialog). The red-team follow-up tests (env drop, longest-first scrub, glued token, fake signOut, Close) failed before their fixes. Mutation checks: removing the process-group kill fails the group-kill test, and an unconditional clear of the running attempt fails the superseded-attempt test.",
+            "name": "tests written first",
+            "status": "passed"
+          },
+          {
+            "detail": "npx oxlint <all .ts/.tsx changed since 265b793>: exit 0, no findings (a probe file confirmed oxlint reports errors)",
+            "name": "lint (oxlint on touched files)",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck: exit 0",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run deadcode: No new dead exports found",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run build ok. Each run used window.github.signIn() via page.evaluate in its own temp --user-data-dir, with GH_TOKEN/GITHUB_TOKEN unset and PATH=/usr/bin:/bin, so gh is found only through the /opt/homebrew/bin fallback. (1) Real gh login: ok, login davgor; the account file holds version/login/name/scopes/token with scopes 'gist, read:org, repo, workflow' and no plain token prefix; signOut deleted the file. (2) GH_CONFIG_DIR=<empty dir>: ok, login davgor. gh 2.88.1 still prints the keychain token with an empty config dir; checked directly with `gh auth token` (exit 0, 41 bytes, not printed) while `gh auth status` says not logged in. (3) Real gh made login-less by a PATH wrapper (empty GH_CONFIG_DIR and HOME for gh only): gh_not_signed_in with a detail. signOut ok in every run. Afterwards `gh auth status` still exits 0, so the gh login is untouched. The smoke output contains no token prefix (grep count 0).",
+            "name": "build + built-app smoke (isolated profiles)",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node per epic rules",
+            "name": "full suite / fireguard / coverage",
+            "status": "skipped"
+          },
+          {
+            "detail": "npx vitest run src/main/github/ipc.test.ts src/preload/index.test.ts: 6 passed; oxlint on both files clean; tsc -p tsconfig.node.json clean",
+            "name": "follow-up: ipc + preload contract tests",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "ghCli.ts: gh found without a shell on absolute PATH entries then GUI fallbacks (/opt/homebrew/bin, /usr/local/bin; Windows gh.exe only), run with prompts/update checks/token env off, no TTY, 15 s timeout with group kill; signIn checks GET /user and the repo scope; codes gh_not_installed, gh_not_signed_in, gh_missing_scope, auth_failed, network_unreachable, cancelled; concurrent calls share one promise. Orchestrator re-ran src/main/github + sync + renderer + preload: 2587 passed. Built-app smoke: real gh → @davgor; no-login wrapper → gh_not_signed_in."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "accountStore unchanged: safeStorage-encrypted file, refusal when unavailable; signOut stops a running sign-in and deletes only github-account.json; `gh auth status` still passes after sign-out (smoke)."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Fake-token searches over results, broadcasts, logs and error details; gh stderr scrubbed (stdout words longest first + token-shaped strings); token never in argv."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "createSessionClient 401 → local sign-out for the still-stored token, auth_required (kept from attempt 1)."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "deviceFlow.ts, config.ts, startSignIn/cancelSignIn channels and onSignInFailed removed with tests; `git grep` finds no caller; source-text preload test replaced by the behavioural preload contract test (dcac892)."
+          },
+          {
+            "criterionId": "c6",
+            "met": true,
+            "note": "Tests first (a91faf3); typecheck clean (orchestrator); oxlint, deadcode pass (worker)."
+          }
+        ],
+        "notes": "Red-team: a reviewer subagent was asked to refute the diff. It found no high or medium issues. Fixed: (a) the dialog's 'Cancel' did not cancel; with no cancel channel the button is now 'Close' and documented, and DM-142 owns the UI; (b) stdout-word scrubbing in input order could leave a token tail, so words are now scrubbed longest first (tested); (c) the \\b in the token-like regex missed glued tokens, now dropped (tested); (d) the kill tests did not prove the kill, so a group-kill test now checks that a grandchild helper dies (mutation-checked); (e) the guard that keeps an aborted attempt from clearing a newer one had no test, now added (mutation-checked); (f) FakeGithub.signOut now ends a pending signIn with cancelled like main; (g) GH_TOKEN/GITHUB_TOKEN/enterprise tokens are dropped from gh's env, so only the stored gh login is imported, not a shell's temporary token; (h) the gh_not_signed_in message also mentions gh older than 2.17 (no `auth token`); (i) a stale device-code comment was removed from http.ts. Debug and TTY env is dropped in any case. Consciously accepted: fine-grained PATs and app tokens carry no X-OAuth-Scopes and get gh_missing_scope (the spec requires repo); unused POST/body/signal options stay in http.ts (kept per ticket for later calls); on Windows only gh.exe is killed, not a tree (gh reads credentials in-process). Attacked and survived: PATH injection (relative, empty, quoted entries), gh as a directory or non-executable, Windows .cmd (never run), the token in argv/env/logs/results/broadcasts/detail, the stderr cap and tail slice (scrubbed before slicing), a synchronous spawn throw (caught), settle-before-listener ordering, pid reuse (the kill runs only before settle), concurrent signIn, signOut mid-attempt (abort check right before the synchronous store), scope parsing (exact 'repo'), and a 401 at sign-in versus the stored account. Environment note for the acceptance node: on this machine (gh 2.88.1, keyring) GH_CONFIG_DIR=<empty dir> does NOT produce a logged-out gh. `gh auth token` still prints the keychain token (gh auth status says not logged in), so the 'empty config' smoke signed in as davgor. A logged-out state needs HOME emptied for gh too. Setting HOME on the whole Electron app hung it, most likely on keychain access for safeStorage [INFERENCE]. So the smoke used a PATH wrapper that gives only gh an empty HOME and config dir. Discoveries: (1) DM-142 should decide whether the dialog's close should abort the main-side attempt (that needs a new channel or a signOut-like abort). (2) The worker-context recipe for a 'not logged in' gh (empty GH_CONFIG_DIR) does not work with gh ≥ 2.8x keyring storage; later e2e tickets should use the wrapper approach (/tmp/sc-epic/scratch/DM-141/wrapbin/gh)."
+      },
       "failure": null,
       "fencingToken": 2,
       "id": "at_01m6a1c0pynbgv1jx116yzvtpx",
       "kind": "work",
       "number": 2,
-      "outputs": null,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "gh CLI lookup + token read",
+            "location": "src/main/github/ghCli.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "sign-in handlers",
+            "location": "src/main/github/handlers.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "gh CLI tests",
+            "location": "src/main/github/ghCli.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "handler tests (token search)",
+            "location": "src/main/github/handlers.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "built-app smoke script",
+            "location": "/tmp/sc-epic/scratch/DM-141/smoke.mjs",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "built-app smoke output (codes/logins only, no token)",
+            "location": "/tmp/sc-epic/logs/DM-141-smoke.json",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "source-control-DM-141-gh",
+        "changedFiles": [
+          "src/main/desktop/bootstrap.ts",
+          "src/main/github/config.test.ts",
+          "src/main/github/config.ts",
+          "src/main/github/deviceFlow.test.ts",
+          "src/main/github/deviceFlow.ts",
+          "src/main/github/errors.test.ts",
+          "src/main/github/errors.ts",
+          "src/main/github/ghCli.test.ts",
+          "src/main/github/ghCli.ts",
+          "src/main/github/handlers.test.ts",
+          "src/main/github/handlers.ts",
+          "src/main/github/http.ts",
+          "src/main/github/ipc.test.ts",
+          "src/main/github/ipc.ts",
+          "src/preload/index.test.ts",
+          "src/preload/index.ts",
+          "src/renderer/src/App.footer.test.tsx",
+          "src/renderer/src/App.tsx",
+          "src/renderer/src/__mocks__/fakeGithub.test.ts",
+          "src/renderer/src/__mocks__/fakeGithub.ts",
+          "src/renderer/src/__mocks__/githubKit.tsx",
+          "src/renderer/src/api/github.test.ts",
+          "src/renderer/src/github/GithubAccount.test.tsx",
+          "src/renderer/src/github/GithubAccount.tsx",
+          "src/renderer/src/github/SignInDialog.test.tsx",
+          "src/renderer/src/github/SignInDialog.tsx",
+          "src/renderer/src/github/useGithubAccount.test.tsx",
+          "src/renderer/src/sidebar/SidebarFooter.test.tsx",
+          "src/renderer/src/source/ChangesPanel.test.tsx",
+          "src/renderer/src/source/ConflictsPanel.edge.test.tsx",
+          "src/renderer/src/source/ConflictsPanel.test.tsx",
+          "src/renderer/src/source/HistoryPanel.test.tsx",
+          "src/renderer/src/source/SourceControlView.test.tsx",
+          "src/renderer/src/source/StashedChanges.test.tsx",
+          "src/renderer/src/styles.css",
+          "src/shared/github/api.ts",
+          "src/shared/github/errors.ts"
+        ],
+        "commits": [
+          "a91faf326ebc9c8cd09101853c22824f958ac266",
+          "d532b8a01e7f4fe3077dce1790b621da81cc6b70",
+          "64fc0321aa83fc67b05684d50ee3c6005cae12c0",
+          "dcac892bb5b7d39c2419b1496be0e40d24d17826"
+        ],
+        "summary": "Sign-in now imports this machine's GitHub CLI login. src/main/github/ghCli.ts finds gh without a shell: absolute PATH entries only, then fallback folders (/opt/homebrew/bin and /usr/local/bin on macOS, /usr/bin and /snap/bin on Linux, %ProgramFiles%\\GitHub CLI and %LOCALAPPDATA%\\Programs\\GitHub CLI on Windows). On Windows it looks only for gh.exe; a file must be an executable regular file. It runs `gh auth token --hostname github.com` with GH_PROMPT_DISABLED=1, GH_NO_UPDATE_NOTIFIER=1, stdin ignored and piped output (no TTY), detached (own process group and session), a 15 s timeout and abort. A timeout or abort SIGKILLs the whole process group. It drops GH_TOKEN/GITHUB_TOKEN/enterprise-token, GH_FORCE_TTY and GH_DEBUG env (any case) from gh's env. It returns the trimmed token, which must be one printable non-space ASCII run. Failure codes: gh_not_installed, gh_not_signed_in (with a scrubbed stderr tail as detail), and cancelled (timeout or abort). handlers.signIn: refuses with secure_storage_unavailable before running gh. Otherwise it reads the token, calls GET /user through the existing createGithubClient, and requires `repo` as an exact entry in X-OAuth-Scopes (else gh_missing_scope, whose message names `gh auth refresh -h github.com -s repo,workflow`). A 401 is auth_failed, a network failure network_unreachable. On success it stores the account encrypted (the existing accountStore, scopes kept) and broadcasts github:accountChanged. Concurrent calls share one promise. signOut aborts a running attempt, which then ends cancelled and stores nothing, and it deletes only userData/github-account.json. Removed: deviceFlow.ts, config.ts and their tests, the startSignIn/cancelSignIn channels, the github:signInFailed broadcast, GithubSignInCode/GithubSignInFailure and the sign_in_* codes. The new GithubApi (getAccount/signIn/signOut/onAccountChanged) runs through preload, ipc.ts, FakeGithub (signIn stays pending until finishSignIn unless signInResult is set; changeAccount replaces completeSignIn) and renderer tests. SignInDialog.tsx got the minimal change: it calls signIn() on open, shows a spinner, closes on success and shows main's message with Try again on failure. Its button is now 'Close', because there is no cancel channel (DM-142 reworks the dialog). The device-flow-only CSS and the provider's now-unused `scheduler` prop were removed, and App plus 7 test wrappers updated. Kept unchanged: session.ts, client.ts (createSessionClient: a 401 signs out only while the token is still stored, then returns auth_required), accountStore.ts, and bootstrap's github bridge used by DM-143."
+      },
       "reconciledAt": null,
       "revisionId": "rv_01m69rzt5jabxh2gd9wb46ygw7",
-      "state": "running",
-      "submittedAt": null,
+      "state": "accepted",
+      "submittedAt": "2026-10-31T23:14:21.771Z",
       "supersededAt": null,
       "ticketContentHash": "sha256:640259178193ed93b8eb25f1b39caa37b380d7a9526c6b23c98e120d35f68878",
       "ticketId": "tk_01m43st80p3n2992va52fjx8h1",
-      "updatedAt": "2026-10-31T22:37:15.290Z",
+      "updatedAt": "2026-10-31T23:14:21.806Z",
       "worker": {
         "catalogRevision": "hc_01m683v6zpwtyanf40hj5gg7wd",
         "effort": "high",
@@ -3282,6 +3449,486 @@
         "label": "omp task subagent (DM-141)",
         "modelId": "claude-opus-5-5",
         "rationale": "Run's host catalog (hc_01m49h2h…, Windows) was never imported, so match_capabilities returns not_found and the claim skips catalog checks. omp cannot select a worker model; its task subagents run claude-opus-5-5. Effort high, the ticket's planned effort (deep: long-lived credential). Lease 4h; orchestrator heartbeats for the worker. Attempt for revision 4 (gh CLI login replaces the device flow); not an escalation.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T23:15:43.902Z",
+      "decidedAt": "2026-10-31T23:23:35.476Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Revision 4 attempt. Reviewed 5d596a1..f5f9583. Known limit: closing the dialog does not stop a running sign-in in main (late success signs in, no toast). Accepted.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "commit 52902c6 adds SignInDialog.test.tsx; run against the old dialog: 12 failed / 12",
+            "name": "tests first",
+            "status": "passed"
+          },
+          {
+            "detail": "npx vitest run src/renderer/src/github src/renderer/src/sidebar src/renderer/src/App.footer.test.tsx: 237 passed",
+            "name": "unit tests (touched)",
+            "status": "passed"
+          },
+          {
+            "detail": "npx oxlint src/renderer/src/github src/renderer/src/sidebar/SidebarFooter.test.tsx: no findings",
+            "name": "lint (touched)",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck: no errors",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run build (for screenshots)",
+            "name": "build",
+            "status": "passed"
+          },
+          {
+            "detail": "no exports added/removed",
+            "name": "deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "full suite / fireguard",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "SidebarFooter tests both states and menu actions; screenshots DM-142-footer-signed-out.png and DM-142-footer-signed-in.png (@davgor) viewed."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "SignInDialog tests (red first, 12/12 failed on old dialog): one 'Use my GitHub CLI login' button, waiting state, no double press, success toast, gh_not_installed link, gh_not_signed_in / gh_missing_scope fix commands with Copy, Try again, Cancel."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "GithubAccount tests: SignInPrompt opens the same dialog; accountChanged updates every mounted view."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Built app, isolated profile: signed-out footer, footer signed in as @davgor after a real gh-login import (signed out after; leftover temp profile deleted), dialog with the gh auth login fix via the no-login gh wrapper. Orchestrator viewed all three."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Tests first (52902c6); orchestrator re-ran src/renderer/src/{github,sidebar} + App.footer: 237 passed; worker: oxlint, typecheck."
+          }
+        ],
+        "notes": "A first screenshot run timed out on the account-menu selector before signing out, leaving one temp profile with the encrypted token; I deleted that profile dir (${TMPDIR}/dm-profile-YkrUhv) and the rerun signed out properly. Red-team: double press (disabled button + running ref, also covers Enter/keyboard), rejected signIn promise (generic failure, not stuck), late answer after close (dropped; account still arrives by broadcast, no toast), reopen during a pending main sign-in (main/fake hand back the pending promise), unknown codes like cancelled/github_failed (show main's message, no command). Discoveries: none beyond DM-141's open item (no channel to cancel a running sign-in from the dialog)."
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m6a3yr4y15gsfketsjeazfbn",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "sign-in dialog",
+            "location": "src/renderer/src/github/SignInDialog.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "dialog tests",
+            "location": "src/renderer/src/github/SignInDialog.test.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "screenshot: footer signed out",
+            "location": "docs/verification/DM-142-footer-signed-out.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "screenshot: footer signed in as @davgor after real gh sign-in",
+            "location": "docs/verification/DM-142-footer-signed-in.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "screenshot: dialog with gh auth login fix",
+            "location": "docs/verification/DM-142-sign-in-dialog-gh-auth-login.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "screenshot script",
+            "location": "/tmp/sc-epic/scratch/DM-142-shots.mjs",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "source-control-DM-142-gh",
+        "changedFiles": [
+          "src/renderer/src/github/SignInDialog.tsx",
+          "src/renderer/src/github/SignInDialog.test.tsx",
+          "src/renderer/src/github/GithubAccount.test.tsx",
+          "src/renderer/src/sidebar/SidebarFooter.test.tsx",
+          "src/renderer/src/styles.css",
+          "docs/verification/DM-142-footer-signed-in.png",
+          "docs/verification/DM-142-sign-in-dialog-gh-auth-login.png",
+          "docs/verification/DM-142-sign-in-dialog-misconfigured.png (deleted)"
+        ],
+        "commits": [
+          "52902c6f0256d8d578fcd21a31fc42b663f7af1c",
+          "38329c6012d2533514dc6dff59c986cb1c047c7f",
+          "f5f9583f7a0eb2b2f5326f1bfbe3e3827d039526"
+        ],
+        "summary": "Reworked SignInDialog to the revised body: explanation of the GitHub CLI login and one primary button 'Use my GitHub CLI login' (calls window.github.signIn only when pressed; busy/disabled + ref guard so it can't run twice, spinner 'Signing in with the GitHub CLI login…'). Success closes and the provider toasts 'Signed in as @login'. Failures render in role=alert with the primary button turning into 'Try again': gh_not_installed -> \"GitHub CLI isn't installed.\" + 'Get the GitHub CLI' (dm.openExternal https://cli.github.com); gh_not_signed_in -> main's message + `gh auth login` + Copy (dm.copyText); gh_missing_scope -> message + `gh auth refresh -h github.com -s repo,workflow` + Copy; other codes -> main's message. Cancel closes. Closing during a sign-in does not stop it in main (no channel, as DM-141 noted); the dialog drops the late answer, a late success still broadcasts and the footer shows the account (no toast). Footer/provider/prompt (c1, c3) code was already on the new API from DM-141; their two tests that expected sign-in on open now assert the dialog opens with the button and no signIn call. Replaced attempt 1's misconfigured screenshot."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m69rzt5jabxh2gd9wb46ygw7",
+      "state": "accepted",
+      "submittedAt": "2026-10-31T23:23:35.432Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:7f754321e9a9f80ee88e3999ac0e860346040d221c0026398c165570df0ae5d6",
+      "ticketId": "tk_01m43st80paqp9q9mynnv0cz6g",
+      "updatedAt": "2026-10-31T23:23:35.476Z",
+      "worker": {
+        "catalogRevision": "hc_01m683v6zpwtyanf40hj5gg7wd",
+        "effort": "medium",
+        "hostId": "omp-mac-davidgorden",
+        "label": "omp task subagent (DM-142)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Run's host catalog (hc_01m49h2h…, Windows) was never imported, so match_capabilities returns not_found and the claim skips catalog checks. omp cannot select a worker model; its task subagents run claude-opus-5-5. Effort recorded as the ticket's planned effort. Lease 4h; orchestrator heartbeats for the worker. Attempt for revision 4 (dialog reworked for the gh CLI login); not an escalation.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-31T23:25:21.091Z",
+      "decidedAt": "2026-11-01T02:53:28.180Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Attempt 2 under revision 4. Orchestrator reviewed the evidence: viewed signed-in/signed-out footer, gh-auth-login dialog, push-rejected-pull, conflict screenshots; read DM-140-merge.log (merge commit, resolved contents, clean status) and the 200x loop log (200/200, load 11.8–24.1); token-pattern scan of docs/verification/sprint2-acceptance found nothing. DoD all six pass at f8b0b49; Fireguard after DM-148: A 93. Increment 3dcbb97 verified by the server (one parent, after 5a5a03c, squashed: none of 34 work commits reachable).",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npm run lint (oxlint src scripts) exit 0 at f8b0b49 (/tmp/sc-epic/logs/DM-140b-lint.log)",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck exit 0 at f8b0b49 (node, web and fireguard projects; 14 s)",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npm test exit 0 at f8b0b49: Vitest 481 files, 8752 passed and 9 skipped; Fireguard suite 20 files, 105 passed (/tmp/sc-epic/logs/DM-140b-test.log)",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run coverage exit 0 at f8b0b49: statements 97.97%, branches 95.4%, functions 97.08%, lines 98.12% (thresholds 97/95/96/97)",
+            "name": "coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run deadcode: 'No new dead exports found.' at f8b0b49",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run build (electron-vite) exit 0 at f8b0b49. The UI e2e runs used this build. The later commits f3b25fb, 21467f4 and 5776abd change only docs/verification.",
+            "name": "build",
+            "status": "passed"
+          },
+          {
+            "detail": "FIREGUARD_BASE_REF=39f3e169ea3c904934b2fbca1218bf8a241e533c npm run fireguard -- --json at f8b0b49 (detached, 2368 s): grade A, score 93, all hard gates passed. AST: 863 assertions, mock ratio 0.017, tautological ratio 0.012, no empty tests. Flake: 100 runs, 0 failures over the 35 graded test files. Mutation: 12 changed modules (bootstrap.ts, the src/main/github files, preload, App.tsx, GithubAccount, SignInDialog, shared/github), 77 of 90 killed, 13 survivors. 9 of those are in src/main/desktop/bootstrap.ts, which has 0 graded tests; the other 4 are in ghCli.ts:46, http.ts:48 and App.tsx:68/221. No F, so nothing was rewritten. Report: /tmp/sc-epic/logs/DM-140b-fireguard-delta.json",
+            "name": "fireguard (changes after DM-148)",
+            "status": "passed"
+          },
+          {
+            "detail": "/tmp/sc-epic/logs/DM-140-loop.sh with LABEL=DM-140b and NO_COLOR=1 at 21467f4 (f8b0b49 plus docs only): 37 files, 600 tests per run. 200 of 200 runs passed with 600/600 each, 27-30 s per run, no busy-folder retry and a longest streak of 200. load1 per run was 11.8-24.1, median 15.8. A first launch was stopped after 4 passing runs and restarted, because the colored vitest output kept the per-run test counts from being recorded.",
+            "name": "200x git-backed loop",
+            "status": "passed"
+          },
+          {
+            "detail": "In a git-archive copy of f8b0b49 with the fixture over source.css, vitest run cssBalance.test.ts failed as expected: './source/source.css:307: rule `.history-summary` is never closed', 1 failed and 19 passed",
+            "name": "c14 CSS check on truncated copy",
+            "status": "passed"
+          },
+          {
+            "detail": "In a git-archive copy with a blank first line in src/preload/index.ts, src/shared/domain/status.ts and src/shared/agents/chat.ts, npm run deadcode exited 0 with 'No new dead exports found.'",
+            "name": "c15 deadcode with shifted lines",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Built app, isolated profile, GH_TOKEN/GITHUB_TOKEN unset, script /tmp/sc-epic/scratch/DM-140/signin.mjs, log docs/verification/sprint2-acceptance/DM-140-signin.log. Sign in to GitHub opened the dialog ('Dark Mechanicus signs in with this computer's GitHub CLI login (gh)...'). Use my GitHub CLI login closed it, the toast said 'Signed in as @davgor' and the footer showed '@davgor'. github-account.json existed and no plain gh token pattern was found anywhere in the profile. Sign out from the account menu brought back 'Sign in to GitHub' and removed github-account.json. `gh auth status` afterwards: exit 0, 'Logged in to github.com account davgor (keyring)', the same as before. Not-logged-in case: the DM-141 wrapper (/tmp/sc-epic/scratch/DM-141/wrapbin/gh: real gh with an empty GH_CONFIG_DIR and HOME; `gh auth status` through it exits 1) went first on the app's PATH. The dialog then showed 'The GitHub CLI is not signed in to github.com, or is older than 2.17. Run `gh auth login -h github.com`...' with the `gh auth login` chip, Copy and Try again. An empty GH_CONFIG_DIR alone does not log gh out on macOS (keyring), so the wrapper adds an empty HOME. Both profiles were deleted, and the real gh login is intact at the end."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "docs/verification/sprint2-acceptance/DM-140-footer-signed-in.png (footer '@davgor' with the account menu, toast 'Signed in as @davgor'), docs/verification/sprint2-acceptance/DM-140-footer-signed-out.png (after Sign out: footer 'Sign in to GitHub'), docs/verification/sprint2-acceptance/DM-140-sign-in-gh-auth-login.png (dialog with the `gh auth login` fix, Copy, Cancel and Try again). All three were viewed; no token is visible. Attempt 1's sign-in-misconfigured.png was removed."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "DM-140-sync.log at f8b0b49. Signed out, Fetch origin in a fresh clone of https://github.com/octocat/Hello-World went from 'Never fetched' to 'Last fetched just now' in 1.7 s, with 0 alerts and 0 dialogs (hello-world-fetched.png shows the footer 'Sign in to GitHub'). An OS-level credential window cannot be observed through Playwright; none appeared. In scratch-b, after `other` pushed: Fetch gave Pull origin ↓1 (terminal behind/ahead 1 0, pull-origin-behind-1.png). Pull gave 0 0. Two commits gave Push origin ↑2 (0 2). Push gave 0 0 and origin main at 'Local change 2'. Counts are from `git rev-list --left-right --count @{u}...HEAD`."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "push-origin-ahead-2.png: 'Push origin ↑2'. fetch-in-progress.png: throttled ext:: remote, progress bar 'Compressing objects 11%' with Cancel; Cancel then returned to 'Fetch origin' (DM-140-misc.log). push-rejected-pull.png: with Push origin ↑1 after `other` pushed first, Push showed 'The remote has commits you don't have. Pull first.' with Pull and Dismiss. Pull merged and gave 'Push origin ↑2' (terminal 0 2), 'Other change 2' is in scratch-b's log, and the final Push gave 0 0 (DM-140-sync.log)."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "DM-140-branches.log prints the app state and `git branch -a` / `git stash list` after each UI step, and they match every time. 1) New branch topic from the default branch: app on topic, terminal '* topic', no stash. 2) Switch to main, Leave my changes on topic: app on main, terminal 'stash@{0}: On topic: dm-stash:topic'. 3) Back on topic: the Stashed changes row appears; Restore empties the stash and README.md is modified again. 4) Rename to topic-renamed in both; Publish adds remotes/origin/topic-renamed. 5) Switch to main bringing the change, then Delete with 'Also delete origin/topic-renamed': both are gone in the app and the terminal, and `git ls-remote --heads origin` lists only feature/conflict and main."
+          },
+          {
+            "criterionId": "c6",
+            "met": true,
+            "note": "branch-popover-filtered.png (filter 'mai', only main under Default branch). switch-dialog.png ('Switch to main' with Cancel / Bring my changes to main / Leave my changes on topic). stashed-changes-row.png ('Stashed changes 1 file'). stashed-changes-open.png (README.md with Restore and Discard…). delete-dialog.png is extra."
+          },
+          {
+            "criterionId": "c7",
+            "met": true,
+            "note": "DM-140-merge.log. From the branch menu, the row menu on feature/conflict, then Merge into main: the banner read 'Merging origin/feature/conflict into main: 2 conflicted files' with git status UU a.txt / UU b.txt (merge-two-conflicts.png). Use mine (main) on a.txt gave '1 conflicted file', a.txt Resolved and b.txt '1 conflict' with Mark resolved disabled (merge-one-resolved.png). Editor step: a GUI editor cannot be automated here, so the resolved content was written to b.txt on disk, as the editor would save it. Mark resolved then became enabled and was clicked, and the banner showed 0 files. Commit merge made 06b2c72 'Merge remote-tracking branch 'origin/feature/conflict'' with parents f844988 and 59c9cdb; `git log --graph -3` is in the log, and the clean state after is merge-committed.png."
+          },
+          {
+            "criterionId": "c8",
+            "met": true,
+            "note": "DM-148 was accepted with Fireguard A 96 and every hard gate passed (/tmp/sc-epic/logs/DM-148-fireguard-2.json). Everything changed since DM-148 (base 39f3e16, including the DM-141/DM-142 rework's production files) grades A 93 with no F (/tmp/sc-epic/logs/DM-140b-fireguard-delta.json)."
+          },
+          {
+            "criterionId": "c9",
+            "met": true,
+            "note": "lint, typecheck, test, coverage, deadcode and build all exit 0 at f8b0b49 (see evidence.checks; /tmp/sc-epic/logs/DM-140b-dod-summary.log). No integration fix was needed in attempt 2."
+          },
+          {
+            "criterionId": "c10",
+            "met": true,
+            "note": "Orchestrator squash-merged source-control-sprint-2 (5776abd) onto source-control as one commit 3dcbb97 (parent 682aead, tree identical to the integration tip); its message lists every sprint 2 ticket."
+          },
+          {
+            "criterionId": "c11",
+            "met": true,
+            "note": "Orchestrator lists them in the sprint 2 report under the person's checkpoint checks: sign in with the GitHub CLI login, see @login in the footer, push a branch to a GitHub repository of your choice, sign out."
+          },
+          {
+            "criterionId": "c12",
+            "met": true,
+            "note": "200 of 200 runs passed: docs/verification/sprint2-acceptance/DM-140-loop-21467f4.log, file list in DM-140-loop-files.txt, raw log /tmp/sc-epic/logs/DM-140b-loop.log. The loop ran 37 git-backed test files (600 tests per run) at 21467f4, which is f8b0b49 plus docs only. Every run passed 600/600 in 27-30 s, with no createGitRepo busy-folder retry. load1 per run was 11.8-24.1, median 15.8; the load was far lower than in attempt 1 (48-214), so the hardened tests were not stressed at high load in this run."
+          },
+          {
+            "criterionId": "c13",
+            "met": true,
+            "note": "`git diff 39f3e16 -- 'src/main/git/diffParser*'` is empty, and so is the diff from 265b793 to HEAD, so the file and its test are unchanged since attempt 1's scoped run. The DM-148/sprint Fireguard run did not mutate diffParser.ts (it was unchanged in the sprint), so the scoped run applies: DM-215's driver on the combined branch gave 58 mutants, 58 killed and 0 survivors (/tmp/sc-epic/logs/DM-140-mutation.json), within the limit of 2."
+          },
+          {
+            "criterionId": "c14",
+            "met": true,
+            "note": "npm test at f8b0b49 ran '✓ src/renderer/src/cssBalance.test.ts (20 tests)' (DM-140b-test.log; vitest include src/**/*.test.ts). In a git-archive copy (/tmp/sc-epic/scratch/DM-140/css-check) with src/test/fixtures/source.fde854b-truncated.css (DM-216's reconstruction; fde854b is not in this clone) copied over source.css, the test failed: './source/source.css:307: rule `.history-summary` is never closed', 1 failed and 19 passed (/tmp/sc-epic/logs/DM-140b-css-check.log)."
+          },
+          {
+            "criterionId": "c15",
+            "met": true,
+            "note": "npm run deadcode passes at f8b0b49. In a git-archive copy (/tmp/sc-epic/scratch/DM-140/deadcode-check) with a blank line added at the top of src/preload/index.ts, npm run deadcode still printed 'No new dead exports found.' (exit 0). Since DM-141, ts-prune no longer reports any export in src/preload/index.ts, so the preload shift alone tests nothing. I therefore also shifted src/shared/domain/status.ts and src/shared/agents/chat.ts, whose baseline exports ts-prune reports. They moved to WORK_STATUS_LABELS :84 and McpServerSpec :208, and deadcode still passed (/tmp/sc-epic/logs/DM-140b-deadcode-shifted.log)."
+          },
+          {
+            "criterionId": "c16",
+            "met": true,
+            "note": "history-scratch-plain.png: scratch-plain (git init, no remote, label 'No remote') lists Plain second / Plain first with 0 'Not pushed' markers (DM-140-misc.log). history-scratch-b.png: only 'Local change 3 (unpushed)' has the ↑ marker, 1 marker in total, matching `git rev-list HEAD --not --remotes`, which lists that commit alone (DM-140-sync.log)."
+          },
+          {
+            "criterionId": "c17",
+            "met": true,
+            "note": "toolbar-subfolder-root.png: tracking /private/tmp/sc-epic/scratch/DM-140/mono/packages/app shows 'Repository root: /private/tmp/sc-epic/scratch/DM-140/mono', which equals `git rev-parse --show-toplevel`. toolbar-root-folder.png: tracking mono itself shows no root line (0 matches; DM-140-misc.log)."
+          }
+        ],
+        "notes": "Limits: c3's 'no credential window' is shown by the absence of in-app alerts, dialogs and extra windows plus the completed fetch; an OS keychain prompt cannot be observed through Playwright. c7's editor step wrote the file directly. The c12 loop ran at moderate load (load1 11.8-24.1), not at attempt 1's 48-214. c13 reuses attempt 1's scoped mutation result because diffParser.ts and its test are byte-identical since then. Process notes: (1) My first DoD launch (nohup inside the tool shell) was killed during typecheck, without failing, when the tool shell cleaned up its process group. All heavy jobs were then run in a new session (setsid-style Popen), and the DoD ran clean. (2) The first loop launch inherited colored output, which broke the per-run test-count capture; I stopped it after 4 passing runs and restarted it with NO_COLOR=1. The reported 200 runs are the restarted loop. (3) docs/verification/sprint2-acceptance/*.log is gitignored (*.log), so attempt 1's script and loop logs had never actually been committed; they are now force-added (21467f4, 5776abd). Red team: I attacked the c1 run for token leaks. The script logs only the login, exit codes and a yes/no regex scan; the log and the committed logs were grepped for gh[opusr]_/github_pat_ patterns with 0 hits; the screenshots show only @davgor; the profiles were deleted; `gh auth status` still passes. I attacked the 'not logged in' state for a false pass: `gh auth status` through the wrapper exits 1 and `command -v gh` resolves to the wrapper. I attacked c15 for vacuity, found that preload has no reported exports, and added a non-vacuous shift. I attacked c12 for color-related miscounting: every run line shows 600 passed (600). I attacked the evidence for stale attempt 1 artifacts: sign-in-misconfigured.png was removed, all reused screenshot names were regenerated from the f8b0b49 build and viewed, and the README was rewritten. Discoveries: (a) src/main/desktop/bootstrap.ts has 9 surviving mutants and 0 graded tests in the post-DM-148 Fireguard run, because DM-141 touched it and no unit test exercises those lines; the other 4 survivors are ghCli.ts:46, http.ts:48 and App.tsx:68/221. Worth a small test ticket. (b) .tsprune-ignore holds stale entries such as 'src/preload/index.ts - AppInfoApi/AutoUpdateApi' that ts-prune no longer reports; running deadcode:refresh would prune them. (c) The Commit merge message keeps git's '# Conflicts:' comment lines (06b2c72), as attempt 1 found; consider `git commit --cleanup=strip`. (d) The *.log gitignore silently drops verification logs; future evidence should use .txt or be force-added."
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m6a4gbt31gfn8djj6warp2qx",
+      "increment": {
+        "base": {
+          "commit": "5a5a03cdff1c509bbe48252d0d74e249291fd42b",
+          "kind": "previous_increment"
+        },
+        "branch": "source-control",
+        "checks": [
+          {
+            "detail": "Names the epic branch source-control.",
+            "name": "Epic branch",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 3dcbb97 exists.",
+            "name": "Commit exists",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 3dcbb97 has one parent, 682aead.",
+            "name": "One parent",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 3dcbb97 is reachable from source-control.",
+            "name": "On the epic branch",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 3dcbb97 is not part of the previous sprint's increment 5a5a03c.",
+            "name": "After the base commit",
+            "status": "passed"
+          },
+          {
+            "detail": "None of the 34 commits recorded by this sprint's accepted work is reachable from source-control.",
+            "name": "Squashed, not merged",
+            "status": "passed"
+          }
+        ],
+        "commit": "3dcbb9729b7475fb8c4f0b4c7aea9b20a7ec26d7",
+        "parent": "682aeadd15a7f67a9e8d472087d8742ff4433b1c",
+        "passed": true,
+        "reasons": [],
+        "verifiedAt": "2026-11-01T02:53:11.286Z"
+      },
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Evidence README, 20 screenshots, script logs, loop log",
+            "location": "docs/verification/sprint2-acceptance/",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Sign-in e2e script (c1/c2)",
+            "location": "/tmp/sc-epic/scratch/DM-140/signin.mjs",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "UI scripts (setup, lib, sync, branches, merge, misc)",
+            "location": "/tmp/sc-epic/scratch/DM-140/",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Raw script logs (attempt 2)",
+            "location": "/tmp/sc-epic/logs/DM-140b-{signin,setup,sync,branches,merge,misc}.log",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "DoD logs (attempt 2)",
+            "location": "/tmp/sc-epic/logs/DM-140b-{build,lint,typecheck,test,coverage,deadcode}.log, /tmp/sc-epic/logs/DM-140b-dod-summary.log",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Fireguard delta since DM-148 (A 93)",
+            "location": "/tmp/sc-epic/logs/DM-140b-fireguard-delta.json (+ .err, .done)",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "200x loop log (200/200)",
+            "location": "docs/verification/sprint2-acceptance/DM-140-loop-21467f4.log (copy of /tmp/sc-epic/logs/DM-140b-loop.log)",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "CSS brace check failing on truncated fixture (c14)",
+            "location": "/tmp/sc-epic/logs/DM-140b-css-check.log",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Deadcode with shifted files (c15)",
+            "location": "/tmp/sc-epic/logs/DM-140b-deadcode-shifted.log",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Scoped diffParser mutation run reused from attempt 1 (0/58 survivors)",
+            "location": "/tmp/sc-epic/logs/DM-140-mutation.json",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Attempt 1 result (preserved)",
+            "location": "/tmp/sc-epic/logs/DM-140-attempt1-result.json",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "source-control",
+        "changedFiles": [
+          "src/main/git/history.test.ts",
+          "src/main/git/branchesEdge.test.ts",
+          "src/main/git/conflictsEdge.test.ts",
+          "src/main/git/runnerEdge.test.ts",
+          "src/main/git/stashEdge.test.ts",
+          "src/main/git/statusEdge.test.ts",
+          "src/main/git/syncEdge.test.ts",
+          "src/preload/index.test.ts",
+          "src/renderer/src/github/useGithubAccount.test.tsx",
+          "src/renderer/src/source/BranchDialogs.test.tsx",
+          "src/renderer/src/source/BranchMenu.edge.test.tsx",
+          "src/renderer/src/source/ConflictsPanel.edge.test.tsx",
+          "src/renderer/src/source/StashedChanges.edge.test.tsx",
+          "src/renderer/src/source/SyncButton.edge.test.tsx",
+          "src/renderer/src/source/branchGroups.test.ts",
+          "src/renderer/src/source/useGitRun.test.tsx",
+          "src/renderer/src/source/useSync.test.tsx",
+          "src/main/git/conflictsOpen.test.ts",
+          "src/main/git/handlersBranches.test.ts",
+          "src/main/git/branchesSafety.test.ts",
+          "src/main/git/conflicts.test.ts",
+          "docs/verification/sprint2-acceptance/"
+        ],
+        "commits": [
+          "9434bda3b02ee99fc9404d7e4db283c463a2c0e2",
+          "95b1bb218001c7af55745af66f4735515ed4051c",
+          "8d08e72a2e6ebde7f564c064bfcd5e9a4607c2e6",
+          "265b793a775b3249d89b5202d8abe500dff0abec",
+          "f3b25fb0116bc143f4231e2cbe19f644589553d9",
+          "21467f4e281dcda9a9661fc9c68eefecf329119c",
+          "5776abdf24913dadb65dce95b58be2781dc79e33",
+          "3dcbb9729b7475fb8c4f0b4c7aea9b20a7ec26d7"
+        ],
+        "summary": "Sprint 2 acceptance, attempt 2, on the integration worktree source-control-sprint-2. The tip was f8b0b49, which includes the DM-141/DM-142 gh-login rework. I built the app (npm run build, exit 0) and rebuilt every scratch repo from setup.sh. Attempt 1's UI scripts ran again against this build, each in a temporary --user-data-dir profile that is deleted afterwards (lib.mjs now removes it). sync.mjs no longer drives the old misconfigured sign-in dialog. A new signin.mjs covers c1/c2 with the real gh login, and no token was ever printed, logged or captured. I looked at every screenshot cited. The full DoD passes at f8b0b49. The Fireguard delta since DM-148 grades A 93: it graded the changed tests and mutated the DM-141/DM-142 production files, and no F was found, so nothing was rewritten. The 200x loop of the 37 git-backed test files passed 200 of 200 at load1 11.8-24.1. My only commits add evidence under docs/verification/sprint2-acceptance/. No test or production code was changed. Attempt 1's script logs had never been committed, because .gitignore has *.log; they are now force-added. I did not squash, land or submit."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m69rzt5jabxh2gd9wb46ygw7",
+      "state": "accepted",
+      "submittedAt": "2026-11-01T02:53:11.476Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:ca2529b2d60f1ff7a46a6c2ea7ff3b1b2b15c78c1d367f37832ae67a2e905148",
+      "ticketId": "tk_01m43st80kzf65farkt084aemr",
+      "updatedAt": "2026-11-01T02:53:28.180Z",
+      "worker": {
+        "catalogRevision": "hc_01m683v6zpwtyanf40hj5gg7wd",
+        "effort": "medium",
+        "hostId": "omp-mac-davidgorden",
+        "label": "omp task subagent (DM-140)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Run's host catalog (hc_01m49h2h…, Windows) was never imported, so match_capabilities returns not_found and the claim skips catalog checks. omp cannot select a worker model; its task subagents run claude-opus-5-5. Effort recorded as the ticket's planned effort. Lease 4h; orchestrator heartbeats for the worker. Acceptance node attempt 2 under revision 4 (attempt 1 failed as superseded by the gh-login redesign); not an escalation. The orchestrator keeps the claim token and submits.",
         "sessionId": null
       }
     }
@@ -3295,6 +3942,15 @@
       "policy": "human",
       "reportId": "rp_01m682hzgsw1vx9fj3kfhcc591",
       "sprintId": "sp_01m43sbb2vvbtpw1dypy9ned55"
+    },
+    {
+      "decidedAt": "2026-11-01T04:07:47.052Z",
+      "decidedBy": "ss_01m6ammvvk5rvw7ygm43syrv3s",
+      "id": "ck_01m6amngkc8mtmwfj27806s8v4",
+      "outcome": "advanced",
+      "policy": "human",
+      "reportId": "rp_01m6agfymndte22mpq62yhe5ht",
+      "sprintId": "sp_01m43st80ktpktzfr1x9t6bty4"
     }
   ],
   "createdAt": "2026-10-06T21:12:06.155Z",
@@ -3845,9 +4501,261 @@
       "reportRevision": 3,
       "sprintId": "sp_01m43sbb2vvbtpw1dypy9ned55",
       "submittedBy": "Claude Code"
+    },
+    {
+      "content": {
+        "accepted": [
+          "DM-141 Sign in to GitHub with the GitHub CLI's login and keep the token encrypted",
+          "DM-142 Show the GitHub account in the sidebar and sign in from a dialog",
+          "DM-143 Fetch, pull and push with the GitHub account's credentials",
+          "DM-144 Add the sync button with ahead/behind, progress and background fetch",
+          "DM-145 List, create, switch, rename, delete and merge branches, and keep stashes, in main",
+          "DM-146 Add the current-branch menu with switch, create, rename, delete, merge and stashed changes",
+          "DM-147 Resolve, abort or commit merge conflicts from the app",
+          "DM-148 Sprint 2 fireguard: grade the sprint's new unit tests and fix any F",
+          "DM-214 Make the git-backed test helper resilient to rare git init and fork failures on Windows",
+          "DM-215 Strengthen diffParser tests against surviving mutants",
+          "DM-216 Add a CSS-balance check to the merge/build gate",
+          "DM-217 Make deadcode baseline entries survive line shifts",
+          "DM-218 Mark commits unpushed only when a remote exists",
+          "DM-219 Normalize git root paths before comparing them with tracked folders on Windows",
+          "DM-140 Sprint 2 acceptance: sign in with the GitHub CLI login, sync, branch and resolve conflicts on scratch repositories, run the Definition of Done, land one commit"
+        ],
+        "blocked": [],
+        "changes": {
+          "commits": [
+            "3dcbb9729b7475fb8c4f0b4c7aea9b20a7ec26d7 (sprint 2 squashed onto source-control)",
+            "682aeadd15a7f67a9e8d472087d8742ff4433b1c (main merged into source-control before the sprint)"
+          ],
+          "files": [
+            "src/main/github/",
+            "src/main/git/ (remotes, credentials, progress, sync, branches, stash, conflicts)",
+            "src/shared/github/",
+            "src/shared/git/",
+            "src/preload/index.ts",
+            "src/main/desktop/bootstrap.ts",
+            "src/renderer/src/github/",
+            "src/renderer/src/source/ (SyncButton, BranchMenu, BranchDialogs, StashedChanges, ConflictsPanel)",
+            "src/renderer/src/sidebar/SidebarFooter.tsx",
+            "src/renderer/src/__mocks__/",
+            "src/test/ (gitRepo retry, gitRemotes, fixtures)",
+            "scripts/deadcode-*.mjs",
+            ".tsprune-ignore",
+            "docs/verification/"
+          ]
+        },
+        "checks": [
+          {
+            "detail": "DM-140 at f8b0b49",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-140 at f8b0b49",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-140: Vitest 481 files, 8752 passed, 9 skipped; Fireguard suite 105 passed",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-140: statements 97.97, branches 95.4, functions 97.08, lines 98.12",
+            "name": "coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-148: A 96 (flake 100/100, mutation 91%); changes after DM-148: A 93",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-140",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-140; e2e screenshots from this build",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "epicOutcome": null,
+        "exitCriteria": [
+          {
+            "criterionId": "e1",
+            "met": true,
+            "note": "DM-140 c1/c2: in the built app with an isolated profile, Use my GitHub CLI login imported this machine's gh login and the footer showed @davgor; sign-out returned to signed out with gh untouched; the no-login gh shows the `gh auth login` fix. DM-141 c2/c3: token only safeStorage-encrypted, never in IPC/logs/details/argv (fake-token searches)."
+          },
+          {
+            "criterionId": "e2",
+            "met": true,
+            "note": "DM-140 c3/c4: Fetch origin on a Hello-World clone signed out with no prompt; pull/push against a local bare remote update ahead/behind; Push origin ↑2 and a fetch in progress shown; a rejected push offers Pull. DM-143 c2/c3: account credentials via the scoped env helper when signed in, machine credentials otherwise."
+          },
+          {
+            "criterionId": "e3",
+            "met": true,
+            "note": "DM-140 c5/c6: create from default, switch leaving changes stashed, restore, rename, delete with its remote branch, each matched by `git branch -a`/`git stash list`; popover, switch dialog and Stashed changes row screenshots."
+          },
+          {
+            "criterionId": "e4",
+            "met": true,
+            "note": "DM-140 c7: merge from the branch menu, Use mine on one file, the other resolved on disk and marked resolved, Commit merge; `git log --graph` shows the merge. DM-147 c4: conflicts from pull, merge and stash restore land in the view; rebase/cherry-pick/revert banners abort."
+          },
+          {
+            "criterionId": "e5",
+            "met": true,
+            "note": "DM-148 Fireguard A 96 (no F); changes after DM-148 A 93; DM-140 c9: lint, typecheck, test, coverage, deadcode and build pass on the combined branch."
+          }
+        ],
+        "failed": [],
+        "followUps": [
+          {
+            "body": "credentialArgs passes the token as DM_GITHUB_TOKEN in git's env, so every process git starts inherits it. A per-run trampoline (a one-time secret handed to an askpass/credential helper that asks main over a local socket, as GitHub Desktop does) would keep it out of child environments. Medium; security.",
+            "title": "Keep the GitHub token out of the environment of git hooks and helpers"
+          },
+          {
+            "body": "Pull runs `git pull --no-rebase --no-edit`; with pull.ff=only a diverged branch fails instead of merging. Passing --ff honours 'pull merges' but overrides the person's setting. Product decision.",
+            "title": "Decide how pull treats a user's pull.ff=only"
+          },
+          {
+            "body": "Closing the dialog does not stop signIn in main (no channel); a late success still signs in without a toast.",
+            "title": "Let the sign-in dialog cancel a running gh import"
+          },
+          {
+            "body": "Reading the sync remote costs two git processes per 5 s poll; cache it per root and invalidate on .git/config mtime.",
+            "title": "Cache RepoStatus.remote per root"
+          },
+          {
+            "body": "BranchInfo has no 'gone' flag, so the UI can't tell in advance that deleting the remote branch will fail with remote_not_found.",
+            "title": "Show gone upstreams in the branch menu"
+          },
+          {
+            "body": "9 of 13 surviving mutants after DM-148 are in src/main/desktop/bootstrap.ts, which no unit test imports.",
+            "title": "Unit-test bootstrap.ts wiring"
+          },
+          {
+            "body": "deadcode:refresh would drop entries ts-prune no longer reports; the *.log ignore rule silently drops verification logs (force-added this sprint).",
+            "title": "Prune stale .tsprune-ignore entries and stop *.log hiding verification logs"
+          },
+          {
+            "body": "src/main/agents/adapters/acpProcess.ts discards the boolean; callers are never told the tree may survive the bounded wait.",
+            "title": "Agents epic: nodeTransport.kill ignores killProcessTree's result"
+          },
+          {
+            "body": "DM-215 and DM-140 needed a hand-written driver to mutate diffParser.ts alone.",
+            "title": "Fireguard: a scope flag for one module's mutation run"
+          }
+        ],
+        "retro": {
+          "actions": [
+            "Settle external prerequisites (credentials, accounts) with the person before the sprint that needs them, not by placeholder.",
+            "Run a coverage check at each row check when the sprint adds UI-heavy code, so the acceptance round doesn't inherit a coverage gap.",
+            "Run Fireguard and the 200x loop on a quiet machine; record load per run.",
+            "Merge main into the epic branch at every sprint boundary."
+          ],
+          "delivered": [
+            {
+              "demo": "Press Sign in to GitHub → Use my GitHub CLI login: the footer shows @login; Sign out leaves `gh auth status` untouched.",
+              "evidence": "docs/verification/sprint2-acceptance/DM-140-footer-signed-in.png, DM-140-sign-in-gh-auth-login.png, DM-140-signin.log",
+              "ticket": "tk_01m43st80p3n2992va52fjx8h1"
+            },
+            {
+              "demo": "In a repo two commits ahead, the toolbar shows Push origin ↑2; a push rejected by a concurrent push offers Pull.",
+              "evidence": "DM-140-push-origin-ahead-2.png, DM-140-push-rejected-pull.png, DM-140-fetch-in-progress.png",
+              "ticket": "tk_01m43st80pqq25rhh231cnd0y4"
+            },
+            {
+              "demo": "Current branch popover with a filter; switch with changes asks to leave (stash) or bring them; Stashed changes row restores them.",
+              "evidence": "DM-140-branch-popover-filtered.png, DM-140-switch-dialog.png, DM-140-stashed-changes-row.png, DM-140-branches.log",
+              "ticket": "tk_01m43st80pyacpnw547zmdenfb"
+            },
+            {
+              "demo": "Merge a conflicting branch: banner with both sides and the count, Use mine / Mark resolved, Commit merge.",
+              "evidence": "DM-140-merge-one-resolved.png, DM-140-merge-committed.png, DM-140-merge.log",
+              "ticket": "tk_01m43st80p3yhsk2s96zdhphk7"
+            },
+            {
+              "demo": "The squashed sprint increment on source-control.",
+              "evidence": "3dcbb9729b7475fb8c4f0b4c7aea9b20a7ec26d7, verified by the server",
+              "ticket": "tk_01m43st80kzf65farkt084aemr"
+            }
+          ],
+          "discoveries": [
+            {
+              "body": "status.ts checks MERGE_HEAD before rebase-merge/, so a `git rebase -r` stopped at a conflicting merge shows as a merge: Abort merge leaves the rebase running and Commit merge commits mid-rebase.",
+              "ticket": "tk_01m43st80p3yhsk2s96zdhphk7",
+              "title": "Detect a rebase before a merge when both markers exist"
+            },
+            {
+              "body": "commit.ts and discard.ts pass paths after '--' but without --literal-pathspecs, so a changed file named ':/x' or ':!x' makes them act on other files; conflicts.ts already uses literal pathspecs.",
+              "ticket": "tk_01m43st80p3yhsk2s96zdhphk7",
+              "title": "Pass literal pathspecs in commit and discard"
+            },
+            {
+              "body": "Commit merge keeps git's '# Conflicts:' lines in the merge message; GitHub Desktop strips them (`git commit --cleanup=strip` or equivalent).",
+              "ticket": "tk_01m43st80kzf65farkt084aemr",
+              "title": "Strip git's comment lines from the Commit merge message"
+            },
+            {
+              "body": "runner.ts gives network operations no timeout, so a fetch/pull/push on a stalled connection runs until the person cancels; http.lowSpeedLimit/lowSpeedTime or a progress inactivity timer would end it with `timeout`.",
+              "ticket": "tk_01m43st80phph8e257thvgm244",
+              "title": "Give network git operations a stall timeout"
+            }
+          ],
+          "leftovers": [],
+          "tierFit": [
+            {
+              "note": "Medium at high effort: credential scoping and process-group cancel needed the depth.",
+              "ticket": "tk_01m43st80phph8e257thvgm244",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Small/low: one flaky test rewrite; the 4h45m was Fireguard's own run time.",
+              "ticket": "tk_01m43st80ptgtk20bwa6ssqs82",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Medium/high; two attempts only because the design changed (placeholder → gh CLI login).",
+              "ticket": "tk_01m43st80p3n2992va52fjx8h1",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "The acceptance node also had to fix coverage and harden slow tests; its 17 criteria took about 7 hours over two attempts.",
+              "ticket": "tk_01m43st80kzf65farkt084aemr",
+              "verdict": "undersized"
+            }
+          ],
+          "wentPoorly": [
+            "The run sat 'running' at the sprint 1 checkpoint after the Oct 28 takeover, so the desktop's approval would have been refused until the report was resubmitted.",
+            "Building against a placeholder OAuth client ID cost a full acceptance attempt and two reworks once the person chose the gh CLI login instead.",
+            "Fireguard took 4h45m (two runs) and external machine load broke the first 200x loop; coverage fell below its thresholds and had to be fixed in the acceptance round.",
+            "Two workers edited the coordinating checkout through relative paths before reverting; the brief now insists on absolute paths."
+          ],
+          "wentWell": [
+            "Every work ticket was accepted on its first attempt under its revision; adversarial review subagents found and fixed real defects before submission in DM-141, DM-143, DM-145 and DM-147 (e.g. deleting another branch's upstream, pathspec magic, launchable files opened from Open in editor).",
+            "Adopting revision 4 mid-sprint kept 12 accepted tickets and redid only the two whose design changed.",
+            "A shared Playwright/Electron harness with isolated profiles gave every UI ticket real built-app screenshots."
+          ]
+        },
+        "risks": [
+          "The GitHub token reaches git through DM_GITHUB_TOKEN in git's environment, so hooks, git-lfs and remote helpers git starts can read it (DM-143). Proposed below as a follow-up.",
+          "Windows was not exercised this sprint (macOS host): the gh fallback folders, gh.exe lookup, credential helper under Git for Windows' sh, and the executable-bit check in Open in editor are unverified there.",
+          "main has moved 19 commits since the epic branch's base (agent-clis, multi-repo folders). Merging it will conflict in .tsprune-ignore (DM-217 changed its format), bootstrap.ts, acpProcess.test.ts and src/test/gitRepo.ts; the orchestrator merges main into source-control before cutting sprint 3.",
+          "Git-backed tests sit close to the 15 s timeout under heavy machine load (attempt 1's loop at load 48–214 timed out; attempt 2 at 12–24 passed 200/200)."
+        ],
+        "summary": "Sprint 2 delivered GitHub sign-in, sync, branches, stashes and merge conflicts, landed as one squashed commit 3dcbb97 on source-control (server-verified increment). Run 2 was taken over by the omp orchestrator on this Mac. Midway the person replaced the OAuth device flow with the machine's GitHub CLI login (no OAuth App); revision 4 was saved and adopted, DM-141 and DM-142 were redone, the first DM-140 attempt was failed as superseded, and every other accepted ticket kept its acceptance. Main was merged into the epic branch before the sprint (682aead). The Definition of Done passes on the combined branch after tests-only integration fixes in the acceptance round (coverage, a fast-import history fixture, cheaper git-backed tests)."
+      },
+      "contentHash": "sha256:a5dc539bcced5ef10db315cb28e4a22a00bffdc5150ef227360af58e0d0d21ed",
+      "createdAt": "2026-11-01T02:54:50.517Z",
+      "id": "rp_01m6agfymndte22mpq62yhe5ht",
+      "reportRevision": 1,
+      "sprintId": "sp_01m43st80ktpktzfr1x9t6bty4",
+      "submittedBy": "Claude Code"
     }
   ],
-  "revisionId": "rv_01m69rzt5jabxh2gd9wb46ygw7",
+  "revisionId": "rv_01m6amn83jdkt7zac6hewezbjh",
   "rowChecks": [
     {
       "checks": [
@@ -4019,11 +4927,63 @@
       "recordedBy": "Claude Code",
       "row": 5,
       "sprintId": "sp_01m43st80ktpktzfr1x9t6bty4"
+    },
+    {
+      "checks": [
+        {
+          "detail": "npm run typecheck exit 0 @ 5d596a1 (DM-141 revision 4 merged)",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "vitest src/main/github src/main/git src/main/desktop src/renderer/src src/preload src/shared: 268 files, 3585 passed, 6 skipped",
+          "name": "tests touching row 1 files",
+          "status": "passed"
+        },
+        {
+          "detail": "npx oxlint src scripts exit 0",
+          "name": "lint",
+          "status": "passed"
+        },
+        {
+          "detail": "no new dead exports",
+          "name": "deadcode",
+          "status": "passed"
+        }
+      ],
+      "commit": "5d596a11e4aa3c2e80a4a2977c6e0cd60ddcd911",
+      "createdAt": "2026-10-31T23:16:37.341Z",
+      "id": "rk_01m6a40caxnekaa3xjws3b2vxt",
+      "number": 7,
+      "recordedBy": "Claude Code",
+      "row": 1,
+      "sprintId": "sp_01m43st80ktpktzfr1x9t6bty4"
+    },
+    {
+      "checks": [
+        {
+          "detail": "npm run typecheck exit 0 @ f8b0b49 (DM-142 revision 4 merged)",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "vitest src/renderer/src src/preload: 207 files, 2501 passed",
+          "name": "tests touching row 2 files",
+          "status": "passed"
+        }
+      ],
+      "commit": "f8b0b49387b4642b44886a792f5bdc487b998b56",
+      "createdAt": "2026-10-31T23:25:06.050Z",
+      "id": "rk_01m6a4fx41kkvjmff24xe5g9a8",
+      "number": 8,
+      "recordedBy": "Claude Code",
+      "row": 2,
+      "sprintId": "sp_01m43st80ktpktzfr1x9t6bty4"
     }
   ],
   "runId": "rn_01m49gyd8b5g5p67pz2awqr99n",
   "skillVersion": "1.5.1",
   "startedAt": "2026-10-06T21:14:34.059Z",
   "state": "running",
-  "updatedAt": "2026-10-31T22:30:20.923Z"
+  "updatedAt": "2026-11-01T04:07:47.052Z"
 }
