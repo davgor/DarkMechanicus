@@ -2,29 +2,70 @@
   "branch": {
     "name": "kanban",
     "repository": "/Users/davidgorden/Documents/GitHub/DarkMechanicus",
-    "startCommit": "04bad6e5811eb550c46bb663b59311f568db2f78"
+    "startCommit": "b8b100d840226c4eb24e1c6ab098dc0f48385976"
   },
-  "completedAt": null,
+  "completedAt": "2026-11-01T09:55:54.022Z",
   "createdAt": "2026-10-31T22:35:54.801Z",
   "epicId": "ep_01m6a1nv1hfyvw2nf009gnhx8k",
   "format": "darkmechanicus.epic-state",
   "formatVersion": 1,
-  "generation": 1,
-  "outcome": null,
+  "generation": 24,
+  "outcome": {
+    "recordedAt": "2026-11-01T09:55:54.022Z",
+    "runId": "rn_01m6amzqt3ynb5199zh22t7gk5",
+    "successCriteria": [
+      {
+        "criterionId": "s1",
+        "met": true,
+        "note": "c7-sidebar-and-board.png: In progress, Backlog, Kanban, Completed; Kanban opens the four-lane board."
+      },
+      {
+        "criterionId": "s2",
+        "met": true,
+        "note": "c2 and c5: a board/desktop-created card and a planner MCP-created card both in Backlog with DM keys, in repo mode (records in c4) and in db mode (nothing in the repo)."
+      },
+      {
+        "criterionId": "s3",
+        "met": true,
+        "note": "c6: Play opened the agent and model chooser and started an orchestrator chat that claimed DM-5, committed on the checked-out branch and submitted; no person moved the card."
+      },
+      {
+        "criterionId": "s4",
+        "met": true,
+        "note": "c6 and c8: evidence reviewed, kick-back comment delivered to the agent and the card back In progress, then approved to Done; c5 and c3 show approve and kick back refused for agents."
+      },
+      {
+        "criterionId": "s5",
+        "met": true,
+        "note": "c8: compact Done rows, collapsed and paged lane, and getKanbanCard only when a card is opened; full attempts and evidence kept."
+      },
+      {
+        "criterionId": "s6",
+        "met": true,
+        "note": "c9 and the delivery-standards copies: the routing sentence is in the served prompts and the standards."
+      },
+      {
+        "criterionId": "s7",
+        "met": true,
+        "note": "The full suite (9243 tests), coverage, deadcode, lint, typecheck and build pass; Fireguard A (90), no F."
+      }
+    ],
+    "summary": "Kanban shipped in one sprint: a per-folder board of isolated cards that a person or an agent adds, a person plays, an orchestrator agent carries to Ready for review, and a person approves or kicks back. It works in repo and db storage modes. Every success criterion was verified in the built app or by command output, including a real Claude Code run."
+  },
   "provenance": null,
-  "status": "backlog",
+  "status": "completed",
   "ticketStatuses": {
-    "tk_01m6a1nv1j6sdba9s4q5b40yvq": "backlog",
-    "tk_01m6a1p7pfm25m2r3b83ctbsnb": "backlog",
-    "tk_01m6a1p7qa5vd3ja3h28q42mhz": "backlog",
-    "tk_01m6a1p7qabhd9mvk49b51fzst": "backlog",
-    "tk_01m6a1p7qam5570y9jmnabwwdy": "backlog",
-    "tk_01m6a1p7qamc63weyayqxnxp8c": "backlog",
-    "tk_01m6a1p7qawghr22r3yvkezmwr": "backlog",
-    "tk_01m6a1p7qaxttbw9f5927qk2dx": "backlog",
-    "tk_01m6a1p7qazwjr1cbkfse57ra2": "backlog",
-    "tk_01m6a1p7qazz27zra4gpk10yny": "backlog"
+    "tk_01m6a1nv1j6sdba9s4q5b40yvq": "completed",
+    "tk_01m6a1p7pfm25m2r3b83ctbsnb": "completed",
+    "tk_01m6a1p7qa5vd3ja3h28q42mhz": "completed",
+    "tk_01m6a1p7qabhd9mvk49b51fzst": "completed",
+    "tk_01m6a1p7qam5570y9jmnabwwdy": "completed",
+    "tk_01m6a1p7qamc63weyayqxnxp8c": "completed",
+    "tk_01m6a1p7qawghr22r3yvkezmwr": "completed",
+    "tk_01m6a1p7qaxttbw9f5927qk2dx": "completed",
+    "tk_01m6a1p7qazwjr1cbkfse57ra2": "completed",
+    "tk_01m6a1p7qazz27zra4gpk10yny": "completed"
   },
   "title": "Kanban: a per-folder board of isolated tickets that agents carry to review and a person approves",
-  "updatedAt": "2026-10-31T22:36:18.358Z"
+  "updatedAt": "2026-11-01T09:55:54.043Z"
 }

@@ -1,5 +1,5 @@
 {
-  "activeSprintId": "sp_01m69zre564hdfn5nngtqynny1",
+  "activeSprintId": "sp_01m6azzw91c35tw7rb8gzyvhht",
   "attempts": [
     {
       "createdAt": "2026-10-31T20:00:38.017Z",
@@ -2341,6 +2341,1246 @@
         "rationale": "Recommended by match_capabilities (medium). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'medium' records the planned effort, not a setting applied.",
         "sessionId": null
       }
+    },
+    {
+      "createdAt": "2026-11-01T04:10:55.422Z",
+      "decidedAt": "2026-11-01T04:25:16.915Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "FU388Redteam confirmed the rest: guard and drop share trackedLacks keyed by run_id+id like the import; refusals change nothing and roll back; each new test fails when its part is removed (guard: 2, fallback: 1, superseded check: 1, checkpoint branch: 1); modified DM-376 fixtures still prove their original claims; single read of run.json holds; c3 path match is exact. Not required: the whole-epics/-directory rejection message (outside c3), local-only reports/row checks still dropped (nothing depends on them), unused approval token row (harmless).",
+        "outcome": "rejected",
+        "reasons": [
+          "Sprint goal / planner decision ('acceptance evidence is final, so Keep tracked never deletes it') still violated (FU388Redteam finding 1, major, probe /tmp/dm-review/DM-388/head/src/probe/probe_dm388_regress.test.ts): when the tracked run.json ALSO holds an attempt this machine accepted, but as submitted, rejected, failed or superseded, Keep tracked's import (upsertAttempt ON CONFLICT(id) DO UPDATE SET state, decision_json, superseded_at) overwrites the local acceptance. Observed: B's X goes accepted -> submitted (decision null) or -> rejected with A's reasons, ticket b stays completed with no accepted attempt on either machine after A pulls, and in the rejected case X can never be decided again. Refuse Keep tracked, changing nothing, unless every local attempt of the run that is accepted and not superseded appears in the tracked record in the same accepted, not-superseded state, and every local checkpoint of the run appears in the tracked record; name the attempt and its tracked state, and point to Write local. Keep one rule for this (no second copy of the tracked-lacks selection). Add tests for the submitted, rejected and superseded tracked-copy cases that fail on 27d51cf.",
+          "Doc/comment accuracy: the runConflict.ts module comment (lines 13-14) and the new architecture.md passage imply accepted evidence is protected while the import can still overwrite it; after the fix, state the rule exactly as implemented (accepted attempts and checkpoints must be held by the tracked record in the same form).",
+          "Evidence accuracy: the result reports importer.test.ts with 108 tests; at 27d51cf the file runs 105. Report the counts you actually observe."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "node, web and fireguard tsconfigs clean",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "exit 0, no findings",
+            "name": "npx oxlint src/core/repo/importer.ts src/core/repo/importer.test.ts src/core/services/runConflict.ts src/renderer/src/home/StorageCard.tsx src/renderer/src/home/StorageCard.test.tsx",
+            "status": "passed"
+          },
+          {
+            "detail": "npx vitest run src/core/repo/importer.test.ts src/core/repo/importer.hostile.test.ts src/core/repo/profileImport.test.ts src/renderer/src/home/StorageCard.test.tsx src/core/commands/capabilities.test.ts src/mcp/server.test.ts src/renderer/src/app/shellActions.test.ts: 7 files, 291 tests passed (importer.test.ts 108 incl. the new ones and all DM-376 run tests)",
+            "name": "npx vitest run src/core/repo/importer.test.ts src/core/repo/importer.hostile.test.ts src/core/repo/profileImport.test.ts src/renderer/src/home/StorageCard.test.tsx src/core/commands/capabili …",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found (readTrackedRunHistory, runRowsTrackedLacks, TrackedRunHistory added; dropRunRowsTrackedLacks signature changed)",
+            "name": "npm run deadcode",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "importer.test.ts > keeping a run's tracked history when the drop would take this machine's accepted work > 'is refused, changing nothing, when this machine accepted an attempt the tracked record lacks, naming it and Write local' and '... when the drop would remove a checkpoint of the run the tracked record lacks, naming it and Write local'. Both snapshot dumpDomain, outbox, sync_state and run.json bytes before/after and match /would drop attempt <A3> of ticket <T3>.*accepted work would be lost.*Write local/ (resp. 'checkpoint <id> of sprint <sid>'); the attempt test then shows Write local writes the accepted attempt into run.json. Failed before the change with 'Expected a DomainError, but the action succeeded.' (Keep tracked dropped the accepted attempt / checkpoint)."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "importer.test.ts > 'still drops a local-only attempt that was %s' for 'claimed, then failed', 'rejected', 'accepted, then superseded': KEPT_TRACKED, attempts = tracked [A1, A2], run rows equal pulled run.json. These are regression tests (they pass before and after, the drop already existed); the superseded case was shown to fail against a mutant guard that ignores superseded_at (DomainError 'Keeping the tracked records would drop attempt ...'). All DM-376 tests pass. Fixture adjustments needed because the old fixtures themselves dropped acceptance evidence that is now refused: pullEpicAndRunOverWaitingRunHistory's local-only A3 is 'submitted' (insertAttempt defaulted to 'accepted'); recordLocalOnlyRows no longer inserts a local-only checkpoint (that case is now the c1 checkpoint test); the two lease tests release A3 as 'failed' instead of 'accepted'; the 'names another run' test asserts readTrackedRunHistory (the read the drop uses) rejects the file."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "importer.test.ts > keeping a run's tracked history when the import cannot keep it > 'refuses, changing nothing, under an epic the reconcile rejects at scan time, naming the epic's rejection' (adapted SEAM 2: state.json = 'not json'): refusal contains the reconcile's rejection for displayPath(epicDir(EPIC)) ('.darkmechanicus/epics/<EPIC>/state.json is not valid JSON.'), domain/outbox/sync_state/run.json unchanged. Failed before with message '... so its local changes were kept: the reconcile did not import it.'"
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "docs/architecture.md run bullet: one passage inserted after the live-lease sentence (word diff shows a pure insertion; the no-sync_state-row sentence untouched) stating Keep tracked is refused when the drop would delete an accepted non-superseded attempt or a checkpoint the tracked history lacks (same rule, runRowsTrackedLacks), that non-accepted/superseded local-only attempts are still dropped, and that an epic's rejection is named. StorageCard.tsx Keep tracked title adds 'or while it would drop an attempt this machine accepted, or a checkpoint, that the tracked history lacks'; StorageCard.test.tsx > 'passes the person's choice for a run's tracked-history conflict as a run' asserts it and failed before with \"expected 'Imports the tracked history of the ru…' to contain 'or while it would drop an attempt thi…'\". The listed tests pass; each new c1/c3/c4 test was run against the unchanged code and failed as recorded (c2 regression tests: see c2)."
+          }
+        ],
+        "notes": "Red-team of the diff: (1) Read race between guard and drop: the guard and the drop use one parsed record from a single read (readTrackedRunHistory), so a pull landing between them cannot make the drop delete rows the guard never saw; a pull landing before the import is caught by matchesSync(tracked.hash) and rolls the whole transaction back (existing test 'another write of the tracked history lands while it is imported' still passes). (2) Rule drift: guard and drop share trackedLacks(child, record) (same WHERE and same RUN_CHILD_TABLES ids), not a copy. (3) Superseded/rejected/failed rows: covered by the it.each; superseded accepted is dropped, verified by mutation. (4) Carry-forward attempts in state accepted count as accepted (state check only). (5) Ordering: requireConflict, requireNoLiveLease, read, guard, drop, all in the existing ctx.db.tx; a refusal throws before any write. (6) Write local path unchanged and shown to keep the refused attempt. Consciously not covered: a whole `epics/` directory rejected (link/not a directory) files its rejection under `epics`, not the epic directory, so that case still falls back to the epic conflict or the generic text; the ticket asked for the epic directory entry. Fixture changes in importer.test.ts are described under c2."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m6amv8hycx05m60ngnq4jp3m",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "branch",
+            "location": "linear-DM-388",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "linear-DM-388",
+        "changedFiles": [
+          "src/core/services/runConflict.ts",
+          "src/core/repo/importer.ts",
+          "src/core/repo/importer.test.ts",
+          "src/renderer/src/home/StorageCard.tsx",
+          "src/renderer/src/home/StorageCard.test.tsx",
+          "docs/architecture.md"
+        ],
+        "commits": [
+          "27d51cfd8ee994bee082efabf676cf9b79b9dbf2"
+        ],
+        "summary": "Keep tracked for a run now reads the tracked run.json once (readTrackedRunHistory), then, inside the existing transaction after the live-lease/sign-in check and before the drop, refuses with no change when the drop would remove an attempt with state 'accepted' and superseded_at NULL, or any checkpoint of the run (requireNoAcceptedWorkDropped in runConflict.ts). The message names the attempt (and its ticket) or the checkpoint (and its sprint), says this machine's accepted work would be lost and points to Write local, which keeps it. The 'rows the tracked record lacks' rule is factored into importer.ts trackedLacks(child, record), which both runRowsTrackedLacks (the guard's selection of attempts and checkpoints) and dropRunRowsTrackedLacks (the DELETEs) use, on the same parsed record; dropRunRowsTrackedLacks now takes (db, record) and the post-import matchesSync check uses the hash of that same read. When the run did not import and has no rejection of its own, the refusal falls back to the result.rejected entry whose path is the run's epic directory (scan- or plan-time epic rejection) before the epic conflict and the generic text. Storage card Keep tracked tooltip and the run bullet in docs/architecture.md (one inserted passage, rest word-for-word) state when Keep tracked is refused."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6amnn61bvvs83c3pstsf97s",
+      "state": "rejected",
+      "submittedAt": "2026-11-01T04:19:15.905Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:4d2717f8270d58a713d2991784de958bf0bc3914d0783ba676bbc849d6cb606c",
+      "ticketId": "tk_01m6a9f87n5ynpnc9ye3krk67x",
+      "updatedAt": "2026-11-01T04:25:16.915Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "medium",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-388)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (medium). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'medium' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-01T04:10:55.465Z",
+      "decidedAt": "2026-11-01T04:22:00.737Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "Attempt 1's core change is correct: FU389Redteam confirmed T1-T3 fail at base with 'expected null', planRuns/planRejectedRuns behaviour is unchanged (rename only), the apply-time failure case is covered, the finalizer pin is honestly labelled. Rejected only for the two gaps above. Not required in this ticket: Keep tracked's vague refusal under a clash-skipped epic (finding 1) is expected to be fixed by DM-388's epic-directory fallback at the row merge, verified there; the tracked-file-names-another-epic case (finding 4) is pre-existing and goes to followUps.",
+        "outcome": "rejected",
+        "reasons": [
+          "s3/c2 gap (FU389Redteam finding 2, probe P2 in /tmp/dm-review/DM-389/head/src/core/repo/probe_dm389.test.ts): the new rule keeps a skipped epic's run conflict for as long as the epic stays skipped, even after its condition ended (the tracked run.json is back to the imported text, or the run's export no longer waits). Storage then shows a message with no buttons (resolvable: false) across reconciles until a flush happens to clear it; at base the probe showed it cleared. s3 requires a stale message to be gone after the next reconcile once its condition no longer holds. Keep a skipped epic's run conflict only while its condition holds: its run_history export still waits AND the tracked run.json is still not imported here (the same test the finalizer applies, unimportedRunHistory); clear it otherwise. Add a test for that sequence that fails on attempt 1.",
+          "x4 doc gap: the run bullet in docs/architecture.md never states the plan-time rule (a run's conflict is kept while its epic is left unimported — rejected by the scan, held, skipped for its own conflict, or refused for a clash — and its condition holds). The bullet's parenthetical 'not for a run whose epic is skipped for its own conflict or hold' and the matching planRejectedRuns doc comment list only two of the four skip reasons. The new storeConflicts comment says conflicts are kept 'until the epic imports again', contradicting its own first sentence. Make the doc bullet, planRejectedRuns comment and storeConflicts comment agree with the code."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "2 files, 206 tests passed",
+            "name": "npx vitest run src/core/repo/importer.test.ts src/core/repo/finalizer.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "4 files, 114 tests passed (other tests that exercise reconcileRepository / storage status)",
+            "name": "npx vitest run src/core/repo/importer.hostile.test.ts src/core/repo/legacyRecords.test.ts src/core/repo/profileImport.test.ts src/core/repo/storage.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "node, web and fireguard tsconfigs clean",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "exit 0, no findings (an earlier max-lines-per-function finding on the new describe was fixed by splitting it)",
+            "name": "npx oxlint src/core/repo/importer.ts src/core/repo/importer.test.ts src/core/repo/finalizer.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "no exports added, removed or moved",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test / npm run lint / npm run build / npm run fireguard",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "importer.test.ts > a run's conflict while the reconcile skips its epic at plan time > keeps it, offered as a choice, while a local revision clashes with the tracked one, and clears it once the epic imports and the run is settled: after another machine's epic-state change is pulled and R1's local content_hash differs (epicClash), two reconciles each reject the epic, keep the stored run conflict unchanged, Storage lists it with resolvable: true, and the flush stays refused. failed before the change at `expect(storedConflict(env.target, 'run', RUN)).toBe(message)` on the first reconcile: expected 'Tracked history for run rn_…4w9 changed while local run changes are waiting to be exported.', received null (all earlier assertions in the test, including the reconcile's result shape, passed)."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "importer.test.ts > a run's conflict while the reconcile skips its epic at plan time > keeps it, offered as a choice, while a local revision clashes with the tracked one, and clears it once the epic imports and the run is settled (second half): with the clash gone, the run's tracked run.json back to the imported text and its run_history export done, the next reconcile imports the epic (run unchanged) and the stored run conflict is NULL; Storage lists no conflicts. This clearing is done by storeConflicts' UPDATE (the run is unchanged, so no markSynced), so it proves the kept set is not sticky. Honest status: this half passed before the change too (the conflict had already been wrongly cleared); the test as a whole failed before the change at the c1 assertion."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "docs/architecture.md run bullet: the one sentence now reads 'a run with no `sync_state` row at all ... is written as before', followed by 'A run whose row only notes a conflict (both hashes NULL, stored by a reconcile while an export of the run waits) is not exempt: its export is refused and the choice is offered.' The rest of the bullet is word-for-word unchanged. Finalizer pin: finalizer.test.ts > flushOutbox and a tracked run history this machine has not imported > refuses over a run whose sync_state row only notes a conflict, as a reconcile stores it while the export waits (flush fails with RUN_NOT_IMPORTED, the pulled file stays byte-identical, hashes stay NULL). This pins existing behaviour (unimportedRun only exempts a missing row); it passed before the change, as expected for a doc-correction pin. resolvable=true for such a row follows from storage.runChoiceStands (pending export + unimportedRunHistory non-null + no hold)."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "All listed tests pass. Shown to fail without the change: importer.test.ts > a run's conflict while the reconcile skips its epic at plan time > keeps it, offered as a choice, while a local revision clashes with the tracked one, and clears it once the epic imports and the run is settled, importer.test.ts > a run's conflict while its epic is skipped for its own conflict or a Linear transfer hold > keeps it, offered as a choice, while the epic is skipped for its own pending-export conflict, importer.test.ts > a run's conflict while its epic is skipped for its own conflict or a Linear transfer hold > keeps it while a Linear transfer holds the epic, and offers the choice again once the transfer is canceled each failed before the change at `expect(storedConflict(env.target, 'run', RUN)).toBe(message)` on the first reconcile: expected 'Tracked history for run rn_…4w9 changed while local run changes are waiting to be exported.', received null (all earlier assertions in the test, including the reconcile's result shape, passed). The finalizer test pins existing behaviour and did not fail before (stated in c3); the c2 clearing half likewise is a guard (stated in c2)."
+          }
+        ],
+        "notes": "Plan-time skip reasons planEpics/planImport actually have, and coverage: (1) epicClash (revision or ticket id belonging to another epic or with different content) -> kept, tested (T1). (2) hasPendingEpicChanges (epic's own pending-export conflict) -> kept, tested (T2); the run's choice stays resolvable while the epic conflict stands. (3) Transfer hold (planTransferHolds, incl. a hold triggered only by the incoming run) -> kept, tested (T3); Storage shows it resolvable: false during the hold (runChoiceStands refuses under a hold) and resolvable: true after cancel. (4) scan.rejectedEpics -> already kept, now through the same set. Excluded: apply-time failure (applyStaged failedEpics) is not a plan-time skip: the epic's runs were planned, so a run whose export waits had its conflict replanned and restored, and one whose export no longer waits has a condition that ended, so clearing is right. The epic-records clause was intentionally left on scan-rejected epics only (a plan-time skipped epic's own conflict is replanned while its export waits, a hold overwrites the same row, and a clashing epic with no waiting export has no live conflict).\nRed-team (attacked / outcome): (a) kept set sticky across reconciles -> no: skippedEpics is rebuilt from each reconcile's plan; T1's second half proves the conflict clears via storeConflicts when the epic imports and the run is unchanged. (b) Ordering: skippedEpics is filled by planEpics before storeConflicts runs and inside the same reconcile transaction; planRuns/planRejectedRuns now read the same set, so planning and keeping can't disagree. (c) Held epic: kept, but not offered while held (existing runChoiceStands rule), offered again after cancel (T3). (d) Export ending while the epic stays skipped (e.g. Write local): Write local clears the conflict itself via recordExport, so it does not linger; any other way the export ends leaves a non-resolvable stored conflict until the epic imports, the same as for scan-rejected epics. (e) Accepted edge, not fixed: the keep rule matches runs by their LOCAL runs.epic_id (as the scan-rejected rule always did) while planRuns filters by the TRACKED record's epicId; a tracked run.json naming a different epic than the local run (itself refused by runClash) under a skipped tracked epic would still have its conflict cleared. (f) Superseded/rejected rows: only sync_state rows with the run-history prefix are touched; transfer-hold, comment and profile rows unchanged. Finalizer.ts unimportedRunHistory comment ('a run with no sync_state row ... is written as it always was') is accurate (no row at all) and was left unchanged."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m6amv8k9cgffgq6h9nf1e4vx",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "branch",
+            "location": "linear-DM-389",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "linear-DM-389",
+        "changedFiles": [
+          "src/core/repo/importer.ts",
+          "src/core/repo/importer.test.ts",
+          "src/core/repo/finalizer.test.ts",
+          "docs/architecture.md"
+        ],
+        "commits": [
+          "91b3121fd06ff95f8a29d3858bbef1653c9c7685"
+        ],
+        "summary": "storeConflicts now keeps the stored run-history conflicts of runs under every epic the reconcile leaves unimported at plan time, not only those rejected by the scan. Plan gains `skippedEpics` (seeded with scan.rejectedEpics; planEpics adds held epics, epics skipped for their own pending-export conflict and epics refused by epicClash), and the run clause of storeConflicts uses it. The epic clause still keys on scan-rejected epics only (a plan-time skipped epic's own conflict is replanned while its export waits, or replaced by the hold message). Once the epic imports again the run is replanned, so a conflict whose condition ended clears. storeConflicts comment updated; docs/architecture.md run bullet: only the 'written as before' sentence changed (no sync_state row at all is written as before; a conflict-only row is refused and the choice offered)."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6amnn61bvvs83c3pstsf97s",
+      "state": "rejected",
+      "submittedAt": "2026-11-01T04:17:11.147Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:46650b8451b233c55b3565b506e047a1c58354e2c061d05579441e9eb5ca4d4d",
+      "ticketId": "tk_01m6a9f87nms0wfhav8f3vd2q1",
+      "updatedAt": "2026-11-01T04:22:00.737Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "medium",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-389)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (medium). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'medium' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-01T04:17:11.192Z",
+      "decidedAt": "2026-11-01T04:30:06.506Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "Confirmed by FU390Redteam: a live conflict is never cleared (P2: after failed Write local it clears; a new change by the other machine is reported again and resolvable); conflictHolds uses unimportedProfile, the finalizer's own rule; deleted file / deleted directory clear and the flush then writes; scan->apply->store runs in one tx and Keep tracked's failed inner reconcile rolls the clear back (P9); a refused/unreadable/oversized directory clears nothing; single rejected file without a waiting export clears. Not required here: the extra unbounded tracked reads in settledConflicts (finding 2) belong to DM-391, which bounds and caches every tracked read.",
+        "outcome": "rejected",
+        "reasons": [
+          "s3 gap (FU390Redteam finding 1, probe P1 in /tmp/dm-review/DM-390/head/src/core/repo/probe_dm390.test.ts): conflictHolds treats any read error as 'still holds' (catch { return true }, profileImport.ts ~179-181). A stored conflict over a tracked ui.json that is a link/junction/unreadable path is then kept forever with resolvable:false; Keep tracked and Write local both throw 'Unsafe repository path'; the same file state with no earlier conflict gives no conflict (P1b), so the outcome depends on history. This is the obs-6 symptom the ticket exists to remove, and it contradicts noteRejectedOverWaitingExport and profileChoiceStands (both catch -> no conflict). The outbox entry already shows the unsafe-path error. Make the catch clear (return false), consistent with those two rules; change the test that pins the keep to assert the clear (and profileChoices), and fix the doc sentence 'one whose tracked file cannot be read is kept while its export waits'.",
+          "Comment accuracy (finding 3): the conflictHolds comment says the catch covers '(a rejected file, a link)', but rejected files (bad JSON, oversized, wrong name) are read and judged by hash; only links, directories and I/O errors reach the catch. Fix it.",
+          "Evidence accuracy (c3, finding 4): only 5 of the new tests fail on 16fc3a8 (the four 'cleared' tests and the directory-refused test); the kept/no-sync-row/rejected-over-waiting tests pass at base and are regression guards (the link and case-variant ones were shown meaningful by mutants). Report c3 exactly that way."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "exit 0",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "exit 0, no findings (after splitting one describe that went over max-lines-per-function)",
+            "name": "npx oxlint src/core/repo/profileImport.ts src/core/repo/profileImport.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "6 files, 322 tests passed. src/core/services/profileConflict.test.ts and src/core/services/storage.test.ts do not exist; src/core/repo/storage.test.ts ran instead",
+            "name": "npx vitest run profileImport, storage, importer, importer.hostile, finalizer, commands/profiles tests",
+            "status": "passed"
+          },
+          {
+            "detail": "3 files, 108 tests passed",
+            "name": "npx vitest run src/core/workspace*.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "Before the fix, the 5 clear tests failed with AssertionError: expected 'Tracked profile ui changed while loca…' to be null (log: /tmp/dm-linear/DM-390-before.txt)",
+            "name": "TDD red run on unchanged code",
+            "status": "passed"
+          },
+          {
+            "detail": "Mutant A dropped conflictHolds, so every unreported stored conflict was cleared: 2 keep tests failed (the link refused unread, and the case-variant listing). Mutant B computed settled even when the whole profiles dir was rejected: the dir-refused test failed. Both mutants were reverted.",
+            "name": "mutation runs",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "src/core/repo/profileImport.test.ts > a stored profile conflict whose condition has ended > is cleared by the next reconcile after writing local whose write failed, while the export keeps its error. Storage profileConflicts becomes [] and the outbox last_error keeps 'Injected rename fault'. Three more tests cover the other ways a condition ends: the tracked file is again the synced one, the tracked file is gone, and no export waits over a rejected unimported file. All four failed before the change with expected '<CONFLICT>' to be null."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "src/core/repo/profileImport.test.ts > a stored profile conflict whose condition holds: 'is kept across reconciles', 'is kept for a pulled profile with no sync row of its own' (DM-373) and 'is kept for a rejected file over a waiting export'. src/core/repo/profileImport.test.ts > a stored profile conflict this scan cannot read again: 'is kept while the tracked file is refused unread…' (link), 'is kept while the listing names the tracked file only in another case', and 'is kept, even once its condition has ended, while the whole profiles directory is refused, and cleared once it is read'. Each runs two reconciles where it applies."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "All listed tests pass. The clear tests and the dir-refused test failed on unchanged code; that log is at /tmp/dm-linear/DM-390-before.txt. The other keep tests passed on unchanged code because the old code never cleared anything, so for them I used mutation runs instead: dropping the conflictHolds guard failed the link and case-variant tests, and clearing on a refused dir failed the dir test. The two-reconcile keep, DM-373 keep and oversized keep tests are reported conflicts that no mutant tried here could break; they guard regressions in how the scan reports conflicts."
+          }
+        ],
+        "notes": "Representation: a stored profile conflict is a sync_state row with kind='profile' and a non-NULL conflict. Only storeProfileConflicts writes it; applyProfile and the finalizer's markSynced/recordExport clear it. 'Reported again' means the name is in scan.conflicts, which already includes rejected-over-waiting via noteRejectedOverWaitingExport. Red-team, what I attacked: (1) Ordering. scanProfiles runs inside the reconcile tx before applyStaged, which does not touch profile rows, and settled is disjoint from scan.conflicts, so clear-then-insert cannot drop a reported conflict. In keepTracked's nested reconcile a failed import throws and rolls the clear back. (2) A file rejected on its own (oversized, bad JSON, a link or other unreadable path) while its export waits is reported or kept, because unimportedProfile throwing counts as holding. It clears only when the file is provably this machine's own (matches sync or export intent), and there the flush may write and profileChoiceStands is false. (3) A pending export with a tracked file still unimported is kept even when the scan never listed it, for example on a case-insensitive FS listing 'UI.json' (test). (4) A profile deleted on disk is cleared: unimportedProfile is null, the flush creates the file and nothing can be lost. (5) The DM-373 no-sync-row case is kept while unimported (test), and after Write local sets imported_hash it clears. (6) A rejected or unread profiles dir (link, not a directory, over MAX_PROFILES, readdir error) leaves settled empty (test). (7) Cost: one SELECT per reconcile, plus a file read only for stored conflicts the scan did not report. 'does not read profile files again while unchanged' still passes. Consciously accepted: an unreadable tracked file with a waiting export keeps a choice message that has no buttons (resolvable=false) until it becomes readable or the export ends. The ticket asked for this, and dropping it could hide a live conflict. Prettier --check flags both .ts files, but they were already flagged at HEAD and prettier is not a repo script. I did not run npm run deadcode because no export was added or removed (only a field was added to the ProfileScan interface)."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m6an6qgr427w062phqxnke83",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "branch",
+            "location": "linear-DM-390",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "linear-DM-390",
+        "changedFiles": [
+          "src/core/repo/profileImport.ts",
+          "src/core/repo/profileImport.test.ts",
+          "docs/architecture.md"
+        ],
+        "commits": [
+          "c2708166699f63a8e443097ec06f325d7b49b675"
+        ],
+        "summary": "storeProfileConflicts now clears, before storing the scan's conflicts, the stored conflict of every profile whose condition has ended. These are profiles the scan did not report again (that report includes noteRejectedOverWaitingExport) and that conflictHolds rejects: either no export of the profile waits, or the tracked file is gone or is one this machine imported or exported. The last case covers Write local whose write keeps failing, where keepLocal set imported_hash to the tracked hash. A stored conflict is kept while its export waits and its tracked file cannot be read: a rejected file, a link, or a non-portable or case-variant listing. scanProfiles computes the names into a new ProfileScan.settled field and leaves it empty when the whole profiles directory is rejected or unread, as storeConflicts does. The export's own failure stays as the outbox last_error. docs/architecture.md and the module header describe the rule."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6amnn61bvvs83c3pstsf97s",
+      "state": "rejected",
+      "submittedAt": "2026-11-01T04:24:36.546Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:57e23b6470b2b96d7ac99a1db203088ed7efe6874af9227ddbcdc47c558ea08e",
+      "ticketId": "tk_01m6a9f87n5tvrkf4qfwetf758",
+      "updatedAt": "2026-11-01T04:30:06.506Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "medium",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-390)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (medium). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'medium' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-01T04:22:00.777Z",
+      "decidedAt": "2026-11-01T04:29:09.951Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "Attempt 2 closed attempt 1's findings: P2 now clears on the next reconcile, no live conflict is cleared under any skip reason, planRejectedRuns' condition is unchanged, all four new tests fail on 91b3121, the tracked-file-names-another-epic case (old finding 4) is fixed, doc matches code. Rejected only because the kept set is keep-only: the run conflict must also be created under a skipped epic. Keep tracked's generic refusal under a clash-skipped epic is covered by DM-388's epic-directory fallback at the row merge (plan-time rejections are filed at the epic directory, importer.ts:687).",
+        "outcome": "rejected",
+        "reasons": [
+          "x3 requires s3 for runs under an epic rejected at plan time, but such a run never gets a conflict when its epic is already skipped by the first reconcile that sees the pulled run (FU389Redteam probe Q3, describe 'PROBE2 DM-389' in /tmp/dm-review/DM-389/head/src/core/repo/probe_dm389.test.ts: pullEpicAndRunOverWaitingRunHistory with the local R1 clash set before the pull -> stored conflict null and Storage [] over two reconciles while the flush refuses with 'choose ... in the desktop app's Storage card'). planSkippedRunConflicts only keeps an already-stored conflict; planRuns filters these runs out, so nothing ever creates one. Plan a run conflict (into plan.conflicts, same text and kind as planRuns/planRejectedRuns use) for every local run under a skipped epic for which runConflictHolds is true, matching the run by its local epic or by the epic its tracked run.json names, as now. Keep the hold behaviour (shown not resolvable during a transfer hold).",
+          "Same root cause, minor (probe Q2): one read error in runConflictHolds during a reconcile drops a live conflict, and with keep-only it never comes back while the epic stays skipped. With planning (reason 1) it must be re-created by the next healthy reconcile; add a test for that. Leave the throw-as-none semantics of runConflictHolds to DM-391, which owns read/hash failure handling in the shared readers."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npx vitest run src/core/repo/importer.test.ts src/core/repo/finalizer.test.ts src/core/repo/importer.hostile.test.ts src/core/repo/legacyRecords.test.ts src/core/repo/profileImport.test.ts src/core/repo/storage.test.ts: 6 files, 324 tests passed (at 217f188)",
+            "name": "npx vitest run src/core/repo/importer.test.ts src/core/repo/finalizer.test.ts src/core/repo/importer.hostile.test.ts src/core/repo/legacyRecords.test.ts src/core/repo/profileImport.test.ts s …",
+            "status": "passed"
+          },
+          {
+            "detail": "exit 0 (node, web, fireguard)",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "exit 0 (finalizer.test.ts linted in commit 1, unchanged since)",
+            "name": "npx oxlint src/core/repo/importer.ts src/core/repo/importer.test.ts src/core/repo/finalizer.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "no exports added, removed or moved",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test / npm run lint / npm run build / npm run fireguard",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "importer.test.ts > a run's conflict while the reconcile skips its epic at plan time > keeps it, offered as a choice, while a local revision clashes with the tracked one, and clears it once the epic imports and the run is settled: under a local revision clash two reconciles keep the stored run conflict and Storage lists it resolvable: true; the flush stays refused. failed at base 16fc3a8 at `expect(storedConflict(env.target, 'run', RUN)).toBe(message)` on the first reconcile: received null. Other plan-time skip reasons: importer.test.ts > a run's conflict while its epic is skipped for its own conflict or a Linear transfer hold > keeps it, offered as a choice, while the epic is skipped for its own pending-export conflict (resolvable true) and importer.test.ts > a run's conflict while its epic is skipped for its own conflict or a Linear transfer hold > keeps it while a Linear transfer holds the epic, and offers the choice again once the transfer is canceled (resolvable false during the hold, true after cancel), each failed at base 16fc3a8 at `expect(storedConflict(env.target, 'run', RUN)).toBe(message)` on the first reconcile: received null. importer.test.ts > a run's conflict while the reconcile skips its epic at plan time > keeps it while the epic its tracked run.json names, not its local one, is the epic left unimported keeps it when the skipped epic is the one the tracked run.json names; mutation check: with that clause disabled it fails at the same assertion (received null)."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "importer.test.ts > a run's conflict while the reconcile skips its epic at plan time > clears it on the next reconcile once {the tracked run.json is back to the imported text | the run's export no longer waits}, while the epic still clashes (it.each, 2 cases): with the epic still clash-skipped, once the condition ends (tracked run.json back to the imported text, or the run_history export done) the next reconcile clears the stored conflict and Storage lists nothing. importer.test.ts > a run's conflict while its epic is skipped for its own conflict or a Linear transfer hold > clears it on the next reconcile once the run's export no longer waits, while a Linear transfer still holds the epic: same under a still-standing transfer hold. All three failed on 91b3121 at `expect(storedConflict(env.target, 'run', RUN)).toBeNull()`: received 'Tracked history for run rn_…4w9 changed while local run changes are waiting to be exported.' (importer.test.ts:1155 for both it.each cases, :1200 for the held case before line shifts). importer.test.ts > a run's conflict while the reconcile skips its epic at plan time > keeps it, offered as a choice, while a local revision clashes with the tracked one, and clears it once the epic imports and the run is settled second half: once the clash is gone, the run settled, the epic imports and the conflict is NULL (passed at base too; guard)."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "docs/architecture.md run bullet: 'a run with no `sync_state` row at all ... is written as before' plus 'A run whose row only notes a conflict (both hashes NULL, stored by a reconcile while an export of the run waits) is not exempt: its export is refused and the choice is offered.' Also states the plan-time rule (kept while the epic is left unimported — rejected by the scan, held for a Linear transfer, skipped for its own pending-export conflict, or refused for a revision clash — and the condition holds; cleared on the next reconcile after it ends) and corrects the planRejectedRuns parenthetical. Finalizer pin: finalizer.test.ts > flushOutbox and a tracked run history this machine has not imported > refuses over a run whose sync_state row only notes a conflict, as a reconcile stores it while the export waits — pins existing behaviour (passed before the change)."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "All listed tests pass. Failed without the change: T1/T2/T3 (failed at base 16fc3a8 at `expect(storedConflict(env.target, 'run', RUN)).toBe(message)` on the first reconcile: received null); the ended-condition tests T5 (2 cases) and T7 (failed on 91b3121 at `expect(storedConflict(env.target, 'run', RUN)).toBeNull()`: received 'Tracked history for run rn_…4w9 changed while local run changes are waiting to be exported.' (importer.test.ts:1155 for both it.each cases, :1200 for the held case before line shifts)); T6 (mutation check, and at base its local epic is not skipped so it clears). Pins/guards that did not fail before, stated honestly: finalizer.test.ts > flushOutbox and a tracked run history this machine has not imported > refuses over a run whose sync_state row only notes a conflict, as a reconcile stores it while the export waits and the epic-imports half of T1."
+          }
+        ],
+        "notes": "Skip reasons covered (all planEpics/planImport has): scan-rejected epic, transfer hold (incl. a hold raised only by the incoming run), own pending-export conflict, epicClash. Excluded: apply-time epic failure (applyStaged failedEpics) is not a plan-time skip; its runs were planned by planRuns, so a live run conflict (export waits) is re-pushed into plan.conflicts and stored again, and one whose export no longer waits has an ended condition. Scan-rejected run files (scan.rejectedRuns) keep their existing unconditional rule, and every run conflict is still kept while history/ is rejected.\nRed-team of the new clear (can it drop a LIVE conflict?): (a) transfer hold: runConflictHolds does not look at holds, so a live conflict is kept while held (T3), shown resolvable: false by Storage, and offered after cancel; cleared during the hold only once the export no longer waits (T7). (b) own pending-export conflict / clash / scan-rejected epic: kept while live (T1, T2, existing 'keeps the conflicts of a rejected epic and its runs' test). (c) tracked run.json naming a different (skipped) epic than the local run: planRuns skips it by the tracked epic, so planSkippedRunConflicts also matches scan.runs whose record.epicId is skipped (T6, mutation-checked); this was the accepted edge in attempt 1, now fixed. (d) apply-time epic failure: see above; not dropped while live. (e) unreadable/unsafe tracked path: runConflictHolds returns false (as planRejectedRuns did); a file the scan rejected is still kept via rejectedRuns. (f) same transaction: planning and storeConflicts run in one reconcile tx, so the kept set reflects the files and outbox read in that tx. (g) A run with a stored conflict but no local runs row cannot have a waiting export, so the JOIN on runs drops nothing live. Only rows with the run-history prefix are touched.\nWorking-tree note: for the mutation check I temporarily edited importer.ts and restored it from a byte copy before committing (diff confirmed)."
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m6anfja97zez9kn4c8gsjne0",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "branch",
+            "location": "linear-DM-389",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "linear-DM-389",
+        "changedFiles": [
+          "src/core/repo/importer.ts",
+          "src/core/repo/importer.test.ts",
+          "src/core/repo/finalizer.test.ts",
+          "docs/architecture.md"
+        ],
+        "commits": [
+          "91b3121fd06ff95f8a29d3858bbef1653c9c7685",
+          "217f188c49a1280e01dea5fb6e3b92c6eb5d040a"
+        ],
+        "summary": "Runs under an epic the reconcile leaves unimported (Plan.skippedEpics: rejected by the scan, held for a Linear transfer, skipped for its own pending-export conflict, refused by epicClash) are not planned; their stored run-history conflicts are now kept only while the conflict's condition still holds, checked by the same rule a new conflict follows. New `runConflictHolds` (run_history export waits AND unimportedRunHistory non-null; unreadable = none) is shared by planRejectedRuns and the new planSkippedRunConflicts, which fills Plan.keptRunConflicts for runs with a stored conflict whose local epic is skipped or whose tracked run.json names a skipped epic (the set planRuns skips). storeConflicts keeps rejectedRuns (scan-rejected run files, unchanged rule), every run conflict while history/ is rejected (unchanged), and keptRunConflicts; it clears every other run-history conflict, so an ended condition clears on the next reconcile whether or not the epic imports. docs/architecture.md run bullet: 'written as before' sentence corrected (commit 1), planRejectedRuns parenthetical corrected and the plan-time keep/clear rule added (commit 2); rest of the bullet word-for-word. storeConflicts, planRejectedRuns and Plan comments match the code."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6amnn61bvvs83c3pstsf97s",
+      "state": "rejected",
+      "submittedAt": "2026-11-01T04:27:13.447Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:46650b8451b233c55b3565b506e047a1c58354e2c061d05579441e9eb5ca4d4d",
+      "ticketId": "tk_01m6a9f87nms0wfhav8f3vd2q1",
+      "updatedAt": "2026-11-01T04:29:09.951Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "high",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-389)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (high). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'high' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-01T04:25:16.937Z",
+      "decidedAt": "2026-11-01T04:34:05.343Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "Attempt 2 accepted after FU388Redteam re-review (correct, 0.8). Consciously not required: both-machines-accepted-with-different-outputs after a takeover race (pre-existing two-acceptor merge; refusing would push to Write local, which loses the other side instead) -> report followUp; tracked accepted+superseded vs local accepted is refused (fail-closed, worker's deliberate choice).",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "node, web and fireguard tsconfigs: 0 errors",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "exit 0 (a max-lines-per-function finding on the grown describe was fixed by splitting it into two describes)",
+            "name": "npx oxlint src/core/repo/importer.ts src/core/repo/importer.test.ts src/core/services/runConflict.ts src/renderer/src/home/StorageCard.tsx src/renderer/src/home/StorageCard.test.tsx",
+            "status": "passed"
+          },
+          {
+            "detail": "npx vitest run src/core/repo/importer.test.ts src/core/repo/importer.hostile.test.ts src/core/repo/profileImport.test.ts src/renderer/src/home/StorageCard.test.tsx src/core/commands/capabilities.test.ts src/mcp/server.test.ts src/renderer/src/app/shellActions.test.ts: 7 files, 296 tests passed; importer.test.ts alone: 110 passed (105 at 27d51cf; attempt 1's '108' was wrong), StorageCard.test.tsx: 27 passed",
+            "name": "npx vitest run src/core/repo/importer.test.ts src/core/repo/importer.hostile.test.ts src/core/repo/profileImport.test.ts src/renderer/src/home/StorageCard.test.tsx src/core/commands/capabili …",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found (runRowsTrackedLacks renamed to acceptanceTrackedLacks; readTrackedRunHistory, TrackedRunHistory exported)",
+            "name": "npm run deadcode",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Keep tracked refused, changing nothing (expectKeepTrackedRefusedSaying compares whole DB, outbox, sync_state, run.json) unless the tracked record holds every local accepted non-superseded attempt as accepted+not superseded and every local checkpoint. FU388Redteam re-ran probe_dm388_regress (submitted, rejected) and TwoMachine probe_runKeepTracked/Completed: all refused naming the attempt and Write local."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Local-only submitted/failed/rejected and locally superseded accepted attempts still drop (DM-372 c4 / DM-376 tests pass; 248 tests across 6 conflict-resolution files). Guard and drop share trackedLacks(runId, ids) keyed by id like the import."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "notImported falls back to the rejection filed at the run's epic directory (exact path match, no E1/E10 prefix mix-up); test fails without the fallback."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "architecture.md run bullet + runConflict.ts module comment + Storage card tooltip state the refusal rule; 7 tests fail on 27d51cf (4 overwrite refusals, 2 refusal wordings, tooltip); counts accurate (importer.test.ts 110). Two wording nits (doc implies decision always protected; tooltip omits 'not superseded') are carried into DM-391's doc edits."
+          }
+        ],
+        "notes": "Checkpoints are write-once: the only write is the INSERT in src/core/services/checkpoints.ts:596; no UPDATE of checkpoints exists outside tests; the only DELETE is epicDeletion.ts. The import's checkpoint upsert (ON CONFLICT DO UPDATE outcome, policy, decided_by, decided_at) only rewrites an id the tracked file holds, and only the machine that created that ULID exports it, so presence suffices. Red-team of the new rule: (1) Import paths that still change a local accepted attempt held accepted and not superseded on both sides: upsertAttempt replaces decision_json, outputs, evidence, revision/ticket fields, timestamps and fencing token with the tracked copy. The attempt stays accepted (the evidence of acceptance exists), but if both machines accepted the same attempt, this machine's decision notes are replaced by the other machine's; the positive test exercises exactly that (tracked decision 'Accepted there too'). I kept the rule to state + superseded as the orchestrator specified; requiring an identical decision would just move the loss to Write local, which overwrites the other machine's decision. A hand-edited tracked run.json (records are untrusted) could also alter an accepted attempt's decision or a held checkpoint's outcome while keeping state/ids; not guarded. (2) Tracked copy leased (claimed/running) is imported as lease_expired, so it is not 'accepted' and is refused. (3) Ordering/races unchanged from attempt 1: one read for guard and drop, matchesSync(tracked.hash) after import rolls back a changed file, all in ctx.db.tx. (4) Over-refusal: local-only non-accepted rows (submitted, failed, rejected) and superseded accepted attempts still drop; a local superseded accepted attempt that the tracked record holds as rejected is imported (tested). DM-372 c4 / DM-376 cases (A's accepted attempt held by both, B's local-only failed attempt) still succeed: all DM-376 tests pass. (5) A whole `epics/` directory rejected (link/not a directory) files its rejection under `epics`, not the epic directory, so that case still falls back to the epic conflict or generic text; consciously not covered (ticket asks for the epic directory entry)."
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m6annhw95jf8znp5xtvc55am",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "branch",
+            "location": "linear-DM-388",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "linear-DM-388",
+        "changedFiles": [
+          "src/core/services/runConflict.ts",
+          "src/core/repo/importer.ts",
+          "src/core/repo/importer.test.ts",
+          "src/renderer/src/home/StorageCard.tsx",
+          "src/renderer/src/home/StorageCard.test.tsx",
+          "docs/architecture.md"
+        ],
+        "commits": [
+          "27d51cfd8ee994bee082efabf676cf9b79b9dbf2",
+          "b159b3dd38fc094b2d07b450c5e113cab6bcd6b9"
+        ],
+        "summary": "Keep tracked for a run reads the tracked run.json once (readTrackedRunHistory) and, inside the existing transaction after the live-lease/sign-in check and before the drop, refuses with no change unless the tracked record holds every attempt of the run that this machine accepted and has not superseded, as accepted and not superseded, and every checkpoint of the run this machine recorded (requireAcceptedWorkKept in runConflict.ts over acceptanceTrackedLacks in importer.ts). That one rule covers both the drop deleting acceptance evidence (attempt or checkpoint missing from the tracked record) and the import overwriting it (upsertAttempt replacing an accepted attempt's state, decision and superseded_at with a tracked copy that is submitted, rejected, failed, superseded, or leased). The message names the attempt, its ticket and the tracked state ('holds it as submitted', 'holds it as accepted, superseded', or 'lacks it'), or the checkpoint and its sprint, says this machine's accepted work would be lost and points to Write local, which keeps it. Guard and drop share one selection rule, trackedLacks(runId, ids): the drop passes the tracked record's ids per table; the guard passes the ids of the tracked attempts that are accepted and not superseded (and the tracked checkpoint ids). When the run did not import and has no rejection of its own, the refusal falls back to the result.rejected entry for the run's epic directory (scan- or plan-time epic rejection) before the epic conflict and the generic text. The Storage card's Keep tracked tooltip, the runConflict.ts module comment and the run bullet in docs/architecture.md (one inserted passage vs 16fc3a8; rest word-for-word, the no-sync_state-row sentence untouched) state the rule as implemented."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6amnn61bvvs83c3pstsf97s",
+      "state": "accepted",
+      "submittedAt": "2026-11-01T04:30:24.169Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:4d2717f8270d58a713d2991784de958bf0bc3914d0783ba676bbc849d6cb606c",
+      "ticketId": "tk_01m6a9f87n5ynpnc9ye3krk67x",
+      "updatedAt": "2026-11-01T04:34:05.343Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "high",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-388)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (high). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'high' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-01T04:29:09.971Z",
+      "decidedAt": "2026-11-01T04:35:32.114Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "Attempt 3 accepted after FU389Redteam re-review (correct, 0.8). Known minor regression, consciously not fixed in this ticket (retry budget spent; Write local still resolves): Keep tracked for an EPIC under a clash now reports the run conflict filed under that epic instead of the clash rejection (epicConflict.ts:62 takes the first same-epic conflict before 'rejected'). Recorded as a discovery/followUp. The run-level equivalent is covered by DM-388's epic-directory fallback.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npx vitest run src/core/repo/importer.test.ts src/core/repo/finalizer.test.ts src/core/repo/importer.hostile.test.ts src/core/repo/legacyRecords.test.ts src/core/repo/profileImport.test.ts src/core/repo/storage.test.ts: 6 files, 328 tests passed at 4f89050",
+            "name": "npx vitest run src/core/repo/importer.test.ts src/core/repo/finalizer.test.ts src/core/repo/importer.hostile.test.ts src/core/repo/legacyRecords.test.ts src/core/repo/profileImport.test.ts s …",
+            "status": "passed"
+          },
+          {
+            "detail": "exit 0 (node, web, fireguard)",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "exit 0 (finalizer.test.ts linted in commit 1, unchanged since)",
+            "name": "npx oxlint src/core/repo/importer.ts src/core/repo/importer.test.ts src/core/repo/finalizer.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "no exports added, removed or moved",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test / npm run lint / npm run build / npm run fireguard",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "planSkippedEpicRuns plans the run conflict on every reconcile while runConflictHolds, for every local run under an epic left unimported (scan-rejected, transfer hold, own pending conflict, revision clash), matched by local or tracked epic. FU389Redteam Q3 (clash set before the pull): result lists the conflict, stored, Storage resolvable:true, Write local clears; hold shows it resolvable:false; Q4 scan-rejected epic kept resolvable."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "A conflict whose condition ended (tracked back to imported, export done) clears on the next reconcile whether or not the epic imports (probe P2 / Q1); one read error drops it for a single reconcile and the next healthy one re-plans it (Q2)."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "architecture.md run bullet: only a run with no sync_state row at all is written as before; a conflict-only row is refused and offered; the plan-time rule (gets the conflict while it holds, filed under the local epic, no choice during a hold, clears once ended) is stated; planRejectedRuns parenthetical corrected. finalizer.test.ts pins the conflict-only refusal (pre-existing behaviour, labelled so)."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Across attempts: T1-T3 fail on 16fc3a8 with 'expected null'; the three ended-condition tests fail on 91b3121; the four attempt-3 tests (first-reconcile clash, hold, read-error recovery, rejected run.json under a skipped epic) fail on 217f188. No double entries (code trace of planRuns/planRejectedRuns/planSkippedEpicRuns, probe Q6)."
+          }
+        ],
+        "notes": "Skip reasons covered: all four planEpics/planImport has (scan-rejected epic, transfer hold incl. one raised only by the incoming run, own pending-export conflict, epicClash). Apply-time epic failure is not a plan-time skip: those runs go through planRuns, which plans a live conflict itself.\nRed-team (does planning create a conflict that should not exist?): (a) export not waiting -> runConflictHolds false, no conflict (T5b, T7, T8 second half). (b) tracked run.json imported/own -> unimportedRunHistory null, no conflict (T5a); a missing tracked file or a run with no sync_state row -> null as in the finalizer, no conflict. (c) a run of an epic this machine never had -> candidates come only from the local runs table, so a pulled run with no local row gets nothing; a local run whose tracked file names an unknown/rejected epic is filed under its local epic (T6). (d) double entry: runs planRuns plans (tracked epic not skipped) are excluded by id; planRejectedRuns skips runs whose local epic is skipped and only iterates scan-rejected runs (never in scan.runs); T8 asserts exactly one run conflict for a rejected run.json under a skipped epic. (e) hold: the epic row keeps the hold message (Q3b asserts sync_state kind 'epic' = hold), run conflict shown not resolvable, offered after cancel. (f) transient read failure: still throw-as-none for one reconcile (dropped), re-created by the next healthy reconcile (Q2). (g) Every run conflict now cleared and re-planned each reconcile, except scan-rejected run files and history/ rejected (unchanged rule), so nothing can go stale. (h) Live conflict not dropped under any skip reason: the clear only drops conflicts not re-planned, and planning covers every skipped-epic run with a live condition. Behaviour change to note: result.conflicts (and the repository.reconciled digest/event) now also list these run conflicts while their epic is skipped.\nWorking-tree note: for the 217f188 failure check, importer.ts was temporarily replaced with `git show 217f188:` and restored from a byte copy before committing."
+      },
+      "failure": null,
+      "fencingToken": 3,
+      "id": "at_01m6anwnekq95561zw0tpq9p2c",
+      "kind": "work",
+      "number": 3,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "branch",
+            "location": "linear-DM-389",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "linear-DM-389",
+        "changedFiles": [
+          "src/core/repo/importer.ts",
+          "src/core/repo/importer.test.ts",
+          "src/core/repo/finalizer.test.ts",
+          "docs/architecture.md"
+        ],
+        "commits": [
+          "91b3121fd06ff95f8a29d3858bbef1653c9c7685",
+          "217f188c49a1280e01dea5fb6e3b92c6eb5d040a",
+          "4f8905009ed5cc00dc1c2adeaff3a5dbe6f4f657"
+        ],
+        "summary": "A local run under an epic the reconcile leaves unimported (Plan.skippedEpics: rejected by the scan, held for a Linear transfer, skipped for its own pending-export conflict, refused by epicClash; matched by the run's local epic or by the epic its tracked run.json names) now gets the run-history conflict PLANNED into plan.conflicts on every reconcile while runConflictHolds is true (its run_history export waits AND unimportedRunHistory finds history not imported here). So the conflict is created even when the epic is skipped from the first reconcile that sees the pull, is re-created after a reconcile that could not read the file, and is dropped by storeConflicts' normal clear once the condition ends. planSkippedEpicRuns replaces attempt 2's planSkippedRunConflicts; Plan.keptRunConflicts and its storeConflicts exclusion are deleted (planning subsumes them). The conflict text/kind come from one helper, runHistoryConflict, used by planRuns, planRejectedRuns and planSkippedEpicRuns. Runs planRuns handles (tracked epic not skipped) are excluded, and planRejectedRuns still skips runs whose local epic is skipped, so no run is planned twice. Scan-rejected run files keep their unconditional keep rule; the epic's own conflict / hold row (kind 'epic') is untouched. docs/architecture.md run bullet: 'written as before' sentence (commit 1), planRejectedRuns parenthetical and the plan-time rule (now: such a run gets the conflict while its condition holds, offered, or shown without a choice during a hold; cleared on the next reconcile after it ends). result.conflicts now also lists these run conflicts; 6 existing expectations were updated accordingly."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6amnn61bvvs83c3pstsf97s",
+      "state": "accepted",
+      "submittedAt": "2026-11-01T04:33:27.973Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:46650b8451b233c55b3565b506e047a1c58354e2c061d05579441e9eb5ca4d4d",
+      "ticketId": "tk_01m6a9f87nms0wfhav8f3vd2q1",
+      "updatedAt": "2026-11-01T04:35:32.114Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "high",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-389)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (high). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'high' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-01T04:30:24.267Z",
+      "decidedAt": "2026-11-01T04:34:21.331Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "Attempt 2 accepted after FU390Redteam re-review (correct, 0.7). Consciously not required: a case-variant listing (UI.json vs ui) plus a single read error can lose a live conflict (P10) - root cause is the pre-existing case-variant-name gap (base never notes such conflicts, P10b), already a report followUp. Doc/header 'noted again by the next reconcile' overclaims for that path: wording fix carried into DM-391's doc edits.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "exit 0 at 32b2a48",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "exit 0, no findings",
+            "name": "npx oxlint src/core/repo/profileImport.ts src/core/repo/profileImport.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "9 files, 431 tests passed at 32b2a48. src/core/services/profileConflict.test.ts and src/core/services/storage.test.ts do not exist; src/core/repo/storage.test.ts ran instead",
+            "name": "npx vitest run profileImport, repo/storage, importer, importer.hostile, finalizer, commands/profiles, src/core/workspace*",
+            "status": "passed"
+          },
+          {
+            "detail": "Exactly 5 new tests failed, each with AssertionError: expected 'Tracked profile ui changed while loca…' to be null: the four 'is cleared…' tests in 'a stored profile conflict whose condition has ended' and the directory-refused test. Log: /tmp/dm-linear/DM-390-before.txt",
+            "name": "Red run of the new tests on 16fc3a8",
+            "status": "passed"
+          },
+          {
+            "detail": "Exactly 2 tests failed, each with expected '<conflict>' to be null: 'is cleared while the tracked file is refused unread…' and 'is cleared by a passing read error, and noted again once the unimported file reads'. Log: /tmp/dm-linear/DM-390-before-attempt2.txt",
+            "name": "Red run of the attempt-2 tests on c270816",
+            "status": "passed"
+          },
+          {
+            "detail": "Dropping conflictHolds, so every unreported stored conflict was cleared, failed the case-variant keep test (it also failed the link test, which then pinned the keep). Clearing while the profiles dir was refused failed the directory-refused test. Both mutants were reverted.",
+            "name": "Mutation runs (attempt 1)",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "settledConflicts/storeProfileConflicts clear a stored profile conflict whose condition ended: Write local whose write failed then reconcile, file back to synced, file deleted, no export waiting, link/unreadable tracked file (now clears, P1 and P1b agree). FU390Redteam P2: a new change by the other machine afterwards is reported again and resolvable."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Live conflicts kept across reconciles: still-holding conflict, DM-373 no-sync-row, rejected file over a waiting export (bad JSON kept and resolvable, P4b), refused/unreadable/oversized profiles directory clears nothing (P6, P7). Failed Keep tracked rolls the clear back (P9). Hash rule is the finalizer's unimportedProfile."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "On 16fc3a8 the four 'is cleared' tests and the directory-refused test fail (plus the two attempt-2 tests: 7 of the final set); on c270816 exactly the link-clear and read-error tests fail; kept/no-sync-row/rejected-over-waiting tests are regression guards, shown meaningful by mutants."
+          }
+        ],
+        "notes": "Attempt 2 fixes the red-team's P1. conflictHolds' catch now returns false, so a stored conflict over a link, junction, directory or I/O-error path clears. Before, it stayed with resolvable:false while both choices threw 'Unsafe repository path', and the same file state with no earlier conflict gave none. The conflictHolds comment now says that only unreadable paths reach the catch; rejected records (bad JSON, oversized, wrong name) are read and judged by hash. I fixed the doc sentence and the module header to match. As instructed, the tracked reads in settledConflicts are not bounded or cached (DM-391 owns that). What I attacked: (1) Ordering: scan, apply and store run in one reconcile tx, settled is disjoint from scan.conflicts, and a failed inner reconcile in Keep tracked rolls the clear back. (2) A file rejected on its own but readable and unimported, with a waiting export, is reported by noteRejectedOverWaitingExport and kept. (3) An unreadable file clears, but a short error heals: the next readable reconcile notes the conflict again and it is resolvable (test). A live conflict is never lost while the file reads. (4) A case-variant listing whose tracked file reads as unimported is kept (test). (5) A deleted file clears and the flush then writes. (6) The DM-373 no-sync-row case is kept while unimported, and clears after Write local sets imported_hash. (7) A rejected or unread profiles dir clears nothing. I did not run npm run deadcode because no export changed."
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m6anyy0b30vgs2nbsxcdpj3g",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "branch",
+            "location": "linear-DM-390",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "linear-DM-390",
+        "changedFiles": [
+          "src/core/repo/profileImport.ts",
+          "src/core/repo/profileImport.test.ts",
+          "docs/architecture.md"
+        ],
+        "commits": [
+          "c2708166699f63a8e443097ec06f325d7b49b675",
+          "32b2a48a135b28d6e65b3dbd57965eec4407bbe4"
+        ],
+        "summary": "Before storing the scan's conflicts, storeProfileConflicts clears the stored conflict of every profile whose condition has ended. These are profiles the scan did not report again (that report includes noteRejectedOverWaitingExport) and that conflictHolds rejects. conflictHolds applies the finalizer's own rule: the profile's export waits AND unimportedProfile finds a tracked file this machine has not imported. Since attempt 2, a tracked file that cannot be read at all (a link, a junction, a directory, an I/O error) counts as no conflict, as in noteRejectedOverWaitingExport and profileChoiceStands. So the outcome no longer depends on history, and a passing read error is noted again by the next reconcile that reads the file. The cleared cases are: the export no longer waits; the tracked file is gone or unreadable; or the tracked file is one this machine imported or exported, which covers Write local whose write keeps failing. scanProfiles computes the names into ProfileScan.settled and leaves it empty while profiles/ as a whole is rejected or unread. The export's own failure stays as the outbox last_error. docs/architecture.md and the module header describe the rule."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6amnn61bvvs83c3pstsf97s",
+      "state": "accepted",
+      "submittedAt": "2026-11-01T04:32:20.689Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:57e23b6470b2b96d7ac99a1db203088ed7efe6874af9227ddbcdc47c558ea08e",
+      "ticketId": "tk_01m6a9f87n5tvrkf4qfwetf758",
+      "updatedAt": "2026-11-01T04:34:21.331Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "high",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-390)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (high). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'high' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-01T04:36:54.444Z",
+      "decidedAt": "2026-11-01T05:51:52.988Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "Both red-teams found s1 holding and the bound/cache correct (FU391SafetyRedteam correct 0.8; FU391PerfRedteam correct 0.8): exactly 24 tests fail on 3530d12; refusal uses cached hash but a proceeding export re-reads (M4 caught); guard: and scan keys share one hash rule; token never reaches exported_hash; bound edges caught by tests; no RangeError at 32 MiB in any probed content. Rejected for the test gaps on the guard and the wiring, the read race, failure classification and three accuracy fixes above. Not required here: the import scan's uncached reads of every run.json up to 8 MiB per reconcile (pre-existing, outside this ticket; followUp); stored run conflict over a directory/junction staying buttonless (root cause in storeConflicts' scan-rejected keep, pre-existing; followUp); read failure at Write local followed by a failed write; total first-heartbeat cost for many large files.",
+        "outcome": "rejected",
+        "reasons": [
+          "c3 test gap on a safety check (FU391SafetyRedteam finding 5, mutation M1): disabling the identity comparison in unimportedFile (finalizer.ts ~581) leaves all 310 tests in finalizer/importer/profileImport/storage passing. Add tests that fail when it is disabled: e.g. Write local over an unreadable file whose read later succeeds (stored identity is unread-file:<stamp>, the file now hashes to sha256:...) -> next flush writes because the stamp still matches; and a file with the same content but a different stamp is refused.",
+          "c2 wiring gap (FU391PerfRedteam finding 1): giving workspace.flush (workspace.ts ~409) and the getStorageStatus command (repository.ts ~90) a fresh FileHashCache per call passes all 1450 tests in workspace/commands/integration/mcp/desktop; the new tests share env.fileHashes so they cannot see it. Add a test through the real workspace (open a workspace, repeated flush + reconcile + storage status over an unchanged tracked file with a waiting export) asserting the file is read at most once, and once more after it changes.",
+          "s1 race (FU391SafetyRedteam finding 4, probe C): readTrackedFile takes the stamp/identity before readFileSync (finalizer.ts ~542 vs ~566), so a pull landing between them lets file X's identity approve file Y's content. Take the stamp again after the read and treat a mismatch as a changed file (re-read or not imported).",
+          "Failure classification (finding 6): a stat-level EACCES/EIO (statSync in fileSize/isDirectory) throws a raw error that runConflictHolds, noteRejectedOverWaitingExport and the storage *ChoiceStands catch-alls treat like an unsafe path (no conflict, no choice). Only genuine unsafe paths (link, junction, directory, non-regular file) should be unsafe_path; other stat/read failures are read failures (not imported, offered).",
+          "Message accuracy (finding 1): when this machine's own run export is over 32 MiB, every later change is refused and the message says the file 'holds records this machine has not imported', which is false. Make the refusal say the tracked file is over the bound and cannot be read to tell whose it is, and state in docs/architecture.md that each change of such a run needs Write local.",
+          "Doc accuracy (FU391PerfRedteam finding 5 docs part): the new architecture.md sentence says the scan reads only 'a pulled run.json' (it reads every run.json up to 8 MiB on every reconcile), and the fileHashes.ts header still says 'an unchanged reconcile costs one stat per file'. Correct both to match the code; do not change the scan itself (out of scope, reported as a follow-up)."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "exit 0 after both commits (node, web, fireguard projects)",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "exit 0 on all 21 touched TS/TSX files. docs/verification/DM-372-check.mjs (only its import line changed) reports a pre-existing max-lines-per-function error in c2, identical at 3530d12",
+            "name": "npx oxlint <touched .ts/.tsx files>",
+            "status": "passed"
+          },
+          {
+            "detail": "npx vitest run src/core/repo src/core/commands src/core/services src/core/workspace*.test.ts src/mcp/server.test.ts src/mcp/tools/discovery.test.ts src/main/agents/chatStore.test.ts src/main/desktop/agentRegistryImport.test.ts src/renderer/src/home/StorageCard.test.tsx: 91 files, 2042 tests passed at f222dd2 (touched modules plus every memoryFs/repoEnv consumer)",
+            "name": "npx vitest run src/core/repo src/core/commands src/core/services src/core/workspace*.test.ts src/mcp/server.test.ts src/mcp/tools/discovery.test.ts src/main/agents/chatStore.test.ts src/main …",
+            "status": "passed"
+          },
+          {
+            "detail": "24 new/changed tests in finalizer/importer/profileImport/storage tests failed on 3530d12 production code (list in /tmp/dm-linear/DM-391-prechange-failures.txt); StorageCard tooltip test failed before the wording fix; the 4 'read of it fails once' tests failed on 4bd2619 before f222dd2",
+            "name": "TDD pre-change run (new tests on unchanged production code)",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found (MAX_PROFILE_BYTES moved; tracked bounds kept module-private)",
+            "name": "npm run deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run lint (whole tree)",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test (full suite)",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run build",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "finalizer.test > 'flushOutbox over a tracked run history past the bound' > refuses over a pulled run.json past the 32 MiB bound ... without reading it (fileReads 0) and refuses, unread, over own export past the bound; 'flushOutbox over a tracked profile ...' > refuses over a pulled profile past the 512 KiB bound ... without reading it; importer.test / profileImport.test 'past the ... bound: is a resolvable conflict ...' assert zero reads across reconcile, flush and Storage. All failed before (file was read: readsOf expected 0 got >0)."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "finalizer.test 'hashes an unchanged tracked run.json once across flushes, and again once it is rewritten' and '... tracked profile once across flushes'; importer.test 'hashes an unchanged pulled run.json once across reconciles, flushes and Storage card reads, and again once it is rewritten'; profileImport.test same for profiles. Failed before with 3+ reads. Cache is the workspace's FileHashCache, keyed guard:<path> + fileStamp (includes ctimeNs and ino; nodeFs.test already shows a rename + utimes to the same mtime gives a new stamp)."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "importer.test '... that cannot be read: is a resolvable conflict, write local writes over it, and the next export writes its own file' (EIO), profileImport.test '... that cannot be hashed ...' (RangeError), plus 'a write local whose write fails stands only for that file, not for one a later pull rewrites' and 'keeping the tracked ... refuses, naming why'; finalizer.test 'refuses over a pulled run.json it cannot read or hash' (RangeError, EIO). Failed before (catch -> no conflict, raw error). Own >8 MiB export: existing DM-367 test 'writes over its own export even past the import's 8 MiB record limit' passes, new test 'puts this machine's own run.json past the 8 MiB import limit back byte for byte when its export fails', and 'writes over its own export at the bound'. Links/junctions/directories: finalizer.test 'refuses over a link/junction/directory at the tracked run.json as an unsafe path' and storage.test 'offers no choice while a link, a junction or a directory stands ...' (junction and directory cases failed before: offered)."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "docs/architecture.md run bullet (Bound 32 MiB with justification, Cache, Failure, Identity), profile bullet (512 KiB, same rules), reconcile bullet (shared cache), profiles bullet (failure rule, case-variant qualification); plus Row 1 fixes a-e. All listed tests pass at f222dd2 and each new test was shown failing first (see checks)."
+          }
+        ],
+        "notes": "Bound choice: 32 MiB = 4 x the 8 MiB import limit. Beyond 8 MiB no other machine imports a run anyway; files imported here (<= 8 MiB) stay under the bound after any CRLF change (at most doubles); within it JSON escaping (<= 6x) stays under V8's ~2^29-char string limit, so hashing cannot RangeError. Cost: a hostile 32 MiB file is hashed once per stamp (~1 s, a few hundred MB transient). Own export past 32 MiB fails closed (refused, Write local offered) on every later export; accepted trade-off. Profile bound 512 KiB = 2 x MAX_PROFILE_BYTES (own export is schema-bounded ~215 KiB).\nIdentity: 'unread-file:' + FsAdapter.fileStamp (nodeFs size:mtimeNs:ctimeNs:ino), computed locally, never read from a file, never written to exported_hash or export intents (kept requires own.includes, own holds only content hashes). Restore: a before-file with no text (past bound/unreadable) is not put back on failure; the write stands, intent names it, entry retries.\nRed-team (own pass + reviewer subagent DM391Redteam on 4bd2619). Attacked: DoS (cache per call / wrong key / readers bypassing readTrackedFile / fresh reads on refused paths / many files): survived, the cache is workspace-owned and passed to flush, reconcile, Storage and both choices; over-bound files are never read; refused exports do no fresh read; guard reads happen only for runs/profiles with a waiting export. Forgery: survived (sha256: vs unread-file: prefixes; identity from local lstat ctime/ino; Write local over A cannot authorize B: test 'stands only for that file, not for one a later pull rewrites'). Stale cache after git pull with same size+mtime: survived via ctimeNs+ino (nodeFs.test rename+utimes case); residual is a same-granularity rewrite keeping the inode (see discoveries). Cross-key pollution with readUnlessSynced: survived (guard:<path> vs <path>). FOUND and FIXED (f222dd2, medium): a single passing readFile error was cached as the identity, so this machine's own file stayed refused with no conflict to choose; failures are no longer cached, regression test 'refuses only that flush over its own run.json/profile ... and the next flush writes it' (4 cases, failed on 4bd2619). FOUND and FIXED (low, docs): heartbeat cost claim limited to the guards (scan still reads <= 8 MiB run.json / unsynced profiles each reconcile); restore exception also covers runs with no sync_state row; empty FIFO/device reads as empty, not unsafe. Consciously kept: Keep tracked over an unreadable run surfaces the raw read error (DM-388's deliberate behaviour, test 'passes on a failure to read ... as it is'); keepTracked/keepLocal flows unchanged otherwise. Tests confirmed non-vacuous: all 24 new/changed tests failed on 3530d12 production code.\nItem 6 docs fixes a-e (incl. Main's d and e) are in docs/architecture.md; b also in StorageCard.tsx with its test.\nDiscoveries:\n- title: Cache the import scan's read of tracked run.json files\n  reason: readRunFiles (src/core/repo/importer.ts) reads and hashes every tracked run.json up to the 8 MiB record limit on every reconcile (heartbeat), with no stamp cache, and readUnlessSynced re-reads a profile whose hash is not synced on every reconcile. The guards are now one stat per file, but a pulled 8 MiB run.json over a waiting export still costs a full read+hash+parse per heartbeat.\n  ticket: DM-391\n- title: Close the same-granularity rewrite window of the stamp cache\n  reason: FileHashCache trusts nodeFs fileStamp (size:mtimeNs:ctimeNs:ino). On a filesystem with coarse change times (ext4 without multigrain timestamps, HFS+, FAT) a rewrite within one timestamp tick that reuses the inode keeps the stamp, so a remembered hash (import or guard) could be stale; a racy-git style rule (do not remember a stamp whose ctime is within a few seconds of now) would close it.\n  ticket: DM-391\n- title: Bound the read itself, not only the stat before it\n  reason: readTrackedFile and readOwnedText stat the file and then call fs.readFile, which reads whatever the file holds by then; a file grown between the two (a local writer racing the check) is read unbounded. A length-limited read through a file descriptor would make the bound hold under that race.\n  ticket: DM-391\n- title: docs/verification/DM-372-check.mjs fails oxlint\n  reason: npx oxlint on the script reports max-lines-per-function for async function c2 (81 lines); identical at 3530d12, seen while checking the import line this ticket changed.\n  ticket: DM-391"
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m6apav1cd7hkkq1dfjk5rez1",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "branch",
+            "location": "linear-DM-391",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "linear-DM-391",
+        "changedFiles": [
+          "docs/architecture.md",
+          "docs/verification/DM-372-check.mjs",
+          "src/core/commands/repository.ts",
+          "src/core/commands/types.ts",
+          "src/core/repo/fileHashes.ts",
+          "src/core/repo/finalizer.test.ts",
+          "src/core/repo/finalizer.ts",
+          "src/core/repo/importer.hostile.test.ts",
+          "src/core/repo/importer.test.ts",
+          "src/core/repo/importer.ts",
+          "src/core/repo/portable.ts",
+          "src/core/repo/profileImport.test.ts",
+          "src/core/repo/profileImport.ts",
+          "src/core/repo/storage.test.ts",
+          "src/core/repo/storage.ts",
+          "src/core/services/profileConflict.ts",
+          "src/core/services/recordConflict.ts",
+          "src/core/services/runConflict.ts",
+          "src/core/workspace.ts",
+          "src/renderer/src/home/StorageCard.test.tsx",
+          "src/renderer/src/home/StorageCard.tsx",
+          "src/test/memoryFs.ts",
+          "src/test/repoEnv.ts"
+        ],
+        "commits": [
+          "4bd2619cb646f7a118dffcc03de4df29613ad44d",
+          "f222dd2cfc7d05860d8d499d053b817662f2d29c"
+        ],
+        "summary": "Every guard over a tracked run.json or profile (finalizer exports, runConflictHolds/planRejectedRuns/planSkippedEpicRuns, noteRejectedOverWaitingExport/conflictHolds/settledConflicts, Storage runChoiceStands/profileChoiceStands, runConflict/profileConflict requireConflict) now reads through one reader, readTrackedFile in finalizer.ts. (1) Bound without reading: a run.json > 32 MiB (4 x MAX_RECORD_BYTES) or a profile > 512 KiB (2 x MAX_PROFILE_BYTES; MAX_PROFILE_BYTES moved to portable.ts to avoid an import cycle) is never read; one stat decides it and it counts as not imported. (2) Stamp cache: the workspace-owned FileHashCache (now also threaded into FinalizerDeps, StorageDeps, RecordsAccess and WorkspaceCore; no second cache) remembers the guard hash under key guard:<path> + fileStamp (size:mtimeNs:ctimeNs:ino), so an unchanged file is hashed at most once across flushes, reconciles and Storage reads. A refused export decides on the remembered hash; an export that goes ahead re-reads fresh (for restore text) and re-checks (replaceableFile). (3) Failure rule: a regular file whose read/hash throws counts as not imported (conflict recorded, choice offered, Write local writes); failures are NOT cached, so a passing error (EBUSY) does not keep this machine's own file refused (red-team finding, fixed in f222dd2). Links/junctions (assertContained), directories and non-empty non-regular files throw unsafe_path explicitly in the reader, so no choice is offered over them (empty FIFO still reads as ''). Keep tracked still refuses: past the bound it names the 8 MiB record limit; an unreadable file surfaces the read error itself (DM-388's deliberate unwrapped pass-through kept). (4) Identity for files with no content hash: 'unread-file:' + fileStamp, stored by Write local as imported_hash (TEXT column, no migration); unimportedFile treats a file as imported when sync holds its content hash or its identity. A later different file (pull = new ctime) is refused again. (5) Own export over 8 MiB and under the bound: recognised by hash and restored byte for byte (test added). Own export past 32 MiB fails closed (refused, Write local offered). Docs: run/profile/reconcile/profiles bullets state bound, cache, failure rule, identity; Row 1 fixes a (decision/outputs/evidence still replaced when both sides accepted), b (StorageCard Keep tracked tooltip + test: 'and has not superseded, as accepted and not superseded'), c (case-variant qualification in the profile bullet and conflictHolds header), d (accepted-work check comes first), e (epicClash's ticket case named). Test fake: memoryFs gains fileReads, persistent/custom-error faults, and setSize resets on write; RepoEnv gains fileHashes and importerDeps shares it (as the workspace does)."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6amnn61bvvs83c3pstsf97s",
+      "state": "rejected",
+      "submittedAt": "2026-11-01T05:30:14.279Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:5295271efe93ee99eac7a697280efd5f80e0a2e578ff6916985f4ca9eb4dbb10",
+      "ticketId": "tk_01m6a9f87n103fta0jgydf889a",
+      "updatedAt": "2026-11-01T05:51:52.988Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "high",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-391)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (high). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'high' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-01T05:51:53.282Z",
+      "decidedAt": "2026-11-01T06:35:33.762Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "Attempt 2 accepted after both re-reviews: FU391SafetyRedteam correct 0.85 (no s1 route; no DoS from rethrow; unread-file:none never compares equal), FU391PerfRedteam correct 0.85 (wiring test catches each mutation; unstat-able path costs 5-14 ms and breaks nothing). Consciously not required (report followUps): choice offered while a file persistently cannot be stat'd though Write local cannot apply yet (fails closed, error explains); touch-during-read doubles forced reads (needs a local writer); 'one stat decides it' / 'once per stamp' wording nits; pre-existing: the scan's uncached reads of every run.json <= 8 MiB per reconcile, stored run conflict over a directory stays buttonless, first-heartbeat total cost for many large files.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "exit 0 at 18f3d4a and after the 3a51feb message/doc changes (3a51feb's last edit only removed a test comment line)",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "exit 0 on all touched TS/TSX files at 3a51feb. docs/verification/DM-372-check.mjs (import line only) has a pre-existing max-lines-per-function error, identical at 3530d12",
+            "name": "npx oxlint <touched .ts/.tsx files>",
+            "status": "passed"
+          },
+          {
+            "detail": "npx vitest run src/core/repo src/core/commands src/core/services src/core/workspace*.test.ts src/integration src/mcp/server.test.ts src/mcp/tools/discovery.test.ts src/main/agents/chatStore.test.ts src/main/desktop/agentRegistryImport.test.ts src/renderer/src/home/StorageCard.test.tsx: 104 files, 2136 tests passed (run on the 3a51feb code before the final comment-line removal; src/core/workspace.test.ts re-run after it: 16 passed)",
+            "name": "npx vitest run src/core/repo src/core/commands src/core/services src/core/workspace*.test.ts src/integration src/mcp/server.test.ts src/mcp/tools/discovery.test.ts src/main/agents/chatStore. …",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found (isUnsafePath exported and used by importer, profileImport, storage)",
+            "name": "npm run deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "Attempt 1: 24 new tests failed on 3530d12 code; 4 passing-read-error tests failed on 4bd2619. Attempt 2: 7 new/changed tests failed on f222dd2 code (over-bound messages x4, mid-read swap, EACCES stat end to end); M1 (identity comparison disabled) fails 11 tests; fresh FileHashCache per workspace.flush fails the workspace test (8 reads vs 1), per getStorageStatus command (4 vs 1); nodeFs EACCES stamp test fails with the old swallow-all stampOf",
+            "name": "TDD / mutation evidence",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run lint (whole tree)",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test (full suite)",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run build",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "readTrackedFile is the single pre-write reader: a run.json over 32 MiB (4x the 8 MiB import limit) or a profile over 512 KiB (2x MAX_PROFILE_BYTES) counts as not imported without a read (fs read-count tests); bound edges caught by tests (>= mutation fails). Over-bound refusal says it was not read to tell whose it is."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Guard hashes cached in the workspace FileHashCache under guard:<path> with a size:mtimeNs:ctimeNs:ino stamp; workspace.test.ts drives the real workspace: one read across repeated flush+reconcile+storage, one more after a change; fails with a fresh cache in workspace.flush (8 reads) or in getStorageStatus (4 reads). Read failures are not cached; stamp re-taken after the read (probe C refused). FU391PerfRedteam: unchanged file [1,0,0,...], once per change in normal use."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Stat/read/hash failures count as not imported: conflict recorded, Storage offers the choice, Write local writes once the file can be read (EACCES end to end; RangeError/EIO tests); unread files get identity unread-file:<stamp> (text column, no migration) - next flush writes that exact file, a later different file is refused; M1 (identity check disabled) fails 12 tests. Only links/junctions/directories/non-regular files are unsafe_path (not offered). Own export 8-32 MiB still own and restored byte for byte."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "architecture.md run/profile bullets state bounds, cache, failure rule, identity, per-change Write local for an own run over the bound, and that the scan reads every run.json up to 8 MiB per reconcile; five Row 1 wording fixes applied (incl. tooltip 'not superseded'). 24 attempt-1 tests fail on 3530d12; 11 attempt-2 tests fail on f222dd2."
+          }
+        ],
+        "notes": "Bound choice: 32 MiB = 4 x the 8 MiB import limit. Beyond 8 MiB no other machine imports a run anyway; files imported here (<= 8 MiB) stay under the bound after any CRLF change (at most doubles); within it JSON escaping (<= 6x) stays under V8's string limit, so the hash cannot RangeError (reviewers probed no content that does). Cost: measured worst case at 32 MiB (control bytes plus one non-Latin-1 character) about 2.1 s and 1.4 GB RSS, once per stamp. This machine's own run history past 32 MiB fails closed: its export is refused with a message naming the bound (not 'records this machine has not imported', which attempt 1 wrongly said), the conflict is offered, Write local writes, and each later change of the run needs Write local again while the file stays past the bound. Profile bound 512 KiB = 2 x MAX_PROFILE_BYTES (own export is schema-bounded).\nIdentity: 'unread-file:' + FsAdapter.fileStamp (nodeFs size:mtimeNs:ctimeNs:ino), used only for files not read or not hashed (TrackedFile.hash null); computed locally, never read from a file, never written to exported_hash or export intents (keptHashes only keeps content hashes the intent names). A file with no stamp (stat failed, or changed twice during the read) is found as 'unread-file:none', which no file is compared with, so Write local over it writes nothing until the file reads and the person chooses again; its refusal says so.\nCache cost: a guard's cache hit reads nothing (containment check plus a few stats). The import's own scan is unchanged and still reads and hashes every run.json within 8 MiB on every reconcile (out of scope, see discoveries).\nRed-team: attempt 1 had two reviewer passes (own subagent found the cached passing read error, fixed in f222dd2); the orchestrator's two independent red-teams rejected attempt 1 for six findings, all addressed in 18f3d4a; a reviewer subagent then red-teamed 18f3d4a and found no P0-P2, four P3s, all fixed in 3a51feb: (1) an unidentified file's refusal told the person to Write local, which cannot apply -> dedicated refusal (unreadRefusal); (2) doc contradiction about Write local after a stat failure -> corrected; (3) 'one stat' for a guard cache hit understated -> 'reads nothing (containment check and a few stats)' in doc and fileHashes.ts; (4) workspace test could miss a same-size rewrite on coarse timestamps -> rewrite at another size. Attacked and survived: rethrows only reach DB errors (readTrackedFile converts every stat/read/hash error, including raw realpath errors from assertContained; ownedPaths' invalid names are unsafe_path); fileStamp now throwing is caught per entry in the comment and profile scans (reviewer probe G: one comment rejected, the rest imported); identity X approving file Y via mid-read pull (restamp), cached path (identical stamp only), fresh read (re-checked), empty-file path (always hashed); 'unread-file:none' never compared; tokens never reach exported_hash/intents; offering a choice when containment could not be verified is safe because every write re-runs assertContained. Known residuals: a stamp collision (same inode, size and timestamp tick) remains (pre-existing); a read failure at Write local followed by a failed write, a stored run conflict over a directory or junction, and total first-heartbeat cost were declared out of scope by the orchestrator.\nEvidence correction vs attempt 1: attempt 1's notes said a heartbeat while an export waits costs one stat and implied an own over-bound file was refused as another machine's records; both are corrected above.\nDiscoveries:\n- title: Cache the import scan's read of tracked run.json files\n  reason: readRunFiles (src/core/repo/importer.ts) reads and hashes every tracked run.json up to the 8 MiB record limit on every reconcile (heartbeat) with no stamp cache, and readUnlessSynced re-reads a profile whose hash is not synced each reconcile; the guards are cached now, the scan is not.\n  ticket: DM-391\n- title: Close the same-granularity rewrite window of the stamp cache\n  reason: FileHashCache trusts fileStamp (size:mtimeNs:ctimeNs:ino); a rewrite within one timestamp tick that keeps the inode and size keeps the stamp on coarse-timestamp filesystems, so a remembered hash (import or guard) could be stale.\n  ticket: DM-391\n- title: Bound the read itself, not only the stat before it\n  reason: readTrackedFile and readOwnedText stat then fs.readFile; a file grown between the two by a racing local writer is read whole (the restamp then counts it as changed, but the memory is already spent). A length-limited fd read would make the bound race-proof.\n  ticket: DM-391\n- title: Refuse Write local while the tracked file has no identity\n  reason: Write local over a file whose stat fails records unread-file:none and logs run_conflict_resolved/profile_conflict_resolved although it can never apply; refusing the choice in requireConflict until the file stats would be clearer than the flush's refusal.\n  ticket: DM-391\n- title: docs/verification/DM-372-check.mjs fails oxlint\n  reason: max-lines-per-function on async function c2 (81 lines), pre-existing at 3530d12.\n  ticket: DM-391"
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m6atm4e2f7bmrcd7xr19r9p2",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "branch",
+            "location": "linear-DM-391",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "linear-DM-391",
+        "changedFiles": [
+          "docs/architecture.md",
+          "docs/verification/DM-372-check.mjs",
+          "src/core/commands/repository.ts",
+          "src/core/commands/types.ts",
+          "src/core/repo/fileHashes.ts",
+          "src/core/repo/finalizer.test.ts",
+          "src/core/repo/finalizer.ts",
+          "src/core/repo/importer.hostile.test.ts",
+          "src/core/repo/importer.test.ts",
+          "src/core/repo/importer.ts",
+          "src/core/repo/nodeFs.test.ts",
+          "src/core/repo/nodeFs.ts",
+          "src/core/repo/portable.ts",
+          "src/core/repo/profileImport.test.ts",
+          "src/core/repo/profileImport.ts",
+          "src/core/repo/storage.test.ts",
+          "src/core/repo/storage.ts",
+          "src/core/repo/types.ts",
+          "src/core/services/profileConflict.ts",
+          "src/core/services/recordConflict.ts",
+          "src/core/services/runConflict.ts",
+          "src/core/workspace.test.ts",
+          "src/core/workspace.ts",
+          "src/renderer/src/home/StorageCard.test.tsx",
+          "src/renderer/src/home/StorageCard.tsx",
+          "src/test/memoryFs.ts",
+          "src/test/repoEnv.ts"
+        ],
+        "commits": [
+          "4bd2619cb646f7a118dffcc03de4df29613ad44d",
+          "f222dd2cfc7d05860d8d499d053b817662f2d29c",
+          "18f3d4aeadbe705d3d6dcb825a7396080cfde092",
+          "3a51febb26b5d30e79767a3b3e176e3733460b8d"
+        ],
+        "summary": "Attempt 2 (commits 18f3d4a, 3a51feb on top of attempt 1's 4bd2619, f222dd2; design kept). Every guard over a tracked run.json or profile (finalizer exports, runConflictHolds/planRejectedRuns/planSkippedEpicRuns, noteRejectedOverWaitingExport/conflictHolds/settledConflicts, Storage runChoiceStands/profileChoiceStands, runConflict/profileConflict requireConflict) reads through readTrackedFile in finalizer.ts. Bound: run.json > 32 MiB (4 x MAX_RECORD_BYTES) or profile > 512 KiB (2 x MAX_PROFILE_BYTES) is never read; one stat decides; it counts as not imported. Cache: the workspace-owned FileHashCache (passed to flush, reconcile, getStorageStatus and the choices) remembers guard hashes under guard:<path> + fileStamp (size:mtimeNs:ctimeNs:ino); a refused export decides on the cached hash, an export that goes ahead re-reads and re-checks. Attempt-2 fixes: (1) TrackedFile.hash is null for a file not read or not hashed, so only the identity comparison in unimportedFile lets such a file count as imported (M1 now kills 11 tests); new tests: write local over an unreadable file writes once it reads (hash sha256 now, stamp unchanged), the same text at a new stamp is refused. (2) Real-workspace test: repeated heartbeat/flushPortableState/getStorageStatus over an unchanged tracked profile (300 KiB, scan refuses it unread) with a waiting export reads it once, once more after it changes; fails with a fresh cache per flush (8 reads) or per status read (4 reads). (3) readTrackedFile takes the stamp again after the read (also after a failed read); a changed file is read once more, then counts as unknown (no identity, found as unread-file:none, never compared); test swaps the file mid-read and the flush refuses. (4) Only links/junctions/directories/non-empty non-regular files are unsafe_path (statTrackedFile); stat, read and hash failures (incl. raw assertContained/realpath errors) are not imported. Callers catch only unsafe_path via isUnsafePath and rethrow anything else (only DB errors can reach them). nodeFs.fileStamp now throws lstat errors other than ENOTDIR (memoryFs gains a fileSize fault). End-to-end EACCES stat test: conflict recorded and offered, write local while it fails writes nothing and says why, write local once it stats writes. (5) Over-bound refusal names the bound ('larger than the 32 MiB bound, so it was not read to tell whose it is') instead of 'holds records this machine has not imported'; an unidentified file gets its own refusal; docs state each later change of an own over-bound run needs Write local (end-to-end test). (6) Docs: the scan reads and hashes every run.json within 8 MiB on every reconcile and re-reads unsynced/changed profiles; fileHashes.ts header corrected; measured 32 MiB worst case ~2.1 s / 1.4 GB stated. Row 1 doc fixes a-e and StorageCard tooltip from attempt 1 kept."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6amnn61bvvs83c3pstsf97s",
+      "state": "accepted",
+      "submittedAt": "2026-11-01T06:30:19.903Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:5295271efe93ee99eac7a697280efd5f80e0a2e578ff6916985f4ca9eb4dbb10",
+      "ticketId": "tk_01m6a9f87n103fta0jgydf889a",
+      "updatedAt": "2026-11-01T06:35:33.762Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "high",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-391)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (high). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'high' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-01T06:36:53.889Z",
+      "decidedAt": "2026-11-01T06:54:38.921Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "Definition of Done at 9cedcaf verified from logs: lint, typecheck, test (449 files 8878 passed 9 skipped; Fireguard 21 files 129), coverage 97.62/95.14/96.34/97.76 vs 97/95/96/97, deadcode none, build. Increment 8483b39 on linear-followups passed (one parent 16fc3a8, tree equals followups-sprint-3 5020a1e). Branch coverage margin is 0.14 points (~17 branches): flagged as a risk in the report.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npm run lint (oxlint src scripts) exit 0 at 9cedcaf; docs/verification/DM-387-lint.log",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck exit 0 (tsconfig.node, tsconfig.web, fireguard) at 9cedcaf; DM-387-typecheck.log",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npm test exit 0: Vitest ran 449 files, 8878 tests passed and 9 skipped. The Fireguard suite ran 21 files, 129 tests passed. DM-387-test.log",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run coverage exit 0: statements 97.62% (18323/18768), branches 95.14% (11229/11802), functions 96.34% (6114/6346), lines 97.76% (17110/17502). Thresholds are 97/95/96/97. Branches are 0.14 points (~17 branches) above the threshold, and Sprint 2 ended at 95.16%. DM-387-coverage.log",
+            "name": "coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run deadcode exit 0: 'No new dead exports found.' DM-387-deadcode.log",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run build (electron-vite) exit 0, out/ used for the screenshot; DM-387-build.log",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "DM-387-check.mjs c1 on two clones: B accepts Deliver in the conflict window, epic state exported completed; Keep tracked refused naming the accepted attempt and Write local, B's domain rows/outbox/sync_state/run.json hash unchanged; also refused when the tracked copy holds it as submitted; DM-372 c4 (local-only non-accepted attempt dropped) still passes. Fails on 16fc3a8 (DM-387-baseline.txt)."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "c2 both orders (clash before pull; conflict stored first): epic rejected for the local revision clash on two reconciles, run conflict row kept and resolvable (rows printed), Write local writes. No conflict rows on 16fc3a8."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "c3: Write local on profile ui with its write failing, then two reconciles: the stale ui message is gone from storage status while the live ops conflict stays. Stale message still listed on 16fc3a8."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "c4: >32 MiB run.json and >512 KiB profile over waiting exports: 0 reads after the pull, resolvable conflicts, later flushes/reconcile/storage stat only (1.6/0.7/3/146.7 ms); 9 MiB / 320 KiB within bound read once then cached; EIO-on-read file gives a resolvable conflict and Write local writes; a later different oversized pull is refused again. Built-app screenshot DM-387-storage-card.png shows the run conflict with both buttons and the 32 MiB refusal (viewed). On 16fc3a8 the oversized file is read every flush."
+          }
+        ],
+        "notes": "All repository-opening commands ran in /private/tmp/dm387-* scratch clones with their own Dark Mechanicus homes, all removed afterwards; Git ran with GIT_CONFIG_GLOBAL=/dev/null. The UI: `node docs/verification/DM-387-check.mjs ui` set up B with the c4a run conflict (no live lease). docs/verification/DM-387-ui.mjs (DM-372-ui.mjs with this ticket's names and ports 9387/9388) drove the built app with an isolated user-data-dir and DARKMECHANICUS_HOME; the app quit with exit 0. The screenshot shows the Conflicts row with both buttons, and the save queue shows the 32 MiB refusal. Red-team: (1) the c1 'unchanged' snapshot is taken after the desktop session opened, because opening a workspace and every mutating command flushes (the first attempt counted the open's flush as a change). (2) The read counts are taken from B's pull, because B's own small run.json was read before it. (3) The script was run against the Sprint 2 code to prove the assertions are not vacuous. (4) The coverage branch margin is 0.14 points. No product code or existing test was changed."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m6ax6hr1a4q0hkme8cjpqdxb",
+      "increment": {
+        "base": {
+          "commit": "16fc3a8cd335a47dc5682293e24031fa38416c6f",
+          "kind": "previous_increment"
+        },
+        "branch": "linear-followups",
+        "checks": [
+          {
+            "detail": "Names the epic branch linear-followups.",
+            "name": "Epic branch",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 8483b39 exists.",
+            "name": "Commit exists",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 8483b39 has one parent, 16fc3a8.",
+            "name": "One parent",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 8483b39 is reachable from linear-followups.",
+            "name": "On the epic branch",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 8483b39 is not part of the previous sprint's increment 16fc3a8.",
+            "name": "After the base commit",
+            "status": "passed"
+          },
+          {
+            "detail": "None of the 11 commits recorded by this sprint's accepted work is reachable from linear-followups.",
+            "name": "Squashed, not merged",
+            "status": "passed"
+          }
+        ],
+        "commit": "8483b394786f3658d764b37eccd72bf65980babb",
+        "parent": "16fc3a8cd335a47dc5682293e24031fa38416c6f",
+        "passed": true,
+        "reasons": [],
+        "verifiedAt": "2026-11-01T06:54:30.095Z"
+      },
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "acceptance",
+            "location": "docs/verification/DM-387-acceptance.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "check output",
+            "location": "docs/verification/DM-387-check.txt",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Sprint 2 baseline run",
+            "location": "docs/verification/DM-387-baseline.txt",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Storage card screenshot",
+            "location": "docs/verification/DM-387-storage-card.png",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "followups-sprint-3",
+        "changedFiles": [
+          "docs/verification/DM-387-acceptance.md",
+          "docs/verification/DM-387-app.log",
+          "docs/verification/DM-387-baseline.txt",
+          "docs/verification/DM-387-build.log",
+          "docs/verification/DM-387-check.mjs",
+          "docs/verification/DM-387-check.txt",
+          "docs/verification/DM-387-coverage.log",
+          "docs/verification/DM-387-deadcode.log",
+          "docs/verification/DM-387-lint.log",
+          "docs/verification/DM-387-storage-card-full.png",
+          "docs/verification/DM-387-storage-card.png",
+          "docs/verification/DM-387-test.log",
+          "docs/verification/DM-387-typecheck.log",
+          "docs/verification/DM-387-ui-page.txt",
+          "docs/verification/DM-387-ui-run.txt",
+          "docs/verification/DM-387-ui-setup.txt",
+          "docs/verification/DM-387-ui.mjs"
+        ],
+        "commits": [
+          "4779285d8ad48201c65b3408eb187e2398d76422",
+          "5020a1e2e4f1f577aefc4be7bee67591abb0d514"
+        ],
+        "summary": "Sprint 3 acceptance at 9cedcaf (Sprint 2 increment 16fc3a8 plus DM-388, DM-389, DM-390, DM-391). All six Definition of Done checks passed. Coverage: statements 97.62%, branches 95.14%, functions 96.34%, lines 97.76%, against thresholds 97/95/96/97. c1-c4 were shown on two scratch clones of one bare remote by docs/verification/DM-387-check.mjs: real Workspaces from source, with B's sessions on node fs wrapped to fail a write, throw EIO or count reads. Its output ends with 'all assertions passed', exit 0. The same script fails on the Sprint 2 code for c1a, c1b, c2a, c2b, c3 and c4, and passes there for DM-372 c4 (c1c), so the checks are not vacuous. Storage card screenshot from the built app shows the run conflict with Keep tracked records and Write local."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6amnn61bvvs83c3pstsf97s",
+      "state": "accepted",
+      "submittedAt": "2026-11-01T06:54:30.264Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:a80423e253123e5ba8c5f0673f0e40b4436fa33dc378e23c136452e520182c52",
+      "ticketId": "tk_01m6a9f8768qbw466fb58jtt39",
+      "updatedAt": "2026-11-01T06:54:38.921Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "medium",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-387)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (medium). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'medium' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
     }
   ],
   "checkpoints": [
@@ -2352,6 +3592,24 @@
       "policy": "human",
       "reportId": "rp_01m6a0rwt1pprnmxxze8mnbarg",
       "sprintId": "sp_01m698z4krn17151nbaerdf150"
+    },
+    {
+      "decidedAt": "2026-11-01T04:10:33.825Z",
+      "decidedBy": "ss_01m6ammvvk5rvw7ygm43syrv3s",
+      "id": "ck_01m6amtkf1dyrp2nr7d0crxb7x",
+      "outcome": "advanced",
+      "policy": "human",
+      "reportId": "rp_01m6amqsvvdqhy2q54qqt9kkf3",
+      "sprintId": "sp_01m69zre564hdfn5nngtqynny1"
+    },
+    {
+      "decidedAt": "2026-11-01T09:55:48.296Z",
+      "decidedBy": "ss_01m6b8jhejvvpcgwhk00t20sr7",
+      "id": "ck_01m6b8jre87r7fn5p0b2b3q5qp",
+      "outcome": "advanced",
+      "policy": "human",
+      "reportId": "rp_01m6b07aq9rmwmff0jmqnx7bv9",
+      "sprintId": "sp_01m6a9f876p4n71m1y5xr2gy4a"
     }
   ],
   "createdAt": "2026-10-31T20:00:15.391Z",
@@ -3655,9 +4913,578 @@
       "reportRevision": 2,
       "sprintId": "sp_01m69zre564hdfn5nngtqynny1",
       "submittedBy": "Claude Code orchestrator (linear follow-ups)"
+    },
+    {
+      "content": {
+        "accepted": [
+          "DM-388",
+          "DM-389",
+          "DM-390",
+          "DM-391",
+          "DM-387"
+        ],
+        "blocked": [],
+        "changes": {
+          "commits": [
+            "27d51cf, b159b3d DM-388",
+            "91b3121, 217f188, 4f89050 DM-389",
+            "c270816, 32b2a48 DM-390",
+            "4bd2619, f222dd2, 18f3d4a, 3a51feb DM-391",
+            "3f2e4c9, 82aded6, 3530d12 row 1 merges (run bullet resolved by inserting DM-388's passage into DM-389's line); 9cedcaf row 2 merge",
+            "4779285, 5020a1e DM-387 evidence",
+            "8483b39 Sprint 3 increment on linear-followups (squash, parent 16fc3a8)"
+          ],
+          "files": [
+            "docs/architecture.md",
+            "docs/verification/DM-372-check.mjs",
+            "docs/verification/DM-387-acceptance.md",
+            "docs/verification/DM-387-app.log",
+            "docs/verification/DM-387-baseline.txt",
+            "docs/verification/DM-387-build.log",
+            "docs/verification/DM-387-check.mjs",
+            "docs/verification/DM-387-check.txt",
+            "docs/verification/DM-387-coverage.log",
+            "docs/verification/DM-387-deadcode.log",
+            "docs/verification/DM-387-lint.log",
+            "docs/verification/DM-387-storage-card-full.png",
+            "docs/verification/DM-387-storage-card.png",
+            "docs/verification/DM-387-test.log",
+            "docs/verification/DM-387-typecheck.log",
+            "docs/verification/DM-387-ui-page.txt",
+            "docs/verification/DM-387-ui-run.txt",
+            "docs/verification/DM-387-ui-setup.txt",
+            "docs/verification/DM-387-ui.mjs",
+            "src/core/commands/repository.ts",
+            "src/core/commands/types.ts",
+            "src/core/repo/fileHashes.ts",
+            "src/core/repo/finalizer.test.ts",
+            "src/core/repo/finalizer.ts",
+            "src/core/repo/importer.hostile.test.ts",
+            "src/core/repo/importer.test.ts",
+            "src/core/repo/importer.ts",
+            "src/core/repo/nodeFs.test.ts",
+            "src/core/repo/nodeFs.ts",
+            "src/core/repo/portable.ts",
+            "src/core/repo/profileImport.test.ts",
+            "src/core/repo/profileImport.ts",
+            "src/core/repo/storage.test.ts",
+            "src/core/repo/storage.ts",
+            "src/core/repo/types.ts",
+            "src/core/services/profileConflict.ts",
+            "src/core/services/recordConflict.ts",
+            "src/core/services/runConflict.ts",
+            "src/core/workspace.test.ts",
+            "src/core/workspace.ts",
+            "src/renderer/src/home/StorageCard.test.tsx",
+            "src/renderer/src/home/StorageCard.tsx",
+            "src/test/memoryFs.ts",
+            "src/test/repoEnv.ts"
+          ]
+        },
+        "checks": [
+          {
+            "detail": "typecheck; oxlint on 8 touched files; vitest 11 files, 464 tests.",
+            "name": "Row 1 check (rk_01m6apav0x47fmj0pdgvxjkg1x) at 3530d12",
+            "status": "passed"
+          },
+          {
+            "detail": "typecheck; oxlint on 25 files; vitest repo/services/commands/workspace/StorageCard/app/mcp server: 120 files, 2,283 tests.",
+            "name": "Row 2 check (rk_01m6ax6hq9mxehrys4mxbhyk4j) at 9cedcaf",
+            "status": "passed"
+          },
+          {
+            "detail": "lint, typecheck, test (449 files: 8,878 passed, 9 skipped; Fireguard 21 files, 129), coverage (97.62 / 95.14 / 96.34 / 97.76 vs 97 / 95 / 96 / 97), deadcode, build.",
+            "name": "Definition of Done at 9cedcaf (DM-387)",
+            "status": "passed"
+          },
+          {
+            "detail": "All assertions passed at 9cedcaf (DM-387-check.txt); the sprint-specific parts fail on 16fc3a8 (DM-387-baseline.txt).",
+            "name": "c1-c4 two-clone checks (docs/verification/DM-387-check.mjs)",
+            "status": "passed"
+          },
+          {
+            "detail": "Run conflict with both buttons and the 32 MiB refusal in the save queue; viewed.",
+            "name": "Built-app Storage card (DM-387-storage-card.png)",
+            "status": "passed"
+          },
+          {
+            "detail": "FU388/FU389/FU390 and two DM-391 red-teams (safety, performance) re-reviewed every retry: final verdicts correct (0.8, 0.8, 0.7, 0.85, 0.85).",
+            "name": "Per-ticket adversarial reviews",
+            "status": "passed"
+          },
+          {
+            "detail": "Correct 0.8: refusals name the clash; no dead end; Sprint 2 bug probes SEAM 1-3 and Keep-tracked-over-accepted-work now fail; merge replay reproduces 3530d12.",
+            "name": "Row 1 seam red-team at 3530d12",
+            "status": "passed"
+          },
+          {
+            "detail": "s2, s4, s5, s6 hold; s1 holds literally but Write local can revert the other machine's acceptance (High) and Keep tracked can replace a both-accepted attempt's content (Medium); s3 fails in two narrow persistent-write-failure cases. Probes in /tmp/dm-review/epic-final/head/src/probe/probe_final.test.ts and src/core/repo/probeFinal.test.ts.",
+            "name": "Final whole-epic red-team at 9cedcaf",
+            "status": "failed"
+          }
+        ],
+        "epicOutcome": {
+          "successCriteria": [
+            {
+              "criterionId": "s1",
+              "met": false,
+              "note": "The guarantee in the text holds: in every sequence tried (first sync, interrupted export with intents, rejected file, each plan-time skip reason, files over 8 and 32 MiB, unreadable files, pulls landing mid-read, ping-pong choices) no flush wrote over another machine's unimported file, and repo.resolve_conflict is human-only. Choice quality does not hold, by the standard used in Sprint 2: after a takeover, B is correctly refused Keep tracked and writes local; A's next import (nothing waiting) moves accepted attempt a back to submitted and ticket a back to in_progress with no conflict (High, /tmp/dm-review/epic-final/head/src/probe/probe_final.test.ts T3). Keep tracked also replaces a both-accepted attempt's content (Medium)."
+            },
+            {
+              "criterionId": "s2",
+              "met": true,
+              "note": "importer.test.ts 'imports another machine's epic revision and still skips the run's changed history' and probe_s2Completed pass at 9cedcaf; hasPendingEpicChanges still excludes run_history."
+            },
+            {
+              "criterionId": "s3",
+              "met": false,
+              "note": "Holds for profiles in every ending path probed and for runs under plan-time-skipped epics (conflict planned while it holds, cleared once it ends). Fails in two narrow cases: after Write local over a size-rejected run.json whose write keeps failing, the stored message survives reconciles (storeConflicts keeps every rejected run's conflict; DM-390 fixed only profiles); and an interrupted export records a never-held conflict that stays while the retry write fails (planRuns does not check the export intent). Probes S3-WLFAIL and S3-INTENT in /tmp/dm-review/epic-final/head/src/core/repo/probeFinal.test.ts."
+            },
+            {
+              "criterionId": "s4",
+              "met": true,
+              "note": "Sprint 3 changed no transfer or read-back code; transfers.test.ts pinning totalChars 100_000_000 passes."
+            },
+            {
+              "criterionId": "s5",
+              "met": true,
+              "note": "Mutation check at 9cedcaf: switching createTransport to StdioServerTransport fails the nodeHost test (expected [] to have a length of 1)."
+            },
+            {
+              "criterionId": "s6",
+              "met": true,
+              "note": "reasonOf strips only trailing dots and whitespace; untouched by Sprint 3; its tests pass."
+            }
+          ],
+          "summary": "Three sprints delivered every planned ticket and passed the Definition of Done each time. The overwrite guard holds: no red-team sequence found a flush writing over another machine's unimported run or profile file, and only the person can choose. Transfer limits, the stdio transport test and the error text hold. Two criteria are still unmet: acceptance evidence can be lost through Write local because the import silently moves the other machine's accepted attempt back, and two narrow cases leave a stale run conflict message while a write keeps failing. Three discoveries are proposed for a Sprint 4."
+        },
+        "exitCriteria": [
+          {
+            "criterionId": "x1",
+            "met": true,
+            "note": "DM-388 (attempt 2), DM-389 (attempt 3), DM-390 (attempt 2), DM-391 (attempt 2) accepted after independent re-reviews; row checks 1 (3530d12) and 2 (9cedcaf) passed; DM-387 accepted with increment 8483b39 (verdict passed)."
+          },
+          {
+            "criterionId": "x2",
+            "met": true,
+            "note": "Definition of Done passed once at 9cedcaf: lint, typecheck, test (8,878 + Fireguard 129), coverage 97.62/95.14/96.34/97.76, deadcode, build (docs/verification/DM-387-*.log)."
+          },
+          {
+            "criterionId": "x3",
+            "met": false,
+            "note": "The scoped parts hold and are shown by c1-c4 (local accepted work protected by Keep tracked; oversized and unhashable files offer the choice; epics rejected at plan time keep and create run conflicts; profile conflicts clear). But the final red-team found s1's choice quality failing through Write local (an import reverts the other machine's accepted attempt and completed ticket, High, normal API calls) and s3 failing in two narrow persistent-write-failure cases. See epicOutcome."
+          },
+          {
+            "criterionId": "x4",
+            "met": true,
+            "note": "docs/architecture.md states when Keep tracked for a run is refused, the 32 MiB / 512 KiB bounds, the stamp cache and failure rule, the unread-file identity, the plan-time rule and profile conflict clearing, and that only a run with no sync_state row at all is written as before. Two wording imprecisions remain as a follow-up."
+          }
+        ],
+        "failed": [],
+        "followUps": [
+          {
+            "body": "EpicFinalRedteam finding 2 / FU388Redteam finding 3 (Medium): after a takeover race, B resubmits X as O2 and accepts; the tracked copy holds X accepted with O1; Keep tracked returns ok and B's outputs, evidence and decision are replaced (acceptanceTrackedLacks compares state and superseded_at only). A two-acceptor merge design question; refusing would push to Write local, which loses the other side instead.",
+            "title": "Keep tracked replaces this machine's accepted content when both machines accepted the same attempt"
+          },
+          {
+            "body": "EpicFinalRedteam finding 3 (Medium, pre-existing): one submitAttempt within the input schema can produce an 8.75 MB run.json; the export path has no size limit while the import limit is 8 MiB, so every other machine can only Write local over it.",
+            "title": "A run history over 8 MiB that this machine writes can never be imported anywhere"
+          },
+          {
+            "body": "FU391PerfRedteam finding 5 (major, pre-existing) and DM-391 discovery: readRunFiles reads, hashes and parses every run.json up to 8 MiB on every reconcile; epic files likewise; unsynced profiles re-read each reconcile.",
+            "title": "Cache the import scan's reads of tracked run.json, epic and profile files"
+          },
+          {
+            "body": "FU389Redteam attempt-3 finding 1 (minor, introduced by DM-389): epicConflict.ts:62 takes the first conflict filed under the epic before looking at rejected; DM-389 now files run conflicts under that epic. Write local still resolves; retry budget was spent.",
+            "title": "Keep tracked for an epic under a clash names the run's conflict instead of the clash"
+          },
+          {
+            "body": "Row1SeamRedteam finding 5 / EpicFinalRedteam finding 6 (low, pre-existing): the tracked state.json lacking the completion is imported; claiming again is refused ('already accepted in this run'); the person must set the status by hand.",
+            "title": "Epic Keep tracked moves a completed ticket back while its attempt stays accepted"
+          },
+          {
+            "body": "FU391 re-reviews (minor): Storage shows both buttons; Write local records unread-file:none and writes nothing (its error says to choose again once the file reads); the event log says resolved. Consider resolvable:false while the file is unknown.",
+            "title": "Choice offered while a tracked file persistently cannot be stat'd"
+          },
+          {
+            "body": "DM-391 discoveries (low): a rewrite within one timestamp tick on the same inode keeps the stamp on coarse-timestamp filesystems; the size check and the read are separate steps, so a file that grows in between is read whole; a local process touching a file during every read doubles the forced reads; 'one stat decides it' and 'once per stamp' in docs/architecture.md are imprecise (several stats; once per stamp per process).",
+            "title": "Stamp cache and bound edges"
+          },
+          {
+            "body": "Row1SeamRedteam findings 1, 2, 4 (low): a tracked run.json naming another epic gets a generic Keep tracked refusal and a hold on the tracked (not local) epic still offers the choice; a run with no sync_state row (pre-sync_state checkout) under a clash-skipped epic is still written over (documented exemption).",
+            "title": "Corrupt or legacy run inputs"
+          },
+          {
+            "body": "A branch or stash round trip kills a live worker claim through the automatic import; exportEpic lacks the carry-over through a failed retry; resume or claim on a completed epic; the Write local warning text; the hash-check-then-write race and imports that never delete; case-variant profile names (now also: a case-variant listing plus one read error loses a live profile conflict, FU390 P10); planted export intents; writeSnapshot/writeCommentFile containment and non-UTF-8 restore; Sprint 1 carry-overs.",
+            "title": "Carried from Sprint 2 (still open)"
+          }
+        ],
+        "retro": {
+          "actions": [
+            "Plan from the invariant, not the symptom: for each invariant a ticket protects (acceptance evidence is final; a refused export always has a working choice), list every writer of that state (imports, both choices, auto-reconcile) in the ticket and say what each does.",
+            "Keep run and profile conflict rules symmetric: when a ticket changes one, the ticket names the other's matching rule and either changes it or says why not.",
+            "Reserve a retry for a reviewer's minor findings: when a ticket reaches its last attempt, ask the reviewer to separate must-fix from follow-up before rejecting.",
+            "Track branch coverage headroom at every row check; when it is under 0.3 points, the row's worker adds tests for its own new branches before acceptance."
+          ],
+          "delivered": [
+            {
+              "demo": "B accepts Deliver while its run export is refused; Keep tracked is refused naming the accepted attempt and Write local, B's rows and run.json unchanged; also refused when the tracked copy holds it as submitted; a local-only unaccepted attempt still drops.",
+              "evidence": "27d51cf, b159b3d; DM-387 c1; fails on 16fc3a8 (DM-387-baseline.txt).",
+              "ticket": "tk_01m6a9f87n5ynpnc9ye3krk67x"
+            },
+            {
+              "demo": "With the epic refused for a local revision clash (before or after the pull), the run conflict is planned, stays across reconciles, is resolvable, and Write local writes.",
+              "evidence": "91b3121, 217f188, 4f89050; DM-387 c2 (both orders).",
+              "ticket": "tk_01m6a9f87nms0wfhav8f3vd2q1"
+            },
+            {
+              "demo": "Write local on profile ui whose write fails, then reconcile: the stale ui message is gone while the live ops conflict stays.",
+              "evidence": "c270816, 32b2a48; DM-387 c3.",
+              "ticket": "tk_01m6a9f87n5tvrkf4qfwetf758"
+            },
+            {
+              "demo": "A 32 MiB+ run.json and a 512 KiB+ profile over waiting exports are never read (0 reads), offer resolvable conflicts, later flushes only stat; an EIO-on-read file offers the choice and Write local writes; a later different oversized pull is refused again.",
+              "evidence": "4bd2619, f222dd2, 18f3d4a, 3a51feb; DM-387 c4; DM-387-storage-card.png.",
+              "ticket": "tk_01m6a9f87n103fta0jgydf889a"
+            },
+            {
+              "demo": "Definition of Done once at 9cedcaf; c1-c4 on two scratch clones with a Sprint 2 baseline run; built-app screenshot.",
+              "evidence": "4779285, 5020a1e; docs/verification/DM-387-acceptance.md; increment 8483b39.",
+              "ticket": "tk_01m6a9f8768qbw466fb58jtt39"
+            }
+          ],
+          "discoveries": [
+            {
+              "body": "EpicFinalRedteam finding 1 (High, normal API calls, /tmp/dm-review/epic-final/head/src/probe/probe_final.test.ts T3): after a takeover race B accepts b, A had accepted a; B's Keep tracked is correctly refused (DM-388) and B writes local, so the tracked run.json holds a as submitted; A, with nothing waiting, pulls and reconciles: no conflict, attempt a goes accepted -> submitted (decision null) and ticket a goes back to in_progress. Cause: upsertAttempt (importer.ts ~982-1019) overwrites state, decision and superseded_at on every import; DM-388 guards only Keep tracked. Requirement: acceptance evidence is final on every import path: an import must never move a local accepted, non-superseded attempt (or a ticket it completed) back; surface it to the person as a run conflict (or keep the local acceptance and re-export) instead of applying it silently. Also warn in the Storage card's Write local text when it would overwrite accepted work the tracked history holds.",
+              "ticket": "tk_01m6a9f87n5ynpnc9ye3krk67x",
+              "title": "Never let an import silently move an accepted attempt or a completed ticket back"
+            },
+            {
+              "body": "EpicFinalRedteam finding 4 (Medium) and FU391SafetyRedteam finding 3: storeConflicts keeps every stored run conflict whose run is in rejectedRuns (importer.ts ~1211), and readOwnedText rejects on size before the hash comparison, so after Write local over a 9 MiB or 33 MiB run.json whose write keeps failing the message survives reconciles (resolvable:false; probe S3-WLFAIL in /tmp/dm-review/epic-final/head/src/core/repo/probeFinal.test.ts); a run conflict over a run.json that became a directory or junction stays buttonless forever. Profiles already clear these through settledConflicts/conflictHolds (DM-390). Apply the same rule to runs: keep a rejected run's conflict only while runConflictHolds (export waits over unimported history); unsafe paths clear.",
+              "ticket": "tk_01m6a9f87n5tvrkf4qfwetf758",
+              "title": "Clear a run's stored conflict once its condition ends even while its run.json is rejected"
+            },
+            {
+              "body": "EpicFinalRedteam finding 5 (Low): after a crash between the rename and the commit, planRuns (importer.ts ~714) records 'Tracked history ... changed' whenever an export waits, without runConflictHolds or the export intent; Storage shows it (resolvable:false), Keep tracked says nothing to choose, and with a persistently failing write it stays (probe S3-INTENT). profileImport sortEntry has the same shape (traced). Use the same holds-test (unimportedRunHistory / unimportedProfile, which honour the intent) when planning these conflicts. Also fix epicConflict.ts:62 to look at rejected before same-epic conflicts (minor DM-389 regression).",
+              "ticket": "tk_01m6a9f87nms0wfhav8f3vd2q1",
+              "title": "Do not record a conflict for this machine's own interrupted export"
+            }
+          ],
+          "leftovers": [],
+          "tierFit": [
+            {
+              "note": "Small, deep, medium: needed a second attempt because the import's overwrite of an accepted attempt was the same invariant as the drop. Host cannot set worker effort.",
+              "ticket": "tk_01m6a9f87n5ynpnc9ye3krk67x",
+              "verdict": "undersized"
+            },
+            {
+              "note": "Small, multi_step, medium: three attempts; the rule grew from keep-while-skipped to plan-while-it-holds, touching three planners and the reconcile digest.",
+              "ticket": "tk_01m6a9f87nms0wfhav8f3vd2q1",
+              "verdict": "undersized"
+            },
+            {
+              "note": "Small, multi_step, medium: attempt 2 was a one-line catch fix plus test and wording.",
+              "ticket": "tk_01m6a9f87n5tvrkf4qfwetf758",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Medium, deep, high: two attempts, 37 files across both; the second fixed test gaps on the guard and wiring found by two parallel red-teams.",
+              "ticket": "tk_01m6a9f87n103fta0jgydf889a",
+              "verdict": "right_sized"
+            }
+          ],
+          "wentPoorly": [
+            "Tickets were written from symptom-level findings, so reviewers found adjacent routes to the same invariant one at a time: DM-388 covered the drop but not the import's overwrite; DM-389 kept conflicts but did not create them; the final review found the same acceptance loss through Write local and the import. The invariant ('acceptance evidence is final') was never enforced at its single writer (upsertAttempt).",
+            "DM-389 spent its retry budget across three attempts, so a minor regression it introduced (epic Keep tracked naming the wrong reason) was left as a follow-up.",
+            "Branch coverage headroom fell to 0.14 points; the next sprint starts with almost no margin."
+          ],
+          "wentWell": [
+            "Every attempt and every retry got an independent adversarial review before acceptance, plus a seam review per row and a final whole-epic review; six rejections were each on a reproduced probe, and every fix was mutation-checked (tests fail with the change removed).",
+            "Retries went back to the same worker with the reviewer's probe paths, so each retry was small and targeted; review worktrees were moved to each new commit so reviewers re-ran their own probes.",
+            "The acceptance worker ran its checks against the Sprint 2 code to prove they discriminate, and caught two harness errors of its own (session-open flush, pre-pull read counts)."
+          ]
+        },
+        "risks": [
+          "Write local can revert the other machine's acceptance: after a takeover, B is (correctly) refused Keep tracked and writes local; A, with nothing waiting, pulls and its import moves accepted attempt a back to submitted and ticket a back to in_progress with no conflict (EpicFinalRedteam finding 1, High, normal API calls; /tmp/dm-review/epic-final/head/src/probe/probe_final.test.ts T3). Root cause: upsertAttempt overwrites state/decision on every import. Until fixed, avoid Write local when the other machine may have accepted work in the same run.",
+          "Branch coverage headroom is 0.14 points (95.14% vs 95%, about 17 branches); the next change that adds untested branches fails the Definition of Done.",
+          "The import scan still reads and hashes every run.json up to 8 MiB on every reconcile with no cache (pre-existing; planted junk files cost seconds per heartbeat inside the write lock)."
+        ],
+        "summary": "Sprint 3 closed the four defects the Sprint 2 red-teams found and landed as 8483b39 on linear-followups (parent 16fc3a8). Keep tracked for a run is refused unless the tracked history holds this machine's accepted, non-superseded attempts in that state and every checkpoint (DM-388); a run under an epic the reconcile leaves unimported gets its conflict planned on every reconcile while it holds (DM-389); a stored profile conflict clears once its condition ends (DM-390); tracked run and profile reads are bounded (32 MiB / 512 KiB), stamp-cached, re-stamped after the read, and a file that cannot be read or hashed gets the choice (DM-391). Every ticket and both rows got independent adversarial reviews; DM-388, DM-390 and DM-391 were each rejected once and DM-389 twice on reproduced findings. The Definition of Done passed at 9cedcaf (branches 95.14%, 0.14 points of headroom) and c1-c4 were shown on two scratch clones, failing on the Sprint 2 code. A final whole-epic red-team found s2, s4, s5, s6 holding and s1's literal guarantee holding, but acceptance evidence can still be lost through Write local (an import silently moves the other machine's accepted attempt and completed ticket back) and s3 fails in two narrow cases with a persistently failing write. s1 and s3 are reported unmet, with three discoveries."
+      },
+      "contentHash": "sha256:adadce1452374b7a51147b66ae74fcf14c14bf9c839b7ebaba98611b8f9dfcee",
+      "createdAt": "2026-11-01T06:57:26.863Z",
+      "id": "rp_01m6ayc5te0q4ack3thwe9yfaa",
+      "reportRevision": 1,
+      "sprintId": "sp_01m6a9f876p4n71m1y5xr2gy4a",
+      "submittedBy": "Claude Code orchestrator (linear follow-ups)"
+    },
+    {
+      "content": {
+        "accepted": [
+          "DM-388",
+          "DM-389",
+          "DM-390",
+          "DM-391",
+          "DM-387"
+        ],
+        "blocked": [],
+        "changes": {
+          "commits": [
+            "27d51cf, b159b3d DM-388",
+            "91b3121, 217f188, 4f89050 DM-389",
+            "c270816, 32b2a48 DM-390",
+            "4bd2619, f222dd2, 18f3d4a, 3a51feb DM-391",
+            "3f2e4c9, 82aded6, 3530d12 row 1 merges (run bullet resolved by inserting DM-388's passage into DM-389's line); 9cedcaf row 2 merge",
+            "4779285, 5020a1e DM-387 evidence",
+            "8483b39 Sprint 3 increment on linear-followups (squash, parent 16fc3a8)"
+          ],
+          "files": [
+            "docs/architecture.md",
+            "docs/verification/DM-372-check.mjs",
+            "docs/verification/DM-387-acceptance.md",
+            "docs/verification/DM-387-app.log",
+            "docs/verification/DM-387-baseline.txt",
+            "docs/verification/DM-387-build.log",
+            "docs/verification/DM-387-check.mjs",
+            "docs/verification/DM-387-check.txt",
+            "docs/verification/DM-387-coverage.log",
+            "docs/verification/DM-387-deadcode.log",
+            "docs/verification/DM-387-lint.log",
+            "docs/verification/DM-387-storage-card-full.png",
+            "docs/verification/DM-387-storage-card.png",
+            "docs/verification/DM-387-test.log",
+            "docs/verification/DM-387-typecheck.log",
+            "docs/verification/DM-387-ui-page.txt",
+            "docs/verification/DM-387-ui-run.txt",
+            "docs/verification/DM-387-ui-setup.txt",
+            "docs/verification/DM-387-ui.mjs",
+            "src/core/commands/repository.ts",
+            "src/core/commands/types.ts",
+            "src/core/repo/fileHashes.ts",
+            "src/core/repo/finalizer.test.ts",
+            "src/core/repo/finalizer.ts",
+            "src/core/repo/importer.hostile.test.ts",
+            "src/core/repo/importer.test.ts",
+            "src/core/repo/importer.ts",
+            "src/core/repo/nodeFs.test.ts",
+            "src/core/repo/nodeFs.ts",
+            "src/core/repo/portable.ts",
+            "src/core/repo/profileImport.test.ts",
+            "src/core/repo/profileImport.ts",
+            "src/core/repo/storage.test.ts",
+            "src/core/repo/storage.ts",
+            "src/core/repo/types.ts",
+            "src/core/services/profileConflict.ts",
+            "src/core/services/recordConflict.ts",
+            "src/core/services/runConflict.ts",
+            "src/core/workspace.test.ts",
+            "src/core/workspace.ts",
+            "src/renderer/src/home/StorageCard.test.tsx",
+            "src/renderer/src/home/StorageCard.tsx",
+            "src/test/memoryFs.ts",
+            "src/test/repoEnv.ts"
+          ]
+        },
+        "checks": [
+          {
+            "detail": "typecheck; oxlint on 8 touched files; vitest 11 files, 464 tests.",
+            "name": "Row 1 check (rk_01m6apav0x47fmj0pdgvxjkg1x) at 3530d12",
+            "status": "passed"
+          },
+          {
+            "detail": "typecheck; oxlint on 25 files; vitest repo/services/commands/workspace/StorageCard/app/mcp server: 120 files, 2,283 tests.",
+            "name": "Row 2 check (rk_01m6ax6hq9mxehrys4mxbhyk4j) at 9cedcaf",
+            "status": "passed"
+          },
+          {
+            "detail": "lint, typecheck, test (449 files: 8,878 passed, 9 skipped; Fireguard 21 files, 129), coverage (97.62 / 95.14 / 96.34 / 97.76 vs 97 / 95 / 96 / 97), deadcode, build.",
+            "name": "Definition of Done at 9cedcaf (DM-387)",
+            "status": "passed"
+          },
+          {
+            "detail": "All assertions passed at 9cedcaf (DM-387-check.txt); the sprint-specific parts fail on 16fc3a8 (DM-387-baseline.txt).",
+            "name": "c1-c4 two-clone checks (docs/verification/DM-387-check.mjs)",
+            "status": "passed"
+          },
+          {
+            "detail": "Run conflict with both buttons and the 32 MiB refusal in the save queue; viewed.",
+            "name": "Built-app Storage card (DM-387-storage-card.png)",
+            "status": "passed"
+          },
+          {
+            "detail": "FU388/FU389/FU390 and two DM-391 red-teams (safety, performance) re-reviewed every retry: final verdicts correct (0.8, 0.8, 0.7, 0.85, 0.85).",
+            "name": "Per-ticket adversarial reviews",
+            "status": "passed"
+          },
+          {
+            "detail": "Correct 0.8: refusals name the clash; no dead end; Sprint 2 bug probes SEAM 1-3 and Keep-tracked-over-accepted-work now fail; merge replay reproduces 3530d12.",
+            "name": "Row 1 seam red-team at 3530d12",
+            "status": "passed"
+          },
+          {
+            "detail": "s2, s4, s5, s6 hold; s1 holds literally but Write local can revert the other machine's acceptance (High) and Keep tracked can replace a both-accepted attempt's content (Medium); s3 fails in two narrow persistent-write-failure cases. Probes in /tmp/dm-review/epic-final/head/src/probe/probe_final.test.ts and src/core/repo/probeFinal.test.ts.",
+            "name": "Final whole-epic red-team at 9cedcaf",
+            "status": "failed"
+          }
+        ],
+        "epicOutcome": null,
+        "exitCriteria": [
+          {
+            "criterionId": "x1",
+            "met": true,
+            "note": "DM-388 (attempt 2), DM-389 (attempt 3), DM-390 (attempt 2), DM-391 (attempt 2) accepted after independent re-reviews; row checks 1 (3530d12) and 2 (9cedcaf) passed; DM-387 accepted with increment 8483b39 (verdict passed)."
+          },
+          {
+            "criterionId": "x2",
+            "met": true,
+            "note": "Definition of Done passed once at 9cedcaf: lint, typecheck, test (8,878 + Fireguard 129), coverage 97.62/95.14/96.34/97.76, deadcode, build (docs/verification/DM-387-*.log)."
+          },
+          {
+            "criterionId": "x4",
+            "met": true,
+            "note": "docs/architecture.md states when Keep tracked for a run is refused, the 32 MiB / 512 KiB bounds, the stamp cache and failure rule, the unread-file identity, the plan-time rule and profile conflict clearing, and that only a run with no sync_state row at all is written as before. Two wording imprecisions remain as a follow-up."
+          }
+        ],
+        "failed": [],
+        "followUps": [
+          {
+            "body": "EpicFinalRedteam finding 2 / FU388Redteam finding 3 (Medium): after a takeover race, B resubmits X as O2 and accepts; the tracked copy holds X accepted with O1; Keep tracked returns ok and B's outputs, evidence and decision are replaced (acceptanceTrackedLacks compares state and superseded_at only). A two-acceptor merge design question; refusing would push to Write local, which loses the other side instead.",
+            "title": "Keep tracked replaces this machine's accepted content when both machines accepted the same attempt"
+          },
+          {
+            "body": "EpicFinalRedteam finding 3 (Medium, pre-existing): one submitAttempt within the input schema can produce an 8.75 MB run.json; the export path has no size limit while the import limit is 8 MiB, so every other machine can only Write local over it.",
+            "title": "A run history over 8 MiB that this machine writes can never be imported anywhere"
+          },
+          {
+            "body": "FU391PerfRedteam finding 5 (major, pre-existing) and DM-391 discovery: readRunFiles reads, hashes and parses every run.json up to 8 MiB on every reconcile; epic files likewise; unsynced profiles re-read each reconcile.",
+            "title": "Cache the import scan's reads of tracked run.json, epic and profile files"
+          },
+          {
+            "body": "FU389Redteam attempt-3 finding 1 (minor, introduced by DM-389): epicConflict.ts:62 takes the first conflict filed under the epic before looking at rejected; DM-389 now files run conflicts under that epic. Write local still resolves; retry budget was spent.",
+            "title": "Keep tracked for an epic under a clash names the run's conflict instead of the clash"
+          },
+          {
+            "body": "Row1SeamRedteam finding 5 / EpicFinalRedteam finding 6 (low, pre-existing): the tracked state.json lacking the completion is imported; claiming again is refused ('already accepted in this run'); the person must set the status by hand.",
+            "title": "Epic Keep tracked moves a completed ticket back while its attempt stays accepted"
+          },
+          {
+            "body": "FU391 re-reviews (minor): Storage shows both buttons; Write local records unread-file:none and writes nothing (its error says to choose again once the file reads); the event log says resolved. Consider resolvable:false while the file is unknown.",
+            "title": "Choice offered while a tracked file persistently cannot be stat'd"
+          },
+          {
+            "body": "DM-391 discoveries (low): a rewrite within one timestamp tick on the same inode keeps the stamp on coarse-timestamp filesystems; the size check and the read are separate steps, so a file that grows in between is read whole; a local process touching a file during every read doubles the forced reads; 'one stat decides it' and 'once per stamp' in docs/architecture.md are imprecise (several stats; once per stamp per process).",
+            "title": "Stamp cache and bound edges"
+          },
+          {
+            "body": "Row1SeamRedteam findings 1, 2, 4 (low): a tracked run.json naming another epic gets a generic Keep tracked refusal and a hold on the tracked (not local) epic still offers the choice; a run with no sync_state row (pre-sync_state checkout) under a clash-skipped epic is still written over (documented exemption).",
+            "title": "Corrupt or legacy run inputs"
+          },
+          {
+            "body": "A branch or stash round trip kills a live worker claim through the automatic import; exportEpic lacks the carry-over through a failed retry; resume or claim on a completed epic; the Write local warning text; the hash-check-then-write race and imports that never delete; case-variant profile names (now also: a case-variant listing plus one read error loses a live profile conflict, FU390 P10); planted export intents; writeSnapshot/writeCommentFile containment and non-UTF-8 restore; Sprint 1 carry-overs.",
+            "title": "Carried from Sprint 2 (still open)"
+          }
+        ],
+        "retro": {
+          "actions": [
+            "Plan from the invariant, not the symptom: for each invariant a ticket protects (acceptance evidence is final; a refused export always has a working choice), list every writer of that state (imports, both choices, auto-reconcile) in the ticket and say what each does.",
+            "Keep run and profile conflict rules symmetric: when a ticket changes one, the ticket names the other's matching rule and either changes it or says why not.",
+            "Reserve a retry for a reviewer's minor findings: when a ticket reaches its last attempt, ask the reviewer to separate must-fix from follow-up before rejecting.",
+            "Track branch coverage headroom at every row check; when it is under 0.3 points, the row's worker adds tests for its own new branches before acceptance."
+          ],
+          "delivered": [
+            {
+              "demo": "B accepts Deliver while its run export is refused; Keep tracked is refused naming the accepted attempt and Write local, B's rows and run.json unchanged; also refused when the tracked copy holds it as submitted; a local-only unaccepted attempt still drops.",
+              "evidence": "27d51cf, b159b3d; DM-387 c1; fails on 16fc3a8 (DM-387-baseline.txt).",
+              "ticket": "tk_01m6a9f87n5ynpnc9ye3krk67x"
+            },
+            {
+              "demo": "With the epic refused for a local revision clash (before or after the pull), the run conflict is planned, stays across reconciles, is resolvable, and Write local writes.",
+              "evidence": "91b3121, 217f188, 4f89050; DM-387 c2 (both orders).",
+              "ticket": "tk_01m6a9f87nms0wfhav8f3vd2q1"
+            },
+            {
+              "demo": "Write local on profile ui whose write fails, then reconcile: the stale ui message is gone while the live ops conflict stays.",
+              "evidence": "c270816, 32b2a48; DM-387 c3.",
+              "ticket": "tk_01m6a9f87n5tvrkf4qfwetf758"
+            },
+            {
+              "demo": "A 32 MiB+ run.json and a 512 KiB+ profile over waiting exports are never read (0 reads), offer resolvable conflicts, later flushes only stat; an EIO-on-read file offers the choice and Write local writes; a later different oversized pull is refused again.",
+              "evidence": "4bd2619, f222dd2, 18f3d4a, 3a51feb; DM-387 c4; DM-387-storage-card.png.",
+              "ticket": "tk_01m6a9f87n103fta0jgydf889a"
+            },
+            {
+              "demo": "Definition of Done once at 9cedcaf; c1-c4 on two scratch clones with a Sprint 2 baseline run; built-app screenshot.",
+              "evidence": "4779285, 5020a1e; docs/verification/DM-387-acceptance.md; increment 8483b39.",
+              "ticket": "tk_01m6a9f8768qbw466fb58jtt39"
+            }
+          ],
+          "discoveries": [
+            {
+              "body": "EpicFinalRedteam finding 1 (High, normal API calls, /tmp/dm-review/epic-final/head/src/probe/probe_final.test.ts T3): after a takeover race B accepts b, A had accepted a; B's Keep tracked is correctly refused (DM-388) and B writes local, so the tracked run.json holds a as submitted; A, with nothing waiting, pulls and reconciles: no conflict, attempt a goes accepted -> submitted (decision null) and ticket a goes back to in_progress. Cause: upsertAttempt (importer.ts ~982-1019) overwrites state, decision and superseded_at on every import; DM-388 guards only Keep tracked. Requirement: acceptance evidence is final on every import path: an import must never move a local accepted, non-superseded attempt (or a ticket it completed) back; surface it to the person as a run conflict (or keep the local acceptance and re-export) instead of applying it silently. Also warn in the Storage card's Write local text when it would overwrite accepted work the tracked history holds.",
+              "ticket": "tk_01m6a9f87n5ynpnc9ye3krk67x",
+              "title": "Never let an import silently move an accepted attempt or a completed ticket back"
+            },
+            {
+              "body": "EpicFinalRedteam finding 4 (Medium) and FU391SafetyRedteam finding 3: storeConflicts keeps every stored run conflict whose run is in rejectedRuns (importer.ts ~1211), and readOwnedText rejects on size before the hash comparison, so after Write local over a 9 MiB or 33 MiB run.json whose write keeps failing the message survives reconciles (resolvable:false; probe S3-WLFAIL in /tmp/dm-review/epic-final/head/src/core/repo/probeFinal.test.ts); a run conflict over a run.json that became a directory or junction stays buttonless forever. Profiles already clear these through settledConflicts/conflictHolds (DM-390). Apply the same rule to runs: keep a rejected run's conflict only while runConflictHolds (export waits over unimported history); unsafe paths clear.",
+              "ticket": "tk_01m6a9f87n5tvrkf4qfwetf758",
+              "title": "Clear a run's stored conflict once its condition ends even while its run.json is rejected"
+            },
+            {
+              "body": "EpicFinalRedteam finding 5 (Low): after a crash between the rename and the commit, planRuns (importer.ts ~714) records 'Tracked history ... changed' whenever an export waits, without runConflictHolds or the export intent; Storage shows it (resolvable:false), Keep tracked says nothing to choose, and with a persistently failing write it stays (probe S3-INTENT). profileImport sortEntry has the same shape (traced). Use the same holds-test (unimportedRunHistory / unimportedProfile, which honour the intent) when planning these conflicts. Also fix epicConflict.ts:62 to look at rejected before same-epic conflicts (minor DM-389 regression).",
+              "ticket": "tk_01m6a9f87nms0wfhav8f3vd2q1",
+              "title": "Do not record a conflict for this machine's own interrupted export"
+            }
+          ],
+          "leftovers": [],
+          "tierFit": [
+            {
+              "note": "Small, deep, medium: needed a second attempt because the import's overwrite of an accepted attempt was the same invariant as the drop. Host cannot set worker effort.",
+              "ticket": "tk_01m6a9f87n5ynpnc9ye3krk67x",
+              "verdict": "undersized"
+            },
+            {
+              "note": "Small, multi_step, medium: three attempts; the rule grew from keep-while-skipped to plan-while-it-holds, touching three planners and the reconcile digest.",
+              "ticket": "tk_01m6a9f87nms0wfhav8f3vd2q1",
+              "verdict": "undersized"
+            },
+            {
+              "note": "Small, multi_step, medium: attempt 2 was a one-line catch fix plus test and wording.",
+              "ticket": "tk_01m6a9f87n5tvrkf4qfwetf758",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Medium, deep, high: two attempts, 37 files across both; the second fixed test gaps on the guard and wiring found by two parallel red-teams.",
+              "ticket": "tk_01m6a9f87n103fta0jgydf889a",
+              "verdict": "right_sized"
+            }
+          ],
+          "wentPoorly": [
+            "Tickets were written from symptom-level findings, so reviewers found adjacent routes to the same invariant one at a time: DM-388 covered the drop but not the import's overwrite; DM-389 kept conflicts but did not create them; the final review found the same acceptance loss through Write local and the import. The invariant ('acceptance evidence is final') was never enforced at its single writer (upsertAttempt).",
+            "DM-389 spent its retry budget across three attempts, so a minor regression it introduced (epic Keep tracked naming the wrong reason) was left as a follow-up.",
+            "Branch coverage headroom fell to 0.14 points; the next sprint starts with almost no margin."
+          ],
+          "wentWell": [
+            "Every attempt and every retry got an independent adversarial review before acceptance, plus a seam review per row and a final whole-epic review; six rejections were each on a reproduced probe, and every fix was mutation-checked (tests fail with the change removed).",
+            "Retries went back to the same worker with the reviewer's probe paths, so each retry was small and targeted; review worktrees were moved to each new commit so reviewers re-ran their own probes.",
+            "The acceptance worker ran its checks against the Sprint 2 code to prove they discriminate, and caught two harness errors of its own (session-open flush, pre-pull read counts)."
+          ]
+        },
+        "risks": [
+          "Write local can revert the other machine's acceptance: after a takeover, B is (correctly) refused Keep tracked and writes local; A, with nothing waiting, pulls and its import moves accepted attempt a back to submitted and ticket a back to in_progress with no conflict (EpicFinalRedteam finding 1, High, normal API calls; /tmp/dm-review/epic-final/head/src/probe/probe_final.test.ts T3). Root cause: upsertAttempt overwrites state/decision on every import. Until fixed, avoid Write local when the other machine may have accepted work in the same run.",
+          "Branch coverage headroom is 0.14 points (95.14% vs 95%, about 17 branches); the next change that adds untested branches fails the Definition of Done.",
+          "The import scan still reads and hashes every run.json up to 8 MiB on every reconcile with no cache (pre-existing; planted junk files cost seconds per heartbeat inside the write lock)."
+        ],
+        "summary": "Sprint 3 closed the four defects the Sprint 2 red-teams found and landed as 8483b39 on linear-followups (parent 16fc3a8). Keep tracked for a run is refused unless the tracked history holds this machine's accepted, non-superseded attempts in that state and every checkpoint (DM-388); a run under an epic the reconcile leaves unimported gets its conflict planned on every reconcile while it holds (DM-389); a stored profile conflict clears once its condition ends (DM-390); tracked run and profile reads are bounded (32 MiB / 512 KiB), stamp-cached, re-stamped after the read, and a file that cannot be read or hashed gets the choice (DM-391). Every ticket and both rows got independent adversarial reviews; DM-388, DM-390 and DM-391 were each rejected once and DM-389 twice on reproduced findings. The Definition of Done passed at 9cedcaf (branches 95.14%, 0.14 points of headroom) and c1-c4 were shown on two scratch clones, failing on the Sprint 2 code. A final whole-epic red-team found s2, s4, s5, s6 holding and s1's literal guarantee holding, but acceptance evidence can still be lost through Write local (an import silently moves the other machine's accepted attempt and completed ticket back) and s3 fails in two narrow cases with a persistently failing write. Those findings are three discoveries; plan revision 3 adds Sprint 4 for them (the person chose all three) and moves the success-criteria exit criterion (x3) there, since s1 and s3 do not yet hold."
+      },
+      "contentHash": "sha256:421b2e5f38c28fd79e7b8cbef9fcc9881b5c537fd8f227337b81dee6ead3189f",
+      "createdAt": "2026-11-01T07:29:45.193Z",
+      "id": "rp_01m6b07aq9rmwmff0jmqnx7bv9",
+      "reportRevision": 2,
+      "sprintId": "sp_01m6a9f876p4n71m1y5xr2gy4a",
+      "submittedBy": "Claude Code orchestrator (linear follow-ups)"
     }
   ],
-  "revisionId": "rv_01m6amnn61bvvs83c3pstsf97s",
+  "revisionId": "rv_01m6b06q1cpprt2mtaa91x2zwt",
   "rowChecks": [
     {
       "checks": [
@@ -3808,11 +5635,73 @@
       "recordedBy": "Claude Code orchestrator (linear follow-ups)",
       "row": 2,
       "sprintId": "sp_01m69zre564hdfn5nngtqynny1"
+    },
+    {
+      "checks": [
+        {
+          "detail": "node, web and fireguard tsconfigs clean at 3530d12 (log /tmp/dm-linear/s3row1-typecheck.log)",
+          "name": "npm run typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "importer.ts, importer.test.ts, finalizer.test.ts, profileImport.ts, profileImport.test.ts, runConflict.ts, StorageCard.tsx, StorageCard.test.tsx: 0 warnings, 0 errors",
+          "name": "npx oxlint on the 8 touched source/test files",
+          "status": "passed"
+        },
+        {
+          "detail": "importer, finalizer, profileImport, repo storage, legacyRecords, importer.hostile, commands/capabilities, StorageCard, app/storage, shellActions, mcp/server: 11 files, 464 tests passed",
+          "name": "npx vitest run (11 files covering the row)",
+          "status": "passed"
+        },
+        {
+          "detail": "388 and 390 merged cleanly; 389 conflicted only in the docs/architecture.md run bullet (one line); resolved by inserting DM-388's pure-insertion passage into DM-389's line at its unique anchor; every other line identical to HEAD and base; no conflict markers",
+          "name": "merge of linear-DM-388/389/390",
+          "status": "passed"
+        }
+      ],
+      "commit": "3530d12db694e57d561f4827be0d33ce3221dc33",
+      "createdAt": "2026-11-01T04:36:54.429Z",
+      "id": "rk_01m6apav0x47fmj0pdgvxjkg1x",
+      "number": 6,
+      "recordedBy": "Claude Code orchestrator (linear follow-ups)",
+      "row": 1,
+      "sprintId": "sp_01m6a9f876p4n71m1y5xr2gy4a"
+    },
+    {
+      "checks": [
+        {
+          "detail": "node, web and fireguard tsconfigs clean at 9cedcaf (log /tmp/dm-linear/s3row2-typecheck.log)",
+          "name": "npm run typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "0 warnings, 0 errors (log /tmp/dm-linear/s3row2-oxlint.log)",
+          "name": "npx oxlint on the 25 TS/TSX files changed by the row",
+          "status": "passed"
+        },
+        {
+          "detail": "120 files, 2283 tests passed (log /tmp/dm-linear/s3row2-vitest.log)",
+          "name": "npx vitest run src/core/repo src/core/services src/core/commands src/core/workspace.test.ts StorageCard src/renderer/src/app src/mcp/server.test.ts",
+          "status": "passed"
+        },
+        {
+          "detail": "--no-ff merge onto 3530d12 without conflicts; resulting tree equals linear-DM-391 (3a51feb)",
+          "name": "merge of linear-DM-391",
+          "status": "passed"
+        }
+      ],
+      "commit": "9cedcafba4493c42d9c4758c52886b089ada57dc",
+      "createdAt": "2026-11-01T06:36:53.866Z",
+      "id": "rk_01m6ax6hq9mxehrys4mxbhyk4j",
+      "number": 7,
+      "recordedBy": "Claude Code orchestrator (linear follow-ups)",
+      "row": 2,
+      "sprintId": "sp_01m6a9f876p4n71m1y5xr2gy4a"
     }
   ],
   "runId": "rn_01m69rrtgzfs8dcyrs1jvfvdc1",
   "skillVersion": "1.5.2",
   "startedAt": "2026-10-31T20:00:15.392Z",
-  "state": "awaiting_checkpoint",
-  "updatedAt": "2026-11-01T04:07:57.371Z"
+  "state": "running",
+  "updatedAt": "2026-11-01T09:55:48.296Z"
 }

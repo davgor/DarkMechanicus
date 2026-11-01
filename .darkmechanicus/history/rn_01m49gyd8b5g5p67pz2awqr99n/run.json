@@ -3931,6 +3931,1788 @@
         "rationale": "Run's host catalog (hc_01m49h2h…, Windows) was never imported, so match_capabilities returns not_found and the claim skips catalog checks. omp cannot select a worker model; its task subagents run claude-opus-5-5. Effort recorded as the ticket's planned effort. Lease 4h; orchestrator heartbeats for the worker. Acceptance node attempt 2 under revision 4 (attempt 1 failed as superseded by the gh-login redesign); not an escalation. The orchestrator keeps the claim token and submits.",
         "sessionId": null
       }
+    },
+    {
+      "createdAt": "2026-11-01T05:42:42.874Z",
+      "decidedAt": "2026-11-01T06:48:42.612Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Reviewed 2287918..058d420; a security-review subagent attacked transports, token, cleanup and parent choice; fixes landed in 058d420. Open (discoveries): git keeps running if the app quits mid-clone; ssh-settings lookup reads config around the clone parent. Accepted.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Commit a4bd843 holds 12 test files and no implementation. Running them gave 12 files failed, 15 tests failed, 34 passed (/tmp/sc-epic/logs/DM-150-tests-red.txt). Each red-team fix also had its test fail first (14 failing before commit 058d420).",
+            "name": "tests written first",
+            "status": "passed"
+          },
+          {
+            "detail": "Run after the final fixes: `npx vitest run src/main/git/{cloneInput,cloneAuth,handlersClone,clone,cloneCancel,cloneTransport,runnerExit,handlers,ipc,sync,syncAuth}.test.ts src/main/github src/preload src/renderer/src/__mocks__` gave 22 files, 332 tests passed. Run before those fixes: the wider set (adding runner, runnerEdge, progress, syncEdge, handlersWrite/Branches/Conflicts) gave 29 files, 385 tests passed, and src/renderer/src/{source,github,api} gave 21 files, 200 tests passed. Under load average ~100 from sibling workers, 4 existing real-git tests once timed out at 15 s; re-run alone, all 6 files passed.",
+            "name": "unit tests (touched)",
+            "status": "passed"
+          },
+          {
+            "detail": "`npx oxlint src/main/git src/main/github src/main/desktop/bootstrap.ts src/preload src/shared src/test/cloneRig.ts src/renderer/src/__mocks__` exit 0",
+            "name": "lint (touched files)",
+            "status": "passed"
+          },
+          {
+            "detail": "exit 0 (node, web and fireguard projects)",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found",
+            "name": "npm run deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "Removing `await exit.waited()` makes cloneCancel 'removes the half-made folder… once git is gone' fail. Removing GIT_ALLOW_PROTOCOL from the clone env makes cloneTransport fail. Both were restored.",
+            "name": "mutation spot-checks",
+            "status": "passed"
+          },
+          {
+            "detail": "`npx tsx /tmp/sc-epic/scratch/DM-150/smoke.ts`: octocat/Hello-World cloned and tracked with 14 progress events, the last 'Receiving objects' at 100. github.com/git/git.git cancelled at 1%: 'failed cancelled', and the folder existed before the cancel and was gone after. The ext:: URL was refused before git ran (no marker file). No git process was left running.",
+            "name": "real-network smoke (signed out, no token)",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test (full) / fireguard / build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Parent folder only from the native dialog (stored in userData/clone.json; renderer sends {operationId,url,name}); folder-name rules incl. .git look-alikes; non-empty existing target refused (tests). Orchestrator re-ran clone/github/runner/handlers: 326 passed."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "https, ssh, scp-like and owner/repo accepted; file:, ext::, other transports, leading '-' and control chars refused before git runs; GIT_ALLOW_PROTOCOL=https:ssh blocks config rewrites (removing it fails a test)."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "git clone --progress with the account only for https://github.com; progress events; tracked folder returned. Real network smoke: octocat/Hello-World cloned signed out."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Cancel/failure remove only the folder this clone created, after git exits (runner onExit); a pre-existing folder untouched; git/git cancelled at 1% left nothing."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "listRepositories pages via Link rel=next on api.github.com (≤1000), 5-minute per-account cache, auth_required signed out."
+          },
+          {
+            "criterionId": "c6",
+            "met": true,
+            "note": "Tests first (a4bd843 red); touched tests, lint, typecheck, deadcode pass."
+          }
+        ],
+        "notes": "Red team: I reviewed my own diff, and a security-reviewer subagent tried to refute it. It found no transport bypass, token leak, deletion of a pre-existing folder, or renderer control of the parent. Fixed: (1, medium) a second clone into the same parent waited unseen in the runner's per-folder queue, so its cancel did nothing; now one clone runs at a time per parent and the second is refused with a message. (2) A cancel during cleanup reported true; now nothing is left to stop once git has ended. Cancelling a finished clone into an untracked parent now answers { cancelled: false }, not unauthorized. (3) EACCES/EPERM/EROFS/ENAMETOOLONG on the target are now invalid_input with the reason, not 'Git failed unexpectedly'. (4) The .git name check strips the code points HFS+ ignores. (5) ssh hosts and users must be plain names after %-decoding (closes '[-o…]', '%2F-o…', '$(…)' users; git also blocked these). (8) Each repository-list limit, the account-switch branch and the runner onExit test are now non-vacuous. Rejected, with reasons: (6) networkAuth reads core.sshCommand with cwd = the clone parent, so a repository around the parent can turn BatchMode off. git still runs without a TTY in its own session, so it cannot hang on a prompt, and networkAuth is shared with sync and branches. (7) An account switch mid-listing returns that answer uncached; the renderer re-lists on account change. onExit fires on the runner's own notion of gone ('error' or 'close'), the same one its write queue uses, and the 10 s bound covers the rest. Coordination: DM152PullRequests (client.ts and handlers placement) and DM395StallTimeout (runner onExit hook placement) were told where my edits sit. Expect small merges in client.ts, git handlers.ts, the GitApi/preload lists and the ipc tests. Clone passes --progress, so DM-395's 60 s stall timeout does not kill a quiet clone. Limits: a clone queued behind a long fetch in a tracked repository whose root is the clone parent still waits for that fetch. Quitting the app mid-clone is not handled here.\n\nDiscoveries:\n- title: Stop running git operations when the app quits\n  reason: The runner starts git detached in its own process group (src/main/git/runner.ts), and nothing in main kills running fetch, pull, push or clone processes on quit. A clone interrupted by quitting can leave git running and a half-made folder that later clones refuse as target_exists.\n  ticket: DM-150\n- title: Read core.sshCommand for network operations without a repository's local config\n  reason: networkAuth (src/main/git/sync.ts) runs `git config --get core.sshCommand` in the given folder. For a clone that is the parent folder, so a repository around it can switch off BatchMode even though git clone never uses that config.\n  ticket: DM-150"
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m6at3axt50epp77r49y8c5n8",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Clone service (parent store, clone, cancel, cleanup, tracking)",
+            "location": "src/main/git/clone.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "URL and folder-name validation",
+            "location": "src/main/git/cloneInput.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Repository paging (client) and 5-minute cache",
+            "location": "src/main/github/repositories.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Tests written first (red run log)",
+            "location": "/tmp/sc-epic/logs/DM-150-tests-red.txt",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Touched tests green log",
+            "location": "/tmp/sc-epic/logs/DM-150-tests-green.txt",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Real-network smoke (signed out): octocat/Hello-World clone with progress, git/git cancelled part-way, ext:: refused",
+            "location": "/tmp/sc-epic/logs/DM-150-smoke.txt",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "source-control-DM-150",
+        "changedFiles": [
+          "src/main/desktop/bootstrap.ts",
+          "src/main/git/clone.ts",
+          "src/main/git/clone.test.ts",
+          "src/main/git/cloneAuth.test.ts",
+          "src/main/git/cloneCancel.test.ts",
+          "src/main/git/cloneInput.ts",
+          "src/main/git/cloneInput.test.ts",
+          "src/main/git/cloneTransport.test.ts",
+          "src/main/git/handlers.ts",
+          "src/main/git/handlersClone.test.ts",
+          "src/main/git/ipc.ts",
+          "src/main/git/ipc.test.ts",
+          "src/main/git/progress.ts",
+          "src/main/git/progress.test.ts",
+          "src/main/git/runner.ts",
+          "src/main/git/runnerExit.test.ts",
+          "src/main/git/sync.ts",
+          "src/main/github/client.ts",
+          "src/main/github/clientRepositories.test.ts",
+          "src/main/github/handlers.ts",
+          "src/main/github/handlers.test.ts",
+          "src/main/github/ipc.ts",
+          "src/main/github/ipc.test.ts",
+          "src/main/github/repositories.ts",
+          "src/main/github/repositories.test.ts",
+          "src/preload/index.ts",
+          "src/renderer/src/__mocks__/fakeGit.ts",
+          "src/renderer/src/__mocks__/fakeGit.test.ts",
+          "src/renderer/src/__mocks__/fakeGithub.ts",
+          "src/renderer/src/__mocks__/fakeGithub.test.ts",
+          "src/shared/git/api.ts",
+          "src/shared/git/errors.ts",
+          "src/shared/github/api.ts",
+          "src/test/cloneRig.ts"
+        ],
+        "commits": [
+          "a4bd843c39a4c93ba7bbbf5dcc706fc508a78873",
+          "55e6d47892aa4658a14f127327d1daebc2a490ad",
+          "058d4203659ef562377041ed10d4719cf4c64839"
+        ],
+        "summary": "Main-process cloning and the account's repository list, with the bridge. src/main/git/cloneInput.ts checks the URL and folder name before git runs. It accepts https://, ssh://, scp-like user@host:path and owner/repo (which becomes https://github.com/owner/repo.git). It refuses file:, ext::, fd::, git://, http://, local paths, a leading '-', and control characters (typed or %-encoded). ssh hosts and users must be plain names as git decodes them. Names must be one portable segment: no separators, not . or .., no Windows-reserved names, no trailing dot or space, at most 255 characters, and not .git (including HFS+ invisible-character variants) or git~1. src/main/git/clone.ts: chooseCloneParent uses the native dialog and stores { version: 1, parent } atomically (temp file plus rename) in userData/clone.json; getCloneParent reads it. clone({ operationId, url, name }) only ever targets <stored parent>/<name>. It creates the target folder itself (or accepts an existing EMPTY folder), then runs `git clone --progress -- <url> <target>` with cwd = parent, kind network, GIT_ALLOW_PROTOCOL=https:ssh, and sprint 2's credentialArgs and networkAuth, which use the account only for https://github.com while signed in. Progress is broadcast with folder = parent and operation 'clone'. cancelOperation(parent, operationId) aborts it. On cancel or failure, it waits until git is really gone (new runner onExit hook, at most 10 s) and then removes the target only if this clone created it. A folder that existed before is never touched. On success it calls registry.track(target) and returns the TrackedFolderView. Only one clone runs at a time per parent folder: the runner serialises git per working folder, so a second clone would wait unseen. New error code target_exists. GitHub: GithubClient.listRepositories calls GET /user/repos?per_page=100&affiliation=owner,collaborator,organization_member&sort=pushed and follows Link rel=\"next\" only on the https://api.github.com origin, up to 10 pages and 1,000 repositories. src/main/github/repositories.ts adds a 5-minute cache per login (refresh bypasses it); while signed out it returns auth_required. github:listRepositories validates { refresh?: boolean } strictly. Bridge: GitApi getCloneParent/chooseCloneParent/clone, GithubApi listRepositories, IPC channels, preload, bootstrap wiring, and FakeGit/FakeGithub (fakeGit.ts edited byte-for-byte; its 6 NUL bytes are kept). Reviewer notes: (1) sync.ts's private progress sink moved to progress.ts as progressSink (shared with clone, same behaviour). (2) GitHandlerDeps.clones is optional, like DM-152's dependency, so existing handler test setups and sibling tests still compile. Without it, the clone channels answer git_failed 'Cloning is not available here.' bootstrap always provides it."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6at039cdy09mv9648r51pqc",
+      "state": "accepted",
+      "submittedAt": "2026-11-01T06:48:42.541Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:35b39339866ed0a3dfb366c698a28df9e68ec86410f60e5b9fda2d50b5ca833a",
+      "ticketId": "tk_01m43szh81p623gexyzn5v1qzv",
+      "updatedAt": "2026-11-01T06:48:42.612Z",
+      "worker": {
+        "catalogRevision": "hc_01m683v6zpwtyanf40hj5gg7wd",
+        "effort": "medium",
+        "hostId": "omp-mac-davidgorden",
+        "label": "omp task subagent (DM-150)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Run's host catalog (hc_01m49h2h…, Windows) was never imported, so match_capabilities returns not_found and the claim skips catalog checks. omp cannot select a worker model; its task subagents run claude-opus-5-5. Effort recorded as the ticket's planned effort. Lease 4h; orchestrator heartbeats for the worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-01T05:42:42.946Z",
+      "decidedAt": "2026-11-01T06:21:08.415Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Reviewed 2287918..df910b8. Review round fixed the FETCH_HEAD race with DM-144's background fetch. Accepted.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Commit 5aaac2a holds the new tests (pullRequests.test.ts, pullRequestsCheckout.test.ts, handlersPullRequests.test.ts, ipc.test.ts channels) before any implementation; `npx vitest run src/main/github/pullRequests.test.ts src/main/github/pullRequestsCheckout.test.ts` then failed (module ./pullRequests missing).",
+            "name": "tests first",
+            "status": "passed"
+          },
+          {
+            "detail": "npx vitest run src/main/github src/main/git/handlersPullRequests.test.ts src/main/git/ipc.test.ts src/main/git/handlers.test.ts src/main/git/handlersBranches.test.ts src/main/git/handlersConflicts.test.ts src/main/git/handlersWrite.test.ts src/renderer/src/__mocks__/fakeGit.test.ts -> 15 files, 177 tests passed; pullRequestsCheckout.test.ts re-run alone after the final split: 15/15 passed. An earlier run had one timeout (15 s vitest limit) on a slow 3-checkout test under machine load; that test was split into smaller ones.",
+            "name": "unit tests (touched)",
+            "status": "passed"
+          },
+          {
+            "detail": "Script applied 7 mutations to pullRequests.ts one at a time (drop ancestry check, double TTL, ignore fromFork in current, 2 pages max, ignore ahead in needs_push, skip pr/<n> cleanup, ignore configured URL) - every one made the targeted tests fail; file restored.",
+            "name": "mutation check (tests are not vacuous)",
+            "status": "passed"
+          },
+          {
+            "detail": "npx oxlint <18 touched files> -> exit 0",
+            "name": "lint (oxlint on touched files)",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck (node, web, fireguard) -> exit 0",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run deadcode -> No new dead exports found (PullRequestSummary is used by FakeGit so the web project sees it; .tsprune-ignore untouched)",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "Left to the acceptance node per epic rules; no criterion needs screenshots.",
+            "name": "full suite / fireguard / build",
+            "status": "skipped"
+          },
+          {
+            "detail": "New real-repo test 'checks out the fetched commit even when a background fetch rewrites FETCH_HEAD meanwhile, leaving no ref behind' (runner wrapper runs a real `git fetch origin` right after the PR fetch) failed on the FETCH_HEAD code (pr/6 at main's commit instead of the PR tip) and passes after. npx vitest run src/main/github src/main/git/handlersPullRequests.test.ts -> 9 files, 102 tests passed; oxlint on the 2 touched files exit 0; npm run typecheck exit 0.",
+            "name": "review fix: no FETCH_HEAD (df910b8)",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "getPullRequests reads open PRs (≤3 pages) of the GitHub remote via the session-bound client and identifies the current branch's PR; non-GitHub → none without an API call; signed out or 401 → auth_required. Orchestrator re-ran src/main/github + pullRequests + handlers: 163 passed."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Same-repo PR → local tracking branch; fork/deleted fork/closed/non-GitHub → pr/<n>, fast-forwarded later, rewritten fork → rejected_non_fast_forward; stash-or-bring honoured. PR head fetched into refs/dm/pull/<n> (not FETCH_HEAD), proven by a test that runs a concurrent `git fetch`."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "getCompareUrl against the default branch or needs_push (no upstream, other name, gone, ahead); getCommitUrl; both refuse non-GitHub."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "60 s per-folder cache unless refresh; signed-out check before the cache; 401 → auth_required."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Tests first (5aaac2a), 7 deliberate breaks each caught; touched tests, oxlint, typecheck, deadcode pass."
+          }
+        ],
+        "notes": "Design choices a reviewer should know: (1) checkoutPullRequest on a GitHub repository needs the PR list, so signed out it returns auth_required; a repository whose remote is not on GitHub (the sprint's scratch-c with a local bare origin) checks out pr/<n> from refs/pull/<n>/head without any API call, which is what the sprint acceptance c3 exercises. A PR number not in the open list (closed, >300 open) is asked once more with refresh, then checked out as pr/<n>. (2) needs_push is a data value (CompareUrl kind), not an error code; getCompareUrl/getCommitUrl return invalid_input for a non-GitHub repository (the renderer only offers them when getPullRequests.repository is set). (3) An existing local branch with the same-repo PR's head name is switched to as is (not fast-forwarded), matching 'created when missing'. (4) No fixed timeout on the PR fetches: they pass --progress so DM-395's 60 s no-output stall timeout bounds them once integrated. Red-team pass: attacked API-supplied data (head.ref validated with refArg + check-ref-format before it reaches a refspec or switch; html_url ignored, all URLs built from parsed owner/repo, numbers and an encoded branch path; zod-validated pages), token exposure (credentials only via credentialArgs on the real https://github.com fetch URL - an insteadOf mirror gets none; API host fixed; GithubError messages are fixed text, no detail passed through report()), cache bypass routes (sign-out checked before the cache; key includes login and repo so a different account or a re-pointed remote misses), partial failure (bring refused -> created pr/<n> deleted, nothing else changed; rewritten fork refused before switching; in-progress merge/rebase refused by switchBranch), and vacuous tests (7 mutations all killed). Review fix (df910b8): the PR head is fetched into refs/dm/pull/<n>, resolved, and the ref deleted in a finally, so a concurrent fetch (DM-144's background fetch) cannot change what is checked out. Discoveries: none out of scope."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m6at3b02wrt9txzg75b8y232",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Shared pull request types",
+            "location": "src/shared/github/pullRequests.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Pull request operations (main)",
+            "location": "src/main/github/pullRequests.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "API-side tests (fake fetch)",
+            "location": "src/main/github/pullRequests.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Checkout and URL tests (real repos, local bare remote, refs/pull/<n>/head)",
+            "location": "src/main/github/pullRequestsCheckout.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Handler tests",
+            "location": "src/main/git/handlersPullRequests.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "source-control-DM-152",
+        "changedFiles": [
+          "src/shared/github/pullRequests.ts",
+          "src/shared/git/api.ts",
+          "src/main/github/pullRequests.ts",
+          "src/main/github/pullRequests.test.ts",
+          "src/main/github/pullRequestsCheckout.test.ts",
+          "src/main/github/client.ts",
+          "src/main/git/handlers.ts",
+          "src/main/git/handlersPullRequests.test.ts",
+          "src/main/git/handlers.test.ts",
+          "src/main/git/handlersBranches.test.ts",
+          "src/main/git/handlersConflicts.test.ts",
+          "src/main/git/handlersWrite.test.ts",
+          "src/main/git/ipc.ts",
+          "src/main/git/ipc.test.ts",
+          "src/main/desktop/bootstrap.ts",
+          "src/preload/index.ts",
+          "src/renderer/src/__mocks__/fakeGit.ts",
+          "src/renderer/src/__mocks__/fakeGit.test.ts"
+        ],
+        "commits": [
+          "5aaac2af7ef32a56e9f84b45d9b8dbd7d9f77a4a",
+          "d002d146666af5d95f3cc89701ad28fdabff4313",
+          "df910b8c659b950f72096a52e3cec6e4e33cd58d"
+        ],
+        "summary": "Main-process pull requests for GitHub repositories. New src/shared/github/pullRequests.ts (PullRequestSummary, PullRequestInfo as specified, plus PullRequestsRequest {refresh?}, CheckoutPullRequestRequest {number, uncommitted}, CompareUrl = {kind:'url',url} | {kind:'needs_push'}). New src/main/github/pullRequests.ts (createPullRequests): the repository is the upstream's remote else origin, parsed with parseGithubRemote from its fetch URL, else from the configured remote.<name>.url (so an insteadOf mirror still names its GitHub repo; the token is still only ever sent to the real https://github.com fetch URL by credentialArgs). get(folder, refresh): non-GitHub/no remote -> {repository:null,current:null,open:[]} without an API call; signed out -> GithubError auth_required (checked before the cache); GET /repos/{o}/{r}/pulls?state=open&per_page=100&page=N for up to 3 pages, stopping at a short page; current = open PR whose head.repo.full_name equals owner/repo (case-insensitive) and head.ref equals the branch or its upstream branch name (recomputed every call, not cached); 60 s cache per folder keyed by login+repo, refresh bypasses. PR URLs are built by main (https://github.com/<o>/<r>/pull/<n>), GitHub's html_url is never used. checkout(folder,{number,uncommitted}): looks the PR up in the cached list (one refresh on a miss); same-repo -> validates head.ref (refArg + check-ref-format), git fetch -- <remote> +refs/heads/<ref>:refs/remotes/<remote>/<ref> with the sync credentials (networkAuth), then sprint 2 switchBranch('<remote>/<ref>') which creates the tracking branch when missing and applies stash/bring; fork, deleted fork, PR not open, or non-GitHub remote -> git fetch -- <remote> +refs/pull/<n>/head:refs/dm/pull/<n>, oid of that private ref (deleted again in a finally; FETCH_HEAD is never read, since the background fetch can rewrite it), pr/<n> created with --no-track at it then switchBranch (deleted again if the switch fails, e.g. bring refused), or when pr/<n> exists: ancestry check first (rejected_non_fast_forward before anything changes), switchBranch, git merge --ff-only <oid>. compareUrl: needs_push when no upstream, upstream under another name, upstream ref gone, or ahead > 0; else https://github.com/<o>/<r>/compare/<default>...<branch>?expand=1 (default from listBranches; branch path segments URI-encoded). commitUrl: https://github.com/<o>/<r>/commit/<oid>; both URLs refuse a non-GitHub repository (invalid_input). GithubClient gains listOpenPullRequests(owner, repo, page) (zod-validated). The bridge: GitHandlerDeps gains `client` (bootstrap passes the bridge's session-bound github.client, so a 401 signs out only the still-stored token and returns auth_required); git handlers add getPullRequests/checkoutPullRequest/getCompareUrl/getCommitUrl (zod-validated, tracked folders only) and report() maps GithubError to {code,message}; git:* IPC channels, preload window.git, GitApi and FakeGit (setPullRequests/setCompareUrl) extended. Coordinated with DM150Clone on placement (my methods after openInEditor / before onProgress; client method after getUser; `client` dep after `session`). DM-395's stall timeout applies to these network fetches (they pass --progress)."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6at039cdy09mv9648r51pqc",
+      "state": "accepted",
+      "submittedAt": "2026-11-01T06:21:08.371Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:a5c4e4d3b948fec2eac2653e87411704c9b5a43cce1b0de6c7aa3fe67c0c2a94",
+      "ticketId": "tk_01m43szh82swqnayakvhj5bf0v",
+      "updatedAt": "2026-11-01T06:21:08.415Z",
+      "worker": {
+        "catalogRevision": "hc_01m683v6zpwtyanf40hj5gg7wd",
+        "effort": "medium",
+        "hostId": "omp-mac-davidgorden",
+        "label": "omp task subagent (DM-152)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Run's host catalog (hc_01m49h2h…, Windows) was never imported, so match_capabilities returns not_found and the claim skips catalog checks. omp cannot select a worker model; its task subagents run claude-opus-5-5. Effort recorded as the ticket's planned effort. Lease 4h; orchestrator heartbeats for the worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-01T05:42:42.983Z",
+      "decidedAt": "2026-11-01T06:13:32.130Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Reviewed 2287918..77891dc. Red-team fixes: no blanket add -A for line-only selections, non-UTF-8 files refused, typechange/submodule/binary refused. Known limit: a git apply failure after the index reset loses earlier staging (pre-existing reset-then-add risk). Accepted.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Commit 235ec61 adds partialPatch/commitLines/commitLinesProperty tests; run before the implementation: 3 files failed, 15 tests failed (module/functions missing).",
+            "name": "tests first",
+            "status": "passed"
+          },
+          {
+            "detail": "npx vitest run partialPatch, commitLines, commitLinesProperty, handlersWrite, commit, diffParser, diff, errors, handlers (src/main/git): 9 files, 151 tests passed",
+            "name": "unit tests (touched)",
+            "status": "passed"
+          },
+          {
+            "detail": "npx oxlint on the 10 touched src files: no findings",
+            "name": "lint (touched files)",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck (node, web, fireguard projects): no errors",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run deadcode: 'No new dead exports found' after baselining src/shared/git/diff.ts - changedLineIndices. The ticket requires the export for the renderer, and the next (UI) ticket uses it.",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "Without --unidiff-zero, the diff.context=0 test fails. Without the terminated-context rewrite, the property test fails. Without the newStart offset, git apply still succeeds (it positions hunks by old lines), so only the exact-header builder tests catch that.",
+            "name": "mutation checks",
+            "status": "passed"
+          },
+          {
+            "detail": "Left to the acceptance node per epic rules.",
+            "name": "full suite / fireguard / build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "partialPatch.ts buildPartialPatch keeps selected adds/deletes, drops unselected adds, turns unselected deletes into context, recomputes headers; applied with git apply --cached gives exactly the selected content (real repos + 80-case seeded property test against an independent model). Orchestrator re-ran partialPatch/commit/handlers: 115 passed."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "All lines selected → same tree as a whole-file commit; none → null."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "New, deleted, renamed files, missing final newline (incl. kept-context last line), CRLF and mode changes byte-exact; working tree untouched; diff.context=0 handled via --unidiff-zero."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "A diffHash mismatch returns stale_selection and commits nothing."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Tests first (235ec61), code 77891dc; touched tests, lint, typecheck, deadcode pass."
+          }
+        ],
+        "notes": "Red team: I attacked (1) a user's diff.context=0, which made git apply fail; fixed with --unidiff-zero and a test. (2) An empty whole-file list, where `add -A` with no pathspec would stage everything; add is now skipped and the mixed and lines-only tests cover it. (3) A non-UTF-8 file: the runner decodes as UTF-8, so selected lines would be committed as U+FFFD; now refused (fail-closed; a real U+FFFD in a UTF-8 file is refused too). (4) An unterminated old last line kept as context before selected additions, which gave an invalid patch; rewritten as -x/+x, covered by an exact-text test and the property test. (5) A file chosen whole and by lines, and lines on a typechange, a submodule or a binary file: refused with invalid_input before the index is touched. (6) Malformed lines over IPC (negative, fractional, strings, non-array): invalid_input. (7) Paths with quotes, tabs, control characters and spaces: C-quoted like git, with octal escapes. (8) Patch-syntax-looking line text ('\\\\ No newline…', '@@', '-', '+'): in the property test. Attacked and held: file changes between the hash check and the apply (the patch comes from the diff read and is applied to HEAD in the index, never the working tree), and HEAD moving since the selection (the hash differs, so stale_selection). Limits: a failed git apply after the reset leaves the index at HEAD plus whatever was already applied (the same risk class as the existing reset-then-add flow); a commit hook could still change the working tree (existing behavior). The property test takes about 35 s at load average ~150 (180 s timeout).\nDiscoveries:\n- readWorkingDiff depends on user diff config (diff.context, diff.noprefix). The display copes; a fixed -U3 in readWorkingDiff would make hunks consistent for the coming line-selection UI.\n- The runner decodes git output as UTF-8 only, so diffs of files in other encodings show U+FFFD in the diff view as well."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m6at3b17ndfcxtcadv5srvfm",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Partial patch builder",
+            "location": "src/main/git/partialPatch.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Builder tests (exact patch text)",
+            "location": "src/main/git/partialPatch.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Real-repo commit-with-lines tests",
+            "location": "src/main/git/commitLines.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Property-style test (80 seeded random cases)",
+            "location": "src/main/git/commitLinesProperty.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "source-control-DM-154",
+        "changedFiles": [
+          "src/main/git/partialPatch.ts",
+          "src/main/git/partialPatch.test.ts",
+          "src/main/git/commitLines.test.ts",
+          "src/main/git/commitLinesProperty.test.ts",
+          "src/main/git/commit.ts",
+          "src/main/git/handlers.ts",
+          "src/main/git/handlersWrite.test.ts",
+          "src/shared/git/diff.ts",
+          "src/shared/git/api.ts",
+          "src/shared/git/errors.ts",
+          ".tsprune-ignore"
+        ],
+        "commits": [
+          "235ec61d1034a8c8cc41cdb4ffaf4b72508d2fc7",
+          "77891dc5b3bcd4d059157617afb976540c370682"
+        ],
+        "summary": "Added src/main/git/partialPatch.ts: pure buildPartialPatch(diff, selected). It keeps selected +/- lines, drops unselected additions, turns unselected deletions into context, recomputes the counts, and shifts newStart by the running offset (an empty range is counted from the line before it). Hunks with no selected change are dropped. Headers come from the diff: diff --git, new file mode with --- /dev/null, deleted file mode only when every line is selected (a partial deletion becomes a modification), old/new mode, rename from/to, C-quoted paths, and a trailing tab on names with spaces, as git writes them. Lines are written from DiffLine.text byte-exact, with \\r kept and the no-newline marker after its line. One edge case goes beyond the ticket text: an old last line without a newline that stays as context but is followed by selected additions is written as '-x \\ No newline' then '+x', because otherwise the patch is invalid. changedLineIndices(diff) is exported from src/shared/git/diff.ts. commitFiles: files entries gain lines?/diffHash? (GitApi CommitRequest, handler zod schema with integer >= 0 lines). Each line entry is checked before the index is touched: diffHash is required, the current readWorkingDiff (force) hash must match or stale_selection (new code), and the diff must be a text diff. Typechange, submodule and non-UTF-8 diffs (U+FFFD after decoding) are refused, as are out-of-range indices and a file chosen both whole and by lines. After the reset, `add -A` runs only when whole files remain (without paths it would stage everything). Each patch is applied with `git apply --cached --unidiff-zero --whitespace=nowarn -`. --unidiff-zero is needed because a user's diff.context=0 config makes git apply reject the patch (reproduced). Coordination: DM-393 rewrites the same `add -A` line to literalPathArgs(['add','-A'], paths). I kept that line identical to the base, so at merge it only needs DM-393's version inside the new stageChosen helper."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6at039cdy09mv9648r51pqc",
+      "state": "accepted",
+      "submittedAt": "2026-11-01T06:13:32.086Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:71ad8925b079f61809cfebab5ed74a55783fa6abd53829314ea8697aee97ae72",
+      "ticketId": "tk_01m43szh828jaqw5a0h83kbmkv",
+      "updatedAt": "2026-11-01T06:13:32.130Z",
+      "worker": {
+        "catalogRevision": "hc_01m683v6zpwtyanf40hj5gg7wd",
+        "effort": "high",
+        "hostId": "omp-mac-davidgorden",
+        "label": "omp task subagent (DM-154)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Run's host catalog (hc_01m49h2h…, Windows) was never imported, so match_capabilities returns not_found and the claim skips catalog checks. omp cannot select a worker model; its task subagents run claude-opus-5-5. Effort recorded as the ticket's planned effort. Lease 4h; orchestrator heartbeats for the worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-01T05:42:43.019Z",
+      "decidedAt": "2026-11-01T05:56:57.096Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Reviewed 2287918..HEAD (status.ts marker order, shared status kind 'am', ConflictsPanel banner). Accepted.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Commit f75c350 (tests only): npx vitest run src/main/git/operationInProgress.test.ts → 2 failed | 4 passed: rebase -r case got inProgress 'merge', git am case got 'rebase' (expected failures).",
+            "name": "tests first (red)",
+            "status": "passed"
+          },
+          {
+            "detail": "npx vitest run src/main/git/operationInProgress.test.ts src/main/git/status.test.ts src/main/git/statusEdge.test.ts src/main/git/conflicts.test.ts src/renderer/src/source/ConflictsPanel.test.tsx src/renderer/src/source/ConflictsPanel.edge.test.tsx → 6 files, 76 tests passed",
+            "name": "unit tests (touched)",
+            "status": "passed"
+          },
+          {
+            "detail": "npx oxlint on the 7 changed files → exit 0, no findings",
+            "name": "lint (touched files)",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck (node, web, fireguard tsconfigs) → clean",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "no exports added or removed",
+            "name": "deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node (epic rule)",
+            "name": "full suite / fireguard / build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "operationInProgress.test.ts (real repo): `git rebase -r` stopped at a conflicting merge reports rebase; Abort ends it and restores the branch; Abort/Commit merge refused meanwhile. Orchestrator re-ran 4 touched files: 63 passed."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "`git am` in progress reports kind 'am' (rebase-apply/applying); its Abort runs `git am --abort`; banner text added in ConflictsPanel."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Plain merge, cherry-pick and revert detection unchanged (new + existing real-repo tests)."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Tests first (f75c350, red), fix 2fd0cd2; touched tests, lint, typecheck pass."
+          }
+        ],
+        "notes": "Red-team pass: attacked (1) rebase -r at a merge — rebase now wins, and requireMerge refuses Abort merge/Commit merge so no mid-rebase commit; (2) am vs apply-backend rebase sharing rebase-apply/ — told apart by `applying`, both tested; (3) cherry-pick/revert inside a rebase — rebase wins, which is what git itself reports; (4) linked worktrees — markers are read through `rev-parse --git-path`, which resolves per-worktree paths like rebase-apply/applying; (5) stale `applying` after a crash — reports am and `git am --abort` cleans it, same as git status; (6) other guards (commit, stash, branch switch) refuse any non-null inProgress, so 'am' is refused there too, and errors.ts already maps 'am … in progress'. Consciously not changed: the abortOperation refusal text omits 'git am' (only shown for merge/none; changing it would touch a sibling-owned test).\nDiscoveries:\n- conflicts.ts header comment (line 3) and the abortOperation refusal message still list only 'rebase, cherry-pick or revert'; could mention git am once sibling edits to conflicts.ts land."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m6at3b2bves6z2j144wdg3yr",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "real-repo detection tests",
+            "location": "src/main/git/operationInProgress.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "banner test for git am",
+            "location": "src/renderer/src/source/ConflictsPanel.test.tsx",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "source-control-DM-392",
+        "changedFiles": [
+          "src/main/git/status.ts",
+          "src/shared/git/status.ts",
+          "src/renderer/src/source/ConflictsPanel.tsx",
+          "src/main/git/conflicts.ts",
+          "src/shared/git/api.ts",
+          "src/main/git/operationInProgress.test.ts",
+          "src/renderer/src/source/ConflictsPanel.test.tsx"
+        ],
+        "commits": [
+          "f75c350245b21b50f9a64718360358b194b16218",
+          "07adbef785ddf7157d269d6a39f6e9677217a3b1",
+          "2fd0cd27cb4df7a8c29d1f03a2b0432fe296faa9"
+        ],
+        "summary": "status.ts now decides the operation in progress from marker files in the order rebase-merge/ → rebase-apply/applying (new 'am' kind) → rebase-apply/ → MERGE_HEAD → CHERRY_PICK_HEAD → REVERT_HEAD (first that exists wins, mirroring git's own wt-status logic). A `git rebase -r` stopped at a conflicting merge (MERGE_HEAD + rebase-merge/) is reported as 'rebase', so the banner shows Abort (git rebase --abort) instead of Abort merge / Commit merge, and abortMerge/commitMerge refuse it. `git am` is its own kind ('am' added to the shared OperationInProgress type); abortOperation already runs `git <operation> --abort`, so it runs `git am --abort` with no change to conflicts.ts logic (doc comments only). The banner names it 'Applying patches (git am) is in progress…' via an OPERATION_NAMES map (rebase/cherry-pick/revert texts unchanged). FakeGit needed no change (its abortOperation accepts any non-merge kind). The abortOperation refusal message ('No rebase, cherry-pick or revert is in progress.') was deliberately left unchanged to avoid touching shared conflicts.ts behaviour/tests owned by sibling tickets."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6at039cdy09mv9648r51pqc",
+      "state": "accepted",
+      "submittedAt": "2026-11-01T05:56:57.059Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:d28c088acdaa979fc3cddf4e86a7aeff86b3938ea5dcf792e775ec67ea50a4cc",
+      "ticketId": "tk_01m6agg8xrm564afn2ag0n7ccb",
+      "updatedAt": "2026-11-01T05:56:57.096Z",
+      "worker": {
+        "catalogRevision": "hc_01m683v6zpwtyanf40hj5gg7wd",
+        "effort": "medium",
+        "hostId": "omp-mac-davidgorden",
+        "label": "omp task subagent (DM-392)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Run's host catalog (hc_01m49h2h…, Windows) was never imported, so match_capabilities returns not_found and the claim skips catalog checks. omp cannot select a worker model; its task subagents run claude-opus-5-5. Effort recorded as the ticket's planned effort. Lease 4h; orchestrator heartbeats for the worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-01T05:42:43.056Z",
+      "decidedAt": "2026-11-01T05:58:45.126Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Reviewed 2287918..HEAD. Merge note: DM-154 moves the `add` line in commit.ts; keep literalPathArgs there. Accepted.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npx vitest run args/commit/discard/conflicts/conflictsEdge/conflictsOpen/handlersConflicts/handlersWrite tests: 100 passed",
+            "name": "unit tests (touched)",
+            "status": "passed"
+          },
+          {
+            "detail": "npx vitest run diff/history/handlers tests: 80 passed; tests commit 7796a51 had 4 failing before 91fca24",
+            "name": "unit tests (diff/history/handlers)",
+            "status": "passed"
+          },
+          {
+            "detail": "commit 15d0e20 (tests only): 5 failed (literalPathArgs x2, commit :/a, discard :!b modified+added)",
+            "name": "tests-first",
+            "status": "passed"
+          },
+          {
+            "detail": "npx oxlint on all 11 touched files: rc=0",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run deadcode: no new dead exports",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "full suite/fireguard/build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "commit.test.ts real repo: committing only `:/a` (and `*`) commits exactly that file; other changed files stay uncommitted. Orchestrator re-ran commit/discard/conflicts/diff/history: 90 passed."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "discard.test.ts: discarding `:!b` or `*` (modified or added) changes only that file."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "literalPathArgs in args.ts used by commit, discard and conflicts (replacing conflicts' LITERAL), and also by diff.ts and history.ts commit diff, which take renderer paths."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Tests first (red: 5 commit/discard, 4 diff/history), then code; touched tests, lint, typecheck, deadcode pass."
+          }
+        ],
+        "notes": "Red-team: attacked rename discard (oldPath checkout also literal), added-file rm --cached, conflicts resolveWith/markResolved, and the '*' glob case; absolute/../ paths still refused via pathArgs inside the helper. resolveWith no longer pre-validates via pathArgs before update-index --cacheinfo, but that path must exactly match git's own unmerged list. Discoveries: none beyond this ticket (merge with DM-154 will conflict on commit.ts add line; keep literalPathArgs)."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m6at3b3gznk4xwmvr75y7s0x",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "tests",
+            "location": "src/main/git/commit.test.ts, src/main/git/discard.test.ts, src/main/git/args.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "source-control-DM-393",
+        "changedFiles": [
+          "src/main/git/args.ts",
+          "src/main/git/args.test.ts",
+          "src/main/git/commit.ts",
+          "src/main/git/commit.test.ts",
+          "src/main/git/discard.ts",
+          "src/main/git/discard.test.ts",
+          "src/main/git/conflicts.ts",
+          "src/main/git/diff.ts",
+          "src/main/git/diff.test.ts",
+          "src/main/git/history.ts",
+          "src/main/git/history.test.ts"
+        ],
+        "commits": [
+          "15d0e20618959c6f2b45aaedbfe12fcee4d27c39",
+          "b7f3bb436726434fc3fe27b8f80c830dff480d42",
+          "7796a5143e25890c744f5ff492731703b722f9f1",
+          "91fca24f153a51276ee797aa4243278c7dbb7ad2"
+        ],
+        "summary": "Added literalPathArgs(command, paths) in src/main/git/args.ts -> ['--literal-pathspecs', ...command, '--', ...checked paths]. Used for every renderer-path git call: commit.ts (add -A), discard.ts (checkout HEAD x3, rm --cached), conflicts.ts (rm, checkout --side, add, add -A; ad-hoc LITERAL const removed). commit's `reset -q --` takes no paths; conflicts' update-index --cacheinfo is not a pathspec. Real-repo tests: commit of ':/a' with changed 'a' and of '*' with other.txt; discard of modified and added ':!b' / '*'. Before the fix, the :/a and :!b tests failed (the '*' cases happened to pass pre-fix). Per the body's read-only rule, also applied to diff.ts readWorkingDiff (diff HEAD -- paths) and history.ts getCommitDiff (show/diff -- paths), with real-repo tests for ':!b', ':/b', '*' (':/b' and '*' failed pre-fix). getCommitDiff now validates paths after requireCommit instead of before (still rejects ../x). DM154PartialPatch told to keep literalPathArgs on its moved add line."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6at039cdy09mv9648r51pqc",
+      "state": "accepted",
+      "submittedAt": "2026-11-01T05:58:45.084Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:f731bd603433eb6d68fae1d32cfc6a93909f37261bdea7fc051ffa66bf35bfaa",
+      "ticketId": "tk_01m6agg8y0y7qv7x72fn3kfv3f",
+      "updatedAt": "2026-11-01T05:58:45.126Z",
+      "worker": {
+        "catalogRevision": "hc_01m683v6zpwtyanf40hj5gg7wd",
+        "effort": "medium",
+        "hostId": "omp-mac-davidgorden",
+        "label": "omp task subagent (DM-393)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Run's host catalog (hc_01m49h2h…, Windows) was never imported, so match_capabilities returns not_found and the claim skips catalog checks. omp cannot select a worker model; its task subagents run claude-opus-5-5. Effort recorded as the ticket's planned effort. Lease 4h; orchestrator heartbeats for the worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-01T05:42:43.088Z",
+      "decidedAt": "2026-11-01T05:54:38.073Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Reviewed 2287918..HEAD: one commit invocation + commentChar=auto pin. Accepted.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Commit a4b7f4e added the 4 tests in 'commitMerge comment lines'. Before the fix, 3 of them failed (the `#` subject test, the core.commentChar=';' test and the auto test). The 4th test, which keeps the person's typed `#` lines, passed both before and after.",
+            "name": "tests first",
+            "status": "passed"
+          },
+          {
+            "detail": "npx vitest run src/main/git/conflictsEdge.test.ts src/main/git/conflicts.test.ts src/main/git/handlersConflicts.test.ts: 39/39 passed",
+            "name": "unit tests (touched)",
+            "status": "passed"
+          },
+          {
+            "detail": "npx oxlint src/main/git/conflicts.ts src/main/git/conflictsEdge.test.ts: no findings",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "no exports added; left to the acceptance node",
+            "name": "deadcode/full suite/fireguard/build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "conflictsEdge.test.ts on a real repo: after resolving, Commit merge keeps the 'Merge branch …' subject with no comment lines (git commit --no-edit --cleanup=strip); a typed summary/description is committed unchanged. Orchestrator re-ran conflicts tests: 35 passed."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "core.commentChar=';' drops ';' lines; 'auto' is pinned to '#' for the commit so git's '#' lines are stripped."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Tests first (a4b7f4e, 3 red), fix e053a12; touched tests, oxlint, typecheck pass."
+          }
+        ],
+        "notes": "Red-team pass, what I attacked: (1) Typed `#` lines being stripped: rejected, because the summary path does not use strip, and a test covers it. (2) commentChar `auto` keeping the lines: found and fixed with the `-c` pin. (3) Unset config making `git config` exit 1: `--default '#'` avoids that. (4) Failure classification with a leading `-c`: commandName skips `-c` values, so it still reports `commit`. Limits: core.commentString (git 2.45+) is not special-cased; git's own strip still honours it unless it is `auto`. With `auto` set before the merge, I assume git merge writes `#` [INFERENCE, the test sets auto after the merge]. DM-393 changed only the imports and resolveWith/markResolved in conflicts.ts, so a merge should be clean. Discoveries: none."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m6at3b4gyvtgzep46vpxgz0s",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "real-repo tests",
+            "location": "src/main/git/conflictsEdge.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "source-control-DM-394",
+        "changedFiles": [
+          "src/main/git/conflicts.ts",
+          "src/main/git/conflictsEdge.test.ts"
+        ],
+        "commits": [
+          "a4b7f4ecbb1b90201d8b3fb2e41afea68fdfbe0a",
+          "e053a1288fa482b734a5a55adb1b7c69e2cd1558"
+        ],
+        "summary": "commitMerge (src/main/git/conflicts.ts) now commits git's own merge message with `git commit -q --no-edit --cleanup=strip`, so git's `# Conflicts:` comment lines are dropped and the `Merge branch …` subject stays. git strips by core.commentChar itself. When core.commentChar is `auto`, the commit gets `-c core.commentChar=#`, because git wrote MERGE_MSG's comment lines with `#` and `auto` would otherwise choose a character that no line starts with. A summary or description the person typed still goes through `-F -` with the default whitespace cleanup, so lines they typed that start with `#` (such as `#42 fixed`) are kept."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6at039cdy09mv9648r51pqc",
+      "state": "accepted",
+      "submittedAt": "2026-11-01T05:54:38.033Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:7de82fa5cb4a456910862252a3f3884fcd01b9359899a4c799c0cea9571ca769",
+      "ticketId": "tk_01m6agg8y0q8xpv9qzb36qc2da",
+      "updatedAt": "2026-11-01T05:54:38.073Z",
+      "worker": {
+        "catalogRevision": "hc_01m683v6zpwtyanf40hj5gg7wd",
+        "effort": "low",
+        "hostId": "omp-mac-davidgorden",
+        "label": "omp task subagent (DM-394)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Run's host catalog (hc_01m49h2h…, Windows) was never imported, so match_capabilities returns not_found and the claim skips catalog checks. omp cannot select a worker model; its task subagents run claude-opus-5-5. Effort recorded as the ticket's planned effort. Lease 4h; orchestrator heartbeats for the worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-01T05:42:43.121Z",
+      "decidedAt": "2026-11-01T05:58:23.328Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Reviewed 2287918..HEAD. Accepted risk: a silent server hook >60 s or a network git run without --progress now times out; DM-150/152 told to pass --progress. Accepted.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Commit 79e5ece holds only tests. Run against the unchanged runner, 6 of the new tests failed (5 in runnerStall.test.ts, plus syncStall), with 21 passing across the 3 files.",
+            "name": "tests first",
+            "status": "passed"
+          },
+          {
+            "detail": "npx vitest run runnerStall, syncStall, runner, runnerEdge, sync, syncAuth, syncEdge, credentials, branchesGuard, SyncButton, useSync: 11 files, 155 tests passed. An earlier run that also included the branches* tests: 13 files, 183 passed.",
+            "name": "unit tests (touched + related)",
+            "status": "passed"
+          },
+          {
+            "detail": "With the stallTimer.refresh() call commented out, 'never times out a transfer that prints progress every 10 s for 3 minutes' and 'counts new stdout as progress too' failed. Restored afterwards.",
+            "name": "mutation check",
+            "status": "passed"
+          },
+          {
+            "detail": "npx oxlint on the 5 touched files: exit 0",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck (node, web, fireguard): clean",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "No exports added or removed (stallMs is a field on an existing options interface)",
+            "name": "deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "Left to the acceptance node, per the epic rules",
+            "name": "full suite / fireguard / build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "runner tests with injected clock + fake process: 60 s silence ends with timeout and git's scrubbed last stderr line; output every 10 s for 3 min never times out (removing the reset fails both). Orchestrator re-ran runner/sync/SyncButton: 55 passed."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Network ops pass -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=60; real fetch against a stalling ext:: remote ends with timeout at a 1 s test limit (stallMs option on createGitRunner only; no env hook)."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Cancel still ends with cancelled (process-group kill); SyncButton shows timeout with its detail (new test)."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Tests first (79e5ece, 6 red), code b0203e1; touched tests, lint, typecheck pass."
+          }
+        ],
+        "notes": "Red-team pass. Attacked and survived: (1) the timer reset is real, because the mutation check above fails without it. (2) A queued network op does not stall while it waits its turn: the timer starts in attach(), after spawn. (3) Settling clears both timers, a stall after cancel or close is a no-op (finish is guarded by settled), and take() ignores output after settlement. (4) Detail leakage: the line goes through scrubSecrets(request.redact) like every other detail, and stderrTail caps it. (5) Multibyte characters split across chunks: the detail is decoded from the concatenated buffers, not per chunk. (6) Low-speed config cannot be overridden by repo config, because command-line -c wins, and it reaches pull's inner fetch and git-remote-https through GIT_CONFIG_PARAMETERS [INFERENCE: standard git behaviour, not tested with HTTPS here]. (7) The production limit cannot be changed from outside: there is no env var, only the createGitRunner option. Accepted risks: a push whose server-side hook runs silently for more than 60 s, or a clone or fetch run without --progress, will now end with timeout (siblings were told to pass --progress). lastStderrLine concatenates stderr (at most 64 MB) once, only when the stall fires. A 1 s test limit reads '1 seconds' in the message; production always says '60 seconds'.\nDiscoveries: none beyond the above."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m6at3b5hbsgz3qmyvthzhq7e",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Stall timeout unit tests (fake spawn, injected fake clock)",
+            "location": "src/main/git/runnerStall.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Real stalled ext:: remote test through createSync (stallMs 1000)",
+            "location": "src/main/git/syncStall.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Sync UI timeout test",
+            "location": "src/renderer/src/source/SyncButton.test.tsx",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "source-control-DM-395",
+        "changedFiles": [
+          "src/main/git/runner.ts",
+          "src/main/git/runner.test.ts",
+          "src/main/git/runnerStall.test.ts",
+          "src/main/git/syncStall.test.ts",
+          "src/renderer/src/source/SyncButton.test.tsx"
+        ],
+        "commits": [
+          "79e5ece4abf39b3218b4788169c6fd1066b52475",
+          "b0203e1ea2851f7ac00c562263d390e52bb10244"
+        ],
+        "summary": "Network git (runner kind 'network': fetch/pull/push/publish, remote branch delete, and siblings' clone/PR fetches) now ends with GitError code `timeout` after 60 s with no new stdout or stderr output. The message is 'The connection stalled: git made no progress for 60 seconds.' and the detail is git's last non-empty stderr line (CR-redrawn progress lines count), scrubbed with request.redact and capped by stderrTail. Every output chunk resets the timer (Timeout.refresh), so a transfer that keeps printing never stalls. The stall timer is set only after spawn, so time spent waiting in the per-repo queue does not count. It works alongside an explicit timeoutMs, and finish/release clear both timers. The runner also puts `-c http.lowSpeedLimit=1000 -c http.lowSpeedTime=60` after FIXED_CONFIG on network runs only. The stall limit can be injected only through createGitRunner({ stallMs }), which tests use; bootstrap still calls createGitRunner(), and there is no env hook. Cancel is unchanged (process-group SIGTERM/SIGKILL, `cancelled`). The sync UI needed no code change: `timeout` already falls into the 'other' failure, which shows the message and puts the detail in the collapsible block. A new component test covers it. Removed the old runner.test 'never times out network operations', which the new behaviour replaces. I told DM150Clone and DM152PullRequests that a network run without a TTY needs `--progress`, and that network spawn args now carry 4 extra -c entries. DM150Clone confirmed that clone passes --progress, and its onExit hook in runner.ts touches different lines from mine."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6at039cdy09mv9648r51pqc",
+      "state": "accepted",
+      "submittedAt": "2026-11-01T05:58:23.289Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:2cf3299f70bff0f9f271969894a7f7ecc487bd445aa709f5663dc20e08bb47a0",
+      "ticketId": "tk_01m6agg8y15m1m44hkme3qncvv",
+      "updatedAt": "2026-11-01T05:58:23.328Z",
+      "worker": {
+        "catalogRevision": "hc_01m683v6zpwtyanf40hj5gg7wd",
+        "effort": "medium",
+        "hostId": "omp-mac-davidgorden",
+        "label": "omp task subagent (DM-395)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Run's host catalog (hc_01m49h2h…, Windows) was never imported, so match_capabilities returns not_found and the claim skips catalog checks. omp cannot select a worker model; its task subagents run claude-opus-5-5. Effort recorded as the ticket's planned effort. Lease 4h; orchestrator heartbeats for the worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-01T06:15:51.838Z",
+      "decidedAt": "2026-11-01T06:33:01.462Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Reviewed f4589f5..4ae5dcd. useConflicts/useInclusion lifted to RepositoryView (inclusion now survives a History switch). Accepted.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Commit c4ace4e adds DiffView.selection.test.tsx, LineSelection.test.tsx, the History read-only test and FakeGit's stale_selection check. Run before the implementation: 18 failed, 14 passed. The ones that passed were the regression guards (History read-only, DiffView without selection) and the existing History tests. One more drag test ('ends a drag whose button was released outside the window') was added with the red-team fix.",
+            "name": "tests first",
+            "status": "passed"
+          },
+          {
+            "detail": "npx vitest run src/renderer/src/source/ src/renderer/src/styles.test.ts src/renderer/src/cssBalance.test.ts: 20 files, 226 tests passed",
+            "name": "unit tests (touched)",
+            "status": "passed"
+          },
+          {
+            "detail": "npx oxlint on the 10 touched TS/TSX files: no findings",
+            "name": "lint (touched files)",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck (node, web, fireguard): no errors",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run deadcode: No new dead exports found (new exports: LineSelection, ConflictsModel)",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run build. Then Playwright /tmp/sc-epic/DM-155-shots.mjs with an isolated profile /tmp/sc-epic/scratch/DM-155/profile (folders.json pre-seeded with the scratch repo). In the app: a real mouse click on the 'added B' gutter, Space on 'added C', readme.md unchecked, then commit. Afterwards `git show HEAD:notes.txt` holds exactly 'added A' and 'line 18 changed' in place of 'line 18' (the 3 of 5 lines, over two hunks), readme.md is not committed, `shasum -c` shows both working files unchanged, the remaining diff is +added B / +added C, and no reset toast appeared.",
+            "name": "build + built-app smoke",
+            "status": "passed"
+          },
+          {
+            "detail": "Left to the acceptance node per epic rules.",
+            "name": "full suite / fireguard",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Gutter checkboxes per changed line and hunk header; click, drag range, hunk toggle, Space on focused line; excluded lines dimmed; History diffs unselectable (tests). Screenshot DM-155-partial-lines.png viewed by orchestrator."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Partly included file shows an indeterminate checkbox (also the header) that toggles all/none (tests + screenshot)."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Commit sends chosen lines + diff hash; a changed file resets its selection with a toast; stale_selection refreshes the diff with the same toast; selections clear after success. Built-app smoke: 3 of 5 lines over two hunks committed exactly, working files unchanged (shasum)."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "docs/verification/DM-155-partial-lines.png from the built app with an isolated profile."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Tests first (c4ace4e, 18 red); orchestrator re-ran src/renderer/src/source: 196 passed; worker: lint, typecheck, deadcode, build."
+          }
+        ],
+        "notes": "Red team: I attacked (1) a drag whose button is released outside the window (no mouseup reaches the page), which left the drag live; fixed by checking `buttons` on enter, with a test. (2) Double toasts when the shown-diff check and the refresh check both see a new hash; one ref-backed state means the second sees no partial selection. (3) A file shown with 'Show anyway' (too_large, hash '') when it is reselected; ignored by the check, and the refresh check reads with force:true, as main does. (4) The reset toast firing after a successful partial commit (the leftover diff has a new hash); fixed by clearing line selections on success, with a test. (5) Stale check answers from an older refresh resetting a newer selection: answers are dropped once the refresh effect is cleaned up. (6) A selection drawn on an older diff that is still shown: it is drawn as all, and toggling uses the shown diff's hash. (7) Indices out of range or not integers are ignored by the toggle, and main validates them too. (8) Conflicted files get no selection: selectionOf only covers paths in the Changes list. (9) With 'Show N more lines', the hunk and line indices come from the full diff, so a cut-short hunk still toggles all of its lines. Limits: (a) dragging back over lines already set does not restore their earlier state (GitHub Desktop does). (b) Every changed line is a tab stop (no roving tabindex). (c) Each 5 s refresh re-reads (forced) the diff of every partly included file, usually zero or one file. (d) Inclusion now lives in RepositoryView, so it survives switching to History and back; before, it was lost. Discoveries:\n- Roving tabindex plus arrow-key navigation in the diff gutter would make keyboard line selection practical on long diffs.\n- Restoring the earlier state of lines when a drag shrinks back, as in GitHub Desktop."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m6aw018yftm90wn9czsxwcgr",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Screenshot: diff with lines unselected, notes.txt + header checkbox indeterminate (built app, isolated profile)",
+            "location": "docs/verification/DM-155-partial-lines.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Screenshot: after committing 3 of 5 lines through the built app",
+            "location": "docs/verification/DM-155-after-commit.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "DiffView gutter selection tests",
+            "location": "src/renderer/src/source/DiffView.selection.test.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Line selection integration tests (FakeGit)",
+            "location": "src/renderer/src/source/LineSelection.test.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Built-app smoke script and log",
+            "location": "/tmp/sc-epic/DM-155-shots.mjs; /tmp/sc-epic/logs/DM-155-smoke.log",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "source-control-DM-155",
+        "changedFiles": [
+          "src/renderer/src/source/DiffView.tsx",
+          "src/renderer/src/source/useInclusion.ts",
+          "src/renderer/src/source/ChangesPanel.tsx",
+          "src/renderer/src/source/CommitBox.tsx",
+          "src/renderer/src/source/RepositoryView.tsx",
+          "src/renderer/src/source/ConflictsPanel.tsx",
+          "src/renderer/src/source/source.css",
+          "src/renderer/src/__mocks__/fakeGit.ts",
+          "src/renderer/src/source/DiffView.selection.test.tsx",
+          "src/renderer/src/source/LineSelection.test.tsx",
+          "src/renderer/src/source/HistoryPanel.test.tsx",
+          "docs/verification/DM-155-partial-lines.png",
+          "docs/verification/DM-155-after-commit.png"
+        ],
+        "commits": [
+          "c4ace4ea953c3a0a2253f95184e2906ef9c46aa7",
+          "3908df24649a261919d4414c362fa784900d6b42",
+          "4ae5dcd9f6a523c0354ab7dee0f18a7a8289ed21"
+        ],
+        "summary": "DiffView takes an optional `selection` ({selected, onToggle(indices, include)}, changedLineIndices numbering). When it is set, each changed line and each hunk header gets a gutter checkbox (role=checkbox, aria-checked true/false/mixed, focusable). A left press on a line's gutter (checkbox, line numbers or marker) toggles that line. Dragging sets the range from the first line to the current one to the first line's toggled state, until mouseup; entering a gutter with no button held ends the drag, which covers a release outside the window. Pressing a hunk header's gutter toggles the whole hunk (all in unless all are in already). Space toggles the focused line or hunk. Excluded lines are dimmed (.diff-excluded). History passes no selection and stays read-only. useInclusion now keeps 'all' | 'none' | {hash, lines} per path. The file checkbox is indeterminate for partial files; clicking it goes from partial to all, then to none. The header is indeterminate while any file is partial, and its label still reads 'N changed files'. `commitFiles` sends `lines` (sorted) and `diffHash` for partial files, so the commit button stays enabled for a partly included file. A partial file resets to all, with the info toast '<file> changed, so its line selection was reset', in two ways: (a) when the shown diff loads with another hash, and (b) on every repository refresh (version), when each partial file's diff is read again with force:true, as main's commit does, and compared. Both paths share one ref-backed check, so there is no double toast. A too_large diff (hash '') never resets. On `stale_selection`, CommitBox calls `onStaleSelection`: it rechecks the partial files (resetting the changed ones, with the same toast), then refreshes so the shown diff is read again. It shows the refusal inline only if no changed file was found. After a successful commit, line selections are cleared silently, so the leftover diff gives no reset toast. To share inclusion between the Changes list and the diff column, useConflicts and useInclusion moved from ChangesPanel up to RepositoryView (ChangesPanel now gets `conflicts` and `inclusion` props). ConflictsModel is now exported. RepositoryView was edited byte-preserving (its NUL byte is kept). FakeGit.commit now fails `stale_selection` when a file's diffHash differs from the diff set for it, as main does."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6at039cdy09mv9648r51pqc",
+      "state": "accepted",
+      "submittedAt": "2026-11-01T06:33:01.425Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:138f9bce67a7454ce800c702d06489aef382675eda537a18f407e8d977fd9a08",
+      "ticketId": "tk_01m43szh82gkccz2rshznb6be6",
+      "updatedAt": "2026-11-01T06:33:01.462Z",
+      "worker": {
+        "catalogRevision": "hc_01m683v6zpwtyanf40hj5gg7wd",
+        "effort": "medium",
+        "hostId": "omp-mac-davidgorden",
+        "label": "omp task subagent (DM-155)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Run's host catalog (hc_01m49h2h…, Windows) was never imported, so match_capabilities returns not_found and the claim skips catalog checks. omp cannot select a worker model; its task subagents run claude-opus-5-5. Effort recorded as the ticket's planned effort. Lease 4h; orchestrator heartbeats for the worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-01T06:22:08.519Z",
+      "decidedAt": "2026-11-01T06:35:24.132Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Reviewed f5dd855..HEAD. Accepted.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "commit 32a6bf6 adds PullRequests.test.tsx alone; npx vitest run on it: 13 failed | 4 passed (the 4 are the 'nothing shown' negatives)",
+            "name": "tests written first",
+            "status": "passed"
+          },
+          {
+            "detail": "npx vitest run src/renderer/src/source/ src/renderer/src/__mocks__ -> 19 files, 206 tests passed (incl. 17 new in PullRequests.test.tsx; BranchMenu/BranchDialogs/HistoryPanel/SyncButton/useSync suites unchanged and green)",
+            "name": "unit tests (touched)",
+            "status": "passed"
+          },
+          {
+            "detail": "npx oxlint on the 9 touched .ts/.tsx files: exit 0, no findings",
+            "name": "lint (touched files)",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck: no errors",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run deadcode: No new dead exports found",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run build (for c5 screenshots), exit 0",
+            "name": "build",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "full suite / fireguard / coverage",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "PullRequestBadge: #N + title (Draft badge) opens the PR; otherwise Create pull request opens the compare page, Push and create pull request pushes/publishes first (tests; screenshots DM-153-create-pull-request.png, DM-153-push-and-create-pull-request.png)."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Branch menu Branches | Pull requests switch: filter, Refresh, checkout with the same stash-or-bring dialog (tests)."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Signed out: sign-in prompt in PR areas (screenshot DM-153-pull-requests-signed-out.png viewed); non-GitHub repos: hidden (tests)."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "History commit menu offers View on GitHub for GitHub repos (hidden for unpushed commits) (tests)."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Built app, isolated profiles, Hello-World clone with push URL to a local bare repo; nothing pushed anywhere."
+          },
+          {
+            "criterionId": "c6",
+            "met": true,
+            "note": "Tests first (13 red); orchestrator re-ran src/renderer/src/{source,github}: 215 passed; worker: oxlint, typecheck, deadcode, build."
+          }
+        ],
+        "notes": "Design: the Pull requests switch is shown only once getPullRequests answered ready/signed-out/error, so a non-GitHub repo never flickers it; 'error' (e.g. network) shows the alert plus Refresh in the view and hides the toolbar badge. Toolbar badge text for a draft is '#N Title Draft'. The relative time uses the app's formatAgo ('2h ago'), not '2 hours ago'. The signed-in PR list (non-empty) was not screenshotted, per the ticket it is a person's checkpoint check. Red-team pass: attacked stale state (PR info keyed by folder+login+branch so sign-in/out and branch switches/checkouts re-read; compare target keyed by branch/upstream/ahead/head so a push re-reads), double submission (push guarded while running, Button busy; branch menu ignores choices while busy), push failure/cancel paths (error shown, nothing opened; cancelled silent; compare still needs_push after push -> message, nothing opened), URL provenance (only main-built pull.url / compare / commit URLs are opened, never user text), detached/unborn HEAD (badge hidden), unpushed commits (no View on GitHub), signed-out non-GitHub ambiguity (main checks repository before auth so auth_required implies GitHub), and vacuous tests (13 of 17 failed before the implementation; the 4 that passed are negative 'absent' checks that would also fail if the UI showed up unconditionally). Discoveries: none out of scope."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m6awbh47bmc8naekk5geqt0g",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Toolbar badge",
+            "location": "src/renderer/src/source/PullRequestBadge.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Pull requests view",
+            "location": "src/renderer/src/source/PullRequestList.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Pull requests hook",
+            "location": "src/renderer/src/source/usePullRequests.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Tests",
+            "location": "src/renderer/src/source/PullRequests.test.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Screenshot: Create pull request (branch already on GitHub)",
+            "location": "docs/verification/DM-153-create-pull-request.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Screenshot: Push and create pull request (unpublished branch)",
+            "location": "docs/verification/DM-153-push-and-create-pull-request.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Screenshot: signed-out Pull requests view (+ toolbar sign-in link)",
+            "location": "docs/verification/DM-153-pull-requests-signed-out.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Screenshot script",
+            "location": "/tmp/sc-epic/scratch/DM-153/shots.mjs",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "source-control-DM-153",
+        "changedFiles": [
+          "src/renderer/src/source/PullRequests.test.tsx",
+          "src/renderer/src/source/PullRequestBadge.tsx",
+          "src/renderer/src/source/PullRequestList.tsx",
+          "src/renderer/src/source/usePullRequests.ts",
+          "src/renderer/src/source/BranchMenu.tsx",
+          "src/renderer/src/source/BranchDialogs.tsx",
+          "src/renderer/src/source/HistoryPanel.tsx",
+          "src/renderer/src/source/RepositoryView.tsx",
+          "src/renderer/src/source/useSync.ts",
+          "src/renderer/src/source/source.css",
+          "docs/verification/DM-153-create-pull-request.png",
+          "docs/verification/DM-153-push-and-create-pull-request.png",
+          "docs/verification/DM-153-pull-requests-signed-out.png"
+        ],
+        "commits": [
+          "32a6bf6a785270e274d3ad3bcdb7d2b6d69d4b79",
+          "4231100874d637b1b4cd1be8043f3dc5d7ef6d26",
+          "fd0317bd0ec8e4895953d5c30f825b2ea3b8722b"
+        ],
+        "summary": "Pull requests in Source control (renderer only, on DM-152's GitApi). New usePullRequests hook (src/renderer/src/source/usePullRequests.ts): one getPullRequests per folder+account login+branch, re-read on sign-in/out and branch change, Refresh passes {refresh:true}; state loading | hidden (repository null = not on GitHub) | signed-out (auth_required, which main only returns for a GitHub repository) | error | ready. RepositoryView calls it once and passes it to the toolbar, the branch menu and History (RepositoryView edited byte-preserving; its NUL byte is intact). PullRequestBadge.tsx: current PR -> pill '#N Title' (+Draft badge) opening pull.url via window.dm.openExternal; else on a GitHub repo, a named branch with commits, not the default branch (listBranches.defaultBranch) -> 'Create pull request' (compare kind url -> opens it) or 'Push and create pull request' (needs_push -> push via useSync's now-exported attempt(), which also publishes an unpublished branch; progress from window.git.onProgress for that operation id in a role=status line; then getCompareUrl again and opens it; push failure shown as role=alert, nothing opened; double clicks ignored while pushing); signed out -> 'Sign in to see pull requests' link opening the app sign-in dialog; non-GitHub -> nothing. BranchMenu: a Branches | Pull requests switch at the top of the switch popover (only when the repo is on GitHub: ready, signed-out or error), PullRequestList.tsx lists open PRs (#number, title, author, 'Xh ago', Draft, Fork label with the head repo as tooltip) filtered by the same input (number with or without #, title, author, head branch), Refresh button, arrow/Enter keyboard like branches; signed out shows SignInPrompt 'Sign in to GitHub to see pull requests'. Selecting a PR: no changes -> checkoutPullRequest {uncommitted:'bring'}; with changes -> the same SwitchDialog as a branch switch (generalised to take {label, pullRequest} and call checkoutPullRequest with stash/bring). HistoryPanel gains onGithub; the commit menu adds 'View on GitHub' (getCommitUrl -> openExternal, failures as toasts) for GitHub repos (also signed out), not for unpushed commits. CSS for the pill/link/list in source.css. Screenshots from the built app (isolated temp profiles) of a scratch clone of github.com/octocat/Hello-World with remote.origin.pushurl pointed at a local bare repo; nothing was pushed anywhere (the bare repo has no refs); the signed-in run used the gh login in its isolated profile and signed out at the end."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6at039cdy09mv9648r51pqc",
+      "state": "accepted",
+      "submittedAt": "2026-11-01T06:35:24.089Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:d3f81cbc501f6467e8afb7125866f32d5fe48a60b17d54d9cfe58088347dd63c",
+      "ticketId": "tk_01m43szh828hgjsz0chrt5qspz",
+      "updatedAt": "2026-11-01T06:35:24.132Z",
+      "worker": {
+        "catalogRevision": "hc_01m683v6zpwtyanf40hj5gg7wd",
+        "effort": "medium",
+        "hostId": "omp-mac-davidgorden",
+        "label": "omp task subagent (DM-153)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Run's host catalog (hc_01m49h2h…, Windows) was never imported, so match_capabilities returns not_found and the claim skips catalog checks. omp cannot select a worker model; its task subagents run claude-opus-5-5. Effort recorded as the ticket's planned effort. Lease 4h; orchestrator heartbeats for the worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-01T06:51:37.958Z",
+      "decidedAt": "2026-11-01T07:05:46.030Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Reviewed 272389a..a654358; orchestrator re-ran sidebar/home/source/App tests (85 files, 1003 passed) and viewed the clone-in-progress screenshot (Receiving objects 11% with Cancel; clone cancelled, no folder left). Accepted.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Commit c32b242 holds only tests (CloneDialog.test, cloneTarget.test, App.clone.test, Sidebar/MainViews/App.start updates); run: 6 files failed, 8 tests failed, 35 passed (/tmp/sc-epic/logs/DM-151-tests-red.txt). The shellActions 'cloned' test and the Icon 'lock' entry were added alongside the implementation.",
+            "name": "tests written first",
+            "status": "passed"
+          },
+          {
+            "detail": "npx vitest run src/renderer/src/{clone,sidebar,app,components,github} App.clone/App.start/App.sidebar/App.folderPage cssBalance styles: 69 files, 796 tests passed; re-run of clone + Sidebar + App.clone after lint refactor: 4 files, 50 passed",
+            "name": "unit tests (touched + neighbours)",
+            "status": "passed"
+          },
+          {
+            "detail": "npx oxlint on every touched src file: exit 0",
+            "name": "lint (touched files)",
+            "status": "passed"
+          },
+          {
+            "detail": "exit 0",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "exit 0 (OwnerGroup un-exported after first run flagged it)",
+            "name": "npm run deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "exit 0, for c5 screenshots",
+            "name": "npm run build",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test (full) / fireguard",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Sidebar.test 'Sidebar + menu' (two items, each calls its handler, plus icon); MainViews.test 'offers cloning a repository beside Choose folder'; App.clone.test drives both entry points end to end."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "CloneDialog.test: signed-out prompt (no listRepositories call), grouped list with lock/fork, filter + 'No repositories match.', Refresh sends {refresh:true} and shows new data, auth_required list → prompt, other list error → alert; URL tab accepts owner/repo and https URL with name defaulting (cloneTarget.test covers scp/ssh/.git/trailing slash/host-only)."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "CloneDialog.test: full target path follows name and Choose… parent; progress bar/phase filtered to own operationId; Cancel calls cancelOperation(parent, id) and shows no error; fresh operationId per clone; closing mid-clone cancels. App.clone.test: success closes the dialog, the new folder is aria-current in the sidebar and the Source control tab is selected even when Epics was remembered for that path. Real built-app run cloned git/git with live progress and cancelled (no folder left)."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "CloneDialog.test 'CloneDialog errors': auth_required and auth_failed show 'Sign in to GitHub to clone this repository'; target_exists shows '/Users/me/GitHub/Hello-World already exists'; other errors show message plus git detail."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "docs/verification/DM-151-github-tab-signed-out.png and DM-151-url-clone-in-progress.png, from `npm run build` + /tmp/sc-epic/pw/shot.mjs with an isolated --user-data-dir (clone.json pre-seeded to /tmp/sc-epic/scratch/DM-151/clones, GH_CONFIG_DIR empty, no token). I viewed both: the first shows the GitHub.com tab with the sign-in prompt; the second shows the URL tab with https://github.com/git/git, target /tmp/sc-epic/scratch/DM-151/clones/git and 'Receiving objects 11%' with Cancel. Cancel then removed the folder; nothing was pushed."
+          },
+          {
+            "criterionId": "c6",
+            "met": true,
+            "note": "See checks: tests-first commit c32b242 red, then touched tests, oxlint, typecheck (and deadcode) pass."
+          }
+        ],
+        "notes": "Red team (self-pass): attacked double-click Clone (runningRef guard set synchronously), progress from other operations or another parent (filtered by id and parent), changing name/parent mid-clone (target path and cancel use the values captured at start), closing/Escape mid-clone (cancels, then closes; unmounted dialog ignores the late answer, StrictMode-safe live ref), a rejected clone promise (shown as 'Git did not answer.'), stale list responses after Refresh/account change (request counter), host-only URL suggesting 'github.com' as the name (fixed: suggests nothing). Consciously left: the 'already exists' path is computed in the renderer from the parent it displays (the same stored clone.json main uses); inputs are not locked while a clone runs (Clone is disabled); a reload failure after a successful clone is toasted and the folder is still selected. Discoveries: none."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m6ay1h362rtp5jx009qr0am5",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Clone dialog",
+            "location": "src/renderer/src/clone/CloneDialog.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Screenshot: signed-out GitHub.com tab (built app, isolated profile)",
+            "location": "docs/verification/DM-151-github-tab-signed-out.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Screenshot: URL clone of github.com/git/git in progress (Receiving objects 11%), then cancelled",
+            "location": "docs/verification/DM-151-url-clone-in-progress.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Red test run (tests-first commit)",
+            "location": "/tmp/sc-epic/logs/DM-151-tests-red.txt",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Green test run",
+            "location": "/tmp/sc-epic/logs/DM-151-tests-green.txt",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Screenshot script",
+            "location": "/tmp/sc-epic/scratch/DM-151/shots.mjs",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "source-control-DM-151",
+        "changedFiles": [
+          "docs/verification/DM-151-github-tab-signed-out.png",
+          "docs/verification/DM-151-url-clone-in-progress.png",
+          "src/renderer/src/App.clone.test.tsx",
+          "src/renderer/src/App.start.test.tsx",
+          "src/renderer/src/App.tsx",
+          "src/renderer/src/__mocks__/githubRepository.ts",
+          "src/renderer/src/app/MainViews.test.tsx",
+          "src/renderer/src/app/MainViews.tsx",
+          "src/renderer/src/app/shellActions.test.ts",
+          "src/renderer/src/app/shellActions.ts",
+          "src/renderer/src/clone/CloneDialog.test.tsx",
+          "src/renderer/src/clone/CloneDialog.tsx",
+          "src/renderer/src/clone/GithubTab.tsx",
+          "src/renderer/src/clone/clone.css",
+          "src/renderer/src/clone/cloneTarget.test.ts",
+          "src/renderer/src/clone/cloneTarget.ts",
+          "src/renderer/src/clone/useClone.ts",
+          "src/renderer/src/components/Icon.test.tsx",
+          "src/renderer/src/components/Icon.tsx",
+          "src/renderer/src/components/Menu.tsx",
+          "src/renderer/src/sidebar/Sidebar.test.tsx",
+          "src/renderer/src/sidebar/Sidebar.tsx",
+          "src/renderer/src/styles.css"
+        ],
+        "commits": [
+          "c32b242086fc18d289613994acdc7ee52aa1f2a7",
+          "dc461af6d179de2f2807bcf7e4d775dbc9a8f308",
+          "a6543586687ac0ec9cf01b1834c6c813545474c1"
+        ],
+        "summary": "Sidebar FOLDERS + is now a Menu (trigger 'Add a folder', plus icon; Menu gained an optional icon prop) with 'Add existing folder…' (today's track flow) and 'Clone repository…'; WelcomeView has a 'Clone repository' button beside Choose folder. New src/renderer/src/clone/: CloneDialog (tabs GitHub.com / URL, Local path with clone parent from getCloneParent + Choose… → chooseCloneParent, Name defaulting from the repo/URL, full target path, Clone with a fresh crypto.randomUUID operationId, progress bar + phase/percent filtered to its own operationId and parent, Cancel → cancelOperation(parent, id); closing mid-clone cancels too), GithubTab (SignInPrompt 'see your repositories' signed out or on auth_required; listRepositories grouped by owner, lock icon (new 'lock' Icon) for private, fork label, filter, Refresh → {refresh:true}; other errors as alert), useClone (failure mapping: auth_required/auth_failed → SignInPrompt 'clone this repository', target_exists → '<path> already exists', cancelled → nothing, else message + git detail), cloneTarget helpers. Success: Shell closes the dialog, sets the folder's tab to 'source', and the new shellActions.cloned reloads folders then selects/reveals the folder. Existing App.start tests updated to go through the + menu."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6at039cdy09mv9648r51pqc",
+      "state": "accepted",
+      "submittedAt": "2026-11-01T07:05:45.986Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:1eec5dfa75efba49348c7ff521cc90387e0c42aa7c8d09c8e9f86c476845794e",
+      "ticketId": "tk_01m43szh82q4hrw4fkwweteqrb",
+      "updatedAt": "2026-11-01T07:05:46.030Z",
+      "worker": {
+        "catalogRevision": "hc_01m683v6zpwtyanf40hj5gg7wd",
+        "effort": "medium",
+        "hostId": "omp-mac-davidgorden",
+        "label": "omp task subagent (DM-151)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Run's host catalog (hc_01m49h2h…, Windows) was never imported, so match_capabilities returns not_found and the claim skips catalog checks. omp cannot select a worker model; its task subagents run claude-opus-5-5. Effort recorded as the ticket's planned effort. Lease 4h; orchestrator heartbeats for the worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-01T07:06:58.761Z",
+      "decidedAt": "2026-11-01T07:14:26.639Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Reviewed 3ec5d94..689d75b (docs only). A stray relative-path edit to the coordinating checkout was moved and reverted; orchestrator confirmed the coordinating checkout has no non-.darkmechanicus changes. Discovery: decision 0003 still says multi-repo folders have no Source control tab. Accepted.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "python3 /tmp/sc-epic/scratch/DM-156/check_docs.py over the added/changed lines (git diff 3ec5d94) of the 5 docs: 11 intra-repo links incl. anchors #source-control (architecture, README), 0003-multi-repo-folders.md, agents.md, ../runbooks/github-sign-in.md, ../decisions/0004-...; 37 repo paths (src/main/git, src/main/github, src/shared/git(/api.ts), src/shared/github(/api.ts), src/core/repo/git.ts, src/main/git/{runner,args,status,commit,discard,sync,branches,clone,handlers}.ts, src/main/github/{ghCli,accountStore,client,handlers}.ts, src/main/ipcGuard.ts, src/preload, src/core, src/mcp, skills/orchestrator.md, docs/...); 14 bare module names (diff.ts, diffParser.ts, history.ts, partialPatch.ts, remotes.ts, credentials.ts, stash.ts, conflicts.ts, cloneInput.ts, ipc.ts, session.ts, repositories.ts, pullRequests.ts, index.ts) all in git ls-files. FAILS: none",
+            "name": "doc paths and links",
+            "status": "passed"
+          },
+          {
+            "detail": "gh 'auth token|refresh|logout|login --help' (local gh) confirm -h/--hostname on all four and -s/--scopes on refresh/login; npm commands: none newly named",
+            "name": "commands named in docs",
+            "status": "passed"
+          },
+          {
+            "detail": "curl -I https://cli.github.com -> 200; https://github.com/settings/applications -> 302 (login redirect, valid)",
+            "name": "URLs",
+            "status": "passed"
+          },
+          {
+            "detail": "git grep in src (non-test) found each: shell.trashItem, GIT_ALLOW_PROTOCOL, DM_GITHUB_LOGIN, DM_GITHUB_TOKEN, GCM_INTERACTIVE, secure_storage_unavailable, core.fsmonitor=false, --no-textconv, --literal-pathspecs, check-ref-format, --no-rebase, github-account.json, clone.json, dm-stash:, github:accountChanged, git:progress, 'Use my GitHub CLI login', 'Manage access on GitHub', 'Sign in to GitHub', 2.17, safeStorage; constants read in runner.ts (READ 30 s, WRITE 120 s, STALL 60 s), ghCli.ts (15 s, FALLBACK_DIRS, Windows folders), commit.ts (no --no-verify; undo refuses pushed/merge commits)",
+            "name": "identifiers/labels vs code",
+            "status": "passed"
+          },
+          {
+            "detail": "docs only; no code touched, so lint is unaffected (left to the acceptance node)",
+            "name": "npm run lint",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "docs/decisions/0004-source-control-in-main.md (0002/0003 taken): where git runs, change model, merge-only pull, discard to trash, which programs run (incl. stall timeout, literal pathspecs, clone transport limits), gh CLI sign-in, safeStorage copy, scoped credential helper."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "docs/architecture.md: both bridges in the process chain and module list, a Source control section, read-only note reworded (core/MCP never write; Source control does on request); docs/product-plan.md scope line updated."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "docs/runbooks/github-sign-in.md (sign-in via gh, scopes + gh auth refresh, token copy location, sign-out/revoke) — orchestrator read it; README Source control section with links."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Script checked 11 links/anchors, 37 repo paths, 14 module names in changed lines: no failures (/tmp/sc-epic/logs/DM-156-doccheck.txt)."
+          }
+        ],
+        "notes": "Red-team: attacked each claim against code rather than predecessor summaries — found and fixed (1) README/architecture first said 'a folder that is one repository has a Source control view' and 0004 said 'no Source control tab in a folder of repositories', but FolderPage always shows the tab and SourceControlView shows a not_repository/InitializeNotice state; reworded to 'works on the repository the folder is in'; (2) README first said pull requests are 'created from the app' — creation opens GitHub's compare URL, reworded; (3) undo is only for unpushed, non-merge commits — stated. Consciously not claimed: gh version beyond the 2.17 in the error text; installed-build userData folder name (pointed to agents.md, which already flags it as unchecked). The check script verifies only lines this ticket added/changed. Discoveries: (a) docs/decisions/0003-multi-repo-folders.md 'Known limits: No Source control tab' is now stale — the tab exists in a folder of repositories and would offer InitializeNotice (git init) on the parent folder, which 0003 says must not be inside a repository; worth a ticket to hide the tab or the init offer for multi_repo folders and update 0003. (b) Packet expectedArtifacts still name 0002-source-control-in-main.md and github-oauth-app.md (pre-revision-4 names)."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m6ayxma974m5kq59enzbvqjw",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Decision record",
+            "location": "docs/decisions/0004-source-control-in-main.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Sign-in runbook",
+            "location": "docs/runbooks/github-sign-in.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Doc link/path check script",
+            "location": "/tmp/sc-epic/scratch/DM-156/check_docs.py",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Doc check output (66 lines, FAILS: none)",
+            "location": "/tmp/sc-epic/logs/DM-156-doccheck.txt",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "source-control-DM-156",
+        "changedFiles": [
+          "docs/decisions/0004-source-control-in-main.md",
+          "docs/runbooks/github-sign-in.md",
+          "docs/architecture.md",
+          "docs/product-plan.md",
+          "README.md"
+        ],
+        "commits": [
+          "689d75bd207ed2b364da303ba8fd83cc3f56829f"
+        ],
+        "summary": "Docs-only. New decision record docs/decisions/0004-source-control-in-main.md (0002/0003 were taken): git writes in src/main/git + src/main/github behind window.git/window.github, outside core/MCP, core adapter read-only; working tree vs HEAD; pull --no-rebase only; discard copies to OS trash (shell.trashItem); core.fsmonitor=false + --no-ext-diff --no-textconv on reads, commits run hooks; literal pathspecs, refArg/check-ref-format, clone transports https/ssh/scp-like/owner-repo + GIT_ALLOW_PROTOCOL=https:ssh, prompts off, 60 s network stall timeout; sign-in via `gh auth token --hostname github.com` + GET /user (repo scope), no OAuth App; safeStorage copy in userData/github-account.json; env-based credential helper (DM_GITHUB_LOGIN/DM_GITHUB_TOKEN) scoped to https://github.com after clearing other helpers. docs/architecture.md: second bridge line in the process diagram, module rows for src/main/git, src/main/github, src/shared/git|github, preload row lists the three bridges, new 'Source control' section with a module table (runner timeouts 30 s/120 s/60 s stall, gh lookup folders per OS, 15 s gh timeout), sprint-cadence note reworded (core/MCP never write to Git; Source control does on request), git:*/github:* added to the IPC guard list, and a 'Decisions taken' bullet. docs/product-plan.md:173: automatic commits/pushes stay out of scope; person-initiated ones via Source control are in. New docs/runbooks/github-sign-in.md (install gh, gh auth login, Sign in to GitHub -> Use my GitHub CLI login, scopes repo + workflow, gh auth refresh -h github.com -s repo,workflow, storage, sign-out deletes only the copy, revoke via gh auth logout or Manage access on GitHub, troubleshooting from src/main/github/errors.ts). README: runbook link, step 1 updated for the + menu (Add existing folder… / Clone repository…), new Source control section. NOTE for reviewer: the packet's expectedArtifacts still name docs/decisions/0002-... and docs/runbooks/github-oauth-app.md; per the body (next free number) and the person's gh-login decision the files are 0004-source-control-in-main.md and github-sign-in.md. INCIDENT (fixed): my first architecture.md edit used a relative path and landed in the coordinating checkout; I moved that exact diff into the worktree via a patch (/tmp/sc-epic/logs/DM-156-arch.patch) and restored the coordinating checkout's docs/architecture.md with `git checkout --` (git status there shows docs/ clean again; its unrelated .darkmechanicus changes were not touched)."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6at039cdy09mv9648r51pqc",
+      "state": "accepted",
+      "submittedAt": "2026-11-01T07:14:26.583Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:1d2fffc95f883cd250d2911039221e277588d3853fcb4f4a32c48f86af5901fc",
+      "ticketId": "tk_01m43szh82y865rfb7rg8yhcxr",
+      "updatedAt": "2026-11-01T07:14:26.639Z",
+      "worker": {
+        "catalogRevision": "hc_01m683v6zpwtyanf40hj5gg7wd",
+        "effort": "low",
+        "hostId": "omp-mac-davidgorden",
+        "label": "omp task subagent (DM-156)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Run's host catalog (hc_01m49h2h…, Windows) was never imported, so match_capabilities returns not_found and the claim skips catalog checks. omp cannot select a worker model; its task subagents run claude-opus-5-5. Effort recorded as the ticket's planned effort. Lease 4h; orchestrator heartbeats for the worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-01T07:14:35.168Z",
+      "decidedAt": "2026-11-01T09:41:07.754Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Discovery: 174 surviving mutants concentrate in BranchMenu/BranchDialogs/ChangesPanel/DiffView tests. Accepted.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "FIREGUARD_BASE_REF=22879188799dbb42fbb9cfd3c5d3a932b8beaf7e npm run fireguard -- --json at aeacd91: exit 0, grade A score 92; ast pass; flake 100/100, 0 failures; mutation 812/986 killed (82). 02:21-03:38, load 96.8 -> 46.3.",
+            "name": "fireguard (final, run 5)",
+            "status": "passed"
+          },
+          {
+            "detail": "run1 F ast empty-test (01:15); run2 F flake run 8/100 pullRequestsCheckout timeout (01:26-01:35, load 49.6->66.5); run3 F flake run 14 syncStall detail '' (01:42-01:57, load 50.5->80.2); run4 F flake run 20 pullRequestsCheckout timeout (01:58-02:16, load 72.7->111.0). Each fixed by a committed test-only rewrite before re-grading.",
+            "name": "fireguard runs 1-4",
+            "status": "failed"
+          },
+          {
+            "detail": "npx vitest run src/main/git/commitLinesProperty.test.ts (1/1), src/main/github/pullRequestsCheckout.test.ts (16/16), src/main/git/syncStall.test.ts (1/1)",
+            "name": "unit tests (touched)",
+            "status": "passed"
+          },
+          {
+            "detail": "npx oxlint on the 3 touched test files: no findings",
+            "name": "oxlint (touched)",
+            "status": "passed"
+          },
+          {
+            "detail": "npx tsc --noEmit -p tsconfig.node.json: no errors (touched files are main-process tests)",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "out of scope per ticket body; left to the acceptance node",
+            "name": "full suite, deadcode, build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "npm run fireguard -- --json on the combined sprint 3 branch with FIREGUARD_BASE_REF=22879188 (sprint start); 47 graded test files listed (mocks excluded by config)."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Final grade A, score 92 (run 5): AST pass, flake 100/100 with 0 failures, mutation 812/986 (82%). Orchestrator read the report."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Four F runs fixed with tests only (82d8a4f, 872ddd8/aeacd91, 295bf71); diff touches only 3 test files; no production change. Orchestrator re-ran the 3 files after merge: 18 passed."
+          }
+        ],
+        "notes": "Red-team pass: (1) commitLinesProperty — confirmed the moved assertions still compare the committed blob against expectedContent computed from the diff, and the working file against newText, for all 80 cases; a wrong partial commit would fail toEqual. (2) pullRequestsCheckout — commits written by fast-import use a fixed timestamp, but every pushed commit in a test has distinct content/parent so ids never collide; the non-fast-forward case still builds 'rewritten' on main (not on first), and the test still asserts rejected_non_fast_forward; pr/5 is still built on pr/4 as before; the code under test only sees origin's refs, so writing them into the bare instead of pushing from a clone is equivalent. Template copy rewrites only the copy's .git/config paths; the template is built under an isolated git config. Assertions unchanged. (3) syncStall — 3 s still leaves the 'ends in < 10 s' assertion meaningful against the helper's 30 s sleep; a start-up over 3 s would still flake in theory. Machine load was 46-111 during runs. Discoveries: mutation survivors concentrate in renderer source-control components (BranchMenu.tsx 38, BranchDialogs.tsx 19, ChangesPanel.tsx 15, DiffView.tsx 14) and conflicts.ts/runner.ts (9 each); worth a follow-up test-strengthening ticket. pullRequestsCheckout tests remain the slowest graded git tests (~1.5-3 s each, 2 production checkouts = ~54 git processes) and are the most load-sensitive in the flake gate."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m6azbj10xyhhj4swy56ey9t4",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Fireguard final report, run 5 (A, 92) — JSON",
+            "location": "/tmp/sc-epic/logs/DM-157-fireguard-5.json",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Mutation survivors of the final run (174 lines: file:line description)",
+            "location": "/tmp/sc-epic/logs/DM-157-fireguard-5-survivors.txt",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Run 1 report (F: ast empty-test commitLinesProperty.test.ts:161)",
+            "location": "/tmp/sc-epic/logs/DM-157-fireguard-1.json",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Run 2 report (F: flake, pullRequestsCheckout timeout at run 8)",
+            "location": "/tmp/sc-epic/logs/DM-157-fireguard-2.json",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Run 3 report (F: flake, syncStall empty detail at run 14)",
+            "location": "/tmp/sc-epic/logs/DM-157-fireguard-3.json",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Run 4 report (F: flake, pullRequestsCheckout timeout at run 20)",
+            "location": "/tmp/sc-epic/logs/DM-157-fireguard-4.json",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "uptime at start/end of each run",
+            "location": "/tmp/sc-epic/logs/DM-157-fireguard-{1..5}.uptime",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "source-control-DM-157",
+        "changedFiles": [
+          "src/main/git/commitLinesProperty.test.ts",
+          "src/main/github/pullRequestsCheckout.test.ts",
+          "src/main/git/syncStall.test.ts"
+        ],
+        "commits": [
+          "82d8a4f138366757aef5a366c6d9e9de5bbb38b4",
+          "872ddd86ae7b2339fe13ee770a7b1a4cdcd3cc6a",
+          "295bf718114de92fd881a673381817716ddfe951",
+          "aeacd917612aab8f1ec607916c3742811316280a"
+        ],
+        "summary": "Ran Fireguard (`npm run fireguard -- --json`, FIREGUARD_BASE_REF=22879188799dbb42fbb9cfd3c5d3a932b8beaf7e, macOS, no test-command override) on the combined sprint 3 branch (source-control-sprint-3 at b2e2ae9, plus this ticket's test-only commits). FINAL (run 5): grade A, score 92, all hard gates passed; ast pass (1320 assertions, 3 mocks, 17 tautological = 1.3%, no findings); flake pass (100/100 runs, 0 failures); mutation pass (812 killed / 174 survived / 986, score 82). 47 test files graded (every *.test.ts(x) changed since the base except src/renderer/src/__mocks__/fakeGit.test.ts and fakeGithub.test.ts, which fireguard's config excludes via '**/__mocks__/**'). Earlier runs graded F and were fixed with test-only rewrites: run 1 F (ast empty-test: commitLinesProperty.test.ts:161 had zero assertions in the test body; the expects lived in a helper) -> helpers now return actual/expected outcomes and the test asserts toHaveLength(80) and toEqual(expected). Run 2 F (flake run 8: pullRequestsCheckout.test.ts 'fetches the head branch ...' 15 s timeout, load ~60-110) and run 4 F (flake run 20: same file, 'fast-forwards pr/<n> on a later checkout ...' timeout, load 111) -> load, not logic: the code under test spawns ~27 git processes per checkout; the test now writes teammate/fork commits into the bare origin with one `git fast-import` (was a separate clone + switch/add/commit/push/rev-parse) and copies a repo pair built once per file (beforeAll) instead of init/commit/remote/push per test; same assertions, per-test time ~4.3 s -> ~2.7 s at similar load. Run 3 F (flake run 14: syncStall.test.ts real ext:: stalled remote got detail '' instead of 'stalled-helper waiting') -> a real timing assumption in the test: the 1 s stall clock starts at spawn, so git + git-remote-ext + sh start-up under load sometimes outlasted it before the helper's line arrived; STALL_MS raised to 3000 (still asserts the stall ends in < 10 s, well before the helper's 30 s sleep). No production code changed. No finding pointed at a production bug. Mutation survivors (174, not a gate failure) are listed in the survivors file; biggest: BranchMenu.tsx 38, BranchDialogs.tsx 19, ChangesPanel.tsx 15, DiffView.tsx 14, conflicts.ts 9, runner.ts 9."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6at039cdy09mv9648r51pqc",
+      "state": "accepted",
+      "submittedAt": "2026-11-01T09:41:07.702Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:c7ff8219340d14fc1188b58d068f6b59277c3aac781ce36b315e1556b18a5d89",
+      "ticketId": "tk_01m43szh825vb3x608ngrsxy4k",
+      "updatedAt": "2026-11-01T09:41:07.754Z",
+      "worker": {
+        "catalogRevision": "hc_01m683v6zpwtyanf40hj5gg7wd",
+        "effort": "low",
+        "hostId": "omp-mac-davidgorden",
+        "label": "omp task subagent (DM-157)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Run's host catalog (hc_01m49h2h…, Windows) was never imported, so match_capabilities returns not_found and the claim skips catalog checks. omp cannot select a worker model; its task subagents run claude-opus-5-5. Effort recorded as the ticket's planned effort. Lease 4h; orchestrator heartbeats for the worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-01T09:41:15.447Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": null,
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m6b7r41qc875pd99jb9r1brm",
+      "kind": "work",
+      "number": 1,
+      "outputs": null,
+      "reconciledAt": null,
+      "revisionId": "rv_01m6azd2t1sb9saxsvfzc412qn",
+      "state": "running",
+      "submittedAt": null,
+      "supersededAt": null,
+      "ticketContentHash": "sha256:c7d7376fb9a863c6718c023b649941db951740c9ce37d2f70e87a2495ea4e8c5",
+      "ticketId": "tk_01m43szh7y2zttwkt6jd42301q",
+      "updatedAt": "2026-11-01T09:57:16.543Z",
+      "worker": {
+        "catalogRevision": "hc_01m683v6zpwtyanf40hj5gg7wd",
+        "effort": "medium",
+        "hostId": "omp-mac-davidgorden",
+        "label": "omp task subagent (DM-149)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Run's host catalog (hc_01m49h2h…, Windows) was never imported, so match_capabilities returns not_found and the claim skips catalog checks. omp cannot select a worker model; its task subagents run claude-opus-5-5. Effort recorded as the ticket's planned effort. Lease 4h; orchestrator heartbeats for the worker. Acceptance node: the orchestrator keeps the claim token, lands the squashed increment and submits.",
+        "sessionId": null
+      }
     }
   ],
   "checkpoints": [
@@ -4755,7 +6537,7 @@
       "submittedBy": "Claude Code"
     }
   ],
-  "revisionId": "rv_01m6amn83jdkt7zac6hewezbjh",
+  "revisionId": "rv_01m6azd2t1sb9saxsvfzc412qn",
   "rowChecks": [
     {
       "checks": [
@@ -4979,11 +6761,141 @@
       "recordedBy": "Claude Code",
       "row": 2,
       "sprintId": "sp_01m43st80ktpktzfr1x9t6bty4"
+    },
+    {
+      "checks": [
+        {
+          "detail": "npm run typecheck exit 0 @ 272389a (DM-150/152/154/392/393/394/395 + DM-153/155 merged)",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "vitest src/main/git src/main/github src/main/desktop src/renderer/src src/preload src/shared: 300 files, 4214 passed, 6 skipped",
+          "name": "tests touching the row's files",
+          "status": "passed"
+        },
+        {
+          "detail": "npx oxlint src scripts exit 0",
+          "name": "lint",
+          "status": "passed"
+        },
+        {
+          "detail": "no new dead exports",
+          "name": "deadcode",
+          "status": "passed"
+        }
+      ],
+      "commit": "272389ad7ceb4f16ccebb76c337801ac2da104c6",
+      "createdAt": "2026-11-01T06:51:31.788Z",
+      "id": "rk_01m6ay1b2caz7y9rqbnrbq4sqt",
+      "number": 9,
+      "recordedBy": "Claude Code",
+      "row": 1,
+      "sprintId": "sp_01m43szh7yqbne13wtgk6sg7vm"
+    },
+    {
+      "checks": [
+        {
+          "detail": "npm run typecheck exit 0 @ 272389a (DM-150/152/154/392/393/394/395 + DM-153/155 merged)",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "vitest src/main/git src/main/github src/main/desktop src/renderer/src src/preload src/shared: 300 files, 4214 passed, 6 skipped",
+          "name": "tests touching the row's files",
+          "status": "passed"
+        },
+        {
+          "detail": "npx oxlint src scripts exit 0",
+          "name": "lint",
+          "status": "passed"
+        },
+        {
+          "detail": "no new dead exports",
+          "name": "deadcode",
+          "status": "passed"
+        }
+      ],
+      "commit": "272389ad7ceb4f16ccebb76c337801ac2da104c6",
+      "createdAt": "2026-11-01T06:51:31.809Z",
+      "id": "rk_01m6ay1b31s07n6617pqztz423",
+      "number": 10,
+      "recordedBy": "Claude Code",
+      "row": 2,
+      "sprintId": "sp_01m43szh7yqbne13wtgk6sg7vm"
+    },
+    {
+      "checks": [
+        {
+          "detail": "npm run typecheck exit 0 @ 3ec5d94 (DM-151 merged)",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "npx oxlint src scripts exit 0",
+          "name": "lint",
+          "status": "passed"
+        },
+        {
+          "detail": "vitest src/renderer/src src/main/git src/main/github src/preload: 276 files, 3529 passed; 1 test (pullRequestsCheckout fork fast-forward) timed out at 15 s under load avg ~130 and passed 3/3 on rerun of its file (16/16 each)",
+          "name": "tests touching row 2 files",
+          "status": "passed"
+        }
+      ],
+      "commit": "3ec5d949de13f05cf57a438d1f625c4bec3055e6",
+      "createdAt": "2026-11-01T07:13:10.972Z",
+      "id": "rk_01m6az8zswe0ba3hnb4c16aw7t",
+      "number": 11,
+      "recordedBy": "Claude Code",
+      "row": 2,
+      "sprintId": "sp_01m43szh7yqbne13wtgk6sg7vm"
+    },
+    {
+      "checks": [
+        {
+          "detail": "DM-156 script: 11 links, 37 paths, 14 module names resolve (docs-only row)",
+          "name": "docs link and path check",
+          "status": "passed"
+        },
+        {
+          "detail": "docs-only merge on top of 3ec5d94, whose typecheck passed; no code changed",
+          "name": "typecheck",
+          "status": "passed"
+        }
+      ],
+      "commit": "b2e2ae9bd10abee8ca6f3befcc3eeb5d55baf72a",
+      "createdAt": "2026-11-01T07:14:35.126Z",
+      "id": "rk_01m6azbhzpbnc00s8c7z6pr3x4",
+      "number": 12,
+      "recordedBy": "Claude Code",
+      "row": 3,
+      "sprintId": "sp_01m43szh7yqbne13wtgk6sg7vm"
+    },
+    {
+      "checks": [
+        {
+          "detail": "commitLinesProperty, syncStall, pullRequestsCheckout: 18 passed",
+          "name": "tests touching row 4 files",
+          "status": "passed"
+        },
+        {
+          "detail": "tsc -p tsconfig.node.json exit 0 (test-only row)",
+          "name": "typecheck",
+          "status": "passed"
+        }
+      ],
+      "commit": "148213646b44a6a73c410ca67fda645d7a63e9e8",
+      "createdAt": "2026-11-01T09:41:07.840Z",
+      "id": "rk_01m6b7qwm0j389mg1z6hkrc78q",
+      "number": 13,
+      "recordedBy": "Claude Code",
+      "row": 4,
+      "sprintId": "sp_01m43szh7yqbne13wtgk6sg7vm"
     }
   ],
   "runId": "rn_01m49gyd8b5g5p67pz2awqr99n",
   "skillVersion": "1.5.1",
   "startedAt": "2026-10-06T21:14:34.059Z",
   "state": "running",
-  "updatedAt": "2026-11-01T04:07:47.052Z"
+  "updatedAt": "2026-11-01T09:41:15.392Z"
 }

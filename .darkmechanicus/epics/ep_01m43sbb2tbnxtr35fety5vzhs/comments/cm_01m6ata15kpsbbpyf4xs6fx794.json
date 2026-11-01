@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "body": "**Sprint 3 start (orchestrator).** Sprint 2 landed as 3dcbb97 and was approved with the redraft (revision 5: DM-392..395 from the retro). Revision 6 only repairs a garbled DM-156 body that revision 4 introduced (the runbook bullet), adopted before any sprint 3 claim. Main (5ffba80: agent-clis, multi-repo folders, Linear transfer) was merged into source-control as 2287918 — conflicts resolved in bootstrap.ts, src/test/gitRepo.ts, acpProcess.test.ts and .tsprune-ignore (refreshed: union of both baselines minus 5 stale entries); full vitest 9718 passed, typecheck, lint and deadcode clean. Sprint 3 integration branch `source-control-sprint-3` is cut from 2287918; DM-150, 152, 154, 392, 393, 394, 395 are claimed.",
+  "createdAt": "2026-11-01T05:46:22.259Z",
+  "epicId": "ep_01m43sbb2tbnxtr35fety5vzhs",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m6ata15kpsbbpyf4xs6fx794",
+  "ticketId": null
+}
