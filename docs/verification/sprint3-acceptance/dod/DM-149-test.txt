@@ -1,0 +1,56 @@
+
+> dark-mechanicus@0.20.0 test
+> vitest run && vitest run --config fireguard/vitest.config.ts
+
+
+ RUN  v4.1.11 /Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/source-control-sprint-3
+
+Error: failed to create directory '/Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/source-control-sprint-3/node_modules/electron/dist/Electron.app/Contents': File exists (os error 17)
+Error: failed to create directory '/Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/source-control-sprint-3/node_modules/electron/dist/Electron.app': File exists (os error 17)
+stdout | src/main/agents/adapters/cursor.test.ts
+Downloading Electron binary...
+
+ ❯ src/main/agents/adapters/cursor.test.ts (0 test)
+stdout | src/main/agents/adapters/codex.test.ts
+Downloading Electron binary...
+
+ ❯ src/main/agents/adapters/codex.test.ts (0 test)
+Error: useGithub must be used inside a GithubAccountProvider
+    at useGithub (/Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/source-control-sprint-3/src/renderer/src/github/GithubAccount.tsx:23:11)
+    at Who (/Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/source-control-sprint-3/src/renderer/src/github/useGithubAccount.test.tsx:88:32)
+    at renderWithHooks (/Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/source-control-sprint-3/node_modules/react-dom/cjs/react-dom.development.js:15486:18)
+    at mountIndeterminateComponent (/Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/source-control-sprint-3/node_modules/react-dom/cjs/react-dom.development.js:20103:13)
+    at beginWork (/Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/source-control-sprint-3/node_modules/react-dom/cjs/react-dom.development.js:21626:16)
+    at HTMLUnknownElement.callCallback (/Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/source-control-sprint-3/node_modules/react-dom/cjs/react-dom.development.js:4164:14)
+    at HTMLUnknownElement.callTheUserObjectsOperation (/Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/source-control-sprint-3/node_modules/jsdom/lib/generated/idl/EventListener.js:26:30)
+    at innerInvokeEventListeners (/Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/source-control-sprint-3/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:378:16)
+    at invokeEventListeners (/Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/source-control-sprint-3/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:320:3)
+    at HTMLUnknownElementImpl._dispatch (/Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/source-control-sprint-3/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:269:9)
+Error: useGithub must be used inside a GithubAccountProvider
+    at useGithub (/Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/source-control-sprint-3/src/renderer/src/github/GithubAccount.tsx:23:11)
+    at Who (/Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/source-control-sprint-3/src/renderer/src/github/useGithubAccount.test.tsx:88:32)
+    at renderWithHooks (/Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/source-control-sprint-3/node_modules/react-dom/cjs/react-dom.development.js:15486:18)
+    at mountIndeterminateComponent (/Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/source-control-sprint-3/node_modules/react-dom/cjs/react-dom.development.js:20103:13)
+    at beginWork (/Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/source-control-sprint-3/node_modules/react-dom/cjs/react-dom.development.js:21626:16)
+    at HTMLUnknownElement.callCallback (/Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/source-control-sprint-3/node_modules/react-dom/cjs/react-dom.development.js:4164:14)
+    at HTMLUnknownElement.callTheUserObjectsOperation (/Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/source-control-sprint-3/node_modules/jsdom/lib/generated/idl/EventListener.js:26:30)
+    at innerInvokeEventListeners (/Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/source-control-sprint-3/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:378:16)
+    at invokeEventListeners (/Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/source-control-sprint-3/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:320:3)
+    at HTMLUnknownElementImpl._dispatch (/Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/source-control-sprint-3/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:269:9)
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/main/agents/adapters/codex.test.ts [ src/main/agents/adapters/codex.test.ts ]
+ FAIL  src/main/agents/adapters/cursor.test.ts [ src/main/agents/adapters/cursor.test.ts ]
+Error: Electron failed to install correctly. Please delete `node_modules/electron` and run "npx install-electron --no" manually.
+ ❯ getElectronPath node_modules/electron/index.js:43:13
+ ❯ Object.<anonymous> node_modules/electron/index.js:52:18
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+
+ Test Files  2 failed | 543 passed (545)
+      Tests  9939 passed | 9 skipped (9948)
+   Start at  03:54:29
+   Duration  139.62s (transform 30.84s, setup 0ms, import 175.27s, tests 1042.14s, environment 193.33s)
+

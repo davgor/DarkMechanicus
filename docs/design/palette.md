@@ -172,6 +172,18 @@ The 16 ANSI colors a chat's CLI paints with. The terminal pane reads them, and i
 | `--term-bright-cyan` (new) | — | `#84d6be` | ANSI bright cyan (follows `--tone-ok`) |
 | `--term-bright-white` (new) | — | `#f5f0e6` | ANSI bright white |
 
+### Diff view (DM-134)
+
+Colors for the source-control diff. Ink on tint is the text of an added or deleted line and its marker; the gutter ink is the line-number column, which sits on the same tints.
+
+| Token | Today | Proposed | Role |
+|---|---|---|---|
+| `--diff-add-bg` (new) | — | `#1b2a1f` | Added line tint |
+| `--diff-add-ink` (new) | — | `#8fdca8` | Added marker and text accent |
+| `--diff-del-bg` (new) | — | `#33191f` | Deleted line tint |
+| `--diff-del-ink` (new) | — | `#f29ab0` | Deleted marker and text accent |
+| `--diff-hunk-bg` (new) | — | `#2b2532` | Hunk header row |
+| `--diff-gutter-ink` (new) | — | `#a39a8c` | Line-number gutter text |
 `rgba(236, 230, 218, 0.04)` (the sidebar row hover wash, `--ink` at 4%) is not a hex literal. `--ink` keeps its value, so it can stay as it is.
 
 ## 4. Collision rules

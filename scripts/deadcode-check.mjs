@@ -22,6 +22,15 @@ export function normalizeTsPruneLine(line) {
   return normalized
 }
 
+/**
+ * Baseline key for a normalized ts-prune line: `file - export`, line number dropped,
+ * so an export that only moved within its file stays baselined.
+ * @param {string} line
+ */
+export function baselineKey(line) {
+  return line.replace(/^(.*?):\d+(?= - )/, '$1')
+}
+
 /** @param {string} path */
 export function readIgnoreSet(path) {
   if (!existsSync(path)) return new Set()
@@ -32,9 +41,18 @@ export function readIgnoreSet(path) {
         const trimmed = line.trim()
         return trimmed.length > 0 && !trimmed.startsWith('#')
       })
-      .map((line) => normalizeTsPruneLine(line))
+      .map((line) => baselineKey(normalizeTsPruneLine(line)))
       .filter(Boolean)
   )
+}
+
+/**
+ * Normalized ts-prune lines whose file + export is not in the baseline.
+ * @param {string[]} lines
+ * @param {Set<string>} ignore
+ */
+export function findNewDeadExports(lines, ignore) {
+  return lines.filter((line) => !ignore.has(baselineKey(line)))
 }
 
 /** @param {string} project */
@@ -59,15 +77,7 @@ function runTsPrune(project) {
 
 function main() {
   const ignore = readIgnoreSet(IGNORE_PATH)
-  const findings = []
-
-  for (const project of PROJECTS) {
-    for (const line of runTsPrune(project)) {
-      if (!ignore.has(line)) {
-        findings.push(line)
-      }
-    }
-  }
+  const findings = PROJECTS.flatMap((project) => findNewDeadExports(runTsPrune(project), ignore))
 
   if (findings.length > 0) {
     console.error('New dead exports detected:')

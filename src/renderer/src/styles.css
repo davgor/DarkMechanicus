@@ -95,6 +95,13 @@
   --term-bright-cyan: #84d6be;
   --term-bright-white: #f5f0e6;
 
+  /* Diff view */
+  --diff-add-bg: #1b2a1f;
+  --diff-add-ink: #8fdca8;
+  --diff-del-bg: #33191f;
+  --diff-del-ink: #f29ab0;
+  --diff-hunk-bg: #2b2532;
+  --diff-gutter-ink: #a39a8c;
   --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   --font-serif: "IBM Plex Serif", Georgia, serif;
@@ -637,6 +644,13 @@ textarea.input {
   color: var(--ink-soft);
 }
 
+.welcome-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
 /* ---------- Dialog, menu, toast ---------- */
 
 .dialog-backdrop {
@@ -704,6 +718,7 @@ textarea.input {
 
 .dialog-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 10px;
 }
@@ -1317,6 +1332,75 @@ textarea.input {
 
 .footer-actions {
   display: flex;
+}
+
+/* ---------- GitHub sign-in (dialog and inline prompt) ---------- */
+
+.sign-in-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.sign-in-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-soft);
+}
+
+.sign-in-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: sign-in-spin 0.9s linear infinite;
+}
+
+@keyframes sign-in-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sign-in-spinner {
+    animation: none;
+  }
+}
+
+.sign-in-failure p {
+  margin: 4px 0 0;
+}
+
+.sign-in-fix {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.sign-in-fix code {
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  user-select: all;
+}
+
+.sign-in-prompt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.sign-in-prompt-text {
+  flex: 1;
+  margin: 0;
 }
 
 /* ---------- Agents block (a folder's chats) ---------- */
@@ -2011,6 +2095,11 @@ textarea.input {
   flex-direction: column;
   gap: 4px;
   min-width: 0;
+}
+
+.home-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .home-grid {

@@ -20,16 +20,21 @@ export function LoadingView({ what }: { what: LoadingWhat }): JSX.Element {
 }
 
 /** Shown when no folder is tracked yet. */
-export function WelcomeView({ onTrack }: { onTrack(): void }): JSX.Element {
+export function WelcomeView({ onTrack, onClone }: { onTrack(): void; onClone(): void }): JSX.Element {
   return (
     <EmptyState
       illustration={<Mascot size={128} />}
       headingLevel={1}
       title="Track a folder to get started"
       action={
-        <Button variant="primary" icon="plus" onClick={onTrack}>
-          Choose folder
-        </Button>
+        <div className="welcome-actions">
+          <Button variant="primary" icon="plus" onClick={onTrack}>
+            Choose folder
+          </Button>
+          <Button icon="download" onClick={onClone}>
+            Clone repository
+          </Button>
+        </div>
       }
     >
       Dark Mechanicus keeps plans, tickets and run history inside your repositories. Pick a folder to begin.

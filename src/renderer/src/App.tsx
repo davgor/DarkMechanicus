@@ -29,9 +29,13 @@ import { UpdateBanner, useAppUpdate } from './autoUpdate/UpdateBanner'
 import { EpicWorkspace } from './epic/EpicWorkspace'
 import type { EpicWorkspaceProps } from './epic/EpicWorkspace'
 import type { OrchestrationHost } from './epic/orchestration'
+import { CloneDialog } from './clone/CloneDialog'
+import { FolderPage } from './folder/FolderPage'
+import { GithubAccountProvider } from './github/GithubAccount'
 import { FolderHome } from './home/FolderHome'
 import { KanbanBoard } from './kanban/KanbanBoard'
 import { OnboardingView } from './onboarding/OnboardingView'
+import { SourceControlView } from './source/SourceControlView'
 import { Sidebar } from './sidebar/Sidebar'
 import { SidebarFooter } from './sidebar/SidebarFooter'
 import { UntrackDialog } from './sidebar/UntrackDialog'
@@ -49,10 +53,11 @@ interface AppProps {
 
 interface PaneProps {
   shell: ShellModel
-  EpicView: EpicView
   scheduler: Scheduler
+  EpicView: EpicView
   terminalKit: TerminalKit
   onRequestUntrack(folder: TrackedFolderView): void
+  onClone(): void
 }
 
 interface EpicPaneProps {
@@ -135,16 +140,19 @@ function ChatPane({ shell, folder, chat, scheduler, terminalKit }: ChatPaneProps
   )
 }
 
-/** An open folder: either one of its epics, or the folder home. */
-function FolderPane({ shell, EpicView }: PaneProps): JSX.Element | null {
-  const { view, actions } = shell
-  if (view.kind === 'epic') {
-    return <EpicPane shell={shell} EpicView={EpicView} folder={view.folder} epicId={view.epicId} />
+/** The Epics tab: the folder home for an initialized folder, onboarding for one that is not. */
+function EpicsPanel({ shell, folder }: { shell: ShellModel; folder: TrackedFolderView }): JSX.Element {
+  const { actions } = shell
+  if (!folder.initialized) {
+    return (
+      <OnboardingView
+        folder={folder}
+        busy={shell.busy.initialize}
+        onInitialize={(options) => void actions.initialize(folder, options)}
+        onChooseDifferent={() => void actions.track()}
+      />
+    )
   }
-  if (view.kind !== 'home') {
-    return null
-  }
-  const { folder } = view
   return (
     <FolderHome
       key={folder.path}
@@ -163,6 +171,23 @@ function FolderPane({ shell, EpicView }: PaneProps): JSX.Element | null {
   )
 }
 
+/** An open folder: either one of its epics, or the folder page with its Source control and Epics tabs. */
+function FolderPane({ shell, scheduler, EpicView }: PaneProps): JSX.Element | null {
+  const { view } = shell
+  if (view.kind === 'epic') {
+    return <EpicPane shell={shell} EpicView={EpicView} folder={view.folder} epicId={view.epicId} />
+  }
+  if (view.kind !== 'folder') {
+    return null
+  }
+  const { folder, tab } = view
+  return (
+    <FolderPage key={folder.path} folder={folder} tab={tab} onTab={(next) => shell.setFolderTab(folder.path, next)}>
+      {tab === 'source' ? <SourceControlView key={folder.path} folder={folder} scheduler={scheduler} /> : <EpicsPanel shell={shell} folder={folder} />}
+    </FolderPage>
+  )
+}
+
 function MainPane(props: PaneProps): JSX.Element | null {
   const { shell } = props
   const { view, actions } = shell
@@ -170,7 +195,7 @@ function MainPane(props: PaneProps): JSX.Element | null {
     case 'loading':
       return <LoadingView what={view.what} />
     case 'welcome':
-      return <WelcomeView onTrack={() => void actions.track()} />
+      return <WelcomeView onTrack={() => void actions.track()} onClone={props.onClone} />
     case 'add-agent':
       return <AddAgentPane agents={shell.agents} />
     case 'agent':
@@ -181,22 +206,15 @@ function MainPane(props: PaneProps): JSX.Element | null {
       return <KanbanBoard key={view.folder.path} folder={view.folder} refreshToken={shell.folderToken(view.folder.path)} host={orchestrationFor(shell, view.folder)} />
     case 'unavailable':
       return <UnavailableView folder={view.folder} onStopTracking={props.onRequestUntrack} />
-    case 'onboarding':
-      return (
-        <OnboardingView
-          folder={view.folder}
-          busy={shell.busy.initialize}
-          onInitialize={(options) => void actions.initialize(view.folder, options)}
-          onChooseDifferent={() => void actions.track()}
-        />
-      )
     default:
       return <FolderPane {...props} />
   }
 }
 
 function ShellFooter({ shell }: { shell: ShellModel }): JSX.Element {
-  const folderReady = ['home', 'epic', 'chat', 'kanban'].includes(shell.view.kind)
+  const { view } = shell
+  const onFolder = view.kind === 'folder' || view.kind === 'epic' || view.kind === 'chat' || view.kind === 'kanban'
+  const folderReady = onFolder && view.folder.initialized
   return (
     <SidebarFooter
       status={shell.status}
@@ -232,6 +250,20 @@ async function startNewChat(shell: ShellModel, folder: TrackedFolderView, starti
   } finally {
     starting.delete(folder.path)
   }
+}
+
+/** The clone dialog; a finished clone opens the new folder on its Source control tab. */
+function CloneHost({ shell, onClose }: { shell: ShellModel; onClose(): void }): JSX.Element {
+  return (
+    <CloneDialog
+      onClose={onClose}
+      onCloned={(folder) => {
+        onClose()
+        shell.setFolderTab(folder.path, 'source')
+        void shell.actions.cloned(folder)
+      }}
+    />
+  )
 }
 
 /** What the sidebar needs for the folders' chats. */
@@ -272,11 +304,13 @@ interface ShellSidebarProps {
   version: string
   /** The new chat's folder, as the sidebar's + names it (null for a path no longer tracked). */
   onNewChat(folder: TrackedFolderView | null): void
+  /** Opens the clone dialog. */
+  onClone(): void
   onRequestUntrack(folder: TrackedFolderView): void
 }
 
 /** The sidebar, wired to the shell: folders and their epics and chats, the Agents list, and the footer. */
-function ShellSidebar({ shell, version, onNewChat, onRequestUntrack }: ShellSidebarProps): JSX.Element {
+function ShellSidebar({ shell, version, onNewChat, onClone, onRequestUntrack }: ShellSidebarProps): JSX.Element {
   const { actions } = shell
   return (
     <Sidebar
@@ -290,6 +324,7 @@ function ShellSidebar({ shell, version, onNewChat, onRequestUntrack }: ShellSide
       chats={sidebarChats(shell, (path) => onNewChat(findFolder(shell.folders, path)))}
       footer={<ShellFooter shell={shell} />}
       onTrack={() => void actions.track()}
+      onClone={onClone}
       onAddAgent={actions.openAddAgent}
       onSelectAgent={actions.openAgent}
       onAgentStatus={shell.agents.recordStatus}
@@ -309,21 +344,23 @@ function Shell({ scheduler, EpicView, terminalKit }: { scheduler: Scheduler; Epi
   const startingChats = useRef(new Set<string>())
   const signIn = useSignInView(shell.selection)
   const signingIn = signIn.request !== null
+  const [cloning, setCloning] = useState(false)
   const { actions } = shell
   return (
     <SignInContext.Provider value={signIn.open}>
       <div className="app-shell">
         <ShellSidebar shell={shell} version={update.currentVersion} onNewChat={(folder) => {
             if (folder !== null) void startNewChat(shell, folder, startingChats.current)
-          }} onRequestUntrack={setPending} />
+          }} onClone={() => setCloning(true)} onRequestUntrack={setPending} />
         <main className="app-main" aria-label="Workspace">
           {signIn.request === null ? null : <SignInView request={signIn.request} kit={terminalKit} scheduler={scheduler} onBack={signIn.close} />}
           {/* Kept while the sign-in view shows, hidden, so Back returns to the screen (and any dialog on it) as it was. */}
           <div className="main-view" hidden={signingIn}>
-            <MainPane shell={shell} EpicView={EpicView} scheduler={scheduler} terminalKit={terminalKit} onRequestUntrack={setPending} />
+            <MainPane shell={shell} EpicView={EpicView} scheduler={scheduler} terminalKit={terminalKit} onRequestUntrack={setPending} onClone={() => setCloning(true)} />
           </div>
         </main>
         <UpdateBanner />
+        {cloning ? <CloneHost shell={shell} onClose={() => setCloning(false)} /> : null}
         {pending === null ? null : (
           <UntrackDialog
             folder={pending}
@@ -345,7 +382,9 @@ export function App({ scheduler = browserScheduler, EpicView = EpicWorkspace, te
   return (
     <ToastProvider scheduler={scheduler}>
       <LiveTerminalsContext.Provider value={liveTerminals}>
-        <Shell scheduler={scheduler} EpicView={EpicView} terminalKit={terminalKit} />
+        <GithubAccountProvider>
+          <Shell scheduler={scheduler} EpicView={EpicView} terminalKit={terminalKit} />
+        </GithubAccountProvider>
       </LiveTerminalsContext.Provider>
     </ToastProvider>
   )

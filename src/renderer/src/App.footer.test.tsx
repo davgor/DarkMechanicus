@@ -10,6 +10,7 @@ let h: AppHarness
 beforeEach(() => {
   window.localStorage.clear()
   h = new AppHarness()
+  h.rememberEpicsTab('/a')
   h.dm.folders = [folderView({ path: '/a', name: 'alpha', displayPath: '~/code/alpha' })]
 })
 
@@ -158,5 +159,14 @@ describe('App updates', () => {
     expect(sidebar().getByLabelText('Application version 0.4.0').textContent).toBe('v0.4.0')
     act(() => h.autoUpdate.emit({ phase: 'idle', currentVersion: '0.5.0' }))
     expect(sidebar().getByLabelText('Application version 0.5.0').textContent).toBe('v0.5.0')
+  })
+})
+
+describe('App GitHub account', () => {
+  it('shows the signed-out footer and follows a sign-in from main', async () => {
+    await start()
+    expect(sidebar().getByRole('button', { name: 'Sign in to GitHub' })).toBeTruthy()
+    act(() => h.github.changeAccount({ login: 'octocat', name: 'Mona' }))
+    expect(sidebar().getByText('@octocat')).toBeTruthy()
   })
 })

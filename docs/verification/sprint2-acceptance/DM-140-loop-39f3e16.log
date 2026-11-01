@@ -1,0 +1,83 @@
+# DM-140 loop: 200 runs of node_modules/.bin/vitest run <32 files in /tmp/sc-epic/logs/DM-140-files.txt>
+# worktree /Users/davidgorden/Documents/GitHub/DarkMechanicus-worktrees/source-control-sprint-2 at 39f3e169ea3c904934b2fbca1218bf8a241e533c (1 uncommitted paths)
+# host Darwin arm64 12 cpus; git version 2.46.0; node v24.19.0; started 2026-10-31T18:54:24Z
+run=1 exit=0 secs=28 load1=11.26 tests=[570 passed (570)]
+run=2 exit=0 secs=28 load1=14.35 tests=[570 passed (570)]
+run=3 exit=0 secs=28 load1=16.01 tests=[570 passed (570)]
+run=4 exit=0 secs=28 load1=16.18 tests=[570 passed (570)]
+run=5 exit=0 secs=28 load1=17.50 tests=[570 passed (570)]
+run=6 exit=0 secs=28 load1=20.05 tests=[570 passed (570)]
+run=7 exit=0 secs=31 load1=19.19 tests=[570 passed (570)]
+run=8 exit=0 secs=28 load1=20.91 tests=[570 passed (570)]
+run=9 exit=0 secs=28 load1=19.22 tests=[570 passed (570)]
+run=10 exit=0 secs=33 load1=18.94 tests=[570 passed (570)]
+run=11 exit=0 secs=53 load1=22.56 tests=[570 passed (570)]
+run=12 exit=0 secs=30 load1=39.99 tests=[570 passed (570)]
+run=13 exit=0 secs=39 load1=32.91 tests=[570 passed (570)]
+run=14 exit=0 secs=40 load1=32.36 tests=[570 passed (570)]
+run=15 exit=0 secs=39 load1=28.84 tests=[570 passed (570)]
+run=16 exit=0 secs=39 load1=29.78 tests=[570 passed (570)]
+run=17 exit=0 secs=39 load1=29.77 tests=[570 passed (570)]
+run=18 exit=0 secs=43 load1=30.43 tests=[570 passed (570)]
+run=19 exit=0 secs=46 load1=31.15 tests=[570 passed (570)]
+run=20 exit=0 secs=40 load1=47.59 tests=[570 passed (570)]
+run=21 exit=0 secs=71 load1=50.27 tests=[570 passed (570)]
+run=22 exit=1 secs=74 load1=74.21 tests=[1 failed | 569 passed (570)] fail-kept=/tmp/sc-epic/logs/DM-140-fail-run-22.log
+run=23 exit=1 secs=76 load1=76.08 tests=[1 failed | 569 passed (570)] fail-kept=/tmp/sc-epic/logs/DM-140-fail-run-23.log
+run=24 exit=1 secs=72 load1=65.11 tests=[1 failed | 569 passed (570)] fail-kept=/tmp/sc-epic/logs/DM-140-fail-run-24.log
+run=25 exit=0 secs=55 load1=60.21 tests=[570 passed (570)]
+run=26 exit=0 secs=55 load1=55.14 tests=[570 passed (570)]
+run=27 exit=1 secs=59 load1=54.07 tests=[1 failed | 569 passed (570)] fail-kept=/tmp/sc-epic/logs/DM-140-fail-run-27.log
+run=28 exit=0 secs=58 load1=67.48 tests=[570 passed (570)]
+run=29 exit=0 secs=57 load1=91.12 tests=[570 passed (570)]
+run=30 exit=0 secs=57 load1=101.90 tests=[570 passed (570)]
+run=31 exit=1 secs=59 load1=73.24 tests=[1 failed | 569 passed (570)] fail-kept=/tmp/sc-epic/logs/DM-140-fail-run-31.log
+run=32 exit=1 secs=58 load1=56.65 tests=[1 failed | 569 passed (570)] fail-kept=/tmp/sc-epic/logs/DM-140-fail-run-32.log
+run=33 exit=1 secs=56 load1=49.37 tests=[1 failed | 569 passed (570)] fail-kept=/tmp/sc-epic/logs/DM-140-fail-run-33.log
+run=34 exit=1 secs=60 load1=47.34 tests=[1 failed | 569 passed (570)] fail-kept=/tmp/sc-epic/logs/DM-140-fail-run-34.log
+run=35 exit=1 secs=62 load1=56.02 tests=[1 failed | 569 passed (570)] fail-kept=/tmp/sc-epic/logs/DM-140-fail-run-35.log
+run=36 exit=1 secs=59 load1=84.46 tests=[1 failed | 569 passed (570)] fail-kept=/tmp/sc-epic/logs/DM-140-fail-run-36.log
+run=37 exit=1 secs=58 load1=89.96 tests=[1 failed | 569 passed (570)] fail-kept=/tmp/sc-epic/logs/DM-140-fail-run-37.log
+run=38 exit=1 secs=59 load1=63.27 tests=[1 failed | 569 passed (570)] fail-kept=/tmp/sc-epic/logs/DM-140-fail-run-38.log
+run=39 exit=1 secs=58 load1=56.30 tests=[1 failed | 569 passed (570)] fail-kept=/tmp/sc-epic/logs/DM-140-fail-run-39.log
+run=40 exit=1 secs=60 load1=51.01 tests=[1 failed | 569 passed (570)] fail-kept=/tmp/sc-epic/logs/DM-140-fail-run-40.log
+run=41 exit=1 secs=58 load1=53.11 tests=[1 failed | 569 passed (570)] fail-kept=/tmp/sc-epic/logs/DM-140-fail-run-41.log
+run=42 exit=1 secs=58 load1=54.60 tests=[1 failed | 569 passed (570)] fail-kept=/tmp/sc-epic/logs/DM-140-fail-run-42.log
+run=43 exit=1 secs=60 load1=48.74 tests=[1 failed | 569 passed (570)] fail-kept=/tmp/sc-epic/logs/DM-140-fail-run-43.log
+run=44 exit=0 secs=56 load1=46.45 tests=[570 passed (570)]
+run=45 exit=0 secs=56 load1=47.01 tests=[570 passed (570)]
+run=46 exit=0 secs=58 load1=47.99 tests=[570 passed (570)]
+run=47 exit=0 secs=56 load1=44.68 tests=[570 passed (570)]
+run=48 exit=0 secs=52 load1=47.19 tests=[570 passed (570)]
+run=49 exit=0 secs=38 load1=46.22 tests=[570 passed (570)]
+run=50 exit=0 secs=36 load1=41.65 tests=[570 passed (570)]
+run=51 exit=0 secs=38 load1=34.51 tests=[570 passed (570)]
+run=52 exit=0 secs=36 load1=34.20 tests=[570 passed (570)]
+run=53 exit=0 secs=39 load1=33.65 tests=[570 passed (570)]
+run=54 exit=0 secs=35 load1=28.77 tests=[570 passed (570)]
+run=55 exit=0 secs=31 load1=30.31 tests=[570 passed (570)]
+run=56 exit=0 secs=31 load1=30.73 tests=[570 passed (570)]
+run=57 exit=0 secs=32 load1=28.38 tests=[570 passed (570)]
+run=58 exit=0 secs=31 load1=27.55 tests=[570 passed (570)]
+run=59 exit=0 secs=31 load1=29.07 tests=[570 passed (570)]
+run=60 exit=0 secs=31 load1=25.75 tests=[570 passed (570)]
+run=61 exit=0 secs=32 load1=27.68 tests=[570 passed (570)]
+run=62 exit=0 secs=35 load1=26.14 tests=[570 passed (570)]
+run=63 exit=0 secs=35 load1=27.18 tests=[570 passed (570)]
+run=64 exit=0 secs=43 load1=33.02 tests=[570 passed (570)]
+run=65 exit=0 secs=28 load1=37.56 tests=[570 passed (570)]
+run=66 exit=0 secs=32 load1=29.98 tests=[570 passed (570)]
+run=67 exit=0 secs=30 load1=28.37 tests=[570 passed (570)]
+run=68 exit=0 secs=30 load1=24.79 tests=[570 passed (570)]
+run=69 exit=0 secs=29 load1=25.80 tests=[570 passed (570)]
+run=70 exit=0 secs=33 load1=23.19 tests=[570 passed (570)]
+run=71 exit=0 secs=44 load1=24.86 tests=[570 passed (570)]
+run=72 exit=0 secs=46 load1=31.92 tests=[570 passed (570)]
+run=73 exit=0 secs=45 load1=37.81 tests=[570 passed (570)]
+run=74 exit=0 secs=46 load1=39.58 tests=[570 passed (570)]
+run=75 exit=0 secs=49 load1=42.27 tests=[570 passed (570)]
+run=76 exit=0 secs=47 load1=50.37 tests=[570 passed (570)]
+run=77 exit=0 secs=50 load1=46.77 tests=[570 passed (570)]
+run=78 exit=1 secs=58 load1=48.79 tests=[1 failed | 569 passed (570)] fail-kept=/tmp/sc-epic/logs/DM-140-fail-run-78.log
+run=79 exit=1 secs=66 load1=46.10 tests=[1 failed | 569 passed (570)] fail-kept=/tmp/sc-epic/logs/DM-140-fail-run-79.log
+run=80 exit=1 secs=63 load1=53.72 tests=[1 failed | 569 passed (570)] fail-kept=/tmp/sc-epic/logs/DM-140-fail-run-80.log

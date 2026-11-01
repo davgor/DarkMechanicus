@@ -1,0 +1,41 @@
+9:09  up 4 days,  6:14, 11 users, load averages: 8.10 20.15 22.55
+before: $ git status -sb
+## main...origin/main [ahead 1, behind 1]
+?? notes.txt
+before: $ git rev-parse -q --verify MERGE_HEAD -> {"code":1,"out":""}
+userData: <temp profile>
+sync button: "Pull origin ↓1 ↑1\nLast fetched just now"
+included files: ["Include notes.txt"]
++0.0s pull running: "Pulling…\nCancel"
++0.0s Commit clicked; commit button aria-busy = true
++2.0s pull still running: true | commit button aria-busy = true
+shot: DM-400-c1-commit-waiting-during-pull.png
++10.4s pull progress gone
+shot: DM-400-c1-after-pull-merge-banner.png
+git:pull: started +0.0s, answered +10.3s -> {"ok":false,"error":{"code":"merge_conflicts","message":"git pull failed with exit code 1 (merge_conflicts)","detail":"From ext::/private/tmp/sc-epic/scratch/DM-400/slow-upload-pack.sh %S /private/tmp/sc-epic/scratch/DM-400/c1-origin\n * branch            main       -> FETCH_HEAD\n"}}
+git:commit: started +0.0s, answered +10.4s -> {"ok":false,"error":{"code":"operation_in_progress","message":"A merge is in progress."}}
+commit answered after the pull: true (commit waited 10.3s; pull took 10.3s)
+after: $ git rev-parse -q --verify MERGE_HEAD -> {"code":0,"out":"b50cb9a4cc9bf9a3202a3faf73b4f31177006732"}
+after: $ git status
+On branch main
+Your branch and 'origin/main' have diverged,
+and have 1 and 1 different commits each, respectively.
+  (use "git pull" if you want to integrate the remote branch with yours)
+
+You have unmerged paths.
+  (fix conflicts and run "git commit")
+  (use "git merge --abort" to abort the merge)
+
+Unmerged paths:
+  (use "git add <file>..." to mark resolution)
+	both modified:   c.txt
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	notes.txt
+
+no changes added to commit (use "git add" and/or "git commit -a")
+after: $ git log --oneline -3
+70cdf03 Local edits c
+a51fa24 Base
+9:10  up 4 days,  6:14, 11 users, load averages: 8.27 19.59 22.31

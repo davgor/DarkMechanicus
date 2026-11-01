@@ -161,7 +161,12 @@ const PALETTE_CHECKS: ContrastCheck[] = [
   { fg: '--tone-edited', bg: ['--panel'], min: BODY },
   { fg: '--tone-ok', bg: ['--panel'], min: BODY },
   { fg: '--accent', bg: ['--panel', '--accent-soft'], min: BODY },
-  { fg: '--lens', bg: ['--sidebar'], min: BODY }
+  { fg: '--lens', bg: ['--sidebar'], min: BODY },
+  // Diff view: text and gutter on each line tint, and the code surface.
+  ...['--diff-add-bg', '--diff-del-bg', '--diff-hunk-bg', '--code-bg'].map((surface) => ({ fg: '--ink', bg: [surface], min: BODY })),
+  ...['--diff-add-bg', '--diff-del-bg', '--diff-hunk-bg', '--code-bg'].map((surface) => ({ fg: '--diff-gutter-ink', bg: [surface], min: BODY })),
+  { fg: '--diff-add-ink', bg: ['--diff-add-bg'], min: BODY },
+  { fg: '--diff-del-ink', bg: ['--diff-del-bg'], min: BODY }
 ]
 
 const color = (value: string): Rgba => parseColor(value) as Rgba

@@ -1,0 +1,25 @@
+uptime: 3:44  up 4 days, 49 mins, 12 users, load averages: 20.18 27.77 37.76
+userData: <temp profile>
+shot: DM-149-c1-shorthand-dialog.png
+c1 progress events: 14 phases: Enumerating objects | Receiving objects
+c1 sample events: [{"folder":"/private/tmp/sc-epic/scratch/DM-149/clones","operationId":"f01bde6f-7c73-46fb-a447-73fb771ccaaa","operation":"clone","phase":"Receiving objects","percent":84},{"folder":"/private/tmp/sc-epic/scratch/DM-149/clones","operationId":"f01bde6f-7c73-46fb-a447-73fb771ccaaa","operation":"clone","phase":"Receiving objects","percent":92},{"folder":"/private/tmp/sc-epic/scratch/DM-149/clones","operationId":"f01bde6f-7c73-46fb-a447-73fb771ccaaa","operation":"clone","phase":"Receiving objects","percent":100}]
+c1 hello-short origin: https://github.com/octocat/Hello-World.git | HEAD: 7fd1a60 Merge pull request #6 from Spaceghost/patch-1
+shot: DM-149-c1-shorthand-cloned.png
+c1 big clone progress text: Receiving objects 1% | folder exists mid-clone: true
+shot: DM-149-c1-big-clone-in-progress.png
+c1 after cancel: git-big exists: false | clone parent now holds: ["hello-short"]
+shot: DM-149-c1-big-clone-cancelled.png
+c1 Clone button enabled for ext:: URL: true
+c1 ext:: dialog alert: ["Enter an https:// or ssh:// URL, git@host:path, or owner/repo for GitHub."]
+shot: DM-149-c1-ext-refused.png
+c1 window.git.clone(ext::) → {"ok":false,"error":{"code":"invalid_input","message":"Enter an https:// or ssh:// URL, git@host:path, or owner/repo for GitHub."}}
+c1 ext marker created (git ran): false | ext-clone/ext-direct folders: false false
+shot: DM-149-c2-sidebar-plus-menu.png
+shot: DM-149-c2-clone-dialog-url.png
+shot: DM-149-c2-clone-dialog-running.png
+shot: DM-149-c2-cloned-open-on-source-control.png
+c2 folders.json: ["/private/tmp/sc-epic/scratch/DM-149/clones/hello-short","/private/tmp/sc-epic/scratch/DM-149/clones/hello-url"]
+c2 selected sidebar item: ["Setup required","Source control"]
+c2 active tab: ["Source control"]
+c2 hello-url HEAD: 7fd1a60 Merge pull request #6 from Spaceghost/patch-1
+uptime: 3:45  up 4 days, 49 mins, 12 users, load averages: 20.03 27.35 37.43

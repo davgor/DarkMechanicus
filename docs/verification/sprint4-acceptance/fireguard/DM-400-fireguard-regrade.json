@@ -1,0 +1,430 @@
+{
+  "grade": {
+    "letter": "A",
+    "score": 92,
+    "reasons": [
+      "all hard gates passed"
+    ]
+  },
+  "gates": {
+    "ast": {
+      "name": "ast",
+      "pass": true,
+      "assertionCount": 341,
+      "mockCount": 0,
+      "mockToAssertRatio": 0,
+      "tautologicalCount": 0,
+      "tautologicalRatio": 0,
+      "emptyTests": [],
+      "findings": []
+    },
+    "flake": {
+      "name": "flake",
+      "pass": true,
+      "runs": 100,
+      "configuredRuns": 100,
+      "failures": 0,
+      "flakeRate": 0,
+      "files": [
+        "src/main/git/commit.test.ts",
+        "src/main/git/conflicts.test.ts",
+        "src/main/git/conflictsOpen.test.ts",
+        "src/main/git/handlersLock.test.ts",
+        "src/main/git/handlersWorkingDiff.test.ts",
+        "src/main/git/operationLock.test.ts",
+        "src/main/github/pullRequestsCheckout.test.ts",
+        "src/renderer/src/source/ConflictsPanel.test.tsx"
+      ],
+      "failedRuns": [],
+      "failFast": true
+    },
+    "mutation": {
+      "name": "mutation",
+      "pass": true,
+      "killed": 246,
+      "survived": 66,
+      "total": 312,
+      "score": 79,
+      "survivors": [
+        {
+          "file": "src/main/git/commit.ts",
+          "line": 131,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/git/commit.ts",
+          "line": 195,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/git/conflicts.ts",
+          "line": 152,
+          "description": "conditional-inversion: swap operator to <"
+        },
+        {
+          "file": "src/main/git/conflicts.ts",
+          "line": 186,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/main/git/conflicts.ts",
+          "line": 201,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/git/conflicts.ts",
+          "line": 201,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/main/git/conflicts.ts",
+          "line": 256,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/git/conflicts.ts",
+          "line": 303,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/git/handlers.ts",
+          "line": 194,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/git/handlers.ts",
+          "line": 196,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/main/git/handlers.ts",
+          "line": 229,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/main/git/handlers.ts",
+          "line": 229,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/git/handlers.ts",
+          "line": 232,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/main/git/handlers.ts",
+          "line": 232,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/git/handlers.ts",
+          "line": 265,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/git/handlers.ts",
+          "line": 269,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/git/handlers.ts",
+          "line": 305,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/main/git/handlers.ts",
+          "line": 308,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/main/git/handlers.ts",
+          "line": 308,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/git/handlers.ts",
+          "line": 311,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/main/git/handlers.ts",
+          "line": 311,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/git/handlers.ts",
+          "line": 311,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/git/handlers.ts",
+          "line": 320,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/main/git/handlers.ts",
+          "line": 320,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/git/handlers.ts",
+          "line": 425,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/git/operationLock.ts",
+          "line": 39,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/main/git/operationLock.ts",
+          "line": 39,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/git/runner.ts",
+          "line": 103,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/main/git/runner.ts",
+          "line": 103,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/git/runner.ts",
+          "line": 113,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/main/git/runner.ts",
+          "line": 113,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/git/runner.ts",
+          "line": 116,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/git/runner.ts",
+          "line": 127,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/git/runner.ts",
+          "line": 155,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/main/git/runner.ts",
+          "line": 218,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/git/runner.ts",
+          "line": 251,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/main/git/runner.ts",
+          "line": 251,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/git/runner.ts",
+          "line": 264,
+          "description": "operator-swap: swap operator to *"
+        },
+        {
+          "file": "src/main/git/runner.ts",
+          "line": 271,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/main/git/runner.ts",
+          "line": 289,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/main/git/runner.ts",
+          "line": 289,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/main/git/runner.ts",
+          "line": 292,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/main/git/runner.ts",
+          "line": 292,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/main/git/runner.ts",
+          "line": 302,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/git/runner.ts",
+          "line": 312,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/main/git/runner.ts",
+          "line": 322,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/main/git/runner.ts",
+          "line": 322,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/main/git/runner.ts",
+          "line": 363,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/main/git/runner.ts",
+          "line": 363,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/git/runner.ts",
+          "line": 383,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/main/git/runner.ts",
+          "line": 383,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/git/runner.ts",
+          "line": 395,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/github/pullRequests.ts",
+          "line": 80,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/main/github/pullRequests.ts",
+          "line": 80,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/github/pullRequests.ts",
+          "line": 133,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/github/pullRequests.ts",
+          "line": 186,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/main/github/pullRequests.ts",
+          "line": 186,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/github/pullRequests.ts",
+          "line": 195,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/main/github/pullRequests.ts",
+          "line": 195,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/github/pullRequests.ts",
+          "line": 314,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/source/ConflictsPanel.tsx",
+          "line": 74,
+          "description": "conditional-inversion: swap operator to >"
+        },
+        {
+          "file": "src/renderer/src/source/ConflictsPanel.tsx",
+          "line": 74,
+          "description": "conditional-inversion: swap operator to <"
+        },
+        {
+          "file": "src/renderer/src/source/ConflictsPanel.tsx",
+          "line": 81,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/renderer/src/source/ConflictsPanel.tsx",
+          "line": 186,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/source/ConflictsPanel.tsx",
+          "line": 218,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/source/ConflictsPanel.tsx",
+          "line": 330,
+          "description": "conditional-inversion: swap operator to !=="
+        }
+      ],
+      "modules": [
+        "src/main/git/commit.ts",
+        "src/main/git/conflicts.ts",
+        "src/main/git/handlers.ts",
+        "src/main/git/operationLock.ts",
+        "src/main/git/runner.ts",
+        "src/main/github/pullRequests.ts",
+        "src/renderer/src/source/ConflictsPanel.tsx",
+        "src/shared/git/errors.ts"
+      ],
+      "moduleTests": {
+        "src/main/git/commit.ts": 5,
+        "src/main/git/conflicts.ts": 4,
+        "src/main/git/handlers.ts": 2,
+        "src/main/git/operationLock.ts": 3,
+        "src/main/git/runner.ts": 7,
+        "src/main/github/pullRequests.ts": 3,
+        "src/renderer/src/source/ConflictsPanel.tsx": 1,
+        "src/shared/git/errors.ts": 8
+      },
+      "execution": {
+        "lanes": 4,
+        "workspace": "copies"
+      }
+    }
+  },
+  "scope": {
+    "baseRef": "d956b0b986773ccf76afa60859f651a30a28f9dc",
+    "gradedTestFiles": [
+      "src/main/git/commit.test.ts",
+      "src/main/git/conflicts.test.ts",
+      "src/main/git/conflictsOpen.test.ts",
+      "src/main/git/handlersLock.test.ts",
+      "src/main/git/handlersWorkingDiff.test.ts",
+      "src/main/git/operationLock.test.ts",
+      "src/main/github/pullRequestsCheckout.test.ts",
+      "src/renderer/src/source/ConflictsPanel.test.tsx"
+    ],
+    "changedModules": [
+      "src/main/git/commit.ts",
+      "src/main/git/conflicts.ts",
+      "src/main/git/handlers.ts",
+      "src/main/git/operationLock.ts",
+      "src/main/git/runner.ts",
+      "src/main/github/pullRequests.ts",
+      "src/renderer/src/source/ConflictsPanel.tsx",
+      "src/shared/git/errors.ts"
+    ]
+  },
+  "skipped": false
+}

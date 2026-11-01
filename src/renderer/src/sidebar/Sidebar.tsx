@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 import type { ChatRecord } from '../../../shared/agents/chat'
 import type { AgentAuthStatus, AgentId, AgentView, TrackedFolderView } from '../../../shared/desktop/api'
@@ -11,7 +12,7 @@ import { listFor } from '../app/useEpicLists'
 import type { EpicListState } from '../app/useEpicLists'
 import brandIcon1x from '../assets/brand-icon-32.png'
 import brandIcon2x from '../assets/brand-icon-64.png'
-import { Button } from '../components/Button'
+import { Menu } from '../components/Menu'
 import { AgentsSection } from './AgentsSection'
 import { FolderRow } from './FolderRow'
 import type { Expansion } from './useExpansion'
@@ -40,7 +41,10 @@ interface SidebarProps {
   chats: SidebarChats
   /** Rendered at the bottom of the sidebar (status and update controls). */
   footer: ReactNode
+  /** Tracks an existing folder through the native picker. */
   onTrack(): void
+  /** Opens the clone dialog. */
+  onClone(): void
   /** Opens the add-agent pane. */
   onAddAgent(): void
   onSelectAgent(id: AgentId): void
@@ -77,6 +81,23 @@ function Brand({ version }: { version: string }): JSX.Element {
   )
 }
 
+/** The FOLDERS + button: track an existing folder, or clone a repository. */
+function AddFolderMenu({ onTrack, onClone }: Pick<SidebarProps, 'onTrack' | 'onClone'>): JSX.Element {
+  const [open, setOpen] = useState(false)
+  return (
+    <Menu
+      label="Add a folder"
+      icon="plus"
+      open={open}
+      onOpenChange={setOpen}
+      items={[
+        { id: 'track', label: 'Add existing folder…', onSelect: onTrack },
+        { id: 'clone', label: 'Clone repository…', onSelect: onClone }
+      ]}
+    />
+  )
+}
+
 /** The left panel: connected agents, tracked folders with their epic buckets and chats, then the status footer. */
 export function Sidebar(props: SidebarProps): JSX.Element {
   const { agentPane } = props.selection
@@ -95,7 +116,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
       />
       <div className="sidebar-head">
         <span className="eyebrow">FOLDERS</span>
-        <Button variant="ghost" icon="plus" aria-label="Track a folder" onClick={props.onTrack} />
+        <AddFolderMenu onTrack={props.onTrack} onClone={props.onClone} />
       </div>
       <nav className="sidebar-tree" aria-label="Folders and epics">
         {props.folders.length === 0 ? (

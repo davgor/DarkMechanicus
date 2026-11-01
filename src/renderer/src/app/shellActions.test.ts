@@ -165,6 +165,15 @@ describe('track', () => {
   })
 })
 
+describe('cloned', () => {
+  it('reloads the folders, then selects and reveals the cloned folder', async () => {
+    await recorder.actions(null).cloned(alpha)
+    expect(recorder.reloads).toBe(1)
+    expect(recorder.selections).toEqual([{ folderPath: '/a', epicId: null }])
+    expect(recorder.revealed).toEqual(['/a'])
+  })
+})
+
 describe('untrack', () => {
   it('stops tracking the folder', async () => {
     await recorder.actions().untrack('/a')

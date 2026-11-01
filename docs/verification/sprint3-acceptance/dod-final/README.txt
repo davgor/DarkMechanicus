@@ -1,0 +1,1 @@
+Definition of Done re-run by the orchestrator at 7c35c31 (after the rebase-merges conflict sides integration fix), one check at a time, detached. summary.txt has each exit code; Fireguard graded only the changes after 51ff218.

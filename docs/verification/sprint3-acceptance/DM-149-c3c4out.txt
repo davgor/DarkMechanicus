@@ -1,0 +1,15 @@
+gh auth status with the app env (empty GH_CONFIG_DIR): exit 1
+$ git --git-dir origin-c.git rev-parse refs/pull/1/head → 2e0e1c7caba019f23f3adb11d32d2cf14f9b41fa
+scratch-c branches before: "main"
+userData: <temp profile>
+account: {"ok":true,"data":null}
+window.git.checkoutPullRequest(scratch-c, {number: 1}) → {"ok":true}
+$ git rev-parse pr/1 → 2e0e1c7caba019f23f3adb11d32d2cf14f9b41fa | equals refs/pull/1/head: true | current branch: pr/1
+$ git log -1 pr/1 (hash subject) → 2e0e1c7 Fork change for pull request 1
+leftover refs/dm: ""
+scratch-c toolbar 6 s after the devtools-style call: Current branch pr/1 Publish branch Last fetched just now
+scratch-c toolbar after reopening: Current branch pr/1 Publish branch Last fetched just now
+shot: DM-149-c3-scratch-c-on-pr-1.png
+signed out: window.git.getPullRequests(scratch-gh) → {"ok":false,"error":{"code":"auth_required","message":"Sign in to GitHub again: the sign-in is missing or no longer valid."}}
+toolbar: Current branch feature-unpublished Sign in to see pull requests Publish branch Never fetched
+shot: DM-149-c4-pull-requests-signed-out.png

@@ -22,8 +22,11 @@ const NAMES: IconName[] = [
   'close',
   'refresh',
   'branch',
+  'arrow-up',
   'download',
-  'hourglass'
+  'hourglass',
+  'lock',
+  'github'
 ]
 
 function svgOf(name: IconName, props: { size?: number; strokeWidth?: number } = {}): SVGElement {

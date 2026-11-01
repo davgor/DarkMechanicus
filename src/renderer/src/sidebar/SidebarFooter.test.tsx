@@ -1,9 +1,18 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { act, cleanup, fireEvent, screen, within } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { githubKit, renderWithGithub } from '../__mocks__/githubKit'
+import type { GithubKit } from '../__mocks__/githubKit'
+import { settle } from '../__mocks__/settle'
 import { storageStatus } from '../__mocks__/fixtures'
 import type { StorageStatusView } from '../../../shared/domain/views'
 import { SidebarFooter } from './SidebarFooter'
+
+let kit: GithubKit
+
+beforeEach(() => {
+  kit = githubKit()
+})
 
 afterEach(cleanup)
 
@@ -20,7 +29,8 @@ interface Options {
 
 function renderFooter(options: Options): Calls {
   const calls: Calls = { flush: 0, reconcile: 0 }
-  render(
+  renderWithGithub(
+    kit,
     <SidebarFooter
       status={options.status}
       folderReady={options.ready ?? true}
@@ -110,5 +120,52 @@ describe('SidebarFooter branch warning', () => {
   it('renders extra footer content', () => {
     renderFooter({ status: null })
     expect(screen.getByText('extra')).toBeTruthy()
+  })
+})
+
+describe('SidebarFooter GitHub line', () => {
+  it('offers Sign in to GitHub while signed out, which opens the dialog', async () => {
+    renderFooter({ status: null })
+    await settle()
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in to GitHub' }))
+    await settle()
+    const dialog = screen.getByRole('dialog', { name: 'Sign in to GitHub' })
+    expect(within(dialog).getByRole('button', { name: 'Use my GitHub CLI login' })).toBeTruthy()
+    expect(kit.github.calls).not.toContain('signIn')
+  })
+
+  it('shows @login with the name as title while signed in', async () => {
+    kit.github.account = { login: 'octocat', name: 'Mona Lisa' }
+    renderFooter({ status: null })
+    await settle()
+    expect(screen.getByText('@octocat').getAttribute('title')).toBe('Mona Lisa')
+    expect(screen.queryByRole('button', { name: 'Sign in to GitHub' })).toBeNull()
+  })
+
+  it('signs out from the account menu', async () => {
+    kit.github.account = { login: 'octocat', name: null }
+    renderFooter({ status: null })
+    await settle()
+    fireEvent.click(screen.getByRole('button', { name: 'GitHub account' }))
+    fireEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Sign out' }))
+    await settle()
+    expect(kit.github.calls).toContain('signOut')
+    expect(screen.getByRole('button', { name: 'Sign in to GitHub' })).toBeTruthy()
+  })
+
+  it('opens the GitHub application settings from the account menu', async () => {
+    kit.github.account = { login: 'octocat', name: null }
+    renderFooter({ status: null })
+    await settle()
+    fireEvent.click(screen.getByRole('button', { name: 'GitHub account' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Manage access on GitHub' }))
+    expect(kit.dm.opened).toEqual(['https://github.com/settings/applications'])
+  })
+
+  it('follows an account change from main', async () => {
+    renderFooter({ status: null })
+    await settle()
+    act(() => kit.github.changeAccount({ login: 'hubot', name: null }))
+    expect(screen.getByText('@hubot')).toBeTruthy()
   })
 })

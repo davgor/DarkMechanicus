@@ -1,0 +1,6 @@
+
+> dark-mechanicus@0.20.0 lint
+> oxlint src scripts
+
+Found 0 warnings and 0 errors.
+Finished in 70ms on 1137 files with 100 rules using 12 threads.

@@ -24,6 +24,7 @@ const NO_CHATS: ComponentProps<typeof Sidebar>['chats'] = {
 
 interface Calls {
   track: number
+  clone: number
   addAgent: number
   agents: string[]
   folders: string[]
@@ -39,7 +40,7 @@ function renderSidebar(
   agents: AgentView[] = [],
   chatLists: Record<string, ChatListState> = {}
 ): Calls {
-  const calls: Calls = { track: 0, addAgent: 0, agents: [], folders: [], epics: [], untrackRequests: [], newChats: [], chats: [] }
+  const calls: Calls = { track: 0, clone: 0, addAgent: 0, agents: [], folders: [], epics: [], untrackRequests: [], newChats: [], chats: [] }
   render(
     <Sidebar
       version="0.4.0"
@@ -52,6 +53,9 @@ function renderSidebar(
       footer={<div>footer content</div>}
       onTrack={() => {
         calls.track += 1
+      }}
+      onClone={() => {
+        calls.clone += 1
       }}
       onAddAgent={() => {
         calls.addAgent += 1
@@ -117,13 +121,6 @@ describe('Sidebar chrome', () => {
     expect(column?.previousElementSibling?.tagName).toBe('IMG')
   })
 
-  it('has a FOLDERS header with a track button', () => {
-    const calls = renderSidebar([])
-    expect(screen.getByText('FOLDERS')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Track a folder' }))
-    expect(calls.track).toBe(1)
-  })
-
   it('renders the footer slot', () => {
     renderSidebar([])
     expect(screen.getByText('footer content')).toBeTruthy()
@@ -132,6 +129,23 @@ describe('Sidebar chrome', () => {
   it('explains how to add a folder when there are none', () => {
     renderSidebar([])
     expect(screen.getByText('No folders yet. Use + to track one.')).toBeTruthy()
+  })
+})
+
+describe('Sidebar + menu', () => {
+  it('has a FOLDERS header whose + offers adding an existing folder or cloning one', () => {
+    const calls = renderSidebar([])
+    expect(screen.getByText('FOLDERS')).toBeTruthy()
+    const plus = screen.getByRole('button', { name: 'Add a folder' })
+    expect(plus.querySelector('[data-icon="plus"]')).toBeTruthy()
+    fireEvent.click(plus)
+    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Add existing folder…', 'Clone repository…'])
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Add existing folder…' }))
+    expect(calls).toMatchObject({ track: 1, clone: 0 })
+    fireEvent.click(plus)
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Clone repository…' }))
+    expect(calls).toMatchObject({ track: 1, clone: 1 })
+    expect(screen.queryByRole('menu')).toBeNull()
   })
 })
 
@@ -174,7 +188,7 @@ describe('Sidebar agents', () => {
     const foldersHead = screen.getByText('FOLDERS')
     expect(agentsHead.compareDocumentPosition(foldersHead) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Add an agent' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Track a folder' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Add a folder' })).toBeTruthy()
   })
 
   it('shows the empty note for agents beside the one for folders', () => {
@@ -204,6 +218,7 @@ describe('Sidebar agents', () => {
         expansion={new FakeExpansion()}
         footer={null}
         onTrack={() => undefined}
+        onClone={() => undefined}
         onAddAgent={() => undefined}
         onSelectAgent={() => undefined}
         onAgentStatus={() => undefined}

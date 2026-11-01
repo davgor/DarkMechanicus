@@ -1,0 +1,105 @@
+/** Builds git argument lists from untrusted paths and refs, refusing anything git could read as an option or an escape. */
+import { isAbsolute, posix, win32 } from 'node:path'
+import type { GitRunner } from './runner'
+
+function refuse(what: string): never {
+  throw new Error(`Refusing to pass ${what} to git.`)
+}
+
+function escapesRepository(path: string): boolean {
+  let depth = 0
+  for (const segment of path.split(/[\\/]+/)) {
+    if (segment === '..') {
+      depth -= 1
+    } else if (segment !== '' && segment !== '.') {
+      depth += 1
+    }
+    if (depth < 0) {
+      return true
+    }
+  }
+  return false
+}
+
+function isAbsolutePath(path: string): boolean {
+  return isAbsolute(path) || win32.isAbsolute(path) || posix.isAbsolute(path) || /^[A-Za-z]:/.test(path)
+}
+
+function checkPath(path: string): void {
+  if (path === '') {
+    refuse('an empty path')
+  }
+  if (path.includes('\u0000')) {
+    refuse('a NUL-containing path')
+  }
+  if (isAbsolutePath(path)) {
+    refuse('an absolute path')
+  }
+  if (escapesRepository(path)) {
+    refuse('a path that leaves the repository')
+  }
+}
+
+/** `['--', ...paths]`, so no path can be read as an option. */
+export function pathArgs(paths: readonly string[]): string[] {
+  paths.forEach(checkPath)
+  return ['--', ...paths]
+}
+
+/**
+ * `['--literal-pathspecs', ...command, '--', ...paths]`: git reads every path as a plain file name, so names like
+ * `:/a`, `:!b` or `*` never act as pathspec magic on other files. Use it for every command given a renderer path.
+ */
+export function literalPathArgs(command: readonly string[], paths: readonly string[]): string[] {
+  return ['--literal-pathspecs', ...command, ...pathArgs(paths)]
+}
+
+/** A branch, tag or commit name that is safe as a bare argument. */
+export function refArg(name: string): string {
+  if (name === '') {
+    refuse('an empty ref')
+  }
+  if (name.startsWith('-')) {
+    refuse('an option-like ref')
+  }
+  if (name.includes('\u0000')) {
+    refuse('a NUL-containing ref')
+  }
+  if (/\s/.test(name)) {
+    refuse('a ref with whitespace')
+  }
+  return name
+}
+
+interface BranchNameVerdict {
+  valid: boolean
+  normalized: string | null
+}
+
+/** Longer than a file name may be on most file systems, where git keeps a loose ref. */
+const MAX_BRANCH_NAME_BYTES = 255
+
+/**
+ * Names refused without asking git: empty, option-like, `@` and `@{…}` (which revisions read as HEAD, another
+ * branch or an upstream), whitespace and control characters, and overlong names.
+ */
+function plainlyInvalid(name: string): boolean {
+  return (
+    name === '' ||
+    name === '@' ||
+    name.startsWith('-') ||
+    name.includes('@{') ||
+    [...name].some((char) => char <= ' ' || char === '\u007f') ||
+    Buffer.byteLength(name) > MAX_BRANCH_NAME_BYTES
+  )
+}
+
+/** Asks git whether `name` is a valid branch name (`git check-ref-format --branch`), exactly as written. */
+export async function checkBranchName(runner: GitRunner, cwd: string, name: string): Promise<BranchNameVerdict> {
+  if (plainlyInvalid(name)) {
+    return { valid: false, normalized: null }
+  }
+  const result = await runner.run({ cwd, args: ['check-ref-format', '--branch', name], kind: 'read', acceptExitCodes: [0, 1, 128] })
+  const normalized = result.stdout.replace(/\r?\n$/, '')
+  return result.code === 0 && normalized === name ? { valid: true, normalized } : { valid: false, normalized: null }
+}

@@ -1,0 +1,29 @@
+userData: <temp profile>
+hello-world before: Fetch origin Never fetched
+hello-world after: Fetch origin Last fetched just now (1722 ms) alerts: 0 dialogs: 0 FETCH_HEAD: 2012-03-06T15:06:50-08:00
+shot: hello-world-fetched
+scratch-b start: Fetch origin Never fetched terminal behind/ahead: 0	0
+after Fetch: Pull origin ↓1 Last fetched just now terminal behind/ahead: 1	0
+shot: pull-origin-behind-1
+after Pull: Fetch origin Last fetched just now terminal behind/ahead: 0	0
+after 2 commits: Push origin ↑2 Last fetched just now terminal behind/ahead: 0	2
+shot: push-origin-ahead-2
+after Push: Fetch origin Last fetched just now terminal behind/ahead: 0	0 origin main: Local change 2
+after commit 3: Push origin ↑1 Last fetched just now
+history Not pushed markers: 1 terminal unpushed: cf495fa Local change 3 (unpushed)
+shot: history-scratch-b
+label before push: Push origin ↑1 Last fetched just now
+rejected notice: The remote has commits you don’t have. Pull first. Pull Dismiss
+shot: push-rejected-pull
+after Pull: Push origin ↑2 Last fetched just now terminal behind/ahead: 0	2
+scratch-b log:
+*   f844988 Merge branch 'main' of /private/tmp/sc-epic/scratch/DM-140/origin
+|\  
+| *   473b5ba Merge branch 'main' of /private/tmp/sc-epic/scratch/DM-140/origin
+| |\  
+| * | ce7b9f4 Other change 2
+* | | cf495fa Local change 3 (unpushed)
+| |/  
+|/|
+has Other change 2: true
+after final Push: Fetch origin Last fetched just now terminal behind/ahead: 0	0

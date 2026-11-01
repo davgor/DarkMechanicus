@@ -10,11 +10,12 @@ An agent helps you shape an epic, decomposes it into tickets with acceptance cri
 - Agents the app hosts (Claude Code, Codex, Cursor): [`docs/runbooks/agents.md`](docs/runbooks/agents.md)
 - Handing a saved epic to Linear: [`docs/runbooks/linear-transfer.md`](docs/runbooks/linear-transfer.md)
 - Working across a folder of Git repositories: [`docs/runbooks/multi-repo-folders.md`](docs/runbooks/multi-repo-folders.md)
+- Signing in to GitHub for Source control: [`docs/runbooks/github-sign-in.md`](docs/runbooks/github-sign-in.md)
 - Agent skills (provider-neutral, also served as MCP prompts): [`skills/`](skills/)
 
 ## Using it
 
-1. **Track a folder** — press **+** in the sidebar and pick a repository. Each tracked folder expands into its **In progress** and **Backlog** epics, its **Kanban** board (with a count of open cards), its **Completed** epics, and its **Agents** chats.
+1. **Track a folder** — press **+** in the sidebar and choose **Add existing folder…** to pick a repository, or **Clone repository…** to clone one (see [Source control](#source-control)). Each tracked folder expands into its **In progress** and **Backlog** epics, its **Kanban** board (with a count of open cards), its **Completed** epics, and its **Agents** chats.
 2. **Initialize** — a new folder shows the setup screen, where you choose where its plans and history are stored:
    - **In this repository** (default) — initializing creates `.darkmechanicus/` (Git-tracked plans and history, plus a Git-ignored `local/` working database), so the plan travels with the code. Nothing is committed for you.
    - **Database only** — nothing at all is written into the repository: no `.darkmechanicus/`, no `.mcp.json`, no skills. Epics, tickets, plan revisions, run history and comments live in one machine-local database under `~/.darkmechanicus/projects/`, for a checkout whose history should not carry planning data. It stays on this machine, a clone sees none of it, and moving or renaming the folder orphans it — see the limitations in [`docs/decisions/0002-storage-modes.md`](docs/decisions/0002-storage-modes.md).
@@ -29,6 +30,16 @@ An agent helps you shape an epic, decomposes it into tickets with acceptance cri
 11. **Hand off to Linear** — instead of running an epic here, press **Transfer to Linear** to move its saved plan, once, to a Linear project in execution order. An agent with Linear's own MCP server creates the project, milestones and issues and reads them back; a read-back that matches the plan completes the epic. Runs and Save are locked while the transfer is open. See [Transfer an epic to Linear](docs/runbooks/linear-transfer.md).
 
 CI/CD mirrored from [CapitalGains](https://github.com/davgor/CapitalGains) (itself aligned with [AI-DND-Matrix](https://github.com/davgor/AI-DND-Matrix) packaging/deploy).
+
+## Source control
+
+Each folder's **Source control** tab works on the Git repository the folder is in, in the manner of GitHub Desktop: its changes (the working tree compared with HEAD) with their diffs, commits of whole files or of chosen lines and hunks, undo of the last unpushed commit, discard (a copy of what is discarded goes to the trash first), history, fetch, pull (merge only, never rebase) and push (never forced), branches and stashes, merge conflicts, clone (from the sidebar's **+** menu), and pull requests: the branch's pull request, the open ones to check out, and a link that creates one on GitHub. It writes to Git only when you ask; agents and MCP never reach it. The design is in [`docs/decisions/0005-source-control-in-main.md`](docs/decisions/0005-source-control-in-main.md).
+
+- **Git on `PATH`.** It runs the `git` it finds on `PATH`; without one the view says that Source control needs Git on this computer.
+- **Signing in.** GitHub features use this computer's GitHub CLI login: install the GitHub CLI (<https://cli.github.com>), run `gh auth login -h github.com` once, then press **Sign in to GitHub** at the bottom of the sidebar. The app copies the token `gh auth token` prints (it needs the `repo` scope; `workflow` to push workflow files) and keeps it encrypted with the OS (`safeStorage`) in `userData/github-account.json`. SSH remotes and other hosts use your machine's own credentials.
+- **Signing out doesn't revoke.** **Sign out** deletes only the app's copy; the token stays valid on GitHub. To revoke it, run `gh auth logout -h github.com` or use **Manage access on GitHub** (<https://github.com/settings/applications>).
+
+Details, scopes and troubleshooting: [Sign in to GitHub](docs/runbooks/github-sign-in.md).
 
 ## Engineering process
 

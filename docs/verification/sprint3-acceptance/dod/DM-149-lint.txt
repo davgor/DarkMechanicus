@@ -1,0 +1,4 @@
+
+> dark-mechanicus@0.20.0 lint
+> oxlint src scripts
+

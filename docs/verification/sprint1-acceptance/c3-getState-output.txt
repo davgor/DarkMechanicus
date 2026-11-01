@@ -1,0 +1,1 @@
+"{\n \"untracked\": {\n  \"ok\": false,\n  \"error\": {\n   \"code\": \"unauthorized\",\n   \"message\": \"That folder is not tracked by Dark Mechanicus.\"\n  }\n },\n \"scratchA\": {\n  \"name\": \"main\",\n  \"headOid\": \"e14637087460f153adb055121102f685001515f5\",\n  \"upstream\": \"origin/main\",\n  \"ahead\": 1,\n  \"behind\": 0\n }\n}"
