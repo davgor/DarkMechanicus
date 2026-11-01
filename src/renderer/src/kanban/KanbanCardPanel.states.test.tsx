@@ -227,3 +227,40 @@ describe('KanbanCardPanel decided attempts', () => {
     expect(panel().textContent).not.toContain('NOTES')
   })
 })
+
+describe('KanbanCardPanel attempts of a card kicked back once', () => {
+  const kickedBack = (): KanbanCardView =>
+    cardView({
+      id: 'kc_a',
+      key: 'DM-7',
+      lane: 'ready_for_review',
+      openAttempt: { number: 2, state: 'submitted' },
+      kickBackCount: 1,
+      attempts: [
+        attempt({ id: 'ka_1', number: 1, state: 'rejected', reviewComment: 'The error page is missing.', decidedAt: '2026-03-02T10:00:00.000Z' }),
+        attempt({ id: 'ka_2', number: 2, state: 'submitted' })
+      ]
+    })
+
+  it('shows the kicked-back attempt rejected by the reviewer, and the submitted one undecided', async () => {
+    cards.kc_a = kickedBack()
+    await show('kc_a')
+
+    const items = within(within(panel()).getByRole('region', { name: 'Attempts' })).getAllByRole('listitem').filter((item) => item.getAttribute('aria-label')?.startsWith('Attempt'))
+    expect(items.map((item) => [item.getAttribute('aria-label'), item.textContent?.includes('Rejected by the reviewer')])).toEqual([
+      ['Attempt #2', false],
+      ['Attempt #1', true]
+    ])
+  })
+
+  it('offers no Accept or Reject in the attempt list: the card is approved or kicked back with the panel\'s own controls', async () => {
+    cards.kc_a = kickedBack()
+    await show('kc_a')
+
+    const attempts = within(panel()).getByRole('region', { name: 'Attempts' })
+    expect(within(attempts).queryByRole('button', { name: 'Accept' })).toBeNull()
+    expect(within(attempts).queryByRole('button', { name: 'Reject' })).toBeNull()
+    expect(within(panel()).getByRole('button', { name: 'Approve' })).toBeTruthy()
+    expect(within(panel()).getByRole('button', { name: 'Kick back' })).toBeTruthy()
+  })
+})

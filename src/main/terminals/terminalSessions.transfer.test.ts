@@ -1,13 +1,15 @@
 /**
- * A Linear transfer chat started again (an exit, an idle stop, an app restart): its kickoff went with the first
- * start only, so a CLI that starts on a new session (Codex and Cursor with no stored session, a custom CLI) must
- * still find its task in the chat's instructions: the epic id, the start_transfer step and the guide. On the fake
- * PTY host and the fake clock.
+ * A Linear transfer chat, or the chat Play opened for a Kanban card, started again (an exit, an idle stop, an app
+ * restart): its kickoff went with the first start only, so a CLI that starts on a new session (Codex and Cursor with
+ * no stored session, a custom CLI) must still find its task in the chat's instructions: for a transfer the epic id,
+ * the start_transfer step and the guide; for a card the card id, the claim step and the guides. On the fake PTY host
+ * and the fake clock.
  */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { transferKickoff } from '../../mcp/transferKickoff'
+import { kanbanKickoff } from '../agents/kanbanKickoff'
 import type { ChatRecord } from '../../shared/agents/chat'
 import { builtInAgent } from '../agents/__mocks__/chatFixtures'
 import type { FakePty } from './__mocks__/fakePtyHost'
@@ -95,5 +97,29 @@ describe('terminal sessions: a Linear transfer chat started again', () => {
 
     expect(instructionsOf(chat)).not.toContain('start_transfer')
     expect(pty.written[0]).not.toContain('Linear transfer guidance')
+  })
+})
+
+describe('terminal sessions: a Kanban card chat started again', () => {
+  const CARD_ID = 'kc_01m6a1p7qaxttbw9f5927qk2dx'
+  const CARD_KICKOFF = kanbanKickoff({ cardId: CARD_ID, key: 'DM-42', title: 'Fix the flaky upload test', branch: 'main' })
+
+  it('gives a Codex card chat on a new session its card again: the claim step and the guides, without the kickoff', async () => {
+    const chat = rig.store.createChat({ folder: rig.repo, agent: 'codex', model: null, role: 'orchestrator', allowSave: false, title: 'Kanban · DM-42 Fix the flaky upload test', cardId: CARD_ID })
+    expect(await rig.sessions.start(chat, { kickoff: CARD_KICKOFF })).toMatchObject({ state: 'running' })
+    const first = rig.host.last()
+    await settleFirstPaste(first)
+    expect(first.written[0]).toContain('Carry this Dark Mechanicus Kanban card')
+    await exit(first)
+
+    const again = await startTerminal(rig, chat)
+    await settleFirstPaste(again.pty)
+
+    expect(rig.host.spawns).toHaveLength(2)
+    const [paste = ''] = again.pty.written
+    expect(paste).toContain(`claim_kanban_card with cardId ${CARD_ID}`)
+    expect(paste).toContain('=== Worker guidance')
+    expect(paste).not.toContain('Carry this Dark Mechanicus Kanban card')
+    expect(instructionsOf(chat)).toContain('## Carrying a Dark Mechanicus Kanban card')
   })
 })

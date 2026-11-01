@@ -76,6 +76,18 @@ describe('terminal sessions: paste into a running terminal', () => {
     expect(pty.written).toEqual(pasteOf(MESSAGE))
   })
 
+  it('pastes a second after the screen last took output, not a second after the paste was asked for', async () => {
+    const chat = rig.newChat('claude')
+    const { pty } = await startTerminal(rig, chat)
+    await draw(pty, 'Claude Code')
+    rig.clock.advance(400)
+
+    await rig.sessions.paste(chat, MESSAGE)
+    rig.clock.advance(SECOND - 400 - 1)
+    expect(pty.written).toEqual([])
+    rig.clock.advance(1)
+    expect(pty.written).toEqual(pasteOf(MESSAGE).slice(0, 1))
+  })
 })
 
 describe('terminal sessions: pastes one after another', () => {

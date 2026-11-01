@@ -70,3 +70,20 @@ describe('useKanbanCounts', () => {
     expect(view.result.current).toEqual({ '/a': 2 })
   })
 })
+
+describe('useKanbanCounts: what counts', () => {
+  it('counts the cards of every open lane, Backlog, In progress and Ready for review, and no Done card', async () => {
+    board.open = [
+      cardSummary({ id: 'kc_1', key: 'DM-1', lane: 'backlog' }),
+      cardSummary({ id: 'kc_2', key: 'DM-2', lane: 'in_progress' }),
+      cardSummary({ id: 'kc_3', key: 'DM-3', lane: 'in_progress' }),
+      cardSummary({ id: 'kc_4', key: 'DM-4', lane: 'ready_for_review' })
+    ]
+    board.done = [cardSummary({ id: 'kc_5', key: 'DM-5', lane: 'done' })]
+
+    const view = mount()
+    await settle()
+
+    expect(view.result.current).toEqual({ '/a': 4 })
+  })
+})

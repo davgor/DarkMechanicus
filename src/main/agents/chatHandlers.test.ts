@@ -679,3 +679,26 @@ describe('chat handlers: kick back a Kanban card', () => {
     expect(calls).toEqual([])
   })
 })
+
+describe('chat handlers: unexpected terminal failures reach the error reporter', () => {
+  it('reports a terminal that throws something other than a domain error, for Start run, the transfer chat, Play and Kick back', async () => {
+    const { chats } = recordingChats()
+    chats.listChats = () => [{ ...CHAT, cardId: CARD_ID }]
+    const terminals: Terminals = {
+      start: () => Promise.reject(new Error('the PTY host is gone')),
+      paste: () => Promise.reject(new Error('the PTY host is gone'))
+    }
+    const errors: unknown[] = []
+    const handlers = handlersOver(chats, errors, recordingRuns(), { terminals })
+
+    const results = [
+      await handlers.startOrchestrator({ folder: SPELLING, epicId: EPIC_ID, agent: 'claude' }),
+      await handlers.startTransferChat({ folder: SPELLING, epicId: EPIC_ID, agent: 'claude' }),
+      await handlers.startKanbanCard({ folder: SPELLING, cardId: CARD_ID, agent: 'claude' }),
+      await handlers.kickBackKanbanCard({ folder: SPELLING, cardId: CARD_ID, comment: 'Not yet.' })
+    ]
+
+    expect(results.map((result) => result.ok && (result.data as { problem: string | null }).problem)).toEqual(Array(4).fill(expect.stringContaining('the PTY host is gone')))
+    expect(errors).toEqual(Array(4).fill(expect.objectContaining({ message: 'the PTY host is gone' })))
+  })
+})

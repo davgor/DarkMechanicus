@@ -260,3 +260,42 @@ describe('KanbanBoard Edit', () => {
     expect(screen.getByRole('button', { name: /^DM-1/ }).textContent).toContain('Renamed')
   })
 })
+
+describe('KanbanBoard: kick-backs and the open Done card', () => {
+  it('shows the kick-backs of a card with no attempt badge, such as one whose last attempt failed after a kick-back', async () => {
+    board.open = [cardSummary({ id: 'kc_a', key: 'DM-7', title: 'Fix login', lane: 'in_progress', openAttempt: null, playPending: false, kickBackCount: 2 })]
+    await show()
+
+    const card = screen.getByRole('button', { name: /^DM-7/ })
+    expect(card.textContent).toContain('2 kick-backs')
+    expect(card.querySelector('.kanban-badge')).toBeNull()
+  })
+
+  it('marks the Done row of the card that is open as selected, and only that one', async () => {
+    board.done = [doneCard(1), doneCard(2)]
+    dm.responses.getKanbanCard = cardView({ id: 'kc_done_2', key: 'DM-102', lane: 'done' })
+    await show()
+    fireEvent.click(screen.getByRole('button', { name: /Show Done/ }))
+
+    fireEvent.click(screen.getByRole('button', { name: /^DM-102/ }))
+
+    expect(screen.getByRole('button', { name: /^DM-102/ }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: /^DM-101/ }).getAttribute('aria-pressed')).toBe('false')
+  })
+})
+
+describe('KanbanBoard card form description', () => {
+  it('says where a new card starts on the New card form, and nothing of the kind on the Edit form', async () => {
+    board.open = [cardSummary({ id: 'kc_a', key: 'DM-1', title: 'Fresh' })]
+    dm.responses.getKanbanCard = cardView({ id: 'kc_a', key: 'DM-1', title: 'Fresh' })
+    await show()
+
+    fireEvent.click(screen.getByRole('button', { name: 'New card' }))
+    expect(screen.getByRole('dialog').textContent).toContain('It starts in Backlog.')
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit DM-1' }))
+    await settle()
+    expect(screen.getByRole('dialog').textContent).not.toContain('It starts in Backlog.')
+  })
+})

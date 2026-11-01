@@ -123,7 +123,6 @@ describe('writeTerminalFiles', () => {
     expect(text).toContain('This chat may save plans itself.')
     expect(text.endsWith(orchestratorGuidance())).toBe(true)
   })
-
   it('lets two starts of one chat write at once, leaving one whole file and nothing staged beside it', async () => {
     const start = { userData, chatId: 'ch_1', platform: 'darwin' as const, folder, cli: cliFor(folder), role: 'planner' as const, allowSave: false, orchestratesRun: false }
 
@@ -148,5 +147,29 @@ describe('writeTerminalFiles', () => {
     await expect(writeTerminalFiles(pinnedElsewhere)).rejects.toThrow(/--repo/)
     await expect(writeTerminalFiles({ ...pinnedElsewhere, platform: 'win32' })).rejects.toThrow(/--repo/)
     expect(existsSync(join(userData, 'agents'))).toBe(false)
+  })
+})
+
+describe('writeTerminalFiles: a task chat', () => {
+  let userData: string
+  let folder: string
+
+  beforeEach(() => {
+    userData = mkdtempSync(join(tmpdir(), 'dm-terminal-files-'))
+    folder = join(userData, 'repo')
+  })
+
+  afterEach(() => {
+    removeScratch(userData)
+  })
+
+  it("writes a transfer chat's and a card chat's task into their instructions, so a start on a new session still has it", async () => {
+    const start = { userData, platform: 'darwin' as const, folder, cli: cliFor(folder), role: 'orchestrator' as const, allowSave: false, orchestratesRun: false }
+
+    const transfer = await writeTerminalFiles({ ...start, chatId: 'ch_1', transferEpicId: 'ep_01m6772ffwkwr2a91fsqzfz1he' })
+    const card = await writeTerminalFiles({ ...start, chatId: 'ch_2', cardId: 'kc_01m6a1p7qaxttbw9f5927qk2dx' })
+
+    expect(readFileSync(transfer.instructions, 'utf8').endsWith(transferGuidance('ep_01m6772ffwkwr2a91fsqzfz1he'))).toBe(true)
+    expect(readFileSync(card.instructions, 'utf8').endsWith(kanbanGuidance('kc_01m6a1p7qaxttbw9f5927qk2dx'))).toBe(true)
   })
 })

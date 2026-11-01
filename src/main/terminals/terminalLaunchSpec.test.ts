@@ -6,6 +6,8 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { DarkMechanicusCli } from '../../shared/agents/chat'
+import { transferGuidance } from '../../mcp/transferKickoff'
+import { kanbanGuidance } from '../agents/kanbanKickoff'
 import { orchestratorGuidance } from '../agents/orchestratorKickoff'
 import { terminalInstructions } from './terminalFiles'
 import { terminalLaunchSpec, type TerminalLaunchInput, type TerminalLaunchSpec } from './terminalLaunchSpec'
@@ -239,6 +241,47 @@ describe('terminalLaunchSpec: the orchestrator chat Start run opened', () => {
     expect(kinds.map((kind) => terminalLaunchSpec(inputFor(kind, 'darwin', 'new', { chat: { ...sent, agent: kind === 'custom' ? 'cu_01' : kind } })).kickoffIn)).toEqual([null, null, null, null, null])
     const shim = terminalLaunchSpec(inputFor('autonomous', 'win32', 'new', { agent: { id: 'autonomous', kind: 'autonomous', executablePath: A8S_SHIM, args: [] } }))
     expect(shim.kickoffIn).toBe('paste')
+  })
+})
+
+describe('terminalLaunchSpec: the card chat Play opened and the Linear transfer chat', () => {
+  const CARD_ID = 'kc_01m6a1p7qaxttbw9f5927qk2dx'
+  const EPIC_ID = 'ep_01m6772ffwkwr2a91fsqzfz1he'
+  const cardChat = (kind: Kind, platform: Platform = 'darwin'): TerminalLaunchInput['chat'] => ({ ...inputFor(kind, platform, 'new').chat, cardId: CARD_ID })
+  const transferChat = (kind: Kind): TerminalLaunchInput['chat'] => ({ ...inputFor(kind, 'darwin', 'new').chat, transferEpicId: EPIC_ID })
+
+  it("starts Claude Code on a card chat with its instructions file and the kickoff as its positional prompt, the card's task in neither argument", () => {
+    const args = argsOf(terminalLaunchSpec(inputFor('claude', 'darwin', 'new', { chat: cardChat('claude') })))
+
+    expect(args).toEqual(expectedArgs('claude', 'new', { ...MAC, text: '' }))
+    expect(args.join('\n')).not.toContain('Carrying a Dark Mechanicus Kanban card')
+  })
+
+  it('gives every other CLI the card guidance with its instructions: Autonomous its appended prompt, Codex and Cursor their first paste, a .cmd its paste', () => {
+    const mac = `${instructionsText('darwin')}\n\n${kanbanGuidance(CARD_ID)}`
+    const win = `${instructionsText('win32')}\n\n${kanbanGuidance(CARD_ID)}`
+    const shim = { id: 'autonomous', kind: 'autonomous' as const, executablePath: A8S_SHIM, args: [] }
+
+    expect(argsOf(terminalLaunchSpec(inputFor('autonomous', 'darwin', 'new', { chat: cardChat('autonomous') })))).toEqual(expectedArgs('autonomous', 'new', { ...MAC, text: mac }))
+    expect(terminalLaunchSpec(inputFor('codex', 'darwin', 'new', { chat: cardChat('codex') })).pasteFirst).toBe(`${mac}\n\n${KICKOFF}`)
+    expect(terminalLaunchSpec(inputFor('cursor', 'darwin', 'new', { chat: cardChat('cursor') })).pasteFirst).toBe(`${mac}\n\n${KICKOFF}`)
+    expect(terminalLaunchSpec(inputFor('autonomous', 'win32', 'new', { chat: cardChat('autonomous', 'win32'), agent: shim })).pasteFirst).toBe(`${win}\n\n${KICKOFF}`)
+  })
+
+  it('gives a card chat started again on a new Codex session its card, without the kickoff', () => {
+    const again = { ...cardChat('codex'), kickoffSent: true }
+
+    expect(terminalLaunchSpec(inputFor('codex', 'darwin', 'new', { chat: again })).pasteFirst).toBe(`${instructionsText('darwin')}\n\n${kanbanGuidance(CARD_ID)}`)
+  })
+
+  it('gives a transfer chat the transfer guidance with its instructions, and a plain chat neither guidance', () => {
+    const transfer = `${instructionsText('darwin')}\n\n${transferGuidance(EPIC_ID)}`
+
+    expect(terminalLaunchSpec(inputFor('codex', 'darwin', 'new', { chat: transferChat('codex') })).pasteFirst).toBe(`${transfer}\n\n${KICKOFF}`)
+    expect(argsOf(terminalLaunchSpec(inputFor('autonomous', 'darwin', 'new', { chat: transferChat('autonomous') })))).toEqual(expectedArgs('autonomous', 'new', { ...MAC, text: transfer }))
+    const plain = terminalLaunchSpec(inputFor('cursor', 'darwin', 'new')).pasteFirst ?? ''
+    expect(plain).not.toContain('Carrying a Dark Mechanicus Kanban card')
+    expect(plain).not.toContain('Linear transfer guidance')
   })
 })
 

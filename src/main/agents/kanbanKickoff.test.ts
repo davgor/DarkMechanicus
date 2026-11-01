@@ -114,6 +114,13 @@ describe('kanban guidance steps', () => {
 })
 
 describe('kanban guidance guides', () => {
+  it('maps the ticket tools the guides name to the Kanban card tools, and lets the steps win where they differ', () => {
+    const note = kanbanGuidance(CARD_ID).split('\n').find((line) => line.startsWith('The two guides below')) ?? ''
+    expect(note).toContain('use claim_kanban_card, heartbeat_kanban_card, submit_kanban_card and fail_kanban_card where they name the ticket tools')
+    expect(note).toMatch(/where they differ from the steps above \(who submits, which branch\), follow the steps/)
+    expect(note).toMatch(/no way to open MCP prompts or skills/)
+  })
+
   it('carries the orchestrator and worker guidance in marked sections after the steps', () => {
     const text = kanbanGuidance(CARD_ID)
     const order = [
