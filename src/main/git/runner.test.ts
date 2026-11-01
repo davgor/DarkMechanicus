@@ -223,16 +223,6 @@ describe('timeout and abort (fake spawn)', () => {
     await writeSettled
     expect(calls[0].child.kills).toContain('SIGTERM')
   })
-
-  it('never times out network operations', async () => {
-    const { spawn, calls } = fakeSpawn()
-    const run = createGitRunner({ spawn, platform: 'linux' }).run(req({ kind: 'network' }))
-    await vi.advanceTimersByTimeAsync(24 * 3600 * 1000)
-    expect(calls[0].child.kills).toEqual([])
-    calls[0].child.close(0)
-    await run
-  })
-
 })
 
 describe('abort (fake spawn)', () => {

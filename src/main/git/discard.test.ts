@@ -113,3 +113,31 @@ describe('discardFiles added and renamed files', () => {
     expect(readFileSync(join(r.root, 'file-1.txt'), 'utf8')).toBe('edit\n')
   })
 })
+
+describe('discardFiles with pathspec-magic file names', () => {
+  function tracked(names: string[]): GitRepo {
+    const r = repo()
+    names.forEach((name) => put(r.root, name, `${name} committed\n`))
+    r.git('--literal-pathspecs', 'add', '--', ...names)
+    r.git('commit', '-q', '-m', 'magic names')
+    names.forEach((name) => put(r.root, name, `${name} edited\n`))
+    return r
+  }
+
+  it.each([':!b', '*'])('discards only a modified file named %s', async (name) => {
+    const r = tracked([name, 'b', 'c.txt'])
+    await discardFiles(runner, r.root, { files: [change(name, 'modified')] }, fakeTrash().trash)
+    expect(readFileSync(join(r.root, name), 'utf8')).toBe(`${name} committed\n`)
+    expect(readFileSync(join(r.root, 'b'), 'utf8')).toBe('b edited\n')
+    expect(readFileSync(join(r.root, 'c.txt'), 'utf8')).toBe('c.txt edited\n')
+  })
+
+  it.each([':!b', '*'])('unstages only an added file named %s', async (name) => {
+    const r = repo()
+    put(r.root, name, 'new\n')
+    put(r.root, 'b', 'new b\n')
+    r.git('--literal-pathspecs', 'add', '--', name, 'b')
+    await discardFiles(runner, r.root, { files: [change(name, 'added')] }, fakeTrash().trash)
+    expect(r.git('status', '--porcelain')).toBe('A  b')
+  })
+})

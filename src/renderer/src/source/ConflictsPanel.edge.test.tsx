@@ -51,6 +51,7 @@ const state = (files: FileChange[], inProgress: RepoStatus['inProgress'] = 'merg
 const CONFLICTS: ConflictState = {
   ourBranch: 'main',
   theirLabel: 'topic',
+  mineSide: 'ours',
   files: [
     { path: 'a.ts', kind: 'both_modified', markers: 0 },
     { path: 'b.ts', kind: 'deleted_by_them', markers: 1 }

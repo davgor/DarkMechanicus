@@ -1,7 +1,8 @@
 /**
  * The behavior behind the `git:*` IPC channels, as a pure factory over injected dependencies (no
  * Electron imports). Every argument arrives from the renderer and is untrusted: it is validated
- * here, the folder must be tracked, and paths must stay inside the repository. Nothing throws.
+ * here, the folder must be tracked (a clone goes only into the folder chosen in main's dialog), and
+ * paths must stay inside the repository. Nothing throws.
  */
 import { z } from 'zod'
 import { DomainError } from '../../core/errors'
@@ -11,10 +12,16 @@ import type { FileDiff } from '../../shared/git/diff'
 import type { CommitDiffRequest, CommitFile, HistoryPage, HistoryRequest } from '../../shared/git/history'
 import type { BranchList, BranchNameCheck, StashInfo } from '../../shared/git/branches'
 import type { ConflictState } from '../../shared/git/conflicts'
+import type { TrackedFolderView } from '../../shared/desktop/api'
 import type { RepoState } from '../../shared/git/status'
 import type { FolderRegistry } from '../desktop/folderRegistry'
+import type { CompareUrl, PullRequestInfo } from '../../shared/github/pullRequests'
+import type { GithubClient } from '../github/client'
+import { GithubError } from '../github/errors'
+import { createPullRequests } from '../github/pullRequests'
 import { checkBranchName, pathArgs } from './args'
 import { createBranch, deleteBranch, listBranches, mergeIntoCurrent, renameBranch, switchBranch } from './branches'
+import type { Cloner } from './clone'
 import { commitFiles, undoLastCommit } from './commit'
 import { abortMerge, abortOperation, commitMerge, getConflicts, markResolved, openInEditor, resolveWith, type OpenPath } from './conflicts'
 import type { CredentialSession } from './credentials'
@@ -43,7 +50,16 @@ const FILE_KINDS = ['added', 'modified', 'deleted', 'renamed', 'copied', 'typech
 const commitRequestSchema = z.strictObject({
   summary: z.string().max(MAX_PATH_LENGTH),
   description: z.string().max(1_000_000),
-  files: z.array(z.strictObject({ path: pathSchema, oldPath: pathSchema.nullable() })).max(100_000)
+  files: z
+    .array(
+      z.strictObject({
+        path: pathSchema,
+        oldPath: pathSchema.nullable(),
+        lines: z.array(z.number().int().min(0)).max(10_000_000).optional(),
+        diffHash: z.string().max(100).optional()
+      })
+    )
+    .max(100_000)
 })
 const discardRequestSchema = z.strictObject({
   files: z.array(z.strictObject({ path: pathSchema, oldPath: pathSchema.nullable(), kind: z.enum(FILE_KINDS) })).max(100_000)
@@ -54,6 +70,8 @@ const historyRequestSchema = z.strictObject({ skip: z.number().int().min(0), lim
 const commitDiffRequestSchema = z.strictObject({ oid: oidSchema, path: pathSchema, oldPath: pathSchema.nullable(), force: z.boolean().optional() })
 const operationIdSchema = z.string().min(1).max(200)
 const syncRequestSchema = z.strictObject({ operationId: operationIdSchema })
+/** A clone: the renderer names the URL and the new folder's name, never the folder it goes into. */
+const cloneRequestSchema = z.strictObject({ operationId: operationIdSchema, url: z.string().max(4096), name: z.string().max(1024) })
 /** Generous for a branch name (git and `checkBranchName` set the real limits); it only bounds the payload. */
 const branchNameSchema = z.string().max(1024)
 const createBranchSchema = z.strictObject({ name: branchNameSchema, startPoint: z.enum(['current', 'default']) })
@@ -65,9 +83,13 @@ const stashRefSchema = z.string().max(64)
 const resolveSchema = z.strictObject({ path: pathSchema, side: z.enum(['ours', 'theirs']) })
 const markResolvedSchema = z.strictObject({ path: pathSchema })
 const commitMergeSchema = z.strictObject({ summary: z.string().max(MAX_PATH_LENGTH).optional(), description: z.string().max(1_000_000).optional() })
+const pullRequestsSchema = z.strictObject({ refresh: z.boolean().optional() }).optional()
+const checkoutPullRequestSchema = z.strictObject({ number: z.number().int().min(1).max(2_147_483_647), uncommitted: z.enum(['stash', 'bring']) })
 
 interface GitHandlerDeps {
   registry: Pick<FolderRegistry, 'resolve'>
+  /** Clones into the folder chosen with main's dialog; without it, the clone channels answer that cloning is unavailable. */
+  clones?: Cloner
   runner: GitRunner
   /** Told about failures that are not GitErrors (bugs, I/O), so main can log the stack. */
   /** Moves a file to the OS trash (Electron's shell.trashItem). */
@@ -76,6 +98,8 @@ interface GitHandlerDeps {
   openPath: OpenPath
   /** The GitHub account fetch, pull and push authenticate with; its token never leaves main. */
   session: CredentialSession
+  /** The session-bound GitHub API client pull requests are read with; a 401 through it signs the account out. */
+  client: Pick<GithubClient, 'listOpenPullRequests'>
   /** Sends a progress event of a fetch, pull or push to the windows. */
   onProgress(event: GitProgressEvent): void
   onUnexpectedError(error: unknown): void
@@ -96,6 +120,9 @@ export interface GitHandlers {
   pull(folder: unknown, request: unknown): Promise<GitResult<RepoState>>
   push(folder: unknown, request: unknown): Promise<GitResult<RepoState>>
   cancelOperation(folder: unknown, operationId: unknown): Promise<GitResult<{ cancelled: boolean }>>
+  getCloneParent(): Promise<GitResult<string | null>>
+  chooseCloneParent(): Promise<GitResult<string | null>>
+  clone(request: unknown): Promise<GitResult<TrackedFolderView>>
   listBranches(folder: unknown): Promise<GitResult<BranchList>>
   checkBranchName(folder: unknown, name: unknown): Promise<GitResult<BranchNameCheck>>
   createBranch(folder: unknown, request: unknown): Promise<GitResult<RepoState>>
@@ -113,6 +140,10 @@ export interface GitHandlers {
   commitMerge(folder: unknown, request: unknown): Promise<GitResult<{ oid: string }>>
   abortOperation(folder: unknown): Promise<GitResult<RepoState>>
   openInEditor(folder: unknown, path: unknown): Promise<GitResult<null>>
+  getPullRequests(folder: unknown, request: unknown): Promise<GitResult<PullRequestInfo>>
+  checkoutPullRequest(folder: unknown, request: unknown): Promise<GitResult<RepoState>>
+  getCompareUrl(folder: unknown): Promise<GitResult<CompareUrl>>
+  getCommitUrl(folder: unknown, oid: unknown): Promise<GitResult<string>>
 }
 
 /** A failure to report as is: bad input, an untracked folder, or an operation git cannot do here. */
@@ -159,6 +190,9 @@ function report(error: unknown, onUnexpectedError: (error: unknown) => void): Gi
   }
   if (error instanceof GitError) {
     return { ok: false, error: { code: error.code, message: error.message, ...(error.detail === '' ? {} : { detail: error.detail }) } }
+  }
+  if (error instanceof GithubError) {
+    return { ok: false, error: { code: error.code, message: error.message } }
   }
   try {
     onUnexpectedError(error)
@@ -223,7 +257,8 @@ function createHistoryHandlers(
 function createSyncHandlers(
   registry: Pick<FolderRegistry, 'resolve'>,
   sync: Sync,
-  guarded: Guarded
+  guarded: Guarded,
+  clones: Cloner | undefined
 ): Pick<GitHandlers, 'fetch' | 'pull' | 'push' | 'cancelOperation'> {
   const operation = (name: SyncOperation): GitHandlers['fetch'] => (folder, request) =>
     guarded(async () => {
@@ -237,9 +272,45 @@ function createSyncHandlers(
     push: operation('push'),
     cancelOperation: (folder, operationId) =>
       guarded(async () => {
+        const clone = cancelClone(clones, registry, folder, operationId)
+        if (clone !== null) {
+          return clone
+        }
         const tracked = requireTracked(registry, folder)
         return { cancelled: sync.cancel(tracked, invalid(operationIdSchema, operationId, 'operation id')) }
       })
+  }
+}
+
+/**
+ * A cancel aimed at a clone, which runs in its parent folder and need not be tracked: true once one is stopped, false
+ * for an untracked clone parent with nothing left running; null when this is not about a clone.
+ */
+function cancelClone(clones: Cloner | undefined, registry: Pick<FolderRegistry, 'resolve'>, folder: unknown, operationId: unknown): { cancelled: boolean } | null {
+  if (clones === undefined || typeof folder !== 'string') {
+    return null
+  }
+  if (typeof operationId === 'string' && clones.cancel(folder, operationId)) {
+    return { cancelled: true }
+  }
+  if (folder === clones.getParent() && registry.resolve(folder) === null) {
+    invalid(operationIdSchema, operationId, 'operation id')
+    return { cancelled: false }
+  }
+  return null
+}
+
+function createCloneHandlers(clones: Cloner | undefined, guarded: Guarded): Pick<GitHandlers, 'getCloneParent' | 'chooseCloneParent' | 'clone'> {
+  const cloner = (): Cloner => {
+    if (clones === undefined) {
+      throw new Refusal({ code: 'git_failed', message: 'Cloning is not available here.' })
+    }
+    return clones
+  }
+  return {
+    getCloneParent: () => guarded(async () => cloner().getParent()),
+    chooseCloneParent: () => guarded(() => cloner().chooseParent()),
+    clone: (request) => guarded(() => cloner().clone(invalid(cloneRequestSchema, request, 'request')))
   }
 }
 
@@ -303,6 +374,20 @@ function createConflictHandlers(deps: GitHandlerDeps, guarded: Guarded): Pick<Gi
   }
 }
 
+type PullRequestMethod = 'getPullRequests' | 'checkoutPullRequest' | 'getCompareUrl' | 'getCommitUrl'
+
+function createPullRequestHandlers(deps: GitHandlerDeps, guarded: Guarded): Pick<GitHandlers, PullRequestMethod> {
+  const { registry, runner } = deps
+  const pullRequests = createPullRequests({ runner, session: deps.session, client: deps.client })
+  const withRequest = requestHandlers(registry, guarded)
+  return {
+    getPullRequests: withRequest(pullRequestsSchema, 'request', (tracked, request) => pullRequests.get(tracked, request?.refresh === true)),
+    checkoutPullRequest: withRequest(checkoutPullRequestSchema, 'request', (tracked, request) => pullRequests.checkout(tracked, request)),
+    getCompareUrl: (folder) => guarded(() => pullRequests.compareUrl(requireTracked(registry, folder))),
+    getCommitUrl: withRequest(oidSchema, 'commit id', (tracked, oid) => pullRequests.commitUrl(tracked, oid))
+  }
+}
+
 export function createGitHandlers(deps: GitHandlerDeps): GitHandlers {
   const { registry, runner } = deps
 
@@ -339,8 +424,10 @@ export function createGitHandlers(deps: GitHandlerDeps): GitHandlers {
         return discardFiles(runner, tracked, parsed, deps.trashItem)
       }),
     ...createHistoryHandlers(registry, runner, guarded),
-    ...createSyncHandlers(registry, createSync({ runner, session: deps.session, onProgress: deps.onProgress }), guarded),
+    ...createSyncHandlers(registry, createSync({ runner, session: deps.session, onProgress: deps.onProgress }), guarded, deps.clones),
+    ...createCloneHandlers(deps.clones, guarded),
     ...createBranchHandlers(deps, guarded),
-    ...createConflictHandlers(deps, guarded)
+    ...createConflictHandlers(deps, guarded),
+    ...createPullRequestHandlers(deps, guarded)
   }
 }

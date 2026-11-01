@@ -24,6 +24,7 @@ function setup(): { handlers: GitHandlers; r: GitRepo } {
     trashItem: () => Promise.resolve(),
     openPath: () => Promise.resolve(''),
     session: { getAccount: () => null, getToken: () => null },
+    client: { listOpenPullRequests: () => Promise.reject(new Error('not used')) },
     onProgress: () => undefined,
     onUnexpectedError: (error) => {
       throw error

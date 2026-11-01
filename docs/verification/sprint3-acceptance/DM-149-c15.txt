@@ -1,0 +1,13 @@
+uptime before: 3:51  up 4 days, 56 mins, 12 users, load averages: 27.82 23.84 31.36
+origin: ext::/private/tmp/sc-epic/scratch/DM-149/stall.sh | stall.sh: #!/bin/sh ⏎ # ext:: helper that prints nothing and never answers ⏎ exec sleep 300
+userData: <temp profile>
+button before: Fetch origin Never fetched
+button while fetching (3 s): Fetch origin Never fetched | helper processes: 2
+shot: DM-149-c15-fetching.png
+timeout shown after 60.6 s (from the click)
+message: ["The connection stalled: git made no progress for 60 seconds.\n\nDismiss"]
+detail block: none (git wrote no stderr)
+button after: Fetch origin Last fetched 1 minute ago
+shot: DM-149-c15-stall-timeout.png
+helper processes 3 s after the timeout: 0
+uptime after: 3:53  up 4 days, 57 mins, 12 users, load averages: 21.19 22.84 30.43

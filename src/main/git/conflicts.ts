@@ -6,11 +6,11 @@
  * only a plain, non-executable file that no OS runs by its name is handed to the default app.
  */
 import { open } from 'node:fs/promises'
-import { readFileSync, realpathSync, statSync, type Stats } from 'node:fs'
+import { existsSync, readFileSync, realpathSync, statSync, type Stats } from 'node:fs'
 import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type { CommitMergeRequest, ConflictFile, ConflictKind, ConflictState, MarkResolvedRequest, ResolveRequest } from '../../shared/git/conflicts'
 import type { RepoState, RepoStatus } from '../../shared/git/status'
-import { pathArgs } from './args'
+import { literalPathArgs } from './args'
 import { buildMessage, checkPaths, requireStatus } from './commit'
 import { GitError, GitInputError } from './errors'
 import type { GitRunner } from './runner'
@@ -41,8 +41,6 @@ const SPACE = 0x20
 const NEWLINE = 0x0a
 const CHUNK_BYTES = 1024 * 1024
 const MAX_LABEL_CHARS = 200
-/** Paths are pathspecs to git; `:/x` or `:!x` would otherwise name other files. */
-const LITERAL = '--literal-pathspecs'
 /**
  * Names macOS, Windows or a Linux desktop opens by running or launching them, whatever the content. A conflicted file
  * like this is not handed to the default app.
@@ -160,12 +158,11 @@ function labelOf(line: string): string {
   return label.slice(0, MAX_LABEL_CHARS)
 }
 
-/** What is being merged in, from the first line of MERGE_MSG; null when git wrote none. */
-async function readTheirLabel(runner: GitRunner, root: string): Promise<string | null> {
-  const result = await runner.run({ cwd: root, args: ['rev-parse', '--git-path', 'MERGE_MSG'], kind: 'read' })
+/** The first line of MERGE_MSG as a label; null when git wrote none. */
+function readLabel(path: string): string | null {
   let text: string
   try {
-    text = readFileSync(resolve(root, result.stdout.replace(/\r?\n$/, '')), 'utf8')
+    text = readFileSync(path, 'utf8')
   } catch {
     return null
   }
@@ -173,12 +170,36 @@ async function readTheirLabel(runner: GitRunner, root: string): Promise<string |
   return first === '' ? null : labelOf(first)
 }
 
+interface MergeFiles {
+  /** What is being merged in, from MERGE_MSG. */
+  label: string | null
+  /** Whether MERGE_HEAD exists: git is running a real merge, also at a `git rebase -r` merge step. */
+  mergeHead: boolean
+}
+
+async function readMergeFiles(runner: GitRunner, root: string): Promise<MergeFiles> {
+  const result = await runner.run({ cwd: root, args: ['rev-parse', '--git-path', 'MERGE_MSG', '--git-path', 'MERGE_HEAD'], kind: 'read' })
+  const [message = '', head = ''] = result.stdout.split(/\r?\n/)
+  return {
+    label: message === '' ? null : readLabel(resolve(root, message)),
+    mergeHead: head !== '' && existsSync(resolve(root, head))
+  }
+}
+
+/**
+ * The unmerged files and the sides' names. Whose side is mine is decided here alone: a rebase replaying a commit
+ * checks out the upstream as git's `ours` and replays the person's commit as `theirs`; at a `git rebase -r` merge step
+ * (MERGE_HEAD exists) git runs a real merge on the rewritten branch, so `ours` is the person's again, as in a merge,
+ * cherry-pick, revert or `git am`.
+ */
 export async function getConflicts(runner: GitRunner, folder: string): Promise<ConflictState> {
   const status = await requireStatus(runner, folder)
   const unmerged = await readUnmerged(runner, status.root)
+  const merge = status.inProgress === null ? null : await readMergeFiles(runner, status.root)
   return {
     ourBranch: status.branch.name,
-    theirLabel: status.inProgress === null ? null : await readTheirLabel(runner, status.root),
+    theirLabel: merge === null ? null : merge.label,
+    mineSide: status.inProgress === 'rebase' && merge !== null && !merge.mergeHead ? 'theirs' : 'ours',
     files: unmerged.map((entry) => entry.file)
   }
 }
@@ -210,15 +231,15 @@ function write(runner: GitRunner, root: string, args: string[]): Promise<unknown
 export async function resolveWith(runner: GitRunner, folder: string, request: ResolveRequest): Promise<RepoState> {
   const { status, entry } = await findConflict(runner, folder, request.path)
   const root = status.root
-  const paths = pathArgs([request.path])
+  const paths = [request.path]
   const chosen = request.side === 'ours' ? entry.ours : entry.theirs
   if (chosen.mode === NO_STAGE) {
-    await write(runner, root, [LITERAL, 'rm', '-q', ...paths])
+    await write(runner, root, literalPathArgs(['rm', '-q'], paths))
   } else if (chosen.mode === GITLINK_MODE) {
     await write(runner, root, ['update-index', '--cacheinfo', `${chosen.mode},${chosen.oid},${request.path}`])
   } else {
-    await write(runner, root, [LITERAL, 'checkout', `--${request.side}`, ...paths])
-    await write(runner, root, [LITERAL, 'add', ...paths])
+    await write(runner, root, literalPathArgs(['checkout', `--${request.side}`], paths))
+    await write(runner, root, literalPathArgs(['add'], paths))
   }
   return readRepoState(runner, root)
 }
@@ -230,7 +251,7 @@ export async function markResolved(runner: GitRunner, folder: string, request: M
   if (markers > 0) {
     throw new GitError('conflict_markers_remain', '', `${request.path} still has ${markers} conflict ${markers === 1 ? 'marker' : 'markers'}.`)
   }
-  await write(runner, status.root, [LITERAL, 'add', '-A', ...pathArgs([request.path])])
+  await write(runner, status.root, literalPathArgs(['add', '-A'], [request.path]))
   return readRepoState(runner, status.root)
 }
 
@@ -261,7 +282,7 @@ export async function commitMerge(runner: GitRunner, folder: string, request: Co
   }
   const root = status.root
   if (summary === '') {
-    await write(runner, root, ['commit', '-q', '--no-edit'])
+    await write(runner, root, [...(await commentCharFix(runner, root)), 'commit', '-q', '--no-edit', '--cleanup=strip'])
   } else {
     await runner.run({ cwd: root, args: ['commit', '-q', '-F', '-'], kind: 'write', stdin: buildMessage(summary, description) })
   }
@@ -269,7 +290,16 @@ export async function commitMerge(runner: GitRunner, folder: string, request: Co
   return { oid: head.stdout.trim() }
 }
 
-/** Aborts a rebase, cherry-pick or revert in progress (a merge has `abortMerge`). */
+/**
+ * Pins `core.commentChar=#` when it is `auto`: git wrote MERGE_MSG's comment lines with `#`, but `auto` would pick a
+ * character no line starts with, so `--cleanup=strip` would keep them.
+ */
+async function commentCharFix(runner: GitRunner, root: string): Promise<string[]> {
+  const read = await runner.run({ cwd: root, args: ['config', '--default', '#', '--get', 'core.commentChar'], kind: 'read' })
+  return read.stdout.trim() === 'auto' ? ['-c', 'core.commentChar=#'] : []
+}
+
+/** Aborts a rebase, `git am`, cherry-pick or revert in progress with `git <operation> --abort` (a merge has `abortMerge`). */
 export async function abortOperation(runner: GitRunner, folder: string): Promise<RepoState> {
   const status = await requireStatus(runner, folder)
   const operation = status.inProgress

@@ -6,10 +6,10 @@ import { Dialog } from '../components/Dialog'
 import { Menu } from '../components/Menu'
 import { badgeOf, splitPath } from './changeBadge'
 import { CommitBox } from './CommitBox'
-import { ConflictsPanel, useConflicts } from './ConflictsPanel'
+import { ConflictsPanel } from './ConflictsPanel'
+import type { ConflictsModel } from './ConflictsPanel'
 import type { CommittedInfo } from './CommitBox'
 import { StashedChanges } from './StashedChanges'
-import { useInclusion } from './useInclusion'
 import type { InclusionModel } from './useInclusion'
 
 export const fileKey = (file: FileChange): string => `${file.kind}\u0000${file.path}`
@@ -28,6 +28,27 @@ interface FileRowProps {
   onDiscard(): void
 }
 
+/** A file's include checkbox: checked when whole, indeterminate when only some lines are included. */
+function IncludeBox({ path, inclusion }: { path: string; inclusion: InclusionModel }): JSX.Element {
+  const ref = useRef<HTMLInputElement>(null)
+  const state = inclusion.of(path)
+  useEffect(() => {
+    if (ref.current !== null) {
+      ref.current.indeterminate = state === 'partial'
+    }
+  }, [state])
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      className="source-check"
+      aria-label={`Include ${path}`}
+      checked={state === 'all'}
+      onChange={() => inclusion.toggle(path)}
+    />
+  )
+}
+
 function FileRow({ file, selected, inclusion, onSelect, onDiscard }: FileRowProps): JSX.Element {
   const [menuOpen, setMenuOpen] = useState(false)
   const { dir, name } = splitPath(file.path)
@@ -40,13 +61,7 @@ function FileRow({ file, selected, inclusion, onSelect, onDiscard }: FileRowProp
         setMenuOpen(true)
       }}
     >
-      <input
-        type="checkbox"
-        className="source-check"
-        aria-label={`Include ${file.path}`}
-        checked={inclusion.of(file.path) !== 'none'}
-        onChange={() => inclusion.toggle(file.path)}
-      />
+      <IncludeBox path={file.path} inclusion={inclusion} />
       <button type="button" className="source-file" aria-pressed={selected} onClick={onSelect}>
         <span className="source-file-text">
           <span className="source-file-path">
@@ -230,18 +245,25 @@ function ChangesList({ files, inclusion, selected, onSelect, onDiscard }: Change
 interface ChangesPanelProps {
   folderPath: string
   status: RepoStatus
-  /** Changes whenever the status was read again, so the conflicts are read again too. */
-  version: number
+  /** The conflicts of the folder, read again whenever the status is. */
+  conflicts: ConflictsModel
+  /** What a commit takes of each of `conflicts.otherFiles`. */
+  inclusion: InclusionModel
   selected: string | null
   onSelect(key: string): void
   /** Reads the repository state again. */
   onRefresh(): void
 }
 
+/** After `stale_selection`: resets the files that changed (each with its toast), then reads the diff again. */
+async function refreshStale(inclusion: InclusionModel, onRefresh: () => void): Promise<boolean> {
+  const reset = await inclusion.recheck()
+  onRefresh()
+  return reset > 0
+}
+
 /** The left column's Changes: the conflicts first, then files with checkboxes, discard, the undo strip and the commit box. */
-export function ChangesPanel({ folderPath, status, version, selected, onSelect, onRefresh }: ChangesPanelProps): JSX.Element {
-  const conflicts = useConflicts(folderPath, status, version)
-  const inclusion = useInclusion(folderPath, conflicts.otherFiles)
+export function ChangesPanel({ folderPath, status, conflicts, inclusion, selected, onSelect, onRefresh }: ChangesPanelProps): JSX.Element {
   const [discarding, setDiscarding] = useState<readonly FileChange[] | null>(null)
   const [draft, setDraft] = useState({ summary: '', description: '' })
   const [committed, setCommitted] = useState<CommittedInfo | null>(null)
@@ -262,14 +284,16 @@ export function ChangesPanel({ folderPath, status, version, selected, onSelect, 
             folderPath={folderPath}
             branchName={status.branch.name}
             headOid={status.branch.headOid}
-            included={inclusion.included}
+            files={inclusion.commitFiles}
             summary={draft.summary}
             description={draft.description}
             onChange={setDraft}
             onCommitted={(info) => {
+              inclusion.clearLines()
               setCommitted(info)
               onRefresh()
             }}
+            onStaleSelection={() => refreshStale(inclusion, onRefresh)}
           />
         )}
       </div>

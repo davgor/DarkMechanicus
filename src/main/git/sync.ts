@@ -7,7 +7,7 @@ import type { GitProgressEvent } from '../../shared/git/api'
 import type { RepoState } from '../../shared/git/status'
 import { credentialArgs, type CredentialSession, isGithubHttps, sshPromptEnv } from './credentials'
 import { GitError, GitInputError } from './errors'
-import { parseProgressLine } from './progress'
+import { progressSink } from './progress'
 import { resolveSyncRemote, type SyncRemote } from './remotes'
 import type { GitRunner } from './runner'
 import { readRepository, readRepoState } from './status'
@@ -70,19 +70,6 @@ function commandArgs(operation: SyncOperation, target: SyncRemote, branch: strin
   return pushArgs(target, local)
 }
 
-/** Progress lines become events; a line repeating the last phase and percentage is dropped. */
-function progressSink(deps: SyncDeps, run: Run): (line: string) => void {
-  let last = ''
-  return (line) => {
-    const parsed = parseProgressLine(line)
-    if (parsed === null || `${parsed.phase}\0${String(parsed.percent)}` === last) {
-      return
-    }
-    last = `${parsed.phase}\0${String(parsed.percent)}`
-    deps.onProgress({ folder: run.folder, operationId: run.operationId, operation: run.operation, ...parsed })
-  }
-}
-
 /**
  * Signed in, a rejection by github.com means the token no longer works; signed out on GitHub HTTPS, it means
  * sign in. A rejection by another host (a submodule's) keeps git's own code.
@@ -140,7 +127,9 @@ async function runOperation(deps: SyncDeps, run: Run): Promise<RepoState> {
       env: auth.env,
       redact: auth.redact,
       signal: run.signal,
-      onProgress: progressSink(deps, run)
+      onProgress: progressSink((progress) => {
+        deps.onProgress({ folder: run.folder, operationId: run.operationId, operation: run.operation, ...progress })
+      })
     })
   } catch (error) {
     throw auth.failure(error)

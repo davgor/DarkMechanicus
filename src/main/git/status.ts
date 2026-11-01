@@ -103,10 +103,16 @@ export function parseStatusV2(output: string): ParsedStatus {
   return { branch, files }
 }
 
+/**
+ * Marker files in the order they decide, the first that exists winning. A rebase comes before MERGE_HEAD (a `git
+ * rebase -r` stopped at a conflicting merge has both), and `git am` before a rebase: both use `rebase-apply/`, and
+ * only `git am` writes `applying` in it.
+ */
 const OPERATION_MARKERS: ReadonlyArray<readonly [string, Exclude<OperationInProgress, null>]> = [
-  ['MERGE_HEAD', 'merge'],
   ['rebase-merge', 'rebase'],
+  ['rebase-apply/applying', 'am'],
   ['rebase-apply', 'rebase'],
+  ['MERGE_HEAD', 'merge'],
   ['CHERRY_PICK_HEAD', 'cherry-pick'],
   ['REVERT_HEAD', 'revert']
 ]

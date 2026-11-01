@@ -29,7 +29,7 @@ interface ConflictRowModel extends ConflictFile {
   resolved: boolean
 }
 
-interface ConflictsModel {
+export interface ConflictsModel {
   /** An operation is in progress or files are unmerged, so the Conflicts panel shows. */
   active: boolean
   /** The last answer of `getConflicts`; null until the first arrives. */
@@ -110,11 +110,19 @@ export function useConflicts(folder: string, status: RepoStatus, version: number
 
 const plural = (count: number, one: string, many: string): string => `${count} ${count === 1 ? one : many}`
 
+/** How the banner names an operation other than a merge, whose Abort runs `git <operation> --abort`. */
+const OPERATION_NAMES: Record<Exclude<RepoStatus['inProgress'], null | 'merge'>, string> = {
+  rebase: 'A rebase',
+  am: 'Applying patches (git am)',
+  'cherry-pick': 'A cherry-pick',
+  revert: 'A revert'
+}
+
 type Run = (what: string, call: () => Promise<GitResult<unknown>>) => void
 
 interface Side {
   label: string
-  /** What git calls it: during a rebase, the commit being replayed (the person's) is `theirs`. */
+  /** What git calls it: while a rebase replays a commit, the commit (the person's) is `theirs`. */
   side: 'ours' | 'theirs'
 }
 
@@ -230,7 +238,7 @@ function ConflictBanner({ status, model, busy, folderPath, run, onAbortMerge }: 
   if (operation !== 'merge') {
     return (
       <div className="source-conflict-banner" role="region" aria-label="Operation in progress">
-        <p className="source-conflict-banner-text">A {operation} is in progress. Finish it in a terminal, or abort it here.</p>
+        <p className="source-conflict-banner-text">{OPERATION_NAMES[operation]} is in progress. Finish it in a terminal, or abort it here.</p>
         <div className="source-conflict-actions">
           <Button size="sm" variant="danger" busy={busy === 'abort'} onClick={() => run('abort', () => window.git.abortOperation(folderPath))}>
             Abort
@@ -274,22 +282,24 @@ interface ConflictsPanelProps {
 }
 
 /**
- * Mine is the current branch and theirs what comes in, except in a rebase: there git's `ours` is the upstream being
- * rebased onto and `theirs` the person's commit being replayed (MERGE_MSG, so `theirLabel`, names it).
+ * Mine is git's side `mineSide` names (main decides it: `theirs` while a rebase replays a commit, else `ours`) and
+ * theirs the other. `ourBranch` names git's `ours` and `theirLabel` (MERGE_MSG) git's `theirs`. Buttons only show on
+ * unresolved rows, which exist only once the conflicts are read.
  */
-function sidesOf(conflicts: ConflictState | null, operation: RepoStatus['inProgress']): Sides {
+function sidesOf(conflicts: ConflictState | null): Sides {
   const ours = conflicts?.ourBranch ?? null
   const theirs = conflicts?.theirLabel ?? null
   const named = (word: string, name: string | null): string => (name === null ? word : `${word} (${name})`)
-  if (operation === 'rebase') {
+  if (conflicts?.mineSide === 'theirs') {
     return { mine: { label: named('Use mine', theirs), side: 'theirs' }, theirs: { label: named('Use theirs', ours), side: 'ours' } }
   }
   return { mine: { label: named('Use mine', ours), side: 'ours' }, theirs: { label: named('Use theirs', theirs), side: 'theirs' } }
 }
 
 /**
- * Above the Changes list while a merge, rebase, cherry-pick or revert is in progress or files are unmerged (a stash
- * restore): the banner for the operation, then each conflicted file with its marker count and the ways to resolve it.
+ * Above the Changes list while a merge, rebase, git am, cherry-pick or revert is in progress or files are unmerged (a
+ * stash restore): the banner for the operation, then each conflicted file with its marker count and the ways to resolve
+ * it.
  */
 export function ConflictsPanel({ folderPath, status, model, selectedPath, onSelect, onRefresh }: ConflictsPanelProps): JSX.Element {
   const [busy, setBusy] = useState<string | null>(null)
@@ -306,7 +316,7 @@ export function ConflictsPanel({ folderPath, status, model, selectedPath, onSele
       }
     ).finally(onRefresh)
   }
-  const sides = sidesOf(model.conflicts, status.inProgress)
+  const sides = sidesOf(model.conflicts)
   const message = failure ?? model.error
   return (
     <div className="source-conflicts">

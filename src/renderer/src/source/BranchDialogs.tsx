@@ -50,14 +50,21 @@ interface DialogBase {
 
 interface SwitchDialogProps extends DialogBase {
   current: string
-  target: { label: string; name: string }
+  /** A branch to switch to, or a pull request to check out. */
+  target: { label: string; name: string } | { label: string; pullRequest: number }
 }
 
-/** Switching with uncommitted changes: leave them in a stash on the current branch, or bring them along. */
+/** Switching (or checking out a pull request) with uncommitted changes: leave them in a stash on the current branch, or bring them along. */
 export function SwitchDialog({ folderPath, current, target, onClose, onDone }: SwitchDialogProps): JSX.Element {
   const { busy, failure, run } = useGitRun()
   const go = (uncommitted: 'stash' | 'bring'): void =>
-    run(() => window.git.switchBranch(folderPath, { name: target.name, uncommitted }), onDone)
+    run(
+      () =>
+        'pullRequest' in target
+          ? window.git.checkoutPullRequest(folderPath, { number: target.pullRequest, uncommitted })
+          : window.git.switchBranch(folderPath, { name: target.name, uncommitted }),
+      onDone
+    )
   return (
     <Dialog title={`Switch to ${target.label}`} description={`You have changes on ${current}.`} onClose={onClose}
       actions={

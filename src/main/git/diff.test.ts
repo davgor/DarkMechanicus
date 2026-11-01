@@ -217,3 +217,17 @@ describe('readWorkingDiff (external programs)', () => {
     }
   })
 })
+
+describe('readWorkingDiff with pathspec-magic file names', () => {
+  it.each([':!b', ':/b', '*'])('reads only the file named %s', async (name) => {
+    const r = repo()
+    put(r.root, 'b', 'b\n')
+    put(r.root, name, 'magic\n')
+    r.git('--literal-pathspecs', 'add', '--', 'b', name)
+    r.git('commit', '-q', '-m', 'magic names')
+    put(r.root, 'b', 'b edited\n')
+    put(r.root, name, 'magic edited\n')
+    const lines = textOf(await diffOf(r.root, name)).hunks.flatMap((hunk) => hunk.lines.map((line) => line.text))
+    expect(lines).toEqual(['magic', 'magic edited'])
+  })
+})

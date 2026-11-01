@@ -23,6 +23,7 @@ import { UpdateBanner, useAppUpdate } from './autoUpdate/UpdateBanner'
 import { EpicWorkspace } from './epic/EpicWorkspace'
 import type { EpicWorkspaceProps } from './epic/EpicWorkspace'
 import type { OrchestrationHost } from './epic/orchestration'
+import { CloneDialog } from './clone/CloneDialog'
 import { FolderPage } from './folder/FolderPage'
 import { GithubAccountProvider } from './github/GithubAccount'
 import { FolderHome } from './home/FolderHome'
@@ -46,6 +47,7 @@ interface PaneProps {
   scheduler: Scheduler
   EpicView: EpicView
   onRequestUntrack(folder: TrackedFolderView): void
+  onClone(): void
 }
 
 interface EpicPaneProps {
@@ -174,7 +176,7 @@ function MainPane(props: PaneProps): JSX.Element | null {
     case 'loading':
       return <LoadingView what={view.what} />
     case 'welcome':
-      return <WelcomeView onTrack={() => void actions.track()} />
+      return <WelcomeView onTrack={() => void actions.track()} onClone={props.onClone} />
     case 'add-agent':
       return <AddAgentPane agents={shell.agents} />
     case 'agent':
@@ -232,6 +234,20 @@ function NewChatHost({ shell, folder, onClose }: NewChatHostProps): JSX.Element 
   )
 }
 
+/** The clone dialog; a finished clone opens the new folder on its Source control tab. */
+function CloneHost({ shell, onClose }: { shell: ShellModel; onClose(): void }): JSX.Element {
+  return (
+    <CloneDialog
+      onClose={onClose}
+      onCloned={(folder) => {
+        onClose()
+        shell.setFolderTab(folder.path, 'source')
+        void shell.actions.cloned(folder)
+      }}
+    />
+  )
+}
+
 /** What the sidebar needs for the folders' chats. */
 function sidebarChats(shell: ShellModel, onNew: (path: string) => void): ComponentProps<typeof Sidebar>['chats'] {
   return {
@@ -248,6 +264,7 @@ function Shell({ scheduler, EpicView }: { scheduler: Scheduler; EpicView: EpicVi
   const shell = useShell(scheduler)
   const [pending, setPending] = useState<TrackedFolderView | null>(null)
   const [newChatIn, setNewChatIn] = useState<TrackedFolderView | null>(null)
+  const [cloning, setCloning] = useState(false)
   const { actions } = shell
   return (
     <div className="app-shell">
@@ -262,6 +279,7 @@ function Shell({ scheduler, EpicView }: { scheduler: Scheduler; EpicView: EpicVi
         chats={sidebarChats(shell, (path) => setNewChatIn(findFolder(shell.folders, path)))}
         footer={<ShellFooter shell={shell} />}
         onTrack={() => void actions.track()}
+        onClone={() => setCloning(true)}
         onAddAgent={actions.openAddAgent}
         onSelectAgent={actions.openAgent}
         onAgentStatus={shell.agents.recordStatus}
@@ -270,9 +288,10 @@ function Shell({ scheduler, EpicView }: { scheduler: Scheduler; EpicView: EpicVi
         onRequestUntrack={setPending}
       />
       <main className="app-main" aria-label="Workspace">
-        <MainPane shell={shell} scheduler={scheduler} EpicView={EpicView} onRequestUntrack={setPending} />
+        <MainPane shell={shell} scheduler={scheduler} EpicView={EpicView} onRequestUntrack={setPending} onClone={() => setCloning(true)} />
       </main>
       <UpdateBanner />
+      {cloning ? <CloneHost shell={shell} onClose={() => setCloning(false)} /> : null}
       {newChatIn === null ? null : (
         <NewChatHost shell={shell} folder={newChatIn} onClose={() => setNewChatIn(null)} />
       )}

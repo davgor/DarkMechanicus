@@ -1,0 +1,68 @@
+userData: <temp profile>
+c6 lines: ["undefined=mixed","X1 inserted=true","X2 inserted=false","undefined=mixed","Y1 inserted=false","Y2 inserted=true"] | list.txt box: indeterminate
+shot: DM-149-c6-partial-lines-indeterminate.png
+c6 toast: "Notice:\nlist.txt changed, so its line selection was reset"
+c6 after edit lines: ["undefined=true","X1 inserted=true","X2 inserted=true","undefined=true","Y1 inserted=true","Y2 inserted=true","edited outside the app=true"] | list.txt box: checked
+shot: DM-149-c6-selection-reset-toast.png
+notes.txt lines: ["undefined=mixed","line 3=true","A1 new third line=false","undefined=mixed","B1 added=true","B2 added=false","B3 added=true"] | file box: indeterminate | other: unchecked
+shot: DM-149-c5-notes-selected.png
+$ git show --stat HEAD (notes.txt):
+74851d0 Commit 3 of 5 lines of notes.txt
+
+ notes.txt | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+notes.txt: HEAD blob equals expected (1,2,4..17,B1,B3,18..20 with "\n"): true | working file unchanged: true
+$ git diff -- notes.txt (left in Changes):
+diff --git a/notes.txt b/notes.txt
+index 19cdcd8..63e83a2 100644
+--- a/notes.txt
++++ b/notes.txt
+@@ -1,5 +1,6 @@
+ line 1
+ line 2
++A1 new third line
+ line 4
+ line 5
+ line 6
+@@ -15,6 +16,7 @@ line 15
+ line 16
+ line 17
+ B1 added
++B2 added
+ B3 added
+ line 18
+ line 19
+shot: DM-149-c5-notes-after-commit.png
+crlf.txt lines: ["undefined=mixed","line 3=true","A1 new third line=false","undefined=mixed","B1 added=true","B2 added=false","B3 added=true"] | file box: indeterminate | other: unchecked
+shot: DM-149-c5-crlf-selected.png
+$ git show --stat HEAD (crlf.txt):
+5796dba Commit 3 of 5 lines of crlf.txt
+
+ crlf.txt | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+crlf.txt: HEAD blob equals expected (1,2,4..17,B1,B3,18..20 with "\r\n"): true | working file unchanged: true
+$ git diff -- crlf.txt (left in Changes):
+diff --git a/crlf.txt b/crlf.txt
+index 3428cdc..4b860e8 100644
+--- a/crlf.txt
++++ b/crlf.txt
+@@ -1,5 +1,6 @@
+ line 1\r
+ line 2\r
++A1 new third line\r
+ line 4\r
+ line 5\r
+ line 6\r
+@@ -15,6 +16,7 @@ line 15
+ line 16\r
+ line 17\r
+ B1 added\r
++B2 added\r
+ B3 added\r
+ line 18\r
+ line 19
+shot: DM-149-c5-crlf-after-commit.png
+$ git log --oneline:
+5796dba Commit 3 of 5 lines of crlf.txt
+74851d0 Commit 3 of 5 lines of notes.txt
+310752e Twenty lines

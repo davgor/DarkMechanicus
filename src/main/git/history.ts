@@ -2,7 +2,7 @@
 import type { FileDiff } from '../../shared/git/diff'
 import type { CommitDiffRequest, CommitFile, CommitSummary, HistoryPage, HistoryRequest } from '../../shared/git/history'
 import type { FileChangeKind } from '../../shared/git/status'
-import { pathArgs } from './args'
+import { literalPathArgs } from './args'
 import { DIFF_LIMIT_BYTES, FORCED_DIFF_LIMIT_BYTES } from './diff'
 import { parseUnifiedDiff } from './diffParser'
 import { GitError, GitInputError } from './errors'
@@ -132,13 +132,13 @@ export async function getCommitFiles(runner: GitRunner, root: string, oid: strin
 export async function getCommitDiff(runner: GitRunner, root: string, request: CommitDiffRequest): Promise<FileDiff> {
   const { oid, path, oldPath } = request
   oidArg(oid)
-  const paths = pathArgs(oldPath === null ? [path] : [oldPath, path])
+  const paths = oldPath === null ? [path] : [oldPath, path]
   await requireCommit(runner, root, oid)
   const limit = request.force === true ? FORCED_DIFF_LIMIT_BYTES : DIFF_LIMIT_BYTES
   const isRoot = !(await hasCommit(runner, root, `${oid}^1`))
   const args = isRoot
-    ? ['show', '--format=', ...SAFE_FLAGS, oid, ...paths]
-    : ['diff', ...SAFE_FLAGS, '-M', `${oid}^1`, oid, ...paths]
+    ? literalPathArgs(['show', '--format=', ...SAFE_FLAGS, oid], paths)
+    : literalPathArgs(['diff', ...SAFE_FLAGS, '-M', `${oid}^1`, oid], paths)
   try {
     const result = await runner.run({ cwd: root, args, kind: 'read', maxOutputBytes: limit })
     return { ...parseUnifiedDiff(result.stdout), path, oldPath }

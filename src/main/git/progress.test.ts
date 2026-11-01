@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseProgressLine } from './progress'
+import { parseProgressLine, progressSink } from './progress'
 
 describe('parseProgressLine', () => {
   it.each([
@@ -26,5 +26,20 @@ describe('parseProgressLine', () => {
 
   it('never reports more than 100 percent', () => {
     expect(parseProgressLine('Receiving objects: 250% (5/2)')).toEqual({ phase: 'Receiving objects', percent: 100 })
+  })
+})
+
+describe('progressSink', () => {
+  it('reports each progress line once, dropping lines that repeat the last phase and percentage and non-progress lines', () => {
+    const reported: unknown[] = []
+    const sink = progressSink((progress) => reported.push(progress))
+    for (const line of ['Receiving objects:  10% (1/10)', 'Receiving objects:  10% (1/10), 1 KiB', 'To /tmp/x', 'Receiving objects:  20% (2/10)', 'Receiving objects:  10% (1/10)']) {
+      sink(line)
+    }
+    expect(reported).toEqual([
+      { phase: 'Receiving objects', percent: 10 },
+      { phase: 'Receiving objects', percent: 20 },
+      { phase: 'Receiving objects', percent: 10 }
+    ])
   })
 })

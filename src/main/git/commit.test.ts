@@ -219,3 +219,23 @@ describe('undoLastCommit', () => {
     expect((error as Error).message).toMatch(/no commits/)
   })
 })
+
+describe('commitFiles with pathspec-magic file names', () => {
+  it('commits only a chosen file named :/a, leaving a changed file a uncommitted', async () => {
+    const r = repo()
+    put(r.root, ':/a', 'magic\n')
+    put(r.root, 'a', 'plain\n')
+    await commitFiles(runner, r.root, { summary: 'Add :/a', description: '', files: [file(':/a')] })
+    expect(r.git('show', '--name-only', '--format=', 'HEAD').split('\n')).toEqual([':/a'])
+    expect(r.git('status', '--porcelain')).toBe('?? a')
+  })
+
+  it('commits only a chosen file named *, leaving other changed files uncommitted', async () => {
+    const r = repo()
+    put(r.root, '*', 'star\n')
+    put(r.root, 'other.txt', 'other\n')
+    await commitFiles(runner, r.root, { summary: 'Add *', description: '', files: [file('*')] })
+    expect(r.git('show', '--name-only', '--format=', 'HEAD').split('\n')).toEqual(['*'])
+    expect(r.git('status', '--porcelain')).toBe('?? other.txt')
+  })
+})

@@ -10,6 +10,7 @@ const GIT_ERROR_CODES = [
   'local_changes_would_be_overwritten',
   'nothing_to_commit',
   'branch_exists',
+  'target_exists',
   'branch_not_fully_merged',
   'remote_not_found',
   'network_unreachable',
@@ -18,6 +19,7 @@ const GIT_ERROR_CODES = [
   'timeout',
   'cancelled',
   'output_too_large',
+  'stale_selection',
   'git_failed'
 ] as const
 

@@ -20,6 +20,11 @@ export interface ConflictState {
   ourBranch: string | null
   /** What is being merged in, from the first line of MERGE_MSG; null when there is none (a stash restore). */
   theirLabel: string | null
+  /**
+   * Which of git's sides is the person's own work, the one Use mine takes: `theirs` while a rebase replays a commit
+   * (git's `ours` is then the upstream), else `ours` (a merge, a rebase's merge step, a cherry-pick, revert or `git am`).
+   */
+  mineSide: ResolveRequest['side']
   /** The unmerged files, by path. */
   files: ConflictFile[]
 }

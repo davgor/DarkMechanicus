@@ -3,10 +3,12 @@
  * Electron imports). Sign-in imports the GitHub CLI's github.com token, checks it with `GET /user`
  * (it needs the `repo` scope) and stores the account encrypted. The token stays in main: results and
  * broadcasts carry the login, name, code, fixed message and a scrubbed detail only, and an unexpected
- * error is logged with the token scrubbed. Nothing throws.
+ * error is logged with the token scrubbed. The account's repository list comes from `listRepositories`.
+ * Nothing throws.
  */
+import { z } from 'zod'
 import type { GitResult } from '../../shared/git/api'
-import type { GithubAccountView } from '../../shared/github/api'
+import type { GithubAccountView, GithubRepository } from '../../shared/github/api'
 import type { GithubUser } from './client'
 import { GithubError, redactSecrets, type GithubFailureCode } from './errors'
 import type { GithubSession } from './session'
@@ -19,13 +21,16 @@ interface GithubHandlerDeps {
   fetchUser(token: string): Promise<GithubUser>
   /** Told about failures that are not GithubErrors (bugs, I/O), already scrubbed of secrets, so main can log them. */
   onUnexpectedError(error: unknown): void
+  /** The account's repositories (`RepositoryList.list`): cached unless `refresh`, `auth_required` while signed out. */
+  listRepositories(refresh: boolean): Promise<GithubRepository[]>
 }
 
-/** The channels take no arguments: nothing from the renderer reaches these handlers. */
+/** Only `listRepositories` takes an argument, `{ refresh?: boolean }`, checked here; nothing else from the renderer reaches these handlers. */
 export interface GithubHandlers {
   getAccount(): Promise<GitResult<GithubAccountView | null>>
   signIn(): Promise<GitResult<GithubAccountView>>
   signOut(): Promise<GitResult<null>>
+  listRepositories(request: unknown): Promise<GitResult<GithubRepository[]>>
 }
 
 interface Failure {
@@ -37,9 +42,11 @@ interface Failure {
 type ErrorSink = Pick<GithubHandlerDeps, 'onUnexpectedError'>
 
 const UNEXPECTED: Failure = { code: 'github_failed', message: 'GitHub sign-in failed unexpectedly.' }
+const LIST_UNEXPECTED: Failure = { code: 'github_failed', message: 'Listing your GitHub repositories failed unexpectedly.' }
+const listRequestSchema = z.strictObject({ refresh: z.boolean().optional() }).optional()
 
 /** A failure as the renderer may see it: a GithubError's code, fixed message and scrubbed detail, or a generic one after logging. */
-function failureOf(error: unknown, secrets: readonly string[], sink: ErrorSink): Failure {
+function failureOf(error: unknown, secrets: readonly string[], sink: ErrorSink, unexpected: Failure): Failure {
   if (error instanceof GithubError) {
     return error.detail === undefined ? { code: error.code, message: error.message } : { code: error.code, message: error.message, detail: error.detail }
   }
@@ -48,14 +55,14 @@ function failureOf(error: unknown, secrets: readonly string[], sink: ErrorSink):
   } catch {
     // A failing logger must not turn a result into a thrown error.
   }
-  return UNEXPECTED
+  return unexpected
 }
 
-async function guarded<T>(work: () => Promise<T> | T, sink: ErrorSink, secrets: readonly string[] = []): Promise<GitResult<T>> {
+async function guarded<T>(work: () => Promise<T> | T, sink: ErrorSink, secrets: readonly string[] = [], unexpected = UNEXPECTED): Promise<GitResult<T>> {
   try {
     return { ok: true, data: await work() }
   } catch (error) {
-    return { ok: false, error: failureOf(error, secrets, sink) }
+    return { ok: false, error: failureOf(error, secrets, sink, unexpected) }
   }
 }
 
@@ -139,6 +146,13 @@ export function createGithubHandlers(deps: GithubHandlerDeps): GithubHandlers {
         signIn.abort()
         session.signOut()
         return null
-      }, deps)
+      }, deps),
+    listRepositories: async (request) => {
+      const parsed = listRequestSchema.safeParse(request)
+      if (!parsed.success) {
+        return { ok: false, error: { code: 'invalid_input', message: 'The repository list request is not valid.' } }
+      }
+      return guarded(() => deps.listRepositories(parsed.data?.refresh === true), deps, [], LIST_UNEXPECTED)
+    }
   }
 }

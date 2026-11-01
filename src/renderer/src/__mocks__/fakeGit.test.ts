@@ -141,7 +141,7 @@ describe('FakeGit conflicts', () => {
     git.setState('/a', merging())
     expect(await git.getConflicts('/a')).toEqual({
       ok: true,
-      data: { ourBranch: 'main', theirLabel: null, files: [{ path: 'x.txt', kind: 'both_modified', markers: 1 }, { path: 'y.txt', kind: 'both_modified', markers: 1 }] }
+      data: { ourBranch: 'main', theirLabel: null, mineSide: 'ours', files: [{ path: 'x.txt', kind: 'both_modified', markers: 1 }, { path: 'y.txt', kind: 'both_modified', markers: 1 }] }
     })
     expect(await git.markResolved('/a', { path: 'x.txt' })).toMatchObject({ ok: false, error: { code: 'conflict_markers_remain' } })
     expect(await git.commitMerge('/a', {})).toMatchObject({ ok: false, error: { code: 'merge_conflicts' } })
@@ -152,9 +152,9 @@ describe('FakeGit conflicts', () => {
       { path: 'x.txt', oldPath: null, kind: 'modified' },
       { path: 'y.txt', oldPath: null, kind: 'conflicted' }
     ])
-    git.setConflicts('/a', { ourBranch: 'main', theirLabel: 'topic', files: [{ path: 'y.txt', kind: 'both_added', markers: 0 }] })
+    git.setConflicts('/a', { ourBranch: 'main', theirLabel: 'topic', mineSide: 'ours', files: [{ path: 'y.txt', kind: 'both_added', markers: 0 }] })
     expect(await git.markResolved('/a', { path: 'y.txt' })).toMatchObject({ ok: true })
-    expect(await git.getConflicts('/a')).toEqual({ ok: true, data: { ourBranch: 'main', theirLabel: 'topic', files: [] } })
+    expect(await git.getConflicts('/a')).toEqual({ ok: true, data: { ourBranch: 'main', theirLabel: 'topic', mineSide: 'ours', files: [] } })
     expect(await git.commitMerge('/a', { summary: 'M' })).toMatchObject({ ok: true })
     const after = await git.getState('/a')
     expect(after.ok && after.data.kind === 'repository' && after.data.status.inProgress).toBeNull()
@@ -175,5 +175,95 @@ describe('FakeGit conflicts', () => {
     expect(await git.getConflicts('/zzz')).toMatchObject({ ok: false, error: { code: 'unauthorized' } })
     expect(await git.commitMerge('/zzz', {})).toMatchObject({ ok: false, error: { code: 'unauthorized' } })
     expect(git.calls.filter((call) => call.method === 'openInEditor').map((call) => call.path)).toEqual(['x.txt', 'other.txt', '/etc/hosts'])
+  })
+})
+
+describe('FakeGit pull requests', () => {
+  const status: RepoStatus = {
+    root: '/a',
+    branch: { name: 'main', headOid: 'h', upstream: null, ahead: 0, behind: 0 },
+    files: [],
+    inProgress: null,
+    lastFetchedAt: null,
+    remote: null
+  }
+  const summary = { title: 'T', author: 'mona', isDraft: false, url: 'u', updatedAt: 'd', baseRef: 'main', headRepoFullName: 'octo/repo' }
+
+  it('answers no pull requests and refuses the URLs until a GitHub repository is set', async () => {
+    const git = new FakeGit()
+    git.setState('/a', { kind: 'repository', status })
+    expect(await git.getPullRequests('/a')).toEqual({ ok: true, data: { repository: null, current: null, open: [] } })
+    expect(await git.getCommitUrl('/a', 'abcd')).toMatchObject({ ok: false, error: { code: 'invalid_input' } })
+    expect(await git.getCompareUrl('/a')).toMatchObject({ ok: false, error: { code: 'invalid_input' } })
+    expect(await git.getPullRequests('/zzz')).toMatchObject({ ok: false, error: { code: 'unauthorized' } })
+  })
+
+  it('checks out a same-repository pull request as its branch and a fork one as pr/<n>, and builds URLs', async () => {
+    const git = new FakeGit()
+    git.setState('/a', { kind: 'repository', status })
+    const open = [
+      { ...summary, number: 1, headRef: 'feature', fromFork: false },
+      { ...summary, number: 2, headRef: 'patch', fromFork: true }
+    ]
+    git.setPullRequests('/a', { ok: true, data: { repository: { owner: 'octo', repo: 'repo' }, current: null, open } })
+    git.setCompareUrl('/a', { kind: 'needs_push' })
+    const first = await git.checkoutPullRequest('/a', { number: 1, uncommitted: 'stash' })
+    expect(first.ok && first.data.kind === 'repository' && first.data.status.branch.name).toBe('feature')
+    const second = await git.checkoutPullRequest('/a', { number: 2, uncommitted: 'bring' })
+    expect(second.ok && second.data.kind === 'repository' && second.data.status.branch.name).toBe('pr/2')
+    expect(await git.getCommitUrl('/a', 'abcd')).toEqual({ ok: true, data: 'https://github.com/octo/repo/commit/abcd' })
+    expect(await git.getCommitUrl('/a', 'xyz')).toMatchObject({ ok: false, error: { code: 'invalid_input' } })
+    expect(await git.getCompareUrl('/a')).toEqual({ ok: true, data: { kind: 'needs_push' } })
+    expect(git.calls.filter((call) => call.method === 'checkoutPullRequest').map((call) => call.request)).toEqual([
+      { number: 1, uncommitted: 'stash' },
+      { number: 2, uncommitted: 'bring' }
+    ])
+  })
+
+  it('answers a set failure, such as auth_required, for both reading and checking out', async () => {
+    const git = new FakeGit()
+    git.setState('/a', { kind: 'repository', status })
+    const signedOut = { ok: false as const, error: { code: 'auth_required' as const, message: 'Sign in.' } }
+    git.setPullRequests('/a', signedOut)
+    expect(await git.getPullRequests('/a', { refresh: true })).toEqual(signedOut)
+    expect(await git.checkoutPullRequest('/a', { number: 1, uncommitted: 'bring' })).toEqual(signedOut)
+  })
+})
+
+describe('FakeGit clone', () => {
+  it('keeps the clone parent the dialog picks, and refuses a clone until there is one', async () => {
+    const git = new FakeGit()
+    expect(await git.getCloneParent()).toEqual({ ok: true, data: null })
+    expect(await git.clone({ operationId: 'c', url: 'octocat/Hello-World', name: 'Hello-World' })).toMatchObject({ ok: false, error: { code: 'invalid_input' } })
+    expect(await git.chooseCloneParent()).toEqual({ ok: true, data: null })
+    git.pickedCloneParent = '/home/u/code'
+    expect(await git.chooseCloneParent()).toEqual({ ok: true, data: '/home/u/code' })
+    expect(await git.getCloneParent()).toEqual({ ok: true, data: '/home/u/code' })
+  })
+
+  it('clones into <parent>/<name>, or fails with cloneError', async () => {
+    const git = new FakeGit()
+    git.cloneParent = '/home/u/code'
+    const done = await git.clone({ operationId: 'c', url: 'octocat/Hello-World', name: 'Hello-World' })
+    expect(done).toMatchObject({ ok: true, data: { path: '/home/u/code/Hello-World', name: 'Hello-World' } })
+    git.cloneError = { code: 'target_exists', message: '/home/u/code/Hello-World already exists and is not an empty folder.' }
+    expect(await git.clone({ operationId: 'd', url: 'octocat/Hello-World', name: 'Hello-World' })).toEqual({ ok: false, error: git.cloneError })
+    expect(git.calls.filter((call) => call.method === 'clone').map((call) => [call.folder, call.request])).toEqual([
+      ['/home/u/code', { operationId: 'c', url: 'octocat/Hello-World', name: 'Hello-World' }],
+      ['/home/u/code', { operationId: 'd', url: 'octocat/Hello-World', name: 'Hello-World' }]
+    ])
+  })
+
+  it('holds clones until finished, and a cancel by parent and id fails one with cancelled', async () => {
+    const git = new FakeGit()
+    git.cloneParent = '/home/u/code'
+    git.holdClones = true
+    const first = git.clone({ operationId: 'a', url: 'octocat/Hello-World', name: 'one' })
+    const second = git.clone({ operationId: 'b', url: 'octocat/Hello-World', name: 'two' })
+    expect(await git.cancelOperation('/home/u/code', 'b')).toEqual({ ok: true, data: { cancelled: true } })
+    expect(await second).toMatchObject({ ok: false, error: { code: 'cancelled' } })
+    expect(await git.cancelOperation('/home/u/code', 'b')).toMatchObject({ ok: false, error: { code: 'unauthorized' } })
+    git.finishClone('a')
+    expect(await first).toMatchObject({ ok: true, data: { path: '/home/u/code/one' } })
   })
 })

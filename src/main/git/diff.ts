@@ -1,6 +1,7 @@
 /** Reads one file's working-tree diff against HEAD, never running a configured external diff or textconv driver. */
 import type { FileDiff } from '../../shared/git/diff'
 import type { FileChange } from '../../shared/git/status'
+import { literalPathArgs } from './args'
 import { GitError } from './errors'
 import { parseUnifiedDiff } from './diffParser'
 import type { GitRunner } from './runner'
@@ -26,7 +27,7 @@ export async function readWorkingDiff(runner: GitRunner, root: string, change: F
   const paths = change.oldPath === null ? [change.path] : [change.oldPath, change.path]
   const args = againstNothing
     ? ['diff', '--no-index', ...SAFE_FLAGS, '--', '/dev/null', change.path]
-    : ['diff', ...SAFE_FLAGS, '--find-renames', 'HEAD', '--', ...paths]
+    : literalPathArgs(['diff', ...SAFE_FLAGS, '--find-renames', 'HEAD'], paths)
   try {
     // `--no-index` exits with 1 when the files differ.
     const result = await runner.run({ cwd: root, args, kind: 'read', maxOutputBytes: limit, acceptExitCodes: againstNothing ? [0, 1] : [0] })

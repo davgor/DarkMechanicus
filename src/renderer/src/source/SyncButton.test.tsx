@@ -209,6 +209,14 @@ describe('SyncButton errors', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
     expect(screen.queryByRole('alert')).toBeNull()
   })
+
+  it('shows a stalled operation’s timeout like other failures, with git’s last line in the collapsible block', async () => {
+    await mount(status())
+    const message = 'The connection stalled: git made no progress for 60 seconds.'
+    await failWith({ code: 'timeout', message, detail: 'Receiving objects: 20% (2/10)' }, 'Fetch origin')
+    expect(screen.getByRole('alert').textContent).toContain(message)
+    expect(screen.getByText('Receiving objects: 20% (2/10)').closest('details')).not.toBeNull()
+  })
 })
 
 describe('SyncButton background fetch', () => {

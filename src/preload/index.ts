@@ -106,6 +106,9 @@ const git: GitApi = {
   pull: (folder, request) => ipcRenderer.invoke('git:pull', folder, request),
   push: (folder, request) => ipcRenderer.invoke('git:push', folder, request),
   cancelOperation: (folder, operationId) => ipcRenderer.invoke('git:cancelOperation', folder, operationId),
+  getCloneParent: () => ipcRenderer.invoke('git:getCloneParent'),
+  chooseCloneParent: () => ipcRenderer.invoke('git:chooseCloneParent'),
+  clone: (request) => ipcRenderer.invoke('git:clone', request),
   listBranches: (folder) => ipcRenderer.invoke('git:listBranches', folder),
   checkBranchName: (folder, name) => ipcRenderer.invoke('git:checkBranchName', folder, name),
   createBranch: (folder, request) => ipcRenderer.invoke('git:createBranch', folder, request),
@@ -123,6 +126,10 @@ const git: GitApi = {
   commitMerge: (folder, request) => ipcRenderer.invoke('git:commitMerge', folder, request),
   abortOperation: (folder) => ipcRenderer.invoke('git:abortOperation', folder),
   openInEditor: (folder, path) => ipcRenderer.invoke('git:openInEditor', folder, path),
+  getPullRequests: (folder, request) => ipcRenderer.invoke('git:getPullRequests', folder, request),
+  checkoutPullRequest: (folder, request) => ipcRenderer.invoke('git:checkoutPullRequest', folder, request),
+  getCompareUrl: (folder) => ipcRenderer.invoke('git:getCompareUrl', folder),
+  getCommitUrl: (folder, oid) => ipcRenderer.invoke('git:getCommitUrl', folder, oid),
   onProgress: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, event: GitProgressEvent): void => {
       listener(event)
@@ -134,11 +141,12 @@ const git: GitApi = {
 
 contextBridge.exposeInMainWorld('git', git)
 
-/** GitHub sign-in: one `github:*` invoke per method, none with arguments. The token never reaches this side. */
+/** GitHub: one `github:*` invoke per method; only the repository list takes an argument. The token never reaches this side. */
 const github: GithubApi = {
   getAccount: () => ipcRenderer.invoke('github:getAccount'),
   signIn: () => ipcRenderer.invoke('github:signIn'),
   signOut: () => ipcRenderer.invoke('github:signOut'),
+  listRepositories: (request) => ipcRenderer.invoke('github:listRepositories', request),
   onAccountChanged: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, account: GithubAccountView | null): void => {
       listener(account)

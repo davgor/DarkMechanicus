@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { KeyboardEvent, RefObject } from 'react'
 import type { BranchInfo, BranchList } from '../../../shared/git/branches'
 import type { RepoStatus } from '../../../shared/git/status'
+import type { PullRequestSummary } from '../../../shared/github/pullRequests'
 import { callGit } from '../api/git'
 import { useResource } from '../app/useResource'
 import { Button } from '../components/Button'
@@ -9,13 +10,16 @@ import { Icon } from '../components/Icon'
 import { DeleteDialog, NewBranchDialog, RenameDialog, SwitchDialog } from './BranchDialogs'
 import { groupBranches } from './branchGroups'
 import type { BranchEntry, BranchGroup } from './branchGroups'
+import { PullRequestList, filterPullRequests } from './PullRequestList'
 import { useGitRun } from './useGitRun'
+import type { PullRequestsModel } from './usePullRequests'
 
 /** `switch` lists every branch to check out; `merge` is the picker of a branch to merge into the current one. */
 type Mode = 'switch' | 'merge'
 
 type OpenDialog =
   | { kind: 'switch'; target: BranchEntry }
+  | { kind: 'pull'; pull: PullRequestSummary }
   | { kind: 'new' }
   | { kind: 'rename'; from: string }
   | { kind: 'delete'; branch: BranchInfo }
@@ -102,10 +106,56 @@ interface PopoverProps {
   current: string | null
   failure: string | null
   actions: RowActions
+  /** Absent, or not on GitHub: no Branches | Pull requests switch. */
+  pullRequests: PullRequestsModel | undefined
   onChoose(entry: BranchEntry): void
+  onChoosePull(pull: PullRequestSummary): void
   onNew(): void
   onPickMerge(): void
   onClose(): void
+}
+
+type View = 'branches' | 'pulls'
+
+function ViewSwitch({ view, onChange }: { view: View; onChange(view: View): void }): JSX.Element {
+  return (
+    <div className="ew-toggle branch-view-switch" role="group" aria-label="Branch menu view">
+      <button type="button" aria-pressed={view === 'branches'} onClick={() => onChange('branches')}>Branches</button>
+      <button type="button" aria-pressed={view === 'pulls'} onClick={() => onChange('pulls')}>Pull requests</button>
+    </div>
+  )
+}
+
+interface ListKeys {
+  count: number
+  active: number
+  setActive(index: number): void
+  choose(index: number): void
+  onClose(): void
+}
+
+/** Arrow keys move the active row, Enter chooses it, Escape closes the popover. */
+function listKeys({ count, active, setActive, choose, onClose }: ListKeys) {
+  return (event: KeyboardEvent<HTMLElement>): void => {
+    const moves: Record<string, number> = { ArrowDown: 1, ArrowUp: -1 }
+    const move = moves[event.key]
+    if (move !== undefined) {
+      event.preventDefault()
+      setActive(Math.max(0, Math.min(count - 1, active + move)))
+    } else if (event.key === 'Enter' && active < count) {
+      event.preventDefault()
+      choose(active)
+    } else if (event.key === 'Escape') {
+      event.stopPropagation()
+      onClose()
+    }
+  }
+}
+
+/** The Pull requests view is offered in the switch popover of a repository on GitHub, signed in or not. */
+function pullsOffered(mode: Mode, pullRequests: PullRequestsModel | undefined): pullRequests is PullRequestsModel {
+  const kind = pullRequests?.state.kind
+  return mode === 'switch' && kind !== undefined && kind !== 'hidden' && kind !== 'loading'
 }
 
 function useBranchList(folderPath: string): { list: BranchList | null; error: string | null } {
@@ -129,41 +179,62 @@ function PopoverFooter({ mode, current, onNew, onPickMerge }: Pick<PopoverProps,
   )
 }
 
+interface BodyProps {
+  props: PopoverProps
+  list: BranchList | null
+  groups: BranchGroup[]
+  active: number
+}
+
+function BranchesBody({ props, list, groups, active }: BodyProps): JSX.Element {
+  const { mode, current, actions, onChoose } = props
+  return (
+    <>
+      <BranchGroups groups={groups} active={active} current={current} actions={mode === 'merge' ? null : actions} onChoose={onChoose} />
+      {list !== null && groups.every((group) => group.entries.length === 0) ? <p className="muted branch-empty">No branches match</p> : null}
+      <PopoverFooter {...props} />
+    </>
+  )
+}
+
+/** The rows the arrow keys move through: the matching branches, or the matching pull requests. */
+function rowsOf(props: PopoverProps, pulls: PullRequestsModel | null, entries: BranchEntry[], filter: string): Pick<ListKeys, 'count' | 'choose'> {
+  if (pulls === null) {
+    return { count: entries.length, choose: (index) => props.onChoose(entries[index]) }
+  }
+  const rows = pulls.state.kind === 'ready' ? filterPullRequests(pulls.state.open, filter) : []
+  return { count: rows.length, choose: (index) => props.onChoosePull(rows[index]) }
+}
+
+function Alerts({ messages }: { messages: Array<string | null> }): JSX.Element {
+  return <>{messages.map((message, index) => (message === null ? null : <p key={index} role="alert">{message}</p>))}</>
+}
+
 function BranchPopover(props: PopoverProps): JSX.Element {
-  const { folderPath, mode, current, failure, actions, onChoose, onClose } = props
+  const { folderPath, mode, current, failure, pullRequests, onChoosePull, onClose } = props
   const [filter, setFilter] = useState('')
   const [active, setActive] = useState(0)
+  const [view, setView] = useState<View>('branches')
   const { list, error } = useBranchList(folderPath)
+  const offered = pullsOffered(mode, pullRequests)
+  const pulls = offered && view === 'pulls' ? pullRequests : null
   const groups = list === null ? [] : groupBranches(list, filter, mode === 'merge')
-  const entries = groups.flatMap((group) => group.entries)
-  const onKeyDown = (event: KeyboardEvent<HTMLElement>): void => {
-    const moves: Record<string, number> = { ArrowDown: 1, ArrowUp: -1 }
-    const move = moves[event.key]
-    if (move !== undefined) {
-      event.preventDefault()
-      setActive(Math.max(0, Math.min(entries.length - 1, active + move)))
-    } else if (event.key === 'Enter' && entries[active] !== undefined) {
-      event.preventDefault()
-      onChoose(entries[active])
-    } else if (event.key === 'Escape') {
-      event.stopPropagation()
-      onClose()
-    }
+  const rows = rowsOf(props, pulls, groups.flatMap((group) => group.entries), filter)
+  const reset = (next: () => void): void => {
+    next()
+    setActive(0)
   }
   return (
-    <div className="branch-popover" onKeyDown={onKeyDown}>
+    <div className="branch-popover" onKeyDown={listKeys({ ...rows, active, setActive, onClose })}>
       {mode === 'merge' ? <div className="branch-popover-title">{`Merge into ${current ?? ''}`}</div> : null}
-      <input className="input" aria-label="Filter branches" placeholder="Filter" autoFocus value={filter}
-        onChange={(event) => {
-          setFilter(event.target.value)
-          setActive(0)
-        }}
-      />
-      {error === null ? null : <p role="alert">{error}</p>}
-      {failure === null ? null : <p role="alert">{failure}</p>}
-      <BranchGroups groups={groups} active={active} current={current} actions={mode === 'merge' ? null : actions} onChoose={onChoose} />
-      {list !== null && entries.length === 0 ? <p className="muted branch-empty">No branches match</p> : null}
-      <PopoverFooter {...props} />
+      {offered ? <ViewSwitch view={view} onChange={(next) => reset(() => setView(next))} /> : null}
+      <input className="input" aria-label={pulls === null ? 'Filter branches' : 'Filter pull requests'} placeholder="Filter" autoFocus value={filter} onChange={(event) => reset(() => setFilter(event.target.value))} />
+      <Alerts messages={[pulls === null ? error : null, failure]} />
+      {pulls === null ? (
+        <BranchesBody props={props} list={list} groups={groups} active={active} />
+      ) : (
+        <PullRequestList state={pulls.state} filter={filter} active={active} onChoose={onChoosePull} onRefresh={pulls.refresh} />
+      )}
     </div>
   )
 }
@@ -173,14 +244,18 @@ interface BranchMenuProps {
   status: RepoStatus
   /** The branch as the toolbar names it (also for a detached HEAD or an unborn branch). */
   label: string
+  /** The folder's pull requests, for the Pull requests view; absent, the menu has branches only. */
+  pullRequests?: PullRequestsModel
   onRefresh(): void
 }
 
-function BranchDialog({ dialog, folderPath, status, onClose, onDone }: Omit<BranchMenuProps, 'label' | 'onRefresh'> & { dialog: OpenDialog; onClose(): void; onDone(): void }): JSX.Element {
+function BranchDialog({ dialog, folderPath, status, onClose, onDone }: Pick<BranchMenuProps, 'folderPath' | 'status'> & { dialog: OpenDialog; onClose(): void; onDone(): void }): JSX.Element {
   const base = { folderPath, onClose, onDone }
   switch (dialog.kind) {
     case 'switch':
       return <SwitchDialog {...base} current={status.branch.name ?? 'this commit'} target={{ label: dialog.target.label, name: dialog.target.target }} />
+    case 'pull':
+      return <SwitchDialog {...base} current={status.branch.name ?? 'this commit'} target={{ label: `#${dialog.pull.number} ${dialog.pull.title}`, pullRequest: dialog.pull.number }} />
     case 'new':
       return <NewBranchDialog {...base} />
     case 'rename':
@@ -190,8 +265,8 @@ function BranchDialog({ dialog, folderPath, status, onClose, onDone }: Omit<Bran
   }
 }
 
-/** The toolbar's "Current branch" button and its popover: switch, create, rename, delete and merge branches. */
-export function BranchMenu({ folderPath, status, label, onRefresh }: BranchMenuProps): JSX.Element {
+/** The toolbar's "Current branch" button and its popover: switch, create, rename, delete and merge branches, and check out pull requests. */
+export function BranchMenu({ folderPath, status, label, pullRequests, onRefresh }: BranchMenuProps): JSX.Element {
   const anchor = useRef<HTMLDivElement>(null)
   const [mode, setMode] = useState<Mode | null>(null)
   const [dialog, setDialog] = useState<OpenDialog | null>(null)
@@ -219,6 +294,10 @@ export function BranchMenu({ folderPath, status, label, onRefresh }: BranchMenuP
     else if (status.files.length > 0) show({ kind: 'switch', target: entry })
     else run(() => window.git.switchBranch(folderPath, { name: entry.target, uncommitted: 'bring' }), done)
   }
+  const checkoutPull = (pull: PullRequestSummary): void => {
+    if (status.files.length > 0) show({ kind: 'pull', pull })
+    else run(() => window.git.checkoutPullRequest(folderPath, { number: pull.number, uncommitted: 'bring' }), done)
+  }
   const actions: RowActions = { rename: (branch) => show({ kind: 'rename', from: branch.name }), remove: (branch) => show({ kind: 'delete', branch }), merge }
   return (
     <div className="branch-menu" ref={anchor}>
@@ -228,8 +307,9 @@ export function BranchMenu({ folderPath, status, label, onRefresh }: BranchMenuP
         <Icon name="chevron-down" />
       </button>
       {mode === null ? null : (
-        <BranchPopover key={mode} folderPath={folderPath} mode={mode} current={current} failure={failure} actions={actions}
-          onChoose={(entry) => busy || (mode === 'merge' ? merge(entry) : switchTo(entry))} onNew={() => show({ kind: 'new' })} onPickMerge={() => setMode('merge')} onClose={close}
+        <BranchPopover key={mode} folderPath={folderPath} mode={mode} current={current} failure={failure} actions={actions} pullRequests={pullRequests}
+          onChoose={(entry) => busy || (mode === 'merge' ? merge(entry) : switchTo(entry))} onChoosePull={(pull) => busy || checkoutPull(pull)}
+          onNew={() => show({ kind: 'new' })} onPickMerge={() => setMode('merge')} onClose={close}
         />
       )}
       {dialog === null ? null : <BranchDialog dialog={dialog} folderPath={folderPath} status={status} onClose={() => setDialog(null)} onDone={done} />}

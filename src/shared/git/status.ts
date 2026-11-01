@@ -17,7 +17,7 @@ interface BranchState {
   behind: number
 }
 
-type OperationInProgress = 'merge' | 'rebase' | 'cherry-pick' | 'revert' | null
+type OperationInProgress = 'merge' | 'rebase' | 'am' | 'cherry-pick' | 'revert' | null
 
 export interface RepoStatus {
   root: string

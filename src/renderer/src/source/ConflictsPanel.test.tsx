@@ -50,6 +50,7 @@ const MERGE_FILES = [change('a.ts', 'conflicted'), change('b.ts', 'conflicted'),
 const MERGE_CONFLICTS: ConflictState = {
   ourBranch: 'main',
   theirLabel: 'topic',
+  mineSide: 'ours',
   files: [
     { path: 'a.ts', kind: 'both_modified', markers: 2 },
     { path: 'b.ts', kind: 'deleted_by_them', markers: 0 }
@@ -220,7 +221,7 @@ describe('other operations and conflicts without a merge', () => {
   })
 
   it('lists the conflicts of a stash restore without a banner, and holds the commit box until they are resolved', async () => {
-    await mount(status([change('a.ts', 'conflicted'), change('c.ts')], null), { ourBranch: 'main', theirLabel: null, files: [{ path: 'a.ts', kind: 'both_modified', markers: 1 }] })
+    await mount(status([change('a.ts', 'conflicted'), change('c.ts')], null), { ourBranch: 'main', theirLabel: null, mineSide: 'ours', files: [{ path: 'a.ts', kind: 'both_modified', markers: 1 }] })
     expect(screen.queryByText(/Merging/)).toBeNull()
     expect(within(rowOf('a.ts')).getByText('1 conflict')).toBeTruthy()
     expect(button('Use mine (main)', rowOf('a.ts'))).toBeTruthy()
@@ -239,21 +240,34 @@ describe('other operations and conflicts without a merge', () => {
     expect(screen.queryByRole('list', { name: 'Conflicted files' })).toBeNull()
     expect(callsOf('getConflicts')).toHaveLength(0)
     git.setState(FOLDER, status([change('a.ts', 'conflicted')]))
-    git.setConflicts(FOLDER, { ourBranch: 'main', theirLabel: 'origin/main', files: [{ path: 'a.ts', kind: 'both_modified', markers: 3 }] })
+    git.setConflicts(FOLDER, { ourBranch: 'main', theirLabel: 'origin/main', mineSide: 'ours', files: [{ path: 'a.ts', kind: 'both_modified', markers: 3 }] })
     await refresh()
     expect(screen.getByText('Merging origin/main into main: 1 conflicted file')).toBeTruthy()
     expect(within(rowOf('a.ts')).getByText('3 conflicts')).toBeTruthy()
   })
 })
 
+describe('a git am in progress', () => {
+  it('names a git am in its banner, and its Abort aborts the operation', async () => {
+    await mount(status([change('x.ts', 'conflicted')], 'am'), null)
+    expect(screen.getByText('Applying patches (git am) is in progress. Finish it in a terminal, or abort it here.')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Abort merge' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Commit merge' })).toBeNull()
+    fireEvent.click(button('Abort'))
+    await settle()
+    expect(callsOf('abortOperation')).toHaveLength(1)
+    expect(screen.queryByText(/is in progress/)).toBeNull()
+  })
+})
+
 describe('red-team regressions in the view', () => {
-  it('during a rebase, Use mine takes the commit being replayed (git calls it theirs) and Use theirs the upstream', async () => {
-    await mount(status([change('x.ts', 'conflicted')], 'rebase'), { ourBranch: null, theirLabel: 'My change', files: [{ path: 'x.ts', kind: 'both_modified', markers: 1 }] })
+  it('while a rebase replays a commit, Use mine takes the replayed commit (git calls it theirs) and Use theirs the upstream', async () => {
+    await mount(status([change('x.ts', 'conflicted')], 'rebase'), { ourBranch: null, theirLabel: 'My change', mineSide: 'theirs', files: [{ path: 'x.ts', kind: 'both_modified', markers: 1 }] })
     fireEvent.click(button('Use mine (My change)', rowOf('x.ts')))
     await settle()
     expect(callsOf('resolveWith').map((call) => call.request)).toEqual([{ path: 'x.ts', side: 'theirs' }])
     git.setState(FOLDER, status([change('x.ts', 'conflicted')], 'rebase'))
-    git.setConflicts(FOLDER, { ourBranch: null, theirLabel: 'My change', files: [{ path: 'x.ts', kind: 'both_modified', markers: 1 }] })
+    git.setConflicts(FOLDER, { ourBranch: null, theirLabel: 'My change', mineSide: 'theirs', files: [{ path: 'x.ts', kind: 'both_modified', markers: 1 }] })
     await refresh()
     fireEvent.click(button('Use theirs', rowOf('x.ts')))
     await settle()
@@ -263,13 +277,29 @@ describe('red-team regressions in the view', () => {
     ])
   })
 
+  it('at a rebase-merges merge step, Use mine keeps the rewritten branch (git ours) and Use theirs the merged-in side', async () => {
+    const conflicts: ConflictState = { ourBranch: null, theirLabel: 'side', mineSide: 'ours', files: [{ path: 'x.ts', kind: 'both_modified', markers: 1 }] }
+    await mount(status([change('x.ts', 'conflicted')], 'rebase'), conflicts)
+    fireEvent.click(button('Use mine', rowOf('x.ts')))
+    await settle()
+    git.setState(FOLDER, status([change('x.ts', 'conflicted')], 'rebase'))
+    git.setConflicts(FOLDER, conflicts)
+    await refresh()
+    fireEvent.click(button('Use theirs (side)', rowOf('x.ts')))
+    await settle()
+    expect(callsOf('resolveWith').map((call) => call.request)).toEqual([
+      { path: 'x.ts', side: 'ours' },
+      { path: 'x.ts', side: 'theirs' }
+    ])
+  })
+
   it('forgets the files of an operation that ended, so the next one starts fresh', async () => {
-    await mount(status([change('a.ts', 'conflicted')]), { ourBranch: 'main', theirLabel: 'one', files: [{ path: 'a.ts', kind: 'both_modified', markers: 1 }] })
+    await mount(status([change('a.ts', 'conflicted')]), { ourBranch: 'main', theirLabel: 'one', mineSide: 'ours', files: [{ path: 'a.ts', kind: 'both_modified', markers: 1 }] })
     git.setState(FOLDER, status([], null))
     await refresh()
     expect(screen.queryByRole('list', { name: 'Conflicted files' })).toBeNull()
     git.setState(FOLDER, status([change('b.ts', 'conflicted'), change('a.ts')]))
-    git.setConflicts(FOLDER, { ourBranch: 'main', theirLabel: 'two', files: [{ path: 'b.ts', kind: 'both_modified', markers: 1 }] })
+    git.setConflicts(FOLDER, { ourBranch: 'main', theirLabel: 'two', mineSide: 'ours', files: [{ path: 'b.ts', kind: 'both_modified', markers: 1 }] })
     await refresh()
     expect(screen.getByText('Merging two into main: 1 conflicted file')).toBeTruthy()
     expect(within(conflictList()).queryByText('a.ts')).toBeNull()

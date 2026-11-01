@@ -1,0 +1,8 @@
+lint rc=0 secs=1
+typecheck rc=0 secs=14
+test rc=0 secs=160
+coverage rc=0 secs=235
+deadcode rc=0 secs=13
+build rc=0 secs=3
+fireguard rc=0 secs=3266
+DONE

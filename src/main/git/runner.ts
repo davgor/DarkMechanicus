@@ -2,7 +2,7 @@
  * Runs git for Source control in the main process. Unlike core's read-only adapter
  * (`src/core/repo/git.ts`), this one is started by the person, writes, streams progress and can run for
  * minutes: it spawns without a shell, queues writes and network operations per repository, enforces
- * timeouts and output limits, and kills the whole process tree on timeout or cancel.
+ * timeouts (a stall timeout for network operations) and output limits, and kills the whole process tree on timeout or cancel.
  *
  * `request.env` is merged last and may carry credentials; it is never logged or put in an error. Each
  * `request.redact` string is replaced in the output, the progress lines and the error detail before anyone sees them.
@@ -26,6 +26,11 @@ export interface GitRunRequest {
   maxOutputBytes?: number
   signal?: AbortSignal
   onProgress?(line: string): void
+  /**
+   * Called once, when git is gone (or was never started). A cancelled or timed-out run rejects at once, while git
+   * may still be writing for a moment; this says when it has stopped. Must not throw.
+   */
+  onExit?(): void
   /** Secrets (a token) to replace in stdout, stderr, progress lines and error details. */
   redact?: readonly string[]
   acceptExitCodes?: readonly number[]
@@ -61,9 +66,13 @@ interface GitRunnerOptions {
   platform?: NodeJS.Platform
   /** Defaults to `process.kill(-pgid)` with the real spawn on macOS and Linux; none with a fake spawn or on Windows. */
   killGroup?: GroupKill | null
+  /** How long a network operation may print nothing before it ends with `timeout`. For tests only; defaults to 60 s. */
+  stallMs?: number
 }
 
 const FIXED_CONFIG = ['-c', 'core.quotepath=false', '-c', 'color.ui=never', '-c', 'core.fsmonitor=false']
+/** Network operations only: git itself gives up on an HTTPS transfer slower than 1000 bytes/s for 60 s. */
+const NETWORK_CONFIG = ['-c', 'http.lowSpeedLimit=1000', '-c', 'http.lowSpeedTime=60']
 const REDIRECTING_ENV = [
   'GIT_DIR',
   'GIT_WORK_TREE',
@@ -76,6 +85,7 @@ const DEFAULT_MAX_OUTPUT_BYTES = 64 * 1024 * 1024
 const READ_TIMEOUT_MS = 30_000
 const WRITE_TIMEOUT_MS = 120_000
 const KILL_GRACE_MS = 2000
+const STALL_MS = 60_000
 
 function buildEnv(request: GitRunRequest): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env }
@@ -122,6 +132,8 @@ interface RunnerContext {
   platform: NodeJS.Platform
   /** When set, each git starts as the leader of its own process group (and session, so without a terminal), and a kill ends the group. */
   killGroup: GroupKill | null
+  /** A network git that prints nothing on stdout or stderr for this long has stalled. */
+  stallMs: number
 }
 
 /** One signal to git's whole process group (so `git pull`'s own `git fetch` gets it too), or to git alone without one. */
@@ -168,6 +180,8 @@ class Execution {
   private pending = ''
   private settled = false
   private timer: NodeJS.Timeout | null = null
+  /** Network operations only: restarted by every chunk of output, fires once git has been silent for the stall limit. */
+  private stallTimer: NodeJS.Timeout | null = null
   private child: ChildLike | null = null
   private resolveRun: (result: GitRunResult) => void = () => undefined
   private rejectRun: (error: GitError) => void = () => undefined
@@ -181,8 +195,11 @@ class Execution {
   ) {
     this.exited = new Promise<void>((resolve) => {
       this.markGone = () => {
-        this.gone = true
-        resolve()
+        if (!this.gone) {
+          this.gone = true
+          resolve()
+          this.request.onExit?.()
+        }
       }
     })
   }
@@ -197,7 +214,8 @@ class Execution {
         return
       }
       try {
-        this.child = this.ctx.spawnFn(this.ctx.gitPath, [...FIXED_CONFIG, ...this.request.args], {
+        const network = this.request.kind === 'network' ? NETWORK_CONFIG : []
+        this.child = this.ctx.spawnFn(this.ctx.gitPath, [...FIXED_CONFIG, ...network, ...this.request.args], {
           cwd: this.request.cwd,
           env: buildEnv(this.request),
           shell: false,
@@ -229,6 +247,9 @@ class Execution {
     if (limit !== null) {
       this.timer = setTimeout(() => this.finish(new GitError('timeout', '', `git timed out after ${limit} ms`), true), limit)
     }
+    if (this.request.kind === 'network') {
+      this.stallTimer = setTimeout(this.onStall, this.ctx.stallMs)
+    }
     this.request.signal?.addEventListener('abort', this.onAbort, { once: true })
     child.stdin?.on('error', () => undefined)
     child.stdin?.end(this.request.stdin)
@@ -236,6 +257,18 @@ class Execution {
 
   private readonly onAbort = (): void => {
     this.finish(new GitError('cancelled', '', 'git operation cancelled'), true)
+  }
+
+  private readonly onStall = (): void => {
+    const seconds = this.ctx.stallMs / 1000
+    this.finish(new GitError('timeout', this.lastStderrLine(), `The connection stalled: git made no progress for ${seconds} seconds.`), true)
+  }
+
+  /** Git's last non-empty stderr line (a CR-redrawn progress line counts), scrubbed like every other detail. */
+  private lastStderrLine(): string {
+    const lines = Buffer.concat(this.err).toString('utf8').split(/[\r\n]/)
+    const last = lines.filter((line) => line.trim() !== '').pop() ?? ''
+    return stderrTail(scrubSecrets(last, this.request.redact ?? []))
   }
 
   /** Rejects once, stops the timer and the abort listener, and optionally kills the process tree. */
@@ -255,6 +288,9 @@ class Execution {
     if (this.timer !== null) {
       clearTimeout(this.timer)
     }
+    if (this.stallTimer !== null) {
+      clearTimeout(this.stallTimer)
+    }
     this.request.signal?.removeEventListener('abort', this.onAbort)
   }
 
@@ -263,6 +299,8 @@ class Execution {
       return
     }
     const buffer = typeof chunk === 'string' ? Buffer.from(chunk) : chunk
+    // Any new output is progress: the stall limit counts from now.
+    this.stallTimer?.refresh()
     this.bytes += buffer.length
     const max = this.request.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES
     if (this.bytes > max) {
@@ -314,7 +352,8 @@ export function createGitRunner(options: GitRunnerOptions = {}): GitRunner {
     spawnFn: options.spawn ?? ((command, args, opts) => nodeSpawn(command, [...args], opts) as unknown as ChildLike),
     gitPath: options.gitPath ?? 'git',
     platform,
-    killGroup: options.killGroup === undefined ? realGroup : options.killGroup
+    killGroup: options.killGroup === undefined ? realGroup : options.killGroup,
+    stallMs: options.stallMs ?? STALL_MS
   }
   const tails = new Map<string, Promise<void>>()
 

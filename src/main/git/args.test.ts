@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { createGitRepo, type GitRepo } from '../../test/gitRepo'
-import { checkBranchName, pathArgs, refArg } from './args'
+import { checkBranchName, literalPathArgs, pathArgs, refArg } from './args'
 import { createGitRunner } from './runner'
 
 describe('pathArgs', () => {
@@ -21,6 +21,16 @@ describe('pathArgs', () => {
     ['bare ..', '..']
   ])('refuses %s', (_name, value) => {
     expect(() => pathArgs(['ok', value])).toThrow(/Refusing/)
+  })
+})
+
+describe('literalPathArgs', () => {
+  it('puts --literal-pathspecs before the command and the checked paths after --', () => {
+    expect(literalPathArgs(['add', '-A'], [':/a', '*'])).toEqual(['--literal-pathspecs', 'add', '-A', '--', ':/a', '*'])
+  })
+
+  it('refuses a path that leaves the repository', () => {
+    expect(() => literalPathArgs(['add'], ['../x'])).toThrow(/leaves the repository/)
   })
 })
 

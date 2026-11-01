@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CommitFile, CommitSummary } from '../../../shared/git/history'
 import { callGit } from '../api/git'
+import { useToasts } from '../app/toasts'
 import { useResource, type Resource } from '../app/useResource'
 import { Button } from '../components/Button'
 import { Icon } from '../components/Icon'
@@ -13,6 +14,8 @@ interface HistoryPanelProps {
   folderPath: string
   /** The Changes | History switcher, shown at the top of the left column. */
   switcher: React.ReactNode
+  /** The repository is on GitHub: commit menus offer View on GitHub. */
+  onGithub: boolean
 }
 
 /** How close to the end of the list (in pixels) a scroll starts loading the next page. */
@@ -80,7 +83,15 @@ function useCommits(folderPath: string): Page & { loadMore(): void } {
   return { ...page, loadMore }
 }
 
-function CommitRow({ commit, selected, onSelect }: { commit: CommitSummary; selected: boolean; onSelect(): void }): JSX.Element {
+interface CommitRowProps {
+  commit: CommitSummary
+  selected: boolean
+  onSelect(): void
+  /** Opens the commit on GitHub; null when the repository is not on GitHub. */
+  onView: ((oid: string) => void) | null
+}
+
+function CommitRow({ commit, selected, onSelect, onView }: CommitRowProps): JSX.Element {
   const [menuOpen, setMenuOpen] = useState(false)
   return (
     <li
@@ -105,13 +116,16 @@ function CommitRow({ commit, selected, onSelect }: { commit: CommitSummary; sele
         label={`Actions for ${commit.summary}`}
         open={menuOpen}
         onOpenChange={setMenuOpen}
-        items={[{ id: 'copy-sha', label: 'Copy SHA', onSelect: () => copyText(commit.oid) }]}
+        items={[
+          { id: 'copy-sha', label: 'Copy SHA', onSelect: () => copyText(commit.oid) },
+          ...(onView === null || commit.unpushed ? [] : [{ id: 'view-on-github', label: 'View on GitHub', onSelect: () => onView(commit.oid) }])
+        ]}
       />
     </li>
   )
 }
 
-function CommitList(props: { page: Page & { loadMore(): void }; selected: string | null; onSelect(oid: string): void }): JSX.Element {
+function CommitList(props: { page: Page & { loadMore(): void }; selected: string | null; onSelect(oid: string): void; onView: CommitRowProps['onView'] }): JSX.Element {
   const { page } = props
   if (page.error !== null && page.commits.length === 0) {
     return <p role="alert" className="source-clean">{page.error}</p>
@@ -132,7 +146,7 @@ function CommitList(props: { page: Page & { loadMore(): void }; selected: string
     >
       <ul className="source-files" aria-label="Commits">
         {page.commits.map((commit) => (
-          <CommitRow key={commit.oid} commit={commit} selected={props.selected === commit.oid} onSelect={() => props.onSelect(commit.oid)} />
+          <CommitRow key={commit.oid} commit={commit} selected={props.selected === commit.oid} onSelect={() => props.onSelect(commit.oid)} onView={props.onView} />
         ))}
       </ul>
       {page.loading ? <p className="muted source-clean">Loading…</p> : null}
@@ -231,15 +245,21 @@ function CommitDetail({ folderPath, commit }: { folderPath: string; commit: Comm
 }
 
 /** The History tab: the left column (switcher and commit list) and the selected commit with its files and diffs. */
-export function HistoryPanel({ folderPath, switcher }: HistoryPanelProps): JSX.Element {
+export function HistoryPanel({ folderPath, switcher, onGithub }: HistoryPanelProps): JSX.Element {
   const page = useCommits(folderPath)
+  const toasts = useToasts()
   const [selected, setSelected] = useState<string | null>(null)
   const commit = page.commits.find((candidate) => candidate.oid === selected) ?? null
+  const onView = onGithub
+    ? (oid: string): void => {
+        callGit(window.git.getCommitUrl(folderPath, oid)).then((url) => window.dm.openExternal(url)).catch(toasts.reportError)
+      }
+    : null
   return (
     <>
       <div className="source-left">
         {switcher}
-        <CommitList page={page} selected={selected} onSelect={setSelected} />
+        <CommitList page={page} selected={selected} onSelect={setSelected} onView={onView} />
       </div>
       <div className="source-diff" aria-label="Commit details">
         {commit === null ? (

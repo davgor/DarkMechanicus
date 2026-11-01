@@ -18,7 +18,7 @@ function createFakeIpcMain(): { handle(channel: string, listener: Listener): voi
 }
 
 describe('registerGithubIpc', () => {
-  it('registers exactly the github channels, each calling its handler with no renderer arguments', async () => {
+  it('registers exactly the github channels; only listRepositories gets an argument from the renderer, its first one', async () => {
     const calls: unknown[][] = []
     const handlers: GithubHandlers = {
       getAccount: async (...args: unknown[]) => {
@@ -32,15 +32,19 @@ describe('registerGithubIpc', () => {
       signOut: async (...args: unknown[]) => {
         calls.push(['signOut', ...args])
         return { ok: true, data: null }
+      },
+      listRepositories: async (...args: unknown[]) => {
+        calls.push(['listRepositories', ...args])
+        return { ok: true, data: [] }
       }
     }
     const ipc = createFakeIpcMain()
     registerGithubIpc(ipc, handlers)
-    expect(ipc.channels()).toEqual(['github:getAccount', 'github:signIn', 'github:signOut'])
+    expect(ipc.channels()).toEqual(['github:getAccount', 'github:listRepositories', 'github:signIn', 'github:signOut'])
     for (const channel of ipc.channels()) {
       await ipc.invoke(channel, 'injected', { token: 'x' })
     }
-    expect(calls).toEqual([['getAccount'], ['signIn'], ['signOut']])
+    expect(calls).toEqual([['getAccount'], ['listRepositories', 'injected'], ['signIn'], ['signOut']])
   })
 })
 

@@ -54,3 +54,16 @@ describe('FakeGithub', () => {
     expect(github.signIn()).not.toBe(pending)
   })
 })
+
+describe('FakeGithub repositories', () => {
+  it('lists the repositories a test sets while signed in, recording each request, and is auth_required signed out', async () => {
+    const github = new FakeGithub()
+    const repository = { fullName: 'octocat/Hello-World', owner: 'octocat', name: 'Hello-World', private: false, fork: false, description: null, cloneUrl: 'https://github.com/octocat/Hello-World.git', pushedAt: null }
+    github.repositories = [repository]
+    expect(await github.listRepositories()).toMatchObject({ ok: false, error: { code: 'auth_required' } })
+    github.changeAccount(OCTOCAT)
+    expect(await github.listRepositories({ refresh: true })).toEqual({ ok: true, data: [repository] })
+    expect(github.listRequests).toEqual([undefined, { refresh: true }])
+    expect(github.calls).toEqual(['listRepositories', 'listRepositories'])
+  })
+})

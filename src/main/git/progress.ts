@@ -21,3 +21,16 @@ export function parseProgressLine(line: string): ProgressLine | null {
   }
   return { phase: match[1], percent: match[2] === undefined ? null : Math.min(100, Number(match[2])) }
 }
+
+/** A runner `onProgress` that hands each progress line to `report`, dropping one that repeats the last phase and percentage. */
+export function progressSink(report: (progress: ProgressLine) => void): (line: string) => void {
+  let last = ''
+  return (line) => {
+    const parsed = parseProgressLine(line)
+    if (parsed === null || `${parsed.phase}\0${String(parsed.percent)}` === last) {
+      return
+    }
+    last = `${parsed.phase}\0${String(parsed.percent)}`
+    report(parsed)
+  }
+}

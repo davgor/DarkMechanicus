@@ -37,15 +37,17 @@ import type { AgentLaunchSpec } from '../agents/launchSpec'
 import { listBoundThreads } from '../agents/boundThreads'
 import { listThreadBindings, type BindingReads } from '../agents/threadBindings'
 import { trackChatSignIn } from '../agents/signInHooks'
+import { createCloneParentStore, createCloner, type Cloner } from '../git/clone'
 import { createGitHandlers } from '../git/handlers'
 import { createProgressBroadcaster, registerGitIpc } from '../git/ipc'
-import { createGitRunner } from '../git/runner'
+import { createGitRunner, type GitRunner } from '../git/runner'
 import { createAccountStore } from '../github/accountStore'
 import { createGithubClient, createSessionClient, type GithubClient } from '../github/client'
 import { createGhCli, isExecutableFile, runGhProcess } from '../github/ghCli'
 import { createGithubHandlers } from '../github/handlers'
 import type { HttpFetch } from '../github/http'
 import { createGithubBroadcaster, registerGithubIpc } from '../github/ipc'
+import { createRepositoryList } from '../github/repositories'
 import { createGithubSession, type GithubSession } from '../github/session'
 import { logger } from '../logger'
 import { getAgentAuthStatus, signInAgent, type AgentAuthHooks } from './agentAuth'
@@ -92,6 +94,11 @@ const HEARTBEAT_INTERVAL_MS = 15_000
 
 const FOLDER_DIALOG: OpenDialogOptions = {
   title: 'Choose a repository folder',
+  properties: ['openDirectory', 'createDirectory']
+}
+
+const CLONE_PARENT_DIALOG: OpenDialogOptions = {
+  title: 'Choose the folder to clone repositories into',
   properties: ['openDirectory', 'createDirectory']
 }
 
@@ -394,19 +401,37 @@ function chatAwareAuthHooks(sessions: SessionManager): AgentAuthHooks {
   )
 }
 
+/** Clones into the folder kept in `userData/clone.json`, chosen only with the native dialog, and tracks each finished clone. */
+function startClones(folders: Pick<FolderRegistry, 'track'>, runner: GitRunner, github: GithubBridge): Cloner {
+  return createCloner({
+    runner,
+    session: github,
+    parents: createCloneParentStore({
+      file: join(app.getPath('userData'), 'clone.json'),
+      pickDirectory: () => showOpenDialog(CLONE_PARENT_DIALOG)
+    }),
+    registry: folders,
+    onProgress: createProgressBroadcaster(() => BrowserWindow.getAllWindows())
+  })
+}
+
 /**
- * Serves the `git:*` channels over the real git runner, for the tracked folders only. Fetch, pull and push
- * authenticate with the GitHub session (in main: the token never reaches a window) and broadcast their progress.
+ * Serves the `git:*` channels over the real git runner, for the tracked folders only, and clones into the folder
+ * chosen with the native dialog. Network operations authenticate with the GitHub session (in main: the token never
+ * reaches a window) and broadcast their progress; pull requests are read through the session's API client.
  */
-function startGit(ipc: Pick<IpcMain, 'handle'>, folders: Pick<FolderRegistry, 'resolve'>, github: GithubBridge): void {
+function startGit(ipc: Pick<IpcMain, 'handle'>, folders: Pick<FolderRegistry, 'resolve' | 'track'>, github: GithubBridge): void {
+  const runner = createGitRunner()
   registerGitIpc(
     ipc,
     createGitHandlers({
       registry: folders,
-      runner: createGitRunner(),
+      clones: startClones(folders, runner, github),
+      runner,
       trashItem: (path) => shell.trashItem(path),
       openPath: (path) => shell.openPath(path),
       session: { getAccount: github.getAccount, getToken: github.getToken },
+      client: github.client,
       onProgress: createProgressBroadcaster(() => BrowserWindow.getAllWindows()),
       onUnexpectedError: (error) => {
         logger.error('Git request failed:', error)
@@ -416,7 +441,7 @@ function startGit(ipc: Pick<IpcMain, 'handle'>, folders: Pick<FolderRegistry, 'r
 }
 
 /** GitHub sign-in first, then the git channels that use its session; returns the session for main's other code. */
-function startSourceControl(ipc: Pick<IpcMain, 'handle'>, folders: Pick<FolderRegistry, 'resolve'>): GithubBridge {
+function startSourceControl(ipc: Pick<IpcMain, 'handle'>, folders: Pick<FolderRegistry, 'resolve' | 'track'>): GithubBridge {
   const github = startGithub(ipc)
   startGit(ipc, folders, github)
   return github
@@ -427,7 +452,8 @@ const githubFetch: HttpFetch = (url, request) => net.fetch(url, request)
 
 /**
  * Serves the `github:*` channels: sign-in with this computer's GitHub CLI login, the account kept in
- * `userData/github-account.json` with its token encrypted by `safeStorage`. Returns the main-side GitHub session.
+ * `userData/github-account.json` with its token encrypted by `safeStorage`, and the account's repositories.
+ * Returns the main-side GitHub session.
  */
 function startGithub(ipc: Pick<IpcMain, 'handle'>): GithubBridge {
   const broadcast = createGithubBroadcaster(() => BrowserWindow.getAllWindows())
@@ -442,6 +468,8 @@ function startGithub(ipc: Pick<IpcMain, 'handle'>): GithubBridge {
   const session = createGithubSession({ store, onAccountChanged: broadcast.accountChanged })
   // gh is looked up on every sign-in, so one installed while the app runs is found.
   const gh = createGhCli({ run: runGhProcess, env: process.env, platform: process.platform, exists: isExecutableFile })
+  const client = createSessionClient(session, { fetch: githubFetch, appVersion: app.getVersion() })
+  const repositories = createRepositoryList({ client, session })
   const handlers = createGithubHandlers({
     session,
     readGhToken: (signal) => gh.readGhToken(signal),
@@ -449,10 +477,10 @@ function startGithub(ipc: Pick<IpcMain, 'handle'>): GithubBridge {
     fetchUser: (token) => createGithubClient({ fetch: githubFetch, getToken: () => token, appVersion: app.getVersion(), onUnauthorized: () => undefined }).getUser(),
     onUnexpectedError: (error) => {
       logger.error('GitHub request failed:', error)
-    }
+    },
+    listRepositories: (refresh) => repositories.list(refresh)
   })
   registerGithubIpc(ipc, handlers)
-  const client = createSessionClient(session, { fetch: githubFetch, appVersion: app.getVersion() })
   return { getAccount: session.getAccount, getToken: session.getToken, client }
 }
 

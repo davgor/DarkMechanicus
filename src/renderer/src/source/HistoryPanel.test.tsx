@@ -253,3 +253,14 @@ describe('a selected commit', () => {
     expect(screen.getByRole('alert').textContent).toContain('boom')
   })
 })
+
+describe('a commit diff', () => {
+  it('shows a commit diff read-only: no line checkboxes and nothing dimmed', async () => {
+    await select()
+    fireEvent.click(screen.getByRole('button', { name: /README\.md/ }))
+    await settle()
+    const table = screen.getByRole('table', { name: 'Diff of README.md' })
+    expect(within(table).queryAllByRole('checkbox')).toHaveLength(0)
+    expect(table.querySelectorAll('.diff-check, .diff-excluded')).toHaveLength(0)
+  })
+})

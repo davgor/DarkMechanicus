@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import type { GithubAccountView } from '../../shared/github/api'
+import type { GithubAccountView, GithubRepository } from '../../shared/github/api'
 import { createFakeHttp, jsonResponse, type FakeHttp } from '../../test/fakeHttp'
 import type { HttpResponse } from './http'
 import { createAccountStore, type AccountCrypto } from './accountStore'
@@ -15,6 +15,16 @@ import { createGithubSession } from './session'
 const TOKEN = 'gho_FAKE_TOKEN_never_leak_123'
 const USER_ANSWER = jsonResponse(200, { login: 'octocat', name: 'The Octocat' }, { 'X-OAuth-Scopes': 'repo, read:user, workflow' })
 const GH_OK: GhRunResult = { kind: 'exited', exitCode: 0, stdout: `${TOKEN}\n`, stderr: '' }
+const HELLO_WORLD: GithubRepository = {
+  fullName: 'octocat/Hello-World',
+  owner: 'octocat',
+  name: 'Hello-World',
+  private: false,
+  fork: false,
+  description: null,
+  cloneUrl: 'https://github.com/octocat/Hello-World.git',
+  pushedAt: null
+}
 
 type Answer = GhRunResult | ((request: GhRunRequest) => Promise<GhRunResult>)
 
@@ -32,6 +42,8 @@ interface Rig {
   logs: unknown[]
   ghRuns: GhRunRequest[]
   results: unknown[]
+  /** The `refresh` flag of each repository list the handlers asked for. */
+  listed: boolean[]
 }
 
 let dir: string
@@ -50,6 +62,7 @@ function rig(options: RigOptions = {}): Rig {
   const events: Rig['events'] = []
   const logs: unknown[] = []
   const ghRuns: GhRunRequest[] = []
+  const listed: boolean[] = []
   const crypto: AccountCrypto = {
     isAvailable: () => options.encryptionAvailable ?? true,
     encrypt: options.encrypt ?? ((text) => Buffer.from(text).reverse()),
@@ -70,9 +83,13 @@ function rig(options: RigOptions = {}): Rig {
     session,
     readGhToken: (signal) => gh.readGhToken(signal),
     fetchUser: (token) => createGithubClient({ fetch: http.fetch, getToken: () => token, appVersion: '1', onUnauthorized: () => undefined }).getUser(),
-    onUnexpectedError: (error) => logs.push(error)
+    onUnexpectedError: (error) => logs.push(error),
+    listRepositories: async (refresh) => {
+      listed.push(refresh)
+      return [HELLO_WORLD]
+    }
   })
-  return { handlers, http, file, events, logs, ghRuns, results: [] }
+  return { handlers, http, file, events, logs, ghRuns, results: [], listed }
 }
 
 /** Calls a handler and keeps its result for the token search. */
@@ -277,7 +294,8 @@ describe('github handlers: unexpected failures', () => {
       session: createGithubSession({ store: createAccountStore({ file: r.file, crypto: { isAvailable: () => true, encrypt: Buffer.from, decrypt: String } }), onAccountChanged: () => undefined }),
       readGhToken: async () => Promise.reject(new GithubError('gh_not_signed_in', undefined, 'not logged in')),
       fetchUser: async () => Promise.reject(new Error('unused')),
-      onUnexpectedError: (error) => r.logs.push(error)
+      onUnexpectedError: (error) => r.logs.push(error),
+      listRepositories: async () => Promise.reject(new Error('unused'))
     })
     expect(await failing.signIn()).toEqual({ ok: false, error: { code: 'gh_not_signed_in', message: expect.any(String), detail: 'not logged in' } })
     expect(r.logs).toEqual([])
@@ -312,9 +330,44 @@ describe('github handlers: sign-out', () => {
       },
       readGhToken: async () => Promise.reject(new Error('unused')),
       fetchUser: async () => Promise.reject(new Error('unused')),
-      onUnexpectedError: (error) => r.logs.push(error)
+      onUnexpectedError: (error) => r.logs.push(error),
+      listRepositories: async () => Promise.reject(new Error('unused'))
     })
     expect(await failing.signOut()).toMatchObject({ ok: false, error: { code: 'github_failed' } })
+    expect(r.logs).toHaveLength(1)
+  })
+})
+
+describe('github handlers: the account repositories', () => {
+  it('lists them, refreshing only when asked', async () => {
+    const r = rig()
+    expect(await r.handlers.listRepositories(undefined)).toEqual({ ok: true, data: [HELLO_WORLD] })
+    expect(await r.handlers.listRepositories({})).toEqual({ ok: true, data: [HELLO_WORLD] })
+    expect(await r.handlers.listRepositories({ refresh: false })).toEqual({ ok: true, data: [HELLO_WORLD] })
+    expect(await r.handlers.listRepositories({ refresh: true })).toEqual({ ok: true, data: [HELLO_WORLD] })
+    expect(r.listed).toEqual([false, false, false, true])
+  })
+
+  it('refuses a request other than { refresh?: boolean } without listing', async () => {
+    const r = rig()
+    for (const request of [null, 'refresh', { refresh: 'yes' }, { refresh: true, token: 'x' }, [true]]) {
+      expect(await r.handlers.listRepositories(request), JSON.stringify(request)).toMatchObject({ ok: false, error: { code: 'invalid_input' } })
+    }
+    expect(r.listed).toEqual([])
+  })
+
+  it('keeps a GithubError such as auth_required, and logs anything else as a failed listing', async () => {
+    const r = rig()
+    const answers = [new GithubError('auth_required'), new Error('boom')]
+    const failing = createGithubHandlers({
+      session: { getAccount: () => null, getToken: () => null, canStoreToken: () => true, signIn: () => undefined, signOut: () => undefined },
+      readGhToken: async () => Promise.reject(new Error('unused')),
+      fetchUser: async () => Promise.reject(new Error('unused')),
+      onUnexpectedError: (error) => r.logs.push(error),
+      listRepositories: async () => Promise.reject(answers.shift())
+    })
+    expect(await failing.listRepositories(undefined)).toEqual({ ok: false, error: { code: 'auth_required', message: new GithubError('auth_required').message } })
+    expect(await failing.listRepositories(undefined)).toEqual({ ok: false, error: { code: 'github_failed', message: 'Listing your GitHub repositories failed unexpectedly.' } })
     expect(r.logs).toHaveLength(1)
   })
 })

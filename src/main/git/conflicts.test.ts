@@ -69,7 +69,7 @@ describe('getConflicts', () => {
     const r = await conflictedMerge()
     expect(await getConflicts(runner, r.root)).toEqual({
       ourBranch: 'main',
-      theirLabel: 'topic',
+      theirLabel: 'topic', mineSide: 'ours',
       files: [
         { path: 'both.txt', kind: 'both_modified', markers: 1 },
         { path: 'gone.txt', kind: 'deleted_by_them', markers: 0 },
@@ -109,7 +109,7 @@ describe('getConflicts', () => {
 
   it('is empty, with no label, when nothing conflicts', async () => {
     const r = repo()
-    expect(await getConflicts(runner, r.root)).toEqual({ ourBranch: 'main', theirLabel: null, files: [] })
+    expect(await getConflicts(runner, r.root)).toEqual({ ourBranch: 'main', theirLabel: null, mineSide: 'ours', files: [] })
   })
 
   it('shows the working file, markers and all, as the diff of a conflicted file', async () => {
@@ -228,7 +228,7 @@ describe('commitMerge', () => {
     expect(r.git('rev-list', '--parents', '-n', '1', 'HEAD').split(' ').slice(1)).toEqual([ours, theirs])
     expect(r.git('log', '-1', '--format=%s')).toBe("Merge branch 'topic'")
     expect(read(r, 'mine-gone.txt')).toBe('theirs\n')
-    expect(await getConflicts(runner, r.root)).toEqual({ ourBranch: 'main', theirLabel: null, files: [] })
+    expect(await getConflicts(runner, r.root)).toEqual({ ourBranch: 'main', theirLabel: null, mineSide: 'ours', files: [] })
   })
 
   it('takes a summary and description when given', async () => {
@@ -315,6 +315,7 @@ describe('conflicts from a pull, a merge or a stash restore', () => {
     expect(await getConflicts(runner, r.root)).toEqual({
       ourBranch: 'main',
       theirLabel: null,
+      mineSide: 'ours',
       files: [{ path: 'file-1.txt', kind: 'both_modified', markers: 1 }]
     })
     await resolveWith(runner, r.root, { path: 'file-1.txt', side: 'theirs' })

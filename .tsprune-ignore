@@ -123,3 +123,4 @@ src/shared/domain/views.ts - RedraftSkipCode
 src/shared/domain/views.ts - RedraftSkippedView
 src/shared/domain/views.ts - StorageLocationView
 src/shared/domain/views.ts - WorkerInfo
+src/shared/git/diff.ts - changedLineIndices

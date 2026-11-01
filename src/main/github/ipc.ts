@@ -1,8 +1,8 @@
 /**
- * Registers the `github:*` IPC channels and broadcasts account changes to the windows. No channel
- * takes an argument from the renderer, and the broadcast is rebuilt field by field so nothing but the
- * login and name can reach a window. Register through the sender guard (`guardIpc`), like every other
- * channel.
+ * Registers the `github:*` IPC channels and broadcasts account changes to the windows. Only
+ * `github:listRepositories` takes an argument from the renderer (its handler checks it), and the
+ * broadcast is rebuilt field by field so nothing but the login and name can reach a window. Register
+ * through the sender guard (`guardIpc`), like every other channel.
  */
 import type { IpcMain } from 'electron'
 import { GITHUB_ACCOUNT_CHANGED_CHANNEL, type GithubAccountView } from '../../shared/github/api'
@@ -12,6 +12,7 @@ export function registerGithubIpc(ipcMain: Pick<IpcMain, 'handle'>, handlers: Gi
   ipcMain.handle('github:getAccount', () => handlers.getAccount())
   ipcMain.handle('github:signIn', () => handlers.signIn())
   ipcMain.handle('github:signOut', () => handlers.signOut())
+  ipcMain.handle('github:listRepositories', (_event, request: unknown) => handlers.listRepositories(request))
 }
 
 /** What the broadcaster needs of a `BrowserWindow`. */

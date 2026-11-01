@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { KeyboardEvent } from 'react'
-import type { FileChange } from '../../../shared/git/status'
+import type { CommitRequest } from '../../../shared/git/api'
 import { callGit, GitCommandError } from '../api/git'
 import { useToasts } from '../app/toasts'
 import { Button } from '../components/Button'
@@ -21,11 +21,14 @@ interface CommitBoxProps {
   folderPath: string
   branchName: string | null
   headOid: string | null
-  included: readonly FileChange[]
+  /** The included files, each whole or by its chosen lines. */
+  files: CommitRequest['files']
   summary: string
   description: string
   onChange(next: { summary: string; description: string }): void
   onCommitted(info: CommittedInfo): void
+  /** A file changed after its lines were chosen; resolves to whether a changed file was found (and reset). */
+  onStaleSelection(): Promise<boolean>
 }
 
 interface Failure {
@@ -57,13 +60,21 @@ function CommitError({ failure }: { failure: Failure | null }): JSX.Element | nu
   )
 }
 
+/** The failure to show; none for a stale line selection once the file that changed was found and reset. */
+async function failureAfter(error: unknown, onStaleSelection: () => Promise<boolean>): Promise<Failure | null> {
+  if (error instanceof GitCommandError && error.code === 'stale_selection' && (await onStaleSelection())) {
+    return null
+  }
+  return failureOf(error)
+}
+
 /** The summary and description fields with the Commit button. Ctrl+Enter or Cmd+Enter commits. */
 export function CommitBox(props: CommitBoxProps): JSX.Element {
-  const { folderPath, summary, description, included } = props
+  const { folderPath, summary, description, files } = props
   const toasts = useToasts()
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState<Failure | null>(null)
-  const canCommit = summary.trim() !== '' && included.length > 0 && !busy
+  const canCommit = summary.trim() !== '' && files.length > 0 && !busy
 
   const commit = (): void => {
     if (!canCommit) {
@@ -71,7 +82,7 @@ export function CommitBox(props: CommitBoxProps): JSX.Element {
     }
     setBusy(true)
     setFailure(null)
-    const request = { summary: summary.trim(), description, files: included.map((file) => ({ path: file.path, oldPath: file.oldPath })) }
+    const request = { summary: summary.trim(), description, files }
     callGit(window.git.commit(folderPath, request)).then(
       ({ oid }) => {
         setBusy(false)
@@ -79,10 +90,11 @@ export function CommitBox(props: CommitBoxProps): JSX.Element {
         props.onCommitted({ oid, summary: request.summary, description, headBefore: props.headOid })
         toasts.push('success', `Committed ${oid.slice(0, 7)}`)
       },
-      (error: unknown) => {
-        setBusy(false)
-        setFailure(failureOf(error))
-      }
+      (error: unknown) =>
+        void failureAfter(error, props.onStaleSelection).then((shown) => {
+          setBusy(false)
+          setFailure(shown)
+        })
     )
   }
 

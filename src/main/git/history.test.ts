@@ -231,3 +231,17 @@ describe('getCommitDiff', () => {
     await expect(getCommitDiff(runner, r.root, { oid: r.rev('HEAD'), path: '../x', oldPath: null })).rejects.toThrow()
   })
 })
+
+describe('getCommitDiff with pathspec-magic file names', () => {
+  it.each([':!b', ':/b', '*'])('shows only the file named %s', async (name) => {
+    const r = repo()
+    put(r.root, 'b', 'b\n')
+    put(r.root, name, 'magic\n')
+    commitAll(r, 'magic names')
+    put(r.root, 'b', 'b edited\n')
+    put(r.root, name, 'magic edited\n')
+    const oid = commitAll(r, 'edit both')
+    const diff = textOf(await getCommitDiff(runner, r.root, { oid, path: name, oldPath: null }))
+    expect(diff.hunks.flatMap((hunk) => hunk.lines.map((line) => line.text))).toEqual(['magic', 'magic edited'])
+  })
+})

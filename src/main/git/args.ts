@@ -46,6 +46,14 @@ export function pathArgs(paths: readonly string[]): string[] {
   return ['--', ...paths]
 }
 
+/**
+ * `['--literal-pathspecs', ...command, '--', ...paths]`: git reads every path as a plain file name, so names like
+ * `:/a`, `:!b` or `*` never act as pathspec magic on other files. Use it for every command given a renderer path.
+ */
+export function literalPathArgs(command: readonly string[], paths: readonly string[]): string[] {
+  return ['--literal-pathspecs', ...command, ...pathArgs(paths)]
+}
+
 /** A branch, tag or commit name that is safe as a bare argument. */
 export function refArg(name: string): string {
   if (name === '') {

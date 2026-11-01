@@ -3,7 +3,7 @@ import { copyFileSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import type { FileChange, RepoState } from '../../shared/git/status'
-import { pathArgs } from './args'
+import { literalPathArgs } from './args'
 import { checkPaths, findInStatus, requireStatus } from './commit'
 import { GitInputError } from './errors'
 import type { GitRunner } from './runner'
@@ -49,20 +49,20 @@ export async function discardFiles(runner: GitRunner, folder: string, input: Dis
       case 'modified':
       case 'typechange':
         await trashCopy(trashItem, path)
-        await git(['checkout', 'HEAD', ...pathArgs([change.path])])
+        await git(literalPathArgs(['checkout', 'HEAD'], [change.path]))
         break
       case 'deleted':
-        await git(['checkout', 'HEAD', ...pathArgs([change.path])])
+        await git(literalPathArgs(['checkout', 'HEAD'], [change.path]))
         break
       case 'untracked':
         await trashItem(path)
         break
       default:
         // added, copied and renamed: the new file is not in HEAD; a rename also brings back its old path.
-        await git(['rm', '-q', '--cached', ...pathArgs([change.path])])
+        await git(literalPathArgs(['rm', '-q', '--cached'], [change.path]))
         await trashItem(path)
         if (change.oldPath !== null && change.kind === 'renamed') {
-          await git(['checkout', 'HEAD', ...pathArgs([change.oldPath])])
+          await git(literalPathArgs(['checkout', 'HEAD'], [change.oldPath]))
         }
     }
   }

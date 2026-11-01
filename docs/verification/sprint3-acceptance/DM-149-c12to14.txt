@@ -1,0 +1,29 @@
+c12 before: MERGE_HEAD true | rebase-merge/ true 
+$ git status (first line): interactive rebase in progress; onto 19e2875
+userData: <temp profile>
+c12 banner: "A rebase is in progress. Finish it in a terminal, or abort it here.\n\nAbort"
+c12 merge banner present: 0 | Abort merge / Commit merge buttons: 0 0
+shot: DM-149-c12-rebase-banner.png
+shot: DM-149-c12-after-abort.png
+c12 after Abort: MERGE_HEAD false | rebase-merge/ false 
+$ git status:
+On branch feature
+nothing to commit, working tree clean
+c13 $ git status --short before: " M :/a\n M a"
+c13 include :/a = true | include a = false
+shot: DM-149-c13-only-colon-slash-a-included.png
+shot: DM-149-c13-after-commit.png
+c13 $ git show --stat HEAD:
+520ea61 Commit only :/a
+
+ :/a | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+c13 $ git status --short after: " M a"
+c13 Changes list: ["Include a"]
+c14 banner on first paint: "Merging another branch into the current commit: 0 conflicted files\n\nAbort merge\nCommit merge"
+c14 banner: "Merging feature/conflict into main: 1 conflicted file\n\nAbort merge\nCommit merge" | .git/MERGE_MSG: "Merge branch 'feature/conflict'\n\n# Conflicts:\n#\tc.txt\n"
+shot: DM-149-c14-merge-conflict.png
+shot: DM-149-c14-merge-committed.png
+c14 $ git log -1 --format=%B:
+Merge branch 'feature/conflict'
+--- lines starting with #: 0 | parents: ae05ff1 d7ee513

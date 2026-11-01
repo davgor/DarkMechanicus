@@ -1,0 +1,150 @@
+/* ---------- Clone dialog ---------- */
+
+.clone-tabs {
+  display: flex;
+  column-gap: 16px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.clone-tabs button {
+  height: 34px;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.clone-tabs button[aria-selected='true'] {
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--ring);
+}
+
+.clone-github,
+.clone-local {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.clone-filter-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.clone-filter-row .field {
+  flex: 1;
+}
+
+.clone-repos {
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.clone-owner {
+  margin: 6px 8px 2px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.clone-repo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 5px;
+  font-size: 13px;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.clone-repo:hover,
+.clone-repo:focus-visible {
+  background: var(--panel-3);
+  outline: none;
+}
+
+.clone-repo[aria-selected='true'] {
+  background: var(--panel-3);
+  box-shadow: inset 2px 0 0 var(--ring);
+}
+
+.clone-repo-lock {
+  display: inline-flex;
+  color: var(--ink-2);
+}
+
+.clone-repo-fork {
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  font-size: 11px;
+  color: var(--ink-2);
+}
+
+.clone-parent-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.clone-parent {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.clone-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.clone-progress-bar {
+  flex: 1;
+  min-width: 120px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.clone-progress-fill {
+  height: 100%;
+  background: var(--accent);
+}
+
+.clone-progress-text {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.clone-error {
+  margin: 0;
+  font-size: 13px;
+  color: var(--danger);
+  overflow-wrap: anywhere;
+}
+
+.clone-error p {
+  margin: 0;
+}
+
+.clone-error-detail {
+  margin: 6px 0 0;
+  max-height: 120px;
+  overflow: auto;
+  font-size: 12px;
+  white-space: pre-wrap;
+  color: var(--ink-2);
+}

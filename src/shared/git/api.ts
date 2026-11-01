@@ -15,6 +15,8 @@ import type { GitErrorCode } from './errors'
 import type { CommitDiffRequest, CommitFile, HistoryPage, HistoryRequest } from './history'
 import type { FileChange, FileChangeKind, RepoState } from './status'
 import type { GithubErrorCode } from '../github/errors'
+import type { CheckoutPullRequestRequest, CompareUrl, PullRequestInfo, PullRequestsRequest } from '../github/pullRequests'
+import type { TrackedFolderView } from '../desktop/api'
 
 type GitResultErrorCode = GitErrorCode | GithubErrorCode | 'invalid_input' | 'unauthorized'
 
@@ -39,6 +41,15 @@ interface SyncRequest {
   operationId: string
 }
 
+/**
+ * A clone: the URL (`https://…`, `ssh://…`, `git@host:path` or GitHub's `owner/repo`) and the new folder's name.
+ * The folder it goes into is always the one chosen with `chooseCloneParent`; the renderer cannot name another.
+ */
+export interface CloneRequest extends SyncRequest {
+  url: string
+  name: string
+}
+
 export interface WorkingDiffRequest {
   path: string
   oldPath: string | null
@@ -49,7 +60,11 @@ export interface WorkingDiffRequest {
 export interface CommitRequest {
   summary: string
   description: string
-  files: Array<{ path: string; oldPath: string | null }>
+  /**
+   * Each file is committed whole, or only the changed `lines` (`changedLineIndices` numbering) of the diff whose
+   * hash is `diffHash`; a file whose diff changed since fails `stale_selection` and nothing is committed.
+   */
+  files: Array<{ path: string; oldPath: string | null; lines?: number[]; diffHash?: string }>
 }
 
 export interface DiscardRequest {
@@ -87,6 +102,16 @@ export interface GitApi {
   push(folder: string, request: SyncRequest): Promise<GitResult<RepoState>>
   /** Stops the running operation with this id, which then fails `cancelled`; false when none was running. */
   cancelOperation(folder: string, operationId: string): Promise<GitResult<{ cancelled: boolean }>>
+  /** The folder clones go into, as `chooseCloneParent` stored it; null until one is chosen. */
+  getCloneParent(): Promise<GitResult<string | null>>
+  /** Asks for the folder clones go into with the native folder dialog and keeps it; null (and no change) when dismissed. */
+  chooseCloneParent(): Promise<GitResult<string | null>>
+  /**
+   * Clones into `<clone parent>/<name>`, which must not exist or be an empty folder (`target_exists` otherwise), and
+   * tracks the new folder. Progress events carry the clone parent as their folder, and `cancelOperation(parent,
+   * operationId)` stops it. On cancel or failure, a folder the clone made is removed; one that was there is kept.
+   */
+  clone(request: CloneRequest): Promise<GitResult<TrackedFolderView>>
   /** Local and remote-tracking branches, the current one and the default one. */
   listBranches(folder: string): Promise<GitResult<BranchList>>
   /** Whether git accepts `name` as a branch name as written, for validating while the person types. */
@@ -118,10 +143,24 @@ export interface GitApi {
   abortMerge(folder: string): Promise<GitResult<RepoState>>
   /** Makes the merge commit (git's message unless a summary is given); `merge_conflicts` while a file is unresolved. */
   commitMerge(folder: string, request: CommitMergeRequest): Promise<GitResult<{ oid: string }>>
-  /** Aborts a rebase, cherry-pick or revert in progress. */
+  /** Aborts a rebase, `git am`, cherry-pick or revert in progress. */
   abortOperation(folder: string): Promise<GitResult<RepoState>>
   /** Opens a conflicted file of the repository in the default app. */
   openInEditor(folder: string, path: string): Promise<GitResult<null>>
+  /**
+   * The open pull requests (up to 300) of the GitHub repository of the upstream's remote, else `origin`, and the
+   * current branch's one; none for a repository not on GitHub, `auth_required` signed out. Cached 60 s per folder.
+   */
+  getPullRequests(folder: string, request?: PullRequestsRequest): Promise<GitResult<PullRequestInfo>>
+  /**
+   * Checks out a pull request with the switch rules for uncommitted changes: one from this repository as the local
+   * branch tracking its head, any other as `pr/<n>` (fast-forwarded; `rejected_non_fast_forward` when rewritten).
+   */
+  checkoutPullRequest(folder: string, request: CheckoutPullRequestRequest): Promise<GitResult<RepoState>>
+  /** GitHub's Create pull request page for the current branch against the default one, or `needs_push`. */
+  getCompareUrl(folder: string): Promise<GitResult<CompareUrl>>
+  /** `https://github.com/<owner>/<repo>/commit/<oid>`; `invalid_input` for a repository not on GitHub. */
+  getCommitUrl(folder: string, oid: string): Promise<GitResult<string>>
   /** Subscribes to progress of long operations; returns the unsubscribe function. */
   onProgress(listener: (event: GitProgressEvent) => void): () => void
 }

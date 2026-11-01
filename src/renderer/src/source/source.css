@@ -83,6 +83,55 @@
   white-space: nowrap;
 }
 
+/* Choosing lines to commit: a checkbox per changed line and hunk; excluded lines are dimmed. */
+.diff-check {
+  width: 20px;
+  padding: 0 0 0 6px;
+  vertical-align: top;
+  user-select: none;
+  cursor: pointer;
+}
+
+.diff-line .diff-check ~ .diff-num,
+.diff-line .diff-check ~ .diff-marker {
+  cursor: pointer;
+}
+
+.diff-hunk .diff-check {
+  padding: 2px 0 2px 6px;
+}
+
+.diff-box {
+  display: inline-block;
+  box-sizing: border-box;
+  width: 12px;
+  height: 12px;
+  margin-top: 3px;
+  border: 1px solid var(--diff-gutter-ink);
+  border-radius: 3px;
+  vertical-align: top;
+}
+
+.diff-box[aria-checked='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.diff-box[aria-checked='mixed'] {
+  background: linear-gradient(var(--accent), var(--accent)) center / 6px 2px no-repeat;
+  border-color: var(--accent);
+}
+
+.diff-excluded {
+  background: transparent;
+}
+
+.diff-excluded .diff-text,
+.diff-excluded .diff-num,
+.diff-excluded .diff-marker {
+  opacity: 0.45;
+}
+
 .diff-message {
   padding: 24px 16px;
   text-align: center;
@@ -691,6 +740,87 @@
 .branch-empty {
   margin: 0;
   padding: 4px 8px;
+}
+
+.branch-view-switch {
+  align-self: flex-start;
+}
+
+.pr-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 360px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.pr-pill:hover {
+  background: var(--panel-3);
+}
+
+.pr-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pr-draft,
+.pr-fork {
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.pr-sign-in {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.pr-sign-in:hover {
+  text-decoration: underline;
+}
+
+.pr-create {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.pr-failure {
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.pr-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pr-row {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.pr-row-meta {
+  font-size: 12px;
 }
 
 .branch-name-status {

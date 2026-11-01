@@ -1,0 +1,106 @@
+{
+ "base": "51ff2186",
+ "grade": {
+  "letter": "A",
+  "score": 93,
+  "reasons": [
+   "all hard gates passed"
+  ]
+ },
+ "flake": {
+  "runs": 100,
+  "failures": 0
+ },
+ "mutation": {
+  "killed": 86,
+  "survived": 17,
+  "score": 83
+ },
+ "survivors": [
+  {
+   "file": "src/main/git/conflicts.ts",
+   "line": 151,
+   "description": "conditional-inversion: swap operator to <"
+  },
+  {
+   "file": "src/main/git/conflicts.ts",
+   "line": 252,
+   "description": "conditional-inversion: swap operator to !=="
+  },
+  {
+   "file": "src/main/git/conflicts.ts",
+   "line": 299,
+   "description": "conditional-inversion: swap operator to !=="
+  },
+  {
+   "file": "src/main/git/conflicts.ts",
+   "line": 315,
+   "description": "operator-swap: swap operator to ==="
+  },
+  {
+   "file": "src/main/git/conflicts.ts",
+   "line": 315,
+   "description": "conditional-inversion: swap operator to !=="
+  },
+  {
+   "file": "src/main/git/conflicts.ts",
+   "line": 325,
+   "description": "conditional-inversion: invert if condition"
+  },
+  {
+   "file": "src/main/git/conflicts.ts",
+   "line": 325,
+   "description": "conditional-inversion: swap operator to !=="
+  },
+  {
+   "file": "src/main/git/conflicts.ts",
+   "line": 328,
+   "description": "conditional-inversion: invert if condition"
+  },
+  {
+   "file": "src/main/git/conflicts.ts",
+   "line": 328,
+   "description": "conditional-inversion: swap operator to !=="
+  },
+  {
+   "file": "src/main/git/conflicts.ts",
+   "line": 335,
+   "description": "conditional-inversion: invert if condition"
+  },
+  {
+   "file": "src/main/git/conflicts.ts",
+   "line": 339,
+   "description": "conditional-inversion: invert if condition"
+  },
+  {
+   "file": "src/main/git/conflicts.ts",
+   "line": 339,
+   "description": "operator-swap: swap operator to ==="
+  },
+  {
+   "file": "src/renderer/src/source/ConflictsPanel.tsx",
+   "line": 74,
+   "description": "conditional-inversion: swap operator to >"
+  },
+  {
+   "file": "src/renderer/src/source/ConflictsPanel.tsx",
+   "line": 74,
+   "description": "conditional-inversion: swap operator to <"
+  },
+  {
+   "file": "src/renderer/src/source/ConflictsPanel.tsx",
+   "line": 81,
+   "description": "operator-swap: swap operator to -"
+  },
+  {
+   "file": "src/renderer/src/source/ConflictsPanel.tsx",
+   "line": 186,
+   "description": "conditional-inversion: swap operator to !=="
+  },
+  {
+   "file": "src/renderer/src/source/ConflictsPanel.tsx",
+   "line": 329,
+   "description": "conditional-inversion: swap operator to !=="
+  }
+ ]
+}

@@ -60,7 +60,7 @@ function failureOf(error: GitCommandError | null, signedIn: boolean): SyncFailur
 }
 
 /** Settles to the failure (any thrown error becomes a `git_failed` one), or null on success. */
-function attempt(folderPath: string, operation: SyncOperation, operationId: string): Promise<GitCommandError | null> {
+export function attempt(folderPath: string, operation: SyncOperation, operationId: string): Promise<GitCommandError | null> {
   return callGit(window.git[operation](folderPath, { operationId })).then(
     () => null,
     (error: unknown) =>

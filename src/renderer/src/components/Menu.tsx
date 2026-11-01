@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { RefObject } from 'react'
 import { Button } from './Button'
+import type { IconName } from './Icon'
 
 interface MenuItem {
   id: string
@@ -11,6 +12,8 @@ interface MenuItem {
 interface MenuProps {
   /** Accessible name of the trigger and of the menu. */
   label: string
+  /** The trigger's icon; defaults to the three-dot "more" icon. */
+  icon?: IconName
   open: boolean
   items: readonly MenuItem[]
   onOpenChange(open: boolean): void
@@ -47,7 +50,7 @@ function useDismiss(open: boolean, anchor: RefObject<HTMLElement>, dismiss: () =
   }, [open, anchor, dismiss])
 }
 
-export function Menu({ label, open, items, onOpenChange }: MenuProps): JSX.Element {
+export function Menu({ label, icon = 'more', open, items, onOpenChange }: MenuProps): JSX.Element {
   const anchor = useRef<HTMLDivElement>(null)
   useDismiss(open, anchor, () => onOpenChange(false))
   return (
@@ -55,7 +58,7 @@ export function Menu({ label, open, items, onOpenChange }: MenuProps): JSX.Eleme
       <Button
         variant="ghost"
         size="sm"
-        icon="more"
+        icon={icon}
         aria-label={label}
         aria-haspopup="menu"
         aria-expanded={open}

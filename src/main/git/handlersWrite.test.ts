@@ -24,6 +24,7 @@ function setup(): { handlers: GitHandlers; track(path: string): void; trashed: s
     },
     openPath: () => Promise.resolve(''),
     session: { getAccount: () => null, getToken: () => null },
+    client: { listOpenPullRequests: () => Promise.reject(new Error('not used')) },
     onProgress: () => undefined,
     onUnexpectedError: (error) => {
       throw error
@@ -67,6 +68,23 @@ describe('commit, undoLastCommit and discardChanges handlers', () => {
     expect(failure(await handlers.commit(r.root, { summary: ' ', description: '', files })).code).toBe('invalid_input')
     expect(failure(await handlers.commit(r.root, { summary: 'x', description: '', files: [] })).code).toBe('invalid_input')
     expect(failure(await handlers.commit(r.root, { summary: 'x', files })).code).toBe('invalid_input')
+  })
+
+  it('commits selected lines of the diff the renderer read, and maps a stale or malformed selection', async () => {
+    const r = repo()
+    put(r.root, 'file-1.txt', 'new\n')
+    const { handlers, track } = setup()
+    track(r.root)
+    const diff = await handlers.getWorkingDiff(r.root, { path: 'file-1.txt', oldPath: null, kind: 'modified' })
+    const diffHash = diff.ok ? diff.data.hash : ''
+    const commit = (lines: unknown, hash: unknown = diffHash): Promise<GitResult<{ oid: string }>> =>
+      handlers.commit(r.root, { summary: 'x', description: '', files: [{ path: 'file-1.txt', oldPath: null, lines, diffHash: hash }] })
+    for (const lines of [[-1], [0.5], ['0'], 0]) {
+      expect(failure(await commit(lines)).code).toBe('invalid_input')
+    }
+    expect(failure(await commit([0], 'f'.repeat(40))).code).toBe('stale_selection')
+    expect((await commit([2])).ok).toBe(true)
+    expect(r.git('show', 'HEAD:file-1.txt')).toBe('initial commit\n1\nnew')
   })
 })
 

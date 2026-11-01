@@ -32,3 +32,12 @@ export type FileDiff =
   | (DiffBase & { kind: 'too_large'; bytes: number })
   /** A mode-only or rename-only change. */
   | (DiffBase & { kind: 'empty' })
+
+/**
+ * The index of each changed line, per hunk and line: `add` and `delete` lines are numbered in order across the
+ * hunks, context lines get null. A line selection for a partial commit names lines by these indices.
+ */
+export function changedLineIndices(diff: Extract<FileDiff, { kind: 'text' }>): Array<Array<number | null>> {
+  let next = 0
+  return diff.hunks.map((hunk) => hunk.lines.map((line) => (line.kind === 'context' ? null : next++)))
+}

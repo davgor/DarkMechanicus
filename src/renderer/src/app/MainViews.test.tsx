@@ -9,14 +9,23 @@ afterEach(cleanup)
 describe('WelcomeView', () => {
   it('invites the person to track a folder', () => {
     const calls: string[] = []
-    render(<WelcomeView onTrack={() => calls.push('track')} />)
+    render(<WelcomeView onTrack={() => calls.push('track')} onClone={() => calls.push('clone')} />)
     expect(screen.getByRole('heading', { level: 1, name: 'Track a folder to get started' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Choose folder' }))
     expect(calls).toEqual(['track'])
   })
 
+  it('offers cloning a repository beside Choose folder', () => {
+    const calls: string[] = []
+    render(<WelcomeView onTrack={() => calls.push('track')} onClone={() => calls.push('clone')} />)
+    const clone = screen.getByRole('button', { name: 'Clone repository' })
+    expect(clone.parentElement).toBe(screen.getByRole('button', { name: 'Choose folder' }).parentElement)
+    fireEvent.click(clone)
+    expect(calls).toEqual(['clone'])
+  })
+
   it('shows the tech-priest above the heading, as a decorative image', () => {
-    render(<WelcomeView onTrack={() => undefined} />)
+    render(<WelcomeView onTrack={() => undefined} onClone={() => undefined} />)
     const image = document.querySelector('.empty-state img') as HTMLImageElement
     expect(image).toBeTruthy()
     expect(image.getAttribute('alt')).toBe('')

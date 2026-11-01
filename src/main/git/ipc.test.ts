@@ -70,7 +70,9 @@ function recordingHandlers(): { handlers: GitHandlers; calls: unknown[][] } {
   return { handlers, calls }
 }
 
-function syncHandlers(calls: unknown[][]): Pick<GitHandlers, 'fetch' | 'pull' | 'push' | 'cancelOperation'> {
+type SyncMethod = 'fetch' | 'pull' | 'push' | 'cancelOperation' | 'getCloneParent' | 'chooseCloneParent' | 'clone'
+
+function syncHandlers(calls: unknown[][]): Pick<GitHandlers, SyncMethod> {
   const operation = (name: string): GitHandlers['fetch'] => async (folder, request) => {
     calls.push([name, folder, request])
     return { ok: true, data: { kind: 'not_repository' } }
@@ -82,6 +84,18 @@ function syncHandlers(calls: unknown[][]): Pick<GitHandlers, 'fetch' | 'pull' | 
     cancelOperation: async (folder, operationId) => {
       calls.push(['cancelOperation', folder, operationId])
       return { ok: true, data: { cancelled: true } }
+    },
+    getCloneParent: async (...args: unknown[]) => {
+      calls.push(['getCloneParent', ...args])
+      return { ok: true, data: null }
+    },
+    chooseCloneParent: async (...args: unknown[]) => {
+      calls.push(['chooseCloneParent', ...args])
+      return { ok: true, data: '/parent' }
+    },
+    clone: async (request) => {
+      calls.push(['clone', request])
+      return { ok: false, error: { code: 'target_exists', message: 'x' } }
     }
   }
 }
@@ -101,19 +115,24 @@ const BRANCH_METHODS = [
 
 const CONFLICT_METHODS = ['getConflicts', 'resolveWith', 'markResolved', 'abortMerge', 'commitMerge', 'abortOperation', 'openInEditor'] as const
 
-type BranchMethod = (typeof BRANCH_METHODS)[number] | (typeof CONFLICT_METHODS)[number]
+const PULL_REQUEST_METHODS = ['getPullRequests', 'checkoutPullRequest', 'getCompareUrl', 'getCommitUrl'] as const
+
+type BranchMethod = (typeof BRANCH_METHODS)[number] | (typeof CONFLICT_METHODS)[number] | (typeof PULL_REQUEST_METHODS)[number]
 
 function branchHandlers(calls: unknown[][]): Pick<GitHandlers, BranchMethod> {
   const record = (name: string) => async (...args: unknown[]) => {
     calls.push([name, ...args])
     return { ok: false as const, error: { code: 'invalid_input' as const, message: 'x' } }
   }
-  const methods = [...BRANCH_METHODS, ...CONFLICT_METHODS]
+  const methods = [...BRANCH_METHODS, ...CONFLICT_METHODS, ...PULL_REQUEST_METHODS]
   return Object.fromEntries(methods.map((name) => [name, record(name)])) as unknown as Pick<GitHandlers, BranchMethod>
 }
 
 const CHANNELS = [
   'git:cancelOperation',
+  'git:chooseCloneParent',
+  'git:clone',
+  'git:getCloneParent',
   'git:commit',
   'git:discardChanges',
   'git:fetch',
@@ -127,7 +146,8 @@ const CHANNELS = [
   'git:push',
   'git:undoLastCommit',
   ...BRANCH_METHODS.map((name) => `git:${name}`),
-  ...CONFLICT_METHODS.map((name) => `git:${name}`)
+  ...CONFLICT_METHODS.map((name) => `git:${name}`),
+  ...PULL_REQUEST_METHODS.map((name) => `git:${name}`)
 ]
 
 describe('registerGitIpc', () => {
@@ -168,6 +188,18 @@ describe('registerGitIpc', () => {
   })
 })
 
+describe('registerGitIpc clone channels', () => {
+  it('forwards the clone request untouched; the parent channels take no argument from the renderer', async () => {
+    const ipc = createFakeIpcMain()
+    const { handlers, calls } = recordingHandlers()
+    registerGitIpc(ipc, handlers)
+    await ipc.invoke('git:getCloneParent', '/injected')
+    await ipc.invoke('git:chooseCloneParent', '/injected')
+    await ipc.invoke('git:clone', { operationId: 'c', url: 'octocat/Hello-World', name: 'Hello-World' }, '/injected')
+    expect(calls).toEqual([['getCloneParent'], ['chooseCloneParent'], ['clone', { operationId: 'c', url: 'octocat/Hello-World', name: 'Hello-World' }]])
+  })
+})
+
 describe('registerGitIpc branch channels', () => {
   it('forwards the branch and stash channels untouched', async () => {
     const ipc = createFakeIpcMain()
@@ -191,6 +223,19 @@ describe('registerGitIpc conflict channels', () => {
       await (folderOnly[name] ? ipc.invoke(`git:${name}`, '/a', 'ignored') : ipc.invoke(`git:${name}`, '/a', { name }))
     }
     expect(calls).toEqual(CONFLICT_METHODS.map((name) => (folderOnly[name] ? [name, '/a'] : [name, '/a', { name }])))
+  })
+})
+
+describe('registerGitIpc pull request channels', () => {
+  it('forwards the pull request channels untouched', async () => {
+    const ipc = createFakeIpcMain()
+    const { handlers, calls } = recordingHandlers()
+    registerGitIpc(ipc, handlers)
+    const folderOnly: Partial<Record<BranchMethod, true>> = { getCompareUrl: true }
+    for (const name of PULL_REQUEST_METHODS) {
+      await (folderOnly[name] ? ipc.invoke(`git:${name}`, '/a', 'ignored') : ipc.invoke(`git:${name}`, '/a', { name }))
+    }
+    expect(calls).toEqual(PULL_REQUEST_METHODS.map((name) => (folderOnly[name] ? [name, '/a'] : [name, '/a', { name }])))
   })
 })
 

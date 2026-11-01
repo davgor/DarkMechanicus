@@ -21,6 +21,9 @@ export function registerGitIpc(ipcMain: Pick<IpcMain, 'handle'>, handlers: GitHa
   ipcMain.handle('git:pull', (_event, folder: unknown, request: unknown) => handlers.pull(folder, request))
   ipcMain.handle('git:push', (_event, folder: unknown, request: unknown) => handlers.push(folder, request))
   ipcMain.handle('git:cancelOperation', (_event, folder: unknown, operationId: unknown) => handlers.cancelOperation(folder, operationId))
+  ipcMain.handle('git:getCloneParent', () => handlers.getCloneParent())
+  ipcMain.handle('git:chooseCloneParent', () => handlers.chooseCloneParent())
+  ipcMain.handle('git:clone', (_event, request: unknown) => handlers.clone(request))
   ipcMain.handle('git:listBranches', (_event, folder: unknown) => handlers.listBranches(folder))
   ipcMain.handle('git:checkBranchName', (_event, folder: unknown, name: unknown) => handlers.checkBranchName(folder, name))
   ipcMain.handle('git:createBranch', (_event, folder: unknown, request: unknown) => handlers.createBranch(folder, request))
@@ -38,6 +41,10 @@ export function registerGitIpc(ipcMain: Pick<IpcMain, 'handle'>, handlers: GitHa
   ipcMain.handle('git:commitMerge', (_event, folder: unknown, request: unknown) => handlers.commitMerge(folder, request))
   ipcMain.handle('git:abortOperation', (_event, folder: unknown) => handlers.abortOperation(folder))
   ipcMain.handle('git:openInEditor', (_event, folder: unknown, path: unknown) => handlers.openInEditor(folder, path))
+  ipcMain.handle('git:getPullRequests', (_event, folder: unknown, request: unknown) => handlers.getPullRequests(folder, request))
+  ipcMain.handle('git:checkoutPullRequest', (_event, folder: unknown, request: unknown) => handlers.checkoutPullRequest(folder, request))
+  ipcMain.handle('git:getCompareUrl', (_event, folder: unknown) => handlers.getCompareUrl(folder))
+  ipcMain.handle('git:getCommitUrl', (_event, folder: unknown, oid: unknown) => handlers.getCommitUrl(folder, oid))
 }
 
 /** What the broadcaster needs of a `BrowserWindow`. */

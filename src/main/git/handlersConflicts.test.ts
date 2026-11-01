@@ -43,6 +43,7 @@ function setup(): { handlers: GitHandlers; r: GitRepo; opened: string[] } {
       return Promise.resolve('')
     },
     session: { getAccount: () => null, getToken: () => null },
+    client: { listOpenPullRequests: () => Promise.reject(new Error('not used')) },
     onProgress: () => undefined,
     onUnexpectedError: (error) => {
       throw error

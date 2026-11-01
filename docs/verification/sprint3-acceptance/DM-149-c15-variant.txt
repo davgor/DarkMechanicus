@@ -1,0 +1,13 @@
+uptime before: 3:53  up 4 days, 57 mins, 12 users, load averages: 21.19 22.84 30.43
+origin: ext::/private/tmp/sc-epic/scratch/DM-149/stall2.sh | stall.sh: #!/bin/sh ⏎ # ext:: helper that prints one stderr line, then never answers ⏎ echo "stall-helper: waiting for the server" >&2 ⏎ exec sleep 300
+userData: <temp profile>
+button before: Fetch origin Never fetched
+button while fetching (3 s): Fetch origin Never fetched | helper processes: 2
+shot: DM-149-c15-variant-fetching.png
+timeout shown after 61.1 s (from the click)
+message: ["The connection stalled: git made no progress for 60 seconds.\n\nDetails\nDismiss"]
+detail block: "Details\nstall-helper: waiting for the server"
+button after: Fetch origin Last fetched 1 minute ago
+shot: DM-149-c15-variant-stall-timeout.png
+helper processes 3 s after the timeout: 0
+uptime after: 3:54  up 4 days, 58 mins, 12 users, load averages: 21.38 22.37 29.69

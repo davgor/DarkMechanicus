@@ -3,20 +3,26 @@
  * answers `signInResult` at once when a test sets it, else stays pending until `finishSignIn`; a call
  * while one is pending gets the same promise, and a successful one broadcasts the account before it
  * answers, as main does. `changeAccount` is main reporting a change; sign-out ends a pending sign-in
- * with `cancelled` and broadcasts too.
+ * with `cancelled` and broadcasts too. `listRepositories` answers `repositories` while signed in and
+ * `auth_required` while signed out, as main does.
  */
 import type { GitResult } from '../../../shared/git/api'
-import type { GithubAccountView, GithubApi } from '../../../shared/github/api'
+import type { GithubAccountView, GithubApi, GithubRepository } from '../../../shared/github/api'
 
-type FakeGithubCall = 'getAccount' | 'signIn' | 'signOut'
+type FakeGithubCall = 'getAccount' | 'signIn' | 'signOut' | 'listRepositories'
 
 type SignInAnswer = GitResult<GithubAccountView>
+type ListRepositoriesRequest = Parameters<GithubApi['listRepositories']>[0]
 
 export class FakeGithub implements GithubApi {
   readonly calls: FakeGithubCall[] = []
   account: GithubAccountView | null = null
   /** What `signIn` answers at once; null keeps it pending until `finishSignIn`. */
   signInResult: SignInAnswer | null = null
+  /** The account's repositories `listRepositories` answers while signed in. */
+  repositories: GithubRepository[] = []
+  /** The request of each `listRepositories` call. */
+  readonly listRequests: Array<ListRepositoriesRequest | undefined> = []
   private pending: { promise: Promise<SignInAnswer>; finish(result: SignInAnswer): void } | null = null
   private readonly accountListeners = new Set<(account: GithubAccountView | null) => void>()
 
@@ -62,6 +68,15 @@ export class FakeGithub implements GithubApi {
     this.finishSignIn({ ok: false, error: { code: 'cancelled', message: 'Sign-in was cancelled.' } })
     this.changeAccount(null)
     return Promise.resolve({ ok: true, data: null })
+  }
+
+  listRepositories(request?: ListRepositoriesRequest): Promise<GitResult<GithubRepository[]>> {
+    this.calls.push('listRepositories')
+    this.listRequests.push(request)
+    if (this.account === null) {
+      return Promise.resolve({ ok: false, error: { code: 'auth_required', message: 'Sign in to GitHub again: the sign-in is missing or no longer valid.' } })
+    }
+    return Promise.resolve({ ok: true, data: this.repositories })
   }
 
   onAccountChanged(listener: (account: GithubAccountView | null) => void): () => void {

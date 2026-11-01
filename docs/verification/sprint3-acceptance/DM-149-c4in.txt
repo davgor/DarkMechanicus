@@ -1,0 +1,7 @@
+scratch-gh: branch feature-unpublished | upstream: (none) | pushurl: /private/tmp/sc-epic/scratch/DM-149/push-sink.git
+userData: <temp profile>
+signed in as: davgor
+toolbar (unpublished branch): Current branch feature-unpublished Push and create pull request Publish branch Never fetched
+shot: DM-149-c4-push-and-create-pull-request.png
+signed out: {"ok":true,"data":null} | account now: {"ok":true,"data":null}
+push-sink refs after run: ""

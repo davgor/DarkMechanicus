@@ -98,6 +98,8 @@ export interface ShellActions {
   openAgent(id: AgentId): void
   changed(path: string): void
   track(): Promise<void>
+  /** A clone finished and main tracks the new folder: reloads the folders and selects it. */
+  cloned(folder: TrackedFolderView): Promise<void>
   untrack(path: string): Promise<void>
   initialize(folder: TrackedFolderView, options: InitializeOptions): Promise<void>
   /** Creates a chat in the folder with the choice made, and opens it; resolves with it, or null after reporting why it could not be created. */
@@ -190,7 +192,7 @@ function linkActions(deps: ShellDeps): Pick<ShellActions, 'openTicket' | 'openTh
   }
 }
 
-function folderActions(deps: ShellDeps, selectFolder: (path: string) => void): Pick<ShellActions, 'track' | 'untrack'> {
+function folderActions(deps: ShellDeps, selectFolder: (path: string) => void): Pick<ShellActions, 'track' | 'cloned' | 'untrack'> {
   return {
     track: async () => {
       await guarded(deps, async () => {
@@ -199,6 +201,10 @@ function folderActions(deps: ShellDeps, selectFolder: (path: string) => void): P
         selectFolder(folder.path)
         if (!added) deps.toasts.push('info', `${folder.name} is already tracked.`)
       })
+    },
+    cloned: async (folder) => {
+      await guarded(deps, () => deps.folders.reload())
+      selectFolder(folder.path)
     },
     untrack: async (path) => {
       await guarded(deps, () => deps.folders.untrack(path))

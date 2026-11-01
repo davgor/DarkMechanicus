@@ -37,6 +37,7 @@ function setup(runner: GitRunner = createGitRunner()): {
     },
     openPath: () => Promise.resolve(''),
     session: signedOut,
+    client: { listOpenPullRequests: () => Promise.reject(new Error('not used')) },
     onProgress: (event) => events.push(event),
     onUnexpectedError: (error) => unexpected.push(error)
   })
@@ -213,6 +214,7 @@ describe('error mapping', () => {
       trashItem: () => Promise.resolve(),
       openPath: () => Promise.resolve(''),
       session: signedOut,
+      client: { listOpenPullRequests: () => Promise.reject(new Error('not used')) },
       onProgress: () => undefined,
       onUnexpectedError: () => {
         throw new Error('logger down')
