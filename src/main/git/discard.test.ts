@@ -114,7 +114,8 @@ describe('discardFiles added and renamed files', () => {
   })
 })
 
-describe('discardFiles with pathspec-magic file names', () => {
+// Windows allows neither ':' nor '*' in a file name, so these files cannot exist there.
+describe.skipIf(process.platform === 'win32')('discardFiles with pathspec-magic file names', () => {
   function tracked(names: string[]): GitRepo {
     const r = repo()
     names.forEach((name) => put(r.root, name, `${name} committed\n`))

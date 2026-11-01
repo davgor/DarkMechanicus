@@ -39,7 +39,7 @@ let moved: string
 
 beforeEach(() => {
   // Canonical from the start: on macOS the temporary directory is reached through the /var symlink.
-  root = realpathSync(mkdtempSync(join(tmpdir(), 'dm-chat-grants-')))
+  root = realpathSync.native(mkdtempSync(join(tmpdir(), 'dm-chat-grants-')))
   repo = join(root, 'scratch-a')
   moved = join(root, 'scratch-a-renamed')
   mkdirSync(repo)
@@ -103,7 +103,8 @@ async function liveChat(state: Rig): Promise<string> {
 }
 
 describe('chat grants: revoked through the workspace they were issued in', () => {
-  it('revokes the grant of a chat whose folder was renamed while it ran', async () => {
+  // Windows refuses to rename a folder while the workspace holds its state.sqlite open, so it cannot happen there.
+  it.skipIf(process.platform === 'win32')('revokes the grant of a chat whose folder was renamed while it ran', async () => {
     const state = await rig()
     const grantId = await liveChat(state)
     renameSync(repo, moved)

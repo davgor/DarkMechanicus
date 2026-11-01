@@ -291,7 +291,8 @@ describe('undoLastCommit when HEAD moves between its checks and its write', () =
   })
 })
 
-describe('commitFiles with pathspec-magic file names', () => {
+// Windows allows neither ':' nor '*' in a file name, so these files cannot exist there.
+describe.skipIf(process.platform === 'win32')('commitFiles with pathspec-magic file names', () => {
   it('commits only a chosen file named :/a, leaving a changed file a uncommitted', async () => {
     const r = repo()
     put(r.root, ':/a', 'magic\n')

@@ -136,7 +136,8 @@ describe('no prompt ever waits (c3)', () => {
   it("a non-GitHub remote uses the machine's own helper even when signed in, and its rejection is auth_failed", async () => {
     const server = await authServer()
     const helper = markerScript('helper', 'echo username=machine\necho password=wrong\n')
-    gitIn(home, 'config', '--file', globalConfig, 'credential.helper', helper.path)
+    // Git runs the helper through sh, which would read a Windows path's backslashes as escapes.
+    gitIn(home, 'config', '--file', globalConfig, 'credential.helper', helper.path.replaceAll('\\', '/'))
     const r = repoWithOrigin(server.url)
     const sync = createSync({ runner: createGitRunner(), session: signedIn, onProgress: () => undefined, env: {} })
     const error = await failureOf(sync.run('fetch', r.root, 'op'))

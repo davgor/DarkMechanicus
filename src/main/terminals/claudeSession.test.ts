@@ -15,7 +15,7 @@ const FOLDER = '/private/tmp/My Repo_2.0'
 let home: string
 
 beforeEach(() => {
-  home = realpathSync(mkdtempSync(join(tmpdir(), 'dm-claude-session-')))
+  home = realpathSync.native(mkdtempSync(join(tmpdir(), 'dm-claude-session-')))
 })
 
 afterEach(() => {

@@ -38,6 +38,7 @@ export interface GitRunRequest {
 
 interface ReadableLike {
   on(event: 'data', listener: (chunk: Buffer | string) => void): unknown
+  destroy(): unknown
 }
 
 /** The part of a child process the runner uses, so tests can fake it. */
@@ -48,7 +49,7 @@ export interface ChildLike {
   stdin: { end(data?: string): unknown; on(event: 'error', listener: () => void): unknown } | null
   kill(signal?: NodeJS.Signals | number): boolean
   on(event: 'error', listener: (error: NodeJS.ErrnoException) => void): unknown
-  on(event: 'close', listener: (code: number | null, signal: NodeJS.Signals | null) => void): unknown
+  on(event: 'exit' | 'close', listener: (code: number | null, signal: NodeJS.Signals | null) => void): unknown
 }
 
 export type SpawnFn = (command: string, args: readonly string[], options: SpawnOptions) => ChildLike
@@ -187,6 +188,8 @@ class Execution {
   private resolveRun: (result: GitRunResult) => void = () => undefined
   private rejectRun: (error: GitError) => void = () => undefined
   private gone = false
+  /** Whether a cancel, timeout or stall ended git with a kill of its tree. */
+  private killed = false
   private markGone: () => void = () => undefined
   readonly exited: Promise<void>
 
@@ -240,6 +243,15 @@ class Execution {
       this.markGone()
       this.finish(spawnFailure(error), false)
     })
+    child.on('exit', () => {
+      // On Windows, taskkill does not always reach the children a killed git left running (an sh and its sleep, an
+      // ssh), and they hold its output pipes open, so 'close' would wait for them. Nothing reads a killed git's
+      // output, so its pipes are closed once git itself has exited. Elsewhere the kill ends git's whole group.
+      if (this.killed && this.ctx.platform === 'win32') {
+        child.stdout?.destroy()
+        child.stderr?.destroy()
+      }
+    })
     child.on('close', (code) => {
       this.markGone()
       this.closed(code)
@@ -279,6 +291,7 @@ class Execution {
     }
     this.release()
     if (kill && this.child !== null) {
+      this.killed = true
       killTree(this.ctx, this.child, () => this.gone)
     }
     this.rejectRun(error)

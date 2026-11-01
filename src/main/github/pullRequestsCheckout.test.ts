@@ -94,13 +94,18 @@ function openLocal(root: string): Local {
   }
 }
 
+/** A path as git writes it into a config file, which doubles every backslash (all of a Windows path's). */
+function inConfig(path: string): string {
+  return path.replaceAll('\\', '\\\\')
+}
+
 /** A fresh copy of a template pair; the copy's config names its own bare origin. */
 function copyTemplate(template: string): { local: Local; bare: string } {
   const dir = scratchDir('dm-pr-')
   cleanups.push(dir.cleanup)
   cpSync(template, dir.path, { recursive: true })
   const config = join(dir.path, 'repo', '.git', 'config')
-  writeFileSync(config, readFileSync(config, 'utf8').replaceAll(template, dir.path))
+  writeFileSync(config, readFileSync(config, 'utf8').replaceAll(inConfig(template), inConfig(dir.path)))
   return { local: openLocal(join(dir.path, 'repo')), bare: join(dir.path, 'origin.git') }
 }
 

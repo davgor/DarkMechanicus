@@ -172,7 +172,8 @@ describe('commitFiles with selected lines keeps bytes, paths and modes', () => {
     expect(r.git('ls-tree', 'HEAD', '--', 'old.txt')).toBe('')
   })
 
-  it('keeps a mode change', async () => {
+  // Git on Windows ignores the executable bit (core.fileMode is false), as for the mode-only diff in diff.test.ts.
+  it.skipIf(process.platform === 'win32')('keeps a mode change', async () => {
     const r = repo()
     base(r, 'run.sh', 'echo a\necho b\n')
     put(r.root, 'run.sh', 'echo A\necho b\necho c\n')

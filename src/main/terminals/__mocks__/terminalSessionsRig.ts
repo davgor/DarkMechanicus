@@ -259,8 +259,9 @@ function rigDeps(rig: RigBase, options: RigOptions): TerminalSessionsDeps {
 }
 
 export function terminalRig(options: RigOptions = {}): TerminalRig {
-  // Canonical from the start: on macOS the temporary directory is reached through the /var symlink.
-  const root = realpathSync(mkdtempSync(join(tmpdir(), 'dm-terminals-')))
+  // Canonical from the start: on macOS the temporary directory is reached through the /var symlink, and on Windows
+  // it can be an 8.3 short name (C:\Users\RUNNER~1) that only the native realpath expands.
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'dm-terminals-')))
   const repo = join(root, 'repo')
   mkdirSync(repo)
   const chatFs = memoryChatFs([repo])

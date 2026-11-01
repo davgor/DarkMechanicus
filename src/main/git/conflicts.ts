@@ -6,7 +6,7 @@
  * only a plain, non-executable file that no OS runs by its name is handed to the default app.
  */
 import { open } from 'node:fs/promises'
-import { existsSync, readFileSync, realpathSync, statSync, type Stats } from 'node:fs'
+import { existsSync, lstatSync, readFileSync, realpathSync, statSync, type Stats } from 'node:fs'
 import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import type { CommitMergeRequest, ConflictFile, ConflictKind, ConflictState, MarkResolvedRequest, ResolveRequest } from '../../shared/git/conflicts'
 import type { RepoState, RepoStatus } from '../../shared/git/status'
@@ -213,6 +213,24 @@ interface FoundConflict {
   entry: Unmerged
 }
 
+/**
+ * Whether a folder on the way to `path` (git's `/`-separated path) is a link. Git refuses to stage a path beyond a
+ * symbolic link, but git for Windows takes a junction for a plain folder and would stage a file from wherever it leads.
+ */
+function beyondLink(root: string, path: string): boolean {
+  const folders = path.split('/').slice(0, -1)
+  for (let depth = 1; depth <= folders.length; depth += 1) {
+    try {
+      if (lstatSync(join(root, ...folders.slice(0, depth))).isSymbolicLink()) {
+        return true
+      }
+    } catch {
+      return false
+    }
+  }
+  return false
+}
+
 /** The unmerged entry for exactly `path`; any other path (outside, normalized differently, not unmerged) is refused. */
 async function findConflict(runner: GitRunner, folder: string, path: string): Promise<FoundConflict> {
   checkPaths([path])
@@ -251,6 +269,9 @@ export async function resolveWith(runner: GitRunner, folder: string, request: Re
 /** Stages a file resolved by hand (its deletion when it is gone); refused while conflict markers remain. */
 export async function markResolved(runner: GitRunner, folder: string, request: MarkResolvedRequest): Promise<RepoState> {
   const { status, entry } = await findConflict(runner, folder, request.path)
+  if (beyondLink(status.root, request.path)) {
+    throw new GitInputError(`${request.path} is reached through a linked folder, so it is not staged.`)
+  }
   const { markers } = entry.file
   if (markers > 0) {
     throw new GitError('conflict_markers_remain', '', `${request.path} still has ${markers} conflict ${markers === 1 ? 'marker' : 'markers'}.`)

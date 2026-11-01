@@ -1,3 +1,4 @@
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { PlanBundle, TicketContent } from '../../shared/domain/bundle'
 import type { EventView } from '../../shared/domain/views'
@@ -705,6 +706,9 @@ const WEB_HEAD = '3'.repeat(40)
 const DOCS_HEAD = '4'.repeat(40)
 const FOLDER_BRANCH = 'epic/multi'
 const HEADS: Record<string, string> = { api: API_HEAD, web: WEB_HEAD, docs: DOCS_HEAD }
+/** Where the packets put api and web: joined the way this system joins paths. */
+const API_PATH = join('/folder', 'api')
+const WEB_PATH = join('/folder', 'web')
 
 /** A folder of repositories at `/folder` holding api, web and docs, each on its own HEAD. */
 function folderCtx(missingRepositories: string[] = []): TestCtx {
@@ -745,10 +749,10 @@ describe('claimTicket — packets in a folder of repositories', () => {
     const runId = folderRun(ctx, [{ repo: 'api' }, { repo: 'web' }])
     const api = claim(ctx, runId, 1).packet
     const web = claim(ctx, runId, 2).packet
-    expect(api.repository).toEqual({ name: 'api', path: '/folder/api', branch: bound('api') })
-    expect(web.repository).toEqual({ name: 'web', path: '/folder/web', branch: bound('web') })
-    expect(api.reporting.instructions).toContain(`Work only in a worktree of repository.path (/folder/api), on that repository's branch ${FOLDER_BRANCH}.`)
-    expect(web.reporting.instructions).toContain('/folder/web')
+    expect(api.repository).toEqual({ name: 'api', path: API_PATH, branch: bound('api') })
+    expect(web.repository).toEqual({ name: 'web', path: WEB_PATH, branch: bound('web') })
+    expect(api.reporting.instructions).toContain(`Work only in a worktree of repository.path (${API_PATH}), on that repository's branch ${FOLDER_BRANCH}.`)
+    expect(web.reporting.instructions).toContain(WEB_PATH)
     expect(Object.keys(api)).not.toContain('repositories')
   })
 
@@ -763,8 +767,8 @@ describe('claimTicket — packets in a folder of repositories', () => {
     }
     const node = claim(ctx, runId, 5).packet
     expect(node.repositories).toEqual([
-      { name: 'api', path: '/folder/api', branch: bound('api') },
-      { name: 'web', path: '/folder/web', branch: bound('web') }
+      { name: 'api', path: API_PATH, branch: bound('api') },
+      { name: 'web', path: WEB_PATH, branch: bound('web') }
     ])
     expect(Object.keys(node)).not.toContain('repository')
   })

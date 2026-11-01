@@ -1,6 +1,6 @@
 /** A real temporary Git repository, for tests that need real history (ancestry, merges, squashes). Not shipped. */
 import { execFileSync, type ExecFileSyncOptionsWithStringEncoding } from 'node:child_process'
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { removeScratch } from './removeScratch'
 import { createTempRepo, type TempRepo } from './tempRepo'
@@ -94,13 +94,23 @@ function runGit(deps: GitRepoDeps, root: string, args: string[]): string {
   return deps.execFileSync('git', ['-C', root, ...CONFIG, ...args], { encoding: 'utf8', env: gitEnv(), stdio: ['ignore', 'pipe', 'pipe'] }).trim()
 }
 
+/**
+ * `git init` on `main`, with the identity in the repository's own config: the code under test runs git without this
+ * helper's `-c` options, and on a machine with no global identity (a CI runner) its commits would be refused.
+ */
+function initRepository(deps: GitRepoDeps, root: string): void {
+  runGit(deps, root, ['init', '-q', '-b', 'main'])
+  // Written straight into the file: a `git config` process each costs tests that build many repositories.
+  appendFileSync(join(root, '.git', 'config'), '[user]\n\tname = Test\n\temail = test@example.com\n')
+}
+
 /** A temp folder holding a new, empty repository on `main`; each failed attempt's folder is removed. */
 function initFolder(deps: GitRepoDeps): TempRepo {
   for (let attempt = 1; ; attempt += 1) {
     let temp: TempRepo | undefined
     try {
       temp = deps.createTempRepo()
-      runGit(deps, temp.root, ['init', '-q', '-b', 'main'])
+      initRepository(deps, temp.root)
       return temp
     } catch (error: unknown) {
       if (temp !== undefined) {
@@ -129,7 +139,7 @@ export function createGitRepo(options: { root?: string } & Partial<GitRepoDeps> 
   const root = at ?? temp?.root ?? ''
   if (temp === null) {
     mkdirSync(root)
-    runGit(deps, root, ['init', '-q', '-b', 'main'])
+    initRepository(deps, root)
   }
   let counter = 0
   const git = (...args: string[]): string => runGit(deps, root, args)

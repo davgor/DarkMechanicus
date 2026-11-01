@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { join, resolve, sep } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createMemoryFs, type MemoryFs } from '../../test/memoryFs'
 import { domainErrorOf, T0 } from '../../test/repoFixtures'
@@ -297,11 +297,11 @@ function folderOfRepos(): string {
   return parent
 }
 
-/** Every entry under `dir` (recursively) with its modification time. */
+/** Every entry under `dir` (recursively, named with `/` on every system) with its modification time. */
 function snapshot(dir: string): Record<string, number> {
   const out: Record<string, number> = { '.': statSync(dir).mtimeMs }
   for (const entry of readdirSync(dir, { encoding: 'utf8', recursive: true })) {
-    out[entry] = statSync(join(dir, entry)).mtimeMs
+    out[entry.split(sep).join('/')] = statSync(join(dir, entry)).mtimeMs
   }
   return out
 }

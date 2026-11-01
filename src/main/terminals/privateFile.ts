@@ -7,7 +7,33 @@ import { randomUUID } from 'node:crypto'
 import { chmod, mkdir, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 
-export async function writePrivateFile(path: string, text: string, mode: 0o600 | 0o700): Promise<void> {
+type Rename = (from: string, to: string) => Promise<void>
+
+/**
+ * What Windows answers a rename onto a path that another rename is replacing at that moment, or that a reader holds
+ * open, as two starts of one chat writing at once do. It passes, so the rename is tried again for a short while.
+ */
+const REFUSED_FOR_NOW: ReadonlySet<string> = new Set(['EPERM', 'EACCES', 'EBUSY'])
+const RENAME_TRIES = 10
+/** The wait after the first refused try; it grows by this much after each one (450 ms in all). */
+const RENAME_BACKOFF_MS = 10
+
+async function renameOver(from: string, to: string, renameFile: Rename): Promise<void> {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      await renameFile(from, to)
+      return
+    } catch (error: unknown) {
+      const code = error instanceof Error && 'code' in error ? String(error.code) : ''
+      if (attempt === RENAME_TRIES || !REFUSED_FOR_NOW.has(code)) {
+        throw error
+      }
+      await new Promise((resolve) => setTimeout(resolve, RENAME_BACKOFF_MS * attempt))
+    }
+  }
+}
+
+export async function writePrivateFile(path: string, text: string, mode: 0o600 | 0o700, renameFile: Rename = rename): Promise<void> {
   const folder = dirname(path)
   await mkdir(folder, { recursive: true, mode: 0o700 })
   await chmod(folder, 0o700)
@@ -16,7 +42,7 @@ export async function writePrivateFile(path: string, text: string, mode: 0o600 |
   try {
     await writeFile(staged, text, { mode, flag: 'wx' })
     await chmod(staged, mode)
-    await rename(staged, path)
+    await renameOver(staged, path, renameFile)
   } finally {
     await rm(staged, { force: true })
   }

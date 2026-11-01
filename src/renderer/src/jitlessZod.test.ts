@@ -11,6 +11,7 @@ describe('jitlessZod', () => {
 
   it('is the first module the renderer entry loads, before any schema is built', () => {
     const entry = readFileSync(join(import.meta.dirname, 'main.tsx'), 'utf8')
-    expect(entry.split('\n')[0]).toBe("import './jitlessZod'")
+    // A Windows checkout may end its lines with CRLF.
+    expect(entry.split(/\r?\n/)[0]).toBe("import './jitlessZod'")
   })
 })

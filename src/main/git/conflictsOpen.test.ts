@@ -157,7 +157,8 @@ function conflictedFile(name: string, mode?: number): GitRepo {
 }
 
 describe('openInEditor never launches a program', () => {
-  it('refuses an executable file, which the default app could run', async () => {
+  // Windows keeps no executable bit; it runs a file by its extension, which the tests below cover.
+  it.skipIf(process.platform === 'win32')('refuses an executable file, which the default app could run', async () => {
     const r = conflictedFile('setup', 0o755)
     const { openPath, opened } = opener()
     await expect(openInEditor(runner, r.root, 'setup', { openPath })).rejects.toThrow(/could run as a program/)
